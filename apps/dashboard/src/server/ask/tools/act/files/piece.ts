@@ -63,7 +63,17 @@ const pieceLookKeyOf = (plan: PiecePlan): string =>
   createHash("sha256").update(JSON.stringify(plan)).digest("hex").slice(0, 10);
 
 const LOOK_NOTE =
-  "Look at the storyboard with the owner's eyes. Each tile is one block, in the order they play, drawn as the video will show it: a clip's first frame, a photo, a pair's two pictures, a card's words, with the opening words on every picture they are on. Do any words cover a face, or the very thing the video is showing? Then move the opening words (words_at), let them leave with the first block (words_hold first), shorten a label, or choose another moment. Does the first tile show what the words say? Does a pair show the same person from the same side? Does each card read at a glance? Once it is right, call again with the same plan and looked set to look_key, and say beside that call the rest of what was asked. If something is off, call again with what you changed and no looked.";
+  "Look at the storyboard with the owner's eyes. Each tile is one block, in the order they play, drawn as the video will show it: a clip's first frame, a photo, a pair's two pictures (the before above the after), a card's words, with the opening words on every picture they are on. Do any words cover a face, or the very thing the video is showing? Then move the opening words (words_at), let them leave with the first block (words_hold first), shorten a label, or choose another moment. Does the first tile show what the words say? Does a pair show the same person from the same side, its before truly before the work began? Does any block repeat the one beside it: the same moment twice, the same words twice, a quote the opening words already gave away? Then cut one, or change it. Does each card read at a glance? Once it is right, call again with the same plan and looked set to look_key, and say beside that call the rest of what was asked. If something is off, call again with what you changed and no looked.";
+
+/** Said at the look of a video that shows no file of theirs: what to ask the owner for, beside its card. */
+const NOTHING_FILMED_NOTE =
+  "This video shows none of their work, only words. Beside the call that makes the card, tell the owner which two or three short clips to film, so the next one can show it.";
+
+/** What Ask is told as it looks at a plan's storyboard: what to look for, and what a plan of words alone still owes its owner. */
+function lookNoteOf(plan: PiecePlan): string {
+  const count = pieceCountOf(plan);
+  return count.clips + count.photos === 0 ? `${LOOK_NOTE} ${NOTHING_FILMED_NOTE}` : LOOK_NOTE;
+}
 
 /** How many reviews a quote is looked for in: the newest, which are the ones Ask can have read. */
 const REVIEWS_READ = 300;
@@ -81,7 +91,7 @@ const blockInput = z.object({
   is: z
     .enum(BLOCK_KINDS)
     .describe(
-      "clip plays a clip's moment; photo shows a photo, moving slowly; pair holds a before and an after still; words is a card of words; quote is a client's words.",
+      "clip plays a clip's moment; photo shows a photo, moving slowly; pair holds a before over an after, still; words is a card of words; quote is a client's words.",
     ),
   file: z.string().optional().describe("clip, photo: its file's name, as files says it."),
   from: time.optional().describe("clip: where the moment starts, as M:SS.s or seconds."),
@@ -128,7 +138,7 @@ const pieceInput = z.object({
     .min(PIECE_LIMITS.blocksMin)
     .max(PIECE_LIMITS.blocksMax)
     .describe(
-      `The blocks in play order, chosen after opening each file with files (view; zoom on a clip's stretch). Together ${PIECE_LIMITS.reelMinS} to ${PIECE_LIMITS.reelMaxS} seconds; the end card follows by itself. Each says what it is and gives the fields of its kind.`,
+      `The blocks in play order. Together ${PIECE_LIMITS.reelMinS} to ${PIECE_LIMITS.reelMaxS} seconds; the end card follows by itself. Each says what it is and gives the fields of its kind.`,
     ),
   lines: z
     .array(z.string())
@@ -373,7 +383,11 @@ async function quotesSourced(toolContext: ToolContext, plan: PiecePlan, owner: s
 type Checked = Extract<Awaited<ReturnType<typeof checkPieceClips>>, { ok: true }>;
 
 /** The storyboard, shown to the model to look at: no card yet, and the key a second call carries. */
-async function boardShownFirst(toolContext: ToolContext, checked: Checked, key: string): Promise<ProposalOutcome> {
+async function boardShownFirst(
+  toolContext: ToolContext,
+  checked: Checked,
+  look: { key: string; note: string },
+): Promise<ProposalOutcome> {
   let bytes: Buffer;
   try {
     bytes = await drawPieceBoard(toolContext.ctx, toolContext.tenantId, checked);
@@ -386,7 +400,7 @@ async function boardShownFirst(toolContext: ToolContext, checked: Checked, key: 
     { bytes, mime: "image/jpeg", name: "video-storyboard.jpg" },
     timeLeftOf(toolContext),
   );
-  const drawn = { drawn: true, look_key: key };
+  const drawn = { drawn: true, look_key: look.key };
   if (!held)
     return {
       proposal: null,
@@ -403,7 +417,7 @@ async function boardShownFirst(toolContext: ToolContext, checked: Checked, key: 
     fileId: held.fileId,
     size: [held.width ?? 0, held.height ?? 0],
   };
-  return { proposal: null, isError: false, result: JSON.stringify({ ...drawn, note: LOOK_NOTE }), pictures: [picture] };
+  return { proposal: null, isError: false, result: JSON.stringify({ ...drawn, note: look.note }), pictures: [picture] };
 }
 
 /** The plan a call asks for, its files by their ids, or the refusal that names the block it could not build. */
@@ -456,12 +470,13 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
       return refuse(
         `looked ${input.looked} is not this plan's key: the plan changed since you looked. Call again without looked, and look at the storyboard as it is drawn now.`,
       );
-    return boardShownFirst(toolContext, checked, key);
+    return boardShownFirst(toolContext, checked, { key, note: lookNoteOf(plan) });
   }
   const says = pieceWordsIn(plan.language);
   return propose({
     kind: "piece",
-    title: says.cardTitle(pieceOpeningOf(plan)[0] ?? ""),
+    // Both opening lines: a phrase a line could not hold is broken across two, and its row on Content joins them too.
+    title: says.cardTitle(pieceOpeningOf(plan).join(" ")),
     summary: says.summary(pieceCountOf(plan), pieceSecondsOf(checked.timeline)),
     payload: plan,
   });
@@ -469,7 +484,7 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
 
 export const pieceAct = defineAct({
   name: "propose_piece",
-  description: `Make a short video from the business's own clips and photos: upright, 8 to 15 seconds, built from blocks you arrange for this request, then a card with the business's name. A machine draws it once the owner presses Make it, in about a minute, and it lands in Files. Open the files with files first and choose real moments; then call this. The first call draws a storyboard and shows it to you: look at it with the owner's eyes, change the plan if words sit on a face or a block reads badly, and call again with looked set to its look_key; only then is the card made, and that call ends the turn, so answer the rest of what they asked beside it, in the same message. Use it for a video or a reel, from what they filmed, from their photos, or from words alone; for one picture with words, propose_post. ${PIECE_RECIPES} ${approvalWords("piece")}.`,
+  description: `Make a short video from the business's own clips and photos: upright, 8 to 15 seconds, built from blocks you arrange for this request, then a card with the business's name. A machine draws it once the owner presses Make it, in about a minute, and it lands in Files. Open the files with files first (view; zoom on a clip's stretch) and choose real moments; then call this. The first call draws a storyboard and shows it to you: look at it with the owner's eyes, change the plan if words sit on a face or a block reads badly, and call again with looked set to its look_key; only then is the card made, and that call ends the turn, so answer the rest of what they asked beside it, in the same message. Use it for a video or a reel from their clips, their photos or words alone; for one picture with words, propose_post. ${PIECE_RECIPES} ${approvalWords("piece")}.`,
   kind: "piece",
   input: pieceInput,
   label: "Planning a video",

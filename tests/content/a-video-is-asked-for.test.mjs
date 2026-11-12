@@ -351,6 +351,10 @@ test("the first call makes no card: it draws the storyboard and shows it to Ask,
   assert.equal(said.drawn, true);
   assert.match(said.look_key, /^[0-9a-f]{10}$/);
   assert.match(said.note, /cover a face/);
+  // The look is also where a block that repeats its neighbour is caught, and a before that is not one.
+  assert.match(said.note, /repeat the one beside it/);
+  assert.match(said.note, /the before above the after/);
+  assert.doesNotMatch(said.note, /clips to film/, "a video that shows their work asks for no more of it");
   // Each cut's first frame, a tenth of a second inside it, asked of the clip's own folder.
   assert.deepEqual(frameKnocks, [2.4, 4.9, 7.4, 9.9]);
   assert.deepEqual(shown, [{ name: "video-storyboard.jpg", format: "jpeg", width: 4 * 360 + 3 * 12, height: 684 }]);
@@ -361,7 +365,9 @@ test("the card is made by the call that carries the look's key: the plan its pre
   const out = await asked({});
   assert.equal(out.proposal?.kind, "piece", out.result);
   assert.equal(out.proposal.needs, "partner");
-  assert.equal(out.proposal.title, "Video: I asked for volume");
+  // Titled by its opening words, both lines: a phrase broken across two is one title, as its row on Content says it.
+  assert.equal(out.proposal.title, "Video: I asked for volume Did I get it?");
+  assert.equal((await asked({ lines: ["How we get", "the volume"] })).proposal?.title, "Video: How we get the volume");
   // How long, which way up, what from: one clip here.
   assert.equal(out.proposal.summary, PIECE_WORDS.summary({ blocks: 4, moments: 4, clips: 1, photos: 0 }, 10.4));
   assert.equal(out.proposal.summary, "10 seconds, vertical. 4 moments from your clip.");
@@ -473,7 +479,7 @@ test("a video from photos alone makes a card: each photo by the name files says,
     { is: "photo", file_id: PHOTO_2, seconds: 3, label: null },
     { is: "photo", file_id: PHOTO_3, seconds: 3, label: null },
   ]);
-  assert.equal(out.proposal.title, "Video: I asked for volume");
+  assert.equal(out.proposal.title, "Video: I asked for volume Did I get it?");
   // Nine seconds of photos and the end card after them.
   assert.equal(out.proposal.summary, "11 seconds, vertical. 3 parts from 3 of your photos.");
 });
@@ -557,6 +563,9 @@ test("a video may open on a card: it has no opening words, and is known by its f
     { is: "words", lines: ["Walk-ins", "welcome"], seconds: 2.5 },
     { is: "words", lines: ["Come see us"], seconds: 2.5 },
   ];
+  // A video that shows none of their work: the look says to ask for what to film, beside the card.
+  const looked = await askedOnce({ blocks: cards, lines: [] });
+  assert.match(JSON.parse(looked.result).note, /which two or three short clips to film/);
   const out = await arranged({ blocks: cards, lines: [] });
   assert.equal(out.proposal?.kind, "piece", out.result);
   assert.equal(out.proposal.title, "Video: New in town?");
@@ -575,6 +584,10 @@ test("Ask is offered blocks and the ways to arrange them: the cuts it took befor
   for (const way of ["Hook first:", "Before and after:", "Steps:", "A review:", "From photos:", "Words only"])
     assert.ok(PIECE_RECIPES.includes(way), way);
   assert.match(PIECE_RECIPES, /advice, not forms/);
+  // What the judged pieces taught (12 Nov 2026): say what changed, say a review once, in its own words alone.
+  assert.match(PIECE_RECIPES, /Open with what changed/);
+  assert.match(PIECE_RECIPES, /one quote card/);
+  assert.match(PIECE_RECIPES, /never the review reworded/);
   // One flat block, each field said once: no union of objects, and no word the tools have not sent the API before.
   const sent = toApiTools("owner", true).find((tool) => tool.name === "propose_piece").input_schema;
   assert.equal(/"oneOf"|"const"/.test(JSON.stringify(sent)), false);

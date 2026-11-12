@@ -488,6 +488,19 @@ test("wait asks after a drawing still going until its run is nearly up, then put
   assert.deepEqual(machine.stopped, []);
 });
 
+test("a made file is named for the words its video opens on: both lines where they are one short phrase", async () => {
+  const named = async (lines) => {
+    const { db, tables, machine } = world({ piece: pieceRow({ machine: drawing(), plan: plan({ lines }) }) });
+    machine.states = [{ stage: "done", bytes: 4096 }];
+    await makePiece(db, job("wait"), soon());
+    return tables.files.find((f) => f.source === "made")?.name;
+  };
+  // A phrase a line could not hold, broken across two: the name is the phrase.
+  assert.equal(await named(["How we do", "a blowout"]), "how-we-do-a-blowout");
+  // Two lines too long together for a name: its first line, whole, never one cut mid-thought.
+  assert.equal(await named(["I asked for volume", "Did I get it?"]), "i-asked-for-volume");
+});
+
 test("a drawing done is sent into the video platform as a file made here, and the machine is let go", async () => {
   const { db, tables, web, machine, row, kept } = world({ piece: pieceRow({ machine: drawing() }) });
   machine.states = [
