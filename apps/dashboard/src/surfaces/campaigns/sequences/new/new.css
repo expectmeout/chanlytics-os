@@ -32,6 +32,12 @@
   .sq-nw-col.is-side > .sq-nw-cap:first-child {
     margin-top: 0;
   }
+  /* The open start's act beside what it promises (ready.css), never a bar across the pane. */
+  .sq-nw .sq-nw-open-foot {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
 }
 .sq-nw[aria-busy="true"] .sq-nw-who,
 .sq-nw[aria-busy="true"] .sq-nw-rail {
@@ -375,24 +381,11 @@
   color: var(--ink-dim);
 }
 
-/* The line to Ask, with Draft it under it. */
+/* The line to Ask, and the quiet line under it (ready.css draws the line itself). */
 .sq-nw-say {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-}
-.sq-nw-say-acts {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-.sq-nw-say-acts small {
-  display: inline-flex;
-  align-items: center;
   gap: var(--space-2);
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
 }
 
 /* Ask at work: the draft's shape held while it writes. */
@@ -421,12 +414,20 @@
 .sq-nw-choice.is-off {
   opacity: 0.55;
 }
+/* A choice whose words explain it says them whole: its name and its line wrap where the row is narrow, never cut
+   mid-sentence. */
+.sq-nw-choice .sq-nw-whole {
+  white-space: normal;
+}
+/* A setup row's door ("Import ›", "Find ›"): its word and chevron say it opens a page, so it wears no link underline. With
+   none set it wore the browser's own, which Firefox draws heavy under semibold words (Ruben, 11 Nov 2026). */
 .sq-nw-door {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
   font-weight: var(--weight-semibold);
   color: var(--ink);
+  text-decoration: none;
 }
 .sq-nw-count {
   font-weight: var(--weight-semibold);

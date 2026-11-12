@@ -82,9 +82,16 @@ function NotMade({ making }: { making: ContentMakingDto }) {
   return (
     <div className="cnv-line" data-testid="cnv-line-not-made">
       <span className="cnv-line-open">
-        {making.first_clip ? (
+        {making.first_picture ? (
           <Thumb
-            file={{ id: making.first_clip, kind: "video", width: null, height: null, name: sentence.title, line: null }}
+            file={{
+              id: making.first_picture,
+              kind: "video",
+              width: null,
+              height: null,
+              name: sentence.title,
+              line: null,
+            }}
             dim
           />
         ) : (

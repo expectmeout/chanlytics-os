@@ -44,7 +44,7 @@ export type {
 } from "./page";
 export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./piece-card";
 export type { PieceFollowedDto, PieceStands } from "./piece-card";
-export { PIECE_FRAME, pieceLineWidthOf, pieceWordsBoxOf } from "./piece-frame";
+export { PIECE_CARD, PIECE_FRAME, PIECE_SIDE, pieceLineWidthOf, pieceWordsBoxOf } from "./piece-frame";
 export type { PieceWordsBox } from "./piece-frame";
 export {
   isPieceStep,
@@ -61,27 +61,30 @@ export {
 } from "./piece-making";
 export type { PieceFail, PieceLookKept, PieceMachine, PieceStage, PieceStatus, PieceStep } from "./piece-making";
 export { pieceSpec } from "./piece-spec";
-export { compilePiece, pieceWordsOnCuts } from "./piece-timeline";
+export { compilePiece, pieceWordsOnBlocks } from "./piece-timeline";
 export type {
+  PieceBlockDrawn,
   PieceCompiled,
   PieceLook,
   PieceMaterial,
   PieceRefused,
+  PieceShotDrawn,
   PieceSource,
   PieceTimeline,
 } from "./piece-timeline";
 export { PIECE_WORDS, pieceWordsIn } from "./piece-words";
 export type { PieceWords } from "./piece-words";
-export { PIECE_LIMITS, PIECE_SHAPES, PIECE_WORDS_HOLDS, PIECE_WORDS_PLACES, piecePlanOf } from "./pieces";
-export type {
-  PieceCut,
-  PieceLanguage,
-  PiecePlan,
-  PieceShape,
-  PieceWont,
-  PieceWordsHold,
-  PieceWordsPlace,
+export {
+  PIECE_LIMITS,
+  PIECE_SHAPES,
+  PIECE_WORDS_HOLDS,
+  PIECE_WORDS_PLACES,
+  pieceCountOf,
+  pieceFileIdsOf,
+  pieceOpeningOf,
+  piecePlanOf,
 } from "./pieces";
+export type { PieceLanguage, PiecePlan, PieceShape, PieceWont, PieceWordsHold, PieceWordsPlace } from "./pieces";
 export {
   INSTAGRAM_POST_KINDS,
   ON_INSTAGRAM,

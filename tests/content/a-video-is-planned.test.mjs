@@ -12,14 +12,16 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 
-const { PIECE_LIMITS, piecePlanOf } = await import(at("packages/contracts/src/content/pieces.ts"));
-const { pieceWordsOnCuts } = await import(at("packages/contracts/src/content/piece-timeline.ts"));
+const { PIECE_LIMITS, PIECE_SHAPES, pieceCountOf, pieceFileIdsOf, pieceOpeningOf, piecePlanOf } = await import(
+  at("packages/contracts/src/content/pieces.ts")
+);
+const { pieceWordsOnBlocks } = await import(at("packages/contracts/src/content/piece-timeline.ts"));
 const { pieceStandsOf, pieceStillMoving, pieceWantsStills } = await import(
   at("packages/contracts/src/content/piece-card.ts")
 );
 const { PIECE_WORDS, pieceWordsIn } = await import(at("packages/contracts/src/content/piece-words.ts"));
 const { compilePiece } = await import(at("packages/contracts/src/content/piece-timeline.ts"));
-const { PIECE_FRAME, pieceLineWidthOf, pieceWordsBoxOf } = await import(
+const { PIECE_CARD, PIECE_FRAME, pieceCardSizeOf, pieceLineWidthOf, pieceQuoteLinesOf, pieceWordsBoxOf } = await import(
   at("packages/contracts/src/content/piece-frame.ts")
 );
 const { PIECE_FACE_ADVANCES, PIECE_FACE_WIDEST } = await import(
@@ -64,7 +66,10 @@ const look = (over = {}) => ({
   address: "12 Example St, Springfield",
   ...over,
 });
-const compiled = (p = plan(), sources = [clip()], l = look()) => compilePiece(p, sources, l);
+const PHOTO = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const photo = (over = {}) => clip({ id: PHOTO, kind: "image", media_status: null, seconds: null, ...over });
+// A stored hook-first payload and a blocks payload are read by the one reader, as a press and the job read them.
+const compiled = (p = plan(), sources = [clip()], l = look()) => compilePiece(piecePlanOf(p), sources, l);
 const timelineOf = (p, sources, l) => {
   const out = compiled(p, sources, l);
   assert.equal(out.ok, true, out.ok ? "" : `refused: ${out.wont}`);
@@ -74,7 +79,7 @@ const timelineOf = (p, sources, l) => {
 test("a good plan becomes a timeline: each cut's place in its clip and its frames, then the end card", () => {
   const t = timelineOf();
   assert.deepEqual(
-    t.cuts.map((c) => [c.source, c.trim, c.frames]),
+    t.blocks.map((c) => [c.source, c.trim, c.frames]),
     [
       [CLIP, 2.3, 75],
       [CLIP, 4.8, 60],
@@ -154,33 +159,33 @@ test("words held for the whole reel never leave it; held for the first cut they 
 test("a stretch a fraction past its clip's end is trimmed to the end; a real overrun is refused, naming the cut", () => {
   const over = plan({ cuts: [...plan().cuts.slice(0, 3), { file_id: CLIP, from: 9.8, to: 11.9 }] });
   const t = timelineOf(over);
-  assert.equal(t.cuts[3].frames, Math.round((11.69 - 9.8) * 30), "trimmed to the clip's 11.69 s");
+  assert.equal(t.blocks[3].frames, Math.round((11.69 - 9.8) * 30), "trimmed to the clip's 11.69 s");
   const far = plan({ cuts: [...plan().cuts.slice(0, 3), { file_id: CLIP, from: 9.8, to: 12.5 }] });
   assert.deepEqual(compiled(far), { ok: false, wont: "past_end", cut: 4 });
 });
 
 test("a cut trimmed at its clip's end must still be long enough to see", () => {
   const stub = plan({ cuts: [...plan().cuts.slice(0, 3), { file_id: CLIP, from: 10.4, to: 11.9 }] });
-  assert.deepEqual(compiled(stub), { ok: false, wont: "cut_length", cut: 4 });
+  assert.deepEqual(compiled(stub), { ok: false, wont: "block_length", cut: 4 });
 });
 
 test("the shape's limits hold: how many cuts, how long each is, how long they are together", () => {
   const cut = (from, to) => ({ file_id: CLIP, from, to });
-  assert.deepEqual(compiled(plan({ cuts: [cut(0, 4)] })), { ok: false, wont: "cuts" });
-  assert.deepEqual(compiled(plan({ cuts: [0, 1, 2, 3, 4, 5].map((n) => cut(n, n + 1.5)) })), {
+  assert.deepEqual(compiled(plan({ cuts: [cut(0, 4)] })), { ok: false, wont: "blocks" });
+  assert.deepEqual(compiled(plan({ cuts: [0, 1, 2, 3, 4, 5, 6].map((n) => cut(n, n + 1.5)) })), {
     ok: false,
-    wont: "cuts",
+    wont: "blocks",
   });
   assert.deepEqual(compiled(plan({ cuts: [cut(0, 4), cut(4, 8), cut(8, 9)] })), {
     ok: false,
-    wont: "cut_length",
+    wont: "block_length",
     cut: 3,
   });
-  assert.deepEqual(compiled(plan({ cuts: [cut(0, 4.5), cut(5, 9)] })), { ok: false, wont: "cut_length", cut: 1 });
+  assert.deepEqual(compiled(plan({ cuts: [cut(0, 4.5), cut(5, 9)] })), { ok: false, wont: "block_length", cut: 1 });
   assert.deepEqual(compiled(plan({ cuts: [cut(0, 2), cut(2, 4), cut(4, 6)] })), { ok: false, wont: "length" });
   assert.deepEqual(compiled(plan({ cuts: [cut(5, 3), cut(0, 4), cut(4, 8)] })), { ok: false, wont: "stretch", cut: 1 });
-  assert.equal(PIECE_LIMITS.cutsMin, 2);
-  assert.equal(PIECE_LIMITS.cutsMax, 5);
+  assert.equal(PIECE_LIMITS.blocksMin, 2);
+  assert.equal(PIECE_LIMITS.blocksMax, 6);
 });
 
 test("a cut is drawn only from the business's own ready, kept video, and never from a video made here", () => {
@@ -217,7 +222,7 @@ test("cuts may come from more than one of the business's clips", () => {
   });
   const t = timelineOf(two, [clip(), clip({ id: OTHER, seconds: 20 })]);
   assert.deepEqual(
-    t.cuts.map((c) => c.source),
+    t.blocks.map((c) => c.source),
     [CLIP, OTHER, CLIP],
   );
 });
@@ -244,10 +249,25 @@ test("a business with no colour of its own gets its words in white", () => {
 
 test("a card's payload reads back as the plan, and nothing else rides along", () => {
   const read = piecePlanOf({ ...plan(), extra: "x", cuts: [...plan().cuts, { file_id: 7, from: "a" }] });
-  assert.deepEqual(read, plan());
+  const { cuts, ...rest } = plan();
+  assert.deepEqual(read, {
+    ...rest,
+    shape: "blocks",
+    blocks: cuts.map((cut) => ({ is: "clip", ...cut, label: null })),
+  });
+  assert.deepEqual(Object.keys(read).sort(), [
+    "blocks",
+    "end_line",
+    "language",
+    "lines",
+    "people_agreed",
+    "shape",
+    "words_at",
+    "words_hold",
+  ]);
   assert.deepEqual(piecePlanOf({}), {
-    shape: "hook_cut",
-    cuts: [],
+    shape: "blocks",
+    blocks: [],
     lines: [],
     words_at: "high",
     words_hold: "first",
@@ -259,18 +279,23 @@ test("a card's payload reads back as the plan, and nothing else rides along", ()
 
 test("every reason a plan is refused has its words for a person, in both languages", () => {
   const wonts = [
-    "cuts",
+    "blocks",
     "file",
     "not_video",
+    "not_photo",
     "made",
     "unkept",
     "not_ready",
     "stretch",
     "past_end",
-    "cut_length",
+    "block_length",
     "length",
     "people",
     "lines",
+    "opens_on_card",
+    "card",
+    "quote",
+    "label",
   ];
   for (const language of ["en", "es"]) {
     const says = pieceWordsIn(language);
@@ -331,7 +356,8 @@ test("a card asks for its stills before the press, while its video is made or wa
 });
 
 test("the stills wear the words wherever the video will: a first moment under two seconds leaves them on the second", () => {
-  const at = (cuts, frames) => pieceWordsOnCuts({ cuts: cuts.map((f) => ({ frames: f })), words: { frames } });
+  const at = (cuts, frames) =>
+    pieceWordsOnBlocks({ blocks: cuts.map((f) => ({ is: "clip", frames: f })), words: { frames } });
   // Words that stay are on every moment.
   assert.deepEqual(at([75, 60, 60, 63], null), [true, true, true, true]);
   // Words that leave with a first moment of two seconds or more are on it alone.
@@ -339,6 +365,221 @@ test("the stills wear the words wherever the video will: a first moment under tw
   assert.deepEqual(at([60, 60, 60], 60), [true, false, false]);
   // A first moment of a second and a half: the words stay their two seconds, so the second moment opens under them.
   assert.deepEqual(at([45, 60, 60], 60), [true, true, false]);
+});
+
+/* ------------------------------------------------------------------------------------------------- blocks -- */
+
+/** What the checker answered for this hook-first plan before a plan was blocks (main 1e27bb9d7a, 11 Nov 2026). */
+const HOOK_FIRST_PAYLOAD = {
+  shape: "hook_cut",
+  cuts: [
+    { file_id: "a", from: 9.3, to: 12 },
+    { file_id: "a", from: 3, to: 5.8 },
+    { file_id: "a", from: 6.3, to: 9 },
+  ],
+  lines: ["Straight hair in,", "curls out"],
+  words_at: "high",
+  words_hold: "all",
+  end_line: null,
+  language: "en",
+  people_agreed: false,
+};
+const HOOK_FIRST_BEFORE = {
+  width: 1080,
+  height: 1920,
+  fps: 30,
+  frames: 304,
+  cuts: [
+    { source: "a", trim: 9.3, frames: 81 },
+    { source: "a", trim: 3, frames: 84 },
+    { source: "a", trim: 6.3, frames: 81 },
+  ],
+  words: { lines: ["Straight hair in,", "curls out"], top: 330, size: 96, frames: null },
+  end: { line: null, under: null, logo: false, name: "Studio", book: null, address: null },
+  accent: "#D4B46A",
+};
+
+test("a stored hook-first payload reads as blocks: each cut a clip block, nothing else changed", () => {
+  const read = piecePlanOf(HOOK_FIRST_PAYLOAD);
+  assert.equal(read.shape, "blocks");
+  assert.deepEqual(read.blocks, [
+    { is: "clip", file_id: "a", from: 9.3, to: 12, label: null },
+    { is: "clip", file_id: "a", from: 3, to: 5.8, label: null },
+    { is: "clip", file_id: "a", from: 6.3, to: 9, label: null },
+  ]);
+  assert.deepEqual([read.lines, read.words_at, read.words_hold], [["Straight hair in,", "curls out"], "high", "all"]);
+});
+
+test("a blocks payload reads back block by block, and one that does not read is left out", () => {
+  const read = piecePlanOf({
+    shape: "blocks",
+    blocks: [
+      { is: "photo", file_id: "p", seconds: 2.5, label: "Before" },
+      { is: "pair", before: { file_id: "p", at: null }, after: { file_id: "c", at: 4.2 }, seconds: 3 },
+      { is: "words", lines: ["Three steps"], seconds: 1.5 },
+      { is: "quote", text: "Best blowout in Brooklyn", from: "Google review", over: null, seconds: 3 },
+      { is: "spin", file_id: "p" },
+      { is: "clip", file_id: "c", from: 1, to: "soon" },
+    ],
+    lines: [],
+    language: "es",
+  });
+  assert.deepEqual(
+    read.blocks.map((b) => b.is),
+    ["photo", "pair", "words", "quote"],
+  );
+  assert.deepEqual(read.blocks[0], { is: "photo", file_id: "p", seconds: 2.5, label: "Before" });
+  assert.deepEqual(read.blocks[1].after, { file_id: "c", at: 4.2 });
+  assert.deepEqual(pieceFileIdsOf(read), ["p", "c"]);
+  assert.equal(read.language, "es");
+});
+
+test("a hook-first plan compiles to the same seconds, words and end card it always did", () => {
+  const now = compilePiece(
+    piecePlanOf(HOOK_FIRST_PAYLOAD),
+    [clip({ id: "a", seconds: 12 })],
+    look({ accent: "#D4B46A", logo: false, name: "Studio", book: null, address: null }),
+  );
+  assert.equal(now.ok, true);
+  assert.deepEqual(
+    now.timeline.blocks,
+    HOOK_FIRST_BEFORE.cuts.map((c) => ({ is: "clip", ...c, label: null })),
+  );
+  for (const key of ["width", "height", "fps", "frames", "words", "end", "accent"])
+    assert.deepEqual(now.timeline[key], HOOK_FIRST_BEFORE[key], key);
+});
+
+test("each kind of block is held to its own limits, and a refusal names its block", () => {
+  const blocks = (list, over = {}) => ({
+    shape: "blocks",
+    blocks: list,
+    lines: ["Look"],
+    words_at: "high",
+    words_hold: "first",
+    end_line: null,
+    language: "en",
+    people_agreed: false,
+    ...over,
+  });
+  const cut = { is: "clip", file_id: CLIP, from: 0, to: 4, label: null };
+  const still = (seconds, over = {}) => ({ is: "photo", file_id: PHOTO, seconds, label: null, ...over });
+  const wont = (p, sources = [clip(), photo()]) => {
+    const out = compilePiece(piecePlanOf(p), sources, look());
+    return out.ok ? null : [out.wont, out.cut ?? null];
+  };
+  assert.equal(wont(blocks([cut, still(3), still(3)])), null, "a clip and two photos, ten seconds");
+  assert.deepEqual(wont(blocks([cut])), ["blocks", null]);
+  assert.deepEqual(wont(blocks([cut, still(9), still(3)])), ["block_length", 2]);
+  assert.deepEqual(wont(blocks([cut, still(3, { file_id: CLIP }), still(3)])), ["not_photo", 2]);
+  assert.deepEqual(wont(blocks([cut, { ...cut, file_id: PHOTO }, still(3)])), ["not_video", 2]);
+  assert.deepEqual(wont(blocks([cut, still(3, { label: "x".repeat(23) }), still(3)])), ["label", 2]);
+  assert.deepEqual(wont(blocks([cut, still(3), still(3)]), [clip(), photo({ source: "made" })]), ["made", 2]);
+  assert.deepEqual(wont(blocks([cut, still(3), still(3)]), [clip(), photo({ status: "inbox" })]), ["unkept", 2]);
+  assert.deepEqual(wont(blocks([cut, still(3), still(3)]), [clip(), photo({ people_unasked: true })]), ["people", 2]);
+  const card = { is: "words", lines: ["Three steps"], seconds: 2 };
+  assert.deepEqual(wont(blocks([card, cut, still(3)])), ["opens_on_card", 1]);
+  assert.equal(
+    wont(blocks([card, cut, still(3)], { lines: [] })),
+    null,
+    "a video may open on a card, with no opening words",
+  );
+  assert.deepEqual(wont(blocks([cut, { ...card, lines: ["a", "b", "c", "d"] }, still(3)])), ["card", 2]);
+  assert.deepEqual(wont(blocks([cut, { ...card, lines: ["x".repeat(23)] }, still(3)])), ["card", 2]);
+  assert.deepEqual(wont(blocks([cut, { ...card, seconds: 9 }, still(3)])), ["block_length", 2]);
+  const quote = { is: "quote", text: "Best blowout in Brooklyn", from: "Google review", over: null, seconds: 3 };
+  assert.equal(wont(blocks([cut, quote, still(3)])), null);
+  assert.deepEqual(wont(blocks([cut, { ...quote, text: "x".repeat(141) }, still(3)])), ["quote", 2]);
+  assert.deepEqual(wont(blocks([cut, { ...quote, from: "x".repeat(29) }, still(3)])), ["quote", 2]);
+  const pair = (after) => ({ is: "pair", before: { file_id: PHOTO, at: null }, after, seconds: 3 });
+  assert.equal(wont(blocks([cut, pair({ file_id: CLIP, at: 4.2 }), still(3)])), null, "a photo beside a clip's moment");
+  assert.deepEqual(wont(blocks([cut, pair({ file_id: CLIP, at: 99 }), still(3)])), ["past_end", 2]);
+  assert.deepEqual(wont(blocks([cut, pair({ file_id: CLIP, at: null }), still(3)])), ["not_photo", 2]);
+  assert.deepEqual(wont(blocks([cut, still(1.5)])), ["length", null]);
+});
+
+test("a video of photos, cards and a pair compiles to what the template draws: frames, sizes, the pair's own labels", () => {
+  const out = compilePiece(
+    piecePlanOf({
+      shape: "blocks",
+      blocks: [
+        { is: "photo", file_id: PHOTO, seconds: 2.5, label: "The chair" },
+        { is: "pair", before: { file_id: PHOTO, at: null }, after: { file_id: CLIP, at: 4.2 }, seconds: 3 },
+        { is: "words", lines: ["Three steps", "to bounce"], seconds: 2 },
+        {
+          is: "quote",
+          text: "Best blowout in Brooklyn",
+          from: "Google review",
+          over: { file_id: PHOTO, at: null },
+          seconds: 3,
+        },
+      ],
+      lines: ["Same chair"],
+      words_at: "low",
+      words_hold: "first",
+      end_line: null,
+      language: "es",
+      people_agreed: false,
+    }),
+    [clip(), photo()],
+    look(),
+  );
+  assert.equal(out.ok, true, out.ok ? "" : out.wont);
+  const [first, pair, card, quote] = out.timeline.blocks;
+  assert.deepEqual(first, { is: "photo", source: PHOTO, frames: 75, label: "The chair" });
+  assert.deepEqual(pair, {
+    is: "pair",
+    before: { source: PHOTO, at: null },
+    after: { source: CLIP, at: 4.2 },
+    frames: 90,
+    labels: ["Antes", "Después"],
+  });
+  assert.deepEqual(card, {
+    is: "words",
+    lines: ["Three steps", "to bounce"],
+    size: pieceCardSizeOf(["Three steps", "to bounce"]),
+    frames: 60,
+  });
+  assert.equal(quote.is, "quote");
+  assert.deepEqual(
+    [quote.lines.join(" "), quote.from, quote.over, quote.frames],
+    ["Best blowout in Brooklyn", "Google review", { source: PHOTO, at: null }, 90],
+  );
+  assert.equal(out.timeline.frames, 75 + 90 + 60 + 90 + PIECE_FRAME.end - PIECE_FRAME.fade);
+  // The opening words leave with the first picture, after two seconds at least.
+  assert.equal(out.timeline.words.frames, 75);
+});
+
+test("a words card is as large as its widest line allows, and a quote wraps by its words to seven lines at most", () => {
+  assert.equal(pieceCardSizeOf(["Go"]), PIECE_CARD.sizeMax);
+  const wide = pieceCardSizeOf(["x".repeat(PIECE_LIMITS.cardLine)]);
+  assert.ok(
+    wide < PIECE_CARD.sizeMax && pieceLineWidthOf("x".repeat(PIECE_LIMITS.cardLine), wide) <= PIECE_FRAME.wordsWidth,
+  );
+  const short = pieceQuoteLinesOf("Best blowout in Brooklyn");
+  assert.equal(short.size, PIECE_CARD.quoteSizes[0]);
+  assert.equal(short.lines.join(" "), "Best blowout in Brooklyn");
+  assert.ok(short.lines.every((l) => pieceLineWidthOf(l, short.size) <= PIECE_FRAME.wordsWidth));
+  const long = pieceQuoteLinesOf(
+    "I drove three hours for this cut and I would do it again tomorrow, she listened to every word I said to her",
+  );
+  assert.ok(long && long.lines.length <= PIECE_CARD.quoteLinesMax, "it fits at some size");
+  assert.ok(long.lines.every((l) => pieceLineWidthOf(l, long.size) <= PIECE_FRAME.wordsWidth));
+  // Its lines come out near one length: wrapped to the frame alone this one ended on "had." by itself.
+  const evened = pieceQuoteLinesOf("I walked out feeling like a whole new person. Best blowout I have ever had.");
+  assert.deepEqual(
+    [evened.size, evened.lines],
+    [72, ["I walked out feeling", "like a whole new", "person. Best blowout", "I have ever had."]],
+  );
+  assert.ok(evened.lines.every((l) => pieceLineWidthOf(l, evened.size) <= PIECE_FRAME.wordsWidth));
+  assert.equal(pieceQuoteLinesOf("x".repeat(400)), null, "one word wider than the frame fits at no size");
+  assert.equal(pieceQuoteLinesOf("   "), null);
+});
+
+test("the opening words are drawn on a picture, never on a card: a card between two pictures is skipped", () => {
+  const on = (blocks, frames) => pieceWordsOnBlocks({ blocks, words: { frames } });
+  const pic = (frames) => ({ is: "photo", frames });
+  assert.deepEqual(on([pic(60), { is: "words", frames: 60 }, pic(60)], null), [true, false, true]);
+  assert.deepEqual(on([{ is: "pair", frames: 45 }, pic(60), pic(60)], 60), [true, true, false]);
 });
 
 test("a card says where its video stands from its row and its file, and nothing else", () => {
@@ -367,4 +608,59 @@ test("a card says where its video stands from its row and its file, and nothing 
     ["making", "ready", "failed", "gone"].map((is) => pieceStillMoving({ is })),
     [true, false, false, false],
   );
+});
+
+test("a plan is kept in blocks, or as Hook first by a card made before: either reads as blocks", () => {
+  assert.deepEqual([...PIECE_SHAPES], ["hook_cut", "blocks"]);
+  const blocks = { shape: "blocks", blocks: [{ is: "words", lines: ["One"], seconds: 2 }], lines: [] };
+  assert.equal(piecePlanOf(blocks).shape, "blocks");
+  assert.equal(
+    piecePlanOf({ shape: "hook_cut", cuts: [{ file_id: CLIP, from: 0, to: 2 }], lines: ["Hi"] }).shape,
+    "blocks",
+  );
+});
+
+test("a video is known by the words it opens on: its opening words, or its first card's", () => {
+  const picture = { is: "clip", file_id: CLIP, from: 0, to: 2, label: null };
+  const card = { is: "words", lines: ["New in town?", "Come see us"], seconds: 2 };
+  const quote = { is: "quote", text: "Lovely place.", from: null, over: null, seconds: 3 };
+  assert.deepEqual(pieceOpeningOf({ blocks: [picture, card], lines: ["I asked for volume"] }), ["I asked for volume"]);
+  assert.deepEqual(pieceOpeningOf({ blocks: [card, picture], lines: [] }), ["New in town?", "Come see us"]);
+  assert.deepEqual(pieceOpeningOf({ blocks: [quote, picture], lines: [] }), ["Lovely place."]);
+  // A plan that says nothing where it opens is known by nothing: its checker refuses it (compilePiece: lines).
+  assert.deepEqual(pieceOpeningOf({ blocks: [picture], lines: [] }), []);
+});
+
+test("a card says what its video is made from: moments of clips, parts where photos or cards are among them, or cards of words", () => {
+  const moment = (id) => ({ is: "clip", file_id: id, from: 0, to: 2, label: null });
+  const photo = (id) => ({ is: "photo", file_id: id, seconds: 2, label: null });
+  const card = { is: "words", lines: ["One"], seconds: 2 };
+  const pair = { is: "pair", before: { file_id: "p1", at: null }, after: { file_id: CLIP, at: 3 }, seconds: 3 };
+  const said = (blocks, language = "en") => pieceWordsIn(language).summary(pieceCountOf({ blocks }), 10.4);
+  assert.deepEqual(pieceCountOf({ blocks: [moment(CLIP), moment(CLIP), pair, card] }), {
+    blocks: 4,
+    moments: 2,
+    clips: 1,
+    photos: 1,
+  });
+  // As it read before a video had blocks.
+  assert.equal(said([moment(CLIP), moment(CLIP), moment(CLIP)]), "10 seconds, vertical. 3 moments from your clip.");
+  assert.equal(said([moment(CLIP), moment(OTHER)]), "10 seconds, vertical. 2 moments from 2 of your clips.");
+  assert.equal(said([photo("p1"), photo("p2"), card]), "10 seconds, vertical. 3 parts from 2 of your photos.");
+  assert.equal(said([photo("p1"), card]), "10 seconds, vertical. 2 parts from your photo.");
+  assert.equal(said([moment(CLIP), card]), "10 seconds, vertical. 2 parts from your clip.");
+  assert.equal(said([moment(CLIP), pair]), "10 seconds, vertical. 2 parts from your clips and photos.");
+  assert.equal(said([card, card, card]), "10 seconds, vertical. 3 cards of words.");
+  assert.equal(said([photo("p1"), photo("p2")], "es"), "10 segundos, en vertical. 2 partes de 2 de tus fotos.");
+  assert.equal(said([card, card], "es"), "10 segundos, en vertical. 2 tarjetas de texto.");
+});
+
+test("a quote says where it was said, in the video's language, and never who said it", () => {
+  for (const language of ["en", "es"]) {
+    const says = pieceWordsIn(language).quoteFrom;
+    assert.deepEqual(Object.keys(says), ["google_review", "client"]);
+    for (const words of Object.values(says)) {
+      assert.ok(words.length > 0 && Array.from(words).length <= PIECE_LIMITS.quoteFrom, `${language}: ${words}`);
+    }
+  }
 });

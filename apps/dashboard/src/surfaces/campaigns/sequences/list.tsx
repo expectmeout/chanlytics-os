@@ -4,7 +4,8 @@
  * the drafts: contracts SEQUENCE_GROUPS), each a row with its kind's glyph, its name and its line, a word at its end only
  * where its state is not the ordinary one (contracts sequenceRowState: a green On on every row said nothing). Over its search
  * stands Pipeline's row (Ruben, 21 Oct 2026, for parity; list-bar.tsx): which view it shows, and at its right the type it
- * keeps and how its rows are sorted; a search narrows what they leave. A row opens its record beside the list, and on a
+ * keeps and how its rows are sorted; a search narrows what they leave, by name, lead search or list. Each row's line is
+ * the first true thing of contracts' order (words/row-line.ts, decision 0128). A row opens its record beside the list, and on a
  * phone pushed in over it, the row lit as the finger left it (sequences-page.tsx). New is the head's act, beside the strip
  * of views (sequences-page.tsx), as Messages' New is. Every word is contracts' (sequences/words/next.ts); the list composes
  * them. First contact is no sequence (D7: the receptionist leaves the list), and the list says nothing of it (Ruben, 21 Oct
@@ -15,11 +16,13 @@ import {
   BAR_LINE_WORDS,
   SEQUENCE_WORDS,
   onceDraftRoute,
+  sequenceMatches,
   sequenceRoute,
   sequenceRowLine,
   sequenceRowState,
   sequenceTypeOf,
   sortedSequences,
+  type AppointmentWord,
   type SequenceGroup,
   type SequenceRowDto,
   type SequenceSort,
@@ -93,9 +96,11 @@ function SequenceRow(p: {
   twin: SequenceTwin | null;
   group: SequenceGroup;
   tz: string;
+  /** The business's word for what is booked, which a reminder's line says ("Sends the day before each meeting"). */
+  word: AppointmentWord;
   open: boolean;
 }) {
-  const { row, twin, group, tz, open } = p;
+  const { row, twin, group, tz, word, open } = p;
   const state = sequenceRowState(row);
   return (
     <ListRow
@@ -106,7 +111,7 @@ function SequenceRow(p: {
       }
       said={(place) => (
         <div className={group === "needs" ? `${place} sq-needs` : place}>
-          {sequenceRowLine(row, tz, Date.now(), twin)}
+          {sequenceRowLine(row, { tz, nowMs: Date.now(), word, twin })}
         </div>
       )}
       aria-current={open ? "true" : undefined}
@@ -158,7 +163,7 @@ export function SequencesList({ page, openId }: SequencesListProps) {
     .filter((g) => view === "all" || g.group === view)
     .map((g) => ({
       ...g,
-      rows: words === "" ? g.rows : g.rows.filter(({ row }) => row.name.toLowerCase().includes(words)),
+      rows: words === "" ? g.rows : g.rows.filter(({ row }) => sequenceMatches(row, words)),
     }))
     .filter((g) => g.rows.length > 0);
   // The ended fold: shut at the list's foot until asked, open under a search or in Ended's own view.
@@ -211,6 +216,7 @@ export function SequencesList({ page, openId }: SequencesListProps) {
                 twin={twin}
                 group={group}
                 tz={page.timezone}
+                word={page.word}
                 open={row.id === openId}
               />
             ))}

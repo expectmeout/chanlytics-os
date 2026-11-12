@@ -146,7 +146,7 @@ export function usePieceCard(proposal: AskProposal, words: LineWords, madeId: st
   if (!isPiece) return null;
   return {
     says: pieceWordsIn(plan.language),
-    moments: plan.cuts.length,
+    moments: plan.blocks.length,
     picture: stills?.picture ?? null,
     refused: stills?.refused ?? null,
     waiting: stills === null,

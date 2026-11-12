@@ -15,6 +15,8 @@ import {
   SECOND_MS,
   fileCursorOf,
   isOneOf,
+  pieceFileIdsOf,
+  pieceOpeningOf,
   piecePlanOf,
   recordOrEmpty,
   shelfFilterOf,
@@ -75,10 +77,10 @@ function makingDtoOf(row: PieceStandingRow): ContentMakingDto {
     status: failed ? "failed" : "making",
     stage: isOneOf(PIECE_STAGES, row.stage) ? row.stage : "queued",
     failed_why: failed ? reason : null,
-    lines: plan.lines,
+    lines: pieceOpeningOf(plan),
     language: plan.language,
-    moments: plan.cuts.length,
-    first_clip: plan.cuts[0]?.file_id ?? null,
+    moments: plan.blocks.length,
+    first_picture: pieceFileIdsOf(plan)[0] ?? null,
     created_at: row.created_at,
   };
 }

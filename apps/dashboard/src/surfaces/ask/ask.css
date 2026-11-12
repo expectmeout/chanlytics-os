@@ -1379,8 +1379,8 @@ body.ask-open .tb-ask .tb-ask-face {
     animation: none;
   }
 }
-/* A video's card (card-piece.tsx; the content canvas's states and motion). Its stills are the first frame of each moment, each a
-   still of its own on a strip that runs wider than the card and is moved along sideways; once pressed, the one still it
+/* A video's card (card-piece.tsx; the content canvas's states and motion). Its stills are its blocks as the video shows them,
+   two to six of them (contracts PIECE_LIMITS), each a still of its own on a strip that runs wider than the card and is moved along sideways; once pressed, the one still it
    follows stands beside what is said of it. The server draws the stills as one picture, edge to edge, and each still shows
    its own part of it: the card says how many there are, a still which one it is. Only opacity moves, on the app's own
    durations: a still that is not ready is dim, never a placeholder, and comes to full strength as the video lands. */
@@ -1400,6 +1400,9 @@ body.ask-open .tb-ask .tb-ask-face {
 }
 .ask-piece[data-stills="5"] {
   --stills: 5;
+}
+.ask-piece[data-stills="6"] {
+  --stills: 6;
 }
 .ask-piece-stills {
   display: flex;
@@ -1435,6 +1438,9 @@ body.ask-open .tb-ask .tb-ask-face {
 }
 .ask-piece-still:nth-child(5) {
   --still: 4;
+}
+.ask-piece-still:nth-child(6) {
+  --still: 5;
 }
 .ask-piece-slice {
   display: block;

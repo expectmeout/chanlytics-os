@@ -12,23 +12,13 @@
  *
  * The words are this lead's alone (the door, 00545). Every word is contracts'.
  */
+import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from "react";
 import {
-  useEffect,
-  useRef,
-  useState,
-  type FocusEvent,
-  type KeyboardEvent,
-  type MouseEvent,
-  type PointerEvent,
-} from "react";
-import {
-  LEAD_CARD_WORDS,
   LEAD_WORDS_BOX as B,
   REWRITE_WORDS,
   leadWordsFromBox,
   leadWordsInBox,
   leadWordsProblem,
-  type LeadEmailPiece,
   type LeadEmailText,
   type LeadStepWordsDto,
 } from "@chanlytics/contracts";
@@ -43,16 +33,13 @@ import { useGrowAsTyped } from "../../kit/field/grow-as-typed";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu } from "../../kit/menu/menu";
-import { GRAB_AT } from "../../kit/motion/swipe";
 import { tabDraft, useUnsavedWork } from "../../kit/record/work";
 import { canDo, drawnNow, gate, refusalToast } from "../../frame-verbs";
 import type { Flash } from "../peek/types";
 import type { SheetFacts, SheetMail, SheetMailEdit } from "./facts";
+import { EmailWords, ViewSwitch, type BoxPart } from "./fill-ins/email-words";
 import { openRecordFor, type SheetRun } from "./run";
 import type { useSheetUi } from "./sheet-ui";
-
-/** Which of the email's boxes a press was on. */
-type BoxPart = "subject" | "body";
 
 /** The email as it is being typed, and what the box opened with. */
 interface Typing {
@@ -99,34 +86,6 @@ export function WordsBox(p: {
 
 /** A press beside the words answers its click without taking the keys from them first. */
 const keepKeys = (event: MouseEvent) => event.preventDefault();
-
-/** Where in its piece a point falls, by whichever of the two the browser has. */
-function caretAtPoint(x: number, y: number): { node: Node; offset: number } | null {
-  const doc: {
-    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
-    caretRangeFromPoint?: (x: number, y: number) => Range | null;
-  } = document;
-  const at = doc.caretPositionFromPoint?.(x, y);
-  if (at) return { node: at.offsetNode, offset: at.offset };
-  const range = doc.caretRangeFromPoint?.(x, y);
-  return range ? { node: range.startContainer, offset: range.startOffset } : null;
-}
-
-/** Where a press on the read email falls in the box's words: its piece's place (`data-at`) and how far into it. */
-function offsetAtPress(e: MouseEvent<HTMLElement>): number | null {
-  const caret = caretAtPoint(e.clientX, e.clientY);
-  if (!caret || !e.currentTarget.contains(caret.node)) return null;
-  const el = caret.node.nodeType === 3 ? caret.node.parentElement : (caret.node as Element);
-  const piece = el?.closest<HTMLElement>("[data-at]");
-  if (!piece) return null;
-  const walk = document.createTreeWalker(piece, NodeFilter.SHOW_TEXT);
-  let into = 0;
-  while (walk.nextNode()) {
-    if (walk.currentNode === caret.node) return Number(piece.dataset.at) + into + caret.offset;
-    into += walk.currentNode.textContent?.length ?? 0;
-  }
-  return Number(piece.dataset.at) + caret.offset;
-}
 
 /**
  * What a save just took stands on the sheet until the read after it lands: the words are theirs at once, and the read
@@ -176,6 +135,8 @@ export function emailActsOf(d: {
     onRewrite: run && mail && mail.rewrite ? () => sheet.put({ whole: false, ask: "rewrite" }) : null,
     onUndo: undo && undo.sendId === sendId ? () => undoNow(undo.kept) : null,
     box: d.box,
+    blanks: sheet.ui.blanks,
+    onBlanks: (on: boolean) => sheet.put({ blanks: on }),
   };
 }
 
@@ -204,6 +165,8 @@ export function SentEmail({ leadId, sendId, box }: { leadId: string; sendId: str
     to: "",
     subject: got.mail.subject,
     pieces: [{ at: 0, kind: "words", text: got.mail.body }],
+    leadId: null,
+    blanks: null,
     ending: null,
     opening: null,
     writing: false,
@@ -415,56 +378,6 @@ export function useEmailBox(p: EmailBoxOf) {
 
 export type EmailBox = ReturnType<typeof useEmailBox>;
 
-/** A tap on the read email begins the typing: a tap, never the drag that walks the leads, nor words being selected. */
-const pressedAt = new WeakMap<HTMLElement, { x: number; y: number }>();
-function tapToType(box: EmailBox, edit: SheetMailEdit, part: BoxPart) {
-  return {
-    onPointerDown: (e: PointerEvent<HTMLElement>) => pressedAt.set(e.currentTarget, { x: e.clientX, y: e.clientY }),
-    onPointerCancel: (e: PointerEvent<HTMLElement>) => pressedAt.delete(e.currentTarget),
-    onClick: (e: MouseEvent<HTMLElement>) => {
-      const at = pressedAt.get(e.currentTarget);
-      pressedAt.delete(e.currentTarget);
-      if (!at || Math.hypot(e.clientX - at.x, e.clientY - at.y) >= GRAB_AT) return;
-      if (window.getSelection?.()?.toString()) return;
-      box.begin(edit, part, part === "body" ? offsetAtPress(e) : null);
-    },
-  };
-}
-
-/** One piece of the email as it reads: the line written for them, that it is being written, what is still to come, or words. */
-function PieceOf({ piece, mail }: { piece: LeadEmailPiece; mail: SheetMail }) {
-  if (piece.kind === "words") return <span data-at={piece.at}>{piece.text}</span>;
-  const line = piece.kind === "line" || piece.slot === "opening";
-  if (line && mail.writing)
-    return (
-      <span className="lw-open" data-at={piece.at} data-testid="lead-card-opening">
-        {W.mail.writing}
-      </span>
-    );
-  if (piece.kind === "mark")
-    return (
-      <span
-        className={line ? "lw-open" : "lw-hole"}
-        data-at={piece.at}
-        data-testid={line ? "lead-card-opening" : "lead-card-gap"}
-      >
-        {line ? LEAD_CARD_WORDS.opening : piece.text}
-      </span>
-    );
-  const o = mail.opening;
-  return (
-    <span className="lw-opening" data-at={piece.at} data-testid="lead-card-opening">
-      {o ? o.before : piece.text}
-      {o && o.said ? (
-        <mark className="lw-refused" data-testid="lead-card-refused">
-          {o.said}
-        </mark>
-      ) : null}
-      {o ? o.after : null}
-    </span>
-  );
-}
-
 /** How it ends under the words, as the send ends it: nobody types a second sign-off over one they cannot see. */
 const EndingOf = ({ mail }: { mail: SheetMail }) =>
   mail.ending ? (
@@ -533,6 +446,10 @@ export function SheetEmail(p: {
   onRewrite: (() => void) | null;
   onUndo: (() => void) | null;
   box: EmailBox;
+  /** The step's words with each blank named are shown, where the email has them (decision 0127). */
+  blanks?: boolean;
+  /** Asks to show them, or the email as they'll read it; none where there is no switch (a step opened, one that went). */
+  onBlanks?: ((on: boolean) => void) | null;
 }) {
   const { mail, box } = p;
   const edit = mail.edit && canDo("approve") ? mail.edit : null;
@@ -540,6 +457,7 @@ export function SheetEmail(p: {
   if (typing && mail.edit && typing.edit.stepId === mail.edit.stepId)
     return <TypedEmail mail={mail} box={box} typing={typing} />;
   const clip = p.whole || !p.onWhole ? "" : mail.tall ? " is-clipped is-tall" : " is-clipped";
+  const named = p.blanks && p.onBlanks && mail.blanks ? mail.blanks : null;
   return (
     <div className="lw-now-mail" data-testid="lead-card-email">
       <div className="lw-now-head">
@@ -566,24 +484,8 @@ export function SheetEmail(p: {
           </Button>
         ) : null}
       </div>
-      {mail.subject ? (
-        <p
-          className={edit ? "lw-now-subj is-typable" : "lw-now-subj"}
-          data-testid="lead-card-subject"
-          {...(edit && mail.subject !== null ? tapToType(box, edit, "subject") : {})}
-        >
-          {mail.subject}
-        </p>
-      ) : null}
-      <div
-        className={`lw-now-body${clip}${edit ? " is-typable" : ""}`}
-        data-testid="lead-card-body"
-        {...(edit ? tapToType(box, edit, "body") : {})}
-      >
-        {mail.pieces.map((piece) => (
-          <PieceOf key={piece.at} piece={piece} mail={mail} />
-        ))}
-      </div>
+      {p.onBlanks && mail.blanks ? <ViewSwitch blanks={named !== null} onBlanks={p.onBlanks} /> : null}
+      <EmailWords mail={mail} begin={edit ? (part, at) => box.begin(edit, part, at) : null} clip={clip} named={named} />
       {p.whole || !p.onWhole ? <EndingOf mail={mail} /> : null}
       <div className="lw-now-acts">
         {p.onWhole ? (

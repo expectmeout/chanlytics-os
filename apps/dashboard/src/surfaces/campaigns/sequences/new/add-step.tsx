@@ -5,7 +5,8 @@
  * are New's rows (new.css), imported here so the record has them however New is loaded. Every word is contracts'.
  */
 import { NEW_WORDS as W, type NewStepDoes } from "@chanlytics/contracts";
-import { Choice, PickSheet } from "./new-sheets";
+import { Choice } from "./choice";
+import { PickSheet } from "./new-sheets";
 import "./new.css";
 
 /** The three a step may do, and the line that says a call or a note closes it. */

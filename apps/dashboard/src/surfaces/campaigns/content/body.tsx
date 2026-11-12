@@ -53,9 +53,9 @@ function MakingTile({ making }: { making: ContentMakingDto }) {
   return (
     <div className="cnv-piece" data-status={making.status} data-testid="cnv-making">
       <span className="files-frame cnv-making" data-shape="tall">
-        {making.first_clip ? (
+        {making.first_picture ? (
           <>
-            <Picture src={`${fileViewOf(making.first_clip)}?w=480`} alt={label} name={words.title} />
+            <Picture src={`${fileViewOf(making.first_picture)}?w=480`} alt={label} name={words.title} />
             <span className="cnv-making-says">{words.state}</span>
           </>
         ) : (

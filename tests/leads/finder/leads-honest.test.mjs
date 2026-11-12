@@ -773,7 +773,7 @@ const serveRead = (path, query) => {
   if (/^\/api\/v1\/leads\/[^/]+\/place$/.test(path)) return reply(200, { ok: true, data: null });
   if (/^\/api\/v1\/leads\/[^/]+\/emails$/.test(path)) return reply(200, { ok: true, data: [] });
   if (/^\/api\/v1\/leads\/[^/]+\/words$/.test(path)) return reply(200, { ok: true, data: [] });
-  // A lead's own preview (decision 0079, the sheet's Their preview): this workspace makes none, so the sheet draws nothing.
+  // A lead's own preview (decision 0079, the sheet's Their receptionist): this workspace makes none, so the sheet draws nothing.
   if (/^\/api\/v1\/leads\/[^/]+\/preview$/.test(path))
     return reply(200, { ok: true, data: { preview: null, makes: false } });
   // A person read ahead of a press (People's warmPeople, which the Pipeline's rows ask as they are rested on), who is not here.

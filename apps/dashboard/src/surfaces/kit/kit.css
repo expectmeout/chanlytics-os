@@ -5705,7 +5705,9 @@ a.list-row {
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-footer.rec-sheet-foot .btn {
+/* A glyph alone keeps its own nothing of padding (.btn-icon): a press's 16px a side left a 44px circle 12px for its 16px
+   glyph, which stood 2 to 3px right of the circle's middle (a visit's Call and More, Ruben, 11 Nov 2026). */
+footer.rec-sheet-foot .btn:where(:not(.btn-icon)) {
   height: var(--control-h-lg);
   padding: 0 16px;
 }
@@ -5725,8 +5727,10 @@ footer.rec-sheet-foot .btn {
 /* A foot of acts alone, no line of words beside them (`data-foot-acts`: a step's Take away, Send me a test and Edit; a
    lead's step's Take this step out and Done): one inset all round, so its acts stand as far from the rim at either end.
    The foot's 16px for its line set them off centre (Ruben, 20 Oct 2026: "weird spacing"). Its row is the foot's width:
-   the quiet act at its start, the filled one at its end, a spacer of the page's between. */
-.rec-sheet-foot:where(:has(> [data-foot-acts])) {
+   the quiet act at its start, the filled one at its end, a spacer of the page's between. The row may stand inside a
+   wrapper of the page's (a visit's foot, which also holds its question): the coral act stood 16px in at the left and
+   its More 6px in at the right (Ruben, 11 Nov 2026). */
+.rec-sheet-foot:where(:has([data-foot-acts])) {
   padding: 6px;
 }
 [data-foot-acts][data-foot-acts] {

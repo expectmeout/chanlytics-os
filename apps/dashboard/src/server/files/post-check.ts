@@ -60,6 +60,14 @@ const UNDRAWABLE_TO_MODEL: Readonly<Record<PostUndrawable, (limit: number) => st
   number: () => "a phone number does not go in the words: set book to true and code adds theirs",
 };
 
+/** Why some words can't be drawn, in a sentence for the model, or null: whoever's words they are. */
+export function postDrawProblem(words: string, limit: number): string | null {
+  const text = words.trim();
+  if (!text) return "it is empty";
+  const undrawable = postUndrawable(text, limit);
+  return undrawable ? UNDRAWABLE_TO_MODEL[undrawable](limit) : null;
+}
+
 /**
  * What is wrong with some words a post would say, in a sentence for the model, or null. `owner` is what the owner has said: their
  * questions in this thread and what they wrote in Settings. Nothing is a stranger's word here: not what a customer wrote, a
@@ -67,9 +75,8 @@ const UNDRAWABLE_TO_MODEL: Readonly<Record<PostUndrawable, (limit: number) => st
  */
 export function postWordsProblem(words: string, owner: string, limit: number): string | null {
   const text = words.trim();
-  if (!text) return "it is empty";
-  const undrawable = postUndrawable(text, limit);
-  if (undrawable) return UNDRAWABLE_TO_MODEL[undrawable](limit);
+  const undrawn = postDrawProblem(text, limit);
+  if (undrawn) return undrawn;
   if (priceBreach(text, new Set(priceFigures(owner))))
     return "it names a price or a share the owner has not said. Use their figure, or ask them";
   const ownerNumbers = new Set(numbersIn(owner));

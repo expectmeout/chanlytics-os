@@ -14,7 +14,7 @@ export const pieceSpec: ProposalSpecAboveOperator = {
   doing: "make a video",
   gate: "settings",
   // The card's own id is the press's key: pressed twice, it is one video (00613 piece_begin).
-  commit: ({ id, payload }) => ({ route: "POST files/video", body: { ...piecePlanOf(payload), key: id } }),
+  commit: ({ id, payload }) => ({ route: "POST files/video", body: { ...payload, key: id } }),
   receipt: (p) => pieceWordsIn(piecePlanOf(p.payload).language).making,
   made: (_p, data) => asText(rec(data).piece_id) || null,
   open: () => CONTENT_ROUTE,

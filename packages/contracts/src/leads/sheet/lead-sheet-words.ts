@@ -33,12 +33,14 @@ export interface LeadEmailText {
 }
 
 /**
- * A piece of the email as the sheet reads it at rest: its words, the line written for them, or what stands for something
- * not known yet (`slot`). `at` is where it starts in the box's words, so a press on it puts the caret there.
+ * A piece of the email as the sheet reads it at rest: its words, the line written for them, a blank's value where it has
+ * one (`value`, naming its blank, so the card can say what it is: decision 0127), or what stands for one not known yet
+ * (`mark`); and a blank by its name alone (`blank`), which the sheet makes for itself where it shows the blanks. `at` is
+ * where it starts in the words it was read from, so a press on it puts the caret there.
  */
 export interface LeadEmailPiece {
   at: number;
-  kind: "words" | "line" | "mark";
+  kind: "words" | "line" | "mark" | "value" | "blank";
   text: string;
   slot?: string;
 }
@@ -122,8 +124,9 @@ export function leadWordsPieces(wordsFor: WordsFor & { body: string; opening: st
   for (const m of slotMentions(SLOTS, wordsFor.body)) {
     put("words", wordsFor.body.slice(from, m.index));
     const value = slotValueOf(SLOTS, m.key, values);
-    if (value) put(m.key === "opening" ? "line" : "words", value);
-    else put("mark", markOf(m.key), m.key);
+    if (!value) put("mark", markOf(m.key), m.key);
+    else if (m.key === "opening") put("line", value);
+    else put("value", value, m.key);
     from = m.index + m.written.length;
   }
   put("words", wordsFor.body.slice(from));

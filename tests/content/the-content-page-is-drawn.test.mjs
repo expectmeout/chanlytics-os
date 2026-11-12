@@ -160,9 +160,9 @@ test("a video being made leads the page with its words and where it is at", () =
   assert.equal(count(html, "cnv-making"), 2);
   assert.match(html, /Being made/);
   assert.match(html, /Three years of layers\./);
-  assert.match(html, /Cutting 4 moments/);
+  assert.match(html, /Putting it together/);
   assert.match(html, /Couldn(&#x27;|')t make it/);
-  assert.match(html, /One of its clips isn(&#x27;|')t in your Library any more/);
+  assert.match(html, /One of its clips or photos isn(&#x27;|')t in your Library any more/);
   assert.equal(count(html, "cnv-empty"), 0, "something being made is not nothing");
 });
 
@@ -281,7 +281,7 @@ test("Needs you is lines: what stopped and why, with its act, and a video not ma
     page({
       view: "needs",
       lines: [line(1, "instagram", "failed", { error: "Instagram is busy right now." })],
-      making: [making({ status: "failed", failed_why: "clips", first_clip: fileOf(9).id })],
+      making: [making({ status: "failed", failed_why: "clips", first_picture: fileOf(9).id })],
     }),
   );
   assert.equal(count(html, "cnv-line"), 1);
@@ -301,7 +301,7 @@ test("Posted is lines with a door to the post itself, and a view with nothing sa
 });
 
 test("Being made is tiles, its first clip dim under Ask at work", () => {
-  const html = draw(page({ view: "making", making: [making({ first_clip: fileOf(9).id })] }));
+  const html = draw(page({ view: "making", making: [making({ first_picture: fileOf(9).id })] }));
   assert.equal(count(html, "cnv-making"), 1);
   assert.ok(html.includes(`${fileOf(9).id}/view?w=480`));
   assert.equal(count(html, "fl-looking"), 1);

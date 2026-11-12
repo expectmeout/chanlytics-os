@@ -32,13 +32,13 @@ export interface ContentMakingDto {
   status: "making" | "failed";
   stage: PieceStage;
   failed_why: PieceFail | null;
-  /** The words it opens on, a line each, as its plan was pressed. */
+  /** The words it opens on, a line each, as its plan was pressed: its opening words, or its first card's. */
   lines: string[];
   language: PieceLanguage;
-  /** How many moments it cuts together. */
+  /** How many blocks it puts together. */
   moments: number;
-  /** The clip its first moment is cut from, whose picture its tile shows dim while it is made; null where the plan names none. */
-  first_clip: string | null;
+  /** The first picture it shows (a clip's file or a photo), dim on its tile while it is made; null where the plan names none. */
+  first_picture: string | null;
   created_at: string;
 }
 

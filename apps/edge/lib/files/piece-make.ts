@@ -1,13 +1,15 @@
 /**
- * piece_make: a video made from a business's clips, one step a run (00613, decision 0122). The press writes the video's row and
- * this job's first step; each run does one step and, where there is more to do, puts the next on the ledger itself, so nothing
- * waits on a retry's clock. A step that is run again does no harm: a machine started twice is two drawings and one is let go,
- * and a file begun twice is the one row.
+ * piece_make: a video made from a business's clips and photos, one step a run (00613, decisions 0122 and 0126). The press
+ * writes the video's row and this job's first step; each run does one step and, where there is more to do, puts the next on
+ * the ledger itself, so nothing waits on a retry's clock. A step that is run again does no harm: a machine started twice is
+ * two drawings and one is let go, and a file begun twice is the one row.
  *
- *   start   The plan is checked again against the clips as they now stand (a clip removed since the press ends it here, with
- *           nothing spent). Each clip's full-size playback copy is read for the parts its cuts need, and where the video
- *           platform has not made that copy yet, the step comes back a minute on. Then a machine is started from the image on
- *           record for the template's edition and handed its job: the addresses to fetch and the timeline to draw.
+ *   start   The plan is checked again against its files as they now stand (one removed since the press ends it here, with
+ *           nothing spent). Each clip's full-size playback copy is read for the parts its blocks need, and where the video
+ *           platform has not made that copy yet, the step comes back a minute on; each photo gets an address the machine
+ *           may fetch it from for a while. Then a machine is started from the image on record for the edition this code
+ *           names (the template that reads what is handed here) and handed its job: each block's files to fetch, and
+ *           the timeline to draw.
  *           Where its card should say so (a clip's copy still being made), the row's stage is said.
  *   wait    The drawing is asked after while the run has time. Done: the video's bytes are read, a place is reserved for
  *           exactly them at the video platform, its row is begun as a file made here, its own file is kept in its folder
@@ -26,14 +28,18 @@ import {
   MIN_MS,
   PIECE_FRAME,
   PIECE_ROUNDS_MAX,
+  PIECE_TEMPLATE,
   SECOND_MS,
   compilePiece,
   fileMadePathOf,
   fileNameOf,
+  filePathOf,
   isPieceStep,
   pieceCompositionOf,
+  pieceFileIdsOf,
   pieceLookOf,
   pieceMachineOf,
+  pieceOpeningOf,
   piecePlanOf,
   pieceRoundsOf,
   pieceWordsIn,
@@ -45,6 +51,7 @@ import {
   type PiecePlan,
   type PieceSource,
   type PieceStep,
+  type PieceTimeline,
 } from "@chanlytics/contracts";
 import {
   FINGERPRINT_BYTES,
@@ -100,8 +107,17 @@ const FINISH_NEEDS_MS = 20 * SECOND_MS;
 /** How long a start waits between looks for a clip's full-size copy or an edition's image, and how many looks it gives them. */
 const START_AGAIN_MS = MIN_MS;
 const START_TICKS_MAX = 30;
-/** A playback token for the machine's fetches: it fetches within seconds of its start. */
+/** A playback token, and a photo's address, for the machine's fetches: it fetches within seconds of its start. */
 const PARTS_TOKEN_S = 10 * 60;
+/**
+ * A photo as the machine is handed it: inside a square of this side (the most Storage resizes to, and more than a frame
+ * pushed in needs), never enlarged, kept sharp. Asked for as a kind a browser draws, whatever the phone kept
+ * (tooling/video/machine/make.mjs).
+ */
+const PHOTO_SIDE = 2500;
+const PHOTO_QUALITY = 90;
+/** How much of a clip is fetched for one moment of it shown still: the part it is in, and the next where it ends close by. */
+const MOMENT_S = 0.5;
 /** The made video's reservation holds it to its own length and a little more, and lapses if its bytes never go. */
 const UPLOAD_LIFE_MS = 30 * MIN_MS;
 const LENGTH_SLACK_S = 2;
@@ -170,11 +186,10 @@ async function endWith(db: Db, piece: PieceRow, reason: PieceFail): Promise<void
 
 /* ----------------------------------------------------------------------------------------------------- start -- */
 
-/** A clip as the plan's checker reads it, its length the playback copy's own where that was read. */
-const sourceFromClip = (
-  file: NonNullable<Awaited<ReturnType<typeof findFileForWork>>>,
-  seconds: number | null,
-): PieceSource => ({
+type FileForWork = NonNullable<Awaited<ReturnType<typeof findFileForWork>>>;
+
+/** A file as the plan's checker reads it: a clip's length the playback copy's own where that was read. */
+const sourceFromFile = (file: FileForWork, seconds: number | null): PieceSource => ({
   id: file.id,
   kind: file.kind,
   status: file.status,
@@ -185,50 +200,83 @@ const sourceFromClip = (
   people_unasked: false,
 });
 
-type CopiesRead =
-  { ok: true; sources: PieceSource[]; copies: Map<string, StreamCopy> } | { ok: false; why: "clips" | "not_yet" };
+/** What was read of a plan's files: each as the checker reads it, each clip's playback copy, each photo's address. */
+interface FilesRead {
+  sources: PieceSource[];
+  copies: Map<string, StreamCopy>;
+  photos: Map<string, string>;
+}
+type CopiesRead = ({ ok: true } & FilesRead) | { ok: false; why: "clips" | "not_yet" };
 
-/** Each clip the plan names, as it now stands, with its full-size playback copy's parts. */
-async function copiesRead(db: Db, piece: PieceRow, plan: PiecePlan): Promise<CopiesRead> {
-  const keys = streamKeys();
-  if (!keys) throw new Error("piece_make: Stream is not configured here");
-  const sources: PieceSource[] = [];
-  const copies = new Map<string, StreamCopy>();
-  for (const id of new Set(plan.cuts.map((c) => c.file_id))) {
-    const file = await findFileForWork(db, piece.tenant_id, id);
-    // Gone, or no longer a ready video: the checker says which, from a row with no length read.
-    if (!file || file.removed_at || file.kind !== "video" || file.media_status !== "ready" || !file.media_ref) {
-      if (file && !file.removed_at) sources.push(sourceFromClip(file, null));
-      continue;
-    }
-    const token = streamTokenOf(keys.signing, { uid: file.media_ref, seconds: PARTS_TOKEN_S });
-    const read = await readStreamCopy(keys.signing.customerCode, token, { width: file.width, height: file.height });
-    if (!read.ok && read.why === "not_full_size") return { ok: false, why: "not_yet" };
-    if (!read.ok) throw new Error("piece_make: a clip's playback list could not be read");
-    copies.set(id, read.copy);
-    sources.push(sourceFromClip(file, read.copy.seconds));
-  }
-  return { ok: true, sources, copies };
+/** A photo's address the machine may fetch for a while, resized by Storage on the way. */
+async function signPhoto(db: Db, file: FileForWork): Promise<string> {
+  const signed = await filesBucket(db).createSignedUrl(filePathOf(file.tenant_id, file.id, file.mime), PARTS_TOKEN_S, {
+    transform: { width: PHOTO_SIDE, height: PHOTO_SIDE, resize: "contain", quality: PHOTO_QUALITY },
+  });
+  if (signed.error) throw new Error("piece_make: a photo's address could not be signed");
+  return signed.data.signedUrl;
 }
 
-/** The machine's job: each cut's parts under its own name, the business's mark where it has one, and the timeline to draw. */
-function jobOf(
-  plan: PiecePlan,
-  material: PieceMaterial,
-  copies: Map<string, StreamCopy>,
-  logoUrl: string | null,
-): RenderJob {
-  const cuts = material.timeline.cuts.map((cut, i) => {
-    const copy = copies.get(cut.source);
-    if (!copy) throw new Error("piece_make: a cut's clip has no playback copy read");
-    const seconds = cut.frames / material.timeline.fps;
-    return { to: material.cuts[i] ?? `cut-${i}.mp4`, parts: streamCutPartsOf(copy, cut.trim, cut.trim + seconds) };
-  });
-  return {
-    fetch: [...cuts, ...(logoUrl ? [{ to: LOGO_FILE, parts: [logoUrl] }] : [])],
-    composition: pieceCompositionOf(plan.shape),
-    props: material,
+/** A ready clip's full-size playback copy; null while the video platform is still making it. */
+async function readClipCopy(file: FileForWork, mediaRef: string): Promise<StreamCopy | null> {
+  const keys = streamKeys();
+  if (!keys) throw new Error("piece_make: Stream is not configured here");
+  const token = streamTokenOf(keys.signing, { uid: mediaRef, seconds: PARTS_TOKEN_S });
+  const read = await readStreamCopy(keys.signing.customerCode, token, { width: file.width, height: file.height });
+  if (!read.ok && read.why === "not_full_size") return null;
+  if (!read.ok) throw new Error("piece_make: a clip's playback list could not be read");
+  return read.copy;
+}
+
+/**
+ * Each file the plan names, as it now stands: a clip with its full-size playback copy's parts, a photo with its address.
+ * One that is gone is left out, and a clip no longer ready is read with no length: the checker says which.
+ */
+async function copiesRead(db: Db, piece: PieceRow, plan: PiecePlan): Promise<CopiesRead> {
+  const read: FilesRead = { sources: [], copies: new Map(), photos: new Map() };
+  for (const id of pieceFileIdsOf(plan)) {
+    const file = await findFileForWork(db, piece.tenant_id, id);
+    if (!file || file.removed_at) continue;
+    if (file.kind === "image") read.photos.set(id, await signPhoto(db, file));
+    const ready = file.kind === "video" && file.media_status === "ready" && file.media_ref;
+    const copy = ready ? await readClipCopy(file, ready) : null;
+    if (ready && !copy) return { ok: false, why: "not_yet" };
+    if (copy) read.copies.set(id, copy);
+    read.sources.push(sourceFromFile(file, copy?.seconds ?? null));
+  }
+  return { ok: true, ...read };
+}
+
+type Fetch = RenderJob["fetch"][number];
+
+/**
+ * What the machine fetches for each block, in the block's own order, each under the name the template reads it by: a clip's
+ * stretch by its parts, a photo from its address, a clip's moment by the parts around it. A words card has none.
+ */
+function fetchesOf(timeline: PieceTimeline, read: FilesRead): Fetch[][] {
+  const stretch = (to: string, source: string, from: number, seconds: number): Fetch => {
+    const copy = read.copies.get(source);
+    if (!copy) throw new Error("piece_make: a block's clip has no playback copy read");
+    return { to, parts: streamCutPartsOf(copy, from, from + seconds) };
   };
+  const photo = (to: string, source: string): Fetch => {
+    const address = read.photos.get(source);
+    if (!address) throw new Error("piece_make: a block's photo has no address signed");
+    return { to, parts: [address] };
+  };
+  return timeline.blocks.map((block, index) => {
+    if (block.is === "clip")
+      return [stretch(`block-${index}.mp4`, block.source, block.trim, block.frames / timeline.fps)];
+    if (block.is === "photo") return [photo(`block-${index}.img`, block.source)];
+    // The pictures it shows still, in its own order: a pair's two, a quote's ground.
+    const shots =
+      block.is === "pair" ? [block.before, block.after] : block.is === "quote" && block.over ? [block.over] : [];
+    return shots.map((shot, n) =>
+      shot.at === null
+        ? photo(`block-${index}-${n}.img`, shot.source)
+        : stretch(`block-${index}-${n}.mp4`, shot.source, shot.at, MOMENT_S),
+    );
+  });
 }
 
 async function startDrawing(db: Db, piece: PieceRow, tick: number): Promise<void> {
@@ -261,18 +309,25 @@ async function startDrawing(db: Db, piece: PieceRow, tick: number): Promise<void
     log.warn("piece_plan_refused", { piece: piece.id, wont: compiled.wont, cut: compiled.cut ?? null });
     return endWith(db, piece, "clips");
   }
-  const image = await findPieceImage(db, piece.edition);
+  // The edition this code names, never the row's: what is handed below is read by the template of this edition, and a row
+  // may have been begun by a dashboard a deploy behind this one or ahead of it.
+  const image = await findPieceImage(db, PIECE_TEMPLATE.edition);
   if (!image) {
     // A person builds an edition's image (tooling/video/README.md): until it is on record, nothing can be drawn.
-    log.error("piece_image_missing", { piece: piece.id, edition: piece.edition });
+    log.error("piece_image_missing", { piece: piece.id, edition: PIECE_TEMPLATE.edition });
     return again("image");
   }
+  const fetches = fetchesOf(compiled.timeline, read);
   const material: PieceMaterial = {
     timeline: compiled.timeline,
-    cuts: compiled.timeline.cuts.map((_, i) => `cut-${i}.mp4`),
+    files: fetches.map((own) => own.map((f) => f.to)),
     logo: logoUrl ? LOGO_FILE : null,
   };
-  const machine = await machines.start(image.snapshot_id, jobOf(plan, material, read.copies, logoUrl));
+  const machine = await machines.start(image.snapshot_id, {
+    fetch: [...fetches.flat(), ...(logoUrl ? [{ to: LOGO_FILE, parts: [logoUrl] }] : [])],
+    composition: pieceCompositionOf(plan.shape),
+    props: material,
+  });
   const round = Math.min(pieceRoundsOf(piece.machine) + 1, PIECE_ROUNDS_MAX);
   const kept = await keepPieceMachine(db, piece.id, {
     name: machine.name,
@@ -372,7 +427,7 @@ async function keepDrawn(db: Db, piece: PieceRow, kept: PieceMachine): Promise<v
     pieceId: piece.id,
     id,
     mediaRef: reserved.mediaRef,
-    name: fileNameOf(plan.lines[0] ?? "", 5) || "video",
+    name: fileNameOf(pieceOpeningOf(plan)[0] ?? "", 5) || "video",
     bytes: bytes.length,
     fingerprint: fileFingerprintOf(bytes.subarray(0, FINGERPRINT_BYTES), bytes.length),
     seconds,

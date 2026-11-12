@@ -35,17 +35,11 @@ export const NEW_WORDS = {
     >,
   },
   starts: {
-    cap: "Or start from what’s happening",
-    setup: "Ready once one thing is set up",
-    running: "Runs already:",
-    andMore: (n: number) => `and ${n} more`,
-    see: "See them",
     noMessages: "No messages yet. Ask writes the first with your sequence.",
     kind: { sequence: "Sequence", once: "Once" } satisfies Record<NewKind, string>,
     thank: "Thank people after they come in",
     thankSaid: (n: number) => `${n} this week, none thanked yet`,
     winBack: (n: number) => `Win back ${n} who’ve gone quiet`,
-    welcome: (n: number) => `Welcome ${n} new ${n === 1 ? "person" : "people"}`,
     offer: "Send one offer to everyone",
     offerSaid: (n: number) => `${n} can hear an offer`,
     leads: (n: number) => `Write to ${n} ready ${n === 1 ? "lead" : "leads"}`,
@@ -61,8 +55,6 @@ export const NEW_WORDS = {
     connect: "Connect",
     import: "Import",
     find: "Find",
-    thankToo: "Thank people after they come in",
-    needsCalendarToo: "Needs your calendar too",
     happening: "What’s happening",
   },
   draft: {
@@ -434,7 +426,6 @@ export const NEW_WORDS = {
     winBack: (n: number) => `${n} have gone quiet`,
     offer: (n: number) => `${n} can hear an offer`,
     leads: (n: number) => `${n} ${n === 1 ? "lead" : "leads"} ready`,
-    welcome: (n: number) => `${n} new ${n === 1 ? "person" : "people"}`,
   },
 } as const;
 

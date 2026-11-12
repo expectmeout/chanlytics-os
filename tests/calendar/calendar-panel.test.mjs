@@ -234,7 +234,7 @@ test("(lane E) how a visit stands is said once, and what it leads with follows i
   assert.deepEqual(sheet(UNDERWAY, booked).state, { word: "Now", tone: "accent", ring: null });
 
   const ended = sheet(ENDED, booked);
-  assert.deepEqual(ended.state, { word: "Not marked yet", tone: "plain", ring: "plain" });
+  assert.equal(ended.state, null, "the question says it is not marked yet: no pill says it again over it");
   assert.equal(ended.ask.question, "Did Ana come today?");
   assert.deepEqual(ended.ask.line.asks, ["kept", "missed"], "whether they came, never cancelled: it is over");
   assert.deepEqual(
