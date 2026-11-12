@@ -784,6 +784,19 @@ const kitKickerSheet = () =>
   `<button type="button" class="btn btn-sm btn-primary">Start it</button></div></footer></section>`;
 
 /**
+ * The kit's Sheet with its kicker said to a screen reader alone (`unsaid`, kit-behaves.tsx's; a message's sheet): no line
+ * of its own, its Close at the head's corner over what it holds, whose own head keeps clear of it.
+ */
+const kitUnsaidSheet = () =>
+  `<button type="button" class="btn">Spring offer</button>` +
+  `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
+  `<section class="sheet sheet-kicker" role="dialog" tabindex="-1" data-unsaid="true">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Messages</h2></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body"><div>${KIT_ROWS}</div></div></section>`;
+
+/**
  * The kit's Sheet with two rests (`rest`, kit-behaves.tsx's; the lead workbench's pile): a kicker's head over one pane of
  * rows and a foot, standing at half, its handle a button that raises it to full. On a desk it is the side pane.
  */
@@ -1343,13 +1356,17 @@ const kitSwitch = (on, label, readOnly = false) =>
 const kitSwitches = () =>
   kitSwitch(false, "Send it now") + kitSwitch(true, "Remind them the day before") + kitSwitch(true, "Take calls", true);
 
-/** One sub-tab of the kit's, as Base UI's Tabs draws it: its word holding the room of its bold form, its figure after. */
-const kitSubtab = (label, { on = false, count, tone, glyph = "", fresh, need } = {}) =>
+/**
+ * One sub-tab of the kit's, as Base UI's Tabs draws it: its word holding the room of its bold form, its figure after, and
+ * its dot: needs you, new, or where its own thing stands (`standing`: ready, not written yet, never sent that way).
+ */
+const kitSubtab = (label, { on = false, count, tone, glyph = "", fresh, need, standing } = {}) =>
   `<button type="button" role="tab" aria-selected="${on}" aria-disabled="false" tabindex="${on ? 0 : -1}" class="subtab"` +
   `${tone ? ` data-tone="${tone}"` : ""}>${glyph}<span class="subtab-label" data-text="${label}">${label}</span>` +
   `${count === undefined ? "" : `<span class="subtab-count">${count}</span>`}` +
   `${need ? `<span class="subtab-dot is-warn" role="img" aria-label="${need}"></span>` : ""}` +
-  `${fresh && !need ? `<span class="subtab-dot" role="img" aria-label="${fresh}"></span>` : ""}</button>`;
+  `${fresh && !need ? `<span class="subtab-dot" role="img" aria-label="${fresh}"></span>` : ""}` +
+  `${standing && !need && !fresh ? `<span class="subtab-dot" data-look="${standing.look}" role="img" aria-label="${standing.said}"></span>` : ""}</button>`;
 
 /** A strip of the kit's sub-tabs: Base UI's tablist, its tabs, and the indicator that is the bar under the picked one. */
 const kitSubtabs = (name, tabs, { attrs = "", left = "18px", width = "78px", direction = "none" } = {}) =>
@@ -2124,6 +2141,19 @@ export const FAMILIES = [
             kitSubtab("History"),
           ],
           { width: "58px" },
+        ),
+      },
+      {
+        // A message's channels, each tab's dot where its version stands (the message sheet's canvas, 12 Nov 2026).
+        id: "subtabs-standing",
+        html: kitSubtabs(
+          "Channel for Spring offer",
+          [
+            kitSubtab("WhatsApp", { on: true, standing: { said: "WhatsApp · approved", look: "ready" } }),
+            kitSubtab("Email", { standing: { said: "Email · not written", look: "empty" } }),
+            kitSubtab("Text", { standing: { said: "Text · not for offers", look: "never" } }),
+          ],
+          { width: "74px" },
         ),
       },
       {
@@ -2961,6 +2991,7 @@ export const FAMILIES = [
       { id: "sheet-kit-opens", stage: "sheet", html: kitOpensSheet() },
       { id: "sheet-kit-job", stage: "sheet", html: kitJobSheet() },
       { id: "sheet-kit-kicker", stage: "sheet", html: kitKickerSheet() },
+      { id: "sheet-kit-unsaid", stage: "sheet", html: kitUnsaidSheet() },
       { id: "sheet-kit-rests", stage: "sheet", html: kitRestsSheet() },
       { id: "sheet-kit-fit", stage: "sheet", html: kitFitSheet() },
       { id: "sheet-kit-solid", stage: "sheet", html: kitSolidSheet() },

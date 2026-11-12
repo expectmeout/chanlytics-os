@@ -23,6 +23,7 @@ import { findTemplateWords } from "@chanlytics/db/campaigns";
 import { editTemplateWords } from "@/server/campaigns/meta-templates";
 import { submitRefusal } from "@/server/campaigns/template-submit";
 import type { RouteContext } from "@/server/shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The longest words WhatsApp takes in a message's body. */
 const WORDS_MAX = 1024;
@@ -74,7 +75,7 @@ function valuesOf(variables: unknown): Map<number, { label: string; example: str
 
 export async function sendWordsBack(
   ctx: RouteContext,
-  tpl: { id: string; tenant_id: string; name: string; language: string },
+  tpl: { id: string; tenant_id: TenantId; name: string; language: string },
   words: z.infer<typeof TemplateWords>,
 ) {
   const { data: held, error } = await findTemplateWords(ctx.supabase, tpl.tenant_id, tpl.id);

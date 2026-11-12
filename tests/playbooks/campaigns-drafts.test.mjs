@@ -870,19 +870,19 @@ test("a template half-written is kept, comes back with the page, and Close asks 
     press(byTestId(tree, "tpl-leave-no"));
     tree = redraw(composeNew);
     assert.ok(byTestId(tree, "tpl-submit"));
-    // Campaigns > Templates, come back to: the composer is open, on the words.
+    // Campaigns > Messages, come back to: its New is one line to Ask (the Messages redesign's step 4), so the page opens no
+    // form by itself; the form drawn again opens on the words it kept.
     unmount();
     tree = messagesPage();
-    assert.ok(byTestId(tree, "messages-composer"), "come back to, the composer is open");
-    assert.equal(
-      byTestId(tree, "tpl-body").props.value,
-      "Hi {{1}}, 20% off any colour service this week.",
-      "on the words",
-    );
+    assert.equal(byTestId(tree, "messages-composer"), null, "the page opens no form by itself");
     // Submitted and taken: nothing kept.
     unmount();
     tree = composeNew();
-    assert.equal(byTestId(tree, "tpl-body").props.value, "Hi {{1}}, 20% off any colour service this week.");
+    assert.equal(
+      byTestId(tree, "tpl-body").props.value,
+      "Hi {{1}}, 20% off any colour service this week.",
+      "come back to, the form opens on the words",
+    );
     type(byTestId(tree, "tpl-name"), "autumn_colour");
     tree = redraw(composeNew);
     const ex = find(tree, (n) => n.type === Field && n.props?.placeholder === "Ana");

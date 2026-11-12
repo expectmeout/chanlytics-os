@@ -65,7 +65,7 @@ interface WordsFieldProps {
   seats: SlotSeats;
   onType: (words: string) => void;
   testid?: string;
-  /** No label drawn over the box, where the box is all the sheet holds (a message's own sheet): it names the box alone. */
+  /** No label drawn over the box, where the box is all the sheet holds (a message's own sheet): the box names itself. */
   bare?: boolean;
 }
 
@@ -81,7 +81,8 @@ export function WordsField(p: WordsFieldProps) {
   const box = useRef<HTMLDivElement | null>(null);
   return (
     <Field
-      {...(bare ? { "aria-label": label } : { label })}
+      // No label drawn over the box where the box is all the sheet holds: the box names itself (SlotBox's `label`).
+      label={bare ? undefined : label}
       hint={hint}
       hintId={hint ? hintId : undefined}
       onLabelPress={() => box.current?.focus()}

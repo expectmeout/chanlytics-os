@@ -398,7 +398,7 @@ export async function rewriteVersion(
  * and every value the words held (`{{1}}`, `{{opening}}`) kept one for one, else refused in words.
  */
 function rewrittenVersion(
-  input: { channel: "email" | "sms"; subject: string | null; body: string },
+  input: { channel: "email" | "sms" | "whatsapp"; subject: string | null; body: string },
   raw: unknown,
 ): RewriteOutcome {
   const parsed = RewriteSchema.safeParse(raw);

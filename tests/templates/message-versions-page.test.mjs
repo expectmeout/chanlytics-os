@@ -217,10 +217,10 @@ const standingWord = (tree) => {
 const itemOf = (tree, words) => itemsOf(tree).find((i) => i.label === words || i.label.split(" ")[0] === words);
 /**
  * One of the editor's fields, by its label: the kit's Field, which holds the label, the hint and the box. In a message's
- * sheet the words' box has no label drawn, and is named by it (`aria-label`).
+ * sheet the words' box has no label drawn over it, and names itself: the field is found by its box's label.
  */
 const fieldOf = (tree, label) =>
-  find(paneOf(tree), (n) => n.type === Field && (n.props.label ?? n.props["aria-label"]) === label);
+  find(paneOf(tree), (n) => n.type === Field && (n.props.label ?? n.props.control?.props.label) === label);
 /** The box of words in a field, by its label: where the words are typed, and what the editor reads them from. */
 const boxOf = (tree, label) => find(paneOf(tree), (n) => n.type === SlotBox && n.props.label === label);
 /** The slots a box draws, as chips: [name, number] in order (a campaign message's slots are numbered; a chip carries its key). */
@@ -616,7 +616,7 @@ test("the box is described by the field's hint and the label hands it focus: no 
   // In a message's sheet the words' box has no label over it and is named by it; its hint is what the sender adds.
   const message = fieldOf(tree, "Message");
   assert.equal(message.props.label, undefined, "no label drawn over the words");
-  assert.equal(message.props["aria-label"], "Message", "the box is named by it");
+  assert.equal(message.props.control.props.label, "Message", "the box names itself");
   assert.equal(message.props.hint, "The footer is added when it goes, and an offer also gets its unsubscribe link.");
   assert.equal(boxOf(tree, "Message").props.describedBy, message.props.hintId, "and described by its hint");
   assert.notEqual(message.props.hintId, field.props.hintId);

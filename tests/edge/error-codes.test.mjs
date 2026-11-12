@@ -83,6 +83,9 @@ const FORWARDED = {
     "body?.error?.message ?? `HTTP ${res.status}`",
     "String(res.error)",
     "body?.error?.error_user_msg ?? body?.error?.message ?? `HTTP ${res.status}`",
+    // editTemplate's: a template's words sent back to Meta (the Messages redesign's step 3), in Meta's words for `detail`.
+    "String(res.error)",
+    "body?.error?.error_user_msg ?? body?.error?.message ?? `HTTP ${res.status}`",
     "String(res.error)",
     "body?.error?.message ?? `HTTP ${res.status}`",
   ],

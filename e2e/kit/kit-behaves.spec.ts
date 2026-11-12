@@ -130,6 +130,11 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
     ready: "section.sheet.sheet-kicker",
   },
   {
+    entry: "sheet-kit-unsaid",
+    bring: (p) => p.getByTestId("sheet-unsaid-open").click(),
+    ready: "section.sheet[data-unsaid]",
+  },
+  {
     entry: "sheet-kit-rests",
     bring: (p) => p.getByTestId("sheet-rests-open").click(),
     ready: "section.sheet.sheet-rests",
@@ -193,6 +198,11 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
   { entry: "subtabs-dense", bring: async () => undefined, ready: '[data-entry="subtabs-dense"] .subtabs[data-dense]' },
   { entry: "subtabs-fresh", bring: async () => undefined, ready: '[data-entry="subtabs-fresh"] .subtab-dot' },
   { entry: "subtabs-need", bring: async () => undefined, ready: '[data-entry="subtabs-need"] .subtab-dot.is-warn' },
+  {
+    entry: "subtabs-standing",
+    bring: async () => undefined,
+    ready: '[data-entry="subtabs-standing"] .subtab-dot[data-look]',
+  },
   { entry: "subtabs-glyph", bring: async () => undefined, ready: '[data-entry="subtabs-glyph"] .subtabs' },
   { entry: "subtabs-capsule", bring: async () => undefined, ready: '[data-entry="subtabs-capsule"] .rec-seg' },
   { entry: "subtabs-chips", bring: async () => undefined, ready: '[data-entry="subtabs-chips"] .subtab-chips' },

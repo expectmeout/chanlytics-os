@@ -125,10 +125,12 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
   const s = ["page-parts", "message-row-parts", "emails"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.tsx`))
     .join(" ");
+  assert.ok(s.includes('data-testid="templates"') && s.includes('data-testid="template-row"'));
+  // No sync button (the Messages redesign's step 5): WhatsApp is asked quietly as the page opens (templates-page.tsx).
+  assert.ok(!s.includes('data-testid="sync-templates"'), "no press to ask WhatsApp");
   assert.ok(
-    s.includes('data-testid="templates"') &&
-      s.includes('data-testid="template-row"') &&
-      s.includes('data-testid="sync-templates"'),
+    readCode("apps/dashboard/src/surfaces/campaigns/templates/templates-page.tsx").includes("useQuietCheck("),
+    "the page asks it as it opens",
   );
   // The head's hover is contracts' (the page draws it: message-versions-page.test.mjs): it says who a marketing message reaches.
   assert.ok(LIBRARY_WORDS.headTip.includes("A marketing message can only go to people who said yes to offers."));

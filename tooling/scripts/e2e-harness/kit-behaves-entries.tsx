@@ -550,6 +550,37 @@ function SheetKitRests() {
   );
 }
 
+/** The sheet whose kicker is said to a screen reader alone, its Close at the corner over a pane that carries its own head. */
+function SheetKitUnsaid() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Figure id="sheet-kit-unsaid" about="the kit's Sheet, its kicker unsaid">
+      <Button data-testid="sheet-unsaid-open" onClick={() => setOpen(true)}>
+        Spring offer
+      </Button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Messages"
+        close={{ label: "Close", glyph: glyph("x", 13) }}
+        kicker
+        unsaid
+      >
+        <div>
+          {SHEET_SERVICES.map(([name, long]) => (
+            <div key={name} className="rec-row" data-empty="false">
+              <span className="rec-row-key">{name}</span>
+              <div className="rec-row-val">
+                <span className="rec-row-value">{long}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Sheet>
+    </Figure>
+  );
+}
+
 /** The sheet with its title a kicker over one pane of rows that carry their own name, its foot's Cancel the act that closes it. */
 function SheetKitKicker() {
   const [open, setOpen] = useState(false);
@@ -1111,6 +1142,25 @@ function SubTabsKitNeed() {
   );
 }
 
+/** A message's channels, each tab's dot where its version stands: ready, not written yet, never sent that way. */
+function SubTabsKitStanding() {
+  const [on, setOn] = useState("whatsapp");
+  return (
+    <Figure id="subtabs-standing" about="the kit's SubTabs, each tab's dot where its own thing stands">
+      <SubTabs
+        label="Channel for Spring offer"
+        value={on}
+        onSelect={setOn}
+        tabs={[
+          { id: "whatsapp", label: "WhatsApp", standing: { said: "WhatsApp · approved", look: "ready" } },
+          { id: "email", label: "Email", standing: { said: "Email · not written", look: "empty" } },
+          { id: "sms", label: "Text", standing: { said: "Text · not for offers", look: "never" } },
+        ]}
+      />
+    </Figure>
+  );
+}
+
 /** The sub-tabs with a glyph before each word. */
 function SubTabsKitGlyph() {
   const [on, setOn] = useState("all");
@@ -1243,6 +1293,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "sheet-kit", Draw: SheetKit, closed: false },
   { id: "sheet-kit-job", Draw: SheetKitJob, closed: false },
   { id: "sheet-kit-kicker", Draw: SheetKitKicker, closed: false },
+  { id: "sheet-kit-unsaid", Draw: SheetKitUnsaid, closed: false },
   { id: "sheet-kit-rests", Draw: SheetKitRests, closed: false },
   { id: "sheet-kit-fit", Draw: SheetKitFit, closed: false },
   { id: "sheet-kit-solid", Draw: SheetKitSolid, closed: false },
@@ -1268,6 +1319,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "subtabs-dense", Draw: SubTabsKitDense, closed: true },
   { id: "subtabs-fresh", Draw: SubTabsKitFresh, closed: true },
   { id: "subtabs-need", Draw: SubTabsKitNeed, closed: true },
+  { id: "subtabs-standing", Draw: SubTabsKitStanding, closed: true },
   { id: "subtabs-glyph", Draw: SubTabsKitGlyph, closed: true },
   { id: "subtabs-capsule", Draw: SubTabsKitCapsule, closed: true },
   { id: "subtabs-chips", Draw: SubTabsKitChips, closed: true },
