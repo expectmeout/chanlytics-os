@@ -49,7 +49,7 @@ import {
 } from "./sequences/step-specs";
 import type { ProposalGate, ProposalSpec } from "./spec";
 import { settingsSpec } from "./workspace";
-import { postSpec } from "../../files/post-spec";
+import { postSpec } from "../../content/post-spec";
 import { pieceSpec } from "../../content/piece-spec";
 import { memoryChangeSpec, memoryForgetSpec, memorySpec } from "./memory";
 

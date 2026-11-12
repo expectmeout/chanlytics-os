@@ -104,7 +104,7 @@ test("a video being made says its opening words and where it is at, in its own l
 test("one that was not made says so, and why", () => {
   const said = contentMakingSaid(making({ status: "failed", failed_why: "clips" }));
   assert.equal(said.state, "Couldn't make it");
-  assert.equal(said.failed, "One of its clips isn't in Files any more, or can't be used yet.");
+  assert.equal(said.failed, "One of its clips isn't in your Library any more, or can't be used yet.");
 });
 
 test("the page asks again only while something is still moving", () => {

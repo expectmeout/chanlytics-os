@@ -23,7 +23,7 @@ export interface PieceWords {
   boardSaid: string;
   /**
    * The card once pressed, as the video's own row stands (piece-card.ts pieceStandsOf): being made, with where it is at; ready,
-   * the moment it can be played; not made; or no longer in Files.
+   * the moment it can be played; not made; or no longer in Content.
    */
   follows: {
     making: string;
@@ -55,9 +55,9 @@ const titled = (line: string): string => `Video: ${line.trim().replace(/[\s,;:\u
 
 /** Why a video was not made, and what a person does about each. */
 const FAILED: Record<PieceFail, string> = {
-  clips: "One of its clips isn't in Files any more, or can't be used yet.",
+  clips: "One of its clips isn't in your Library any more, or can't be used yet.",
   draw: "It could not be drawn this time.",
-  store: "It was drawn but could not be kept in Files. Check there is room for it.",
+  store: "It was drawn but could not be kept. Check there is room for it.",
   unknown: "It could not be made this time.",
 };
 const FAILED_NEXT: Record<PieceFail, string> = {
@@ -72,7 +72,7 @@ export const PIECE_WORDS: PieceWords = {
   cardTitle: titled,
   summary: (moments, seconds, clips) =>
     `${Math.round(seconds)} seconds, vertical. ${moments} moments from ${clips === 1 ? "your clip" : `${clips} of your clips`}.`,
-  making: "You can close this. It lands in Files, under Made by Ask, and your bell says so.",
+  making: "You can close this. It lands in Content, under Made, and your bell says so.",
   busy: "Three videos are being made right now. Make this one once one of them is done.",
   off: "Videos aren't on for this workspace yet.",
   notDrawn: "The stills could not be drawn. Making it still works.",
@@ -83,20 +83,20 @@ export const PIECE_WORDS: PieceWords = {
       queued: () => "Starting",
       waiting_clip: () => "Your clip is still being made ready, so this one takes longer: up to 20 minutes.",
       drawing: (moments) => `Cutting ${moments} moments`,
-      saving: () => "Putting it in Files",
+      saving: () => "Putting it in Content",
     },
     ready: "It's ready",
-    readyWhere: "In Files, under Made by Ask.",
+    readyWhere: "In Content, under Made.",
     open: "Open",
     failedMark: "Couldn't make it",
-    gone: "This video isn't in Files any more.",
+    gone: "This video isn't in Content any more.",
   },
   wont: {
     cuts: "A video takes two to five moments from your clips.",
-    file: "One of the clips isn't in Files any more.",
+    file: "One of the clips isn't in your Library any more.",
     not_video: "A video is made from video clips. That file is a picture.",
     made: "That's a video made here already. Use the clips it came from.",
-    unkept: "Keep that clip in Files first.",
+    unkept: "Keep that clip in your Library first.",
     not_ready: "That clip is still being made ready. A video can use it once it is.",
     stretch: "One of the moments has no length. Choose where it starts and ends.",
     past_end: "One of the moments runs past the end of its clip.",
@@ -108,16 +108,16 @@ export const PIECE_WORDS: PieceWords = {
   failed: FAILED,
   bell: {
     ready: "Your video is ready",
-    readyBody: (name) => `${fileSaidOf(name)} is in Files, under Made by Ask.`,
+    readyBody: (name) => `${fileSaidOf(name)} is in Content, under Made.`,
     failed: "Your video could not be made",
     failedBody: (reason) => `${FAILED[reason]} ${FAILED_NEXT[reason]}`,
   },
 };
 
 const FAILED_ES: Record<PieceFail, string> = {
-  clips: "Uno de sus clips ya no está en Archivos, o todavía no se puede usar.",
+  clips: "Uno de sus clips ya no está en tu Biblioteca, o todavía no se puede usar.",
   draw: "Esta vez no se pudo dibujar.",
-  store: "Se dibujó pero no se pudo guardar en Archivos. Revisa que haya espacio.",
+  store: "Se dibujó pero no se pudo guardar. Revisa que haya espacio.",
   unknown: "Esta vez no se pudo hacer.",
 };
 const FAILED_NEXT_ES: Record<PieceFail, string> = {
@@ -131,7 +131,7 @@ const PIECE_WORDS_ES: PieceWords = {
   cardTitle: titled,
   summary: (moments, seconds, clips) =>
     `${Math.round(seconds)} segundos, en vertical. ${moments} momentos de ${clips === 1 ? "tu clip" : `${clips} de tus clips`}.`,
-  making: "Puedes cerrar esto. Llega a Archivos, en Hecho por Ask, y tu campana te avisa.",
+  making: "Puedes cerrar esto. Llega a Contenido, en Hecho, y tu campana te avisa.",
   busy: "Ahora mismo se están haciendo tres videos. Haz este cuando termine uno.",
   off: "Los videos todavía no están activos en este espacio.",
   notDrawn: "No se pudieron dibujar los cuadros. Aun así puedes hacerlo.",
@@ -142,20 +142,20 @@ const PIECE_WORDS_ES: PieceWords = {
       queued: () => "Empezando",
       waiting_clip: () => "Tu clip todavía se está preparando, así que este tarda más: hasta 20 minutos.",
       drawing: (moments) => `Cortando ${moments} momentos`,
-      saving: () => "Guardándolo en Archivos",
+      saving: () => "Guardándolo en Contenido",
     },
     ready: "Está listo",
-    readyWhere: "En Archivos, en Hecho por Ask.",
+    readyWhere: "En Contenido, en Hecho.",
     open: "Abrir",
     failedMark: "No se pudo hacer",
-    gone: "Este video ya no está en Archivos.",
+    gone: "Este video ya no está en Contenido.",
   },
   wont: {
     cuts: "Un video lleva de dos a cinco momentos de tus clips.",
-    file: "Uno de los clips ya no está en Archivos.",
+    file: "Uno de los clips ya no está en tu Biblioteca.",
     not_video: "Un video se hace con clips de video. Ese archivo es una imagen.",
     made: "Ese video ya se hizo aquí. Usa los clips de los que salió.",
-    unkept: "Guarda primero ese clip en Archivos.",
+    unkept: "Guarda primero ese clip en tu Biblioteca.",
     not_ready: "Ese clip todavía se está preparando. Un video puede usarlo cuando esté listo.",
     stretch: "Uno de los momentos no tiene duración. Elige dónde empieza y dónde termina.",
     past_end: "Uno de los momentos pasa del final de su clip.",
@@ -167,7 +167,7 @@ const PIECE_WORDS_ES: PieceWords = {
   failed: FAILED_ES,
   bell: {
     ready: "Tu video está listo",
-    readyBody: (name) => `${fileSaidOf(name)} está en Archivos, en Hecho por Ask.`,
+    readyBody: (name) => `${fileSaidOf(name)} está en Contenido, en Hecho.`,
     failed: "No se pudo hacer tu video",
     failedBody: (reason) => `${FAILED_ES[reason]} ${FAILED_NEXT_ES[reason]}`,
   },

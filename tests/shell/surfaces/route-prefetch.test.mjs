@@ -821,6 +821,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     messages: ["channels"],
     "campaigns/messages": ["channels"],
     "campaigns/content": ["content"],
+    // Content's Library (the content redesign's stage 2), once Settings › Files: the library's read, never Made's.
+    "campaigns/content:library": ["files"],
     // Every pane of Settings draws the partner account (the rail's Partner), and some what else they stand on: the calendar's
     // weeks (Hours), Setup's connections (How it answers, Connections), Google and the channels (Connections), the member's
     // alerts, Billing's plan, Ask's memory. A pane drawn from none of the settings read stands on who is looking alone.
@@ -864,6 +866,12 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   for (const k of ["broadcasts", "audiences", "campaign_results", "reach_outs"])
     for (const param of ["sequences/new", "sequences/new:leads", "sequences/new:once:to:list-1"])
       assert.ok(!registry.routeDrawsFor("campaigns", param).includes(k), `campaigns/${param} draws no ${k}`);
+  // Made reads none of the Library, and the Library none of Made.
+  assert.ok(!registry.routeDrawsFor("campaigns", "content").includes("files"), "Made draws no library");
+  assert.ok(
+    !registry.routeDrawsFor("campaigns", "content:library").includes("content"),
+    "the Library draws nothing of Made",
+  );
   for (const k of ["playbooks", "broadcasts", "reach_outs"])
     for (const param of [null, "in:winback", "moment:p-1", "sequences"])
       assert.ok(!registry.routeDrawsFor("campaigns", param).includes(k), `campaigns/${param ?? ""} draws no ${k}`);

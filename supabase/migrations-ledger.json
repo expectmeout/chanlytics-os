@@ -616,6 +616,7 @@
     "00611_a_business_posts_what_it_made.sql": "e4a93b7e9771f5fb978c42ba6fe9fbb804dbfa7e27ae6e053114d1d43e7dabb1",
     "00612_a_library_finds_what_is_meant.sql": "224612dc492f3cec92e1011aebe1040e3f42495aa325109ebb40a2d4b279d097",
     "00613_a_business_makes_a_video.sql": "9ceedacc35223cf57700ee419140d31c31ec18096bc89479d550c8a344b9b24c",
-    "00614_a_note_is_unread_until_it_is_read.sql": "b5098a48b0454947b788e7bc88da6156c4e9b389114270c6fca66914dceee6a3"
+    "00614_a_note_is_unread_until_it_is_read.sql": "b5098a48b0454947b788e7bc88da6156c4e9b389114270c6fca66914dceee6a3",
+    "00616_a_post_waits_for_google_and_a_delete_waits_for_undo.sql": "287985f0079607fa03c86341cde223641e19fc846c80b1f92651f1abff6a011d"
   }
 }

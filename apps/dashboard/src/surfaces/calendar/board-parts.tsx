@@ -16,6 +16,7 @@ import {
   addressOf,
   bookingEmailsHeldWords,
   bookingEmailsStep,
+  isOneOf,
 } from "@chanlytics/contracts";
 import type { CalendarServiceVM, CalendarVM } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
@@ -55,7 +56,7 @@ interface BarProps {
   show: CalendarShow;
   setShow: (show: CalendarShow) => void;
   /** Whether the workspace has a campaign, and a chain of cold email: Show offers what it has. */
-  offers: { campaigns: boolean; cold: boolean };
+  offers: { campaigns: boolean; cold: boolean; posts: boolean };
   /** The workspace's word for what is booked (appointmentWords Many): Show's first, always-on switch. */
   many: string;
   /** Whether this is a phone, where Show's switches head Settings. */
@@ -87,6 +88,9 @@ function showLegend(vm: CalendarVM, serviceName: string): string {
  */
 const opensTimes = (p: BarProps): boolean => p.vm.source.times;
 
+/** The switches Show offers where the workspace has what each one shows. */
+const OFFERED_SWITCHES = ["campaigns", "cold", "posts"] as const;
+
 /**
  * Show's switches: open times where the board has them; campaigns and cold email where it has them; none at all where
  * nothing can be switched. On a desk, the rows say the workspace's word for what is booked first, locked on; a phone's
@@ -98,8 +102,7 @@ function showGroup(p: BarProps): MenuGroup | null {
   const times = opensTimes(p);
   const switches = [
     ...(times ? [{ value: "open", label: SHOW.open, on: show.open }] : []),
-    ...(offers.campaigns ? [{ value: "campaigns", label: SHOW.campaigns, on: show.campaigns }] : []),
-    ...(offers.cold ? [{ value: "cold", label: SHOW.cold, on: show.cold }] : []),
+    ...OFFERED_SWITCHES.filter((key) => offers[key]).map((key) => ({ value: key, label: SHOW[key], on: show[key] })),
   ];
   if (!switches.length) return null;
   const items = [...(p.phone ? [] : [{ value: "visits", label: p.many, on: true, locked: SHOW.always }]), ...switches];
@@ -111,7 +114,7 @@ function showGroup(p: BarProps): MenuGroup | null {
       tick: <Icon name="check" size={13} />,
       chips: true,
       onToggle: (value) => {
-        if (value === "open" || value === "campaigns" || value === "cold") setShow({ ...show, [value]: !show[value] });
+        if (value === "open" || isOneOf(OFFERED_SWITCHES, value)) setShow({ ...show, [value]: !show[value] });
       },
     },
   };
@@ -233,8 +236,7 @@ function whenPart(p: BarProps) {
  * and never where nothing can: a capsule whose only row is locked on says nothing.
  */
 function showCapsule(p: BarProps) {
-  if (p.phone) return null;
-  const group = showGroup(p);
+  const group = p.phone ? null : showGroup(p);
   if (!group) return null;
   // Open times are on only where the board has them to draw: the value never names what it cannot show.
   const on = { ...p.show, open: p.show.open && opensTimes(p) };

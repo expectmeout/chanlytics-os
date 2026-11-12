@@ -323,6 +323,8 @@ export interface JobContext {
     prepare: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
     publish: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
     reconcile: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
+    /** A post on its way to Google at its time (00616), asked once, after the recheck. */
+    google: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
   };
   /**
    * A freed time offered to the people who asked and never booked (decision 0082), as the edge holds it: the workspace's

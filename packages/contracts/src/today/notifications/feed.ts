@@ -13,6 +13,10 @@ import { invitationExpired } from "../../shell/identity";
 import { noticeTone } from "../../waits/notice-tones";
 import { SEQUENCES_ROUTE } from "../../campaigns/sequences/address";
 import { MESSAGES_ROUTE } from "../../shell/address";
+import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, contentRouteOf } from "../../content/address";
+
+/** Made's Needs you, where a post that stopped stands with why (Campaigns › Content). */
+const CONTENT_NEEDS_ROUTE = contentRouteOf({ list: "made", view: "needs", open: null });
 import {
   bellReadThroughMs,
   SERVER_NOTIFICATION_KINDS,
@@ -151,20 +155,22 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   preview_build: { stopped: "A lead's preview could not be made", to: "clients/leads" },
   erasure_finish: { stopped: "Erasing a person stopped partway: delete them again", to: "clients" },
   // A file's look. Not sent (packages/jobs TOLD_ELSEWHERE): its row says it could not be read, on the page that holds it.
-  file_look: { stopped: "A photo could not be looked at", to: "admin/files" },
+  file_look: { stopped: "A photo could not be looked at", to: CONTENT_LIBRARY_ROUTE },
   // Not sent: Inbox simply holds what came, and nothing an owner did is waiting on it.
-  file_fetch: { stopped: "Photos from your website could not all be brought in", to: "admin/files" },
+  file_fetch: { stopped: "Photos from your website could not all be brought in", to: CONTENT_LIBRARY_ROUTE },
   // Not sent: a removed file already looks gone, and nothing is the owner's to do. Health counts it.
-  file_purge: { stopped: "A removed photo could not be let go", to: "admin/files" },
+  file_purge: { stopped: "A removed photo could not be let go", to: CONTENT_LIBRARY_ROUTE },
   // A video's digest. Not sent (packages/jobs TOLD_ELSEWHERE): its tile says what it has, and the sweep tries the step again.
-  video_digest: { stopped: "A video could not be made ready", to: "admin/files" },
-  // A post on its way to Instagram (00611): the file's sheet says why, under the post.
-  post_prepare: { stopped: "A post could not go on Instagram", to: "admin/files" },
-  post_publish: { stopped: "A post could not go on Instagram", to: "admin/files" },
-  post_reconcile: { stopped: "Instagram did not say whether a post went up", to: "admin/files" },
+  video_digest: { stopped: "A video could not be made ready", to: CONTENT_LIBRARY_ROUTE },
+  // A post on its way to Instagram (00611): Content's Needs you holds it, and its piece says why, under the post.
+  post_prepare: { stopped: "A post could not go on Instagram", to: CONTENT_NEEDS_ROUTE },
+  post_publish: { stopped: "A post could not go on Instagram", to: CONTENT_NEEDS_ROUTE },
+  post_reconcile: { stopped: "Instagram did not say whether a post went up", to: CONTENT_NEEDS_ROUTE },
   // A video being made (00613). Its own failures say why on the bell (contracts PIECE_WORDS.failed); this is the ledger's
   // word for one that ended with nothing known.
-  piece_make: { stopped: "A video could not be made", to: "admin/files" },
+  piece_make: { stopped: "A video could not be made", to: CONTENT_ROUTE },
+  // A post on its way to Google at its time (00616): Content's Needs you holds it, and its piece says why.
+  post_google: { stopped: "A post could not go on Google", to: CONTENT_NEEDS_ROUTE },
   // A workspace's hourly work (00569). Not sent (kinds.ts: the platform's to mend), and the next hour tries again.
   campaign_moments: { stopped: "A campaign could not run this hour", to: "today" },
   reach_out_steps: { stopped: "A reach-out could not run this hour", to: "today" },
@@ -315,9 +321,12 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   /** A note from a correction waits: news, on the Autonomy pane, where it is kept or dismissed. */
   note_to_keep: { icon: "edit", tone: "", action: "Open Autonomy", to: "admin/autonomy" },
   ask_cards: { icon: "sparkle", tone: "", action: "Open Today", to: "today" },
-  files_waiting: { icon: "image", tone: "", action: "Open Files", to: "admin/files" },
+  files_waiting: { icon: "image", tone: "", action: "Open Library", to: CONTENT_LIBRARY_ROUTE },
   // A video made here that can be played (00613): its row opens the video itself, so its door says what she will do there.
-  video_ready: { icon: "image", tone: "ok", action: "Watch it", to: "admin/files", own: true },
+  video_ready: { icon: "image", tone: "ok", action: "Watch it", to: CONTENT_ROUTE, own: true },
+  // A post set for its time (00616): its row opens the piece itself, so its door says what she will do there.
+  post_up: { icon: "image", tone: "ok", action: "See it", to: CONTENT_ROUTE, own: true },
+  post_stopped: { icon: "image", tone: "warn", action: "See why", to: CONTENT_NEEDS_ROUTE, own: true },
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
   alert: ALERT_LOOK,
 };
@@ -359,8 +368,9 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^admin\/activity/, "Open Activity"],
   [/^admin\/team/, "Open Team"],
   [/^admin\/billing/, "Open Billing"],
-  // A row of another kind that opens Files (a video that could not be made, 0122) says Files, never its kind's own door.
-  [/^admin\/files/, "Open Files"],
+  // A row of another kind that opens Files (a video that could not be made, 0122) says where it lands, never its kind's own
+  // door: Settings › Files is Content's Library now (the content redesign's stage 2), and a row kept before says so too.
+  [/^admin\/files/, "Open Library"],
   [/^inbox\/to-send$/, "Open To send"],
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
@@ -373,6 +383,9 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^campaigns\/messages(\/|$)/, "Open Messages"],
   // A run at its home under its sequence (the Campaigns wiring review's lane 2): the door says it opens the run.
   [/^campaigns\/sequences\/[^/]+\/runs\/[^/]+/, RUN_OPEN_WORDS],
+  // Content, Campaigns' view of what Ask made, and its Library (the content redesign's stage 2): the door says the page's name.
+  [/^campaigns\/content:library/, "Open Library"],
+  [/^campaigns\/content(:|$)/, "Open Content"],
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
   [/^broadcasts\/run:/, RUN_OPEN_WORDS],

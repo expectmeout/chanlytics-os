@@ -309,10 +309,10 @@ test("a card is titled by its opening line, without the comma that leads into th
   }
 });
 
-test("the bell names a made video as Files shows it, never by its file name", () => {
+test("the bell names a made video as Content shows it, never by its file name", () => {
   // Seen on production 11 Nov 2026: "long-layers is in Files, under Made by Ask."
-  assert.equal(PIECE_WORDS.bell.readyBody("long-layers"), "Long layers is in Files, under Made by Ask.");
-  assert.equal(pieceWordsIn("es").bell.readyBody("pedi-volumen"), "Pedi volumen está en Archivos, en Hecho por Ask.");
+  assert.equal(PIECE_WORDS.bell.readyBody("long-layers"), "Long layers is in Content, under Made.");
+  assert.equal(pieceWordsIn("es").bell.readyBody("pedi-volumen"), "Pedi volumen está en Contenido, en Hecho.");
 });
 
 test("a card asks for its stills before the press, while its video is made or was not, and for a ready one whose poster did not come", () => {

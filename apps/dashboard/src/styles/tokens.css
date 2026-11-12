@@ -281,6 +281,9 @@
      wash, as a camera roll writes it (decision 0099, stage B). The picture under it is the business's, not the theme's. */
   --media-wash: oklch(0.16 0.01 280 / 0.62);
   --media-ink: oklch(0.985 0 0);
+  /* The ground a made piece is looked at on once it is opened (Campaigns › Content): dark in both themes, as a photo is on a
+     phone, so its own colours read true whatever the page's light. */
+  --media-stage: oklch(0.14 0.008 276);
   /* A thread of the first priority rings its face (Classic; Glass draws none). */
   --face-ring: inset 0 0 0 1.5px var(--accent);
 

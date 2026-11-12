@@ -226,7 +226,7 @@ function CrMoment({ x, hours, onOpen }: { x: CrLaid; hours: Hours; onOpen: () =>
       data-side={x.side || undefined}
       data-testid="cal-moment"
     >
-      <Icon name={m.cold ? "mail" : "send"} size={11} />
+      <Icon name={m.kind === "post" ? "image" : m.cold ? "mail" : "send"} size={11} />
       <span className="cal-moment-time tabular">{momentClock(t)}</span>
       <span className="cal-moment-words">{[m.name, m.words].filter(Boolean).join(" · ")}</span>
     </button>
@@ -679,7 +679,7 @@ function agendaRun(m: CalendarRunMark, d: CalendarFrame, p: AgendaProps) {
       time={m.time || "—"}
       name={m.name}
       service={m.words}
-      glyph={m.cold ? "mail" : "send"}
+      glyph={m.kind === "post" ? "image" : m.cold ? "mail" : "send"}
       onOpen={() => p.a.onRuns(d)}
       testid="cal-agenda-run"
     />

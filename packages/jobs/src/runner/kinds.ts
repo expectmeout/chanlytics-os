@@ -369,6 +369,18 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["post_id", "attempt"],
     never: [],
   },
+  // A post on its way to Google at its time (00616): once, after the recheck, as Instagram's send is. Google keeps no
+  // container to ask after, so one with no answer is said so, never sent again blind (settle-post.ts).
+  post_google: {
+    speaks: true,
+    retryWaitsMs: NO_FIELDS,
+    told: "owner",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 25 * SECOND_MS,
+    ids: ["post_id", "attempt"],
+    never: [],
+  },
   // A workspace's hourly work, handed out by its clock (00569, decision 0115). Nothing here puts words on a wire: a moment's
   // run schedules its send, a step's plans it. Each asks what is due when it runs, so a second try runs only what the first
   // did not, and what fails for good is the platform's to mend and tried again the next hour anyway.

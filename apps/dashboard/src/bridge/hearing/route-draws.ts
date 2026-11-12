@@ -106,6 +106,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   "campaigns/messages": ["channels", "reach_outs", "playbooks"],
   // Campaigns › Content (`campaigns/content`, where it is drawn): what Ask made, its own read (campaigns/content/surface.ts).
   "campaigns/content": ["content"],
+  // Its Library (`campaigns/content:library`, once Settings › Files): what the business keeps, the library's own read
+  // (files/surface.ts), read where it is drawn and never for Made.
+  "campaigns/content/library": ["files"],
   // Sent's sheets stand beside Sequences' list (decision 0060, D3), and a run's names its playbook. Send it again on a run that
   // went offers its list where it can still be sent to: who each audience reaches, last, since it is every page of People, and
   // never waited for (the sheet draws from Sent's runs alone, and the button joins it once that is in).

@@ -1962,7 +1962,7 @@ test("the bento (Today in three zones, 2 Nov 2026): what cannot wait over all of
   const name = (c) => (typeof c.type === "function" ? c.type.name : String(c.props.className));
   const page = find(tree, (n) => classes(n).includes("dash-a-v2-glass"));
   assert.ok(page, "the Glass composition");
-  assert.deepEqual(page.props.children.map(name), ["TodayAlertBand", "tz-bento", "DeskFoot"]);
+  assert.deepEqual(page.props.children.map(name), ["TodayAlertBand", "tz-bento", "DeskFoot", "TodayContentNote"]);
   const [work, side] = find(tree, (n) => classes(n).includes("tz-bento")).props.children;
   assert.ok(work.props.children.filter(Boolean).map(name).includes("NeedYou"), "Need you leads the work's column");
   assert.deepEqual(

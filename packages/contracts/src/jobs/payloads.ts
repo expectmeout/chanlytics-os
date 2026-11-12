@@ -102,6 +102,7 @@ export const JOB_PAYLOADS = {
   post_prepare: carrying({ post_id: z.string(), attempt: z.string() }),
   post_publish: carrying({ post_id: z.string(), attempt: z.string() }),
   post_reconcile: carrying({ post_id: z.string(), attempt: z.string() }),
+  post_google: carrying({ post_id: z.string(), attempt: z.string() }),
   piece_make: carrying({ piece_id: z.string(), step: z.string(), tick: z.string() }),
   campaign_moments: CARRIES_NOTHING,
   reach_out_steps: CARRIES_NOTHING,

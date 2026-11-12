@@ -438,7 +438,7 @@ test("the card commits by its own id, so one press is one video, and says where 
   assert.deepEqual(pieceSpec.commit(card, {}), { route: "POST files/video", body: { ...PLAN, key: "p-card-9" } });
   assert.equal(pieceSpec.receipt(card, {}), PIECE_WORDS.making);
   assert.equal(pieceSpec.made(card, { piece_id: "pc-1" }), "pc-1");
-  assert.equal(pieceSpec.open(card, null), "admin/files");
+  assert.equal(pieceSpec.open(card, null), "campaigns/content");
   assert.equal(pieceSpec.undo, undefined);
 });
 

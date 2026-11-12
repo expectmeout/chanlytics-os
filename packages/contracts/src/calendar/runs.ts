@@ -15,7 +15,9 @@
  *   it that day or a later one, where it has ended, or while the workspace is paused;
  * - a campaign's last day (00416 `until`);
  * - cold email, on its own switch: a reach-out's runs a day, counts only ("12 written"), never a time, since each lead is
- *   written to in its own zone.
+ *   written to in its own zone;
+ * - posts, on their own switch (the content redesign's stage 3): each post of Campaigns › Content at its time, up, waiting
+ *   for its time, or one that did not go, opening its piece in Content.
  */
 import { BROADCAST_STATE_LABELS, type BroadcastState } from "../campaigns/broadcasts/states";
 import { addressOf } from "../activity/record-address";
@@ -28,6 +30,9 @@ import { clockLabel } from "./words/labels";
 import { plural } from "../shared/words";
 import { MIN_MS } from "../shared/time";
 import type { SequenceMode } from "../campaigns/sequences/sequence";
+import { contentRouteOf } from "../content/address";
+import { POST_PLACE_SAID, type PostPlace, type PostStatus } from "../content/posts";
+import { fileSaidOf } from "../files/views";
 
 /** One run as the span's read carries it: a one-off send, a campaign's run, or a reach-out step's. */
 export interface CalendarRunDto {
@@ -68,6 +73,19 @@ export interface CalendarMomentDto {
   reach_out: boolean;
 }
 
+/** A post of Campaigns › Content in the span (stage 3): where it went, or goes, and when. */
+export interface CalendarPostDto {
+  id: string;
+  file_id: string;
+  /** Its piece's name, as Files keeps it. */
+  name: string;
+  place: PostPlace;
+  status: PostStatus;
+  /** ISO instants: its time, and when it went up. */
+  scheduled_for: string;
+  published_at: string | null;
+}
+
 /** What `GET /api/v1/calendar/runs?from=&days=` returns. */
 export interface CalendarRunsDto {
   timezone: string;
@@ -77,10 +95,15 @@ export interface CalendarRunsDto {
   paused: boolean;
   runs: CalendarRunDto[];
   moments: CalendarMomentDto[];
+  /** The span's posts (stage 3); absent from a server before them, which draws none. */
+  posts?: CalendarPostDto[];
 }
 
-/** What a mark is: a one-off send, a campaign run waiting or failed, the day's runs that went, a next run, a last day, cold email. */
-export type CalendarRunKind = "send" | "run" | "campaigns" | "next" | "last_day" | "cold";
+/**
+ * What a mark is: a one-off send, a campaign run waiting or failed, the day's runs that went, a next run, a last day, cold
+ * email, a post.
+ */
+export type CalendarRunKind = "send" | "run" | "campaigns" | "next" | "last_day" | "cold" | "post";
 
 /** One run folded into a mark, as the mark's sheet lists it. */
 export interface CalendarRunItem {
@@ -131,16 +154,23 @@ export const CALENDAR_SHOW_WORDS = {
   open: "Open times",
   campaigns: "Campaigns",
   cold: "Cold email",
-  /** The capsule's value: what is on beside the visits, of what the workspace has to show. */
+  posts: "Posts",
+  /** The capsule's value: what is on beside the visits, of what the workspace has to show. Posts are stage 3's. */
   value: (
-    on: { open: boolean; campaigns: boolean; cold: boolean },
-    offered: { campaigns: boolean; cold: boolean },
+    on: { open: boolean; campaigns: boolean; cold: boolean; posts?: boolean },
+    offered: { campaigns: boolean; cold: boolean; posts?: boolean },
   ): string => {
     const campaigns = on.campaigns && offered.campaigns;
     const cold = on.cold && offered.cold;
-    const all = on.open && (campaigns || !offered.campaigns) && (cold || !offered.cold);
+    const posts = !!on.posts && !!offered.posts;
+    const all = on.open && (campaigns || !offered.campaigns) && (cold || !offered.cold) && (posts || !offered.posts);
     if (all) return "Everything";
-    const parts = [on.open ? "Open times" : null, campaigns ? "campaigns" : null, cold ? "cold email" : null];
+    const parts = [
+      on.open ? "Open times" : null,
+      campaigns ? "campaigns" : null,
+      cold ? "cold email" : null,
+      posts ? "posts" : null,
+    ];
     const sentence = parts.filter(Boolean).join(", ");
     return sentence ? sentence.charAt(0).toUpperCase() + sentence.slice(1) : "Bookings only";
   },
@@ -447,8 +477,61 @@ function lastDayMarks(dto: CalendarRunsDto, days: Days): void {
   }
 }
 
+/** What a post's mark says: where it is up, where it goes, or where it did not go; and its door. */
+const CALENDAR_POST_WORDS = {
+  up: (place: PostPlace) => `On ${POST_PLACE_SAID[place]}`,
+  ahead: (place: PostPlace) => `To go on ${POST_PLACE_SAID[place]}`,
+  stopped: (place: PostPlace) => `Didn't go on ${POST_PLACE_SAID[place]}`,
+  door: "Open in Content",
+} as const;
+
+/** A post's standing, for its mark: up, on its way to its time, or stopped for the owner; one pulled or taken down is none. */
+const POST_STANDS: Partial<Record<PostStatus, "up" | "ahead" | "stopped">> = {
+  published: "up",
+  queued: "ahead",
+  preparing: "ahead",
+  publishing: "ahead",
+  checking: "ahead",
+  held: "stopped",
+  failed: "stopped",
+};
+
+/** Each post of the span at its time: up at the minute it went, on its way at its time, or one that did not go (stage 3). */
+function postMarks(dto: CalendarRunsDto, days: Days): void {
+  for (const post of dto.posts ?? []) {
+    const stands = POST_STANDS[post.status];
+    if (!stands) continue;
+    const at = Date.parse(stands === "up" ? (post.published_at ?? post.scheduled_for) : post.scheduled_for);
+    if (!Number.isFinite(at)) continue;
+    const hour = hoursIn(dto.timezone, at);
+    pushOn(days, dayInZone(dto.timezone, at).key, {
+      key: `post:${post.id}`,
+      kind: "post",
+      t: hour,
+      time: clockLabel(hour),
+      name: fileSaidOf(post.name),
+      words: CALENDAR_POST_WORDS[stands](post.place),
+      tone: stands === "up" ? "ok" : stands === "stopped" ? "warn" : "info",
+      ahead: stands === "ahead",
+      cold: false,
+      route: contentRouteOf({ list: "made", view: stands === "stopped" ? "needs" : "all", open: post.file_id }),
+      door: CALENDAR_POST_WORDS.door,
+      named: true,
+      items: [],
+    });
+  }
+}
+
 /** The order a day lists its marks in: what waits first, then the day's own, then by the clock. */
-const KIND_ORDER: Record<CalendarRunKind, number> = { run: 0, last_day: 1, send: 2, next: 3, campaigns: 4, cold: 5 };
+const KIND_ORDER: Record<CalendarRunKind, number> = {
+  run: 0,
+  last_day: 1,
+  send: 2,
+  next: 3,
+  campaigns: 4,
+  cold: 5,
+  post: 6,
+};
 
 /**
  * The marks of the span, by day key, each day in its order: a run waiting first, then a last day, then by the clock.
@@ -462,6 +545,7 @@ export function calendarRunMarksOf(dto: CalendarRunsDto, now: Date): Map<string,
   runMarks(dto, days, todayKey, names);
   nextMarks(dto, days, now, todayKey);
   lastDayMarks(dto, days);
+  postMarks(dto, days);
   for (const marks of days.values())
     marks.sort(
       (a, b) => (a.t ?? -1) - (b.t ?? -1) || KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.name.localeCompare(b.name),
@@ -469,10 +553,14 @@ export function calendarRunMarksOf(dto: CalendarRunsDto, now: Date): Map<string,
   return days;
 }
 
-/** Whether a mark is drawn under Show's switches: campaigns for every mark but cold email, which has its own. */
+/**
+ * Whether a mark is drawn under Show's switches: campaigns for every mark but cold email and posts, which have their own (a
+ * Show kept before posts were drawn says nothing of them, and draws them).
+ */
 export function runMarkShown(
-  calendarRunMark: Pick<CalendarRunMark, "cold">,
-  show: { campaigns: boolean; cold: boolean },
+  calendarRunMark: Pick<CalendarRunMark, "cold" | "kind">,
+  show: { campaigns: boolean; cold: boolean; posts?: boolean },
 ): boolean {
+  if (calendarRunMark.kind === "post") return show.posts ?? true;
   return calendarRunMark.cold ? show.cold : show.campaigns;
 }

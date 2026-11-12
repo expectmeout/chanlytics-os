@@ -82,6 +82,9 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // Campaigns › Content: the settings read (its switch), and its own read, which a file's change moves (a video landing, a
   // name the look gives). One read of a page of tiles for each quiet two seconds of the feed, on this page only.
   "campaigns/content": { settings: true, content: true },
+  // Its Library: the settings read, and the library's, which a file's change moves (a photo looked at, one brought in), as
+  // Settings › Files heard it.
+  "campaigns/content/library": { settings: true, files: true },
   // Sent's sheets, beside Sequences' list (decision 0060, D3), whole, and who each audience reaches with them (Send it again
   // offers a run's list while it can still be sent to), as Sent's surface heard it when the audiences were part of it. Read
   // beside the sheet, never waited for: the sheet is drawn from Sent's runs.

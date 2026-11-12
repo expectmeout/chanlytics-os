@@ -11,6 +11,7 @@ import {
   fileSaidOf,
   whoStandsOf,
   type FileDto,
+  type FileMade,
   type FileShows,
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
@@ -174,5 +175,30 @@ export function FileReads({ file }: { file: FileDto }) {
         {gateTitle("settings", W.mayChange)}
       </p>
     </>
+  );
+}
+
+/** What the sheet says the look saw, or how it stands. A refused picture a person has since kept waits for no one. */
+export function lookSaysOf(file: FileDto): string | null {
+  // A video not yet ready says so where its player stands: the look has nothing to read before.
+  if (file.kind === "video" && file.media_status !== "ready") return null;
+  if (file.look_status === "waiting") return W.looking;
+  if (file.look_status === "refused") return file.status === "inbox" ? W.refused : W.notRead;
+  if (file.look_status === "failed") return W.notRead;
+  return file.line;
+}
+
+/** Where a post came from, a door to that photo while it is here; anything else says the road that brought it. */
+export function FileFrom({ file, made, open }: { file: FileDto; made: FileMade | null; open: (id: string) => void }) {
+  if (file.source !== "made" || !made) return <p className="files-from">{W.sources[file.source]}</p>;
+  const { from } = made;
+  if (!from) return <p className="files-from">{W.madeFromGone}</p>;
+  return (
+    <p className="files-from files-made-from">
+      {W.madeFrom}
+      <Button size="sm" variant="quiet" onClick={() => open(from.id)} data-testid="fl-made-from">
+        {fileSaidOf(from.name)}
+      </Button>
+    </p>
   );
 }

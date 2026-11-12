@@ -85,6 +85,7 @@ function world({
   capReached = false,
   phone = "(555) 010-0100",
   kept = [],
+  pieces = [],
 } = {}) {
   const asked = { steps: [], started: [], uploaded: [], removed: [], made: [], changed: [], downloaded: [] };
   const ctx = {
@@ -120,6 +121,7 @@ function world({
         tenant_channels: [],
         google_listings: [],
         lines: [],
+        pieces,
       },
       {},
       {
@@ -397,6 +399,51 @@ test("a photo, and a post that kept no record, have nothing to say of how they w
   const bare = await recorded(POST_ROW, { rows: [POST_ROW], kept: [{ id: MADE, tenant_id: A, made: null }] });
   assert.equal(bare.made, null);
   assert.equal(bare.file.id, MADE);
+});
+
+test("a video Ask made says the plan it was drawn by, so its words can be made again; a clip a member sent says none", async () => {
+  const video = { kind: "video", mime: "video/mp4", media_status: "ready" };
+  const drawn = fileRow({ id: MADE, source: "made", name: "three-years-of-layers", ...video });
+  const plan = {
+    shape: "hook_cut",
+    cuts: [
+      { file_id: F, from: 0, to: 3 },
+      { file_id: F, from: 4, to: 7.5 },
+    ],
+    lines: ["Three years", "of layers."],
+    words_at: "high",
+    words_hold: "first",
+    end_line: "Book your cut",
+    language: "en",
+    people_agreed: false,
+  };
+  const piece = (over) => ({
+    id: F,
+    tenant_id: A,
+    file_id: MADE,
+    plan,
+    status: "made",
+    created_at: "2026-11-10T12:00:00Z",
+    ...over,
+  });
+  // A card tried twice names the file once more: the newest plan is the one it was drawn by.
+  const before = piece({ id: USER, plan: { ...plan, lines: ["An older try"] }, created_at: "2026-11-09T12:00:00Z" });
+  const said = await recorded(drawn, { rows: [drawn], pieces: [before, piece()], role: "viewer" });
+  assert.deepEqual(said.video.plan.lines, ["Three years", "of layers."]);
+  assert.equal(said.video.plan.end_line, "Book your cut");
+  assert.deepEqual(said.video.plan.cuts, plan.cuts, "the same moments of the same clips");
+  const sent = fileRow({ ...video });
+  assert.equal(
+    (await recorded(sent, { rows: [sent], pieces: [piece()] })).video,
+    undefined,
+    "a clip sent was drawn by no plan",
+  );
+  assert.equal(
+    (await recorded(drawn, { rows: [drawn] })).video,
+    undefined,
+    "one whose card went with its plan has none",
+  );
+  assert.equal((await recorded(POST_ROW, { rows: [POST_ROW], kept: KEPT })).video, undefined, "nor has a post");
 });
 
 test("a file another workspace's, or removed, is not read", async () => {

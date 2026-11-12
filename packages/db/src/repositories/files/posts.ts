@@ -299,3 +299,107 @@ export async function countPostsOut(db: Db, tenantId: TenantId): Promise<number>
   if (error) throw new DbFailure(error, "posts out");
   return count ?? 0;
 }
+
+/** Where a page of posts ended: the time it is ordered by, and the id, which breaks a tie. */
+export type PostCursor = { at: string; id: string };
+
+/**
+ * The workspace's posts that stopped (held, or refused), newest first by when they were pressed, under the caller's RLS:
+ * Content's Needs you, which keeps those still the newest at their file and place. By posts_tenant_newest.
+ */
+export async function listPostsStopped(db: Db, tenantId: TenantId, limit: number): Promise<MemberFilePostRow[]> {
+  const { data, error } = await db
+    .from("posts")
+    .select(MEMBER_FILE_POST_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .in("status", ["held", "failed"])
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new DbFailure(error, "posts stopped");
+  return data;
+}
+
+/**
+ * The posts of a span of the Calendar (the content redesign's stage 3): those set for a time in it, or up in it, but for one
+ * pulled or taken down. Soonest first; a workspace holds a handful a day.
+ */
+export async function listPostsInSpan(
+  db: Db,
+  tenantId: TenantId,
+  span: { fromIso: string; toIso: string; limit: number },
+): Promise<MemberFilePostRow[]> {
+  const { fromIso, toIso } = span;
+  const { data, error } = await db
+    .from("posts")
+    .select(MEMBER_FILE_POST_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .not("status", "in", "(pulled,taken_down)")
+    .or(
+      `and(scheduled_for.gte.${fromIso},scheduled_for.lt.${toIso}),and(published_at.gte.${fromIso},published_at.lt.${toIso})`,
+    )
+    .order("scheduled_for", { ascending: true })
+    .limit(span.limit);
+  if (error) throw new DbFailure(error, "posts in span");
+  return data;
+}
+
+/** Posts that wait for their time, past `after`, soonest first: Content's Scheduled. A workspace holds a handful. */
+export async function listPostsTimed(
+  db: Db,
+  tenantId: TenantId,
+  after: string,
+  page: { limit: number; before?: PostCursor | null },
+): Promise<MemberFilePostRow[]> {
+  let query = db
+    .from("posts")
+    .select(MEMBER_FILE_POST_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .eq("status", "queued")
+    .gt("scheduled_for", after);
+  if (page.before) {
+    const { at, id } = page.before;
+    query = query.or(`scheduled_for.gt.${at},and(scheduled_for.eq.${at},id.gt.${id})`);
+  }
+  const { data, error } = await query
+    .order("scheduled_for", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(page.limit);
+  if (error) throw new DbFailure(error, "posts timed");
+  return data;
+}
+
+/** How many posts wait for their time, past `after`. */
+export async function countPostsTimed(db: Db, tenantId: TenantId, after: string): Promise<number> {
+  const { count, error } = await db
+    .from("posts")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("status", "queued")
+    .gt("scheduled_for", after);
+  if (error) throw new DbFailure(error, "posts timed counted");
+  return count ?? 0;
+}
+
+/** Posts that are up, newest first by when they went up: Content's Posted. */
+export async function listPostsUp(
+  db: Db,
+  tenantId: TenantId,
+  page: { limit: number; before?: PostCursor | null },
+): Promise<MemberFilePostRow[]> {
+  let query = db
+    .from("posts")
+    .select(MEMBER_FILE_POST_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .eq("status", "published")
+    .not("published_at", "is", null);
+  if (page.before) {
+    const { at, id } = page.before;
+    query = query.or(`published_at.lt.${at},and(published_at.eq.${at},id.lt.${id})`);
+  }
+  const { data, error } = await query
+    .order("published_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(page.limit);
+  if (error) throw new DbFailure(error, "posts up");
+  return data;
+}
