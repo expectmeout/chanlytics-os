@@ -1,6 +1,6 @@
 /** What the Line draws: plain functions, not components, making its elements in the order AskReal always did. */
 import type { MouseEvent, PointerEvent } from "react";
-import type { AskMessageVM } from "@chanlytics/contracts";
+import { fileViewOf, type AskMessageVM } from "@chanlytics/contracts";
 import type { Line } from "./types";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -15,6 +15,7 @@ import { AskLatest, AskListen, AskNextRow, AskQuestion, AskThread, AskTurn } fro
 import { allArrived, AskAttachedRow, AskAttachPress, pastedPhotos } from "./attached";
 import { AR_LIFT_MS, arEscape, arPhone, arScopeIcon } from "./place";
 import { askOnScreenKey } from "@/bridge/ask/on-screen";
+import type { LineWords } from "../words";
 
 /** The field's end: the one button (the mic held to talk, Send, or Stop). */
 export const arLineEnd = (ln: Line) => {
@@ -108,6 +109,16 @@ export const arLineEnd = (ln: Line) => {
 
 /** Under the band: the rows, the question while Ask reads, or the answer. */
 /** The answer on its way, as a turn draws one: its words so far. */
+/**
+ * Campaigns' field asks for what should go out; on Content, where Ask makes posts and videos, for what to make; on its Ads
+ * page, which sends nothing yet, for nothing of the kind.
+ */
+const campaignsAskOf = (t: LineWords): string => {
+  const on = askOnScreenKey();
+  if (on === "content") return t.describeContent;
+  return on === "ads" ? t.placeholder : t.describeCampaigns;
+};
+
 const LIVE_MESSAGE = (text: string) =>
   ({
     id: "live",
@@ -313,26 +324,33 @@ const arStage = ({
       data-testid="ask-line"
     >
       {attached.length ? <AskAttachedRow photos={attached} t={t} detach={detach} attachAgain={attachAgain} /> : null}
+      {/* What the question is about, on a row of its own over the field: a file's picture or the kind's mark, and the whole
+          name, never cut to a few letters beside the words (Ruben, 12 Nov 2026). */}
+      {scope ? (
+        <div className="ask-scope" title={scope.label} data-kind={scope.kind} data-testid="ask-scope">
+          {scope.kind === "file" ? (
+            <img className="ask-scope-pic" src={`${fileViewOf(scope.id)}?w=96`} alt="" />
+          ) : (
+            <Icon name={arScopeIcon(scope)} size={12} />
+          )}
+          <span className="ask-scope-about">{t.about}</span>
+          <span className="ask-scope-name">{scope.label}</span>
+          <LinePress
+            kind="clear"
+            className="ask-scope-clear"
+            onClick={() => {
+              setScope(null);
+              setActive((a) => (a && a.scope ? { ...a, scope: null } : a));
+            }}
+            aria-label={t.clearScope}
+          >
+            <Icon name="x" size={10} />
+          </LinePress>
+          {/* the open thread's scope too, so its next question goes with none (the Phase 5 plan, D9) */}
+        </div>
+      ) : null}
       <div className="ask-stage-row">
         <AskAttachPress t={t} attach={attach} />
-        {scope ? (
-          <span className="ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
-            <Icon name={arScopeIcon(scope)} size={10} />
-            <span>{scope.label}</span>
-            <LinePress
-              kind="clear"
-              className="ask-scope-clear"
-              onClick={() => {
-                setScope(null);
-                setActive((a) => (a && a.scope ? { ...a, scope: null } : a));
-              }}
-              aria-label={t.clearScope}
-            >
-              <Icon name="x" size={9} />
-            </LinePress>
-            {/* the open thread's scope too, so its next question goes with none (the Phase 5 plan, D9) */}
-          </span>
-        ) : null}
         <LineField
           ref={inputRef}
           rows={1}
@@ -347,9 +365,8 @@ const arStage = ({
                   : t.follow
                 : surface === "leads"
                   ? t.describeLeads
-                  : // Campaigns' field asks for what should go out; on its Ads page, which sends nothing yet, it asks for nothing of the kind.
-                    surface === "campaigns" && askOnScreenKey() !== "ads"
-                    ? t.describeCampaigns
+                  : surface === "campaigns"
+                    ? campaignsAskOf(t)
                     : t.placeholder
           }
           value={query}

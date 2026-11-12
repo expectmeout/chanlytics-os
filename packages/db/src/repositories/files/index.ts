@@ -1,6 +1,7 @@
 /**
  * The files domain: `@chanlytics/db/files`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
+export { keepPostCaption, keepVideoCaption } from "./captions";
 export {
   beginFileVideo,
   deleteFileRow,
@@ -21,6 +22,7 @@ export {
 } from "./doors";
 export type { FileFate, MediaFate, VideoFate } from "./doors";
 export {
+  countFilesKept,
   countFilesMade,
   filesBucket,
   findFile,

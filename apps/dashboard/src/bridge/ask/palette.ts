@@ -30,6 +30,7 @@ import {
   sameQuestion,
   scopeFromRoute,
   stoppedAnswer,
+  videoPreviewOf,
   type AskAnswer,
   type AskLanguage,
   type AskMessageVM,
@@ -304,6 +305,9 @@ export function askPalette(win: Window, storage: Storage | null) {
         campaigns: campaignsRead(),
         // On Campaigns' Ads page, as the page says it: its chips are about ads.
         onAds: askOnScreenOf(w)?.key === "ads",
+        // On Campaigns › Content: Ask's three ideas of what it can make, the video only where the workspace takes videos.
+        onContent: askOnScreenOf(w)?.key === "content",
+        videos: videoPreviewOf(surfaceValue("settings")?.settings?.config),
       });
     },
     /** Which of the three quick questions this is, if any; the answer is quickAnswer's. */
@@ -362,12 +366,7 @@ export function askPalette(win: Window, storage: Storage | null) {
         answer,
       };
     },
-    // A reach-out's drawer is told from a campaign's by the chains the page read (contracts scopeFromRoute); a person on
-    // any of their tabs is named by their People row (personLabelOf).
-    scopeFor: (page: string, param: string | null, label?: string | null) => {
-      const scope = scopeFromRoute(page, param, label, surfaceValue("reach_outs")) ?? fileOnScreen(page, param);
-      return scope?.kind === "person" && !label ? { ...scope, label: personLabelOf(scope.id) ?? scope.label } : scope;
-    },
+    scopeFor,
     surfaceFor,
     language,
     rememberLanguage,
@@ -378,13 +377,30 @@ export function askPalette(win: Window, storage: Storage | null) {
   };
 }
 
-/** The photo open in its sheet on Settings › Files, which stands in the address (`?do=file:<id>`), named as the page names it. */
-function fileOnScreen(page: string, param: string | null): AskScope | null {
-  if (page !== "settings" || !param?.startsWith("files")) return null;
-  const named = new URLSearchParams(window.location.search).get("do");
-  const id = named?.startsWith("file:") ? named.slice(5) : null;
-  const file = id ? surfaceValue("files")?.dto.files.find((f) => f.id === id) : null;
-  return file ? { kind: "file", id: file.id, label: fileSaidOf(file.name) } : null;
+/**
+ * What a page's address is about, as Ask's chip says it. A reach-out's drawer is told from a campaign's by the chains the
+ * page read (contracts scopeFromRoute); a person on any of their tabs is named by their People row (personLabelOf), a file
+ * by the name Content's pages read (fileLabelOf), and a sequence by the name its list says.
+ */
+function scopeFor(page: string, param: string | null, label?: string | null): AskScope | null {
+  const scope = scopeFromRoute(page, param, label, surfaceValue("reach_outs"));
+  if (!scope || label) return scope;
+  if (scope.kind === "person") return { ...scope, label: personLabelOf(scope.id) ?? scope.label };
+  if (scope.kind === "file") return { ...scope, label: fileLabelOf(scope.id) ?? scope.label };
+  // A sequence by the name its list says (the page's own read), never "this sequence" while the name is on screen.
+  if (scope.kind === "sequence") {
+    const named = surfaceValue("sequences")?.sequences.find((q) => q.id === scope.id)?.name;
+    return named ? { ...scope, label: named } : scope;
+  }
+  return scope;
+}
+
+/** A file's name as Content's pages read it: a piece Ask made, or a file of the Library; null where neither holds it. */
+function fileLabelOf(id: string): string | null {
+  const made = surfaceValue("content")?.dto.made.find((m) => m.file.id === id)?.file;
+  const kept = surfaceValue("files")?.dto.files.find((f) => f.id === id);
+  const file = made ?? kept;
+  return file ? fileSaidOf(file.name) : null;
 }
 
 /**

@@ -20,7 +20,6 @@ import { PaneBillingReal } from "../billing/pane";
 import { businessGapPane } from "../business/tab";
 import { PaneIntegrationsReal } from "../connections/pane";
 import { PaneNotificationsReal } from "../notifications/pane";
-import { PaneFiles } from "../../files/pane";
 import { PaneMemory } from "../memory/pane";
 import { PanePartner } from "../partner/pane";
 import { PaneTeam } from "../partner/team-card";
@@ -96,7 +95,6 @@ function SetPane({ id, row, flash }: { id: string; row: string | null; flash: Fl
       {id === "integrations" && <PaneIntegrationsReal row={row} />}
       {/* What Ask remembers about the business, and its journal (decision 0070). */}
       {id === "memory" && <PaneMemory flash={flash} />}
-      {id === "files" && <PaneFiles flash={flash} />}
       {id === "notifications" && <PaneNotificationsReal flash={flash} />}
       {/* The plan, then the workspace's own records: the account itself. */}
       {id === "billing" && (

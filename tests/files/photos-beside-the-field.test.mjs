@@ -45,7 +45,7 @@ const out = await build({
       'export { AskQuestion } from "../../apps/dashboard/src/surfaces/ask/turn.tsx";\n' +
       'export { AskPostCard, usePostCard } from "../../apps/dashboard/src/surfaces/ask/card-post.tsx";\n' +
       'export { PostEdit } from "../../apps/dashboard/src/surfaces/files/post-edit.tsx";\n' +
-      'export { followFileAsked, openFile } from "../../apps/dashboard/src/surfaces/files/file-asked.ts";\n' +
+      'export { openFile } from "../../apps/dashboard/src/surfaces/files/file-asked.ts";\n' +
       'export { notifyAddress } from "../../apps/dashboard/src/bridge/workspace.ts";\n' +
       'export { drawnKeyOf, keepDrawn, pictureDrawn } from "../../apps/dashboard/src/surfaces/files/post-drawn.ts";\n' +
       'export { postFileOf, sharePostFile, sharesPictures } from "../../apps/dashboard/src/surfaces/files/post-share.ts";\n' +
@@ -352,7 +352,7 @@ test("before the press the card holds its picture's shape while it comes, and sa
   assert.ok(html.includes("post-waiting"));
   assert.ok(html.includes(`aria-label="${t.postDrawing}"`));
   assert.ok(html.includes("Comes in portrait, square and story."), "true before the press and after it");
-  assert.ok(html.includes("post-shape-story"), "every shape can be seen before it is kept");
+  assert.ok(!html.includes("post-shape-"), "no choice of shape: every place draws its own (Ruben, 12 Nov 2026)");
   assert.ok(!html.includes("post-download"), "nothing to download yet");
 });
 
@@ -376,7 +376,7 @@ function onDevice({ canShare, touch = false }, run) {
   }
 }
 
-test("after the press it is the file itself: portrait shown, the shape to choose, and that shape to download", () => {
+test("after the press it is the file itself: portrait shown, and that shape to download", () => {
   const html = keptCard();
   assert.ok(
     html.includes(`src="/api/v1/files/${FILE(2)}/view?shape=portrait"`),
@@ -385,10 +385,9 @@ test("after the press it is the file itself: portrait shown, the shape to choose
   assert.ok(html.includes('data-shape="portrait"'), "it stands as the shape it is");
   assert.ok(html.includes('alt="Now booking"'));
   assert.ok(html.includes("Comes in portrait, square and story."));
-  for (const shape of ["portrait", "square", "story"]) assert.ok(html.includes(`post-shape-${shape}`), shape);
+  assert.ok(!html.includes("post-shape-"), "no choice of shape: every place draws its own");
   assert.ok(!html.includes("post-edit-open"), "a post kept is changed by making a new version, in Files");
   assert.ok(html.includes("post-open-files"), "and can be opened there");
-  assert.equal((html.match(/aria-pressed="true"/g) ?? []).length, 1, "one chosen");
   assert.ok(html.includes(`/api/v1/files/${FILE(2)}/view?download&amp;shape=portrait`), "the one on screen");
   assert.ok(!html.includes("download&amp;shape=story"), "not one it is not showing");
 });
@@ -442,10 +441,10 @@ test("the sheet opens in the tap's own turn, since Safari refuses one that waite
 });
 
 test("the picture for the sheet comes once a tab under a name a person can read, and is asked again after it did not come", async () => {
-  const realShape = S.fileVerbs.postBytes;
+  const realShape = S.fileVerbs.fileBytes;
   const asked = [];
   let bytes = null;
-  S.fileVerbs.postBytes = async (id, shape) => {
+  S.fileVerbs.fileBytes = async (id, shape) => {
     asked.push([id, shape]);
     return bytes;
   };
@@ -460,7 +459,7 @@ test("the picture for the sheet comes once a tab under a name a person can read,
       [FILE(3), "story"],
     ]);
   } finally {
-    S.fileVerbs.postBytes = realShape;
+    S.fileVerbs.fileBytes = realShape;
   }
 });
 
@@ -473,14 +472,14 @@ test("a shape's bytes come from its own address, and a read that failed is nothi
     return answer();
   };
   try {
-    assert.equal(await (await S.fileVerbs.postBytes(FILE(4), "square")).text(), "jpeg");
+    assert.equal(await (await S.fileVerbs.fileBytes(FILE(4), "square")).text(), "jpeg");
     assert.deepEqual(asked, [`/api/v1/files/${FILE(4)}/view?shape=square`], "the kept address, not a download's");
     answer = async () => new Response("gone", { status: 404 });
-    assert.equal(await S.fileVerbs.postBytes(FILE(4), "square"), null);
+    assert.equal(await S.fileVerbs.fileBytes(FILE(4), "square"), null);
     answer = async () => {
       throw new Error("no signal");
     };
-    assert.equal(await S.fileVerbs.postBytes(FILE(4), "square"), null);
+    assert.equal(await S.fileVerbs.fileBytes(FILE(4), "square"), null);
   } finally {
     globalThis.window.fetch = realFetch;
   }
@@ -502,57 +501,10 @@ test("a card read again says what was saved, not what Ask first proposed: a pers
   assert.ok(!html.includes('alt="Now booking"'));
 });
 
-test("a file asked for from Ask's card opens in Content's viewer, by the address alone (the content redesign's stage 2)", () => {
+test("a file asked for from Ask's card opens in Content's viewer, by the route alone (the content redesign's stage 2)", () => {
   const went = [];
-  const opened = [];
-  const stop = S.followFileAsked((id) => opened.push(id));
   S.openFile(FILE(5), (r) => went.push(r));
-  stop();
   assert.deepEqual(went, [`campaigns/content:${FILE(5)}`], "the route moves, which the frame hears on any page");
-  assert.deepEqual(opened, [], "Settings › Files, should it stand, is not told: the file opens in Content");
-});
-
-test("a page the router drew before it moved the address opens the file the address names once it has landed", () => {
-  const opened = [];
-  // The router draws the page it moves to and then moves the address, so the page was drawn over the address it came from:
-  // by the time it listens, the address says the file (the bell's Watch it and a card's Open, pressed on any other page).
-  globalThis.window.location.search = `?do=file:${FILE(8)}`;
-  try {
-    const stop = S.followFileAsked((id) => opened.push(id));
-    assert.deepEqual(opened, [FILE(8)]);
-    stop();
-  } finally {
-    globalThis.window.location.search = "";
-  }
-});
-
-test("a page on screen opens the file its address is moved to, and never one a sheet already stood on", () => {
-  const opened = [];
-  globalThis.window.history = { state: null, pushState() {} };
-  try {
-    const stop = S.followFileAsked((id) => opened.push(id));
-    assert.deepEqual(opened, [], "an address that names none opens none");
-    // The bell's row, pressed on Files itself: the address moves, the route does not.
-    globalThis.window.location.search = `?do=file:${FILE(9)}`;
-    S.notifyAddress();
-    assert.deepEqual(opened, [FILE(9)]);
-    // Forward onto the entry its sheet stood on, closed since: a later move away is not a second ask for it.
-    globalThis.window.history.state = { sheet: 3 };
-    S.notifyAddress();
-    assert.deepEqual(opened, [FILE(9)], "the entry a sheet stood on asks for nothing new");
-    // Another sheet's name is not a file's.
-    globalThis.window.history.state = null;
-    globalThis.window.location.search = "?do=note:someone";
-    S.notifyAddress();
-    assert.deepEqual(opened, [FILE(9)]);
-    stop();
-    globalThis.window.location.search = `?do=file:${FILE(9)}`;
-    S.notifyAddress();
-    assert.deepEqual(opened, [FILE(9)], "a page gone hears nothing");
-  } finally {
-    globalThis.window.location.search = "";
-    delete globalThis.window.history;
-  }
 });
 
 test("a Spanish post says its own words, on the card and its presses", () => {
@@ -562,8 +514,7 @@ test("a Spanish post says its own words, on the card and its presses", () => {
       outcome: { state: "done", receipt: "", atMs: 1, made: { kind: "post", id: FILE(2) } },
     }),
   );
-  for (const word of ["Vertical", "Cuadrado", "Historia", "Descargar", "Abrir en Contenido"])
-    assert.ok(html.includes(word), word);
+  for (const word of ["Descargar", "Abrir en Contenido"]) assert.ok(html.includes(word), word);
   assert.ok(!html.includes("Download"));
 });
 

@@ -51,6 +51,7 @@ import type { ProposalGate, ProposalSpec } from "./spec";
 import { settingsSpec } from "./workspace";
 import { postSpec } from "../../content/post-spec";
 import { pieceSpec } from "../../content/piece-spec";
+import { publishSpec } from "../../content/publish";
 import { memoryChangeSpec, memoryForgetSpec, memorySpec } from "./memory";
 
 /**
@@ -117,6 +118,7 @@ export const PAGE_SPECS = {
   memory: memorySpec,
   post: postSpec,
   piece: pieceSpec,
+  publish: publishSpec,
   memory_change: memoryChangeSpec,
   memory_forget: memoryForgetSpec,
 } satisfies Record<Exclude<AskProposal["kind"], AskOnlyKind>, ProposalSpec>;

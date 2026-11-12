@@ -3,6 +3,7 @@
  * workspace's data, in English or Spanish, never from a seed. The pages it knows are ask.ts's (ASK_SURFACES).
  */
 import { isWinBack } from "../campaigns/playbooks/triggers/notices";
+import { contentIdeasFor } from "../content/ideas";
 import type { AskScope, AskSurface } from "./ask";
 import type { AskLanguage } from "./language";
 
@@ -45,6 +46,10 @@ export interface SuggestionInput {
   canAct?: boolean;
   /** On Campaigns' Ads page, as the page says it (on-screen.ts): what it asks about is ads, never the campaigns beside it. */
   onAds?: boolean;
+  /** On Campaigns › Content, as the page says it (on-screen.ts): Ask's three ideas of what it can make (content/ideas.ts). */
+  onContent?: boolean;
+  /** Whether the workspace takes videos: Content's video idea is offered only then. */
+  videos?: boolean;
   /** A deal was ever recorded here (People's surface says so): the question about proposals is offered only then. */
   hasDeals?: boolean;
   /** On Leads: the first day's suggestion words (each a search to propose), and the latest searches' own words. */
@@ -68,7 +73,7 @@ export interface SuggestionInput {
 export const SET_UP_CAMPAIGNS = { en: "Set up my campaigns", es: "Prepara mis campañas" } as const;
 
 /**
- * What a photo's press asks, in each language: its chip here, and its sheet's own door (surfaces/files/file-sheet.tsx). Here and not
+ * What a photo's press asks, in each language: its chip here, and the open piece's own door (surfaces/campaigns/content). Here and not
  * with a post's words, which only Ask's chunk and Files load, since this module is on every page. The scope brings the picture, so
  * the words only have to say what to do with it.
  */
@@ -237,6 +242,14 @@ function pageChips(
   if (input.onAds) {
     add(item.adsFinding, "ask", "trending-up");
     add(item.adsReady, "ask", "bolt");
+    return true;
+  }
+  if (input.onContent) {
+    // Its title on the chip where the page's words are the person's (English); in Spanish the question itself, never an
+    // English name over Spanish words.
+    const spanish = input.language === "es";
+    for (const idea of contentIdeasFor(!!input.videos))
+      add(idea.ask[spanish ? "es" : "en"], "ask", "bolt", false, spanish ? undefined : idea.title);
     return true;
   }
   const rows = input.surface === "campaigns" ? (input.campaigns?.rows ?? null) : null;

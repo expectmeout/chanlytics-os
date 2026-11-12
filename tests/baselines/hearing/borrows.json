@@ -1,7 +1,7 @@
 {
   ".": "broadcasts inbox settings today workspace",
-  "ask": "inbox live settings",
-  "ask/line": "settings",
+  "ask": "content files inbox live settings",
+  "ask/line": "content files settings",
   "calendar": "calendar calendar_runs",
   "calendar/visit": "",
   "campaigns": "audiences broadcasts channels content files playbooks reach_outs sequences settings",

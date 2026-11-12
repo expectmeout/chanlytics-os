@@ -36,6 +36,9 @@ const AT_KIND_GLYPHS: Record<string, string> = {
   mailbox: "mail",
   visit: "calendar",
   review: "star",
+  // A sequence is the playbook it is cited as, and a Library message the template it is: each wears its row's mark.
+  sequence: "bolt",
+  message: "content",
 };
 /** A kind's mark, for a row in an answer and for the scope the Line carries; a kind it does not know is a chat. */
 export const askKindGlyph = (kind: string): string => AT_KIND_GLYPHS[kind] || "chat";

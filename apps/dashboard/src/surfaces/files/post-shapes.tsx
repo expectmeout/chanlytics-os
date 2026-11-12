@@ -1,15 +1,13 @@
 /**
- * A kept post, wherever it is looked at (Ask's card and the Files sheet, decision 0099, step 3): the shapes to choose, and what to do
- * with the one on show. On a phone that is the phone's own sheet, which is also how a picture reaches Photos: a download lands in
+ * A kept post's way out (decision 0099, step 3): what to do with the shape on show, which Ask's card draws under the picture it
+ * already holds (PostActs). On a phone that is the phone's own sheet, which is also how a picture reaches Photos: a download lands in
  * Files there. How it gets there is post-share.ts's. The shapes are the kit's Button and not its Segmented, which brings Base UI: Ask
  * rides on every page.
  */
 import { useEffect, useState } from "react";
-import { POST_SHAPES, fileViewOf, type PostShapeName, type PostWords } from "@chanlytics/contracts";
+import { fileViewOf, type PostShapeName, type PostWords } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { mediaSays } from "../frame-verbs";
-import { PostChoice } from "./post-choice";
-import { PostFrame } from "./post-frame";
 import { postFileOf, sharePostFile, sharesPictures } from "./post-share";
 
 /** Where a kept post's shape is read from. */
@@ -93,38 +91,5 @@ export function PostActs({
         </p>
       ) : null}
     </>
-  );
-}
-
-/** A kept post whole, as the Files sheet draws it: Ask's card draws these parts around the picture it already holds. */
-export function PostShapes({ id, name, alt, says }: { id: string; name: string; alt: string; says: PostWords }) {
-  const [shape, setShape] = useState<PostShapeName>("portrait");
-  const [unseen, setUnseen] = useState<PostShapeName | null>(null);
-  const seen = unseen !== shape;
-  return (
-    <div className="post-shapes" data-testid="post-shapes">
-      {seen ? (
-        <PostFrame
-          src={postShapeAddress(id, shape)}
-          shape={shape}
-          alt={alt}
-          waiting={alt}
-          onUnseen={() => setUnseen(shape)}
-        />
-      ) : (
-        <p className="post-said" data-testid="post-gone">
-          {says.gone}
-        </p>
-      )}
-      <PostChoice
-        label={says.shapesSaid}
-        options={POST_SHAPES}
-        words={says.shapes}
-        value={shape}
-        choose={setShape}
-        testid="post-shape"
-      />
-      {seen ? <PostActs id={id} name={name} shape={shape} says={says} /> : null}
-    </div>
   );
 }

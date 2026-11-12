@@ -57,8 +57,6 @@ interface LeadsPhoneBarProps {
  * two circles after it stood too heavy beside the page's coral act. One word says the view it opens, List from the map,
  * so the row keeps room for the list's name beside four words. Drawn only where the rows have places.
  */
-/** Sort's word, and the word it says while the Filter's switches in its sheet leave some leads out (People says Filtered). */
-const SORT_WORDS = ["Sort", "Filtered"] as const;
 const NO_TOGGLE = (): void => undefined;
 
 function barWords(o: {
@@ -90,8 +88,18 @@ function barWords(o: {
             leadStatusGroupMenu(o.statusGroups, o.onStatusGroup, o.statusCounts, true),
           ]}
           trigger={
-            <Button variant="plain" size="sm" data-testid="leads-phone-sort">
-              <BarWord word={o.reach.length || o.statusGroups.length ? "Filtered" : "Sort"} words={SORT_WORDS} />
+            // Sort as People's says it, its width never moving: while the Filter's switches in its sheet leave some leads
+            // out, a dot in the accent rides the word. Its own word for it ("Filtered") stood the button as wide as that
+            // word, and the search and Select stood further left than People's (Ruben, 12 Nov 2026).
+            <Button
+              variant="plain"
+              size="sm"
+              aria-label={o.reach.length || o.statusGroups.length ? "Sort, filtered" : undefined}
+              data-testid="leads-phone-sort"
+            >
+              <span className="pp-bar-sort" data-filtered={o.reach.length || o.statusGroups.length ? "" : undefined}>
+                Sort
+              </span>
             </Button>
           }
         />

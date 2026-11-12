@@ -149,6 +149,11 @@ export type SheetProps = SheetShape & {
    * rules) stood in a pane as tall as the window, 700px of it empty (kit.css, "A fitted sheet").
    */
   fit?: boolean;
+  /**
+   * Dark whatever the page's light (its wash too): a sheet over a picture opened dark, as Content's piece is on a phone
+   * (the content canvas's viewer), stands in the dark it opened from.
+   */
+  dark?: boolean;
 };
 
 /** Base UI's closing state, in the kit's word for it: a sheet on its way out (kit.css, `[data-leaving]`). */
@@ -261,6 +266,7 @@ function jobParts(p: SheetProps & { shape: "job" }) {
 /** A modal sheet, over the page's wash, drawn on the document's body. */
 export function Sheet(props: SheetProps) {
   const { open, onClose, initialFocus, className, ref, testid, backCloses } = props;
+  const theme = props.dark ? "dark" : undefined;
   useBackCloses(open && !!backCloses, onClose, typeof backCloses === "string" ? backCloses : null);
   const self = useRef<HTMLElement | null>(null);
   // What it held as it was last drawn open: what it shows while it leaves.
@@ -295,7 +301,7 @@ export function Sheet(props: SheetProps) {
       <Dialog.Portal>
         <Dialog.Backdrop
           className="sheet-backdrop"
-          render={(p, state) => <div {...p} data-leaving={closingWord(state)} />}
+          render={(p, state) => <div {...p} data-theme={theme} data-leaving={closingWord(state)} />}
         />
         <Dialog.Popup
           ref={place}
@@ -311,7 +317,7 @@ export function Sheet(props: SheetProps) {
           {...(shown.rest
             ? restSwipe({ rest: shown.rest.at, onRest: shown.rest.onRest, onClose, when: onAPhone })
             : touchSwipe({ onDown: onClose, when: onAPhone }))}
-          render={(p, state) => <section {...p} data-leaving={closingWord(state)} />}
+          render={(p, state) => <section {...p} data-theme={theme} data-leaving={closingWord(state)} />}
         >
           <SheetHandle rest={shown.rest} testid={testid} />
           {shown.shape === "job" ? jobParts(shown) : recordParts(shown)}

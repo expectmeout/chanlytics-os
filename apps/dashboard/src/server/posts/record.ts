@@ -10,6 +10,7 @@ import {
   postPlanOf,
   recordOrNull,
   type FilePosted,
+  type FileMade,
   type FileRecordDto,
   type PostPlan,
 } from "@chanlytics/contracts";
@@ -68,16 +69,15 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
   if (!created) return { file, made: null, google, instagram };
   // Read under the caller's RLS: a photo removed since, or one they can't see, is no photo to name.
   const from = typeof created.from === "string" ? await findFile(ctx.supabase, created.from) : null;
-  return {
-    file,
-    made: {
-      from: from ? { id: from.id, name: from.name } : null,
-      plan: postPlanOf(recordOrNull(created.plan) ?? {}),
-    },
-    google,
-    instagram,
-  };
+  return { file, made: fileMadeOf(created, from ? { id: from.id, name: from.name } : null), google, instagram };
 }
+
+/** How a post was made, as kept (`files.made`), read as the record says it: its plan, and the caption the owner wrote. */
+export const fileMadeOf = (created: Record<string, unknown>, from: FileMade["from"]): FileMade => ({
+  from,
+  plan: postPlanOf(recordOrNull(created.plan) ?? {}),
+  caption: typeof created.caption === "string" ? created.caption : null,
+});
 
 /**
  * Where the post is on Google (decision 0121, D16): its newest placement where that says it went up or came down; else what

@@ -305,11 +305,21 @@ async function adsAggregate(rc: ReaderContext, view: string | null | undefined):
 }
 
 /**
- * Campaigns: the home's ledger (its campaigns and one-off sends), Sent's runs, the Library's messages or Ads, whichever the page is
- * (bridge/ask/context.ts), and its rows are that page's.
+ * Content (Campaigns › Content), as the page says it: the list and the view on screen, no row (a piece is a file, and the turn's
+ * scope where one is open). What it holds is Ask's tools' to read, as the page reads it.
+ */
+const contentAggregate = (view: string): string =>
+  view === "content:library"
+    ? "on screen is Content's Library: the photos and clips the business keeps, which Ask makes posts and videos from"
+    : `on screen is Content, the posts and videos Ask made, showing ${view.slice("content:".length) || "all"}`;
+
+/**
+ * Campaigns: the home's ledger (its campaigns and one-off sends), Sent's runs, the Library's messages, Ads or Content, whichever
+ * the page is (bridge/ask/context.ts), and its rows are that page's.
  */
 export const readCampaigns: Provider = async (rc, ctx) => {
   if (isAskAdsView(ctx.view)) return { rows: [], aggregate: await adsAggregate(rc, ctx.view) };
+  if (ctx.view?.startsWith("content:")) return { rows: [], aggregate: contentAggregate(ctx.view) };
   const result = ctx.view?.startsWith("playbooks")
     ? await ledgerRows(rc, ctx)
     : ctx.view === "broadcasts"

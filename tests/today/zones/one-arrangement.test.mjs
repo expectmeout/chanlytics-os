@@ -131,7 +131,7 @@ test("someone waiting, setup left and an idea found: the first frame's one coral
     assert.equal(zoneOf(page, coral[0]), "today-group-next", "the person waiting holds it");
     assert.deepEqual(
       workColumn(page),
-      ["NeedYou", "ColdEmailNote", "today-setting-up"],
+      ["NeedYou", "ColdEmailNote", "TodayContentNote", "today-setting-up"],
       "REGRESSION: Ask found led the page's first frame while Rosa waited, then moved",
     );
     assert.equal(wideFound(page), false, "Ask found under the day, its rows not three across");
@@ -167,7 +167,13 @@ test("only setup left, with an idea found: the card's act is the coral and Ask f
       `REGRESSION: Check it stood coral beside Continue on the first frame: ${coral.map(textOf).join(" | ")}`,
     );
     assert.equal(zoneOf(page, coral[0]), "today-setup");
-    assert.deepEqual(workColumn(page), ["today-setting-up", "NeedYou", "ColdEmailNote", "AskFound"]);
+    assert.deepEqual(workColumn(page), [
+      "today-setting-up",
+      "NeedYou",
+      "ColdEmailNote",
+      "TodayContentNote",
+      "AskFound",
+    ]);
     assert.equal(wideFound(page), true, "nobody waits: Ask found leads the work's column");
   } finally {
     cleared();

@@ -485,7 +485,10 @@ const fileRow = (over = {}) => ({
   ...over,
 });
 
-function askedOnce(input, { file = {}, question = OWNER, earlier = [], phone = "(555) 010-0100" } = {}) {
+function askedOnce(
+  input,
+  { file = {}, question = OWNER, earlier = [], phone = "(555) 010-0100", subject = null } = {},
+) {
   const config = {
     brain: {
       business_name: "Harbor",
@@ -506,6 +509,7 @@ function askedOnce(input, { file = {}, question = OWNER, earlier = [], phone = "
     question,
     askedEarlier: earlier,
     language: "en",
+    ...(subject ? { subjectFile: subject } : {}),
   };
   return buildProposal(tc, "propose_post", {
     file: "storefront-dusk",
@@ -615,6 +619,26 @@ test("the words may rest on what they said earlier in the thread, and on what th
   assert.match(none.refusal, /price or a share/);
   const settings = await asked({ line: "Call the 555 line", book: false }, { question: "make a post" });
   assert.equal(settings.proposal?.kind, "post", "their Settings say 555");
+});
+
+test("a piece made here and asked about lends its own kept words: made again with one thing changed, its offer stays the owner's", async () => {
+  // The post the owner pressed Content's line to Ask on ("Move the words to the top."), kept with an offer in its words.
+  const MADE = "eeeeeeee-0000-4000-8000-000000000009";
+  const plan = { line: "20% off balayage", over: null, under: null, book: true, words_at: "bottom", voice: "classic" };
+  const service = fakeDb({ files: [{ id: MADE, tenant_id: A, made: { from: FILE, plan } }] }, {}, {});
+  service.storage = { from: () => ({ download: async () => ({ data: new Blob([await storedOf()]), error: null }) }) };
+  const ask = async (opts) => {
+    setServiceClient(service);
+    const first = await askedOnce({ words_at: "top" }, opts);
+    if (first.proposal || first.isError) return first;
+    return askedOnce({ words_at: "top", looked: JSON.parse(first.result).look_key }, opts);
+  };
+  const again = await ask({ question: "Move the words to the top.", subject: MADE });
+  assert.equal(again.proposal?.kind, "post", again.result);
+  const elsewhere = await ask({ question: "Move the words to the top." });
+  assert.match(elsewhere.refusal, /price or a share/, "asked about nothing, the offer is not the owner's");
+  const other = await ask({ question: "Move the words to the top.", subject: FILE });
+  assert.match(other.refusal, /price or a share/, "a photo of the Library keeps no words to lend");
 });
 
 test("a morning's question is Ask's own, so it lends the words nothing", async () => {
@@ -764,7 +788,11 @@ test("a made file's shapes sit in its folder, so deleting it lets them all go", 
 
 test("what Ask made stands on a shelf of its own, unless a person moved it", () => {
   assert.equal(shelfOf({ status: "filed", shows: "graphic", source: "made" }), "made");
-  assert.equal(shelfOf({ status: "set_aside", shows: "graphic", source: "made" }), "set_aside");
+  assert.equal(
+    shelfOf({ status: "set_aside", shows: "graphic", source: "made" }),
+    "made_aside",
+    "Made's own Set aside, apart from the Library's",
+  );
   assert.equal(shelfOf({ status: "filed", shows: "graphic", source: "upload" }), "brand");
 });
 

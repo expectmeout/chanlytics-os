@@ -211,8 +211,8 @@ test("a video made here (0122): ready opens the video itself and says Watch it; 
   });
   assert.deepEqual(
     [ready.icon, ready.tone, ready.action, ready.to],
-    ["image", "ok", "Watch it", `admin/files?do=file:${video}`],
-    "its door says what she will do there, and its row names the video",
+    ["video", "ok", "Watch it", `admin/files?do=file:${video}`],
+    "its door says what she will do there, its row names the video, and wears a video's mark",
   );
   assert.deepEqual(
     [failed.tone, failed.action, failed.to],

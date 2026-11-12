@@ -1,7 +1,7 @@
 /**
  * New ad's photo, from the business's Files (MOCKUP for the ad, real for the pictures; decision 0099): a tile for each kept picture,
- * a post Ask made among them and saying so, what to know of the one picked, and the door to Content's Library, where a photo is
- * added. Pressing a tile changes the draft and nothing else, and the preview under it draws the picture. A picture that cannot be
+ * the posts Ask made first, under Made by Ask, then the Library's own (the content canvas, board Doors: "the same tiles, Made
+ * first"), what to know of the one picked, and the door to Content's Library, where a photo is added. Pressing a tile changes the draft and nothing else, and the preview under it draws the picture. A picture that cannot be
  * drawn keeps its tile.
  */
 import { useState } from "react";
@@ -25,17 +25,16 @@ interface FileTileProps {
   onPick: () => void;
 }
 
-/** One kept picture as a tile: the picture, the name it goes by, and where a post Ask made came from. */
+/** One kept picture as a tile: the picture and the name it goes by. Ask's are said once, by their group's name (TileGroup). */
 function FileTile({ file, picked, onPick }: FileTileProps) {
   const [broken, setBroken] = useState(false);
   const said = fileSaidOf(file.name);
-  const made = file.source === "made";
   return (
     <LinkButton
       size="inherit"
       className="ads-new-post"
       aria-pressed={picked}
-      aria-label={made ? `${said}, ${FILE_WORDS.shelves.made}` : said}
+      aria-label={said}
       onClick={onPick}
       data-testid={`ads-new-file-${file.id}`}
     >
@@ -54,7 +53,6 @@ function FileTile({ file, picked, onPick }: FileTileProps) {
         )}
       </span>
       <span className="ads-new-file-name">{said}</span>
-      {made ? <span className="ads-new-file-name">{FILE_WORDS.shelves.made}</span> : null}
     </LinkButton>
   );
 }
@@ -89,24 +87,58 @@ function FileNotes({ file }: { file: FileDto }) {
   ));
 }
 
+/** One group of tiles under its name: what Ask made, or the Library's own. None where it holds nothing. */
+function TileGroup({
+  name,
+  files,
+  pickedId,
+  pick,
+  testid,
+}: {
+  name: string;
+  files: readonly FileDto[];
+  pickedId: string | null;
+  pick: (file: FileDto) => void;
+  testid: string;
+}) {
+  if (files.length === 0) return null;
+  return (
+    <>
+      <Cap>{name}</Cap>
+      <div className="ads-new-posts" role="group" aria-label={name} data-testid={testid}>
+        {files.map((f) => (
+          <FileTile key={f.id} file={f} picked={f.id === pickedId} onPick={() => pick(f)} />
+        ))}
+      </div>
+    </>
+  );
+}
+
 export function FilesSec({ state, patch }: StepProps) {
   const { held, more, again } = useKeptFiles();
   const files = held?.files ?? [];
   const pickedId = state.draft.file?.fileId ?? null;
   const picked = files.find((f) => f.id === pickedId) ?? null;
-  const { label, door } = NEW_AD.step2.files;
+  const { label, door, made, library } = NEW_AD.step2.files;
+  const pick = (f: FileDto) => patch({ postId: null, file: { fileId: f.id, name: f.name, made: f.source === "made" } });
   return (
     <Sec label={label}>
       {files.length > 0 ? (
-        <div className="ads-new-posts" role="group" aria-label={label} data-testid="ads-new-files">
-          {files.map((f) => (
-            <FileTile
-              key={f.id}
-              file={f}
-              picked={f.id === pickedId}
-              onPick={() => patch({ postId: null, file: { fileId: f.id, name: f.name, made: f.source === "made" } })}
-            />
-          ))}
+        <div data-testid="ads-new-files">
+          <TileGroup
+            name={made}
+            files={files.filter((f) => f.source === "made")}
+            pickedId={pickedId}
+            pick={pick}
+            testid="ads-new-files-made"
+          />
+          <TileGroup
+            name={library}
+            files={files.filter((f) => f.source !== "made")}
+            pickedId={pickedId}
+            pick={pick}
+            testid="ads-new-files-library"
+          />
         </div>
       ) : (
         <NoTiles held={held} again={again} />

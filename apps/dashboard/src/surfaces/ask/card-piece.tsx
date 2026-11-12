@@ -27,6 +27,7 @@ import {
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
 import { StatePill } from "../kit/pill/state-pill";
+import { askAbout } from "../frame-verbs";
 import { openFile } from "../files/file-asked";
 import { fileVerbs } from "../files/verbs";
 import type { LineWords } from "./words";
@@ -147,6 +148,7 @@ export function usePieceCard(proposal: AskProposal, words: LineWords, madeId: st
   return {
     says: pieceWordsIn(plan.language),
     moments: plan.blocks.length,
+    caption: plan.caption,
     picture: stills?.picture ?? null,
     refused: stills?.refused ?? null,
     waiting: stills === null,
@@ -269,9 +271,21 @@ function PieceNow({
           <>
             <p className="ask-piece-state">{says.follows.ready}</p>
             <p className="ask-card-foot ask-piece-line">{says.follows.readyWhere}</p>
-            <Button size="sm" onClick={() => onOpen(stands.file.id)} data-testid="ask-piece-open">
-              {says.follows.open}
-            </Button>
+            {/* The canvas's two (PhDoors "ask"): Make another, asked in this conversation, and Open, the card's one coral now its
+                press is done, which opens the video in Content's viewer. */}
+            <div className="ask-piece-acts">
+              <Button
+                size="sm"
+                onClick={() => askAbout({ prompt: says.follows.makeAnotherAsk })}
+                data-testid="ask-piece-another"
+              >
+                {says.follows.makeAnother}
+              </Button>
+              <Button variant="primary" size="sm" onClick={() => onOpen(stands.file.id)} data-testid="ask-piece-open">
+                <Icon name="play" size={12} />
+                {says.follows.open}
+              </Button>
+            </div>
           </>
         ) : null}
         {stands.is === "failed" ? (
@@ -331,6 +345,12 @@ export function AskPieceCard({
         <PieceStills card={card} t={t} />
       )}
       <p className="ask-card-summary">{p.summary}</p>
+      {/* The words Ask wrote to paste under it where it is posted, seen before it is made (C3); none on an older card. */}
+      {card.caption ? (
+        <p className="ask-card-foot" data-testid="ask-piece-caption">
+          <b>{card.says.caption}</b> {card.caption}
+        </p>
+      ) : null}
       {/* While it is made, that they may leave and where it lands: the press's own receipt, said here beside what it is doing. */}
       {stands?.is === "making" ? <p className="ask-card-foot">{card.says.making}</p> : null}
     </div>

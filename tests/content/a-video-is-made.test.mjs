@@ -440,7 +440,8 @@ test("a clip removed since the press ends it before anything is spent, and its o
   const [told] = tables.notifications;
   assert.equal(told.kind, "job_failed");
   assert.equal(told.body, PIECE_WORDS.bell.failedBody("clips"));
-  assert.equal(told.route, "admin/files");
+  // Content's Needs you, where a video that could not be made waits on its owner.
+  assert.equal(told.route, "campaigns/content:needs");
 });
 
 test("an edition with no image on record is waited for, since a person builds one", async () => {
@@ -711,10 +712,10 @@ test("the platform's word that a made video can be played rings the bell once; o
   await tellPieceMoved(db, { fate: "ready", tenant_id: T, file_id: CLIP, made: true });
   assert.equal(tables.notifications.length, 1);
   assert.equal(tables.notifications[0].kind, "video_ready");
-  // The bell opens the video itself, in its sheet on Files, where it plays.
-  assert.equal(tables.notifications[0].route, `admin/files?do=file:${CLIP}`);
+  // The bell opens the video itself, open in Content, where it plays.
+  assert.equal(tables.notifications[0].route, `campaigns/content:${CLIP}`);
   // Named as Files shows it, never by its file name (seen on production 11 Nov 2026: "long-layers is in Files").
-  assert.match(tables.notifications[0].body, /^I asked for volume is in Content/);
+  assert.equal(tables.notifications[0].body, "I asked for volume · Watch it");
   // A word about a video that was not made here, or one delivered again, rings nothing.
   await tellPieceMoved(db, { fate: "ready", tenant_id: T, file_id: CLIP, made: false });
   await tellPieceMoved(db, { fate: "repeated", tenant_id: T, file_id: CLIP, made: false });

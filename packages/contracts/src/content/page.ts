@@ -7,8 +7,8 @@
  * thing that matters most (the content canvas, "Every state a piece can be in"): what needs the owner, then what is
  * working, then what is done.
  */
-import type { FileKind } from "../files/kinds";
 import type { FileDto } from "../files/views";
+import type { ContentIdeaFiles } from "./ideas";
 import type { ContentView } from "./address";
 import type { PieceFail, PieceStage } from "./piece-making";
 import { pieceWordsIn } from "./piece-words";
@@ -66,6 +66,10 @@ export interface ContentTally {
   making: number;
   /** Posts that wait for their time. */
   scheduled: number;
+  /** What the Library keeps: the files the business added, which Ask did not make. */
+  library: number;
+  /** What Ask made and was set aside: Made's own Set aside, reached from the foot of All, never the Library's. */
+  aside: number;
 }
 
 /**
@@ -81,6 +85,12 @@ export interface ContentPageDto {
   lines: ContentLineDto[];
   next: string | null;
   tally: ContentTally;
+  /** The files each idea would be made from (ideas.ts contentIdeaFilesOf): read with All's first page, empty with any other. */
+  ideas: ContentIdeaFiles[];
+  /** The one piece that needs the owner, by its file, where exactly one post stopped and no video failed: the amber line opens it. */
+  needsOne: string | null;
+  /** The words All was found by (files_found: a piece's name and what Ask's look saw or heard in it), or null: all of it. */
+  about: string | null;
 }
 
 /** How many a view holds, from the tally: what the views' control says beside each. */
@@ -97,8 +107,11 @@ export const contentViewDrawsLines = (view: ContentView): boolean =>
 /** Where a made piece stands, as its tile says it. */
 export type ContentMark =
   | { is: "ready" }
+  /** A video Ask made, posted nowhere: nothing posts a video from here (decision 0121), so it is saved, and posted from the phone. */
+  | { is: "save" }
   | { is: "going"; place: PostPlace }
-  | { is: "posted"; places: PostPlace[] }
+  /** Up, at each place, and when the newest of them went up (null where no time is kept). */
+  | { is: "posted"; places: PostPlace[]; at: string | null }
   /** Held before its send, or refused: the file's own sheet says why. */
   | { is: "stuck"; place: PostPlace };
 
@@ -114,6 +127,15 @@ export function newestAtEachPlace(posts: readonly PostDto[]): PostDto[] {
   return newest;
 }
 
+/**
+ * Where a made piece stands, as its tile, its row and Today count it: a video that went nowhere is to be saved, never "ready to
+ * post" (Ruben, 12 Nov 2026: no press here posts it); anything else, where its posts say (contentMarkOf).
+ */
+export function contentPieceMarkOf(piece: { file: Pick<FileDto, "kind">; posts: readonly PostDto[] }): ContentMark {
+  const mark = contentMarkOf(piece.posts);
+  return piece.file.kind === "video" && mark.is === "ready" ? { is: "save" } : mark;
+}
+
 /** Where a made piece stands, from its posts: what needs the owner first, then what is working, then what is done. */
 export function contentMarkOf(posts: readonly PostDto[]): ContentMark {
   const newest = newestAtEachPlace(posts);
@@ -122,19 +144,33 @@ export function contentMarkOf(posts: readonly PostDto[]): ContentMark {
   const going = newest.find((p) => POST_ON_ITS_WAY.includes(p.status));
   if (going) return { is: "going", place: going.place };
   const up = newest.filter((p) => p.status === "published");
-  return up.length > 0 ? { is: "posted", places: up.map((p) => p.place) } : { is: "ready" };
+  if (up.length === 0) return { is: "ready" };
+  const times = up.flatMap((p) => (p.published_at ? [p.published_at] : [])).sort();
+  return { is: "posted", places: up.map((p) => p.place), at: times.at(-1) ?? null };
 }
+
+/** How many ideas Ask can make now, as the first day's sentence starts on it: "Three", "One". */
+const ideasSaid = (n: number): string => ["One", "Two", "Three"][n - 1] ?? String(n);
 
 /** Every word the Content page says. */
 export const CONTENT_WORDS = {
   tab: "Content",
   /** What a video with no opening words is called. */
   video: "Video",
-  ask: "Make something",
-  /** The head's door to the Library: clips where the workspace takes videos, photos where it does not. */
-  addClips: "Add clips",
-  addPhotos: "Add photos",
+  /** The head's coral act on Made (the content canvas): it opens Ask on Content, with the ideas it can make. */
+  /** The head's coral act on Made, as Campaigns' others say theirs ("New sequence", "New message"): a phone draws its "+" alone. */
+  make: "New",
+  /** The Library's coral act: its picker, for photos and videos. */
+  add: "Add",
+  /** Make's sheet over the page (sheets/make.tsx): what Ask can make now, and its line for anything else. */
+  makeSheet: {
+    title: "Make something",
+    sub: "From your photos, clips and reviews",
+    say: "Or say what you want",
+  },
   makingTitle: "Being made",
+  /** Made's search line, as the Library's is ("Find a photo or video"). */
+  find: "Find a post or video",
   more: "Show more",
   /** The next page of what was made could not be read: what is on screen stands. */
   moreFailed: "Couldn't read more just now. Try again.",
@@ -142,28 +178,44 @@ export const CONTENT_WORDS = {
   failedWhat: "your content",
   empty: {
     title: "Nothing made yet",
-    body: "Ask makes posts from your photos and videos from your clips. Everything it makes shows here.",
+    /** The first day (the content canvas, PhHome "first"): what Ask makes, then how many ideas it can make now. */
+    body: (ideas: number) =>
+      `Ask makes posts from your photos and videos from your clips. ${ideasSaid(ideas)} it can make now:`,
     /** Where the workspace takes no videos (features.video_preview): Ask makes no video there, so it says none. */
-    bodyPhotos: "Ask makes posts from your photos. Everything it makes shows here.",
-    ask: "Ask for one",
-    files: "Open Library",
+    bodyPhotos: (ideas: number) => `Ask makes posts from your photos. ${ideasSaid(ideas)} it can make now:`,
   },
+  /** Where a piece stands, under its tile (the content canvas: a dot and a few words). A video is ready to post too: its Post sheet offers what works. */
   mark: {
-    ready: "Ready",
-    readyToPost: "Ready to post",
-    going: (place: PostPlace) => `On its way to ${POST_PLACE_SAID[place]}`,
-    posted: (places: readonly PostPlace[]) => `On ${places.map((p) => POST_PLACE_SAID[p]).join(" and ")}`,
-    stuck: "Not posted. Open it to see why.",
+    ready: "Ready to post",
+    /** A video's: its Save video leads, and it is posted from the phone. */
+    save: "Ready to save",
+    going: (place: PostPlace) => `Posting to ${POST_PLACE_SAID[place]}`,
+    /** "On Instagram · Monday": where it is, and the day the newest went up. */
+    posted: (places: readonly PostPlace[], day: string | null) =>
+      `On ${places.map((p) => POST_PLACE_SAID[p]).join(" and ")}${day ? ` · ${day}` : ""}`,
+    /** Said once: why is the place's row in its sheet (Post it), where it is posted again or let go. */
+    stuck: "Didn't post",
   },
+  /** One line over the pieces while anything needs the owner (the content canvas, PhHome): what, and Look. */
+  needsLine: {
+    posts: (n: number) => (n === 1 ? "1 post didn't go out" : `${n} posts didn't go out`),
+    videos: (n: number) => (n === 1 ? "A video couldn't be made" : `${n} videos couldn't be made`),
+    /** Both at once: "1 post and a video need you". */
+    both: (posts: number, videos: number) =>
+      `${posts === 1 ? "1 post" : `${posts} posts`} and ${videos === 1 ? "a video" : `${videos} videos`} need you`,
+    /** The amber line opens what needs the owner: the one piece where one does, else Needs you. */
+    look: "Look",
+  },
+  /** A piece deleted, with Undo for as long as the note shows. */
+  deleted: (name: string) => `Deleted “${name}”`,
   /** An open piece: its step, where it stands at a place, and its acts. */
   piece: {
     step: {
       post: "Post",
       postTo: (place: PostPlace) => `Post to ${POST_PLACE_SAID[place]}`,
-      again: "Try again",
+      again: "Post again",
       keep: "Keep it",
       make: "Make a post",
-      save: "Save video",
       dontPost: "Don't post",
       /** A post that waits for its time: "Instagram story goes up tomorrow 9:00 PM". */
       timed: (post: string, when: string) => `${post} goes up ${when}`,
@@ -171,36 +223,90 @@ export const CONTENT_WORDS = {
     stands: {
       none: "Not yet",
       going: "Posting",
-      timed: (when: string) => when,
       up: (when: string | null) => (when ? `Posted ${when}` : "Posted"),
+      /** Up a moment ago (the content canvas, PhAct "posting"): "Google · Posted just now". */
+      justNow: "Posted just now",
       stuck: "Didn't post",
     },
     place: POST_PLACE_SAID,
     of: (at: number, of: number) => `${at} of ${of}`,
-    before: "The one before",
-    after: "The next one",
     save: "Save",
     ask: "Ask about it",
     more: "More",
     changeIt: "Change it",
+    /**
+     * Change it, for a post that is out nowhere yet: the change takes its place, rather than a twin beside it (Ruben, 12 Nov
+     * 2026: a typo fixed left two). Where it is up, on its way or set for a time, Save as new keeps the one out there.
+     */
+    change: { save: "Save", saved: "Changed." },
     rename: "Rename",
-    videoNote: "Instagram can't take a video from here yet.",
-    makePost: "Make a post from it",
     video: (clock: string) => `Video · ${clock}`,
     picture: "Picture post",
     photo: "Photo",
     clip: (clock: string) => `Clip · ${clock}`,
     gone: "That piece isn't here any more.",
   },
+  /**
+   * A piece opened on a phone (the content canvas, "Open a piece", board PhView): full screen and dark, its glass top, the
+   * foot over the picture, Details and More. Each line is said from what the records hold, never made up: a video's "from 4
+   * of your clips" is its plan counted (pieces.ts pieceCountOf), a post's "from one of your photos" the photo it came from.
+   */
+  viewer: {
+    close: "Close",
+    soundOn: "Sound on",
+    soundOff: "Sound off",
+    /** A tap on the picture or the reel (Ruben, 12 Nov 2026: a person reaches for it): it opens full size, in a tab of its own. */
+    openFull: "Open full size",
+    details: "Details",
+    /** "made today", "made Monday", "made Nov 3": the day by the business's own clock. */
+    made: (day: string) => `made ${day}`,
+    /** What a piece was made from, counted: "4 of your clips", "one of your photos", "2 clips and 1 photo of yours". */
+    from: (clips: number, photos: number) => {
+      const some = (n: number, kind: string) => (n === 1 ? `one of your ${kind}s` : `${n} of your ${kind}s`);
+      const many = (n: number, kind: string) => `${n} ${kind}${n === 1 ? "" : "s"}`;
+      if (photos === 0) return some(clips, "clip");
+      if (clips === 0) return some(photos, "photo");
+      return `${many(clips, "clip")} and ${many(photos, "photo")} of yours`;
+    },
+    /** A post made from a moment of a video, rather than a photo. */
+    fromClip: "one of your clips",
+    madeFrom: (from: string) => `from ${from}`,
+    /** Details' head under the name: what it is, and its size in pixels. */
+    size: (width: number, height: number) => `${width} × ${height}`,
+    facts: {
+      words: "Caption",
+      /** A made piece's caption, written where it stands: tapped, it is a box; left, it is kept. */
+      captionAdd: "Add a caption",
+      captionSaving: "Saving",
+      captionSaved: "Saved",
+      /** Over the pictures it was made from, which say how many: the line under its name says it in words. */
+      madeFrom: "Made from",
+      made: "Made",
+      added: "Added",
+      sound: "Sound",
+    },
+    kinds: { picture: "Post", story: "Story", reel: "Reel" },
+    /** "Sat, 9:00 AM", "tomorrow, 9:00 AM": a day near today and its time. */
+    at: (day: string, time: string) => `${day}, ${time}`,
+    /** A day as the time a thing happened at says it: "Today at 9:41", "Monday at 9:41". */
+    dayAt: (day: string, time: string) => `${day.charAt(0).toUpperCase()}${day.slice(1)} at ${time}`,
+    /**
+     * The keys a desk walks an open piece with (the content canvas, board Desk), each its cap and what it does. Space turns a
+     * video's sound on and off, as the glass does: the reel plays by itself, and Stream's frame takes no key from the page.
+     */
+    keys: {
+      walk: ["←", "→"],
+      next: "Next piece",
+      space: "Space",
+      sound: "Sound",
+      lead: "P",
+      esc: "Esc",
+      close: "Close",
+    },
+  },
   /** A made video's words, made again (campaigns/content/video-again.tsx): More › Change it on a video Ask made. */
   again: {
-    says: "A new video is made from the same moments, with these words. This one stays.",
-    line: (n: number) => `Line ${n}`,
-    endLine: "End card",
-    language: "Language",
-    languages: { en: "English", es: "Español" },
     make: "Make it again",
-    cancel: "Cancel",
     needsLine: "It opens on a line: write one.",
     making: "Making it again. It's in Made in about a minute.",
   },
@@ -208,7 +314,14 @@ export const CONTENT_WORDS = {
   lists: { made: "Made", library: "Library", label: "Show what" },
   /** Made's views, as the control beside Made says them, and what each says when it holds nothing. */
   views: {
-    name: { all: "All", needs: "Needs you", making: "Being made", scheduled: "Scheduled", posted: "Posted" },
+    name: {
+      all: "All",
+      needs: "Needs you",
+      making: "Being made",
+      scheduled: "Scheduled",
+      posted: "Posted",
+      aside: "Set aside",
+    },
     label: "Show",
     empty: {
       all: "Nothing made yet.",
@@ -216,45 +329,99 @@ export const CONTENT_WORDS = {
       making: "Nothing is being made.",
       scheduled: "Nothing is waiting for its time.",
       posted: "Nothing is posted yet.",
+      aside: "Nothing is set aside.",
     },
     thisWeek: "This week",
     earlier: "Earlier",
     open: "Open",
+    /** The lines' own words (the content canvas, PhList). */
+    didntPost: (reason: string) => `Didn't post · ${reason}`,
+    couldntMake: (reason: string) => `Couldn't be made · ${reason}`,
+    /** A video Ask could not make, asked of Ask again as it was made: in its words, with why it was not. */
+    makeAgainAsk: (title: string, why: string) => ({
+      en: `Make this video again: "${title}". Last time it couldn't be made: ${why}`,
+      es: `Haz de nuevo este video: "${title}". La vez pasada no se pudo hacer: ${why}`,
+    }),
+    nothingElse: "Nothing else needs you.",
+    /** A post at its time goes up by itself: "Instagram story · posts by itself". */
+    byItself: (where: string) => `${where} · posts by itself`,
+    /** A day Scheduled's posts wait for: "Tomorrow · Thu, Nov 12" while it is near, else "Sat, Nov 14". */
+    dayHead: (near: string | null, date: string) =>
+      near ? `${near.charAt(0).toUpperCase()}${near.slice(1)} · ${date}` : date,
+    onCalendar: "Each one also shows on your Calendar.",
+    /** "Google · today, 9:12 AM", "Instagram · Monday". */
+    upAt: (where: string, when: string) => `${where} · ${when}`,
     grid: "Grid",
     list: "List",
-    columns: { piece: "Piece", stands: "Where it stands" },
+    columns: {
+      piece: "Piece",
+      stands: "Where it stands",
+      // Scheduled and Posted on a desk (lines-table.tsx): the same table, narrowed.
+      when: "When",
+      posted: "Posted",
+      where: "Where",
+      how: "How it goes",
+      byItself: "Posts by itself",
+    },
     count: (n: number) => (n === 1 ? "1 piece, newest first" : `${n} pieces, newest first`),
   },
   /** The composer: one post, to every place switched on. */
   post: {
     title: "Post it",
+    /** The one press, as every app that posts says it: where it goes is the switches over it (and its name for a screen reader). */
+    go: "Post",
+    /**
+     * Asked where Post was pressed, before anything goes up (Ruben, 12 Nov 2026: a post is public, and one press sent it with
+     * no question). The Post that answers it is the approval (decision 0121); what each place does with it is said under it.
+     */
+    ask: {
+      question: (places: readonly PostPlace[]) => `Post to ${places.map((p) => POST_PLACE_SAID[p]).join(" and ")} now?`,
+      detail: (places: readonly PostPlace[]) =>
+        [
+          places.includes("google") ? "Google shows it right away." : null,
+          places.includes("instagram") ? "Instagram takes a minute or two, and Don't post stops it until then." : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      no: "Back",
+    },
+    /** A time for it, beside Post: the day and time picked as words of a sentence, as a send's are (broadcasts/when.tsx). */
+    later: {
+      open: "Schedule",
+      says: "Post",
+      yes: "Schedule",
+      note: (when: string, city: string) => `Goes up ${when}, ${city} time. Don't post stops it until then.`,
+      set: (places: readonly PostPlace[], when: string) =>
+        `Set for ${when} on ${places.map((p) => POST_PLACE_SAID[p]).join(" and ")}.`,
+    },
     asWhat: "On Instagram, as",
-    words: "Words",
-    wordsNote: "Written from the post. Change them as you like.",
-    when: "When",
-    now: "Now",
-    evening: "This evening",
-    morning: "Tomorrow morning",
     send: (places: readonly PostPlace[]) => `Post to ${places.map((p) => POST_PLACE_SAID[p]).join(" and ")}`,
-    cancel: "Not now",
     nowhere: "Choose where it goes.",
-    wordsNeeded: "Write the words that go with it.",
-    tooLongForGoogle: "Google takes 1,500 characters at most. Shorten the words, or turn Google off.",
+    /** The caption is typed in Details alone (viewer/caption.tsx): where it is missing or too long, that is where it is put right. */
+    wordsNeeded: "Add a caption first.",
+    tooLongForGoogle: "Google takes 1,500 characters at most. Shorten the caption, or turn Google off.",
     sent: (places: readonly PostPlace[]) => `On its way to ${places.map((p) => POST_PLACE_SAID[p]).join(" and ")}.`,
-    /** Set for its time, at every place it went to (00616): `at` is the time as the page's clock says it. */
-    set: (places: readonly PostPlace[], at: string) =>
-      `Set for ${at} on ${places.map((p) => POST_PLACE_SAID[p]).join(" and ")}.`,
     oneFailed: (place: PostPlace, reason: string) => `${POST_PLACE_SAID[place]}: ${reason}`,
   },
 } as const;
 
-/** A mark in the owner's words. A video is ready and no more: a reel has no road to Instagram from here yet (decision 0121). */
-export function contentMarkSaid(mark: ContentMark, kind: FileKind): string {
+/**
+ * A mark in the owner's words. A made video posted nowhere is ready to save (contentPieceMarkOf), while a reel has no road
+ * to Instagram from here (decision 0121). `dayOf` says a day by the business's own clock.
+ */
+export function contentMarkSaid(mark: ContentMark, dayOf: (at: string) => string): string {
   if (mark.is === "going") return CONTENT_WORDS.mark.going(mark.place);
-  if (mark.is === "posted") return CONTENT_WORDS.mark.posted(mark.places);
+  if (mark.is === "posted") return CONTENT_WORDS.mark.posted(mark.places, mark.at ? dayOf(mark.at) : null);
   if (mark.is === "stuck") return CONTENT_WORDS.mark.stuck;
-  return kind === "video" ? CONTENT_WORDS.mark.ready : CONTENT_WORDS.mark.readyToPost;
+  if (mark.is === "save") return CONTENT_WORDS.mark.save;
+  return CONTENT_WORDS.mark.ready;
 }
+
+/** A mark's tone, as its dot draws it: grey ready, the accent while it moves, green out, amber where it needs the owner. */
+export type ContentMarkTone = "ready" | "going" | "up" | "need";
+
+export const contentMarkToneOf = (mark: ContentMark): ContentMarkTone =>
+  mark.is === "posted" ? "up" : mark.is === "stuck" ? "need" : mark.is === "save" ? "ready" : mark.is;
 
 /** What heads the made pieces, in one line: how many are made, and how many are out. */
 export function contentHeadOf(tally: ContentTally): string {

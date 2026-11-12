@@ -29,12 +29,15 @@ type StandingProps =
   | { scope: "leads"; leads: LeadsStanding; onNeeds: (id: string) => void; act?: ReactNode }
   | { scope?: "people" | "pipeline"; agg: StandingAgg; needsShown?: boolean; onNeeds: () => void };
 
-/** The search waiting on an answer, as the tap that opens it: in the line, and in the head's sentence. */
+/**
+ * The search waiting on an answer, as the tap that opens it: in the line, and in the head's sentence. Amber, as People's
+ * "need you" is: a door, never a switch drawn pressed (Ruben, 12 Nov 2026: it stood as a filled chip beside People's word).
+ */
 function leadsNeeds(needs: NonNullable<LeadsStanding["needsYou"]>, onNeeds: (id: string) => void) {
   return (
     <button
       type="button"
-      className="pl-standing-needs on"
+      className="pl-standing-needs"
       onClick={() => onNeeds(needs.searchId)}
       data-testid="leads-standing-needs"
     >
@@ -70,6 +73,15 @@ function LeadsStandingLine({
     back: null,
     act: act ?? undefined,
   });
+  return <LeadsStandingRow leads={leads} onNeeds={onNeeds} />;
+}
+
+/**
+ * Leads' line itself, "3 leads · 2 ready · 1 search", where People's stands: under the controls on a desk, and on a phone
+ * under the bar, as People's is (Ruben, 12 Nov 2026: Leads' count stood beside the list's name, People's on a line under).
+ */
+export function LeadsStandingRow({ leads, onNeeds }: { leads: LeadsStanding; onNeeds: (id: string) => void }) {
+  const needs = leads.needsYou;
   return (
     <div className="pl-standing" data-testid="leads-standing">
       <span className="pl-standing-total">{leads.total}</span>

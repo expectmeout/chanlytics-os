@@ -543,7 +543,7 @@ test("a batch that keeps something rings the bell once, and says so to what come
   assert.equal(w.tables.files.length, 3);
   assert.deepEqual(
     w.tables.notifications.map((n) => [n.kind, n.route]),
-    [["files_waiting", "admin/files"]],
+    [["files_waiting", "campaigns/content:library"]],
   );
   assert.doesNotMatch(
     w.tables.notifications[0].body,

@@ -58,9 +58,16 @@ import { ownersWords } from "./post";
 type Block = PiecePlan["blocks"][number];
 type Shot = Extract<Block, { is: "pair" }>["before"];
 
-/** What a drawn storyboard is known by once the model has looked at it: the plan, whole, in one short key. */
+/**
+ * What a drawn storyboard is known by once the model has looked at it: the plan, whole but for its caption, in one short key.
+ * The caption is pasted under the post and never drawn, so words written or changed with the call that carries the key make
+ * the card without a second drawing.
+ */
 const pieceLookKeyOf = (plan: PiecePlan): string =>
-  createHash("sha256").update(JSON.stringify(plan)).digest("hex").slice(0, 10);
+  createHash("sha256")
+    .update(JSON.stringify({ ...plan, caption: null }))
+    .digest("hex")
+    .slice(0, 10);
 
 const LOOK_NOTE =
   "Look at the storyboard with the owner's eyes. Each tile is one block, in the order they play, drawn as the video will show it: a clip's first frame, a photo, a pair's two pictures (the before above the after), a card's words, with the opening words on every picture they are on. Do any words cover a face, or the very thing the video is showing? Then move the opening words (words_at), let them leave with the first block (words_hold first), shorten a label, or choose another moment. Does the first tile show what the words say? Does a pair show the same person from the same side, its before truly before the work began? Does any block repeat the one beside it: the same moment twice, the same words twice, a quote the opening words already gave away? Then cut one, or change it. Does each card read at a glance? Once it is right, call again with the same plan and looked set to look_key, and say beside that call the rest of what was asked. If something is off, call again with what you changed and no looked.";
@@ -149,7 +156,7 @@ const pieceInput = z.object({
   words_at: z
     .enum(PIECE_WORDS_PLACES)
     .describe(
-      "Where the opening words sit, chosen from the frames: wherever they cover no face and not the thing being shown. High is over a head; low is under a face, over the lap.",
+      "Where the opening words sit, chosen from the frames, off any face and what is shown: high is over a head, low under a face.",
     ),
   words_hold: z
     .enum(PIECE_WORDS_HOLDS)
@@ -160,18 +167,23 @@ const pieceInput = z.object({
     .string()
     .optional()
     .describe(
-      `One short line for the end card, at most ${PIECE_LIMITS.endLine} characters, or left out. Never a booking line: code adds the business's name, its number and its address.`,
+      `The end card's one short line, at most ${PIECE_LIMITS.endLine} characters, or none; never a booking line: code adds their name, number and address.`,
     ),
   people_agreed: z
     .boolean()
     .optional()
     .describe("Only when the owner said in this thread that the people shown agreed to be."),
-  looked: z
+  caption: z
     .string()
     .optional()
     .describe(
-      "The storyboard's look_key, once you have looked at it and it is right. Left out, the storyboard is drawn and shown to you, and no card is made.",
+      `Words to paste under the post: a short paragraph, at most ${PIECE_LIMITS.caption} characters, in the owner's voice: what it shows and how to book. No price, offer or name they did not give.`,
     ),
+  language: z
+    .enum(["en", "es"])
+    .optional()
+    .describe("Only when asked for another language than the question's: its own words (Before, After) follow it."),
+  looked: z.string().optional().describe("The storyboard's look_key, once you have looked at it and it is right."),
 });
 
 type BlockInput = z.infer<typeof blockInput>;
@@ -334,7 +346,9 @@ function wordsProblem(plan: PiecePlan, owner: string): string | null {
     if (problem) return `block ${i + 1}: ${problem}`;
   }
   const end = plan.end_line ? postWordsProblem(plan.end_line, owner, PIECE_LIMITS.endLine) : null;
-  return end ? `end_line: ${end}` : null;
+  if (end) return `end_line: ${end}`;
+  const caption = plan.caption ? postWordsProblem(plan.caption, owner, PIECE_LIMITS.caption) : null;
+  return caption ? `caption: ${caption}` : null;
 }
 
 /**
@@ -427,7 +441,8 @@ async function planAsked(
 ): Promise<PiecePlan | ProposalOutcome> {
   const names = [...new Set(input.blocks.flatMap(fileNamesOf))];
   const { files } = await load(toolContext.rc, filesNamedForAsk, { names }).then((r) => r.data);
-  const language = toolContext.language === "es" ? "es" : "en";
+  // The language asked for, else the one asked in: a video made again in Spanish, asked in English, draws its own words in Spanish.
+  const language = input.language ?? (toolContext.language === "es" ? "es" : "en");
   const building: Building = { files, agreed: input.people_agreed === true };
   const blocks: Block[] = [];
   for (const [i, given] of input.blocks.entries()) {
@@ -445,6 +460,7 @@ async function planAsked(
     end_line: input.end_line?.trim() || null,
     language,
     people_agreed: building.agreed,
+    caption: input.caption?.trim() || null,
   };
 }
 
@@ -453,7 +469,7 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
   if (!videoPreviewOf(config)) return refuse("this workspace does not keep videos yet, so none can be made");
   const given = await planAsked(toolContext, input);
   if (!("shape" in given)) return given;
-  const owner = ownersWords(toolContext, config);
+  const owner = await ownersWords(toolContext, config);
   const wordsWrong = wordsProblem(given, owner);
   if (wordsWrong) return refuse(wordsWrong);
   const plan = await quotesSourced(toolContext, given, owner);
@@ -484,7 +500,7 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
 
 export const pieceAct = defineAct({
   name: "propose_piece",
-  description: `Make a short video from the business's own clips and photos: upright, 8 to 15 seconds, built from blocks you arrange for this request, then a card with the business's name. A machine draws it once the owner presses Make it, in about a minute, and it lands in Files. Open the files with files first (view; zoom on a clip's stretch) and choose real moments; then call this. The first call draws a storyboard and shows it to you: look at it with the owner's eyes, change the plan if words sit on a face or a block reads badly, and call again with looked set to its look_key; only then is the card made, and that call ends the turn, so answer the rest of what they asked beside it, in the same message. Use it for a video or a reel from their clips, their photos or words alone; for one picture with words, propose_post. ${PIECE_RECIPES} ${approvalWords("piece")}.`,
+  description: `Make a short video from the business's own clips and photos: upright, 8 to 15 seconds, built from blocks you arrange for this request, then a card with the business's name. It is drawn in about a minute once the owner presses Make it. Open the files with files first (view; zoom on a clip's stretch) and choose real moments. The first call draws a storyboard and shows it to you; its note says how the card is made. Use it for a video or a reel from their clips, their photos or words alone; for one picture with words, propose_post. ${PIECE_RECIPES} ${approvalWords("piece")}.`,
   kind: "piece",
   input: pieceInput,
   label: "Planning a video",

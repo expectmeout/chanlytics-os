@@ -52,7 +52,7 @@ what the script writes.
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/repositories/events/delivery.ts` | on, no policy, so only the service role reaches it |
 | [`events`](#events) | `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts`, `packages/db/src/repositories/campaigns/sequences/sent.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/ops/console.ts`, `packages/db/src/repositories/ops/health.ts`, `packages/db/src/repositories/reports/activity.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/setup.ts` | on, 1 policy |
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/suggestions.ts` | on, 1 policy |
-| [`files`](#files) | `packages/db/src/repositories/files/files.ts` | on, 1 policy |
+| [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/files.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
 | [`google_connections`](#google_connections) | `packages/db/src/repositories/google/connection.ts` | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | `packages/db/src/repositories/google/listing.ts` | on, 1 policy |
@@ -103,7 +103,7 @@ what the script writes.
 | [`person_moments`](#person_moments) | `packages/db/src/repositories/people/people.ts` | on, 1 policy |
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/campaigns/reach-out/ahead.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`piece_images`](#piece_images) | `packages/db/src/repositories/files/pieces.ts` | on, no policy, so only the service role reaches it |
-| [`pieces`](#pieces) | `packages/db/src/repositories/files/pieces.ts` | on, 1 policy |
+| [`pieces`](#pieces) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts` | on, 1 policy |
 | [`platform_acts`](#platform_acts) | `packages/db/src/repositories/console/acts.ts`, `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
 | [`platform_claims`](#platform_claims) | `packages/db/src/repositories/console/staff.ts` | on, no policy, so only the service role reaches it |
@@ -1278,7 +1278,7 @@ Foreign keys:
 
 A business's files (00551, decision 0099): one row a picture, whichever road brought it, from its bytes proven until they are gone. Its folder in the files bucket is <tenant>/<id>/, and its extension comes from mime.
 
-- Owned by: `packages/db/src/repositories/files/files.ts`
+- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/files.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2896,7 +2896,7 @@ The machine image a made video is drawn on, one row an edition of the template (
 
 One row a video asked for (00613, decision 0122): its plan as pressed, the template's edition it is drawn by, where it stands and the file it became. Written only through its doors.
 
-- Owned by: `packages/db/src/repositories/files/pieces.ts`
+- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

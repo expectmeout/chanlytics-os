@@ -17,7 +17,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/files/route.ts"));
 const { fileCursorOf, filesSayOf } = await import(at("packages/contracts/src/files/files.ts"));
-const { FILE_SHELVES, fileShelfOpening, filesTallyOf, shelfFilterOf, shelfOf } = await import(
+const { FILE_SHELVES, filesTallyOf, shelfFilterOf, shelfOf } = await import(
   at("packages/contracts/src/files/views.ts")
 );
 const { FILE_SHOWS, FILE_SOURCES, FILE_STATUSES, FILES_PAGE } = await import(
@@ -95,7 +95,8 @@ test("what a shelf asks the database for is what shelfOf says, over every file t
       for (const shows of [...FILE_SHOWS, null])
         for (const shelf of FILE_SHELVES) {
           const f = { status, source, shows };
-          const says = shelf === "all" ? status === "filed" : shelfOf(f) === shelf;
+          // Kept is what the business brought and keeps: what Ask made is a shelf of its own.
+          const says = shelf === "all" ? status === "filed" && source !== "made" : shelfOf(f) === shelf;
           assert.equal(stands(f, shelf), says, `${JSON.stringify(f)} on ${shelf}`);
           looked += 1;
         }
@@ -108,7 +109,7 @@ test("every kind of thing a file can show stands on a shelf a person can press",
 
 /* ------------------------------------------------------------------------- how the library stands */
 
-test("the tally counts every file by what it says of itself, and the page says what is kept, what waits and what is being looked at", () => {
+test("the tally counts every file by what it says of itself, and the page says what is kept (not what Ask made), what waits and what is being looked at", () => {
   const tally = filesTallyOf([
     { status: "filed", shows: "storefront", source: "upload", look_status: "done" },
     { status: "filed", shows: "work", source: "upload", look_status: "waiting" },
@@ -118,23 +119,14 @@ test("the tally counts every file by what it says of itself, and the page says w
   ]);
   assert.deepEqual(tally, {
     total: 5,
-    kept: 3,
+    kept: 2,
     videos: 0,
     waiting: 1,
     looking: 1,
     shelves: { place: 1, work: 1, made: 1, inbox: 1, set_aside: 1 },
   });
-  assert.equal(filesSayOf(tally), "3 photos, 1 waiting for you, Ask is still looking at 1");
+  assert.equal(filesSayOf(tally), "2 photos, 1 waiting for you, Ask is still looking at 1");
   assert.equal(filesSayOf({ kept: 1, waiting: 0, looking: 0 }), "1 photo");
-});
-
-test("the library opens on the Inbox for whoever can answer it, else on what is kept, else on the first shelf that holds", () => {
-  const tally = (over) => ({ total: 1, kept: 0, waiting: 0, looking: 0, shelves: {}, ...over });
-  assert.equal(fileShelfOpening(tally({ kept: 2, waiting: 1, shelves: { inbox: 1, work: 2 } }), true), "inbox");
-  assert.equal(fileShelfOpening(tally({ kept: 2, waiting: 1, shelves: { inbox: 1, work: 2 } }), false), "all");
-  assert.equal(fileShelfOpening(tally({ waiting: 1, shelves: { inbox: 1 } }), false), "inbox", "the first that holds");
-  assert.equal(fileShelfOpening(tally({ shelves: { set_aside: 3 } }), true), "set_aside");
-  assert.equal(fileShelfOpening(tally({ total: 0 }), true), "all", "an empty library");
 });
 
 /* ------------------------------------------------------------------------- the route */
@@ -201,7 +193,11 @@ test("a shelf holds what stands on it, and only that", async () => {
   assert.deepEqual(await on("made"), [idOf(5)]);
   assert.deepEqual(await on("inbox"), [idOf(6)]);
   assert.deepEqual(await on("set_aside"), [idOf(7)]);
-  assert.deepEqual(await on("all"), [idOf(1), idOf(2), idOf(3), idOf(4), idOf(5)], "Kept is what is in use");
+  assert.deepEqual(
+    await on("all"),
+    [idOf(1), idOf(2), idOf(3), idOf(4)],
+    "Kept is what the business brought, not what Ask made",
+  );
   const { tally } = await read(rows);
   assert.equal(tally.total, 7, "neither a removed file nor another workspace's");
 });
@@ -218,9 +214,9 @@ test("a shelf a change left empty falls back to where the library opens, and say
   assert.equal(said.files.length, 1);
 });
 
-test("what is asked of the library opening depends on who asks: a reader has no Inbox to answer", async () => {
+test("the library opens on all it keeps, whoever asks: what waits is a line over it, never the page it opens on", async () => {
   const rows = [row(1), row(2, { status: "inbox" })];
-  assert.equal((await read(rows, "", "owner")).shelf, "inbox");
+  assert.equal((await read(rows, "", "owner")).shelf, "all");
   assert.equal((await read(rows, "", "viewer")).shelf, "all");
 });
 

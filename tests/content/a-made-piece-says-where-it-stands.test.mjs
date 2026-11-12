@@ -11,6 +11,7 @@ import {
   contentMakingSaid,
   contentMarkOf,
   contentMarkSaid,
+  contentPieceMarkOf,
   contentMoving,
 } from "@chanlytics/contracts";
 
@@ -38,7 +39,11 @@ test("nothing posted is ready, and a post pulled or taken down leaves it ready",
 
 test("only the newest post at each place speaks for it", () => {
   const older = post("instagram", "failed", { id: "old" });
-  assert.deepEqual(contentMarkOf([post("instagram", "published"), older]), { is: "posted", places: ["instagram"] });
+  assert.deepEqual(contentMarkOf([post("instagram", "published"), older]), {
+    is: "posted",
+    places: ["instagram"],
+    at: "2026-11-11T15:01:00Z",
+  });
 });
 
 test("what needs the owner outranks what is working, which outranks what is done", () => {
@@ -58,17 +63,30 @@ test("what needs the owner outranks what is working, which outranks what is done
   assert.deepEqual(contentMarkOf([post("instagram", "published"), post("google", "published")]), {
     is: "posted",
     places: ["instagram", "google"],
+    at: "2026-11-11T15:01:00Z",
   });
 });
 
 test("each mark is said once, in the owner's words, and a video is never offered a post it cannot make", () => {
-  assert.equal(contentMarkSaid({ is: "ready" }, "image"), "Ready to post");
-  assert.equal(contentMarkSaid({ is: "ready" }, "video"), "Ready");
-  assert.equal(contentMarkSaid({ is: "going", place: "instagram" }, "image"), "On its way to Instagram");
-  assert.equal(contentMarkSaid({ is: "going", place: "google" }, "image"), "On its way to Google");
-  assert.equal(contentMarkSaid({ is: "posted", places: ["instagram"] }, "image"), "On Instagram");
-  assert.equal(contentMarkSaid({ is: "posted", places: ["instagram", "google"] }, "image"), "On Instagram and Google");
-  assert.equal(contentMarkSaid({ is: "stuck", place: "instagram" }, "image"), "Not posted. Open it to see why.");
+  const dayOf = () => "Monday";
+  assert.equal(contentMarkSaid({ is: "ready" }, dayOf), "Ready to post");
+  // A video Ask made, posted nowhere, is saved: nothing posts a reel from here (decision 0121).
+  assert.deepEqual(contentPieceMarkOf({ file: { kind: "video" }, posts: [] }), { is: "save" });
+  assert.deepEqual(contentPieceMarkOf({ file: { kind: "image" }, posts: [] }), { is: "ready" });
+  assert.equal(contentMarkSaid({ is: "save" }, dayOf), "Ready to save");
+  assert.equal(contentMarkSaid({ is: "going", place: "instagram" }, dayOf), "Posting to Instagram");
+  assert.equal(contentMarkSaid({ is: "going", place: "google" }, dayOf), "Posting to Google");
+  assert.equal(contentMarkSaid({ is: "posted", places: ["instagram"], at: null }, dayOf), "On Instagram");
+  assert.equal(
+    contentMarkSaid({ is: "posted", places: ["instagram", "google"], at: "2026-11-11T15:01:00Z" }, dayOf),
+    "On Instagram and Google · Monday",
+    "and the day the newest went up, by the business's clock",
+  );
+  assert.equal(
+    contentMarkSaid({ is: "stuck", place: "instagram" }, dayOf),
+    "Didn't post",
+    "why is its place's row, said once",
+  );
 });
 
 test("the head counts what is made and what is out, and says nothing it has not read", () => {

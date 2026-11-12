@@ -158,6 +158,8 @@ export type MenuProps = {
   nativeTrigger?: boolean;
   /** On a phone too, a small card at its control rather than the phone's action sheet: a few words, opened over a sheet. */
   anchored?: boolean;
+  /** Dark whatever the page's light (its wash too): a menu over a picture opened dark (Content's viewer on a phone). */
+  dark?: boolean;
   className?: string;
   ref?: Ref<HTMLDivElement>;
 };
@@ -362,6 +364,7 @@ function MenuPopup({
   anchored = false,
   className,
   ref,
+  dark,
   onClose,
 }: Omit<MenuProps, "trigger"> & { onClose: () => void }) {
   // A set of two-line options is wider on a desk, so the line under each name can be read (kit.css .more-menu-lines).
@@ -370,10 +373,11 @@ function MenuPopup({
   const card = anchored ? { "data-anchored": "" } : {};
   return (
     <BaseMenu.Portal>
-      <BaseMenu.Backdrop className="more-backdrop" {...card} />
+      <BaseMenu.Backdrop className="more-backdrop" data-theme={dark ? "dark" : undefined} {...card} />
       <BaseMenu.Positioner className="pop-place" sideOffset={MENU_GAP_PX} align={align} {...card}>
         <BaseMenu.Popup
           ref={ref}
+          data-theme={dark ? "dark" : undefined}
           className={cx(menuClasses({ align }), lines && "more-menu-lines", head && "more-menu-titled", className)}
           aria-label={label ?? head?.title}
           {...card}

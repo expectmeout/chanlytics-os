@@ -39,6 +39,7 @@ const SHELF_SAID: Readonly<Record<Exclude<FileShelf, "all" | "inbox" | "set_asid
   brand: "logos and graphics",
   made: "made by Ask",
   other: "other",
+  made_aside: "made by Ask, set aside",
 };
 
 /** A shelf as a line says it. A file in the Inbox or set aside says that first. */
@@ -58,7 +59,9 @@ export function filesLineOf(
   timezone: string,
 ): string {
   if (files.length === 0) return "Files: no photos yet.";
-  const kept = files.filter((f) => f.status === "filed");
+  // What the business keeps, as the Library counts it; what Ask made is said apart, as Made holds it.
+  const kept = files.filter((f) => f.status === "filed" && f.source !== "made");
+  const made = files.filter((f) => f.status === "filed" && f.source === "made").length;
   const videos = kept.filter((f) => f.kind === "video").length;
   const counts = new Map<string, number>();
   for (const f of kept) counts.set(shelfOf(f), (counts.get(shelfOf(f)) ?? 0) + 1);
@@ -73,6 +76,7 @@ export function filesLineOf(
   );
   const parts = [
     `${keptSaidOf(kept.length, videos)}${shelves.length ? ` (${shelves.join(", ")})` : ""}`,
+    ...(made ? [`${SHELF_SAID.made} ${made}`] : []),
     ...(waiting ? [`${waiting} in Inbox`] : []),
     `logo ${kept.some((f) => f.shows === "logo") ? "yes" : "no"}`,
     `last added ${day}`,

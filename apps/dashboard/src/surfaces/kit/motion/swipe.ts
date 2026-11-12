@@ -56,6 +56,12 @@ export interface SwipeOptions {
   onLeft?: (() => void) | null;
   onRight?: (() => void) | null;
   onDown?: (() => void) | null;
+  /**
+   * A pull down's own way out, in place of leaving downward: it carries the element from where the finger let it go, and answers
+   * whether it did (Content's open piece glides into its tile: viewer/into-tile.ts). Where it answers false (the tile is off the
+   * screen), the element leaves downward after all. Null where there is none.
+   */
+  downInto?: ((el: HTMLElement) => Promise<boolean>) | null;
   onBack?: (() => void) | null;
   onAway?: (() => void) | null;
   pages?: ((el: Element, from: EventTarget | null) => ViewPage | null) | null;
@@ -68,8 +74,8 @@ export interface SwipeOptions {
   /** What goes with a page carried back, asked once it is grabbed (and `under` asked): it moves as the page does. */
   along?: (() => readonly HTMLElement[]) | null;
   /**
-   * Whether `onBack` moves the address (a page carried back to its list), which takes the page away later than a close in
-   * place: it is waited for before the page is judged kept. A card swiped back and kept (the bell's read, a lead's keep)
+   * Whether `onBack` (and `onDown`, where it is given: Content's open piece pulled down) moves the address (a page carried back
+   * to its list), which takes the page away later than a close in place: it is waited for before the page is judged kept. A card swiped back and kept (the bell's read, a lead's keep)
    * says nothing, and settles back as soon as it is seen to stay.
    */
   backNavigates?: boolean;
@@ -402,7 +408,8 @@ const swipeJudge = (g: Held, waited = 0) => {
       const shown = el.isConnected !== false && (!el.getClientRects || el.getClientRects().length > 0);
       const now = waited === 0 ? KEPT_AFTER_MS : waited + KEPT_STEP_MS;
       if (!shown) swipeClear(g);
-      else if (now >= (g.way === "back" && g.o.backNavigates ? KEPT_WAIT_MS : KEPT_AFTER_MS)) swipeSettle(g);
+      else if (now >= ((g.way === "back" || g.way === "down") && g.o.backNavigates ? KEPT_WAIT_MS : KEPT_AFTER_MS))
+        swipeSettle(g);
       else swipeJudge(g, now);
     },
     waited === 0 ? KEPT_AFTER_MS : KEPT_STEP_MS,
@@ -427,17 +434,28 @@ const swipeLeave = (g: Held, close: () => unknown, curve: { ms: number; easing: 
     return;
   }
   const move = `${curve.ms}ms ${curve.easing}`;
-  el.style.transition = movesOf(way, move);
-  el.style.transform = leaveTo(g);
-  if (way === "down") pulledDown(el, "100%");
-  if (wash && wash.style) {
-    wash.style.transition = `opacity ${move}`;
-    wash.style.opacity = "0";
+  const slideOut = () => {
+    el.style.transition = movesOf(way, move);
+    el.style.transform = leaveTo(g);
+    if (way === "down") pulledDown(el, "100%");
+    if (wash && wash.style) {
+      wash.style.transition = `opacity ${move}`;
+      wash.style.opacity = "0";
+    }
+    for (const b of below) b.style.transition = `translate ${move}, opacity ${move}`;
+    placeUnder(below, width, 1);
+    moveAlong(along, width, move);
+    setTimeout(done, curve.ms);
+  };
+  const into = way === "down" ? g.o.downInto : null;
+  if (!into) {
+    slideOut();
+    return;
   }
-  for (const b of below) b.style.transition = `translate ${move}, opacity ${move}`;
-  placeUnder(below, width, 1);
-  moveAlong(along, width, move);
-  setTimeout(done, curve.ms);
+  void into(el).then(
+    (went) => (went ? done() : slideOut()),
+    () => slideOut(),
+  );
 };
 // A move read from the element itself, non-passive, and its default refused while the touch carries something across.
 const swipeHold = (e: SwipeEvent) => {
@@ -576,6 +594,7 @@ export const touchSwipe = (options: SwipeOptions): SwipeHandlers => {
     onLeft: null,
     onRight: null,
     onDown: null,
+    downInto: null,
     onBack: null,
     onAway: null,
     pages: null,

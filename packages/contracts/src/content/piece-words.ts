@@ -14,6 +14,8 @@ export interface PieceWords {
   summary: (count: PieceCount, seconds: number) => string;
   /** The receipt of a press, true whenever it is read: that they may leave, where the video lands and what says so. */
   making: string;
+  /** Over the words Ask wrote to paste under the video where it is posted (its caption), on the card before it is made. */
+  caption: string;
   /** A press refused because the workspace's most are being made (PIECES_MAKING_MAX). */
   busy: string;
   /** A press in a workspace that keeps no videos (features.video_preview). */
@@ -32,6 +34,9 @@ export interface PieceWords {
     /** Where a video that is ready is: its length is the card's own line. */
     readyWhere: string;
     open: string;
+    /** Ask's card, once its video is ready (the content canvas, PhDoors "ask"): another like it, asked in a press. */
+    makeAnother: string;
+    makeAnotherAsk: string;
     failedMark: string;
     gone: string;
   };
@@ -43,8 +48,9 @@ export interface PieceWords {
   /** Why a video asked for was not made: the fact alone, which its card says over its Try again. */
   failed: Record<PieceFail, string>;
   /**
-   * The bell's lines: one that can be played, and one that could not be made, which says the same fact and then what to do,
-   * since a bell's row has no Try again of its own.
+   * The bell's lines: one that can be played, its name and what to do with it under "Your video is ready" (the content
+   * canvas's bell: "I asked for volume · Watch it", since a bell's row draws no verb of its own), and one that could not be
+   * made, which says the same fact and then what to do, since a bell's row has no Try again of its own.
    */
   bell: {
     ready: string;
@@ -114,6 +120,7 @@ export const PIECE_WORDS: PieceWords = {
     both: "your clips and photos",
   }),
   making: "You can close this. It lands in Content, under Made, and your bell says so.",
+  caption: "Caption",
   busy: "Three videos are being made right now. Make this one once one of them is done.",
   off: "Videos aren't on for this workspace yet.",
   notDrawn: "The stills could not be drawn. Making it still works.",
@@ -129,6 +136,8 @@ export const PIECE_WORDS: PieceWords = {
     ready: "It's ready",
     readyWhere: "In Content, under Made.",
     open: "Open",
+    makeAnother: "Make another",
+    makeAnotherAsk: "Make another video like that one.",
     failedMark: "Couldn't make it",
     gone: "This video isn't in Content any more.",
   },
@@ -156,7 +165,7 @@ export const PIECE_WORDS: PieceWords = {
   failed: FAILED,
   bell: {
     ready: "Your video is ready",
-    readyBody: (name) => `${fileSaidOf(name)} is in Content, under Made.`,
+    readyBody: (name) => (name ? `${fileSaidOf(name)} · Watch it` : "Watch it"),
     failed: "Your video could not be made",
     failedBody: (reason) => `${FAILED[reason]} ${FAILED_NEXT[reason]}`,
   },
@@ -187,6 +196,7 @@ const PIECE_WORDS_ES: PieceWords = {
     both: "tus clips y fotos",
   }),
   making: "Puedes cerrar esto. Llega a Contenido, en Hecho, y tu campana te avisa.",
+  caption: "Descripción",
   busy: "Ahora mismo se están haciendo tres videos. Haz este cuando termine uno.",
   off: "Los videos todavía no están activos en este espacio.",
   notDrawn: "No se pudieron dibujar los cuadros. Aun así puedes hacerlo.",
@@ -202,6 +212,8 @@ const PIECE_WORDS_ES: PieceWords = {
     ready: "Está listo",
     readyWhere: "En Contenido, en Hecho.",
     open: "Abrir",
+    makeAnother: "Hacer otro",
+    makeAnotherAsk: "Haz otro video como ese.",
     failedMark: "No se pudo hacer",
     gone: "Este video ya no está en Contenido.",
   },
@@ -229,7 +241,7 @@ const PIECE_WORDS_ES: PieceWords = {
   failed: FAILED_ES,
   bell: {
     ready: "Tu video está listo",
-    readyBody: (name) => `${fileSaidOf(name)} está en Contenido, en Hecho.`,
+    readyBody: (name) => (name ? `${fileSaidOf(name)} · Míralo` : "Míralo"),
     failed: "No se pudo hacer tu video",
     failedBody: (reason) => `${FAILED_ES[reason]} ${FAILED_NEXT_ES[reason]}`,
   },

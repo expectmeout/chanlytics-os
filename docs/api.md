@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-399 handlers in 58 domains.
+397 handlers in 58 domains.
 
 ## activity
 
@@ -856,9 +856,10 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `view` | one of `"all"`, `"needs"`, `"making"`, `"scheduled"`, `"posted"` | no |  |
+| `view` | one of `"all"`, `"needs"`, `"making"`, `"scheduled"`, `"posted"`, `"aside"` | no |  |
 | `before` | string | no | at least 1 characters; at most 100 characters |
 | `limit` | integer | no | ≥ 1; ≤ 96 |
+| `about` | string | no | at most 80 characters |
 
 ### `GET /api/v1/content/note`
 
@@ -1017,7 +1018,9 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `shelf` | one of `"all"`, `"inbox"`, `"place"`, `"work"`, `"team"`, `"products"`, `"brand"`, `"made"`, `"other"`, `"set_aside"` | no |  |
+| `shelf` | one of `"all"`, `"inbox"`, `"place"`, `"work"`, `"team"`, `"products"`, `"brand"`, `"made"`, `"other"`, `"set_aside"`, `"made_aside"` | no |  |
+| `kind` | one of `"image"`, `"video"` | no |  |
+| `about` | string | no | at least 1 characters; at most 80 characters |
 | `limit` | integer | no | ≥ 1; ≤ 1000 |
 | `before` | string | no | at least 1 characters; at most 100 characters |
 
@@ -1037,6 +1040,7 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 | `shows` | one of `"storefront"`, `"interior"`, `"work"`, `"team"`, `"product"`, `"menu"`, `"logo"`, `"graphic"`, `"other"` | no |  |
 | `who_in_it` | one of `"no_one"`, `"agreed"` | no |  |
 | `status` | one of `"filed"`, `"set_aside"` | no |  |
+| `caption` | string | no | at most 4400 characters |
 
 ### `DELETE /api/v1/files/[id]`
 
@@ -1110,22 +1114,6 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/files/[id]/restore/route.ts`).
 
-### `GET /api/v1/files/[id]/still`
-
-Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
-
-| Query field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `at` | number | yes | ≥ 0; ≤ 600 |
-
-### `POST /api/v1/files/[id]/still`
-
-Writes; for a member of the row's own workspace, operator or above; counts against the `file_upload` rate; spends nothing.
-
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `at` | number | yes | ≥ 0; ≤ 600 |
-
 ### `GET /api/v1/files/[id]/view`
 
 Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
@@ -1139,6 +1127,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `ids` | array of string (uuid) | yes | at least 1; at most 1000 |
+| `to` | one of `"filed"`, `"set_aside"` | no |  |
 
 ### `POST /api/v1/files/post`
 
@@ -1207,6 +1196,7 @@ Body 1:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
+| `caption` | string or null | no |  |
 | `key` | string | yes | at least 1 characters; at most 100 characters |
 
 Body 2:
@@ -1221,6 +1211,7 @@ Body 2:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
+| `caption` | string or null | no |  |
 | `key` | string | yes | at least 1 characters; at most 100 characters |
 
 ### `GET /api/v1/files/video/[id]`
@@ -1247,6 +1238,7 @@ Body 1:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
+| `caption` | string or null | no |  |
 
 Body 2:
 
@@ -1260,6 +1252,7 @@ Body 2:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
+| `caption` | string or null | no |  |
 
 ## google
 

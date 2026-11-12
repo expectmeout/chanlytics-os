@@ -250,29 +250,43 @@ export function crossPagePlan(text: string, surface: string | null, view: string
 /**
  * The row the scope names, read whole by the tool and action that read it, to ride in with the page (as the snapshot's
  * scoped row did): a call (calls.get), a person (people.get), a thread or a conversation (inbox.thread), a lead
- * (leads.lead), a search (leads.search), a run -- the Broadcasts row its address calls one -- (sequences.batch),
- * and a campaign (sequences.moments, which names it among the rest). A lead is read as the search the page is on
+ * (leads.lead), a search (leads.search), a run -- the Broadcasts row its address calls one -- (sequences.batch), a
+ * campaign or a sequence (sequences.sequence), a message (sequences.messages), a visit (calendar.week, on its day) and a
+ * file (files.view). A lead is read as the search the page is on
  * found it (its address's `s-<id>`), the membership its peek shows, never its newest in another search. A page needs
  * no read: none, a reach-out's drawer among them (contracts scopeFromRoute: its row rides in with the page's). Moved
  * here from loop.ts (PR 4.3): the reads made before the model is asked live here.
  */
 export function scopedRead(scope: AskScope | null, route?: string | null): ToolRun | null {
-  if (scope?.kind === "call") return { name: "calls", input: { action: "get", call_id: scope.id } };
-  if (scope?.kind === "person") return { name: "people", input: { action: "get", contact_id: scope.id } };
-  if (scope?.kind === "thread" || scope?.kind === "conversation")
+  if (!scope) return null;
+  if (scope.kind === "call") return { name: "calls", input: { action: "get", call_id: scope.id } };
+  if (scope.kind === "person") return { name: "people", input: { action: "get", contact_id: scope.id } };
+  if (scope.kind === "thread" || scope.kind === "conversation")
     return { name: "inbox", input: { action: "thread", conversation_id: scope.id, more: false } };
-  if (scope?.kind === "lead") {
+  if (scope.kind === "lead") {
     const searchId = route ? parseLeadsRoute(route)?.searchId : null;
     return {
       name: "leads",
       input: { action: "lead", lead_id: scope.id, ...(searchId ? { search_id: searchId } : {}) },
     };
   }
-  if (scope?.kind === "search") return { name: "leads", input: { action: "search", search_id: scope.id } };
-  if (scope?.kind === "run") return { name: "sequences", input: { action: "batch", broadcast_id: scope.id } };
-  if (scope?.kind === "playbook") return { name: "sequences", input: { action: "moments" } };
+  if (scope.kind === "search") return { name: "leads", input: { action: "search", search_id: scope.id } };
+  // A visit: its day, as the Calendar's address holds it, else the page's own week.
+  if (scope.kind === "visit")
+    return { name: "calendar", input: { action: "week", day: /(\d{4}-\d{2}-\d{2}):a-/.exec(route ?? "")?.[1] ?? "" } };
   // A file is opened whole, picture and all: "this photo" is the one on screen, by its id, whatever it is called by now.
-  if (scope?.kind === "file") return { name: "files", input: { action: "view", names: [scope.id] } };
+  if (scope.kind === "file") return { name: "files", input: { action: "view", names: [scope.id] } };
+  return sequencesRead(scope);
+}
+
+/** What Campaigns holds by its sequences: a run, a campaign or a sequence open at its record, a message of the Library. */
+function sequencesRead(scope: AskScope): ToolRun | null {
+  if (scope.kind === "run") return { name: "sequences", input: { action: "batch", broadcast_id: scope.id } };
+  // A campaign or a sequence, the one open, as its record shows it (every such thing is a sequence): never the whole list.
+  if (scope.kind === "playbook" || scope.kind === "sequence")
+    return { name: "sequences", input: { action: "sequence", sequence_id: scope.id } };
+  // A message of the Library: the Library is read whole, and the chip says which one by its name.
+  if (scope.kind === "message") return { name: "sequences", input: { action: "messages" } };
   return null;
 }
 

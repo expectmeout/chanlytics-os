@@ -31,6 +31,7 @@ import {
   PIECE_TEMPLATE,
   SECOND_MS,
   compilePiece,
+  contentRouteOf,
   fileMadePathOf,
   fileNameOf,
   filePathOf,
@@ -53,6 +54,9 @@ import {
   type PieceStep,
   type PieceTimeline,
 } from "@chanlytics/contracts";
+
+/** Where a video that could not be made waits on its owner: Content's Needs you (the content canvas, PhList "needs"). */
+const NOT_MADE_ROUTE = contentRouteOf({ list: "made", view: "needs", open: null });
 import {
   FINGERPRINT_BYTES,
   deleteStreamVideo,
@@ -191,7 +195,7 @@ async function endWith(db: Db, piece: PieceRow, reason: PieceFail): Promise<void
       kind: "job_failed",
       title: says.bell.failed,
       body: says.bell.failedBody(reason),
-      route: "admin/files",
+      route: NOT_MADE_ROUTE,
       about: { type: "piece", id: piece.id },
     },
     db,
@@ -521,15 +525,15 @@ export async function tellPieceMoved(db: Db, fate: MediaFate): Promise<void> {
           kind: "video_ready",
           title: says.bell.ready,
           body: says.bell.readyBody(file?.name ?? ""),
-          // Its own sheet on Files, where it plays (the page reads `?do=file:<id>` as it opens).
-          route: `admin/files?do=file:${fate.file_id}`,
+          // Open in Content, where it plays.
+          route: contentRouteOf({ list: "made", view: "all", open: fate.file_id }),
           about,
         }
       : {
           kind: "job_failed",
           title: says.bell.failed,
           body: says.bell.failedBody("store"),
-          route: "admin/files",
+          route: NOT_MADE_ROUTE,
           about,
         },
     db,

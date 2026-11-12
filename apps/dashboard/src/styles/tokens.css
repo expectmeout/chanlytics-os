@@ -281,9 +281,37 @@
      wash, as a camera roll writes it (decision 0099, stage B). The picture under it is the business's, not the theme's. */
   --media-wash: oklch(0.16 0.01 280 / 0.62);
   --media-ink: oklch(0.985 0 0);
+  /* Under light words standing on a picture with no wash of their own (a piece being made, over its first frame, dim): a soft
+     shade so they read over a light photo too (the content canvas, ct.css .ct-work). */
+  --media-ink-shadow: 0 1px 6px oklch(0 0 0 / 0.5);
   /* The ground a made piece is looked at on once it is opened (Campaigns › Content): dark in both themes, as a photo is on a
      phone, so its own colours read true whatever the page's light. */
   --media-stage: oklch(0.14 0.008 276);
+  /* A piece opened on a phone (Campaigns › Content's viewer, the content canvas's ct.css .ct-view): light words and glass
+     over the business's own picture, whatever the theme, so each is set once here for both. The ground behind a picture
+     post: the picture itself, blurred to the screen's edges and dimmed. */
+  --viewer-ground: oklch(0.12 0.006 274);
+  --viewer-blur: blur(34px) saturate(1.1) brightness(0.55);
+  /* The washes the top and the foot stand on, so their words read over any picture. */
+  --viewer-top-wash: linear-gradient(to bottom, oklch(0 0 0 / 0.45), transparent);
+  --viewer-foot-wash: linear-gradient(to top, oklch(0 0 0 / 0.82) 0%, oklch(0 0 0 / 0.55) 55%, transparent);
+  /* The line under the name, "2 of 8" and Details: the picture's ink, a step back. */
+  --viewer-ink-dim: oklch(1 0 0 / 0.78);
+  --viewer-ink-faint: oklch(1 0 0 / 0.7);
+  /* A place's chip and the line of a post that waits: a light glass on the picture, its rim and its blur. */
+  --viewer-glass-fill: oklch(1 0 0 / 0.13);
+  --viewer-glass-rim: inset 0 0 0 1px oklch(1 0 0 / 0.14);
+  --viewer-glass-blur: blur(12px);
+  /* A chip's state: up (green), stopped (amber), on its way (the coral's light), each read on the dark picture. */
+  --viewer-up-ink: oklch(0.86 0.12 155);
+  --viewer-need-ink: oklch(0.86 0.12 80);
+  --viewer-going-ink: oklch(0.83 0.12 35);
+  /* The line a reel runs along under the picture, and what of it has played. */
+  --viewer-reel-track: oklch(1 0 0 / 0.22);
+  --viewer-reel-run: oklch(1 0 0);
+  /* The piece's name over its picture. */
+  --viewer-name-size: 20px;
+  --viewer-name-line: 25px;
   /* A thread of the first priority rings its face (Classic; Glass draws none). */
   --face-ring: inset 0 0 0 1.5px var(--accent);
 

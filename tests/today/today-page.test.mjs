@@ -1682,7 +1682,7 @@ test("the page is its bands and nothing seeded", () => {
       .map(name)
       .map((n) => n.replace(" tz-setup-lead", ""))
       .sort(),
-    ["ColdEmailNote", "NeedYou", "tq tps tz-setup"],
+    ["ColdEmailNote", "NeedYou", "TodayContentNote", "tq tps tz-setup"],
   );
   assert.ok(
     byTestId(byTestId(tree, "today-foot"), "today-period"),
@@ -1964,7 +1964,8 @@ test("the bento (Today in three zones, 2 Nov 2026): what cannot wait over all of
   const name = (c) => (typeof c.type === "function" ? c.type.name : String(c.props.className));
   const page = find(tree, (n) => classes(n).includes("dash-a-v2-glass"));
   assert.ok(page, "the Glass composition");
-  assert.deepEqual(page.props.children.map(name), ["TodayAlertBand", "tz-bento", "DeskFoot", "TodayContentNote"]);
+  // Content's card stands in the work's column under Need you (the content canvas, PhDoors "today"), not at the foot.
+  assert.deepEqual(page.props.children.map(name), ["TodayAlertBand", "tz-bento", "DeskFoot"]);
   const [work, side] = find(tree, (n) => classes(n).includes("tz-bento")).props.children;
   assert.ok(work.props.children.filter(Boolean).map(name).includes("NeedYou"), "Need you leads the work's column");
   assert.deepEqual(

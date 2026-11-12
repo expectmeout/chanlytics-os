@@ -847,7 +847,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   // read first is, and by its card as it is drawn (today/cold-email-note-read.ts; the load review of 10 Nov 2026).
   const { readSources } = await importSrc(`${S}/surfaces/campaigns/reach-out/sources.ts`);
   const { readColdEmailNote } = await importSrc(`${S}/surfaces/today/cold-email-note-read.ts`);
-  const pageReads = { "campaigns/sequences/new": [readSources], today: [readColdEmailNote] };
+  const { readContentToday } = await importSrc(`${S}/surfaces/today/content-note-read.ts`);
+  const pageReads = { "campaigns/sequences/new": [readSources], today: [readColdEmailNote, readContentToday] };
   // A key with words after its page (`campaigns/sequences/new`) is that page at that address, as the registry reads one
   // (routePartsOf); a key that names a screen, no address, is asked at one of its addresses (a run at its home).
   const ADDRESS_OF = { "campaigns/sequences/runs": "campaigns/sequences/sq-1/runs/b-1" };

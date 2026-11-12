@@ -67,6 +67,14 @@ export interface PostDto {
   created_at: string;
 }
 
+/**
+ * Why a post did not go out, in words, where it says: held by the recheck right before the send (its reason), or refused by
+ * the place (its error, never a code). None for a post that did not stop. The one reading of it: a tile, a line, Today's card
+ * and the file's sheet each say it so.
+ */
+export const postStoppedWhyOf = (post: Pick<PostDto, "status" | "held_reason" | "error">): string | null =>
+  post.status === "held" ? post.held_reason : post.status === "failed" ? post.error : null;
+
 /** Whether this workspace's Instagram can take a post now, and if not, the one reason the sheet says. */
 export type InstagramPostable = "yes" | "not_connected" | "line_off";
 
@@ -88,7 +96,8 @@ export const ON_INSTAGRAM = {
   gone: "This post was deleted.",
   notYet: "Reels come once Instagram has been tried with a real account.",
   notSent: "The post did not go through. Try again.",
-  see: "See it on Instagram",
+  /** The door to it on Instagram, beside where it says it is up there: the place is named by its row. */
+  see: "See it",
   pull: "Don't post",
   pulledFlash: "It won't be posted.",
   pullLate: "It is already being posted, so it can't be stopped here.",

@@ -150,6 +150,12 @@ interface CmPaneProps {
    * over it (still being read): it comes in over the list as it arrives (`data-over`, sequences.css).
    */
   over?: boolean;
+  /**
+   * No head (Content's open piece on a desk, the content canvas's Desk board): what is open draws its own Close over its
+   * picture and its name under it, which heads the pane; the pane is named by its title for a screen reader, as the head
+   * named it, and Escape still closes it (`onClose`). Every other tab's pane keeps its head.
+   */
+  bare?: boolean;
 }
 
 /**
@@ -172,7 +178,7 @@ export const cmFootAsk = (question: ReactNode) => (
  */
 export function CmPane(p: CmPaneProps) {
   const { title, badge, sub, mark, tools, onClose, closeLabel = "Close", foot, children, testid, className } = p;
-  const { id, closeTestid = "cm-pane-close", swipe, over } = p;
+  const { id, closeTestid = "cm-pane-close", swipe, over, bare = false } = p;
   const phone = useCmPhone();
   useRecSheetEscape(true, onClose);
   return (
@@ -184,45 +190,49 @@ export function CmPane(p: CmPaneProps) {
       id={id}
       data-testid={testid}
       data-over={over || undefined}
+      data-bare={bare || undefined}
+      aria-label={bare && typeof title === "string" ? title : undefined}
     >
-      <header className="cm-pane-head capsule">
-        {/* Back is a thumb's circle, as More beside the name is: the head's only two glyphs. */}
-        {phone ? (
-          <Button
-            iconOnly
-            variant="quiet"
-            size="touch"
-            className="cm-pane-back"
-            onClick={onClose}
-            aria-label={closeLabel === "Close" ? "Back to the list" : closeLabel}
-            data-testid="cm-pane-back"
-          >
-            <span aria-hidden="true">&larr;</span>
-          </Button>
-        ) : null}
-        {mark}
-        <div className="cm-pane-titles">
-          <h2 className="cm-pane-title">
-            <span className="cm-pane-name">{title}</span>
-            {badge}
-          </h2>
-          {sub ? <p className="cm-pane-sub">{sub}</p> : null}
-        </div>
-        {tools ? <div className="cm-pane-acts">{tools}</div> : null}
-        {phone ? null : (
-          <Button
-            iconOnly
-            variant="quiet"
-            size="sm"
-            className="cm-pane-close"
-            onClick={onClose}
-            aria-label={closeLabel}
-            data-testid={closeTestid}
-          >
-            <Icon name="x" size={14} />
-          </Button>
-        )}
-      </header>
+      {bare ? null : (
+        <header className="cm-pane-head capsule">
+          {/* Back is a thumb's circle, as More beside the name is: the head's only two glyphs. */}
+          {phone ? (
+            <Button
+              iconOnly
+              variant="quiet"
+              size="touch"
+              className="cm-pane-back"
+              onClick={onClose}
+              aria-label={closeLabel === "Close" ? "Back to the list" : closeLabel}
+              data-testid="cm-pane-back"
+            >
+              <span aria-hidden="true">&larr;</span>
+            </Button>
+          ) : null}
+          {mark}
+          <div className="cm-pane-titles">
+            <h2 className="cm-pane-title">
+              <span className="cm-pane-name">{title}</span>
+              {badge}
+            </h2>
+            {sub ? <p className="cm-pane-sub">{sub}</p> : null}
+          </div>
+          {tools ? <div className="cm-pane-acts">{tools}</div> : null}
+          {phone ? null : (
+            <Button
+              iconOnly
+              variant="quiet"
+              size="sm"
+              className="cm-pane-close"
+              onClick={onClose}
+              aria-label={closeLabel}
+              data-testid={closeTestid}
+            >
+              <Icon name="x" size={14} />
+            </Button>
+          )}
+        </header>
+      )}
       <div className="cm-pane-body">{children}</div>
       {foot ? <footer className="cm-pane-foot capsule">{foot}</footer> : null}
     </Panel>

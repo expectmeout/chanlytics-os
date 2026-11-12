@@ -95,9 +95,9 @@ export async function changeFile(
 export async function keepFiles(
   ctx: RouteContext,
   member: Member,
-  input: { ids: string[] },
+  input: { ids: string[]; to?: "filed" | "set_aside" | undefined },
 ): Promise<{ kept: number }> {
-  const { data, error } = await keepManyFiles(ctx.supabase, member.tenantId, input.ids);
+  const { data, error } = await keepManyFiles(ctx.supabase, member.tenantId, input.ids, input.to ?? "filed");
   if (error) throw fileDoorRefusal(error);
   return { kept: typeof data === "number" ? data : 0 };
 }

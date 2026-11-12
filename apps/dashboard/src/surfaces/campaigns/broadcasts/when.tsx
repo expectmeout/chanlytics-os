@@ -21,13 +21,15 @@ import { cmChevron, cmGroups } from "../parts/picks";
 const SLOT_MINUTES = [0, 15, 30, 45];
 /** The step between two of them. */
 const SLOT_MS = 15 * MIN_MS;
+/** Every hour a day has, for what is not a message (a post), which no sending hours hold. */
+const ALL_DAY = { min: 0, max: 23 };
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
 // Every quarter hour of the sending hours the clock publishes (contracts SENDING_HOURS_WORDS), "09:00" to "20:45": the
 // times a send is picked at. The route moves any other to the next nine o'clock, so none is offered.
-function timeSlots(): string[] {
-  const { min, max } = pageClock().hours;
+function timeSlots(hours: { min: number; max: number } = pageClock().hours): string[] {
+  const { min, max } = hours;
   const out: string[] = [];
   for (let h = min; h <= max; h += 1) for (const m of SLOT_MINUTES) out.push(`${pad2(h)}:${pad2(m)}`);
   return out;
@@ -54,21 +56,22 @@ function partsOf(at: number): { day: string; time: string } {
 }
 
 // The first time a send can be picked at: a quarter hour from now or later, and inside the sending hours (the next
-// nine o'clock, after them), as the route would move it.
-function firstSlot(now: number): number {
-  return pageClock().nextOpen(Math.ceil((now + MIN_MS) / SLOT_MS) * SLOT_MS).at;
+// nine o'clock, after them), as the route would move it; where any hour is taken (a post), the next quarter hour alone.
+export function firstSlot(now: number, allDay = false): number {
+  const next = Math.ceil((now + MIN_MS) / SLOT_MS) * SLOT_MS;
+  return allDay ? next : pageClock().nextOpen(next).at;
 }
 
 // A day picked, keeping the time of day: held to the window the route keeps (today to `maxDays` on), and never a time
 // that has passed -- today's earlier hours give way to the first time still ahead.
-function putDay(at: number, day: string, maxDays: number): number {
+function putDay(at: number, day: string, maxDays: number, allDay = false): number {
   const C = pageClock();
   const now = Date.now();
   const first = C.dayKey(now);
   const last = C.dayKey(now + maxDays * DAY_MS);
   const held = day < first ? first : day > last ? last : day;
   const next = C.fromInput(`${held}T${partsOf(at).time}`);
-  return next === null || next <= now ? firstSlot(now) : next;
+  return next === null || next <= now ? firstSlot(now, allDay) : next;
 }
 
 /** The day and time a send goes at. */
@@ -78,22 +81,24 @@ interface WhenDayTimeProps {
   /** How far ahead the route takes a send, in days. */
   maxDays: number;
   onChange: (at: number) => void;
+  /** Every hour of the day, not the sending hours: a post goes when it is set for (Content's Schedule). */
+  allDay?: boolean;
 }
 
 // The day and the time of a time picked, words of the send's sentence: the kit's date picker opened from the word that says
 // the day, and the kit's picker of the sending hours, with the time already held (a send kept from before may sit off the
 // quarter hours). The zone is said by the line under the sentence, where the time is said in full.
-export function WhenDayTime({ at, maxDays, onChange }: WhenDayTimeProps) {
+export function WhenDayTime({ at, maxDays, onChange, allDay = false }: WhenDayTimeProps) {
   const C = pageClock();
   const { day, time } = partsOf(at);
-  const slots = timeSlots();
+  const slots = timeSlots(allDay ? ALL_DAY : C.hours);
   const times = slots.includes(time) ? slots : [...slots, time].sort();
   const today = C.dayKey(Date.now());
   return (
     <>
       <DatePicker
         value={day}
-        onValueChange={(next) => onChange(putDay(at, next, maxDays))}
+        onValueChange={(next) => onChange(putDay(at, next, maxDays, allDay))}
         today={today}
         label={SEND_WHEN_WORDS.dayLabel}
         glyphs={{ previous: <Icon name="chevron" size={14} />, next: <Icon name="chevron" size={14} /> }}

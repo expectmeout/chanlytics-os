@@ -544,9 +544,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST files/video": filesAndContentIfDrawn,
   "PATCH files/[id]": filesAndContentIfDrawn,
   "DELETE files/[id]": filesAndContentIfDrawn,
-  // Undo of a delete, and a still kept from a video (the content redesign's stage 3): a file back, or a new one.
+  // Undo of a delete (the content redesign's stage 3): a file back.
   "POST files/[id]/restore": filesAndContentIfDrawn,
-  "POST files/[id]/still": filesAndContentIfDrawn,
   // A post put on a place or taken off it changes no file, so the feed is silent: Content, which draws where each stands, reads,
   // and the Calendar's posts at their times.
   "POST files/[id]/google": postMoved,

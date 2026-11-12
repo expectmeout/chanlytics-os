@@ -82,6 +82,12 @@ export interface ToolContext {
   /** The person's earlier questions in this thread: what a post's words may rest on beside this one (act/post.ts). */
   askedEarlier?: string[];
   /**
+   * The file the turn is asked about, where its scope is one (Content's line to Ask on an open piece: "tell Ask what to
+   * change"): a piece made here keeps words that are the owner's once Save was pressed (files/post-check.ts), which a piece
+   * made again from it may say again (act/files/post.ts ownersWords).
+   */
+  subjectFile?: string;
+  /**
    * What a press from the server needs (D18 of the answers canvas): the request whose session it goes under, the member, the
    * cards waiting on this thread by id with the turn each is on, and where to say what it pressed. Absent outside a turn.
    */

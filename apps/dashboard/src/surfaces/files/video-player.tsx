@@ -19,11 +19,33 @@ const CUES_SHOWN = 4;
 /** What Stream's player is let do inside its frame, as Cloudflare's own embed asks. */
 const PLAYER_ALLOWS = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen";
 
+/**
+ * How a reel plays in Content's viewer (the canvas's C1, Ruben's call of 12 Nov 2026): at once, looping, with no controls of
+ * the player's own, muted until the viewer's glass sound press. Said in the player's own address, which the edge's `play`
+ * door signs and Stream reads (`autoplay`, `muted`, `loop`, `controls`), its own query kept: no script of Stream's is loaded
+ * (its SDK is served only unpinned, which decision 0054 refuses). Sound on is the same reel asked for again unmuted, so it
+ * starts again from its first frame, a loop of a few seconds.
+ */
+interface VideoReel {
+  sound: boolean;
+}
+
+/** The signed address, asked to play as a reel: muted or not, at once, looping, with no controls over the picture. */
+function reelAddressOf(player: string, reel: VideoReel): string {
+  const url = new URL(player, window.location.href);
+  url.searchParams.set("autoplay", "true");
+  url.searchParams.set("muted", reel.sound ? "false" : "true");
+  url.searchParams.set("loop", "true");
+  url.searchParams.set("controls", "false");
+  return url.toString();
+}
+
 export /** The video in the sheet: the player once its address is in, the poster before, its state in words until it is ready. */
-function VideoOpened({ file, said }: { file: FileDto; said: string }) {
+function VideoOpened({ file, said, reel }: { file: FileDto; said: string; reel?: VideoReel }) {
   const [player, setPlayer] = useState<string | null>(null);
   // A big picture is drawn once it has arrived (files.css `.files-big[data-arrived]`): the player too, once its frame loads.
-  const [arrived, setArrived] = useState(false);
+  // Kept as the address that came, so a reel asked for again (its sound on, VideoReel) is drawn once that one has come.
+  const [arrived, setArrived] = useState<string | null>(null);
   const [unplayable, setUnplayable] = useState(false);
   const ready = file.media_status === "ready";
   useEffect(() => {
@@ -54,17 +76,18 @@ function VideoOpened({ file, said }: { file: FileDto; said: string }) {
       </>
     );
   }
+  const src = player && reel ? reelAddressOf(player, reel) : player;
   return (
     <>
-      {player ? (
+      {src ? (
         <iframe
           className="files-big files-player"
-          src={player}
+          src={src}
           title={said}
           allow={PLAYER_ALLOWS}
           allowFullScreen
-          data-arrived={arrived ? "true" : undefined}
-          onLoad={() => setArrived(true)}
+          data-arrived={arrived === src ? "true" : undefined}
+          onLoad={() => setArrived(src)}
           data-testid="fl-player"
         />
       ) : (

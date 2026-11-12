@@ -160,6 +160,7 @@ export async function listFilesOnShelf(
     .or(ARRIVED)
     .eq("status", shelf.status);
   if (shelf.made !== undefined) query = shelf.made ? query.eq("source", "made") : query.neq("source", "made");
+  if (shelf.kind) query = query.eq("kind", shelf.kind);
   if (shelf.shows)
     query = shelf.orUnsorted
       ? query.or(`shows.is.null,shows.in.(${shelf.shows.join(",")})`)
@@ -177,7 +178,25 @@ export async function listFilesOnShelf(
 }
 
 /** How many files made here are kept and still there, a video on its way aside: Content's tally, counted and never listed. */
-export async function countFilesMade(db: Db, tenantId: TenantId): Promise<number> {
+export async function countFilesMade(
+  db: Db,
+  tenantId: TenantId,
+  status: "filed" | "set_aside" = "filed",
+): Promise<number> {
+  const { count, error } = await db
+    .from("files")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .is("removed_at", null)
+    .or(ARRIVED)
+    .eq("status", status)
+    .eq("source", "made");
+  if (error) throw new DbFailure(error, "files made");
+  return count ?? 0;
+}
+
+/** How many files the business keeps that Ask did not make, a file on its way aside: the Library's count on Content. */
+export async function countFilesKept(db: Db, tenantId: TenantId): Promise<number> {
   const { count, error } = await db
     .from("files")
     .select("id", { count: "exact", head: true })
@@ -185,8 +204,8 @@ export async function countFilesMade(db: Db, tenantId: TenantId): Promise<number
     .is("removed_at", null)
     .or(ARRIVED)
     .eq("status", "filed")
-    .eq("source", "made");
-  if (error) throw new DbFailure(error, "files made");
+    .neq("source", "made");
+  if (error) throw new DbFailure(error, "files kept");
   return count ?? 0;
 }
 

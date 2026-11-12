@@ -395,6 +395,7 @@ test("the card is made by the call that carries the look's key: the plan its pre
     end_line: "Same chair. New me.",
     language: "en",
     people_agreed: false,
+    caption: null,
   });
   assert.equal(
     pieceBeginInput.safeParse({ ...out.proposal.payload, key: "p-card-1" }).success,
@@ -412,6 +413,34 @@ test("a plan changed since the look is looked at again: its old key makes no car
   const moved = await askedOnce({ words_at: "high", looked: key });
   assert.equal(moved.proposal, null);
   assert.match(moved.refusal, /the plan changed since you looked/);
+});
+
+test("a video is drawn in the language asked in, or in the one the owner asked for: no choice of it on the sheet", async () => {
+  framesInStorage();
+  const first = await askedOnce({});
+  const asIs = await askedOnce({ looked: JSON.parse(first.result).look_key });
+  assert.equal(piecePlanOf(asIs.proposal?.payload).language, "en", "asked in English, its own words are English");
+  const spanish = await askedOnce({ language: "es" });
+  const card = await askedOnce({ language: "es", looked: JSON.parse(spanish.result).look_key });
+  assert.equal(card.proposal?.kind, "piece", card.result);
+  assert.equal(piecePlanOf(card.proposal.payload).language, "es", "asked for in Spanish, they are Spanish");
+  assert.equal(
+    pieceBeginInput.parse({ ...card.proposal.payload, key: "p-card-1" }).language,
+    "es",
+    "and its press keeps it",
+  );
+});
+
+test("the words to paste under it ride with the card, held to what the owner said; written with the key, they draw nothing again", async () => {
+  framesInStorage();
+  const first = await askedOnce({});
+  const caption = "Asked for volume and left with it. Book from the link in our bio.";
+  const card = await askedOnce({ caption, looked: JSON.parse(first.result).look_key });
+  assert.equal(card.proposal?.kind, "piece", card.result);
+  assert.equal(piecePlanOf(card.proposal.payload).caption, caption);
+  // And its press keeps them: the request takes the card's words whole, so the video's Details and Post have them.
+  assert.equal(pieceBeginInput.parse({ ...card.proposal.payload, key: "p-card-1" }).caption, caption);
+  assert.match((await asked({ caption: "Blowouts from $45 this week." })).refusal, /^caption: .*price/);
 });
 
 test("the words are held to what the owner said: a price, a promise or a number of Ask's own never reaches a video", async () => {

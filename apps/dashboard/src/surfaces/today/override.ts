@@ -13,6 +13,7 @@ import { declareSurfaceValue } from "../surface-values";
 // loads, before its gate first opens (setup-card-code.ts).
 import "./setup-card-code";
 import { holdTodayForNote } from "./cold-email-note-read";
+import { holdTodayForContent } from "./content-note-read";
 
 // The pages that have not moved (Ask, the phone app's bridge, the bell) still read the day under its old name.
 declareSurfaceValue("today", "TODAY_DATA");
@@ -20,6 +21,8 @@ declareSurfaceValue("today", "TODAY_DATA");
 // And Cold email's one line, which Today's first draw waits for where the tab opens on Today holding none
 // (cold-email-note-read.ts): the draw is held here, as the frame loads, for the read the document's head started.
 holdTodayForNote();
+// And Content's card, the same way (content-note-read.ts).
+holdTodayForContent();
 
 /** Today's read and the day's making: fetched once, at once where Today is the page opened (bridge/surfaces/code.ts). */
 const todayCode = surfaceCode("today", () => import("./surface"));

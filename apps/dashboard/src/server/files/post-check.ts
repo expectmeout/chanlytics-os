@@ -75,8 +75,14 @@ export function postDrawProblem(words: string, limit: number): string | null {
  */
 export function postWordsProblem(words: string, owner: string, limit: number): string | null {
   const text = words.trim();
-  const undrawn = postDrawProblem(text, limit);
-  if (undrawn) return undrawn;
+  return postDrawProblem(text, limit) ?? postClaimsProblem(text, owner);
+}
+
+/**
+ * What is wrong with what some words claim, in a sentence for the model, or null: a price, a number, money or a promise the
+ * owner has not said (`owner`, as postWordsProblem reads it). A post's caption is held to it as the words on its picture are.
+ */
+export function postClaimsProblem(text: string, owner: string): string | null {
   if (priceBreach(text, new Set(priceFigures(owner))))
     return "it names a price or a share the owner has not said. Use their figure, or ask them";
   const ownerNumbers = new Set(numbersIn(owner));
