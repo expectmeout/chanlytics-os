@@ -230,6 +230,9 @@ const HEARD_BEFORE = {
     "lead_searches",
     // Who is on a sequence to leads' list and its emails still to write (00459's overview).
     "lead_search_members",
+    // A lead's own row (decision 0128, stage 2): the list says the leads whose email could not be checked, so it hears
+    // the check that lands.
+    "leads",
     "templates",
   ],
   // And the mailbox a reply came to (decision 0056; owed, closed 15 October).
@@ -381,6 +384,7 @@ const ON_ITS_PAGE_BEFORE = {
     "segments",
     "lead_searches",
     "lead_search_members",
+    "leads",
     "templates",
   ],
   person: HEARD_BEFORE.person,

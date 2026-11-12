@@ -20,7 +20,7 @@ On 11 November four of the five live rows on Ruben's Sequences list were true bu
 
 ## What it does not do
 
-- **Ask's `needs_count` does not count a failed one-off.** It counts what an OK or an answer clears; a failed send is cleared by sending again. The row's group says it needs you.
+- **Ask's `needs_count` does not count a failed one-off, nor a stuck sequence.** It counts the people and emails an OK or an answer clears; a failed send is cleared by sending again, a stuck lead by Check again. What needs you is still said of each (stage 2, point 4).
 - **Today and the bell word a waiting batch their own way** ("Win-back waits for your OK"). They could take the same "since" later.
 - **A lead refused for good is still counted in it.** One written to already, a customer, or on the never-again list stands on its list and reads "in it"; it asks nothing of its owner, so it is not said as stuck. Taking such leads out of the count is its own change.
 - **No totals over thirty days.** The canvas drew "40 sent · 6 replied · last 30 days". A customer's reply is found by reading each thread a message reached, so counting a month of them for every row would make the list slower as a business sends more. The row keeps its last batch's own numbers; a month's are Reports'.
@@ -33,7 +33,11 @@ One change to the list's read (`sequence_overview`) adds three facts, and the li
 2. **A run that did nothing** (`last_run_off`, `last_run_for`): "Didn't run · no calendar is connected", by the reasons the record already says (`sequenceRunOff`), read for every row that is on and runs by its hour.
 3. **Who is between two steps** (`between`): "Next tomorrow 9:30 AM · 9 people" in place of "18 in it": the first of those with a time to come, and how many have one.
 
+4. **Ask counts what the list counts.** Ask's read of the list says what needs you in every sequence the list files under Needs you: the sentence of who waits where someone does, else the row's own line (a one-off that failed, leads that could not be checked, a run that did nothing). Its number on top is the page's, the sequences under Needs you, as the list's header counts them; it summed people and emails before, so a stuck sequence added nothing.
+
 And `last` counts a batch still going that has sent some: one held email kept a batch open for days, and its 18 sent were counted nowhere (Sort by last sent, and what Ask reads).
+
+**The list hears what it now says.** The page hears a lead's own row while it is on screen (it left the `leads` table unheard before: a sequence was named by its list alone), so a check that lands takes the stuck line away without the page being opened again. The three tables the reason's door reads beside it (the caller's seat, People for "a customer is never written to", the never-again list) are said in `tests/baselines/reads-not-heard.json`, beside the Leads page's own entries for the same door. `last_run_off` answers the run's `skipped` only where it is a reason: a run that went writes a count there.
 
 **Corrected from the canvas, by what the code and production said:**
 
@@ -46,4 +50,4 @@ Either deploy order: the function keeps its name, its arguments and its jsonb an
 
 ## Held by
 
-`tests/sequences/list/each-line-says-whats-going-on.test.mjs`, `tests/sequences/sequence-words.test.mjs`; stage 2 by `tests/sequences/list/the-list-sees-what-is-stuck.test.mjs`, and on a database by `tests/leads/workbench/one-road-to-a-sequence.db.test.mjs` (leads that could not be checked) and `tests/sequences/sequence-doors.db.test.mjs` (a run that did nothing, a batch still going, between two steps).
+`tests/sequences/list/each-line-says-whats-going-on.test.mjs`, `tests/sequences/sequence-words.test.mjs`; stage 2 by `tests/sequences/list/the-list-sees-what-is-stuck.test.mjs`, `tests/sequences/list/ask-counts-what-the-list-counts.test.mjs` and `tests/shell/hearing/declared-reads-are-what-was-heard.test.mjs` (the page hears a lead's row), and on a database by `tests/leads/workbench/one-road-to-a-sequence.db.test.mjs` (leads that could not be checked) and `tests/sequences/sequence-doors.db.test.mjs` (a run that did nothing, a batch still going, between two steps).

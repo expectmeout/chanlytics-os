@@ -31681,11 +31681,12 @@ CREATE FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid DE
            'stuck', case when sk.n is null then null else
              jsonb_build_object('leads', sk.n, 'since', sk.since, 'reason', 'unchecked') end,
            -- Its first step's last run (decision 0128, stage 2): the business day it ran for, and why it did nothing
-           -- where it did, the newest playbook.run event's `skipped`, as the record reads it (packages/db
-           -- lastRunSkipped). Asked of a sequence that is on and runs by its hour: one probe of events_tenant_subject.
+           -- where it did, the newest playbook.run event's `skipped` where that is a reason, as the record reads it
+           -- (packages/db lastRunSkipped: a run that went writes a count there, which is no reason). Asked of a sequence
+           -- that is on and runs by its hour: one probe of events_tenant_subject.
            'last_run_for', f.last_run_for,
            'last_run_off', case when q.state = 'on' and q.starts not in ('leads', 'date') then (
-             select e.data ->> 'skipped'
+             select case when jsonb_typeof(e.data -> 'skipped') = 'string' then e.data ->> 'skipped' end
                from public.events e
               where e.tenant_id = q.tenant_id and e.subject_type = 'playbook' and e.subject_id = q.id
                 and e.kind = 'playbook.run'
@@ -31710,7 +31711,7 @@ $$;
 -- Name: FUNCTION sequence_overview(p_tenant_id uuid, p_sequence_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid) IS 'The workspace''s sequences (0060), or the one named: how each starts (its first step, with the search it adds from: 00459, when its words were last let go: 00462, or a one-off''s date, or the once of one kept as a draft: 00465), how its batches are decided (its mode, 00462), where it stands, its steps, the days they span and the emails still to write (00459), its channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it (everyone whose place stands, sequence_places: 00459). Newest first. Under the caller''s row security. And (decision 0128, stage 2): who is between two steps with a time to come (between: the first one''s time, and how many have one); leads on a running cold email''s list that its first step refuses because their email could not be checked (stuck: how many of the 200 that have stood there longest, past a day, and since when; asked through sequence_queued_why_not, so only of a member); the business day its first step last ran and, where it is on and runs by its hour, why that run did nothing (last_run_for, last_run_off: the newest playbook.run event''s skipped); and last counts a batch still going that has sent some, bar a one-off''s.';
+COMMENT ON FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid) IS 'The workspace''s sequences (0060), or the one named: how each starts (its first step, with the search it adds from: 00459, when its words were last let go: 00462, or a one-off''s date, or the once of one kept as a draft: 00465), how its batches are decided (its mode, 00462), where it stands, its steps, the days they span and the emails still to write (00459), its channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it (everyone whose place stands, sequence_places: 00459). Newest first. Under the caller''s row security. And (decision 0128, stage 2): who is between two steps with a time to come (between: the first one''s time, and how many have one); leads on a running cold email''s list that its first step refuses because their email could not be checked (stuck: how many of the 200 that have stood there longest, past a day, and since when; asked through sequence_queued_why_not, so only of a member); the business day its first step last ran and, where it is on and runs by its hour, why that run did nothing (last_run_for, last_run_off: the newest playbook.run event''s skipped, where it is a reason and not a count); and last counts a batch still going that has sent some, bar a one-off''s.';
 
 
 --

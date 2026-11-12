@@ -729,7 +729,8 @@ test(
     ok(await db.from("sequence_steps").update({ last_run_for: "2026-11-10" }).eq("id", root), "the day it ran for");
     const off = await listed();
     assert.deepEqual([off.last_run_off, off.last_run_for], ["no_calendar", "2026-11-10"]);
-    ok(await ran({ sent: 1 }, 0), "a run since, which sent");
+    // A run that went writes how many it skipped where a run that did nothing writes why: a count is no reason.
+    ok(await ran({ sent: 1, skipped: 0 }, 0), "a run since, which sent");
     assert.equal((await listed()).last_run_off, null, "the newest run is the one read: one that sent says nothing");
 
     // A batch still going: nothing of it gone is no last batch; one sent is counted, though the batch stays open.
