@@ -28,6 +28,13 @@
  * And an email to leads written again as its owner says (POST sequences/:id/rewrite, 2 Nov 2026): the model is told the
  * email as it stands, what they want changed and a draft's own rules, with how they write; what comes back is words for
  * the sheet's box, never saved here, and only as every email must hold, its opening kept; what it left out is said.
+ *
+ * And a draft changed by a line (decision 0129 step 2; drafts/sequence-change.ts, surfaces' sequences/new/change.ts): the
+ * line under New's draft says what to change, and Ask is told the draft as it stands, in the shape it answers in, by the
+ * request's keys, with the one rule a change adds; who it was for stays where the answer names no one the request lists,
+ * a number the standing email already said is its owner's to keep, and the line it was drafted from stays on top. On the
+ * page, a step that says what it said is the step it was, what the owner set by hand that Ask never names stays, what
+ * changed is said by its place, and what Ask drafted keeps Ask's own words for a step the change left alone.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -40,7 +47,7 @@ const { draftSequenceFrom, examplesOf } = await import("../../apps/dashboard/src
 const { draftKept } = await import("../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
 const M = await import("../../apps/dashboard/src/surfaces/campaigns/sequences/new/new-model.ts");
 const { onceChannelsOf, leadFirstOf } = await import("../../apps/dashboard/src/server/drafts/sequence-new.ts");
-const { NEW_MAKE_BODY, LEAD_FIRST_BODY, REWRITE_BODY, VOICE_BODY } =
+const { DRAFT_BODY, NEW_MAKE_BODY, LEAD_FIRST_BODY, REWRITE_BODY, VOICE_BODY } =
   await import("../../apps/dashboard/src/server/campaigns/sequences/bodies.ts");
 const { learnVoice } = await import("../../apps/dashboard/src/server/campaigns/sequences/voice.ts");
 const { rewriteFrom } = await import("../../apps/dashboard/src/server/drafts/sequence-rewrite.ts");
@@ -1300,4 +1307,201 @@ test("what the owner wants changed is asked for, within its bound; the door take
   assert.equal(REWRITE_BODY.safeParse({ ...good, change: "   " }).success, false);
   assert.equal(REWRITE_BODY.safeParse({ ...good, change: "x".repeat(LEAD_REWRITE_CHANGE_MAX + 1) }).success, false);
   assert.equal(REWRITE_BODY.safeParse({ ...good, place: 2 }).success, false);
+});
+
+/* ------------------------------ a draft changed by a line (decision 0129 step 2) ------------------------------ */
+
+const C = await import("../../apps/dashboard/src/surfaces/campaigns/sequences/new/change.ts");
+/** One step of a draft that stands, as the page tells Ask it: Ask's own step, its held message by its id. */
+const stood = ({ template_id = null, ...parts } = {}) => {
+  const one = { ...step(parts), template_id };
+  delete one.message;
+  return one;
+};
+const COME_BACK = {
+  ...WRITE_NONE,
+  title: "Come back",
+  offer: true,
+  whatsapp: "Hi {{first name}}, it has been a while. Come back and see us: {{booking link}}",
+};
+const STANDS = {
+  said: LINE.words,
+  kind: "sequence",
+  audience: "people",
+  name: "Thank you, then win-back",
+  who: { kind: "moment", trigger: "visited", label: "the day after a visit" },
+  hour: 10,
+  when: "",
+  steps: [stood({ template_id: ID(1) }), stood({ after_days: 28, only_if: ["no_booking"], write: COME_BACK })],
+};
+const WHO_ASKS = { tenantId: "t1", userId: "u1" };
+
+test("a line said under a draft changes the draft that stands: Ask is told it in the shape it answers in, by the request's keys, with the one rule a change adds, and the line it was drafted from stays on top (decision 0129 step 2)", async () => {
+  const shorter = { ...COME_BACK, whatsapp: "Hi {{first name}}, come back and see us: {{booking link}}" };
+  answerWith(
+    answer({
+      steps: [step({ message: "k1" }), step({ after_days: 28, only_if: ["no_booking"], write: shorter })],
+    }),
+  );
+  const out = await draftSequenceFrom(KNOWN, { words: "Make the second one shorter", stands: STANDS }, WHO_ASKS);
+  const told = JSON.stringify(calls[0].request.messages);
+  assert.match(told, /The draft as it stands, in the shape you answer in:\\n<record>/, "the draft is data");
+  assert.match(told, /\\"who\\":\\"m1\\"/, "who by the request's key");
+  assert.match(told, /\\"message\\":\\"k1\\"/, "a held message by its key");
+  assert.equal(told.includes(ID(1)), false, "never by its id");
+  assert.match(told, /it has been a while\. Come back and see us/, "a written message's words as they stand");
+  assert.match(told, /What the owner first said it should do: Thank them the next day/);
+  assert.match(told, /What the owner wants changed: Make the second one shorter/);
+  assert.doesNotMatch(told, /What the owner says it should do/);
+  assert.match(JSON.stringify(calls[0].request.system), /Where the request holds a draft as it stands/);
+  // Judged as any draft is, and the line it was drafted from stays on top.
+  assert.equal(out.said, LINE.words);
+  assert.equal(out.steps[0].message.template_id, ID(1));
+  assert.match(out.steps[1].message.written.versions.whatsapp.body, /^Hi \{\{1\}\}, come back and see us: \{\{2\}\}$/);
+  assert.deepEqual([out.steps[1].after_days, out.steps[1].only_if], [28, ["no_booking"]]);
+  // A first draft is told no draft, and no rule about one.
+  answerWith(answer({ steps: [step({ message: "k1" })] }));
+  await draftSequenceFrom(KNOWN, LINE, WHO_ASKS);
+  assert.doesNotMatch(JSON.stringify(calls[1].request.system), /a draft as it stands/);
+  assert.doesNotMatch(JSON.stringify(calls[1].request.messages), /The draft as it stands/);
+});
+
+test("changed, a draft keeps who it was for where the answer names no one the request lists, and a number its email already said is its owner's to keep (decision 0129 step 2)", async () => {
+  const picked = { kind: "leads", ids: [ID(5)], label: "3 picked on Leads" };
+  const email = {
+    subject: "A week of answered calls",
+    body: "{{opening}}\n\nWe answer every call for 40 studios like yours. Want us to cover a week?",
+  };
+  const stands = {
+    ...STANDS,
+    said: "",
+    audience: "leads",
+    name: "Studios",
+    who: picked,
+    steps: [stood(email)],
+  };
+  const answered = answer({ audience: "leads", who: "", name: "Studios", steps: [step(email)] });
+  answerWith(answered);
+  const out = await draftSequenceFrom(KNOWN, { words: "Warmer", stands }, WHO_ASKS);
+  assert.deepEqual(out.who, picked, "who it was for stays");
+  assert.match(
+    JSON.stringify(calls[0].request.messages),
+    /Who it is for is already chosen, <record>3 picked on Leads<\/record>/,
+  );
+  assert.match(out.steps[0].email.body, /40 studios/, "the number it already said is kept");
+  assert.equal(out.said, "", "a draft built by hand has no line on top");
+  // The same email in a first draft is Ask's own claim, which nothing backs: its words are left for the owner to write.
+  const first = draftKept({ ...answered, who: "s1" }, KNOWN, { words: "Email the studios we found" });
+  assert.equal(first.steps[0].email.body, "");
+});
+
+test("the draft's door takes a change of one word where a draft stands, and still asks a first line to say enough; a draft that stands is taken whole or not at all", () => {
+  assert.equal(DRAFT_BODY.safeParse({ words: "Shorter" }).success, false, "a first line says what it should do");
+  assert.equal(DRAFT_BODY.safeParse({ words: "Shorter", stands: STANDS }).success, true);
+  assert.equal(DRAFT_BODY.safeParse({ words: "   ", stands: STANDS }).success, false);
+  assert.equal(DRAFT_BODY.safeParse({ words: "Shorter", stands: { ...STANDS, steps: [] } }).success, false);
+  assert.equal(DRAFT_BODY.safeParse({ words: "Shorter", stands: { ...STANDS, id: "x" } }).success, false);
+  assert.equal(DRAFT_BODY.safeParse(LINE).success, true);
+});
+
+/** A message Ask wrote, as the draft holds one: numbered, with the values it takes. */
+const askWrote = (whatsapp) => ({
+  template_id: null,
+  title: "Come back",
+  body: whatsapp,
+  channels: ["whatsapp"],
+  params: [{ kind: "first_name" }],
+  offer: true,
+  written: {
+    name: "come_back",
+    category: "marketing",
+    versions: { whatsapp: { body: whatsapp } },
+    slots: [{ position: 1, label: "First name", example: "Dani", kind: "first_name" }],
+  },
+});
+/** A two-step sequence as the page holds it: a held message with a value typed, then one Ask wrote four weeks later. */
+const twoSteps = () => {
+  const typed = { ...held, params: [{ kind: "first_name" }, { kind: "text", value: "20% off" }] };
+  const first = M.setMessage(sequence(), 0, typed);
+  const second = M.setMessage(M.addStep(first, "message"), 1, askWrote("Hi {{1}}, it has been a while."), ["whatsapp"]);
+  return { ...M.setWait(second, 1, 28), said: LINE.words };
+};
+
+test("the page tells Ask the draft as it stands: each step in the shape Ask answers one in, a held message by its id with what was typed, written words with their values by name (decision 0129 step 2)", () => {
+  const stands = C.standsOf(twoSteps());
+  assert.deepEqual(
+    [stands.said, stands.kind, stands.audience, stands.name, stands.who.trigger, stands.hour, stands.when],
+    [LINE.words, "sequence", "people", "Thank you, then win-back", "visited", 10, ""],
+  );
+  assert.deepEqual(
+    [stands.steps[0].template_id, stands.steps[0].texts, stands.steps[0].write.title, stands.steps[0].after_days],
+    ["t-1", ["20% off"], "", 0],
+  );
+  assert.deepEqual(
+    [stands.steps[1].template_id, stands.steps[1].write.title, stands.steps[1].write.offer, stands.steps[1].after_days],
+    [null, "Come back", true, 28],
+  );
+  assert.equal(stands.steps[1].write.whatsapp, "Hi {{first name}}, it has been a while.");
+  // A one-off says when as Ask says one, and the door takes what the page tells.
+  const once = { ...M.draftByHand("once", "people", "Harbor Studio"), who: M.everyoneOf(true) };
+  assert.equal(C.standsOf(once).when, "now");
+  assert.equal(C.standsOf(M.setAt(once, "2026-10-23T09:00")).when, "2026-10-23 09:00");
+  assert.equal(
+    DRAFT_BODY.safeParse({ words: "Shorter", stands: { ...stands, steps: [stands.steps[1]] } }).success,
+    true,
+    "the door takes a step as the page tells it",
+  );
+});
+
+test("Ask's answer is taken as the draft changed: a step that says what it said is the step it was, what the owner set by hand stays, what changed is said by its place, and what Ask drafted keeps Ask's words where the change left a step alone (decision 0129 step 2)", () => {
+  const before = { ...twoSteps(), mode: "veto" };
+  // Ask answers the whole draft: the first step as it stood (a second writing of it), the second shorter, the hour moved.
+  const answered = {
+    ...before,
+    mode: "ask",
+    run_hour: 11,
+    steps: [
+      JSON.parse(JSON.stringify(before.steps[0])),
+      { ...before.steps[1], message: askWrote("Hi {{1}}, come back.") },
+    ],
+  };
+  const after = C.changedFrom(before, answered);
+  assert.equal(after.steps[0], before.steps[0], "the step it was, never a second writing of it");
+  assert.equal(after.steps[1].message.written.versions.whatsapp.body, "Hi {{1}}, come back.");
+  assert.equal(after.mode, "veto", "how each batch is decided stays as the owner set it");
+  assert.deepEqual(C.changesOf(before, after), { steps: [2], said: "Ask changed when it goes and step 2" });
+  // Renamed, the first step is still the step it was, under the sequence's new name, which it carries.
+  const named = { ...before, steps: [{ ...before.steps[0], name: before.name }, before.steps[1]] };
+  const renamed = C.changedFrom(named, {
+    ...named,
+    name: "Welcome back",
+    steps: [{ ...JSON.parse(JSON.stringify(named.steps[0])), name: "Welcome back" }, named.steps[1]],
+  });
+  assert.deepEqual(
+    [renamed.steps[0].name, renamed.steps[0].message === named.steps[0].message, C.changesOf(named, renamed).said],
+    ["Welcome back", true, "Ask changed its name"],
+  );
+  assert.equal(M.setName(named, "By hand").steps[0].name, "By hand", "a name typed is its first step's too");
+  assert.equal(M.setName(before, "By hand").steps[0].name, before.steps[0].name, "a step under another name keeps it");
+  // Nothing changed is said so; a one-off's one step is its message, and fewer steps is said once.
+  assert.deepEqual(C.changesOf(before, C.changedFrom(before, before)), { steps: [], said: "Ask changed nothing" });
+  const fewer = C.changedFrom(before, { ...before, name: "Thank you", steps: [before.steps[0]] });
+  assert.equal(C.changesOf(before, fewer).said, "Ask changed its name and how many steps it has");
+  const once = M.setMessage({ ...M.draftByHand("once", "people", "x"), who: M.everyoneOf(true) }, 0, askWrote("Hi"));
+  const onceAfter = C.changedFrom(once, { ...once, steps: [{ ...once.steps[0], message: askWrote("Hello") }] });
+  assert.equal(C.changesOf(once, onceAfter).said, "Ask changed the message");
+  // To another list, how its batches are decided is the new draft's own; a one-off's channels stay with its message.
+  const moved = C.changedFrom(before, { ...answered, who: { kind: "list", token: "seg:vip", label: "VIP clients" } });
+  assert.equal(moved.mode, "ask");
+  const narrowed = { ...once, channels: [] };
+  assert.deepEqual(
+    C.changedFrom(narrowed, { ...narrowed, channels: ["whatsapp"], at: "2026-10-23T09:00" }).channels,
+    [],
+  );
+  // What Ask drafted: its own first words where the owner edited a step the change left alone, the change's where it wrote.
+  const drafted = { ...before, steps: [before.steps[0], { ...before.steps[1], hand: "as Ask first drafted it" }] };
+  const kept = C.draftedAfter(drafted, before, after);
+  assert.equal(kept.steps[0], drafted.steps[0]);
+  assert.equal(kept.steps[1], after.steps[1], "the step the change wrote is Ask's as it came");
+  assert.equal(C.draftedAfter(null, before, after), null, "a draft Ask never drafted keeps none");
 });

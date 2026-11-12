@@ -7,6 +7,7 @@
  * Ask writes one, filed only when the draft is kept or started; a lead's emails are always its own words. The model names
  * each choice by a key of the request, never an id, and every answer is judged in code against the same lists
  * (draft-judge.ts). A message's words are data to the model (contracts ai/fence.ts). Nothing is written (decision 0017).
+ * A line said under a draft changes the draft that stands (`stands`, sequence-change.ts): the same call, told that draft.
  */
 import "server-only";
 import {
@@ -71,6 +72,7 @@ import {
 } from "../campaigns/sequences/draft-judge";
 import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
+import { CHANGE_RULE, standsAsked } from "./sequence-change";
 
 /** How much of a message's words the model is handed. */
 const BODY_CHARS = 280;
@@ -260,13 +262,17 @@ export function draftAskedParts(known: DraftKnown, ask: NewDraftAsk): ToldPart[]
         )
       : "The business has no message it can send yet: write the ones its steps need.",
   ];
-  const askLines = [
-    chosen.length ? `The owner already chose: ${chosen.join("; ")}. Keep these.` : null,
-    `What the owner says it should do: ${ask.words.trim()}`,
-    ask.previous
-      ? `The last draft was "${ask.previous.name}", ${ask.previous.steps} steps. Draft it again from what the owner says now.`
-      : null,
-  ];
+  const kept = chosen.length ? `The owner already chose: ${chosen.join("; ")}. Keep these.` : null;
+  // A line said under a draft changes the draft that stands; any other line is what it should do, drafted whole.
+  const askLines = ask.stands
+    ? [kept, ...standsAsked(ask.stands, ask.words, known)]
+    : [
+        kept,
+        `What the owner says it should do: ${ask.words.trim()}`,
+        ask.previous
+          ? `The last draft was "${ask.previous.name}", ${ask.previous.steps} steps. Draft it again from what the owner says now.`
+          : null,
+      ];
   return [
     toldPart("offer", partText([business, ...owner.offer])),
     toldPart("proof", partText(owner.proof)),
@@ -301,7 +307,7 @@ export async function draftSequenceFrom(
       purpose: "sequence_draft",
       request: {
         max_tokens: 2400,
-        system: draftRules(known.previews === true),
+        system: [draftRules(known.previews === true), ...(ask.stands ? [CHANGE_RULE] : [])].join("\n"),
         schema: NEW_DRAFT_JSON_SCHEMA,
         messages: [{ role: "user", content: draftAsked(known, ask) }],
       },

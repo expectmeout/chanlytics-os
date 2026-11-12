@@ -4,7 +4,8 @@
  * edited in place. A message the workspace holds is changed in Messages, where every version of it is; one Ask wrote is
  * filed only when the draft is kept or started, so its words are the draft's until then. Values are said by name while
  * they are written ({{first name}}), put in where the cursor is, and numbered as a message holds them on Save (contracts
- * numberedValues); Ask writes the words again warmer or shorter, every value kept, with Undo.
+ * numberedValues). Here the words are typed; Ask changes them where the owner says so in the line under the draft
+ * (decision 0129 step 2, change.ts), which took the place of this sheet's Warmer and Shorter.
  */
 import { useRef, useState } from "react";
 import {
@@ -22,15 +23,14 @@ import {
   type NewMessage,
   type NewWrittenMessage,
   type ParamSpec,
-  NUMBERED_SLOT,
 } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { routeDoor } from "../../../frame-verbs";
-import { templates as templateVerbs } from "../../templates/verbs";
 import { tplOwn } from "../../templates/words";
+import { valuesByName } from "./change";
 import { channelsSaidOf, heldMessageOf } from "./new-model";
 import { Choice } from "./choice";
 import { PickSheet } from "./new-sheets";
@@ -127,18 +127,7 @@ export function MessageSheet(p: {
   );
 }
 
-/** A value's name as it is written, from the kind a message holds it as. */
-const valueSayOf = (kind: string): string => NEW_VALUES.find((v) => v.kind === kind)?.say ?? kind;
-
-/** A written message's words with its values by name, for writing; and back, numbered, on Save. */
-function valuesByName(text: string, slots: NewWrittenMessage["slots"]): string {
-  return text.replace(NUMBERED_SLOT, (all, n: string) => {
-    const s = slots.find((x) => x.position === Number(n));
-    return s ? `{{${valueSayOf(s.kind)}}}` : all;
-  });
-}
-
-/** The words as the editor holds them: a version per channel, said by name. */
+/** The words as the editor holds them: a version per channel, each value said by name (change.ts valuesByName). */
 interface Words {
   title: string;
   whatsapp: string;
@@ -198,45 +187,6 @@ const BOX_OF: Record<Channel, "email" | "whatsapp" | "text"> = { email: "email",
 /** The values a person's message may name anywhere: theirs and the business's; a booking's own are a moment's first step's. */
 const ANY_STEP_VALUES = NEW_VALUES.slice(0, 4);
 
-/**
- * Ask writing a version's words again, warmer or shorter (POST templates/versions/rewrite, every value kept), put in as
- * if typed, the words it replaced kept for Undo; WhatsApp's words are written again as a text's are.
- */
-function useRewrite(words: Words, on: Channel, put: (w: Words) => void) {
-  const [asking, setAsking] = useState<"warmer" | "shorter" | null>(null);
-  const [before, setBefore] = useState<Words | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
-  const rewrite = async (tone: "warmer" | "shorter") => {
-    const box = BOX_OF[on];
-    if (asking || !words[box].trim()) return;
-    setAsking(tone);
-    setProblem(null);
-    const email = on === "email";
-    const r = await templateVerbs
-      .rewrite({
-        channel: email ? "email" : "sms",
-        language: "en",
-        subject: email ? words.subject : null,
-        body: words[box],
-        tone,
-      })
-      .catch(() => ({ ok: false as const, message: W.failed.title }));
-    setAsking(null);
-    if (!r.ok) {
-      setProblem(r.message);
-      return;
-    }
-    setBefore(words);
-    put({ ...words, [box]: r.data.body, ...(email && r.data.subject ? { subject: r.data.subject } : {}) });
-  };
-  const undo = () => {
-    if (!before) return;
-    put(before);
-    setBefore(null);
-  };
-  return { asking, problem, canUndo: before !== null, rewrite, undo };
-}
-
 /** The words of a person's message Ask wrote (or the owner writes), a channel at a time. */
 function PersonWords(p: {
   message: NewMessage | null;
@@ -253,7 +203,6 @@ function PersonWords(p: {
   const box = useRef<HTMLTextAreaElement>(null);
   const made = typedMessageOf(words, offer, p.message);
   const set = (k: keyof Words) => (v: string) => setWords((w) => ({ ...w, [k]: v }));
-  const ask = useRewrite(words, on, setWords);
   // A value put in where the cursor is in the words shown, as if typed there.
   const putValue = (say: string) => {
     const k = BOX_OF[on];
@@ -330,19 +279,7 @@ function PersonWords(p: {
           maxLength={1024}
         />
       )}
-      <div className="sq-nw-presses" data-testid="sq-nw-words-ask">
-        {(["warmer", "shorter"] as const).map((tone) => (
-          <Button
-            key={tone}
-            size="sm"
-            onClick={() => void ask.rewrite(tone)}
-            disabled={ask.asking !== null}
-            aria-busy={ask.asking === tone}
-            data-testid={`sq-nw-words-${tone}`}
-          >
-            {ask.asking === tone ? W.sheets.asking : W.sheets[tone]}
-          </Button>
-        ))}
+      <div className="sq-nw-presses">
         <Button
           size="sm"
           aria-expanded={valuesOpen}
@@ -351,11 +288,6 @@ function PersonWords(p: {
         >
           {W.sheets.aValue}
         </Button>
-        {ask.canUndo ? (
-          <Button size="sm" variant="quiet" onClick={ask.undo} data-testid="sq-nw-words-undo">
-            {W.sheets.undo}
-          </Button>
-        ) : null}
       </div>
       {valuesOpen ? (
         <div className="sq-nw-presses" data-testid="sq-nw-words-values">
@@ -366,7 +298,6 @@ function PersonWords(p: {
           ))}
         </div>
       ) : null}
-      {ask.problem ? <p className="sq-nw-note is-warn">{ask.problem}</p> : null}
       <p className="sq-nw-note">
         {offer ? W.sheets.offerNote : W.sheets.valuesSaid(ANY_STEP_VALUES.map((v) => `{{${v.say}}}`).join(", "))}
       </p>

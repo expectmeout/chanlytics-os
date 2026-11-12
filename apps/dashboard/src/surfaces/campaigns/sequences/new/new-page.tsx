@@ -10,6 +10,9 @@
  * G, kit/record/work.ts), and closing it asks first: Discard, or Keep as a draft under Drafts. What New counts is what
  * Campaigns counts: the playbooks read's moments, lists and pools,
  * the sequences that run, and the searches whose leads are ready (reach_out_sources).
+ *
+ * A draft keeps a line under it (decision 0129 step 2, change.ts): what the owner types or says there changes the draft
+ * that stands, Ask's answer taken as that draft changed, what changed said on top with Undo.
  */
 import { useEffect, useRef, useState } from "react";
 import {
@@ -42,6 +45,7 @@ import { mailboxConnectOutcome } from "../../../settings/connections/mailbox-con
 import { broadcasts } from "../../broadcasts/verbs";
 import { useCampaignsToast } from "../../home/route-toast";
 import { reachOuts } from "../../reach-out/surface";
+import { CHANGE_WORDS, changedFrom, changesOf, draftedAfter, standsOf } from "./change";
 import { DraftView, type DraftReads } from "./new-draft";
 import type { KeptSend } from "./kept-send";
 import * as M from "./new-model";
@@ -192,27 +196,31 @@ function useOpenedOn(who: NewWho | null, keptId: string | null, reads: Reads | n
   return { opened, letGo };
 }
 
-/** Ask at work: a draft asked for from a line, Stop, and what came of it (a draft, a refusal, or Ask that failed). */
-function useAsk(door: Fixed, flash: Flash, onDraft: (d: NewDraftDto) => void) {
+/**
+ * Ask at work: a draft asked for from a line, Stop, and what came of it: the draft, which each asker takes its own way (a
+ * first draft, one drafted again, one changed), or none, with a refusal or Ask that failed said here.
+ */
+function useAsk(door: Fixed, flash: Flash) {
   const [drafting, setDrafting] = useState<"fresh" | "again" | null>(null);
   const [failed, setFailed] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
   // Each ask counted, so an answer that arrives after Stop, or after a later ask, is let go.
   const asked = useRef(0);
-  const ask = async (words: string, fixed: Fixed, again: boolean) => {
+  const ask = async (words: string, fixed: Fixed, again: boolean): Promise<NewDraftDto | null> => {
     const id = ++asked.current;
     setDrafting(again ? "again" : "fresh");
     setFailed(false);
     setRefused(null);
     const r = await commitVerb("sequence_draft", { words, ...door, ...fixed });
-    if (id !== asked.current) return;
+    if (id !== asked.current) return null;
     setDrafting(null);
-    if (r.ok) onDraft(r.data as Output<"POST sequences/draft">);
-    // Drafting it again, the draft stays as it was and what Ask said is a toast over it, whatever it was.
-    else if (again) flash(refusalToast(r));
+    if (r.ok) return r.data as Output<"POST sequences/draft">;
+    // Drafting it again, or changing it, the draft stays as it was and what Ask said is a toast over it, whatever it was.
+    if (again) flash(refusalToast(r));
     // A draft nothing here can hold is said in Ask's words; anything else is Ask that could not answer just now.
     else if (r.code === "validation") setRefused(r.message);
     else setFailed(true);
+    return null;
   };
   const stop = () => {
     asked.current++;
@@ -223,6 +231,95 @@ function useAsk(door: Fixed, flash: Flash, onDraft: (d: NewDraftDto) => void) {
     setRefused(null);
   };
   return { drafting, failed, refused, ask, stop, clear };
+}
+
+type Asking = ReturnType<typeof useAsk>;
+
+/**
+ * A change of kind or audience (F1): Ask drafts it again from the same line, the draft standing in its new shape with
+ * Undo while it does; one built by hand is built again here.
+ */
+function useRedraft(on: {
+  draft: NewDraftDto | null;
+  asking: Asking;
+  took: (drafted: NewDraftDto) => void;
+  byHand: (built: NewDraftDto) => void;
+}) {
+  const [pending, setPending] = useState<{ kind: NewKind; audience: NewAudience } | null>(null);
+  const redraft = (fixed: { kind?: NewKind; audience?: NewAudience }) => {
+    const { draft } = on;
+    if (!draft) return;
+    const kind = fixed.kind ?? draft.kind;
+    const audience = fixed.audience ?? draft.audience;
+    const keep = draft.who && whoSuits(draft.who, audience, kind) ? { who: draft.who } : {};
+    // By hand, the draft is built again here; Ask's is drafted again from the same line.
+    if (!draft.said) {
+      on.byHand({ ...M.draftByHand(kind, audience, draft.business), ...keep });
+      return;
+    }
+    const mine = { kind, audience };
+    setPending(mine);
+    void on.asking
+      .ask(draft.said, { kind, audience, ...keep, previous: { name: draft.name, steps: draft.steps.length } }, true)
+      .then((drafted) => (drafted ? on.took(drafted) : undefined))
+      .finally(() => setPending((now) => (now === mine ? null : now)));
+  };
+  // What Ask is drafting it again as, while it does: the draft stands in that shape, with Undo (F1).
+  const as = pending && on.asking.drafting === "again" ? pending : null;
+  return { redraft, as, letGo: () => setPending(null) };
+}
+
+/** What the line under a draft last left: the draft and what Ask drafted before it, the line, and what it changed. */
+interface Changed {
+  before: NewDraftDto;
+  drafted: NewDraftDto | null;
+  line: string;
+  said: string;
+  steps: number[];
+}
+
+/**
+ * The line under a draft (decision 0129 step 2; change.ts): what is typed in it, the line Ask is changing the draft by
+ * while it does, and what its last change left, with the draft before it for Undo. Ask's answer is taken as the draft
+ * that stood, changed, and counted again; a change by hand, or a new draft, lets what it left go.
+ */
+function useChange(on: {
+  draft: NewDraftDto | null;
+  drafted: NewDraftDto | null;
+  asking: Asking;
+  recount: (prev: NewDraftDto | null, next: NewDraftDto) => NewDraftDto;
+  put: (draft: NewDraftDto, drafted: NewDraftDto | null) => void;
+}) {
+  const [words, setWords] = useState("");
+  const [by, setBy] = useState<string | null>(null);
+  const [left, setLeft] = useState<Changed | null>(null);
+  const say = (line: string) => {
+    const before = on.draft;
+    if (!before || by !== null) return;
+    setBy(line);
+    void on.asking
+      .ask(line, { stands: standsOf(before) }, true)
+      .then((answered) => {
+        if (!answered) return;
+        const next = on.recount(answered, changedFrom(before, answered));
+        on.put(next, draftedAfter(on.drafted, before, next));
+        setLeft({ before, drafted: on.drafted, line, ...changesOf(before, next) });
+        setWords("");
+      })
+      .finally(() => setBy(null));
+  };
+  const back = () => {
+    if (left) on.put(left.before, left.drafted);
+    setLeft(null);
+  };
+  const changing = by !== null && on.asking.drafting === "again";
+  // What stands on top of the draft: the line Ask is changing it by, or the last one with what it changed.
+  const note = changing
+    ? { said: by, by: null, steps: [] }
+    : left
+      ? { said: left.line, by: left.said, steps: left.steps }
+      : null;
+  return { words, setWords, changing, note, say, back, forget: () => setLeft(null) };
 }
 
 /** When a one-off sent goes, as its toast says it: when the send door set it for, by the business's clock. */
@@ -370,6 +467,13 @@ function draftBackFromGoogle(draft: NewDraftDto | null, came: { ok: boolean } | 
   return { ...draft, mailbox: { ...draft.mailbox, label: draft.mailbox.label || W.draft.yourMailbox } };
 }
 
+/** What the draft's foot and line say Ask is doing: changing it by the line, or drafting it again, and for whom. */
+function doingOf(changing: boolean, as: { audience: NewAudience } | null, draft: NewDraftDto): string | null {
+  if (changing) return CHANGE_WORDS.changing;
+  if (!as) return null;
+  return as.audience !== draft.audience ? W.say.againFor[as.audience] : W.say.again;
+}
+
 /** New, on the moment, for whom, or on the kept one-off its address names. */
 export function NewSequence({ moment = null, who = null, to = null, kept = null }: NewSequenceProps) {
   const reads = useNewReads(useSources());
@@ -389,22 +493,29 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   const recount = (prev: NewDraftDto | null, next: NewDraftDto) =>
     reads ? M.recounted(prev, next, reads.draft.recount) : next;
   const draft = shownDraftOf(held, back?.draft ?? null, opened, reads);
-  const [saying, setSaying] = useState(false);
   const work = useUnsavedWork("new", here, {
     value: { draft: held, line: typed, drafted } satisfies KeptHere,
     dirty: !!held?.who,
     onLeave: () => navigate(SEQUENCES_ROUTE),
   });
   const leaving = work.asking;
-  const show = (d: NewDraftDto) => {
-    setDraft(d);
-    setSaying(false);
+  const show = (shown: NewDraftDto, answer: NewDraftDto | null) => {
+    setDrafted(answer);
+    setDraft(shown);
     work.stay();
   };
-  const asking = useAsk(door, flash, (d) => {
-    setDrafted(d);
-    show(d);
-  });
+  const asking = useAsk(door, flash);
+  const change = useChange({ draft, drafted, asking, recount, put: show });
+  // A draft Ask answered whole, or one built by hand: what the line last changed is let go with the draft it changed.
+  const took = (answered: NewDraftDto) => {
+    show(answered, answered);
+    change.forget();
+  };
+  const built = (byHand: NewDraftDto) => {
+    show(recount(null, byHand), null);
+    change.forget();
+  };
+  const redo = useRedraft({ draft, asking, took, byHand: built });
   const tz = reads?.draft.timezone ?? "UTC";
   const made = useMake({ keptId: kept, flash, letGo, tz, onNoMailbox: () => setDraft(withoutMailbox) });
   const busy = made.busy;
@@ -412,34 +523,13 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     if (await made.make(d, start, drafted)) work.done();
   };
   const may = canDo("approve");
-  // What Ask is drafting it again as, while it does: the draft stands in that shape, with Undo (F1).
-  const [pending, setPending] = useState<{ kind: NewKind; audience: NewAudience } | null>(null);
-  const redraft = (f: { kind?: NewKind; audience?: NewAudience }) => {
-    if (!draft) return;
-    const kind = f.kind ?? draft.kind;
-    const audience = f.audience ?? draft.audience;
-    const keep = draft.who && whoSuits(draft.who, audience, kind) ? { who: draft.who } : {};
-    const previous = { name: draft.name, steps: draft.steps.length };
-    // By hand, the draft is built again here; Ask's is drafted again from the same line.
-    if (!draft.said) {
-      setDrafted(null);
-      setDraft(recount(null, { ...M.draftByHand(kind, audience, draft.business), ...keep }));
-      return;
-    }
-    const mine = { kind, audience };
-    setPending(mine);
-    void asking
-      .ask(draft.said, { kind, audience, ...keep, previous }, true)
-      .finally(() => setPending((p) => (p === mine ? null : p)));
-  };
   const undo = () => {
     asking.stop();
-    setPending(null);
+    redo.letGo();
   };
   const byHand = (kind?: NewKind) => {
     const d = M.draftByHand(kind ?? door.kind ?? "sequence", door.audience ?? "people", reads?.business ?? "");
-    setDrafted(null);
-    show(recount(null, door.who && whoSuits(door.who, d.audience, d.kind) ? M.setWho(d, door.who) : d));
+    built(door.who && whoSuits(door.who, d.audience, d.kind) ? M.setWho(d, door.who) : d);
     asking.clear();
   };
   // A kept one-off let go goes from Drafts too; any other draft was never made, so it is only let go here.
@@ -447,6 +537,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     letGo();
     setDraft(null);
     setDrafted(null);
+    change.forget();
     work.done();
     work.stay();
     if (!kept) return;
@@ -460,38 +551,31 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     if (leaving) navigate(SEQUENCES_ROUTE);
     else work.leave();
   };
-  const previous = draft ? { previous: { name: draft.name, steps: draft.steps.length } } : {};
 
-  const redrafting = pending && asking.drafting === "again" ? pending : null;
   const view =
-    draft && reads && !saying ? (
+    draft && reads ? (
       <DraftView
-        draft={redrafting ? M.redraftShapeOf(draft, redrafting) : draft}
+        draft={redo.as ? M.redraftShapeOf(draft, redo.as) : draft}
         reads={reads.draft}
         busy={busy}
-        doing={
-          redrafting
-            ? redrafting.audience !== draft.audience
-              ? W.say.againFor[redrafting.audience]
-              : W.say.again
-            : null
-        }
-        redraftingFor={redrafting && redrafting.audience !== draft.audience ? redrafting.audience : null}
+        doing={doingOf(change.changing, redo.as, draft)}
+        redraftingFor={redo.as && redo.as.audience !== draft.audience ? redo.as.audience : null}
         leaving={
           leaving ? <LeavingAsk busy={busy} onDiscard={work.discard} onKeep={() => void make(draft, false)} /> : null
         }
+        line={{ words: change.words, onWords: change.setWords }}
+        note={change.note}
         acts={{
+          // A change by hand is the owner's: what the line last changed stays changed, and its Undo goes.
           change: (d) => {
             setDraft(recount(draft, d));
+            change.forget();
             work.stay();
           },
-          redraft,
+          redraft: redo.redraft,
           undo,
-          // Said again from the line it was drafted from; a draft built by hand keeps the line typed before it.
-          again: () => {
-            if (draft.said) setTyped(draft.said);
-            setSaying(true);
-          },
+          say: change.say,
+          back: change.back,
           discard,
           make: (start) => void make(draft, start),
           close,
@@ -502,7 +586,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
       <StartView
         line={line}
         onLine={setTyped}
-        onDraft={(words, fixed) => void asking.ask(words, { ...fixed, ...previous }, false)}
+        onDraft={(words, fixed) => void asking.ask(words, fixed ?? {}, false).then((d) => (d ? took(d) : undefined))}
         drafting={asking.drafting !== null}
         onStop={asking.stop}
         failed={asking.failed}
@@ -511,7 +595,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
         notice={notice}
         reads={reads?.start ?? null}
         may={may}
-        onClose={draft ? () => setSaying(false) : close}
+        onClose={close}
       />
     );
   return (
