@@ -191,6 +191,8 @@ export interface FileChange {
   shows?: FileShows;
   who_in_it?: "no_one" | "agreed";
   status?: "filed" | "set_aside";
+  /** A made piece's caption, written where it stands (server posts/caption.ts). */
+  caption?: string;
 }
 
 /** What came of asking for a post's picture: the picture and whether the business has a number to print, or what refused it. */
@@ -238,9 +240,13 @@ async function pieceBoard(plan: PiecePlan, signal?: AbortSignal): Promise<PieceB
   return { ok: false, refused: await pictureRefusalOf(res) };
 }
 
-/** A kept post's shape, its bytes: what a phone's sheet is handed. Null where they did not come. */
-async function postBytes(id: string, shape: PostShapeName): Promise<Blob | null> {
-  const res = await window.fetch(`${fileViewOf(id)}?shape=${shape}`).catch(() => null);
+/**
+ * What a phone's sheet is handed, its bytes: a kept post at one of its shapes, or a video made here, its own file (`video`), as
+ * Save downloads it. Null where they did not come.
+ */
+async function fileBytes(id: string, as: PostShapeName | "video"): Promise<Blob | null> {
+  const address = as === "video" ? `${fileViewOf(id)}?download` : `${fileViewOf(id)}?shape=${as}`;
+  const res = await window.fetch(address).catch(() => null);
   return res?.ok ? res.blob().catch(() => null) : null;
 }
 
@@ -249,21 +255,21 @@ export const fileVerbs = {
   pieceBoard,
   /** Where a video asked for stands (GET files/video/[id]): its card asks again while it is being made. */
   piece: (id: string) => api()("GET files/video/[id]", { params: { id } }),
-  postBytes,
+  fileBytes,
   postPicture,
   record: (id: string) => api()("GET files/[id]", { params: { id } }),
   /** A video asked for by its plan (POST files/video): `key` makes a second press of the same draft the same video. */
   makeVideo: (plan: PiecePlan, key: string) => api()("POST files/video", { body: { ...plan, key } }),
   play: (id: string) => api()("GET files/[id]/play", { params: { id } }),
   savePost: (plan: PostPlan) => api()("POST files/post", { body: plan }),
-  /** `when` is the time it goes up (00616): left out, or within two minutes, it goes at the press. */
+  /** Now, at the press. A time is Ask's to set (its card, contracts content/publish.ts), through the same door. */
   postToGoogle: (id: string, summary: string, when?: string) =>
     api()("POST files/[id]/google", { params: { id }, body: { summary, ...(when ? { when } : {}) } }),
   takeOffGoogle: (id: string, name: string) => api()("DELETE files/[id]/google", { params: { id }, body: { name } }),
   /** Don't post, for a post set for its time on Google (00616). */
   pullFromGoogle: (id: string, postId: string) =>
     api()("DELETE files/[id]/google", { params: { id }, body: { post_id: postId } }),
-  /** `when` is the time it goes up, by the door's own rule (00611 post_begin): left out, it goes now. */
+  /** Now, or at `when` (an instant, as the door reads one): the page's Schedule and Ask's card set it, through the same door. */
   postToInstagram: (id: string, as: InstagramPostKind, caption: string, when?: string) =>
     api()("POST files/[id]/instagram", {
       params: { id },
@@ -272,10 +278,10 @@ export const fileVerbs = {
   pullFromInstagram: (id: string, postId: string) =>
     api()("DELETE files/[id]/instagram", { params: { id }, body: { post_id: postId } }),
   change: (id: string, body: FileChange) => api()("PATCH files/[id]", { params: { id }, body }),
-  keepMany: (ids: readonly string[]) => api()("POST files/keep", { body: { ids: [...ids] } }),
+  /** Keep what was found online, or (`set_aside`) say it is not the business's: Keep and Not mine, for many at once. */
+  keepMany: (ids: readonly string[], to: "filed" | "set_aside" = "filed") =>
+    api()("POST files/keep", { body: { ids: [...ids], ...(to === "set_aside" ? { to } : {}) } }),
   remove: (id: string) => api()("DELETE files/[id]", { params: { id } }),
-  /** A moment of a video kept as a photo of the library (the content redesign's stage 3). */
-  keepStill: (id: string, at: number) => api()("POST files/[id]/still", { params: { id }, body: { at } }),
   /** Undo of a delete, for ten minutes after it (00616). */
   restore: (id: string) => api()("POST files/[id]/restore", { params: { id } }),
 };

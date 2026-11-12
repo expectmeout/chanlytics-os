@@ -152,6 +152,8 @@ export type MenuProps = {
    * sheet heads with their page): Base UI gives it a button's role, its keys and its focus.
    */
   nativeTrigger?: boolean;
+  /** Dark whatever the page's light (its wash too): a menu over a picture opened dark (Content's viewer on a phone). */
+  dark?: boolean;
   className?: string;
   ref?: Ref<HTMLDivElement>;
 };
@@ -355,16 +357,18 @@ function MenuPopup({
   head,
   className,
   ref,
+  dark,
   onClose,
 }: Omit<MenuProps, "trigger"> & { onClose: () => void }) {
   // A set of two-line options is wider on a desk, so the line under each name can be read (kit.css .more-menu-lines).
   const lines = groups.some((group) => group.choose !== undefined && saysLines(group.choose));
   return (
     <BaseMenu.Portal>
-      <BaseMenu.Backdrop className="more-backdrop" />
+      <BaseMenu.Backdrop className="more-backdrop" data-theme={dark ? "dark" : undefined} />
       <BaseMenu.Positioner className="pop-place" sideOffset={MENU_GAP_PX} align={align}>
         <BaseMenu.Popup
           ref={ref}
+          data-theme={dark ? "dark" : undefined}
           className={cx(menuClasses({ align }), lines && "more-menu-lines", head && "more-menu-titled", className)}
           aria-label={label ?? head?.title}
           {...keepTouch(touchSwipe({ onDown: onClose, when: onAPhone }))}

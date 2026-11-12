@@ -361,24 +361,35 @@ function section(answer, draftOver = {}) {
 }
 const landed = (what) => until(redrawWanted, what);
 
-test("New ad offers the kept pictures, newest first as the read answers, each its own picture and name, a post Ask made saying so", async () => {
-  const s = section(() => pageOf([fileOf("a"), fileOf("b", { source: "made", name: "spring-opening" })]));
+test("New ad offers what Ask made, then the kept pictures, each newest first as its read answers, each its own picture and name", async () => {
+  const s = section((url) =>
+    url.searchParams.get("shelf") === "made"
+      ? pageOf([fileOf("b", { source: "made", name: "spring-opening" })], { shelf: "made" })
+      : pageOf([fileOf("a")]),
+  );
   assert.ok(textOf(s.tree).includes(ads.FILE_WORDS.reading), "while it reads");
   await landed("the files");
-  assert.equal(route.asked.length, 1);
+  assert.equal(
+    route.asked.length,
+    2,
+    "two shelves: Kept is what the business brought, and what Ask made stands on its own",
+  );
   assert.equal(route.asked[0].searchParams.get("shelf"), "all", "what is kept: the Inbox's are not yet the business's");
-  assert.equal(route.asked[0].searchParams.get("limit"), "12", "a few at a time");
+  assert.equal(route.asked[1].searchParams.get("shelf"), "made");
+  for (const asked of route.asked) assert.equal(asked.searchParams.get("limit"), "12", "a few at a time");
   const tree = s.draw();
   const tiles = all(tree, (n) => n.type === "a" || n.type === "button").filter((n) =>
     n.props?.["data-testid"]?.startsWith("ads-new-file-"),
   );
   assert.equal(tiles.length, 2);
   const pics = all(tree, (n) => n.type === "img").map((n) => n.props.src);
-  assert.deepEqual(pics, ["/api/v1/files/a/view?w=240", "/api/v1/files/b/view?w=240"]);
-  const made = byTestId(tree, "ads-new-file-b");
-  assert.match(textOf(made), /Spring opening/);
-  assert.match(textOf(made), /Made by Ask/);
-  assert.doesNotMatch(textOf(byTestId(tree, "ads-new-file-a")), /Made by Ask/);
+  assert.deepEqual(pics, ["/api/v1/files/b/view?w=240", "/api/v1/files/a/view?w=240"], "what Ask made first");
+  assert.match(textOf(byTestId(tree, "ads-new-file-b")), /Spring opening/);
+  assert.ok(byTestId(byTestId(tree, "ads-new-files-made"), "ads-new-file-b"), "under Made by Ask");
+  assert.ok(
+    byTestId(byTestId(tree, "ads-new-files-library"), "ads-new-file-a"),
+    "and the business's own under the Library",
+  );
   assert.equal(
     byTestId(tree, "ads-new-files-door").props.href,
     "#/campaigns/content:library",
@@ -410,7 +421,7 @@ test("a press picks the picture for the draft and nothing else, and says what to
     [ads.FILE_WORDS.whoAsk(2), ads.FILE_WORDS.stock, "Dark on one side"],
     "whether they agreed to be shown, first: an ad reaches strangers",
   );
-  assert.equal(route.asked.length, 1, "a press reads nothing");
+  assert.equal(route.asked.length, 2, "a press reads nothing");
 });
 
 test("more comes a few at a time, from where the read stopped; with nothing kept it says so and shows the door, and one that failed offers again", async () => {
@@ -422,8 +433,9 @@ test("more comes a few at a time, from where the read stopped; with nothing kept
   await landed("the first few");
   let tree = more.draw();
   press(byTestId(tree, "ads-new-files-more"));
-  await until(() => route.asked.length === 2, "the second read");
-  assert.equal(route.asked[1].searchParams.get("before"), "2031-03-01T10:00:00Z|a");
+  await until(() => route.asked.length === 3, "the next read, of Kept alone: Made by Ask had no more");
+  assert.equal(route.asked[2].searchParams.get("shelf"), "all");
+  assert.equal(route.asked[2].searchParams.get("before"), "2031-03-01T10:00:00Z|a");
   await until(() => byTestId(more.draw(), "ads-new-file-b"), "the next few");
   tree = more.draw();
   assert.ok(byTestId(tree, "ads-new-file-a"), "and the first stay");

@@ -48,6 +48,8 @@ export const PIECE_LIMITS = {
   /** A quote's characters, and who said it. */
   quote: 140,
   quoteFrom: 28,
+  /** The words a person pastes under the video when they post it: a short paragraph. */
+  caption: 400,
   overrunS: 0.3,
 } as const;
 
@@ -102,6 +104,11 @@ export type PiecePlan = {
   language: PieceLanguage;
   /** The owner said in this thread that the people in the clips agreed: their word, kept on each file as the video is made. */
   people_agreed: boolean;
+  /**
+   * The words a person pastes under the video when they post it (the content canvas: "Words to paste"), written by Ask with
+   * it; none on a video made before Ask wrote them.
+   */
+  caption: string | null;
 };
 
 type Fields = Record<string, unknown>;
@@ -190,6 +197,7 @@ export function piecePlanOf(payload: Record<string, unknown>): PiecePlan {
     end_line: nonBlankOrNull(payload.end_line),
     language: payload.language === "es" ? "es" : "en",
     people_agreed: payload.people_agreed === true,
+    caption: nonBlankOrNull(payload.caption),
   };
 }
 

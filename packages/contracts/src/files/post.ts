@@ -127,7 +127,11 @@ export interface PostWords {
   summary: (fileName: string) => string;
   save: string;
   saved: (name: string) => string;
+  /** A post's new version, saved beside the first: what the toast says, where a line under its fields said it before. */
+  savedNew: (name: string) => string;
   saveNew: string;
+  /** A tap on the picture being changed: it opens full size, in a tab of its own (Content's Change it). */
+  full: string;
   cancel: string;
   removed: string;
   undo: string;
@@ -144,6 +148,9 @@ export interface PostWords {
   line: string;
   over: string;
   under: string;
+  /** The presses that open a line above and below, where the editor folds the empty ones away (post-edit.tsx `fold`). */
+  addOver: string;
+  addUnder: string;
   needsLine: string;
   voiceSaid: string;
   voices: Record<PostVoice, string>;
@@ -164,7 +171,9 @@ export const POST_WORDS = {
   summary: (fileName: string) => `From ${fileName}. Comes in portrait, square and story.`,
   save: "Save to Content",
   saved: (name: string) => `Saved to Content as ${name}`,
+  savedNew: (name: string) => `Saved as ${name}. The first one stays.`,
   saveNew: "Save as new",
+  full: "Open full size",
   cancel: "Cancel",
   removed: "Taken out of Content",
   undo: "Undo",
@@ -181,6 +190,8 @@ export const POST_WORDS = {
   line: "Headline",
   over: "Above it",
   under: "Below it",
+  addOver: "Line above",
+  addUnder: "Line below",
   needsLine: "Give it a headline.",
   voiceSaid: "Type",
   voices: { classic: "Classic", modern: "Modern" },
@@ -211,7 +222,9 @@ const POST_WORDS_ES: PostWords = {
   summary: (fileName) => `De ${fileName}. En vertical, cuadrado e historia.`,
   save: "Guardar en Contenido",
   saved: (name) => `Guardada en Contenido como ${name}`,
+  savedNew: (name) => `Guardada como ${name}. La primera se queda.`,
   saveNew: "Guardar como nueva",
+  full: "Abrir a tamaño completo",
   cancel: "Cancelar",
   removed: "Quitada de Contenido",
   undo: "Deshacer",
@@ -228,6 +241,8 @@ const POST_WORDS_ES: PostWords = {
   line: "Titular",
   over: "Encima",
   under: "Debajo",
+  addOver: "Línea arriba",
+  addUnder: "Línea abajo",
   needsLine: "Escribe un titular.",
   voiceSaid: "Letra",
   voices: { classic: "Clásica", modern: "Moderna" },

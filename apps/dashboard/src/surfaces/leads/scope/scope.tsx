@@ -13,7 +13,7 @@ import { Icon } from "../../kit/icon/icon";
 import { PeopleListsSheet } from "../../people/rail/lists-sheet";
 import { PL_TABLE_CLASSES } from "../../people/words";
 import { PeopleRail } from "../../people/rail/people-rail";
-import { PeopleStanding } from "../../people/rail/standing";
+import { LeadsStandingRow, PeopleStanding } from "../../people/rail/standing";
 import { DataTable } from "../../kit/table/data-table";
 import type { TableSection } from "../../kit/table/groups";
 import { LeadBand } from "../bench/band";
@@ -132,7 +132,6 @@ const phoneBarOf = (p: P) => (
     onMap={p.onMap}
     canMap={!!p.canMap}
     listLabel={p.railLabel}
-    listCount={p.railCount}
     onLists={p.onLists}
     listsOpen={p.listsOpen}
     q={p.q}
@@ -475,6 +474,10 @@ const backTodayOf = (p: P) => (!p.search && !p.firstDay && !p.surface.readFailed
 /** While a lead's sheet is open beside the rows, a row's hover card would say again what the sheet says (leads.css). */
 const sheetMarkOf = (p: P) => (p.peek || p.pileSheet ? "" : undefined);
 
+/** A phone's count on a line under the bar, as People's: the bar names the list alone. */
+const phoneStandingOf = (p: P, phone: boolean) =>
+  phone && !p.firstDay && !p.newSearch ? <LeadsStandingRow leads={p.standing} onNeeds={p.onNeedsYou} /> : null;
+
 const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections) => {
   const search = p.search;
   const table = tableOf(p, phone, sections);
@@ -489,6 +492,7 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
       <RowsLand p={p} />
       <div className="cl-main-scroll pl-main" ref={p.scrollRef} data-sheet={sheetMarkOf(p)} {...leadRowReach(p.aim)}>
         {phone || p.firstDay ? <LeadsHead act={headActOf(p, phone)} /> : deskTopOf(p)}
+        {phoneStandingOf(p, phone)}
         {p.newSearch ? (
           newSearchOf(p, phone)
         ) : (

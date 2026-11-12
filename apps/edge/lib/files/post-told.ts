@@ -42,8 +42,8 @@ export async function tellPostMoved(db: Db, post: PostRow, moved: PostMoved): Pr
         }
       : {
           kind: "post_stopped",
-          title: POST_BELL.held(place),
-          body: POST_BELL.heldBody(name, moved.why),
+          title: POST_BELL.held(name),
+          body: POST_BELL.heldBody(moved.why),
           route: postBellRouteOf(post.file_id, true),
           about,
         },

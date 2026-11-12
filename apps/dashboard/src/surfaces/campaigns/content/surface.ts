@@ -28,11 +28,13 @@ export interface ContentSurface {
  * read the document's head started (contracts route-prefetch). A new object each move, so a read that answers after a newer
  * move is known by it.
  */
-let contentOnScreen: { view?: ContentView; limit?: number } = {};
+let contentOnScreen: { view?: ContentView; limit?: number; about?: string } = {};
 
-const readAsked = ({ view, limit }: typeof contentOnScreen) =>
-  view || limit
-    ? read("GET content", { query: { ...(view ? { view } : {}), ...(limit ? { limit } : {}) } })
+const readAsked = ({ view, limit, about }: typeof contentOnScreen) =>
+  view || limit || about
+    ? read("GET content", {
+        query: { ...(view ? { view } : {}), ...(limit ? { limit } : {}), ...(about ? { about } : {}) },
+      })
     : read("GET content");
 
 /**
@@ -42,6 +44,17 @@ const readAsked = ({ view, limit }: typeof contentOnScreen) =>
 export function askContentView(view: ContentView): boolean {
   if ((contentOnScreen.view ?? "all") === view) return false;
   contentOnScreen = view === "all" ? {} : { view };
+  return true;
+}
+
+/**
+ * All of Made found by its words, as the Library is (Ruben, 12 Nov 2026: one search, both lists): the words the read asks
+ * with, or none, all of it. Answers whether that changed what is asked, for the page to read it again.
+ */
+export function askContentFind(about: string | null): boolean {
+  const words = about?.trim() || undefined;
+  if (contentOnScreen.about === words) return false;
+  contentOnScreen = words ? { about: words } : {};
   return true;
 }
 

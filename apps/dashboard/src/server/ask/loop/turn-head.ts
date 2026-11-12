@@ -235,6 +235,7 @@ function toolContextOf(input: TurnInput, now: Date, endsAt: number): ToolContext
     language: input.language,
     question: input.text,
     askedEarlier: input.history.flatMap((h) => (h.role === "user" ? [h.text] : [])),
+    ...(input.scope?.kind === "file" ? { subjectFile: input.scope.id } : {}),
     endsAt,
     ...(input.request ? { request: input.request } : {}),
     ...(input.member ? { member: input.member } : {}),

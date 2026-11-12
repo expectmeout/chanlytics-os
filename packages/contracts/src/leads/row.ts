@@ -502,21 +502,17 @@ export function leadSearchEmptyWords(
 }
 
 /**
- * "322 leads · 272 not contacted · 3 searches", the searches being the ones the rail lists under Searches (a sequence's
- * own list is not one), and "1 search needs you" when one waits.
+ * "322 leads · 272 not contacted", and "1 search needs you" when one waits. How many searches there are is the Lists sheet's
+ * to show, as every search is a row of it: said here too, "searches" stood twice in one line (Ruben, 12 Nov 2026).
  */
 export function leadsStanding(
   counts: LeadCounts,
   searches: LeadSearchDto[],
 ): { total: string; parts: string[]; needsYou: { count: number; searchId: string } | null } {
   const waiting = searches.filter((s) => s.round?.state === "waiting_on_owner");
-  const count = searchesListed(searches).length;
   return {
     total: `${counts.all} leads`,
-    parts: [
-      `${counts.ready} ${LEAD_STAGE_WORDS.ready.toLowerCase()}`,
-      `${count} ${count === 1 ? "search" : "searches"}`,
-    ],
+    parts: [`${counts.ready} ${LEAD_STAGE_WORDS.ready.toLowerCase()}`],
     needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0]?.id ?? "" } : null,
   };
 }

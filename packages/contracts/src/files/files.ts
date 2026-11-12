@@ -84,19 +84,44 @@ export const FILE_WORDS = {
   removed: "Photo deleted.",
   dontDelete: "Don't delete",
   inboxSays: (clean: number, left: number) =>
-    [
-      clean === 1 ? "1 looks like yours." : `${clean} look like yours.`,
-      ...(left === 0 ? [] : [left === 1 ? "1 is left for you to open." : `${left} are left for you to open.`]),
-    ].join(" "),
+    clean === 0
+      ? left === 1
+        ? "1 to look at."
+        : `${left} to look at.`
+      : [
+          clean === 1 ? "1 looks like yours." : `${clean} look like yours.`,
+          ...(left === 0 ? [] : [left === 1 ? "1 is left for you to open." : `${left} are left for you to open.`]),
+        ].join(" "),
   keepMany: (n: number) => `Keep ${n}`,
   kept: (n: number) => (n === 1 ? "1 photo kept." : `${n} photos kept.`),
+  /** Found online: none of what still waits is the business's, set aside together (00619), as Set aside does one. */
+  notMine: "Not mine",
+  setAsideMany: (n: number) => (n === 1 ? "1 photo set aside." : `${n} photos set aside.`),
+  /**
+   * The bell, once, as photos found for the business first wait in the Library's inbox (the content canvas, PhDoors "bell",
+   * which counts them): no count, since one written as the bell rings is wrong by the time it is read, a photo kept or set
+   * aside since.
+   */
   bell: {
-    title: "Photos are waiting for you",
-    body: "Some photos we found for your business are in Files. Keep the ones that are yours.",
+    title: "New photos are waiting",
+    body: "Keep them, or set them aside",
   },
+  /**
+   * The Library's one row (Ruben, 12 Nov 2026): what is certain of a file, its kind, never a guess at what it shows. What Ask's
+   * look saw is found by its words instead (`find`), and what waits for a yes or was set aside is a quiet line, not a tab.
+   */
+  views: { all: "All", photos: "Photos", videos: "Videos" },
+  find: "Find a photo or video",
+  findClear: "Clear",
+  foundNone: (words: string) => `Nothing matches “${words}”.`,
+  /** As short as Made's amber line ("2 posts didn't go out"): what Look opens says where they were found. */
+  waitingLine: (n: number) => (n === 1 ? "1 photo found online" : `${n} photos found online`),
+  look: "Look",
+  setAsideLine: (n: number) => `${n} set aside`,
+  backToAll: "All",
   shelves: {
     all: "Kept",
-    inbox: "Inbox",
+    inbox: "Found online",
     place: "Place",
     work: "Work",
     team: "Team",
@@ -105,6 +130,7 @@ export const FILE_WORDS = {
     made: "Made by Ask",
     other: "Other",
     set_aside: "Set aside",
+    made_aside: "Set aside",
   } satisfies Record<FileShelf, string>,
   shows: {
     storefront: "Storefront",
@@ -158,6 +184,9 @@ export const FILE_WORDS = {
   restoreGone: "It's gone now, and can't be brought back.",
   close: "Close",
   nameEmpty: "Give it a name.",
+  /** A caption changed where it stands (Content's Details): only what Ask made has one. */
+  captionNotMade: "Only a piece Ask made has a caption.",
+  captionLong: (most: number) => `A caption takes up to ${most.toLocaleString("en-US")} characters.`,
   full: "This workspace holds as many files as it can. Remove some first.",
   wrongType: "That isn't a photo we can keep. Use a JPEG, PNG, WebP or HEIC.",
   tooBig: "That photo is over 25 MB.",

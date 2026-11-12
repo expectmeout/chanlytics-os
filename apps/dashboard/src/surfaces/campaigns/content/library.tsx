@@ -9,21 +9,36 @@ import type { ContentMadeDto } from "@chanlytics/contracts";
 import type { FrameFlash } from "../../frame-verbs";
 import { LibraryInContent } from "../../files/pane";
 import { useSurface } from "../../use-surface";
+import { FileLines } from "./lines";
+import type { ContentLayout } from "./views";
 
 export default function ContentLibrary({
   flash,
   onOpen,
   onPieces,
+  onAdder,
+  layout,
 }: {
   flash: (f: FrameFlash) => void;
   onOpen: (id: string) => void;
   /** The files the library shows, as pieces with no posts: what the viewer walks from one to the next. A state's setter. */
   onPieces: (pieces: ContentMadeDto[] | null) => void;
+  /** The library's Add, for the page's head to draw coral (the content canvas: Make on Made, Add on the Library). */
+  onAdder: (add: (() => void) | null) => void;
+  /** Squares or rows, as Made shows: one choice for both lists (views.tsx useContentLayout). */
+  layout: ContentLayout;
 }) {
   const held = useSurface("files");
   const files = held ? held.dto.files : null;
   useEffect(() => {
     onPieces(files ? files.map((file) => ({ file, posts: [] })) : null);
   }, [files, onPieces]);
-  return <LibraryInContent flash={flash} onOpen={onOpen} />;
+  return (
+    <LibraryInContent
+      flash={flash}
+      onOpen={onOpen}
+      onAdder={onAdder}
+      rows={layout === "list" ? (shown, open) => <FileLines files={shown} onOpen={open} /> : null}
+    />
+  );
 }

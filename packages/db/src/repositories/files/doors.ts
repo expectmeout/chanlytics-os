@@ -135,9 +135,19 @@ export async function updateFileRow(
   });
 }
 
-/** The Inbox's one press: what waits, among these, is filed. Answers how many moved. */
-export async function keepManyFiles(db: Db, tenantId: TenantId, ids: readonly string[]) {
-  return db.rpc("file_keep_many", { p_tenant_id: tenantId, p_ids: [...ids] });
+/**
+ * The Found online list's press: what waits, among these, is filed (Keep) or set aside (Not mine, 00619). Answers how many
+ * moved. Keep asks the two-argument door, which a database before 00619 has too.
+ */
+export async function keepManyFiles(
+  db: Db,
+  tenantId: TenantId,
+  ids: readonly string[],
+  to: "filed" | "set_aside" = "filed",
+) {
+  return to === "filed"
+    ? db.rpc("file_keep_many", { p_tenant_id: tenantId, p_ids: [...ids] })
+    : db.rpc("file_keep_many", { p_tenant_id: tenantId, p_ids: [...ids], p_to: to });
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   askTraitsOf,
   holdsAlike,
   openCardOf,
+  postPublishOf,
   searchCardView,
   type AskProposal,
   type AskProposalOutcome,
@@ -18,6 +19,7 @@ import type { AskApi } from "@/bridge/ask";
 import { Button } from "../kit/button/button";
 import { LinePress } from "../kit/line/line";
 import { AskPieceCard, usePieceCard } from "./card-piece";
+import { AskPublishCard } from "./card-publish";
 import { AskPostCard, usePostCard } from "./card-post";
 import {
   mayPressCard,
@@ -68,15 +70,17 @@ const AskSearchCard = ({ lead, t, alike }: { lead: SearchCardView; t: LineWords;
     ) : null}
   </>
 );
-/** A public reply on its clock: its end posts it, and Undo clears it. */
+/** A public card on its clock (a reply on Google, a post put up): its end sends it, and Undo clears it. */
 const AskPosting = ({
   posting,
+  said,
   t,
   landRef,
   onEnd,
   onUndo,
 }: {
   posting: { from: number; until: number };
+  said: string;
   t: LineWords;
   landRef: RefObject<HTMLDivElement | null>;
   onEnd: () => void;
@@ -85,7 +89,7 @@ const AskPosting = ({
   <div className="ask-told" role="status">
     <div className="ask-card-receipt ask-landing" tabIndex={-1} ref={landRef} data-testid="ask-card-posting">
       <AskRing from={posting.from} until={posting.until} onDone={onEnd} />
-      <span className="ask-card-said">{t.posting}</span>
+      <span className="ask-card-said">{said}</span>
       <Button variant="quiet" size="sm" className="ask-card-undo" onClick={onUndo}>
         {t.undo}
       </Button>
@@ -195,6 +199,7 @@ const AskCardBody = ({
   if (lead) return <AskSearchCard lead={lead} t={t} alike={alike} />;
   if (post) return <AskPostCard p={p} card={post} t={t} onNav={onNav} />;
   if (piece) return <AskPieceCard p={p} card={piece} t={t} busy={busy} onNav={onNav} onRetry={onAgain} />;
+  if (p.kind === "publish") return <AskPublishCard p={p} />;
   return <AskCardChange p={p} t={t} idle={idle} alike={alike} more={more} />;
 };
 
@@ -260,6 +265,7 @@ export const AskCard = ({
       {posting ? (
         <AskPosting
           posting={posting}
+          said={p.kind === "publish" ? t.postingPost(postPublishOf(p.payload ?? {}).when_said) : t.posting}
           t={t}
           landRef={receiptRef}
           onEnd={() => {

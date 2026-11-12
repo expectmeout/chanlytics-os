@@ -36,6 +36,8 @@ const AT_KIND_GLYPHS: Record<string, string> = {
   mailbox: "mail",
   visit: "calendar",
   review: "star",
+  sequence: "repeat",
+  message: "content",
 };
 /** A kind's mark, for a row in an answer and for the scope the Line carries; a kind it does not know is a chat. */
 export const askKindGlyph = (kind: string): string => AT_KIND_GLYPHS[kind] || "chat";

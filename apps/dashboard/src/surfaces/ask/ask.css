@@ -240,27 +240,41 @@ body.ask-open .tb-ask .tb-ask-face {
     opacity: 1;
   }
 }
+/* What the question is about (line/draw.tsx), on a row of its own over the field: a file's picture or the kind's mark, "About",
+   and the whole name, cut only where the row ends; its clear at the end (Ruben, 12 Nov 2026: the chip was a few letters). */
 .ask-scope {
-  flex: none;
-  display: inline-flex;
+  display: flex;
+  gap: 8px;
   align-items: center;
-  gap: 5px;
-  max-width: 180px;
-  height: 26px;
-  padding: 0 4px 0 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-full);
-  font-size: var(--text-label);
+  min-width: 0;
+  padding: 2px 4px 8px 14px;
+  font-size: var(--text-sm);
   color: var(--ink-muted);
 }
-.ask-scope > span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.ask-scope-pic {
+  flex: none;
+  width: 24px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
 }
-/* Inside its chip's height: the touch floor for buttons (mobile.css, `html.frame-on button`) stood it over the chip. */
+.ask-scope-about {
+  flex: none;
+  color: var(--ink-dim);
+}
+.ask-scope-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Inside its row's height: the touch floor for buttons (mobile.css, `html.frame-on button`) stood it over the row. */
 .ask-scope .ask-scope-clear {
+  flex: none;
   min-height: 0;
+  margin-left: auto;
 }
 /* The delete question sits under the middle, over the foot. */
 .ask-line .ask-confirm {
@@ -1352,6 +1366,38 @@ body.ask-open .tb-ask .tb-ask-face {
   padding-top: 14px;
 }
 /* Your words (D2): at the right, in the Inbox's own sent bubble; the answers are open. */
+/* Ask's card to put a post up (card-publish.tsx): the post small, beside where and when, and its caption under them. */
+.ask-publish {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.ask-publish-picture {
+  display: block;
+  width: 64px;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--bg-active);
+}
+.ask-publish-words {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.ask-publish-caption {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+  white-space: pre-wrap;
+}
 /* A post's card (card-post.tsx): the real picture, its shape held while it comes. */
 .ask-post {
   display: grid;
@@ -1498,6 +1544,13 @@ body.ask-open .tb-ask .tb-ask-face {
   justify-items: start;
   gap: 6px;
   min-width: 0;
+}
+/* A ready video's two presses (the content canvas, PhDoors "ask"): Make another, and Open in the coral after it; under each
+   other where the column beside the still is too narrow for both. */
+.ask-piece-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .ask-piece-state {
   margin: 0;

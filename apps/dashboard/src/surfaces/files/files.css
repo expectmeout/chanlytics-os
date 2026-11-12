@@ -37,6 +37,57 @@
   opacity: 0;
 }
 
+/* How the Library is looked through (library-views.tsx): its kinds, then the line to find by words, one under the other. */
+.files-views {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+/* The line to find a file by its words: a capsule of the inset ground, a glass before the words, a clear at its end, its rim
+   the accent while it has the keys (as Content's line to Ask is). */
+.files-find {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 6px 0 14px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  color: var(--ink-dim);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.files-find:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--focus-field);
+}
+.files-find .files-find-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 9px 0;
+  font-size: var(--text-base);
+  color: var(--ink);
+}
+/* Over what waits or was set aside: the way back to all of it, then where it is and how many. */
+/* Found online's two presses, side by side at the line's end: Keep, and Not mine. */
+.files-inbox-acts {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.files-shelf-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.files-shelf-said {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+
 /* More shelves than a phone's width holds: the row keeps its line and slides under a thumb. */
 .files-shelves {
   display: flex;

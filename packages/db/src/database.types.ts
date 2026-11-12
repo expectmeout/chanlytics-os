@@ -8913,10 +8913,15 @@ export type Database = {
         Args: { p_base: string; p_self?: string; p_tenant_id: string }
         Returns: string
       }
-      file_keep_many: {
-        Args: { p_ids: string[]; p_tenant_id: string }
-        Returns: number
-      }
+      file_keep_many:
+        | {
+            Args: { p_ids: string[]; p_tenant_id: string }
+            Returns: number
+          }
+        | {
+            Args: { p_ids: string[]; p_tenant_id: string; p_to: string }
+            Returns: number
+          }
       file_listing_aside: { Args: { p_tenant_id: string }; Returns: number }
       file_look_keep: {
         Args: {

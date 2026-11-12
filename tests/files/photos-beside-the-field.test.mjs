@@ -442,10 +442,10 @@ test("the sheet opens in the tap's own turn, since Safari refuses one that waite
 });
 
 test("the picture for the sheet comes once a tab under a name a person can read, and is asked again after it did not come", async () => {
-  const realShape = S.fileVerbs.postBytes;
+  const realShape = S.fileVerbs.fileBytes;
   const asked = [];
   let bytes = null;
-  S.fileVerbs.postBytes = async (id, shape) => {
+  S.fileVerbs.fileBytes = async (id, shape) => {
     asked.push([id, shape]);
     return bytes;
   };
@@ -460,7 +460,7 @@ test("the picture for the sheet comes once a tab under a name a person can read,
       [FILE(3), "story"],
     ]);
   } finally {
-    S.fileVerbs.postBytes = realShape;
+    S.fileVerbs.fileBytes = realShape;
   }
 });
 
@@ -473,14 +473,14 @@ test("a shape's bytes come from its own address, and a read that failed is nothi
     return answer();
   };
   try {
-    assert.equal(await (await S.fileVerbs.postBytes(FILE(4), "square")).text(), "jpeg");
+    assert.equal(await (await S.fileVerbs.fileBytes(FILE(4), "square")).text(), "jpeg");
     assert.deepEqual(asked, [`/api/v1/files/${FILE(4)}/view?shape=square`], "the kept address, not a download's");
     answer = async () => new Response("gone", { status: 404 });
-    assert.equal(await S.fileVerbs.postBytes(FILE(4), "square"), null);
+    assert.equal(await S.fileVerbs.fileBytes(FILE(4), "square"), null);
     answer = async () => {
       throw new Error("no signal");
     };
-    assert.equal(await S.fileVerbs.postBytes(FILE(4), "square"), null);
+    assert.equal(await S.fileVerbs.fileBytes(FILE(4), "square"), null);
   } finally {
     globalThis.window.fetch = realFetch;
   }

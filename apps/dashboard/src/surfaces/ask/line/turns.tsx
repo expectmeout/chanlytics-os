@@ -5,6 +5,7 @@ import type { AskedHow, Conversation, Line, Turn } from "./types";
 import { withAnswerLanded } from "@chanlytics/contracts";
 import { allArrived, photosAsked } from "./attached";
 import { arFailed, arPhone, arRoute } from "./place";
+import { chipOfAnswer } from "./resolved";
 
 /** A phone lets go of the field as a question is asked, and its keyboard: the answer lands to be read, never dimmed (D4). */
 const arLetGo = (el: HTMLElement | null) => {
@@ -202,7 +203,7 @@ const arTurnHeard = ({ M, turnSeq, setActive, setLive }: Line, turn: Turn, ev: S
 
 /** The turn done, if still the current one: the answer on the line, the thread's title read again, and the answer's `now` place gone to. */
 const arTurnLanded = (
-  { A, M, t, turnSeq, setLive, setActive, setThreads, buzz, nav, speech, flash }: Line,
+  { A, M, t, turnSeq, setLive, setActive, setThreads, buzz, nav, speech, flash, scope, setScope }: Line,
   turn: Turn,
 ) => {
   if (turn.mine !== turnSeq.current) return;
@@ -214,6 +215,11 @@ const arTurnLanded = (
   M.mood.set("idle");
   if (final.failed) M.mood.react("shake");
   else if (!turn.spoke) M.mood.react("nod");
+  // Asked with no chip: the one thing the answer is about becomes it, so a person sees what Ask took it to mean (resolved.ts).
+  if (!scope) {
+    const worked = chipOfAnswer(final);
+    if (worked) setScope(worked);
+  }
   setActive((prev) =>
     prev
       ? { ...prev, id: turn.threadId || prev.id, messages: withAnswerLanded(prev.messages, final, Date.now()) }

@@ -1223,13 +1223,6 @@
         "calendar_runs": "calendar"
       }
     },
-    "POST files/[id]/still": {
-      "changes": "files INSERT UPDATE",
-      "tells": "files",
-      "missing": {
-        "calendar_runs": "calendar"
-      }
-    },
     "POST files/keep": {
       "changes": "files UPDATE",
       "tells": "files",

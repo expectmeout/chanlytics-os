@@ -2418,8 +2418,10 @@
    button keeps a 24px look and the thumb's 10px above and below is an invisible margin, as a chip's is (frame.css).
    A 44px box pulled in by -10px margins painted its "on" ground over the wrapped line above and below it (24 Sep). */
 @media (max-width: 900px) and (pointer: coarse) {
-  html.frame-on .pl-standing-needs { position: relative; min-height: 24px; }
-  html.frame-on .pl-standing-needs::after { content: ""; position: absolute; inset: -10px 0; }
+  /* At the line's own 18px, its reach 13px over and under: a taller look stood the line 30px, its words 3px under People's,
+     whose line has no tap (Ruben, 12 Nov 2026). */
+  html.frame-on .pl-standing-needs { position: relative; min-height: 0; }
+  html.frame-on .pl-standing-needs::after { content: ""; position: absolute; inset: -13px 0; }
 }
 
 /* People's small jobs on a phone (Add a person, the open list's rename, delete and "Save these", a selection's acts) are
@@ -2529,6 +2531,10 @@
   .pp-bar-morph { display: inline-grid; justify-items: end; }
   .pp-bar-morph > span { grid-area: 1 / 1; transition: opacity var(--duration-fast) var(--ease-out); }
   .pp-bar-morph > span:not([data-on]) { opacity: 0; }
+  /* Leads' Sort while its Filter leaves some out (leads/scope/phone-bar.tsx): a dot in the accent at the word's shoulder,
+     which takes no width, so the bar's words stand where People's do. */
+  .pp-bar-sort { position: relative; }
+  .pp-bar-sort[data-filtered]::after { content: ""; position: absolute; top: 0; right: -7px; width: 5px; height: 5px; border-radius: var(--radius-full); background: var(--accent); }
   @keyframes pp-bar-fade-in { from { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) {
     .pp-bar-title, .pp-bar-morph > span { animation: none; transition: none; }
@@ -3889,8 +3895,9 @@ a.cl-prof-vrow:focus-visible {
 @media (max-width: 900px) {
   /* .main-scroll lifts it over the phone block that loads after this sheet (padding 12px 16px 32px), which held the
      panes 16px in where the boards have them 12, and the head against the way back. */
+  /* 16 under the way back, not 28: the head stood apart from the bar it belongs under (Ruben, 12 Nov 2026: more compact). */
   .main-scroll .cl-prof-page {
-    padding: 28px 12px calc(32px + env(safe-area-inset-bottom, 0px));
+    padding: 16px 12px calc(32px + env(safe-area-inset-bottom, 0px));
     gap: 12px;
   }
   .main-scroll .cl-prof-hero {
@@ -3913,8 +3920,28 @@ a.cl-prof-vrow:focus-visible {
   }
   /* The head on a phone (canvas A, P1): the state under the name beside the 44px face, the sentence across the head. */
   .cl-prof-id {
-    grid-template-areas: "face name" "face line" "face now" "notice notice" "why why" "stale stale";
+    grid-template-areas: "face name" "face line" "face now" "notice notice" "stale stale";
     column-gap: 10px;
+  }
+  /* The state and its sentence on one line under the name ("● New · First contact Nov 11"), each piece on the same 20px
+     line and centred on it: the state's wash stood its word in a taller block, a hair under the sentence beside it. */
+  .cl-prof-id > .cl-prof-now {
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 6px;
+    line-height: 20px;
+  }
+  .cl-prof-now > span:first-child {
+    display: inline-flex;
+  }
+  .cl-prof-now-said {
+    display: inline-flex;
+    gap: 6px;
+    font-size: var(--text-base);
+    color: var(--ink-dim);
+  }
+  .cl-prof-now-said::before {
+    content: "·";
   }
   .cl-prof-id > .cl-prof-headline {
     min-height: 26px;
@@ -4567,15 +4594,16 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
      caret, the caret holding Call, Note and the rest (the phone pass, 3 Nov 2026). */
   /* A box stands 12 from the screen where words stand at 16 (the phone pass's edges, A3): the pill on the tiles' edge
      under the name's. */
+  /* The thread's pill as wide as its words, not the head's width: one act, not a bar across the page (Ruben, 12 Nov 2026). */
   .cl-prof-lead {
     display: flex;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
-    margin-inline: -4px;
   }
   .cl-prof-lead > .cl-prof-lead-act {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
+    padding-inline: 20px;
     justify-content: center;
   }
   .cl-prof-lead > .cl-prof-lead-act:not(:only-child) {

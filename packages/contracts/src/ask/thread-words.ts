@@ -149,6 +149,8 @@ export interface AskProposal {
     | "post"
     // A video made from the business's clips (decision 0122): its storyboard, and Make it.
     | "piece"
+    // A made post put up at its places, now or at a time the owner said (content/publish.ts): where, when, its caption, and Post.
+    | "publish"
     // A campaign that would reach no one: the one thing to fix first, with its door (playbooks campaignFixCard). It
     // commits nothing; its act is its door (the 30 Oct 2026 review, item 6).
     | "fix";

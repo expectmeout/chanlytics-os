@@ -7,15 +7,18 @@
 import { POST_PLACE_SAID, SECOND_MS, contentRouteOf, fileSaidOf, type PostPlace } from "@chanlytics/contracts";
 
 export const POST_BELL = {
-  up: (place: PostPlace) => `Your post went up on ${POST_PLACE_SAID[place]}`,
-  upBody: (name: string) => `${fileSaidOf(name)} went up at the time you set.`,
-  held: (place: PostPlace) => `A post for ${POST_PLACE_SAID[place]} is waiting for you`,
-  heldBody: (name: string, reason: string) => `${fileSaidOf(name)} did not go. ${reason}`,
+  // The content canvas's bell (PhDoors "bell"): "Posted to Google" over the piece's name; a held one is the piece's name over
+  // "Didn't post · <why>", and its door says Try again (today/notifications/feed.ts). A piece that could not be read is
+  // named without its name (post-told.ts): a post up then says only where, and a held one is "Your post", never a blank row.
+  up: (place: PostPlace) => `Posted to ${POST_PLACE_SAID[place]}`,
+  upBody: (name: string) => fileSaidOf(name),
+  held: (name: string) => fileSaidOf(name) || "Your post",
+  heldBody: (reason: string) => (reason ? `Didn't post · ${reason}` : "Didn't post"),
 } as const;
 
 /** Where a post's row opens: the piece, in Made, or in Made's Needs you while it waits for the owner. */
 export const postBellRouteOf = (fileId: string, held: boolean): string =>
-  contentRouteOf({ list: "made", view: held ? "needs" : "all", open: fileId });
+  contentRouteOf({ list: "made", view: held ? "needs" : "all", open: fileId, post: held });
 
 /** Longer than this between its press and its time, a post waited for its time, and its going up is news. */
 const WAITED_MS = 2 * 60 * SECOND_MS;

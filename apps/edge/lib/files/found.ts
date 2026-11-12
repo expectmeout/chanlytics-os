@@ -5,6 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHash, randomUUID } from "node:crypto";
 import {
+  CONTENT_LIBRARY_ROUTE,
   FILE_CACHE_S,
   FILE_LOOK_EDITION,
   FILE_NAME_WORDS,
@@ -198,7 +199,12 @@ export async function fetchFiles(db: Db, job: ClaimedJob, deadline: number): Pro
   if (kept > 0 && !rang) {
     await recordNotification(
       job.tenant_id,
-      { kind: "files_waiting", title: FILE_WORDS.bell.title, body: FILE_WORDS.bell.body, route: "admin/files" },
+      {
+        kind: "files_waiting",
+        title: FILE_WORDS.bell.title,
+        body: FILE_WORDS.bell.body,
+        route: CONTENT_LIBRARY_ROUTE,
+      },
       db,
     );
   }

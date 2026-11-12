@@ -3055,22 +3055,27 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
     align-self: center;
     justify-content: flex-end;
   }
-  /* Where Campaigns' strip holds four views (Ads drawn after Content), a phone cannot hold them and the coral act on one
-     line: the strip scrolled under a thumb and "Ads" stood cut at its edge (Ruben, 11 Nov 2026). The act goes up to the
-     name's row, at its right as on a page with no strip, the name's row 13px lower so it clears the bell, and the strip
-     has its row to itself. */
-  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) {
-    padding-top: 13px;
+  /* Where Campaigns' strip holds four views (Ads drawn after Content), "+ New" beside them would not fit a phone: the strip
+     scrolled and "Ads" stood cut at its edge (Ruben, 11 Nov 2026), and the act stood on the name's row instead. Inline
+     with the views it is the coral circle, its mark alone, the strip's picked view's height and 44 to a finger by a margin
+     no one sees, so the four views and the act share one row whole on a phone 360 wide, and the name has its row to itself
+     (Ruben, 12 Nov 2026: "+ New or just +"). Its words stay for a screen reader; a desk says them. */
+  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot > span > :first-child:has(> .pg-act-fit) {
+    width: var(--control-h-sm);
+    padding: 0;
+    justify-content: center;
+    border: 0;
+    border-radius: var(--radius-circle);
   }
-  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-head-slot {
-    grid-column: 1;
-    align-self: center;
+  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot > span > :first-child > .pg-act-fit,
+  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot > span > :first-child > .pg-act-fit > .pg-act-keep {
+    gap: 0;
   }
-  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot {
-    grid-row: 1;
+  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot > span > :first-child > .pg-act-fit > .pg-act-keep {
+    font-size: 0;
   }
-  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > nav {
-    grid-column: 1 / -1;
+  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot > span > :first-child:has(> .pg-act-fit)::after {
+    inset: -8px;
   }
   /* A coral act beside the strip is as tall as the view picked in it and on its line, with the strip's 4px over and under
      it: at the strip's 36 the coral read bigger than the tabs beside it (Ruben, 6 Nov 2026). It is 44 to a finger by a
