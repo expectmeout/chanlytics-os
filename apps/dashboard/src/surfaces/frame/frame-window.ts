@@ -11,7 +11,6 @@ import type { BellApi } from "@/bridge/notifications";
 import type { LiveSurface } from "../live/surface";
 import type { SwipeOptions } from "../kit/motion/swipe";
 import type { IX_STORE } from "../inbox/store";
-import type { SurfaceValues } from "../surface-values";
 import { Icon } from "../kit/icon/icon";
 import { MoreMenu } from "../kit/more-menu/more-menu";
 import { RecordSwitch } from "../kit/record/field";
@@ -33,8 +32,6 @@ declare global {
     LD_STORE?: { arrive?: () => void };
     /** The session's decisions on seeded threads (surfaces/inbox/store.ts), published by seed-globals.ts. */
     IX_STORE?: typeof IX_STORE;
-    /** The workspace's billing, the surface's mirror (surfaces/settings/billing/surface.ts), for the paused line. */
-    __BILLING_ACCOUNT?: SurfaceValues["billing"];
     /** The demo's seeded leads (the mockup's; nothing in the app fills it). */
     LEADS?: ReadonlyArray<{ stage?: string }>;
     /** Calls going on and the last few, with the heartbeat rule (surfaces/live/surface.ts), for the Live tab's pulse. */

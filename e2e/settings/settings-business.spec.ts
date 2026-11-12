@@ -430,13 +430,39 @@ async function expectFingerSized(page: Page, selector: string, where: string): P
   expect(small, `${where}: a control shorter than a finger`).toEqual([]);
 }
 
+/** The pages whose settings read answers what the stand-in took (standInSave), each routed once. */
+const answeredAsSaved = new WeakSet<Page>();
+
 /**
  * The settings door, stood in for on the page, so a Save a test presses never reaches the workspace this spec shares
  * (its rule, above): it takes what the page sends, answers as the bridge does when the server takes it (onSaved, then
  * the read again, which is what the page draws its rows from), and keeps what it was sent. Tagged, so a test can say
  * the door is still this one at the moment it saves. Answers the config the page read, for the comparison.
+ *
+ * The read again is the app's own (the settings surface, read once more), and its answer is the server's with the config
+ * and version the stand-in took laid over it, here in the browser's traffic: the page draws its rows from that surface
+ * alone, which nothing on the window can write (the record was a global, `__SETTINGS`, until 12 Nov 2026, and this wrote
+ * the taken config there). Nothing of it reaches the workspace: the PUT is never made, and the GET is only read.
  */
 async function standInSave(page: Page): Promise<any> {
+  if (!answeredAsSaved.has(page)) {
+    answeredAsSaved.add(page);
+    await page.route(
+      (url) => url.pathname === "/api/v1/settings",
+      async (route) => {
+        const took = await page.evaluate(
+          () => (window as unknown as { __e2eTook?: { config: unknown; version: number }[] }).__e2eTook?.at(-1) ?? null,
+        );
+        if (route.request().method() !== "GET" || !took) return route.fallback();
+        const response = await route.fetch();
+        const body = (await response.json()) as { data: Record<string, unknown> };
+        await route.fulfill({
+          response,
+          json: { ...body, data: { ...body.data, config: took.config, version: took.version + 1 } },
+        });
+      },
+    );
+  }
   await page.evaluate(() => {
     const w = window as unknown as Record<string, any>;
     w.__e2eTook = [];
@@ -444,15 +470,12 @@ async function standInSave(page: Page): Promise<any> {
       const saved = { config: JSON.parse(JSON.stringify(config)), version: version + 1 };
       w.__e2eTook.push({ config: saved.config, version });
       onSaved(saved);
-      w.__SETTINGS = { ...w.__SETTINGS, config: saved.config, version: saved.version };
-      window.dispatchEvent(new CustomEvent("surface:settings"));
-      return Promise.resolve({ ok: true });
+      // The read again, as the bridge's save makes it: the page settles when it has landed.
+      return Promise.resolve(w.__refreshSurface?.("settings")).then(() => ({ ok: true }));
     };
     w.__saveSettings.__e2e = true;
   });
-  return page.evaluate(() =>
-    JSON.parse(JSON.stringify((window as unknown as { __SETTINGS: { config: unknown } }).__SETTINGS.config)),
-  );
+  return ((await readConfig(page)) as { config: unknown }).config;
 }
 /**
  * The door the page will call is still the stand-in: a bridge that installed its verbs again since would send a real
@@ -818,8 +841,10 @@ test.describe("Settings › Business on a real workspace", () => {
     await expect(page.locator('[role="dialog"]')).toHaveCount(0);
     await expect(actOf(page, "tone")).toBeFocused();
 
-    // A redraw meanwhile opens nothing: the settings surface being read once more, which the page listens for.
-    await page.evaluate(() => window.dispatchEvent(new CustomEvent("surface:settings")));
+    // A redraw meanwhile opens nothing: the settings surface being read once more, which the page draws from.
+    await page.evaluate(() =>
+      (window as unknown as { __refreshSurface: (key: string) => Promise<void> }).__refreshSurface("settings"),
+    );
     await expect(openFolds(page)).toHaveCount(0);
     await expectRecordUnchanged(page, before);
   });

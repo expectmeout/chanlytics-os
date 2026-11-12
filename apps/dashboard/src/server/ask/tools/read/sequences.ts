@@ -43,24 +43,36 @@ const HISTORY_CAP = 5;
 /** How many of who waits on the owner, and of who is in a sequence, one read names: the counts say them all. */
 const PEOPLE_CAP = 25;
 
-/** A sequence as its list row says it (contracts words/row-line.ts): the same line, and the same sentence of what needs you. */
+/**
+ * A sequence as its list row says it (contracts words/row-line.ts): the same group, the same line, and what needs you in
+ * every one the list files under Needs you (decision 0128, stage 2). Where people or emails wait, the sentence of them
+ * and how many (`needs_count`: what an OK or an answer clears); where it is a one-off that failed, or a sequence that
+ * should be going and isn't, the row's own line, since that line is what needs them.
+ */
 function sequenceLine(row: SequenceRowDto, word: AppointmentWord, tz: string, nowMs: number) {
   const needs = needsCount(row.needs);
+  const group = sequenceGroupOf(row);
+  const line = sequenceRowLine(row, { tz, nowMs, word, twin: null });
+  const needsYou = needs > 0 ? needsWords(row, { tz, nowMs }) : group === "needs" ? line : null;
   return {
     sequence_id: row.id,
     name: row.name,
-    group: sequenceGroupOf(row),
+    group,
     starts: sequenceStartWords(row, word),
     state: sequenceStateWords(row),
-    line: sequenceRowLine(row, { tz, nowMs, word, twin: null }),
+    line,
     steps: row.steps,
     channels: sequenceChannelsWords(row.channels),
     in_it: row.in_it,
-    ...(needs > 0 ? { needs_you: needsWords(row, { tz, nowMs }), needs_count: needs } : {}),
+    ...(needsYou ? { needs_you: needsYou } : {}),
+    ...(needs > 0 ? { needs_count: needs } : {}),
   };
 }
 
-/** Every sequence of the workspace, newest first, with what needs you in each (GET sequences' own read). */
+/**
+ * Every sequence of the workspace, newest first, with what needs you in each (GET sequences' own read). The number on
+ * top is the page's: the sequences its list files under Needs you, which its header counts.
+ */
 export async function readSequences(toolContext: ToolContext): Promise<unknown> {
   const read = await load(toolContext.rc, sequences, undefined);
   noteRows(toolContext.read, read.rows);
@@ -68,7 +80,7 @@ export async function readSequences(toolContext: ToolContext): Promise<unknown> 
   const rows = read.data.sequences.map((r) => sequenceLine(r, read.data.word, toolContext.timezone, nowMs));
   return {
     route: SEQUENCES_ROUTE,
-    needs_you: rows.reduce((n, r) => n + (r.needs_count ?? 0), 0),
+    needs_you: rows.filter((r) => r.group === "needs").length,
     sequences: rows,
   };
 }

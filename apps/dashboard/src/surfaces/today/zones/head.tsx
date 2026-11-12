@@ -23,7 +23,7 @@ import {
   type TodayHeadLineVM,
   type TodaySinceVM,
 } from "@chanlytics/contracts";
-import type { CalendarSurface } from "@/surfaces/calendar/surface";
+import { surfaceValue } from "../../surface-values";
 import { Button } from "../../kit/button/button";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
@@ -38,7 +38,7 @@ import { useNeedYouLine } from "../need-you-model";
 import { useRests } from "../need-you/rests";
 import { reviewsToAnswer } from "../need-you/reviews";
 import { useTodayOnPhone } from "../phone";
-import { bell, borrowed, useMoved, workspaceClock } from "../shell";
+import { bell, useMoved, workspaceClock } from "../shell";
 import { useDayVm } from "./day-vm";
 import { TodayHeadFigures } from "./figures";
 import { listenButton, useBriefWords, useSpeech } from "./listen";
@@ -165,7 +165,7 @@ function useSince(): TodaySinceVM | null {
 /** Whether the day has turned to tomorrow, as the day's zone says it (contracts todayZoneDay): the head says how today went. */
 function useDayTurned(): boolean {
   const day = useDayVm();
-  const cal = borrowed<CalendarSurface>("__CALENDAR");
+  const cal = surfaceValue("calendar");
   return todayZoneDay((cal?.vm as CalendarLike | undefined) ?? null, day, [], Date.now())?.tomorrow ?? false;
 }
 

@@ -158,6 +158,12 @@ export interface SetupDto {
 
 /** The workspace's setup choices as the wire carries them: the shapes contracts reads (setupPhoneWantOf, setupChoicesOf). */
 export interface SetupWorkspaceChoicesDto {
+  /**
+   * The number chosen and how calls reach it (setupPhoneWantOf), as the database keeps it (jsonb), as any build wrote
+   * it, which each reader takes apart as it reads it: the surface cache's fingerprint leaves it out
+   * (tooling/scripts/gen/surface-shapes.mjs).
+   * @stored
+   */
   phone: unknown;
   whatsapp: string | null;
   marks: string[];

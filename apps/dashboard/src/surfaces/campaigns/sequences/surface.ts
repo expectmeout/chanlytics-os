@@ -11,12 +11,10 @@ import type { SequencesPageDto } from "@chanlytics/contracts";
 import { read } from "@/bridge/api";
 import { declareReads } from "@/bridge/surface-registry";
 import type { SurfaceOverride } from "@/bridge/surface-data";
-import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
+import { setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
 import { searchesBeforeNew } from "../reach-out/sources";
 
 export type SequencesSurface = SequencesPageDto | null;
-
-declareSurfaceValue("sequences", "__SEQUENCES");
 
 export const sequencesOverride: SurfaceOverride = {
   key: "sequences",
@@ -25,8 +23,9 @@ export const sequencesOverride: SurfaceOverride = {
   onDemand: true,
   // What the list counts and names: a sequence and its steps, its batches, a lead's reply, a customer's reply after a batch
   // (the messages), the rule that says who approves, the workspace's word and clock, and the list or the search it starts
-  // on, who is on a sequence to leads' list and an email of its still to write (00459's overview). Heard on its page, a
-  // batch and a sequence wherever the tab is: the Needs you a page says follows them.
+  // on, who is on a sequence to leads' list and an email of its still to write (00459's overview), and a lead's own row,
+  // whose email that could not be checked the list says (decision 0128, stage 2): the check that lands takes the line
+  // away. Heard on its page, a batch and a sequence wherever the tab is: the Needs you a page says follows them.
   ...declareReads("sequences", {
     reads: ["campaign", "send", "reach_out", "conversation", "rules", "facts", "workspace", "list", "lead", "template"],
     fresh: "its-page",
@@ -41,8 +40,8 @@ export const sequencesOverride: SurfaceOverride = {
         why: "who is on a list is the batch's to pick when it runs; the list names the list",
       },
       {
-        tables: ["leads", "lead_rounds"],
-        why: "a sequence to leads is named by its list; who is on it is the list's members, which it hears",
+        tables: ["lead_rounds"],
+        why: "a search's round finds leads; the list reads who is on a sequence's list and each one's own row, which it hears",
       },
     ],
   }),

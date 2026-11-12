@@ -1173,14 +1173,15 @@ test("the view a cold boot reads: the one the address names, in the order this t
   );
 });
 
-test("the surface publishes no act on the window: the page imports them, and only Ask still reads __LEADS", async () => {
+test("the surface publishes nothing on the window: the page imports its acts, and Ask reads its value from the seam", async () => {
   wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS });
   await leadsOverride.apply();
   const named = Object.keys(globalThis.window)
     .filter((k) => k.startsWith("__lead") || k.startsWith("__LEAD"))
     .sort();
-  assert.deepEqual(named, ["__LEADS"], "the one name is the mirror of the seam's value (surface-values.ts)");
-  assert.equal(globalThis.window.__LEADS, L(), "the mirror says what the seam holds");
+  // Its mirror, `__LEADS`, went on 12 Nov 2026, when Ask's palette, its last reader, moved to the seam.
+  assert.deepEqual(named, [], "no name of its own on the window");
+  assert.ok(L(), "the value is on the seam");
 });
 
 test("the surface names its value, the tables a run writes, and its own event", () => {

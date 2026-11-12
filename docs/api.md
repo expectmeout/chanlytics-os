@@ -3172,11 +3172,12 @@ Writes; for a member of the workspace the request names, operator or above; coun
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `words` | string | yes | at least 8 characters; at most 500 characters |
+| `words` | string | yes | at least 1 characters; at most 500 characters |
 | `kind` | one of `"sequence"`, `"once"` | no |  |
 | `audience` | one of `"people"`, `"leads"` | no |  |
 | `who` | object or object or object or object or object | no |  |
 | `previous` | object | no |  |
+| `stands` | object | no |  |
 
 ### `POST /api/v1/sequences/new`
 

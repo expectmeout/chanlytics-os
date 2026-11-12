@@ -76,8 +76,12 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { composePromptPreview } = await import(at("apps/dashboard/src/server/receptionist/prompt-preview.ts"));
 
 globalThis.window = {};
-const W = globalThis.window;
 const { BUSINESS_TAB, FOLD_BLOCK } = await import(at("apps/dashboard/src/bridge/business-tab.ts"));
+const { setSurfaceValue, surfaceValue } = await import(at("apps/dashboard/src/surfaces/surface-values.ts"));
+/** The record the settings read holds now (the seam's `settings`; a window global, `__SETTINGS`, until 12 Nov 2026). */
+const settingsHeld = () => surfaceValue("settings")?.settings ?? undefined;
+/** The settings read landing a record, the rest of that read as it stands (undefined: the read not landed yet). */
+const landSettings = (record) => setSurfaceValue("settings", { ...(surfaceValue("settings") ?? {}), settings: record });
 const { composedPrompt, installInboxVerbs } = await import(at("apps/dashboard/src/bridge/inbox-verbs.ts"));
 installInboxVerbs();
 const tab = BUSINESS_TAB;
@@ -134,11 +138,11 @@ const KNOWN = {
 const POLICY = { booking: { mode: "ask" }, faq: { mode: "auto" } };
 const FACTS = { tz: TZ, policy: POLICY, known: KNOWN, openings: null };
 
-/** The settings read's preview of a brain: what `__SETTINGS.prompt` carries. */
+/** The settings read's preview of a brain: what the record's `prompt` carries. */
 const preview = (brain) => composePromptPreview(brain, FACTS, new Date());
 /** The page's window after the settings read of a stored record. */
 const settle = (stored = STORED) => {
-  W.__SETTINGS = { config: { brain: stored }, prompt: preview(stored) };
+  landSettings({ config: { brain: stored }, prompt: preview(stored) });
 };
 /** The block the server's preview of a brain cuts for a row: what the edge would send, were that brain saved. */
 // With the length of the whole prompt it was cut from, which a block's share of everything the receptionist reads is over.
@@ -391,30 +395,30 @@ test("the live card reads the server's composition word for word, and nothing wi
   for (const channel of CHANNELS) {
     assert.deepEqual(
       composedPrompt(channel),
-      { text: W.__SETTINGS.prompt[channel], now: W.__SETTINGS.prompt.now, tz: TZ },
+      { text: settingsHeld().prompt[channel], now: settingsHeld().prompt.now, tz: TZ },
       channel,
     );
   }
-  W.__SETTINGS = { config: { brain: STORED }, prompt: null };
+  landSettings({ config: { brain: STORED }, prompt: null });
   assert.equal(composedPrompt("whatsapp"), null, "no receptionist to compose for");
 });
 
 test("for the record as stored, every fold shows the block the server's preview cuts for it, on both channels", () => {
   settle();
   assert.deepEqual(
-    W.__SETTINGS.prompt.inputs,
+    settingsHeld().prompt.inputs,
     { policy: POLICY, known: KNOWN },
     "the preview carries what it was resolved with",
   );
   for (const channel of CHANNELS) {
-    const cut = promptBlocks(W.__SETTINGS.prompt[channel], channel, STORED);
+    const cut = promptBlocks(settingsHeld().prompt[channel], channel, STORED);
     for (const [section, row] of Object.entries(FOLD_BLOCK)) {
       const block = tab.consequenceOf(section, STORED, channel);
       const want = row ? (cut.find((b) => b.row === row) ?? null) : null;
       // With the whole prompt's length, which the stored record gives it on this channel.
       assert.deepEqual(
         block,
-        want ? { ...want, total: W.__SETTINGS.prompt[channel].length } : null,
+        want ? { ...want, total: settingsHeld().prompt[channel].length } : null,
         `${section} on ${channel}`,
       );
       if (row) assert.ok(block, `${section} on ${channel}: this record writes a ${row} block`);
@@ -669,13 +673,13 @@ test("no block where nothing true can be shown", () => {
   assert.equal(tab.consequenceOf("notes", profile(STORED, { notes: [] }), "whatsapp"), null);
   assert.equal(tab.consequenceOf("services", profile(STORED, { services: [] }), "whatsapp"), null);
   // No preview is no inputs: a prompt resolved without its rules is a wrong prompt, not a partial one.
-  W.__SETTINGS = { config: { brain: STORED }, prompt: null };
+  landSettings({ config: { brain: STORED }, prompt: null });
   assert.equal(tab.consequenceOf("tone", STORED, "whatsapp"), null);
-  delete W.__SETTINGS;
+  landSettings(undefined);
   assert.equal(tab.consequenceOf("tone", STORED, "whatsapp"), null);
   // A preview an older server composed carries none: one still answering mid-deploy, or a dev session's cache.
   const { inputs: _inputs, ...older } = preview(STORED);
-  W.__SETTINGS = { config: { brain: STORED }, prompt: older };
+  landSettings({ config: { brain: STORED }, prompt: older });
   assert.equal(tab.consequenceOf("tone", STORED, "whatsapp"), null, "nothing, and never a throw");
 });
 

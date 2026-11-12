@@ -16,6 +16,7 @@ import {
   redrawTab,
   saveFoldOf,
   saving,
+  settingsHeld,
   went,
 } from "../../_business-tab-harness.mjs";
 import {
@@ -400,7 +401,7 @@ test("Add a claim opens the list with a box to type in, and Change opens it as i
 test("saving the offer sends that one key of reach_out, and nothing else of the config moves", () => {
   const sent = saving();
   let tree = page();
-  const before = structuredClone(globalThis.window.__SETTINGS.config);
+  const before = structuredClone(settingsHeld().config);
   openFold(tree, "offer");
   tree = redrawTab();
   assert.deepEqual(openFolds(tree), ["offer"]);

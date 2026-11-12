@@ -189,10 +189,10 @@ test("the Autonomy pane draws a dot exactly where the rule offers the mode, and 
   const writes = [];
   const win = {
     POLICY: undefined,
-    __POLICIES: { rows: [], role: "owner" },
     __setPolicy: async (cls, mode) => writes.push([cls, mode]),
   };
-  installPolicyStore(win);
+  // The rows the settings read holds: read, and none set yet.
+  installPolicyStore(win, () => ({ rows: [], role: "owner" }));
   for (const r of UI_ROWS) for (const m of Object.values(LABEL)) win.POLICY.set(r.id, m);
   const expected = UI_ROWS.filter((r) => !r.locked).flatMap((r) =>
     POLICY_MODES.filter((m) => policyModeOffered(r.cls, m)).map((m) => [r.cls, m]),

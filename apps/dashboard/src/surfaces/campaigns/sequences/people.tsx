@@ -14,8 +14,10 @@ import {
   SEQUENCE_NEEDS_WORDS as N,
   SEQUENCE_PEOPLE_WORDS as P,
   addressOf,
+  leadsToCheckAgain,
   peopleNeedsOf,
   personWhenWords,
+  placeNotPlannedOf,
   leadsPlannedWords,
   sequenceLeftWords,
   sequencePersonWhyOf,
@@ -39,7 +41,7 @@ import { leadOverDoor, useLeadOver } from "../../leads/sheet/lead-over";
 import { tripNow } from "./trip";
 import { SequenceNeeds } from "./needs";
 import { usePeopleRead } from "./use-record";
-import { pressed } from "./verbs";
+import { checkAddressesAgain, pressed } from "./verbs";
 import { RewriteAsk } from "../reach-out/rewrite-ask";
 
 type Flash = (flash: FrameFlash) => void;
@@ -82,8 +84,8 @@ const litInView = (el: HTMLElement | null) => {
 function personLineOf(p: SequencePersonDto, tz: string, nowMs: number): string {
   // Never a time already gone: going out, once you approve, or nothing for one held (personWhenWords).
   const at = p.at ? personWhenWords(p.group, Date.parse(p.at), tz, nowMs) : null;
-  // Added and not planned yet: when they joined its list.
-  if (p.group === "queued") return at ? P.addedAt(at) : P.added;
+  // Added and not planned yet: when they joined its list, and why no batch takes them where one cannot (decision 0131).
+  if (p.group === "queued") return [at ? P.addedAt(at) : P.added, placeNotPlannedOf(p.why)].filter(Boolean).join(" · ");
   const place = p.place ? P.step(p.place) : null;
   // A held email says why in words, as its row in Needs you and Ask's read do (sequencePersonWhyOf).
   const why = p.group === "left" || p.group === "done" ? sequenceLeftWords(p.why) : sequencePersonWhyOf(p);
@@ -135,15 +137,33 @@ interface GroupProps {
   rec: SequenceRecordDto;
   busy: string | null;
   takeOut: (key: string, ids: string[]) => Promise<void>;
+  checkAgain: (ids: string[]) => Promise<void>;
   lit: string | null;
 }
 
-/** A group's rows, each a door, with Take out on those still in it, and the group's own Take out over all of them. */
-function GroupRows({ g, rows, whole, rec, busy, takeOut, lit }: GroupProps) {
+/**
+ * A group's rows, each a door, with Take out on those still in it, the group's own Take out over all of them, and
+ * Check again over those added whose address could not be checked (decision 0131).
+ */
+function GroupRows({ g, rows, whole, rec, busy, takeOut, checkAgain, lit }: GroupProps) {
   const nowMs = Date.now();
   const leaving = rows.filter(mayLeave).map(leaveOf);
+  const toCheck = leadsToCheckAgain(rows);
   return (
     <div className="sq-group-rows">
+      {toCheck.length > 0 ? (
+        <Button
+          size="sm"
+          variant="quiet"
+          className="sq-group-act"
+          disabled={busy !== null}
+          onClick={() => void checkAgain(toCheck)}
+          data-testid="sq-check-again"
+          {...gate("find", "check an address again")}
+        >
+          {P.checkAgainAll(toCheck.length)}
+        </Button>
+      ) : null}
       {leaving.length > 1 ? (
         <Button
           size="sm"
@@ -331,6 +351,11 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
     await pressed("sequence_leave", { sequence_id: rec.sequence.id, enrollment_ids, lead_ids }, flash, moved);
     setBusy(null);
   };
+  const checkAgain = async (ids: string[]) => {
+    setBusy("check");
+    await checkAddressesAgain(ids, flash, moved);
+    setBusy(null);
+  };
   const of = (g: SequencePeopleGroup) => rows.filter((r) => r.group === g);
   const needs = (counts.held ?? 0) + (counts.to_send ?? 0);
   const waiting = of("waiting");
@@ -407,6 +432,7 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
               rec={rec}
               busy={busy}
               takeOut={takeOut}
+              checkAgain={checkAgain}
               lit={lit}
             />
           ) : null}
@@ -430,7 +456,16 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
             remember
             testid={`sq-people-${g}`}
           >
-            <GroupRows g={g} rows={of(g)} whole={counts[g] ?? 0} rec={rec} busy={busy} takeOut={takeOut} lit={lit} />
+            <GroupRows
+              g={g}
+              rows={of(g)}
+              whole={counts[g] ?? 0}
+              rec={rec}
+              busy={busy}
+              takeOut={takeOut}
+              checkAgain={checkAgain}
+              lit={lit}
+            />
           </RecordDisclosure>
         ))}
       </div>

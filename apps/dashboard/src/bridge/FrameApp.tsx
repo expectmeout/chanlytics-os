@@ -47,6 +47,7 @@ import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
 import { inboxOverride } from "@/surfaces/inbox/surface";
 import { todayOverride } from "@/surfaces/today/override";
 import { settingsOverride } from "./surfaces/settings";
+import { policiesNow } from "@/surfaces/settings/business/shell";
 import { channelsOverride } from "@/surfaces/channels/surface";
 import { peopleOverride } from "@/surfaces/people/surface";
 import { reportsOverride } from "@/surfaces/reports/surface";
@@ -156,7 +157,7 @@ installLeadMap(publicEnv.NEXT_PUBLIC_LEAD_MAP_BASE);
 // After the manifest (which seeds window.POLICY) and before React: the
 // approval chips and the matrix read the workspace's real modes from the
 // first paint, including from the cache.
-installPolicyStore();
+installPolicyStore(window, policiesNow);
 // The bell: fed by the rows the surfaces already hold, read state on this
 // device, and a system alert when something new needs the owner while the
 // app is in the background. Listens for the surface events, so it must be

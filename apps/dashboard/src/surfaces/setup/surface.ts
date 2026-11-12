@@ -6,8 +6,8 @@
  * the refresh map re-reads this surface.
  *
  * The value is the seam's (`useSurface("setup")`): undefined until read, null when the read failed, so a page shows a
- * retry rather than "Reading…" for ever. The surface as the frame registers it (what it reads and hears, its mirror
- * `__SETUP`) and the first run's landing rule are override.ts's; this module, the read and the verbs, is fetched as the
+ * retry rather than "Reading…" for ever. The surface as the frame registers it (what it reads and hears) and the first
+ * run's landing rule are override.ts's; this module, the read and the verbs, is fetched as the
  * surface is first read, or imported by the pages that press its verbs (the loadability review, 19 Oct 2026).
  */
 import {

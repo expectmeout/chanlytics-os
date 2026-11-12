@@ -7,7 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
-import { DbFailure, type TenantId, type ContactId } from "@chanlytics/contracts";
+import { DbFailure, recordOrEmpty, type TenantId, type ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type Args<F extends keyof Database["public"]["Functions"]> = Database["public"]["Functions"][F]["Args"];
@@ -118,6 +118,21 @@ export const applyLeadBulk = async (db: Db, args: Args<"lead_bulk">) => db.rpc("
 
 /** Leads asked to be checked again (lead_check_again). */
 export const askLeadsChecked = async (db: Db, args: Args<"lead_check_again">) => db.rpc("lead_check_again", args);
+
+/**
+ * The leads clock's second try at the addresses that did not answer (lead_check_retry, 00618, decision 0131): each one a
+ * day after its last check, at most twice, inside each workspace's searching budget and only while its searching is
+ * on. Up to `limit` leads a call; how many were asked, and how many waited for room. Service role only.
+ */
+export async function retryLeadChecks(db: Db, limit: number): Promise<{ asked: number; held: number }> {
+  const { data, error } = await db.rpc("lead_check_retry", { p_limit: limit });
+  if (error) throw new DbFailure(error, "cannot ask the addresses that did not answer again");
+  const answer = recordOrEmpty(data);
+  return {
+    asked: typeof answer.asked === "number" ? answer.asked : 0,
+    held: typeof answer.held === "number" ? answer.held : 0,
+  };
+}
 
 /** A lead erased (lead_erase). */
 export const eraseLeadRow = async (db: Db, leadId: string) => db.rpc("lead_erase", { p_lead_id: leadId });

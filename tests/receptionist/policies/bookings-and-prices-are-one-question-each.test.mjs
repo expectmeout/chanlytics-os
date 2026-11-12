@@ -21,7 +21,7 @@ import {
   takesBookingRequests,
 } from "@chanlytics/contracts";
 import { unmount, all, byTestId, textOf, press } from "../../_stub-react.mjs";
-import { POLICIES, W, drawTab, redrawTab, saving } from "../../_business-tab-harness.mjs";
+import { drawTab, POLICIES, redrawTab, saving, settingsHeld, W } from "../../_business-tab-harness.mjs";
 
 after(() => unmount());
 
@@ -180,7 +180,7 @@ test("a refused write stops the choice there: nothing after it is sent, and the 
   assert.equal(valueOf(redrawTab(flash), "booking_choice"), BOOKING_CHOICE_WORDS.options.confirm.label);
   await pick("booking_choice", BOOKING_CHOICE_WORDS.options.link.label, flash);
   assert.deepEqual(asked, [["booking", "auto"]]);
-  assert.equal(W.__SETTINGS.config.features.booking_requests, true, "the switch is not touched after a refusal");
+  assert.equal(settingsHeld().config.features.booking_requests, true, "the switch is not touched after a refusal");
   assert.deepEqual(
     flashes.map((f) => [f.tone, f.msg]),
     [["danger", "Your role can't change autonomy."]],

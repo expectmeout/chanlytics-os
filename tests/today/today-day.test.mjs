@@ -305,23 +305,23 @@ test("the day says the workspace's word from Today's own read: with the playbook
     draw(Probe);
     return said;
   };
-  globalThis.__CALENDAR = {
+  setSurfaceValue("calendar", {
     vm: cal([day("2026-09-06", { today: true, blocks: [block("b1", 10, "10 – 11 AM", "Lesson")] })]),
-  };
+  });
   try {
     // A workspace that calls them lessons, with no playbooks read: the day was "appointment", Campaigns' default.
     assert.deepEqual(at({ word: "lesson" }), { day: "lesson", word: "lesson" });
     // The playbooks read, saying the same workspace's word: one word.
-    globalThis.__PLAYBOOKS = { rows: [], shape: { calendar: "feed", hasDeals: false, word: "lesson" } };
+    setSurfaceValue("playbooks", { rows: [], shape: { calendar: "feed", hasDeals: false, word: "lesson" } });
     assert.deepEqual(at({ word: "lesson" }), { day: "lesson", word: "lesson" });
     // No calendar to read: the rows that say it still say the workspace's.
-    delete globalThis.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
     assert.deepEqual(at({ word: "session" }), { day: null, word: "session" });
     // A server from before, which says none: the word a workspace has until it picks.
     assert.deepEqual(at({ word: null }), { day: null, word: "appointment" });
   } finally {
-    delete globalThis.__CALENDAR;
-    delete globalThis.__PLAYBOOKS;
+    setSurfaceValue("calendar", undefined);
+    setSurfaceValue("playbooks", undefined);
     setSurfaceValue("today", undefined);
   }
 });
@@ -517,14 +517,14 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   // The hero and the card over a busy day, with a calendar the receptionist reads (what the one-line calendar beat drew
   // from): the day's numbers are the card's figures, not a sentence or a strip of stat cards; no calendar line.
   setSurfaceValue("today", toTodayVM(busyMetrics(), [], [], [], NOW));
-  globalThis.__CALENDAR = {
+  setSurfaceValue("calendar", {
     vm: {
       timezone: "America/New_York",
       feed: { present: true, state: "ok", line: "", events: 3, source: "Google Calendar" },
       stats: { events: 3, windows: 2, next: "Mon 9:30 AM" },
       days: [],
     },
-  };
+  });
   const hero = draw(TodayAlertBand);
   assert.equal(textOf(hero), "", "the hero says nothing while every line is up: no sentence of the day, no stat cards");
   const card = draw(PhoneSoFar);
@@ -545,7 +545,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     find(draw(TodayZones), (n) => n.type === DayZone),
     "the day stands beside the work",
   );
-  delete globalThis.__CALENDAR;
+  setSurfaceValue("calendar", undefined);
   setSurfaceValue("today", undefined);
   const css = readRaw("apps/dashboard/src/styles/dashboard-a-v2.css");
   // The zones' one column below a desk's width is a browser's to see: e2e/today/today.spec.ts measures the bento's tracks.

@@ -164,6 +164,11 @@ export interface AskProposal {
    * campaign's, contracts campaignLine); its sheet holds the rest, behind Details. A card without one shows its summary.
    */
   line?: string;
+  /**
+   * What the card does, as the database keeps it (jsonb), as any build wrote it, which each reader takes apart as it
+   * reads it: the surface cache's fingerprint leaves it out (tooling/scripts/gen/surface-shapes.mjs).
+   * @stored
+   */
   payload: Record<string, unknown>;
   /** What undo looks like, when the verb has one. */
   undo: string | null;

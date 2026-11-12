@@ -21,8 +21,12 @@ import { useSurface } from "../../../use-surface";
 /** Setup's forwarding card, fetched the first time the row is opened. */
 const forwardingCode = codeOnce(() => import("../../../setup/rows/forwarding"));
 
-/** The number kept and how its calls reach the receptionist; nothing while there is no line to forward to. */
-export const BtKeptNumberRow = ({ flash }: { flash: (f: FrameFlash) => void }) => {
+/**
+ * The number kept and how its calls reach the receptionist; nothing while there is no line to forward to. Its act opens
+ * Setup's forwarding card, and is offered as every row's on this page is: to whoever may change the business (`canEdit`);
+ * anyone else reads the number. It was offered to everyone, a viewer too (12 Nov 2026).
+ */
+export const BtKeptNumberRow = ({ canEdit, flash }: { canEdit: boolean; flash: (f: FrameFlash) => void }) => {
   const S = useSurface("setup");
   const [open, setOpen] = useState(false);
   const card = useCode(forwardingCode, open).loaded;
@@ -36,7 +40,7 @@ export const BtKeptNumberRow = ({ flash }: { flash: (f: FrameFlash) => void }) =
         value={row.value}
         empty={row.empty}
         hint={row.hint}
-        act={{ label: open ? row.close : row.act, onClick: () => setOpen((was) => !was) }}
+        act={canEdit ? { label: open ? row.close : row.act, onClick: () => setOpen((was) => !was) } : null}
       />
       {open && card ? <card.ForwardingCard S={S} flash={flash} onDone={() => setOpen(false)} /> : null}
     </>

@@ -651,13 +651,29 @@ test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -
   Object.assign(globalThis.window, {
     POLICY: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" },
     TRUST: { cls: () => ({ sent: 128 }), rate: () => 9 },
-    __POLICIES: { rows: [] },
   });
-  cells = [];
-  frames.begin();
-  const real = PolicyChip({ cls: "reengage" });
-  assert.equal(real.props["data-tip"], "Workspace policy — Settings · Autonomy");
-  delete globalThis.window.__POLICIES;
+  // The workspace's policies read, as the settings read lands them (whole: what follows that read reads every part).
+  const was = surfaceValue("settings");
+  setSurfaceValue("settings", {
+    settings: null,
+    facts: null,
+    templatesAll: [],
+    templateVersions: [],
+    messages: [],
+    templateUse: null,
+    templateSent: null,
+    policies: { rows: [], role: "owner" },
+    team: [],
+    invites: [],
+  });
+  try {
+    cells = [];
+    frames.begin();
+    const real = PolicyChip({ cls: "reengage" });
+    assert.equal(real.props["data-tip"], "Workspace policy — Settings · Autonomy");
+  } finally {
+    setSurfaceValue("settings", was);
+  }
   cells = [];
   frames.begin();
   const demo = PolicyChip({ cls: "reengage" });

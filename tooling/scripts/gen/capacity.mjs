@@ -183,8 +183,10 @@ export const CAPACITY = {
     job: "leads-sweep",
     kind: "each_tick",
     cap: ["apps/edge/lib/leads/sweep.ts", "RECONCILE_PER_TICK"],
-    also: ["RUNS_IN_CHUNK", "SWEEP_DEADLINE_MS"],
-    atFull: "Only runs whose start or lease was lost. Holds.",
+    also: ["RUNS_IN_CHUNK", "SWEEP_DEADLINE_MS", "RECHECKS_AT_ONCE"],
+    atFull:
+      "Only runs whose start or lease was lost, and the addresses that did not answer a day ago, at most 200 a tick, each " +
+      "queued as a check job inside its workspace's searching budget (decision 0131). Holds.",
   },
   lines: {
     job: "lines-sweep",

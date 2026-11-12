@@ -3,7 +3,7 @@
  * decision 0015): when a message last synced, a list said the way a person says it, a number as a word, the state of a
  * language in the app's one vocabulary, a body on one line with its slots named, and what the business says of itself.
  * All of it is pure but for the two reads of the settings surface (`brainOf` of what it is given, `tplOwn` of what the
- * surface holds now, as the JSX read `window.__SETTINGS`).
+ * surface holds now).
  */
 import { CAMPAIGN_ROOMS, DAY_MS, HOUR_MS, MIN_MS, stateOf } from "@chanlytics/contracts";
 import type { SettingsRecord, WorkspaceSettings } from "@/bridge/surfaces/settings";
@@ -48,7 +48,7 @@ export const tplSpell = (n: number): string => TPL_WORDS[n] || String(n);
 // Words for people: a starter's title, the workspace's own, or the name with its underscores made spaces.
 export const tplTitle = (t: Parameters<typeof starters.title>[0]): string => starters.title(t);
 
-/** What the workspace says of its business in Settings (`__SETTINGS.config.brain`): nothing where it has said nothing. */
+/** What the workspace says of its business in Settings (the record's `config.brain`): nothing where it has said nothing. */
 export const brainOf = (settings: SettingsRecord | null | undefined): NonNullable<WorkspaceSettings["brain"]> =>
   (settings && settings.config && settings.config.brain) || {};
 

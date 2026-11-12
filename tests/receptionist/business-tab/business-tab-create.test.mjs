@@ -19,7 +19,7 @@ import {
   whyNotAPhone,
 } from "@chanlytics/contracts";
 import { again, unmount, settle, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
-import { W, landFacts, saving } from "../../_business-tab-harness.mjs";
+import { landFacts, landSettings, saving, W } from "../../_business-tab-harness.mjs";
 
 // The last card this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
@@ -30,7 +30,7 @@ after(() => unmount());
  * workspace as it arrives, before Connections has given it a line.
  */
 const drawCreate = ({ flash = () => {}, line = null, handoff = null, config = {}, read = true } = {}) => {
-  W.__SETTINGS = read ? { version: 3, config, prompt: null } : null;
+  landSettings(read ? { version: 3, config, prompt: null } : null);
   landFacts({
     facts: {
       voice_line: { value: line, source: line ? "provisioned" : "absent" },

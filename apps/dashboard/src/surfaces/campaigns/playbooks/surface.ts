@@ -27,13 +27,10 @@ import { declareReads } from "@/bridge/surface-registry";
 import type { SettingsSurface } from "@/bridge/surfaces/settings";
 import { playbookCountKey, readingFor, type PoolRead } from "@/lib/campaign-channels";
 import { callTextOf, followSettings } from "../../offered-templates";
-import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
+import { setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
 import { channelsHeld, followChannels } from "../../channels/surface";
 import type { Output } from "@/client/api";
 import { cmBusinessOf, cmNumberOf, cmOfferedFrom, cmSameBusiness, type CmOffered } from "../parts/channels";
-
-// The frame (its tab counts and the route table's crumbs) and Today read this under its old name until they move.
-declareSurfaceValue("playbooks", "__PLAYBOOKS");
 
 /* ------------------------------- Playbooks ------------------------------- */
 

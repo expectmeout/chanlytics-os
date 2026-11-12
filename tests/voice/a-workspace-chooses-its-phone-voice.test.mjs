@@ -17,7 +17,7 @@ import {
   phoneVoiceShown,
 } from "@chanlytics/contracts";
 import { unmount, all, byTestId, textOf, press } from "../_stub-react.mjs";
-import { W, drawTab, marisa, openFold, redrawTab, saveRow, saving } from "../_business-tab-harness.mjs";
+import { drawTab, marisa, openFold, redrawTab, saveRow, saving, settingsHeld } from "../_business-tab-harness.mjs";
 
 after(() => unmount());
 
@@ -62,7 +62,7 @@ test("On calls says the voice the line speaks in, and a voice picked and saved i
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash });
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   const row = byTestId(byTestId(tree, "rec-card-calls"), "rec-row-phone_voice");
   assert.match(textOf(row), /Tamsin · Woman · American/, "none chosen: the product's, as the provider describes it");
   openFold(tree, "phone_voice");

@@ -470,10 +470,12 @@ const bellRow = (id, kind, title, tone = "", about = null, to = "reports") => ({
 });
 
 // `today` is the day itself, which the page reads through the seam (setSurfaceValue, surface-values.ts), not off
-// `window.TODAY_DATA`; every other key is a surface Today borrows or a verb of the shell, read off the window by name.
+// `window.TODAY_DATA`, and `calendar`, `setup` and `playbooks` are those surfaces' values, read there too (window mirrors,
+// `__CALENDAR`, `__SETUP` and `__PLAYBOOKS`, until 12 Nov 2026); every other key is a surface Today borrows or a verb of the shell, read off the window
+// by name.
 const set = (globals) => {
   for (const [k, v] of Object.entries(globals)) {
-    if (k === "today") setSurfaceValue("today", v);
+    if (k === "today" || k === "calendar" || k === "setup" || k === "playbooks") setSurfaceValue(k, v);
     else if (k === "headline") setSurfaceValue("reports_headline", v);
     else if (v === undefined) delete W[k];
     else W[k] = v;
@@ -487,9 +489,9 @@ const clear = () => {
     __PEOPLE: undefined,
     __BROADCASTS: undefined,
     __REPLIES: undefined,
-    __CALENDAR: undefined,
-    __PLAYBOOKS: undefined,
-    __SETUP: undefined,
+    calendar: undefined,
+    playbooks: undefined,
+    setup: undefined,
     __GOOGLE: undefined,
     __google: undefined,
     __notifs: undefined,
@@ -1241,7 +1243,7 @@ test("the day listens for what it draws: the calendar, the playbooks, the runs a
   // zones, 2 Nov 2026): People's book is no read of the day's. The day, Listen's words and To do read the one derivation
   // (zones/day-vm.ts useDayVm).
   clear();
-  set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: noPlaybooks() });
+  set({ today: busy(), calendar: calendar([block("b9", 9, "Slot 9")]), playbooks: noPlaybooks() });
   draw(DayZone);
   for (const key of ["calendar", "playbooks", "broadcasts", "today"]) {
     quiet();
@@ -1259,7 +1261,7 @@ test("the day listens for what it draws: the calendar, the playbooks, the runs a
 test("each band of Today is drawn again when a surface it draws from lands, and by no other's", () => {
   // The shell drew whole on every surface's read; a band now names the surfaces it draws (useSurface) and moves on those.
   clear();
-  set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: noPlaybooks() });
+  set({ today: busy(), calendar: calendar([block("b9", 9, "Slot 9")]), playbooks: noPlaybooks() });
   const bands = [
     ["the alert line", TodayAlertBand, ["today"]],
     ["Today so far", PhoneSoFar, ["today", "reports_headline"]],
@@ -1633,8 +1635,8 @@ test("the page is its bands and nothing seeded", () => {
     headline: headline(),
     __PEOPLE: people(),
     __BROADCASTS: broadcasts(),
-    __CALENDAR: calendar([block("b9", 9, "Gloss")]),
-    __PLAYBOOKS: noPlaybooks(),
+    calendar: calendar([block("b9", 9, "Gloss")]),
+    playbooks: noPlaybooks(),
     __notifs: {
       feed: () => [],
       onChange: () => () => {},
@@ -1909,7 +1911,7 @@ test("Listen reads the brief: who needs you with the oldest wait, the calendar's
     today: busy(),
     headline: headline(),
     __BROADCASTS: broadcasts(),
-    __CALENDAR: calendar([block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" })]),
+    calendar: calendar([block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" })]),
   });
   const s = speechStub();
   holdAsk(s.stub);
@@ -1954,8 +1956,8 @@ test("the bento (Today in three zones, 2 Nov 2026): what cannot wait over all of
     headline: headline(),
     __PEOPLE: people(),
     __BROADCASTS: broadcasts(),
-    __CALENDAR: calendar([block("b9", 9, "Gloss")]),
-    __PLAYBOOKS: noPlaybooks(),
+    calendar: calendar([block("b9", 9, "Gloss")]),
+    playbooks: noPlaybooks(),
     __notifs: emptyBell(),
   });
   const tree = draw(TodayZones);

@@ -66,9 +66,10 @@ export const sequenceDraftSpec: ProposalSpec = {
       typeof before.name === "string" && typeof before.steps === "number"
         ? { previous: { name: before.name, steps: before.steps } }
         : {};
-    // The choices already made, which Ask keeps (decision 0065): the kind, the audience, and who.
+    // The choices already made, which Ask keeps (decision 0065): the kind, the audience, and who. And the draft that
+    // stands, where the line changes one (decision 0129 step 2): the route reads its shape, and the judge its every part.
     const kept = Object.fromEntries(
-      ["kind", "audience", "who"].filter((k) => pl[k] !== undefined).map((k) => [k, pl[k]]),
+      ["kind", "audience", "who", "stands"].filter((k) => pl[k] !== undefined).map((k) => [k, pl[k]]),
     );
     return { route: "POST sequences/draft", body: { words, ...kept, ...previous } };
   },

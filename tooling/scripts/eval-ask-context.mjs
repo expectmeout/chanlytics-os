@@ -1017,7 +1017,7 @@ function lost(note, now, why) {
  * Turn 1's card, approved between the turns as the Line approves it (surfaces/ask/turn.tsx approveWith; bridge/ask/
  * commit.ts commitProposal), for `then.between: "approve"`. Only a settings card whose change is add_note: one note
  * more in the receptionist's profile, the smallest change there is to put back, which no other case reads. The
- * settings read (the tab's `__SETTINGS`), the card's own commit (proposalSpec("settings").commit) sent as the Line
+ * settings read (the record the tab holds), the card's own commit (proposalSpec("settings").commit) sent as the Line
  * sends it, and the outcome recorded on turn 1's message as the Line records it, with the undo's record.
  *
  * `{ ok, why?, approval, lost? }`. `approval` is a note the eval wrote, to put back (putBack) whatever happens next,

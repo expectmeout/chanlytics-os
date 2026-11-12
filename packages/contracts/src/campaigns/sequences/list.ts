@@ -7,6 +7,7 @@
  */
 import { plural } from "../../shared/words";
 import type { SequenceNeedsDto, SequenceRowDto } from "./dto";
+import { sequenceStuckOf } from "./run-off";
 
 export const SEQUENCE_LIST_WORDS = {
   types: {
@@ -59,9 +60,20 @@ export function sortedSequences<R extends Pick<SequenceRowDto, "name" | "created
   return [...rows].sort(by[sort]);
 }
 
-/** When what needs you in a sequence began to wait: the oldest thing it holds, or a failed one-off's day; null for a twin. */
-function waitedSinceMs(row: Pick<SequenceRowDto, "needs" | "starts" | "date">): number | null {
+/** What of a row says how long it has needed you. */
+type WaitingRow = Pick<
+  SequenceRowDto,
+  "needs" | "starts" | "state" | "date" | "stuck" | "last_run_off" | "last_run_for"
+>;
+
+/**
+ * When what needs you in a sequence began to wait: the oldest thing it holds, else since when it has been stuck (its
+ * leads, or its last run's day), or a failed one-off's day; null for a twin, and for a run whose day is not known.
+ */
+function waitedSinceMs(row: WaitingRow): number | null {
   if (row.needs.oldest_at) return Date.parse(row.needs.oldest_at);
+  const stuck = sequenceStuckOf(row);
+  if (stuck) return stuck.sinceMs;
   if (row.starts === "date" && row.date?.state === "failed") return Date.parse(row.date.at);
   return null;
 }
@@ -70,10 +82,7 @@ function waitedSinceMs(row: Pick<SequenceRowDto, "needs" | "starts" | "date">): 
  * Needs you's order (decision 0128): the longest wait first, whatever Sort says, and a row with no age (a twin) after
  * those with one. Ties keep the order they came in, so the rest follow Sort.
  */
-export function byLongestWait(
-  one: Pick<SequenceRowDto, "needs" | "starts" | "date">,
-  other: Pick<SequenceRowDto, "needs" | "starts" | "date">,
-): number {
+export function byLongestWait(one: WaitingRow, other: WaitingRow): number {
   const x = waitedSinceMs(one);
   const y = waitedSinceMs(other);
   if (x === y) return 0;

@@ -19,7 +19,7 @@ import {
   askGoalSaved,
 } from "../../apps/dashboard/src/surfaces/settings/business/model/goal.ts";
 import { unmount, byTestId, textOf } from "../_stub-react.mjs";
-import { W, drawTab, openFold, redrawTab, saveRow, saving, typeInto } from "../_business-tab-harness.mjs";
+import { drawTab, openFold, redrawTab, saveRow, saving, settingsHeld, typeInto, W } from "../_business-tab-harness.mjs";
 
 after(() => unmount());
 
@@ -58,7 +58,7 @@ test("a goal typed is saved as Ask's card saves it, trimmed, with everything els
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash });
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   openFold(tree, "ask_goal");
   tree = redrawTab(flash);
   typeInto(tree, "ask_goal", "  Twenty new clients a month  ");

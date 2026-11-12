@@ -1,7 +1,8 @@
 /**
- * New's small parts (decision 0065; the New canvas, artifact 3eGjrhpQABiRHEgmiy27Kb): the line Ask drafted from, the toggle
- * between people and leads, a choice said as a word to press, who it reaches, what Ask checked, a card for what stops or
- * bends a draft, and a step as one person or business reads it. Hookless; every word is contracts' (new-words.ts).
+ * New's small parts (decision 0065; the New canvas, artifact 3eGjrhpQABiRHEgmiy27Kb): the line Ask drafted from (or last
+ * changed it by), the toggle between people and leads, a choice said as a word to press, who it reaches, what Ask
+ * checked, what To leads changes, a card for what stops or bends a draft, and a step as one person or business reads it.
+ * Hookless; every word is contracts' (new-words.ts).
  */
 import type { ReactNode } from "react";
 import {
@@ -21,10 +22,14 @@ import { Segmented } from "../../../kit/segmented/segmented";
 import { cx } from "../../../kit/variants";
 import { MessagePreview } from "../../parts/message-preview";
 
-/** The owner's line, kept on top, with its way to say it again (or what Ask is doing with it). */
+/**
+ * The owner's line, kept on top: the one the draft was drafted from, or the one that last changed it, with what Ask is
+ * doing with it or what it is (`by`: what it changed), and its one act (Stop while Ask works, Undo after).
+ */
 export function SaidLine(p: {
   said: string;
   doing?: string | null;
+  by?: string | null;
   onAgain?: (() => void) | null;
   again?: string;
   /** Its act a button (Stop, while Ask drafts), not words to press. */
@@ -40,15 +45,15 @@ export function SaidLine(p: {
             {p.doing}
           </span>
         ) : (
-          <span>{W.say.asked}</span>
+          <span data-testid="sq-nw-said-by">{p.by ?? W.say.asked}</span>
         )}
         {p.onAgain && p.button ? (
           <Button size="sm" onClick={p.onAgain} data-testid="sq-nw-again">
-            {p.again ?? W.say.sayAgain}
+            {p.again ?? W.say.undo}
           </Button>
         ) : p.onAgain ? (
           <LinkButton onClick={p.onAgain} data-testid="sq-nw-again">
-            {p.again ?? W.say.sayAgain}
+            {p.again ?? W.say.undo}
           </LinkButton>
         ) : null}
       </span>
@@ -141,6 +146,27 @@ export function ChecksList({ checks }: { checks: readonly NewCheck[] }) {
           </li>
         ))}
       </ul>
+    </>
+  );
+}
+
+/** What To leads changes, said while Ask drafts it again for businesses (F1). */
+export function ToLeadsNote() {
+  return (
+    <>
+      <p className="sq-nw-cap">{W.toLeads.title}</p>
+      <ul className="sq-nw-checks" data-testid="sq-nw-to-leads">
+        {W.toLeads.rows.map((row) => (
+          <li key={row.lead} className="sq-nw-check">
+            <Icon name="check" size={12} />
+            <span>
+              {row.lead}
+              <small>{row.sub}</small>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="sq-nw-note">{W.toLeads.note}</p>
     </>
   );
 }

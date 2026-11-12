@@ -2119,6 +2119,7 @@ A place: one physical location, outside contacts. Unique by place id in the work
 | `source` | text | no | `'local_businesses'::text` | Where the lead came from (00430): the card that found it (local_businesses, people_at_companies), or a file of the owner's own (import). The foot of a cold email says it in its first line (contracts whyFrom). |
 | `source_key` | text | yes |  | The lead's own key at its source (00430): a company's domain for the people card. One lead per workspace, source and key (leads_tenant_source_key_uq); a place keeps its place_id instead. |
 | `facts` | jsonb | no | `'{}'::jsonb` | What the lead's source named beyond its columns (00430): {people: [{name, first_name, title, role, email, profile_url}] at most five, addressee: the index of the one the lead's address is, size: the company's size as its source gave it}. Read through contracts leadFactsOf; blanked with the lead. |
+| `email_rechecks` | smallint | no | `0` |  |
 
 Foreign keys:
 

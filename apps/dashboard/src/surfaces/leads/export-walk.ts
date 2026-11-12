@@ -6,7 +6,7 @@
  * walked may land twice or not at all; the walk lasts seconds.
  */
 import type { ApiResult } from "@/client/api";
-import { leadCall } from "./surface";
+import { leadCall } from "./call";
 import type { LeadsExportView } from "./surface-types";
 import { readDir } from "./view-query";
 

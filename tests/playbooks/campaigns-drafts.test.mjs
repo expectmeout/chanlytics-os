@@ -13,6 +13,10 @@
  * - What New asks and counts holds to the draft as it now stands: Send now's question goes with any change, so nothing is
  *   sent from a question about a draft that has moved; a draft the tab kept is counted again as it comes back; and where
  *   the channels could not be read, a message picked goes by WhatsApp, as every send did before a channel was read.
+ * - A draft keeps a line under it (decision 0129 step 2): what is said there is asked of Ask with the draft as it
+ *   stands, its answer is that draft changed with what changed said on top, Undo steps back through every change it
+ *   made, a change that changed nothing is said in passing, and a change Ask could not make leaves the draft and the
+ *   line as they were.
  * Run against the pages and the composers on a stub React, with the tab's memory installed as the app installs it, and
  * New's two doors (POST sequences/draft and sequences/new) answered as their routes answer.
  */
@@ -97,6 +101,7 @@ const { Field } = await import(`${SRC}/surfaces/kit/field/field.tsx`);
 const { Segmented } = await import(`${SRC}/surfaces/kit/segmented/segmented.tsx`);
 const { Switch } = await import(`${SRC}/surfaces/kit/switch/switch.tsx`);
 const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);
+const { CHANGE_WORDS } = await import(`${SRC}/surfaces/campaigns/sequences/new/change.ts`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
 const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.ts`);
@@ -313,13 +318,15 @@ const ASKED = {
  * -- a one-off sent, or kept under Drafts. Every write is kept; any other address is a read that finds nothing.
  */
 const posted = [];
+/** What Ask answers a draft asked for: the one-off above, until a case says otherwise (none: Ask could not). */
+const asks = { draft: () => ASKED };
 globalThis.fetch = async (url, init) => {
   const at = new URL(String(url), "https://app.chanlytics.com").pathname;
   const body = init?.body ? JSON.parse(String(init.body)) : null;
   if (init?.method === "POST") posted.push({ at, body });
   const data =
     at === "/api/v1/sequences/draft"
-      ? ASKED
+      ? asks.draft(body)
       : at === "/api/v1/sequences/new"
         ? body.start
           ? { made: "b-new", kind: "once", state: "on", scheduled_for: iso(10 * 60_000) }
@@ -391,6 +398,7 @@ beforeEach(() => {
   globalThis.__recordFolds.reset();
   posted.length = 0;
   cancelled.length = 0;
+  asks.draft = () => ASKED;
   // What New opens on (new-page.tsx): Campaigns' read, and the sequences that run -- none.
   setSurfaceValue("playbooks", playbooksSurface());
   setSurfaceValue("sequences", { sequences: [], timezone: ZONE, word: "visit" });
@@ -576,6 +584,142 @@ test("Send now's question goes with any change -- a time picked or a channel unt
     posted.filter((p) => p.at === "/api/v1/sequences/new"),
     [],
     "nothing was sent from a question put away",
+  );
+});
+
+test("the line under a draft changes it: Ask is asked with the draft as it stands, its answer is that draft changed with what changed said on top, Undo puts back what stood, and a change Ask could not make leaves the draft and the line as they were (decision 0129 step 2)", async () => {
+  let tree = await askDrafts();
+  type(valueBox(tree), "20% off colour");
+  tree = redraw(page);
+  const changeBox = () => find(tree, (n) => n.type === Field && n.props["data-testid"] === "sq-nw-change");
+  const nameBox = () => find(tree, (n) => n.type === Field && n.props["data-testid"] === "sq-nw-name");
+  const onTop = () => textOf(byTestId(tree, "sq-nw-said"));
+  const askedFor = () => posted.filter((p) => p.at === "/api/v1/sequences/draft");
+  const say = async (words) => {
+    type(changeBox(), words);
+    tree = redraw(page);
+    press(hostOf(tree, "sq-nw-change-send"));
+    tree = redraw(page);
+  };
+  // The line stands under the draft, its arrow asleep until it says something, and nothing on top to press yet.
+  assert.equal(changeBox().props.placeholder, CHANGE_WORDS.placeholder);
+  assert.equal(hostOf(tree, "sq-nw-change-send").props.disabled, true);
+  assert.equal(hostOf(tree, "sq-nw-again"), null, "Say it again is gone");
+  assert.ok(onTop().includes(ASKED.said) && onTop().includes(W.say.asked));
+
+  // Said: while Ask works the line said stands on top with its Stop, and Ask is told the draft as it stands.
+  const renamed = (body) => ({
+    ...ASKED,
+    name: "Autumn colour for VIPs",
+    steps: [
+      {
+        ...ASKED.steps[0],
+        message: {
+          ...ASKED.steps[0].message,
+          params: [{ kind: "first_name" }, { kind: "text", value: body.stands.steps[0].texts[0] }],
+        },
+      },
+    ],
+  });
+  asks.draft = renamed;
+  await say("Call it Autumn colour for VIPs");
+  assert.ok(onTop().includes("Call it Autumn colour for VIPs") && onTop().includes(CHANGE_WORDS.changing));
+  assert.equal(textOf(hostOf(tree, "sq-nw-again")), W.say.stop);
+  assert.ok(
+    byTestId(tree, "sq-nw-steps"),
+    "the draft stands whole while Ask changes it: its steps stay, and the page its length",
+  );
+  tree = await landed(() => askedFor().length === 2 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  const asked = askedFor()[1].body;
+  assert.equal(asked.words, "Call it Autumn colour for VIPs");
+  assert.deepEqual(
+    [
+      asked.stands.said,
+      asked.stands.name,
+      asked.stands.when,
+      asked.stands.steps[0].template_id,
+      asked.stands.steps[0].texts,
+    ],
+    [ASKED.said, "Autumn colour", "now", "tpl-own", ["20% off colour"]],
+    "the draft as it stands, the value typed in it",
+  );
+  assert.deepEqual(asked.who, ASKED.who, "and the list the door named, kept");
+  // Its answer is the draft changed: the name, with the value typed still in its step, and what changed said on top.
+  assert.equal(nameBox().props.value, "Autumn colour for VIPs");
+  assert.equal(valueBox(tree).props.value, "20% off colour");
+  assert.ok(onTop().includes("Call it Autumn colour for VIPs") && onTop().includes("Ask changed its name"), onTop());
+  assert.equal(changeBox().props.value, "", "the line is ready for the next change");
+  assert.equal(TM.draft("new", HERE).draft.name, "Autumn colour for VIPs", "kept in the tab as any change is");
+
+  // Undo puts back the draft as it stood, and the line it was drafted from is on top again.
+  assert.equal(textOf(hostOf(tree, "sq-nw-again")), W.say.undo);
+  press(hostOf(tree, "sq-nw-again"));
+  tree = redraw(page);
+  assert.equal(nameBox().props.value, "Autumn colour");
+  assert.equal(valueBox(tree).props.value, "20% off colour");
+  assert.ok(onTop().includes(ASKED.said) && onTop().includes(W.say.asked));
+  assert.equal(hostOf(tree, "sq-nw-again"), null);
+
+  // Two changes, one after the other: Undo steps back through them, the newest first, each with what it changed.
+  await say("Call it Autumn colour for VIPs");
+  tree = await landed(() => askedFor().length === 3 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  asks.draft = (body) => ({ ...renamed(body), name: "Autumn for everyone" });
+  await say("Call it Autumn for everyone");
+  tree = await landed(() => askedFor().length === 4 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  assert.equal(
+    askedFor()[3].body.stands.name,
+    "Autumn colour for VIPs",
+    "the second change is asked of the first's draft",
+  );
+  assert.equal(nameBox().props.value, "Autumn for everyone");
+  assert.ok(onTop().includes("Call it Autumn for everyone"));
+  press(hostOf(tree, "sq-nw-again"));
+  tree = redraw(page);
+  assert.equal(nameBox().props.value, "Autumn colour for VIPs", "one Undo, one change back");
+  assert.ok(onTop().includes("Call it Autumn colour for VIPs") && onTop().includes("Ask changed its name"), onTop());
+  press(hostOf(tree, "sq-nw-again"));
+  tree = redraw(page);
+  assert.equal(nameBox().props.value, "Autumn colour", "and the one before it");
+  assert.equal(hostOf(tree, "sq-nw-again"), null, "nothing more to undo");
+
+  // Changed again, then changed by hand: the change stays, and its Undo goes with the hand's change.
+  asks.draft = renamed;
+  await say("Call it Autumn colour for VIPs");
+  tree = await landed(() => askedFor().length === 5 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  assert.ok(hostOf(tree, "sq-nw-again"));
+  type(valueBox(tree), "15% off colour");
+  tree = redraw(page);
+  assert.equal(hostOf(tree, "sq-nw-again"), null, "a hand's change is the owner's: nothing to undo over it");
+  assert.equal(nameBox().props.value, "Autumn colour for VIPs");
+
+  // A change that changed nothing is said in passing, with nothing to undo, and what Ask left out is in its card.
+  asks.draft = () => ({
+    ...renamed({ stands: { steps: [{ texts: ["15% off colour"] }] } }),
+    cannot: "Left out: “by pigeon”. Nothing here flies.",
+  });
+  toasts.length = 0;
+  await say("Send it by pigeon");
+  tree = await landed(() => askedFor().length === 6 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  assert.deepEqual(
+    toasts.map((t) => t.msg),
+    [CHANGE_WORDS.same],
+    "said once, in passing",
+  );
+  assert.equal(hostOf(tree, "sq-nw-again"), null, "nothing changed, nothing to undo");
+  assert.ok(byTestId(tree, "sq-nw-cannot"), "what Ask left out is said in its card");
+
+  // A change Ask could not make: said as a toast over the draft, which stays, and the line keeps its words to say again.
+  asks.draft = () => null;
+  toasts.length = 0;
+  await say("Send it from the moon");
+  tree = await landed(() => askedFor().length === 7 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  assert.equal(toasts.length, 1, "said once");
+  assert.equal(nameBox().props.value, "Autumn colour for VIPs");
+  assert.equal(changeBox().props.value, "Send it from the moon");
+  assert.deepEqual(
+    posted.filter((p) => p.at === "/api/v1/sequences/new"),
+    [],
+    "nothing was made by any of it",
   );
 });
 

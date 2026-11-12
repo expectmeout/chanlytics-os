@@ -42,7 +42,16 @@ export interface Audience {
    * a list kept by hand, whose people are the recipients -- so a rule edited later never changes what a send meant.
    * Absent on everyone, and on a send made before sends kept it.
    */
-  list?: { token: string; rule: unknown; counted_at: string };
+  list?: {
+    token: string;
+    /**
+     * The list's rule then, as the database keeps it (jsonb), as any build wrote it, which each reader takes apart as
+     * it reads it: the surface cache's fingerprint leaves it out (tooling/scripts/gen/surface-shapes.mjs).
+     * @stored
+     */
+    rule: unknown;
+    counted_at: string;
+  };
   /**
    * A playbook's run: the moment it was made for (contracts PLAYBOOK_TRIGGERS), which the month's allowance asks
    * (`heldByAllowance`: a visit's message is never held by it). Absent on a broadcast, and on a run made before runs

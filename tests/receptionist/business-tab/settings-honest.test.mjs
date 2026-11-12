@@ -210,7 +210,9 @@ await import("./_business-parts.mjs");
 // The page is the TSX module (decision 0015 step 11); it imports every pane it draws, and the panes read the settings
 // read over the seam.
 const { SettingsPage } = await import("../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
-const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+/** The record the settings read holds now (the seam's `settings`; a window global, `__SETTINGS`, until 12 Nov 2026). */
+const settingsHeld = () => surfaceValue("settings")?.settings ?? undefined;
 const { hearSurfaces } = await import("../../../apps/dashboard/src/bridge/surface-status.ts");
 // The Team tab is the Partner pane's Team (settings/partner/team-card.tsx): the roster, then the workspace's partner
 // card, an owner's read answered here as refused, so the card stays out of what these tests look at.
@@ -230,10 +232,10 @@ const FACTS = {
 };
 /** The roster and its open invitations as the team read last answered: the settings surface's alone (null: not read). */
 const read = { team: null, invites: null };
-/** The seam's settings value, beside the globals it copies (bridge/surfaces/settings.ts). */
-const seam = () =>
+/** The seam's settings value (bridge/surfaces/settings.ts): the record given, or the one it holds. */
+const seam = (record = settingsHeld()) =>
   setSurfaceValue("settings", {
-    settings: globalThis.window.__SETTINGS,
+    settings: record,
     facts: FACTS,
     channels: null,
     templatesAll: null,
@@ -308,30 +310,34 @@ const ROSTER = [
  * the line it answers as E.164, the number it gives out as the line written for people, and the transfer number as
  * stored; a roster of two; no open invitation.
  */
-const workspace = ({ team = ROSTER, invites = [], ...over } = {}) => {
+const workspace = ({
+  team = ROSTER,
+  invites = [],
+  record = {
+    role: "owner",
+    version: 3,
+    config: {
+      brain: {
+        business_name: "Northside Studio",
+        booking_link: "https://book.example/northside",
+        profile: {
+          handoff_number: "+17865550182",
+          services: [{ name: "Cut", duration_min: 45 }, { name: "Color" }],
+          notes: [{ title: "Parking", text: "Behind the building." }],
+        },
+      },
+      notifications: { escalation_emails: ["owner@northside.example"] },
+    },
+  },
+  ...over
+} = {}) => {
   read.team = team;
   read.invites = invites;
   Object.assign(globalThis.window, {
     __ME: { email: "owner@northside.example", role: "owner", display_name: "Dana" },
-    __SETTINGS: {
-      role: "owner",
-      version: 3,
-      config: {
-        brain: {
-          business_name: "Northside Studio",
-          booking_link: "https://book.example/northside",
-          profile: {
-            handoff_number: "+17865550182",
-            services: [{ name: "Cut", duration_min: 45 }, { name: "Color" }],
-            notes: [{ title: "Parking", text: "Behind the building." }],
-          },
-        },
-        notifications: { escalation_emails: ["owner@northside.example"] },
-      },
-    },
     ...over,
   });
-  seam();
+  seam(record);
 };
 
 /* ------------------------------ the refresh ------------------------------ */

@@ -8,6 +8,7 @@
  */
 import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback } from "react";
 import type { AskApi } from "../bridge/ask";
+import { policiesNow } from "./settings/business/shell";
 import { workspacePath } from "@chanlytics/contracts";
 import { askAbout, backFrom, navigate, openAsk, tellAskHeld } from "./frame-doors";
 import type { SwipeHandlers, SwipeOptions } from "./kit/motion/swipe";
@@ -288,11 +289,11 @@ export function trustTable(): TrustTable | undefined {
 }
 
 /**
- * Whether the app has read the workspace's policies (`window.__POLICIES`: an object, or null where the read failed).
- * Undefined is the standalone mockup, whose seeded trust table is what its chips quote.
+ * Whether the app has read the workspace's policies (the settings surface's `policies`: an object, or null where the
+ * read failed). Undefined is the standalone mockup, whose seeded trust table is what its chips quote.
  */
 export function policiesRead(): boolean {
-  return windowValue("__POLICIES") !== undefined;
+  return policiesNow() !== undefined;
 }
 
 /** Go to Settings > Autonomy, as the policy chip does (`CHANLY.nav(CHANLY.R.admin("autonomy"))`); nowhere without the frame. */

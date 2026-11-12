@@ -282,6 +282,8 @@ export const SEQUENCE_PEOPLE_WORDS = {
   step: (place: number) => `step ${place}`,
   takeOut: HELD_TAKE_OUT,
   takeOutAll: (n: number) => `Take these ${n} out`,
+  /** Check again over the leads whose address could not be checked (decision 0131), as Take out counts its own. */
+  checkAgainAll: (n: number) => (n === 1 ? "Check again" : `Check these ${n} again`),
   more: (n: number) => `and ${n} more`,
   /** A fold of people still to hear from it: when the soonest of them goes. */
   next: (atMs: number, tz: string, nowMs: number) => clockNextSend(atMs, tz, nowMs),

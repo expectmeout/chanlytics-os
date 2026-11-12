@@ -22,6 +22,11 @@ const { settingsOverride } = await import(`${SRC}/bridge/surfaces/settings.ts`);
 const { AFTER } = await import(`${SRC}/bridge/refresh-map.ts`);
 const { installIdentity } = await import(`${SRC}/bridge/identity.ts`);
 const { BUSINESS_TAB } = await import(`${SRC}/bridge/business-tab.ts`);
+const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+/** The record the settings read holds now (the seam's `settings`; a window global, `__SETTINGS`, until 12 Nov 2026). */
+const settingsHeld = () => surfaceValue("settings")?.settings ?? undefined;
+/** The settings read landing a record, the rest of that read as it stands (undefined: the read not landed yet). */
+const landSettings = (record) => setSurfaceValue("settings", { ...(surfaceValue("settings") ?? {}), settings: record });
 const { composePromptPreview } = await import(`${SRC}/server/receptionist/prompt-preview.ts`);
 
 const brain = {
@@ -115,7 +120,7 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
     "the refresh map names the surfaces the workspace's own fields ride on, where they are drawn",
   );
 
-  const was = { fetch: W.fetch, settings: W.__SETTINGS, ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };
+  const was = { fetch: W.fetch, settings: settingsHeld(), ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };
   const srv = server("America/New_York");
   Object.assign(W, {
     fetch: srv.fetch,
@@ -129,9 +134,9 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
   const stop = startSurfaces([settingsOverride], () => () => {});
   try {
     await quiet(async () => {
-      for (let i = 0; i < 40 && !(W.__SETTINGS && W.__SETTINGS.prompt); i += 1) await pause();
-      assert.equal(W.__SETTINGS.prompt.tz, "America/New_York");
-      const told = () => BUSINESS_TAB.consequenceOf("hours", W.__SETTINGS.config.brain, "whatsapp").text;
+      for (let i = 0; i < 40 && !(settingsHeld() && settingsHeld().prompt); i += 1) await pause();
+      assert.equal(settingsHeld().prompt.tz, "America/New_York");
+      const told = () => BUSINESS_TAB.consequenceOf("hours", settingsHeld().config.brain, "whatsapp").text;
       assert.match(told(), /America\/New_York/);
 
       srv.asked.length = 0;
@@ -142,7 +147,7 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
         "settings is read again after the zone is saved, before the save answers the page",
       );
       assert.equal(
-        W.__SETTINGS.prompt.tz,
+        settingsHeld().prompt.tz,
         "America/Chicago",
         "REGRESSION: the preview kept the old zone until something else was saved",
       );
@@ -156,9 +161,9 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
     });
   } finally {
     stop();
+    landSettings(was.settings);
     Object.assign(W, {
       fetch: was.fetch,
-      __SETTINGS: was.settings,
       __WORKSPACES: was.ws,
       __ACTIVE_WORKSPACE: was.active,
     });
@@ -166,7 +171,7 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
 });
 
 test("what it calls a booking is saved through the workspace's own route: only what was said goes, the page's list keeps it, and the pages that say it are read again", async () => {
-  const was = { fetch: W.fetch, settings: W.__SETTINGS, ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };
+  const was = { fetch: W.fetch, settings: settingsHeld(), ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };
   const srv = server("America/New_York");
   Object.assign(W, {
     fetch: srv.fetch,
@@ -183,7 +188,7 @@ test("what it calls a booking is saved through the workspace's own route: only w
   const stop = startSurfaces([settingsOverride], () => () => {});
   try {
     await quiet(async () => {
-      for (let i = 0; i < 40 && !(W.__SETTINGS && W.__SETTINGS.prompt); i += 1) await pause();
+      for (let i = 0; i < 40 && !(settingsHeld() && settingsHeld().prompt); i += 1) await pause();
       srv.asked.length = 0;
       const r = await W.__workspace.patch({ appointment_word: "session" });
       assert.deepEqual(r, { ok: true, workspace: { appointment_word: "session" }, message: "" });
@@ -212,9 +217,9 @@ test("what it calls a booking is saved through the workspace's own route: only w
   } finally {
     stop();
     W.removeEventListener?.("workspace:changed", onChange);
+    landSettings(was.settings);
     Object.assign(W, {
       fetch: was.fetch,
-      __SETTINGS: was.settings,
       __WORKSPACES: was.ws,
       __ACTIVE_WORKSPACE: was.active,
     });

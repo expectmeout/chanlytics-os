@@ -19,18 +19,19 @@ import {
  * `set(id, mode)` — and three surfaces read it: the Settings matrix, the
  * policy chip beside every approval in the Inbox and Today, and Fleet. Rather
  * than teach each reader about the API, this installs a store with the SAME
- * interface that answers from `window.__POLICIES` (fed by the settings
- * override) and from the seeded store only in the standalone mockup. One
- * swap, every reader truthful.
+ * interface that answers from the settings surface's `policies` (the settings
+ * read's, bridge/surfaces/settings.ts) and from the seeded store only in the
+ * standalone mockup. One swap, every reader truthful.
  *
- * `window.__POLICIES` has three states, and the store treats each as its own:
+ * The rows the settings read holds have three states, and the store treats each as its own:
  *   undefined  not read yet: a cold tab before settings lands, or a settings read that failed twice -- no modes, as
  *              for a failed read; the seeds only in a session that declared itself a demo (`__DEMO_MODE`), the
  *              mockup's own, where every row is seeded
  *   null       the bridge ran and the read FAILED — no modes, never the seeds
  *   object     the workspace's real rows
  * It answered from the seeds while undefined, so a real workspace's chips said the mockup's modes ("Replies · holds
- * it") until settings landed, or for the whole visit when it did not: a fact the database never said.
+ * it") until settings landed, or for the whole visit when it did not: a fact the database never said. They were a
+ * window global beside the surface, `__POLICIES`, until 12 November 2026.
  *
  * Honesty rule for the rows: every class here has an enforcer — the
  * receptionist for replies, questions and bookings (the prompt's rules and
@@ -133,7 +134,7 @@ export interface PolicyRecordLike {
   limits?: PolicyLimits | null;
 }
 
-/** What the settings override publishes as `window.__POLICIES`. */
+/** The policy rows the settings read holds (the settings surface's `policies`). */
 export interface PoliciesSurface {
   rows: PolicyRecordLike[];
   role: string | null;
@@ -269,7 +270,6 @@ export function seedPolicyStore(): SeedStore {
 
 interface PolicyWindow {
   POLICY?: SeedStore;
-  __POLICIES?: PoliciesSurface | null;
   __setPolicy?: (cls: string, mode: string) => Promise<unknown>;
   /** A session that declared itself a demo (seed-globals.ts): the only one whose policies are the seeds. */
   __DEMO_MODE?: boolean;
@@ -278,13 +278,16 @@ interface PolicyWindow {
 /**
  * Replace the seeded store with one that answers from real data. Called once
  * at bridge boot, after the manifest has installed the seeds and before React
- * renders.
+ * renders. `held` is where the rows are read, each time they are asked for: the settings surface's
+ * (settings/business/shell.ts policiesNow), in their three states (the header above).
  */
-export function installPolicyStore(win: PolicyWindow = window): void {
+export function installPolicyStore(win: PolicyWindow, held: () => PoliciesSurface | null | undefined): void {
   const seed = win.POLICY;
   // Not read yet is no modes, as a failed read is, everywhere but a demo (the header above).
-  const surface = (): PoliciesSurface | null | undefined =>
-    win.__POLICIES === undefined && !win.__DEMO_MODE ? null : win.__POLICIES;
+  const surface = (): PoliciesSurface | null | undefined => {
+    const rows = held();
+    return rows === undefined && !win.__DEMO_MODE ? null : rows;
+  };
   const store = {
     get MODES(): readonly string[] {
       return surface() === undefined ? (seed?.MODES ?? UI_MODES) : UI_MODES;

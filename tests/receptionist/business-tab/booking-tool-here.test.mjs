@@ -7,15 +7,18 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { again, unmount, find, byTestId, classes, press, settle } from "../../_stub-react.mjs";
 import {
-  W,
+  cancelFoldOf,
   drawTab,
   foldOf,
+  landSettings,
   saveFoldOf,
-  cancelFoldOf,
   saving,
-  written,
+  settingsHeld,
+  W,
   without,
+  written,
 } from "../../_business-tab-harness.mjs";
+const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const BT = "../../../apps/dashboard/src/surfaces/settings/booking-tool";
 const { BookingToolSheet } = await import(`${BT}/sheet.tsx`);
@@ -31,7 +34,7 @@ const drawSheet = (record, closed) => {
   drawTab(record);
   unmount();
   // The Calendar's read is here, as on the Calendar and Today: nothing to wait for.
-  W.__CALENDAR = { vm: null };
+  setSurfaceValue("calendar", { vm: null });
   W.__recordFolds.reset();
   const draw = () => W.React.createElement(BookingToolSheet, { onClosed: closed, flash: () => {} });
   draw();
@@ -52,7 +55,7 @@ test("a door's sheet is the Booking tool's fold alone: open, no row under it, an
   assert.equal(W.__recordFolds.open(), "calendar", "opened as the row's own act opens it");
   assert.ok(sheetOf(tree), "drawn as a sheet");
   assert.equal(byTestId(tree, "rec-row-calendar"), null, "and no row at rest: this page states none");
-  const stored = written(W.__SETTINGS.config);
+  const stored = written(settingsHeld().config);
   press(find(byTestId(foldOf(tree, "calendar") ?? tree, "bto-bookings-guess"), (n) => n.type === "button"));
   tree = redraw();
   saveFoldOf(tree, "calendar");
@@ -78,8 +81,8 @@ test("a workspace with no receptionist has no row to edit: the door goes to Sett
   drawTab();
   unmount();
   W.__recordFolds.reset();
-  W.__SETTINGS = { ...W.__SETTINGS, config: {} };
-  W.__CALENDAR = { vm: null };
+  landSettings({ ...settingsHeld(), config: {} });
+  setSurfaceValue("calendar", { vm: null });
   W.React.createElement(BookingToolSheet, { onClosed: () => (closed += 1), flash: () => {} });
   assert.deepEqual(went, ["admin/workspace/calendar"]);
   assert.equal(closed, 1);
@@ -110,14 +113,14 @@ test("on a page that has not read Settings or the Calendar, each is asked for on
   drawTab({ config: { calendar: undefined } });
   unmount();
   W.__recordFolds.reset();
-  const record = W.__SETTINGS;
-  W.__SETTINGS = undefined;
-  W.__CALENDAR = undefined;
+  const record = settingsHeld();
+  landSettings(undefined);
+  setSurfaceValue("calendar", undefined);
   const asked = [];
   W.__refreshSurface = (key) => {
     asked.push(key);
-    if (key === "settings") W.__SETTINGS = record;
-    else W.__CALENDAR = { vm: null };
+    if (key === "settings") landSettings(record);
+    else setSurfaceValue("calendar", { vm: null });
     return Promise.resolve();
   };
   const draw = () => W.React.createElement(BookingToolSheet, { onClosed: () => {}, flash: () => {} });

@@ -188,7 +188,12 @@ test("the edge answers for every weaker mode it holds, and each answer follows t
 
     const rows = securitySwitchesHere(new Date("2026-10-03T12:00:00Z"));
     const voice = rows.find((r) => r.name === "RETELL_DOORS_SIGNED");
-    assert.deepEqual([voice.sunset, voice.days_left], ["2026-10-17", 14], "each answer carries its day");
+    const listed = FLAGS.find((f) => f.name === "RETELL_DOORS_SIGNED");
+    assert.deepEqual(
+      [voice.sunset, voice.days_left],
+      [listed.sunset, daysToSunset(listed, new Date("2026-10-03T12:00:00Z"))],
+      "each answer carries its day",
+    );
   } finally {
     for (const k of KEYS) {
       if (before[k] === undefined) delete process.env[k];

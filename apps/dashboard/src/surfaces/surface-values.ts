@@ -9,7 +9,7 @@
  *
  * A key may also name a **mirror**, the window global the pages that have not moved still read (Today's own day is read as
  * `TODAY_DATA`). The mirror is written whenever the value is, so the two never say different things, and it is a line
- * to delete on the day its last reader moves: `declareSurfaceValue("calendar", "__CALENDAR")` is the whole of it. Reports'
+ * to delete on the day its last reader moves: `declareSurfaceValue("people", "__PEOPLE")` is the whole of it. Reports'
  * went on 6 October 2026, when Today and Ask, its last readers, moved to the seam.
  *
  * A value is a surface's whole answer, an object the override replaces and never changes in place, so a component that

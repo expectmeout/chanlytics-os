@@ -108,11 +108,11 @@ const page = () =>
     },
   });
 /**
- * The settings read as the settings override lands it (bridge/surfaces/settings.ts): the window global the
- * Business tab's rows and its saver still read (`__SETTINGS`), and the seam's value the first run reads, the facts in it.
+ * The settings read as the settings override lands it (bridge/surfaces/settings.ts): the seam's value the first run, the
+ * Business tab's rows and its saver read, the record and the facts in it (the record a window global too, `__SETTINGS`,
+ * until 12 Nov 2026).
  */
 const landSettings = (record, known) => {
-  W.__SETTINGS = record;
   setSurfaceValue("settings", {
     settings: record,
     facts: known,

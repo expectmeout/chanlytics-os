@@ -111,11 +111,11 @@ const buttons = (tree, words) => all(tree, (n) => n.type === "button" && textOf(
 const clear = (blocks = FOUR()) => {
   went.length = 0;
   flashes.length = 0;
-  W.__CALENDAR = { vm: calendar(blocks), fetchedAt: NOW.getTime() };
+  setSurfaceValue("calendar", { vm: calendar(blocks), fetchedAt: NOW.getTime() });
   setSurfaceValue("today", handoffDay());
 };
 after(() => {
-  delete W.__CALENDAR;
+  setSurfaceValue("calendar", undefined);
   setSurfaceValue("today", undefined);
 });
 
@@ -186,12 +186,15 @@ test("a day with only visits to mark is not an empty queue; none to mark, an unr
   clear([block("a", 14, "kept")]);
   assert.equal(rowsOf(draw()).length, 0, "marked: nothing to ask");
   clear();
-  W.__CALENDAR = { vm: calendar(FOUR(), { feed: { present: true, state: "unavailable" } }), fetchedAt: 1 };
+  setSurfaceValue("calendar", {
+    vm: calendar(FOUR(), { feed: { present: true, state: "unavailable" } }),
+    fetchedAt: 1,
+  });
   assert.equal(rowsOf(draw()).length, 0, "a calendar that could not be read: no visit is claimed on a guess");
   clear();
-  W.__CALENDAR = { vm: calendar(FOUR(), { days: [frame("2026-09-18", { today: true })] }), fetchedAt: 1 };
+  setSurfaceValue("calendar", { vm: calendar(FOUR(), { days: [frame("2026-09-18", { today: true })] }), fetchedAt: 1 });
   assert.equal(rowsOf(draw()).length, 0, "and one that does not hold yesterday asks about nothing");
-  delete W.__CALENDAR;
+  setSurfaceValue("calendar", undefined);
   assert.equal(rowsOf(draw()).length, 0, "the Calendar not read yet");
 });
 
@@ -427,10 +430,10 @@ test("REGRESSION: a visit marked keeps its place in To do's three, with its word
   press(buttons(open, "Kept")[0]);
   await until(() => doors.length === 1, "the Calendar's door was asked");
   // The read after it: Ana a's visit is kept now, so the Calendar asks nothing of it, and Ana g comes into the three.
-  W.__CALENDAR = {
+  setSurfaceValue("calendar", {
     vm: calendar([block("a", 14, "kept"), ...FOUR().filter((b) => b.id !== "e-a")]),
     fetchedAt: NOW.getTime(),
-  };
+  });
   await until(
     () => textOf(todoOf(again(() => W.React.createElement(NeedYou, {})))).includes("Change"),
     "the word said",

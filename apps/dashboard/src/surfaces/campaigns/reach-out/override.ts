@@ -7,13 +7,10 @@ import type { ReachOutChainDto } from "@chanlytics/contracts";
 import { read } from "@/bridge/api";
 import type { SurfaceOverride } from "@/bridge/surface-data";
 import { declareReads } from "@/bridge/surface-registry";
-import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
+import { setSurfaceValue } from "../../surface-values";
 
 /** The chains GET reach-outs lists; null when they could not be read (each page says so), never an empty list it did not read. */
 export type ReachOutsSurface = ReachOutChainDto[] | null;
-
-// Leads (reach-out-leads.jsx) reads this under its old name until it moves.
-declareSurfaceValue("reach_outs", "__REACH_OUTS");
 
 /**
  * The reach-outs surface: the workspace's chains (GET reach-outs, without their reports, R23) as `__REACH_OUTS`, set

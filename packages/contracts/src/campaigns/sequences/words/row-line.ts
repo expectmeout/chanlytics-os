@@ -1,15 +1,17 @@
 /**
  * A sequence's row, in one line (decision 0128; the canvas "Sequences: lines that tell the truth", calls S1 to S9): the
- * first of these that is true. What waits on you and since when ("2 follow-ups wait for your OK · since Sun"); a twin
- * on its moment; a one-off's day; a paused one's people; what goes next and to how many ("Next tomorrow 9:00 AM · 6
- * people"); who is in it; that every lead is through; what it sent; what starts it. Never a bare zero. The list and Ask
- * read it, so Ask says what the row says.
+ * first of these that is true. What waits on you and since when ("2 follow-ups wait for your OK · since Sun"); what is
+ * stuck ("3 leads couldn’t be checked · since Oct 29", "Didn’t run · no calendar is connected"; stage 2); a twin on its
+ * moment; a one-off's day; a paused one's people; what goes next and to how many ("Next tomorrow 9:00 AM · 6 people"),
+ * a batch made, an occasion's next person, or the first of those between two steps; who is in it; that every lead is
+ * through; what it sent; what starts it. Never a bare zero. The list and Ask read it, so Ask says what the row says.
  */
 import { appointmentWords, type AppointmentWord } from "../../../journey/appointment-word";
 import { clockDate, clockNear, clockNearWhen, clockTime, clockWhen, zoneDayKey } from "../../../shared/clock";
 import { plural } from "../../../shared/words";
 import type { SequenceDateDto, SequenceRowDto } from "../dto";
 import { okSendsNothing } from "../list";
+import { runOffRowWords, sequenceStuckOf, type SequenceStuck, type StuckLeadsReason } from "../run-off";
 import { SEQUENCE_WORDS, sequenceStartWords, twinLineOf, type SequenceTwin } from "./flow";
 import { batchWaitsUntilTonight } from "./next";
 
@@ -89,6 +91,19 @@ export function needsWords(
   if (only.ends === "since" && oldest)
     return `${only.full} · ${waitedSinceWords(Date.parse(oldest), clock.tz, clock.nowMs)}`;
   return only.full;
+}
+
+/** What became of leads a first step refuses, by the reason their owner can mend: "3 leads couldn’t be checked". */
+const STUCK_LEADS_WORDS: Record<StuckLeadsReason, string> = { unchecked: "couldn’t be checked" };
+
+/**
+ * A sequence that should be going and isn't (run-off.ts), on its row: leads it cannot start and since when ("3 leads
+ * couldn’t be checked · since Oct 29"), or why its last run did nothing ("Didn’t run · no calendar is connected").
+ */
+function stuckLine(stuck: SequenceStuck, tz: string, nowMs: number): string {
+  if (stuck.kind === "run") return runOffRowWords(stuck.reason);
+  const leads = `${plural(stuck.leads, "lead", "leads")} ${STUCK_LEADS_WORDS[stuck.reason]}`;
+  return `${leads} · ${waitedSinceWords(stuck.sinceMs, tz, nowMs)}`;
 }
 
 /**
@@ -186,12 +201,16 @@ export function sequenceRowLine(
   if (row.state === "draft") return draftLine(row, tz, nowMs);
   const needs = needsWords(row, at);
   if (needs) return needs;
+  const stuck = sequenceStuckOf(row);
+  if (stuck) return stuckLine(stuck, tz, nowMs);
   if (at.twin) return twinLineOf(row);
   if (row.starts === "date" && row.date) return oneOffLine(row, row.date, tz, nowMs);
   if (row.state === "ended") return lastLine(row, tz, nowMs) ?? "Sent nothing";
   if (row.state === "paused") return pausedLine(row, at.word);
   if (row.next) return nextLine(row.next.at, row.next.people, tz, nowMs);
   if (row.coming && row.coming.people > 0) return nextLine(row.coming.at, row.coming.people, tz, nowMs);
+  // No batch is made for them yet: the first of those between two steps with a time to come, and how many have one.
+  if (row.between && row.between.people > 0) return nextLine(row.between.at, row.between.people, tz, nowMs);
   if (row.in_it > 0) return `${row.in_it} in it`;
   if (row.starts === "leads") return leadsIdleLine(row);
   return lastLine(row, tz, nowMs) ?? startsWhenWords(row, at.word);

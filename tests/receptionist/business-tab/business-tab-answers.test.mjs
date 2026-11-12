@@ -41,15 +41,18 @@ import {
 import { PROFILE_CROSSING_WORDS } from "../../../apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import {
-  BUSINESS_TAB,
-  KNOWN,
-  W,
   brainOf,
-  composePromptPreview,
+  BUSINESS_TAB,
+  cancelFoldOf,
   composed,
+  composePromptPreview,
   drawTab,
+  escape,
   foldOf,
+  KNOWN,
   labelled,
+  landPolicies,
+  landSettings,
   marisa,
   openFold,
   openFolds,
@@ -59,9 +62,9 @@ import {
   problemUnder,
   redrawTab,
   saveFoldOf,
-  cancelFoldOf,
-  escape,
   saving,
+  settingsHeld,
+  W,
   went,
   without,
 } from "../../_business-tab-harness.mjs";
@@ -175,7 +178,7 @@ test("typing a voice reaches the composer: the fold says the Tone line it will b
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ profile: without(marisa, "tone"), flash });
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   openFold(tree, "tone");
   tree = redrawTab(flash);
   assert.deepEqual(openFolds(tree), ["tone"]);
@@ -186,7 +189,7 @@ test("typing a voice reaches the composer: the fold says the Tone line it will b
   );
   typeIn(tree, "tone", "Calm and kind.");
   tree = redrawTab(flash);
-  const next = structuredClone(W.__SETTINGS.config.brain);
+  const next = structuredClone(settingsHeld().config.brain);
   next.profile.tone = "Calm and kind.";
   const line = composed("tone", next).find((l) => l.startsWith("Tone:"));
   assert.equal(line, "Tone: Calm and kind.", "the composer's own line");
@@ -290,7 +293,7 @@ test("a voice past what the profile keeps is refused under its box, and nothing 
 
 test("the gap line's tone door opens the voice's fold, with its box in it", () => {
   let tree = drawTab({ profile: without(marisa, "tone") });
-  const gap = businessGap(W.__SETTINGS.config.brain, null);
+  const gap = businessGap(settingsHeld().config.brain, null);
   assert.equal(gap.row, "tone");
   const door = byTestId(byTestId(tree, "rec-gap"), "rec-gap-door");
   // Heard as the gap's sentence, then the act of the row it opens.
@@ -319,7 +322,7 @@ test("a language is added from the list or as typed, removed with its Undo, and 
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash });
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   const row = byTestId(tree, "rec-row-languages");
   assert.match(textOf(row), /English, Spanish/);
   // The list is the fact, and the row stops there (24 Sep): "It answers in whichever of these a customer uses." stood
@@ -543,7 +546,7 @@ test("the fold's one switch saves only its own key, and leaves the price rule an
     profile: { ...marisa, guardrails: { ...marisa.guardrails, never_quote_prices: false } },
     config: { features: { vision: true } },
   });
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   openFold(tree, "guardrails");
   tree = redrawTab();
   press(switchOf(tree, "no_health_advice"));
@@ -588,14 +591,14 @@ test("the rules fold says the rules block it will be told, with the Autonomy tab
   // The settings read resolved its preview with the Autonomy tab's Booking row on ask: the block the fold shows is
   // resolved with the same rows.
   const policy = { booking: { mode: "ask" } };
-  W.__SETTINGS = {
-    ...W.__SETTINGS,
+  landSettings({
+    ...settingsHeld(),
     prompt: composePromptPreview(brainOf(marisa), { tz: "America/New_York", policy, known: KNOWN, openings: null }),
-  };
+  });
   openFold(tree, "guardrails");
   tree = redrawTab();
   const says = byTestId(tree, "rec-fold-says-guardrails");
-  const block = BUSINESS_TAB.consequenceOf("guardrails", W.__SETTINGS.config.brain, "whatsapp");
+  const block = BUSINESS_TAB.consequenceOf("guardrails", settingsHeld().config.brain, "whatsapp");
   assert.deepEqual(partsOf(says), [["Preview what it's told", block.text]]);
   assert.match(
     block.text,
@@ -778,7 +781,7 @@ test("what it may say leaves out a note that has ended on the workspace's own da
 test("the photo switch is on What it can do's own row, not among the rules it keeps", () => {
   const sent = saving();
   drawTab();
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   assert.equal(byTestId(rulesOpen(), "rec-rule-vision"), null, "no longer in the rules fold");
   const tree = redrawTab();
   const row = byTestId(tree, "rec-can-vision");
@@ -864,7 +867,7 @@ test("the hand-off fold says what each channel does in contracts' words, and the
   // What it will be told is the chat hand-off block, whole, with the reasons as typed, and its note.
   typeIn(tree, "escalate_when", "Refunds\n\n  A price they want held  ");
   tree = redrawTab();
-  const next = structuredClone(W.__SETTINGS.config.brain);
+  const next = structuredClone(settingsHeld().config.brain);
   next.profile.escalate_when = ["Refunds", "A price they want held"];
   const block = BUSINESS_TAB.consequenceOf("escalate_when", next, "whatsapp");
   assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-escalate_when"))[0], ["Preview what it's told", block.text]);
@@ -921,20 +924,17 @@ test("a workspace that takes no calls is told nothing a call does: no call sente
 });
 
 test("how long a hand-off holds off is the Autonomy tab's, and a failed read of it is said where the sentence would be", () => {
-  try {
-    let tree = drawTab({
-      policies: { rows: [{ class: "reply", mode: "auto", limits: { pause_hours: 4 } }], role: "owner" },
-    });
-    openFold(tree, "escalate_when");
-    tree = redrawTab();
-    assert.match(textOf(byTestId(tree, "rec-handoff-chat-says")), /replies again after 4 hours/);
-    W.__POLICIES = null;
-    tree = redrawTab();
-    assert.equal(byTestId(tree, "rec-handoff-chat-says"), null, "no sentence it cannot back");
-    assert.match(textOf(byTestId(tree, "rec-handoff-unread")), /Couldn't read the Autonomy tab/);
-  } finally {
-    delete W.__POLICIES;
-  }
+  let tree = drawTab({
+    policies: { rows: [{ class: "reply", mode: "auto", limits: { pause_hours: 4 } }], role: "owner" },
+  });
+  openFold(tree, "escalate_when");
+  tree = redrawTab();
+  assert.match(textOf(byTestId(tree, "rec-handoff-chat-says")), /replies again after 4 hours/);
+  // The policies read landing again, failed: the next drawTab lands the rows it is given.
+  landPolicies(null);
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-handoff-chat-says"), null, "no sentence it cannot back");
+  assert.match(textOf(byTestId(tree, "rec-handoff-unread")), /Couldn't read the Autonomy tab/);
 });
 
 test("more reasons than the profile keeps are refused under the reasons' box", () => {
@@ -972,7 +972,7 @@ test("a note is added, and one removed comes back at its own place with its Undo
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ profile: { ...marisa, notes: notesOf(3) }, flash });
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   openFold(tree, "notes");
   tree = redrawTab(flash);
   assert.deepEqual(titlesOf(tree), ["A", "B", "C"]);
@@ -1004,7 +1004,7 @@ test("a note is added, and one removed comes back at its own place with its Undo
   find(noteRows(tree)[3], (n) => n.type === "textarea").props.onChange({ target: { value: "Behind the building." } });
   tree = redrawTab(flash);
   // What it will be told is the notes block, whole.
-  const next = structuredClone(W.__SETTINGS.config.brain);
+  const next = structuredClone(settingsHeld().config.brain);
   next.profile.notes = [...notesOf(3), { title: "Parking", text: "Behind the building." }];
   assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-notes")), [
     ["Preview what it's told", BUSINESS_TAB.consequenceOf("notes", next, "whatsapp").text],
@@ -1052,7 +1052,7 @@ test("a note's last day is its Until box, a date: a save of another note writes 
   const sent = saving();
   const ending = { title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2099-12-31" };
   let tree = drawTab({ profile: { ...marisa, notes: [ending, ...notesOf(2)] } });
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   openFold(tree, "notes");
   tree = redrawTab();
   // Drawn as a closure's day is: the kit's RecordBox, type date, named for its row.
@@ -1208,7 +1208,7 @@ test("own words carried from the prompt before the form say so, and the save wri
   assert.equal(sent[0].config.brain.profile.extra_instructions, `${before} Cash only.`, "the owner's own field");
   assert.equal(
     sent[0].config.brain.system_prompt,
-    newReceptionistDefaults(W.__SETTINGS.config.brain.business_name).system_prompt,
+    newReceptionistDefaults(settingsHeld().config.brain.business_name).system_prompt,
     "and the product's own lines as the prompt (S4)",
   );
   // An owner's own words open as theirs, with nothing said of where they came from.
@@ -1266,7 +1266,7 @@ test("a fold nobody typed in promises no crossing: on a record that composes not
   // start being given; but nothing was typed, so Save sends nothing.
   const sent = saving();
   let tree = drawTab({ profile: { guardrails: { disclose_ai: true } } });
-  assert.equal(hasProfile(W.__SETTINGS.config.brain.profile), false, "the fixture composes nothing");
+  assert.equal(hasProfile(settingsHeld().config.brain.profile), false, "the fixture composes nothing");
   openFold(tree, "extra_instructions");
   tree = redrawTab();
   assert.ok(byTestId(tree, "rec-own-carried"), "the box opens with the stored prompt, carried");
@@ -1303,7 +1303,7 @@ test("the three messages at rest are one line: how many there are, and whose wor
 test("each message shows what a customer reads, points at a link or a number written out, and offers the default wording back", () => {
   const sent = saving();
   let tree = drawTab();
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   openFold(tree, "fallbacks");
   tree = redrawTab();
   const part = (t, k) => byTestId(t, `rec-fallback-${k}`);
@@ -1326,9 +1326,9 @@ test("each message shows what a customer reads, points at a link or a number wri
   tree = redrawTab();
   const reads = fallbackMessages(
     {
-      ...W.__SETTINGS.config.brain,
+      ...settingsHeld().config.brain,
       fallbacks: {
-        ...W.__SETTINGS.config.brain.fallbacks,
+        ...settingsHeld().config.brain.fallbacks,
         error: "Thanks for writing to {business}! Book: {booking link}",
       },
     },

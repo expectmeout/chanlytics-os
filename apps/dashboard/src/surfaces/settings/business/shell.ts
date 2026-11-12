@@ -7,23 +7,13 @@
  * is new behaviour.
  */
 import type { PoliciesSurface } from "@/bridge/policy-store";
-import type { SettingsRecord } from "@/bridge/surfaces/settings";
-import type { CalendarSurface } from "../../calendar/surface";
 import type { calendar } from "../../calendar/verbs";
-import type { SetupSurface } from "../../setup/surface";
 import { surfaceValue } from "../../surface-values";
 
 declare global {
   interface Window {
-    /** The settings read's globals (bridge/surfaces/settings.ts writes them). */
-    __SETTINGS?: SettingsRecord;
-    __POLICIES?: PoliciesSurface | null;
     /** Whether a page's read failed (surface-registry.ts installRouteGate). */
     __surfaceFailed?: (page: string, param?: string | null) => boolean;
-    /** The calendar's read (the seam's mirror, calendar/surface.ts). */
-    __CALENDAR?: CalendarSurface | null;
-    /** Setup's read (the seam's mirror, setup/surface.ts). */
-    __SETUP?: SetupSurface | null;
     /** The calendar's verbs, as calendar/verbs.ts installCalendar publishes them. */
     __calendar?: typeof calendar;
   }
@@ -31,16 +21,26 @@ declare global {
 
 /* ------------------------------------------------------------- the settings read ------------------------------------------------------------- */
 
-export const settingsNow = () => window.__SETTINGS;
+/**
+ * The workspace's settings record (its config, its version, the prompt the receptionist reads), from the settings surface:
+ * undefined before the read. It was a global beside that value, `__SETTINGS`, holding the same, until 12 Nov 2026.
+ */
+export const settingsNow = () => surfaceValue("settings")?.settings ?? undefined;
 /**
  * What the workspace's facts resolve to, from the settings surface (the seam's value, surface-values.ts): undefined before
  * the read, null on a config that would not parse. It was a global beside that value, `__FACTS`, holding the same.
  */
 export const factsNow = () => surfaceValue("settings")?.facts;
-export const policiesNow = () => window.__POLICIES;
+/**
+ * The workspace's policy rows, from the settings surface: undefined before the read, null where it failed, else the rows.
+ * Every policy chip asks them here too (the store FrameApp.tsx installs, and frame-verbs.ts policiesRead). A window global,
+ * `__POLICIES`, until 12 Nov 2026.
+ */
+export const policiesNow = (): PoliciesSurface | null | undefined => surfaceValue("settings")?.policies;
 /** WhatsApp's rows, from the settings surface: undefined before the read, null where the templates read failed. */
 export const templatesAllNow = () => surfaceValue("settings")?.templatesAll;
-export const setupNow = () => window.__SETUP;
+/** Setup's read, from its surface: undefined before it, null where it failed (a window mirror, `__SETUP`, until 12 Nov 2026). */
+export const setupNow = () => surfaceValue("setup");
 
 /* --------------------------------------------------------------- the workspace --------------------------------------------------------------- */
 
@@ -51,7 +51,8 @@ export const tzApi = () => window.__tz;
 
 /* ---------------------------------------------------------------- the calendar --------------------------------------------------------------- */
 
-export const calendarNow = () => window.__CALENDAR;
+/** The Calendar's read, from its surface: undefined before it (a window mirror, `__CALENDAR`, until 12 Nov 2026). */
+export const calendarNow = () => surfaceValue("calendar");
 export const calendarApi = () => window.__calendar;
 
 /* -------------------------------------------------------- the frame's status and words -------------------------------------------------------- */
