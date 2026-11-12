@@ -62,7 +62,7 @@ const LAST_DAY_PASSED = "Its last day has passed";
  * for a reason it says; null where it ran, sent, found nobody, or is not on. The one question the record's notice
  * (sequenceRunOff) and the list (sequenceStuckOf) ask.
  */
-export function runOffReasonOf(
+function runOffReasonOf(
   row: Pick<SequenceRowDto, "state" | "starts">,
   off: string | null | undefined,
 ): RunOffReason | null {
@@ -72,8 +72,7 @@ export function runOffReasonOf(
 }
 
 /** A run's business day as a time, its noon, for a clock's words or an order; null where the day is not known. */
-export const runDayMs = (day: string | null | undefined): number | null =>
-  day ? Date.parse(`${day}T12:00:00Z`) : null;
+const runDayMs = (day: string | null | undefined): number | null => (day ? Date.parse(`${day}T12:00:00Z`) : null);
 
 /** A run that did nothing, on the list's row (decision 0128, stage 2): "Didn’t run · no calendar is connected". */
 export function runOffRowWords(reason: RunOffReason): string {
