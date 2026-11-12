@@ -2,7 +2,7 @@ import { z } from "zod";
 import { FILE_VIDEO_SECONDS_MAX } from "@chanlytics/contracts";
 import { read, write } from "@/server/shared/route";
 import { fileScope } from "@/server/files/file";
-import { keepStill, viewStill } from "@/server/files/still";
+import { keepStill, viewStill } from "@/server/posts/still";
 
 /** A moment of a video, in seconds from its start: never past the longest a video may be. */
 const Moment = z.coerce.number().min(0).max(FILE_VIDEO_SECONDS_MAX);
@@ -13,7 +13,7 @@ const Moment = z.coerce.number().min(0).max(FILE_VIDEO_SECONDS_MAX);
  *
  * POST — `{ at }`: that moment kept as a photo of the library, as one added by hand would be. Whoever may add photos.
  *
- * The handles are in src/server/files/still.ts.
+ * The handles are in src/server/posts/still.ts (a still is a post's material, as a moment of a video is).
  */
 export const GET = read({
   scope: fileScope,

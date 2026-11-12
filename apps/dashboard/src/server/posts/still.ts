@@ -1,8 +1,8 @@
 /**
  * A still from a video (the content redesign's stage 3): one moment of a clip, or of a video Ask made, seen and kept as a photo
- * of the library. The picture is the one the edge cuts of that moment for a post (posts/material.ts readFrame), so seeing a
+ * of the library. The picture is the one the edge cuts of that moment for a post (material.ts readFrame), so seeing a
  * moment and keeping it read one object, and a post from that moment reads it again for nothing. Kept, it is a photo like one
- * added by hand (upload.ts finishUpload): proven, named for its video and its moment, filed, and looked at.
+ * added by hand (files/upload.ts finishUpload): proven, named for its video and its moment, filed, and looked at.
  */
 import "server-only";
 import { randomUUID } from "node:crypto";
@@ -17,11 +17,11 @@ import {
   stillWont,
 } from "@chanlytics/contracts";
 import { startFile, type FileMemberRow } from "@chanlytics/db/files";
-import { readFrame } from "@/server/posts/material";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
-import { bucket, fileDoorRefusal } from "./file";
-import { finishUpload } from "./upload";
+import { bucket, fileDoorRefusal } from "@/server/files/file";
+import { finishUpload } from "@/server/files/upload";
+import { readFrame } from "./material";
 
 /** How long a browser keeps a moment's picture: a moment of a video never changes. */
 const STILL_KEPT_S = DAY_MS / SECOND_MS;

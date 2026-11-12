@@ -431,7 +431,12 @@ test("a video Ask made says the plan it was drawn by, so its words can be made a
   const said = await recorded(drawn, { rows: [drawn], pieces: [before, piece()], role: "viewer" });
   assert.deepEqual(said.video.plan.lines, ["Three years", "of layers."]);
   assert.equal(said.video.plan.end_line, "Book your cut");
-  assert.deepEqual(said.video.plan.cuts, plan.cuts, "the same moments of the same clips");
+  // A plan kept as "Hook first" reads in blocks (decision 0126): its cuts, each a clip block.
+  assert.deepEqual(
+    said.video.plan.blocks.map((b) => ({ is: b.is, file_id: b.file_id, from: b.from, to: b.to })),
+    plan.cuts.map((cut) => ({ is: "clip", ...cut })),
+    "the same moments of the same clips",
+  );
   const sent = fileRow({ ...video });
   assert.equal(
     (await recorded(sent, { rows: [sent], pieces: [piece()] })).video,
