@@ -29,7 +29,7 @@ On 11 November four of the five live rows on Ruben's Sequences list were true bu
 
 One change to the list's read (`sequence_overview`) adds three facts, and the line each gives. A sequence that should be going and isn't joins Needs you, in its place by how long (`sequenceStuckOf`, contracts `campaigns/sequences/run-off.ts`, which the group, the order and the line all ask).
 
-1. **Leads that could not be checked** (`stuck`): "3 leads couldn't be checked · since Oct 28". A lead whose email came back "Couldn't check" is left out of every batch, and nothing checks it again by itself, so it stood on its list for good and the row said "3 in it". Its owner mends it with Check again on Leads.
+1. **Leads that could not be checked** (`stuck`): "3 leads couldn't be checked · since Oct 28". A lead whose email came back "Couldn't check" is left out of every batch, and nothing checks it again by itself, so it stood on its list for good and the row said "3 in it". It is mended by Check again on the sequence's People, and the leads clock asks again by itself (decision 0131); Leads' own Check again refused such a lead until then, since it had been kept.
 2. **A run that did nothing** (`last_run_off`, `last_run_for`): "Didn't run · no calendar is connected", by the reasons the record already says (`sequenceRunOff`), read for every row that is on and runs by its hour.
 3. **Who is between two steps** (`between`): "Next tomorrow 9:30 AM · 9 people" in place of "18 in it": the first of those with a time to come, and how many have one.
 

@@ -133,6 +133,14 @@ const NOT_PLANNED_WORDS: Partial<Record<ReachOutWhyNot, string>> = {
 export const placeNotPlannedOf = (reason: string | null): string | null =>
   reason ? (NOT_PLANNED_WORDS[reason as ReachOutWhyNot] ?? null) : null;
 
+/**
+ * The leads on a sequence's list Check again is for (decision 0131): added and not planned because their address could
+ * not be checked, by their lead's id. The door asks each one's address again; nothing else of the list is its to ask.
+ */
+export const leadsToCheckAgain = (
+  rows: readonly { group: SequencePeopleGroup; lead_id: string | null; why: string | null }[],
+): string[] => rows.flatMap((r) => (r.group === "queued" && r.lead_id && r.why === "unchecked" ? [r.lead_id] : []));
+
 /** A lead on a list whose address is still being checked: it joins the batch after that. */
 const QUEUED_CHECKING = "Joins once their address is checked";
 

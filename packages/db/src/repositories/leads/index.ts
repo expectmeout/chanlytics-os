@@ -89,6 +89,7 @@ export {
   readNichePrior,
   removeLeadSearch,
   renameLeadSearch,
+  retryLeadChecks,
   startLeadSearch,
   undoLeadSearchRemoval,
 } from "./workbench";

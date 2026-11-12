@@ -137,7 +137,8 @@ export const runOffClause = (reason: string): string | null =>
 
 /**
  * Why a first step refuses a lead, of the reasons their owner can mend, in reach_out_why_not's own word: `unchecked`,
- * an email that came back "Couldn't check", mended by Check again on Leads. One refused for good (written to already, a
+ * an email that came back "Couldn't check", mended by Check again on the sequence's People or on Leads, or by the leads
+ * clock, which asks again by itself (decision 0131). One refused for good (written to already, a
  * customer, on the never-again list) asks nothing of its owner and is not here. Nor is a lead that only waits its turn:
  * a cold email takes a day's worth at a time, so most of a long list has stood there for days, and goes.
  */

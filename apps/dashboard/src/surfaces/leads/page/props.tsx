@@ -36,14 +36,8 @@ import type { LeadCellCtx } from "../cells/types";
 import type { SheetPileView } from "../sheet/sheet";
 import type { LeadAim } from "../sheet/use-aim";
 import type { BulkAdd } from "../scope/bulk-add";
-import {
-  bulkLeads,
-  checkLeadsAgain,
-  peekVMFor,
-  readSuggestions,
-  warmLeadsView as warmView,
-  type LeadsSurface,
-} from "../surface";
+import { bulkLeads, peekVMFor, readSuggestions, warmLeadsView as warmView, type LeadsSurface } from "../surface";
+import { checkLeadsAgain } from "../call";
 import { AddsGoTo } from "../sheet/adds-go-to";
 import type { LeadLists } from "../reach-out/lists";
 import type { LeadNamed } from "../scope/rail-views";

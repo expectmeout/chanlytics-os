@@ -189,7 +189,7 @@ export {
   placeToneOf,
   placeWordOf,
 } from "./place";
-export { PLACE_NOT_PLANNED_WORD, placeLeftWord, placeNotPlannedOf } from "./place";
+export { leadsToCheckAgain, PLACE_NOT_PLANNED_WORD, placeLeftWord, placeNotPlannedOf } from "./place";
 export type {
   PlaceRailLens,
   PlaceRailStepVM,

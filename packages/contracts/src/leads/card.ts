@@ -154,7 +154,7 @@ const LEAD_CARD_WHY_NOT: Record<ReachOutWhyNot, string> = {
   checking: "Their address is still being checked.",
   unconfirmed: "Their address can't be confirmed, and this sequence writes only to confirmed ones, so Add is off.",
   invalid: "Their address bounced, so Add is off.",
-  unchecked: "Their address hasn't been checked yet, so Add is off.",
+  unchecked: "Their address couldn't be checked, so Add is off until it checks out.",
   already: "They're on this sequence's list already.",
   not_counted: "They're still in Needs review: keep them first.",
   elsewhere: "They're in another sequence already, and a lead is in one sequence at a time, so Add is off.",
