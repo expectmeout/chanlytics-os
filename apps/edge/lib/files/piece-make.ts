@@ -152,6 +152,20 @@ export const setPieceMachines = (fake: PieceMachines | null): void => {
 
 const machineOf = (kept: PieceMachine): RenderMachine => ({ name: kept.name, cmdId: kept.cmd_id });
 
+/** The most words a made file is named with. */
+const NAME_WORDS = 5;
+
+/**
+ * What a made file is named: the words its video opens on, both lines where they are one short phrase (a line holds few
+ * characters, so a phrase is often broken across two), else its first line whole, never one cut mid-thought.
+ */
+function madeNameOf(plan: PiecePlan): string {
+  const opening = pieceOpeningOf(plan);
+  const whole = opening.join(" ").trim();
+  const named = whole.split(/\s+/).length <= NAME_WORDS ? whole : (opening[0] ?? "");
+  return fileNameOf(named, NAME_WORDS) || "video";
+}
+
 /** The next step, on the ledger: which, its try, and due now or a while on. */
 async function scheduleStep(
   db: Db,
@@ -427,7 +441,7 @@ async function keepDrawn(db: Db, piece: PieceRow, kept: PieceMachine): Promise<v
     pieceId: piece.id,
     id,
     mediaRef: reserved.mediaRef,
-    name: fileNameOf(pieceOpeningOf(plan)[0] ?? "", 5) || "video",
+    name: madeNameOf(plan),
     bytes: bytes.length,
     fingerprint: fileFingerprintOf(bytes.subarray(0, FINGERPRINT_BYTES), bytes.length),
     seconds,
