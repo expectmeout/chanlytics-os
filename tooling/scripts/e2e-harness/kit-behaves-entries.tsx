@@ -436,6 +436,42 @@ function SheetKitJob() {
   );
 }
 
+/** The sheet on a solid ground with a flat foot: read and answered on with one rest, as tall as what it holds. */
+function SheetKitSolid() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Figure id="sheet-kit-solid" about="the kit's Sheet on a solid ground, with a flat foot">
+      <Button data-testid="sheet-solid-open" onClick={() => setOpen(true)}>
+        Open the visit
+      </Button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Consultation"
+        sub="Yesterday, 10:30 to 11 AM"
+        close={{ label: "Close", glyph: glyph("x", 13) }}
+        solid
+        flatFoot
+        foot={
+          <div data-foot-pair="">
+            <Button variant="secondary">Missed</Button>
+            <Button variant="primary">Kept</Button>
+          </div>
+        }
+      >
+        {SHEET_SERVICES.map(([name, long]) => (
+          <div key={name} className="rec-row" data-empty="false">
+            <span className="rec-row-key">{name}</span>
+            <div className="rec-row-val">
+              <span className="rec-row-value">{long}</span>
+            </div>
+          </div>
+        ))}
+      </Sheet>
+    </Figure>
+  );
+}
+
 /** The sheet with two rests: a kicker's head over rows and a foot, standing at half, its handle a button to full. */
 function SheetKitFit() {
   const [open, setOpen] = useState(false);
@@ -1209,6 +1245,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "sheet-kit-kicker", Draw: SheetKitKicker, closed: false },
   { id: "sheet-kit-rests", Draw: SheetKitRests, closed: false },
   { id: "sheet-kit-fit", Draw: SheetKitFit, closed: false },
+  { id: "sheet-kit-solid", Draw: SheetKitSolid, closed: false },
   { id: "sheet-kit-mark", Draw: SheetKitMark, closed: false },
   { id: "sheet-kit-opens", Draw: SheetKitOpens, closed: false },
   { id: "menu-kit", Draw: MenuKit, closed: false },

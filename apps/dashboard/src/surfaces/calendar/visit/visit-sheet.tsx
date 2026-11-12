@@ -163,6 +163,8 @@ function VisitSheetPhone(p: OpenVisitProps) {
       title={c.vm.title}
       sub={whenWords(c.vm)}
       close={{ label: W.close, glyph: <Icon name="x" size={13} /> }}
+      solid
+      flatFoot
       foot={c.vm.nobody ? undefined : <VisitFoot c={c} />}
       testid="cal-panel"
     >
