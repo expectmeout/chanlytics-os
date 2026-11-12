@@ -15,7 +15,7 @@ export const CONTENT_ROUTE = "campaigns/content";
 export const isContentParam = (param: string | null | undefined): boolean => !!param && /^content(:|$)/.test(param);
 
 /** Made's views: all of it, what needs the owner, what is being made, what waits for its time, what is out. */
-export const CONTENT_VIEWS = ["all", "needs", "making", "scheduled", "posted"] as const;
+export const CONTENT_VIEWS = ["all", "needs", "making", "scheduled", "posted", "aside"] as const;
 export type ContentView = (typeof CONTENT_VIEWS)[number];
 
 /** Content's two lists: what Ask made, and what it makes them from (the library, once Settings › Files). */
@@ -26,6 +26,8 @@ export interface ContentPlace {
   list: ContentList;
   view: ContentView;
   open: string | null;
+  /** Opened straight to its sheet of places (Post it): where a stopped or waiting post is acted on, the one place it is. */
+  post?: boolean;
 }
 
 /** The library's address: Content's second list, where Settings › Files now lands. */
@@ -41,6 +43,7 @@ export function contentPlaceOf(param: string | null | undefined): ContentPlace |
   for (const part of param.split(":").slice(1)) {
     if (isUuid(part)) place.open = part;
     else if (part === "library") place.list = "library";
+    else if (part === "post") place.post = true;
     else if (isOneOf(CONTENT_VIEWS, part)) place.view = part;
   }
   return place;
@@ -53,6 +56,7 @@ export const contentRouteOf = (place: ContentPlace): string =>
     place.list === "library" ? "library" : null,
     place.list === "made" && place.view !== "all" ? place.view : null,
     place.open,
+    place.open && place.post ? "post" : null,
   ]
     .filter((part) => !!part)
     .join(":");

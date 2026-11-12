@@ -72,7 +72,6 @@ export const ROUTES = {
   "GET files": { method: "GET", path: "/api/v1/files" },
   "GET files/[id]": { method: "GET", path: "/api/v1/files/[id]" },
   "GET files/[id]/play": { method: "GET", path: "/api/v1/files/[id]/play" },
-  "GET files/[id]/still": { method: "GET", path: "/api/v1/files/[id]/still" },
   "GET files/[id]/view": { method: "GET", path: "/api/v1/files/[id]/view" },
   "GET files/video/[id]": { method: "GET", path: "/api/v1/files/video/[id]" },
   "GET google": { method: "GET", path: "/api/v1/google" },
@@ -229,7 +228,6 @@ export const ROUTES = {
   "POST files/[id]/google": { method: "POST", path: "/api/v1/files/[id]/google" },
   "POST files/[id]/instagram": { method: "POST", path: "/api/v1/files/[id]/instagram" },
   "POST files/[id]/restore": { method: "POST", path: "/api/v1/files/[id]/restore" },
-  "POST files/[id]/still": { method: "POST", path: "/api/v1/files/[id]/still" },
   "POST files/keep": { method: "POST", path: "/api/v1/files/keep" },
   "POST files/post": { method: "POST", path: "/api/v1/files/post" },
   "POST files/post/preview": { method: "POST", path: "/api/v1/files/post/preview" },
@@ -475,7 +473,6 @@ export type Routes = {
   "GET files": typeof import("../../app/api/v1/files/route").GET;
   "GET files/[id]": typeof import("../../app/api/v1/files/[id]/route").GET;
   "GET files/[id]/play": typeof import("../../app/api/v1/files/[id]/play/route").GET;
-  "GET files/[id]/still": typeof import("../../app/api/v1/files/[id]/still/route").GET;
   "GET files/[id]/view": typeof import("../../app/api/v1/files/[id]/view/route").GET;
   "GET files/video/[id]": typeof import("../../app/api/v1/files/video/[id]/route").GET;
   "GET google": typeof import("../../app/api/v1/google/route").GET;
@@ -632,7 +629,6 @@ export type Routes = {
   "POST files/[id]/google": typeof import("../../app/api/v1/files/[id]/google/route").POST;
   "POST files/[id]/instagram": typeof import("../../app/api/v1/files/[id]/instagram/route").POST;
   "POST files/[id]/restore": typeof import("../../app/api/v1/files/[id]/restore/route").POST;
-  "POST files/[id]/still": typeof import("../../app/api/v1/files/[id]/still/route").POST;
   "POST files/keep": typeof import("../../app/api/v1/files/keep/route").POST;
   "POST files/post": typeof import("../../app/api/v1/files/post/route").POST;
   "POST files/post/preview": typeof import("../../app/api/v1/files/post/preview/route").POST;

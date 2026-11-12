@@ -592,7 +592,7 @@ test("the rail and the standing line count what the lists hold, and say who need
   );
   assert.deepEqual(leadsStanding(COUNTS, [SEARCH_WAITING, SEARCH_DONE]), {
     total: "322 leads",
-    parts: ["272 not contacted", "2 searches"],
+    parts: ["272 not contacted"],
     needsYou: { count: 1, searchId: SEARCH_WAITING.id },
   });
   assert.deepEqual(
@@ -602,8 +602,8 @@ test("the rail and the standing line count what the lists hold, and say who need
   );
   assert.deepEqual(
     leadsStanding(COUNTS, [SEARCH_DONE]),
-    { total: "322 leads", parts: ["272 not contacted", "1 search"], needsYou: null },
-    "one search is a search",
+    { total: "322 leads", parts: ["272 not contacted"], needsYou: null },
+    "how many searches there are is the Lists sheet's to show, never the line's too (Ruben, 12 Nov 2026)",
   );
   assert.deepEqual(
     leadRail(COUNTS, [searchWith({ id: SEARCH_B }, { state: "running", ending: null, ended_at: null })]).searches.map(
@@ -1561,10 +1561,9 @@ test("the rail draws a sequence's own list with the sequences, apart from the se
   assert.deepEqual(leadRail(COUNTS, [search], NOW).sequences, [], "a server before 00496 says none");
   assert.deepEqual(
     leadsStanding(COUNTS, [search, list, empty, own]).parts,
-    ["272 not contacted", `${rail.searches.length} searches`],
-    "the head counts the searches the rail lists: a sequence's own list is none",
+    ["272 not contacted"],
+    "the head counts no searches at all: the rail and the Lists sheet list them",
   );
-  assert.equal(leadsStanding(COUNTS, [search, list]).parts[1], "1 search", "a search beside its sequence's list");
 });
 
 test("a search's empty view says what its round holds: leads to look at, or that it is still looking", () => {

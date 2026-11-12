@@ -4,14 +4,13 @@ import {
   FILES_MAX,
   FILES_PAGE,
   FILE_WORDS as W,
-  ROLE_PERMS,
   fileCursorOf,
   fileNameOf,
-  fileShelfOpening,
   filesTallyOf,
   recordOrNull,
   shelfFilterOf,
   type FileDto,
+  type FileKind,
   type FilePeople,
   type FileShelf,
   type FilesPageDto,
@@ -143,6 +142,8 @@ export const filesTallied: Reader<
 /** What a page of the library is asked for. Nothing asked is where it opens, at a page's length. */
 interface FilesAsked {
   shelf?: FileShelf | undefined;
+  kind?: FileKind | undefined;
+  about?: string | undefined;
   limit?: number | undefined;
   before?: string | undefined;
 }
@@ -166,17 +167,42 @@ export const files: Reader<FilesAsked, FilesPageDto> = {
     const { files: all } = (await load(rc, filesTallied, undefined)).data;
     const tally = filesTallyOf(all);
     const holds = request.shelf === "all" || (request.shelf && tally.shelves[request.shelf]);
-    const shelf = holds && request.shelf ? request.shelf : fileShelfOpening(tally, !!ROLE_PERMS[rc.role]?.settings);
+    // The Library opens on all it keeps: what waits for a yes is a line over it, never where it opens (Ruben, 12 Nov 2026).
+    const shelf = holds && request.shelf ? request.shelf : "all";
+    const kind = request.kind ?? null;
+    const about = request.about?.trim() || null;
+    if (about) {
+      // Found by its words, a page of the best: what the look saw, what is written on it, what a video says (00612).
+      const found = await listFilesFound(rc.ctx.supabase, rc.tenantId, shelfFilterOf(shelf), {
+        words: about,
+        offset: 0,
+        limit: FILES_PAGE,
+      });
+      const files = found.rows.filter((r) => !kind || r.kind === kind).map(fileDtoOf);
+      return { data: { files, shelf, kind, about, next: null, tally }, rows: [], stamp: readerStamp() };
+    }
     const limit = shelf === "inbox" ? FILES_MAX : Math.min(request.limit ?? FILES_PAGE, FILES_MAX);
     // One past the page, so its last page says it is its last with no second read.
-    const rows = await listFilesOnShelf(rc.ctx.supabase, rc.tenantId, shelfFilterOf(shelf), {
-      limit: limit + 1,
-      before,
-    });
+    const rows = await listFilesOnShelf(
+      rc.ctx.supabase,
+      rc.tenantId,
+      { ...shelfFilterOf(shelf), ...(kind ? { kind } : {}) },
+      {
+        limit: limit + 1,
+        before,
+      },
+    );
     const page = rows.slice(0, limit).map(fileDtoOf);
     const last = page.at(-1);
     return {
-      data: { files: page, shelf, next: rows.length > limit && last ? fileCursorOf(last) : null, tally },
+      data: {
+        files: page,
+        shelf,
+        kind,
+        about: null,
+        next: rows.length > limit && last ? fileCursorOf(last) : null,
+        tally,
+      },
       rows: [],
       stamp: readerStamp(),
     };

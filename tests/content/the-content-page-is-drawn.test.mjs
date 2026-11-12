@@ -34,7 +34,7 @@ const out = await build({
   stdin: {
     contents:
       'export { ContentBody } from "../../apps/dashboard/src/surfaces/campaigns/content/body.tsx";\n' +
-      'export { ContentViews } from "../../apps/dashboard/src/surfaces/campaigns/content/views.tsx";\n' +
+      'export { ContentViewRow } from "../../apps/dashboard/src/surfaces/campaigns/content/views.tsx";\n' +
       'export { campaignsChrome } from "../../apps/dashboard/src/surfaces/campaigns/routes.ts";\n' +
       'export { setSurfaceValue, surfaceValue } from "../../apps/dashboard/src/surfaces/surface-values.ts";\n' +
       'export { readMoreContent } from "../../apps/dashboard/src/surfaces/campaigns/content/surface.ts";\n' +
@@ -117,13 +117,18 @@ const making = (over = {}) => ({
   created_at: "2026-11-11T15:00:00Z",
   ...over,
 });
-const TALLY = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0 };
+const TALLY = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0, library: 0, aside: 0 };
+/** Ask's three ideas of what it can make (contracts content/ideas.ts), none with a file of the Library to start from. */
+const IDEAS = ["before_after", "video", "photo_post"].map((key) => ({ key, files: [] }));
 const page = (over = {}) => ({
   view: "all",
   making: [],
   made: [],
   lines: [],
   next: null,
+  ideas: IDEAS,
+  about: null,
+  needsOne: null,
   ...over,
   tally: { ...TALLY, ...over.tally },
 });
@@ -141,16 +146,17 @@ test("a read that failed says so, apart from nothing made", () => {
   assert.equal(count(html, "cnv-empty"), 0);
 });
 
-test("nothing made says what Ask makes and offers the two ways to start", () => {
+test("nothing made says what Ask makes and offers what it can make now, each in one press", () => {
   const html = draw(page());
   assert.equal(count(html, "cnv-empty"), 1);
   assert.match(html, /Nothing made yet/);
   assert.match(html, /Ask makes posts from your photos\./, "a workspace that takes no videos is promised none");
   assert.doesNotMatch(html, /videos from your clips/);
+  assert.equal(count(html, "cnv-idea-photo_post"), 1, "an idea of Ask's, asked for in one press");
+  assert.equal(count(html, "cnv-idea-video"), 0, "and no video where the workspace takes none");
   const videos = S.renderToStaticMarkup(S.createElement(S.ContentBody, { held: page(), acts, videos: true }));
   assert.match(videos, /posts from your photos and videos from your clips/);
-  assert.match(html, /Ask for one/);
-  assert.match(html, /Open Library/);
+  assert.equal(count(videos, "cnv-idea-video"), 1);
   assert.equal(count(html, "cnv-making-title"), 0);
   assert.equal(count(html, "cnv-made-title"), 0);
 });
@@ -183,18 +189,15 @@ test("each made piece is a tile that says where it stands, once", () => {
     }),
   );
   assert.equal(count(html, "cnv-tile"), 5);
-  assert.match(html, /data-shape="tall"/, "a video's tile is tall");
-  assert.match(html, /data-shape="portrait"/, "a 4:5 post's tile is portrait");
-  assert.equal(count(html, "cnv-col"), 2, "a page with no width yet draws two columns, a phone's");
-  assert.doesNotMatch(html, /cnv-grid/, "the grid of equal squares is gone");
+  assert.match(html, /class="files-grid cnv-grid"/, "the Library's grid: a square tile each, as the Library's are");
   assert.equal(count(html, "cnv-said"), 5);
   assert.equal(html.split("5 pieces made · 2 posted").length - 1, 1, "what is made is headed by its count, said once");
   assert.match(html, />Ready to post</);
-  assert.match(html, />On its way to Instagram</);
-  assert.match(html, />On Instagram and Google</);
-  assert.match(html, />Not posted\. Open it to see why\.</);
-  assert.match(html, />Ready</, "a video is ready and no more");
-  assert.match(html, /data-mark="stuck"/);
+  assert.match(html, />Posting to Instagram</);
+  assert.match(html, />On Instagram and Google · /);
+  assert.match(html, />Didn&#x27;t post</);
+  assert.match(html, />Ready to save</, "a video is saved, never posted from here (decision 0121)");
+  assert.match(html, /data-tone="need" data-testid="cnv-said"/, "a post that stopped is marked as needing the owner");
   assert.match(html, /Open saturdays 1/, "a file's name as a person reads it");
 });
 
@@ -286,8 +289,8 @@ test("Needs you is lines: what stopped and why, with its act, and a video not ma
   );
   assert.equal(count(html, "cnv-line"), 1);
   assert.equal(count(html, "cnv-line-not-made"), 1);
-  assert.match(html, /Didn&#x27;t post: Instagram is busy right now\./);
-  assert.match(html, />Try again</);
+  assert.match(html, /Didn&#x27;t post · Instagram is busy right now\./);
+  assert.match(html, /Nothing else needs you\./, "the list says when it is all of it");
   assert.equal(count(html, "cnv-tile"), 0, "a view of lines draws no tiles");
 });
 
@@ -308,12 +311,10 @@ test("Being made is tiles, its first clip dim under Ask at work", () => {
 });
 
 test("the views say how many each holds, and Needs you is marked while it holds anything", () => {
-  const tally = { made: 8, posted: 3, needs: 2, making: 1, scheduled: 2 };
-  const html = S.renderToStaticMarkup(
-    S.createElement(S.ContentViews, { view: "all", tally, phone: false, onView: noop }),
-  );
-  for (const v of ["all", "needs", "making", "scheduled", "posted"]) assert.equal(count(html, `cnv-view-${v}`), 1);
-  assert.match(html, /aria-pressed="true"[^>]*data-testid="cnv-view-all"/);
+  const tally = { made: 8, posted: 3, needs: 2, making: 1, scheduled: 2, library: 0, aside: 0 };
+  const html = S.renderToStaticMarkup(S.createElement(S.ContentViewRow, { view: "all", tally, onView: noop }));
+  for (const v of ["all", "needs", "making", "scheduled", "posted"]) assert.equal(count(html, `cnv-view-row-${v}`), 1);
+  assert.match(html, /aria-pressed="true"[^>]*data-testid="cnv-view-row-all"/);
   assert.match(html, /Needs you<span class="cnv-owed"/);
   assert.match(html, />8</);
 });

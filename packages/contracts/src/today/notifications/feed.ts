@@ -323,10 +323,12 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   ask_cards: { icon: "sparkle", tone: "", action: "Open Today", to: "today" },
   files_waiting: { icon: "image", tone: "", action: "Open Library", to: CONTENT_LIBRARY_ROUTE },
   // A video made here that can be played (00613): its row opens the video itself, so its door says what she will do there.
-  video_ready: { icon: "image", tone: "ok", action: "Watch it", to: CONTENT_ROUTE, own: true },
-  // A post set for its time (00616): its row opens the piece itself, so its door says what she will do there.
-  post_up: { icon: "image", tone: "ok", action: "See it", to: CONTENT_ROUTE, own: true },
-  post_stopped: { icon: "image", tone: "warn", action: "See why", to: CONTENT_NEEDS_ROUTE, own: true },
+  // Its mark is a video's, as the content canvas's bell draws it (PhDoors "bell").
+  video_ready: { icon: "video", tone: "ok", action: "Watch it", to: CONTENT_ROUTE, own: true },
+  // A post set for its time (00616): its row opens the piece itself, so its door says what she will do there. Its mark is
+  // the canvas's tick: it went up.
+  post_up: { icon: "check", tone: "ok", action: "See it", to: CONTENT_ROUTE, own: true },
+  post_stopped: { icon: "image", tone: "warn", action: "Post again", to: CONTENT_NEEDS_ROUTE, own: true },
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
   alert: ALERT_LOOK,
 };

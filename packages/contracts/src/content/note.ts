@@ -1,43 +1,41 @@
 /**
- * Content's one line on Today (the content redesign's stage 3), and only where there is something to say: what needs the
- * owner first (a post that did not go, a video that could not be made), then what is being made, then the next post set for
- * its time today or tomorrow. A business with nothing waiting is not told about Content each morning. The server says which
- * (readers/content.ts contentNote), the page says it in words by its own clock, and the line's press opens that view.
+ * Today's Content card (the content canvas, PhDoors "today"; stage 3 drew one line in its place): read by its own small read,
+ * GET content/note (dashboard readers/content.ts contentNote), since the page's own is too much to ask each time Today opens.
  */
-import { contentRouteOf, type ContentView } from "./address";
+import type { ContentLineDto, ContentMadeDto, ContentMakingDto } from "./page";
 import { POST_PLACE_SAID, type PostPlace } from "./posts";
-import { DAY_MS } from "../shared/time";
 
-/** What the line is about. */
-export type ContentNote =
-  { is: "needs"; count: number } | { is: "making"; count: number } | { is: "next"; at: string; place: PostPlace };
-
-/** How far ahead the next post is worth a line on Today: today's and tomorrow's. */
-const NEXT_WITHIN_MS = 2 * DAY_MS;
-
-/** The line, from what Content holds now: the first of what needs the owner, what is being made, what goes up soon. */
-export function contentNoteOf(
-  held: { needs: number; making: number; next: { at: string; place: PostPlace } | null },
-  nowMs: number,
-): ContentNote | null {
-  if (held.needs > 0) return { is: "needs", count: held.needs };
-  if (held.making > 0) return { is: "making", count: held.making };
-  if (held.next && Date.parse(held.next.at) - nowMs <= NEXT_WITHIN_MS) return { is: "next", ...held.next };
-  return null;
+/**
+ * Today's Content card (the content canvas, PhDoors "today"): this week's pieces at their own shape, what is being made,
+ * how many of the week's are ready to post, and the newest post that did not go out, with its file; nothing in it is a page of
+ * Content's.
+ */
+export interface ContentTodayDto {
+  /** Made in the last seven days, newest first, a few (CONTENT_TODAY_PIECES): each with its posts. */
+  week: ContentMadeDto[];
+  /** Videos being made now, but one whose file has arrived: that is a piece of the week's. */
+  making: ContentMakingDto[];
+  /**
+   * Of every piece made in the last seven days, not only the few shown, those with no post yet: ready to post. Null where
+   * the week holds more pieces than the read looks through (a page of Content's): a count it could not finish is not said.
+   */
+  ready: number | null;
+  /** The newest post that did not go out and is still the newest at its place, with its file; none where none. */
+  stopped: ContentLineDto | null;
 }
 
-const VIEW_OF: Record<ContentNote["is"], ContentView> = { needs: "needs", making: "making", next: "scheduled" };
+/** How many of the week's pieces Today's card shows. */
+export const CONTENT_TODAY_PIECES = 6;
 
-export const CONTENT_NOTE_WORDS = {
-  /** `when` is the next post's time as the page's clock says it. */
-  headline: (note: ContentNote, when: string): string => {
-    if (note.is === "needs") return note.count === 1 ? "A post needs you" : `${note.count} posts need you`;
-    if (note.is === "making") return note.count === 1 ? "A video is being made" : `${note.count} videos are being made`;
-    return `A post goes up on ${POST_PLACE_SAID[note.place]} ${when}`;
-  },
-  open: "Open Content",
+/** The card's words. */
+export const CONTENT_TODAY_WORDS = {
+  title: "Content",
+  /** "2 ready to post": the week's pieces with no post yet. */
+  ready: (n: number) => `${n} ready to post`,
+  all: "All",
+  /** A post that stopped opens straight to its sheet, where it is posted again: the piece's own word for it. */
+  postAgain: "Post again",
+  /** "Didn't post to Instagram. Instagram was busy." */
+  didntPost: (place: PostPlace, reason: string | null) =>
+    `Didn't post to ${POST_PLACE_SAID[place]}.${reason ? ` ${reason}` : ""}`,
 } as const;
-
-/** Where the line's press goes: the view of Made it is about. */
-export const contentNoteRouteOf = (note: ContentNote): string =>
-  contentRouteOf({ list: "made", view: VIEW_OF[note.is], open: null });

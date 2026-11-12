@@ -109,18 +109,19 @@ const copiesOf = (mapped) =>
       headers: { "content-type": "application/json" },
     }));
 
-test("the line every turn: what is kept and on which shelves, what waits, a logo, how fresh", () => {
+test("the line every turn: what is kept and on which shelves, what Ask made apart, what waits, a logo, how fresh", () => {
   const files = [
     { status: "filed", shows: "storefront", created_at: "2026-11-03T15:00:00Z" },
     { status: "filed", shows: "interior", created_at: "2026-11-01T15:00:00Z" },
     { status: "filed", shows: "work", created_at: "2026-11-02T15:00:00Z" },
     { status: "filed", shows: "logo", created_at: "2026-10-30T15:00:00Z" },
+    { status: "filed", shows: "graphic", source: "made", created_at: "2026-10-29T15:00:00Z" },
     { status: "inbox", shows: "work", created_at: "2026-11-04T15:00:00Z" },
     { status: "set_aside", shows: "work", created_at: "2026-10-01T15:00:00Z" },
   ];
   assert.equal(
     filesLineOf(files, TZ),
-    "Files: 4 photos (place 2, work 1, logos and graphics 1); 1 in Inbox; logo yes; last added 4 Nov.",
+    "Files: 4 photos (place 2, work 1, logos and graphics 1); made by Ask 1; 1 in Inbox; logo yes; last added 4 Nov.",
   );
   assert.equal(filesLineOf([], TZ), "Files: no photos yet.");
   assert.equal(

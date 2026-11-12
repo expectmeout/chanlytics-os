@@ -175,7 +175,7 @@ being read is dropped by a migration.
 | `file_change` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | What a person says of a file (00551): |
 | `file_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The one door every road keeps a file by, after the server proved its bytes (00551). |
 | `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 4 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
-| `file_keep_many` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | The Inbox's one press (00551): |
+| `file_keep_many` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | The Found online list's press (00551, 00619): |
 | `file_listing_aside` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | What a public listing offered and nobody kept goes aside (00551): |
 | `file_look_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | What the look saw (00551), under the owner's word: |
 | `file_made` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | What Ask made kept as a file, after the server stored its bytes (00553, decision 0099): |
@@ -473,7 +473,7 @@ being read is dropped by a migration.
 | `post_attempt_open` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | One send of a post opened (00611), with the request as sent and never a token. |
 | `post_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | A member's press, with the settings permission (00611, 00616): |
 | `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A placement moved from where it stood (p_from) to where it goes (00611), with its held reason, link, time, post id or refusal from p_patch; |
-| `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | A member's Don't post, with the settings permission (00611): |
+| `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619): |
 | `post_unanswered` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post sent with no answer (00611): |
 | `preview_built` | the server's | the server | code `apps/edge/lib/previews/build.ts`, `apps/edge/lib/shared/log-events.ts` and 1 more | A preview's build answered (0079): |
 | `preview_called` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | A call to a preview ended (0079): |

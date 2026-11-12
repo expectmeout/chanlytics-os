@@ -122,6 +122,14 @@
   animation: post-arrives var(--duration-base) var(--ease-out);
 }
 
+/* The lines left empty, folded behind a press each (post-edit.tsx `fold`): in a row under the headline, at its left edge. */
+.post-adds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: -2px;
+}
+
 .post-say {
   display: grid;
   gap: 2px;
@@ -160,6 +168,21 @@
     z-index: 1;
     max-width: 148px;
     margin-inline: auto;
+  }
+  /* The picture alone, no shapes to choose (Content's Change it): large enough to read its words while nothing is being
+     typed, and small again above the keys while something is. */
+  .post-version[data-one-shape] .post-frame {
+    max-width: 212px;
+    transition: max-width var(--duration-base) var(--ease-out);
+  }
+  /* A line being typed in shrinks it, out of the keys' way (and only a line: its own press opens it full size). */
+  .post-version[data-one-shape]:has(.post-say:focus-within) .post-frame {
+    max-width: 148px;
+  }
+}
+@media (max-width: 720px) and (prefers-reduced-motion: reduce) {
+  .post-version[data-one-shape] .post-frame {
+    transition: none;
   }
 }
 

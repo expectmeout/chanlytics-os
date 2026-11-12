@@ -84,6 +84,9 @@ export const NEW_AD = {
       label: "A photo from your Library",
       none: "Nothing is kept in your Library yet.",
       door: "Open Library",
+      // The two groups the tiles stand in (the content canvas, board Doors: made first).
+      made: "Made by Ask",
+      library: "From your Library",
     },
     postUse: "How the post is used",
     asIs: "Use the post as it is",

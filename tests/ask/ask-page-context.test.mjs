@@ -234,7 +234,12 @@ test("Campaigns is Sequences (decision 0060): its rows are the list's in its ord
     id: `campaigns/sequences/${U(5)}/people`,
     label: "Movers in Austin",
   });
-  assert.equal(ctx({}, `campaigns/sequences/${U(8)}`).focus, null, "one the list does not hold names none");
+  // One the list does not hold (not read yet, or opened by a link) is a sequence by its address, read whole as the turn opens.
+  assert.deepEqual(ctx({}, `campaigns/sequences/${U(8)}`).focus, {
+    kind: "sequence",
+    id: U(8),
+    label: "this sequence",
+  });
   // A link kept from the home still names its campaign as it lands on its sequence (contracts scopeFromRoute).
   assert.deepEqual(ctx({}, `campaigns/moment:${U(1)}`).focus, { kind: "playbook", id: U(1), label: "this campaign" });
 });

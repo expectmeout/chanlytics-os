@@ -59,6 +59,9 @@ const planWords = {
   end_line: z.string().max(PIECE_LIMITS.endLine).nullable(),
   language: z.enum(["en", "es"]),
   people_agreed: z.boolean(),
+  // The words Ask wrote to go under the video where it is posted (C3): kept with the plan, read back as its words. None on a
+  // card made before Ask wrote them.
+  caption: z.string().max(PIECE_LIMITS.caption).nullable().optional(),
 };
 
 /** A plan kept as "Hook first", the one shape a video had: its cuts are read as clip blocks (contracts piecePlanOf). */

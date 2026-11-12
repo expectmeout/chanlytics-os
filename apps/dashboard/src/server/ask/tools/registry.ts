@@ -49,6 +49,7 @@ import { propose_follow_up } from "./act/follow-up";
 import { press_card } from "./act/press";
 import { pieceAct } from "./act/files/piece";
 import { postAct } from "./act/files/post";
+import { publishAct } from "./act/files/publish";
 import { rememberAct } from "./act/remember";
 
 /**
@@ -116,6 +117,7 @@ export const ACT_DEFS: readonly ActTool[] = [
   rememberAct,
   postAct,
   pieceAct,
+  publishAct,
   press_card,
 ];
 

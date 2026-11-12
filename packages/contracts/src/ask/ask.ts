@@ -4,7 +4,8 @@ import { parseLeadsRoute } from "../leads/plan";
 import { parsePipelineRoute } from "../deals/pipeline/views";
 import { pipelinePersonOf } from "../deals/pipeline/vm";
 import { personRouteOf } from "../people/person-page/route";
-import { parseSequencesRoute } from "../campaigns/sequences/address";
+import { messageOfRoute, parseSequencesRoute } from "../campaigns/sequences/address";
+import { templateTitle } from "../campaigns/templates/titles";
 import type { ReachOutChainDto } from "../campaigns/reach-out/dtos";
 import type { TemplateStatus } from "../shared/enums";
 import type { VersionChannel } from "../campaigns/templates/message-versions/channels";
@@ -28,7 +29,10 @@ export interface AskThreadVM {
  * playbook is a campaign open in its drawer on Campaigns (the moment spec, A1); a reach-out open there is the page at
  * that address (scopeFromRoute). An ad is one paid ad open in its drawer on Campaigns › Ads (`campaigns/ads:ad:<id>`,
  * decision 0049); nothing reads it on the server yet, so a turn about one is a turn about the page until the Ads read lands.
- * A file is one photo open in its sheet on Settings › Files (`?do=file:<id>`), and the turn sees the picture itself.
+ * A file is a piece or a photo open in Content (`campaigns/content:<id>`), and the turn sees the picture itself. A sequence
+ * is one open at its record (`campaigns/sequences/<id>`), a message one the Library has open by its name
+ * (`campaigns/messages/<name>`), and a visit one the Calendar has open in its sheet (`calendar/…a-<id>`) (Ruben, 12 Nov 2026:
+ * every open thing the chip it is).
  */
 export const ASK_SCOPE_KINDS = [
   "thread",
@@ -42,6 +46,9 @@ export const ASK_SCOPE_KINDS = [
   "playbook",
   "ad",
   "file",
+  "sequence",
+  "message",
+  "visit",
 ] as const;
 
 export type AskScopeKind = (typeof ASK_SCOPE_KINDS)[number];
@@ -109,6 +116,9 @@ export function scopeFromRoute(
     return { kind: "run", id: param.slice(4), label: label || "this run" };
   if (page === "campaigns" || page === "outbound") return campaignsScope(page, param, label, chains);
   if (page === "clients") return clientsScope(param, label);
+  // A visit open in its sheet, on whichever view and day the Calendar shows it (contracts calendar visitRoute).
+  const visit = page === "calendar" ? /(?:^|:)a-([0-9a-f-]{36})$/.exec(param)?.[1] : undefined;
+  if (visit && UUID.test(visit)) return { kind: "visit", id: visit, label: label || "this visit" };
   return null;
 }
 
@@ -131,10 +141,19 @@ function campaignsScope(
   }
   if (page === "campaigns" && param.startsWith("ads:ad:") && UUID.test(param.slice(7)))
     return { kind: "ad", id: param.slice(7), label: label || "this ad" };
-  // A run at its home under its sequence (the Campaigns wiring review's lane 2): the run, as Sent's sheet of it was.
+  // A piece Ask made, or a file of the Library, open in Content's viewer (the content redesign).
+  if (page === "campaigns" && param.startsWith("content:") && UUID.test(param.slice(8)))
+    return { kind: "file", id: param.slice(8), label: label || "this piece" };
+  // A run at its home under its sequence (the Campaigns wiring review's lane 2): the run, as Sent's sheet of it was; else the
+  // sequence itself, open at its record.
   const place = page === "campaigns" ? parseSequencesRoute(`campaigns/${param}`) : null;
   if (place?.view === "record" && place.run && UUID.test(place.run))
     return { kind: "run", id: place.run, label: label || "this run" };
+  if (place?.view === "record" && UUID.test(place.id))
+    return { kind: "sequence", id: place.id, label: label || "this sequence" };
+  // A message the Library has open: its id the name it is stored by, its chip the title the page says (templateTitle).
+  const message = page === "campaigns" ? messageOfRoute(`campaigns/${param}`) : null;
+  if (message) return { kind: "message", id: message, label: label || templateTitle(message) };
   return null;
 }
 

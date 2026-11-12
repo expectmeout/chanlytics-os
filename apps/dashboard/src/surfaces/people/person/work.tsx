@@ -48,9 +48,12 @@ function WatchedFigure({ c, f }: { c: PageCtx; f: PersonFigureVM }) {
   );
 }
 
-/** The figures: four at most, each a door. None on a thin record. */
+/**
+ * The figures: four at most, each a door. None on a thin record. On a phone no Last contact: Overview's Latest, just under
+ * the tabs, shows that very exchange, who and when (Ruben, 12 Nov 2026: a 96px tile said a date the page says below).
+ */
 export function Figures({ c }: { c: PageCtx }) {
-  const figures = c.p.figures;
+  const figures = c.phone ? c.p.figures.filter((f) => f.id !== "last") : c.p.figures;
   if (!figures.length) return null;
   return (
     <dl className="cl-prof-figures" aria-label={PERSON_FIGURES_LABEL} data-testid="person-figures">

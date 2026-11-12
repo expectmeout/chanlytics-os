@@ -1,6 +1,6 @@
 /**
  * What a person says of one file, in its sheet (decision 0099): its name, its shelf, and who is in it. Each is saved as it is said; a
- * member who may not change a file reads the same in words, with nothing dead to press. The sheet is file-sheet.tsx.
+ * member who may not change a file reads the same in words, with nothing dead to press.
  */
 import { useEffect, useId, useRef, useState } from "react";
 import {

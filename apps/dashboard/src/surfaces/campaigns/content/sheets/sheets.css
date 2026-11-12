@@ -1,0 +1,231 @@
+/*
+ * The sheets over an open piece (the content canvas, PhAct "post" and "video", PhChange): where it goes and stands at each
+ * place, a video's own sheet, changing its words, and the one line to Ask. Layout and the app's tokens alone; each press and
+ * field is the kit's.
+ */
+
+/* What a sheet over the open piece holds (viewer/sheets.tsx, details.tsx): clear of its head's rule, which the kit's sheet
+   leaves to what it holds (the first box stood on the rule: Ruben, 12 Nov 2026), and of its foot; one step between its parts,
+   the same in every sheet. */
+.cnv-over {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 0 12px;
+}
+
+/* A place's row: its glyph on a rounded square, its name, and under it, where there is something to say, where the piece
+   stands there, with its doors (see it, take it down) or Connect beside it; at its end its switch (Instagram's Post or Story
+   before it) or Don't post. One line where a place has nothing to say. A hairline between the rows (the canvas's .ct-dest). */
+.cnv-dests {
+  display: flex;
+  flex-direction: column;
+  padding: 0 14px;
+  border-radius: var(--radius-xl);
+  background: var(--surface-inset-fill);
+}
+/* A place's row: its glyph, its name and at its end its switch or Don't post, and under the name where it stands there. A
+   post that stopped says why on that line across the row, under the end too, so a reason never wraps beside a switch. */
+.cnv-dest {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  align-items: center;
+  min-height: 48px;
+  padding: 7px 0;
+}
+.cnv-dest + .cnv-dest {
+  border-top: 1px solid var(--line);
+}
+/* Its glyph plain, the group's ground behind it: no tile of its own (Ruben, 12 Nov 2026: compact). */
+.cnv-dest-glyph {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--ink-dim);
+}
+/* Its name and its line are the row's own cells (the words hold them for a screen reader, and draw nothing of their own). */
+.cnv-dest-words {
+  display: contents;
+}
+.cnv-dest-words > b {
+  grid-column: 2;
+  grid-row: 1;
+}
+.cnv-dest-words > .cnv-dest-said {
+  grid-column: 2;
+  grid-row: 2;
+}
+.cnv-dest[data-stands="stuck"] .cnv-dest-words > .cnv-dest-said {
+  grid-column: 2 / -1;
+}
+/* One line where the place has nothing to say, or where its line runs under the end: the glyph sits beside the name alone. */
+.cnv-dest:is([data-stands="stuck"], :not(:has(.cnv-dest-said))) .cnv-dest-glyph {
+  grid-row: 1;
+}
+/* Its ink is said here: in a dark sheet over a light page, an inherited colour is the page's own. */
+.cnv-dest-words > b {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.cnv-dest-said {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+/* Where it stands there, in the place's tone: up, on its way or set for its time, or stopped. */
+.cnv-dest[data-stands="up"] .cnv-dest-status {
+  color: var(--ok-ink);
+}
+.cnv-dest:is([data-stands="going"], [data-stands="timed"]) .cnv-dest-status {
+  color: var(--accent-ink);
+}
+.cnv-dest[data-stands="stuck"] .cnv-dest-status {
+  color: var(--warn-ink);
+}
+/* The doors to a post that is up there (Files' own parts: see it, take it down), beside where it stands: their own line
+   saying it is up is the row's already, so the presses stand alone, as text. */
+.cnv-dest-doors {
+  display: inline-flex;
+  min-width: 0;
+}
+.cnv-dest-doors .files-from {
+  display: none;
+}
+/* The text presses beside where a place stands (see it, take it down, Connect) are drawn the height
+   of their words, as the line they stand in is: under a finger the shell's floor (every button 44px tall) stood the line 44px
+   tall, and the touch floor is the press round them instead, as a toast's Undo keeps it (kit.css .pp-toast-cta). */
+@media (pointer: coarse) {
+  .cnv-dest .cnv-dest-said :is(a, button) {
+    position: relative;
+    min-height: 0;
+  }
+  .cnv-dest .cnv-dest-said :is(a, button)::after {
+    content: "";
+    position: absolute;
+    inset: -10px -6px;
+  }
+}
+.cnv-dest-end {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.cnv-dest:is([data-stands="stuck"], :not(:has(.cnv-dest-said))) .cnv-dest-end {
+  grid-row: 1;
+}
+/* Instagram's Post or Story (post-both.tsx InstagramAs): one small track, the one chosen raised, as Made and Library's is.
+   Drawn at a row end's size; under a finger each keeps a thumb's reach round it, drawn no taller, as the presses above do,
+   on its ::before (the glass kind draws its rim on ::after). */
+.cnv-as {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--radius-full);
+  background: var(--selected-fill);
+}
+.cnv-as > button {
+  height: 26px;
+  padding: 0 10px;
+}
+@media (pointer: coarse) {
+  .cnv-dest .cnv-as > button {
+    position: relative;
+    min-height: 0;
+  }
+  .cnv-dest .cnv-as > button::before {
+    content: "";
+    position: absolute;
+    inset: -9px -1px;
+  }
+}
+.cnv-dest > .cnv-refused {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+/* A time for the post, or Post's question (post-both.tsx PostBothActs): the sentence and what it means, then Back and the
+   coral act. The foot's glass is a capsule with round ends, so the words are held in from its edge and its curve, where they
+   sat against it; the presses keep the foot's own inset, as at rest. */
+.cnv-acts.cnv-when {
+  flex-direction: column;
+  gap: 14px;
+  align-items: stretch;
+}
+.cnv-when-words {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px 0;
+}
+.cnv-when-says {
+  margin: 0;
+  font-size: var(--text-md);
+  /* One line of tokens (the day, the time) stands 28px: a sentence that wraps keeps them apart. */
+  line-height: 28px;
+  color: var(--ink);
+}
+.cnv-when-acts {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.cnv-when-acts > :last-child {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+/* A row's quiet presses (Connect, Don't post) start where its words do, and keep a thumb's reach on a phone. */
+.cnv-dest-said .cnv-dest-act {
+  position: relative;
+  padding-inline: 0;
+}
+@media (pointer: coarse) {
+  .cnv-dest-said .cnv-dest-act::before {
+    content: "";
+    position: absolute;
+    inset: -12px -8px;
+  }
+}
+
+/* The one line to Ask (ask-change.tsx), drawn as Ask's own: Ask's three, the field that grows with its words, and the round
+   send at its end, in one capsule of the inset ground, its rim the accent while it has the keys. */
+.cnv-ask-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+  padding: 4px 6px 4px 14px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-2xl);
+  background: var(--surface-inset-fill);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.cnv-ask-line:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--focus-field);
+}
+.cnv-ask-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--accent);
+}
+/* The field at a sheet's own size: a step under Ask's own line, where it is the page. */
+.cnv-ask-line .cnv-ask-words {
+  min-height: 38px;
+  padding: 7px 0;
+  font-size: var(--text-md);
+  line-height: 24px;
+}

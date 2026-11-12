@@ -6504,6 +6504,47 @@ COMMENT ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) IS 'Th
 
 
 --
+-- Name: file_keep_many(uuid, uuid[], text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[], p_to text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_moved integer;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_to is null or p_to <> all (array['filed', 'set_aside']) then
+    raise exception 'Filed or set aside.' using errcode = '22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  update public.files f
+     set status = p_to, updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = any (p_ids) and f.status = 'inbox' and f.removed_at is null;
+  get diagnostics v_moved = row_count;
+  if v_moved > 0 and p_to = 'filed' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file.kept', 'setup', 'workspace', p_tenant_id, jsonb_build_object('count', v_moved, 'by', v_actor));
+  end if;
+  return v_moved;
+end $$;
+
+
+--
+-- Name: FUNCTION file_keep_many(p_tenant_id uuid, p_ids uuid[], p_to text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[], p_to text) IS 'The Found online list''s press (00551, 00619): what waits, among these, is filed (Keep) or set aside (Not mine). Answers how many moved.';
+
+
+--
 -- Name: file_listing_aside(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -22511,9 +22552,10 @@ begin
   if not coalesce(public.caller_has_permission(v_tenant, 'settings'), false) then
     raise exception 'Not yours to change.' using errcode = '42501';
   end if;
-  -- Up to the moment it is sent; the jobs read the row before they act, so a pulled post is never sent.
+  -- Up to the moment it is sent (the jobs read the row before they act, so a pulled post is never sent), and once it
+  -- stopped: let go, it waits for no one.
   update public.posts p set status = 'pulled', updated_at = now()
-   where p.id = p_post_id and p.status = any (array['queued', 'preparing']);
+   where p.id = p_post_id and p.status = any (array['queued', 'preparing', 'held', 'failed']);
   if found then
     return jsonb_build_object('fate', 'pulled');
   end if;
@@ -22525,7 +22567,7 @@ end $$;
 -- Name: FUNCTION post_pull(p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_pull(p_post_id uuid) IS 'A member''s Don''t post, with the settings permission (00611): a post not yet being sent is pulled, and its jobs find it so and send nothing. Answers {fate: pulled, late (with where it stands), unknown}.';
+COMMENT ON FUNCTION public.post_pull(p_post_id uuid) IS 'Don''t post (00611, 00619): a post queued or being prepared is pulled before it is sent, and one held or failed is let go. Answers {fate: pulled, late, unknown}.';
 
 
 --
@@ -52862,6 +52904,15 @@ GRANT ALL ON FUNCTION public.file_free_name(p_tenant_id uuid, p_base text, p_sel
 REVOKE ALL ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) TO authenticated;
 GRANT ALL ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION file_keep_many(p_tenant_id uuid, p_ids uuid[], p_to text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[], p_to text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[], p_to text) TO authenticated;
+GRANT ALL ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[], p_to text) TO service_role;
 
 
 --

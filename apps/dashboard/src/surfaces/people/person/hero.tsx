@@ -469,9 +469,16 @@ function heroId(c: PageCtx) {
         <Wash scope={p.id} value={head.state} said={PERSON_WASH_WORDS.state(head.word)}>
           <StatePill kind="person" value={head.state} label={head.word} testid="person-standing" />
         </Wash>
+        {/* On a phone its sentence rides the state's line, "● New · First contact Nov 11" (Ruben, 12 Nov 2026: the head
+            was too tall for what it says). */}
+        {c.phone && head.sentence ? (
+          <span className="cl-prof-now-said" data-testid="person-now-why">
+            {head.sentence.replace(/\.$/, "")}
+          </span>
+        ) : null}
       </span>
-      {/* Its sentence, said once, always. */}
-      {head.sentence ? (
+      {/* Its sentence, said once, always: under the state on a desk. */}
+      {head.sentence && !c.phone ? (
         <div className="cl-prof-now-why" data-testid="person-now-why">
           {head.sentence}
         </div>

@@ -254,9 +254,11 @@ test("a card's payload reads back as the plan, and nothing else rides along", ()
     ...rest,
     shape: "blocks",
     blocks: cuts.map((cut) => ({ is: "clip", ...cut, label: null })),
+    caption: null,
   });
   assert.deepEqual(Object.keys(read).sort(), [
     "blocks",
+    "caption",
     "end_line",
     "language",
     "lines",
@@ -274,7 +276,11 @@ test("a card's payload reads back as the plan, and nothing else rides along", ()
     end_line: null,
     language: "en",
     people_agreed: false,
+    caption: null,
   });
+  // The words Ask wrote to paste under it (C3) ride with it; a video made before Ask wrote them has none, never made up.
+  assert.equal(piecePlanOf({ ...plan(), caption: "I asked for volume." }).caption, "I asked for volume.");
+  assert.equal(piecePlanOf({ ...plan(), caption: "   " }).caption, null);
 });
 
 test("every reason a plan is refused has its words for a person, in both languages", () => {
@@ -336,8 +342,10 @@ test("a card is titled by its opening line, without the comma that leads into th
 
 test("the bell names a made video as Content shows it, never by its file name", () => {
   // Seen on production 11 Nov 2026: "long-layers is in Files, under Made by Ask."
-  assert.equal(PIECE_WORDS.bell.readyBody("long-layers"), "Long layers is in Content, under Made.");
-  assert.equal(pieceWordsIn("es").bell.readyBody("pedi-volumen"), "Pedi volumen está en Contenido, en Hecho.");
+  // And what to do with it, since a bell's row draws no verb of its own (the content canvas's bell: "I asked for volume · Watch it").
+  assert.equal(PIECE_WORDS.bell.readyBody("long-layers"), "Long layers · Watch it");
+  assert.equal(pieceWordsIn("es").bell.readyBody("pedi-volumen"), "Pedi volumen · Míralo");
+  assert.equal(PIECE_WORDS.bell.readyBody(""), "Watch it", "with no name kept, the verb alone");
 });
 
 test("a card asks for its stills before the press, while its video is made or was not, and for a ready one whose poster did not come", () => {

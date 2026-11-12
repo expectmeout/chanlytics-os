@@ -11,7 +11,7 @@
  */
 
 /** The pages that say what they drew. */
-export type OnScreenKey = "inbox" | "people" | "pipeline" | "calendar" | "ads";
+export type OnScreenKey = "inbox" | "people" | "pipeline" | "calendar" | "ads" | "content";
 
 /** What a page that holds its rows in state says it drew (D3): its key, the ids in its order, and its view. */
 export interface OnScreen {

@@ -71,6 +71,7 @@ export const ADDED_SINCE = [
   "propose_piece",
   "propose_plan.steps",
   "propose_post",
+  "propose_publish",
   "propose_reply.booking",
   "propose_review.reply",
   "propose_sequence.cold_email",

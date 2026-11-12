@@ -881,20 +881,6 @@
       "rate": "file_upload",
       "spend": false
     },
-    "GET files/[id]/still": {
-      "kind": "read",
-      "scope": "row",
-      "role": null,
-      "rate": null,
-      "spend": false
-    },
-    "POST files/[id]/still": {
-      "kind": "write",
-      "scope": "row",
-      "role": "operator",
-      "rate": "file_upload",
-      "spend": false
-    },
     "POST files/[id]/restore": {
       "kind": "write",
       "scope": "workspace",

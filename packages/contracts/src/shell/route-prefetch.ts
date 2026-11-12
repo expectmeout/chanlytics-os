@@ -36,6 +36,8 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // are the line under the head (what cannot wait): in the second tier it pushed the whole page down as it came (10 Nov 2026).
   // And Cold email's one line, a card between Need you and the day, which the page read for itself once it had drawn
   // (dashboard surfaces/today/cold-email-note-read.ts): no surface's, the page's own read, started here with the rest.
+  // And Content's card, after Need you on a phone and atop the desk's first column, the same way (content-note-read.ts):
+  // read once the page had drawn, its 230 px pushed the day down under it (the content parity review, 12 Nov 2026).
   today: [
     // The day's read whole, one request where the page made six (GET today, Today in three zones, 2 Nov 2026).
     "today",
@@ -48,6 +50,7 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
     "conversations/drafts",
     "notifications",
     "settings/reach-out/note",
+    "content/note",
   ],
   // And Sent's runs, whose waiting ones are rows of Needs you (surface-registry ROUTE_DRAWS): their own read, nothing of People.
   // And what its first draw waits for besides them, each drawn in a row or in the thread it opens on (ROUTE_WAITS, and the

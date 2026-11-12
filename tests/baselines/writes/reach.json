@@ -1,7 +1,7 @@
 {
-  "rows": 179,
+  "rows": 178,
   "same": 11,
-  "differ": 168,
+  "differ": 167,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -353,7 +353,7 @@
       "changes": "ask_memory_lines INSERT UPDATE"
     },
     "PATCH files/[id]": {
-      "changes": "files UPDATE",
+      "changes": "files UPDATE · pieces UPDATE",
       "tells": "files",
       "missing": {
         "calendar_runs": "calendar"
@@ -1233,13 +1233,6 @@
     },
     "POST files/[id]/restore": {
       "changes": "files UPDATE · files_let_go DELETE",
-      "tells": "files",
-      "missing": {
-        "calendar_runs": "calendar"
-      }
-    },
-    "POST files/[id]/still": {
-      "changes": "files INSERT UPDATE",
       "tells": "files",
       "missing": {
         "calendar_runs": "calendar"

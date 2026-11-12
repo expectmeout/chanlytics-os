@@ -373,6 +373,26 @@ const GLYPHS: Record<string, Drawing> = {
       <circle cx="2.7" cy="12" r="0.8" fill="currentColor" stroke="none" />
     </svg>
   ),
+  // A place on a map: Google, where a post goes beside Instagram (the content canvas's viewer).
+  place: (p) => (
+    <svg {...p}>
+      <path d="M8 13.7s-4-3.5-4-6.8a4 4 0 018 0c0 3.3-4 6.8-4 6.8z" />
+      <circle cx="8" cy="6.8" r="1.5" />
+    </svg>
+  ),
+  // A video's sound, off and on: the glass press over a playing reel (the content canvas's viewer).
+  "sound-off": (p) => (
+    <svg {...p}>
+      <path d="M3 6.5v3h2l3 2.5V4L5 6.5z" />
+      <path d="M10.7 6.7l2.6 2.6M13.3 6.7l-2.6 2.6" />
+    </svg>
+  ),
+  "sound-on": (p) => (
+    <svg {...p}>
+      <path d="M3 6.5v3h2l3 2.5V4L5 6.5z" />
+      <path d="M10.4 6a2.8 2.8 0 010 4M12.2 4.3a5.2 5.2 0 010 7.4" />
+    </svg>
+  ),
   pin: (p) => (
     <svg {...p}>
       <path d="M10 2.5L13.5 6 11 8l-1.5-1.5L6 10l-1-1 3.5-3.5L7 4l3-1.5z" />
@@ -518,6 +538,15 @@ const GLYPHS: Record<string, Drawing> = {
     <svg {...p}>
       <rect x="1.8" y="2.5" width="12.4" height="3.5" rx="0.8" />
       <path d="M3 6v6.5a1 1 0 001 1h8a1 1 0 001-1V6M6.5 8.7h3" />
+    </svg>
+  ),
+  // A list drawn as pictures, beside `list` (Content's Squares or List).
+  grid: (p) => (
+    <svg {...p}>
+      <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" />
+      <rect x="9" y="2.5" width="4.5" height="4.5" rx="1" />
+      <rect x="2.5" y="9" width="4.5" height="4.5" rx="1" />
+      <rect x="9" y="9" width="4.5" height="4.5" rx="1" />
     </svg>
   ),
   // A file that came with a message (an email's attachment, kept or not).

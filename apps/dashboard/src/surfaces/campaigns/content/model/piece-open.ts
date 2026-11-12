@@ -9,6 +9,7 @@ import {
   SECOND_MS,
   newestAtEachPlace,
   postPhotoWont,
+  postStoppedWhyOf,
   whoStandsOf,
   type ContentMadeDto,
   type FileDto,
@@ -102,7 +103,7 @@ export function pieceStandsAt(posts: readonly PostDto[], place: PostPlace, nowMs
   const post = newestAtEachPlace(posts).find((p) => p.place === place);
   if (!post) return { is: "none" };
   if (post.status === "published") return { is: "up", at: post.published_at };
-  if (post.status === "held" || post.status === "failed") return { is: "stuck", why: post.held_reason ?? post.error };
+  if (post.status === "held" || post.status === "failed") return { is: "stuck", why: postStoppedWhyOf(post) };
   if (POST_ON_ITS_WAY.includes(post.status))
     return waitsForItsTime(post, nowMs) ? { is: "timed", at: post.scheduled_for } : { is: "going" };
   return { is: "none" };

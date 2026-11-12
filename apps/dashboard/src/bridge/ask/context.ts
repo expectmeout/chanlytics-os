@@ -15,7 +15,10 @@ import {
   ASK_ADS_VIEW,
   ASK_CONTEXT_MAX_ROWS,
   ASK_SCOPE_KINDS,
+  contentPlaceOf,
+  fileSaidOf,
   isAdsParam,
+  isContentParam,
   isMessagesParam,
   isList,
   itemFocus,
@@ -147,16 +150,42 @@ const sequenceFocus = (q: { id: string; name: string; starts: string }, at: stri
     : { kind: q.starts === "date" ? "run" : "playbook", id: q.id, label: q.name };
 
 /**
+ * Content, where the page says it is drawn (on-screen.ts, campaigns/content/page.tsx): its view as a word ("content:needs",
+ * "content:library") and the piece open beside or over it the turn's scope, named as its tile names it. No row: a piece is a
+ * file, which no page's row names, and the server reads what Content holds itself (server/ask/context/pages.ts).
+ */
+const contentContext = (param: string, view: unknown): Provided => {
+  const place = contentPlaceOf(param);
+  const shown = place?.list === "library" ? "library" : typeof view === "string" ? view : "all";
+  const open = place?.open ? surfaceValue("content")?.dto.made.find((m) => m.file.id === place.open) : undefined;
+  return {
+    view: `content:${shown}`,
+    rows: [],
+    ...(open ? { focus: { kind: "file", id: open.file.id, label: fileSaidOf(open.file.name) } } : {}),
+  };
+};
+
+/**
  * Campaigns is Sequences (decision 0060), whose rows are its list's, forty at most in its order, and a sequence open beside
  * it the scope; before the list is read, the playbooks the surface read. Sent's sheets and Messages are their own views,
  * each with its own rows: Messages at `campaigns/messages` (a view of Campaigns since 19 Oct 2026) as at its old route. Ads, where
  * the page says it is drawn (an address of it is Sequences where it is not), is a word and no row: it fell through to Sequences' rows,
- * and Ask was told a person looking at their ads was looking at their sequences.
+ * and Ask was told a person looking at their ads was looking at their sequences. Content too (contentContext).
  */
+/** Ads and Content, where the page says it is drawn: Ads a word and no row, Content its view and the piece open. */
+function drawnTabOf(route: Parameters<Provider>[1], onScreen: ReturnType<typeof askOnScreenOf>): Provided | null {
+  if (route.page !== "campaigns") return null;
+  if (route.param && isAdsParam(route.param) && onScreen?.key === "ads")
+    return { view: onScreen.view === ASK_ADS_VIEW.example ? ASK_ADS_VIEW.example : ASK_ADS_VIEW.today, rows: [] };
+  if (isContentParam(route.param) && onScreen?.key === "content")
+    return contentContext(route.param ?? "", onScreen.view);
+  return null;
+}
+
 const campaigns: Provider = (w, route) => {
   const onScreen = askOnScreenOf(w);
-  if (route.page === "campaigns" && route.param && isAdsParam(route.param) && onScreen?.key === "ads")
-    return { view: onScreen.view === ASK_ADS_VIEW.example ? ASK_ADS_VIEW.example : ASK_ADS_VIEW.today, rows: [] };
+  const drawn = drawnTabOf(route, onScreen);
+  if (drawn) return drawn;
   if (route.page === "outbound" || (route.page === "campaigns" && !isMessagesParam(route.param))) {
     const listed = surfaceValue("sequences")?.sequences;
     if (Array.isArray(listed)) {

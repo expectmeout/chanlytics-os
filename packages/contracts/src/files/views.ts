@@ -17,8 +17,6 @@ import {
 
 /** Where a page's <img> points: the route signs a fresh address, for the member's own session, each time it is asked. */
 export const fileViewOf = (fileId: string): string => `/api/v1/files/${fileId}/view`;
-/** One moment of a video, as its still would be kept (GET files/[id]/still, the content redesign's stage 3). */
-export const fileStillOf = (fileId: string, at: number): string => `/api/v1/files/${fileId}/still?at=${at}`;
 
 /** Its folder, for what removes everything a file has. */
 export const fileFolderOf = (tenantId: string, fileId: string): string => `${tenantId}/${fileId}`;
@@ -112,6 +110,7 @@ export interface FileDto {
 export interface FilesTally {
   /** Every file still here, on any shelf. */
   total: number;
+  /** What the business brought and keeps (Kept): not what Ask made, which its own shelf counts. */
   kept: number;
   /** Of what is kept, how many are videos: the rest are pictures. */
   videos: number;
@@ -127,6 +126,10 @@ export interface FilesTally {
 export interface FilesPageDto {
   files: FileDto[];
   shelf: FileShelf;
+  /** One kind alone (the Library's Photos or Videos), or both. */
+  kind: FileKind | null;
+  /** The words it was searched by, through what Ask's look saw in each file (00612 files_found); null where none were. */
+  about: string | null;
   next: string | null;
   tally: FilesTally;
 }
@@ -135,6 +138,11 @@ export interface FilesPageDto {
 export interface FileMade {
   from: { id: string; name: string } | null;
   plan: PostPlan;
+  /**
+   * The caption as the owner wrote it where the post stands (Content's Details), over the words Ask wrote from the picture;
+   * empty where they cleared it, null where they never changed it.
+   */
+  caption: string | null;
 }
 
 /** A post on the business's Google profile, as it went up: Google's own name for it, and where it can be seen once Google says. */
@@ -197,7 +205,11 @@ export function whoStandsOf(file: Pick<FileDto, "who_in_it" | "look_status" | "p
 export const inboxCleanOf = (file: Pick<FileDto, "look_status" | "looks_like_stock" | "shows">): boolean =>
   file.look_status === "done" && !file.looks_like_stock && file.shows !== "logo" && file.shows !== "graphic";
 
-/** The shelves the page draws, each a filter over what a file says of itself. */
+/**
+ * The shelves, each a filter over what a file says of itself. Kept ("all") is what the business brought, and what Ask made stands
+ * on its own shelf (`made`), read where it is asked for (Ask's list, the Ads picker's Made by Ask) and never drawn among the
+ * Library's: Content's Made holds those pieces, and the Library is what they are made from (the content canvas).
+ */
 export const FILE_SHELVES = [
   "all",
   "inbox",
@@ -209,6 +221,7 @@ export const FILE_SHELVES = [
   "made",
   "other",
   "set_aside",
+  "made_aside",
 ] as const;
 
 export type FileShelf = (typeof FILE_SHELVES)[number];
@@ -224,14 +237,15 @@ const SHELF_OF_SHOWS = {
   logo: "brand",
   graphic: "brand",
   other: "other",
-} as const satisfies Record<FileShows, Exclude<FileShelf, "all" | "inbox" | "set_aside" | "made">>;
+} as const satisfies Record<FileShows, Exclude<FileShelf, "all" | "inbox" | "set_aside" | "made" | "made_aside">>;
 
 /** The one shelf a file stands on: its place in the pile first, then what it shows. "all" is no file's own. */
 export function shelfOf(
   file: Pick<FileDto, "status" | "shows"> & { source?: FileSource | undefined },
 ): Exclude<FileShelf, "all"> {
   if (file.status === "inbox") return "inbox";
-  if (file.status === "set_aside") return "set_aside";
+  // What Ask made and was set aside is Made's to show again (Content's Set aside), never among the business's own.
+  if (file.status === "set_aside") return file.source === "made" ? "made_aside" : "set_aside";
   if (file.source === "made") return "made";
   return file.shows ? SHELF_OF_SHOWS[file.shows] : "other";
 }
@@ -241,6 +255,8 @@ export interface FileShelfFilter {
   status: FileStatus;
   /** Posts alone where true, and anything but where false; where it is unsaid, both. */
   made?: boolean;
+  /** One kind alone (the Library's Photos or Videos); where it is unsaid, both. */
+  kind?: FileKind;
   shows?: readonly FileShows[];
   /** A file nothing has said anything of stands here too. */
   orUnsorted?: boolean;
@@ -249,10 +265,13 @@ export interface FileShelfFilter {
 export function shelfFilterOf(shelf: FileShelf): FileShelfFilter {
   switch (shelf) {
     case "all":
-      return { status: "filed" };
+      return { status: "filed", made: false };
     case "inbox":
-    case "set_aside":
       return { status: shelf };
+    case "set_aside":
+      return { status: "set_aside", made: false };
+    case "made_aside":
+      return { status: "set_aside", made: true };
     case "made":
       return { status: "filed", made: true };
     default:
@@ -265,7 +284,7 @@ export function shelfFilterOf(shelf: FileShelf): FileShelfFilter {
   }
 }
 
-/** How the library stands, from what each file says of itself. */
+/** How the library stands, from what each file says of itself: what is kept is what the business brought, as Kept shows. */
 export function filesTallyOf(
   files: readonly (Pick<FileDto, "status" | "shows" | "look_status"> & {
     source?: FileSource | undefined;
@@ -277,19 +296,13 @@ export function filesTallyOf(
     const shelf = shelfOf(f);
     shelves[shelf] = (shelves[shelf] ?? 0) + 1;
   }
+  const kept = files.filter((f) => f.status === "filed" && f.source !== "made");
   return {
     total: files.length,
-    kept: files.filter((f) => f.status === "filed").length,
-    videos: files.filter((f) => f.status === "filed" && f.kind === "video").length,
+    kept: kept.length,
+    videos: kept.filter((f) => f.kind === "video").length,
     waiting: files.filter((f) => f.status === "inbox").length,
     looking: files.filter((f) => f.look_status === "waiting").length,
     shelves,
   };
-}
-
-/** Where the library opens: the Inbox while anything waits on a person who can answer it, else Kept where something is, else the first that holds. */
-export function fileShelfOpening(tally: FilesTally, mayAnswer: boolean): FileShelf {
-  if (mayAnswer && tally.waiting > 0) return "inbox";
-  if (tally.kept > 0) return "all";
-  return FILE_SHELVES.find((s) => s !== "all" && tally.shelves[s]) ?? "all";
 }

@@ -37,6 +37,7 @@ export const ASK_PRESS_WORDS = [
   "send",
   "send_to",
   "post",
+  "post_it",
   "stop",
   "whisper",
   "ring_me",
@@ -187,6 +188,8 @@ export const ASK_KIND_TRAITS = {
   // Make: something to look at.
   post: t("make", "keeps", null, "press", "save"),
   piece: t("make", "keeps", null, "press", "make"),
+  // A post put up in public: always pressed, as the page's Post it is.
+  publish: t("say", "public", null, "press", "post_it"),
   // Fix: its door, nothing to press.
   fix: t("fix", "keeps", null, "press", "open"),
 } satisfies Record<AskProposal["kind"], AskKindTraits>;
@@ -234,6 +237,9 @@ export const askPressCount = (p: Pick<AskProposal, "kind" | "payload">): number 
 
 /** The cards whose words a person may ask to change in place: quick changes under them (shorter, warmer, another language). */
 export const askCardHasWords = (kind: string): boolean => {
+  // A post put up says its caption, which is the post's own: changed in Details, or asked of Ask in the person's own words,
+  // never by a preset change under the card (Ruben, 12 Nov 2026).
+  if (kind === "publish") return false;
   const { shape } = askTraitsOf(kind);
   return shape === "say" || shape === "send" || kind === "message" || kind === "sequence_words";
 };

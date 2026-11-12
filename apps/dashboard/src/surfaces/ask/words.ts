@@ -10,6 +10,7 @@ const PRESS_EN: Record<AskPressWord, (n: number | null) => string> = {
   send: () => "Send",
   send_to: (n) => (n ? `Send to ${n}` : "Send it"),
   post: () => "Post the reply",
+  post_it: () => "Post it",
   stop: () => "Stop it",
   whisper: () => "Whisper it",
   ring_me: () => "Ring me",
@@ -57,6 +58,7 @@ const PRESS_ES: Record<AskPressWord, (n: number | null) => string> = {
   send: () => "Enviar",
   send_to: (n) => (n ? `Enviar a ${n}` : "Enviarlo"),
   post: () => "Publicar la respuesta",
+  post_it: () => "Publicarlo",
   stop: () => "Detenerlo",
   whisper: () => "Susurrarlo",
   ring_me: () => "Llámame",
@@ -126,6 +128,8 @@ const ASK_TEXT = {
     describeLeads: "Describe the businesses you want",
     // On Campaigns (the moment spec, A3): the field's placeholder.
     describeCampaigns: "Describe what should go out, and when",
+    /** On Campaigns › Content, where Ask makes posts and videos rather than sends. */
+    describeContent: "Say what to make",
     findBusinesses: "Find businesses",
     leadsConsent: "You can email and call leads. Texts and offers wait for their yes.",
     // The Leads section is the finder's, not "Ask about Leads": its label is findBusinesses, said once above.
@@ -153,7 +157,9 @@ const ASK_TEXT = {
     dialogName: "Ask Chanlytics",
     stopAnswer: "Stop",
     close: "Close",
-    clearScope: "Clear the scope",
+    clearScope: "Ask without it",
+    /** Over the field, before what the question is about (draw.tsx). */
+    about: "About",
     attach: "Add a photo",
     attachAway: (name: string) => `Take ${name} away`,
     attachAgain: "Try again",
@@ -218,6 +224,8 @@ const ASK_TEXT = {
     // The press says what it does (D14 of the answers canvas; contracts askPressOf names which).
     press: (word: AskPressWord, n: number | null): string => PRESS_EN[word](n),
     posting: "Posting on Google",
+    // A post put up from Ask's card (card-publish.tsx), on the same clock: now, or set for its time.
+    postingPost: (when: string | null) => (when ? `Setting it for ${when}` : "Posting it"),
     // Why it ran with no press (contracts freedomOf): the line under what it did.
     whyAlone: (reason: string, row: string | null): string => {
       const name = row ? rowName(row) : "that row";
@@ -269,6 +277,7 @@ const ASK_TEXT = {
     needsQ: "¿Quién me necesita ahora?",
     describeLeads: "Describe los negocios que quieres",
     describeCampaigns: "Describe qué debe salir, y cuándo",
+    describeContent: "Di qué hacer",
     findBusinesses: "Encontrar negocios",
     leadsConsent: "Puedes escribir y llamar a los leads. Los SMS y las ofertas esperan su sí.",
     askAbout: (surface: string): string =>
@@ -294,7 +303,8 @@ const ASK_TEXT = {
     dialogName: "Pregunta a Chanlytics",
     stopAnswer: "Detener",
     close: "Cerrar",
-    clearScope: "Quitar el alcance",
+    clearScope: "Preguntar sin esto",
+    about: "Sobre",
     attach: "Añadir una foto",
     attachAway: (name: string) => `Quitar ${name}`,
     attachAgain: "Reintentar",
@@ -355,6 +365,7 @@ const ASK_TEXT = {
       "Su ventana de 24 horas está cerrada: solo se puede enviar una plantilla aprobada. Abre el hilo para elegir una.",
     press: (word: AskPressWord, n: number | null): string => PRESS_ES[word](n),
     posting: "Publicando en Google",
+    postingPost: (when: string | null) => (when ? `Programándolo para ${when}` : "Publicándolo"),
     whyAlone: (reason: string, row: string | null): string => {
       const name = row ? rowName(row) : "esa fila";
       if (reason === "row_auto") return `Porque ${name} está en Lo envía.`;

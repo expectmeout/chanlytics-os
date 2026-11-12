@@ -6,10 +6,15 @@
  *
  *   what cannot wait (alert.tsx: a line that is down, a warning that stops customers being answered), only then
  *   Need you (need-you.tsx)                            | the day (day.tsx)
- *   what is left to set up, under Need you while       | Ask found (found.tsx), under the day
+ *   Cold email's note and Content's card under it,     | Ask found (found.tsx), under the day
+ *   each where it has something to say                 |
+ *   (cold-email-note.tsx, ../content-note.tsx)         |
+ *   what is left to set up, under Need you while       |
  *   someone waits, over it while nobody does           |
  *   the week and the pinned lists, one strip (foot.tsx)
- *   Content's one line, where it has something to say (../content-note.tsx): at the foot, so landing late moves nothing
+ *
+ * Content's card stands under Need you on a phone and a desk alike, as the content canvas draws it (PhDoors "today"), in
+ * stage 3's place at the foot no longer: its own read lands after the page's, and it moves what is under it as it does.
  *
  * Where Need you draws no pane but Older, which nobody counts and which stands at the page's end (zones.css), or none at all
  * (nothing waits on you: the canvas's quiet day, "most owners, most days", whatever came in), Ask found leads the work's
@@ -60,13 +65,13 @@ function PhoneToday({ at }: { at: TodayArrangement }) {
       {at.waiting ? null : settingUp(true, at)}
       <NeedYou />
       <ColdEmailNote />
+      <TodayContentNote />
       {foundLeading(at)}
       <DayZone under={nothing ? <PhoneNothingYet /> : null} />
       {foundUnder(at)}
       {nothing ? null : <PhoneSoFar />}
       <PhonePins />
       {at.waiting ? settingUp(false, at) : null}
-      <TodayContentNote />
       <TodayEnd />
     </div>
   );
@@ -88,6 +93,7 @@ export function TodayZones() {
           {waiting ? null : settingUp(true, at)}
           <NeedYou />
           <ColdEmailNote />
+          <TodayContentNote />
           {foundLeading(at)}
           {waiting ? settingUp(false, at) : null}
           {alone ? <DayZone /> : null}
@@ -100,7 +106,6 @@ export function TodayZones() {
         )}
       </div>
       <DeskFoot />
-      <TodayContentNote />
     </div>
   );
 }

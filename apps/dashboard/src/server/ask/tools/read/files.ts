@@ -24,6 +24,7 @@ import { fileIndexLineOf, fileShelfSaid, fileWhoSaid, type FileForAsk } from "@/
 import { findFile, readFileSound } from "@chanlytics/db/files";
 import { drawVideoMoment, findPictureCopy, listFileCopiesOf, type FileCopy } from "../../../files/copies";
 import { askEar } from "../../../files/listen";
+import { readMadeAs } from "../../../posts/made-as";
 import { findNewestPostLook } from "../../../posts/record";
 import { getZoomInto } from "../../../files/zoom";
 import { load } from "../../../shared/reader";
@@ -146,15 +147,25 @@ async function picturesOpened(turn: ToolContext, names: readonly string[]) {
       return { name: f.name, id: f.id, fileId: copy.fileId, ...(size ? { size } : {}) };
     }),
   );
+  // A piece made here says how it was made (posts/made-as.ts), so a change to it is the same material with that changed.
+  const madeAs = new Map(
+    await Promise.all(
+      shown
+        .filter((f) => f.source === "made")
+        .map(async (f) => [f.id, await readMadeAs(turn.ctx.supabase, turn.tenantId, f)] as const),
+    ),
+  );
   return {
     shown: shown.map((f) => {
       const size = sizeOf(copies.get(f.id) as FileCopy);
+      const made = madeAs.get(f.id);
       return {
         name: f.name,
         ...(isVideo(f) ? { video: clockOf(f.seconds ?? 0), ...standsAtOf(f) } : {}),
         shelf: fileShelfSaid(f),
         who: fileWhoSaid(f),
         ...(size ? { size } : {}),
+        ...(made ? { made_as: made } : {}),
       };
     }),
     ...(lastPost ? { last_post: lastPost } : {}),
@@ -347,11 +358,11 @@ export const filesTool = defineActions({
   name: "files",
   description:
     "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees.",
-  tail: "The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name, and a box you name is in those pixels; a video opens as a sheet of its frames with their times, what was heard after. To make a post from a photo, find propose_post with tool search, and to make a video from their clips or photos, or from words alone, propose_piece; last_post, beside a picture opened, is how their newest post looks: keep its voice, layout and book unless they ask for something else.",
+  tail: "The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name. To make a post from a photo, find propose_post with tool search, a video from clips, photos or words alone, propose_piece; and to put a made post up, propose_publish; last_post, beside a picture opened, is how their newest post looks: keep its voice, layout and book unless they ask for something else.",
   actions: {
     list: readAction({
       input: z.object({
-        shelf: z.enum(FILE_SHELVES).optional().describe("One shelf. Left out, or all: everything kept."),
+        shelf: z.enum(FILE_SHELVES).optional().describe("One shelf. Left out or all: kept, not made."),
         about: z
           .string()
           .max(80)

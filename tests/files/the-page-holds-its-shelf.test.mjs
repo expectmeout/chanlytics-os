@@ -58,9 +58,9 @@ globalThis.CustomEvent ??= class CustomEvent {
 };
 win.__shell = (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win);
 win.CHANLY = { nav() {}, address: await legacyAddress() };
-const { filesOverride, showFilesShelf, showMoreFiles } = await importSrc(
-  "apps/dashboard/src/surfaces/files/surface.ts",
-);
+const { filesOverride, showFiles, showMoreFiles } = await importSrc("apps/dashboard/src/surfaces/files/surface.ts");
+/** A shelf pressed: all of its kinds, and no words found by. */
+const showShelf = (shelf) => showFiles({ shelf, kind: null, about: null });
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
 const tally = { total: 3, kept: 3, waiting: 0, looking: 0, shelves: { work: 3 } };
@@ -73,13 +73,13 @@ beforeEach(async () => {
   asked.length = 0;
   answerTo = () => pageOf("all", ["a"]);
   // A move to where nothing is chosen is no press a person makes: a new page starts where the module does, or at the last test's shelf.
-  await showFilesShelf("all");
+  await showShelf("all");
   asked.length = 0;
 });
 
 test("another shelf is read by name, and stands once it comes", async () => {
   answerTo = () => pageOf("work", ["b", "c"]);
-  await showFilesShelf("work");
+  await showShelf("work");
   assert.deepEqual(asked, [{ shelf: "work" }]);
   assert.equal(held().shelf, "work");
   assert.deepEqual(idsHeld(), ["b", "c"]);
@@ -87,7 +87,7 @@ test("another shelf is read by name, and stands once it comes", async () => {
 
 test("the feed's read again asks for the shelf on show, so a change under a person leaves them where they are", async () => {
   answerTo = () => pageOf("work", ["b"]);
-  await showFilesShelf("work");
+  await showShelf("work");
   asked.length = 0;
   answerTo = () => pageOf("work", ["b", "new"]);
   await filesOverride.apply();
@@ -103,8 +103,8 @@ test("a press answered after a newer one changes nothing: the last one pressed i
           letWorkAnswer = () => resolve(pageOf("work", ["slow"]));
         })
       : pageOf("place", ["quick"]);
-  const work = showFilesShelf("work");
-  await showFilesShelf("place");
+  const work = showShelf("work");
+  await showShelf("place");
   assert.deepEqual(idsHeld(), ["quick"]);
   letWorkAnswer();
   await work;
@@ -114,7 +114,7 @@ test("a press answered after a newer one changes nothing: the last one pressed i
 
 test("the next page comes after what is there, and a read again then asks for all of it, as long as it now is", async () => {
   answerTo = () => pageOf("work", ["a", "b"], "cursor-1");
-  await showFilesShelf("work");
+  await showShelf("work");
   asked.length = 0;
   answerTo = () => pageOf("work", ["c"], null);
   await showMoreFiles();
@@ -129,7 +129,7 @@ test("the next page comes after what is there, and a read again then asks for al
 
 test("with no next page there is nothing to read", async () => {
   answerTo = () => pageOf("work", ["a"]);
-  await showFilesShelf("work");
+  await showShelf("work");
   asked.length = 0;
   await showMoreFiles();
   assert.deepEqual(asked, []);
@@ -137,7 +137,7 @@ test("with no next page there is nothing to read", async () => {
 
 test("a next page that comes after a person moved on is let go", async () => {
   answerTo = () => pageOf("work", ["a"], "cursor-1");
-  await showFilesShelf("work");
+  await showShelf("work");
   let letMoreAnswer;
   answerTo = () =>
     new Promise((resolve) => {
@@ -145,7 +145,7 @@ test("a next page that comes after a person moved on is let go", async () => {
     });
   const more = showMoreFiles();
   answerTo = () => pageOf("place", ["p"]);
-  await showFilesShelf("place");
+  await showShelf("place");
   letMoreAnswer();
   await more;
   assert.deepEqual(idsHeld(), ["p"]);

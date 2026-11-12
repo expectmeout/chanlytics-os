@@ -1,11 +1,14 @@
 /**
  * A post's card (decision 0099, step 3): the real picture, drawn by the server from the same plan its Save keeps, so what the owner
- * sees is what they get. Whoever may save it can change it here, for nothing, and the picture answers as they type. Saved, it is the
- * file itself, and the picture they were looking at stays on screen: nothing is read again to show what is already there.
+ * sees is what they get. Whoever may save it can change its words here, for nothing, and the picture answers as they type. Saved, it
+ * is the file itself, and the picture they were looking at stays on screen: nothing is read again to show what is already there.
+ *
+ * Its words alone are changed by hand (Ruben, 12 Nov 2026): no choice of shape, which only looked like one (every place draws its
+ * own: a post 4:5, a story 9:16, Google 4:3), and no rows of type and layout to pick from; how it looks is Ask's, and asked of it
+ * in words, as Content's Change it is.
  */
 import { useState } from "react";
 import {
-  POST_SHAPES,
   postNameOf,
   postPlanOf,
   postPlanTidied,
@@ -16,7 +19,6 @@ import {
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { openFile } from "../files/file-asked";
-import { PostChoice } from "../files/post-choice";
 import { usePostDraft } from "../files/post-draft";
 import { drawnKeyOf, pictureDrawn } from "../files/post-drawn";
 import { PostEdit } from "../files/post-edit";
@@ -96,16 +98,8 @@ export function AskPostCard({
         />
       )}
       <p className="ask-card-summary">{p.summary}</p>
-      <div className="post-row">
-        <PostChoice
-          label={says.shapesSaid}
-          options={POST_SHAPES}
-          words={says.shapes}
-          value={draft.shape}
-          choose={draft.choose}
-          testid="post-shape"
-        />
-        {!kept && canDo("settings") ? (
+      {!kept && canDo("settings") ? (
+        <div className="post-row">
           <Button
             size="sm"
             variant="quiet"
@@ -115,9 +109,9 @@ export function AskPostCard({
           >
             {editing ? says.editDone : says.edit}
           </Button>
-        ) : null}
-      </div>
-      {open ? <PostEdit draft={draft} says={says} /> : null}
+        </div>
+      ) : null}
+      {open ? <PostEdit draft={draft} says={says} looks={false} fold /> : null}
       {!kept && (draft.refused || !draft.plan.line.trim()) ? (
         <p className="ask-card-note" role="alert" data-testid="post-refused">
           {draft.refused ?? says.needsLine}

@@ -13,16 +13,27 @@ import type { TurnInput } from "./turn-head";
  * A live turn's also say what happened since (D8). Made once the read set holds every read before the model's. The guide
  * of a skill the question asks for follows them (cross-page.ts withSkillGuides).
  */
+type FocusKind = NonNullable<NonNullable<TurnInput["context"]>["focus"]>["kind"];
+
+/**
+ * A focus is a scope, looked for in the read set by the kind it is cited as: a run as its broadcast, a sequence as the
+ * playbook it is. A page is never a row, an ad has no read until the Ads read lands (decision 0049), and a file and a
+ * Library message are seen by their page, never cited, so none of those is looked for.
+ */
+function readKindOf(kind: FocusKind) {
+  if (kind === "run") return "broadcast";
+  if (kind === "sequence") return "playbook";
+  if (kind === "ad" || kind === "file" || kind === "message") return "page";
+  return kind;
+}
+
 export function wordsBlock(
   input: TurnInput,
   now: Date,
   rode: { built: BuiltContext | null; crossBlocks: SearchResultBlock[]; scopedRow: unknown; read: AskReadSet },
 ) {
   const focus = input.context?.focus;
-  // A focus is a scope: a run is cited, and so read, as its broadcast; a page is never a row, an ad has no read until the
-  // Ads read lands (decision 0049), and a file is seen, never cited, so none of those is looked for in the read set.
-  const kind =
-    focus?.kind === "run" ? "broadcast" : focus?.kind === "ad" || focus?.kind === "file" ? "page" : focus?.kind;
+  const kind = focus ? readKindOf(focus.kind) : undefined;
   const facts = {
     role: input.role,
     personLabel: input.personLabel,

@@ -13,6 +13,7 @@ import {
   POST_PLACES,
   POST_STATUSES,
   SECOND_MS,
+  WEEK_MS,
   fileCursorOf,
   isOneOf,
   pieceFileIdsOf,
@@ -20,21 +21,25 @@ import {
   piecePlanOf,
   recordOrEmpty,
   shelfFilterOf,
-  contentNoteOf,
+  CONTENT_TODAY_PIECES,
+  contentIdeaFilesOf,
+  contentPieceMarkOf,
   type ContentLineDto,
   type ContentMakingDto,
-  type ContentNote,
   type ContentPageDto,
   type ContentTally,
+  type ContentTodayDto,
   type ContentView,
   type PostDto,
   type TenantId,
 } from "@chanlytics/contracts";
 import {
+  countFilesKept,
   countFilesMade,
   countPostsOut,
   countPostsTimed,
   listFilesByIds,
+  listFilesFound,
   listFilesOnShelf,
   listPiecesStanding,
   listPostsOfFiles,
@@ -90,6 +95,7 @@ interface ContentAsked {
   view?: ContentView | undefined;
   limit?: number | undefined;
   before?: string | undefined;
+  about?: string | undefined;
 }
 
 type Db = ReaderContext["ctx"]["supabase"];
@@ -109,7 +115,14 @@ async function postsStillStopped(db: Db, tenantId: TenantId): Promise<MemberFile
     const at = `${post.file_id}|${post.place}`;
     if (!newest.has(at)) newest.set(at, post.id);
   }
-  return stopped.filter((p) => newest.get(`${p.file_id}|${p.place}`) === p.id);
+  const newestStopped = stopped.filter((p) => newest.get(`${p.file_id}|${p.place}`) === p.id);
+  // Of pieces still there and in use: one deleted or set aside needs nothing, so the count is the list's (postLinesOf).
+  const inUse = new Set(
+    (await listFilesByIds(db, tenantId, [...new Set(newestStopped.map((p) => p.file_id))]))
+      .filter((f) => f.status === "filed")
+      .map((f) => f.id),
+  );
+  return newestStopped.filter((p) => inUse.has(p.file_id));
 }
 
 /** Posts as lines: each with the file it is of, where that file is still there. */
@@ -131,23 +144,59 @@ async function tallyOf(
   stopped: readonly MemberFilePostRow[],
   timedAfter: string,
 ): Promise<ContentTally> {
-  const [made, posted, scheduled] = await Promise.all([
+  const [made, posted, scheduled, library, aside] = await Promise.all([
     countFilesMade(db, tenantId),
     countPostsOut(db, tenantId),
     countPostsTimed(db, tenantId, timedAfter),
+    countFilesKept(db, tenantId),
+    countFilesMade(db, tenantId, "set_aside"),
   ]);
   const failed = standing.filter((p) => p.status === "failed").length;
-  return { made, posted, scheduled, needs: stopped.length + failed, making: standing.length - failed };
+  return { made, posted, scheduled, library, aside, needs: stopped.length + failed, making: standing.length - failed };
+}
+
+/** How many of the newest kept files the ideas choose from: enough for two photos of the work and four clips among them. */
+const IDEAS_FROM = 24;
+
+/**
+ * The files each idea would be made from (contracts contentIdeaFilesOf), from the newest kept files: read with All's first
+ * page alone, where the first day and Make show them.
+ */
+async function ideaFilesOf(db: Db, tenantId: TenantId) {
+  const kept = await listFilesOnShelf(db, tenantId, { status: "filed", made: false }, { limit: IDEAS_FROM });
+  return contentIdeaFilesOf(kept.map(fileDtoOf));
 }
 
 /** A page of what was made, newest first, each with its posts: All. One past the page, so its last says it is the last. */
-async function madePage(db: Db, tenantId: TenantId, request: ContentAsked) {
+async function madePage(db: Db, tenantId: TenantId, request: ContentAsked, shelf: "made" | "made_aside" = "made") {
   const limit = Math.min(request.limit ?? CONTENT_PAGE, CONTENT_MAX);
-  const rows = await listFilesOnShelf(db, tenantId, shelfFilterOf("made"), {
+  const rows = await listFilesOnShelf(db, tenantId, shelfFilterOf(shelf), {
     limit: limit + 1,
     before: cursorAsked(request.before),
   });
   const page = rows.slice(0, limit);
+  const last = page.at(-1);
+  return {
+    made: await piecesOf(db, tenantId, page),
+    next: rows.length > limit && last ? fileCursorOf(last) : null,
+  };
+}
+
+/**
+ * What was made, found by its words (00612 files_found: a piece's name, what Ask's look saw in it, what a video says), newest
+ * first, as the Library is found: one page, as many as a page holds at most.
+ */
+async function madeFound(db: Db, tenantId: TenantId, about: string) {
+  const { rows } = await listFilesFound(db, tenantId, shelfFilterOf("made"), {
+    words: about,
+    offset: 0,
+    limit: CONTENT_MAX,
+  });
+  return { made: await piecesOf(db, tenantId, rows), next: null };
+}
+
+/** Pieces as Made draws them: each file with its posts at every place. */
+async function piecesOf(db: Db, tenantId: TenantId, page: readonly Parameters<typeof fileDtoOf>[0][]) {
   const postsOf = new Map<string, PostDto[]>();
   for (const post of await listPostsOfFiles(
     db,
@@ -158,11 +207,7 @@ async function madePage(db: Db, tenantId: TenantId, request: ContentAsked) {
     held.push(postDtoOf(post));
     postsOf.set(post.file_id, held);
   }
-  const last = page.at(-1);
-  return {
-    made: page.map((f) => ({ file: fileDtoOf(f), posts: postsOf.get(f.id) ?? [] })),
-    next: rows.length > limit && last ? fileCursorOf(last) : null,
-  };
+  return page.map((f) => ({ file: fileDtoOf(f), posts: postsOf.get(f.id) ?? [] }));
 }
 
 /** A page of a view's lines: what waits for its time, soonest first, or what is up, newest first. */
@@ -187,38 +232,67 @@ async function linesPage(
 }
 
 /**
- * GET content, as the route answers it (Campaigns › Content), for one view of Made: All, a page of what was made here,
- * newest first, each with its posts at every place, and what is being made on its first page; Being made, the videos being
- * made and those not made this week; Needs you, the posts that stopped and the videos not made; Scheduled, the posts that
- * wait for their time, soonest first; Posted, the posts that are up, newest first. Every view says the tally of all five.
+ * Today's Content card (contracts content/note.ts ContentTodayDto), from what the note's read holds: the newest few of the
+ * week's pieces with their posts; what is being made, but a video whose file has arrived, which is the week's piece (as GET
+ * content draws it once); how many of the week's have no post yet, counted across the page read and not said where the week
+ * runs past it; and the newest post that did not go out whose piece is still there, with it.
  */
+async function contentTodayOf(
+  db: Db,
+  tenantId: TenantId,
+  held: {
+    page: Awaited<ReturnType<typeof madePage>>;
+    standing: readonly PieceStandingRow[];
+    stopped: readonly MemberFilePostRow[];
+    now: number;
+  },
+): Promise<ContentTodayDto> {
+  const { made, next } = held.page;
+  const week = made.filter((m) => Date.parse(m.file.created_at) >= held.now - WEEK_MS);
+  // The page ends past the week, or there is nothing past it: every piece of the week was read, and the count is whole.
+  const whole = next === null || week.length < made.length;
+  const arrived = new Set(week.map((m) => m.file.id));
+  const stoppedLines = await postLinesOf(db, tenantId, held.stopped);
+  return {
+    week: week.slice(0, CONTENT_TODAY_PIECES),
+    making: held.standing
+      .filter((p) => p.status !== "failed" && !(p.file_id && arrived.has(p.file_id)))
+      .map(makingDtoOf),
+    // Ready to post: a video is to be saved, and is not counted (contracts contentPieceMarkOf).
+    ready: whole ? week.filter((m) => contentPieceMarkOf(m).is === "ready").length : null,
+    stopped: stoppedLines[0] ?? null,
+  };
+}
+
 /**
- * GET content/note: Content's one line on Today, or none (contracts content/note.ts): what needs the owner, then what is
- * being made, then the next post set for its time. Its own small read, since the page's is too much to ask each time Today
- * opens: no page of tiles, no counts of what is up.
+ * GET content/note: Today's Content card (contracts content/note.ts; the content canvas, PhDoors "today"). Its own small read,
+ * since the page's is too much to ask each time Today opens: a page of the week's pieces, what is being made and the posts
+ * still stopped, read at once, no counts of what is up.
  */
-export const contentNote: Reader<undefined, { note: ContentNote | null }> = {
+export const contentNote: Reader<undefined, { today: ContentTodayDto }> = {
   name: "content_note",
   async read(rc) {
     const db = rc.ctx.supabase;
     const now = rc.now.getTime();
-    const [standing, stopped, timed] = await Promise.all([
+    const [standing, stopped, page] = await Promise.all([
       listPiecesStanding(db, rc.tenantId, {
         failedSince: new Date(now - CONTENT_FAILED_DAYS * DAY_MS).toISOString(),
         limit: CONTENT_MAKING_MAX,
       }),
       postsStillStopped(db, rc.tenantId),
-      listPostsTimed(db, rc.tenantId, new Date(now + TIMED_AFTER_MS).toISOString(), { limit: 1 }),
+      madePage(db, rc.tenantId, { limit: CONTENT_PAGE }),
     ]);
-    const failed = standing.filter((p) => p.status === "failed").length;
-    const soonest = timed[0];
-    const next =
-      soonest && isOneOf(POST_PLACES, soonest.place) ? { at: soonest.scheduled_for, place: soonest.place } : null;
-    const note = contentNoteOf({ needs: stopped.length + failed, making: standing.length - failed, next }, now);
-    return { data: { note }, rows: [], stamp: readerStamp() };
+    const today = await contentTodayOf(db, rc.tenantId, { page, standing, stopped, now });
+    return { data: { today }, rows: [], stamp: readerStamp() };
   },
 };
 
+/**
+ * GET content, as the route answers it (Campaigns › Content), for one view of Made: All, a page of what was made here,
+ * newest first, each with its posts at every place, and what is being made on its first page; Being made, the videos being
+ * made and those not made this week; Needs you, the posts that stopped and the videos not made; Scheduled, the posts that
+ * wait for their time, soonest first; Posted, the posts that are up, newest first. Every view says the tally of all five.
+ */
 export const content: Reader<ContentAsked, ContentPageDto> = {
   name: "content",
   async read(rc, request) {
@@ -232,25 +306,35 @@ export const content: Reader<ContentAsked, ContentPageDto> = {
       listPiecesStanding(db, rc.tenantId, { failedSince, limit: CONTENT_MAKING_MAX }),
       postsStillStopped(db, rc.tenantId),
     ]);
-    const empty = { making: [], made: [], lines: [], next: null };
+    const about = view === "all" ? (request.about?.trim() ?? "") : "";
+    const failedVideos = standing.filter((p) => p.status === "failed").length;
+    const one = stopped.length === 1 && failedVideos === 0 ? (stopped[0]?.file_id ?? null) : null;
+    const empty = { making: [], made: [], lines: [], next: null, ideas: [], about: about || null, needsOne: one };
     const [tally, shown] = await Promise.all([
       tallyOf(db, rc.tenantId, standing, stopped, timedAfter),
-      view === "all"
-        ? madePage(db, rc.tenantId, request).then((page) => {
-            // A video whose file has arrived is that file's tile: it is drawn once. What is being made heads the first page.
-            const onPage = new Set(page.made.map((m) => m.file.id));
-            const making = request.before ? [] : standing.filter((p) => !p.file_id || !onPage.has(p.file_id));
-            return { ...empty, ...page, making: making.map(makingDtoOf) };
-          })
-        : view === "making"
-          ? Promise.resolve({ ...empty, making: standing.map(makingDtoOf) })
-          : view === "needs"
-            ? postLinesOf(db, rc.tenantId, stopped).then((lines) => ({
-                ...empty,
-                lines,
-                making: standing.filter((p) => p.status === "failed").map(makingDtoOf),
-              }))
-            : linesPage(db, rc.tenantId, view, request, timedAfter).then((page) => ({ ...empty, ...page })),
+      view === "all" && about
+        ? madeFound(db, rc.tenantId, about).then((page) => ({ ...empty, ...page }))
+        : view === "aside"
+          ? madePage(db, rc.tenantId, request, "made_aside").then((page) => ({ ...empty, ...page }))
+          : view === "all"
+            ? Promise.all([
+                madePage(db, rc.tenantId, request),
+                request.before ? Promise.resolve([]) : ideaFilesOf(db, rc.tenantId),
+              ]).then(([page, ideas]) => {
+                // A video whose file has arrived is that file's tile: it is drawn once. What is being made heads the first page.
+                const onPage = new Set(page.made.map((m) => m.file.id));
+                const making = request.before ? [] : standing.filter((p) => !p.file_id || !onPage.has(p.file_id));
+                return { ...empty, ...page, making: making.map(makingDtoOf), ideas };
+              })
+            : view === "making"
+              ? Promise.resolve({ ...empty, making: standing.map(makingDtoOf) })
+              : view === "needs"
+                ? postLinesOf(db, rc.tenantId, stopped).then((lines) => ({
+                    ...empty,
+                    lines,
+                    making: standing.filter((p) => p.status === "failed").map(makingDtoOf),
+                  }))
+                : linesPage(db, rc.tenantId, view, request, timedAfter).then((page) => ({ ...empty, ...page })),
     ]);
     return { data: { view, ...shown, tally }, rows: [], stamp: readerStamp() };
   },

@@ -1808,7 +1808,8 @@ test("the rail counts what the lists hold, a waiting search wears a question mar
     null,
     "the one that ended does not",
   );
-  assert.equal(textOf(byTestId(tree, "leads-standing")), "322 leads·272 not contacted·2 searches·1 search needs you");
+  // How many searches there are is the Lists sheet's to show (Ruben, 12 Nov 2026: "searches" stood twice in one line).
+  assert.equal(textOf(byTestId(tree, "leads-standing")), "322 leads·272 not contacted·1 search needs you");
   click(byTestId(tree, "leads-standing-needs"));
   assert.deepEqual(
     went,
@@ -3706,13 +3707,13 @@ test("at a phone's width the page draws the bar instead of the rail and the cont
     "Personal trainers · Austin",
     "the search that is open, by its name",
   );
-  assert.equal(textOf(byTestId(pick, "leads-phone-lists-count")), "161", "and its count apart, which never gives way");
+  assert.equal(byTestId(pick, "leads-phone-lists-count"), null, "its count is the line under the bar, as People's is");
   assert.equal(all(t, (n) => n.props?.className === "cl-controls").length, 0, "no controls row above the rows");
   assert.equal(all(t, (n) => n.props?.className === "cl-rail").length, 0, "no rail");
   assert.equal(
     all(t, (n) => n.props?.["data-testid"] === "leads-standing").length,
-    0,
-    "and no standing line: a phone shows the work first",
+    1,
+    "the count on a line under the bar, as People's (Ruben, 12 Nov 2026)",
   );
   const above = all(
     t,

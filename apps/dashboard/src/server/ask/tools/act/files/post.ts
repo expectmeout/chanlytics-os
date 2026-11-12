@@ -21,6 +21,7 @@ import { filesNamedForAsk } from "../../../../readers/files";
 import { findPictureCopy } from "../../../../files/copies";
 import { POST_SIZES } from "../../../../posts/layout";
 import { getPhoto, postDrawn } from "../../../../posts/make";
+import { readKeptWords } from "../../../../posts/made-as";
 import { postMaterialFrom } from "../../../../posts/material";
 import { postPhoneOf } from "../../../../posts/phone";
 import {
@@ -30,7 +31,7 @@ import {
   type ToolContext,
   type ToolPicture,
 } from "../../context/tool-defs";
-import { propose, refuse } from "../../context/context";
+import { approvalWords, propose, refuse } from "../../context/context";
 import { filesNamed } from "../../read/files";
 
 /**
@@ -49,10 +50,17 @@ import { filesNamed } from "../../read/files";
  * until the card was made, and the model took it as nothing at all.
  */
 
-/** What the owner has said, as a post's words are held to it: this thread's questions and their Settings. A morning's turn asks itself. */
-export function ownersWords(toolContext: ToolContext, config: unknown): string {
+/**
+ * What the owner has said, as a post's words are held to it: this thread's questions, their Settings, and the words kept on
+ * the piece the turn is about, where it is one made here (posts/made-as.ts readKeptWords): "move the words down" on a post
+ * that says "20% off this week" makes it again with its own offer. A morning's turn asks itself.
+ */
+export async function ownersWords(toolContext: ToolContext, config: unknown): Promise<string> {
   const questions = isAskMorningQuestion(toolContext.question) ? [] : [toolContext.question ?? ""];
-  return [...questions, ...(toolContext.askedEarlier ?? []), config ? JSON.stringify(config) : ""].join("\n");
+  const kept = toolContext.subjectFile
+    ? await readKeptWords(toolContext.ctx.supabase, toolContext.tenantId, toolContext.subjectFile)
+    : "";
+  return [...questions, ...(toolContext.askedEarlier ?? []), config ? JSON.stringify(config) : "", kept].join("\n");
 }
 
 /** What a drawn post is known by once the model has looked at it: the plan, whole, in one short key. */
@@ -63,17 +71,11 @@ const LOOK_NOTE =
   "Look at the post as drawn, with the owner's eyes: do the words sit on the calmer end, clear of the sign, of any face and of what the photo is of; do they read; are the voice and layout right for this business, and for how their last post looked? If something is wrong, change the plan and call again. If it is right, call again with looked set to look_key: only then is the card made. That call ends the turn, so your answer to the person goes beside it, in the same message: the rest of what they asked, their question or what they had you read, answered in full, and a line on the post. Anything written beside this look is set aside.";
 
 const postInput = z.object({
-  file: z
-    .string()
-    .min(1)
-    .max(120)
-    .describe(
-      "The photo's name, or the video's, as files says it; open it with view first unless it came with the question.",
-    ),
+  file: z.string().min(1).max(120).describe("The photo's name, or the video's, as files says it."),
   at: z
     .union([z.number().min(0), z.string().max(12)])
     .optional()
-    .describe("For a video only: the moment the post is drawn from, as M:SS or seconds, chosen after opening it."),
+    .describe("A video's moment the post is drawn from, as M:SS or seconds."),
   line: z
     .string()
     .describe(
@@ -108,7 +110,7 @@ const postInput = z.object({
     .string()
     .optional()
     .describe(
-      "The look_key the drawing answered, once you have looked at the post as drawn and it is right; left out, the post is drawn and shown to you first, and no card is made.",
+      "The look_key the drawing answered, once the post as drawn is right; left out, it is drawn and shown to you first.",
     ),
 });
 
@@ -176,7 +178,7 @@ async function postOutcome(toolContext: ToolContext, input: z.infer<typeof postI
       `${input.file} shows someone recognizable, and no one has said they agreed to be shown. Ask the owner in a sentence; if they say yes, call again with people_agreed true.`,
     );
   const words = { line: input.line.trim(), over: input.over?.trim() || null, under: input.under?.trim() || null };
-  const wordsProblem = postPlanProblem(words, ownersWords(toolContext, config));
+  const wordsProblem = postPlanProblem(words, await ownersWords(toolContext, config));
   if (wordsProblem) return refuse(wordsProblem);
   if (input.book && !(await postPhoneOf(toolContext.ctx, toolContext.tenantId, config))) return refuse(POST_NO_PHONE);
   const language = toolContext.language === "es" ? "es" : "en";
@@ -213,8 +215,7 @@ async function postOutcome(toolContext: ToolContext, input: z.infer<typeof postI
 
 export const postAct = defineAct({
   name: "propose_post",
-  description:
-    "Make a post from one of the business's photos, or from one moment of one of its videos (at): a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo or the video with files action view first, unless it came with the question, and choose where the words go after seeing it; a video's view names its best moments, which are where to choose at from. The first call draws the post and shows it to you: look at it with the owner's eyes, change the plan if a word sits on a face or the sign, and call again with looked set to its look_key; only then is the card made, and that call ends the turn, so answer the rest of what they asked beside it, in the same message, since nothing written beside the look reaches them. Asked only for a post, propose one at once, with a short plain headline from the photo and what you know of the business, rather than asking what it should say: the owner changes the words, the type and the layout on the card itself, for nothing, so propose once and offer no alternatives. A price, a number or a promise they have not said is refused: leave those out, or use theirs. One photo, or one moment, a post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+  description: `Make a post from one of the business's photos, or one moment of a video (at): a picture with their words on it, for Instagram, Google or anywhere. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Content. Open the photo or video with files view first, unless it came with the question, and place the words after seeing it; a video's view names its best moments to choose at from. The first call draws the post and shows it to you; its note says how the card is made. Asked only for a post, propose one at once with a short plain headline from the photo, rather than asking what it should say: they change it on the card, so propose once and offer no alternatives. A price, a number or a promise they have not said is refused: leave those out, or use theirs. ${approvalWords("post")}.`,
   kind: "post",
   input: postInput,
   label: "Making a post",
