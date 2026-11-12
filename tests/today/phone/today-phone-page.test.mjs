@@ -590,12 +590,12 @@ test("on a phone the page is one column in the canvas's order: Ask found leads w
     "TodayAlertBand",
     "NeedYou",
     "ColdEmailNote",
+    "TodayContentNote",
     "DayZone",
     "AskFound",
     "PhoneSoFar",
     "PhonePins",
     "today-setting-up",
-    "TodayContentNote",
     "TodayEnd",
   ]);
   // Nobody waits, but Ben's step is due: To do is Need you's pane, so Ask found stays under the day.
@@ -605,11 +605,11 @@ test("on a phone the page is one column in the canvas's order: Ask found leads w
     "today-setting-up",
     "NeedYou",
     "ColdEmailNote",
+    "TodayContentNote",
     "DayZone",
     "AskFound",
     "PhoneSoFar",
     "PhonePins",
-    "TodayContentNote",
     "TodayEnd",
   ]);
   // And with no step due either, Need you draws no pane and Ask found leads.
@@ -619,11 +619,11 @@ test("on a phone the page is one column in the canvas's order: Ask found leads w
     "today-setting-up",
     "NeedYou",
     "ColdEmailNote",
+    "TodayContentNote",
     "AskFound",
     "DayZone",
     "PhoneSoFar",
     "PhonePins",
-    "TodayContentNote",
     "TodayEnd",
   ]);
 });

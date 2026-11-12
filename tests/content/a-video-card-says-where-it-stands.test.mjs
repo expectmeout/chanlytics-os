@@ -136,7 +136,8 @@ test("ready the moment it can be played, as the bell rings: Ask's look comes aft
   // it was ready. The words of that wait are gone with it.
   const says = pieceWordsIn("en");
   const { html, read } = drawn(held({ stands: { is: "ready", file: made({ look_status: "waiting" }) } }));
-  assert.equal(read, `It's ready In Content, under Made. Open ${SUMMARY}`);
+  // Make another beside Open (the content canvas, PhDoors "ask"): another like it, asked in a press.
+  assert.equal(read, `It's ready In Content, under Made. Make another Open ${SUMMARY}`);
   assert.ok(
     !html.includes("data-dim") && !html.includes("ask-piece-working"),
     "at full strength, nothing of Ask's over it",
@@ -159,7 +160,8 @@ test("a card that has its stills shows the video's own first frame from them, an
 
 test("ready: said once, where it is, and Open", () => {
   const { html, read } = drawn(held({ stands: { is: "ready", file: made() } }));
-  assert.equal(read, `It's ready In Content, under Made. Open ${SUMMARY}`);
+  // Make another beside Open (the content canvas, PhDoors "ask"): another like it, asked in a press.
+  assert.equal(read, `It's ready In Content, under Made. Make another Open ${SUMMARY}`);
   assert.equal(times(read, "10 seconds"), 1, "its length is the card's own line, said once");
   assert.ok(!html.includes("data-dim"), "at full strength");
   assert.ok(html.includes('data-testid="ask-piece-open"'));
@@ -188,7 +190,7 @@ test("deleted from Content since: the card says so, and nothing else", () => {
 
 test("a Spanish video's card says its own words", () => {
   const ready = drawn(held({ stands: { is: "ready", file: made() } }, "es"), { language: "es" });
-  assert.ok(ready.read.startsWith("Está listo En Contenido, en Hecho. Abrir"), ready.read);
+  assert.ok(ready.read.startsWith("Está listo En Contenido, en Hecho. Hacer otro Abrir"), ready.read);
   const failed = drawn(held({ stands: { is: "failed", why: "draw" } }, "es"), { language: "es" });
   assert.ok(failed.read.startsWith("No se pudo hacer Esta vez no se pudo dibujar."), failed.read);
 });

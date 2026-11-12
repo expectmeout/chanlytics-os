@@ -63,7 +63,6 @@ const out = await build({
     contents:
       `export { PieceDesk } from "${CONTENT}/viewer/desk.tsx";\n` +
       `export { PieceViewer } from "${CONTENT}/viewer/viewer.tsx";\n` +
-      `export { VideoPost, VideoPostActs } from "${CONTENT}/sheets/video-post.tsx";\n` +
       `export { AskLine } from "${CONTENT}/sheets/ask-change.tsx";\n` +
       `export { PostBoth, PostBothActs } from "${CONTENT}/post-both.tsx";\n` +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
@@ -269,12 +268,16 @@ test("a post that is up on Instagram leads with the next place, and the row says
   }
 });
 
-test("a post that failed leads with Post again, the row says it stopped, and its line says why", () => {
+test("a post that failed leads with Post again, and the row says it stopped", () => {
   const failed = post("instagram", "failed", { error: "Instagram is busy right now." });
   for (const html of both({ posts: [failed] })) {
     assert.equal(saysOf(html, "cnv-next"), "Post again");
     assert.deepEqual(statusOf(html), { tone: "need", said: marked("Didn't post") });
-    assert.match(html, /data-testid="cnv-line"[^>]*>Instagram is busy right now\.</);
+    assert.doesNotMatch(
+      html,
+      /data-testid="cnv-line"[^>]*>Instagram is busy/,
+      "why it stopped is said once, by its place",
+    );
   }
   // What needs the owner is said before what waits: the row and the act that leads never say two things.
   const waiting = post("google", "queued", { id: "later", scheduled_for: LATER });
@@ -308,33 +311,19 @@ test("a post that waits for its time is said in the row, and the next place stil
   }
 });
 
-test("a video Ask made leads with Post, plays with its sound on the glass, and its row opens what a video can do today", () => {
+test("a video Ask made leads with Save video, plays with its sound on the glass, and has no row of places", () => {
   for (const html of both({ kind: "video" })) {
-    assert.equal(saysOf(html, "cnv-next"), "Post", "its Post sheet says what a video can do today");
+    assert.equal(count(html, "cnv-next"), 0, "nothing posts a video from here (decision 0121)");
+    assert.equal(count(html, "cnv-video-save"), 1);
+    assert.match(html, /Save video<\/a>/, "Save video leads");
     assert.equal(count(html, "cnv-sound"), 1);
     assert.match(html, /aria-label="Sound on"[^>]*data-testid="cnv-sound"/, "muted until asked");
-    assert.equal(count(html, "cnv-save"), 1);
-    assert.deepEqual(statusOf(html), { tone: "ready", said: "Ready to post" });
-    assert.ok(tagOf(html, "cnv-status-open").includes('aria-label="Ready to post. Post it"'));
+    assert.equal(count(html, "cnv-status"), 0, "a video has no row of places");
+    assert.equal(count(html, "cnv-change"), 1, "what Ask made is changed by its one round press");
   }
   assert.match(desk({ kind: "video" }), /<kbd>Space<\/kbd>Sound/, "Space turns the sound on a desk");
   assert.doesNotMatch(desk({}), /<kbd>Space<\/kbd>/, "a picture has no sound to turn");
   assert.equal(count(desk({ kind: "video", over: { media_status: "processing" } }), "cnv-sound"), 0, "not ready");
-});
-
-test("a video's Post says its words with Copy, and the two ways that work today; why Instagram is not one is its title's line", () => {
-  const body = S.renderToStaticMarkup(S.createElement(S.VideoPost, { caption: "I asked for volume." }));
-  assert.doesNotMatch(body, /Instagram/, "why Instagram takes no video is the line under the sheet's title, said once");
-  assert.match(body, /data-testid="cnv-video-words"[^>]*>I asked for volume\.</);
-  assert.equal(count(body, "cnv-video-copy"), 1, "with Copy at the words' label");
-  const save = { href: "/download", share: null };
-  const acts = (caption) =>
-    S.renderToStaticMarkup(S.createElement(S.VideoPostActs, { caption, save, onPicture: noop }));
-  assert.match(acts("I asked for volume."), /Save video and copy words/);
-  assert.equal(count(acts("I asked for volume."), "cnv-video-picture"), 1, "or a picture from it");
-  const none = S.renderToStaticMarkup(S.createElement(S.VideoPost, { caption: null }));
-  assert.equal(count(none, "cnv-video-words"), 0, "an older video has no words, and none are made up");
-  assert.match(acts(null), /Save video</);
 });
 
 test("a reader sees where it stands and may save it, and is offered nothing that changes it", () => {
@@ -348,10 +337,11 @@ test("a reader sees where it stands and may save it, and is offered nothing that
   }
   for (const html of both({ may: false, posts: [post("instagram", "queued")] }))
     assert.equal(count(html, "cnv-pull"), 0, "a post on its way is not theirs to stop");
-  // A video's Post offers two ways to make something of it: neither is a reader's, so their row is no press.
+  for (const html of both({ may: false })) assert.equal(count(html, "cnv-change"), 0, "Change it is not a reader's");
+  // A video has no row of places, for anyone: a reader may save it.
   for (const html of both({ may: false, kind: "video" })) {
-    assert.equal(count(html, "cnv-status"), 1);
-    assert.equal(count(html, "cnv-status-open"), 0);
+    assert.equal(count(html, "cnv-status"), 0);
+    assert.equal(count(html, "cnv-video-save"), 1);
   }
   assert.doesNotMatch(desk({ may: false }), /<kbd>P<\/kbd>/, "P presses nothing for a reader");
 });
@@ -406,6 +396,7 @@ const bothOf = (draft, over = {}) => ({
   refused: {},
   problem: null,
   canSend: true,
+  words: "Saturdays fill first.",
   begin: noop,
   cancel: noop,
   toggle: noop,
@@ -416,14 +407,7 @@ const bothOf = (draft, over = {}) => ({
   send: noop,
   ...over,
 });
-const draft = (over = {}) => ({
-  instagram: true,
-  google: true,
-  as: "picture",
-  words: "Saturdays fill first.",
-  when: null,
-  ...over,
-});
+const draft = (over = {}) => ({ instagram: true, google: true, as: "picture", ...over });
 /** A draft with nothing switched on: the list as the status row opens it where nothing is sent. */
 const OFF = { instagram: false, google: false };
 const compose = (state, doors) => S.renderToStaticMarkup(S.createElement(S.PostBoth, { both: state, doors }));
@@ -465,25 +449,31 @@ test("with nothing switched on it is the list of where it is posted: no words, n
   assert.doesNotMatch(html, /<footer class="cm-pane-foot/, "so the pane draws no foot");
 });
 
-test("the list offers each place that can take it, says which are on, and sends to the ones on", () => {
+test("the list offers each place that can take it, says which are on, and its caption; Post and Schedule send to the ones on", () => {
   const html = compose(bothOf(draft()));
   assert.match(html, /aria-checked="true"[^>]*data-testid="cnv-switch-instagram"/);
   assert.match(html, /aria-checked="true"[^>]*data-testid="cnv-switch-google"/);
   assert.match(html, /role="group" aria-label="Post it"/);
   assert.equal(placeSaid(html, "instagram"), null, "a place that can take it and holds nothing says nothing: one line");
   assert.equal(count(html, "cnv-as-picture"), 1, "Instagram as a post or a story");
-  assert.equal(count(html, "cnv-words"), 1);
-  assert.equal(count(html, "cnv-words-copy"), 1, "and Copy beside Ask's words");
-  assert.equal(count(html, "cnv-when-now"), 1, "a time with Google on too: Google keeps a time (00616)");
-  assert.equal(saysOf(composeFoot(bothOf(draft())), "cnv-compose-send"), "Post to Instagram and Google");
+  assert.match(
+    html,
+    /data-testid="cnv-words"[^>]*>Saturdays fill first\.</,
+    "the caption that goes with it, said once",
+  );
+  const foot = composeFoot(bothOf(draft()));
+  assert.equal(saysOf(foot, "cnv-compose-send"), "Post", "Post, a word alone");
+  assert.match(tagOf(foot, "cnv-compose-send"), /aria-label="Post to Instagram and Google"/, "named for where it goes");
+  assert.equal(count(foot, "cnv-compose-later"), 1, "and Schedule beside it, for a day and a time");
+  assert.equal(count(foot, "cnv-post-ask"), 0, "Post asks first, once it is pressed");
 });
 
-test("with Google off a time is offered, and the send names Instagram alone", () => {
+test("with Google off the send names Instagram alone", () => {
   const html = compose(bothOf(draft({ google: false })));
   assert.match(html, /aria-checked="false"[^>]*data-testid="cnv-switch-google"/);
-  assert.equal(count(html, "cnv-when-now"), 1);
-  assert.equal(count(html, "cnv-when-morning"), 1);
-  assert.equal(saysOf(composeFoot(bothOf(draft({ google: false }))), "cnv-compose-send"), "Post to Instagram");
+  const foot = composeFoot(bothOf(draft({ google: false })));
+  assert.match(tagOf(foot, "cnv-compose-send"), /aria-label="Post to Instagram"/);
+  assert.equal(count(foot, "cnv-compose-later"), 1);
 });
 
 test("a place says where the piece stands there first: up with its door, on its way with Don't post, stopped with why", () => {
@@ -560,9 +550,9 @@ test("a Don't post that was refused says why in the list, which stands over the 
 });
 
 test("a story alone asks for no words", () => {
-  const html = compose(bothOf(draft({ google: false, as: "story", words: "" })));
+  const html = compose(bothOf(draft({ google: false, as: "story" }), { words: "" }));
   assert.equal(count(html, "cnv-words"), 0);
-  assert.match(html, /A story shows no caption\./);
+  assert.equal(count(html, "cnv-compose-problem"), 0);
 });
 
 test("what stops a send is said once, and the send waits for it", () => {
@@ -596,8 +586,8 @@ const opens = (state) => state.begin();
 
 test("opening the list switches on each place that can take the post now, and never one where it is already up", () => {
   assert.deepEqual(onAfter(pieceOf(), opens), { instagram: true, google: true, sending: true });
-  const words = S.bothAfter(pieceOf(), [opens]).draft.words;
-  assert.equal(words, "Saturdays fill first. Two chairs left this week.", "begun from what the picture says");
+  const words = S.bothAfter(pieceOf({ caption: "  Saturdays fill first.  " }), [opens]).words;
+  assert.equal(words, "Saturdays fill first.", "the piece's own caption, as it is sent");
   const upOnInstagram = pieceOf({ posts: [post("instagram", "published")] });
   assert.deepEqual(onAfter(upOnInstagram, opens), { instagram: false, google: true, sending: true });
   const upOnBoth = pieceOf({
@@ -645,7 +635,7 @@ test("the line to Ask is one box and one press, drawn as Ask's own line: named, 
   assert.equal(html.split("<button").length - 1, 1, "and one press: no preset asks beside it");
   const box = tagOf(html, "cnv-ask-words");
   assert.match(box, /aria-label="Ask for a change"/);
-  assert.match(box, /placeholder="Ask for another change"/, "under the piece's own words, anything else");
+  assert.match(box, /placeholder="Ask anything about it"/, "under the piece's own words, anything else");
   assert.match(box, /class="line-field cnv-ask-words"/, "Ask's own field");
   assert.doesNotMatch(html, /<p[ >]/, "no note under it: what asking does is Ask's card's to say");
   const send = tagOf(html, "cnv-ask-send");

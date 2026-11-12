@@ -119,6 +119,8 @@ const KINDS = [
   "memory_change",
   "memory_forget",
   "post",
+  // A made post put up at its places, now or at a time the owner named.
+  "publish",
   // A video made from the business's clips (decision 0122).
   "piece",
   "teleport",
@@ -204,6 +206,8 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     memory_change: "settings",
     memory_forget: "approve",
     post: "settings",
+    // Putting a made post up is the settings permission's, as the page's Post it is.
+    publish: "settings",
     piece: "settings",
   });
 });
@@ -644,6 +648,18 @@ const SHAPES = {
       people_agreed: false,
     }),
   ],
+  publish: [
+    card("publish", {
+      file_id: "f1",
+      places: ["instagram", "google"],
+      as: "picture",
+      when: "2026-11-14T15:00:00.000Z",
+      when_said: "Saturday at 10:00 AM",
+      caption: "Come see the new floor.",
+      caption_new: true,
+      language: "en",
+    }),
+  ],
   piece: [
     card("piece", {
       shape: "hook_cut",
@@ -891,6 +907,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     memory_change: ["PATCH ask/memory/[id]"],
     memory_forget: ["DELETE ask/memory/[id]", "POST ask/memory"],
     post: ["DELETE files/[id]", "POST files/post"],
+    publish: ["PATCH files/[id]", "POST files/[id]/google", "POST files/[id]/instagram"],
     piece: ["POST files/video"],
     fix: [],
   });
@@ -939,6 +956,7 @@ test("a spec's `needs` is the policy role of every route it names; the exception
       ["person_mode_many", "owner"],
       ["piece", "partner"],
       ["post", "partner"],
+      ["publish", "partner"],
       ["settings", "partner"],
     ],
   );

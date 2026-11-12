@@ -8,7 +8,7 @@
 export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   alerts: "9f00d458d977755a",
   ask_memory: "ea7be04b7c170a76",
-  ask_morning: "2825cc7044a94434",
+  ask_morning: "2b646f53760934ef",
   audiences: "3cf311d9336ac944",
   billing: "9f5a6a4f8592c70a",
   broadcasts: "1317c4e2e6c81a5c",

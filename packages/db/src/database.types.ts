@@ -8917,10 +8917,7 @@ export type Database = {
         Returns: string
       }
       file_keep_many:
-        | {
-            Args: { p_ids: string[]; p_tenant_id: string }
-            Returns: number
-          }
+        | { Args: { p_ids: string[]; p_tenant_id: string }; Returns: number }
         | {
             Args: { p_ids: string[]; p_tenant_id: string; p_to: string }
             Returns: number

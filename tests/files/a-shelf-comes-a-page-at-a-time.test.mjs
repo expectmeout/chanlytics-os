@@ -214,9 +214,9 @@ test("a shelf a change left empty falls back to where the library opens, and say
   assert.equal(said.files.length, 1);
 });
 
-test("what is asked of the library opening depends on who asks: a reader has no Inbox to answer", async () => {
+test("the library opens on all it keeps, whoever asks: what waits is a line over it, never the page it opens on", async () => {
   const rows = [row(1), row(2, { status: "inbox" })];
-  assert.equal((await read(rows, "", "owner")).shelf, "inbox");
+  assert.equal((await read(rows, "", "owner")).shelf, "all");
   assert.equal((await read(rows, "", "viewer")).shelf, "all");
 });
 

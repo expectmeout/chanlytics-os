@@ -836,18 +836,22 @@ test("while someone waits on you, what is left to set up stands under the queue,
   setSurfaceValue("ask_morning", morningWith(idea()));
   assert.deepEqual(
     work(),
-    ["today-setting-up", "NeedYou", "ColdEmailNote", "AskFound"],
+    ["today-setting-up", "NeedYou", "ColdEmailNote", "TodayContentNote", "AskFound"],
     "nobody waits on a quiet day: the chores lead, and Ask found stands wide in the work's column",
   );
   setSurfaceValue("ask_morning", undefined);
   assert.deepEqual(
     work(),
-    ["today-setting-up", "NeedYou", "ColdEmailNote", "AskFound", "DayZone"],
+    ["today-setting-up", "NeedYou", "ColdEmailNote", "TodayContentNote", "AskFound", "DayZone"],
     "and where Ask found has nothing either, the day stands in the one column rather than beside an empty one",
   );
   // Need you draws its pane while anyone waits: the page's arrangement knows it before anything draws (today/arrangement.ts).
   setSurfaceValue("today", rosaWaits());
-  assert.deepEqual(work(), ["NeedYou", "ColdEmailNote", "today-setting-up"], "Rosa waits: the work leads");
+  assert.deepEqual(
+    work(),
+    ["NeedYou", "ColdEmailNote", "TodayContentNote", "today-setting-up"],
+    "Rosa waits: the work leads",
+  );
   // A run waiting for a word is someone waiting too: a one-off broadcast waits until it is decided.
   const oneOff = {
     id: "b-one",
@@ -870,7 +874,7 @@ test("while someone waits on you, what is left to set up stands under the queue,
   try {
     assert.deepEqual(
       work(),
-      ["NeedYou", "ColdEmailNote", "today-setting-up"],
+      ["NeedYou", "ColdEmailNote", "TodayContentNote", "today-setting-up"],
       "a run waits for your OK: the work leads",
     );
   } finally {

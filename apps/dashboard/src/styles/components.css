@@ -3060,7 +3060,8 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
      with the views it is the coral circle, its mark alone, the strip's picked view's height and 44 to a finger by a margin
      no one sees, so the four views and the act share one row whole on a phone 360 wide, and the name has its row to itself
      (Ruben, 12 Nov 2026: "+ New or just +"). Its words stay for a screen reader; a desk says them. */
-  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot > span > :first-child:has(> .pg-act-fit) {
+  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit),
+  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot > span > a:first-child:has(> .pg-act-fit) {
     width: var(--control-h-sm);
     padding: 0;
     justify-content: center;
@@ -3074,7 +3075,8 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot > span > :first-child > .pg-act-fit > .pg-act-keep {
     font-size: 0;
   }
-  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot > span > :first-child:has(> .pg-act-fit)::after {
+  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit)::after,
+  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot > span > a:first-child:has(> .pg-act-fit)::after {
     inset: -8px;
   }
   /* A coral act beside the strip is as tall as the view picked in it and on its line, with the strip's 4px over and under

@@ -488,25 +488,35 @@ test("the surfaces are one list, Leads among them, and every kind a scope may ha
   assert.equal(new Set(ASK_SURFACES).size, ASK_SURFACES.length, "each said once");
   assert.deepEqual(
     ASK_SCOPE_KINDS.filter((k) => !ASK_CITATION_KINDS.includes(k)),
-    ["run", "ad", "file"],
-    "a run is its address's word for a Broadcasts row; an ad is cited as the page it is on until the Ads read lands (0049); a file is seen, not cited (0099)",
+    ["run", "ad", "file", "sequence", "message"],
+    "a run is its address's word for a Broadcasts row; an ad is cited as the page it is on until the Ads read lands (0049); a file is seen, not cited (0099); a sequence is cited as the playbook it is; a Library message is seen by its page",
   );
   assert.ok(ASK_CITATION_KINDS.includes("broadcast"), "which a citation names a broadcast");
   // A campaign is one now, open in its drawer (the moment spec, A1): campaigns/moment:<id>.
   assert.deepEqual(
     ASK_CITATION_KINDS.filter((k) => !ASK_SCOPE_KINDS.includes(k)),
-    ["deal", "list", "broadcast", "template", "mailbox", "visit", "review"],
-    "the rows a reader returns that no page opens as a scope (a visit's sheet and a review's reply box are the page around them)",
+    ["deal", "list", "broadcast", "template", "mailbox", "review"],
+    "the rows a reader returns that no page opens as a scope (a review's reply box is the page around it; a visit open in its sheet is one now)",
   );
 });
 
-test("a campaign's scope is read before the model is asked, by the read that names it (campaigns.playbooks)", async () => {
+test("a campaign's scope is read before the model is asked, by the read of its own record (sequences.sequence)", async () => {
   const { scopedRead } = await import(
     pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/cross-page.ts")).href
   );
-  assert.deepEqual(scopedRead({ kind: "playbook", id: "p1", label: "Win-back" }), {
+  // The one open, as its record shows it (every campaign is a sequence): never the whole list (Ruben, 12 Nov 2026).
+  for (const kind of ["playbook", "sequence"])
+    assert.deepEqual(scopedRead({ kind, id: "p1", label: "Win-back" }), {
+      name: "sequences",
+      input: { action: "sequence", sequence_id: "p1" },
+    });
+  assert.deepEqual(scopedRead({ kind: "message", id: "reminder_24h", label: "Reminder" }), {
     name: "sequences",
-    input: { action: "moments" },
+    input: { action: "messages" },
+  });
+  assert.deepEqual(scopedRead({ kind: "visit", id: "v1", label: "this visit" }, "calendar/week:2026-11-12:a-v1"), {
+    name: "calendar",
+    input: { action: "week", day: "2026-11-12" },
   });
 });
 
@@ -1458,6 +1468,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       ["propose_piece", []],
       ["propose_plan", ["offer", "steps"]],
       ["propose_post", []],
+      ["propose_publish", []],
       ["propose_reply", ["draft", "steer", "booking"]],
       ["propose_review", ["reply"]],
       [

@@ -210,8 +210,9 @@ export function ViewerActs(props: {
         </Button>
       ) : null}
       {saves && !madeVideo ? <SaveButton save={save} glass={!desk} wide={!lead} /> : null}
-      {/* One round press beside the lead: Change it where Ask made the piece (the line to Ask is in it), Ask on a Library file. */}
-      {acts.onChange ? (
+      {/* One round press beside the lead: Change it where Ask made the piece and this person may change it (the line to Ask is
+          in it), else Ask: a reader asks about it, and a Library file is asked about. */}
+      {may && acts.onChange ? (
         <Button
           variant={quiet}
           size={size}

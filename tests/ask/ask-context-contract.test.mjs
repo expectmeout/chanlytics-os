@@ -195,9 +195,15 @@ test("a scope has kinds of its own, and so do the context's rows; each is a kind
   assert.ok(!ASK_SCOPE_KINDS.includes("reach_out"), "a reach-out open is the page over its row");
   assert.equal(ASK_CITATION_KINDS.length, 15, "fifteen names: a page and fourteen kinds of row");
   // An ad has no read of its own until the Ads read lands (decision 0049): a turn about one cites the page it is on. A file
-  // is seen, not cited (decision 0099): the same.
+  // is seen, not cited (decision 0099), and a Library message is seen by its page: the same. A sequence is the playbook it is.
   const cited = (k) =>
-    k === "run" ? "broadcast" : k === "reach_out" ? "playbook" : k === "ad" || k === "file" ? "page" : k;
+    k === "run"
+      ? "broadcast"
+      : k === "reach_out" || k === "sequence"
+        ? "playbook"
+        : k === "ad" || k === "file" || k === "message"
+          ? "page"
+          : k;
   for (const k of [...ASK_SCOPE_KINDS, ...ASK_CONTEXT_ROW_KINDS])
     assert.ok(ASK_CITATION_KINDS.includes(cited(k)), `a ${k} is cited as a ${cited(k)}`);
   assert.ok(!ASK_CITATION_KINDS.includes("run"), "run is the address's word, never a citation's");

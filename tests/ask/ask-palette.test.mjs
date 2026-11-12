@@ -3978,7 +3978,17 @@ test("a row of every kind an answer names draws its kind's mark, from the one ma
   for (const k of ASK_SCOPE_KINDS)
     assert.equal(
       askKindGlyph(k),
-      k === "run" ? marks.broadcast : k === "ad" ? marks.page : k === "file" ? "image" : marks[k],
+      k === "run"
+        ? marks.broadcast
+        : k === "ad"
+          ? marks.page
+          : k === "file"
+            ? "image"
+            : k === "sequence"
+              ? marks.playbook
+              : k === "message"
+                ? marks.template
+                : marks[k],
       `a scope's ${k} is marked as its row`,
     );
   assert.equal(askKindGlyph("something new"), "chat", "a kind the map does not know is a chat");
@@ -4603,7 +4613,11 @@ test("the scope per turn (the Phase 5 plan, D9): a question goes with the scope 
     keyed(tree, "Enter");
     return later(Palette, OPEN);
   };
-  const chip = (tree) => (byTestId(tree, "ask-scope") ? textOf(byTestId(tree, "ask-scope")) : null);
+  // The name the chip says, after its "About" (draw.tsx: its picture or mark, About, the name, and its ×).
+  const chip = (tree) => {
+    const scope = byTestId(tree, "ask-scope");
+    return scope ? textOf(find(scope, (n) => n.props?.className === "ask-scope-name")) : null;
+  };
   const sent = () => calls.inputs.at(-1).scope;
   try {
     render(Palette, CLOSED);
@@ -4679,7 +4693,11 @@ test("a question the shell seeds as it opens the Line goes with the chip that op
     sent("ask:seed", { prompt });
     return opens();
   };
-  const chip = (tree) => (byTestId(tree, "ask-scope") ? textOf(byTestId(tree, "ask-scope")) : null);
+  // The name the chip says, after its "About" (draw.tsx: its picture or mark, About, the name, and its ×).
+  const chip = (tree) => {
+    const scope = byTestId(tree, "ask-scope");
+    return scope ? textOf(find(scope, (n) => n.props?.className === "ask-scope-name")) : null;
+  };
   const last = () => calls.inputs.at(-1);
   try {
     render(Palette, CLOSED);

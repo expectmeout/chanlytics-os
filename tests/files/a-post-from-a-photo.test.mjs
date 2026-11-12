@@ -788,7 +788,11 @@ test("a made file's shapes sit in its folder, so deleting it lets them all go", 
 
 test("what Ask made stands on a shelf of its own, unless a person moved it", () => {
   assert.equal(shelfOf({ status: "filed", shows: "graphic", source: "made" }), "made");
-  assert.equal(shelfOf({ status: "set_aside", shows: "graphic", source: "made" }), "set_aside");
+  assert.equal(
+    shelfOf({ status: "set_aside", shows: "graphic", source: "made" }),
+    "made_aside",
+    "Made's own Set aside, apart from the Library's",
+  );
   assert.equal(shelfOf({ status: "filed", shows: "graphic", source: "upload" }), "brand");
 });
 
