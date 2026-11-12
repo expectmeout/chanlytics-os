@@ -251,7 +251,7 @@ export { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, CONTENT_VIEWS, contentPlaceOf, co
 export { CONTENT_IDEAS, contentIdeaAsk, contentIdeaFilesOf, contentIdeasFor } from "./content/ideas";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./content/lines";
 export { CONTENT_TODAY_PIECES, CONTENT_TODAY_WORDS } from "./content/note";
-export { CONTENT_FAILED_DAYS, CONTENT_LINES_PAGE, CONTENT_MAKING_MAX, CONTENT_MAX, CONTENT_PAGE, CONTENT_STOPPED_MAX, CONTENT_WORDS, contentHeadOf, contentMakingSaid, contentMarkOf, contentMarkSaid, contentPieceMarkOf, contentMarkToneOf, contentMoving, contentViewCountOf, contentViewDrawsLines, newestAtEachPlace } from "./content/page";
+export { CONTENT_FAILED_DAYS, CONTENT_LINES_PAGE, CONTENT_MAKING_MAX, CONTENT_MAX, CONTENT_PAGE, CONTENT_STOPPED_MAX, CONTENT_WORDS, contentHeadOf, contentMakingSaid, contentMarkOf, contentMarkSaid, contentMarkToneOf, contentMoving, contentPieceMarkOf, contentViewCountOf, contentViewDrawsLines, newestAtEachPlace } from "./content/page";
 export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./content/piece-card";
 export { PIECE_CARD, PIECE_FRAME, PIECE_SIDE, pieceLineWidthOf, pieceWordsBoxOf } from "./content/piece-frame";
 export { isPieceStep, PIECE_FAILS, PIECE_ROUNDS_MAX, PIECE_STAGES, PIECE_STATUSES, PIECE_TEMPLATE, pieceCompositionOf, pieceLookOf, pieceMachineOf, pieceRoundsOf, PIECES_MAKING_MAX } from "./content/piece-making";

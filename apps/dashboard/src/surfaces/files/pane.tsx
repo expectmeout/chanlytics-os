@@ -320,7 +320,7 @@ function FilesLibrary(props: FilesLibraryProps) {
   const shelvesOpen = useRowOpens(startedEmpty);
   const videos = useVideosTaken();
   const heading = headingOf(tally, going, videos);
-  const headingFades = useSwapMotion<HTMLHeadingElement>(heading);
+  const headingFades = useSwapMotion<HTMLHeadingElement>(heading ?? "");
   const may = canDo("settings");
   const mayAdd = canDo("add_files");
   const here = pressed ?? view;

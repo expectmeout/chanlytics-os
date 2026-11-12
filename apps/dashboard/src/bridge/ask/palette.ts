@@ -307,7 +307,7 @@ export function askPalette(win: Window, storage: Storage | null) {
         onAds: askOnScreenOf(w)?.key === "ads",
         // On Campaigns › Content: Ask's three ideas of what it can make, the video only where the workspace takes videos.
         onContent: askOnScreenOf(w)?.key === "content",
-        videos: videoPreviewOf(w.__SETTINGS?.config),
+        videos: videoPreviewOf(surfaceValue("settings")?.settings?.config),
       });
     },
     /** Which of the three quick questions this is, if any; the answer is quickAnswer's. */

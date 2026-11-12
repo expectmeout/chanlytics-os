@@ -13,6 +13,8 @@ export {
   isContentParam,
 } from "./address";
 export type { ContentList, ContentPlace, ContentView } from "./address";
+export { CONTENT_IDEAS, contentIdeaAsk, contentIdeaFilesOf, contentIdeasFor } from "./ideas";
+export type { ContentIdea, ContentIdeaFiles } from "./ideas";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./lines";
 export type { MetaLines } from "./lines";
 export { CONTENT_TODAY_PIECES, CONTENT_TODAY_WORDS } from "./note";
@@ -29,9 +31,9 @@ export {
   contentMakingSaid,
   contentMarkOf,
   contentMarkSaid,
-  contentPieceMarkOf,
   contentMarkToneOf,
   contentMoving,
+  contentPieceMarkOf,
   contentViewCountOf,
   contentViewDrawsLines,
   newestAtEachPlace,
@@ -64,8 +66,6 @@ export {
 } from "./piece-making";
 export type { PieceFail, PieceLookKept, PieceMachine, PieceStage, PieceStatus, PieceStep } from "./piece-making";
 export { pieceSpec } from "./piece-spec";
-export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./publish";
-export type { PostPublish } from "./publish";
 export { compilePiece, pieceWordsOnBlocks } from "./piece-timeline";
 export type {
   PieceBlockDrawn,
@@ -106,6 +106,6 @@ export {
   postStoppedWhyOf,
 } from "./posts";
 export type { InstagramPostable, InstagramPostKind, PostDto, PostKind, PostPlace, PostStatus } from "./posts";
-export { CONTENT_IDEAS, contentIdeaAsk, contentIdeaFilesOf, contentIdeasFor } from "./ideas";
+export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./publish";
+export type { PostPublish } from "./publish";
 export { CONTENT_SHEET_WORDS } from "./sheet-words";
-export type { ContentIdea, ContentIdeaFiles } from "./ideas";
