@@ -37,11 +37,11 @@ import * as M from "./new-model";
 import { AudienceToggle, CaseNote, ChecksList, ReachLine, SaidLine, WhoCaption, WordPick } from "./new-parts";
 import { DraftRail, OnceMessage, type RailActs } from "./new-rail";
 import { AddStepSheet } from "./add-step";
+import { Choice } from "./choice";
 import { DraftVoice } from "./new-voice";
 import { ConfirmSend } from "./send-now";
 import {
   ChannelsSheet,
-  Choice,
   FromSheet,
   HourSelect,
   KindSheet,
