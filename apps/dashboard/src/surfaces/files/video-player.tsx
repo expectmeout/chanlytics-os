@@ -22,6 +22,8 @@ const PLAYER_ALLOWS = "accelerometer; gyroscope; autoplay; encrypted-media; pict
 export /** The video in the sheet: the player once its address is in, the poster before, its state in words until it is ready. */
 function VideoOpened({ file, said }: { file: FileDto; said: string }) {
   const [player, setPlayer] = useState<string | null>(null);
+  // A big picture is drawn once it has arrived (files.css `.files-big[data-arrived]`): the player too, once its frame loads.
+  const [arrived, setArrived] = useState(false);
   const [unplayable, setUnplayable] = useState(false);
   const ready = file.media_status === "ready";
   useEffect(() => {
@@ -61,6 +63,8 @@ function VideoOpened({ file, said }: { file: FileDto; said: string }) {
           title={said}
           allow={PLAYER_ALLOWS}
           allowFullScreen
+          data-arrived={arrived ? "true" : undefined}
+          onLoad={() => setArrived(true)}
           data-testid="fl-player"
         />
       ) : (
