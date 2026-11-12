@@ -206,7 +206,6 @@ export function UnmarkedVisitsBar({ page }: { page: string }) {
       <span className="unmarked-bar-ring" aria-hidden="true" />
       <span className="unmarked-bar-text">{lead}</span>
       <span className="unmarked-bar-act">
-        <span className="unmarked-bar-act-words">{VISIT_ASK_WORDS.question}</span>
         <Glyph name="chevron" size={11} />
       </span>
     </button>
