@@ -150,9 +150,9 @@ test("a video being made leads the page with its words and where it is at", () =
   assert.equal(count(html, "cnv-making"), 2);
   assert.match(html, /Being made/);
   assert.match(html, /Three years of layers\./);
-  assert.match(html, /Cutting 4 moments/);
+  assert.match(html, /Putting it together/);
   assert.match(html, /Couldn(&#x27;|')t make it/);
-  assert.match(html, /One of its clips isn(&#x27;|')t in Files any more/);
+  assert.match(html, /One of its clips or photos isn(&#x27;|')t in Files any more/);
   assert.equal(count(html, "cnv-empty"), 0, "something being made is not nothing");
 });
 

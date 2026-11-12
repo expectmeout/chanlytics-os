@@ -28,10 +28,10 @@ export interface ContentMakingDto {
   status: "making" | "failed";
   stage: PieceStage;
   failed_why: PieceFail | null;
-  /** The words it opens on, a line each, as its plan was pressed. */
+  /** The words it opens on, a line each, as its plan was pressed: its opening words, or its first card's. */
   lines: string[];
   language: PieceLanguage;
-  /** How many moments it cuts together. */
+  /** How many blocks it puts together. */
   moments: number;
   created_at: string;
 }

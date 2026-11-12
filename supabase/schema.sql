@@ -20694,7 +20694,9 @@ begin
   if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
     raise exception 'Not yours to change.' using errcode = '42501';
   end if;
-  if p_plan is null or jsonb_typeof(p_plan) <> 'object' or (p_plan ->> 'shape') is distinct from 'hook_cut' then
+  -- contracts PIECE_SHAPES: in blocks, as Ask arranges one, or as "Hook first", which a card made before blocks carries.
+  if p_plan is null or jsonb_typeof(p_plan) <> 'object'
+     or (p_plan ->> 'shape') is null or (p_plan ->> 'shape') not in ('hook_cut', 'blocks') then
     raise exception 'No such shape.' using errcode = '22023';
   end if;
   if p_look is null or jsonb_typeof(p_look) <> 'object' then
@@ -20724,14 +20726,15 @@ begin
   end if;
   if v_id is null then
     insert into public.pieces (tenant_id, shape, plan, look, edition, card_key, created_by)
-    values (p_tenant_id, 'hook_cut', p_plan, p_look, p_edition, p_key, v_actor)
+    values (p_tenant_id, p_plan ->> 'shape', p_plan, p_look, p_edition, p_key, v_actor)
     returning id into v_id;
   else
     -- The same card's new try: its row begins again, by the plan and the look as they now stand. A file of the try before,
     -- where one was kept and could not be read, stays in Files as it stands, and is this video's no longer.
     update public.pieces p
        set status = 'making', stage = 'queued', failed_why = null, machine = null, file_id = null, made_at = null,
-           plan = p_plan, look = p_look, edition = p_edition, created_by = v_actor, created_at = now(), updated_at = now()
+           shape = p_plan ->> 'shape', plan = p_plan, look = p_look, edition = p_edition, created_by = v_actor,
+           created_at = now(), updated_at = now()
      where p.id = v_id;
   end if;
   -- As text: a job's once-only key is made of strings (job_dedupe_key_of).
@@ -20745,7 +20748,7 @@ end $$;
 -- Name: FUNCTION piece_begin(p_tenant_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.piece_begin(p_tenant_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) IS 'A member''s press, with the settings permission (00613, decision 0122): a video asked for, by its plan and the business''s look as it stood, with the first step of the job that makes it. Kept once by its card''s key; one that was not made is tried anew by the same press. Answers {fate: begun, here, busy; piece_id}.';
+COMMENT ON FUNCTION public.piece_begin(p_tenant_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) IS 'A member''s press, with the settings permission (00613, decision 0122; 00615, decision 0126): a video asked for, by its plan, in blocks or as "Hook first", and the business''s look as it stood, with the first step of the job that makes it. Kept once by its card''s key; one that was not made is tried anew by the same press. Answers {fate: begun, here, busy; piece_id}.';
 
 
 --
@@ -20852,8 +20855,10 @@ begin
   if v_used + coalesce(p_seconds, 0) > 60 * 60 then
     return jsonb_build_object('fate', 'minutes', 'file_id', null);
   end if;
-  -- Who is in it is its clips' own word: agreed where the owner said so at the press or of any clip, no one where every
-  -- clip says so, else not asked. Read by each clip's id as text, so a plan that names no clip reads none.
+  -- Who is in it is its files' own word: agreed where the owner said so at the press or of any of them, no one where
+  -- every one says so, else not asked. Its files are every one its plan names: a "Hook first" plan's cuts, and in a plan
+  -- of blocks a clip's and a photo's, a pair's two pictures and the picture a quote stands over. Read by each file's id
+  -- as text, so a plan that names no file (cards of words alone) reads none, and says not asked.
   select case
            when (v_piece.plan ->> 'people_agreed') = 'true' or coalesce(bool_or(f.who_in_it = 'agreed'), false) then 'agreed'
            when coalesce(bool_and(f.who_in_it = 'no_one'), false) then 'no_one'
@@ -20865,7 +20870,14 @@ begin
      and f.id::text in (
            select c ->> 'file_id'
              from jsonb_array_elements(case when jsonb_typeof(v_piece.plan -> 'cuts') = 'array'
-                                            then v_piece.plan -> 'cuts' else '[]'::jsonb end) c);
+                                            then v_piece.plan -> 'cuts' else '[]'::jsonb end) c
+           union
+           select x.id
+             from jsonb_array_elements(case when jsonb_typeof(v_piece.plan -> 'blocks') = 'array'
+                                            then v_piece.plan -> 'blocks' else '[]'::jsonb end) b,
+                  lateral (values (b ->> 'file_id'), (b -> 'before' ->> 'file_id'),
+                                  (b -> 'after' ->> 'file_id'), (b -> 'over' ->> 'file_id')) x(id)
+            where x.id is not null);
   -- Named for its words, as a post is, so the look that follows does not rename it.
   insert into public.files (id, tenant_id, status, source, name, owner_named, mime, bytes, fingerprint, kind, media_ref,
                             media_status, seconds, created_by, made, who_in_it)
@@ -20884,7 +20896,7 @@ end $$;
 -- Name: FUNCTION piece_file_begin(p_piece_id uuid, p_id uuid, p_media_ref text, p_name text, p_bytes bigint, p_fingerprint text, p_seconds numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.piece_file_begin(p_piece_id uuid, p_id uuid, p_media_ref text, p_name text, p_bytes bigint, p_fingerprint text, p_seconds numeric) IS 'A drawn video on its way into the video platform (00613): its row as a file, uploading, made here and named for its words, with its piece in `made`. Answers {fate: kept, here, full, minutes, ended; file_id}; asked again, kept says when its file was begun (begun_at), and here says where the file it found stands (twin). The service role''s.';
+COMMENT ON FUNCTION public.piece_file_begin(p_piece_id uuid, p_id uuid, p_media_ref text, p_name text, p_bytes bigint, p_fingerprint text, p_seconds numeric) IS 'A drawn video on its way into the video platform (00613; 00615: who is in it is read from every file its plan names): its row as a file, uploading, made here and named for its words, with its piece in `made`. Answers {fate: kept, here, full, minutes, ended; file_id}; asked again, kept says when its file was begun (begun_at), and here says where the file it found stands (twin). The service role''s.';
 
 
 --
@@ -40407,7 +40419,7 @@ CREATE TABLE public.pieces (
     CONSTRAINT pieces_failed_shape CHECK (((status = 'failed'::text) = (failed_why IS NOT NULL))),
     CONSTRAINT pieces_failed_why_check CHECK ((failed_why = ANY (ARRAY['clips'::text, 'draw'::text, 'store'::text, 'unknown'::text]))),
     CONSTRAINT pieces_plan_shape CHECK (((jsonb_typeof(plan) = 'object'::text) AND (jsonb_typeof(look) = 'object'::text))),
-    CONSTRAINT pieces_shape_check CHECK ((shape = ANY (ARRAY['hook_cut'::text]))),
+    CONSTRAINT pieces_shape_check CHECK ((shape = ANY (ARRAY['hook_cut'::text, 'blocks'::text]))),
     CONSTRAINT pieces_stage_check CHECK ((stage = ANY (ARRAY['queued'::text, 'waiting_clip'::text, 'drawing'::text, 'saving'::text]))),
     CONSTRAINT pieces_status_check CHECK ((status = ANY (ARRAY['making'::text, 'made'::text, 'failed'::text])))
 );

@@ -443,9 +443,9 @@ being read is dropped by a migration.
 | `person_set_first_touch` | the server's | the server | SQL `calls_note_first_touch`, `events_note_first_touch` and 1 more | A person's first touch (K3), written once: |
 | `person_signer_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_signers on contacts` | When a person is erased, the name a reply's reading found as its signer goes with them (0036, 0052). |
 | `person_step_from_playbook` | the server's | the server | SQL `reach_out_hand_run`, `reach_out_reply_apply` and 1 more | A dated step the product makes for the team on a person (Reach out Part 5, G11): |
-| `piece_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/pieces.ts` | A member's press, with the settings permission (00613, decision 0122): |
+| `piece_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/pieces.ts` | A member's press, with the settings permission (00613, decision 0122; |
 | `piece_end` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A video that could not be made (00613): |
-| `piece_file_begin` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A drawn video on its way into the video platform (00613): |
+| `piece_file_begin` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A drawn video on its way into the video platform (00613; |
 | `piece_sent` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A drawn video's bytes have all gone into the video platform (00613): |
 | `piece_stage` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | Where a video being made stands, said as it changes (00613): |
 | `piece_step` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | The machine a video is being drawn on, kept or let go (00613); |

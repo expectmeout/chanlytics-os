@@ -121,7 +121,7 @@ test("while the stills are drawn a dim still stands under Ask's three, and a pla
 test("being made: where it is at, and that she may leave", () => {
   const says = pieceWordsIn("en");
   const { html, read } = drawn(held({ stands: { is: "making", stage: "drawing" } }));
-  assert.equal(read, `Making it Cutting 4 moments ${SUMMARY} ${says.making}`);
+  assert.equal(read, `Making it Putting it together ${SUMMARY} ${says.making}`);
   assert.ok(html.includes('data-is="making"') && html.includes('data-dim=""'), "the first still, dim");
   assert.ok(html.includes("ask-piece-working"), "under Ask's three");
   assert.ok(html.includes('role="status"'), "said to a reader as it changes");
