@@ -1,8 +1,11 @@
 /**
  * One heartbeat over the ledger.
  *
- * pg_cron asks every ten seconds whether anything is due (trigger_jobs_tick,
- * 00098) and calls api/jobs/tick.ts only when something is. That route binds
+ * pg_cron looks every two seconds (trigger_jobs_tick, 00526) and calls
+ * api/jobs/tick.ts only when something is due: at once for a row that came due
+ * in the last three seconds, at most one call a second, and every ten seconds
+ * for the rest of the ledger, so on a backlog two ticks claim at a time
+ * (docs/capacity.md, the jobs row). That route binds
  * the database and each job's tenant credentials into ports and hands them
  * here; this file imports neither, so it is tested by running it.
  *

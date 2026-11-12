@@ -618,6 +618,7 @@
     "00613_a_business_makes_a_video.sql": "9ceedacc35223cf57700ee419140d31c31ec18096bc89479d550c8a344b9b24c",
     "00614_a_note_is_unread_until_it_is_read.sql": "b5098a48b0454947b788e7bc88da6156c4e9b389114270c6fca66914dceee6a3",
     "00615_a_video_is_made_of_blocks.sql": "d8f7f8bbbf7eb23d0736eaf0f6237d1172b05625b03eee7f06f7eff786f1fd60",
-    "00616_a_post_waits_for_google_and_a_delete_waits_for_undo.sql": "287985f0079607fa03c86341cde223641e19fc846c80b1f92651f1abff6a011d"
+    "00616_a_post_waits_for_google_and_a_delete_waits_for_undo.sql": "287985f0079607fa03c86341cde223641e19fc846c80b1f92651f1abff6a011d",
+    "00617_the_sequences_list_sees_what_is_stuck.sql": "907fbb03074e3250979dab0ef3dfd887ef3d10932ed951cf52a1b131eed0f8f6"
   }
 }

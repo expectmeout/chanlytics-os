@@ -44,13 +44,17 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     const text = await page.locator(".set-pane").innerText();
     for (const s of INVENTED) expect(text, `invented copy on the pane: "${s}"`).not.toContain(s);
 
-    // One row per class the workspace is offered (contracts policyClassOffered) and asked nowhere else: five, the
-    // reach-outs' cold email and Proposal follow-ups among them (every workspace has deals, 0008 amended 18 Oct 2026).
+    // One row per thing asked here and nowhere else: three. What goes to many people is one row since the answers canvas's
+    // D41 (#2211, 9 Nov 2026; pane.tsx AUT_MOVES_WITH): the offers, the win-backs and the follow-ups stood as three, and a
+    // press on the one sets all three. The reach-outs' cold email and Google reviews stand beside it.
     const rows = table.locator("tbody tr");
-    await expect(rows).toHaveCount(5);
+    await expect(rows).toHaveCount(3);
+    await expect(rows.filter({ hasText: "Sends to many people" })).toHaveCount(1);
     await expect(rows.filter({ hasText: "Cold email to businesses a search found" })).toHaveCount(1);
     for (const label of ["Replies to customers", "Refunds", "Service & pricing questions", "Book · reschedule"])
       await expect(rows.filter({ hasText: label }), `${label} is asked elsewhere`).toHaveCount(0);
+    for (const label of ["Re-engage quiet customers", "Standing offers", "Follow-ups"])
+      await expect(rows.filter({ hasText: label }), `${label} moves with Sends to many people`).toHaveCount(0);
     // Replies is its own card: its mode a menu, one answer in force, open to an owner.
     const replies = page.getByTestId("aut-replies");
     await expect(replies.getByTestId("pol-phone-mode-reply")).toBeEnabled();
@@ -64,7 +68,7 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     // The rows that start sequences say what each mode does to how one starts -- behind the row's info mark, as every
     // note is since #620 -- and their dots are live. A sequence is approved once, then held (decision 0064): each keeps
     // its own on its page (contracts policy-classes.ts).
-    for (const label of ["Re-engage quiet customers", "Standing offers"]) {
+    for (const label of ["Sends to many people", "Cold email to businesses a search found"]) {
       const row = rows.filter({ hasText: label });
       await expect(row.locator(".rec-tip")).toHaveAttribute("data-tip", /keeps its own on its page/);
       await expect(row.locator(".pol-dot").first()).toBeEnabled();

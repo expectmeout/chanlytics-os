@@ -190,6 +190,30 @@ const { OutcomePill } = await import(`${S}/surfaces/inbox/pages/outcome-pill.tsx
 // The one thread, which Conversations mounts for a conversation row (thread-pane.tsx).
 const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+/**
+ * The team roster as the settings read lands it (the settings surface's `team`, bridge/surfaces/settings.ts), which a
+ * thread's holder is named from (surfaces/holder-names.ts; it was a global beside the surface, `__TEAM`). The surface is the
+ * whole read, so the rest stands beside it as a workspace with no template and no invitation holds it. No roster is the
+ * read not landed: the surface unread, as it is before any test here sets one.
+ */
+const rosterIs = (team) =>
+  setSurfaceValue(
+    "settings",
+    team
+      ? {
+          settings: null,
+          facts: null,
+          templatesAll: [],
+          templateVersions: [],
+          messages: [],
+          templateUse: null,
+          templateSent: null,
+          policies: null,
+          team,
+          invites: [],
+        }
+      : undefined,
+  );
 
 const find = (tree, pred) => findNode(tree, pred) ?? undefined;
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
@@ -437,16 +461,16 @@ test("D1-hold-words: Conversations' pill for a thread a teammate has names them 
   fresh();
   const pill = (row) =>
     textOf(OutcomePill({ outcome: row.outcome, standing: row.standing, holderId: row.holderId, channel: row.channel }));
-  // The roster Settings reads (window.__TEAM): the name is the workspace's, never invented.
-  globalThis.window.__TEAM = [{ userId: "u-ruben", email: "ruben@example.com", displayName: "Ruben" }];
+  // The roster Settings reads (rosterIs): the name is the workspace's, never invented.
+  rosterIs([{ userId: "u-ruben", email: "ruben@example.com", displayName: "Ruben" }]);
   try {
     assert.equal(pill(theirs), "Ruben has it");
     assert.equal(pill(mine), "You have it");
-    globalThis.window.__TEAM = [{ userId: "u-other", email: "ana@example.com", displayName: "Ana" }];
+    rosterIs([{ userId: "u-other", email: "ana@example.com", displayName: "Ana" }]);
     assert.equal(pill(theirs), "A teammate has it", "a teammate the roster does not know");
-    globalThis.window.__TEAM = null;
+    rosterIs(null);
     assert.equal(pill(theirs), "A teammate has it", "the roster unread");
   } finally {
-    delete globalThis.window.__TEAM;
+    rosterIs(null);
   }
 });

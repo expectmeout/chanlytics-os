@@ -7,16 +7,16 @@
  * is new behaviour.
  */
 import type { PoliciesSurface } from "@/bridge/policy-store";
-import type { SettingsRecord, SettingsSurface } from "@/bridge/surfaces/settings";
+import type { SettingsRecord } from "@/bridge/surfaces/settings";
 import type { CalendarSurface } from "../../calendar/surface";
 import type { calendar } from "../../calendar/verbs";
 import type { SetupSurface } from "../../setup/surface";
+import { surfaceValue } from "../../surface-values";
 
 declare global {
   interface Window {
     /** The settings read's globals (bridge/surfaces/settings.ts writes them). */
     __SETTINGS?: SettingsRecord;
-    __FACTS?: SettingsSurface["facts"];
     __POLICIES?: PoliciesSurface | null;
     /** Whether a page's read failed (surface-registry.ts installRouteGate). */
     __surfaceFailed?: (page: string, param?: string | null) => boolean;
@@ -32,9 +32,14 @@ declare global {
 /* ------------------------------------------------------------- the settings read ------------------------------------------------------------- */
 
 export const settingsNow = () => window.__SETTINGS;
-export const factsNow = () => window.__FACTS;
+/**
+ * What the workspace's facts resolve to, from the settings surface (the seam's value, surface-values.ts): undefined before
+ * the read, null on a config that would not parse. It was a global beside that value, `__FACTS`, holding the same.
+ */
+export const factsNow = () => surfaceValue("settings")?.facts;
 export const policiesNow = () => window.__POLICIES;
-export const templatesAllNow = () => window.__TEMPLATES_ALL;
+/** WhatsApp's rows, from the settings surface: undefined before the read, null where the templates read failed. */
+export const templatesAllNow = () => surfaceValue("settings")?.templatesAll;
 export const setupNow = () => window.__SETUP;
 
 /* --------------------------------------------------------------- the workspace --------------------------------------------------------------- */

@@ -120,3 +120,23 @@ export const peopleWithSteps = (specs) =>
             NOW.getTime(),
           ),
   }));
+
+/**
+ * The settings read as the seam holds it once it lands (bridge/surfaces/settings.ts), for a workspace with no template, no
+ * teammate and no open invitation but what a test says. Whole, as the read lands it: the surfaces that follow the settings
+ * read are made again from every part of it (surfaces/offered-templates.ts followSettings). The bell reads its open
+ * invitations from here (`invites`), and a thread's holder is named from its roster (`team`).
+ */
+export const settingsRead = (over = {}) => ({
+  settings: null,
+  facts: null,
+  templatesAll: [],
+  templateVersions: [],
+  messages: [],
+  templateUse: null,
+  templateSent: null,
+  policies: null,
+  team: [],
+  invites: [],
+  ...over,
+});

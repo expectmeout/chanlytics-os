@@ -76,6 +76,31 @@ const menuShape = (menu) =>
   ]);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 /**
+ * The team roster as the settings read lands it (the settings surface's `team`, bridge/surfaces/settings.ts), which a
+ * thread's holder is named from (surfaces/holder-names.ts; it was a global beside the surface, `__TEAM`). The surface is the
+ * whole read, so the rest stands beside it as a workspace with no template and no invitation holds it. No roster is the
+ * read not landed: the surface unread, as it is before any test here sets one.
+ */
+const rosterIs = (team) =>
+  setSurfaceValue(
+    "settings",
+    team
+      ? {
+          settings: null,
+          facts: null,
+          templatesAll: [],
+          templateVersions: [],
+          messages: [],
+          templateUse: null,
+          templateSent: null,
+          policies: null,
+          team,
+          invites: [],
+        }
+      : undefined,
+  );
+
+/**
  * People's rows as the thread's head reads them: People's surface (want-person.ts personOnThread), read at a clock as People
  * publishes it. The head read the window's copy (`__PEOPLE`) until the Inbox load review (28 Oct 2026).
  */
@@ -528,7 +553,7 @@ test("Needs you: the pill its row wears and how long they have waited, under the
 });
 
 test("a teammate's thread wears the pill their row wears, in the bar, and offers nothing to take -- the reply box says what a reply does", () => {
-  globalThis.window.__TEAM = [{ userId: "u-ana", email: "ana@example.com", displayName: "Ana García" }];
+  rosterIs([{ userId: "u-ana", email: "ana@example.com", displayName: "Ana García" }]);
   const later = new Date(NOW.getTime() + 3_600_000).toISOString();
   try {
     const tree = draw(
@@ -552,7 +577,7 @@ test("a teammate's thread wears the pill their row wears, in the bar, and offers
       "what it means, where a reply is written",
     );
   } finally {
-    globalThis.window.__TEAM = null;
+    rosterIs(null);
   }
 });
 

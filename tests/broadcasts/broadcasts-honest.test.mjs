@@ -334,8 +334,8 @@ const openedAgain = (kept, rows, lists = REGULARS, links = NO_LINKS) =>
   M.againOf(kept, { messages: contracts.campaignMessagesOf(rows), rows }, { lists, links }, "Northside Studio");
 /**
  * What the settings surface holds of the workspace, as Templates reads it (surface.ts SettingsSurface): the record, the
- * channels, every template with what uses each and when each last went out. `__TEMPLATES_ALL` is the pages' name for
- * the same list, which a template's title is looked up in by its name (verbs.ts titleOf), as the app publishes it.
+ * channels, every template with what uses each and when each last went out. A template's title is looked up among its
+ * `templatesAll` by its name (verbs.ts titleOf).
  */
 const settingsOf = (over = {}) => {
   const held = {
@@ -354,7 +354,6 @@ const settingsOf = (over = {}) => {
   setSurfaceValue("channels", {
     rows: held.channels === null ? null : (held.channels ?? []).map((c) => ({ status: "active", ...c })),
   });
-  globalThis.__TEMPLATES_ALL = held.templatesAll;
   return held;
 };
 /** The settings surface read again with one thing changed, as its next read lands: the rest as it was. */

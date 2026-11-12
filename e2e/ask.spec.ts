@@ -454,8 +454,12 @@ const FIRST_CARD_SAYS = [
 ] as const;
 const NEXT = ["Change the reminder's hour?", "Why the reminder first?"];
 
-/** The turn: the answer says the warning again, as a model may, and offers two next questions. */
-function threeCards() {
+/**
+ * The turn: the answer says the warning again, as a model may, and offers two next questions. `idea` is the card, counted
+ * from one, that is Ask's own idea and not what the person asked for: the only kind that offers Not now (a card asked for
+ * is approved or left; #2211, 9 Nov 2026).
+ */
+function threeCards(idea?: number) {
   const headline = "Nobody hears from you around an appointment yet, so three campaigns would cover the gaps.";
   const detail = [
     "The day before: a reminder, which cuts no-shows the most",
@@ -502,7 +506,7 @@ function threeCards() {
           "Daily, 10:00 AM, up to 25",
           "14 people today",
         ),
-      ],
+      ].map((card, i) => (i + 1 === idea ? { ...card, origin: { by: "idea", strangers: false } } : card)),
       language: "en",
       ungrounded: false,
       tools: [],
@@ -530,11 +534,11 @@ async function holdWrites(page: Page): Promise<void> {
   });
 }
 
-/** The next question answered with the three cards, as the turn's stream sends one. */
-async function answerWithThreeCards(page: Page): Promise<void> {
+/** The next question answered with the three cards, as the turn's stream sends one; `idea` as threeCards takes it. */
+async function answerWithThreeCards(page: Page, idea?: number): Promise<void> {
   await page.route(/\/api\/v1\/ask(\?|$)/, async (route: Route) => {
     if (route.request().method() !== "POST") return route.fallback();
-    const turn = threeCards();
+    const turn = threeCards(idea);
     const lines = [
       { t: "thread", id: "e2e-thread", title: "set up a campaign" },
       { t: "say", headline: turn.headline, detail: turn.detail },
@@ -662,7 +666,9 @@ for (const view of [
     test("a press lands on what became of the card, which is announced; Not now and Try again land too", async ({
       page,
     }) => {
-      await answerWithThreeCards(page);
+      // The second card is Ask's own idea: only an idea offers Not now. The test pressed it on a card the person had
+      // asked for, which stopped offering it on 9 Nov 2026 (#2211), and the press was never found.
+      await answerWithThreeCards(page, 2);
       await openAsk(page);
       await askLine(page, "set up a campaign");
       const ask = page.getByTestId("ask-real");

@@ -74,7 +74,9 @@ export const FLAGS: readonly Flag[] = [
     mechanism: "edge_env",
     does: "'1' makes Retell's signature the only key to the voice doors; unset, the shared secret opens them beside it.",
     owner: "Ruben",
-    sunset: "2026-10-17",
+    // Moved once, on 11 November 2026, from 17 October: no real call has reached the voice doors since 31 October, and
+    // the three doors have kept their knocks as rows only since 7 November (#2178), so no delivery of theirs has been read.
+    sunset: "2026-12-01",
     weaker: {
       allows:
         "Unset, the three voice doors (the inbound webhook, the booking-link and availability functions) open for " +
@@ -93,7 +95,8 @@ export const FLAGS: readonly Flag[] = [
     mechanism: "edge_env",
     does: "The shared secret that opens the voice doors beside Retell's signature: `?key=` on the inbound webhook's URL, `x-fn-secret` on the two tools; unset, it opens nothing.",
     owner: "Ruben",
-    sunset: "2026-10-17",
+    // Moved once, on 11 November 2026, from 17 October: it closes a clean week after RETELL_DOORS_SIGNED, whose day moved.
+    sunset: "2026-12-08",
     weaker: {
       allows:
         "A secret in a URL (a Retell dashboard, an agent's tool config, any access log) opens the inbound webhook, and " +
@@ -112,7 +115,9 @@ export const FLAGS: readonly Flag[] = [
     mechanism: "edge_env",
     does: "The platform's shared key: with EDGE_CALL_SECRET set it opens only the knocks that name it (the diagnostic and the pager); on an edge without the secret it opens every admin door.",
     owner: "Ruben",
-    sunset: "2026-10-17",
+    // Moved once, on 11 November 2026, from 17 October: the edge holds EDGE_CALL_SECRET in production only, so the preview
+    // projects' secret, which comes before the change that deletes the key, is still to be set.
+    sunset: "2026-12-01",
     weaker: {
       allows:
         "On an edge without EDGE_CALL_SECRET (a preview: a production edge refuses to boot without it), the platform " +

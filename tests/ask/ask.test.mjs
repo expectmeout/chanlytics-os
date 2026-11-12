@@ -902,7 +902,6 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     __SETTINGS: { config: { calendar: { ical_url: "https://x" } } },
     __WORKSPACES: [{ id: "w1", slug: "m", name: "Studio", status: "active", timezone: "America/New_York" }],
     __ACTIVE_WORKSPACE: "w1",
-    __TEAM_INVITES: [],
     // Who is waiting is Today's queue itself, and the runs waiting for a yes (the Line, D7), never the bell's rows.
     TODAY_DATA: {
       queue: {

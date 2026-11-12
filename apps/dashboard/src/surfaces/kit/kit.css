@@ -4663,16 +4663,18 @@ a.list-row {
   }
 }
 /* A two-rest sheet fitted to what it holds (Sheet's `rest.fit`; one sheet, 9 Nov 2026): it is read and answered on, so its ground
-   is solid, where the glass let the page's rows and its coral read through the words; and its head runs into what it holds. */
-.sheet.sheet-rests[data-rest-fit] {
+   is solid, where the glass let the page's rows and its coral read through the words; and its head runs into what it holds.
+   A solid sheet (Sheet's `solid`; the Calendar's visit, 11 Nov 2026) is the same ground and head with one rest, as tall as
+   what it holds: a sheet read and answered on that has nothing to pull up for. */
+.sheet:is(.sheet-rests[data-rest-fit], [data-solid]) {
   background-color: var(--surface-pop-fill);
   backdrop-filter: none;
 }
-.sheet.sheet-rests[data-rest-fit] > .rec-sheet-head {
+.sheet:is(.sheet-rests[data-rest-fit], [data-solid]) > .rec-sheet-head {
   padding-bottom: var(--space-2);
   border-bottom: 0;
 }
-.sheet.sheet-rests[data-rest-fit] > .rec-sheet-body {
+.sheet:is(.sheet-rests[data-rest-fit], [data-solid]) > .rec-sheet-body {
   --rec-gutter: var(--space-4);
 }
 .sheet.sheet-rests[data-rest-fit] .rec-sheet-sub {

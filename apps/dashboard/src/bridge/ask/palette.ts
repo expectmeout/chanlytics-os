@@ -81,7 +81,6 @@ export interface PaletteGlobals {
   __ACTIVE_WORKSPACE?: string | null;
   /** Who is looking: their role, and whether they are Chanlytics staff (the back office's jump is theirs alone). */
   __ME?: { role?: string | null; platform_admin?: boolean } | null;
-  __TEAM_INVITES?: unknown[] | null;
   /** Today's view model: its queue is who is waiting on you (every surface starts at boot, FrameApp.tsx). */
   TODAY_DATA?: {
     queue?: {
@@ -288,7 +287,7 @@ export function askPalette(win: Window, storage: Storage | null) {
       return { sentence: rightNowLine(w, lang ?? lastLanguage()), ...rightNowCounts(w) };
     },
     suggestions: (surface: AskSurface, scope: AskScope | null, lang?: AskLanguage): AskSuggestion[] => {
-      const feed = feedFromGlobals(w as Parameters<typeof feedFromGlobals>[0], Date.now());
+      const feed = feedFromGlobals(w, Date.now());
       const who = waiting();
       // The business's today: a call missed at 1 AM where the business is counts as that day's, whatever day the browser says.
       const tz = timezone();

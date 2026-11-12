@@ -334,7 +334,28 @@ const again = draw;
 const settle = (tab) => (dirty ? draw(tab) : lastTree);
 
 /** A real workspace as the settings surface reads it, seen by `role`; no View-as preview. */
-const workspace = (role, over = {}) => {
+// The workspace's facts as the settings read resolves them: the seam's alone (the bridge published them on the window
+// too, as `__FACTS`, until 11 Nov 2026), read by the Business tab's rows from there (settings/business/shell.ts).
+const FACTS = {
+  facts: {
+    business_name: { value: "Northside Studio", source: "typed" },
+    voice_line: { value: "+13055550100", source: "provisioned" },
+    phone_display: { value: "+1 (305) 555-0100", source: "provisioned" },
+    handoff_number: { value: null, source: "absent" },
+    address: { value: null, source: "absent" },
+  },
+  conflicts: [],
+};
+/** The roster the team read answers with, where a test says no other: an owner and an operator. */
+const ROSTER = [
+  { membershipId: "m-dana", email: "dana@northside.example", displayName: "Dana", role: "owner" },
+  { membershipId: "m-lee", email: "lee@northside.example", displayName: "Lee", role: "operator" },
+];
+/**
+ * A workspace as `role` reads it. Its roster and open invitations are the settings surface's alone (`team`, `invites`;
+ * null is a team read that failed); the rest of `over` goes on the window, where its readers still are.
+ */
+const workspace = (role, { team = ROSTER, invites = [], ...over } = {}) => {
   Object.assign(globalThis.window, {
     __ME: { email: "dana@northside.example", role, display_name: "Dana" },
     __SETTINGS: {
@@ -345,34 +366,19 @@ const workspace = (role, over = {}) => {
         notifications: { escalation_emails: ["dana@northside.example", "desk@northside.example"] },
       },
     },
-    __FACTS: {
-      facts: {
-        business_name: { value: "Northside Studio", source: "typed" },
-        voice_line: { value: "+13055550100", source: "provisioned" },
-        phone_display: { value: "+1 (305) 555-0100", source: "provisioned" },
-        handoff_number: { value: null, source: "absent" },
-        address: { value: null, source: "absent" },
-      },
-      conflicts: [],
-    },
-    __TEAM: [
-      { membershipId: "m-dana", email: "dana@northside.example", displayName: "Dana", role: "owner" },
-      { membershipId: "m-lee", email: "lee@northside.example", displayName: "Lee", role: "operator" },
-    ],
-    __TEAM_INVITES: [],
     ...over,
   });
   // The seam's settings value beside the globals it copies (bridge/surfaces/settings.ts), for the moved panes.
   setSurfaceValue("settings", {
     settings: globalThis.window.__SETTINGS,
-    facts: globalThis.window.__FACTS,
+    facts: FACTS,
     channels: null,
     templatesAll: null,
     templateUse: null,
     templateSent: null,
     policies: globalThis.window.__POLICIES ?? null,
-    team: globalThis.window.__TEAM ?? null,
-    invites: globalThis.window.__TEAM_INVITES ?? null,
+    team,
+    invites,
   });
   globalThis.window.ST_STORE.viewAsRole = null;
 };
@@ -1209,7 +1215,7 @@ test("an open invitation's menu offers no role: there is no membership row to ch
   // The server looks a role change's id up among members and answers "not on this team" for an invitation; the role
   // was chosen when it was sent.
   workspace("owner", {
-    __TEAM_INVITES: [{ id: "inv-sam", email: "sam@northside.example", role: "viewer", expires_at: null }],
+    invites: [{ id: "inv-sam", email: "sam@northside.example", role: "viewer", expires_at: null }],
   });
   const tree = settings("team");
   const menus = all(tree, (n) => typeof n.type === "function" && Array.isArray(n.props?.items));
@@ -1229,7 +1235,7 @@ test("an open invitation's menu offers no role: there is no membership row to ch
 
 test("a team read that failed is said, and nobody is invented; a roster read says You by the signed-in email", () => {
   // Only the team read failed: no rows, no menus, no Invite over a roster that could not be read, whoever reads it.
-  workspace("owner", { __TEAM: null, __TEAM_INVITES: null });
+  workspace("owner", { team: null, invites: null });
   let tree = settings("team");
   assert.ok(byTestId(tree, "team-failed"), "the one failed read");
   assert.equal(
@@ -1238,7 +1244,7 @@ test("a team read that failed is said, and nobody is invented; a roster read say
     "nobody invented",
   );
   assert.equal(buttonSaying(tree, "Invite"), null, "no Invite over a roster that could not be read");
-  workspace("operator", { __TEAM: null, __TEAM_INVITES: null });
+  workspace("operator", { team: null, invites: null });
   tree = settings("team");
   assert.ok(byTestId(tree, "team-failed"), "an operator's too");
   assert.equal(buttonSaying(tree, "Invite"), null, "and no Invite for them either");

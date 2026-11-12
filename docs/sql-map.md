@@ -634,7 +634,7 @@ being read is dropped by a migration.
 | `sequence_places` | reader | a signed-in person, the server | SQL `lead_status_groups`, `sequence_overview` and 3 more | Where each person or lead stands in each sequence, the one reader of a place (00459). |
 | `sequence_places_of` | reader | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequences/doors.ts` |  |
 | `sequence_queued_outcomes` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/reach-out.ts` | A lead's queued sends with what became of their emails, the ones with an outcome to read first (00186 reach_out_queued_outcomes over sequence_sends). |
-| `sequence_queued_why_not` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequence-waiting.ts`; SQL `lead_status_groups` | Why each lead on a sequence's list would not be planned by its next batch (00533): |
+| `sequence_queued_why_not` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequence-waiting.ts`; SQL `lead_status_groups`, `sequence_overview` | Why each lead on a sequence's list would not be planned by its next batch (00533): |
 | `sequence_return` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequences/doors.ts` | A leave undone (0060, 00450): |
 | `sequence_sends_end_emptied_runs` | trigger | the server | trigger `sequence_sends_end_emptied_runs on sequence_sends` | A run waiting for an OK with no send left to go is canceled (00532): |
 | `sequence_sends_guard` | trigger | the server | trigger `sequence_sends_guard on sequence_sends` | A customer's send: queued -> sent\|skipped\|failed, once; |
@@ -717,7 +717,7 @@ being read is dropped by a migration.
 | `trigger_drafts_sweep` | the server's | the server | the clock, `drafts-sweep` | The drafts sweep's clock (decision 0093). |
 | `trigger_google_sweep` | the server's | the server | the clock, `google-listings-sweep` | Asks the edge to read each linked Google listing. |
 | `trigger_instagram_token_sweep` | the server's | the server | the clock, `instagram-token-sweep` | The Instagram token sweep's clock (decision 0001, step 8). |
-| `trigger_jobs_tick` | the server's | the server | the clock, `jobs-tick` | The ledger heartbeat. |
+| `trigger_jobs_tick` | the server's | the server | the clock, `jobs-tick`; script `tooling/scripts/gen/capacity.mjs` | The ledger heartbeat. |
 | `trigger_leads_sweep` | the server's | the server | the clock, `leads-sweep` | The lead finder's clock. |
 | `trigger_lines_sweep` | the server's | the server | the clock, `lines-sweep` | Asks the edge to resume any line whose provisioning saga was killed mid-run. |
 | `trigger_mailboxes_sweep` | the server's | the server | the clock, `mailboxes-sweep` | The mailboxes clock (decision 0056). |

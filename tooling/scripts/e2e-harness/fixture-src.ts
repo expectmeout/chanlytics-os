@@ -4,8 +4,8 @@
  * step 11 of decision 0015, and its globals below are what the bridge publishes for the pages that remain.)
  *
  * The shell's globals, as the bridge publishes them (zone.ts installClock, identity.ts, seed-globals.ts and
- * inbox-verbs.ts' own), and window.__SETTINGS / window.__FACTS
- * built from the scenario the way bridge/surface-data.ts's settings apply builds them -- through the same
+ * inbox-verbs.ts' own), and window.__SETTINGS
+ * built from the scenario the way bridge/surface-data.ts's settings apply builds it -- through the same
  * contracts functions, from this worktree's SOURCE. The server bundles this with the scenario's own object as a
  * banner (window.__HX_SCENARIO) and puts it FIRST in the document's head, before data/bridge-stubs.jsx, which writes
  * only what is missing. The server answers the spec's reads from that same object, so the page and the spec see one
@@ -140,8 +140,9 @@ w.__SETTINGS = {
   updatedBy: OWNER.name,
   updatedAt: new Date(Date.now() - 3_600_000).toISOString(),
 };
-const resolved = C.resolveFacts(S.config.brain, S.known);
-w.__FACTS = { facts: resolved, conflicts: C.factConflicts(resolved) };
+// The workspace's facts are not published here: the bridge keeps them on the settings surface alone (bridge/surfaces/
+// settings.ts; a global beside it, `__FACTS`, until 11 Nov 2026), their one reader is Settings › Business, and Settings
+// left the mockup.
 
 /* ---- the three surfaces What it can do reads beside the settings read ---- */
 // The Setup payload as surfaces/setup/surface.ts publishes it (its `__SETUP` mirror), the Autonomy matrix a provisioned workspace starts with
@@ -153,8 +154,9 @@ w.__FACTS = { facts: resolved, conflicts: C.factConflicts(resolved) };
 // workspace an approved message its own seed writes no row for.
 const profile = (S.config.brain.profile ?? {}) as Record<string, any>;
 // The scenario's own templates as GET templates?all=1 hands them over (templates-read.mjs), and the WhatsApp ones among
-// them, which are all Settings publishes as __TEMPLATES_ALL (bridge/surfaces/settings.ts): the Inbox, Setup and the
-// phone read WhatsApp's alone, and a message's email and text versions belong to the Library's own list.
+// them, which are what Setup counts below. The bridge keeps them on the settings surface alone (bridge/surfaces/
+// settings.ts; a global beside it, `__TEMPLATES_ALL`, until 11 Nov 2026), which this fixture does not publish: the one
+// page that looked a title up among them by name is Reports, which the harness does not serve.
 const whatsappTemplates: any[] = templatesRead(S.templates ?? [], { all: true }).templates.filter(
   (t: any) => t.channel === "whatsapp",
 );
@@ -212,10 +214,9 @@ w.__POLICIES = {
   ],
   role: S.role,
 };
-w.__TEMPLATES_ALL = whatsappTemplates;
 // No __CHANNELS. The bridge publishes `toChannelVM(c, now)` (surface-data.ts), and defining the global at all flips
 // Settings' Connections pane -- so a hand-built row would draw a pane no spec here opens, out of a shape
-// the product does not use. The channels reach the page where the page reads them: in the facts, resolved above.
+// the product does not use. The channels reach a page where it reads them: in the preview's inputs, above.
 
 /* ---- In a browser, at the workspace's own address ----
  * As a signed-in tab is: every read names its workspace by the slug in the path (workspace.ts getActiveWorkspace), and

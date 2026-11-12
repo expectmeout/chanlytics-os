@@ -2,7 +2,8 @@ import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
 import { expectFoundWellFormed, expectNoQueueRepeat, expectSinceOpens } from "../signals";
-import { WAITING_PLACES, WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "../waiting-search";
+import { WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "../waiting-search";
+import { NEED_YOU_WORDS } from "../../packages/contracts/src/need-you/words";
 
 /**
  * Today on a real workspace (Today in three zones, 2 Nov 2026): the head's one sentence, Since you looked under it and, on
@@ -197,17 +198,22 @@ test.describe("Today on a real workspace", () => {
     await expect.poll(tracks, { message: "one column below a desk's width" }).toBe(1);
   });
 
-  test("a search waiting on its answer is one row of the queue: its name, its wait, its question, and Answer opens the pile it asks about", async ({
+  test("a search waiting on its answer is one row of the queue: its name, its wait, its question, and Answer opens its two answers where it stands", async ({
     page,
   }) => {
     // The seed's second search stopped after its first places to ask (e2e-workspace.mjs, WAITING_ROUND). Answer only
-    // opens the search; nothing here may answer it, which would start paid work.
+    // opens the row; nothing here may answer it, which would start paid work.
     const attempts = await refuseAnswers(page);
-    const search = await waitingSearch(page);
+    // The seed's own search, as the page's read answers it: a seed that drifted from these words fails here.
+    await waitingSearch(page);
     const queue = page.getByTestId("today-queue");
     // A question waits for your answer as a run waits for your OK: in To decide.
     const row = queue.getByTestId("today-group-ok").getByTestId("queue-search");
     await expect(row).toHaveCount(1);
+    // Up next stands open over the list on a desk, its work drawn in place (zones/need-you.tsx), and since the sheet's five
+    // parts (#2213, 9 Nov 2026) a reply that did not reach its person is 375px of it: To decide starts under a screen 720
+    // tall. The row is brought to the screen as a person scrolls to it, and stands whole there, none of it under an edge.
+    await row.scrollIntoViewIfNeeded();
     await expect(row).toBeInViewport({ ratio: 1 });
     await expect(row.locator(".cl-attn-who")).toHaveText(WAITING_SEARCH_NAME);
     // Waited three hours when the seed ran: the number moves with the clock, the words do not.
@@ -220,15 +226,16 @@ test.describe("Today on a real workspace", () => {
     const answer = row.getByRole("button", { name: "Answer", exact: true });
     await expect(answer).toBeInViewport({ ratio: 1 });
     await answer.click();
-    await expect.poll(() => routeOf(page.url())).toBe(search.route);
-    // Landed on this search's left-out pile, with its question over it: the three places it asks about, and no
-    // place from the other search.
-    const strip = page.getByTestId("lead-strip");
-    await expect(strip).toBeInViewport({ ratio: 1 });
-    await expect(strip.getByTestId("strip-title")).toHaveText(WAITING_QUESTION);
-    const rows = page.locator(".cl-table tbody tr");
-    await expect(rows).toHaveCount(WAITING_PLACES.length);
-    for (const name of WAITING_PLACES) await expect(rows.filter({ hasText: name })).toHaveCount(1);
+    // Answered where it stands since his call D8 of 9 Nov 2026 (#2213, need-you/sheet/search-work.tsx): it opened Leads'
+    // page, on the pile the question is about, to answer one question. Open, the row holds the question whole, a line to say
+    // what to change, that nothing is spent, and its two answers. Neither is pressed: an answer starts paid work.
+    const group = queue.getByTestId("today-group-ok");
+    await expect(group.getByText(WAITING_QUESTION, { exact: true })).toBeVisible();
+    await expect(group.getByPlaceholder(NEED_YOU_WORDS.search.change)).toBeVisible();
+    await expect(group.getByText(NEED_YOU_WORDS.search.nothingSpent, { exact: true })).toBeVisible();
+    for (const name of [NEED_YOU_WORDS.search.stop, NEED_YOU_WORDS.search.keep])
+      await expect(group.getByRole("button", { name, exact: true })).toBeEnabled();
+    expect(routeOf(page.url()), "and Today stays where it is").toBe("today");
     expect(attempts, "opening a waiting search answers nothing").toEqual([]);
   });
 

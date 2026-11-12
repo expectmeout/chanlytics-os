@@ -383,7 +383,7 @@ export const BtCanCard = ({
   // Retry, for as long as that took. A surface still on its way is waited for.
   const setup = setupNow();
   const policies = policiesNow();
-  const templates = templatesAllNow() as TemplateDto[] | null | undefined;
+  const templates = templatesAllNow();
   if (setup === undefined || policies === undefined || templates === undefined) {
     return btcCard(
       false,

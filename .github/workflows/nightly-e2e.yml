@@ -162,6 +162,8 @@ jobs:
       # E2E_PAID_MODEL is not set: the Ask tests that run a real model turn
       # skip and say so, and what a page would ask by itself (a turn, Today's
       # morning, the Line's warm) stops at the sign-in (e2e/session.ts).
+      # E2E_PAID_VIDEO is not set either, and cannot be here: a clip is reserved at Stream by the edge, and this
+      # copy's edge is the stand-in below, which refuses every call (e2e/settings/files.spec.ts, "Files, a video").
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6

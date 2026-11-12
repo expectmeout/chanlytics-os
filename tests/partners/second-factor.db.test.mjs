@@ -82,8 +82,10 @@ before(async () => {
 });
 
 after(async () => {
-  if (skip) return;
-  await db.from("platform_admins").delete().eq("user_id", admin.userId);
+  // A setup that stopped part-way made no `db`, or no admin: what it did make is still taken down, and its own failure
+  // is the one the run shows, not a second one from here.
+  if (skip || !db) return;
+  if (admin) await db.from("platform_admins").delete().eq("user_id", admin.userId);
   for (const id of tenants) await db.from("tenants").delete().eq("id", id);
   for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
 });

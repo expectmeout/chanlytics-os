@@ -1,9 +1,9 @@
 /**
  * One visit, opened (the Calendar's lane E): the parts the phone's sheet and the desk's peek both draw (visit-sheet.tsx),
  * from contracts' visitSheetOf, which decides every word and act. Its head says what it is, when, and how it stands; its
- * person line who it is for, as a door to their page; its ask "Did Maria come yesterday?" with Kept and Missed; its rows
- * what nothing above says; its footnote where it changes; its foot one act by how it stands, a Message and a Call circle,
- * and More.
+ * person line who it is for, as a door to their page, with the Message and Call circles that reach them; its rows what
+ * nothing above says; its footnote where it changes; its foot More and one act by how it stands, or, for a visit over and
+ * not marked, the ask "Did Maria come yesterday?" over Missed and Kept, as Today's sheet asks it (11 Nov 2026).
  *
  * Every act is a door that already exists: a visit's word is the Calendar's (POST calendar/visits/[id]), the thread is the
  * Inbox's (or a new conversation), the booking link is carried into the thread as People's row carries it, a proposal is
@@ -11,7 +11,7 @@
  * rung from the member's phone and logged, never a bare tel: link), and Add to People the door "Add a person" uses.
  * Nothing about the booking itself changes here: the calendar or the tool keeps it, as the footnote says.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ADD_TO_PEOPLE_WORDS,
   BOOKING_REQUEST_WORDS,
@@ -87,40 +87,84 @@ function visitPersonLine(c: VisitCtx) {
         {p.number ? <CopyButton text={p.number} label={p.number} testid="cal-visit-copy-number" /> : null}
       </div>
     );
+  const under = p.business || p.match;
   return (
     <div className="cal-visit-who" data-testid="cal-visit-person">
       <Face person={{ name: p.name, initials: p.initials }} size="sm" />
-      <div className="cal-visit-who-words">
-        <span className="cal-visit-who-head">
-          <LinkButton className="cal-visit-name" onClick={() => navigate(p.route)} data-testid="cal-visit-door">
-            {p.name}
-          </LinkButton>
-          {p.state && p.stateWord ? <StatePill kind="person" value={p.state} label={p.stateWord} /> : null}
-          {p.stopped ? <StoppedMark testid="cal-visit-stopped" /> : null}
-        </span>
-        {p.business || p.match ? (
-          <span className="cal-visit-quiet">{[p.business, p.match].filter(Boolean).join(" · ")}</span>
-        ) : null}
-        {p.deal ? (
-          <LinkButton
-            className="cal-visit-deal"
-            onClick={() => navigate(addressOf({ kind: "person", id: p.id, tab: "deals" }))}
-            data-testid="cal-visit-deal"
-          >
-            {p.deal}
-          </LinkButton>
-        ) : null}
-      </div>
+      <span className="cal-visit-who-head">
+        <LinkButton className="cal-visit-name" onClick={() => navigate(p.route)} data-testid="cal-visit-door">
+          {p.name}
+        </LinkButton>
+        {p.state && p.stateWord ? <StatePill kind="person" value={p.state} label={p.stateWord} /> : null}
+        {p.stopped ? <StoppedMark testid="cal-visit-stopped" /> : null}
+      </span>
+      {visitReach(c)}
+      {under || p.deal ? (
+        <div className="cal-visit-who-lines">
+          {under ? <span className="cal-visit-quiet">{[p.business, p.match].filter(Boolean).join(" · ")}</span> : null}
+          {p.deal ? (
+            <LinkButton
+              className="cal-visit-deal"
+              onClick={() => navigate(addressOf({ kind: "person", id: p.id, tab: "deals" }))}
+              data-testid="cal-visit-deal"
+            >
+              {p.deal}
+            </LinkButton>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
 
 /**
- * "Did Maria come yesterday?", with Kept and Missed, equal and 44px tall: the same door Today and their page press,
- * each named for a screen reader with who and when. Once the door has written, the word stands in place of the presses
- * until the board reads again.
+ * How they are reached, beside their name: the Message and Call circles. Message is a circle wherever it is not the
+ * foot's lead, and while the sheet asks whether they came, when the foot holds the two answers and no lead.
  */
-function VisitAskRow({ c }: { c: VisitCtx }) {
+function visitReach(visitCtx: VisitCtx) {
+  const { vm, b: block } = visitCtx;
+  const message = vm.circles.message ?? (vm.ask && vm.primary?.act === "message" ? vm.primary.label : null);
+  const call = vm.circles.call;
+  if (!message && !call) return null;
+  return (
+    <span className="cal-visit-reach">
+      {message ? (
+        <Button
+          variant="quiet"
+          iconOnly
+          className="cal-visit-circle"
+          aria-label={message}
+          data-tip={message}
+          onClick={() => messageThem(block)}
+          data-testid="cal-visit-message"
+        >
+          <Icon name="chat" size={16} />
+        </Button>
+      ) : null}
+      {call ? (
+        <Button
+          variant="quiet"
+          iconOnly
+          className="cal-visit-circle"
+          aria-label={call}
+          data-tip={call}
+          onClick={() => callThem(block)}
+          data-testid="cal-visit-call"
+        >
+          <Icon name="phone" size={16} />
+        </Button>
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * "Did Maria come yesterday?" over its two answers, in the foot, as Today's sheet asks it (one sheet, 9 Nov 2026; here
+ * 11 Nov): More, then the quiet answer, then the answer that is its act, the two equal. The same door Today and their
+ * page press, each named for a screen reader with who and when. Once the door has written, the word stands in place of
+ * the answers until the board reads again.
+ */
+function VisitAskFoot({ c, more }: { c: VisitCtx; more: ReactNode }) {
   const ask = c.vm.ask;
   const [busy, setBusy] = useState<VisitWord | null>(null);
   const [said, setSaid] = useState<VisitWord | null>(null);
@@ -138,35 +182,42 @@ function VisitAskRow({ c }: { c: VisitCtx }) {
       setBusy(null);
     }
   };
+  // Its two words as the line asks them (visitLineOf's `asks`): the first is its act and stands last, at the thumb.
+  const [act, second] = ask.line.asks;
+  const answer = (status: VisitWord, variant: "primary" | "secondary") => (
+    <Button
+      variant={variant}
+      className="cal-visit-answer"
+      disabled={busy !== null}
+      aria-label={`${VISIT_WORDS[status]}: ${ask.question}`}
+      onClick={() => void say(status)}
+      data-testid={`cal-visit-ask-${status}`}
+      {...gate("approve", VISIT_ASK_WORDS.gate)}
+    >
+      {VISIT_WORDS[status]}
+    </Button>
+  );
   return (
     <section className="cal-visit-ask" aria-label={ask.question} data-testid="cal-visit-ask">
       <p className="cal-visit-ask-question">{ask.question}</p>
-      {said ? (
-        <p className="cal-visit-ask-said" role="status" data-testid="cal-visit-ask-said">
-          {VISIT_WORDS[said]}
-        </p>
-      ) : (
-        <div className="cal-visit-ask-acts">
-          {ask.line.asks.map((status) => (
-            <Button
-              key={status}
-              variant={status === "kept" ? "primary" : "secondary"}
-              disabled={busy !== null}
-              aria-label={`${VISIT_WORDS[status]}: ${ask.question}`}
-              onClick={() => void say(status)}
-              data-testid={`cal-visit-ask-${status}`}
-              {...gate("approve", VISIT_ASK_WORDS.gate)}
-            >
-              {VISIT_WORDS[status]}
-            </Button>
-          ))}
-        </div>
-      )}
       {problem ? (
         <p className="cal-visit-refused" role="alert">
           {problem}
         </p>
       ) : null}
+      <div className="cal-visit-acts" data-foot-acts="">
+        {more}
+        {said ? (
+          <p className="cal-visit-ask-said" role="status" data-testid="cal-visit-ask-said">
+            {VISIT_WORDS[said]}
+          </p>
+        ) : (
+          <>
+            {second ? answer(second, "secondary") : null}
+            {act ? answer(act, "primary") : null}
+          </>
+        )}
+      </div>
     </section>
   );
 }
@@ -283,6 +334,13 @@ function answerVisit(c: VisitCtx, booked: boolean): void {
   });
 }
 
+/** The same visit with its lead act quiet: where the ask's answers lead and the act stands under them. */
+function withQuietLead(visitCtx: VisitCtx): VisitCtx {
+  const { vm } = visitCtx;
+  if (!vm.primary) return visitCtx;
+  return { ...visitCtx, vm: { ...vm, primary: { ...vm.primary, quiet: true } } };
+}
+
 /** The lead act, by how the visit stands. */
 function PrimaryAct({ c }: { c: VisitCtx }) {
   const { vm, b } = c;
@@ -388,9 +446,9 @@ function moreItem(c: VisitCtx, m: { act: VisitMoreAct; label: string; danger: bo
   }
 }
 
-/** The foot: the lead act, the Message and Call circles, and More; and, once asked, the cancel's question. */
+/** The foot: More and the lead act, or the ask over its two answers; and, once asked, the cancel's question. */
 export function VisitFoot({ c }: { c: VisitCtx }) {
-  const { vm, b } = c;
+  const { vm } = c;
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   if (vm.nobody) return null;
@@ -404,6 +462,20 @@ export function VisitFoot({ c }: { c: VisitCtx }) {
     c.flash(r.ok ? VISIT_WORDS.cancelled : r.message);
   };
   const items = vm.more.map((m) => moreItem(c, m, () => setAsking(true)));
+  // More is a word with a caret at the row's start, never three dots (Ruben, 20 Oct 2026): the same menu, the same items.
+  const more = items.length ? (
+    <Menu
+      align="start"
+      label={W.more}
+      groups={[{ items }]}
+      trigger={
+        <Button variant="quiet" className="cal-visit-more" data-testid="cal-visit-more">
+          {W.more}
+          <Icon name="chevron-down" size={12} />
+        </Button>
+      }
+    />
+  ) : null;
   return (
     <div className="cal-visit-foot" data-testid="cal-visit-foot">
       {asking ? (
@@ -418,54 +490,21 @@ export function VisitFoot({ c }: { c: VisitCtx }) {
           onNo={() => setAsking(false)}
           testid="cal-visit-cancel"
         />
+      ) : vm.ask ? (
+        <>
+          <VisitAskFoot c={c} more={more} />
+          {/* A lead that is not the thread's (Add to People, for someone the board could not match) still stands while
+              the sheet asks: under the answers, and quiet, so the one coral is the answer's. */}
+          {vm.primary && vm.primary.act !== "message" ? (
+            <div className="cal-visit-acts">
+              <PrimaryAct c={withQuietLead(c)} />
+            </div>
+          ) : null}
+        </>
       ) : (
         <div className="cal-visit-acts" data-foot-acts="">
+          {more}
           <PrimaryAct c={c} />
-          {vm.circles.message ? (
-            <Button
-              variant="quiet"
-              iconOnly
-              className="cal-visit-circle"
-              aria-label={vm.circles.message}
-              data-tip={vm.circles.message}
-              onClick={() => messageThem(b)}
-              data-testid="cal-visit-message"
-            >
-              <Icon name="chat" size={16} />
-            </Button>
-          ) : null}
-          {vm.circles.call ? (
-            <Button
-              variant="quiet"
-              iconOnly
-              className="cal-visit-circle"
-              aria-label={vm.circles.call}
-              data-tip={vm.circles.call}
-              onClick={() => callThem(b)}
-              data-testid="cal-visit-call"
-            >
-              <Icon name="phone" size={16} />
-            </Button>
-          ) : null}
-          {items.length ? (
-            <Menu
-              align="end"
-              label={W.more}
-              groups={[{ items }]}
-              trigger={
-                <Button
-                  variant="quiet"
-                  iconOnly
-                  className="cal-visit-circle"
-                  aria-label={W.more}
-                  data-tip={W.more}
-                  data-testid="cal-visit-more"
-                >
-                  <Icon name="more" size={16} />
-                </Button>
-              }
-            />
-          ) : null}
         </div>
       )}
       {vm.shut ? <p className="cal-visit-quiet">{vm.shut}</p> : null}
@@ -473,14 +512,13 @@ export function VisitFoot({ c }: { c: VisitCtx }) {
   );
 }
 
-/** The body: how it stands, who it is for, the ask, the rows and the footnote. */
+/** The body: how it stands, who it is for, the rows and the footnote. The ask is the foot's. */
 export function VisitBody({ c }: { c: VisitCtx }) {
   const { vm } = c;
   return (
     <div className="cal-visit" data-testid="cal-visit">
       <VisitStatePill vm={vm} />
       {visitPersonLine(c)}
-      <VisitAskRow c={c} />
       {visitRows(vm)}
       <p className="cal-visit-foot-note" data-testid="cal-visit-footnote">
         {vm.footnote}

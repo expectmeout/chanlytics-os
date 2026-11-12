@@ -257,7 +257,6 @@ export const AskCard = ({
           {step.note}
         </p>
       ) : null}
-      {idle && !shut && onQuick && askCardHasWords(p.kind) ? <AskQuickChanges t={t} onFollow={onQuick} /> : null}
       {posting ? (
         <AskPosting
           posting={posting}
@@ -289,6 +288,11 @@ export const AskCard = ({
           approveRef={approveRef}
         />
       ) : null}
+      {/* The quick changes stand under the press, never between it and the facts it turns on (decision 0088: the first
+          press is on a phone's first screen, straight after what it depends on). They stood over it from 9 November 2026
+          (#2211), a row of 30 px that took the 25 the first screen had to spare: the nightly found the press 5 px under
+          the field. Under the press they sit beside the field, which takes any other change. */}
+      {idle && !shut && onQuick && askCardHasWords(p.kind) ? <AskQuickChanges t={t} onFollow={onQuick} /> : null}
       {/* Always drawn, so what fills it is announced; empty, it takes no room (ask.css). */}
       <div className="ask-told" role="status">
         {idle || follows ? null : (

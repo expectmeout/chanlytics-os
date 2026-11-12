@@ -26,12 +26,12 @@
  * WHAT IS BUILT, AND WHAT WAITS ON RUBEN. Built and live: the signature check on all four doors; the secret on three
  * of them, each door named in KEY_READ_FROM; the `voice_door_auth` line for every knock let in; and the switch that
  * closes the secret, RETELL_DOORS_SIGNED (signatureOnly below), which is UNSET in production, so the secret still
- * opens the three doors today. Both the switch and the secret are rows of contracts' registry (ai/flags.ts, sunset 17
- * October 2026, a red build a month after it). What waits is Ruben's: read `voice_door_auth` on production from 3
- * October 2026, and when each of the three doors shows sig: true on real deliveries, set RETELL_DOORS_SIGNED=1 (a
- * refusal is then logged too, since it may be Retell's). After a clean week under it, a later change empties
- * KEY_READ_FROM, stops provisioning the secret into the inbound URL and the tools' header, and deletes
- * RETELL_FN_SECRET. Nothing here flips it, and nothing here can: no code path sets the variable.
+ * opens the three doors today. Both the switch and the secret are rows of the switch registry (ai-flags.ts, each with
+ * the day it is looked at again, and a red build a month after it). What waits is Ruben's: read each door's knocks
+ * (`webhook.auth` rows, keepKnock below), and when each of the three doors shows sig: true on real deliveries, set
+ * RETELL_DOORS_SIGNED=1 (a refusal is then logged too, since it may be Retell's). After a clean week under it, a
+ * later change empties KEY_READ_FROM, stops provisioning the secret into the inbound URL and the tools' header, and
+ * deletes RETELL_FN_SECRET. Nothing here flips it, and nothing here can: no code path sets the variable.
  *
  * The switch fails closed on its own value: any set value but an explicit off ("0", "false", "off", "no") is the
  * signature-only mode, so "true" or "yes", typed by someone who meant to close the doors, closes them.

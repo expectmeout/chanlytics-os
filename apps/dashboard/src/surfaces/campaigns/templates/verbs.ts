@@ -121,13 +121,13 @@ export const templates = {
 /**
  * The words for a template: the title the workspace gave it, a starter's,
  * else the name made words. Takes a row, or a name looked up among the
- * workspace's templates (Settings' list, which boots with the app).
+ * workspace's templates (the settings surface's WhatsApp rows, which boot with the app; they were a global beside it,
+ * `__TEMPLATES_ALL`, until 11 Nov 2026).
  */
 export function titleOf(t: string | { name: string; title?: string | null } | null | undefined): string {
   if (!t) return "";
   if (typeof t === "string") {
-    const all = window.__TEMPLATES_ALL;
-    const row = Array.isArray(all) ? all.find((x) => x.name === t) : undefined;
+    const row = surfaceValue("settings")?.templatesAll?.find((x) => x.name === t);
     return templateTitle(t, row?.title ?? null);
   }
   return templateTitle(t.name, t.title ?? null);
@@ -198,8 +198,6 @@ export interface StarterLibrary {
 
 declare global {
   interface Window {
-    /** Settings' every template, which a template's title is looked up in by its name (settings.ts publishes it). */
-    __TEMPLATES_ALL?: Array<{ name: string; title?: string | null }> | null;
     /** The workspaces, each with its zone and word (identity.ts keeps them). */
     __WORKSPACES?: Workspace[];
     __ACTIVE_WORKSPACE?: string;
