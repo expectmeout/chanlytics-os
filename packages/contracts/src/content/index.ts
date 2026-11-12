@@ -56,7 +56,9 @@ export {
   PIECE_SHAPES,
   PIECE_WORDS_HOLDS,
   PIECE_WORDS_PLACES,
+  pieceCountOf,
   pieceFileIdsOf,
+  pieceOpeningOf,
   piecePlanOf,
 } from "./pieces";
 export type { PieceLanguage, PiecePlan, PieceShape, PieceWont, PieceWordsHold, PieceWordsPlace } from "./pieces";

@@ -27,7 +27,9 @@ const { beginPieceFor, pieceBeginInput, pieceBoardInput } = await import(
 const { drawPieceBoard } = await import(at("apps/dashboard/src/server/content/storyboard.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+const { buildProposal, newToolContext, toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+const { pieceAct } = await import(at("apps/dashboard/src/server/ask/tools/act/files/piece.ts"));
+const { PIECE_RECIPES } = await import(at("apps/dashboard/src/server/content/piece-recipes.ts"));
 const { PIECE_CARD, PIECE_FRAME, PIECE_SIDE, pieceWordsBoxOf } = await import(
   at("packages/contracts/src/content/piece-frame.ts")
 );
@@ -217,12 +219,19 @@ const clipRow = (over = {}) => ({
   sound_said: null,
   ...over,
 });
+const PHOTO = "ffffffff-0000-4000-8000-000000000002";
+const PHOTO_2 = "ffffffff-0000-4000-8000-000000000003";
+const PHOTO_3 = "ffffffff-0000-4000-8000-000000000004";
+/** A photo kept in Files, named for its id's last figure: photo-2, photo-3, photo-4. */
+const photoRow = (id) =>
+  clipRow({ id, kind: "image", mime: "image/jpeg", name: `photo-${id.slice(-1)}`, seconds: null, media_status: null });
+const PHOTOS = [photoRow(PHOTO), photoRow(PHOTO_2), photoRow(PHOTO_3)];
 const INPUT = {
-  cuts: [
-    { file: "salon-chair-reveal", from: "0:02.3", to: "0:04.8" },
-    { file: "salon-chair-reveal", from: 4.8, to: 6.8 },
-    { file: "salon-chair-reveal", from: 7.3, to: 9.3 },
-    { file: "salon-chair-reveal", from: "0:09.8", to: "0:11.9" },
+  blocks: [
+    { is: "clip", file: "salon-chair-reveal", from: "0:02.3", to: "0:04.8" },
+    { is: "clip", file: "salon-chair-reveal", from: 4.8, to: 6.8 },
+    { is: "clip", file: "salon-chair-reveal", from: 7.3, to: 9.3 },
+    { is: "clip", file: "salon-chair-reveal", from: "0:09.8", to: "0:11.9" },
   ],
   lines: ["I asked for volume", "Did I get it?"],
   words_at: "low",
@@ -230,7 +239,14 @@ const INPUT = {
   end_line: "Same chair. New me.",
 };
 
-function tablesOf({ clip = {}, videos = true, phone = "(555) 010-0100", accent = "#336699" } = {}) {
+function tablesOf({
+  clip = {},
+  more = [],
+  reviews = [],
+  videos = true,
+  phone = "(555) 010-0100",
+  accent = "#336699",
+} = {}) {
   const config = {
     features: { video_preview: videos },
     brain: {
@@ -241,7 +257,14 @@ function tablesOf({ clip = {}, videos = true, phone = "(555) 010-0100", accent =
     },
   };
   return {
-    files: [clipRow(clip)],
+    files: [clipRow(clip), ...more],
+    // What clients wrote of the business, newest first.
+    google_reviews: reviews.map((body, i) => ({
+      id: `rv-${i}`,
+      tenant_id: A,
+      body,
+      published_at: `2026-11-0${9 - i}T12:00:00Z`,
+    })),
     memberships: [],
     tenants: [{ id: A, name: "Harbor", slug: "harbor", timezone: TZ, status: "active", accent, logo_path: null }],
     tenant_config: [{ tenant_id: A, config, version: 1 }],
@@ -340,9 +363,9 @@ test("the card is made by the call that carries the look's key: the plan its pre
   assert.equal(out.proposal.needs, "partner");
   assert.equal(out.proposal.title, "Video: I asked for volume");
   // How long, which way up, what from: one clip here.
-  assert.equal(out.proposal.summary, PIECE_WORDS.summary(4, 10.4, 1));
+  assert.equal(out.proposal.summary, PIECE_WORDS.summary({ blocks: 4, moments: 4, clips: 1, photos: 0 }, 10.4));
   assert.equal(out.proposal.summary, "10 seconds, vertical. 4 moments from your clip.");
-  // Kept as "Hook first", the shape a video's row holds; read, it is the same plan in blocks, each cut a clip's moment.
+  // Kept in blocks, each naming its file by id: what the card's stills are asked with and what its press sends.
   assert.deepEqual(
     piecePlanOf(out.proposal.payload).blocks.map((b) => [b.is, b.file_id, b.from, b.to, b.label]),
     [
@@ -353,12 +376,12 @@ test("the card is made by the call that carries the look's key: the plan its pre
     ],
   );
   assert.deepEqual(out.proposal.payload, {
-    shape: "hook_cut",
-    cuts: [
-      { file_id: CLIP, from: 2.3, to: 4.8 },
-      { file_id: CLIP, from: 4.8, to: 6.8 },
-      { file_id: CLIP, from: 7.3, to: 9.3 },
-      { file_id: CLIP, from: 9.8, to: 11.9 },
+    shape: "blocks",
+    blocks: [
+      { is: "clip", file_id: CLIP, from: 2.3, to: 4.8, label: null },
+      { is: "clip", file_id: CLIP, from: 4.8, to: 6.8, label: null },
+      { is: "clip", file_id: CLIP, from: 7.3, to: 9.3, label: null },
+      { is: "clip", file_id: CLIP, from: 9.8, to: 11.9, label: null },
     ],
     lines: ["I asked for volume", "Did I get it?"],
     words_at: "low",
@@ -367,6 +390,11 @@ test("the card is made by the call that carries the look's key: the plan its pre
     language: "en",
     people_agreed: false,
   });
+  assert.equal(
+    pieceBeginInput.safeParse({ ...out.proposal.payload, key: "p-card-1" }).success,
+    true,
+    "its press takes it",
+  );
   assert.equal(out.proposal.undo, null, "a press spends the drawing: there is no Undo");
   assert.deepEqual(askTraitsOf("piece"), { shape: "make", reach: "keeps", row: null, alone: "press", press: "make" });
 });
@@ -386,28 +414,29 @@ test("the words are held to what the owner said: a price, a promise or a number 
   assert.equal((await asked({ lines: ["Asked for volume."] })).proposal?.kind, "piece");
 });
 
-test("the clips are held to what a video may be cut from, and the refusal names the cut", async () => {
+test("the clips are held to what a video may be cut from, and the refusal names the block", async () => {
+  const [first, ...rest] = INPUT.blocks;
   assert.match(
-    (await asked({ cuts: [{ file: "no-such-clip", from: 0, to: 3 }, ...INPUT.cuts.slice(1)] })).refusal,
-    /^cut 1: no file named no-such-clip/,
+    (await asked({ blocks: [{ is: "clip", file: "no-such-clip", from: 0, to: 3 }, ...rest] })).refusal,
+    /^block 1: no file named no-such-clip/,
   );
-  const far = [...INPUT.cuts.slice(0, 3), { file: "salon-chair-reveal", from: 10, to: 13.5 }];
-  assert.match((await asked({ cuts: far })).refusal, /^cut 4: it runs past the end of its clip/);
+  const far = [...INPUT.blocks.slice(0, 3), { is: "clip", file: "salon-chair-reveal", from: 10, to: 13.5 }];
+  assert.match((await asked({ blocks: far })).refusal, /^block 4: it runs past the end of its clip/);
   assert.match(
     (await asked({}, { clip: { media_status: "processing" } })).refusal,
-    /^cut 1: its clip is still being made ready/,
+    /^block 1: its clip is still being made ready/,
   );
-  assert.match((await asked({}, { clip: { status: "inbox" } })).refusal, /^cut 1: its clip waits in the Inbox/);
-  assert.match((await asked({ cuts: INPUT.cuts.slice(0, 2) })).refusal, /the cuts together run 8 to 15 seconds/);
+  assert.match((await asked({}, { clip: { status: "inbox" } })).refusal, /^block 1: its file waits in the Inbox/);
+  assert.match((await asked({ blocks: INPUT.blocks.slice(0, 2) })).refusal, /the blocks together run 8 to 15 seconds/);
   assert.match(
-    (await asked({ cuts: [{ ...INPUT.cuts[0], from: "soon" }, ...INPUT.cuts.slice(1)] })).refusal,
-    /^cut 1: from and to are moments/,
+    (await asked({ blocks: [{ ...first, from: "soon" }, ...rest] })).refusal,
+    /^block 1: from and to are moments/,
   );
 });
 
 test("a clip that shows someone recognizable waits for the owner's word that they agreed", async () => {
   const seen = { clip: { look: { line: "x", people: { count: 1, recognizable: 1 } } } };
-  assert.match((await asked({}, seen)).refusal, /^cut 1: its clip shows someone recognizable/);
+  assert.match((await asked({}, seen)).refusal, /^block 1: its file shows someone recognizable/);
   const agreed = await asked({ people_agreed: true }, seen);
   assert.equal(agreed.proposal?.kind, "piece", agreed.result);
   assert.equal(piecePlanOf(agreed.proposal.payload).people_agreed, true);
@@ -415,6 +444,147 @@ test("a clip that shows someone recognizable waits for the owner's word that the
 
 test("a workspace that keeps no videos is offered none", async () => {
   assert.match((await asked({}, { videos: false })).refusal, /does not keep videos yet/);
+});
+
+/* ------------------------------------------------------------------------- what Ask arranges */
+
+/** The act where every picture a block shows is in its folder already: a photo, or a clip's frame. */
+async function arranged(input, opts) {
+  const service = fakeDb({ files: [] }, {}, {});
+  service.storage = {
+    from: () => ({ download: async () => ({ data: new Blob([(frame ??= await flat(90))]), error: null }) }),
+  };
+  setServiceClient(service);
+  const first = await askedOnce(input, opts);
+  if (first.proposal || first.isError) return first;
+  return askedOnce({ ...input, looked: JSON.parse(first.result).look_key }, opts);
+}
+
+test("a video from photos alone makes a card: each photo by the name files says, a label where one is given", async () => {
+  const blocks = [
+    { is: "photo", file: "photo-2", seconds: 3, label: "Silk press" },
+    { is: "photo", file: "photo-3", seconds: 3 },
+    { is: "photo", file: "photo-4", seconds: 3 },
+  ];
+  const out = await arranged({ blocks }, { more: PHOTOS });
+  assert.equal(out.proposal?.kind, "piece", out.result);
+  assert.deepEqual(out.proposal.payload.blocks, [
+    { is: "photo", file_id: PHOTO, seconds: 3, label: "Silk press" },
+    { is: "photo", file_id: PHOTO_2, seconds: 3, label: null },
+    { is: "photo", file_id: PHOTO_3, seconds: 3, label: null },
+  ]);
+  assert.equal(out.proposal.title, "Video: I asked for volume");
+  // Nine seconds of photos and the end card after them.
+  assert.equal(out.proposal.summary, "11 seconds, vertical. 3 parts from 3 of your photos.");
+});
+
+test("a quote is a client's own words: found in a review the workspace holds or in what the owner wrote, never Ask's", async () => {
+  const reviews = ["Came in for a silk press. Best blowout in Brooklyn, hands down! Will be back.", "Lovely place."];
+  const blocks = [
+    { is: "clip", file: "salon-chair-reveal", from: 2.3, to: 4.8 },
+    {
+      is: "quote",
+      text: "\u201CBest blowout in Brooklyn, hands down!\u201D",
+      over: "photo-2",
+      seconds: 3.5,
+    },
+    { is: "pair", before: "photo-3", after: "salon-chair-reveal", after_at: "0:07.6", seconds: 3 },
+  ];
+  const out = await arranged({ blocks }, { more: PHOTOS, reviews });
+  assert.equal(out.proposal?.kind, "piece", out.result);
+  // A client's "best" is theirs to say, where the owner's opening words are held to the owner's own.
+  assert.deepEqual(out.proposal.payload.blocks, [
+    { is: "clip", file_id: CLIP, from: 2.3, to: 4.8, label: null },
+    {
+      is: "quote",
+      text: "\u201CBest blowout in Brooklyn, hands down!\u201D",
+      // Where it was said, which code reads from where it was found, and never who said it.
+      from: "Google review",
+      over: { file_id: PHOTO, at: null },
+      seconds: 3.5,
+    },
+    { is: "pair", before: { file_id: PHOTO_2, at: null }, after: { file_id: CLIP, at: 7.6 }, seconds: 3 },
+  ]);
+  assert.equal(out.proposal.summary, "11 seconds, vertical. 3 parts from your clips and photos.");
+  // Reworded, it is no one's words: no review says it.
+  const reworded = blocks.map((b) => (b.is === "quote" ? { ...b, text: "The best blowout in all of Brooklyn" } : b));
+  const refused = await arranged({ blocks: reworded }, { more: PHOTOS, reviews });
+  assert.equal(refused.proposal, null);
+  assert.match(refused.refusal, /^block 2: the quote is not in a review this workspace holds/);
+  // What the owner wrote in this thread is theirs to pass on.
+  const pasted = await arranged(
+    { blocks: reworded },
+    { more: PHOTOS, question: "Make a video from this review: The best blowout in all of Brooklyn" },
+  );
+  assert.equal(pasted.proposal?.kind, "piece", pasted.result);
+  assert.equal(pasted.proposal.payload.blocks[1].from, "A client");
+  // A clip held still says which moment.
+  const unsaid = blocks.map(({ after_at: _unsaid, ...b }) => b);
+  assert.match(
+    (await arranged({ blocks: unsaid }, { more: PHOTOS, reviews })).refusal,
+    /^block 3: salon-chair-reveal is a clip: say after_at/,
+  );
+});
+
+test("a refusal names its block and says what to do", async () => {
+  const opts = { more: PHOTOS };
+  const [first, second, ...rest] = INPUT.blocks;
+  const asPhoto = [{ is: "photo", file: "salon-chair-reveal", seconds: 2.5 }, second, ...rest];
+  assert.match((await arranged({ blocks: asPhoto }, opts)).refusal, /^block 1: its file is a video: a photo block/);
+  const asClip = [first, { is: "clip", file: "photo-2", from: 0, to: 2 }, ...rest];
+  assert.match((await arranged({ blocks: asClip }, opts)).refusal, /^block 2: its file is a picture: a clip block/);
+  const longCard = [first, second, { is: "words", lines: ["This line runs far too long to read"], seconds: 2 }];
+  assert.match((await arranged({ blocks: longCard }, opts)).refusal, /^block 3: it is over 22 characters/);
+  const held = [{ is: "photo", file: "photo-2", seconds: 6 }, second, ...rest];
+  assert.match(
+    (await arranged({ blocks: held }, opts)).refusal,
+    /^block 1: it runs shorter or longer than its kind may/,
+  );
+  // A block gives the fields of its kind.
+  const bare = [{ is: "photo", seconds: 2.5 }, second, ...rest];
+  assert.match((await arranged({ blocks: bare }, opts)).refusal, /^block 1: a photo block gives file and seconds/);
+  const half = [first, { is: "pair", before: "photo-2", seconds: 3 }, ...rest];
+  assert.match((await arranged({ blocks: half }, opts)).refusal, /^block 2: a pair gives before and after/);
+  // A label is the owner's words, as the opening words are.
+  const priced = [{ ...first, label: "From $45" }, second, ...rest];
+  assert.match((await arranged({ blocks: priced }, opts)).refusal, /^block 1: .*price/);
+});
+
+test("a video may open on a card: it has no opening words, and is known by its first card's", async () => {
+  const cards = [
+    { is: "words", lines: ["New in town?"], seconds: 2.5 },
+    { is: "words", lines: ["Harbor does", "silk presses"], seconds: 2.5 },
+    { is: "words", lines: ["Walk-ins", "welcome"], seconds: 2.5 },
+    { is: "words", lines: ["Come see us"], seconds: 2.5 },
+  ];
+  const out = await arranged({ blocks: cards, lines: [] });
+  assert.equal(out.proposal?.kind, "piece", out.result);
+  assert.equal(out.proposal.title, "Video: New in town?");
+  assert.equal(out.proposal.summary, "12 seconds, vertical. 4 cards of words.");
+  assert.deepEqual(out.proposal.payload.lines, []);
+  assert.match((await arranged({ blocks: cards })).refusal, /^block 1: the opening words sit over a picture/);
+  // A card's words are held to the owner's, as the opening words are.
+  const priced = [{ is: "words", lines: ["Blowouts $45"], seconds: 2.5 }, ...cards.slice(1)];
+  assert.match((await arranged({ blocks: priced, lines: [] })).refusal, /^block 1: .*price/);
+  // A video that opens on a picture says something over it.
+  assert.match((await arranged({ lines: [] })).refusal, /a video that opens on a picture has opening words/);
+});
+
+test("Ask is offered blocks and the ways to arrange them: the cuts it took before are no input of the tool", async () => {
+  assert.ok(pieceAct.description.includes(PIECE_RECIPES), "the recipes are said where the model fills the plan");
+  for (const way of ["Hook first:", "Before and after:", "Steps:", "A review:", "From photos:", "Words only"])
+    assert.ok(PIECE_RECIPES.includes(way), way);
+  assert.match(PIECE_RECIPES, /advice, not forms/);
+  // One flat block, each field said once: no union of objects, and no word the tools have not sent the API before.
+  const sent = toApiTools("owner", true).find((tool) => tool.name === "propose_piece").input_schema;
+  assert.equal(/"oneOf"|"const"/.test(JSON.stringify(sent)), false);
+  assert.deepEqual(sent.properties.blocks.items.properties.is.enum, ["clip", "photo", "pair", "words", "quote"]);
+  assert.deepEqual(sent.properties.blocks.items.required, ["is"]);
+  assert.equal("cuts" in sent.properties, false);
+  const cuts = INPUT.blocks.map(({ file, from, to }) => ({ file, from, to }));
+  const out = await askedOnce({ blocks: undefined, cuts });
+  assert.equal(out.proposal, null);
+  assert.equal(out.isError, true);
 });
 
 /* ------------------------------------------------------------------------- the press */
@@ -435,8 +605,6 @@ const PLAN = {
   people_agreed: false,
 };
 
-const PHOTO = "ffffffff-0000-4000-8000-000000000002";
-const PHOTO_2 = "ffffffff-0000-4000-8000-000000000003";
 /** A plan in blocks: one of each kind, under opening words that leave with the first picture. */
 const BLOCKS_PLAN = {
   shape: "blocks",
@@ -454,8 +622,6 @@ const BLOCKS_PLAN = {
   language: "en",
   people_agreed: false,
 };
-const photoRow = (id) =>
-  clipRow({ id, kind: "image", mime: "image/jpeg", name: `photo-${id.slice(-1)}`, seconds: null, media_status: null });
 
 test("the stills of a plan in blocks are each block's own pictures: a clip's first frame, a photo, a pair's two, a quote's ground", async () => {
   const files = [clipRow(), photoRow(PHOTO), photoRow(PHOTO_2)];
@@ -505,7 +671,7 @@ test("the stills of a plan in blocks are each block's own pictures: a clip's fir
   assert.ok(Math.abs((await lightOf(board, 360 + 14, y, 20, 12)) - 150) < 8, "the second still as it is");
 });
 
-test("a card's stills are asked with its plan in blocks or as Hook first; a press takes Hook first alone until a row may hold blocks", () => {
+test("a card's stills and its press take its plan as it is kept: in blocks, or as Hook first for a card made before", () => {
   assert.equal(pieceBoardInput.safeParse(PLAN).success, true);
   assert.equal(pieceBoardInput.safeParse(BLOCKS_PLAN).success, true);
   // A plan that opens on a card has no opening words.
@@ -517,7 +683,12 @@ test("a card's stills are asked with its plan in blocks or as Hook first; a pres
   const many = { ...BLOCKS_PLAN, blocks: [...BLOCKS_PLAN.blocks, ...BLOCKS_PLAN.blocks] };
   assert.equal(pieceBoardInput.safeParse(many).success, false);
   assert.equal(pieceBeginInput.safeParse({ ...PLAN, key: "p-card-1" }).success, true);
-  assert.equal(pieceBeginInput.safeParse({ ...BLOCKS_PLAN, key: "p-card-1" }).success, false);
+  assert.equal(pieceBeginInput.safeParse({ ...BLOCKS_PLAN, key: "p-card-1" }).success, true);
+  assert.equal(pieceBeginInput.safeParse({ ...onCard, key: "p-card-1" }).success, true);
+  // A press names its card, and a plan one shape or the other.
+  assert.equal(pieceBeginInput.safeParse(BLOCKS_PLAN).success, false);
+  assert.equal(pieceBeginInput.safeParse({ ...PLAN, shape: "reel", key: "p-card-1" }).success, false);
+  assert.equal(pieceBeginInput.safeParse({ ...odd, key: "p-card-1" }).success, false);
 });
 
 function pressed(plan, { fate = "begun", ...opts } = {}) {
@@ -556,6 +727,20 @@ test("the press writes the video's row: its plan, the business's look as it stan
   ]);
   // Pressed again, it is the one video.
   assert.deepEqual((await pressed(PLAN, { fate: "here" })).answer, { piece_id: "pc-1", fate: "here" });
+});
+
+test("a plan in blocks is written as its card sent it, every file it names read afresh", async () => {
+  const { answer, knocks } = await pressed(BLOCKS_PLAN, { more: PHOTOS });
+  assert.deepEqual(answer, { piece_id: "pc-1", fate: "begun" });
+  assert.deepEqual(
+    knocks.map(([door]) => door),
+    ["piece_begin"],
+  );
+  assert.deepEqual(knocks[0][1].p_plan, BLOCKS_PLAN);
+  // A photo gone since the card is refused in a person's words, and nothing is written.
+  const gone = await pressed(BLOCKS_PLAN, { more: [photoRow(PHOTO)] });
+  assert.equal(gone.refused?.message, PIECE_WORDS.wont.file);
+  assert.deepEqual(gone.knocks, []);
 });
 
 test("a brand colour that would not read on the end card's dark ground is not worn: the name is set in white", async () => {

@@ -209,7 +209,7 @@ export const SCHEMA_SETS = {
   "person_notes.source": ["page", "bulk", "moved", "call", "thread", "reach_out", "website"],
   "person_notes.state": ["kept", "suggested"],
   "pieces.failed_why": ["clips", "draw", "store", "unknown"],
-  "pieces.shape": ["hook_cut"],
+  "pieces.shape": ["hook_cut", "blocks"],
   "pieces.stage": ["queued", "waiting_clip", "drawing", "saving"],
   "pieces.status": ["making", "made", "failed"],
   "platform_acts.actor_role": ["owner", "support", "billing"],

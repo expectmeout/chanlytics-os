@@ -8,10 +8,11 @@
 import { nonBlankOrNull, recordOrNull } from "../shared/unknown";
 
 /**
- * The shapes a plan is kept in (00613 `pieces.shape`, held to the database's own set by shared/schema-sets.ts). `hook_cut` is the
- * one a row may hold today; it is read as blocks (piecePlanOf), and a row kept as blocks waits for the door that takes one.
+ * The shapes a plan is kept in (`pieces.shape`, held to the database's own set by shared/schema-sets.ts): `blocks`, as Ask
+ * arranges one, and `hook_cut`, the one shape a video had, which a card made before blocks still carries. Either is read as
+ * blocks (piecePlanOf).
  */
-export const PIECE_SHAPES = ["hook_cut"] as const;
+export const PIECE_SHAPES = ["hook_cut", "blocks"] as const;
 export type PieceShape = (typeof PIECE_SHAPES)[number];
 
 /**
@@ -74,6 +75,12 @@ export type PieceBlock =
   | { is: "pair"; before: PieceShot; after: PieceShot; seconds: number }
   | { is: "words"; lines: string[]; seconds: number }
   | { is: "quote"; text: string; from: string | null; over: PieceShot | null; seconds: number };
+
+/**
+ * Where a quote was said, which its card says in place of who said it (a reviewer is never named): in a review the
+ * workspace holds, or in words the owner passed on.
+ */
+export type PieceQuoteSource = "google_review" | "client";
 
 /** The kinds of block a plan may hold. */
 const PIECE_BLOCKS = ["clip", "photo", "pair", "words", "quote"] as const satisfies readonly PieceBlock["is"][];
@@ -198,6 +205,41 @@ export function pieceFileIdsOf(plan: Pick<PiecePlan, "blocks">): string[] {
     block.is === "clip" || block.is === "photo" ? [block.file_id] : pieceShotsOf(block).map((shot) => shot.file_id),
   );
   return [...new Set(ids)];
+}
+
+/**
+ * The words a video opens on, a line each: its opening words over a picture, or the words of the card it opens on. What its
+ * card, its row on Content and its file are named for.
+ */
+export function pieceOpeningOf(plan: Pick<PiecePlan, "blocks" | "lines">): string[] {
+  if (plan.lines.length > 0) return plan.lines;
+  const first = plan.blocks[0];
+  if (first?.is === "words") return first.lines;
+  return first?.is === "quote" ? [first.text] : [];
+}
+
+/** What a plan is made of, counted: its blocks, how many are a clip's moment, and the clips and photos they show. */
+export interface PieceCount {
+  blocks: number;
+  moments: number;
+  clips: number;
+  photos: number;
+}
+
+export function pieceCountOf(plan: Pick<PiecePlan, "blocks">): PieceCount {
+  const clips = new Set<string>();
+  const photos = new Set<string>();
+  for (const block of plan.blocks) {
+    if (block.is === "clip") clips.add(block.file_id);
+    else if (block.is === "photo") photos.add(block.file_id);
+    else for (const shot of pieceShotsOf(block)) (shot.at === null ? photos : clips).add(shot.file_id);
+  }
+  return {
+    blocks: plan.blocks.length,
+    moments: plan.blocks.filter((block) => block.is === "clip").length,
+    clips: clips.size,
+    photos: photos.size,
+  };
 }
 
 /** Why a plan can't be made. Each is said to the model and to a person in their own words. */

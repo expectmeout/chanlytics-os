@@ -256,7 +256,7 @@ export { isPieceStep, PIECE_FAILS, PIECE_ROUNDS_MAX, PIECE_STAGES, PIECE_STATUSE
 export { pieceSpec } from "./content/piece-spec";
 export { compilePiece, pieceWordsOnBlocks } from "./content/piece-timeline";
 export { PIECE_WORDS, pieceWordsIn } from "./content/piece-words";
-export { PIECE_LIMITS, PIECE_SHAPES, PIECE_WORDS_HOLDS, PIECE_WORDS_PLACES, pieceFileIdsOf, piecePlanOf } from "./content/pieces";
+export { PIECE_LIMITS, PIECE_SHAPES, PIECE_WORDS_HOLDS, PIECE_WORDS_PLACES, pieceCountOf, pieceFileIdsOf, pieceOpeningOf, piecePlanOf } from "./content/pieces";
 export { INSTAGRAM_POST_KINDS, ON_INSTAGRAM, POST_AHEAD_DAYS_MAX, POST_CAPTION_MAX, POST_KINDS, POST_ON_ITS_WAY, POST_PLACES, POST_PULLABLE, POST_STATUSES, POST_VIAS, postCaptionProblem } from "./content/posts";
 export { ABANDONED_MS, abandonedCall, CALL_TRANSCRIPT, callAttemptWords, DISCONNECTION_LABELS, MISSED_CALL_LINE, missedCall, neverConnected, reachedVoicemail, UNCONNECTED_DIAL_LINE } from "./conversations/call-dto";
 export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./conversations/call-vm";

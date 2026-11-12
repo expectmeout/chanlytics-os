@@ -1153,11 +1153,29 @@ Writes; for a member of the workspace the request names, operator or above; coun
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `file_upload` rate; spends nothing.
 
+One of 2 bodies.
+
+Body 1:
+
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `shape` | one of `"hook_cut"` | yes |  |
+| `shape` | `"hook_cut"` | yes |  |
 | `cuts` | array of object | yes | at least 2; at most 5 |
 | `lines` | array of string | yes | at least 1; at most 2 |
+| `words_at` | one of `"high"`, `"low"` | yes |  |
+| `words_hold` | one of `"first"`, `"all"` | yes |  |
+| `end_line` | string or null | yes |  |
+| `language` | one of `"en"`, `"es"` | yes |  |
+| `people_agreed` | boolean | yes |  |
+| `key` | string | yes | at least 1 characters; at most 100 characters |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `shape` | `"blocks"` | yes |  |
+| `blocks` | array of object or object or object or object or object | yes | at least 2; at most 6 |
+| `lines` | array of string | yes | at most 2 |
 | `words_at` | one of `"high"`, `"low"` | yes |  |
 | `words_hold` | one of `"first"`, `"all"` | yes |  |
 | `end_line` | string or null | yes |  |
@@ -1181,7 +1199,7 @@ Body 1:
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `shape` | one of `"hook_cut"` | yes |  |
+| `shape` | `"hook_cut"` | yes |  |
 | `cuts` | array of object | yes | at least 2; at most 5 |
 | `lines` | array of string | yes | at least 1; at most 2 |
 | `words_at` | one of `"high"`, `"low"` | yes |  |
@@ -1194,14 +1212,14 @@ Body 2:
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
+| `shape` | `"blocks"` | yes |  |
+| `blocks` | array of object or object or object or object or object | yes | at least 2; at most 6 |
+| `lines` | array of string | yes | at most 2 |
 | `words_at` | one of `"high"`, `"low"` | yes |  |
 | `words_hold` | one of `"first"`, `"all"` | yes |  |
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
-| `shape` | `"blocks"` | yes |  |
-| `blocks` | array of object or object or object or object or object | yes | at least 2; at most 6 |
-| `lines` | array of string | yes | at most 2 |
 
 ## google
 
