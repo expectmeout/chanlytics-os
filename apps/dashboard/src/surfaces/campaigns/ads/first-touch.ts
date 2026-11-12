@@ -2,10 +2,12 @@
  * What is true of a workspace today, on its preview of the Ads: how new people first reached it over the last 30 days, read from
  * People's own report, so the page says the numbers Reports › People says. Nothing is connected and nothing is made up: until it is
  * read the page says it is counting, and where it could not be read it says so and offers again. A demo session draws its sample and
- * reads nothing. Its own read and not Reports' surface, which follows the period Reports shows.
+ * reads nothing. Its own read and not Reports' surface, which follows the period Reports shows. Once it has answered, or where
+ * none is asked, it says so (first-read.ts): what Campaigns fetches ahead of need waits for it.
  */
 import { useEffect, useState } from "react";
 import type { AdsRead } from "@chanlytics/contracts";
+import { adsFirstReadAnswered } from "./first-read";
 import { firstTouchOf } from "./model/page-parts";
 import { read } from "@/bridge/api";
 
@@ -22,13 +24,18 @@ export function useFirstTouch(on: boolean): FirstTouchHere {
   const [held, setHeld] = useState<AdsRead["firstTouch"] | undefined>(undefined);
   const [asked, setAsked] = useState(0);
   useEffect(() => {
-    if (!on) return undefined;
+    if (!on) {
+      adsFirstReadAnswered();
+      return undefined;
+    }
     let live = true;
     read("GET reports/people", { query: { period: "30d" } }).then(
       (dto) => {
+        adsFirstReadAnswered();
         if (live) setHeld(dto.series ? firstTouchOf(dto.series) : null);
       },
       () => {
+        adsFirstReadAnswered();
         if (live) setHeld(null);
       },
     );

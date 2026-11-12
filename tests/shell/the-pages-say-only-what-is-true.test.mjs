@@ -1064,8 +1064,6 @@ const mountMessages = async ({ channels = [], templatesAll = [] } = {}) => {
   });
   // The number is the channels read's (surfaces/channels/surface.ts): null is a read that failed, [] a workspace with none.
   setSurfaceValue("channels", { rows: channels });
-  // A template's title is looked up among the workspace's rows by its name (verbs.ts titleOf), as the app publishes them.
-  globalThis.__TEMPLATES_ALL = templatesAll;
   freshTree();
   return TemplatesPage();
 };

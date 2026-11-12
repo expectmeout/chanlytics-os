@@ -783,6 +783,81 @@ test("a follow-up Ask kept that came due is the home's row after Right now, in i
   await closes();
 });
 
+test("REGRESSION: a row is one option and holds no control of its own -- Not now on what Ask noticed and a conversation's x are a pointer's, hidden from a reader, and Delete says each from the row the keys stand on (the nightly's axe, 10 Nov 2026: interactive controls must not be nested)", async () => {
+  ask([TH(1), TH(2)]);
+  const A = askCalls();
+  const was = { noticed: A.noticed, restNotice: A.restNotice };
+  const rested = [];
+  A.noticed = () => ({
+    key: "room_and_yes",
+    says: "Thursday has room, and four people said yes to an offer.",
+    ask: "Who said yes to an offer?",
+  });
+  A.restNotice = async (key) => void rested.push(key);
+  /** Anything inside an option that a key could stand on, or that a reader would be told is a control of its own. */
+  const controlsIn = (option) =>
+    all(
+      option,
+      (n) =>
+        n !== option &&
+        (["button", "a", "input", "select", "textarea"].includes(n.type) ||
+          n.props?.tabIndex !== undefined ||
+          n.props?.role !== undefined),
+    ).map((n) => n.props?.["data-testid"] ?? n.type);
+  /** The line a row says its key's act in: named by id, in the list, and drawn nowhere. */
+  const saidOf = (tree, option) => find(tree, (n) => n.props?.id === option.props["aria-describedby"]);
+  try {
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    const options = all(tree, (n) => n.props?.role === "option");
+    assert.deepEqual(
+      options.slice(0, 2).map((n) => n.props["data-testid"]),
+      ["ask-row-now", "ask-row-follow"],
+      "Right now, then what Ask noticed",
+    );
+    for (const o of options) assert.deepEqual(controlsIn(o), [], `${o.props["data-testid"]} holds no control`);
+
+    const row = byTestId(tree, "ask-row-follow");
+    const notNow = byTestId(row, "ask-row-rest");
+    assert.deepEqual([notNow.type, notNow.props["aria-hidden"], textOf(notNow)], ["span", true, "Not now"]);
+    assert.ok(notNow.props.className.split(" ").includes("line-words"), "it looks as the kit's words do");
+    assert.equal(row.props["aria-keyshortcuts"], "Delete", "the option names its key");
+    const said = saidOf(tree, row);
+    assert.deepEqual(
+      [said?.props.hidden, textOf(said)],
+      [true, askText("en").notNowByKey],
+      "and what it does, drawn nowhere",
+    );
+
+    // A pointer on the words rests it, and the row under them is not taken with it.
+    const e = press(notNow);
+    assert.deepEqual([rested, e.stopped], [["room_and_yes"], true]);
+    // The keys: down from Right now to the row, then Delete.
+    keyed(lastTree, "ArrowDown");
+    settle(Palette, OPEN);
+    keyed(lastTree, "Delete");
+    await later(Palette, OPEN);
+    assert.deepEqual(rested, ["room_and_yes", "room_and_yes"], "Delete says Not now from the row the keys stand on");
+
+    // Earlier: every conversation wears its x the same way, and says Delete's other act.
+    cmdJ();
+    tree = await later(Palette, OPEN);
+    const threads = all(tree, (n) => n.props?.["data-testid"] === "ask-row-thread");
+    assert.equal(threads.length, 2);
+    for (const o of threads) {
+      assert.deepEqual(controlsIn(o), [], "a conversation's row holds no control");
+      assert.equal(o.props["aria-keyshortcuts"], "Delete");
+      assert.equal(textOf(saidOf(tree, o)), askText("en").deleteByKey);
+    }
+    const x = byClass(threads[0], "ask-row-del")[0];
+    assert.deepEqual([x.type, x.props["aria-hidden"]], ["span", true]);
+    assert.ok(x.props.className.split(" ").includes("line-remove"), "the kit's x");
+    await closes();
+  } finally {
+    Object.assign(A, was);
+  }
+});
+
 test("the tab holds the follow-ups that came due: read once the boot is in, said on the window each read; the newest read wins; one a question comes back to leaves at once; Leads or Sequences landing reads again only while one still waits; a tab coming back reads again past a minute", async () => {
   const win = new EventTarget();
   win.document = new EventTarget();

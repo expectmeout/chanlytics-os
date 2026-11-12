@@ -20,8 +20,15 @@ import {
   toLiveVM,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
+import { settingsRead } from "./record/_world.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+// The bell reads the open invitations from the settings surface (its `invites`; a name on its own window, `__TEAM_INVITES`,
+// until 11 Nov 2026): every bell here is a workspace whose team read landed with none open.
+const { setSurfaceValue } = await import(
+  pathToFileURL(path.join(here, "../../apps/dashboard/src/surfaces/surface-values.ts")).href
+);
+setSurfaceValue("settings", settingsRead());
 const NOW = Date.parse("2026-09-05T15:00:00Z");
 
 const thread = (over) => ({
@@ -158,7 +165,6 @@ test("the bridge: reads the globals, keeps state per workspace and device, alert
     Notification: FakeNotification,
     INBOX_DATA: { THREADS: [thread({ needsYou: true, escalatedAtMs: base - 60_000 })] },
     __LIVE: { now: [], recent: [] },
-    __TEAM_INVITES: [],
   };
   const api = mod.installNotifications(win, storage);
   assert.equal(win.__notifs, api, "published for the top bar");
@@ -233,7 +239,6 @@ test("REGRESSION (X6-2): each source takes its own first look -- the Inbox's rea
     location: { hash: "" },
     Notification: FakeNotification,
     __LIVE: { now: [], recent: [call({ callId: "k1", cvId: "cv-k1", startedAtMs: base - 600_000 })] },
-    __TEAM_INVITES: [],
   };
   const api = mod.installNotifications(win, storage);
   assert.equal(api.alerts().on, true);
@@ -299,7 +304,6 @@ test("a kept row of an alerting kind wakes the device like a derived one: not th
     Notification: FakeNotification,
     INBOX_DATA: { THREADS: [] },
     __LIVE: { now: [], recent: [] },
-    __TEAM_INVITES: [],
   };
   const api = mod.installNotifications(win, storage);
   await api.setAlerts(true);
@@ -367,7 +371,6 @@ test("two devices agree after a look: the seen moment is the server's, the marks
       location: { hash: "" },
       INBOX_DATA: { THREADS: [thread({ needsYou: true, escalatedAtMs: NOW - 60_000 })] },
       __LIVE: { now: [], recent: [] },
-      __TEAM_INVITES: [],
       __ACTIVE_WORKSPACE: WS,
       __NOTIFICATIONS: { dto: { notifications: [], seen_at: null } },
       ...over,
@@ -471,7 +474,6 @@ test("the bell raises a row for every missed call in its day, not just the newes
     location: { hash: "" },
     INBOX_DATA: { THREADS: [] },
     __LIVE: live,
-    __TEAM_INVITES: [],
   };
   const bell = mod.installNotifications(win, { getItem: () => null, setItem: () => {} });
   assert.deepEqual(

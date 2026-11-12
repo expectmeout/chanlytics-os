@@ -319,7 +319,6 @@ test("the index matches how the reader actually filters", () => {
     "apps/dashboard/src/surfaces/settings/team/invite.tsx",
   );
   const bridge = readCode("apps/dashboard/src/bridge/inbox-verbs.ts");
-  const seam = readCode("apps/dashboard/src/bridge/surfaces/settings.ts");
 
   test("invite, role change and remove call the API on a real roster", () => {
     // They mutated ST_STORE and toasted success on a pane fed by live data:
@@ -350,7 +349,8 @@ test("the index matches how the reader actually filters", () => {
   });
 
   test("pending invitations are published and rendered", () => {
-    assert.ok(seam.includes("invites: w.__TEAM_INVITES ?? null"), "the seam must publish open invitations");
+    // That the settings read lands them on the seam is run (team/the-settings-read-lands-the-roster.test.mjs): a line of
+    // the bridge's source was read for it here, and named a global the read no longer writes.
     assert.ok(settings.includes("read.invites"), "the card must render them");
   });
 

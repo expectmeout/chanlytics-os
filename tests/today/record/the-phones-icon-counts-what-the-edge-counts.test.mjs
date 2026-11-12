@@ -12,6 +12,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { keptUnreadOf, unreadFor } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
+import { settingsRead } from "./_world.mjs";
 
 const NOW = Date.parse("2026-09-26T12:00:00Z");
 const iso = (min) => new Date(NOW - min * 60_000).toISOString();
@@ -93,6 +94,7 @@ test("a row the server closed counts on neither side, and the unread rows past t
 /* ------------------------------------------------------ the bridge's bell ------------------------------------------------------ */
 
 const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
+const { setSurfaceValue: landRead } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const was = globalThis.window;
 globalThis.window = {
   fetch: async () => new Response("{}", { status: 500 }),
@@ -104,6 +106,14 @@ after(() => {
 
 /** A bell with two threads that need the owner, a held draft and an open invitation: rows only the page can derive. */
 const bell = (dto) => {
+  // The one open invitation is the settings surface's (its `invites`), where the bell reads it: it was a name on the bell's
+  // own window (`__TEAM_INVITES`) until 11 Nov 2026.
+  landRead(
+    "settings",
+    settingsRead({
+      invites: [{ id: "i1", email: "di@example.com", created_at: new Date(Date.now() - 3_600_000).toISOString() }],
+    }),
+  );
   const store = new Map();
   const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
   const win = {
@@ -125,7 +135,6 @@ const bell = (dto) => {
       ],
     },
     __LIVE: { now: [], recent: [] },
-    __TEAM_INVITES: [{ id: "i1", email: "di@example.com", created_at: new Date(Date.now() - 3_600_000).toISOString() }],
     __NOTIFICATIONS: { dto },
   };
   return { api: bridge.installNotifications(win, storage), win };

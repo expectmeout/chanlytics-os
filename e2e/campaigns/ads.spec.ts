@@ -90,9 +90,17 @@ test.describe("Campaigns › Ads, a workspace's preview", () => {
   }) => {
     const errors = thrown(page);
     const asked = readsOfTheReport(page);
-    const lists: string[] = [];
+    // Sequences' list is none of this page's reads, and the document's head starts none of it for this address. Since Ads is a
+    // view kept beside the others (#2245, 10 Nov 2026) Campaigns fetches the list ahead of need, for a press on its tab, and
+    // only once this page's own read is in (home/route.tsx useViewsAhead, ads/first-read.ts). This said the list is never
+    // read, which that change made untrue; what it holds now is the order.
+    let reportIn = false;
+    const early: string[] = [];
+    page.on("response", (r) => {
+      if (PEOPLE_READ.test(r.url())) reportIn = true;
+    });
     page.on("request", (r) => {
-      if (/\/api\/v1\/sequences\?/.test(r.url())) lists.push(r.url());
+      if (/\/api\/v1\/sequences\?/.test(r.url()) && !reportIn) early.push(r.url());
     });
     await page.addInitScript(RECORD);
     const report = page.waitForResponse((r) => PEOPLE_READ.test(r.url()));
@@ -113,14 +121,24 @@ test.describe("Campaigns › Ads, a workspace's preview", () => {
     await expect(page.getByTestId("ads-example")).toContainText(EXAMPLE.preview.pill);
     await expect(page.getByTestId("ads-platform-meta")).toBeVisible();
     expect(asked, "the report is read once").toHaveLength(1);
-    expect(lists, "and Sequences' list, which the page does not draw, is not read for it").toEqual([]);
+    expect(
+      early,
+      "and Sequences' list, which the page does not draw, is never read before the page's own read is in",
+    ).toEqual([]);
     expect(new URL(asked[0] ?? "http://x").searchParams.get("period")).toBe("30d");
 
     const load = await loaded(page);
     expect(load.examples, "it never stood on the sample").toEqual(["v0"]);
+    // Before the page stood, nothing of Sequences; after it Sequences may be drawn hidden, ahead of its press. The sample, never.
+    const stood = load.seen.indexOf("ads-v0");
+    expect(stood, "the page stood").toBeGreaterThanOrEqual(0);
     expect(
-      load.seen.filter((id) => /^(sq-|ads-figures|ads-ledger)/.test(id)),
-      "nothing of Sequences or the sample was drawn first",
+      load.seen.slice(0, stood).filter((id) => id.startsWith("sq-")),
+      "nothing of Sequences was drawn first",
+    ).toEqual([]);
+    expect(
+      load.seen.filter((id) => /^(ads-figures|ads-ledger)/.test(id)),
+      "and nothing of the sample was drawn at all",
     ).toEqual([]);
     expect(errors).toEqual([]);
   });

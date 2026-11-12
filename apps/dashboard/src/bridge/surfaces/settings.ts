@@ -80,7 +80,7 @@ export type TeamMember = Output<"GET team">["members"][number];
 export type TeamInvite = Output<"GET team">["invites"][number];
 
 /**
- * What each template is used by, as the card says it (`__TEMPLATE_USE`), by the template's name: the words after "Sent by",
+ * What each template is used by, as the card says it (the surface's `templateUse`), by the template's name: the words after "Sent by",
  * the line under them, the one sequence that sends it, where its link opens (null: several, or none, so the list), whether
  * a step that runs sends it, and whether the Inbox books with it. The last two are what Messages calls going out.
  */
@@ -91,15 +91,19 @@ export type TemplateUse = Record<
 
 /**
  * The slice of Settings a TSX surface reads through `useSurface("settings")`: the workspace's record and its templates with
- * what uses each and when each last went out (the channels are their own read, surfaces/channels/surface.ts), exactly what the globals below hold, and each null where
- * that read failed. Campaigns' Templates and the panes of Settings that have moved read it; the rest still read the
- * globals. Its templates are the one read of them (decision 0047, task 3.3): every row with its status, from which everything
- * that offers a message to send is made (surfaces/offered-templates.ts): the Inbox's reply box and the New conversation sheet,
+ * what uses each and when each last went out (the channels are their own read, surfaces/channels/surface.ts), and each null
+ * where that read failed. Campaigns' Templates and the panes of Settings that have moved read it; the rest still read the
+ * globals, which hold the same and are let go one by one as their last reader moves. What uses a template and when it last
+ * went out were the first (nothing read them from the window, 11 Nov 2026), then the facts, whose one reader was the
+ * Business tab's rows (settings/business/shell.ts factsNow), then the roster and its invitations, then WhatsApp's rows.
+ *
+ * Its templates are the one read of them (decision 0047, task 3.3): every row with its status, from which everything that
+ * offers a message to send is made (surfaces/offered-templates.ts): the Inbox's reply box and the New conversation sheet,
  * both composers, and Campaigns' home. None of them reads GET templates of its own.
  */
 export interface SettingsSurface {
   settings: SettingsRecord | null;
-  /** What the workspace's facts resolve to, and where two sources disagree (`__FACTS`); null on a broken config. */
+  /** What the workspace's facts resolve to, and where two sources disagree; null on a broken config. */
   facts: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
   /** WhatsApp's rows, with every status (approved or not, hidden or not): the pickers keep the ones contracts templateOffered says. */
   templatesAll: TemplateDto[] | null;
@@ -126,7 +130,10 @@ export interface SettingsSurface {
    * Absent from a value kept from before it was carried, which the pane reads as not yet read.
    */
   policies?: PoliciesSurface | null;
-  /** The roster and its open invitations (`__TEAM`, `__TEAM_INVITES`), each null where the team read failed: Settings › Team. */
+  /**
+   * The roster and its open invitations, each null where the team read failed: Settings › Team, the name a thread's holder
+   * is said by (surfaces/holder-names.ts) and the bell's rows for an invitation nobody took (bridge/notifications.ts).
+   */
   team?: TeamMember[] | null;
   invites?: TeamInvite[] | null;
 }
@@ -179,16 +186,7 @@ function policiesOf(pol: Output<"GET policies">): PoliciesSurface {
 export const settingsOverride: SurfaceOverride = {
   key: "settings",
   value: "settings",
-  globals: [
-    "__SETTINGS",
-    "__FACTS",
-    "__TEAM",
-    "__TEAM_INVITES",
-    "__POLICIES",
-    "__TEMPLATES_ALL",
-    "__TEMPLATE_USE",
-    "__TEMPLATE_SENT",
-  ],
+  globals: ["__SETTINGS", "__POLICIES"],
   events: ["surface:settings"],
   // What it draws that no other surface owns (0047): the business's facts and the version the next save sends
   // (tenant_config), the Autonomy matrix (policies), the Library and what each template is used by (templates), the Team pane
@@ -239,13 +237,7 @@ export const settingsOverride: SurfaceOverride = {
     ]);
     const w = window as Window & {
       __SETTINGS?: SettingsRecord;
-      __FACTS?: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
-      __TEAM?: TeamMember[] | null;
-      __TEAM_INVITES?: TeamInvite[] | null;
       __POLICIES?: PoliciesSurface | null;
-      __TEMPLATES_ALL?: TemplateDto[] | null;
-      __TEMPLATE_USE?: TemplateUse | null;
-      __TEMPLATE_SENT?: Record<string, TemplateSentWords> | null;
     };
     // `broken` is its own state, not an empty config: the pane closes its
     // forms on it, because a save from a form that read {} would replace the
@@ -278,18 +270,21 @@ export const settingsOverride: SurfaceOverride = {
     // Resolved on the server, where the channel rows and the listing are. Null
     // on a broken config for the same reason the forms close: there is nothing
     // trustworthy to resolve against.
-    w.__FACTS = cfg.configBroken ? null : { facts: cfg.facts, conflicts: cfg.conflicts };
+    const facts: SettingsSurface["facts"] = cfg.configBroken ? null : { facts: cfg.facts, conflicts: cfg.conflicts };
+    // What uses each template and when each last went out are the surface's alone: null where the templates read failed.
+    let templateUse: TemplateUse | null = null;
+    let templateSent: Record<string, TemplateSentWords> | null = null;
+    // WhatsApp's rows alone, as the Inbox, Setup and the phone read them: null where the templates read failed.
+    let templatesAll: TemplateDto[] | null = null;
     if (tpl instanceof Error) {
-      w.__TEMPLATES_ALL = null;
-      w.__TEMPLATE_USE = null;
-      w.__TEMPLATE_SENT = null;
       console.error("settings_templates_fetch_failed", tpl.message);
     } else {
-      w.__TEMPLATES_ALL = (tpl.templates ?? []).filter((t) => t.channel === "whatsapp");
+      const whatsapp = (tpl.templates ?? []).filter((t) => t.channel === "whatsapp");
+      templatesAll = whatsapp;
       // Every message on file, WhatsApp's or not: a message written for email or text alone is as much a row of the Library
       // as one WhatsApp holds, and what sends it and how much went out are read of it by its name too.
-      const everyMessage = settingsMessagesOf(tpl, w.__TEMPLATES_ALL, versionRowsOf(tpl)) ?? [];
-      const names = [...new Set([...w.__TEMPLATES_ALL.map((t) => t.name), ...everyMessage.map((m) => m.name)])];
+      const everyMessage = settingsMessagesOf(tpl, whatsapp, versionRowsOf(tpl)) ?? [];
+      const names = [...new Set([...whatsapp.map((t) => t.name), ...everyMessage.map((m) => m.name)])];
       // The usage covers every starter too, added or not: a starter nobody added
       // is still a row on the page, and "nothing sends it" is a reading about it,
       // not a gap in the map.
@@ -299,7 +294,7 @@ export const settingsOverride: SurfaceOverride = {
       // it names the message. Every name gets an entry, so a name MISSING from
       // the map means the usage was not read -- never "nothing sends it".
       const used = tpl.usedBy ?? {};
-      w.__TEMPLATE_USE = Object.fromEntries(
+      templateUse = Object.fromEntries(
         useNames.map((name) => {
           const u = used[name] ?? { playbooks: [], broadcasts: 0, recent: [], booking: false };
           return [
@@ -322,7 +317,7 @@ export const settingsOverride: SurfaceOverride = {
       // column of "Never sent".
       const sends = tpl.sends;
       const now = Date.now();
-      w.__TEMPLATE_SENT = sends
+      templateSent = sends
         ? Object.fromEntries(names.map((name) => [name, templateSentWords(sends[name], zone, now)]))
         : null;
     }
@@ -332,32 +327,27 @@ export const settingsOverride: SurfaceOverride = {
     } else {
       w.__POLICIES = policiesOf(pol);
     }
-    if (team instanceof Error) {
-      // null, not [] — "we could not read the team" and "there is nobody" are
-      // different facts, and only one of them should render as an empty list.
-      w.__TEAM = null;
-      w.__TEAM_INVITES = null;
-      console.error("settings_team_fetch_failed", team.message);
-    } else {
-      w.__TEAM = team.members ?? [];
-      // The API has always returned open invitations and nothing rendered
-      // them, so an invitation that was sent, accepted or revoked was
-      // invisible on the one card whose job is saying who has access.
-      w.__TEAM_INVITES = team.invites ?? [];
-    }
+    // null, not [] — "we could not read the team" and "there is nobody" are
+    // different facts, and only one of them should render as an empty list.
+    // The API has always returned open invitations and nothing rendered
+    // them, so an invitation that was sent, accepted or revoked was
+    // invisible on the one card whose job is saying who has access.
+    if (team instanceof Error) console.error("settings_team_fetch_failed", team.message);
+    const members: TeamMember[] | null = team instanceof Error ? null : (team.members ?? []);
+    const invites: TeamInvite[] | null = team instanceof Error ? null : (team.invites ?? []);
     // The slice a TSX surface reads (Campaigns' Templates), published beside the globals it copies.
     const versions = versionRowsOf(tpl);
     setSurfaceValue("settings", {
       settings: w.__SETTINGS ?? null,
-      facts: w.__FACTS ?? null,
-      templatesAll: w.__TEMPLATES_ALL ?? null,
+      facts,
+      templatesAll,
       templateVersions: versions,
-      messages: settingsMessagesOf(tpl, w.__TEMPLATES_ALL ?? null, versions),
-      templateUse: w.__TEMPLATE_USE ?? null,
-      templateSent: w.__TEMPLATE_SENT ?? null,
+      messages: settingsMessagesOf(tpl, templatesAll, versions),
+      templateUse,
+      templateSent,
       policies: w.__POLICIES ?? null,
-      team: w.__TEAM ?? null,
-      invites: w.__TEAM_INVITES ?? null,
+      team: members,
+      invites,
     });
     // The policy chips listen for this and nothing else (the kit's PolicyChip): one drawn before the modes were read
     // says none (policy-store.ts), and went on saying none until a mode was next changed by hand.

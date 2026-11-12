@@ -96,3 +96,17 @@ ground as painted with the words hidden, at both widths and in both themes: 5.4:
 - The first screen is a phone at 812 px tall. The margin there is 25 px on the rig's turn, whose answer runs to eleven
   lines where a real one over cards is a sentence; a real sheet's rows may wrap. Safari's bars take more height.
 - Nothing here has met a real turn: no model was run. WebKit was not walked.
+
+## Since
+
+- **11 November 2026: a card's quick changes stand under its press.** The chips a card with words gained on 9 November
+  (#2211: Shorter, Warmer, Spanish too) stood between the sheet and the press, a row of 30 px, and the phone's 25 px to
+  spare were gone: the nightly measured the first press's foot at 743 of 738. Under the press they stand beside the field,
+  which takes any other change, and the foot is 705 of 738 on the same turn. A plan's stand under its press too. _Undo:
+  `AskQuickChanges` back over `AskCardActs` in `card.tsx`, and over `AskPlanPress` in `plan-card.tsx`._
+- **The same day: the scripted turn's second card is Ask's own idea.** Not now is an idea's alone since #2211, and the
+  spec still pressed it on a card the person had asked for.
+- **The same day: a row of the Line holds no control of its own.** Not now on what Ask noticed and a conversation's × were
+  buttons inside an option, which axe refuses as nested controls (the first row that said Not now, from 10 November). Each
+  is a pointer's press drawn as the kit's and hidden from a reader, and Delete on the row says it for the keys, named as
+  the option's shortcut and said in a line drawn nowhere (`home.tsx` `secondAct`, `line/under.ts` `arDeleteKey`).

@@ -495,8 +495,6 @@ test("Worth knowing is made from the numbers it is drawn from, once, by the page
 Object.assign(globalThis.window, {
   __ME: { email: "ruben@rjcapital.io", role: "owner" },
   __SETTINGS: { role: "owner" },
-  __TEAM: null,
-  __TEAM_INVITES: null,
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
     initials: (n, e) =>

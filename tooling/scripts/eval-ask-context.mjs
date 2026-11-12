@@ -98,7 +98,7 @@ export const ROW_SOURCES = {
     path: "/api/v1/broadcasts",
     rows: (d) => list(d?.broadcasts).map((b) => ({ id: b.id, label: b.name ?? "a broadcast", ts: 0 })),
   },
-  // Campaigns › Messages draws every template with its status (the page's __TEMPLATES_ALL).
+  // Campaigns › Messages draws every template with its status (the settings surface's templatesAll).
   templates: {
     path: "/api/v1/templates?all=1",
     rows: (d) => list(d?.templates).map((t) => ({ id: t.id, label: t.title ?? t.name ?? "a template", ts: 0 })),

@@ -717,7 +717,7 @@ being read is dropped by a migration.
 | `trigger_drafts_sweep` | the server's | the server | the clock, `drafts-sweep` | The drafts sweep's clock (decision 0093). |
 | `trigger_google_sweep` | the server's | the server | the clock, `google-listings-sweep` | Asks the edge to read each linked Google listing. |
 | `trigger_instagram_token_sweep` | the server's | the server | the clock, `instagram-token-sweep` | The Instagram token sweep's clock (decision 0001, step 8). |
-| `trigger_jobs_tick` | the server's | the server | the clock, `jobs-tick` | The ledger heartbeat. |
+| `trigger_jobs_tick` | the server's | the server | the clock, `jobs-tick`; script `tooling/scripts/gen/capacity.mjs` | The ledger heartbeat. |
 | `trigger_leads_sweep` | the server's | the server | the clock, `leads-sweep` | The lead finder's clock. |
 | `trigger_lines_sweep` | the server's | the server | the clock, `lines-sweep` | Asks the edge to resume any line whose provisioning saga was killed mid-run. |
 | `trigger_mailboxes_sweep` | the server's | the server | the clock, `mailboxes-sweep` | The mailboxes clock (decision 0056). |

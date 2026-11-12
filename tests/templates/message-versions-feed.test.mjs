@@ -4,8 +4,8 @@
  * nothing that changes what any other reader of the templates sees.
  *
  * - `GET templates?all=1` already returns every channel's rows; the surface keeps WhatsApp's alone as `templatesAll` (the
- *   Inbox's composer, Broadcasts, Playbooks and Ask read that, and `__TEMPLATES_ALL`, `__TEMPLATE_USE` and
- *   `__TEMPLATE_SENT` are what they were), and hands the page the email and text rows as `templateVersions`.
+ *   Inbox's composer, Broadcasts, Playbooks and Ask read that, and the surface's `templateUse` and `templateSent` are
+ *   what they were), and hands the page the email and text rows as `templateVersions`.
  * - A reach-out's emails (`reach_out_*`) are not among them: they have their own list.
  * - A read that failed is null, as it is for the WhatsApp rows, never an empty list that says there are none.
  * - The page is handed the workspace's messages (lane 1, T7): the read's own, which are made of every row; and where the
@@ -124,14 +124,14 @@ test("the page is handed a message's email and text rows beside its WhatsApp one
     ["w1", "w2"],
   );
   assert.deepEqual(
-    globalThis.window.__TEMPLATES_ALL.map((t) => t.id),
+    surfaceValue("settings").templatesAll.map((t) => t.id),
     ["w1", "w2"],
   );
   assert.ok(
-    globalThis.window.__TEMPLATES_ALL.every((t) => t.channel === "whatsapp"),
+    surfaceValue("settings").templatesAll.every((t) => t.channel === "whatsapp"),
     "no other channel in the list the other pages read",
   );
-  const named = Object.keys(globalThis.window.__TEMPLATE_USE);
+  const named = Object.keys(surfaceValue("settings").templateUse);
   assert.ok(named.includes("visit_reminder") && !named.includes("reach_out_9f2c"), "the usage names no reach-out");
 });
 
@@ -155,11 +155,11 @@ test("what sends a message and how much of it went out is read of every message 
     sends: { spring_news: { count: 3, lastAt: when } },
   });
   await settingsOverride.apply();
-  const use = globalThis.window.__TEMPLATE_USE;
+  const use = surfaceValue("settings").templateUse;
   assert.equal(use.spring_news.unused, false, "a playbook sends the email-only message, and the row can say so");
   assert.equal(use.spring_news.sequence, "sq-1", "its link opens the one sequence that sends it");
   assert.equal(use.visit_reminder.unused, true, "a WhatsApp message nothing sends says so, as it did");
-  const sent = globalThis.window.__TEMPLATE_SENT;
+  const sent = surfaceValue("settings").templateSent;
   assert.equal(sent.spring_news.count, "3", "and how many went out");
   assert.deepEqual(sent.visit_reminder, { count: null, when: "Never sent" });
   for (const map of [use, sent]) assert.ok(!("reach_out_9f2c" in map), "a reach-out's email is nobody's message");

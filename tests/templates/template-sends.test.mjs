@@ -196,6 +196,9 @@ const json = (status, body) =>
 const quiet = console.error;
 console.error = () => {};
 const { settingsOverride } = await import("../../apps/dashboard/src/bridge/surfaces/settings.ts");
+const { surfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
+/** When each message last went out, as the Settings surface holds it: the page's one source (it was a global beside it too). */
+const sentNow = () => surfaceValue("settings").templateSent;
 const { clockDate } = await import("@chanlytics/contracts");
 console.error = quiet;
 
@@ -248,7 +251,7 @@ test("the page is handed the Sent words for every message on file: how many and 
     sends: { winback_offer: { count: 1204, lastAt: recent }, quick_note: { count: 7, lastAt: old.toISOString() } },
   });
   await settingsOverride.apply();
-  const sent = globalThis.window.__TEMPLATE_SENT;
+  const sent = sentNow();
   assert.deepEqual(sent.winback_offer, { count: "1,204", when: "2d ago" }, "one entry per message, not per language");
   assert.deepEqual(
     sent.quick_note,
@@ -266,8 +269,10 @@ test("the page is handed the Sent words for every message on file: how many and 
 test('a template read without the roll-up, or one that failed, is a Sent column that says nothing -- never a column of "Never sent"', async () => {
   wire({ templates: [row("t1", "winback_offer")], usedBy: {} });
   await settingsOverride.apply();
-  assert.equal(globalThis.window.__TEMPLATE_SENT, null, "not read is not never sent");
+  assert.equal(sentNow(), null, "not read is not never sent");
   wire(500);
   await settingsOverride.apply();
-  assert.equal(globalThis.window.__TEMPLATE_SENT, null);
+  assert.equal(sentNow(), null);
+  assert.equal("__TEMPLATE_SENT" in globalThis.window, false, "and nothing of it is published on the window any more");
+  assert.equal("__TEMPLATE_USE" in globalThis.window, false);
 });
