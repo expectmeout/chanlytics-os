@@ -144,11 +144,15 @@ const open = (draft, made = [], reads = READS) => {
     doing: null,
     redraftingFor: null,
     leaving: null,
+    // The line under the draft (decision 0129 step 2), empty, with nothing changed by it yet.
+    line: { words: "", onWords() {} },
+    note: null,
     acts: {
       change() {},
       redraft() {},
       undo() {},
-      again() {},
+      say() {},
+      back() {},
       discard() {},
       make: (start) => made.push(start),
       close() {},
@@ -352,7 +356,9 @@ test("a draft to leads says the lines Ask learned from how the owner writes, or 
     doing: null,
     redraftingFor: null,
     leaving: null,
-    acts: { change() {}, redraft, undo() {}, again() {}, discard() {}, make() {}, close() {} },
+    line: { words: "", onWords() {} },
+    note: null,
+    acts: { change() {}, redraft, undo() {}, say() {}, back() {}, discard() {}, make() {}, close() {} },
   });
   const draw = () =>
     again(() =>

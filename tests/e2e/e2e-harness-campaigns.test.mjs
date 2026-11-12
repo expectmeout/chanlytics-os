@@ -296,7 +296,10 @@ const newPane = (record, draft) => {
     doing: null,
     redraftingFor: null,
     leaving: null,
-    acts: { change() {}, redraft() {}, undo() {}, again() {}, discard() {}, make() {}, close() {} },
+    // The line under the draft (decision 0129 step 2), empty, with nothing changed by it yet.
+    line: { words: "", onWords() {} },
+    note: null,
+    acts: { change() {}, redraft() {}, undo() {}, say() {}, back() {}, discard() {}, make() {}, close() {} },
   };
   freshTree();
   drawAgain(() => globalThis.React.createElement(DraftView, props));
