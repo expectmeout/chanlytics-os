@@ -597,7 +597,7 @@ test("the line under the top bar: a live region that is always there, the words,
   };
   const dto = { ready: true, account, price, trial_days: 14, role: "owner" };
   assert.equal(toBillingVM(dto).paused, true, "the fixture is a paused account");
-  win.__BILLING_ACCOUNT = { dto, fetchedAt: Date.now() };
+  setSurfaceValue("billing", { dto, fetchedAt: Date.now() });
   win.__billing = { vm: (d, nowMs) => toBillingVM(d, nowMs) };
   const went = [];
   win.CHANLY = { nav: (to) => went.push(to), address };
@@ -607,7 +607,7 @@ test("the line under the top bar: a live region that is always there, the words,
   cta(tree).props.onClick();
   assert.deepEqual(went, ["admin/billing"]);
 
-  delete win.__BILLING_ACCOUNT;
+  setSurfaceValue("billing", undefined);
   tree = bar();
   assert.equal(textOf(cta(tree)), "Reload");
   cta(tree).props.onClick();

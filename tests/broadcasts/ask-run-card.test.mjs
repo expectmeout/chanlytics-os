@@ -573,7 +573,7 @@ function tabOver(tables) {
     },
     now: () => 1_000,
   });
-  const win = { __SETTINGS: null, location: { hash: "" }, dispatchEvent: () => true, setTimeout: (fn) => fn() };
+  const win = { location: { hash: "" }, dispatchEvent: () => true, setTimeout: (fn) => fn() };
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ);
   return { client, win, sent, events, t };
 }

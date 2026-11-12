@@ -24,6 +24,9 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const C = await import("@chanlytics/contracts");
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 const commit = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));
+const { setSurfaceValue, surfaceValue } = await import(at("apps/dashboard/src/surfaces/surface-values.ts"));
+/** The settings read landing a record, the rest of that read as it stands (null: the tab holds none; a window global, `__SETTINGS`, until 12 Nov 2026). */
+const landSettings = (record) => setSurfaceValue("settings", { ...(surfaceValue("settings") ?? {}), settings: record });
 const { commitProposal } = commit;
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -100,8 +103,9 @@ function tab(answer = null) {
     refresh: async () => {},
     now: () => 1_000,
   });
+  // The settings the tab read: each tab its own.
+  landSettings({ config: { brain: { business_name: "Harbor", profile: {} } }, version: 3 });
   const win = {
-    __SETTINGS: { config: { brain: { business_name: "Harbor", profile: {} } }, version: 3 },
     location: { hash: "", pathname: "/w/harbor" },
     history: { pushState() {}, replaceState() {} },
     addEventListener() {},
@@ -245,7 +249,7 @@ test("a step refused or failed stops the run there: later steps are not sent, st
 
   // Refused by its spec before anything is sent (Settings not loaded in this tab): the same stop, at the same step.
   const cold = tab();
-  cold.win.__SETTINGS = null;
+  landSettings(null);
   const coldRun = await commit.commitPlan(cold.win, [message, note, pause], { client: cold.client, nowMs: NOW });
   // It looks for them first: a read, and what it could not read is said by the card.
   assert.deepEqual(
@@ -475,7 +479,7 @@ test("a send waits for every step its stamp waits for (after), not only the step
   });
   // Settings not loaded in this tab: the wait is said first, since no spec is read for a card that waits.
   const cold = tab();
-  cold.win.__SETTINGS = null;
+  landSettings(null);
   assert.deepEqual(
     await commitProposal(cold.win, send, cold.client, {
       nowMs: NOW,

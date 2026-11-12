@@ -202,10 +202,11 @@ test("the reach-outs surface reads the chains and nothing more: no report, set a
   try {
     await bridge.reachOutsOverride.apply();
     assert.deepEqual(read, ["reach-outs"], "one read, no report: every page pays it, so it scans no audience (R23)");
-    // Set on the seam the pages read (`useSurface("reach_outs")`), and mirrored under the name Leads still reads.
+    // Set on the seam the pages read (`useSurface("reach_outs")`), and nowhere else: its mirror, `__REACH_OUTS`, went on
+    // 12 Nov 2026 with its last reader.
     const chains = surfaceValue("reach_outs");
     assert.equal(chains.length, 1);
-    assert.equal(W.__REACH_OUTS, chains, "the mirror is the one object");
+    assert.equal("__REACH_OUTS" in W, false, "no mirror on the window");
     // Templates' rows are contracts' over the chains: each step with words, and no count of what it wrote.
     assert.deepEqual(
       WORDS.emailTemplateRowsOf(chains).map((r) => [r.template_id, r.step_id, r.step_n, "written" in r]),
@@ -218,7 +219,6 @@ test("the reach-outs surface reads the chains and nothing more: no report, set a
       new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "down" } }), { status: 500 });
     await assert.rejects(bridge.reachOutsOverride.apply());
     assert.equal(surfaceValue("reach_outs"), null, "unread is null, never an empty list");
-    assert.equal(W.__REACH_OUTS, null, "and the mirror says the same");
   } finally {
     W.fetch = was;
   }

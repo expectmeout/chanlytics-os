@@ -25,8 +25,10 @@ import vm from "node:vm";
 import {
   campaignMessagesOf,
   channelsReady,
+  factConflicts,
   MEMBERSHIP_ROLES,
   pipelineOf,
+  resolveFacts,
   roleAtLeast,
   starterByName,
   toPersonRowVM,
@@ -126,12 +128,34 @@ test("the page's fixture publishes the settings read through the same contracts 
   // The workspace's facts are the settings surface's alone since the bridge stopped publishing them (11 Nov 2026): their
   // one reader, Settings › Business, left the mockup, so the fixture publishes none.
   assert.equal("__FACTS" in w, false, "no facts on the window, as the bridge publishes none");
-  assert.deepEqual(plain(w.__SETTINGS.config), S.config);
-  assert.equal(w.__SETTINGS.version, S.version);
+  // Nor the policy rows, nor the record itself, the last two (12 Nov 2026): the fixture lands the settings read whole on
+  // the settings surface, as the bridge does, and puts none of it on the window. Its test reads what it landed from the
+  // harness's own name for it (`__HX_SETTINGS`), since the surface's store is inside the bundle.
+  assert.equal("__POLICIES" in w, false, "no policy rows on the window");
+  assert.equal("__SETTINGS" in w, false, "no record on the window");
+  // And Setup's read, which the fixture lands on its own surface (a window mirror, `__SETUP`, until 12 Nov 2026).
+  assert.equal("__SETUP" in w, false, "no Setup read on the window");
+  const read = w.__HX_SETTINGS;
+  assert.deepEqual(plain(read.settings.config), S.config);
+  assert.equal(read.settings.version, S.version);
   assert.equal(w.__ACTIVE_WORKSPACE, WORKSPACE.id);
   for (const channel of ["whatsapp", "voice"]) {
-    assert.ok(w.__SETTINGS.prompt[channel].length > 0, `${channel}: there is a prompt to read`);
+    assert.ok(read.settings.prompt[channel].length > 0, `${channel}: there is a prompt to read`);
   }
+  // The facts resolved as the server resolves them, over the scenario's own known facts (server/readers/settings.ts).
+  const resolved = resolveFacts(S.config.brain ?? null, S.known);
+  assert.deepEqual(plain(read.facts), plain({ facts: resolved, conflicts: factConflicts(resolved) }));
+  // And the matrix a provisioned workspace starts with, and the harness's owner as the roster: every part, never a few.
+  assert.deepEqual(
+    plain(read.policies.rows).map((r) => `${r.class}:${r.mode}`),
+    ["faq:auto", "booking:auto", "reply:auto", "reengage:ask", "campaign:ask", "money:never"],
+  );
+  assert.deepEqual(
+    plain(read.team).map((m) => m.email),
+    ["e2e-owner@example.com"],
+  );
+  for (const part of ["templatesAll", "templateVersions", "messages", "invites"])
+    assert.ok(Array.isArray(read[part]), `${part}: read, as a list`);
 
   // Nothing the fixture publishes can write: a spec that pressed a Save is refused on the page.
   assert.equal((await w.__saveSettings()).ok, false);
@@ -197,12 +221,12 @@ test("the messages the fixture counts are the scenario's own, the nightly has no
     assert.equal("__TEMPLATES_ALL" in w, false, `${name}: no rows on the window`);
     // And the count Setup states is that list counted, never a number typed beside it.
     assert.equal(
-      w.__SETUP.dto.templates.approved,
+      w.__HX_SETUP.dto.templates.approved,
       approved.length,
       `${name}: Setup counts the messages the workspace has`,
     );
-    assert.equal(w.__SETUP.dto.templates.startersApproved, approved.length, name);
-    assert.equal(w.__SETUP.dto.templates.pending, 0, name);
+    assert.equal(w.__HX_SETUP.dto.templates.startersApproved, approved.length, name);
+    assert.equal(w.__HX_SETUP.dto.templates.pending, 0, name);
   }
 });
 

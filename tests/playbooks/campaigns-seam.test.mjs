@@ -1,7 +1,7 @@
 /**
  * What Campaigns and Live read from the seam, typed (decision 0015, steps 7 and 8): the value each override publishes under
- * its key, the old name it is mirrored under for the pages that have not moved (the frame's tab strip and route crumbs read
- * `__PLAYBOOKS` and `__BROADCASTS`, Today and Ask read `__LIVE`, Leads reads `__REACH_OUTS`), the tab's cache keeping each value
+ * its key, the old name it is mirrored under where a page that has not moved still reads it (`__BROADCASTS` and `__LIVE`;
+ * `__PLAYBOOKS` and `__REACH_OUTS` went on 12 Nov 2026, their last readers moved), the tab's cache keeping each value
  * beside the globals it owns and giving it back before React draws, and the one difference between "not read yet" and "read
  * and failed": the reach-outs' `null` is a value, and `undefined` is nothing.
  *
@@ -38,21 +38,23 @@ const { reachOutsOverride } = await import(`${S}/surfaces/campaigns/reach-out/ov
 const { liveOverride } = await import(`${S}/surfaces/live/surface.ts`);
 const { settingsOverride } = await import(`${S}/bridge/surfaces/settings.ts`);
 
-test("each surface's value is held under its key and mirrored under the name the pages that have not moved read", () => {
+test("each surface's value is held under its key, and mirrored under its old name only where a page still reads it", () => {
+  // [key, its old name, a value, whether a page still reads the old name]
   const rows = [
-    ["playbooks", "__PLAYBOOKS", { rows: [], fetchedAt: 1 }],
-    ["broadcasts", "__BROADCASTS", { rows: [], fetchedAt: 1 }],
-    ["reach_outs", "__REACH_OUTS", [{ root_id: "r1" }]],
-    ["live", "__LIVE", { now: [], recent: [], fetchedAtMs: 1 }],
+    ["playbooks", "__PLAYBOOKS", { rows: [], fetchedAt: 1 }, false],
+    ["broadcasts", "__BROADCASTS", { rows: [], fetchedAt: 1 }, true],
+    ["reach_outs", "__REACH_OUTS", [{ root_id: "r1" }], false],
+    ["live", "__LIVE", { now: [], recent: [], fetchedAtMs: 1 }, true],
   ];
-  for (const [key, mirror, value] of rows) {
+  for (const [key, mirror, value, mirrored] of rows) {
     assert.equal(values.surfaceValue(key), undefined, `${key}: before the first read there is nothing`);
     values.setSurfaceValue(key, value);
     assert.equal(values.surfaceValue(key), value, `${key}: held as it was published, by identity`);
-    assert.equal(globalThis[mirror], value, `${key}: mirrored under ${mirror}, the one object`);
+    if (mirrored) assert.equal(globalThis[mirror], value, `${key}: mirrored under ${mirror}, the one object`);
+    else assert.equal(mirror in globalThis, false, `${key}: no mirror, as no page reads ${mirror}`);
     values.setSurfaceValue(key, undefined);
     assert.equal(values.surfaceValue(key), undefined);
-    assert.equal(globalThis[mirror], undefined, `${key}: the mirror goes with the value`);
+    if (mirrored) assert.equal(globalThis[mirror], undefined, `${key}: the mirror goes with the value`);
   }
 });
 
@@ -60,9 +62,8 @@ test("a reach-outs read that failed is a value (null), and one that has not land
   assert.equal(values.surfaceValue("reach_outs"), undefined, "unread");
   values.setSurfaceValue("reach_outs", null);
   assert.equal(values.surfaceValue("reach_outs"), null, "read and failed: each page says so");
-  assert.equal(globalThis.__REACH_OUTS, null, "and the mirror says it too, for Leads, which tells the two apart");
   values.setSurfaceValue("reach_outs", undefined);
-  assert.equal(globalThis.__REACH_OUTS, undefined);
+  assert.equal(values.surfaceValue("reach_outs"), undefined);
 });
 
 test("the overrides publish their typed value for the cache (the key it is published under), and Live's stays out of it", () => {
@@ -93,7 +94,6 @@ test("the tab's cache keeps each value beside the globals a surface owns, and gi
   const restored = cache.hydrateSurfaceCache();
   assert.ok(restored.has("playbooks") && restored.has("reach_outs"), "real data before it draws: no loading state");
   assert.deepEqual(values.surfaceValue("playbooks"), PLAYBOOKS);
-  assert.deepEqual(globalThis.__PLAYBOOKS, PLAYBOOKS, "and the mirror is back for the pages that read it");
   assert.deepEqual(values.surfaceValue("reach_outs"), CHAINS);
   values.setSurfaceValue("playbooks", undefined);
   values.setSurfaceValue("reach_outs", undefined);

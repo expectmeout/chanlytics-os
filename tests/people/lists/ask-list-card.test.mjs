@@ -491,7 +491,6 @@ function tabOver(tables) {
     now: () => 1_000,
   });
   const win = {
-    __SETTINGS: null,
     location: { hash: "" },
     dispatchEvent: (e) => {
       events.push(e.type);

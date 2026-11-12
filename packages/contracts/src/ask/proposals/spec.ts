@@ -47,7 +47,7 @@ export interface ProposalRefusal {
   refused: string;
 }
 
-/** What the tab holds that a card reads: the settings Settings loaded (`__SETTINGS`), which a settings card writes over. */
+/** What the tab holds that a card reads: the settings the settings read loaded, which a settings card writes over. */
 export interface ProposalTab {
   settings: { config?: Record<string, unknown> | null; version?: number } | null;
 }

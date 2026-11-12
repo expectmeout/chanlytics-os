@@ -5,7 +5,7 @@
  * once, and after they land the refresh map re-reads this surface and Setup's, since the Setup row reads the same facts.
  *
  * The value is the seam's (`useSurface("billing")`): undefined until read, null when the read failed, so the pane shows
- * a retry rather than "Reading your billing…" for ever. `__BILLING_ACCOUNT` is its mirror and `__billing` the verbs, for
+ * a retry rather than "Reading your billing…" for ever. `__billing` is the verbs, for
  * the frame's top bar, which says a paused workspace from them (frame/topbar/topbar.tsx): lines to delete when the frame moves (step 13).
  */
 import {
@@ -29,7 +29,7 @@ import { declareReads } from "@/bridge/surface-registry";
 import { pageClock } from "@/bridge/zone";
 import { refreshSurfaces } from "@/bridge/surface-runner";
 import { setupOverride } from "@/surfaces/setup/override";
-import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
+import { setSurfaceValue } from "../../surface-values";
 
 export interface BillingSurface {
   dto: BillingDto;
@@ -84,8 +84,6 @@ declare global {
     __billing?: BillingApi;
   }
 }
-
-declareSurfaceValue("billing", "__BILLING_ACCOUNT");
 
 export const billingOverride: SurfaceOverride = {
   key: "billing",

@@ -76,7 +76,6 @@ export interface PaletteGlobals {
   /** Live's value: the calls on the line, the page's recent few, and every missed call still news (uncapped). */
   __LIVE?: FeedLive;
   __PEOPLE?: { rows?: Array<{ id: string; name: string }>; hasDeals?: boolean } | null;
-  __SETTINGS?: { config?: { calendar?: { ical_url?: string }; features?: unknown } | null } | null;
   __WORKSPACES?: Workspace[];
   __ACTIVE_WORKSPACE?: string | null;
   /** Who is looking: their role, and whether they are Chanlytics staff (the back office's jump is theirs alone). */
@@ -95,14 +94,6 @@ export interface PaletteGlobals {
     needsYou?: { count: number; holds?: number; sends?: number } | null;
   } | null;
   __BROADCASTS?: { rows?: Run[] } | null;
-  /**
-   * The Leads surface (leads.ts): the ideas and the searches, as the Leads chips read them. An idea is asked as its plan
-   * in words (`ask`, 00398), so the plan Ask proposes is the plan the idea opens; one kept from before says its words.
-   */
-  __LEADS?: {
-    suggestions?: { items?: { words: string; ask?: string }[] } | null;
-    searches?: { asked: string }[];
-  } | null;
 }
 
 const LAST_LANGUAGE_KEY = "chanlytics:ask:lang";
@@ -300,15 +291,15 @@ export function askPalette(win: Window, storage: Storage | null) {
         missedToday: tz ? callsToday(calls(), Date.now(), tz).missed.length : 0,
         // On the line by the heartbeat (callsToday's own count), never `live` alone.
         liveNow: callsToday(calls(), Date.now(), tz).live.length,
-        hasCalendar: !!w.__SETTINGS?.config?.calendar?.ical_url,
+        hasCalendar: !!surfaceValue("settings")?.settings?.config?.calendar?.ical_url,
         scope,
         // Whoever acts in the workspace (owner, operator, partner): the one table, as the pages' canDo("approve").
         canAct: !!ROLE_PERMS[w.__ME?.role as keyof typeof ROLE_PERMS]?.approve,
         // People's surface says whether a deal was ever recorded here; until it does, the question is not offered.
         hasDeals: !!w.__PEOPLE?.hasDeals,
         // On Leads: the first day's ideas, else the latest two searches' own words; the leads bridge publishes both.
-        leadIdeas: (w.__LEADS?.suggestions?.items ?? []).map((i) => i.ask || i.words),
-        leadSearches: (w.__LEADS?.searches ?? []).map((s) => s.asked),
+        leadIdeas: (surfaceValue("leads")?.suggestions?.items ?? []).map((i) => i.ask || i.words),
+        leadSearches: (surfaceValue("leads")?.searches ?? []).map((s) => s.asked),
         // On Campaigns: the campaigns the playbooks surface read, each by name, moment, state and a run that waits.
         campaigns: campaignsRead(),
         // On Campaigns' Ads page, as the page says it: its chips are about ads.

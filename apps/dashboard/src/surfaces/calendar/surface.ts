@@ -10,12 +10,9 @@ import { declareReads } from "@/bridge/surface-registry";
 import { getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
 import { knownZone } from "@/bridge/zone";
 import { toCalendarVM, windowFor, zoneDayKey, type CalendarVM, DAY_KEY } from "@chanlytics/contracts";
-import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
+import { setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { calendarAddress, calendarParam } from "./address";
 import { CR_REFRESH_MS } from "./words";
-
-// Today, Ask, People and the Business tab, which have not moved, still read this under its old name.
-declareSurfaceValue("calendar", "__CALENDAR");
 
 /* ------------------------------- Calendar -------------------------------- */
 

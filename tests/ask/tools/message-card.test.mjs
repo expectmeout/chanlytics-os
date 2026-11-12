@@ -547,7 +547,6 @@ test("Approve sends the card's body to POST templates/message, marked as a card'
     now: () => 1_000,
   });
   const win = {
-    __SETTINGS: null,
     location: { hash: "", pathname: "/w/harbor" },
     history: { pushState() {}, replaceState() {} },
     addEventListener() {},
@@ -652,7 +651,6 @@ test("an undo refused part-way says what is already deleted, then the refusal; p
     now: () => 1_000,
   });
   const win = {
-    __SETTINGS: null,
     location: { hash: "", pathname: "/w/harbor" },
     history: { pushState() {}, replaceState() {} },
     addEventListener() {},

@@ -210,31 +210,36 @@ Object.assign(globalThis.window, {
     return Promise.resolve({ ok: true });
   },
   __ME: { email: "dana@northside.example", role: "owner", display_name: "Dana" },
-  __SETTINGS: {
-    role: "owner",
-    version: 5,
-    config: {
-      brain: {
-        business_name: "Northside Studio",
-        booking_link: "https://book.example/northside",
-        system_prompt: "You answer for Northside Studio.",
-        profile: {
-          website: "https://northside.example",
-          notes: [{ title: "Parking", text: "Behind the building." }],
-          booking_rules: { lead_hours: 2 },
-        },
-      },
-    },
-  },
 });
 await import("./_business-parts.mjs");
 // The page and its tabs are the TSX module (decision 0015 step 11), imported as the app imports it.
 const { SettingsPage } = await import("../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
 const { SET_TABS } = await import("../../../apps/dashboard/src/surfaces/settings/frame/tabs.ts");
 // The seam's settings value, as the settings read lands it beside the globals it still publishes (bridge/surfaces/settings.ts).
-const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+/** The record the settings read holds now (the seam's `settings`; a window global, `__SETTINGS`, until 12 Nov 2026). */
+const settingsHeld = () => surfaceValue("settings")?.settings ?? undefined;
+/** The settings read landing a record, the rest of that read as it stands (undefined: the read not landed yet). */
+const landSettings = (record) => setSurfaceValue("settings", { ...(surfaceValue("settings") ?? {}), settings: record });
+/** The record the settings read lands for this file's workspace (a window global, `__SETTINGS`, until 12 Nov 2026). */
+const RECORD = {
+  role: "owner",
+  version: 5,
+  config: {
+    brain: {
+      business_name: "Northside Studio",
+      booking_link: "https://book.example/northside",
+      system_prompt: "You answer for Northside Studio.",
+      profile: {
+        website: "https://northside.example",
+        notes: [{ title: "Parking", text: "Behind the building." }],
+        booking_rules: { lead_hours: 2 },
+      },
+    },
+  },
+};
 setSurfaceValue("settings", {
-  settings: globalThis.window.__SETTINGS,
+  settings: RECORD,
   facts: FACTS,
   team: [],
   invites: [],
@@ -398,7 +403,7 @@ for (const pane of [
   MARKED[pane] = marker(`the-${pane}`);
 
 test("the pane is the record, the card that sets one up, or the broken one -- and never a form", () => {
-  const was = globalThis.window.__SETTINGS;
+  const was = settingsHeld();
   try {
     // A workspace whose config holds a brain: the page, what the receptionist is told, and the owner's copy of it all.
     fresh();
@@ -411,7 +416,7 @@ test("the pane is the record, the card that sets one up, or the broken one -- an
 
     // No brain at all: the empty state and the fold that sets a receptionist up, never the record, never the demo.
     fresh();
-    globalThis.window.__SETTINGS = { ...was, config: {} };
+    landSettings({ ...was, config: {} });
     tree = draw("workspace");
     assert.ok(byTestId(tree, "the-create-card"));
     assert.equal(byTestId(tree, "the-business-page"), null, "a page with nothing to draw is not drawn");
@@ -423,7 +428,7 @@ test("the pane is the record, the card that sets one up, or the broken one -- an
 
     // A config the parser refused is a third thing: it says so, and asks for the repair.
     fresh();
-    globalThis.window.__SETTINGS = { ...was, broken: { issues: ["brain.booking_link: Invalid url"] } };
+    landSettings({ ...was, broken: { issues: ["brain.booking_link: Invalid url"] } });
     tree = draw("workspace");
     assert.ok(byTestId(tree, "settings-broken"));
     assert.equal(byTestId(tree, "the-business-page"), null);
@@ -433,7 +438,7 @@ test("the pane is the record, the card that sets one up, or the broken one -- an
       "and no form whose save would replace the broken row with its few fields",
     );
   } finally {
-    globalThis.window.__SETTINGS = was;
+    landSettings(was);
   }
 });
 

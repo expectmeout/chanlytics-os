@@ -608,7 +608,7 @@ test("a snapshot another build kept is drawn where its value's type is this buil
             __CALENDAR_PROBE: { n: 1 },
             $kept: kept("an-older-build", SURFACE_SHAPES.calendar),
           },
-          // A type the checker cannot see all of: the build's alone.
+          // Kept by a build whose type for it the checker could not see all of (no fingerprint): the build's alone.
           playbooks: { $value: { n: 1 }, $kept: kept("an-older-build", null) },
           // This build's own, whatever its shape says.
           setup: { $value: { n: 1 }, $kept: kept(build, "anything") },
@@ -619,15 +619,14 @@ test("a snapshot another build kept is drawn where its value's type is this buil
         },
       }),
     );
-    assert.equal(
-      SURFACE_SHAPES.playbooks,
-      null,
-      "the playbooks' value hides a type from the checker (shapes.generated.ts)",
+    // The Inbox's and the settings read's each said a field as `unknown` until their load reviews (28 Oct 2026), and Today's
+    // ideas, Campaigns' runs and playbooks and Setup until 12 Nov 2026, when each such field was marked as the database's
+    // own (@stored): every surface's value has a fingerprint now, so each is drawn across a deploy that left its type alone.
+    assert.deepEqual(
+      Object.keys(SURFACE_SHAPES).filter((key) => SURFACE_SHAPES[key] === null),
+      [],
+      "no surface's value hides a type from the checker",
     );
-    // The Inbox's and the settings read's each said a field as `unknown` until their load reviews (28 Oct 2026): each is drawn
-    // across a deploy now.
-    assert.equal(typeof SURFACE_SHAPES.inbox, "string", "the Inbox's value has a fingerprint");
-    assert.equal(typeof SURFACE_SHAPES.settings, "string", "and the settings read's");
     assert.deepEqual([...hydrateSurfaceCache()].sort(), ["setup", "today"]);
     assert.deepEqual(surfaceValue("today"), { n: 1 });
     assert.equal(globalThis.window.__CALENDAR_PROBE, undefined, "nothing of a snapshot not drawn reaches the window");

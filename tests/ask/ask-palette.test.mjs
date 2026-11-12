@@ -40,6 +40,8 @@ import {
 } from "@chanlytics/contracts";
 import { ASK_PAGES, askJump } from "../../apps/dashboard/src/bridge/ask/jump.ts";
 const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
+// The seam the Leads chips read (the leads surface; a window mirror, `__LEADS`, until 12 Nov 2026).
+const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
 /* ---------------------------------- the window ---------------------------------- */
 
@@ -4217,7 +4219,7 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
   const chanly = globalThis.window.CHANLY;
   const went = [];
   globalThis.window.location.hash = "#/clients/leads";
-  globalThis.window.__LEADS = { suggestions: { items: [{ words: "100 nail salons in Queens, NY" }] }, searches: [] };
+  setSurfaceValue("leads", { suggestions: { items: [{ words: "100 nail salons in Queens, NY" }] }, searches: [] });
   globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
   try {
     ask([]);
@@ -4287,7 +4289,7 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
     await closes();
     globalThis.window.location.hash = hash;
     globalThis.window.CHANLY = chanly;
-    delete globalThis.window.__LEADS;
+    setSurfaceValue("leads", undefined);
   }
 });
 
@@ -4375,7 +4377,7 @@ test("on Leads a card that answers a search commits through Ask's door with no u
   const chanly = globalThis.window.CHANLY;
   const went = [];
   globalThis.window.location.hash = "#/clients/leads";
-  globalThis.window.__LEADS = { suggestions: { items: [] }, searches: [] };
+  setSurfaceValue("leads", { suggestions: { items: [] }, searches: [] });
   globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
   const answering = {
     ...LEAD_CARD,
@@ -4432,7 +4434,7 @@ test("on Leads a card that answers a search commits through Ask's door with no u
     await closes();
     globalThis.window.location.hash = hash;
     globalThis.window.CHANLY = chanly;
-    delete globalThis.window.__LEADS;
+    setSurfaceValue("leads", undefined);
   }
 });
 
@@ -5239,8 +5241,14 @@ test("REGRESSION (ruling 3): what the plan's press made survives a reload, throu
     refresh: async () => {},
     now: () => 1_000,
   });
+  // The settings the tab read, as the settings read lands them (a window global, `__SETTINGS`, until 12 Nov 2026).
+  const { setSurfaceValue: landRead, surfaceValue: heldRead } =
+    await import("../../apps/dashboard/src/surfaces/surface-values.ts");
+  landRead("settings", {
+    ...(heldRead("settings") ?? {}),
+    settings: { config: { brain: { business_name: "Harbor", profile: {} } }, version: 3 },
+  });
   const tab = {
-    __SETTINGS: { config: { brain: { business_name: "Harbor", profile: {} } }, version: 3 },
     location: { hash: "", pathname: "/w/harbor" },
     history: { pushState() {}, replaceState() {} },
     addEventListener() {},

@@ -109,12 +109,12 @@ test("the installed store answers from real rows, and writes only through the co
   };
   const win = {
     POLICY: seed,
-    __POLICIES: REAL,
     __setPolicy: async (cls, mode) => {
       calls.push([cls, mode]);
     },
   };
-  installPolicyStore(win);
+  // The rows as the settings read holds them (settings/business/shell.ts policiesNow): read.
+  installPolicyStore(win, () => REAL);
   const S = win.POLICY;
   assert.equal(S.real(), true);
   assert.equal(S.modeOf("reply"), "Veto");
@@ -144,7 +144,7 @@ test("in a session that declared itself a demo, with no rows read, the store is 
     set: (id, m) => calls.push([id, m]),
   };
   const win = { POLICY: seed, __DEMO_MODE: true };
-  installPolicyStore(win);
+  installPolicyStore(win, () => undefined);
   assert.equal(win.POLICY.real(), false);
   assert.equal(win.POLICY.modeOf("reply"), "seed:reply");
   assert.deepEqual(win.POLICY.ROWS, seed.ROWS);
@@ -162,7 +162,8 @@ test("REGRESSION: a workspace whose policies are not read yet has no modes -- it
   };
   // A cold tab before GET settings lands, or after it failed twice: the app's window, no demo, no rows.
   const win = { POLICY: seed, __DEMO_MODE: false };
-  installPolicyStore(win);
+  let held;
+  installPolicyStore(win, () => held);
   const S = win.POLICY;
   assert.equal(S.modeOf("reply"), null, "REGRESSION: the seed's Veto beside a real approval");
   assert.equal(S.row("reply").mode, null, "the chip's row states no mode either");
@@ -171,15 +172,15 @@ test("REGRESSION: a workspace whose policies are not read yet has no modes -- it
   S.set("reply", "Ask");
   assert.deepEqual(calls, [], "and nothing is written against rows nobody has read");
   // Settings lands: the same store answers from the workspace's rows.
-  win.__POLICIES = REAL;
+  held = REAL;
   assert.equal(S.modeOf("reply"), "Veto");
   assert.equal(S.real(), true);
 });
 
 test("a failed policies read is its own state, not the seeds", () => {
   const seed = { MODES: [], ROWS: [{ id: "reply" }], modeOf: () => "SEED", set: () => {} };
-  const win = { POLICY: seed, __POLICIES: null };
-  installPolicyStore(win);
+  const win = { POLICY: seed };
+  installPolicyStore(win, () => null);
   // null = the bridge ran and the read FAILED. The pane renders "could not
   // load"; the store must not quietly serve the mockup's charter meanwhile.
   assert.equal(win.POLICY.real(), false);

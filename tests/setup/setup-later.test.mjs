@@ -4,7 +4,7 @@
  * (PUT views/setup), one save at a time. Run here: the surface's own installSetup and setupOverride (override.ts) and setupVerbs
  * (surfaces/setup/surface.ts), over a fetch that answers as the routes do -- with the landing on the first run, and
  * what the surface no longer publishes for the pages that draw it (the first run reads contracts' helpers itself).
- * The value is the seam's (surface-values.ts), and `window.__SETUP` its mirror.
+ * The value is the seam's (surface-values.ts), and nothing of it is on the window (a mirror, `__SETUP`, until 12 Nov 2026).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -134,7 +134,7 @@ test("the surface reads the member's put-off rows with the workspace's facts, an
   await setupOverride.apply();
   assert.deepEqual(surfaceValue("setup").later, ["calendar"]);
   assert.equal(surfaceValue("setup").vm.rows.find((r) => r.id === "calendar").later, true);
-  assert.equal(w.__SETUP, surfaceValue("setup"), "and the window's __SETUP is the seam's value, mirrored");
+  assert.equal("__SETUP" in globalThis.window, false, "and nothing of it is on the window");
   assert.ok(
     asked.some(([m, p]) => m === "GET" && p === "/api/v1/views"),
     "read through the views door",
@@ -214,9 +214,9 @@ test("a re-read whose views read fails keeps the rows the member put off", async
 });
 
 test("a first read without the member's view puts nothing off, and refuses to save over what it could not read", async () => {
-  // Nothing read yet: the seam holds no value (and its mirror, __SETUP, is cleared with it).
+  // Nothing read yet: the seam holds no value.
   setSurfaceValue("setup", undefined);
-  assert.equal(w.__SETUP, undefined);
+  assert.equal(surfaceValue("setup"), undefined);
   wire.viewsFail = true;
   try {
     await setupOverride.apply();

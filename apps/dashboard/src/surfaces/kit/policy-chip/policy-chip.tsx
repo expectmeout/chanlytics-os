@@ -25,8 +25,8 @@ const polWords = (m: string | null | undefined) => {
 };
 
 /**
- * TRUST is the mockup's seeded table ("128 auto-sent · 9% edited"). A real workspace has its policies loaded (__POLICIES
- * is set, or null when the read failed) and no such figures, so its chip names the policy instead.
+ * TRUST is the mockup's seeded table ("128 auto-sent · 9% edited"). A real workspace has its policies loaded (the settings
+ * surface holds them, or null when the read failed) and no such figures, so its chip names the policy instead.
  */
 function policyTip(r: PolicyRow) {
   const trust = policiesRead() ? undefined : trustTable();

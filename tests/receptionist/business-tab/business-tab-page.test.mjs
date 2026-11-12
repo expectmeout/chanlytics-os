@@ -8,7 +8,6 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, businessGap, roleGate, newReceptionistDefaults, hasProfile, setupSteps } from "@chanlytics/contracts";
 import { PROFILE_CROSSING_WORDS } from "../../../apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts";
-import { importSrc } from "../../_source.mjs";
 import {
   again,
   unmount,
@@ -23,37 +22,39 @@ import {
   atWidth,
 } from "../../_stub-react.mjs";
 import {
-  BUSINESS_TAB,
-  KNOWN,
-  W,
   boxOf,
+  BUSINESS_TAB,
   cancelFoldOf,
   cancelRow,
-  composePromptPreview,
   composed,
+  composePromptPreview,
   dayOf,
-  POLICIES,
-  SETUP,
   drawTab,
   escape,
   factsHeld,
   foldOf,
   inline,
+  KNOWN,
   labelled,
   landFacts,
+  landSettings,
   marisa,
   openFold,
   openFolds,
   openRows,
   ownWords,
   partsOf,
+  POLICIES,
   redrawTab,
   saveFoldOf,
   saveRow,
   saving,
   settings,
+  settingsHeld,
+  SETUP,
   typeAt,
   typeInto,
+  W,
   went,
   without,
 } from "../../_business-tab-harness.mjs";
@@ -64,7 +65,7 @@ import {
  * its one act is the same question as who may press the page's, and the answer has to be one answer.
  */
 const drawCreateCard = () => {
-  W.__SETTINGS = { version: 1, config: {}, prompt: null };
+  landSettings({ version: 1, config: {}, prompt: null });
   landFacts({
     facts: { voice_line: { value: null, source: "absent" }, handoff_number: { value: null, source: "absent" } },
     conflicts: [],
@@ -82,7 +83,7 @@ after(() => unmount());
 
 test("a full record opens on its first card: no title, no stamp, no line restating the rows", () => {
   const tree = drawTab({ profile: marisa });
-  assert.equal(businessGap(W.__SETTINGS.config.brain, null), null, "Marisa's record is missing nothing");
+  assert.equal(businessGap(settingsHeld().config.brain, null), null, "Marisa's record is missing nothing");
   assert.equal(byTestId(tree, "rec-gap"), null, "so nothing stands above the cards");
   assert.equal(
     find(tree, (n) => n.type === "h1"),
@@ -125,6 +126,8 @@ test("On calls holds what a caller hears and who it puts them through to, and sa
     // Each call's voice speed (decision 0073, R7).
     "Pace",
     "Transfer number",
+    // Setup's own row, where Setup has been read (the next test).
+    "The number you already have",
   ]);
   const row = byTestId(card, "rec-row-handoff_number");
   assert.match(textOf(row), /\+1 \(212\) 555-0142/);
@@ -144,23 +147,21 @@ test("On calls holds what a caller hears and who it puts them through to, and sa
 
 test("On calls holds the number the business keeps: Setup's own row, by its own name, its one home beside Today's card", async () => {
   // Forwarding was set up on Setup's rows alone, so "The number you already have" could never be put off for good
-  // (25 Oct 2026). The row reads Setup's value on the seam, as the card does; the page's other cards read its mirror.
-  const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+  // (25 Oct 2026). The row reads Setup's value on the seam, as every card of the page does (drawTab lands it).
   const at = Date.parse("2026-09-21T16:00:00Z");
-  const seamOf = (setup) =>
-    setSurfaceValue("setup", {
-      ...setup,
-      role: "owner",
-      later: [],
-      rests: {},
-      want: null,
-      vm: setupSteps({ ...setup.dto, later: [], rests: {} }, at),
-      fetchedAt: at,
-    });
+  const seamOf = (setup) => ({
+    ...setup,
+    role: "owner",
+    later: [],
+    rests: {},
+    want: null,
+    vm: setupSteps({ ...setup.dto, later: [], rests: {} }, at),
+    fetchedAt: at,
+  });
+  const was = W.ST_STORE;
   try {
     const setup = SETUP();
-    seamOf(setup);
-    const card = byTestId(drawTab({ profile: marisa, setup }), "rec-card-calls");
+    const card = byTestId(drawTab({ profile: marisa, setup: seamOf(setup) }), "rec-card-calls");
     assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
       "Greets every caller with",
       "Voice",
@@ -195,15 +196,25 @@ test("On calls holds the number the business keeps: Setup's own row, by its own 
       ...setup,
       dto: { ...setup.dto, lines: { ...setup.dto.lines, rows: [...setup.dto.lines.rows, kept] } },
     };
-    seamOf(saved);
     const after = byTestId(
-      byTestId(drawTab({ profile: marisa, setup: saved }), "rec-card-calls"),
+      byTestId(drawTab({ profile: marisa, setup: seamOf(saved) }), "rec-card-calls"),
       "rec-row-kept_number",
     );
     assert.match(textOf(after), /\+1 \(305\) 555-0100/);
     assert.match(textOf(byTestId(after, "rec-row-act-kept_number")), /Test it/);
+
+    // REGRESSION: someone who may not change the business reads the number and is offered nothing, as on every row of
+    // the page; the row offered its card to a viewer too (12 Nov 2026).
+    W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
+    const read = byTestId(
+      byTestId(drawTab({ profile: marisa, setup: seamOf(saved) }), "rec-card-calls"),
+      "rec-row-kept_number",
+    );
+    assert.match(textOf(read), /\+1 \(305\) 555-0100/, "the number is read");
+    assert.equal(byTestId(read, "rec-row-act-kept_number"), null, "and no act is offered");
   } finally {
-    setSurfaceValue("setup", undefined);
+    if (was) W.ST_STORE = was;
+    else delete W.ST_STORE;
   }
 });
 
@@ -404,7 +415,7 @@ test("each act is named for what it acts on: its words and its row's label, or w
 test("a workspace with no receptionist is PaneWorkspace's to draw: the page draws nothing, and nothing throws", () => {
   for (const s of [null, { version: 1, config: {} }, { version: 1, config: { brain: null } }]) {
     unmount();
-    W.__SETTINGS = s;
+    landSettings(s);
     assert.equal(W.React.createElement(W.BusinessTab, { flash: () => {} }).rendered, null);
   }
 });
@@ -416,7 +427,7 @@ test("an inline save sends the stored config with its one key changed, and every
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash });
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   openFold(tree, "address");
   tree = redrawTab(flash);
   assert.deepEqual(openRows(tree), ["address"], "the row became its field");
@@ -452,7 +463,7 @@ test("an emptied field deletes its key rather than storing an empty string", () 
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash });
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   openFold(tree, "website");
   tree = redrawTab(flash);
   typeInto(tree, "website", "   ");
@@ -612,7 +623,7 @@ test("Use Google's and Publish the line instead each send exactly their patch", 
     profile: { ...marisa, address: "1200 Maple Avenue" },
     resolved: { ...KNOWN, listing: { name: "Marisa's Beauty Salon", address: google } },
   });
-  let stored = structuredClone(W.__SETTINGS.config);
+  let stored = structuredClone(settingsHeld().config);
   const address = byTestId(tree, "rec-row-address");
   const minor = factsHeld().conflicts.find((k) => k.fact === "address");
   assert.match(textOf(address), new RegExp(escape(minor.sentence)), "the resolver's own sentence, on the row");
@@ -632,7 +643,7 @@ test("Use Google's and Publish the line instead each send exactly their patch", 
 
   // The published number is the transfer number: the serious one, as the live salon had it.
   tree = drawTab({ flash, brain: { phone_display: "(212) 555-0142" }, resolved: KNOWN });
-  stored = structuredClone(W.__SETTINGS.config);
+  stored = structuredClone(settingsHeld().config);
   const row = byTestId(tree, "rec-row-phone_display");
   assert.equal(row.props["data-state"], "warn", "the serious one washes its row");
   assert.match(textOf(row), /which is the number it transfers to/);
@@ -651,7 +662,7 @@ test("Use Google's and Publish the line instead each send exactly their patch", 
 
 test("It will say: the lines of the prompt the draft changes, resolved as the edge resolves them, and what goes beside what comes", () => {
   let tree = drawTab();
-  const stored = W.__SETTINGS.config.brain;
+  const stored = settingsHeld().config.brain;
   openFold(tree, "website");
   tree = redrawTab();
   assert.equal(byTestId(tree, "rec-inline-says-website"), null, "nothing changed, nothing said");
@@ -741,7 +752,7 @@ test("It will say nothing for a draft the page refuses, even where the save's ow
   tree = redrawTab();
   typeInto(tree, "phone_display", "12345");
   tree = redrawTab();
-  const stored = W.__SETTINGS.config.brain;
+  const stored = settingsHeld().config.brain;
   assert.ok(
     composed("phone_display", { ...stored, phone_display: "12345" }).some((l) => l.includes("12345")),
     "the bridge would tell it",
@@ -772,7 +783,7 @@ test("a rename writes the product's opening lines again under the new name, and 
   const renamedIn = (tree) => partsOf(byTestId(tree, "rec-inline-says-name"));
   // What the product stores for every workspace it sets up, carried in the owner's place while their box is empty.
   let tree = drawTab({ brain: { system_prompt: baselineOf(was) } });
-  let stored = structuredClone(W.__SETTINGS.config);
+  let stored = structuredClone(settingsHeld().config);
   openFold(tree, "name");
   tree = redrawTab();
   typeInto(tree, "name", now);
@@ -810,7 +821,7 @@ test("a rename writes the product's opening lines again under the new name, and 
     brain: { system_prompt: baselineOf(was) },
     resolved: { ...KNOWN, listing: { name: now, address: null } },
   });
-  stored = structuredClone(W.__SETTINGS.config);
+  stored = structuredClone(settingsHeld().config);
   press(find(byTestId(tree, "rec-row-name"), (n) => n.type === "button" && textOf(n) === "Use Google's"));
   assert.deepEqual(sent[1].config, {
     ...stored,
@@ -819,7 +830,7 @@ test("a rename writes the product's opening lines again under the new name, and 
 
   // A prompt the owner's workspace had before its fields is their own words: a rename leaves it as they wrote it.
   tree = drawTab();
-  stored = structuredClone(W.__SETTINGS.config);
+  stored = structuredClone(settingsHeld().config);
   openFold(tree, "name");
   tree = redrawTab();
   typeInto(tree, "name", now);
@@ -839,7 +850,7 @@ test("a rename writes the product's opening lines again under the new name, and 
     baselineOf("Bella Nails & Spa"),
   ]) {
     tree = drawTab({ brain: { system_prompt: prompt } });
-    stored = structuredClone(W.__SETTINGS.config);
+    stored = structuredClone(settingsHeld().config);
     openFold(tree, "name");
     tree = redrawTab();
     typeInto(tree, "name", now);
@@ -886,7 +897,7 @@ test("a save that crosses the resolver's line says so beside the lines it change
   tree = redrawTab();
   const says = byTestId(tree, "rec-inline-says-address");
   assert.equal(textOf(byTestId(says, "rec-inline-says-address-note")), PROFILE_CROSSING_WORDS.starts);
-  const next = { ...W.__SETTINGS.config.brain, profile: sparse };
+  const next = { ...settingsHeld().config.brain, profile: sparse };
   const identity = BUSINESS_TAB.consequenceOf("address", next, "whatsapp")
     .text.split("\n")
     .filter((l) => l.trim());
@@ -1341,7 +1352,7 @@ test("a patch that edits a nested object in place is still sent, and the setting
   const sent = saving();
   const flashes = [];
   drawTab();
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   const inPlace = (b, p) => {
     p.booking_rules.lead_hours = 5;
     b.profile = p;
@@ -1363,13 +1374,13 @@ test("a patch that edits a nested object in place is still sent, and the setting
     ...stored,
     brain: { ...stored.brain, profile: { ...stored.brain.profile, booking_rules: rules } },
   });
-  assert.deepEqual(W.__SETTINGS.config, stored, "and the read is what the server held, not the unsaved value");
+  assert.deepEqual(settingsHeld().config, stored, "and the read is what the server held, not the unsaved value");
   assert.deepEqual([closed, flashes.map((f) => f.tone || "ok")], [1, ["ok"]]);
 
   // What a row will say is worked out on the same copy (patched), so its preview leaves the read alone too.
-  const next = W.__businessTabSave.patched(W.__SETTINGS.config, { change: inPlace });
+  const next = W.__businessTabSave.patched(settingsHeld().config, { change: inPlace });
   assert.equal(next.brain.profile.booking_rules.lead_hours, 5);
-  assert.deepEqual(W.__SETTINGS.config, stored, "the config a patch is applied to is never the one it changes");
+  assert.deepEqual(settingsHeld().config, stored, "the config a patch is applied to is never the one it changes");
 });
 
 test("a page drawn again finds the tab's one saver: the answer to the last save, and a save still waiting its turn", () => {
@@ -1454,7 +1465,7 @@ test("the saver's base is the config the next save goes on: the read, with each 
   const S = W.__businessTabSave;
   const sent = holding();
   drawTab();
-  const read = W.__SETTINGS.config;
+  const read = settingsHeld().config;
   const stored = structuredClone(read);
   assert.equal(S.saver.base(), read, "nothing out: what the settings read holds");
   const job = (row, change) => ({ row, change, said: "Saved", done: () => {}, flash: () => {} });
@@ -1595,7 +1606,7 @@ test("a rename made on top of another is told against the name that one saves, a
     brain: { system_prompt: baselineOf(was) },
     resolved: { ...KNOWN, listing: { name: google, address: null } },
   });
-  const stored = W.__SETTINGS.config.brain;
+  const stored = settingsHeld().config.brain;
   press(find(byTestId(tree, "rec-row-name"), (n) => n.type === "button" && textOf(n) === "Use Google's"));
   assert.equal(sent.length, 1, "Google's name is out");
   tree = redrawTab();
@@ -1641,7 +1652,7 @@ test("a save of the name says what the sign-up page and sign say now, and where 
   const flash = (f) => flashes.push(f);
   // The server's answer to the save, with what the save did to the workspace's name (settings-save.ts renamedWith).
   const answering = (renamed) => {
-    let version = W.__SETTINGS.version;
+    let version = settingsHeld().version;
     W.__saveSettings = (config, _v, accepted) => {
       version += 1;
       accepted({ config: structuredClone(config), version, ...(renamed ? { renamed } : {}) });
@@ -1752,7 +1763,7 @@ test("the number it gives out: your line stores nothing, and a different number 
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash });
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   assert.match(textOf(byTestId(tree, "rec-row-phone_display")), /\+1 \(305\) 555-0123/);
   openFold(tree, "phone_display");
   tree = redrawTab(flash);
@@ -1808,7 +1819,7 @@ test("the number it gives out: your line stores nothing, and a different number 
 
   // A number typed before, put back to the line: the key goes, and the line is what it gives out from then on.
   tree = drawTab({ flash, brain: { phone_display: "(646) 555-0100" } });
-  const typed = structuredClone(W.__SETTINGS.config);
+  const typed = structuredClone(settingsHeld().config);
   openFold(tree, "phone_display");
   tree = redrawTab(flash);
   assert.equal(radios(tree)[1].props["aria-checked"], true, "a typed number opens on its own choice");
@@ -1843,7 +1854,7 @@ test("the transfer number starts from the number as it is shown, is checked unde
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash });
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   openFold(tree, "handoff_number");
   tree = redrawTab(flash);
   assert.equal(
@@ -2009,7 +2020,7 @@ test("a name the workspace goes by is shown against the business's, and never of
 
 test("the gap line's door opens the row it names, and that row asks before its changes go like any other", () => {
   let tree = drawTab({ profile: without(marisa, "address"), facts: { address: { value: null, source: "absent" } } });
-  const gap = businessGap(W.__SETTINGS.config.brain, null);
+  const gap = businessGap(settingsHeld().config.brain, null);
   assert.equal(gap.row, "address");
   const door = byTestId(byTestId(tree, "rec-gap"), "rec-gap-door");
   assert.equal(textOf(door), gap.sentence, "the gap's own words are its door");
@@ -2050,7 +2061,7 @@ test("the gap line's door opens the row it names, and that row asks before its c
   // row's act and label (business-tab-answers.test.mjs holds the fold it opens).
   tree = drawTab({ profile: { ...marisa, tone: undefined } });
   const toTone = byTestId(byTestId(tree, "rec-gap"), "rec-gap-door");
-  assert.equal(heard(toTone), `${businessGap(W.__SETTINGS.config.brain, null).sentence} Give it one Its voice`);
+  assert.equal(heard(toTone), `${businessGap(settingsHeld().config.brain, null).sentence} Give it one Its voice`);
   press(toTone);
   assert.equal(W.__recordFolds.open(), "tone");
   assert.deepEqual(openFolds(redrawTab()), ["tone"]);
@@ -2187,7 +2198,7 @@ test("an untouched fold follows what is stored: a colleague's change read back i
   assert.equal(labelled(tree, "Tuesday closes").props.value, "18:00");
   // A colleague's save, read back into this tab: Tuesday closes at 20:00, version 8.
   const theirs = settings({ ...marisa, hours: { ...marisa.hours, tue: { open: "09:30", close: "20:00" } } });
-  W.__SETTINGS = { ...theirs, version: 8 };
+  landSettings({ ...theirs, version: 8 });
   tree = redrawTab(flash);
   assert.equal(
     labelled(tree, "Tuesday closes").props.value,
@@ -2223,10 +2234,10 @@ test("an untouched fold follows what is stored: a colleague's change read back i
   tree = redrawTab(flash);
   typeAt(tree, "Monday closes", "17:00");
   redrawTab(flash);
-  W.__SETTINGS = {
+  landSettings({
     ...settings({ ...marisa, hours: { ...marisa.hours, tue: { open: "09:30", close: "20:00" } } }),
     version: 8,
-  };
+  });
   tree = redrawTab(flash);
   assert.equal(labelled(tree, "Tuesday closes").props.value, "18:00", "what was typed over stays as it was typed over");
   saveFoldOf(tree, "hours");
@@ -2251,10 +2262,10 @@ test("a fold whose own part of the settings moved after it was typed in is refus
   tree = redrawTab(flash);
   typeAt(tree, "Monday closes", "17:00");
   redrawTab(flash);
-  W.__SETTINGS = {
+  landSettings({
     ...settings({ ...marisa, hours: { ...marisa.hours, tue: { open: "09:30", close: "20:00" } } }),
     version: 8,
-  };
+  });
   tree = redrawTab(flash);
   saveFoldOf(tree, "hours");
   tree = redrawTab(flash);
@@ -2336,7 +2347,7 @@ test("a row saved through its own door offers no press on a disagreement: it has
   const tree = W.React.createElement(W.BtRow, {
     id: "timezone",
     label: "Timezone",
-    brain: W.__SETTINGS.config.brain,
+    brain: settingsHeld().config.brain,
     value: "New York",
     initial: "America/New_York",
     storedAs: (d) => d,
@@ -2374,7 +2385,7 @@ test("on a phone a row opens as a sheet from the bottom, asks there, and its sav
   try {
     const sent = saving();
     let tree = drawTab();
-    const stored = structuredClone(W.__SETTINGS.config);
+    const stored = structuredClone(settingsHeld().config);
     openFold(tree, "tone");
     tree = redrawTab();
     const sheet = foldOf(tree, "tone");

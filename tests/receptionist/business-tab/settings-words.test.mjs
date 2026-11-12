@@ -444,10 +444,24 @@ const FACTS = {
   },
   conflicts: [],
 };
-const workspace = (over = {}, rules = {}) => {
+/**
+ * A workspace, as the owner reads it: its record and its policy rows the settings surface's alone (`record`, `policies`),
+ * Setup's read its own surface's (`setup`),
+ * the rest of `over` on the window.
+ */
+const workspace = (
+  { policies = { role: "owner", rows: [] }, record = null, setup = undefined, ...over } = {},
+  rules = {},
+) => {
+  // Setup's read, on its surface (a window mirror, `__SETUP`, until 12 Nov 2026): undefined is not read yet.
+  setSurfaceValue("setup", setup);
   Object.assign(globalThis.window, {
     __ME: { email: "dana@northside.example", role: "owner", display_name: "Dana" },
-    __SETTINGS: {
+    ...over,
+  });
+  // The seam's settings value (bridge/surfaces/settings.ts), for the moved panes.
+  setSurfaceValue("settings", {
+    settings: record ?? {
       role: "owner",
       version: 4,
       config: {
@@ -459,18 +473,12 @@ const workspace = (over = {}, rules = {}) => {
         },
       },
     },
-    __POLICIES: { role: "owner", rows: [] },
-    ...over,
-  });
-  // The seam's settings value beside the globals it copies (bridge/surfaces/settings.ts), for the moved panes.
-  setSurfaceValue("settings", {
-    settings: globalThis.window.__SETTINGS ?? null,
     facts: FACTS,
     channels: null,
     templatesAll: null,
     templateUse: null,
     templateSent: null,
-    policies: globalThis.window.__POLICIES ?? null,
+    policies,
     // The roster and its invitations, read and empty: the seam's alone.
     team: [],
     invites: [],
@@ -480,7 +488,7 @@ const workspace = (over = {}, rules = {}) => {
 test("REGRESSION (S8): the Business pane's broken card says the words Setup's row says, contracts' own", () => {
   const W = contracts.BROKEN_CONFIG_WORDS;
   workspace({
-    __SETTINGS: { role: "owner", version: 4, config: {}, broken: { issues: ["brain.business_name must be text"] } },
+    record: { role: "owner", version: 4, config: {}, broken: { issues: ["brain.business_name must be text"] } },
   });
   const card = byTestId(settings("workspace"), "settings-broken");
   assert.ok(card, "the broken card is drawn");
@@ -492,7 +500,7 @@ test("REGRESSION (S8): the broken card asks for the repair from the card, then s
   const W = contracts.BROKEN_CONFIG_WORDS;
   const asks = [];
   const broken = { role: "owner", version: 4, config: {}, broken: { issues: ["brain.business_name must be text"] } };
-  workspace({ __SETTINGS: broken, __SETUP: { dto: { requests: { line: null } } } });
+  workspace({ record: broken, setup: { dto: { requests: { line: null } } } });
   // Setup's verb, as the card imports it (surfaces/setup/surface.ts), answering here without a server.
   const { setupVerbs } = await import("../../../apps/dashboard/src/surfaces/setup/surface.ts");
   const requestWas = setupVerbs.request;
@@ -511,7 +519,7 @@ test("REGRESSION (S8): the broken card asks for the repair from the card, then s
   } finally {
     setupVerbs.request = requestWas;
   }
-  workspace({ __SETTINGS: broken, __SETUP: { dto: { requests: { line: null, repair: "2026-09-07T13:00:00Z" } } } });
+  workspace({ record: broken, setup: { dto: { requests: { line: null, repair: "2026-09-07T13:00:00Z" } } } });
   const tree = settings("workspace");
   assert.equal(byTestId(tree, "settings-broken-ask"), null, "asked once");
   assert.match(textOf(byTestId(tree, "settings-broken-requested")), /a person at Chanlytics will repair/);
@@ -530,7 +538,7 @@ test("Settings › Memory is what Ask remembers, drawn from its own read (decisi
 test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits card, in contracts' words -- the card listed values nothing on the page could change", () => {
   // The words and the defaults are contracts' hardLimitsWords, which the pane imports: it kept its own once.
   workspace({
-    __POLICIES: {
+    policies: {
       role: "owner",
       rows: [{ class: "reply", mode: "auto", limits: { reply_delay_ms: 30000, pause_hours: 48 } }],
     },

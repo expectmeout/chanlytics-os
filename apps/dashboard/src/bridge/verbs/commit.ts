@@ -36,6 +36,7 @@ import {
 import type { Api, ApiOptions, ApiRefusal, ApiResult, RouteKey } from "../../client/api";
 import { codeOnce } from "../../lib/code-once";
 import { apiFor } from "../api";
+import { surfaceValue } from "../../surfaces/surface-values";
 import { acceptedFor } from "./effects";
 
 /** What a press hands the walk besides the act: its tab, its client, its key and whose press it was. */
@@ -54,6 +55,11 @@ export interface VerbUse {
   refresh?: boolean | "behind";
   /** Whether the window is told what landed (the spec's events): Ask's cards are; a page's press is not (`commitVerb`). */
   tell?: boolean;
+  /**
+   * What the card acts on, where the press read it itself (Ask's settings card, ask/commit.ts settingsInHand): the
+   * workspace's settings, read afresh. Without it, what the tab holds (tabOf).
+   */
+  tab?: ProposalTab;
 }
 
 /** What a commit did: the door's answer, the receipt, what its undo keeps and the id it made. */
@@ -69,18 +75,16 @@ export type VerbResult = VerbDone | ApiRefusal;
 /** What an undo did. */
 export type UndoDone = { ok: true; data: unknown; receipt: string };
 
-/** The settings the tab loaded (window.__SETTINGS), as a spec reads them. */
-interface Loaded {
-  config?: Record<string, unknown> | null;
-  version?: number;
-}
-
-/** What the tab holds now, as a spec reads it: taken once, so a re-read after the call cannot change what was kept. */
-export function tabOf(win: Window): ProposalTab {
-  const st: unknown = Reflect.get(win, "__SETTINGS");
-  if (!st || typeof st !== "object") return { settings: null };
-  const { config, version } = st as Loaded;
-  return { settings: { config, version } };
+/**
+ * What the tab holds now, as a spec reads it: what the press read itself where it did (`given`, VerbUse.tab), else the
+ * settings the settings read landed (the surface's `settings`; a window global, `__SETTINGS`, until 12 Nov 2026), taken
+ * once, so a re-read after the call cannot change what was kept.
+ */
+export function tabOf(given?: ProposalTab): ProposalTab {
+  if (given) return given;
+  const record = surfaceValue("settings")?.settings;
+  if (!record) return { settings: null };
+  return { settings: { config: record.config ? { ...record.config } : null, version: record.version } };
 }
 
 export const isRefusal = (c: object): c is ProposalRefusal => "refused" in c;
@@ -225,7 +229,7 @@ export async function walkVerb(card: VerbCard, use: VerbUse = {}): Promise<VerbR
   if (!spec) return refusedHere(PROPOSAL_WORDS.cannotApprove);
   const win = use.win ?? window;
   const client = use.client ?? apiFor(win);
-  const tab = tabOf(win);
+  const tab = tabOf(use.tab);
   const made = spec.commit(card, tab);
   if (!isCalls(made) && isRefusal(made)) return refusedHere(made.refused);
   const calls = isCalls(made) ? made : [made];
@@ -268,7 +272,7 @@ export async function undoVerb(
   const win = use.win ?? window;
   const client = use.client ?? apiFor(win);
   const undoOf = typeof record.decision_id === "string" && record.decision_id ? record.decision_id : use.undoOf;
-  const made = undo.call(record, tabOf(win));
+  const made = undo.call(record, tabOf(use.tab));
   if (!isCalls(made) && isRefusal(made)) return refusedHere(made.refused);
   const calls = isCalls(made) ? made : [made];
   if (calls.length === 0) return refusedHere(PROPOSAL_WORDS.noUndo);

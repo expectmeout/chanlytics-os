@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { shiftKey, toCalendarVM } from "@chanlytics/contracts";
 import { all, byTestId, classes, textOf } from "../../_stub-react.mjs";
 import { unmarkedTimes } from "../../shell/views/_unmarked-times.mjs";
-import { NOW, W, ZONE, dayWith, draw } from "./_world.mjs";
+import { NOW, ZONE, dayWith, draw } from "./_world.mjs";
 
 const { DayZone } = await import("../../../apps/dashboard/src/surfaces/today/zones/day.tsx");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
@@ -74,11 +74,11 @@ function busyEvening() {
 /** The day drawn on a desk over a board, with the running Fill a cancellation step (four could take an hour). */
 function dayOver(vm) {
   setSurfaceValue("today", dayWith([]));
-  W.__CALENDAR = { vm };
-  W.__PLAYBOOKS = {
+  setSurfaceValue("calendar", { vm });
+  setSurfaceValue("playbooks", {
     rows: [{ trigger: "slot_opened", state: "on", candidates: 4, next: "When a time frees", runs: true }],
     shape: { calendar: "feed", hasDeals: false, word: "appointment" },
-  };
+  });
   return draw(DayZone);
 }
 /** The lines drawn: the elements themselves, never a part that draws one. */

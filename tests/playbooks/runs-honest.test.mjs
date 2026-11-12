@@ -261,7 +261,8 @@ installClock();
 // What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (frame-globals), the unsaved-work rule (record-fold).
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { installPolicyStore } = await import(`${S}/bridge/policy-store.ts`);
-installPolicyStore(globalThis.window);
+const { policiesNow } = await import(`${S}/surfaces/settings/business/shell.ts`);
+installPolicyStore(globalThis.window, policiesNow);
 // Today's queue and card (TSX since decision 0015): the day comes over the seam, the rows a run needs off the window.
 const { NeedYou } = await import(`${S}/surfaces/today/zones/need-you.tsx`);
 const { DayZone } = await import(`${S}/surfaces/today/zones/day.tsx`);

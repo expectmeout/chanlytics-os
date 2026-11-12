@@ -494,7 +494,6 @@ test("Worth knowing is made from the numbers it is drawn from, once, by the page
 
 Object.assign(globalThis.window, {
   __ME: { email: "ruben@rjcapital.io", role: "owner" },
-  __SETTINGS: { role: "owner" },
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
     initials: (n, e) =>
@@ -510,7 +509,7 @@ useStubHooks(globalThis.React);
 const { TeamSection } = await import("../../apps/dashboard/src/surfaces/settings/team/team.tsx");
 const { setSurfaceValue: setSettingsValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
 setSettingsValue("settings", {
-  settings: globalThis.window.__SETTINGS,
+  settings: { role: "owner" },
   facts: null,
   channels: null,
   templatesAll: null,

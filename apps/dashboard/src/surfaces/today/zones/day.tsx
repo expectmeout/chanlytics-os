@@ -35,7 +35,7 @@ import {
 } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
 import { pageClock, type PageClock } from "@/bridge/zone";
-import type { CalendarSurface } from "@/surfaces/calendar/surface";
+import { surfaceValue } from "../../surface-values";
 import { Button, Meter } from "../../kit";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
@@ -46,7 +46,7 @@ import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from 
 import { TODAY_HELPERS } from "../helpers";
 import { useTodayOnPhone } from "../phone";
 import { sectionDoor } from "./section-door";
-import { borrowed, canDo, gate, refusalFlash, useMoved, useToast, workspaceClock, type Flash } from "../shell";
+import { canDo, gate, refusalFlash, useMoved, useToast, workspaceClock, type Flash } from "../shell";
 import { useDayVm } from "./day-vm";
 
 /**
@@ -483,7 +483,7 @@ export function DayZone({ under = null }: { under?: ReactNode } = {}) {
   const acting = useRunsActing();
   // The freed hours offered from here this visit: the line stays, saying what came of it, once the runs hold its batch.
   const [offeredHere, setOfferedHere] = useState<readonly string[]>([]);
-  const cal = borrowed<CalendarSurface>("__CALENDAR");
+  const cal = surfaceValue("calendar");
   // No calendar linked: the one row that links one (a read that failed is the Calendar's to say, not this), under what
   // goes on its own today and what went out, which a workspace with no calendar still has.
   const noCalendar = cal?.vm?.feed.state === "none";

@@ -40,6 +40,7 @@ import {
   type AskProposal,
   type AskProposalOutcome,
   type PlanMade,
+  type ProposalTab,
   textOrEmpty,
   UUID,
 } from "@chanlytics/contracts";
@@ -78,21 +79,19 @@ interface CommitAt {
 const stepKey = (plan: AskPlanStamp): string => `plan:${plan.id}:${plan.step}`;
 
 /**
- * The settings a card writes over, read where this tab has not opened Settings: a press on Ask reads them itself, so a note
- * for the receptionist never stops at "open Settings once" (the plan's one press took it there). `again` reads them afresh
- * for an undo, which is true only while nobody has saved since. A read that fails leaves the spec to say so.
+ * The settings a card writes over, read where the tab holds none yet (its settings read not in, or failed): a press on Ask
+ * reads them itself, so a note for the receptionist never stops at "open Settings once" (the plan's one press took it
+ * there). `again` reads them afresh for an undo, which is true only while nobody has saved since. Answers what the walk
+ * acts on, or nothing where the tab's own are the ones; a read that fails answers nothing, and the spec says so in its own
+ * words. It wrote them onto the tab's window, as `__SETTINGS`, until 12 Nov 2026: handed to the walk, they change no page.
  */
-async function settingsInHand(win: Window, client: Api, kind: string, again: boolean): Promise<void> {
-  if (kind !== "settings" || (!again && tabOf(win).settings)) return;
+async function settingsInHand(client: Api, kind: string, again: boolean): Promise<ProposalTab | undefined> {
+  if (kind !== "settings" || (!again && tabOf().settings)) return undefined;
   // A read that fails goes on: the spec then refuses in its own words, which is what the person should hear.
   const read = await client("GET settings", {} as never).catch(() => null);
   const data = read && read.ok ? (read.data as { config?: Record<string, unknown> | null; version?: number }) : null;
-  if (data && typeof data.version === "number" && data.config)
-    Reflect.set(win, "__SETTINGS", {
-      ...(Reflect.get(win, "__SETTINGS") as object | undefined),
-      config: data.config,
-      version: data.version,
-    });
+  if (!data || typeof data.version !== "number" || !data.config) return undefined;
+  return { settings: { config: data.config, version: data.version } };
 }
 
 /**
@@ -122,8 +121,8 @@ export async function commitProposal(
   const card = cardWithSteps(p, at.made ?? {});
   if (isRefusal(card)) return { ok: false, message: card.refused };
   const key = card.plan ? stepKey(card.plan) : card.id;
-  await settingsInHand(win, client, card.kind, false);
-  const r = await walkVerb(card, { win, client, key, via: "ask" });
+  const tab = await settingsInHand(client, card.kind, false);
+  const r = await walkVerb(card, { win, client, key, via: "ask", tab });
   // A door's refusal is the card's answer whole: the kind of no beside the server's own sentence (refusals-in-our-words);
   // the walk's own (nothing sent) is its words. A 404 or a 409 says what the card is about has moved on.
   if (!r.ok) {
@@ -349,10 +348,10 @@ export async function undoProposal(
   const { spec, unreached } = await specOf(p.kind);
   if (unreached) return unreached;
   if (!spec?.undo) return { ok: false, message: PROPOSAL_WORDS.noUndo };
-  await settingsInHand(win, client, p.kind, true);
+  const tab = await settingsInHand(client, p.kind, true);
   // The verb walk's undo, marked as a card's, under the card's own key: the row it reverses is named by the commit's
   // ledger row (`decision_id`), and a call whose row an earlier press took counts as done (verbs/commit.ts).
-  const r = await undoVerb(p.kind, record, { win, client, key: p.id, via: "ask" });
+  const r = await undoVerb(p.kind, record, { win, client, key: p.id, via: "ask", tab });
   if (r.ok) return { ok: true, receipt: r.receipt, undo: null };
   return saidHere(r) ? { ok: false, message: r.message } : r;
 }

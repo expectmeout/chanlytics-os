@@ -872,6 +872,23 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     },
   });
   const fetched = [];
+  // The settings read, landed whole (what follows it reads every part): a calendar is connected, which the palette
+  // reads there (a window global, `__SETTINGS`, until 12 Nov 2026).
+  const { setSurfaceValue } = await import(
+    pathToFileURL(path.join(here, "../../apps/dashboard/src/surfaces/surface-values.ts")).href
+  );
+  setSurfaceValue("settings", {
+    settings: { config: { calendar: { ical_url: "https://x" } } },
+    facts: null,
+    templatesAll: [],
+    templateVersions: [],
+    messages: [],
+    templateUse: null,
+    templateSent: null,
+    policies: null,
+    team: [],
+    invites: [],
+  });
   const win = {
     fetch: async (url, init) => {
       fetched.push({ url, init });
@@ -899,7 +916,6 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
       ],
     },
     __PEOPLE: { rows: [{ id: ID, name: "Rosa Pérez" }] },
-    __SETTINGS: { config: { calendar: { ical_url: "https://x" } } },
     __WORKSPACES: [{ id: "w1", slug: "m", name: "Studio", status: "active", timezone: "America/New_York" }],
     __ACTIVE_WORKSPACE: "w1",
     // Who is waiting is Today's queue itself, and the runs waiting for a yes (the Line, D7), never the bell's rows.
@@ -1026,20 +1042,21 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.equal(api.surfaceFor("clients", ID), "people", "a person's profile is People");
   assert.equal(api.surfaceFor("clients", "leads"), "leads", "the Leads page is the People page's leads param");
   assert.equal(api.surfaceFor("clients", "leads:s-x"), "leads", "a search open is still Leads");
-  // The Leads chips read the leads bridge's surface: the first day's ideas, else the latest searches' own words.
-  win.__LEADS = { suggestions: { items: [{ words: "100 nail salons in Queens, NY" }] }, searches: [] };
+  // The Leads chips read the leads surface: the first day's ideas, else the latest searches' own words (its window
+  // mirror, `__LEADS`, until 12 Nov 2026).
+  setSurfaceValue("leads", { suggestions: { items: [{ words: "100 nail salons in Queens, NY" }] }, searches: [] });
   assert.ok(
     api.suggestions("leads", null, "en").some((s) => s.q === "100 nail salons in Queens, NY" && s.icon === "search"),
     "the first day's idea is a chip",
   );
-  win.__LEADS = {
+  setSurfaceValue("leads", {
     suggestions: null,
     searches: [
       { asked: "50 dentists in Austin, TX" },
       { asked: "30 gyms in Boise, ID" },
       { asked: "20 plumbers in Reno, NV" },
     ],
-  };
+  });
   assert.deepEqual(
     api
       .suggestions("leads", null, "en")

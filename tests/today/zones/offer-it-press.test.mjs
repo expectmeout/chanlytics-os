@@ -63,11 +63,11 @@ function board() {
 /** The day with its calendar, the running Fill a cancellation step (four could take it), and the workspace's word. */
 function dayDrawn() {
   setSurfaceValue("today", dayWith([]));
-  W.__CALENDAR = { vm: board() };
-  W.__PLAYBOOKS = {
+  setSurfaceValue("calendar", { vm: board() });
+  setSurfaceValue("playbooks", {
     rows: [{ trigger: "slot_opened", state: "on", candidates: 4, next: "When a time frees", runs: true }],
     shape: { calendar: "feed", hasDeals: false, word: "appointment" },
-  };
+  });
   return draw(DayZone);
 }
 const openLine = (tree) => byTestId(tree, "today-day-open");
@@ -102,6 +102,6 @@ test("refused: the reason in the owner's words replaces the line's, and Offer it
   await until(() => textOf(openLine(redrawn())).includes(why), "the reason is said");
   assert.notEqual(byTestId(redrawn(), "today-day-offer"), null, "still there to press");
   setSurfaceValue("today", undefined);
-  delete W.__CALENDAR;
-  delete W.__PLAYBOOKS;
+  setSurfaceValue("calendar", undefined);
+  setSurfaceValue("playbooks", undefined);
 });

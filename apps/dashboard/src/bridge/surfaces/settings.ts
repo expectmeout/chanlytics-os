@@ -55,9 +55,14 @@ export interface WorkspaceSettings {
      */
     profile?: StoredProfile;
   };
+  /**
+   * The calendar's feed, as the read hands it over: whole to an owner, masked to anyone else (server/readers/settings.ts
+   * feedVisibleTo). Ask's palette offers the day's questions where one is set (palette.ts).
+   */
+  calendar?: { ical_url?: string | null } | null;
 }
 
-/** What Settings holds of the workspace (`__SETTINGS`): its config, the version it is at, and the prompt the receptionist reads. */
+/** What Settings holds of the workspace (the surface's `settings`): its config, the version it is at, and the prompt the receptionist reads. */
 export interface SettingsRecord {
   config: WorkspaceSettings | null;
   version: number;
@@ -92,10 +97,11 @@ export type TemplateUse = Record<
 /**
  * The slice of Settings a TSX surface reads through `useSurface("settings")`: the workspace's record and its templates with
  * what uses each and when each last went out (the channels are their own read, surfaces/channels/surface.ts), and each null
- * where that read failed. Campaigns' Templates and the panes of Settings that have moved read it; the rest still read the
- * globals, which hold the same and are let go one by one as their last reader moves. What uses a template and when it last
- * went out were the first (nothing read them from the window, 11 Nov 2026), then the facts, whose one reader was the
- * Business tab's rows (settings/business/shell.ts factsNow), then the roster and its invitations, then WhatsApp's rows.
+ * where that read failed. Every reader of the settings read reads it here. It was published on the window too, beside this,
+ * and let go one global at a time as its last reader moved: what uses a template and when it last went out first (nothing
+ * read them from the window, 11 Nov 2026), then the facts, the roster and its invitations, WhatsApp's rows, and on 12 Nov
+ * 2026 the policy rows and the record itself, the last. With nothing of it on the window, the cache keeps the value whole
+ * and may draw it under another build whose shape for it is the same (surface-cache.ts drawable).
  *
  * Its templates are the one read of them (decision 0047, task 3.3): every row with its status, from which everything that
  * offers a message to send is made (surfaces/offered-templates.ts): the Inbox's reply box and the New conversation sheet,
@@ -126,8 +132,9 @@ export interface SettingsSurface {
   templateUse: TemplateUse | null;
   templateSent: Record<string, TemplateSentWords> | null;
   /**
-   * The workspace's policy rows (`__POLICIES`), null where that read failed: Settings › Autonomy's matrix and dials.
-   * Absent from a value kept from before it was carried, which the pane reads as not yet read.
+   * The workspace's policy rows, null where that read failed: Settings › Autonomy's matrix and dials, and every policy
+   * chip (policy-store.ts; a global beside this, `__POLICIES`, until 12 Nov 2026). Absent from a value kept from before it
+   * was carried, which the pane and the chips read as not yet read.
    */
   policies?: PoliciesSurface | null;
   /**
@@ -186,7 +193,8 @@ function policiesOf(pol: Output<"GET policies">): PoliciesSurface {
 export const settingsOverride: SurfaceOverride = {
   key: "settings",
   value: "settings",
-  globals: ["__SETTINGS", "__POLICIES"],
+  // Nothing on the window: every reader takes the settings surface (`value`), which the cache keeps whole.
+  globals: [],
   events: ["surface:settings"],
   // What it draws that no other surface owns (0047): the business's facts and the version the next save sends
   // (tenant_config), the Autonomy matrix (policies), the Library and what each template is used by (templates), the Team pane
@@ -235,16 +243,13 @@ export const settingsOverride: SurfaceOverride = {
       // never a reason to lose the page.
       workspaceZone().catch(() => pageClock().zone()),
     ]);
-    const w = window as Window & {
-      __SETTINGS?: SettingsRecord;
-      __POLICIES?: PoliciesSurface | null;
-    };
     // `broken` is its own state, not an empty config: the pane closes its
     // forms on it, because a save from a form that read {} would replace the
     // broken row with the form's few fields.
     // The prompt rides with the config: composed on the server from inputs the
     // browser cannot see, null when there is no receptionist to compose for.
-    w.__SETTINGS = cfg.configBroken
+    // The surface's `settings` alone: a global beside it, `__SETTINGS`, until 12 Nov 2026.
+    const record: SettingsRecord = cfg.configBroken
       ? {
           config: null,
           version: cfg.version,
@@ -321,12 +326,9 @@ export const settingsOverride: SurfaceOverride = {
         ? Object.fromEntries(names.map((name) => [name, templateSentWords(sends[name], zone, now)]))
         : null;
     }
-    if (pol instanceof Error) {
-      w.__POLICIES = null;
-      console.error("settings_policies_fetch_failed", pol.message);
-    } else {
-      w.__POLICIES = policiesOf(pol);
-    }
+    // The Autonomy matrix and every policy chip (settings/business/shell.ts policiesNow): null where the read failed.
+    if (pol instanceof Error) console.error("settings_policies_fetch_failed", pol.message);
+    const policies: PoliciesSurface | null = pol instanceof Error ? null : policiesOf(pol);
     // null, not [] — "we could not read the team" and "there is nobody" are
     // different facts, and only one of them should render as an empty list.
     // The API has always returned open invitations and nothing rendered
@@ -335,17 +337,17 @@ export const settingsOverride: SurfaceOverride = {
     if (team instanceof Error) console.error("settings_team_fetch_failed", team.message);
     const members: TeamMember[] | null = team instanceof Error ? null : (team.members ?? []);
     const invites: TeamInvite[] | null = team instanceof Error ? null : (team.invites ?? []);
-    // The slice a TSX surface reads (Campaigns' Templates), published beside the globals it copies.
+    // Everything the settings read holds, in the one place every page reads it: nothing of it is on the window.
     const versions = versionRowsOf(tpl);
     setSurfaceValue("settings", {
-      settings: w.__SETTINGS ?? null,
+      settings: record,
       facts,
       templatesAll,
       templateVersions: versions,
       messages: settingsMessagesOf(tpl, templatesAll, versions),
       templateUse,
       templateSent,
-      policies: w.__POLICIES ?? null,
+      policies,
       team: members,
       invites,
     });

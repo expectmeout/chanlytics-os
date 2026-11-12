@@ -6,13 +6,13 @@
 import { useEffect, useState } from "react";
 import { dayInZone, type CalendarDayVM, type TodayRowSaid, saidOfMessages } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
-import type { CalendarSurface } from "@/surfaces/calendar/surface";
-import { borrowed } from "../../shell";
+import { surfaceValue } from "../../../surface-values";
+
 import { openDayWord, type OpenClock } from "./moment";
 
 /** When the business is open, from the Calendar the page holds; null where it holds none, and the clock says nothing then. */
 export function openClockOf(): OpenClock | null {
-  const vm = borrowed<CalendarSurface>("__CALENDAR")?.vm;
+  const vm = surfaceValue("calendar")?.vm;
   if (!vm?.hours) return null;
   const at = vm.days.findIndex((d) => d.today);
   const today = at >= 0 ? vm.days[at] : null;
@@ -31,7 +31,7 @@ export function dayOfInstant(
   atMs: number,
   tz: string,
 ): { day: CalendarDayVM; hours: { start: number; end: number } } | null {
-  const vm = borrowed<CalendarSurface>("__CALENDAR")?.vm;
+  const vm = surfaceValue("calendar")?.vm;
   if (!vm?.hours) return null;
   const key = dayInZone(tz, atMs).key;
   const day = vm.days.find((d) => d.key === key);
