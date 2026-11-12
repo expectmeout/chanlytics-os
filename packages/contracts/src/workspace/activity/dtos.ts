@@ -242,6 +242,7 @@ export const WORDS: Record<string, string> = {
   "file.kept": "Photos were kept",
   "file.posted": "A post went on the Google profile",
   "file.removed": "A photo was deleted",
+  "file.restored": "A deleted photo was brought back",
   "file.set_aside": "Photos from a listing were set aside",
   "file.unposted": "A post came off the Google profile",
   "mailbox_connection.unpaused": "A mailbox to write from writes again",

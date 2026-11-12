@@ -229,6 +229,17 @@
   inset: 0;
 }
 
+/* A tile at its file's own shape, where a page asks for it (Campaigns › Content). Files' own grid asks for none. */
+.files-frame[data-shape="tall"] > .files-pic {
+  aspect-ratio: 9 / 16;
+}
+.files-frame[data-shape="portrait"] > .files-pic {
+  aspect-ratio: 4 / 5;
+}
+.files-frame[data-shape="wide"] > .files-pic {
+  aspect-ratio: 4 / 3;
+}
+
 .files-photo:focus-visible .files-pic {
   box-shadow: var(--focus-ring);
 }

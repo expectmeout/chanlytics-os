@@ -1,4 +1,4 @@
--- 00615 · The Sequences list sees what is stuck (decision 0128, stage 2).
+-- 00617 · The Sequences list sees what is stuck (decision 0128, stage 2).
 --
 -- The list said "3 in it" of a cold email whose three leads could never start: their email had come back "Couldn't
 -- check", the first step leaves such a lead out of its batch, and nothing checks it again by itself. It said nothing of

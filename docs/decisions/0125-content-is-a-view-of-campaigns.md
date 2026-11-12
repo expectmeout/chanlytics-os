@@ -1,6 +1,6 @@
 # 0125 · Content is a view of Campaigns
 
-**Status:** Accepted by Ruben, 11 November 2026 ("Yes, build it"), and built the same day as its first slice. No migration. Written against main at `caaf73ca8d`.
+**Status:** Accepted by Ruben, 11 November 2026 ("Yes, build it"), and built the same day as its first slice. No migration. Written against main at `caaf73ca8d`. Its third point is amended by 0130: the library is Content's now.
 
 ## Context
 

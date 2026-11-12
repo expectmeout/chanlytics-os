@@ -433,6 +433,12 @@ async function postPublish(ctx: JobContext, job: ClaimedJob): Promise<void | { s
   return ctx.posts.publish(job, ctx.deadline);
 }
 
+/** post_google: a post on its way to Google at its time, sent once after the recheck (00616). payload: { post_id, attempt } */
+async function postGoogle(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.posts) throw new Error("post_google: this runtime holds no poster");
+  return ctx.posts.google(job, ctx.deadline);
+}
+
 /** post_reconcile: Instagram asked what it has after a send with no answer (00611). payload: { post_id, attempt } */
 async function postReconcile(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.posts) throw new Error("post_reconcile: this runtime holds no poster");
@@ -531,6 +537,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   post_prepare: postPrepare,
   post_publish: postPublish,
   post_reconcile: postReconcile,
+  post_google: postGoogle,
   piece_make: pieceMake,
   campaign_moments: campaignMoments,
   reach_out_steps: reachOutSteps,

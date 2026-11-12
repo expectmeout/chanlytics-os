@@ -41,14 +41,14 @@ import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { ListRow } from "../../../kit/list-row/list-row";
 import { Select } from "../../../kit/select/select";
 import { Sheet } from "../../../kit/sheet/sheet";
 import { Switch } from "../../../kit/switch/switch";
-import { gate, keyPress, routeDoor } from "../../../frame-verbs";
+import { gate, routeDoor } from "../../../frame-verbs";
 import { pageClock } from "@/bridge/zone";
 import { HistoryChoice, historyKept } from "../../../settings/connections/history-choice";
 import { WhenDayTime } from "../../broadcasts/when";
+import { Choice } from "./choice";
 import * as M from "./new-model";
 import { AudienceToggle, CaseNote } from "./new-parts";
 
@@ -88,56 +88,6 @@ export function PickSheet(p: {
     >
       <div className="sq-nw-pick">{p.children}</div>
     </Sheet>
-  );
-}
-
-/** A row to press, as a door does: a press or a key, or nothing where it is only said. */
-function pressOf(fn: (() => void) | null | undefined) {
-  if (!fn) return {};
-  return { role: "button" as const, tabIndex: 0, onClick: fn, onKeyDown: keyPress(fn) };
-}
-
-/** One choice of a sheet: its glyph, name and line, its kind or its count, and the tick where it is the one chosen. */
-export function Choice(p: {
-  glyph: string;
-  name: string;
-  said?: string | null;
-  /** What kind it makes, at the row's end ("Sequence", "Once"). */
-  tag?: string | null;
-  count?: number | null;
-  on?: boolean;
-  off?: boolean;
-  door?: { label: string; to: string } | null;
-  onPick?: (() => void) | null;
-  testid: string;
-}) {
-  const press = p.off ? {} : pressOf(p.onPick);
-  return (
-    <ListRow
-      mark={<Icon name={p.glyph} size={15} />}
-      name={p.name}
-      said={p.said ?? undefined}
-      className={p.off ? "sq-nw-choice is-off" : p.on ? "sq-nw-choice is-on" : "sq-nw-choice"}
-      aria-pressed={p.onPick ? !!p.on : undefined}
-      data-testid={p.testid}
-      end={(c) => (
-        <span className={c}>
-          {p.door ? (
-            <a className="sq-nw-door" {...routeDoor(p.door.to)}>
-              {p.door.label}
-              <Icon name="chevron" size={13} />
-            </a>
-          ) : (
-            <>
-              {p.tag ? <span className="sq-nw-kind">{p.tag}</span> : null}
-              {p.count !== null && p.count !== undefined ? <b className="sq-nw-count">{p.count}</b> : null}
-              {p.on ? <Icon name="check" size={15} /> : null}
-            </>
-          )}
-        </span>
-      )}
-      {...press}
-    />
   );
 }
 
@@ -183,7 +133,7 @@ export interface WhoReads {
     offered: boolean;
     candidates: number | null;
   }[];
-  lists: readonly { id: string; name: string; candidates: number | null; said: string | null }[];
+  lists: readonly { id: string; name: string; candidates: number | null; said: string | null; builtin: boolean }[];
   everyone: number | null;
   everyoneHeld: number | null;
   sources: readonly ReachOutSourceDto[] | null;
@@ -191,10 +141,7 @@ export interface WhoReads {
 }
 
 /** The sequence already on a moment, a list or a search, which a second would double. */
-export function runningOn(
-  running: readonly SequenceRowDto[],
-  f: (r: SequenceRowDto) => boolean,
-): SequenceRowDto | null {
+function runningOn(running: readonly SequenceRowDto[], f: (r: SequenceRowDto) => boolean): SequenceRowDto | null {
   return running.find((r) => r.state !== "ended" && f(r)) ?? null;
 }
 

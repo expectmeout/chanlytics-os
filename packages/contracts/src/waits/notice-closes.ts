@@ -165,7 +165,15 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   },
   video_ready: {
     ends: "news",
-    why: "A video that can be played is told once; it is in Files, under Made by Ask, and nothing waits on it.",
+    why: "A video that can be played is told once; it is in Content, under Made, and nothing waits on it.",
+  },
+  post_up: {
+    ends: "news",
+    why: "A post that went up at its time is told once; it is in Content, saying where it is up, and nothing waits on it.",
+  },
+  post_stopped: {
+    ends: "news",
+    why: "A post that did not go is told once; Content's Needs you holds it, with why, until it is sent again or let go.",
   },
 };
 

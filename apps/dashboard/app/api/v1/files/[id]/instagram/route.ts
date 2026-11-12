@@ -2,7 +2,7 @@ import { z } from "zod";
 import { INSTAGRAM_POST_KINDS, POST_CAPTION_MAX } from "@chanlytics/contracts";
 import { write } from "@/server/shared/route";
 import { fileScope } from "@/server/files/file";
-import { postFileToInstagram, pullFileFromInstagram } from "@/server/posts/instagram";
+import { postFileToInstagram, pullFilePost } from "@/server/posts/instagram";
 
 /**
  * POST /api/v1/files/:id/instagram — `{ as, caption?, when? }`: a made post approved for the business's Instagram, as a post
@@ -30,5 +30,5 @@ export const DELETE = write({
   role: "partner",
   rate: "file_instagram",
   input: z.object({ post_id: z.uuid() }),
-  handle: ({ ctx, input, member, row }) => pullFileFromInstagram(ctx, member, row, input),
+  handle: ({ ctx, input, member, row }) => pullFilePost(ctx, member, row, { ...input, place: "instagram" }),
 });

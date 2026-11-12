@@ -1,6 +1,7 @@
 /**
  * GET content, Campaigns › Content's one read, run through route() over a database in memory: what is being made, a page of
  * what was made with each piece's posts, and how the whole stands. It reads a page and counts the rest, never the library.
+ * And each view of Made: what needs the owner, what is being made, what waits for its time, what is up.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -137,9 +138,11 @@ const read = async (tables, query = "") => {
   return { body };
 };
 
+const NOTHING = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0 };
+
 test("a workspace that made nothing reads an empty page, and says so in numbers", async () => {
   const { body } = await read({});
-  assert.deepEqual(body, { making: [], made: [], next: null, tally: { made: 0, posted: 0 } });
+  assert.deepEqual(body, { view: "all", making: [], made: [], lines: [], next: null, tally: NOTHING });
 });
 
 test("what was made comes newest first, each with its own posts, and nothing that is not made here", async () => {
@@ -165,7 +168,7 @@ test("what was made comes newest first, each with its own posts, and nothing tha
     ["failed"],
   );
   assert.deepEqual(body.made[2].posts, []);
-  assert.deepEqual(body.tally, { made: 3, posted: 1 });
+  assert.deepEqual(body.tally, { made: 3, posted: 1, needs: 1, making: 0, scheduled: 0 });
   assert.equal("external_id" in body.made[0].posts[0], false, "a post's id at the platform stays the server's");
 });
 
@@ -236,4 +239,106 @@ test("a later page asks for nothing of what is being made again", async () => {
   assert.equal(first.making.length, 1);
   const second = (await read({ files, pieces: [piece(1)] }, `before=${encodeURIComponent(first.next)}`)).body;
   assert.deepEqual(second.making, []);
+});
+
+const minutesAhead = (n) => new Date(NOW + n * MIN_MS).toISOString();
+
+test("Needs you is the posts that stopped and are still the newest at their place, and the videos not made", async () => {
+  const { body } = await read(
+    {
+      files: [made(1), made(2), made(3)],
+      posts: [
+        // File 1: refused on Instagram, then sent again and up: no longer the owner's to mend.
+        posted(9, 1, "instagram", "failed"),
+        posted(2, 1, "instagram", "published"),
+        // File 2: held on Instagram and nothing since; up on Google, which is not a stop.
+        posted(5, 2, "instagram", "held", { held_reason: "It waits for the Meta link." }),
+        posted(6, 2, "google", "published"),
+        // File 3: refused on Google, the newest there.
+        posted(7, 3, "google", "failed", { error: { words: "Google is busy right now." } }),
+      ],
+      pieces: [piece(1, { status: "failed", failed_why: "clips" }), piece(2)],
+    },
+    "view=needs",
+  );
+  assert.equal(body.view, "needs");
+  assert.deepEqual(
+    body.lines.map((l) => [l.file.name, l.post.place, l.post.status]),
+    [
+      ["post-2", "instagram", "held"],
+      ["post-3", "google", "failed"],
+    ],
+  );
+  assert.equal(body.lines[1].post.error, "Google is busy right now.");
+  assert.deepEqual(
+    body.making.map((m) => m.status),
+    ["failed"],
+    "a video not made needs the owner; one being made does not",
+  );
+  assert.deepEqual(body.made, []);
+  assert.equal(body.tally.needs, 3);
+  assert.equal(body.tally.making, 1);
+});
+
+test("Scheduled is the posts that wait for their time, soonest first, and not the ones going up now", async () => {
+  const { body } = await read(
+    {
+      files: [made(1), made(2), made(3)],
+      posts: [
+        posted(1, 1, "instagram", "queued", { scheduled_for: minutesAhead(600) }),
+        posted(2, 2, "instagram", "queued", { scheduled_for: minutesAhead(60) }),
+        posted(3, 3, "instagram", "queued", { scheduled_for: minutesAgo(0) }),
+      ],
+    },
+    "view=scheduled",
+  );
+  assert.deepEqual(
+    body.lines.map((l) => l.file.name),
+    ["post-2", "post-1"],
+  );
+  assert.equal(body.tally.scheduled, 2);
+});
+
+test("Posted is the posts that are up, newest first, each with its piece, and none of a piece that is gone", async () => {
+  const { body } = await read(
+    {
+      files: [made(1), made(2), made(3, { removed_at: minutesAgo(1) })],
+      posts: [
+        posted(30, 1, "google", "published"),
+        posted(10, 2, "instagram", "published"),
+        posted(20, 3, "instagram", "published"),
+        posted(5, 2, "google", "queued"),
+      ],
+    },
+    "view=posted",
+  );
+  assert.deepEqual(
+    body.lines.map((l) => [l.file.name, l.post.place]),
+    [
+      ["post-2", "instagram"],
+      ["post-1", "google"],
+    ],
+  );
+  assert.equal(body.lines[0].post.permalink, "https://example.com/p/1");
+});
+
+test("Posted comes a page at a time, and the next page starts where it ended", async () => {
+  const files = Array.from({ length: 30 }, (_, i) => made(i + 1));
+  const posts = files.map((_, i) => posted(i + 1, i + 1, "instagram", "published"));
+  const first = (await read({ files, posts }, "view=posted")).body;
+  assert.equal(first.lines.length, 24);
+  assert.ok(first.next);
+  const second = (await read({ files, posts }, `view=posted&before=${encodeURIComponent(first.next)}`)).body;
+  assert.equal(second.lines.length, 6);
+  assert.equal(second.next, null);
+  assert.equal(second.lines[0].file.name, "post-25");
+});
+
+test("Being made is what is being made and what was not, and a view this build does not know is refused", async () => {
+  const { body } = await read(
+    { pieces: [piece(1), piece(2, { status: "failed", failed_why: "draw" })] },
+    "view=making",
+  );
+  assert.equal(body.making.length, 2);
+  await assert.rejects(read({}, "view=everything"), (e) => e.code === "validation");
 });

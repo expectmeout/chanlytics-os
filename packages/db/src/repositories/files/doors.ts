@@ -140,9 +140,16 @@ export async function keepManyFiles(db: Db, tenantId: TenantId, ids: readonly st
   return db.rpc("file_keep_many", { p_tenant_id: tenantId, p_ids: [...ids] });
 }
 
-/** A person removed a file. Its bytes go by the file_purge job, and an import does not bring it back. */
+/**
+ * A person removed a file. Its bytes go by the file_purge job, ten minutes on (00616), and an import does not bring it back.
+ */
 export async function deleteFileRow(db: Db, tenantId: TenantId, id: string) {
   return db.rpc("file_remove", { p_tenant_id: tenantId, p_id: id });
+}
+
+/** Undo of a delete (00616): while its purge waits, the file is shown again. One whose purge has begun is gone (P0002). */
+export async function restoreFileRow(db: Db, tenantId: TenantId, id: string) {
+  return db.rpc("file_restore", { p_tenant_id: tenantId, p_id: id });
 }
 
 /** What the look saw, under the owner's corrections, and every way a look ends: a settled failure comes here too. */

@@ -94,6 +94,7 @@ test("the shapes writers hand over are what their kind says", () => {
     post_prepare: { post_id: "p", attempt: "1" },
     post_publish: { post_id: "p", attempt: "1" },
     post_reconcile: { post_id: "p", attempt: "2" },
+    post_google: { post_id: "p", attempt: "1" },
     piece_make: { piece_id: "p", step: "start", tick: "1" },
     campaign_moments: {},
     reach_out_steps: {},

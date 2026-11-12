@@ -52,6 +52,12 @@ export const FILE_WORDS = {
     notAPost: "Only a post can go on Google.",
     notSent: "The post did not go through. Try again.",
     onItsWay: "This post is already on its way to Google.",
+    /** A post set for its time whose send got no answer (00616): Google keeps nothing to ask after, so a person looks. */
+    unknown: "Google did not say whether this went up. Look on your profile before posting it again.",
+    /** Set for its time, and on its way (00616). */
+    later: "Set to go on Google at its time.",
+    /** The recheck at its time: Google was let go of, or the person who set it may no longer post. */
+    heldNoConnection: "It waits until Google is connected again.",
   },
   madeFrom: "Made from",
   madeFromGone: "Made with Ask, from a photo since deleted",
@@ -144,7 +150,12 @@ export const FILE_WORDS = {
   download: "Download",
   remove: "Delete",
   removeAsk: "Delete this photo?",
-  removeNote: "It can't be brought back.",
+  /** A delete waits ten minutes for Undo (00616, FILE_UNDO_MINUTES) before its bytes go for good. */
+  removeNote: "You can undo it for ten minutes.",
+  /** Undo, pressed in time: the file is back where it was. */
+  restored: "It's back.",
+  /** Undo, pressed once its bytes had begun to go. */
+  restoreGone: "It's gone now, and can't be brought back.",
   close: "Close",
   nameEmpty: "Give it a name.",
   full: "This workspace holds as many files as it can. Remove some first.",

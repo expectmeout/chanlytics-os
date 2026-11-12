@@ -1102,14 +1102,18 @@
 .cal-visit-name { font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
 .cal-visit-quiet { font-size: var(--text-xs); color: var(--ink-dim); }
 .cal-visit-deal { align-self: flex-start; font-size: var(--text-xs); }
-.cal-visit-ask { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border-radius: var(--surface-inset-radius); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-depth); }
+/* The question on the sheet's own ground, its two answers under it (Ruben, 11 Nov 2026: a box inside the sheet round two
+   heavy presses was most of its bulk). The answers are the kit's large control, and a finger's 44 by the shell's floor. */
+.cal-visit-ask { display: flex; flex-direction: column; gap: var(--space-3); }
 .cal-visit-ask-question { margin: 0; font-size: var(--text-md); font-weight: var(--weight-medium); color: var(--ink); }
 .cal-visit-ask-acts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
-.cal-visit-ask-acts > * { justify-content: center; min-height: 44px; }
+.cal-visit-ask-acts > * { justify-content: center; min-height: var(--control-h-lg); }
 .cal-visit-ask-said { margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
 .cal-visit-refused { margin: 0; font-size: var(--text-xs); color: var(--danger-ink); }
-.cal-visit-rows { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; }
-.cal-visit-row { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: var(--space-3); }
+/* The keys' column is as wide as the longest key drawn, and every value starts on one line after it: a fixed 112px stood
+   a phone's values in the middle of the sheet. */
+.cal-visit-rows { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-2) var(--space-4); margin: 0; }
+.cal-visit-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
 .cal-visit-row > dt { font-size: var(--text-xs); color: var(--ink-dim); }
 .cal-visit-row > dd { margin: 0; font-size: var(--text-sm); color: var(--ink); overflow-wrap: anywhere; }
 .cal-visit-notes { white-space: pre-wrap; }
@@ -1118,6 +1122,21 @@
 .cal-visit-acts { display: flex; align-items: center; gap: var(--space-2); }
 .cal-visit-lead { flex: 1 1 auto; justify-content: center; min-height: 44px; }
 .cal-visit-circle { flex: none; width: 44px; height: 44px; border-radius: var(--radius-circle); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); }
+/* A phone's sheet stands the visit between its head's rule and its foot with nothing of its own round it: the first
+   line touched the rule (a pill's ring was cut by it) and the footnote the foot. The desk's peek keeps its own
+   (.cal-side-body). */
+@media (max-width: 900px) {
+  .cal-visit { padding-block: var(--space-4); }
+}
+/* Their name and their deal are words that press: under a finger each keeps its line's height and reaches a thumb by a
+   margin no one sees, where the shell's 44px floor for every button stood the two lines 48px apart. One class past
+   that floor (frame.css html.frame-on button), which loads after this sheet. */
+@media (pointer: coarse) {
+  html.frame-on .cal-visit-name,
+  html.frame-on .cal-visit-deal { position: relative; min-height: 0; }
+  .cal-visit-name::after,
+  .cal-visit-deal::after { content: ""; position: absolute; inset: -6px -8px; }
+}
 
 /* ---- The desk's peek: at the board's right edge, over its right columns, never narrowing the week (D5) ---- */
 .calendar { position: relative; }

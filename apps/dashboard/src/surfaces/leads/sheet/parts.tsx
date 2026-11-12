@@ -225,6 +225,8 @@ export const SheetNow = (p: {
   mail: SheetMail | null;
   whole: boolean;
   onWhole: () => void;
+  blanks: boolean;
+  onBlanks: (on: boolean) => void;
   onRewrite: (() => void) | null;
   onUndo: (() => void) | null;
   box: EmailBox;
@@ -259,6 +261,8 @@ export const SheetNow = (p: {
           mail={p.mail}
           whole={p.whole}
           onWhole={p.onWhole}
+          blanks={p.blanks}
+          onBlanks={p.onBlanks}
           onRewrite={p.onRewrite}
           onUndo={p.onUndo}
           box={p.box}

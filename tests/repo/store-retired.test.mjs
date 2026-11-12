@@ -123,6 +123,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "post_prepare",
       "post_publish",
       "post_reconcile",
+      "post_google",
       "piece_make",
       "campaign_moments",
       "reach_out_steps",

@@ -12,7 +12,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 
-const { PIECE_LIMITS, pieceFileIdsOf, piecePlanOf } = await import(at("packages/contracts/src/content/pieces.ts"));
+const { PIECE_LIMITS, PIECE_SHAPES, pieceCountOf, pieceFileIdsOf, pieceOpeningOf, piecePlanOf } = await import(
+  at("packages/contracts/src/content/pieces.ts")
+);
 const { pieceWordsOnBlocks } = await import(at("packages/contracts/src/content/piece-timeline.ts"));
 const { pieceStandsOf, pieceStillMoving, pieceWantsStills } = await import(
   at("packages/contracts/src/content/piece-card.ts")
@@ -332,10 +334,10 @@ test("a card is titled by its opening line, without the comma that leads into th
   }
 });
 
-test("the bell names a made video as Files shows it, never by its file name", () => {
+test("the bell names a made video as Content shows it, never by its file name", () => {
   // Seen on production 11 Nov 2026: "long-layers is in Files, under Made by Ask."
-  assert.equal(PIECE_WORDS.bell.readyBody("long-layers"), "Long layers is in Files, under Made by Ask.");
-  assert.equal(pieceWordsIn("es").bell.readyBody("pedi-volumen"), "Pedi volumen está en Archivos, en Hecho por Ask.");
+  assert.equal(PIECE_WORDS.bell.readyBody("long-layers"), "Long layers is in Content, under Made.");
+  assert.equal(pieceWordsIn("es").bell.readyBody("pedi-volumen"), "Pedi volumen está en Contenido, en Hecho.");
 });
 
 test("a card asks for its stills before the press, while its video is made or was not, and for a ready one whose poster did not come", () => {
@@ -606,4 +608,59 @@ test("a card says where its video stands from its row and its file, and nothing 
     ["making", "ready", "failed", "gone"].map((is) => pieceStillMoving({ is })),
     [true, false, false, false],
   );
+});
+
+test("a plan is kept in blocks, or as Hook first by a card made before: either reads as blocks", () => {
+  assert.deepEqual([...PIECE_SHAPES], ["hook_cut", "blocks"]);
+  const blocks = { shape: "blocks", blocks: [{ is: "words", lines: ["One"], seconds: 2 }], lines: [] };
+  assert.equal(piecePlanOf(blocks).shape, "blocks");
+  assert.equal(
+    piecePlanOf({ shape: "hook_cut", cuts: [{ file_id: CLIP, from: 0, to: 2 }], lines: ["Hi"] }).shape,
+    "blocks",
+  );
+});
+
+test("a video is known by the words it opens on: its opening words, or its first card's", () => {
+  const picture = { is: "clip", file_id: CLIP, from: 0, to: 2, label: null };
+  const card = { is: "words", lines: ["New in town?", "Come see us"], seconds: 2 };
+  const quote = { is: "quote", text: "Lovely place.", from: null, over: null, seconds: 3 };
+  assert.deepEqual(pieceOpeningOf({ blocks: [picture, card], lines: ["I asked for volume"] }), ["I asked for volume"]);
+  assert.deepEqual(pieceOpeningOf({ blocks: [card, picture], lines: [] }), ["New in town?", "Come see us"]);
+  assert.deepEqual(pieceOpeningOf({ blocks: [quote, picture], lines: [] }), ["Lovely place."]);
+  // A plan that says nothing where it opens is known by nothing: its checker refuses it (compilePiece: lines).
+  assert.deepEqual(pieceOpeningOf({ blocks: [picture], lines: [] }), []);
+});
+
+test("a card says what its video is made from: moments of clips, parts where photos or cards are among them, or cards of words", () => {
+  const moment = (id) => ({ is: "clip", file_id: id, from: 0, to: 2, label: null });
+  const photo = (id) => ({ is: "photo", file_id: id, seconds: 2, label: null });
+  const card = { is: "words", lines: ["One"], seconds: 2 };
+  const pair = { is: "pair", before: { file_id: "p1", at: null }, after: { file_id: CLIP, at: 3 }, seconds: 3 };
+  const said = (blocks, language = "en") => pieceWordsIn(language).summary(pieceCountOf({ blocks }), 10.4);
+  assert.deepEqual(pieceCountOf({ blocks: [moment(CLIP), moment(CLIP), pair, card] }), {
+    blocks: 4,
+    moments: 2,
+    clips: 1,
+    photos: 1,
+  });
+  // As it read before a video had blocks.
+  assert.equal(said([moment(CLIP), moment(CLIP), moment(CLIP)]), "10 seconds, vertical. 3 moments from your clip.");
+  assert.equal(said([moment(CLIP), moment(OTHER)]), "10 seconds, vertical. 2 moments from 2 of your clips.");
+  assert.equal(said([photo("p1"), photo("p2"), card]), "10 seconds, vertical. 3 parts from 2 of your photos.");
+  assert.equal(said([photo("p1"), card]), "10 seconds, vertical. 2 parts from your photo.");
+  assert.equal(said([moment(CLIP), card]), "10 seconds, vertical. 2 parts from your clip.");
+  assert.equal(said([moment(CLIP), pair]), "10 seconds, vertical. 2 parts from your clips and photos.");
+  assert.equal(said([card, card, card]), "10 seconds, vertical. 3 cards of words.");
+  assert.equal(said([photo("p1"), photo("p2")], "es"), "10 segundos, en vertical. 2 partes de 2 de tus fotos.");
+  assert.equal(said([card, card], "es"), "10 segundos, en vertical. 2 tarjetas de texto.");
+});
+
+test("a quote says where it was said, in the video's language, and never who said it", () => {
+  for (const language of ["en", "es"]) {
+    const says = pieceWordsIn(language).quoteFrom;
+    assert.deepEqual(Object.keys(says), ["google_review", "client"]);
+    for (const words of Object.values(says)) {
+      assert.ok(words.length > 0 && Array.from(words).length <= PIECE_LIMITS.quoteFrom, `${language}: ${words}`);
+    }
+  }
 });

@@ -61,6 +61,7 @@ import { subjectWords } from "../../campaigns/sequences/place/email-as";
 import { businessAddressOf, reachOutSignatureNow } from "../../campaigns/sequences/leads/reads";
 import { leadCardFor, leadCardLeadOf, leadCardWorkspace, type LeadCardFacts } from "../pile/card";
 import { leadDtoFor } from "../surface";
+import { emailBlanksOf, type EmailBlanks } from "./model/fill-ins";
 import type { LeadAim } from "./use-aim";
 
 /** A pile's own: how many are left for later, for its end. */
@@ -142,6 +143,10 @@ export interface SheetMail {
   to: string;
   subject: string | null;
   pieces: readonly LeadEmailPiece[];
+  /** Whose email it is, for a part of it that reads something of theirs (the receptionist's mark); null where it went. */
+  leadId: string | null;
+  /** The same words with each blank by its name, where they name any: what Show the blanks draws. Null: no switch. */
+  blanks: EmailBlanks | null;
   /** The name or the signature it ends with under the words, as the send ends it. */
   ending: string | null;
   /** What the check refused marked in its opening, where it is read before it goes. */
@@ -343,7 +348,7 @@ function factLineOf(leadId: string): string | null {
 function stepWordsOf(
   i: Pick<SheetInputs, "vm" | "emails">,
   on: { step: LeadCardStepVM; chain: ReachOutChainDto; line: string | null },
-): Pick<SheetMail, "subject" | "pieces" | "ending" | "edit" | "wordsUnread"> | null {
+): Pick<SheetMail, "subject" | "pieces" | "leadId" | "blanks" | "ending" | "edit" | "wordsUnread"> | null {
   const { step, chain, line } = on;
   const lead = leadCardLeadOf(i.vm.id);
   if (!lead) return null;
@@ -363,6 +368,8 @@ function stepWordsOf(
   return {
     subject: box.subject,
     pieces: leadWordsPieces({ body: step.written.body, lead, workspace, opening: line }),
+    leadId: i.vm.id,
+    blanks: emailBlanksOf(step.written),
     ending: ending.signature ?? ending.signOff,
     wordsUnread: !i.emails.wordsRead,
     edit: i.emails.wordsRead
@@ -435,6 +442,8 @@ function draftMailOf(vm: LeadPeekVM, place: SequencePlaceDto): SheetMail | null 
     to: W.mail.to(addresseeOf(vm, draft.to)),
     subject: draft.subject,
     pieces: [{ at: 0, kind: "words", text: draft.text }],
+    leadId: null,
+    blanks: null,
     ending: null,
     opening: null,
     writing: false,

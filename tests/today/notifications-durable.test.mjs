@@ -216,7 +216,7 @@ test("a video made here (0122): ready opens the video itself and says Watch it; 
   );
   assert.deepEqual(
     [failed.tone, failed.action, failed.to],
-    ["warn", "Open Files", "admin/files"],
+    ["warn", "Open Library", "admin/files"],
     "a door says the page it opens",
   );
 });

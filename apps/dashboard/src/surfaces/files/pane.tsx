@@ -166,20 +166,34 @@ function NothingYet({
   );
 }
 
-/** The library as it stands, and what can be done to it. The shelf's read and what a press changes stand on what the page was last told. */
-function FilesLibrary({
-  dto,
-  readAt,
-  openId,
-  setOpenId,
-  flash,
-}: {
+/**
+ * Where the library is drawn: a card of Settings, with a sheet of its own for an open file, or Campaigns › Content's library
+ * (its stage 2), in Content's own pane, where a file opens in Content's viewer (`setOpenId` is Content's) and no sheet is drawn.
+ */
+interface LibraryPlace {
+  className: string;
+  testid: string;
+  sheet: boolean;
+}
+const LIBRARY_IN_SETTINGS: LibraryPlace = {
+  className: "rec-card set-card files-page",
+  testid: "rec-card-files",
+  sheet: true,
+};
+const LIBRARY_IN_CONTENT: LibraryPlace = { className: "files-page cnv-library", testid: "cnv-library", sheet: false };
+
+/** What the library is drawn from, and where. */
+interface FilesLibraryProps {
   dto: FilesPageDto;
   readAt: number;
   openId: string | null;
   setOpenId: (id: string | null) => void;
   flash: (f: FrameFlash) => void;
-}) {
+  place?: LibraryPlace;
+}
+
+/** The library as it stands, and what can be done to it. The shelf's read and what a press changes stand on what the page was last told. */
+function FilesLibrary({ dto, readAt, openId, setOpenId, flash, place = LIBRARY_IN_SETTINGS }: FilesLibraryProps) {
   const { files, shelf, next, tally } = dto;
   const sending = useSending();
   const going = sending.photos;
@@ -247,8 +261,8 @@ function FilesLibrary({
   return (
     <section
       ref={glides ? glide : undefined}
-      className="rec-card set-card files-page"
-      data-testid="rec-card-files"
+      className={place.className}
+      data-testid={place.testid}
       data-glides={glides || undefined}
       data-dropping={dropping || undefined}
     >
@@ -313,7 +327,9 @@ function FilesLibrary({
       </div>
       {next && <MoreFiles more={more} busy={gettingMore} shown={files.length} />}
       {emptyPage && <NothingYet may={mayAdd} dropping={dropping} add={add} videos={videos} />}
-      {open && <FileSheet key={open.id} file={open} onClose={closeSheet} open={setOpenId} flash={flash} />}
+      {open && place.sheet && (
+        <FileSheet key={open.id} file={open} onClose={closeSheet} open={setOpenId} flash={flash} />
+      )}
     </section>
   );
 }
@@ -339,4 +355,39 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
       />
     );
   return <FilesLibrary dto={held.dto} readAt={held.fetchedAt} openId={openId} setOpenId={setOpenId} flash={flash} />;
+}
+
+/**
+ * Campaigns › Content's library (the content redesign's stage 2): the same library, its adding, its shelves and its inbox, in
+ * Content's list pane; a file opens in Content's viewer by its address, and Settings › Files lands here (contracts
+ * retiredRouteOf). The page reads it as Settings' did, through the files surface.
+ */
+export function LibraryInContent({ flash, onOpen }: { flash: (f: FrameFlash) => void; onOpen: (id: string) => void }) {
+  const held = useSurface("files");
+  if (held === undefined)
+    return <EmptyState kind="page" glyph="image" title={W.title} body={W.reading} testid="fl-reading" />;
+  if (held === null)
+    return (
+      <EmptyState
+        kind="page"
+        glyph="alert"
+        tone="warn"
+        title={W.title}
+        body={W.failedRead}
+        action={{ label: W.retry, onClick: () => void refreshSurface("files"), testid: "fl-retry" }}
+        testid="fl-unread"
+      />
+    );
+  return (
+    <FilesLibrary
+      dto={held.dto}
+      readAt={held.fetchedAt}
+      openId={null}
+      setOpenId={(id) => {
+        if (id) onOpen(id);
+      }}
+      flash={flash}
+      place={LIBRARY_IN_CONTENT}
+    />
+  );
 }

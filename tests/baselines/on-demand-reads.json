@@ -320,10 +320,10 @@
     "fresh": "Read as a lead's sheet opens over another page by its address (?lead=, a record's Leads row), once for that lead.",
     "why": "The sheet over a record is a look at one lead from where its row was pressed; its place is the sheet's own read, read again after each press, and closing and opening the row reads the lead afresh."
   },
-  "apps/dashboard/src/surfaces/leads/sheet/preview.tsx GET leads/[id]/preview": {
+  "apps/dashboard/src/surfaces/leads/sheet/fill-ins/preview-read.ts GET leads/[id]/preview": {
     "kind": "on-open",
-    "fresh": "Read as a lead's sheet opens, painted first from this tab's last answer for that lead (read-cache.ts) and read again behind it, and again after Make their preview.",
-    "why": "A lead's preview moves by Make their preview, which reads it again after, or by the edge building it, sending it with an email or the business trying it: each is minutes apart and none is a fact the sender acts on in the second, and closing and opening the sheet reads it afresh (decision 0079)."
+    "fresh": "Read as a lead's sheet opens, painted first from this tab's last answer for that lead (read-cache.ts) and read again behind it, and again after Make it now; then, only while one is being made, every 4 seconds for two minutes at most, so it says ready without a press (preview-read.ts lookAgainSoon). The card's mark for the link reads the same answer, and only where its email names the link (decision 0127).",
+    "why": "A lead's preview moves by Make it now, which reads it again after, or by the edge building it, sending it with an email or the business trying it: each is minutes apart and none is a fact the sender acts on in the second, and closing and opening the sheet reads it afresh (decision 0079)."
   },
   "apps/dashboard/src/surfaces/inbox/pages/calls-saying.ts GET conversations": {
     "kind": "search",
@@ -370,6 +370,11 @@
     "kind": "on-open",
     "fresh": "Read with the record, a page at a time back to the first day shown, and again as the days or the campaign change or Retry is pressed.",
     "why": "A report of days that went: a send that lands while it is open is counted at the next read, as Reports' other lenses are read for the period picked."
+  },
+  "apps/dashboard/src/surfaces/today/content-note.tsx GET content/note": {
+    "kind": "on-open",
+    "fresh": "Read as Today draws Content's line, and again as Today's own read lands, at most once a minute; kept in the tab by workspace (read-cache.ts `tab`), so a return draws it at once and reads it again behind it.",
+    "why": "It is one line at the page's foot that says what Content holds (what needs the owner, what is being made, the next post set for its time), and its door opens Content, whose own surface hears the feed and reads again at every press. A line a minute old says what was true a minute ago, and a read that fails takes the line away rather than guess."
   },
   "apps/dashboard/src/surfaces/today/need-you/drafts.ts GET conversations/drafts": {
     "kind": "on-open",

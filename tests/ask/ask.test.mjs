@@ -233,7 +233,7 @@ const REACHED = {
   "admin/profile": ["Profile", "admin/profile"],
   "admin/workspace": ["Settings", "admin/workspace"],
   "admin/hours": ["Hours & booking", "admin/hours"],
-  "admin/files": ["Files", "admin/files"],
+  "admin/files": ["Library", "campaigns/content:library"],
   "admin/receptionist": ["How it answers", "admin/receptionist"],
   "admin/outreach": ["Cold email", "admin/outreach"],
   "admin/team": ["Team", "admin/team"],

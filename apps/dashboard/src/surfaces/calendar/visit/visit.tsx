@@ -98,7 +98,9 @@ function visitPersonLine(c: VisitCtx) {
           {p.state && p.stateWord ? <StatePill kind="person" value={p.state} label={p.stateWord} /> : null}
           {p.stopped ? <StoppedMark testid="cal-visit-stopped" /> : null}
         </span>
-        <span className="cal-visit-quiet">{[p.business, p.match].filter(Boolean).join(" · ") || null}</span>
+        {p.business || p.match ? (
+          <span className="cal-visit-quiet">{[p.business, p.match].filter(Boolean).join(" · ")}</span>
+        ) : null}
         {p.deal ? (
           <LinkButton
             className="cal-visit-deal"
@@ -417,7 +419,7 @@ export function VisitFoot({ c }: { c: VisitCtx }) {
           testid="cal-visit-cancel"
         />
       ) : (
-        <div className="cal-visit-acts">
+        <div className="cal-visit-acts" data-foot-acts="">
           <PrimaryAct c={c} />
           {vm.circles.message ? (
             <Button

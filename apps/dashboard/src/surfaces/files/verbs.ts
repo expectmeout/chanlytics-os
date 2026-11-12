@@ -252,15 +252,30 @@ export const fileVerbs = {
   postBytes,
   postPicture,
   record: (id: string) => api()("GET files/[id]", { params: { id } }),
+  /** A video asked for by its plan (POST files/video): `key` makes a second press of the same draft the same video. */
+  makeVideo: (plan: PiecePlan, key: string) => api()("POST files/video", { body: { ...plan, key } }),
   play: (id: string) => api()("GET files/[id]/play", { params: { id } }),
   savePost: (plan: PostPlan) => api()("POST files/post", { body: plan }),
-  postToGoogle: (id: string, summary: string) => api()("POST files/[id]/google", { params: { id }, body: { summary } }),
+  /** `when` is the time it goes up (00616): left out, or within two minutes, it goes at the press. */
+  postToGoogle: (id: string, summary: string, when?: string) =>
+    api()("POST files/[id]/google", { params: { id }, body: { summary, ...(when ? { when } : {}) } }),
   takeOffGoogle: (id: string, name: string) => api()("DELETE files/[id]/google", { params: { id }, body: { name } }),
-  postToInstagram: (id: string, as: InstagramPostKind, caption: string) =>
-    api()("POST files/[id]/instagram", { params: { id }, body: as === "story" ? { as } : { as, caption } }),
+  /** Don't post, for a post set for its time on Google (00616). */
+  pullFromGoogle: (id: string, postId: string) =>
+    api()("DELETE files/[id]/google", { params: { id }, body: { post_id: postId } }),
+  /** `when` is the time it goes up, by the door's own rule (00611 post_begin): left out, it goes now. */
+  postToInstagram: (id: string, as: InstagramPostKind, caption: string, when?: string) =>
+    api()("POST files/[id]/instagram", {
+      params: { id },
+      body: { ...(as === "story" ? { as } : { as, caption }), ...(when ? { when } : {}) },
+    }),
   pullFromInstagram: (id: string, postId: string) =>
     api()("DELETE files/[id]/instagram", { params: { id }, body: { post_id: postId } }),
   change: (id: string, body: FileChange) => api()("PATCH files/[id]", { params: { id }, body }),
   keepMany: (ids: readonly string[]) => api()("POST files/keep", { body: { ids: [...ids] } }),
   remove: (id: string) => api()("DELETE files/[id]", { params: { id } }),
+  /** A moment of a video kept as a photo of the library (the content redesign's stage 3). */
+  keepStill: (id: string, at: number) => api()("POST files/[id]/still", { params: { id }, body: { at } }),
+  /** Undo of a delete, for ten minutes after it (00616). */
+  restore: (id: string) => api()("POST files/[id]/restore", { params: { id } }),
 };

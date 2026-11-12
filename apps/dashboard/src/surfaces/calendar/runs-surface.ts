@@ -20,15 +20,17 @@ import { knownZone } from "@/bridge/zone";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 import { getCalendarSpan } from "./surface";
 
-/** What Show draws over the visits, which are always drawn: the open times, the campaigns, and cold email. */
+/** What Show draws over the visits, which are always drawn: the open times, the campaigns, cold email, and posts. */
 export interface CalendarShow {
   open: boolean;
   campaigns: boolean;
   cold: boolean;
+  /** Campaigns › Content's posts at their times (the content redesign's stage 3). */
+  posts: boolean;
 }
 
-/** Show as it opens for a member who never picked (D2): open times and campaigns on, cold email off. */
-const SHOW_DEFAULT: CalendarShow = { open: true, campaigns: true, cold: false };
+/** Show as it opens for a member who never picked (D2): open times, campaigns and posts on, cold email off. */
+const SHOW_DEFAULT: CalendarShow = { open: true, campaigns: true, cold: false, posts: true };
 
 /**
  * Show as this tab last kept it (tab-memory.ts, its own place, never the view's), else the default: what the page opens
@@ -38,7 +40,7 @@ export function keptShow(): CalendarShow {
   const mem = typeof window === "undefined" ? undefined : window.__tabMemory;
   const was = mem?.place("calendar", "show");
   const on = (k: keyof CalendarShow) => (typeof was?.[k] === "boolean" ? was[k] : SHOW_DEFAULT[k]);
-  return { open: on("open"), campaigns: on("campaigns"), cold: on("cold") };
+  return { open: on("open"), campaigns: on("campaigns"), cold: on("cold"), posts: on("posts") };
 }
 
 /** How long an idle page may wait before the Calendar's campaigns are read off the Calendar: after the page's own reads. */
@@ -56,7 +58,7 @@ export function readRunsSoon(read: () => void, at?: Window): void {
   if (!win) return;
   const go = () => {
     const show = keptShow();
-    if (!(show.campaigns || show.cold) || surfaceValue("calendar_runs")) return;
+    if (!(show.campaigns || show.cold || show.posts) || surfaceValue("calendar_runs")) return;
     if (/^calendar(\/|$)/.test(routeOnScreen(win))) return;
     read();
   };
@@ -116,8 +118,9 @@ export const calendarRunsOverride: SurfaceOverride = {
   // The runs (broadcasts) and the campaigns (playbooks) it draws, the classes' modes a forecast is said by (policies) and the
   // workspace's pause (tenants), which stops every forecast: heard while the Calendar is on screen, and once as it comes back.
   // A run's sent count (run_counts, over its messages and its recipients' rows) rides with the run's own row, heard as a send
-  // (baselines/reads-not-heard.json says so).
-  ...declareReads("calendar_runs", { reads: ["send", "campaign", "rules", "workspace"], fresh: "its-page" }),
+  // (baselines/reads-not-heard.json says so). A post's line says its piece's name (files); its time and where it stands
+  // (posts) move only at a press, which reads this again (refresh-map's post rows).
+  ...declareReads("calendar_runs", { reads: ["send", "campaign", "rules", "workspace", "file"], fresh: "its-page" }),
   onDemand: true,
   isStale: () => readAged(surfaceValue("calendar_runs")?.fetchedAt),
   // A span's reads take their turn; a move to another span is read at once, as the board's are.

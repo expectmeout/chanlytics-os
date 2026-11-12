@@ -9,6 +9,7 @@
  *   what is left to set up, under Need you while       | Ask found (found.tsx), under the day
  *   someone waits, over it while nobody does           |
  *   the week and the pinned lists, one strip (foot.tsx)
+ *   Content's one line, where it has something to say (../content-note.tsx): at the foot, so landing late moves nothing
  *
  * Where Need you draws no pane but Older, which nobody counts and which stands at the page's end (zones.css), or none at all
  * (nothing waits on you: the canvas's quiet day, "most owners, most days", whatever came in), Ask found leads the work's
@@ -21,6 +22,7 @@
  * (today/arrangement.ts), read here before any of it draws.
  */
 import { ColdEmailNote } from "./cold-email-note";
+import { TodayContentNote } from "../content-note";
 import { useTodayArrangement, type TodayArrangement } from "../arrangement";
 import { useTodayOnPhone } from "../phone";
 import { TodayAlertBand } from "./alert";
@@ -64,6 +66,7 @@ function PhoneToday({ at }: { at: TodayArrangement }) {
       {nothing ? null : <PhoneSoFar />}
       <PhonePins />
       {at.waiting ? settingUp(false, at) : null}
+      <TodayContentNote />
       <TodayEnd />
     </div>
   );
@@ -97,6 +100,7 @@ export function TodayZones() {
         )}
       </div>
       <DeskFoot />
+      <TodayContentNote />
     </div>
   );
 }

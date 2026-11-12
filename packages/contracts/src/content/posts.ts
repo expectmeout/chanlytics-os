@@ -7,6 +7,12 @@
 export const POST_PLACES = ["instagram", "google"] as const;
 export type PostPlace = (typeof POST_PLACES)[number];
 
+/** A place as a sentence says it. */
+export const POST_PLACE_SAID = { instagram: "Instagram", google: "Google" } as const satisfies Record<
+  PostPlace,
+  string
+>;
+
 /** What it is there. A reel waits for a video's road to Instagram (decision 0121), so a press offers the first two. */
 export const POST_KINDS = ["picture", "story", "reel"] as const;
 export type PostKind = (typeof POST_KINDS)[number];

@@ -1199,21 +1199,33 @@
     },
     {
       "kind": "unfed",
-      "why": "A video asked for and where it stands (00613 pieces), and each place a made post goes (00611 posts): Campaigns › Content's read (GET content, decision 0125), neither of which the feed tells a workspace of. A video ends as its file, made or not, which the page hears and reads again with. A post is sent, stopped or taken down by a press that reads the page again where it is drawn. And while a video is being made or a post is on its way the page asks again itself, every five seconds, until nothing moves (campaigns/content/page.tsx).",
+      "why": "A video asked for and where it stands (00613 pieces), and each place a made post goes (00611 posts): Campaigns › Content's read (GET content, decision 0125), and the Calendar's posts at their times (GET calendar/runs, the content redesign's stage 3), neither of which the feed tells a workspace of. A video ends as its file, made or not, which the page hears and reads again with. A post is sent, stopped or taken down by a press that reads Content and the Calendar again where each is drawn, and a post's name is its file's, which both hear. And while a video is being made or a post is on its way the page asks again itself, every five seconds, until nothing moves (campaigns/content/page.tsx).",
       "reads": {
         "content": [
           "pieces",
+          "posts"
+        ],
+        "calendar_runs": [
           "posts"
         ]
       },
       "heardWith": {
         "content": [
           "files"
+        ],
+        "calendar_runs": [
+          "files"
         ]
       },
       "rereadAfter": {
         "content": [
           "POST files/video",
+          "POST files/[id]/instagram",
+          "DELETE files/[id]/instagram",
+          "POST files/[id]/google",
+          "DELETE files/[id]/google"
+        ],
+        "calendar_runs": [
           "POST files/[id]/instagram",
           "DELETE files/[id]/instagram",
           "POST files/[id]/google",

@@ -77,6 +77,8 @@ const ASKED_AT = {
   admin: "admin/unlisted",
   // A run's home under its sequence (the Campaigns wiring review's lane 2): the family names the screen, no address.
   "campaigns/sequences/runs": "campaigns/sequences/sq-1/runs/b-1",
+  // Content's Library (the content redesign's stage 2): its family is the pane, its address a word after Content's.
+  "campaigns/content/library": "campaigns/content:library",
 };
 const askedAt = (family) => ASKED_AT[family] ?? family;
 
@@ -137,8 +139,9 @@ const ADDRESSES = [
   "outbound",
   "campaigns/ads",
   "campaigns/ads:new",
-  // Campaigns › Content (decision 0125): what Ask made, where its switch is on.
+  // Campaigns › Content (decision 0125): what Ask made, where its switch is on; and its Library, where Settings › Files went.
   "campaigns/content",
+  "campaigns/content:library",
 ];
 const PANES = Object.keys(ROUTE_SURFACE)
   .filter((r) => r.startsWith("admin/"))

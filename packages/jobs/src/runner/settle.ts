@@ -524,6 +524,7 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   post_prepare: settlePost,
   post_publish: settlePost,
   post_reconcile: settlePost,
+  post_google: settlePost,
   file_fetch: null,
   file_purge: null,
   line_provision: null,
@@ -561,6 +562,7 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
   post_prepare: "post",
   post_publish: "post",
   post_reconcile: "post",
+  post_google: "post",
 };
 
 /**

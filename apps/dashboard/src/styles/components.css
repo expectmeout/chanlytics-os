@@ -2404,25 +2404,24 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   0%, 100% { transform: scaleY(0.3); }
   50% { transform: scaleY(1); }
 }
-/* Yesterday's visits to mark: a capsule of the control layer's glass, never the dark island, which is a call's alone; the
-   ring the Calendar marks a visit nobody has marked with, the count in the semibold, and "Did they come?" as a capsule
-   inside it, a desk's words (a phone keeps the arrow). The one door to the first of them, its focus ring over its depth. */
+/* Yesterday's visits to mark: a quiet line in the date's place, in the date's muted ink, on no ground of its own (Ruben,
+   11 Nov 2026: the glass capsule read as a bulky button standing on the page's name). The ring the Calendar marks a
+   visit nobody has marked with, the count and its words, and an arrow; "Did they come?" is its label's. Never the dark
+   island, which is a call's alone. The one door to the first of them, its focus ring round its words. */
 .unmarked-bar {
   display: flex;
   align-items: center;
-  background-color: var(--surface-control-fill);
-  background-image: var(--surface-control-sheen);
-  backdrop-filter: var(--surface-control-blur);
-  box-shadow: var(--surface-control-depth);
-  color: var(--ink);
+  background: none;
+  color: var(--ink-muted);
   font-family: inherit;
   font-size: var(--text-sm);
   text-align: left;
   cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 .unmarked-bar:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring), var(--surface-control-depth);
+  box-shadow: var(--focus-ring);
 }
 .unmarked-bar-ring {
   flex: none;
@@ -2435,23 +2434,15 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-medium);
 }
 .unmarked-bar-act {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 4px;
-  height: var(--control-h-sm);
-  padding: 0 9px 0 12px;
-  border-radius: var(--radius-full);
-  background: var(--surface-inset-fill);
-  color: var(--ink-muted);
-  font-weight: var(--weight-medium);
 }
 @media (hover: hover) {
-  .unmarked-bar:hover .unmarked-bar-act {
-    background: var(--selected-fill);
+  .unmarked-bar:hover {
     color: var(--ink);
   }
 }
@@ -2584,12 +2575,10 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
     gap: 8px;
     padding: 0 12px 0 13px;
   }
-  .frame-top > .live-bar :is(.live-bar-more, .live-bar-act-words, .live-bar-checking),
-  .frame-top > .unmarked-bar .unmarked-bar-act-words {
+  .frame-top > .live-bar :is(.live-bar-more, .live-bar-act-words, .live-bar-checking) {
     display: none;
   }
-  .frame-top > .live-bar .live-bar-act,
-  .frame-top > .unmarked-bar .unmarked-bar-act {
+  .frame-top > .live-bar .live-bar-act {
     height: auto;
     padding: 0 6px 0 0;
     background: none;
@@ -2625,12 +2614,10 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
     padding: 0 10px 0 12px;
     max-width: calc(100% - 2 * var(--gutter-page) - 44px);
   }
-  .frame-top > .live-bar :is(.live-bar-more, .live-bar-act-words, .live-bar-checking),
-  .frame-top > .unmarked-bar .unmarked-bar-act-words {
+  .frame-top > .live-bar :is(.live-bar-more, .live-bar-act-words, .live-bar-checking) {
     display: none;
   }
-  .frame-top > .live-bar .live-bar-act,
-  .frame-top > .unmarked-bar .unmarked-bar-act {
+  .frame-top > .live-bar .live-bar-act {
     height: auto;
     padding: 0;
     background: none;
@@ -2657,6 +2644,13 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
     left: calc(var(--gutter-page) + 40px);
     max-width: calc(100% - 2 * var(--gutter-page) - 124px);
   }
+}
+/* The visits to mark are a line at every width, so they keep none of a capsule's inset: their ring starts at the page's
+   gutter, where the date's words do, and the room a focus ring and a finger take round them is given back by a margin.
+   After the widths above, which it outweighs by coming last. */
+.frame-top > .unmarked-bar {
+  margin-left: calc(-1 * var(--space-2));
+  padding: 0 var(--space-2);
 }
 
 /* The Inbox's sending strip (inbox.css, fixed under the top bar), on a desk: at the right end of the strip of views'

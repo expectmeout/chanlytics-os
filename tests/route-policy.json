@@ -739,6 +739,13 @@
       "rate": null,
       "spend": false
     },
+    "GET content/note": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "POST conversations/[id]/archive": {
       "kind": "write",
       "scope": "row",
@@ -872,6 +879,27 @@
       "scope": "workspace",
       "role": "operator",
       "rate": "file_upload",
+      "spend": false
+    },
+    "GET files/[id]/still": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST files/[id]/still": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "file_upload",
+      "spend": false
+    },
+    "POST files/[id]/restore": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
       "spend": false
     },
     "POST files/[id]/google": {

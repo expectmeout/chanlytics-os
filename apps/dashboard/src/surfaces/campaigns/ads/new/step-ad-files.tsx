@@ -1,10 +1,11 @@
 /**
  * New ad's photo, from the business's Files (MOCKUP for the ad, real for the pictures; decision 0099): a tile for each kept picture,
- * a post Ask made among them and saying so, what to know of the one picked, and the door to Files, where a photo is added. Pressing a
- * tile changes the draft and nothing else, and the preview under it draws the picture. A picture that cannot be drawn keeps its tile.
+ * a post Ask made among them and saying so, what to know of the one picked, and the door to Content's Library, where a photo is
+ * added. Pressing a tile changes the draft and nothing else, and the preview under it draws the picture. A picture that cannot be
+ * drawn keeps its tile.
  */
 import { useState } from "react";
-import { FILE_WORDS, fileSaidOf, fileViewOf } from "@chanlytics/contracts";
+import { CONTENT_LIBRARY_ROUTE, FILE_WORDS, fileSaidOf, fileViewOf } from "@chanlytics/contracts";
 import type { FileDto } from "@chanlytics/contracts";
 import { NEW_AD } from "../model/words-new";
 import { adFileNotes } from "../model/new-ad-parts";
@@ -14,9 +15,6 @@ import { routeDoor } from "../../../frame-verbs";
 import { useKeptFiles } from "./kept-files";
 import { Cap, Sec } from "./new-bits";
 import type { StepProps } from "./new-bits";
-
-/** Where Settings › Files is. */
-const FILES_ROUTE = "admin/files";
 
 /** How wide a tile's picture is asked for: twice the tile, for a sharp screen. */
 const TILE_WIDTH = 240;
@@ -120,7 +118,7 @@ export function FilesSec({ state, patch }: StepProps) {
       ) : null}
       {picked ? <FileNotes file={picked} /> : null}
       <Cap>{NEW_AD.step2.photoHint}</Cap>
-      <LinkButton className="ads-new-files-door" {...routeDoor(FILES_ROUTE)} data-testid="ads-new-files-door">
+      <LinkButton className="ads-new-files-door" {...routeDoor(CONTENT_LIBRARY_ROUTE)} data-testid="ads-new-files-door">
         {door} <Icon name="chevron" size={11} />
       </LinkButton>
     </Sec>

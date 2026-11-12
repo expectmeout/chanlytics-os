@@ -223,8 +223,8 @@ export async function reconcilePost(db: Db, job: ClaimedJob, deps: PostDeps = {}
   throw new CertainFailure(`post ${post.id}: not up after two attempts`, ON_INSTAGRAM.notSent);
 }
 
-/** The three post jobs as the job runner is handed them (lib/ops/jobs-tick.ts). */
-export function postJobs(db: Db, deps: PostDeps = {}): NonNullable<JobContext["posts"]> {
+/** Instagram's three post jobs as the job runner is handed them, beside Google's at its time (lib/ops/jobs-tick.ts). */
+export function postJobs(db: Db, deps: PostDeps = {}): Omit<NonNullable<JobContext["posts"]>, "google"> {
   return {
     prepare: (job, deadline) => preparePost(db, job, deadline, deps),
     publish: (job) => publishPost(db, job, deps),
