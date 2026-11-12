@@ -14,8 +14,9 @@
  *   sent from a question about a draft that has moved; a draft the tab kept is counted again as it comes back; and where
  *   the channels could not be read, a message picked goes by WhatsApp, as every send did before a channel was read.
  * - A draft keeps a line under it (decision 0129 step 2): what is said there is asked of Ask with the draft as it
- *   stands, its answer is that draft changed with what changed said on top, Undo puts back what stood, and a change Ask
- *   could not make leaves the draft and the line as they were.
+ *   stands, its answer is that draft changed with what changed said on top, Undo steps back through every change it
+ *   made, a change that changed nothing is said in passing, and a change Ask could not make leaves the draft and the
+ *   line as they were.
  * Run against the pages and the composers on a stub React, with the tab's memory installed as the app installs it, and
  * New's two doors (POST sequences/draft and sequences/new) answered as their routes answer.
  */
@@ -659,23 +660,51 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   assert.ok(onTop().includes(ASKED.said) && onTop().includes(W.say.asked));
   assert.equal(hostOf(tree, "sq-nw-again"), null);
 
-  // Changed again, then changed by hand: the change stays, and its Undo goes with the hand's change.
+  // Two changes, one after the other: Undo steps back through them, the newest first, each with what it changed.
   await say("Call it Autumn colour for VIPs");
   tree = await landed(() => askedFor().length === 3 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  asks.draft = (body) => ({ ...renamed(body), name: "Autumn for everyone" });
+  await say("Call it Autumn for everyone");
+  tree = await landed(() => askedFor().length === 4 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  assert.equal(
+    askedFor()[3].body.stands.name,
+    "Autumn colour for VIPs",
+    "the second change is asked of the first's draft",
+  );
+  assert.equal(nameBox().props.value, "Autumn for everyone");
+  assert.ok(onTop().includes("Call it Autumn for everyone"));
+  press(hostOf(tree, "sq-nw-again"));
+  tree = redraw(page);
+  assert.equal(nameBox().props.value, "Autumn colour for VIPs", "one Undo, one change back");
+  assert.ok(onTop().includes("Call it Autumn colour for VIPs") && onTop().includes("Ask changed its name"), onTop());
+  press(hostOf(tree, "sq-nw-again"));
+  tree = redraw(page);
+  assert.equal(nameBox().props.value, "Autumn colour", "and the one before it");
+  assert.equal(hostOf(tree, "sq-nw-again"), null, "nothing more to undo");
+
+  // Changed again, then changed by hand: the change stays, and its Undo goes with the hand's change.
+  asks.draft = renamed;
+  await say("Call it Autumn colour for VIPs");
+  tree = await landed(() => askedFor().length === 5 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
   assert.ok(hostOf(tree, "sq-nw-again"));
   type(valueBox(tree), "15% off colour");
   tree = redraw(page);
   assert.equal(hostOf(tree, "sq-nw-again"), null, "a hand's change is the owner's: nothing to undo over it");
   assert.equal(nameBox().props.value, "Autumn colour for VIPs");
 
-  // A change that changed nothing says so, with nothing to undo.
+  // A change that changed nothing is said in passing, with nothing to undo, and what Ask left out is in its card.
   asks.draft = () => ({
     ...renamed({ stands: { steps: [{ texts: ["15% off colour"] }] } }),
     cannot: "Left out: “by pigeon”. Nothing here flies.",
   });
+  toasts.length = 0;
   await say("Send it by pigeon");
-  tree = await landed(() => askedFor().length === 4 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
-  assert.ok(onTop().includes(CHANGE_WORDS.same), onTop());
+  tree = await landed(() => askedFor().length === 6 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  assert.deepEqual(
+    toasts.map((t) => t.msg),
+    [CHANGE_WORDS.same],
+    "said once, in passing",
+  );
   assert.equal(hostOf(tree, "sq-nw-again"), null, "nothing changed, nothing to undo");
   assert.ok(byTestId(tree, "sq-nw-cannot"), "what Ask left out is said in its card");
 
@@ -683,7 +712,7 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   asks.draft = () => null;
   toasts.length = 0;
   await say("Send it from the moon");
-  tree = await landed(() => askedFor().length === 5 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  tree = await landed(() => askedFor().length === 7 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
   assert.equal(toasts.length, 1, "said once");
   assert.equal(nameBox().props.value, "Autumn colour for VIPs");
   assert.equal(changeBox().props.value, "Send it from the moon");

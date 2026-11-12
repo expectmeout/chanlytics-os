@@ -74,11 +74,23 @@ the message door refuses a message whose versions name different values, and the
    owner did not ask to lose.
 8. **The drafter is told every version of a message names the same values.** First drafts lost steps to the same
    refusal.
-9. **A change that changed nothing offers no Undo.**
+9. **A change that changed nothing is said in passing** ("Ask changed nothing"), with nothing to undo; what Ask left
+   out is the draft's card's to say.
+10. **A step that cannot be kept says why,** in a clause its owner can act on (`NEW_WORDS.cannot.why`, or the message
+    door's own words): "Step 2 was left out: its email or text names a value its WhatsApp words don't."
+11. **Ask is asked once more** where the judge cannot keep a step's words, told which step and why, and the better of
+    its two answers is kept. A second call that fails leaves the first standing; it is never asked a third time.
+12. **A change that names no step leaves a message the business holds as it is,** and says so. Only where the owner
+    names the step is its message written new: one word ("warmer") no longer sends an approved message back to Meta's
+    review.
+13. **Undo steps back through every change the line made,** newest first, each shown with what it changed.
+14. **A name signing a message stands on a line of its own,** last.
 
-Still to weigh, from the same run: one word with no step named rewrote both messages, and wrote a message the business
-holds new, which waits for Meta's review again; and an invitation back that Ask writes on a visit's moment is filed as
-about their booking, with a text version, where it reads as an offer.
+Still to weigh, from the same run: an invitation back that Ask writes on a visit's moment is filed as about their
+booking, with a text version, where it reads as an offer. That is a question of who may be sent it, and its own decision.
+
+Items 7 to 14 are held by a stand-in model in the tests, as the rest of the step is; the same real asks are run again on
+the demo workspace once they are live.
 
 ## Deploy order
 
@@ -86,4 +98,4 @@ Either. The dashboard alone changes; no route, no table, nothing the two apps sh
 
 ## Held by
 
-`tests/campaigns/new-ready.test.mjs` (the rules), `tests/campaigns/new-ready-page.test.mjs` (the first screen drawn), `tests/playbooks/campaigns-drafts.test.mjs` (the line still drafts, and a line alone is not work), and `e2e/campaigns/campaigns-loads.spec.ts` (nothing drawn while loading is taken back). Step 2: `tests/sequences/sequence-draft.test.mjs` (what the drafter is told of a draft that stands, how its answer is judged and taken, what changed said) and `tests/playbooks/campaigns-drafts.test.mjs` (the line under a draft, on the page: asked, changed, Undo, a change Ask could not make).
+`tests/campaigns/new-ready.test.mjs` (the rules), `tests/campaigns/new-ready-page.test.mjs` (the first screen drawn), `tests/playbooks/campaigns-drafts.test.mjs` (the line still drafts, and a line alone is not work), and `e2e/campaigns/campaigns-loads.spec.ts` (nothing drawn while loading is taken back). Step 2: `tests/campaigns/draft-changed-by-saying.test.mjs` (what the drafter is told of a draft that stands, how its answer is judged and taken, what changed said, a step that stays, the second ask, why a step cannot be kept) and `tests/playbooks/campaigns-drafts.test.mjs` (the line under a draft, on the page: asked, changed, Undo, a change Ask could not make).
