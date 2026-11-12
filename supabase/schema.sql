@@ -31609,19 +31609,71 @@ CREATE FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid DE
       from public.sequence_batches b
       join q on q.id = b.sequence_id
      where b.state = 'sent'
+        -- One still going that has sent some (decision 0128, stage 2): an email held in it keeps it open for days, and
+        -- what it sent was counted nowhere. Not a one-off's, whose row says its day until it has gone whole.
+        or (b.state = 'sending' and q.starts <> 'date'
+            and exists (select 1 from public.sequence_sends s
+                         where s.batch_id = b.id and s.state in ('sent', 'handed')))
      order by b.sequence_id, coalesce(b.finished_at, b.started_at, b.scheduled_for) desc, b.id
   ),
   last_counts as (
     select public.sequence_batch_counts(p_tenant_id, coalesce(array_agg(l.id), '{}')) as counts from last l
+  ),
+  -- Where each one stands (sequence_places), read once for the three counts under it.
+  places as materialized (
+    select p.grp, p.sequence_id, p.lead_id, p.at
+      from public.sequence_places(p_tenant_id, p_sequence_id, null) p
   ),
   -- Who is in it (00459): everyone whose place stands, as its People tab files them (sequence_places): a lead added and
   -- not yet planned, waiting for an OK, held, for you to send, up next or between steps. Not who left, finished, or wrote
   -- back and waits for an answer.
   in_it as (
     select p.sequence_id, count(*) as n
-      from public.sequence_places(p_tenant_id, p_sequence_id, null) p
+      from places p
      where p.grp not in ('done', 'left', 'replied')
      group by p.sequence_id
+  ),
+  -- Who is between two steps with a time to come (decision 0128, stage 2): the first one's time, and how many have one.
+  -- A place between steps is timed by its next step where it has one, else by when it got there, so a time past is
+  -- someone due already (their step's next run makes their batch) or someone with no step left.
+  between_steps as (
+    select p.sequence_id, count(*) as n, min(p.at) as first_at
+      from places p
+     where p.grp = 'in' and p.at > now()
+     group by p.sequence_id
+  ),
+  -- Leads that have stood on a running cold email's list for more than a day, the 200 that have stood there longest in
+  -- each. Most only wait their turn (a first step takes a day's worth); the ones it refuses for a reason their owner can
+  -- mend are what the list says (stuck). The reason is asked a lead at a time, so of a bounded few: a list of 50,000
+  -- costs what a list of 200 does.
+  asked as (
+    select r.sequence_id, r.lead_id, r.at
+      from (select p.sequence_id, p.lead_id, p.at,
+                   row_number() over (partition by p.sequence_id order by p.at, p.lead_id) as nth
+              from places p
+              join q on q.id = p.sequence_id and q.starts = 'leads' and q.state = 'on'
+             where p.grp = 'queued' and p.lead_id is not null and p.at < now() - interval '1 day') r
+     where r.nth <= 200
+  ),
+  -- Why no batch takes each, through the door a member has (00533, 00542: reach_out_why_not at the list's own setting,
+  -- for a member of the workspace, a partner's seat only with its second factor). Asked by anyone else it answers
+  -- nothing, and no lead is said to be stuck.
+  whys as (
+    select w.sequence_id, w.lead_id, w.why
+      from (select coalesce(array_agg(a.lead_id order by a.sequence_id, a.lead_id), '{}'::uuid[]) as leads,
+                   coalesce(array_agg(a.sequence_id order by a.sequence_id, a.lead_id), '{}'::uuid[]) as sequences
+              from asked a) pairs
+     cross join lateral public.sequence_queued_why_not(p_tenant_id, pairs.leads, pairs.sequences) w
+  ),
+  -- The ones whose email could not be checked: nothing checks it again by itself, so they stand there until their owner
+  -- presses Check again on Leads. One refused for good (written to already, a customer, on the never-again list) asks
+  -- nothing of its owner and is not counted.
+  stuck as (
+    select a.sequence_id, count(*) as n, min(a.at) as since
+      from asked a
+      join whys w on w.sequence_id = a.sequence_id and w.lead_id = a.lead_id
+     where w.why = 'unchecked'
+     group by a.sequence_id
   )
   select coalesce(jsonb_agg(jsonb_build_object(
            'id', q.id,
@@ -31688,7 +31740,23 @@ CREATE FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid DE
              'id', ls.id, 'at', ls.at,
              'sent', coalesce(((select counts from last_counts) -> ls.id::text ->> 'sent')::int, 0),
              'replied', coalesce(((select counts from last_counts) -> ls.id::text ->> 'replied')::int, 0)) end,
-           'in_it', coalesce(ii.n, 0)
+           'in_it', coalesce(ii.n, 0),
+           'between', case when bs.n is null then null else
+             jsonb_build_object('at', bs.first_at, 'people', bs.n) end,
+           'stuck', case when sk.n is null then null else
+             jsonb_build_object('leads', sk.n, 'since', sk.since, 'reason', 'unchecked') end,
+           -- Its first step's last run (decision 0128, stage 2): the business day it ran for, and why it did nothing
+           -- where it did, the newest playbook.run event's `skipped` where that is a reason, as the record reads it
+           -- (packages/db lastRunSkipped: a run that went writes a count there, which is no reason). Asked of a sequence
+           -- that is on and runs by its hour: one probe of events_tenant_subject.
+           'last_run_for', f.last_run_for,
+           'last_run_off', case when q.state = 'on' and q.starts not in ('leads', 'date') then (
+             select case when jsonb_typeof(e.data -> 'skipped') = 'string' then e.data ->> 'skipped' end
+               from public.events e
+              where e.tenant_id = q.tenant_id and e.subject_type = 'playbook' and e.subject_id = q.id
+                and e.kind = 'playbook.run'
+              order by e.created_at desc
+              limit 1) end
          ) order by q.created_at desc, q.id), '[]'::jsonb)
     from q
     left join public.sequence_steps f on f.id = q.id
@@ -31699,6 +31767,8 @@ CREATE FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid DE
     left join next nx on nx.sequence_id = q.id
     left join last ls on ls.sequence_id = q.id
     left join in_it ii on ii.sequence_id = q.id
+    left join between_steps bs on bs.sequence_id = q.id
+    left join stuck sk on sk.sequence_id = q.id
 $$;
 
 
@@ -31706,7 +31776,7 @@ $$;
 -- Name: FUNCTION sequence_overview(p_tenant_id uuid, p_sequence_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid) IS 'The workspace''s sequences (0060), or the one named: how each starts (its first step, with the search it adds from: 00459, when its words were last let go: 00462, or a one-off''s date, or the once of one kept as a draft: 00465), how its batches are decided (its mode, 00462), where it stands, its steps, the days they span and the emails still to write (00459), its channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it (everyone whose place stands, sequence_places: 00459). Newest first. Under the caller''s row security.';
+COMMENT ON FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid) IS 'The workspace''s sequences (0060), or the one named: how each starts (its first step, with the search it adds from: 00459, when its words were last let go: 00462, or a one-off''s date, or the once of one kept as a draft: 00465), how its batches are decided (its mode, 00462), where it stands, its steps, the days they span and the emails still to write (00459), its channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it (everyone whose place stands, sequence_places: 00459). Newest first. Under the caller''s row security. And (decision 0128, stage 2): who is between two steps with a time to come (between: the first one''s time, and how many have one); leads on a running cold email''s list that its first step refuses because their email could not be checked (stuck: how many of the 200 that have stood there longest, past a day, and since when; asked through sequence_queued_why_not, so only of a member); the business day its first step last ran and, where it is on and runs by its hour, why that run did nothing (last_run_for, last_run_off: the newest playbook.run event''s skipped, where it is a reason and not a count); and last counts a batch still going that has sent some, bar a one-off''s.';
 
 
 --

@@ -129,8 +129,26 @@ export const arActivate = ({ openThread, nav, setQuery, inputRef, submit }: Line
 const arFieldKey = (e: KeyboardEvent, query: string) =>
   (e.key === "Enter" && e.shiftKey) || ((e.key === "ArrowDown" || e.key === "ArrowUp") && query.includes("\n"));
 
-/** The line's keys: Esc, the arrows over the rows or the answer's moves, Delete on a conversation, Enter; the field's own first (arFieldKey). */
+/**
+ * Delete on the row the keys stand on: it asks to delete a conversation, or says Not now to what Ask noticed, which rests
+ * a week. Each is what a pointer does on the row's own × or words (home.tsx AskRows), and the only way the keys have to
+ * it: a row is one option and holds no second control. True when the key was the row's.
+ */
+const arDeleteKey = (row: LineRow | undefined, { A, askDelete }: Pick<Line, "A" | "askDelete">): boolean => {
+  if (row?.type === "thread" && row.th) {
+    askDelete(row.th);
+    return true;
+  }
+  if (row?.rest) {
+    void A.restNotice(row.rest);
+    return true;
+  }
+  return false;
+};
+
+/** The line's keys: Esc, the arrows over the rows or the answer's moves, Delete on a row with a second act, Enter; the field's own first (arFieldKey). */
 export const arOnKey = ({
+  A,
   hold,
   live,
   stop,
@@ -190,10 +208,9 @@ export const arOnKey = ({
       }
       return;
     }
-    // Delete asks to delete the conversation the keys stand on, from an empty line; with words it edits them.
-    if (e.key === "Delete" && !query && showRows && rows[sel] && rows[sel].type === "thread") {
+    // Delete is the row's second act, from an empty line (arDeleteKey); with words it edits them.
+    if (e.key === "Delete" && !query && showRows && arDeleteKey(rows[sel], { A, askDelete })) {
       e.preventDefault();
-      askDelete(rows[sel].th as NonNullable<LineRow["th"]>);
       return;
     }
     if (e.key === "Enter") {

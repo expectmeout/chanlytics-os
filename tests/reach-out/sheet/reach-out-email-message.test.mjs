@@ -527,3 +527,27 @@ test("a saved email re-reads what a chain's edit moves: its words, the playbooks
   // searches, rounds and members, and the save writes none of them).
   assert.equal(keys.includes("leads"), false, `Leads is not read for a message: ${keys.join(", ")}`);
 });
+
+test("REGRESSION: a cold email's line says it wears a mark, so a phone's hairline over it starts under its name; a message's wears none", () => {
+  // The mail's mark stands before a cold email's name, a face and a gap further in than a message's (two lines a row since
+  // #2249, 10 Nov 2026). The hairline between two rows starts under the name (campaigns.css, by this attribute): it started
+  // at the row's edge, 44px left of the name, and the nightly's walk of every list named it (e2e/shell/phone.spec.ts).
+  const tree = page({ rows: [WHATSAPP_ROW], channels: [{ kind: "whatsapp" }] });
+  const lineOf = (row) => find(row, (n) => n.props?.className === "msg-row-line");
+  const emails = rowsOf(tree).map(lineOf);
+  assert.equal(emails.length, 2);
+  for (const line of emails) {
+    assert.ok(
+      find(line, (n) => String(n.props?.className ?? "").includes("msg-row-mark")),
+      "the fixture's row wears the mark",
+    );
+    assert.equal(line.props["data-marked"], "", "REGRESSION: the line said nothing of its mark");
+  }
+  const message = lineOf(find(tree, (n) => n.props?.["data-testid"] === "custom-row"));
+  assert.equal(
+    find(message, (n) => String(n.props?.className ?? "").includes("msg-row-mark")),
+    null,
+    "a message wears no mark",
+  );
+  assert.equal(message.props["data-marked"], undefined, "so its line starts at the row's edge, where its name does");
+});

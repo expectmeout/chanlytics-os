@@ -31,6 +31,7 @@ import {
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
+import { SAYS_WHEN } from "../../kit/says-when";
 import { needsYouActed } from "../../needs-you";
 import { surfaceValue } from "../../surface-values";
 import { usePartShown } from "../../use-surface";
@@ -139,7 +140,10 @@ function listDoorOf(people: number, runs: number): { to: string; label: string }
   return { to, label: to === "inbox" ? W.door : (verbForRoute(to) ?? W.door) };
 }
 
-/** Need you's head: its name, how many the team dealt with today, and the door. Called, not drawn. */
+/**
+ * Need you's head: its name, how many the team dealt with today, and the door. Called, not drawn. How many were done today
+ * is a time the page says (kit/says-when.ts): a copy of the screen some minutes old leaves it out, as it does every other.
+ */
 function needYouHead(door: { to: string; label: string }, done: number, toDo: number | null) {
   return (
     <div className="tq-head tz-head">
@@ -149,7 +153,7 @@ function needYouHead(door: { to: string; label: string }, done: number, toDo: nu
       {toDo !== null ? (
         <span className="tz-fact">{toDo}</span>
       ) : done > 0 ? (
-        <span className="tz-fact" data-testid="today-done">
+        <span className="tz-fact" data-testid="today-done" {...SAYS_WHEN}>
           {W.doneToday(done)}
         </span>
       ) : null}

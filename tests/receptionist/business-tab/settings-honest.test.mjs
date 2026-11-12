@@ -216,17 +216,31 @@ const { hearSurfaces } = await import("../../../apps/dashboard/src/bridge/surfac
 // card, an owner's read answered here as refused, so the card stays out of what these tests look at.
 const { partnerVerbs } = await import("../../../apps/dashboard/src/surfaces/settings/partner/surface.ts");
 partnerVerbs.team.read = async () => ({ ok: false, code: "forbidden", message: "Only an owner can do this." });
+// The workspace's facts as the settings read resolves them: the seam's alone (the bridge published them on the window
+// too, as `__FACTS`, until 11 Nov 2026), read by the Business tab's rows from there (settings/business/shell.ts).
+const FACTS = {
+  facts: {
+    business_name: { value: "Northside Studio", source: "typed" },
+    voice_line: { value: "+13055550100", source: "provisioned" },
+    phone_display: { value: formatPhoneDisplay("+13055550100"), source: "provisioned" },
+    handoff_number: { value: "+17865550182", source: "typed" },
+    address: { value: null, source: "absent" },
+  },
+  conflicts: [],
+};
+/** The roster and its open invitations as the team read last answered: the settings surface's alone (null: not read). */
+const read = { team: null, invites: null };
 /** The seam's settings value, beside the globals it copies (bridge/surfaces/settings.ts). */
 const seam = () =>
   setSurfaceValue("settings", {
     settings: globalThis.window.__SETTINGS,
-    facts: globalThis.window.__FACTS ?? null,
+    facts: FACTS,
     channels: null,
     templatesAll: null,
     templateUse: null,
     templateSent: null,
-    team: globalThis.window.__TEAM ?? null,
-    invites: globalThis.window.__TEAM_INVITES ?? null,
+    team: read.team,
+    invites: read.invites,
   });
 
 const walk = (n, fn) => {
@@ -283,12 +297,20 @@ const settings = (tab) => {
 const again = draw;
 const settle = (tab) => (dirty ? draw(tab) : lastTree);
 
+/** The roster the team read answers with, where a test says no other: an owner and an operator. */
+const ROSTER = [
+  { membershipId: "m-dana", email: "owner@northside.example", displayName: "Dana", role: "owner" },
+  { membershipId: "m-lee", email: "lee@northside.example", displayName: "Lee", role: "operator" },
+];
+
 /**
  * A real workspace, in the shapes the settings surface reads (surface-data.ts, contracts facts.ts): the facts resolve
  * the line it answers as E.164, the number it gives out as the line written for people, and the transfer number as
  * stored; a roster of two; no open invitation.
  */
-const workspace = (over = {}) => {
+const workspace = ({ team = ROSTER, invites = [], ...over } = {}) => {
+  read.team = team;
+  read.invites = invites;
   Object.assign(globalThis.window, {
     __ME: { email: "owner@northside.example", role: "owner", display_name: "Dana" },
     __SETTINGS: {
@@ -307,21 +329,6 @@ const workspace = (over = {}) => {
         notifications: { escalation_emails: ["owner@northside.example"] },
       },
     },
-    __FACTS: {
-      facts: {
-        business_name: { value: "Northside Studio", source: "typed" },
-        voice_line: { value: "+13055550100", source: "provisioned" },
-        phone_display: { value: formatPhoneDisplay("+13055550100"), source: "provisioned" },
-        handoff_number: { value: "+17865550182", source: "typed" },
-        address: { value: null, source: "absent" },
-      },
-      conflicts: [],
-    },
-    __TEAM: [
-      { membershipId: "m-dana", email: "owner@northside.example", displayName: "Dana", role: "owner" },
-      { membershipId: "m-lee", email: "lee@northside.example", displayName: "Lee", role: "operator" },
-    ],
-    __TEAM_INVITES: [],
     ...over,
   });
   seam();
@@ -336,10 +343,10 @@ const workspace = (over = {}) => {
 test("REGRESSION (D7, S11): the Team card draws again when the settings surface is re-read -- an invitation just sent was not on it", () => {
   workspace();
   settings("team");
-  globalThis.window.__TEAM_INVITES = [
+  read.invites = [
     { id: "inv-sam", email: "sam@northside.example", role: "viewer", expires_at: "2026-09-22T12:00:00Z" },
   ];
-  // The read lands as the bridge lays it: the globals, the seam's value, and the event, which the bridge hears as the
+  // The read lands as the bridge lays it: the seam's value, and the event, which the bridge hears as the
   // surface moving (surface-status.ts hearSurfaces), the move the card's useSurface listens for.
   seam();
   const stop = hearSurfaces([{ key: "settings", events: ["surface:settings"] }], globalThis.window);
@@ -432,7 +439,7 @@ test("REGRESSION (S20): Profile's sign-out is not titled for one device, and Ale
 
 test("a real roster is counted in people, never in seats of a plan it does not have, and Invite stays offered", () => {
   workspace({
-    __TEAM: ["ana", "bo", "cy", "di", "ed", "flo"].map((n, i) => ({
+    team: ["ana", "bo", "cy", "di", "ed", "flo"].map((n, i) => ({
       membershipId: `m-${n}`,
       email: `${n}@northside.example`,
       displayName: "",

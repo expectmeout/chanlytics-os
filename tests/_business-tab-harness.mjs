@@ -6,7 +6,7 @@
  *
  * Every claim in those files is something the page drew, or something a press on it sent: no source-text assertions.
  * The page draws from what the settings read hands over (`__SETTINGS`, with the preview the server resolved, and
- * `__FACTS`), and every sentence with a judgement in it is contracts', through the bridge the app installs
+ * the facts, which are the seam's alone: landFacts), and every sentence with a judgement in it is contracts', through the bridge the app installs
  * (bridge/business-tab.ts). A save goes through a stand-in for the bridge's versioned PUT (saving()) that records
  * what it was sent and says the server accepted it.
  *
@@ -49,6 +49,35 @@ Object.assign(globalThis, {
 // The tab is TSX (surfaces/settings/business, decision 0015 step 11): every part on the window by its JSX name.
 await import("./receptionist/business-tab/_business-parts.mjs");
 const W = globalThis.window;
+const { setSurfaceValue, surfaceValue } = await import("../apps/dashboard/src/surfaces/surface-values.ts");
+/**
+ * The settings read as the seam holds it once it lands (bridge/surfaces/settings.ts): the workspace's facts, which the
+ * tab's rows read from there alone (settings/business/shell.ts factsNow; the bridge published them on the window too, as
+ * `__FACTS`, until 11 Nov 2026) and WhatsApp's rows (landTemplates), beside the record and the policies the window still
+ * holds, as the read lands all of them together. What a test put on the seam itself (a team, a message) stays.
+ */
+const landFacts = (held) =>
+  setSurfaceValue("settings", {
+    ...(surfaceValue("settings") ?? {}),
+    settings: W.__SETTINGS ?? null,
+    facts: held,
+    policies: W.__POLICIES,
+    templatesAll: templatesHeld,
+  });
+/** WhatsApp's rows as the templates read last landed them: undefined is the read not landed yet, null one that failed. */
+let templatesHeld;
+/**
+ * The templates read landing again by itself, as it does when one is approved: the seam's rows alone change (the bridge
+ * published them on the window too, as `__TEMPLATES_ALL`, until 11 Nov 2026). Answers the rows held before, to put back.
+ */
+const landTemplates = (rows) => {
+  const was = templatesHeld;
+  templatesHeld = rows;
+  setSurfaceValue("settings", { ...(surfaceValue("settings") ?? {}), templatesAll: rows });
+  return was;
+};
+/** The facts the page was drawn over, as the seam holds them. */
+const factsHeld = () => surfaceValue("settings")?.facts;
 // The tab's helpers, from the module the tab imports: the gap line, and what each row will tell the receptionist.
 const { BUSINESS_TAB, loadSaveRules } = await import("../apps/dashboard/src/bridge/business-tab.ts");
 // And the save's own rules, which the tab asks for as it mounts (business-tab.jsx): here before any page is drawn, as
@@ -292,12 +321,12 @@ const drawTab = ({
   // the record, as __SETTINGS is: what the last test left is not this one's.
   W.__SETUP = setup;
   W.__POLICIES = policies;
-  W.__TEMPLATES_ALL = templates;
+  templatesHeld = templates;
   if (resolved) {
     const f = resolveFacts(W.__SETTINGS.config.brain, resolved);
-    W.__FACTS = { facts: f, conflicts: factConflicts(f) };
+    landFacts({ facts: f, conflicts: factConflicts(f) });
   } else {
-    W.__FACTS = facts({ conflicts, facts: known });
+    landFacts(facts({ conflicts, facts: known }));
   }
   W.__WORKSPACES = [{ id: "t-marisa", name: "Marisa's Beauty Salon", timezone: zone, appointment_word: word }];
   W.__ACTIVE_WORKSPACE = "t-marisa";
@@ -444,9 +473,12 @@ export {
   drawTab,
   escape,
   facts,
+  factsHeld,
   foldOf,
   inline,
   labelled,
+  landFacts,
+  landTemplates,
   marisa,
   openFold,
   openFolds,

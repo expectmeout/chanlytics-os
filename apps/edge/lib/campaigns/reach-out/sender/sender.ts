@@ -12,11 +12,12 @@ import {
   sendStanding,
   listStuckClaims,
   findWrittenEmail,
+  type DueMailbox,
   type ReachOutSendRow,
 } from "@chanlytics/db/campaigns";
 import { findMailboxConnection } from "@chanlytics/db/email";
 import { sendMessageId } from "@chanlytics/core";
-import { REACH_OUT_MONTH_EMAILS, mailboxDailyCap, mailboxSendsNow, slotCount } from "@chanlytics/contracts";
+import { MIN_MS, REACH_OUT_MONTH_EMAILS, mailboxDailyCap, mailboxSendsNow, slotCount } from "@chanlytics/contracts";
 import { checkedWordsOf } from "@chanlytics/channels/email";
 import { replanSends, type Replan } from "../replan.js";
 import type { LogEvent, Logger } from "../../../shared/log.js";
@@ -137,7 +138,8 @@ async function writeOne(tick: Tick, reachOutSend: ReachOutSendRow): Promise<Outc
   return sendFromMailbox(tick, reachOutSend, turns, created, { mailbox, messageId });
 }
 
-export async function claimAndWrite(params: {
+/** What a tick is asked. */
+interface ClaimParams {
   db: Db;
   now: Date;
   started: number;
@@ -146,7 +148,131 @@ export async function claimAndWrite(params: {
   log: Logger;
   /** One workspace to keep to; every workspace when absent, as the clock runs. A test proves it on its own. */
   tenantId?: TenantId;
-}): Promise<SenderCounts> {
+}
+
+/** What a tick's lanes share: what it was asked, its reads, its counts, its window, and how one send is written. */
+interface Run {
+  params: ClaimParams;
+  tick: Tick;
+  out: SenderCounts;
+  /** Whether the tick's window has closed (CLAIM_YIELD_AT_MS): nothing more is started. */
+  late: () => boolean;
+  failed: (event: LogEvent, fields: Record<string, unknown>, e: unknown) => void;
+  write: (s: ReachOutSendRow, again: boolean) => Promise<void>;
+}
+
+/**
+ * Which lane a tick writes first: the drafts on an even minute, the mailboxes' emails on an odd one. Both are written one
+ * at a time inside the tick's one window (CLAIM_YIELD_AT_MS), so whichever goes second has what the first left of it. The
+ * drafts always went first, and a morning's drafts are a day's share of every reach-out its owner sends, all due at once:
+ * for as long as they lasted, the mailboxes' emails, each planned for a moment in its lead's own day, had the end of every
+ * window, or none of it. Turn about, each lane has a whole window every other minute, whatever the other holds (the
+ * review of 11 November 2026; docs/capacity.md, the two reach_out rows). The clock ticks once a minute, so the minute's
+ * own number is the turn: no row keeps it.
+ */
+const draftsGoFirst = (now: Date): boolean => Math.floor(now.getTime() / MIN_MS) % 2 === 0;
+
+/**
+ * The drafts due of reach-outs their owners send (00429), a page a tick: no mailbox's day and no seal, since their
+ * owner's own client sends them.
+ */
+async function writeDraftsDue({ params, out, late, failed, write }: Run): Promise<void> {
+  try {
+    if (late()) return;
+    for (const s of await claimDrafts(params.db, {
+      at: params.now,
+      limit: DRAFTS_PER_TICK,
+      tenantId: params.tenantId ?? null,
+    })) {
+      out.claimed += 1;
+      if (late()) break; // claimed and left: written again in five minutes, as any claim a tick leaves
+      await write(s, false);
+    }
+  } catch (e) {
+    failed("reach_out_claim_failed", { drafts: true }, e);
+  }
+}
+
+/** What a tick holds of the workspaces its mailboxes belong to: each one's month left, and those that claim nothing more. */
+interface WorkspacesHeld {
+  allowance: Map<string, number>;
+  skipTenants: Set<string>;
+}
+
+/**
+ * One due mailbox's claim, written. Nothing for a workspace that cannot write an email's foot or whose month is spent
+ * (each counted once, and passed over for the rest of the tick), and nothing for a mailbox resting or not connected.
+ */
+async function writeMailboxDue({ params, tick, out, write }: Run, row: DueMailbox, held: WorkspacesHeld) {
+  // A workspace that cannot write an email's foot claims nothing: its sends keep.
+  const workspace = await tick.reads.workspace(row.tenant_id);
+  if (workspace.missing) {
+    held.skipTenants.add(row.tenant_id);
+    out.workspaces_held += 1;
+    params.log.warn("reach_out_workspace_held", { tenant_id: row.tenant_id, reason: workspace.missing });
+    return;
+  }
+  if (!held.allowance.has(row.tenant_id))
+    held.allowance.set(
+      row.tenant_id,
+      REACH_OUT_MONTH_EMAILS - (await readMonthSent(params.db, row.tenant_id, params.now)),
+    );
+  const left = held.allowance.get(row.tenant_id) ?? 0;
+  if (left <= 0) {
+    held.skipTenants.add(row.tenant_id);
+    out.month_spent += 1;
+    params.log.info("reach_out_month_spent", { tenant_id: row.tenant_id, allowance: REACH_OUT_MONTH_EMAILS });
+    return;
+  }
+  // Read for the claim and not kept: its writer reads the row as it stands after the claim, so a mailbox paused
+  // or signed out in between holds its sends rather than writing from it.
+  const [capacity, mailbox] = await Promise.all([
+    getMailboxCapacity(params.db, row.id, params.now),
+    findMailboxConnection(params.db, row.tenant_id, row.id),
+  ]);
+  if (!mailbox || !mailboxSendsNow(capacity, params.now.getTime())) return;
+  // The day's share the door judges by (mailbox_capacity's own days, deliver.ts): a claim past the door's share
+  // would only be sent back, and cost each send one of its tries.
+  const claimed = await claimSends(params.db, {
+    mailboxId: row.id,
+    cap: mailboxDailyCap(capacity),
+    at: params.now,
+    limit: Math.min(CLAIM_PER_MAILBOX_PER_TICK, left),
+  });
+  out.claimed += claimed.length;
+  held.allowance.set(row.tenant_id, left - claimed.length);
+  for (const s of claimed) await write(s, false);
+}
+
+/**
+ * The mailboxes' own emails: the claim, a page of mailboxes at a time, past the workspaces held this tick and the
+ * mailboxes already done; none without the lane's seal.
+ */
+async function writeMailboxesDue(run: Run): Promise<void> {
+  const { params, late, failed } = run;
+  const held: WorkspacesHeld = { allowance: new Map(), skipTenants: new Set() };
+  const done = new Set<string>();
+  for (let page = 0; page < DUE_PAGES && params.lane && !late(); page += 1) {
+    const due = await listDueMailboxes(params.db, params.now, DUE_MAILBOXES_PAGE, {
+      tenantId: params.tenantId,
+      skipTenants: held.skipTenants,
+      skipMailboxes: done,
+    });
+    for (const row of due) {
+      if (late()) break;
+      done.add(row.id);
+      if (held.skipTenants.has(row.tenant_id)) continue;
+      try {
+        await writeMailboxDue(run, row, held);
+      } catch (e) {
+        failed("reach_out_claim_failed", { mailbox_id: row.id, tenant_id: row.tenant_id }, e);
+      }
+    }
+    if (due.length < DUE_MAILBOXES_PAGE) break;
+  }
+}
+
+export async function claimAndWrite(params: ClaimParams): Promise<SenderCounts> {
   const out: SenderCounts = {
     claimed: 0,
     written: 0,
@@ -202,83 +328,10 @@ export async function claimAndWrite(params: {
     failed("reach_out_rewrite_failed", {}, e);
   }
 
-  // The drafts due of reach-outs their owners send (00429), a page a tick: no mailbox's day and no seal, since their
-  // owner's own client sends them.
-  try {
-    if (!late())
-      for (const s of await claimDrafts(params.db, {
-        at: params.now,
-        limit: DRAFTS_PER_TICK,
-        tenantId: params.tenantId ?? null,
-      })) {
-        out.claimed += 1;
-        if (late()) break; // claimed and left: written again in five minutes, as any claim a tick leaves
-        await write(s, false);
-      }
-  } catch (e) {
-    failed("reach_out_claim_failed", { drafts: true }, e);
-  }
-
-  // The claim, a page of mailboxes at a time, past the workspaces held this tick and the mailboxes already done; none
-  // without the lane's seal.
-  const allowance = new Map<string, number>();
-  const skipTenants = new Set<string>();
-  const done = new Set<string>();
-  for (let page = 0; page < DUE_PAGES && params.lane && !late(); page += 1) {
-    const due = await listDueMailboxes(params.db, params.now, DUE_MAILBOXES_PAGE, {
-      tenantId: params.tenantId,
-      skipTenants,
-      skipMailboxes: done,
-    });
-    for (const row of due) {
-      if (late()) break;
-      done.add(row.id);
-      if (skipTenants.has(row.tenant_id)) continue;
-      try {
-        // A workspace that cannot write an email's foot claims nothing: its sends keep.
-        const workspace = await tick.reads.workspace(row.tenant_id);
-        if (workspace.missing) {
-          skipTenants.add(row.tenant_id);
-          out.workspaces_held += 1;
-          params.log.warn("reach_out_workspace_held", { tenant_id: row.tenant_id, reason: workspace.missing });
-          continue;
-        }
-        if (!allowance.has(row.tenant_id))
-          allowance.set(
-            row.tenant_id,
-            REACH_OUT_MONTH_EMAILS - (await readMonthSent(params.db, row.tenant_id, params.now)),
-          );
-        const left = allowance.get(row.tenant_id) ?? 0;
-        if (left <= 0) {
-          skipTenants.add(row.tenant_id);
-          out.month_spent += 1;
-          params.log.info("reach_out_month_spent", { tenant_id: row.tenant_id, allowance: REACH_OUT_MONTH_EMAILS });
-          continue;
-        }
-        // Read for the claim and not kept: its writer reads the row as it stands after the claim, so a mailbox paused
-        // or signed out in between holds its sends rather than writing from it.
-        const [c, mailbox] = await Promise.all([
-          getMailboxCapacity(params.db, row.id, params.now),
-          findMailboxConnection(params.db, row.tenant_id, row.id),
-        ]);
-        if (!mailbox || !mailboxSendsNow(c, params.now.getTime())) continue;
-        // The day's share the door judges by (mailbox_capacity's own days, deliver.ts): a claim past the door's share
-        // would only be sent back, and cost each send one of its tries.
-        const claimed = await claimSends(params.db, {
-          mailboxId: row.id,
-          cap: mailboxDailyCap(c),
-          at: params.now,
-          limit: Math.min(CLAIM_PER_MAILBOX_PER_TICK, left),
-        });
-        out.claimed += claimed.length;
-        allowance.set(row.tenant_id, left - claimed.length);
-        for (const s of claimed) await write(s, false);
-      } catch (e) {
-        failed("reach_out_claim_failed", { mailbox_id: row.id, tenant_id: row.tenant_id }, e);
-      }
-    }
-    if (due.length < DUE_MAILBOXES_PAGE) break;
-  }
+  // The two lanes, the one whose turn it is first (draftsGoFirst): each is written one at a time inside this tick's window.
+  const run: Run = { params, tick, out, late, failed, write };
+  const lanes = draftsGoFirst(params.now) ? [writeDraftsDue, writeMailboxesDue] : [writeMailboxesDue, writeDraftsDue];
+  for (const lane of lanes) await lane(run);
 
   // Planned again: from now on another mailbox, and an hour on in their leads' hours.
   const replans: Array<[Replan[], Date]> = [

@@ -79,17 +79,34 @@ interface Kept {
 
 const keptNow = (key: string): Kept => ({ build: BUILD, shape: SURFACE_SHAPES[key] ?? null, at: Date.now() });
 
+/** What a snapshot says it was kept under, or nothing for one written before snapshots said. */
+const keptStampOf = (entry: Record<string, unknown>) => entry[KEPT_SLOT] as Kept | undefined;
+
 /**
  * Whether a surface's snapshot may be drawn now: under the build that wrote it; under another, only a typed value with
  * nothing of the window's beside it (a global's shape no checker holds), whose shape is this build's for it. A snapshot from
  * before snapshots said what they were kept under is the build's and the age its slot was written at.
  */
 function drawable(key: string, entry: Record<string, unknown>, blob: CacheBlob, now: number): boolean {
-  const kept = (entry[KEPT_SLOT] as Kept | undefined) ?? { build: blob.build, shape: null, at: blob.savedAt };
+  const kept = keptStampOf(entry) ?? { build: blob.build, shape: null, at: blob.savedAt };
   if (now - kept.at >= MAX_AGE_MS) return false;
   if (kept.build === BUILD) return true;
   const shape = SURFACE_SHAPES[key];
   return !!shape && kept.shape === shape && Object.keys(entry).every((n) => n === VALUE_SLOT || n === KEPT_SLOT);
+}
+
+/**
+ * The snapshots of a cache still inside their day, which is all the next write carries on. A slot is judged by when it
+ * was last written (kept-on-device.ts), and every write carried every snapshot the slot held: a person who opened Today
+ * each morning kept the Inbox's threads from the one day they opened it for as long as they kept coming, never drawn
+ * (drawable) and never gone. A snapshot past its day leaves with the next write, so no page's rows stay on the device
+ * longer than the day the slot promises.
+ */
+function insideTheirDay(blob: CacheBlob | null, now: number): Record<string, Record<string, unknown>> {
+  if (!blob) return {};
+  return Object.fromEntries(
+    Object.entries(blob.surfaces).filter(([, entry]) => now - (keptStampOf(entry)?.at ?? blob.savedAt) < MAX_AGE_MS),
+  );
 }
 /** A payload larger than this isn't worth the main-thread cost to parse. */
 const MAX_BYTES = 2_000_000;
@@ -349,13 +366,15 @@ export function snapshotSurface(
   const snap = globalsNow(globals);
   const typed = value ? surfaceValue(value) : undefined;
   if (typed !== undefined) snap[VALUE_SLOT] = typed;
-  // A new object over the one kept, never the kept one changed: what was written stays what it says.
+  // A new object over the one kept, never the kept one changed: what was written stays what it says. Of the one kept,
+  // only the snapshots still inside their day come along (insideTheirDay).
+  const now = Date.now();
   keep({
     build: BUILD,
-    savedAt: Date.now(),
+    savedAt: now,
     at: addressed(),
     tenant: tenant || (was?.tenant ?? tenant),
-    surfaces: { ...was?.surfaces, [key]: { ...(trim ? trim(snap) : snap), [KEPT_SLOT]: keptNow(key) } },
+    surfaces: { ...insideTheirDay(was, now), [key]: { ...(trim ? trim(snap) : snap), [KEPT_SLOT]: keptNow(key) } },
   });
 }
 
@@ -375,7 +394,8 @@ export function resnapshotSurface(key: string, globals: string[], tenant: string
   const typed = value ? surfaceValue(value) : undefined;
   if (typed !== undefined) snap[VALUE_SLOT] = typed;
   snap[KEPT_SLOT] = keptNow(key);
-  keep({ ...blob, savedAt: Date.now(), surfaces: { ...blob.surfaces, [key]: snap } });
+  const now = Date.now();
+  keep({ ...blob, savedAt: now, surfaces: { ...insideTheirDay(blob, now), [key]: snap } });
 }
 
 /** The workspace the server resolved for the rows cached at this address; null where nothing is cached for it. */

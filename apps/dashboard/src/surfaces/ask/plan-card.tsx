@@ -370,9 +370,6 @@ export const AskPlan = ({
         </p>
       ) : null}
       <AskPlanHow ordered={ordered} also={head?.also ?? []} t={t} />
-      {press.steps.length && !pressedOnce && onQuick && says.length ? (
-        <AskQuickChanges t={t} onFollow={onQuick} />
-      ) : null}
       {press.review !== null ? (
         <p className="ask-card-foot" data-testid="ask-step-note">
           {t.reviewFirst}
@@ -380,6 +377,10 @@ export const AskPlan = ({
       ) : null}
       {press.steps.length ? (
         <AskPlanPress plan={plan} head={head} idea={first?.origin?.by === "idea" && !pressedOnce} t={t} />
+      ) : null}
+      {/* Under the press, as a card's are (card.tsx): never between the press and what it turns on. */}
+      {press.steps.length && !pressedOnce && onQuick && says.length ? (
+        <AskQuickChanges t={t} onFollow={onQuick} />
       ) : null}
       <div className="ask-told" role="status">
         {said ? <AskPlanTold said={said} plan={plan} t={t} onNav={onNav} /> : null}

@@ -30,6 +30,17 @@ const COLD = {
   people: "/#/clients",
   leads: "/#/clients/leads",
 };
+/**
+ * What was measured, said on every run, a pass as well as a fail: each line is set from a week of these (the baseline's
+ * note: the first week's p75 plus a fifth), and a night that passed kept none. The week the lines were to be lowered from, 3
+ * to 10 Nov 2026, left nothing to read, and a browser a suite drives is no customer, so the field data holds none of it
+ * either (client/page-speed-rules.ts notACustomer). One line in the run's log, in one shape, and on the report beside its test.
+ */
+function measured(kind: "cold" | "move", name: string, ms: number, budget: number): void {
+  test.info().annotations.push({ type: "drawn", description: `${ms} ms of ${budget}` });
+  console.log(`page-speed ${kind} ${name}: ${ms} ms of ${budget}`);
+}
+
 /** The sidebar's place each moved-to page is pressed by. */
 const PLACE: Record<string, string> = { inbox: "Inbox", people: "People", calendar: "Calendar", reports: "Reports" };
 
@@ -43,6 +54,7 @@ test.describe("each page is drawn with its rows within its budget", () => {
       await signIn(page);
       await page.goto(address);
       const ms = await drawnIn(page, name);
+      measured("cold", name, ms, budget);
       expect(ms, `${name} drawn with its rows ${ms} ms into a cold load`).toBeLessThanOrEqual(budget);
     });
   }
@@ -71,6 +83,7 @@ test.describe("each page is drawn with its rows within its budget", () => {
         await placeRow(page, PLACE[name] ?? name).click();
         onToday = false;
         const ms = await drawnIn(page, name, before);
+        measured("move", name, ms, budget);
         expect(ms, `${name} drawn with its rows ${ms} ms after the press`).toBeLessThanOrEqual(budget);
       });
     }

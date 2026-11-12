@@ -176,6 +176,18 @@ Object.assign(globalThis.window, kitPages);
 useStubHooks();
 const kitUnsaved = globalThis.window.__settingsUnsaved;
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
+// The workspace's facts as the settings read resolves them: the seam's alone (the bridge published them on the window
+// too, as `__FACTS`, until 11 Nov 2026), read by the Business tab's rows from there (settings/business/shell.ts).
+const FACTS = {
+  facts: {
+    business_name: { value: "Northside Studio", source: "typed" },
+    voice_line: { value: "+13055550124", source: "provisioned" },
+    phone_display: { value: formatPhoneDisplay("+13055550124"), source: "provisioned" },
+    handoff_number: { value: null, source: "absent" },
+    address: { value: null, source: "absent" },
+  },
+  conflicts: [],
+};
 Object.assign(globalThis.window, {
   usePPToast: () => [null, (t) => toasts.push(t)],
   CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
@@ -214,23 +226,19 @@ Object.assign(globalThis.window, {
       },
     },
   },
-  __FACTS: {
-    facts: {
-      business_name: { value: "Northside Studio", source: "typed" },
-      voice_line: { value: "+13055550124", source: "provisioned" },
-      phone_display: { value: formatPhoneDisplay("+13055550124"), source: "provisioned" },
-      handoff_number: { value: null, source: "absent" },
-      address: { value: null, source: "absent" },
-    },
-    conflicts: [],
-  },
-  __TEAM: [],
-  __TEAM_INVITES: [],
 });
 await import("./_business-parts.mjs");
 // The page and its tabs are the TSX module (decision 0015 step 11), imported as the app imports it.
 const { SettingsPage } = await import("../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
 const { SET_TABS } = await import("../../../apps/dashboard/src/surfaces/settings/frame/tabs.ts");
+// The seam's settings value, as the settings read lands it beside the globals it still publishes (bridge/surfaces/settings.ts).
+const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+setSurfaceValue("settings", {
+  settings: globalThis.window.__SETTINGS,
+  facts: FACTS,
+  team: [],
+  invites: [],
+});
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;

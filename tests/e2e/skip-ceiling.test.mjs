@@ -72,6 +72,8 @@ test("the reasons the suite's own gates give are the deliberate ones; a want of 
   for (const why of [
     "a real model turn costs money: set E2E_PAID_MODEL=1 to run it",
     "a real search spends on the source and the judge: set E2E_PAID_LEADS=1 to run it",
+    // e2e/settings/files.spec.ts's own words: a copy's edge is a stand-in with no Stream behind it.
+    "a real clip goes up at Stream through the real edge, which a copy's stand-in is not: set E2E_PAID_VIDEO=1 to run it",
     "set E2E_SIGNUP_PROBE=1 with the service role to run the probe",
     "set E2E_SIGNUP_EMAIL to a real inbox, with {stamp} for a fresh address each run, to run the probe",
     // e2e/kit/kit.spec.ts's own words: production has no gallery, so the nightly skips it by design.

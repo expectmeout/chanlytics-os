@@ -19,7 +19,7 @@ import {
   whyNotAPhone,
 } from "@chanlytics/contracts";
 import { again, unmount, settle, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
-import { W, saving } from "../../_business-tab-harness.mjs";
+import { W, landFacts, saving } from "../../_business-tab-harness.mjs";
 
 // The last card this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
@@ -31,13 +31,13 @@ after(() => unmount());
  */
 const drawCreate = ({ flash = () => {}, line = null, handoff = null, config = {}, read = true } = {}) => {
   W.__SETTINGS = read ? { version: 3, config, prompt: null } : null;
-  W.__FACTS = {
+  landFacts({
     facts: {
       voice_line: { value: line, source: line ? "provisioned" : "absent" },
       handoff_number: { value: handoff, source: handoff ? "typed" : "absent" },
     },
     conflicts: [],
-  };
+  });
   W.__WORKSPACES = [{ id: "t-new", name: "Bella Nails", timezone: "America/New_York" }];
   W.__ACTIVE_WORKSPACE = "t-new";
   unmount();

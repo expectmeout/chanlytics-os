@@ -106,6 +106,7 @@ const { saveView } = await import("../../../apps/dashboard/src/surfaces/people/p
 const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 const {
   snapshotSurface,
+  resnapshotSurface,
   hydrateSurfaceCache,
   clearSurfaceCache,
   flushSurfaceCache,
@@ -519,6 +520,45 @@ test("a snapshot older than a day is not drawn: a page waits for its reads, as o
   }
 });
 
+test("a page's rows leave the slot once they are a day old, though the slot is written every day: opening Today each morning kept the Inbox's threads from the one day it was opened", () => {
+  mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const w = globalThis.window;
+  const kept = () => Object.keys(JSON.parse(stored()).surfaces).sort();
+  try {
+    clearSurfaceCache();
+    w.__INBOX_PROBE = { threads: ["a customer's words"] };
+    w.__TODAY_PROBE = { n: 1 };
+    snapshotSurface("inbox", ["__INBOX_PROBE"], TID);
+    snapshotSurface("today", ["__TODAY_PROBE"], TID);
+    assert.deepEqual(kept(), ["inbox", "today"]);
+
+    // The next morning, twenty hours on: Today is read again, and the Inbox's rows are still inside their day.
+    mock.timers.tick(20 * 3_600_000);
+    snapshotSurface("today", ["__TODAY_PROBE"], TID);
+    assert.deepEqual(kept(), ["inbox", "today"], "inside its day a snapshot rides along");
+
+    // Six hours later Today is read once more: the Inbox's rows are twenty-six hours old, and go with this write.
+    mock.timers.tick(6 * 3_600_000);
+    snapshotSurface("today", ["__TODAY_PROBE"], TID);
+    assert.deepEqual(kept(), ["today"], "past its day it is not carried on: no load would draw it");
+    assert.ok(!stored().includes("a customer's words"), "and its rows are off the device");
+
+    // A page changed in place (a view saved, resnapshotSurface) writes the slot too, and carries no old snapshot either.
+    w.__PEOPLE_PROBE = { views: 1 };
+    snapshotSurface("people", ["__PEOPLE_PROBE"], TID);
+    mock.timers.tick(20 * 3_600_000);
+    snapshotSurface("today", ["__TODAY_PROBE"], TID);
+    assert.deepEqual(kept(), ["people", "today"]);
+    mock.timers.tick(6 * 3_600_000);
+    resnapshotSurface("today", ["__TODAY_PROBE"], TID);
+    assert.deepEqual(kept(), ["today"], "People's, a day old, went with Today's own write");
+  } finally {
+    for (const name of ["__INBOX_PROBE", "__TODAY_PROBE", "__PEOPLE_PROBE"]) delete w[name];
+    mock.timers.reset();
+    clearSurfaceCache();
+  }
+});
+
 test("REGRESSION: over its size the slot sheds what the page on screen does not draw first -- on Today it shed People, which Today draws, and kept the Inbox's threads, so every reload waited for People's read", () => {
   const w = globalThis.window;
   const was = w.location.hash;
@@ -873,4 +913,52 @@ test("a copy of a phone's first screen goes with the rows: at every clear, every
   assert.equal(ls.getItem("chanlytics.rows.v1:acme:people"), null, "cleared with the rows");
   assert.equal(ls.getItem("chanlytics.rows.v1:other:inbox"), null, "every workspace's, whoever comes next");
   assert.notEqual(ls.getItem("chanlytics-os-prefs"), null, "nothing but the kept rows is touched");
+});
+
+// An erasure reaches the database's every column by a named strategy (decision 0036); a teammate's browser is no column. What
+// it kept of the person is taken out by the read that follows, whole, and is a day old at most where no read does (the tests
+// of a slot's day, above). The audit's review of 11 Nov 2026 found no test of the first half.
+test("a person erased while a teammate's device holds their thread: the read that follows takes every word of theirs out of the slot", async () => {
+  const { api } = await import("../../../apps/dashboard/src/bridge/api.ts");
+  const robin = thread("c-robin", "Robin Example");
+  robin.messages[0].body = "Please delete everything you hold about me.";
+  const sam = thread("c-sam", "Sam Example");
+  const keep = () => {
+    snapshotSurface(
+      inboxOverride.key,
+      inboxOverride.globals ?? [],
+      TID,
+      inboxOverride.trimSnapshot,
+      inboxOverride.value,
+    );
+    return stored() ?? "";
+  };
+  inboxWire.conversations = [robin, sam];
+  try {
+    clearSurfaceCache();
+    await quietly(() => inboxOverride.apply());
+    const before = keep();
+    for (const theirs of ["Robin Example", "Please delete everything", "Sam Example"])
+      assert.ok(before.includes(theirs), `the device keeps both threads: ${theirs}`);
+
+    // A teammate erases Robin on another device. The list this one reads next holds no thread of theirs.
+    inboxWire.conversations = [sam];
+    // The client shares an identical read for two seconds: the read after the erasure is its own.
+    api().forget();
+    await quietly(() => inboxOverride.apply());
+    const after = keep();
+    assert.ok(after.includes("Sam Example"), "the thread that stays is kept");
+    for (const theirs of ["Robin Example", "Please delete everything", "c-robin"])
+      assert.equal(after.includes(theirs), false, `nothing of theirs waits in the slot: ${theirs}`);
+
+    // And a reload paints what the slot holds: the one thread.
+    setSurfaceValue("inbox", undefined);
+    assert.deepEqual([...hydrateSurfaceCache()], ["inbox"]);
+    assert.equal(surfaceValue("inbox").THREADS.length, 1, "one thread painted, and it is not theirs");
+    assert.equal(JSON.stringify(surfaceValue("inbox")).includes("Robin Example"), false);
+  } finally {
+    inboxWire.conversations = [];
+    setSurfaceValue("inbox", undefined);
+    clearSurfaceCache();
+  }
 });

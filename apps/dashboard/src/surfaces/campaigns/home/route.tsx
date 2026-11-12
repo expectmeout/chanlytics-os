@@ -35,6 +35,7 @@ import { viewDeck } from "../../kit/motion/view-deck";
 import { refreshSurface, replaceRoute, useFrameToast } from "../../frame-verbs";
 import type { CmView } from "../parts/split";
 import { surfaceValue } from "../../surface-values";
+import { waitForAdsFirstRead } from "../ads/first-read";
 import { useAdsShown } from "../ads/shown";
 import { MessagePaneProvider, sequencesPageNow, useMessagesView } from "./campaigns-code";
 import { CampaignsToast } from "./route-toast";
@@ -105,19 +106,34 @@ function useKeptViews(view: View, route: string, ahead: boolean) {
  * reaching (workspace.ts warmsOnItsOwn): its code fetched and, for Sequences, its list read, which only its own page reads
  * (onDemand), so the first press on the strip shows it drawn. React draws a hidden Activity at the lowest priority, behind
  * anything on screen.
+ *
+ * On Ads it waits for the page's own first read as well (ads/first-read.ts): that read is the page's, made once its code is
+ * in and not by the boot, so an idle frame with the boot in is not yet a page whose reads are. Nothing held Sequences' list,
+ * or Sequences drawn hidden, behind it: which went first was left to how long each took.
  */
 function useViewsAhead(view: View, adsShown: boolean): boolean {
   const [ahead, setAhead] = useState(false);
   useEffect(() => {
     if (ahead || typeof window === "undefined") return undefined;
-    return aheadWhenIdle(() => {
-      if (view !== "sequences" && surfaceValue("sequences") === undefined) void refreshSurface("sequences");
-      // Ads' code, fetched and not drawn: its page reads its own example when it is first shown.
-      if (adsShown && view !== "ads") void adsCode();
-      // Content's code, fetched and not drawn: its read is its own, made when it is first shown.
-      if (view !== "content") void contentCode();
-      setAhead(true);
-    });
+    let live = true;
+    let stop: (() => void) | null = null;
+    const start = () => {
+      if (!live) return;
+      stop = aheadWhenIdle(() => {
+        if (view !== "sequences" && surfaceValue("sequences") === undefined) void refreshSurface("sequences");
+        // Ads' code, fetched and not drawn: its page reads its own example when it is first shown.
+        if (adsShown && view !== "ads") void adsCode();
+        // Content's code, fetched and not drawn: its read is its own, made when it is first shown.
+        if (view !== "content") void contentCode();
+        setAhead(true);
+      });
+    };
+    if (view === "ads") void waitForAdsFirstRead().then(start);
+    else start();
+    return () => {
+      live = false;
+      stop?.();
+    };
   }, [ahead, view, adsShown]);
   return ahead;
 }

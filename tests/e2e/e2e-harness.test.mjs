@@ -27,7 +27,6 @@ import {
   channelsReady,
   MEMBERSHIP_ROLES,
   pipelineOf,
-  resolveFacts,
   roleAtLeast,
   starterByName,
   toPersonRowVM,
@@ -122,11 +121,11 @@ async function publishedGlobals(name) {
 
 test("the page's fixture publishes the settings read through the same contracts functions the bridge does", async () => {
   const w = await publishedGlobals("salon");
-  const brain = scenario("salon", NOW).config.brain;
   const S = scenario("salon", NOW);
 
-  // The settings read's facts, resolved from the record against what the platform knows (surface-data.ts's apply).
-  assert.deepEqual(plain(w.__FACTS.facts), plain(resolveFacts(brain, S.known)));
+  // The workspace's facts are the settings surface's alone since the bridge stopped publishing them (11 Nov 2026): their
+  // one reader, Settings › Business, left the mockup, so the fixture publishes none.
+  assert.equal("__FACTS" in w, false, "no facts on the window, as the bridge publishes none");
   assert.deepEqual(plain(w.__SETTINGS.config), S.config);
   assert.equal(w.__SETTINGS.version, S.version);
   assert.equal(w.__ACTIVE_WORKSPACE, WORKSPACE.id);
@@ -168,15 +167,15 @@ test("the fixture makes the role store, with the shell's own reading, so an owne
   }
 });
 
-test("the messages the fixture publishes are the scenario's own, the nightly has none, and a message with no WhatsApp row is none of Meta's", async () => {
+test("the messages the fixture counts are the scenario's own, the nightly has none, and a message with no WhatsApp row is none of Meta's", async () => {
   // The fixture published one approved booking_link template and templates.approved = 1 for EVERY scenario,
   // hand-written beside the payload it derives everything else in. Neither the seed (e2e-workspace.mjs) nor the
   // scenarios write a template row, so the nightly workspace was shown an approved message it does not have -- and
   // an approved booking-link template is exactly what decides whether a call can send the link at all
   // (contracts bookingTemplate, and the openings row's ", then the link" clause).
   // A workspace's messages with no WhatsApp version (the email-only record's three rows, two messages) are approved the moment
-  // they are written and are nobody's verdict but their author's: they are not what the bridge publishes as __TEMPLATES_ALL
-  // (bridge/surfaces/settings.ts keeps WhatsApp's rows alone), and Setup, which counts Meta's verdicts
+  // they are written and are nobody's verdict but their author's: they are no row of WhatsApp's (the settings surface's
+  // `templatesAll` keeps WhatsApp's rows alone, bridge/surfaces/settings.ts), and Setup, which counts Meta's verdicts
   // (server/setup/setup.ts templatesSection), counts none of them.
   for (const [name, approved] of [
     ["nightly", []],
@@ -184,22 +183,18 @@ test("the messages the fixture publishes are the scenario's own, the nightly has
     ["email-only", []],
   ]) {
     const w = await publishedGlobals(name);
-    assert.deepEqual(
-      plain(w.__TEMPLATES_ALL)
-        .filter((t) => t.meta_status === "approved")
-        .map((t) => t.name),
-      approved,
-      `${name}: the approved messages`,
-    );
     // The WhatsApp rows of the read the route would answer for the scenario's rows (templates-read.mjs), not a copy.
     const whatsapp = templatesRead(scenario(name, NOW).templates, { all: true }).templates.filter(
       (t) => t.channel === "whatsapp",
     );
-    assert.deepEqual(plain(w.__TEMPLATES_ALL), whatsapp, `${name}: the scenario's own list, not a copy`);
-    assert.ok(
-      w.__TEMPLATES_ALL.every((t) => t.channel === "whatsapp"),
-      `${name}: WhatsApp's rows alone, as the bridge publishes them`,
+    assert.deepEqual(
+      whatsapp.filter((t) => t.meta_status === "approved").map((t) => t.name),
+      approved,
+      `${name}: the approved messages`,
     );
+    // The rows themselves are the settings surface's, which the fixture does not publish: none is on the window, as the
+    // bridge puts none there (a global, `__TEMPLATES_ALL`, until 11 Nov 2026).
+    assert.equal("__TEMPLATES_ALL" in w, false, `${name}: no rows on the window`);
     // And the count Setup states is that list counted, never a number typed beside it.
     assert.equal(
       w.__SETUP.dto.templates.approved,

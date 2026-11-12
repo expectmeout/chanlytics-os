@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import { EMPTY_READ_STATE, buildNotificationFeed, unreadCount } from "@chanlytics/contracts";
 import { bellFeed, holdMarksOf } from "../../../apps/dashboard/src/bridge/surfaces/hold-rows.ts";
 import { importSrc } from "../../_source.mjs";
+import { settingsRead } from "./_world.mjs";
 
 const NOW = Date.parse("2026-09-18T20:00:00Z");
 const ago = (min) => NOW - min * 60_000;
@@ -202,6 +203,10 @@ test("a derived row that is not a hold's keeps this device's marks whatever the 
 /* ------------------------------------------------------ the bridge's bell ------------------------------------------------------ */
 
 const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
+// The bell reads the open invitations from the settings surface (its `invites`; a name on its own window, `__TEAM_INVITES`,
+// until 11 Nov 2026): every bell here is a workspace whose team read landed with none open.
+const { setSurfaceValue: landRead } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+landRead("settings", settingsRead());
 const requests = [];
 const was = globalThis.window;
 globalThis.window = {
@@ -233,7 +238,6 @@ const bell = (notices, threads = [thread(C1, "Dana")]) => {
     location: { hash: "" },
     INBOX_DATA: { THREADS: threads },
     __LIVE: { now: [], recent: [] },
-    __TEAM_INVITES: [],
     __NOTIFICATIONS: { dto: { notifications: notices, seen_at: null } },
   };
   return { api: bridge.installNotifications(win, storage), win, store };

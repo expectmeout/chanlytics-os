@@ -117,7 +117,30 @@ export interface SequenceRowDto {
    * absent for every other sequence, and from a server before it.
    */
   coming?: { at: string; people: number } | null;
-  /** The last batch that went, with what it sent and drew back. */
+  /**
+   * Who is between two steps with a time to come (decision 0128, stage 2): when the first of them is due their next
+   * step, and how many have one. Not who is due already, whose batch their step's next run makes, nor who has no step
+   * left. Null where nobody has; absent from a server before it.
+   */
+  between?: { at: string; people: number } | null;
+  /**
+   * Leads on a running cold email's list that its first step refuses for a reason their owner can mend (decision 0128,
+   * stage 2): how many, since when the first has stood there, and the reason as reach_out_why_not says it (`unchecked`:
+   * their email could not be checked). Asked of the 200 that have stood there longest, past a day. Null where none is;
+   * absent from a server before it (contracts sequenceStuckOf reads it).
+   */
+  stuck?: { leads: number; since: string; reason: string } | null;
+  /**
+   * Why its first step's last run did nothing, where the sequence is on and no cold email or one-off, and the business
+   * day of that step's last run (decision 0128, stage 2): what the record reads beside its row, read for every row.
+   * Null where it ran, sent or found nobody; absent from a server before it.
+   */
+  last_run_off?: string | null;
+  last_run_for?: string | null;
+  /**
+   * The last batch that went, with what it sent and drew back: one sent whole, or (stage 2) one still going that has
+   * sent some, so an email held in it does not keep what went uncounted.
+   */
   last: { id: string; at: string; sent: number; replied: number } | null;
   /**
    * Who is in it now: everyone whose place stands, as its People tab files them (00459 sequence_places: a lead added and

@@ -112,7 +112,6 @@ Object.assign(globalThis, {
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  __TEAM: null,
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,

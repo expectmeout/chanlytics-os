@@ -169,6 +169,9 @@ const ASK_TEXT = {
     deleteAsk: "Delete this conversation?",
     deleteYes: "Yes, delete",
     deleteKeep: "Keep it",
+    // What Delete does on a row of the list, said to a reader and drawn nowhere (home.tsx AskRows; D17, no key is drawn).
+    deleteByKey: "Press Delete to delete this conversation.",
+    notNowByKey: "Press Delete for Not now: it rests a week.",
     threadUnreadable: "That conversation couldn't be opened right now — it is still here; try again.",
     deleteFailed: "Couldn't delete that conversation — try again.",
     copyFailed: "Couldn't copy — select the text instead.",
@@ -307,6 +310,8 @@ const ASK_TEXT = {
     deleteAsk: "¿Borrar esta conversación?",
     deleteYes: "Sí, borrar",
     deleteKeep: "Mantenerla",
+    deleteByKey: "Pulsa Supr para borrar esta conversación.",
+    notNowByKey: "Pulsa Supr para decir Ahora no: descansa una semana.",
     threadUnreadable: "No se pudo abrir esa conversación ahora — sigue aquí; inténtalo de nuevo.",
     deleteFailed: "No se pudo borrar esa conversación — inténtalo de nuevo.",
     copyFailed: "No se pudo copiar — selecciona el texto.",

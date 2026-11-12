@@ -220,7 +220,7 @@ export type { IdentityInput };
  * The role store (`window.ST_STORE`), moved here from legacy/pages/settings.jsx with Settings' frame (decision 0015 step
  * 11): which role the member acts as, an owner's preview of a lower one (View as), and the mockup's own member, whom a demo
  * session reads. (It carried the mockup's own team too, four invented people whose methods nothing called; the Team pane
- * reads `__TEAM`.) Every gate in the app asks it (frame/gate.ts `gate` and `canDo`, frame-verbs `actingRole`), so the
+ * reads the settings surface's roster.) Every gate in the app asks it (frame/gate.ts `gate` and `canDo`, frame-verbs `actingRole`), so the
  * app installs it at boot, before any page draws (seed-globals.ts), under the name the JSX made it by; installIdentity
  * above completes it.
  */

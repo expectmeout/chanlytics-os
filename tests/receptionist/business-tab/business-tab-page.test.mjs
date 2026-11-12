@@ -36,9 +36,11 @@ import {
   SETUP,
   drawTab,
   escape,
+  factsHeld,
   foldOf,
   inline,
   labelled,
+  landFacts,
   marisa,
   openFold,
   openFolds,
@@ -63,10 +65,10 @@ import {
  */
 const drawCreateCard = () => {
   W.__SETTINGS = { version: 1, config: {}, prompt: null };
-  W.__FACTS = {
+  landFacts({
     facts: { voice_line: { value: null, source: "absent" }, handoff_number: { value: null, source: "absent" } },
     conflicts: [],
-  };
+  });
   unmount();
   W.__recordFolds.reset();
   W.__businessTabSave.saver.reset();
@@ -612,7 +614,7 @@ test("Use Google's and Publish the line instead each send exactly their patch", 
   });
   let stored = structuredClone(W.__SETTINGS.config);
   const address = byTestId(tree, "rec-row-address");
-  const minor = W.__FACTS.conflicts.find((k) => k.fact === "address");
+  const minor = factsHeld().conflicts.find((k) => k.fact === "address");
   assert.match(textOf(address), new RegExp(escape(minor.sentence)), "the resolver's own sentence, on the row");
   assert.equal(address.props["data-state"], undefined, "a minor disagreement leaves the row as it is");
   // The row's hidden editor keeps the disagreement to read, and not under the id the row's press is described by.
@@ -1950,7 +1952,7 @@ test("a viewer reads everything, is offered no act, and is told why once", () =>
     // A disagreement is still there to read, and, like each row's act, its press is absent rather than refused: the
     // States board's "Each row's act is simply absent".
     const address = byTestId(tree, "rec-row-address");
-    const minor = W.__FACTS.conflicts.find((k) => k.fact === "address");
+    const minor = factsHeld().conflicts.find((k) => k.fact === "address");
     assert.match(textOf(address), new RegExp(escape(minor.sentence)), "the resolver's own sentence, on the row");
     assert.equal(find(address, (n) => classes(n).includes("rec-src"))?.props?.["data-tone"], "warn");
     assert.equal(
@@ -1980,7 +1982,7 @@ test("a name the workspace goes by is shown against the business's, and never of
   // Resolved as the settings read resolves it: no Google listing, and a workspace named in a Stripe test.
   const tree = drawTab({ resolved: { ...KNOWN, workspace: { name: "Billing probe", timezone: "America/New_York" } } });
   const row = byTestId(tree, "rec-row-name");
-  const conflict = W.__FACTS.conflicts.find((k) => k.fact === "business_name");
+  const conflict = factsHeld().conflicts.find((k) => k.fact === "business_name");
   assert.equal(conflict.knownSource, "workspace", "the fixture is the workspace's own name");
   assert.match(
     textOf(row),
