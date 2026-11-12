@@ -7,6 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { wordsNeedOpening, valueAt, recordOrNull, DbFailure } from "@chanlytics/contracts";
 import type {
+  SequencePersonDto,
   SequencePlaceDto,
   SequencePlaceOfDto,
   SequencePlaceRowDto,
@@ -207,6 +208,25 @@ export async function withListedWhyNot(
   return reasons.size === 0
     ? rows
     : rows.map((r) => (r.group === "queued" ? { ...r, why: reasons.get(r.lead_id) ?? r.why } : r));
+}
+
+/**
+ * A sequence's People (sequence_people), each lead added and not planned with why no batch takes it, where one cannot
+ * (decision 0131): its People tab said "Added" of a lead whose address could not be checked, with nothing to press.
+ */
+export async function withPeopleWhyNot(
+  db: Db,
+  tenantId: TenantId,
+  sequenceId: string,
+  rows: SequencePersonDto[],
+): Promise<SequencePersonDto[]> {
+  const listed = rows.flatMap((r) =>
+    r.group === "queued" && r.lead_id ? [{ lead_id: r.lead_id, sequence_id: sequenceId }] : [],
+  );
+  const reasons = await listedWhyNotOf(db, tenantId, listed);
+  return reasons.size === 0
+    ? rows
+    : rows.map((r) => (r.group === "queued" && r.lead_id ? { ...r, why: reasons.get(r.lead_id) ?? r.why } : r));
 }
 
 /** One lead's place (sequence_place), on a list and not planned, with why no batch takes it, where one cannot. */

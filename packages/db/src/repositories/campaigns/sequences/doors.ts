@@ -10,7 +10,14 @@ import type {
 } from "@chanlytics/contracts";
 import type { Json } from "../../../types";
 import { answer, type DoorResult } from "../reach-out/leads";
-import { putBackOf, withListedWhyNot, withOneLeadsOpening, withOpenings, withPlaceWhyNot } from "../sequence-waiting";
+import {
+  putBackOf,
+  withListedWhyNot,
+  withOneLeadsOpening,
+  withOpenings,
+  withPeopleWhyNot,
+  withPlaceWhyNot,
+} from "../sequence-waiting";
 import type { Db } from "./reads";
 import { z } from "zod";
 import { readAnswer } from "../../../shared/read-json";
@@ -68,7 +75,15 @@ export async function getSequencePeople(
   if (error) throw new DbFailure(error, "cannot read who is in the sequence");
   const result = (data ?? {}) as Partial<SequencePeopleDto>;
   const rows = Array.isArray(result.rows) ? result.rows : [];
-  return { counts: result.counts ?? {}, rows: await withOpenings(db, params.tenantId, rows) };
+  // Each lead added and not planned says why no batch takes it (decision 0131), beside the openings of those waiting.
+  const [opened, why] = await Promise.all([
+    withOpenings(db, params.tenantId, rows),
+    withPeopleWhyNot(db, params.tenantId, params.sequenceId, rows),
+  ]);
+  return {
+    counts: result.counts ?? {},
+    rows: opened.map((r, i) => (r.group === "queued" ? { ...r, why: why[i]?.why ?? r.why } : r)),
+  };
 }
 
 /** One lead's place in the sequence it stands in or last was in (00459), its opening and Put back; null in none. */

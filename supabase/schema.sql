@@ -9453,15 +9453,16 @@ begin
   end if;
   -- One job per round the leads were found in: the re-check runs under the round, as the round's own checks
   -- did, and commits through lead_check_commit. Only an address whose last check did not answer is asked
-  -- again; a lead whose search is still running is left to that search's own checks; a lead with no address
-  -- has nothing to check; and a lead of another workspace is not this owner's to ask about.
+  -- again, of a lead kept or in Needs review (00618: a kept one was refused, so it could never be checked
+  -- again); a lead left out is not; a lead whose search is still running is left to that search's own checks;
+  -- a lead with no address has nothing to check; and a lead of another workspace is not this owner's to ask about.
   for v_r in
     select m.round_id, array_agg(m.lead_id) as lead_ids
       from (
         select distinct on (m.lead_id) m.lead_id, m.round_id
           from unnest(p_lead_ids) as x(id)
           join public.leads l on l.id = x.id and l.tenant_id = p_tenant_id and l.erased_at is null and l.blanked_at is null
-          join public.lead_search_members m on m.lead_id = l.id and m.tenant_id = p_tenant_id and m.class = 'review' and m.blanked_at is null
+          join public.lead_search_members m on m.lead_id = l.id and m.tenant_id = p_tenant_id and m.class in ('review', 'qualified') and m.blanked_at is null
           join public.lead_rounds r on r.id = m.round_id and r.state = 'ended'
          where l.email is not null and l.email_state = 'unknown'
          order by m.lead_id, r.created_at desc
@@ -9667,6 +9668,73 @@ $$;
 --
 
 COMMENT ON FUNCTION public.lead_check_estimate(p_addresses integer) IS 'What checking p_addresses addresses may cost (00506): contracts'' price an address with the estimate''s room, held to them by lead-check-price.test.mjs.';
+
+
+--
+-- Name: lead_check_retry(integer, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_check_retry(p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_r     record;
+  v_asked integer := 0;
+  v_held  integer := 0;
+begin
+  -- The workspaces that may be asked for: their searching on and their spending allowed, read once each, never
+  -- once a lead. One whose switch is off is asked nothing, and no try of its leads is counted.
+  for v_r in
+    with open_ as (
+      select t.id from public.tenants t
+       where (p_tenant_id is null or t.id = p_tenant_id)
+         and public.lead_searches_on(t.id)
+         and public.lead_spend_refusal(t.id) is null
+    ),
+    due as (
+      -- Each address whose last check did not answer a day ago or more, tried by the clock fewer than twice, of a lead
+      -- kept or in Needs review, under the newest finished round it was found in: the longest waiting first.
+      select l.id as lead_id, l.tenant_id, rr.round_id
+        from public.leads l
+        join open_ o on o.id = l.tenant_id
+        cross join lateral (
+          select m.round_id
+            from public.lead_search_members m
+            join public.lead_rounds r on r.id = m.round_id and r.state = 'ended'
+           where m.lead_id = l.id and m.tenant_id = l.tenant_id
+             and m.class in ('review', 'qualified') and m.blanked_at is null
+           order by r.created_at desc
+           limit 1) rr
+       where l.email_state = 'unknown' and nullif(btrim(l.email), '') is not null
+         and l.erased_at is null and l.blanked_at is null
+         and l.email_checked_at <= now() - interval '1 day'
+         and l.email_rechecks < 2
+       order by l.email_checked_at, l.id
+       limit greatest(coalesce(p_limit, 0), 0)
+    )
+    select d.tenant_id, d.round_id, array_agg(d.lead_id order by d.lead_id) as lead_ids
+      from due d
+     group by d.tenant_id, d.round_id
+  loop
+    -- Asked as Check again asks (lead_check_ask): with room in the month's and the day's searching, or not at all.
+    -- A try is counted only once it is asked, so a day with no room costs none of an address's two.
+    if public.lead_check_ask(v_r.tenant_id, v_r.round_id, v_r.lead_ids) then
+      update public.leads set email_rechecks = email_rechecks + 1 where id = any (v_r.lead_ids);
+      v_asked := v_asked + cardinality(v_r.lead_ids);
+    else
+      v_held := v_held + cardinality(v_r.lead_ids);
+    end if;
+  end loop;
+  return jsonb_build_object('asked', v_asked, 'held', v_held);
+end $$;
+
+
+--
+-- Name: FUNCTION lead_check_retry(p_limit integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_check_retry(p_limit integer, p_tenant_id uuid) IS 'The leads clock (00618, decision 0131). Asks the mailbox check again, by itself, for each address whose last check did not answer a day ago or more, at most twice (leads.email_rechecks), of a lead kept or in Needs review, under the newest finished round it was found in, the longest waiting first, up to p_limit, in the workspace named or every one, and only where its searching is on and it may spend; through lead_check_ask, so with room in the day''s and month''s searching or not at all. Answers {asked, held}. Service role only.';
 
 
 --
@@ -38969,8 +39037,10 @@ CREATE TABLE public.leads (
     source text DEFAULT 'local_businesses'::text NOT NULL,
     source_key text,
     facts jsonb DEFAULT '{}'::jsonb NOT NULL,
+    email_rechecks smallint DEFAULT 0 NOT NULL,
     CONSTRAINT leads_closed_reason_check CHECK ((closed_reason = ANY (ARRAY['said_no'::text, 'not_a_fit'::text, 'customer'::text, 'stale'::text, 'search_removed'::text]))),
     CONSTRAINT leads_company_has_a_key CHECK (((kind <> 'company'::text) OR ((place_id IS NULL) AND ((source_key IS NOT NULL) OR (blanked_at IS NOT NULL) OR (erased_at IS NOT NULL))))),
+    CONSTRAINT leads_email_rechecks_check CHECK ((email_rechecks >= 0)),
     CONSTRAINT leads_email_state_check CHECK ((email_state = ANY (ARRAY['none'::text, 'checking'::text, 'ok'::text, 'catch_all'::text, 'unknown'::text, 'invalid'::text]))),
     CONSTRAINT leads_facts_is_an_object CHECK (((jsonb_typeof(facts) = 'object'::text) AND (octet_length((facts)::text) <= 8000))),
     CONSTRAINT leads_kind_check CHECK ((kind = ANY (ARRAY['place'::text, 'company'::text]))),
@@ -44702,6 +44772,12 @@ CREATE UNIQUE INDEX leads_tenant_source_key_uq ON public.leads USING btree (tena
 
 CREATE INDEX leads_tenant_stage ON public.leads USING btree (tenant_id, stage) WHERE ((erased_at IS NULL) AND (blanked_at IS NULL));
 
+
+--
+-- Name: leads_unknown_due; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX leads_unknown_due ON public.leads USING btree (email_checked_at) WHERE (email_state = 'unknown'::text);
 
 --
 -- Name: leads_untouched_purge; Type: INDEX; Schema: public; Owner: -
@@ -53392,6 +53468,14 @@ GRANT ALL ON FUNCTION public.lead_check_commit(p_round_id uuid, p_run_id uuid, p
 
 REVOKE ALL ON FUNCTION public.lead_check_estimate(p_addresses integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_check_estimate(p_addresses integer) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_check_retry(p_limit integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_check_retry(p_limit integer, p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_check_retry(p_limit integer, p_tenant_id uuid) TO service_role;
 
 
 --

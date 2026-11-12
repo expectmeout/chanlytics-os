@@ -4271,6 +4271,7 @@ export type Database = {
           email: string | null
           email_alternates: Json
           email_checked_at: string | null
+          email_rechecks: number
           email_state: string
           erased_at: string | null
           exported_at: string | null
@@ -4332,6 +4333,7 @@ export type Database = {
           email?: string | null
           email_alternates?: Json
           email_checked_at?: string | null
+          email_rechecks?: number
           email_state?: string
           erased_at?: string | null
           exported_at?: string | null
@@ -4393,6 +4395,7 @@ export type Database = {
           email?: string | null
           email_alternates?: Json
           email_checked_at?: string | null
+          email_rechecks?: number
           email_state?: string
           erased_at?: string | null
           exported_at?: string | null
@@ -9277,6 +9280,10 @@ export type Database = {
         Returns: Json
       }
       lead_check_estimate: { Args: { p_addresses: number }; Returns: number }
+      lead_check_retry: {
+        Args: { p_limit: number; p_tenant_id?: string }
+        Returns: Json
+      }
       lead_collect_commit: {
         Args: {
           p_from_offset: number
