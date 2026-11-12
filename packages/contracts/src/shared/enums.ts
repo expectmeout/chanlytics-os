@@ -188,6 +188,11 @@ export const JOB_KINDS = [
   "post_publish",
   "post_reconcile",
   /**
+   * A post on its way to Google at its time (00616, the content redesign's stage 3), payload { post_id, attempt }, in the bulk
+   * lane beside Instagram's: the picture was drawn at the press, and this asks Google to fetch it, once, after the recheck.
+   */
+  "post_google",
+  /**
    * A video made from a business's clips (00613, decision 0122), payload { piece_id, step, tick }, one step a run, in the
    * lane of someone waiting who is not a customer: start reads the clips and starts the machine that draws it, wait asks
    * after the drawing and sends the video into the video platform. A wait that runs out of its run is the next tick.
@@ -331,6 +336,7 @@ export const EVENT_KINDS = [
   "file.kept",
   "file.posted",
   "file.removed",
+  "file.restored",
   "file.set_aside",
   "file.unposted",
   /**

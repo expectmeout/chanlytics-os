@@ -29,6 +29,7 @@ import {
   sendOnceRoute,
   sequenceRoute,
 } from "../campaigns/sequences/address";
+import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE } from "../content/address";
 import { GET_YES_PARAM, GET_YES_ROUTE } from "../people/lists/people-route";
 
 /**
@@ -92,6 +93,9 @@ const headOf = (route: string): string => (route.includes("/") ? route.slice(0, 
  *
  * - Messages (D4: the Library is Messages) is a view of Campaigns (19 Oct 2026): `messages`, and the Library's path
  *   `templates`, land on `campaigns/messages`; nothing was ever under it, so `messages/<word>` lands nowhere, as before.
+ * - Settings › Files is Content's library (the content redesign's stage 2, 11 Nov 2026): `admin/files` lands on
+ *   `campaigns/content:library`, and a file it opened (`admin/files?do=file:<id>`, a bell's row, an Ask card's door) opens
+ *   in Content's viewer, `campaigns/content:<id>`, which shows the list the file is in.
  *
  * A query after the route rides along.
  */
@@ -99,6 +103,7 @@ export function retiredRouteOf(route: string): string | null {
   const at = route.indexOf("?");
   const path = at < 0 ? route : route.slice(0, at);
   const query = at < 0 ? "" : route.slice(at);
+  if (path === "admin/files") return filesLandingOf(query);
   const landed = retiredPathOf(path);
   return landed === null ? null : landed + query;
 }
@@ -111,6 +116,13 @@ function retiredPathOf(path: string): string | null {
   if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
   if (head === "broadcasts") return sentLandingOf(param);
   return head === "campaigns" ? campaignsLandingOf(path, param) : null;
+}
+
+/** Where Settings › Files lands: the file it named, open in Content, or Content's library, the rest of the query riding along. */
+function filesLandingOf(query: string): string {
+  const named = /[?&]do=file:([0-9a-f-]{36})(?=&|$)/.exec(query);
+  if (named) return `${CONTENT_ROUTE}:${named[1]}`;
+  return CONTENT_LIBRARY_ROUTE + query;
 }
 
 /** Where an address of Sent (`broadcasts/<param>`) lands: Sent draws nothing of its own, so every one lands somewhere. */
@@ -205,9 +217,10 @@ export function movedAddress(address: AddressParts): string | null {
   const match = WORKSPACE_PATH.exec(address.pathname ?? "");
   if (match?.[2]) {
     const written = match[2].replace(/\/+$/, "");
-    // A retired route, in the path's word or the shell's own, lands on the route that replaced it (retiredRouteOf).
-    const door = retiredRouteOf(shellRoute(written));
-    if (door !== null) return `/w/${match[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
+    // A retired route, in the path's word or the shell's own, lands on the route that replaced it (retiredRouteOf), its
+    // query read with it: Settings › Files' `?do=file:<id>` is the file, open in Content.
+    const door = retiredRouteOf(shellRoute(written) + (address.search ?? ""));
+    if (door !== null) return `/w/${match[1] ?? ""}/${door}${address.hash ?? ""}`;
     if (Object.hasOwn(ROUTE_WORDS, headOf(match[2]))) {
       return `/w/${match[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
     }

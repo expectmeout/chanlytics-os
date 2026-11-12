@@ -14,7 +14,6 @@ import {
   FILE_VIDEO_SECONDS_MAX,
   PIECE_FRAME,
   PIECE_LIMITS,
-  PIECE_SHAPES,
   PIECE_TEMPLATE,
   PIECE_WORDS_HOLDS,
   PIECE_WORDS_PLACES,
@@ -49,17 +48,22 @@ import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 
 /**
- * The most cuts a plan kept as "Hook first" holds: as it was before a video was read in blocks, so an edge a deploy behind
- * this one draws every plan this door takes.
+ * The most cuts a plan kept as "Hook first" holds: as a card made before a video was arranged in blocks carries it.
  */
-export const HOOK_CUTS_MAX = 5;
+const HOOK_CUTS_MAX = 5;
 
-/**
- * What a press sends, as both routes take it: the payload a card carries, in the shape it is kept in (`hook_cut`: its cuts are
- * read as clip blocks, contracts piecePlanOf). The door stores what came.
- */
-const piecePlanInput = z.object({
-  shape: z.enum(PIECE_SHAPES),
+/** What a kept plan says whichever shape it is kept in. */
+const planWords = {
+  words_at: z.enum(PIECE_WORDS_PLACES),
+  words_hold: z.enum(PIECE_WORDS_HOLDS),
+  end_line: z.string().max(PIECE_LIMITS.endLine).nullable(),
+  language: z.enum(["en", "es"]),
+  people_agreed: z.boolean(),
+};
+
+/** A plan kept as "Hook first", the one shape a video had: its cuts are read as clip blocks (contracts piecePlanOf). */
+const hookInput = z.object({
+  shape: z.literal("hook_cut"),
   cuts: z
     .array(
       z.object({
@@ -71,15 +75,8 @@ const piecePlanInput = z.object({
     .min(PIECE_LIMITS.blocksMin)
     .max(HOOK_CUTS_MAX),
   lines: z.array(z.string().min(1).max(PIECE_LIMITS.line)).min(1).max(PIECE_LIMITS.lines),
-  words_at: z.enum(PIECE_WORDS_PLACES),
-  words_hold: z.enum(PIECE_WORDS_HOLDS),
-  end_line: z.string().max(PIECE_LIMITS.endLine).nullable(),
-  language: z.enum(["en", "es"]),
-  people_agreed: z.boolean(),
+  ...planWords,
 });
-
-/** A press: the plan, and the card's own key, so the same press twice is one video. */
-export const pieceBeginInput = piecePlanInput.extend({ key: z.string().min(1).max(100) });
 
 const blockSeconds = z.number().min(0).max(PIECE_LIMITS.reelMaxS);
 const blockLabel = z.string().max(PIECE_LIMITS.label).nullable();
@@ -110,20 +107,28 @@ const blockInput = z.discriminatedUnion("is", [
   }),
 ]);
 
+/** A plan kept in blocks, as Ask arranges one (decision 0126). */
+const blocksInput = z.object({
+  shape: z.literal("blocks"),
+  blocks: z.array(blockInput).min(PIECE_LIMITS.blocksMin).max(PIECE_LIMITS.blocksMax),
+  // None where the video opens on a card.
+  lines: z.array(z.string().min(1).max(PIECE_LIMITS.line)).max(PIECE_LIMITS.lines),
+  ...planWords,
+});
+
 /**
- * What a card's stills are asked with: its plan read as blocks (contracts piecePlanOf), or one as a page loaded before blocks
- * sends it. Nothing is stored for a still, so this door takes blocks before a row may hold them (the press takes them with
- * the migration that lets a row).
+ * What a card's stills are asked with: the payload its card carries, in the shape it is kept in. Nothing is stored for a still.
  */
-export const pieceBoardInput = z.union([
-  piecePlanInput,
-  piecePlanInput.omit({ shape: true, cuts: true, lines: true }).extend({
-    shape: z.literal("blocks"),
-    blocks: z.array(blockInput).min(PIECE_LIMITS.blocksMin).max(PIECE_LIMITS.blocksMax),
-    // None where the video opens on a card.
-    lines: z.array(z.string().min(1).max(PIECE_LIMITS.line)).max(PIECE_LIMITS.lines),
-  }),
-]);
+export const pieceBoardInput = z.union([hookInput, blocksInput]);
+
+/** The card's own key, so the same press twice is one video. */
+const pressKey = { key: z.string().min(1).max(100) };
+
+/**
+ * A press: the payload a card carries, in the shape it is kept in, and the card's key. The door stores what came (00615
+ * piece_begin takes either shape), and every reader reads it as blocks.
+ */
+export const pieceBeginInput = z.union([hookInput.extend(pressKey), blocksInput.extend(pressKey)]);
 
 /** An address as an end card says it: the street and the town, the rest left to a map. */
 const shortAddressOf = (address: string | null): string | null =>
@@ -259,7 +264,7 @@ export async function beginPieceFor(
   }
   const begun = await beginPiece(ctx.supabase, {
     tenantId: member.tenantId,
-    // As its card sent it: a row holds the shape its door takes (00613), and every reader reads it as blocks.
+    // As its card sent it: a row holds either shape (00615), and every reader reads it as blocks.
     plan: asJson(kept),
     look: asJson(checked.look),
     key,

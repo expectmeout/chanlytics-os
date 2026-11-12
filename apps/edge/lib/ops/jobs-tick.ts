@@ -29,6 +29,7 @@ import { historyImports } from "../imports/history-import.js";
 import { websiteReader } from "../imports/website-read.js";
 import { fileJobs } from "../files/upkeep.js";
 import { postJobs } from "../instagram/post-send.js";
+import { sendGooglePost } from "../google/post-later.js";
 import { previewBuilder } from "../previews/build.js";
 import { getCampaignsBinding } from "../email/campaigns-domain.js";
 import { pageOperator } from "../shared/alerts/page-operator.js";
@@ -142,8 +143,9 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
   website: websiteReader(db),
   // A business's files looked at, brought in and let go (decision 0099).
   files: fileJobs(db),
-  // A post on its way to Instagram (decision 0121): the business's token is in the vault here.
-  posts: postJobs(db),
+  // A post on its way to Instagram (decision 0121): the business's token is in the vault here. And one on its way to Google
+  // at its time (00616), through the connection held here too.
+  posts: { ...postJobs(db), google: (job: ClaimedJob) => sendGooglePost(db, job) },
   // A lead's own receptionist built (decision 0079), its website read the same way.
   previews: previewBuilder(db),
 });

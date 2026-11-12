@@ -132,7 +132,7 @@ function useRunsHold(live: CalendarSurface | undefined, drewAtStart: boolean): b
   const [waited, setWaited] = useState(false);
   const holding =
     coldAtStart.current &&
-    (wanted.current.campaigns || wanted.current.cold) &&
+    (wanted.current.campaigns || wanted.current.cold || wanted.current.posts) &&
     boardIn &&
     !runsIn &&
     !runsFailed &&
@@ -200,7 +200,7 @@ const NO_MARKS: readonly CalendarRunMark[] = [];
  * of the page's speed (decision 0053). A demo session draws the sample's runs.
  */
 function useCalendarRuns(show: CalendarShow, nowMs: number) {
-  const wanted = show.campaigns || show.cold;
+  const wanted = show.campaigns || show.cold || show.posts;
   useEffect(() => {
     wantRuns(wanted);
     return () => wantRuns(false);
@@ -219,6 +219,7 @@ function useCalendarRuns(show: CalendarShow, nowMs: number) {
     offers: {
       campaigns: !!dto?.moments.some((m) => !m.reach_out) || !!dto?.runs.some((r) => !r.reach_out),
       cold: !!dto?.moments.some((m) => m.reach_out),
+      posts: !!dto?.posts?.length,
     },
   };
 }

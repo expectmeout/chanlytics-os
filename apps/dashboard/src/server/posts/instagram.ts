@@ -14,6 +14,7 @@ import {
   type InstagramPostable,
   type InstagramPostKind,
   type PostDto,
+  type PostPlace,
   type TenantId,
 } from "@chanlytics/contracts";
 import { findMetaInstagramRow } from "@chanlytics/db/channels";
@@ -83,15 +84,18 @@ export async function postFileToInstagram(
   throw new AppError("validation", ON_INSTAGRAM.notYet);
 }
 
-/** DELETE files/[id]/instagram: Don't post, up to the moment it is sent. */
-export async function pullFileFromInstagram(
+/**
+ * DELETE files/[id]/instagram: Don't post, up to the moment it is sent. Google's door pulls its own the same way, a post set
+ * for its time there (00616): `input.place` is the door's.
+ */
+export async function pullFilePost(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
-  input: { post_id: string },
+  input: { post_id: string; place: PostPlace },
 ): Promise<{ pulled: true }> {
   const posts = await listFilePosts(ctx.supabase, member.tenantId, row.id);
-  if (!posts.some((p) => p.id === input.post_id && p.place === "instagram"))
+  if (!posts.some((p) => p.id === input.post_id && p.place === input.place))
     throw new AppError("not_found", ON_INSTAGRAM.gone, 404);
   const pulled = await pullPost(ctx.supabase, input.post_id);
   if (pulled.fate === "late") throw new AppError("conflict", ON_INSTAGRAM.pullLate, 409);

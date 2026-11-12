@@ -6,6 +6,7 @@
 import "server-only";
 import {
   fileSoundOf,
+  piecePlanOf,
   postPlanOf,
   recordOrNull,
   type FilePosted,
@@ -15,6 +16,7 @@ import {
 import {
   getFileMade,
   findFile,
+  findPiecePlanOfFile,
   getNewestMade,
   listFilePosts,
   readFileSound,
@@ -33,18 +35,26 @@ import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * GET files/[id]: one file, and for a post what it came from and what it was asked to be. A video's is what was heard of it
- * besides (stage B): its words and how it sounds, read by id under the caller's RLS, never by the list.
+ * besides (stage B): its words and how it sounds, read by id under the caller's RLS, never by the list; and one Ask made, the
+ * plan it was drawn by, so its words can be made again.
  */
 export async function readFileRecord(ctx: RouteContext, member: Member, row: FileMemberRow): Promise<FileRecordDto> {
   const file = fileDtoOf(row);
-  if (row.kind === "video")
+  if (row.kind === "video") {
+    const [sound, plan] = await Promise.all([
+      readFileSound(ctx.supabase, row.id),
+      row.source === "made" ? findPiecePlanOfFile(ctx.supabase, member.tenantId, row.id) : null,
+    ]);
+    const drawnBy = recordOrNull(plan);
     return {
       file,
       made: null,
       google: null,
       instagram: null,
-      sound: fileSoundOf(await readFileSound(ctx.supabase, row.id)),
+      sound: fileSoundOf(sound),
+      ...(drawnBy ? { video: { plan: piecePlanOf(drawnBy) } } : {}),
     };
+  }
   if (row.source !== "made") return { file, made: null, google: null, instagram: null };
   const [kept, connection, posts, can] = await Promise.all([
     getFileMade(serviceDb(), member.tenantId, row.id),

@@ -160,7 +160,7 @@ function world({
         posts,
       },
       {},
-      { post_begin: doors.begin },
+      { post_begin: doors.begin, post_pull: doors.pull },
     ),
     userId: USER,
     email: "ada@example.com",
@@ -194,11 +194,33 @@ function placementDoors(posts, attempts) {
   const find = (id) => posts.find((p) => p.id === id);
   return {
     begin: (a) => {
-      if (posts.some((p) => p.file_id === a.p_file_id && p.place === a.p_place && p.status === "publishing"))
+      if (
+        posts.some(
+          (p) => p.file_id === a.p_file_id && p.place === a.p_place && ["queued", "publishing"].includes(p.status),
+        )
+      )
         return { fate: "busy", post_id: null };
       const id = `0000000${posts.length + 1}-0000-4000-8000-000000000000`;
-      posts.push(placementRow({ id, place: a.p_place, kind: a.p_kind, caption: a.p_caption, status: "publishing" }));
+      // As 00616 has it: later than two minutes on, a Google post waits for its job; sooner, the press asks Google itself.
+      const later = !!a.p_when && Date.parse(a.p_when) - Date.now() > 120_000;
+      posts.push(
+        placementRow({
+          id,
+          place: a.p_place,
+          kind: a.p_kind,
+          caption: a.p_caption,
+          status: later ? "queued" : "publishing",
+          scheduled_for: a.p_when ?? new Date().toISOString(),
+        }),
+      );
       return { fate: "begun", post_id: id };
+    },
+    pull: ({ p_post_id }) => {
+      const p = find(p_post_id);
+      if (!p) return { fate: "unknown" };
+      if (!["queued", "preparing"].includes(p.status)) return { fate: "late", status: p.status };
+      p.status = "pulled";
+      return { fate: "pulled" };
     },
     service: {
       post_attempt_open: (a) => {
@@ -287,6 +309,33 @@ test("the post goes up: drawn for what Google shows, kept in its own folder, fet
     },
   ]);
   assert.ok(signed[0].seconds >= 3600, "long enough for Google to come for it, whenever it does");
+});
+
+test("a post set for its time is drawn now and kept with its time, and Google is asked by its job then (00616)", async () => {
+  const { ctx, uploaded, posts } = world();
+  const when = new Date(Date.now() + 24 * 3_600_000).toISOString();
+  const said = await route.POST.run(send("POST", { summary: WORDS, when }), ctx);
+  assert.deepEqual(said, { name: null, search_url: null, state: "scheduled" });
+  assert.equal(uploaded.length, 1, "the picture drawn now, in its folder, for its job to hand Google");
+  assert.deepEqual(edge.asked, [], "nothing reaches Google at the press");
+  assert.deepEqual([posts[0].status, posts[0].scheduled_for, posts[0].caption], ["queued", when, WORDS]);
+  // Within two minutes is now: the press asks Google itself.
+  const soon = world();
+  await route.POST.run(send("POST", { summary: WORDS, when: new Date(Date.now() + 30_000).toISOString() }), soon.ctx);
+  assert.equal(edge.asked.length, 1);
+  assert.equal(soon.posts[0].status, "published");
+});
+
+test("Don't post takes back one set for its time on Google, up to its time; one up already is taken down by its name", async () => {
+  const waiting = placementRow({ id: "00000005-0000-4000-8000-000000000000", status: "queued", caption: WORDS });
+  const { ctx, posts } = world({ posts: [waiting] });
+  assert.deepEqual(await route.DELETE.run(send("DELETE", { post_id: waiting.id }), ctx), { pulled: true });
+  assert.equal(posts[0].status, "pulled");
+  assert.deepEqual(edge.asked, [], "nothing was on Google to ask about");
+  // Another place's post is not this door's to pull.
+  const other = placementRow({ id: "00000006-0000-4000-8000-000000000000", place: "instagram", status: "queued" });
+  const elsewhere = world({ posts: [other] });
+  await assert.rejects(route.DELETE.run(send("DELETE", { post_id: other.id }), elsewhere.ctx), (e) => e.status === 404);
 });
 
 test("the press keeps its placement: begun before the edge is asked, its send kept, and up under Google's own name", async () => {

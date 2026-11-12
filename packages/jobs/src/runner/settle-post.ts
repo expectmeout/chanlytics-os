@@ -6,12 +6,13 @@
  * A send's job that ended before the post was being sent (the recheck could not read the database, the run died first)
  * sent nothing: the post is not left Getting ready for good, holding every later press; it did not go, in those words.
  */
-import { ON_INSTAGRAM, recordOrEmpty, type PostStatus } from "@chanlytics/contracts";
+import { FILE_WORDS, ON_INSTAGRAM, recordOrEmpty, type PostStatus } from "@chanlytics/contracts";
 import { markPostUnanswered, movePost } from "@chanlytics/db/files";
 import type { Db } from "./ledger";
 import type { TenantId } from "@chanlytics/contracts";
 
 const failure = (words: string) => ({ error: { code: null, subcode: null, words } });
+const GOOGLE_SAYS = FILE_WORDS.google;
 
 /** Whether the placement moved. */
 export async function settlePostJob(
@@ -28,6 +29,9 @@ export async function settlePostJob(
     movePost(db, { postId, from, to, patch: failure(words) });
   if (job.kind === "post_prepare") return move(["queued", "preparing"], "failed", reason ?? ON_INSTAGRAM.notSent);
   if (job.kind === "post_reconcile") return move(["checking"], "failed", ON_INSTAGRAM.refused.unknown);
+  // Google keeps nothing to ask after: a send that may have gone is said so, and a person looks on the profile (00616).
+  if (job.kind === "post_google")
+    return move(["queued", "publishing"], "failed", certain ? (reason ?? GOOGLE_SAYS.notSent) : GOOGLE_SAYS.unknown);
   if (certain) return move(["preparing", "publishing"], "failed", reason ?? ON_INSTAGRAM.notSent);
   // Checking, with the reconcile that asks Instagram, written together (00611 post_unanswered). A post that was not being
   // sent yet is moved by neither: its send never began, so it is failed in words rather than left where it stood.

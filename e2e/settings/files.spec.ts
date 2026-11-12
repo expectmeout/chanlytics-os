@@ -7,7 +7,12 @@ import { activeWorkspace, scoped } from "../workspace";
  * the card is changed and kept for real, a phone's sheet is handed the picture inside the press, a new version keeps another file, and
  * Undo takes one back. Ask's answer alone is scripted, since a real turn costs money: the card it carries, and everything after it,
  * is the real thing. A photo's look runs as it does for anyone, at about $0.0005 a night.
+ *
+ * Settings › Files is Campaigns › Content's Library now (the content redesign's stage 2, 11 Nov 2026): the library is drawn in
+ * Content's list pane (`campaigns/content:library`), and a file opens in Content's pane beside it, where Files' sheet was.
  */
+/** Content's Library, where Settings › Files' old address lands too (contracts retiredRouteOf). */
+const LIBRARY = "/#/campaigns/content:library";
 const BASE = process.env.E2E_BASE_URL ?? "https://app.chanlytics.com";
 const fromTheApp = { headers: { origin: new URL(BASE).origin } };
 const HEADLINE = "Open this Saturday";
@@ -165,8 +170,8 @@ test.describe("Files, from a photo to a post", () => {
       const said = (await res.json().catch(() => null)) as { data?: { file_id?: string } } | null;
       if (said?.data?.file_id) made.push(said.data.file_id);
     });
-    await page.goto("/#/admin/files");
-    await expect(page.getByTestId("rec-card-files")).toBeVisible({ timeout: 30_000 });
+    await page.goto(LIBRARY);
+    await expect(page.getByTestId("cnv-library")).toBeVisible({ timeout: 30_000 });
     const workspace = await activeWorkspace(page);
     let photoId = "";
 
@@ -215,11 +220,13 @@ test.describe("Files, from a photo to a post", () => {
           : route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true,"data":{}}' }),
       );
 
-      // The press: the sheet goes, Ask comes with the photo in hand, and asks.
-      await page.goto(`${new URL(page.url()).pathname}?do=file:${photoId}`);
-      await expect(page.getByTestId("fl-sheet")).toBeVisible({ timeout: 30_000 });
-      await page.getByTestId("fl-make-post").click();
-      await expect(page.getByTestId("fl-sheet")).toBeHidden();
+      // The press, from the photo open in Content's pane (read afresh, with what was said of it): Ask comes with the photo in
+      // hand, and asks.
+      await page.goto(`${new URL(page.url()).pathname}:${photoId}`);
+      const pane = page.getByTestId("cnv-piece");
+      await expect(pane).toBeVisible({ timeout: 30_000 });
+      await expect(pane.getByTestId("cnv-next")).toHaveText("Make a post", { timeout: 30_000 });
+      await pane.getByTestId("cnv-next").click();
       await expect(page.getByTestId("ask-real")).toBeVisible();
       const card = page.getByTestId("ask-post");
       await expect(card).toBeVisible();
@@ -269,13 +276,13 @@ test.describe("Files, from a photo to a post", () => {
         { name: expect.stringMatching(/^open-late-this-saturday.*-portrait\.jpg$/), active: true },
       ]);
 
-      // In Files it says where it came from, and a new version starts from what it was asked to be.
+      // Open in Content, it says where it came from, and a new version (More › Change it) starts from what it was asked to be.
       await card.getByTestId("post-open-files").click();
-      const sheet = page.getByTestId("fl-sheet");
-      await expect(sheet).toBeVisible({ timeout: 30_000 });
-      await expect(sheet.getByTestId("fl-made-from")).toBeVisible({ timeout: 30_000 });
-      await page.getByTestId("fl-new-version").click();
-      const version = sheet.getByTestId("post-version");
+      await expect(pane).toBeVisible({ timeout: 30_000 });
+      await expect(pane.getByTestId("fl-made-from")).toBeVisible({ timeout: 30_000 });
+      await pane.getByTestId("cnv-more").click();
+      await page.getByRole("menuitem", { name: "Change it" }).click();
+      const version = pane.getByTestId("post-version");
       await expect(version.getByTestId("post-line")).toHaveValue(CHANGED);
       await expect(version.getByTestId("post-layout-band")).toHaveAttribute("aria-pressed", "true");
       await expect(page.getByTestId("post-save-new"), "nothing has changed yet").toBeDisabled();
@@ -283,20 +290,22 @@ test.describe("Files, from a photo to a post", () => {
       await expect(page.getByTestId("post-save-new")).toBeEnabled({ timeout: 30_000 });
       await page.getByTestId("post-save-new").click();
       await expect.poll(() => made.length, { timeout: 60_000 }).toBe(2);
-      await expect(sheet.locator("h2")).toContainText("Open early this saturday", { timeout: 30_000 });
+      // The new one opens in its place: the pane's title names it.
+      await expect(pane.locator(".cm-pane-name")).toContainText("Open early this saturday", { timeout: 30_000 });
       expect(made.at(0), "the first is left as it was").not.toBe(made.at(1));
       const first = await page.request.get(scoped(`/api/v1/files/${made.at(0) ?? ""}`, workspace));
       expect(first.ok(), "and is still there").toBeTruthy();
 
-      // Where it came from opens that photo, whichever shelf is on show.
-      await sheet.getByTestId("fl-made-from").click();
-      await expect(page.getByTestId("fl-make-post"), "a photo's sheet: its press").toBeVisible({ timeout: 30_000 });
-      await expect(page.getByTestId("fl-made-from"), "and it came from nothing").toHaveCount(0);
+      // Where it came from opens that photo, in the Library it belongs to.
+      await pane.getByTestId("fl-made-from").click();
+      await expect(page.getByTestId("cnv-library"), "the photo's list").toBeVisible({ timeout: 30_000 });
+      await expect(pane.getByTestId("cnv-next"), "a photo's pane: its press").toHaveText("Make a post", {
+        timeout: 30_000,
+      });
+      await expect(pane.getByTestId("fl-made-from"), "and it came from nothing").toHaveCount(0);
 
       // Undo, on the card that made the first: it is gone, and the version made from it stays.
-      await page.keyboard.press("Escape");
-      await expect(sheet).toBeHidden();
-      // Ask stood beside the sheet on a desk; a press of its door while open would close it.
+      // Ask stood beside the pane on a desk; a press of its door while open would close it.
       if (!(await card.isVisible())) await page.getByTestId("tb-ask").click();
       await expect(card).toBeVisible();
       await page.getByTestId("ask-card").getByRole("button", { name: "Undo", exact: true }).click();
@@ -318,7 +327,7 @@ test.describe("Files, from a photo to a post", () => {
 
 /**
  * A video, for real (decision 0099, stage B): a three-second clip goes up through Stream over tus, Stream's webhook makes it a
- * file, its tile carries its length, and its sheet holds Stream's player; then it is deleted, which frees its minutes at Stream
+ * file, its tile carries its length, and its pane in Content holds Stream's player; then it is deleted, which frees its minutes at Stream
  * at once. A night costs a fraction of a stored minute and a few thousandths of a cent of hearing. Only where the workspace takes
  * videos (`features.video_preview`): elsewhere Add offers photos alone, and this says so.
  */
@@ -326,12 +335,12 @@ test.describe("Files, a video", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.setTimeout(300_000);
 
-  test("a clip goes up through Stream, is made ready with its length, plays in its sheet, and is deleted", async ({
+  test("a clip goes up through Stream, is made ready with its length, plays in its pane, and is deleted", async ({
     page,
   }) => {
     await signIn(page);
-    await page.goto("/#/admin/files");
-    await expect(page.getByTestId("rec-card-files")).toBeVisible({ timeout: 30_000 });
+    await page.goto(LIBRARY);
+    await expect(page.getByTestId("cnv-library")).toBeVisible({ timeout: 30_000 });
     const accepts = (await page.getByTestId("fl-picker").getAttribute("accept")) ?? "";
     test.skip(!accepts.includes("video/"), "this workspace does not take videos (features.video_preview is off)");
     const workspace = await activeWorkspace(page);
@@ -361,18 +370,17 @@ test.describe("Files, a video", () => {
       });
       await expect(page.getByTestId("fl-length").first()).toHaveText(/^0:0[2-4]$/);
 
-      // Its sheet holds Stream's player, under a token for this session.
-      await page.goto(`${new URL(page.url()).pathname}?do=file:${videoId}`);
-      const sheet = page.getByTestId("fl-sheet");
-      await expect(sheet).toBeVisible({ timeout: 30_000 });
-      await expect(sheet.getByTestId("fl-player")).toHaveAttribute("src", /cloudflarestream\.com\/.+\/iframe/, {
+      // Its pane holds Stream's player, under a token for this session.
+      await page.goto(`${new URL(page.url()).pathname}:${videoId}`);
+      const pane = page.getByTestId("cnv-piece");
+      await expect(pane).toBeVisible({ timeout: 30_000 });
+      await expect(pane.getByTestId("fl-player")).toHaveAttribute("src", /cloudflarestream\.com\/.+\/iframe/, {
         timeout: 30_000,
       });
-      await expect(
-        sheet.getByTestId("fl-make-post"),
-        "a ready video offers a post, drawn from one moment of it",
-      ).toBeVisible();
-      await expect(sheet.getByTestId("fl-download"), "and its own file stays with whoever sent it").toHaveCount(0);
+      await expect(pane.getByTestId("cnv-next"), "a ready video offers a post, drawn from one moment of it").toHaveText(
+        "Make a post",
+      );
+      await expect(pane.getByTestId("cnv-save"), "and its own file stays with whoever sent it").toHaveCount(0);
     } finally {
       if (videoId) {
         const gone = await page.request.delete(scoped(`/api/v1/files/${videoId}`, workspace), fromTheApp);

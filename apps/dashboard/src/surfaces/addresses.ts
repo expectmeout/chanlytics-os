@@ -21,11 +21,11 @@ import {
   calendarParamParts,
   canonicalRoute,
   CONTENT_ROUTE,
+  contentPlaceOf,
   firstRunStepOf,
   FIRST_RUN_FIND_ROUTE,
   FIRST_RUN_ROUTE,
   isAdsParam,
-  isContentParam,
   GET_YES_PARAM,
   GET_YES_ROUTE,
   MESSAGES_ROUTE,
@@ -71,7 +71,6 @@ const PANE_RECORDS: ReadonlyMap<string, RecordRef> = new Map<string, RecordRef>(
   ["integrations", { kind: "channel" }],
   ["team", { kind: "team" }],
   ["billing", { kind: "billing" }],
-  ["files", { kind: "file" }],
 ]);
 
 /** A page that is only itself: the route alone opens it, and no param does. */
@@ -123,7 +122,8 @@ function opensCalendar(param: string): Opened | null {
 /**
  * What Campaigns' param opens: its Sequences view (0060: the list, a new one, and a sequence on one of its tabs, which is
  * the campaign or reach-out it is, as addressOf writes it), its Messages view, its Ads view (no ad is a record yet: 0049), its
- * Content view (decision 0125: a made piece opens as its file, in Files), else a message by its name or the composer.
+ * Content view (decision 0125), whose Library is where a file's record opens (Settings › Files once; the content redesign's
+ * stage 2), else a message by its name or the composer.
  * The home's own addresses (`campaigns`, a group, a moment) are retired ones, read as the page that replaced them
  * (retiredRouteOf).
  */
@@ -131,7 +131,8 @@ function opensCampaigns(param: string): Opened | null {
   if (param === "") return { view: "campaigns" };
   if (`campaigns/${param}` === MESSAGES_ROUTE) return { view: MESSAGES_ROUTE };
   if (isAdsParam(param)) return { view: "campaigns/ads" };
-  if (isContentParam(param)) return { view: CONTENT_ROUTE };
+  const content = contentPlaceOf(param);
+  if (content) return content.list === "library" && !content.open ? { ref: { kind: "file" } } : { view: CONTENT_ROUTE };
   // A message at its home, the Library open on it (contracts messageRoute).
   const message = messageOfRoute(`campaigns/${param}`);
   if (message) return { ref: { kind: "template", name: message } };

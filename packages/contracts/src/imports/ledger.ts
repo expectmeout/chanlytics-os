@@ -11,6 +11,7 @@ import { groupedPlural } from "../shared/words";
 import { DAY_MS } from "../shared/time";
 import { viaWords } from "./csv";
 import { lensRoute } from "../reports/lenses";
+import { CONTENT_LIBRARY_ROUTE } from "../content/address";
 
 export const IMPORT_SOURCES = [
   "google_reviews",
@@ -134,7 +135,7 @@ const IMPORT_DOORS: Readonly<Record<ImportSource, string>> = {
   contacts: "clients",
   whatsapp_contacts: "clients",
   whatsapp_history: "inbox",
-  google_photos: "admin/files",
+  google_photos: CONTENT_LIBRARY_ROUTE,
 };
 
 /** The row of Connections a mailbox's "Left in your mailbox" is, as Settings' address names it (settings/frame/tabs.ts). */

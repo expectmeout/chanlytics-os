@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-395 handlers in 58 domains.
+399 handlers in 58 domains.
 
 ## activity
 
@@ -856,8 +856,15 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
+| `view` | one of `"all"`, `"needs"`, `"making"`, `"scheduled"`, `"posted"` | no |  |
 | `before` | string | no | at least 1 characters; at most 100 characters |
 | `limit` | integer | no | ≥ 1; ≤ 96 |
+
+### `GET /api/v1/content/note`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/content/note/route.ts`).
 
 ## conversations
 
@@ -1053,14 +1060,25 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `summary` | string | yes | at least 1 characters; at most 1500 characters |
+| `when` | string (date-time) | no |  |
 
 ### `DELETE /api/v1/files/[id]/google`
 
 Writes; for a member of the row's own workspace, partner or above; counts against the `file_google` rate; spends nothing.
 
+One of 2 bodies.
+
+Body 1:
+
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `name` | string | yes | at least 1 characters; at most 300 characters |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `post_id` | string (uuid) | yes |  |
 
 ### `POST /api/v1/files/[id]/instagram`
 
@@ -1085,6 +1103,28 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/[id]/play/route.ts`).
+
+### `POST /api/v1/files/[id]/restore`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/files/[id]/restore/route.ts`).
+
+### `GET /api/v1/files/[id]/still`
+
+Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `at` | number | yes | ≥ 0; ≤ 600 |
+
+### `POST /api/v1/files/[id]/still`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `file_upload` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `at` | number | yes | ≥ 0; ≤ 600 |
 
 ### `GET /api/v1/files/[id]/view`
 
@@ -1153,11 +1193,29 @@ Writes; for a member of the workspace the request names, operator or above; coun
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `file_upload` rate; spends nothing.
 
+One of 2 bodies.
+
+Body 1:
+
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `shape` | one of `"hook_cut"` | yes |  |
+| `shape` | `"hook_cut"` | yes |  |
 | `cuts` | array of object | yes | at least 2; at most 5 |
 | `lines` | array of string | yes | at least 1; at most 2 |
+| `words_at` | one of `"high"`, `"low"` | yes |  |
+| `words_hold` | one of `"first"`, `"all"` | yes |  |
+| `end_line` | string or null | yes |  |
+| `language` | one of `"en"`, `"es"` | yes |  |
+| `people_agreed` | boolean | yes |  |
+| `key` | string | yes | at least 1 characters; at most 100 characters |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `shape` | `"blocks"` | yes |  |
+| `blocks` | array of object or object or object or object or object | yes | at least 2; at most 6 |
+| `lines` | array of string | yes | at most 2 |
 | `words_at` | one of `"high"`, `"low"` | yes |  |
 | `words_hold` | one of `"first"`, `"all"` | yes |  |
 | `end_line` | string or null | yes |  |
@@ -1181,7 +1239,7 @@ Body 1:
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `shape` | one of `"hook_cut"` | yes |  |
+| `shape` | `"hook_cut"` | yes |  |
 | `cuts` | array of object | yes | at least 2; at most 5 |
 | `lines` | array of string | yes | at least 1; at most 2 |
 | `words_at` | one of `"high"`, `"low"` | yes |  |
@@ -1194,14 +1252,14 @@ Body 2:
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
+| `shape` | `"blocks"` | yes |  |
+| `blocks` | array of object or object or object or object or object | yes | at least 2; at most 6 |
+| `lines` | array of string | yes | at most 2 |
 | `words_at` | one of `"high"`, `"low"` | yes |  |
 | `words_hold` | one of `"first"`, `"all"` | yes |  |
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
-| `shape` | `"blocks"` | yes |  |
-| `blocks` | array of object or object or object or object or object | yes | at least 2; at most 6 |
-| `lines` | array of string | yes | at most 2 |
 
 ## google
 
@@ -2223,7 +2281,7 @@ Writes; for platform staff; counts against the `platform_job_pause` rate; spends
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
 | `paused` | boolean | yes |  |
 | `why` | object | yes |  |
 
@@ -2243,7 +2301,7 @@ Writes; for platform staff; counts against the `platform_job_requeue_kind` rate;
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
 | `since` | string (date-time) | yes |  |
 | `why` | object | yes |  |
 

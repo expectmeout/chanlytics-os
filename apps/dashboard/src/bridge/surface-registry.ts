@@ -24,6 +24,7 @@ import {
   RECORD_KINDS,
   personRouteOf,
   reportsParamParts,
+  contentPlaceOf,
   type RecordKind,
   UUID,
 } from "@chanlytics/contracts";
@@ -210,6 +211,9 @@ function paneOf(page: string, param?: string | null): string | null | undefined 
     if (/^sequences\/[^/]+\/runs\/[^/]+/.test(param)) return "sequences/runs";
     if (/^sequences\/new(:|\/|$)/.test(param)) return "sequences/new";
   }
+  // Content's Library (`content:library`, the content redesign's stage 2) is fed by the library's read, which Made never
+  // reads: a screen of its own.
+  if (page === "campaigns" && contentPlaceOf(first)?.list === "library") return "content/library";
   // Campaigns' first word is what is fed: its Sequences view (`campaigns/sequences/<id>/people`), its Messages view with a
   // message open (`campaigns/messages/<name>`), a campaign that lands on its sequence (`moment:<id>`).
   if (page === "campaigns" && first) return first.split(":")[0] || first;
@@ -589,7 +593,7 @@ export function routeSurfaceFor(page: string, param?: string | null): string | u
   // a real page is a jump for every workspace (Ask's palette), and only some have this one until the Ads read is wired (0049).
   // Content the same: the settings read says whether the workspace takes videos, which its words follow, and its own read is
   // drawn beside it (ROUTE_DRAWS).
-  if (page === "campaigns" && (pane === "ads" || pane === "content")) return "settings";
+  if (page === "campaigns" && (pane === "ads" || pane === "content" || pane === "content/library")) return "settings";
   // A person's page reads its own person and says Reading… itself, so it never waits for the whole list: measured on
   // production (23 Sep 2026), a new tab held "Reading…" until People's 29 rows landed at 0.87 s and only then asked
   // for the person, whose page drew at 1.5 s. It waits for who is looking (the workspace surface, which carries __ME):

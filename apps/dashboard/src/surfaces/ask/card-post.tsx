@@ -126,7 +126,7 @@ export function AskPostCard({
       {kept && !unseen ? (
         <PostActs id={kept} name={postNameOf(draft.plan.line)} shape={draft.shape} says={says}>
           <Button size="sm" variant="quiet" onClick={() => openFile(kept, onNav)} data-testid="post-open-files">
-            {says.openInFiles}
+            {says.openInContent}
           </Button>
         </PostActs>
       ) : null}

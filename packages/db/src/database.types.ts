@@ -8971,6 +8971,10 @@ export type Database = {
         Args: { p_id: string; p_tenant_id: string }
         Returns: undefined
       }
+      file_restore: {
+        Args: { p_id: string; p_tenant_id: string }
+        Returns: undefined
+      }
       file_search_words: {
         Args: {
           p_look: Json

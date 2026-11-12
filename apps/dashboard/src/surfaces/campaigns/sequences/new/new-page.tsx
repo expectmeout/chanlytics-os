@@ -94,6 +94,7 @@ function useNewReads(sources: ReachOutSourceDto[] | null | undefined): {
       name: l.name,
       candidates: l.candidates,
       said: l.builtin ? null : l.smart ? W.sheets.listSaid.rule : W.sheets.listSaid.hand,
+      builtin: l.builtin,
     })),
     everyone: pb.pools.everyone_monthly?.candidates ?? null,
     everyoneHeld: pb.pools.everyone_monthly?.held ?? null,
@@ -101,6 +102,7 @@ function useNewReads(sources: ReachOutSourceDto[] | null | undefined): {
     running: seq?.sequences ?? [],
   };
   const offered = pb.templates ?? [];
+  const library = { messages: offered.flatMap((t) => (t.message ? [t.message] : [])), rows: offered };
   // What it can send on now; where that could not be read, WhatsApp, as every send went before a channel was read.
   const ready: ConsentChannel[] = pb.ready ? CONSENT_CHANNELS.filter((c) => pb.ready?.[c]?.ready) : ["whatsapp"];
   return {
@@ -112,10 +114,13 @@ function useNewReads(sources: ReachOutSourceDto[] | null | undefined): {
       calendarOn: pb.calendar === "ok",
       word: pb.shape.word,
       messages: pb.messages ? pb.messages.length : null,
+      library,
+      business: pb.businessName,
+      hasDeals: pb.shape.hasDeals,
     },
     draft: {
       who,
-      library: { messages: offered.flatMap((t) => (t.message ? [t.message] : [])), rows: offered },
+      library,
       ready,
       paused: pb.ready?.paused === true,
       today: zoneDayKey(Date.now(), pb.timezone),

@@ -89,7 +89,7 @@
     },
     {
       "name": "files",
-      "description": "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, 40 a page, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Where it says more, page reads on. Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard, stands_at, the moment its look chose to stand for the whole clip, and moments, the few it named as worth using on their own, best first: where to start choosing one, then zoom at it to see it. Action view opens up to 4 pictures themselves, so you see them as the owner does, a video as its sheet. Do it before proposing or judging one, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before saying what a picture shows or says. Action listen asks an ear how a stretch of a video sounds; its answer is a report, not your hearing. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name, and a box you name is in those pixels; a video opens as a sheet of its frames with their times, what was heard after. To make a post from a photo, find propose_post with tool search, and to make a video from their clips, propose_piece; last_post, beside a picture opened, is how their newest post looks: keep its voice, layout and book unless they ask for something else.",
+      "description": "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, 40 a page, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Where it says more, page reads on. Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard, stands_at, the moment its look chose to stand for the whole clip, and moments, the few it named as worth using on their own, best first: where to start choosing one, then zoom at it to see it. Action view opens up to 4 pictures themselves, so you see them as the owner does, a video as its sheet. Do it before proposing or judging one, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before saying what a picture shows or says. Action listen asks an ear how a stretch of a video sounds; its answer is a report, not your hearing. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name, and a box you name is in those pixels; a video opens as a sheet of its frames with their times, what was heard after. To make a post from a photo, find propose_post with tool search, and to make a video from their clips or photos, or from words alone, propose_piece; last_post, beside a picture opened, is how their newest post looks: keep its voice, layout and book unless they ask for something else.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -885,7 +885,7 @@
     },
     {
       "name": "files",
-      "description": "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, 40 a page, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Where it says more, page reads on. Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard, stands_at, the moment its look chose to stand for the whole clip, and moments, the few it named as worth using on their own, best first: where to start choosing one, then zoom at it to see it. Action view opens up to 4 pictures themselves, so you see them as the owner does, a video as its sheet. Do it before proposing or judging one, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before saying what a picture shows or says. Action listen asks an ear how a stretch of a video sounds; its answer is a report, not your hearing. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name, and a box you name is in those pixels; a video opens as a sheet of its frames with their times, what was heard after. To make a post from a photo, find propose_post with tool search, and to make a video from their clips, propose_piece; last_post, beside a picture opened, is how their newest post looks: keep its voice, layout and book unless they ask for something else.",
+      "description": "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, 40 a page, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Where it says more, page reads on. Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard, stands_at, the moment its look chose to stand for the whole clip, and moments, the few it named as worth using on their own, best first: where to start choosing one, then zoom at it to see it. Action view opens up to 4 pictures themselves, so you see them as the owner does, a video as its sheet. Do it before proposing or judging one, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before saying what a picture shows or says. Action listen asks an ear how a stretch of a video sounds; its answer is a report, not your hearing. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name, and a box you name is in those pixels; a video opens as a sheet of its frames with their times, what was heard after. To make a post from a photo, find propose_post with tool search, and to make a video from their clips or photos, or from words alone, propose_piece; last_post, beside a picture opened, is how their newest post looks: keep its voice, layout and book unless they ask for something else.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -3289,7 +3289,7 @@
     },
     {
       "name": "files",
-      "description": "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, 40 a page, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Where it says more, page reads on. Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard, stands_at, the moment its look chose to stand for the whole clip, and moments, the few it named as worth using on their own, best first: where to start choosing one, then zoom at it to see it. Action view opens up to 4 pictures themselves, so you see them as the owner does, a video as its sheet. Do it before proposing or judging one, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before saying what a picture shows or says. Action listen asks an ear how a stretch of a video sounds; its answer is a report, not your hearing. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name, and a box you name is in those pixels; a video opens as a sheet of its frames with their times, what was heard after. To make a post from a photo, find propose_post with tool search, and to make a video from their clips, propose_piece; last_post, beside a picture opened, is how their newest post looks: keep its voice, layout and book unless they ask for something else.",
+      "description": "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, 40 a page, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Where it says more, page reads on. Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard, stands_at, the moment its look chose to stand for the whole clip, and moments, the few it named as worth using on their own, best first: where to start choosing one, then zoom at it to see it. Action view opens up to 4 pictures themselves, so you see them as the owner does, a video as its sheet. Do it before proposing or judging one, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before saying what a picture shows or says. Action listen asks an ear how a stretch of a video sounds; its answer is a report, not your hearing. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name, and a box you name is in those pixels; a video opens as a sheet of its frames with their times, what was heard after. To make a post from a photo, find propose_post with tool search, and to make a video from their clips or photos, or from words alone, propose_piece; last_post, beside a picture opened, is how their newest post looks: keep its voice, layout and book unless they ask for something else.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4754,53 +4754,82 @@
     },
     {
       "name": "propose_piece",
-      "description": "Make a short video from the business's own video clips, for Instagram, TikTok or anywhere: upright, 8 to 15 seconds, the result on the first frame under a line or two of their words, then how it got there, then a card with the business's name. A machine draws it once the owner presses Make it, in about a minute, and it lands in Files. Open the clips with files first (view, then zoom on the stretches you mean to use) and choose real moments; then call this. The first call draws a storyboard and shows it to you: look at it with the owner's eyes, change the plan if the words sit on a face, and call again with looked set to its look_key; only then is the card made, and that call ends the turn, so answer the rest of what they asked beside it, in the same message. Use it when they ask for a video, a reel or a clip made from what they filmed; for one picture with words, propose_post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "description": "Make a short video from the business's own clips and photos: upright, 8 to 15 seconds, built from blocks you arrange for this request, then a card with the business's name. A machine draws it once the owner presses Make it, in about a minute, and it lands in Files. Open the files with files first (view; zoom on a clip's stretch) and choose real moments; then call this. The first call draws a storyboard and shows it to you: look at it with the owner's eyes, change the plan if words sit on a face or a block reads badly, and call again with looked set to its look_key; only then is the card made, and that call ends the turn, so answer the rest of what they asked beside it, in the same message. Use it for a video or a reel from their clips, their photos or words alone; for one picture with words, propose_post. Ways that have worked, as advice, not forms: pick one, borrow from two, or arrange the blocks afresh for a request that fits none. Hook first: the result on the first block under a line or two of their words, then two or three moments of how it got there. One client a video: take every moment from one clip unless two clips show the same client that day. Choose moments where the person or what is shown moves, and no stretch where nothing changes for more than two seconds. Three or four clips of 1.5 to 3 seconds serve best. Before and after: a pair, first as the hook or last as the payoff, never both. Open with what changed, not the words before and after. Its two pictures show the same person from the same side: the before from the earliest footage or an older photo, the after from the finished look. Around it, a moment or two of the work or of the result moving. Steps: one block a step, in the order the work is done, three or four, each with a label of a word or two that names it. No numbers on a label: the order says it. Open or close on the finished result. A review: one quote card with the client's best sentence, under opening words of the business's own, never the review reworded. Put it over a picture of the same kind of work, or between moments of it, and let it be read: about a second for every thirty characters. From photos: each photo once, the strongest first under the opening words, two to three seconds each; a pair or a words card between them where photos alone would run flat. Words only, for a business with nothing filmed yet: three or four words cards and no opening words, one thought on each, facts from this workspace alone (what they do, where, when), never a claim. Always: the first block is what stops a thumb, every picture is the business's own, and nothing is said that the owner or a client did not say. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
       "input_schema": {
         "type": "object",
         "properties": {
-          "cuts": {
+          "blocks": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
+                "is": {
+                  "type": "string",
+                  "enum": ["clip", "photo", "pair", "words", "quote"],
+                  "description": "clip plays a clip's moment; photo shows a photo, moving slowly; pair holds a before over an after, still; words is a card of words; quote is a client's words."
+                },
                 "file": {
                   "type": "string",
-                  "description": "The clip's name, as files says it.",
-                  "maxLength": 120,
-                  "minLength": 1
+                  "description": "clip, photo: its file's name, as files says it."
                 },
                 "from": {
-                  "anyOf": [
-                    {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    {
-                      "type": "string",
-                      "maxLength": 12
-                    }
-                  ],
-                  "description": "Where the cut starts in its clip, as M:SS.s or seconds."
+                  "type": ["number", "string"],
+                  "description": "clip: where the moment starts, as M:SS.s or seconds."
                 },
                 "to": {
-                  "anyOf": [
-                    {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    {
-                      "type": "string",
-                      "maxLength": 12
-                    }
-                  ],
-                  "description": "Where it ends."
+                  "type": ["number", "string"],
+                  "description": "clip: where it ends, 1.5 to 4 seconds on."
+                },
+                "seconds": {
+                  "type": "number",
+                  "description": "Every kind but clip, how long it stands: photo 1.5 to 3.5, pair 2 to 4, words 1.2 to 3, quote 2.5 to 5."
+                },
+                "label": {
+                  "type": "string",
+                  "description": "clip, photo: one short line low on this block alone, at most 22 characters, in the owner's words. Left out on most."
+                },
+                "before": {
+                  "type": "string",
+                  "description": "pair: the picture above, under Before (code writes the word): a photo's name, or a clip's."
+                },
+                "before_at": {
+                  "type": ["number", "string"],
+                  "description": "Where before is a clip: the moment to hold still, as M:SS.s or seconds."
+                },
+                "after": {
+                  "type": "string",
+                  "description": "pair: the picture below, under After."
+                },
+                "after_at": {
+                  "type": ["number", "string"],
+                  "description": "As before_at."
+                },
+                "lines": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "words: the card's lines, large on the dark ground, at most 22 characters each, in the owner's language and words.",
+                  "maxItems": 3
+                },
+                "text": {
+                  "type": "string",
+                  "description": "quote: a client's words exactly as written, at most 140 characters, from a review this workspace holds (report, lens reviews) or from what the owner wrote here. Never reworded, never yours, never their name: code says where it was said."
+                },
+                "over": {
+                  "type": "string",
+                  "description": "quote: the picture it stands over, dimmed. Left out, the dark ground."
+                },
+                "over_at": {
+                  "type": ["number", "string"],
+                  "description": "As before_at."
                 }
               },
-              "required": ["file", "from", "to"],
+              "required": ["is"],
               "additionalProperties": false
             },
-            "description": "The cuts in the order they play, chosen after opening each clip with files (view, then zoom on a stretch). The first is the result. Three or four cuts of 1.5 to 3 seconds, 8 to 10 seconds in all, serve best; each must run 1.5 to 4 seconds and together 8 to 15. One client a video: take every cut from one clip unless two clips show the same client that day. Choose moments where the person or what is shown moves, and no stretch where nothing changes for more than two seconds.",
-            "maxItems": 5,
+            "description": "The blocks in play order. Together 8 to 15 seconds; the end card follows by itself. Each says what it is and gives the fields of its kind.",
+            "maxItems": 6,
             "minItems": 2
           },
           "lines": {
@@ -4808,19 +4837,18 @@
             "items": {
               "type": "string"
             },
-            "description": "The words on the first frame: one or two lines, each at most 18 characters, in the owner's language, from their words. In the client's own voice or with a small tension, never a slogan. The first frame must show what they say.",
-            "maxItems": 2,
-            "minItems": 1
+            "description": "The opening words over the first block's picture: one or two lines of at most 18 characters, in the owner's language and words. In the client's own voice or with a small tension, never a slogan; the first block must show what they say. Empty only when the video opens on a words card or a quote.",
+            "maxItems": 2
           },
           "words_at": {
             "type": "string",
             "enum": ["high", "low"],
-            "description": "Where the words sit, chosen from the frames: wherever they cover no face and not the thing being shown. High is over a head; low is under a face, over the lap."
+            "description": "Where the opening words sit, chosen from the frames: wherever they cover no face and not the thing being shown. High is over a head; low is under a face, over the lap."
           },
           "words_hold": {
             "type": "string",
             "enum": ["first", "all"],
-            "description": "all keeps the words for the whole video, only where no cut puts a face under them; first lets them leave with the first cut."
+            "description": "all keeps the opening words over every picture, only where none puts a face under them; first lets them leave with the first block."
           },
           "end_line": {
             "type": "string",
@@ -4828,14 +4856,14 @@
           },
           "people_agreed": {
             "type": "boolean",
-            "description": "Only when the owner said in this thread that the people in the clips agreed to be shown."
+            "description": "Only when the owner said in this thread that the people shown agreed to be."
           },
           "looked": {
             "type": "string",
-            "description": "The look_key the storyboard answered, once you have looked at it and it is right; left out, the storyboard is drawn and shown to you first, and no card is made."
+            "description": "The storyboard's look_key, once you have looked at it and it is right. Left out, the storyboard is drawn and shown to you, and no card is made."
           }
         },
-        "required": ["cuts", "lines", "words_at", "words_hold"],
+        "required": ["blocks", "lines", "words_at", "words_hold"],
         "additionalProperties": false
       },
       "defer_loading": true
@@ -6217,7 +6245,7 @@
     },
     {
       "name": "files",
-      "description": "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, 40 a page, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Where it says more, page reads on. Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard, stands_at, the moment its look chose to stand for the whole clip, and moments, the few it named as worth using on their own, best first: where to start choosing one, then zoom at it to see it. Action view opens up to 4 pictures themselves, so you see them as the owner does, a video as its sheet. Do it before proposing or judging one, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before saying what a picture shows or says. Action listen asks an ear how a stretch of a video sounds; its answer is a report, not your hearing. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name, and a box you name is in those pixels; a video opens as a sheet of its frames with their times, what was heard after. To make a post from a photo, find propose_post with tool search, and to make a video from their clips, propose_piece; last_post, beside a picture opened, is how their newest post looks: keep its voice, layout and book unless they ask for something else.",
+      "description": "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, 40 a page, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Where it says more, page reads on. Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard, stands_at, the moment its look chose to stand for the whole clip, and moments, the few it named as worth using on their own, best first: where to start choosing one, then zoom at it to see it. Action view opens up to 4 pictures themselves, so you see them as the owner does, a video as its sheet. Do it before proposing or judging one, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before saying what a picture shows or says. Action listen asks an ear how a stretch of a video sounds; its answer is a report, not your hearing. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name, and a box you name is in those pixels; a video opens as a sheet of its frames with their times, what was heard after. To make a post from a photo, find propose_post with tool search, and to make a video from their clips or photos, or from words alone, propose_piece; last_post, beside a picture opened, is how their newest post looks: keep its voice, layout and book unless they ask for something else.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -7710,53 +7738,82 @@
     },
     {
       "name": "propose_piece",
-      "description": "Make a short video from the business's own video clips, for Instagram, TikTok or anywhere: upright, 8 to 15 seconds, the result on the first frame under a line or two of their words, then how it got there, then a card with the business's name. A machine draws it once the owner presses Make it, in about a minute, and it lands in Files. Open the clips with files first (view, then zoom on the stretches you mean to use) and choose real moments; then call this. The first call draws a storyboard and shows it to you: look at it with the owner's eyes, change the plan if the words sit on a face, and call again with looked set to its look_key; only then is the card made, and that call ends the turn, so answer the rest of what they asked beside it, in the same message. Use it when they ask for a video, a reel or a clip made from what they filmed; for one picture with words, propose_post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "description": "Make a short video from the business's own clips and photos: upright, 8 to 15 seconds, built from blocks you arrange for this request, then a card with the business's name. A machine draws it once the owner presses Make it, in about a minute, and it lands in Files. Open the files with files first (view; zoom on a clip's stretch) and choose real moments; then call this. The first call draws a storyboard and shows it to you: look at it with the owner's eyes, change the plan if words sit on a face or a block reads badly, and call again with looked set to its look_key; only then is the card made, and that call ends the turn, so answer the rest of what they asked beside it, in the same message. Use it for a video or a reel from their clips, their photos or words alone; for one picture with words, propose_post. Ways that have worked, as advice, not forms: pick one, borrow from two, or arrange the blocks afresh for a request that fits none. Hook first: the result on the first block under a line or two of their words, then two or three moments of how it got there. One client a video: take every moment from one clip unless two clips show the same client that day. Choose moments where the person or what is shown moves, and no stretch where nothing changes for more than two seconds. Three or four clips of 1.5 to 3 seconds serve best. Before and after: a pair, first as the hook or last as the payoff, never both. Open with what changed, not the words before and after. Its two pictures show the same person from the same side: the before from the earliest footage or an older photo, the after from the finished look. Around it, a moment or two of the work or of the result moving. Steps: one block a step, in the order the work is done, three or four, each with a label of a word or two that names it. No numbers on a label: the order says it. Open or close on the finished result. A review: one quote card with the client's best sentence, under opening words of the business's own, never the review reworded. Put it over a picture of the same kind of work, or between moments of it, and let it be read: about a second for every thirty characters. From photos: each photo once, the strongest first under the opening words, two to three seconds each; a pair or a words card between them where photos alone would run flat. Words only, for a business with nothing filmed yet: three or four words cards and no opening words, one thought on each, facts from this workspace alone (what they do, where, when), never a claim. Always: the first block is what stops a thumb, every picture is the business's own, and nothing is said that the owner or a client did not say. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
       "input_schema": {
         "type": "object",
         "properties": {
-          "cuts": {
+          "blocks": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
+                "is": {
+                  "type": "string",
+                  "enum": ["clip", "photo", "pair", "words", "quote"],
+                  "description": "clip plays a clip's moment; photo shows a photo, moving slowly; pair holds a before over an after, still; words is a card of words; quote is a client's words."
+                },
                 "file": {
                   "type": "string",
-                  "description": "The clip's name, as files says it.",
-                  "maxLength": 120,
-                  "minLength": 1
+                  "description": "clip, photo: its file's name, as files says it."
                 },
                 "from": {
-                  "anyOf": [
-                    {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    {
-                      "type": "string",
-                      "maxLength": 12
-                    }
-                  ],
-                  "description": "Where the cut starts in its clip, as M:SS.s or seconds."
+                  "type": ["number", "string"],
+                  "description": "clip: where the moment starts, as M:SS.s or seconds."
                 },
                 "to": {
-                  "anyOf": [
-                    {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    {
-                      "type": "string",
-                      "maxLength": 12
-                    }
-                  ],
-                  "description": "Where it ends."
+                  "type": ["number", "string"],
+                  "description": "clip: where it ends, 1.5 to 4 seconds on."
+                },
+                "seconds": {
+                  "type": "number",
+                  "description": "Every kind but clip, how long it stands: photo 1.5 to 3.5, pair 2 to 4, words 1.2 to 3, quote 2.5 to 5."
+                },
+                "label": {
+                  "type": "string",
+                  "description": "clip, photo: one short line low on this block alone, at most 22 characters, in the owner's words. Left out on most."
+                },
+                "before": {
+                  "type": "string",
+                  "description": "pair: the picture above, under Before (code writes the word): a photo's name, or a clip's."
+                },
+                "before_at": {
+                  "type": ["number", "string"],
+                  "description": "Where before is a clip: the moment to hold still, as M:SS.s or seconds."
+                },
+                "after": {
+                  "type": "string",
+                  "description": "pair: the picture below, under After."
+                },
+                "after_at": {
+                  "type": ["number", "string"],
+                  "description": "As before_at."
+                },
+                "lines": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "words: the card's lines, large on the dark ground, at most 22 characters each, in the owner's language and words.",
+                  "maxItems": 3
+                },
+                "text": {
+                  "type": "string",
+                  "description": "quote: a client's words exactly as written, at most 140 characters, from a review this workspace holds (report, lens reviews) or from what the owner wrote here. Never reworded, never yours, never their name: code says where it was said."
+                },
+                "over": {
+                  "type": "string",
+                  "description": "quote: the picture it stands over, dimmed. Left out, the dark ground."
+                },
+                "over_at": {
+                  "type": ["number", "string"],
+                  "description": "As before_at."
                 }
               },
-              "required": ["file", "from", "to"],
+              "required": ["is"],
               "additionalProperties": false
             },
-            "description": "The cuts in the order they play, chosen after opening each clip with files (view, then zoom on a stretch). The first is the result. Three or four cuts of 1.5 to 3 seconds, 8 to 10 seconds in all, serve best; each must run 1.5 to 4 seconds and together 8 to 15. One client a video: take every cut from one clip unless two clips show the same client that day. Choose moments where the person or what is shown moves, and no stretch where nothing changes for more than two seconds.",
-            "maxItems": 5,
+            "description": "The blocks in play order. Together 8 to 15 seconds; the end card follows by itself. Each says what it is and gives the fields of its kind.",
+            "maxItems": 6,
             "minItems": 2
           },
           "lines": {
@@ -7764,19 +7821,18 @@
             "items": {
               "type": "string"
             },
-            "description": "The words on the first frame: one or two lines, each at most 18 characters, in the owner's language, from their words. In the client's own voice or with a small tension, never a slogan. The first frame must show what they say.",
-            "maxItems": 2,
-            "minItems": 1
+            "description": "The opening words over the first block's picture: one or two lines of at most 18 characters, in the owner's language and words. In the client's own voice or with a small tension, never a slogan; the first block must show what they say. Empty only when the video opens on a words card or a quote.",
+            "maxItems": 2
           },
           "words_at": {
             "type": "string",
             "enum": ["high", "low"],
-            "description": "Where the words sit, chosen from the frames: wherever they cover no face and not the thing being shown. High is over a head; low is under a face, over the lap."
+            "description": "Where the opening words sit, chosen from the frames: wherever they cover no face and not the thing being shown. High is over a head; low is under a face, over the lap."
           },
           "words_hold": {
             "type": "string",
             "enum": ["first", "all"],
-            "description": "all keeps the words for the whole video, only where no cut puts a face under them; first lets them leave with the first cut."
+            "description": "all keeps the opening words over every picture, only where none puts a face under them; first lets them leave with the first block."
           },
           "end_line": {
             "type": "string",
@@ -7784,14 +7840,14 @@
           },
           "people_agreed": {
             "type": "boolean",
-            "description": "Only when the owner said in this thread that the people in the clips agreed to be shown."
+            "description": "Only when the owner said in this thread that the people shown agreed to be."
           },
           "looked": {
             "type": "string",
-            "description": "The look_key the storyboard answered, once you have looked at it and it is right; left out, the storyboard is drawn and shown to you first, and no card is made."
+            "description": "The storyboard's look_key, once you have looked at it and it is right. Left out, the storyboard is drawn and shown to you, and no card is made."
           }
         },
-        "required": ["cuts", "lines", "words_at", "words_hold"],
+        "required": ["blocks", "lines", "words_at", "words_hold"],
         "additionalProperties": false
       },
       "defer_loading": true

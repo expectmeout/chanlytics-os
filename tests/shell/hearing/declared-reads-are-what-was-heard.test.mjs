@@ -250,8 +250,9 @@ const HEARD_BEFORE = {
   // And the person a visit is (W-person-list-lead-6): an update of them, never a person made.
   // And the mailbox the Business tab's forwarding code is kept on (R6: S4-4).
   calendar: ["appointments", "appointment_notices", "tenant_config", "contacts", "mailboxes"],
-  // The Calendar's campaign marks (its lane C): the runs, the campaigns, the classes' modes and the workspace's pause.
-  calendar_runs: ["sequence_batches", "sequences", "sequence_steps", "policies", "tenants"],
+  // The Calendar's campaign marks (its lane C): the runs, the campaigns, the classes' modes and the workspace's pause; and the
+  // posts at their times (the content redesign's stage 3), each named for its file.
+  calendar_runs: ["sequence_batches", "sequences", "sequence_steps", "policies", "tenants", "files"],
   // The counts of the lists pinned to Today (the wiring's second audit, R10): what the lists are made of, a person's threads,
   // holds and calls, visits, steps and deals, the lists kept by hand, who can be reached, the settings and the workspace's row.
   today_pins: [

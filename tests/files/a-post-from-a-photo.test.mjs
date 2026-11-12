@@ -29,7 +29,7 @@ const { postPhotoProblem, postPlanProblem, postUndrawable, postWordsProblem } = 
 const { postPathOf } = await import(at("packages/contracts/src/files/views.ts"));
 const { POST_LAYOUTS, POST_LIMITS, POST_SHAPES, POST_WORDS, postPhotoWont, postPlanOf, postPlanTidied, postWordsIn } =
   await import(at("packages/contracts/src/files/post.ts"));
-const { postSpec } = await import(at("packages/contracts/src/files/post-spec.ts"));
+const { postSpec } = await import(at("packages/contracts/src/content/post-spec.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
@@ -738,8 +738,8 @@ test("Save is one call, and its Undo takes back only what that press made", () =
   assert.equal(call.route, "POST files/post");
   assert.deepEqual(call.body, postPlanOf(CARD.payload));
   const made = { file_id: "f2", name: "now-booking", twin: false };
-  assert.equal(postSpec.receipt(CARD, made), "Guardada en Archivos como now-booking", "in the post's own language");
-  assert.equal(postSpec.receipt({ payload: { language: "en" } }, made), "Saved to Files as now-booking");
+  assert.equal(postSpec.receipt(CARD, made), "Guardada en Contenido como now-booking", "in the post's own language");
+  assert.equal(postSpec.receipt({ payload: { language: "en" } }, made), "Saved to Content as now-booking");
   assert.equal(postSpec.undo.label(CARD), "Deshacer");
   assert.equal(postSpec.made(CARD, made), "f2");
   assert.deepEqual(postSpec.undo.record(CARD, made, { settings: null }), {
@@ -747,7 +747,7 @@ test("Save is one call, and its Undo takes back only what that press made", () =
     language: "es",
     plan: postPlanOf(CARD.payload),
   });
-  assert.equal(postSpec.undo.receipt({}, { language: "es" }), "Quitada de Archivos");
+  assert.equal(postSpec.undo.receipt({}, { language: "es" }), "Quitada de Contenido");
   assert.equal(postSpec.undo.record(CARD, { ...made, twin: true }, { settings: null }), null, "it was already there");
   const undo = postSpec.undo.call({ file_id: "f2" }, { settings: null });
   assert.deepEqual([undo.route, undo.params.id, undo.goneIsDone], ["DELETE files/[id]", "f2", true]);

@@ -75,18 +75,17 @@ test.describe("Campaigns' views on a cold load", () => {
       expect(load.seen["messages-no-number"], "said there was no number, then took it back").toBe(undefined);
   });
 
-  test("New: the strip never moves, and its starts are never swapped for what to set up first", async ({ page }) => {
+  test("New: the strip never moves, and nothing it draws is taken back", async ({ page }) => {
     const load = await coldLoad(page, "campaigns/sequences/new", "sq-new");
     expect(stripMoved(load), `the strip's tops, frame by frame: ${load.strip.join(" > ")}`).toBeLessThanOrEqual(
       ENTRANCE_PX,
     );
-    // New draws its starts or what a bare workspace needs before them, and whichever it ends on is the one it drew.
+    // New draws what is ready and, under it, what a start still needs (decision 0129). Whatever it drew while loading,
+    // it ends on.
     const startsNow = await page.getByTestId("sq-nw-starts").count();
     const setupNow = await page.getByTestId("sq-nw-setup").count();
-    if (startsNow > 0)
-      expect(load.seen["sq-nw-setup"], "drew what to set up, then swapped it for the starts").toBe(undefined);
-    if (setupNow > 0)
-      expect(load.seen["sq-nw-starts"], "drew starts, then swapped them for what to set up").toBe(undefined);
+    if (startsNow === 0) expect(load.seen["sq-nw-starts"], "drew starts, then took them away").toBe(undefined);
+    if (setupNow === 0) expect(load.seen["sq-nw-setup"], "drew what to set up, then took it away").toBe(undefined);
   });
 
   test("a one-off's step never says its message is gone where its words are there", async ({ page }) => {

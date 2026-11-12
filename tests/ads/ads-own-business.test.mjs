@@ -379,7 +379,11 @@ test("New ad offers the kept pictures, newest first as the read answers, each it
   assert.match(textOf(made), /Spring opening/);
   assert.match(textOf(made), /Made by Ask/);
   assert.doesNotMatch(textOf(byTestId(tree, "ads-new-file-a")), /Made by Ask/);
-  assert.equal(byTestId(tree, "ads-new-files-door").props.href, "#/admin/files", "and the door to where one is added");
+  assert.equal(
+    byTestId(tree, "ads-new-files-door").props.href,
+    "#/campaigns/content:library",
+    "and the door to where one is added: Content's Library, once Settings › Files",
+  );
 });
 
 test("a press picks the picture for the draft and nothing else, and says what to know of it where there is something", async () => {

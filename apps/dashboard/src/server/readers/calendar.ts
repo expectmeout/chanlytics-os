@@ -11,10 +11,15 @@ import {
   windowFor,
   zoneDayKey,
   zoneMidnight,
+  POST_PLACES,
+  POST_STATUSES,
+  isOneOf,
+  type CalendarPostDto,
   type CalendarRunsDto,
   type CalendarWeekDto,
 } from "@chanlytics/contracts";
 import { listMomentSchedules, listRunsInSpan, getSequenceModes, isWorkspacePaused } from "@chanlytics/db/campaigns";
+import { listFilesByIds, listPostsInSpan } from "@chanlytics/db/files";
 import { runCounts } from "@chanlytics/db/reports";
 import { getCalendarSources, weekFrom } from "../calendar/week/week";
 import type { CalendarSources } from "../calendar/week/items";
@@ -100,6 +105,38 @@ function runsSpanOf(
  * outside GET calendar: that one is Today's day and the head's first read too, and a send must never count as taken time
  * or re-read the calendar's feed. Each run is a row a citation may name, by its name.
  */
+/** The most posts a span of the Calendar draws: a workspace posts a handful a day. */
+const SPAN_POSTS_MAX = 300;
+
+/** Content's posts over a span, each named by its piece; one whose piece is gone is not drawn. */
+async function postsInSpan(
+  db: Parameters<typeof listPostsInSpan>[0],
+  tenantId: Parameters<typeof listPostsInSpan>[1],
+  fromIso: string,
+  toIso: string,
+): Promise<CalendarPostDto[]> {
+  const rows = await listPostsInSpan(db, tenantId, { fromIso, toIso, limit: SPAN_POSTS_MAX });
+  if (rows.length === 0) return [];
+  const names = new Map(
+    (await listFilesByIds(db, tenantId, [...new Set(rows.map((r) => r.file_id))])).map((f) => [f.id, f.name]),
+  );
+  return rows.flatMap((row) => {
+    const name = names.get(row.file_id);
+    if (name === undefined || !isOneOf(POST_PLACES, row.place) || !isOneOf(POST_STATUSES, row.status)) return [];
+    return [
+      {
+        id: row.id,
+        file_id: row.file_id,
+        name,
+        place: row.place,
+        status: row.status,
+        scheduled_for: row.scheduled_for,
+        published_at: row.published_at,
+      },
+    ];
+  });
+}
+
 export const calendarRuns: Reader<
   { from: string | null; days: number; around: "today" | null },
   { runs: CalendarRunsDto }
@@ -118,18 +155,17 @@ export const calendarRuns: Reader<
     const tz = known.timezone;
     const span = runsSpanOf(by, tz, rc.now);
     const toDay = shiftKey(span.from, span.days - 1);
-    const [rows, modes] = await Promise.all([
-      listRunsInSpan(db, rc.tenantId, {
-        fromIso: new Date(zoneMidnight(tz, span.from)).toISOString(),
-        toIso: new Date(zoneMidnight(tz, shiftKey(toDay, 1))).toISOString(),
-        fromDay: span.from,
-        toDay,
-      }),
+    const fromIso = new Date(zoneMidnight(tz, span.from)).toISOString();
+    const toIso = new Date(zoneMidnight(tz, shiftKey(toDay, 1))).toISOString();
+    const [rows, modes, posts] = await Promise.all([
+      listRunsInSpan(db, rc.tenantId, { fromIso, toIso, fromDay: span.from, toDay }),
       getSequenceModes(
         db,
         rc.tenantId,
         moments.map((p) => p.sequence_id),
       ),
+      // Content's posts over the same days (the content redesign's stage 3), each named by its piece.
+      postsInSpan(db, rc.tenantId, fromIso, toIso),
     ]);
     // What each run sent: one read for the span's runs. A database before 00374 answers "missing": nothing said sent.
     const read = rows.length
@@ -173,6 +209,7 @@ export const calendarRuns: Reader<
         until: moment.until,
         reach_out: triggerOf(moment.trigger)?.kind === "reach_out",
       })),
+      posts,
     };
     const cited: RowRef[] = runs.runs.map((r) => ({
       kind: "broadcast",

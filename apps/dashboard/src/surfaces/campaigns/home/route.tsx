@@ -20,6 +20,7 @@ import { Activity, Suspense, lazy, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   ADS_ROUTE,
+  CONTENT_ROUTE,
   LIFECYCLE_WORDS,
   MESSAGES_ROUTE,
   SEQUENCES_ROUTE,
@@ -77,6 +78,9 @@ function useKeptViews(view: View, route: string, ahead: boolean) {
   if (view === "messages") messagesAt.current = route;
   const adsAt = useRef(ADS_ROUTE);
   if (view === "ads") adsAt.current = route;
+  // Content keeps the piece left open, and the view of Made, as Sequences keeps its record.
+  const contentAt = useRef(CONTENT_ROUTE);
+  if (view === "content") contentAt.current = route;
   const before = useRef<View | null>(null);
   const was = before.current;
   useEffect(() => {
@@ -91,6 +95,7 @@ function useKeptViews(view: View, route: string, ahead: boolean) {
     sequencesAt: sequencesAt.current,
     messagesAt: messagesAt.current,
     adsAt: adsAt.current,
+    contentAt: contentAt.current,
     viewOf,
   };
 }
@@ -167,7 +172,7 @@ export function CampaignsRoute() {
       {kept.drawn.has("content") ? (
         <Activity mode={view === "content" ? "visible" : "hidden"}>
           <Suspense fallback={<ViewReading />}>
-            <ContentPage view={kept.viewOf("content")} />
+            <ContentPage route={kept.contentAt} view={kept.viewOf("content")} />
           </Suspense>
         </Activity>
       ) : null}

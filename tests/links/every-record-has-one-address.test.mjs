@@ -88,7 +88,8 @@ const RECORDS = [
   { ref: { kind: "channel" }, route: "admin/integrations" },
   { ref: { kind: "team" }, route: "admin/team" },
   { ref: { kind: "billing" }, route: "admin/billing" },
-  { ref: { kind: "file" }, route: "admin/files" },
+  // Settings › Files is Content's Library (the content redesign's stage 2).
+  { ref: { kind: "file" }, route: "campaigns/content:library" },
 ];
 
 test("every kind of record says where it opens, or why it opens nowhere, and never both", () => {

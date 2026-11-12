@@ -147,6 +147,8 @@ interface TableData {
   "file.posted": { file_id: string; post_name: string; search_url: string | null; by: string | null };
   "file.unposted": { file_id: string; post_name: string; by: string | null };
   "file.removed": { file_id: string; by: string };
+  /** A delete undone in its ten minutes (00616 file_restore). */
+  "file.restored": { file_id: string; by: string };
   "file.set_aside": { count: number };
   "mailbox_connection.unpaused": { address: string; by: string };
   "mailbox_connection.removed": { address: string; by: string | null };
@@ -259,6 +261,7 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "file.posted": { category: "setup", version: 1 },
   "file.unposted": { category: "setup", version: 1 },
   "file.removed": { category: "setup", version: 1 },
+  "file.restored": { category: "setup", version: 1 },
   "file.set_aside": { category: "setup", version: 1 },
   "mailbox_connection.unpaused": { category: "setup", version: 1 },
   "mailbox_connection.removed": { category: "setup", version: 1 },

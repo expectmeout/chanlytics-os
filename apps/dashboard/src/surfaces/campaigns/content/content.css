@@ -19,19 +19,31 @@
   color: var(--ink-dim);
 }
 
-/* Files' columns on a desk, so a tile is one size on both pages. A phone holds two across with room between them: each
-   tile here has words under it, where Files' own grid is pictures alone, three across and edge to edge. */
-.cnv-grid {
+/* The tiles' columns (columns.tsx): as many as the width holds, said on the box, each a stack of tiles at their own shape.
+   Each tile has words under it, where Files' own grid is pictures alone, so the columns stand apart. */
+.cnv-cols {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  align-items: start;
 }
-
-@media (max-width: 720px) {
-  .cnv-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    row-gap: 16px;
-  }
+.cnv-cols[data-count="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.cnv-cols[data-count="4"] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.cnv-cols[data-count="5"] {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.cnv-cols[data-count="6"] {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.cnv-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 
 .cnv-piece {
@@ -63,4 +75,375 @@
 
 .cnv-said[data-mark="going"] {
   color: var(--accent);
+}
+
+/* ---- The split (page.tsx): the pieces in the list's pane, the open piece beside it ---- */
+
+/* The list holds the tiles with room round them; on a phone it is the page's own, as every Campaigns list is. */
+.cnv > .cm-list {
+  gap: 14px;
+  padding: 16px;
+}
+/* On a phone the split already stands at the page's edge: the list adds only the room under the tab bar. */
+@media (max-width: 900px) {
+  .cnv > .cm-list {
+    padding: 0 0 120px;
+  }
+}
+
+/* On a desk the grid keeps the room and the open piece stands narrow beside it, a piece being taller than it is wide.
+   Sequences' split is the other way round: a narrow list and a wide record. */
+@media (width > 900px) {
+  .cm-split.cnv[data-open] {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+  }
+}
+
+/* The tile that is open. */
+.cnv-piece[data-open] .files-frame {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: var(--radius-lg);
+}
+
+/* ---- The open piece (piece.tsx) ---- */
+
+/* The stage: the picture at its own shape on the dark ground, no taller than the screen leaves it. The body scrolls under it. */
+.cnv-stage {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  margin: 0 calc(-1 * var(--cm-pane-gutter)) 12px;
+  background: var(--media-stage);
+}
+.cnv-stage > * {
+  width: 100%;
+  max-width: calc(min(62vh, 640px) * 9 / 16);
+}
+.cnv-stage[data-shape="square"] > * {
+  max-width: min(62vh, 640px);
+}
+.cnv-stage img,
+.cnv-stage iframe,
+.cnv-stage video {
+  display: block;
+  width: 100%;
+}
+@media (max-width: 900px) {
+  /* On a phone the stage is the first screen under the head: the picture edge to edge, the foot docked under it. */
+  .cnv-stage > * {
+    max-width: none;
+  }
+}
+
+/* Under the picture: what the record adds, then where it is posted. */
+.cnv-details,
+.cnv-posted {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.cnv-posted:empty {
+  display: none;
+}
+
+/* The foot: where it stands at each place, then the acts, the filled one taking the room that is left. */
+.cnv-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.cnv-stands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: center;
+}
+.cnv-stand {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.cnv-stand-place {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.cnv-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--ink-dim);
+}
+.cnv-refused {
+  color: var(--warn-ink);
+}
+.cnv-acts {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+/* The act that leads takes the room the others leave. */
+.cnv-acts > .cnv-lead {
+  flex: 1 1 auto;
+}
+
+/* ---- The composer (post-both.tsx) ---- */
+.cnv-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.cnv-places {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cnv-place {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.cnv-place > .cnv-note {
+  flex-basis: 100%;
+}
+.cnv-when {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ---- Made's views and the lines (views.tsx, lines.tsx, list.tsx) ---- */
+
+/* Made or Library, Made's views beside it, and, on a desk, Grid or List at the far end: one row under the head. */
+.cnv-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+.cnv-bar-lead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+.cnv-lists,
+.cnv-views,
+.cnv-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: center;
+}
+.cnv-count {
+  margin-left: 4px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+/* Needs you holds something: amber, still. */
+.cnv-owed {
+  width: 6px;
+  height: 6px;
+  margin-left: 4px;
+  border-radius: var(--radius-full);
+  background: var(--warn);
+}
+
+/* A being-made tile: the clip it starts from, dim, and where it is at in words over it. */
+.files-frame.cnv-making > .files-pic {
+  opacity: 0.45;
+  filter: saturate(0.5);
+}
+.cnv-making-says {
+  position: absolute;
+  inset: auto 8px 10px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--media-ink);
+}
+
+.cnv-none {
+  margin: 24px 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+
+/* Lines: the piece small at its own shape, its name and a line under it, what stands at its end. */
+.cnv-lines {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cnv-run-head {
+  margin: 14px 0 4px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.cnv-run:first-child > .cnv-run-head {
+  margin-top: 4px;
+}
+.cnv-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  border-bottom: 1px solid var(--line);
+}
+.cnv-lines > .cnv-line:last-child,
+.cnv-run > .cnv-line:last-child {
+  border-bottom: 0;
+}
+.cnv-line-open {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  min-height: 68px;
+  padding: 6px 2px;
+  text-align: left;
+}
+.cnv-thumb {
+  display: block;
+  width: 44px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  justify-self: center;
+}
+.cnv-thumb[data-shape="tall"] {
+  width: 31px;
+}
+.cnv-thumb .files-pic {
+  border-radius: 0;
+}
+.cnv-thumb[data-dim] .files-pic {
+  opacity: 0.45;
+  filter: saturate(0.5);
+}
+.cnv-line-words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cnv-line-words > b,
+.cnv-line-words > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cnv-line-words > b {
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+.cnv-line-words > span {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cnv-line-words > span[data-needs] {
+  color: var(--warn-ink);
+}
+.cnv-line-end {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The list on a desk: a piece's cell holds its picture beside its name; a place's, what is, and under it what stopped. */
+.cnv-cell-piece {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+.cnv-cell-piece > .cnv-thumb {
+  width: 36px;
+}
+.cnv-cell-piece > .cnv-thumb[data-shape="tall"] {
+  width: 26px;
+}
+.cnv-cell-top,
+.cnv-cell-sub {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cnv-cell-sub {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.cnv-cell[data-stands="none"] .cnv-cell-top {
+  color: var(--ink-faint);
+}
+.cnv-cell[data-stands="stuck"] .cnv-cell-top {
+  color: var(--warn-ink);
+}
+.cnv-cell[data-stands="going"] .cnv-cell-top {
+  color: var(--accent);
+}
+
+/* A post that waits for its time: when it goes up, and its Don't post. */
+.cnv-timed {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+.cnv-timed > .cnv-note {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* A tile's name stays under it on a phone here, where Files' camera-roll grid draws pictures alone: two across, each piece
+   is named once, then where it stands. */
+@media (max-width: 720px) {
+  .cnv-piece .files-name {
+    display: block;
+  }
+}
+
+/* ---- The Library (library.tsx): Files' own, standing in Content's list pane rather than a card of Settings ---- */
+.files-page.cnv-library {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* A made video's words, made again (video-again.tsx): what pressing does, said above the boxes. */
+.cnv-again-says {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+
+/* A still from a video (still.tsx): five moments across it, each its picture and its time, the one pressed filled. */
+.cnv-still {
+  display: grid;
+  gap: 10px;
+}
+.cnv-still-moments {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+.cnv-still-moment {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  height: auto;
+  padding: 6px;
 }

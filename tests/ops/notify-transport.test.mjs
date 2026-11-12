@@ -662,6 +662,9 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
       // Photos an import found, waiting in Files (00551): a line on the bell.
       "files_waiting",
       "video_ready",
+      // A post set for its time went up, or was held (00616): a line on the bell.
+      "post_up",
+      "post_stopped",
       "leads_ready",
       "member_joined",
       "member_left",

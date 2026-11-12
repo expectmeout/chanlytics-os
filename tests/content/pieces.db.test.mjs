@@ -414,6 +414,115 @@ async function clip(whoInIt) {
 }
 const planOf = (...clips) => ({ ...PLAN, cuts: clips.map((file_id) => ({ file_id, from: 2, to: 4.5 })) });
 
+/** A kept photo in workspace A, saying who is in it. */
+async function photo(whoInIt) {
+  const id = randomUUID();
+  ok(
+    await db.from("files").insert({
+      id,
+      tenant_id: A,
+      status: "filed",
+      source: "upload",
+      name: `photo-${id.slice(0, 8)}`,
+      mime: "image/jpeg",
+      bytes: 1000,
+      fingerprint: `fp-${id}`,
+      kind: "image",
+      who_in_it: whoInIt,
+    }),
+    "a photo",
+  );
+  return id;
+}
+/** A plan in blocks (decision 0126), as Ask's card sends one. */
+const blocksOf = (...blocks) => ({
+  shape: "blocks",
+  blocks,
+  lines: ["I asked for volume"],
+  words_at: "low",
+  words_hold: "first",
+  end_line: null,
+  language: "en",
+  people_agreed: false,
+});
+const clipBlockOf = (fileId) => ({ is: "clip", file_id: fileId, from: 2, to: 4.5, label: null });
+const wordsBlockOf = (...lines) => ({ is: "words", lines, seconds: 2 });
+
+test("a press takes a plan in blocks, and its row says the shape its plan is kept in", { skip }, async () => {
+  await endAll();
+  const blocks = blocksOf(clipBlockOf(CLIP), wordsBlockOf("Same chair.", "New you."));
+  const begun = ok(await press("owner", { p_plan: blocks }), "the press");
+  assert.equal(begun.fate, "begun");
+  const piece = await pieceOf(begun.piece_id);
+  assert.deepEqual([piece.shape, piece.plan], ["blocks", blocks]);
+  // One kept as "Hook first", as a card made before blocks sends it, says so still.
+  const key = `card-${randomUUID()}`;
+  const hook = ok(await press("owner", { p_key: key }), "a card made before");
+  assert.equal((await pieceOf(hook.piece_id)).shape, "hook_cut");
+  // A plan that says no shape is no plan.
+  const { shape: _unsaid, ...shapeless } = blocks;
+  assert.equal((await press("owner", { p_plan: shapeless })).error?.code, "22023");
+  // Not made, and pressed again with a plan in the other shape: the row says the shape of the plan it now holds.
+  ok(await db.rpc("piece_end", { p_piece_id: hook.piece_id, p_why: "draw" }), "not made");
+  ok(await db.from("jobs").delete().eq("tenant_id", A).eq("kind", "piece_make"), "the first jobs, done");
+  const again = ok(await press("owner", { p_key: key, p_plan: blocks }), "pressed again");
+  assert.deepEqual(again, { fate: "begun", piece_id: hook.piece_id });
+  assert.equal((await pieceOf(hook.piece_id)).shape, "blocks");
+  await endAll();
+});
+
+test(
+  "who is in a video of blocks is read from every file its blocks name: a clip's, a photo's, a pair's two, a quote's ground",
+  { skip },
+  async () => {
+    const inBlocks = (...blocks) => making({ shape: "blocks", plan: blocksOf(...blocks) });
+    const whoOf = async (pieceId) => (await fileOf((await fileBegun(pieceId)).id)).who_in_it;
+    // An agreed photo beside a clip nobody was asked about: the video is agreed, with nothing said at the press.
+    const agreed = await inBlocks(
+      { is: "photo", file_id: await photo("agreed"), seconds: 2.5, label: null },
+      clipBlockOf(await clip("not_asked")),
+    );
+    assert.equal(await whoOf(agreed), "agreed");
+    // Every file says no one is in it, wherever a block names it: a pair's two pictures and the picture under a quote.
+    const noOne = await inBlocks(
+      {
+        is: "pair",
+        before: { file_id: await photo("no_one"), at: null },
+        after: { file_id: await clip("no_one"), at: 3 },
+        seconds: 3,
+      },
+      {
+        is: "quote",
+        text: "Lovely place.",
+        from: null,
+        over: { file_id: await photo("no_one"), at: null },
+        seconds: 3,
+      },
+    );
+    assert.equal(await whoOf(noOne), "no_one");
+    // One of a pair's two was never asked about: so the video was not.
+    const mixed = await inBlocks(
+      {
+        is: "pair",
+        before: { file_id: await photo("no_one"), at: null },
+        after: { file_id: await clip("not_asked"), at: 3 },
+        seconds: 3,
+      },
+      wordsBlockOf("Same chair."),
+    );
+    assert.equal(await whoOf(mixed), "not_asked");
+    // Cards of words alone name no file: not asked, and the look that follows counts who it sees.
+    assert.equal(await whoOf(await inBlocks(wordsBlockOf("New in town?"), wordsBlockOf("Come see us"))), "not_asked");
+    // The owner's word at the press stands for every file, as it did.
+    const said = await making({
+      shape: "blocks",
+      plan: { ...blocksOf(wordsBlockOf("One"), wordsBlockOf("Two")), people_agreed: true },
+    });
+    assert.equal(await whoOf(said), "agreed");
+    await endAll();
+  },
+);
+
 test(
   "who is in a made video is its clips' own word: agreed where the owner said so, no one where every clip says so",
   { skip },

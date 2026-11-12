@@ -237,6 +237,10 @@ const ANNOUNCES = {
     "Files, which the row opens, hears file: a video made here is a row there from its first byte, and its tile turns playable as the row does (00613).",
   website_form:
     "The person's page, which the row opens, hears contacts and person_notes: the person the form made and the note it suggested (00488).",
+  post_up:
+    "Campaigns › Content, which the row opens on the piece, asks again while a post is on its way and hears file; the piece's record reads its posts as it opens (00616).",
+  post_stopped:
+    "Content's Needs you, which the row opens on the piece, reads the posts that stopped as it comes on screen, with why (00616).",
 };
 
 test("every kind the edge keeps says what it announces and who hears it", () => {

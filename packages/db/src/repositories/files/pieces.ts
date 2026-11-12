@@ -122,6 +122,24 @@ export async function findPiece(db: Db, id: string): Promise<PieceMemberRow | nu
 }
 
 /**
+ * The plan a made video was drawn by, by the file it became, under the caller's RLS: what its words are made again from (the
+ * content redesign's stage 2). Null for a file no video of this workspace became. The newest, should a card's try before
+ * have named it too.
+ */
+export async function findPiecePlanOfFile(db: Db, tenantId: TenantId, fileId: string): Promise<Json | null> {
+  const { data, error } = await db
+    .from("pieces")
+    .select("plan")
+    .eq("tenant_id", tenantId)
+    .eq("file_id", fileId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "piece plan of file");
+  return data?.plan ?? null;
+}
+
+/**
  * A drawn video's bytes have all gone: its file says it is being made ready and its machine is let go, in one step, so from
  * here the platform's word alone ends it. Answers whether the video was still being made.
  */

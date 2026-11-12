@@ -3,22 +3,45 @@
  * a post on its way to a place (decision 0121), and a video made from its clips (decision 0122). Every public name, named: a new
  * export is a line here, never an export *.
  */
-export { CONTENT_ROUTE, contentPreviewOf, isContentParam } from "./address";
+export {
+  CONTENT_LIBRARY_ROUTE,
+  CONTENT_ROUTE,
+  CONTENT_VIEWS,
+  contentPlaceOf,
+  contentPreviewOf,
+  contentRouteOf,
+  isContentParam,
+} from "./address";
+export type { ContentList, ContentPlace, ContentView } from "./address";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./lines";
 export type { MetaLines } from "./lines";
+export { CONTENT_NOTE_WORDS, contentNoteOf, contentNoteRouteOf } from "./note";
+export type { ContentNote } from "./note";
 export {
   CONTENT_FAILED_DAYS,
+  CONTENT_LINES_PAGE,
   CONTENT_MAKING_MAX,
   CONTENT_MAX,
   CONTENT_PAGE,
+  CONTENT_STOPPED_MAX,
   CONTENT_WORDS,
   contentHeadOf,
   contentMakingSaid,
   contentMarkOf,
   contentMarkSaid,
   contentMoving,
+  contentViewCountOf,
+  contentViewDrawsLines,
+  newestAtEachPlace,
 } from "./page";
-export type { ContentMadeDto, ContentMakingDto, ContentMark, ContentPageDto, ContentTally } from "./page";
+export type {
+  ContentLineDto,
+  ContentMadeDto,
+  ContentMakingDto,
+  ContentMark,
+  ContentPageDto,
+  ContentTally,
+} from "./page";
 export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./piece-card";
 export type { PieceFollowedDto, PieceStands } from "./piece-card";
 export { PIECE_CARD, PIECE_FRAME, PIECE_SIDE, pieceLineWidthOf, pieceWordsBoxOf } from "./piece-frame";
@@ -56,7 +79,9 @@ export {
   PIECE_SHAPES,
   PIECE_WORDS_HOLDS,
   PIECE_WORDS_PLACES,
+  pieceCountOf,
   pieceFileIdsOf,
+  pieceOpeningOf,
   piecePlanOf,
 } from "./pieces";
 export type { PieceLanguage, PiecePlan, PieceShape, PieceWont, PieceWordsHold, PieceWordsPlace } from "./pieces";
@@ -67,6 +92,7 @@ export {
   POST_CAPTION_MAX,
   POST_KINDS,
   POST_ON_ITS_WAY,
+  POST_PLACE_SAID,
   POST_PLACES,
   POST_PULLABLE,
   POST_STATUSES,
@@ -74,3 +100,4 @@ export {
   postCaptionProblem,
 } from "./posts";
 export type { InstagramPostable, InstagramPostKind, PostDto, PostKind, PostPlace, PostStatus } from "./posts";
+export { STILL_WORDS, stillMomentsOf, stillNameOf, stillWont } from "./stills";

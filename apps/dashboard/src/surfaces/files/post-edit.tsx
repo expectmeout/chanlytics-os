@@ -19,7 +19,8 @@ const endsOnReturn = (e: KeyboardEvent<HTMLTextAreaElement>) => {
   e.currentTarget.blur();
 };
 
-function PostSay({
+/** One line of words, in a box that grows with them: a post's, and a made video's (campaigns/content/video-again.tsx). */
+export function PostSay({
   label,
   value,
   limit,

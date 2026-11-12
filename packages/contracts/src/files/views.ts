@@ -4,6 +4,7 @@ import type { FileKind, FileMediaStatus } from "./kinds";
 import type { PostPlan, PostShapeName } from "./post";
 import type { FileSound } from "./sound";
 import type { InstagramPostable, PostDto } from "../content/posts";
+import type { PiecePlan } from "../content/pieces";
 import {
   FILE_NAME_MAX,
   FILE_SHOWS,
@@ -14,11 +15,10 @@ import {
   type FileWhoInIt,
 } from "./limits";
 
-/** The Files page: where a card made of a file opens, and where any page sends a person to add one. */
-export const FILES_ROUTE = "admin/files";
-
 /** Where a page's <img> points: the route signs a fresh address, for the member's own session, each time it is asked. */
 export const fileViewOf = (fileId: string): string => `/api/v1/files/${fileId}/view`;
+/** One moment of a video, as its still would be kept (GET files/[id]/still, the content redesign's stage 3). */
+export const fileStillOf = (fileId: string, at: number): string => `/api/v1/files/${fileId}/still?at=${at}`;
 
 /** Its folder, for what removes everything a file has. */
 export const fileFolderOf = (tenantId: string, fileId: string): string => `${tenantId}/${fileId}`;
@@ -157,6 +157,11 @@ export interface FileRecordDto {
   instagram: { can: InstagramPostable; posts: PostDto[] } | null;
   /** A video's: what was heard of it (sound.ts), each part named by who heard it. Absent on a picture. */
   sound?: FileSound;
+  /**
+   * A video Ask made: the plan it was drawn by, so its words can be made again (the content redesign's stage 2). Absent on
+   * anything else, and on one whose plan is gone with the card that asked for it.
+   */
+  video?: { plan: PiecePlan };
 }
 
 /** The most words a post on Google may carry (localPosts.create). */
