@@ -24,7 +24,6 @@ import {
 import { unmount, settle, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import {
   BUSINESS_TAB,
-  W,
   cancelFoldOf,
   drawTab,
   escape,
@@ -38,7 +37,9 @@ import {
   redrawTab,
   saveFoldOf,
   saving,
+  settingsHeld,
   typeAt,
+  W,
   without,
 } from "../../_business-tab-harness.mjs";
 
@@ -708,7 +709,7 @@ test("a save sends the stored config with the services changed, and nothing else
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ profile: many, flash });
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   tree = openSheet(tree, flash);
   typeAt(tree, "Service 3 takes (min)", "75");
   tree = redrawTab(flash);
@@ -923,7 +924,7 @@ test("opening the sheet with a fold holding changes asks about the fold, and ope
 test("the gap line's services door opens the sheet, guarded like any row", () => {
   const bare = without(marisa, "services");
   let tree = drawTab({ profile: bare });
-  assert.equal(businessGap(W.__SETTINGS.config.brain, null).row, "services");
+  assert.equal(businessGap(settingsHeld().config.brain, null).row, "services");
   press(byTestId(byTestId(tree, "rec-gap"), "rec-gap-door"));
   tree = redrawTab();
   assert.ok(sheetOf(tree), "the door opens the sheet, which no fold is");
@@ -1153,7 +1154,7 @@ test("the booking rules' save writes those rules and their notes, and nothing el
   const sent = saving();
   // Consult-first is stored inside the booking rules and is not this fold's: it is the key the fold does not render.
   let tree = drawTab();
-  const stored = structuredClone(W.__SETTINGS.config);
+  const stored = structuredClone(settingsHeld().config);
   openFold(tree, "booking_rules");
   tree = redrawTab();
   typeHeard(tree, "Least notice hours", "");
@@ -1646,7 +1647,7 @@ test("a hand-edited record whose consult-first list or rule notes are not lists 
     // page reads is then hand-edited, as the probe did, and the page drawn again over it.
     drawTab({ profile: many });
     // Replaced, never changed in place: the stored profile is the harness's fixture object, which every later test reads.
-    const brain = W.__SETTINGS.config.brain;
+    const brain = settingsHeld().config.brain;
     brain.profile = {
       ...brain.profile,
       booking_rules: { ...brain.profile.booking_rules, consult_first: "Extensions", notes: "Cash only" },

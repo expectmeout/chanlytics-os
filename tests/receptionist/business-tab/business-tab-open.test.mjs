@@ -37,8 +37,6 @@ import {
   redrawWanted,
 } from "../../_stub-react.mjs";
 import {
-  KNOWN,
-  W,
   cancelFoldOf,
   cancelRow,
   composed,
@@ -47,7 +45,9 @@ import {
   escape,
   foldOf,
   inline,
+  KNOWN,
   labelled,
+  landSettings,
   marisa,
   openFold,
   openFolds,
@@ -59,11 +59,14 @@ import {
   saveRow,
   saving,
   settings,
+  settingsHeld,
   typeAt,
+  W,
   went,
   without,
   written,
 } from "../../_business-tab-harness.mjs";
+const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 // The last page this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
@@ -209,7 +212,7 @@ test("an hours save sends the stored config with the week changed, and everythin
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash });
-  const stored = written(W.__SETTINGS.config);
+  const stored = written(settingsHeld().config);
   openFold(tree, "hours");
   tree = redrawTab(flash);
   typeAt(tree, "Monday closes", "17:00");
@@ -277,7 +280,7 @@ test("an unchanged fold's Save sends nothing and closes it, and Cancel with chan
 test("a closed day keeps its shifts until Save, which is what decides a closed day stores nothing", () => {
   const sent = saving();
   let tree = drawTab();
-  const stored = written(W.__SETTINGS.config);
+  const stored = written(settingsHeld().config);
   openFold(tree, "hours");
   tree = redrawTab();
   press(byTestId(tree, "rec-hours-switch-sat"));
@@ -497,7 +500,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
 
 test("the hours fold says what the receptionist will be told as the draft stands, what goes, and when a week is the last thing a record composes from", () => {
   let tree = drawTab();
-  const stored = W.__SETTINGS.config.brain;
+  const stored = settingsHeld().config.brain;
   openFold(tree, "hours");
   tree = redrawTab();
   let says = byTestId(tree, "rec-fold-says-hours");
@@ -554,7 +557,7 @@ test("the hours fold says what the receptionist will be told as the draft stands
 
 test("the gap line's hours door opens the fold, and the fold asks before its changes go like any other", () => {
   let tree = drawTab({ profile: without(marisa, "hours") });
-  const gap = businessGap(W.__SETTINGS.config.brain, null);
+  const gap = businessGap(settingsHeld().config.brain, null);
   assert.equal(gap.row, "hours");
   const door = byTestId(byTestId(tree, "rec-gap"), "rec-gap-door");
   const heard = door.props["aria-labelledby"]
@@ -819,7 +822,7 @@ test("the closures fold adds, edits and removes a closed day, puts a removed one
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash, profile: { ...marisa, closures: [XMAS, NEW_YEAR] } });
-  const stored = written(W.__SETTINGS.config);
+  const stored = written(settingsHeld().config);
   openFold(tree, "closures");
   tree = redrawTab(flash);
   assert.deepEqual(openFolds(tree), ["closures"]);
@@ -974,7 +977,7 @@ const readOk = (over = {}) => ({
 });
 
 test("the booking tool row says where its calendar link reads and when, and keeps the address, the count and the source in its fold", () => {
-  W.__CALENDAR = calendarRead(readOk());
+  setSurfaceValue("calendar", calendarRead(readOk()));
   try {
     const tree = drawTab({ profile: marisa });
     const row = byTestId(tree, "rec-row-calendar");
@@ -990,8 +993,8 @@ test("the booking tool row says where its calendar link reads and when, and keep
     assert.equal(mark.props["aria-label"], CALENDAR_FEED_WORDS.ok);
     assert.equal(mark.props["data-tip"], CALENDAR_FEED_WORDS.ok);
     assert.equal(textOf(mark), "", "a mark, not a word on the row");
-    assert.equal(textOf(byTestId(row, "rec-calendar-read")), W.__CALENDAR.vm.feed.read);
-    assert.equal(W.__CALENDAR.vm.feed.read, "read 4m ago");
+    assert.equal(textOf(byTestId(row, "rec-calendar-read")), surfaceValue("calendar").vm.feed.read);
+    assert.equal(surfaceValue("calendar").vm.feed.read, "read 4m ago");
     // And nothing else: no secret of an address, no count of events, no "from" anybody.
     const words = textOf(byTestId(row, "rec-row-calendar"));
     assert.doesNotMatch(words, /\.ics/, "the whole address is a long secret, read over a shoulder");
@@ -1011,26 +1014,29 @@ test("the booking tool row says where its calendar link reads and when, and keep
     );
     assert.equal(linkBox(open).props["aria-label"], "Calendar link", "named by the part's head, heard on the box");
     const whole = byTestId(open, "rec-calendar-whole");
-    assert.equal(textOf(find(whole, (n) => n.type === "span")), W.__CALENDAR.vm.feed.detail);
-    assert.match(W.__CALENDAR.vm.feed.detail, /From Google Calendar · read 4m ago · 12 events/);
+    assert.equal(textOf(find(whole, (n) => n.type === "span")), surfaceValue("calendar").vm.feed.detail);
+    assert.match(surfaceValue("calendar").vm.feed.detail, /From Google Calendar · read 4m ago · 12 events/);
     went.length = 0;
     press(byTestId(whole, "rec-calendar-open"));
     assert.deepEqual(went, ["calendar"]);
     // A read that failed says in the fold what it tried and when, which the row at rest leaves to the reason.
-    W.__CALENDAR = calendarRead(
-      readOk({
-        state: "unavailable",
-        read_at: null,
-        events: 0,
-        reason: "http",
-        status: 404,
-        problem: "The calendar answered 404.",
-      }),
+    setSurfaceValue(
+      "calendar",
+      calendarRead(
+        readOk({
+          state: "unavailable",
+          read_at: null,
+          events: 0,
+          reason: "http",
+          status: 404,
+          problem: "The calendar answered 404.",
+        }),
+      ),
     );
     const bad = redrawTab();
     assert.match(textOf(byTestId(bad, "rec-calendar-whole")), /tried 4m ago/);
   } finally {
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
   }
 });
 
@@ -1056,7 +1062,7 @@ test("the booking tool row states what the owner books with, and under it one ma
   try {
     // Nothing said and nothing arrived: an empty row, its value alone (Ruben, 10 Oct 2026: a row says its value and
     // stops), and no line under it.
-    W.__CALENDAR = calendarRead(readOk(nothing));
+    setSurfaceValue("calendar", calendarRead(readOk(nothing)));
     let row = byTestId(drawTab({ config: { calendar: undefined } }), "rec-row-calendar");
     assert.equal(row.props["data-empty"], "true");
     assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-empty"))), "Not set up");
@@ -1068,7 +1074,7 @@ test("the booking tool row states what the owner books with, and under it one ma
     assert.equal(byTestId(row, "rec-calendar-read"), null, "and no read is stated of a link there is not");
     // A tool named: the row states it as the product says it, and the line says it waits for the first email. The
     // mark's own word is its accessible name and its tip, as the calendar link's mark carries the Calendar page's.
-    W.__CALENDAR = calendarRead(readOk({ ...nothing, notices: notices() }));
+    setSurfaceValue("calendar", calendarRead(readOk({ ...nothing, notices: notices() })));
     row = byTestId(drawTab({ config: booksy }), "rec-row-calendar");
     assert.equal(row.props["data-empty"], "false");
     assert.equal(textOf(byTestId(row, "bt-bookings-tool")), "Booksy");
@@ -1080,7 +1086,7 @@ test("the booking tool row states what the owner books with, and under it one ma
     assert.equal(textOf(mark), "", "a mark, not a word on the row");
     assert.doesNotMatch(textOf(row), /What you book with\./, "a row that has its fact states it and stops");
     // Held for a look before any has become a visit: the row says so, never that it is still waiting for the first.
-    W.__CALENDAR = calendarRead(readOk({ ...nothing, notices: notices({ held: 1 }) }));
+    setSurfaceValue("calendar", calendarRead(readOk({ ...nothing, notices: notices({ held: 1 }) })));
     row = byTestId(drawTab({ config: booksy }), "rec-row-calendar");
     assert.equal(textOf(lineOf(row)), "1 booking email to look at");
     assert.equal(lineOf(row).props["data-tone"], "warn");
@@ -1094,16 +1100,19 @@ test("the booking tool row states what the owner books with, and under it one ma
       received_at: twoHoursAgo,
       reason,
     });
-    W.__CALENDAR = calendarRead(
-      readOk({
-        ...nothing,
-        notices: notices({
-          last_at: twoHoursAgo,
-          count: 5,
-          held: 2,
-          held_list: [heldRow("n1", "no_time"), heldRow("n2", "no_client")],
+    setSurfaceValue(
+      "calendar",
+      calendarRead(
+        readOk({
+          ...nothing,
+          notices: notices({
+            last_at: twoHoursAgo,
+            count: 5,
+            held: 2,
+            held_list: [heldRow("n1", "no_time"), heldRow("n2", "no_client")],
+          }),
         }),
-      }),
+      ),
     );
     row = byTestId(drawTab({ config: booksy }), "rec-row-calendar");
     assert.equal(textOf(lineOf(row)), "Last booking email 2h ago · 2 to look at");
@@ -1144,18 +1153,21 @@ test("the booking tool row states what the owner books with, and under it one ma
     assert.ok(byTestId(open, "bto-link"));
     assert.equal(linkBox(redrawTab()).props.value, "");
     // Before any email: the steps stand open, with the way to see it work at once.
-    W.__CALENDAR = calendarRead(readOk({ ...nothing, notices: notices() }));
+    setSurfaceValue("calendar", calendarRead(readOk({ ...nothing, notices: notices() })));
     openFold(drawTab({ config: booksy }), "calendar");
     open = foldOf(redrawTab(), "calendar");
     assert.equal(byTestId(open, "bto-bookings-steps").type, "div");
     assert.match(textOf(byTestId(open, "bto-bookings-steps")), /forward any past booking email/);
     // A tool and a link: the row states both, the tool and where its link is read from.
-    W.__CALENDAR = calendarRead(readOk({ notices: notices({ tool: "square", last_at: twoHoursAgo, count: 3 }) }));
+    setSurfaceValue(
+      "calendar",
+      calendarRead(readOk({ notices: notices({ tool: "square", last_at: twoHoursAgo, count: 3 }) })),
+    );
     row = byTestId(drawTab({ config: { bookings: { tool: "square" } } }), "rec-row-calendar");
     assert.equal(textOf(byTestId(row, "bt-bookings-tool")), "Square · app.chanlytics.com");
     assert.ok(byTestId(row, "rec-calendar-read") && lineOf(row), "a line for the link's read and one for the emails");
   } finally {
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
   }
 });
 
@@ -1165,20 +1177,23 @@ test("the fold asks what the owner books with and draws only what that answer ha
   try {
     // No address yet: the one its name gives is offered in one press, and the steps, which name "the address above",
     // wait for it.
-    W.__CALENDAR = calendarRead(
-      readOk({
-        ...nothing,
-        notices: {
-          tool: "booksy",
-          address: null,
-          suggested: "marisas-beauty-salon@mail.example.com",
-          last_at: null,
-          count: 0,
-          held: 0,
-          held_list: [],
-          forwarding: null,
-        },
-      }),
+    setSurfaceValue(
+      "calendar",
+      calendarRead(
+        readOk({
+          ...nothing,
+          notices: {
+            tool: "booksy",
+            address: null,
+            suggested: "marisas-beauty-salon@mail.example.com",
+            last_at: null,
+            count: 0,
+            held: 0,
+            held_list: [],
+            forwarding: null,
+          },
+        }),
+      ),
     );
     openFold(drawTab({ config: { calendar: undefined, bookings: { tool: "booksy" } } }), "calendar");
     let open = foldOf(redrawTab(), "calendar");
@@ -1191,7 +1206,7 @@ test("the fold asks what the owner books with and draws only what that answer ha
     assert.deepEqual(went, ["admin/integrations"], "and Connections, for an owner who wants another");
     // Nothing said yet, and a booking link on a platform the product knows: the row and the fold name the tool, so the
     // owner who gave the link is not asked which tool it is. One press takes it, and Save writes it.
-    W.__CALENDAR = calendarRead(readOk(nothing));
+    setSurfaceValue("calendar", calendarRead(readOk(nothing)));
     const onBooksy = {
       config: { calendar: undefined },
       brain: { booking_link: "https://booksy.com/en-us/4471902_bright" },
@@ -1201,7 +1216,7 @@ test("the fold asks what the owner books with and draws only what that answer ha
       textOf(byTestId(tree, "rec-row-calendar")),
       /Your booking link is on Booksy\. Set it up to fill your calendar\./,
     );
-    const stored = written(W.__SETTINGS.config);
+    const stored = written(settingsHeld().config);
     openFold(tree, "calendar");
     tree = redrawTab();
     const guess = byTestId(foldOf(tree, "calendar"), "bto-bookings-guess");
@@ -1215,7 +1230,7 @@ test("the fold asks what the owner books with and draws only what that answer ha
     assert.deepEqual(sent[0].config, { ...without(stored, "calendar"), bookings: { tool: "booksy" } });
     // By hand: nothing to connect, said once, and neither part drawn. Saved, it is the owner's own word.
     tree = drawTab({ config: { calendar: undefined } });
-    const before = written(W.__SETTINGS.config);
+    const before = written(settingsHeld().config);
     openFold(tree, "calendar");
     pickBooksWith(redrawTab(), "hand");
     tree = redrawTab();
@@ -1230,16 +1245,16 @@ test("the fold asks what the owner books with and draws only what that answer ha
     const row = byTestId(drawTab({ config: { calendar: undefined, bookings: { by_hand: true } } }), "rec-row-calendar");
     assert.equal(textOf(byTestId(row, "bt-bookings-tool")), "Booked by hand");
   } finally {
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
   }
 });
 
 test("REGRESSION (the review of 8 Oct 2026): 'I book by hand' over a calendar link that is kept hides its box, says the link goes, and saves without it -- it kept the link, which outranked the word, and the row said 'Calendar link'", () => {
   const sent = saving();
   try {
-    W.__CALENDAR = calendarRead(readOk());
+    setSurfaceValue("calendar", calendarRead(readOk()));
     let tree = drawTab();
-    const before = written(W.__SETTINGS.config);
+    const before = written(settingsHeld().config);
     const kept = before.calendar.ical_url;
     assert.ok(kept, "the workspace keeps a calendar link");
     openFold(tree, "calendar");
@@ -1271,7 +1286,7 @@ test("REGRESSION (the review of 8 Oct 2026): 'I book by hand' over a calendar li
     pickBooksWith(redrawTab(), "hand");
     assert.equal(byTestId(redrawTab(), "bto-link"), null);
   } finally {
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
   }
 });
 
@@ -1299,7 +1314,7 @@ test("a workspace with no address is given the one its name makes in one press: 
     });
   };
   try {
-    W.__CALENDAR = calendarRead(readOk({ ...nothing, notices: noAddress }));
+    setSurfaceValue("calendar", calendarRead(readOk({ ...nothing, notices: noAddress })));
     openFold(drawTab({ config: { calendar: undefined, bookings: { tool: "booksy" } } }), "calendar");
     const make = () => byTestId(foldOf(redrawTab(), "calendar"), "bto-bookings-make");
     assert.equal(textOf(make()), "Use marisas-beauty-salon@mail.example.com");
@@ -1319,7 +1334,7 @@ test("a workspace with no address is given the one its name makes in one press: 
     assert.equal(textOf(byTestId(open, "bto-bookings-choose")), "Choose another");
   } finally {
     globalThis.fetch = fetchWas;
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
   }
 });
 
@@ -1327,15 +1342,18 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
   const was = { calendar: W.__calendar, failed: W.__surfaceFailed };
   try {
     // The last read failed: the pill, the reason as the owner can act on it, and when it was tried.
-    W.__CALENDAR = calendarRead(
-      readOk({
-        state: "unavailable",
-        read_at: null,
-        events: 0,
-        reason: "http",
-        status: 404,
-        problem: "The calendar answered 404: the address no longer points at a calendar.",
-      }),
+    setSurfaceValue(
+      "calendar",
+      calendarRead(
+        readOk({
+          state: "unavailable",
+          read_at: null,
+          events: 0,
+          reason: "http",
+          status: 404,
+          problem: "The calendar answered 404: the address no longer points at a calendar.",
+        }),
+      ),
     );
     let row = byTestId(drawTab(), "rec-row-calendar");
     assert.equal(byTestId(row, "rec-calendar-state").props["aria-label"], CALENDAR_FEED_WORDS.unavailable);
@@ -1343,26 +1361,28 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
     assert.doesNotMatch(textOf(row), /tried 4m ago/, "when it was tried is in the fold, with the rest of the read");
     assert.doesNotMatch(textOf(row), /\d+ events?/, "no count is claimed of a calendar that was not read");
     // A last good read, shown as that.
-    W.__CALENDAR = calendarRead(
-      readOk({ stale: true, reason: "unreachable", problem: "The calendar could not be reached." }),
+    setSurfaceValue(
+      "calendar",
+      calendarRead(readOk({ stale: true, reason: "unreachable", problem: "The calendar could not be reached." })),
     );
     row = byTestId(drawTab(), "rec-row-calendar");
     assert.equal(byTestId(row, "rec-calendar-state").props["aria-label"], CALENDAR_FEED_WORDS.stale);
     assert.match(textOf(row), /The calendar could not be reached\./);
     // With no reason given, each state is said in the Calendar page's own words for it, from where that page keeps
     // them: a last good read could not be REFRESHED, which is not the sentence for a calendar that could not be read.
-    W.__CALENDAR = calendarRead(readOk({ stale: true, reason: "unreachable", problem: null }));
+    setSurfaceValue("calendar", calendarRead(readOk({ stale: true, reason: "unreachable", problem: null })));
     row = byTestId(drawTab(), "rec-row-calendar");
     assert.equal(textOf(find(row, (n) => classes(n).includes("bt-feed-problem"))), CALENDAR_PAGE.words.stale);
     assert.equal(CALENDAR_PAGE.words.stale, "The calendar could not be refreshed.");
-    W.__CALENDAR = calendarRead(
-      readOk({ state: "unavailable", read_at: null, events: 0, reason: null, problem: null }),
+    setSurfaceValue(
+      "calendar",
+      calendarRead(readOk({ state: "unavailable", read_at: null, events: 0, reason: null, problem: null })),
     );
     row = byTestId(drawTab(), "rec-row-calendar");
     assert.equal(textOf(find(row, (n) => classes(n).includes("bt-feed-problem"))), CALENDAR_PAGE.words.unavailable);
 
     // No read in this tab: nothing is invented. The address is still stated.
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
     const asked = [];
     W.__calendar = {
       refresh: () => {
@@ -1380,18 +1400,18 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
     );
     assert.deepEqual(asked, ["refresh"], "it asks for one as it mounts");
     // And says what that finds when it lands.
-    W.__CALENDAR = calendarRead(readOk({ events: 3 }));
+    setSurfaceValue("calendar", calendarRead(readOk({ events: 3 })));
     W.dispatchEvent({ type: "surface:calendar" });
     tree = redrawTab();
-    assert.equal(textOf(byTestId(tree, "rec-calendar-read")), W.__CALENDAR.vm.feed.read);
+    assert.equal(textOf(byTestId(tree, "rec-calendar-read")), surfaceValue("calendar").vm.feed.read);
     assert.equal(asked.length, 1, "fresh, it is not asked for again");
     // The surface itself could not be read: said where the line would be, with the one Retry.
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
     W.__surfaceFailed = (key) => key === "calendar";
     row = byTestId(drawTab(), "rec-row-calendar");
     assert.match(textOf(byTestId(row, "rec-calendar-unread")), /Couldn't read what its last read found/);
   } finally {
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
     if (was.calendar) W.__calendar = was.calendar;
     else delete W.__calendar;
     if (was.failed) W.__surfaceFailed = was.failed;
@@ -1416,7 +1436,7 @@ test("(B1) an address pasted into the fold is read as it lands -- how many appoi
       return answer;
     },
   };
-  W.__CALENDAR = calendarRead(readOk());
+  setSurfaceValue("calendar", calendarRead(readOk()));
   try {
     let tree = drawTab({ profile: marisa });
     openFold(tree, "calendar");
@@ -1479,7 +1499,7 @@ test("(B1) an address pasted into the fold is read as it lands -- how many appoi
     assert.equal(check(), null);
     assert.deepEqual(asked, []);
   } finally {
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
     if (was) W.__calendar = was;
     else delete W.__calendar;
   }
@@ -1496,10 +1516,10 @@ test("a calendar with no tool behind it: the fold holds the link's one box, chec
   const sent = saving();
   const flashes = [];
   const flash = (f) => flashes.push(f);
-  W.__CALENDAR = calendarRead(readOk());
+  setSurfaceValue("calendar", calendarRead(readOk()));
   try {
     let tree = drawTab({ flash, config: { calendar: undefined } });
-    const stored = written(W.__SETTINGS.config);
+    const stored = written(settingsHeld().config);
     assert.equal(textOf(byTestId(tree, "rec-row-act-calendar")), "Add one");
     openFold(tree, "calendar");
     tree = redrawTab(flash);
@@ -1543,7 +1563,7 @@ test("a calendar with no tool behind it: the fold holds the link's one box, chec
     // A link is stored: where to find one is no longer said, that it is only read still is; and an emptied box
     // disconnects it.
     tree = drawTab({ flash });
-    const held = written(W.__SETTINGS.config);
+    const held = written(settingsHeld().config);
     openFold(tree, "calendar");
     tree = redrawTab(flash);
     assert.equal(
@@ -1573,14 +1593,14 @@ test("a calendar with no tool behind it: the fold holds the link's one box, chec
     // And the tool beside a masked address still saves: the mask goes back as it came (the route puts the stored
     // address in its place), judged by nobody on the way.
     tree = drawTab({ flash, config: masked });
-    const kept = written(W.__SETTINGS.config);
+    const kept = written(settingsHeld().config);
     openFold(tree, "calendar");
     pickBooksWith(redrawTab(flash), "square");
     tree = redrawTab(flash);
     saveFoldOf(tree, "calendar");
     assert.deepEqual(sent[2].config, { ...kept, bookings: { tool: "square" } });
   } finally {
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
   }
 });
 
@@ -1925,7 +1945,7 @@ test("an idle page stops stating a read when the Calendar page would have read a
   try {
     const keeps = CALENDAR_PAGE.refreshMs;
     assert.equal(keeps, 5 * 60 * 1000, "the Calendar page's own window, never a second number");
-    W.__CALENDAR = calendarRead(readOk(), 60000);
+    setSurfaceValue("calendar", calendarRead(readOk(), 60000));
     // A toast's own timer is not the row's, and does not count against ONE.
     globalThis.setTimeout(() => {}, 4000);
     let tree = drawTab();
@@ -1958,13 +1978,13 @@ test("an idle page stops stating a read when the Calendar page would have read a
     assert.equal(time.live().length, 0, "nothing is scheduled for a read that is not fresh");
 
     // The new read lands: stated, and the next timer is for ITS age.
-    W.__CALENDAR = { ...calendarRead(readOk({ events: 3 })), fetchedAt: Date.now() };
+    setSurfaceValue("calendar", { ...calendarRead(readOk({ events: 3 })), fetchedAt: Date.now() });
     W.dispatchEvent({ type: "surface:calendar" });
     tree = redrawTab();
     assert.deepEqual(
       [
         byTestId(tree, "rec-calendar-read").props["data-reading"],
-        textOf(byTestId(tree, "rec-calendar-read")) === W.__CALENDAR.vm.feed.read,
+        textOf(byTestId(tree, "rec-calendar-read")) === surfaceValue("calendar").vm.feed.read,
       ],
       [undefined, true],
     );
@@ -1980,7 +2000,7 @@ test("an idle page stops stating a read when the Calendar page would have read a
     // the clock again, the row read "still fresh", its effect's inputs had not moved, so no second timer was set and
     // nothing ever looked again: the very page the timer was added for. The timer decides: the read it was set for has
     // expired, whatever the clock says.
-    W.__CALENDAR = { ...calendarRead(readOk()), fetchedAt: Date.now() };
+    setSurfaceValue("calendar", { ...calendarRead(readOk()), fetchedAt: Date.now() });
     tree = drawTab();
     assert.deepEqual(
       time.live().map((t) => t.ms),
@@ -1992,7 +2012,7 @@ test("an idle page stops stating a read when the Calendar page would have read a
     assert.equal(byTestId(tree, "rec-calendar-read").props["data-reading"], "true", "no longer stated as it stands");
     assert.equal(asked.length, before + 1, "and a new read is asked for");
     // A newer read is judged afresh: the expiry was that read's, not the row's.
-    W.__CALENDAR = { ...calendarRead(readOk({ events: 7 })), fetchedAt: Date.now() };
+    setSurfaceValue("calendar", { ...calendarRead(readOk({ events: 7 })), fetchedAt: Date.now() });
     W.dispatchEvent({ type: "surface:calendar" });
     tree = redrawTab();
     assert.deepEqual(
@@ -2001,7 +2021,7 @@ test("an idle page stops stating a read when the Calendar page would have read a
     );
   } finally {
     time.restore();
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
     if (was.calendar) W.__calendar = was.calendar;
     else delete W.__calendar;
   }
@@ -2017,7 +2037,7 @@ test("while a new read is on its way the last one stays where it is, dimmed; it 
       }),
   };
   try {
-    W.__CALENDAR = calendarRead(readOk(), 30 * 60000);
+    setSurfaceValue("calendar", calendarRead(readOk(), 30 * 60000));
     let tree = drawTab();
     const read = byTestId(tree, "rec-calendar-read");
     assert.ok(read, "the last read is still drawn");
@@ -2029,7 +2049,7 @@ test("while a new read is on its way the last one stays where it is, dimmed; it 
     assert.match(textOf(read), /read 4m ago/, "the same words, not a skeleton and not a gap");
     assert.equal(byTestId(tree, "rec-calendar-unread"), null);
     // Landed, it is stated plainly.
-    W.__CALENDAR = calendarRead(readOk({ events: 9 }));
+    setSurfaceValue("calendar", calendarRead(readOk({ events: 9 })));
     W.dispatchEvent({ type: "surface:calendar" });
     land(true);
     await settle();
@@ -2041,7 +2061,7 @@ test("while a new read is on its way the last one stays where it is, dimmed; it 
       ],
       [undefined, undefined],
     );
-    assert.equal(textOf(byTestId(tree, "rec-calendar-read")), W.__CALENDAR.vm.feed.read);
+    assert.equal(textOf(byTestId(tree, "rec-calendar-read")), surfaceValue("calendar").vm.feed.read);
 
     // No read is asked for from a tab nobody is looking at, as the Calendar page's own timer holds off; back in view,
     // the row looks again and asks.
@@ -2052,7 +2072,7 @@ test("while a new read is on its way the last one stays where it is, dimmed; it 
         return new Promise(() => {});
       },
     };
-    W.__CALENDAR = calendarRead(readOk(), 30 * 60000);
+    setSurfaceValue("calendar", calendarRead(readOk(), 30 * 60000));
     globalThis.document.visibilityState = "hidden";
     tree = drawTab();
     assert.equal(asked.length, 0);
@@ -2061,7 +2081,7 @@ test("while a new read is on its way the last one stays where it is, dimmed; it 
     assert.equal(asked.length, 1);
   } finally {
     delete globalThis.document.visibilityState;
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
     if (was.calendar) W.__calendar = was.calendar;
     else delete W.__calendar;
   }
@@ -2074,7 +2094,7 @@ test("a stale read whose refresh failed says so where the read would be, with a 
   const answers = [];
   W.__calendar = { refresh: () => new Promise((resolve) => answers.push(resolve)) };
   try {
-    W.__CALENDAR = calendarRead(readOk(), 30 * 60000);
+    setSurfaceValue("calendar", calendarRead(readOk(), 30 * 60000));
     let tree = drawTab();
     assert.equal(byTestId(tree, "rec-calendar-read").props["data-reading"], "true", "asked, and on its way");
     answers[0](false);
@@ -2096,16 +2116,16 @@ test("a stale read whose refresh failed says so where the read would be, with a 
       "REGRESSION: the old read came back, dimmed, under a Retry",
     );
     assert.equal(textOf(byTestId(tree, "rec-calendar-unread-retry")).trim(), "Retrying…");
-    W.__CALENDAR = calendarRead(readOk({ events: 5 }));
+    setSurfaceValue("calendar", calendarRead(readOk({ events: 5 })));
     W.dispatchEvent({ type: "surface:calendar" });
     answers[1](true);
     await settle();
     tree = redrawTab();
-    assert.equal(textOf(byTestId(tree, "rec-calendar-read")), W.__CALENDAR.vm.feed.read);
+    assert.equal(textOf(byTestId(tree, "rec-calendar-read")), surfaceValue("calendar").vm.feed.read);
     assert.equal(byTestId(tree, "rec-calendar-unread"), null);
     // A refresh that throws is a refresh that failed.
     W.__calendar = { refresh: () => Promise.reject(new Error("offline")) };
-    W.__CALENDAR = calendarRead(readOk(), 30 * 60000);
+    setSurfaceValue("calendar", calendarRead(readOk(), 30 * 60000));
     tree = drawTab();
     await settle();
     tree = redrawTab();
@@ -2113,7 +2133,7 @@ test("a stale read whose refresh failed says so where the read would be, with a 
     // And the runner's own word for it counts too: the surface is marked failed, with a stale read still in the window.
     W.__calendar = { refresh: () => new Promise(() => {}) };
     W.__surfaceFailed = (key) => key === "calendar";
-    W.__CALENDAR = calendarRead(readOk(), 30 * 60000);
+    setSurfaceValue("calendar", calendarRead(readOk(), 30 * 60000));
     tree = drawTab();
     assert.deepEqual([!!byTestId(tree, "rec-calendar-unread"), byTestId(tree, "rec-calendar-read")], [true, null]);
     // Its Retry, too, keeps the block busy: it showed nothing at all while the read was out.
@@ -2124,11 +2144,11 @@ test("a stale read whose refresh failed says so where the read would be, with a 
       [true, "Retrying…"],
     );
     // A fresh read is stated whatever the surface's status says of an earlier try.
-    W.__CALENDAR = calendarRead(readOk());
+    setSurfaceValue("calendar", calendarRead(readOk()));
     tree = drawTab();
     assert.deepEqual([byTestId(tree, "rec-calendar-unread"), !!byTestId(tree, "rec-calendar-read")], [null, true]);
   } finally {
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
     if (was.calendar) W.__calendar = was.calendar;
     else delete W.__calendar;
     if (was.failed) W.__surfaceFailed = was.failed;
@@ -2302,7 +2322,7 @@ test("after the calendar's address is saved, nothing is said of a read until the
     },
   };
   try {
-    W.__CALENDAR = calendarRead(readOk());
+    setSurfaceValue("calendar", calendarRead(readOk()));
     let tree = drawTab();
     assert.match(
       textOf(byTestId(tree, "rec-calendar-read")),
@@ -2318,7 +2338,7 @@ test("after the calendar's address is saved, nothing is said of a read until the
     saveFoldOf(tree, "calendar");
     assert.equal(sent.length, 1);
     // The settings re-read lands with the new address (the stand-in PUT never re-reads; this is what the app's does).
-    W.__SETTINGS = { ...W.__SETTINGS, config: sent[0].config, version: 8 };
+    landSettings({ ...settingsHeld(), config: sent[0].config, version: 8 });
     tree = redrawTab();
     assert.match(textOf(byTestId(tree, "rec-row-calendar")), /calendar\.google\.com/, "the new address is stated");
     assert.deepEqual(
@@ -2328,12 +2348,12 @@ test("after the calendar's address is saved, nothing is said of a read until the
     );
     assert.equal(asked.length, 0, "and nothing is asked for it here: the save's own re-read is on its way");
     // The read after the save lands: stated.
-    W.__CALENDAR = { ...calendarRead(readOk({ events: 3 })), fetchedAt: Date.now() + 1 };
+    setSurfaceValue("calendar", { ...calendarRead(readOk({ events: 3 })), fetchedAt: Date.now() + 1 });
     W.dispatchEvent({ type: "surface:calendar" });
     tree = redrawTab();
-    assert.equal(textOf(byTestId(tree, "rec-calendar-read")), W.__CALENDAR.vm.feed.read);
+    assert.equal(textOf(byTestId(tree, "rec-calendar-read")), surfaceValue("calendar").vm.feed.read);
   } finally {
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
     delete W.__calendar;
   }
 });
@@ -2351,7 +2371,7 @@ test("a re-read after the calendar's address is saved that fails says so, with i
     },
   };
   try {
-    W.__CALENDAR = calendarRead(readOk());
+    setSurfaceValue("calendar", calendarRead(readOk()));
     let tree = drawTab();
     openFold(tree, "calendar");
     tree = redrawTab();
@@ -2360,7 +2380,7 @@ test("a re-read after the calendar's address is saved that fails says so, with i
     });
     tree = redrawTab();
     saveFoldOf(tree, "calendar");
-    W.__SETTINGS = { ...W.__SETTINGS, config: sent[0].config, version: 8 };
+    landSettings({ ...settingsHeld(), config: sent[0].config, version: 8 });
     tree = redrawTab();
     assert.deepEqual(
       [byTestId(tree, "rec-calendar-read"), byTestId(tree, "rec-calendar-unread")],
@@ -2384,7 +2404,7 @@ test("a re-read after the calendar's address is saved that fails says so, with i
     press(byTestId(tree, "rec-calendar-unread-retry"));
     assert.equal(asked.length, 1, "its Retry asks again");
   } finally {
-    delete W.__CALENDAR;
+    setSurfaceValue("calendar", undefined);
     delete W.__calendar;
     if (was) W.__surfaceFailed = was;
     else delete W.__surfaceFailed;
@@ -2524,7 +2544,7 @@ test("the page draws itself again when the settings surface is read again: the c
   redrawTab();
   // The zone is saved and the settings surface read back: the workspace's list and the read's own preview name the new zone.
   W.__WORKSPACES = [{ id: "t-marisa", name: "Marisa's Beauty Salon", timezone: "Pacific/Kiritimati" }];
-  W.__SETTINGS = settings(profile, {}, {}, "Pacific/Kiritimati");
+  landSettings(settings(profile, {}, {}, "Pacific/Kiritimati"));
   quiet();
   W.dispatchEvent({ type: "surface:settings" });
   assert.equal(redrawWanted(), true, "REGRESSION: nothing on the page heard the read, so nothing drew it again");

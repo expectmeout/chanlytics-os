@@ -22,6 +22,7 @@ import {
   SETUP,
   W,
   drawTab,
+  landPolicies,
   landTemplates,
   marisa,
   openFold,
@@ -30,6 +31,7 @@ import {
   redrawTab,
   went,
 } from "../../_business-tab-harness.mjs";
+const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 after(() => unmount());
 
@@ -310,16 +312,18 @@ test("a surface still being read is not a surface that failed", () => {
   // surface first, and setupOverride is 14th of 16), so a healthy workspace read "Couldn't read the
   // connections" with a Retry until it arrived. The house says it the other way round
   // (surfaces/setup, pages/settings.jsx): null is a failure, undefined is still on its way.
-  // Each of the card's three reads, not landed yet: Setup and the policies where the tab still reads them, on the window,
-  // and WhatsApp's rows on the seam, which is their one home (landTemplates). Each answers what puts it back.
-  const onWindow = (name) => () => {
-    const was = W[name];
-    W[name] = undefined;
-    return () => (W[name] = was);
-  };
+  // Each of the card's three reads, not landed yet, on the seam, which is their one home: Setup's, the policy rows
+  // (landPolicies) and WhatsApp's rows (landTemplates). Each answers what puts it back.
   const unread = {
-    "the connections": onWindow("__SETUP"),
-    "the policies": onWindow("__POLICIES"),
+    "the connections": () => {
+      const was = surfaceValue("setup");
+      setSurfaceValue("setup", undefined);
+      return () => setSurfaceValue("setup", was);
+    },
+    "the policies": () => {
+      const was = landPolicies(undefined);
+      return () => landPolicies(was);
+    },
     "the templates": () => {
       const was = landTemplates(undefined);
       return () => landTemplates(was);

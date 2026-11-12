@@ -30,7 +30,6 @@ installStubReact({
   StatCell: "StatCell",
   __chrome: { state: stateOf },
   __ME: { email: "ruben@rjcapital.io", role: "owner" },
-  __SETTINGS: { role: "owner" },
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
     initials: (name, email) =>
@@ -231,7 +230,7 @@ Object.assign(teamVerbs, {
   invite: async () => ({ ok: true }),
 });
 setSurfaceValue("settings", {
-  settings: globalThis.window.__SETTINGS,
+  settings: { role: "owner" },
   facts: null,
   channels: null,
   templatesAll: null,

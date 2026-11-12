@@ -8,10 +8,10 @@ import { liveOverride } from "@/surfaces/live/surface";
 import { settingsOverride } from "./surfaces/settings";
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
+import { surfaceValue } from "../surfaces/surface-values";
 import type { TEAM_ROLES } from "@chanlytics/contracts";
 import type { ApiOptions, ApiResult, Input, Params, RouteKey } from "../client/api";
 import type { Api } from "../client/api";
-import type { PromptPreviewDto } from "../server/receptionist/prompt-preview";
 
 /** The client's answer, as the pages read it: `ok`, `data`, or the refusal's `message`. */
 type VerbResult = ApiResult<unknown>;
@@ -64,8 +64,7 @@ export async function handOverCall(callId: string): Promise<VerbResult> {
 export function composedPrompt(
   channel: "whatsapp" | "voice" = "whatsapp",
 ): { text: string; now: string; tz: string | null } | null {
-  const w = window as Window & { __SETTINGS?: { prompt?: PromptPreviewDto | null } };
-  const prompt = w.__SETTINGS?.prompt;
+  const prompt = surfaceValue("settings")?.settings?.prompt;
   if (!prompt) return null;
   return { text: prompt[channel], now: prompt.now, tz: prompt.tz };
 }

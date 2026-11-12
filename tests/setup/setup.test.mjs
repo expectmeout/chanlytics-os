@@ -1198,9 +1198,8 @@ test("wiring: the page, the surface, routes, rate bucket, event kind, migration"
   assert.ok(
     bridge.includes('key: "setup"') &&
       bridge.includes('value: "setup"') &&
-      bridge.includes('declareSurfaceValue("setup", "__SETUP")') &&
       bridge.includes('events: ["surface:setup"]'),
-    "the seam's value, mirrored for the Settings panes that still read __SETUP",
+    "the seam's value, which the Settings panes read too (a window mirror, __SETUP, until 12 Nov 2026)",
   );
   // A row put off is the member's, and the landing is once a session: setup-later.test.mjs runs both.
   // One assembly, two callers: the workspace reads its own on the session

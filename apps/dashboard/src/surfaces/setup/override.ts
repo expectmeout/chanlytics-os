@@ -1,6 +1,6 @@
 /**
- * Setup's surface as the frame registers it: what it reads and hears, its mirror for the pages that have not moved, and
- * the first run's landing rule, here; the read, the verbs and the forwarding card's words in surface.ts, fetched as the
+ * Setup's surface as the frame registers it: what it reads and hears, and the first run's landing rule, here (every page
+ * reads its value by its key; a window mirror, `__SETUP`, until 12 Nov 2026); the read, the verbs and the forwarding card's words in surface.ts, fetched as the
  * surface is first read (code-once.ts), at once where a page that draws it is the one opened (bridge/surfaces/code.ts). Every page
  * hears Setup (Today's card is Setup's), and its whole making was in every page's first load (the loadability review,
  * 19 Oct 2026).
@@ -10,9 +10,7 @@ import type { SurfaceOverride } from "@/bridge/surface-data";
 import { surfaceCode } from "@/bridge/surfaces/code";
 import { declareReads } from "@/bridge/surface-registry";
 import { goToRoute, routeOnScreen } from "@/bridge/workspace";
-import { declareSurfaceValue, surfaceValue } from "../surface-values";
-
-declareSurfaceValue("setup", "__SETUP");
+import { surfaceValue } from "../surface-values";
 
 /** Setup's read and verbs: fetched once, shared (bridge/surfaces/code.ts). */
 const setupCode = surfaceCode("setup", () => import("./surface"));

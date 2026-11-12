@@ -1039,7 +1039,6 @@ function tabOver(world) {
     now: () => 1_000,
   });
   const win = {
-    __SETTINGS: null,
     location: { hash: "" },
     dispatchEvent: (e) => {
       events.push(e.detail ? `${e.type} ${JSON.stringify(e.detail)}` : e.type);

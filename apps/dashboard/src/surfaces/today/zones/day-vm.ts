@@ -12,7 +12,7 @@ import type { CalendarSurface } from "@/surfaces/calendar/surface";
 import type { PlaybooksSurface } from "@/surfaces/campaigns/playbooks/surface";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
-import { borrowed, useMoved } from "../shell";
+import { useMoved } from "../shell";
 
 /**
  * The day the calendar says, or null: no feed, one that could not be read, or nothing in its span. The calendar's `now` is
@@ -40,11 +40,7 @@ function dayVmOf(
 /** The day as the zones read it: the reads the page makes, the one derivation. */
 export function useDayVm(): TodayDayVM | null {
   useMoved(["calendar", "playbooks", "today"]);
-  return dayVmOf(
-    borrowed<CalendarSurface>("__CALENDAR"),
-    borrowed<PlaybooksSurface>("__PLAYBOOKS"),
-    surfaceValue("today")?.word ?? null,
-  );
+  return dayVmOf(surfaceValue("calendar"), surfaceValue("playbooks"), surfaceValue("today")?.word ?? null);
 }
 
 /**

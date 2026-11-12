@@ -23,7 +23,17 @@ import {
   PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
 import { unmount, all } from "../_stub-react.mjs";
-import { W, drawTab, marisa, openFold, redrawTab, saveRow, saving, typeInto } from "../_business-tab-harness.mjs";
+import {
+  drawTab,
+  marisa,
+  openFold,
+  redrawTab,
+  saveRow,
+  saving,
+  settingsHeld,
+  typeInto,
+  W,
+} from "../_business-tab-harness.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -39,7 +49,7 @@ const S = W.__businessTabSave;
 /** The record as the tab draws it, before anything is saved. */
 const stored = () => {
   drawTab();
-  return structuredClone(W.__SETTINGS.config);
+  return structuredClone(settingsHeld().config);
 };
 
 test("each card opens How it answers on the row it changes, and the rest of Settings' cards where they did", () => {
@@ -98,7 +108,7 @@ test("a card writes what the row's own save writes: its voice, the languages, th
 test("words added to a prompt written before the form keep it, as the owner's own, and the prompt is the product's lines again", () => {
   // A workspace whose receptionist runs on a prompt written by hand: the box opens with it, marked carried.
   drawTab({ profile: {}, brain: { system_prompt: "Answer as the front desk: brief and warm." } });
-  const base = structuredClone(W.__SETTINGS.config);
+  const base = structuredClone(settingsHeld().config);
   const next = applySettingsChange(base, { op: "add_own_words", text: "Parking is behind the building." });
   assert.equal(
     next.brain.profile.extra_instructions,
@@ -120,7 +130,7 @@ const picker = (tree) => all(tree, (n) => typeof n.type === "function" && n.prop
 test("the voice callers hear and who they reach: a card writes what the row's own save sends", () => {
   let sent = saving();
   let tree = drawTab();
-  const base = structuredClone(W.__SETTINGS.config);
+  const base = structuredClone(settingsHeld().config);
   openFold(tree, "phone_voice");
   tree = redrawTab();
   picker(tree).props.onChange("minimax-Claudia");

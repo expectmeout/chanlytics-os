@@ -33,6 +33,11 @@ const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 const { commitProposal, undoProposal, editReply } = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));
 const { recordDecision } = await import(at("apps/dashboard/src/server/shared/verbs.ts"));
 const { installTabMemory } = await import(at("apps/dashboard/src/bridge/tab-memory.ts"));
+const { setSurfaceValue, surfaceValue } = await import(at("apps/dashboard/src/surfaces/surface-values.ts"));
+/** The record the settings read holds now, which a settings card writes over (the seam's `settings`; a window global, `__SETTINGS`, until 12 Nov 2026). */
+const settingsHeld = () => surfaceValue("settings")?.settings ?? undefined;
+/** The settings read landing a record, the rest of that read as it stands (null: the tab holds none). */
+const landSettings = (record) => setSurfaceValue("settings", { ...(surfaceValue("settings") ?? {}), settings: record });
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const C1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
@@ -131,11 +136,12 @@ function tab(answer = null) {
     },
     now: () => 1_000,
   });
+  // The settings the tab read: each tab its own.
+  landSettings({
+    config: { brain: { business_name: "Harbor", profile: { hours: { mon: { open: "09:00", close: "17:00" } } } } },
+    version: 3,
+  });
   const win = {
-    __SETTINGS: {
-      config: { brain: { business_name: "Harbor", profile: { hours: { mon: { open: "09:00", close: "17:00" } } } } },
-      version: 3,
-    },
     // A workspace's page: its route is the path (decision 0015), and a move pushes one.
     location: { hash: "", pathname: "/w/harbor" },
     history: {
@@ -617,7 +623,7 @@ test("a policy: the class with the mode or the dial, whichever the card carries;
 test("a settings change: applied to the loaded config and sent with its version; the undo knows the version it wrote and restores only while nobody has saved since; nothing without a loaded config", async () => {
   const t = tab();
   const change = { op: "add_closure", date: "2026-12-25", note: "Christmas" };
-  const before = t.win.__SETTINGS.config;
+  const before = settingsHeld().config;
   const r = await commitProposal(t.win, card("settings", { change }), t.client);
   assert.deepEqual(
     r,
@@ -628,7 +634,7 @@ test("a settings change: applied to the loaded config and sent with its version;
   assert.deepEqual(one(t).body, { config: expected, version: 3 });
   assert.deepEqual(expected.brain.profile.closures, [{ date: "2026-12-25", note: "Christmas" }]);
   // Someone saved again (the tab now reads version 5): the old config is not written over their save.
-  t.win.__SETTINGS.version = 5;
+  settingsHeld().version = 5;
   const stale = await undoProposal(
     t.win,
     card("settings", { change }),
@@ -642,7 +648,7 @@ test("a settings change: applied to the loaded config and sent with its version;
   );
   assert.equal(t.sent.filter((c) => !c.key.startsWith("GET ")).length, 1, "and nothing was written");
   // Nobody saved since (the tab reads the version the card wrote): the undo restores.
-  t.win.__SETTINGS.version = 4;
+  settingsHeld().version = 4;
   const back = await undoProposal(
     t.win,
     card("settings", { change }),
@@ -652,7 +658,7 @@ test("a settings change: applied to the loaded config and sent with its version;
   assert.deepEqual(back, { ok: true, receipt: "Put back.", undo: null });
   assert.deepEqual(t.sent.at(-1).body, { config: before, version: 4 });
   const cold = tab();
-  cold.win.__SETTINGS = null;
+  landSettings(null);
   assert.deepEqual(await commitProposal(cold.win, card("settings", { change }), cold.client), {
     ok: false,
     message: "Settings are not loaded yet — open Settings once and try again.",
@@ -672,7 +678,7 @@ test("a settings change: applied to the loaded config and sent with its version;
 test("a note's card with its last day: its Approve saves the note with until on it, and the rest of the config as it was", async () => {
   const t = tab();
   const change = { op: "add_note", title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" };
-  const before = structuredClone(t.win.__SETTINGS.config);
+  const before = structuredClone(settingsHeld().config);
   const r = await commitProposal(t.win, card("settings", { change }), t.client);
   assert.equal(r.ok, true, r.message);
   const { config, version } = one(t).body;
@@ -924,7 +930,7 @@ test("every kind, committed and undone: each call marked as a card's, each re-re
     assert.equal(r.ok, true, `${p.kind} ${p.payload.verb ?? ""}: ${r.message}`);
     if (r.undo) {
       // Nobody saved the settings since this card did.
-      if (typeof r.undo.version_after === "number") t.win.__SETTINGS.version = r.undo.version_after;
+      if (typeof r.undo.version_after === "number") settingsHeld().version = r.undo.version_after;
       const u = await undoProposal(t.win, p, { state: "done", receipt: r.receipt, atMs: 1, undo: r.undo }, t.client);
       assert.equal(u.ok, true, `${p.kind} undo: ${u.message}`);
       undone.push(`${p.kind}${p.payload.verb ? `:${p.payload.verb}` : ""}`);

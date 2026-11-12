@@ -235,7 +235,9 @@ const { pageClock } = await import("../../apps/dashboard/src/bridge/zone.ts");
 const { MoreMenu } = await import("../../apps/dashboard/src/surfaces/kit/more-menu/more-menu.tsx");
 /** The log's reads answered by `f`: the module's object, which the pane imports. */
 const stand = (f) => Object.assign(activity, f);
-const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
+const { setSurfaceValue, surfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
+/** The record the settings read holds now (the seam's `settings`; a window global, `__SETTINGS`, until 12 Nov 2026). */
+const settingsHeld = () => surfaceValue("settings")?.settings ?? undefined;
 const { autonomyVerbs } = await import("../../apps/dashboard/src/surfaces/settings/autonomy/verbs.ts");
 // The Team tab is the Partner pane's Team (settings/partner/team-card.tsx): the roster, then the workspace's partner
 // card, an owner's read answered here as refused, so the card stays out of what these tests look at.
@@ -352,13 +354,17 @@ const ROSTER = [
   { membershipId: "m-lee", email: "lee@northside.example", displayName: "Lee", role: "operator" },
 ];
 /**
- * A workspace as `role` reads it. Its roster and open invitations are the settings surface's alone (`team`, `invites`;
- * null is a team read that failed); the rest of `over` goes on the window, where its readers still are.
+ * A workspace as `role` reads it. Its record, roster, open invitations and policy rows are the settings surface's alone
+ * (`record`, `team`, `invites`, `policies`; null is a read that failed); the rest of `over` goes on the window, where its
+ * readers still are.
  */
-const workspace = (role, { team = ROSTER, invites = [], ...over } = {}) => {
-  Object.assign(globalThis.window, {
-    __ME: { email: "dana@northside.example", role, display_name: "Dana" },
-    __SETTINGS: {
+const workspace = (
+  role,
+  {
+    team = ROSTER,
+    invites = [],
+    policies = null,
+    record = {
       role,
       version: 3,
       config: {
@@ -366,17 +372,22 @@ const workspace = (role, { team = ROSTER, invites = [], ...over } = {}) => {
         notifications: { escalation_emails: ["dana@northside.example", "desk@northside.example"] },
       },
     },
+    ...over
+  } = {},
+) => {
+  Object.assign(globalThis.window, {
+    __ME: { email: "dana@northside.example", role, display_name: "Dana" },
     ...over,
   });
   // The seam's settings value beside the globals it copies (bridge/surfaces/settings.ts), for the moved panes.
   setSurfaceValue("settings", {
-    settings: globalThis.window.__SETTINGS,
+    settings: record,
     facts: FACTS,
     channels: null,
     templatesAll: null,
     templateUse: null,
     templateSent: null,
-    policies: globalThis.window.__POLICIES ?? null,
+    policies,
     team,
     invites,
   });
@@ -845,7 +856,7 @@ test("REGRESSION (8 Oct): a hundred recordings opened in a minute were a hundred
 
 /** The autonomy pane over real policy rows, as the settings read publishes them, seen by `role`. */
 const autonomy = (rows, over = {}, role = "owner") => {
-  workspace(role, { ...over, __POLICIES: { role, rows } });
+  workspace(role, { ...over, policies: { role, rows } });
   autonomyVerbs.setPolicy = async () => ({ ok: true });
   return settings("autonomy");
 };
@@ -1035,7 +1046,7 @@ test("the day's budget is said in the replies it buys at this workspace's size o
     find(budgetRow(tree), (n) => typeof n.props?.text === "string" && /^About /.test(n.props?.label || ""))?.props.text;
   const reply = (limits) => [{ class: "reply", mode: "auto", limits }];
   const drawn = (limits, replyTokens) => {
-    workspace("owner", { __POLICIES: { role: "owner", rows: reply(limits), replyTokens } });
+    workspace("owner", { policies: { role: "owner", rows: reply(limits), replyTokens } });
     return settings("autonomy");
   };
   // A week of 120 replies at 2,500 tokens each: a cap of 250k buys about a hundred.
@@ -1090,7 +1101,7 @@ test("Replies says how many people are set differently, by mode, and each of the
       { id: "k2", name: "Sam Ortiz", mode: "ask" },
     ],
   };
-  workspace("owner", { __POLICIES: { role: "owner", rows, ownModes } });
+  workspace("owner", { policies: { role: "owner", rows, ownModes } });
   let tree = settings("autonomy");
   const line = byTestId(byTestId(tree, "aut-replies"), "rec-row-aut-own-modes");
   assert.ok(line, "a line of Replies");
@@ -1121,7 +1132,7 @@ test("Replies says how many people are set differently, by mode, and each of the
   }
   // What the owner's corrections suggest is How it answers' now (item 8), so Autonomy draws no card of them.
   workspace("owner", {
-    __POLICIES: {
+    policies: {
       role: "owner",
       rows,
       ownModes,
@@ -1131,7 +1142,7 @@ test("Replies says how many people are set differently, by mode, and each of the
   assert.equal(byTestId(settings("autonomy"), "rec-card-learned"), null);
   // Nobody set apart, or a read that failed: no line at all.
   for (const none of [{ total: 0, by_mode: { auto: 0, ask: 0, never: 0 }, named: [] }, null]) {
-    workspace("owner", { __POLICIES: { role: "owner", rows, ownModes: none } });
+    workspace("owner", { policies: { role: "owner", rows, ownModes: none } });
     assert.equal(byTestId(settings("autonomy"), "rec-row-aut-own-modes"), null, JSON.stringify(none));
   }
 });
@@ -1329,7 +1340,7 @@ test("the rail asks before a pane holding changes goes, and in words that are tr
 test("F32: a config the parser refuses closes every notifications write, and says why on each", () => {
   // The bridge reads a refused config as its own state: no config, and what was wrong (bridge/surfaces/settings.ts).
   workspace("owner", {
-    __SETTINGS: { role: "owner", version: 3, config: null, broken: { issues: ["brain.business_name"] } },
+    record: { role: "owner", version: 3, config: null, broken: { issues: ["brain.business_name"] } },
   });
   alertsRead(null);
   // Nothing was read, so no address: the email row is open by itself, and says nobody is emailed.
@@ -1359,7 +1370,7 @@ test("Notifications: what the workspace is told, a topic a row in its group, whe
   const grid = byTestId(tree, "ntf-grid");
   // No phone: the topics with nothing to choose (no email, no phone of theirs) are named in the bell's line instead.
   const groups = alertGrid({
-    notifications: globalThis.window.__SETTINGS.config.notifications,
+    notifications: settingsHeld().config.notifications,
     emailHeld: null,
     phone: null,
   });
@@ -1538,7 +1549,7 @@ test("Notifications says where its mail is sent from only where one is set, and 
     "REGRESSION: promised a switch to the workspace's own sending domain that nothing makes",
   );
   workspace("owner", {
-    __SETTINGS: {
+    record: {
       role: "owner",
       version: 3,
       config: {

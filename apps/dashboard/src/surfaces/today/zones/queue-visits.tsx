@@ -12,16 +12,15 @@
  * (need-you/visit-work.tsx, decision 0071: Missed goes on to the rebook Ask writes).
  */
 import type { AppointmentWord, CalendarLike, TodayVisitsAskedVM } from "@chanlytics/contracts";
-import type { CalendarSurface } from "@/surfaces/calendar/surface";
+import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
-import { borrowed } from "../shell";
 
 /**
  * Yesterday's unmarked visits, from the Calendar as the surface holds it; null while the calendar is unread, one that could not
  * be read, one that does not hold the day before today, and with none to mark: no visit is claimed on a guess.
  */
 export function askedVisits(word: AppointmentWord): TodayVisitsAskedVM | null {
-  const cal = borrowed<CalendarSurface>("__CALENDAR");
+  const cal = surfaceValue("calendar");
   if (!cal || !cal.vm || cal.vm.feed.state !== "ok") return null;
   return TODAY_HELPERS.visitsAsked(cal.vm as CalendarLike, Date.now(), word);
 }

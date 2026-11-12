@@ -269,7 +269,7 @@ function useStatusRedraws() {
 /** The line as contracts word it, from the bridge's status, the workspace's pause and an owner's preview of a role. */
 const statusLineNow = () => {
   // The pause rides with the billing surface: the webhook writes the row, the surface repaints, the line says so.
-  const B = window.__BILLING_ACCOUNT;
+  const B = surfaceValue("billing");
   const paused = !!(B && window.__billing && window.__billing.vm(B.dto).paused);
   const modelStanding = B?.dto.model_standing ?? null;
   const previewing = (window.ST_STORE && window.ST_STORE.viewAsRole) || null;

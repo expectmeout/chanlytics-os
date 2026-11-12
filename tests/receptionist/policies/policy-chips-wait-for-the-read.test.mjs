@@ -1,8 +1,8 @@
 /**
  * The policy chips say a workspace's own modes, and none before they are read.
  *
- * The policy store (bridge/policy-store.ts) answered from the mockup's seeded charter while `__POLICIES` was
- * undefined, which in the app is a cold tab before GET settings lands, or a settings read that failed twice: a real
+ * The policy store (bridge/policy-store.ts) answered from the mockup's seeded charter while the policy rows were
+ * unread (a window global, `__POLICIES`, until 12 Nov 2026; the settings surface's `policies` since), which in the app is a cold tab before GET settings lands, or a settings read that failed twice: a real
  * workspace's chips (the kit's PolicyChip, beside a broadcast run waiting on its owner, an approval, a playbook) said
  * "Replies · holds it" from the seed, a mode the database never said. And settings landing told no chip, since the
  * chips listen for `policy:changed` alone. Run on the real store and the real settings surface, over a window whose
@@ -62,9 +62,11 @@ globalThis.window.fetch = async (url) => {
 const quiet = console.error;
 console.error = () => {};
 const { installPolicyStore } = await importSrc("apps/dashboard/src/bridge/policy-store.ts");
+const { policiesNow } = await importSrc("apps/dashboard/src/surfaces/settings/business/shell.ts");
 const { settingsOverride } = await importSrc("apps/dashboard/src/bridge/surfaces/settings.ts");
+const { surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 console.error = quiet;
-installPolicyStore(globalThis.window);
+installPolicyStore(globalThis.window, policiesNow);
 
 test("REGRESSION: before the workspace's policies are read, a chip states no mode -- it said the mockup's seeded Veto", () => {
   const S = globalThis.window.POLICY;
@@ -87,7 +89,6 @@ test("REGRESSION: the settings read landing tells every chip, with the workspace
 });
 
 test("a policies read that failed tells the chips too: they go on saying no mode, never the seed's", async () => {
-  globalThis.window.__POLICIES = undefined;
   const fetchWas = globalThis.window.fetch;
   globalThis.window.fetch = async (url) =>
     new URL(String(url), "https://app.example.com").pathname === "/api/v1/policies"
@@ -102,7 +103,8 @@ test("a policies read that failed tells the chips too: they go on saying no mode
     console.error = quietAgain;
     globalThis.window.fetch = fetchWas;
   }
-  assert.equal(globalThis.window.__POLICIES, null, "the read failed, and says so");
+  assert.equal(surfaceValue("settings").policies, null, "the read failed, and says so");
+  assert.equal("__POLICIES" in globalThis.window, false, "and nothing of it is on the window");
   assert.deepEqual(
     heard.filter((e) => e.type === "policy:changed"),
     [{ type: "policy:changed", reply: null }],

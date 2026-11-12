@@ -47,15 +47,16 @@ const CALENDAR = { vm: { bookingLink: "https://book.example/luna" }, fetchedAt: 
 // A demo's sample is fetched only in a demo session (surfaces/calendar/demo.ts): fetched once here, so a demo draws it at once.
 await (await import("../../apps/dashboard/src/surfaces/calendar/demo.ts")).calendarDemo();
 
-test("the Calendar's read is one typed value in the seam, mirrored under the name Today, Ask, People and the Business tab read", () => {
+test("the Calendar's read is one typed value in the seam, and nothing of it is on the window: Today and the Business tab read it there", () => {
   assert.equal(calendarOverride.value, "calendar", "the cache keeps the typed value beside the surface's snapshot");
   assert.equal(calendarOverride.globals, undefined, "and there is no window global the surface owns any more");
   assert.equal(values.surfaceValue("calendar"), undefined, "before the first read there is nothing");
   values.setSurfaceValue("calendar", CALENDAR);
   assert.equal(values.surfaceValue("calendar"), CALENDAR, "held as it was published, by identity");
-  assert.equal(globalThis.__CALENDAR, CALENDAR, "and mirrored under its old name, the one object");
+  // It was mirrored under its old name (`__CALENDAR`) for the pages that had not moved, until 12 Nov 2026.
+  assert.equal("__CALENDAR" in globalThis, false, "no mirror on the window");
   values.setSurfaceValue("calendar", undefined);
-  assert.equal(globalThis.__CALENDAR, undefined, "the mirror goes with the value");
+  assert.equal(values.surfaceValue("calendar"), undefined, "the value goes");
 });
 
 test("the tab's cache gives the Calendar's value back before React draws, so a reload paints the last read", () => {
@@ -68,7 +69,6 @@ test("the tab's cache gives the Calendar's value back before React draws, so a r
   values.setSurfaceValue("calendar", undefined);
   assert.ok(cache.hydrateSurfaceCache().has("calendar"), "the surface has its real data before it draws");
   assert.deepEqual(values.surfaceValue("calendar"), CALENDAR);
-  assert.deepEqual(globalThis.__CALENDAR, CALENDAR);
   values.setSurfaceValue("calendar", undefined);
 });
 

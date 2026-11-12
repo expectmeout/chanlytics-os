@@ -176,7 +176,7 @@ const BtCallsCard = ({ brain, base = null, config = null, canEdit, flash, saver 
       {a.calls ? <BtPaceRow brain={brain} {...shared} /> : null}
       <BtTransferNumberRow brain={brain} base={base} {...shared} />
       {/* The number the business keeps, forwarded to the line: only where a line answers calls, as the greeting. */}
-      {a.calls ? <BtKeptNumberRow flash={flash} /> : null}
+      {a.calls ? <BtKeptNumberRow canEdit={canEdit} flash={flash} /> : null}
     </>,
   );
 };

@@ -11,12 +11,10 @@ import type { SequencesPageDto } from "@chanlytics/contracts";
 import { read } from "@/bridge/api";
 import { declareReads } from "@/bridge/surface-registry";
 import type { SurfaceOverride } from "@/bridge/surface-data";
-import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
+import { setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
 import { searchesBeforeNew } from "../reach-out/sources";
 
 export type SequencesSurface = SequencesPageDto | null;
-
-declareSurfaceValue("sequences", "__SEQUENCES");
 
 export const sequencesOverride: SurfaceOverride = {
   key: "sequences",

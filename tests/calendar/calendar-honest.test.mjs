@@ -271,7 +271,7 @@ const { CalendarPage } = await import(`${S}/calendar/calendar-page.tsx`);
 const { CALENDAR_PAGE, CR_WARM_MS, fitDeskHourPx, fitHourPx } = await import(`${S}/calendar/words.ts`);
 // The floor an hour never goes under on a phone: what the fit answers for no room at all (words.ts keeps the number).
 const CR_HOUR_MIN_PX = fitHourPx(0, 1);
-const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+const { setSurfaceValue, surfaceValue } = await import(`${S}/surface-values.ts`);
 const { setStatus } = await import("../../apps/dashboard/src/bridge/surface-status.ts");
 const { standingSaid } = await import(`${S}/kit/head/standing.ts`);
 const { calendarAddress, calendarParam } = await import(`${S}/calendar/address.ts`);
@@ -1783,7 +1783,7 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
     fetch: globalThis.window.fetch,
     ws: globalThis.window.__WORKSPACES,
     active: globalThis.window.__ACTIVE_WORKSPACE,
-    cal: globalThis.window.__CALENDAR,
+    cal: surfaceValue("calendar"),
   };
   Object.assign(globalThis.window, {
     location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
@@ -1825,12 +1825,12 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
     await calendarOverride.apply();
     assert.ok(!/fresh=/.test(seen[0]), "and the next read does not ask for a fresh one it was never given");
   } finally {
+    setSurfaceValue("calendar", was.cal);
     Object.assign(globalThis.window, {
       location: was.location,
       fetch: was.fetch,
       __WORKSPACES: was.ws,
       __ACTIVE_WORKSPACE: was.active,
-      __CALENDAR: was.cal,
     });
   }
 });
@@ -1850,7 +1850,7 @@ test("a window the board has read paints at once on the way back, and is read ag
     fetch: globalThis.window.fetch,
     ws: globalThis.window.__WORKSPACES,
     active: globalThis.window.__ACTIVE_WORKSPACE,
-    cal: globalThis.window.__CALENDAR,
+    cal: surfaceValue("calendar"),
   };
   Object.assign(globalThis.window, {
     location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
@@ -1878,7 +1878,7 @@ test("a window the board has read paints at once on the way back, and is read ag
     }
   };
   const home = windowFor(zoneDayKey(Date.now(), TZ)).from;
-  const shown = () => globalThis.window.__CALENDAR?.vm?.from;
+  const shown = () => surfaceValue("calendar")?.vm?.from;
   // The board watches the record's rows (00345), so the runner wants a feed to join: none of these cases exercises it.
   const stop = startSurfaces([calendarOverride], () => () => {});
   try {
@@ -1911,12 +1911,12 @@ test("a window the board has read paints at once on the way back, and is read ag
   } finally {
     stop();
     await release();
+    setSurfaceValue("calendar", was.cal);
     Object.assign(globalThis.window, {
       location: was.location,
       fetch: was.fetch,
       __WORKSPACES: was.ws,
       __ACTIVE_WORKSPACE: was.active,
-      __CALENDAR: was.cal,
     });
   }
 });
@@ -1934,7 +1934,7 @@ test("REGRESSION: two moves whose reads overlap land as the second, and neither 
     fetch: globalThis.window.fetch,
     ws: globalThis.window.__WORKSPACES,
     active: globalThis.window.__ACTIVE_WORKSPACE,
-    cal: globalThis.window.__CALENDAR,
+    cal: surfaceValue("calendar"),
   };
   Object.assign(globalThis.window, {
     location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
@@ -1959,7 +1959,7 @@ test("REGRESSION: two moves whose reads overlap land as the second, and neither 
       await pause();
     }
   };
-  const shown = () => globalThis.window.__CALENDAR?.vm?.from;
+  const shown = () => surfaceValue("calendar")?.vm?.from;
   // The board watches the record's rows (00345), so the runner wants a feed to join: none of these cases exercises it.
   const stop = startSurfaces([calendarOverride], () => () => {});
   try {
@@ -1981,12 +1981,12 @@ test("REGRESSION: two moves whose reads overlap land as the second, and neither 
     stop();
     await release();
     setCalendarSpan(null);
+    setSurfaceValue("calendar", was.cal);
     Object.assign(globalThis.window, {
       location: was.location,
       fetch: was.fetch,
       __WORKSPACES: was.ws,
       __ACTIVE_WORKSPACE: was.active,
-      __CALENDAR: was.cal,
     });
   }
 });
@@ -2053,7 +2053,7 @@ test("a window read ahead is held and paints at once when the board gets there; 
     fetch: globalThis.window.fetch,
     ws: globalThis.window.__WORKSPACES,
     active: globalThis.window.__ACTIVE_WORKSPACE,
-    cal: globalThis.window.__CALENDAR,
+    cal: surfaceValue("calendar"),
   };
   Object.assign(globalThis.window, {
     location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
@@ -2084,7 +2084,7 @@ test("a window read ahead is held and paints at once when the board gets there; 
   const home = windowFor(today).from;
   const next = windowFor(monthOf(today, 1)).from;
   const before = windowFor(monthOf(today, -1)).from;
-  const shown = () => globalThis.window.__CALENDAR?.vm?.from;
+  const shown = () => surfaceValue("calendar")?.vm?.from;
   // The board watches the record's rows (00345), so the runner wants a feed to join: none of these cases exercises it.
   const stop = startSurfaces([calendarOverride], () => () => {});
   try {
@@ -2126,12 +2126,12 @@ test("a window read ahead is held and paints at once when the board gets there; 
   } finally {
     stop();
     await release();
+    setSurfaceValue("calendar", was.cal);
     Object.assign(globalThis.window, {
       location: was.location,
       fetch: was.fetch,
       __WORKSPACES: was.ws,
       __ACTIVE_WORKSPACE: was.active,
-      __CALENDAR: was.cal,
     });
   }
 });
@@ -2238,15 +2238,15 @@ test("REGRESSION (C3): the times the receptionist would offer are open times whe
   );
   const vm = toCalendarVM(withNext(), NOW);
   assert.equal(todayDay(vm, null).nextOpening, "today 3:30 PM", "REGRESSION: Today's day said 'next opening'");
-  const was = { cal: globalThis.window.__CALENDAR };
-  Object.assign(globalThis.window, { __CALENDAR: { vm } });
+  const was = { cal: surfaceValue("calendar") };
+  setSurfaceValue("calendar", { vm });
   try {
     cells = [];
     frames.begin();
     // The strip draws it as "Next open time {this}" (strip.tsx), from the day the strip and the brief both read.
     assert.equal(useDayVm().nextOpening, "today 3:30 PM", "REGRESSION: Today's day said 'next opening'");
   } finally {
-    Object.assign(globalThis.window, { __CALENDAR: was.cal });
+    setSurfaceValue("calendar", was.cal);
   }
 });
 
@@ -2777,7 +2777,7 @@ test("the page publishes how long it keeps a read and its words for a read that 
 test("the Calendar tells Ask what it draws (the Phase 2 plan, D3): the span on screen, and the people its appointments there name, in the board's order", () => {
   // Nine weeks loaded, one drawn.
   fresh(span("2026-08-31", 63));
-  const vm = globalThis.window.__CALENDAR.vm;
+  const vm = surfaceValue("calendar").vm;
   // Two appointments in the week on screen name people; one a month out does not count.
   const day = vm.days.find((d) => d.key === vm.today);
   const ahead = vm.days[vm.days.length - 1];

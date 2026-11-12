@@ -57,7 +57,7 @@ globalThis.document = { addEventListener() {}, removeEventListener() {} };
 
 const { leadsView } = await import("../../../apps/dashboard/src/surfaces/leads/surface.ts");
 const { leadsOverride } = await import("../../../apps/dashboard/src/surfaces/leads/override.ts");
-const { restoreSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { restoreSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 // What the surface cache put back before anything mounted (surface-cache.ts, through the seam): the view this tab read
 // last, in its order.
 restoreSurfaceValue("leads", {
@@ -74,7 +74,7 @@ test("a refresh on a view reads that view, in the order the tab last read it: th
     ["/api/v1/lead-searches?workspace=harbor", view],
     "one read, of the view on screen; the lead open over it is no part of the view",
   );
-  assert.equal(globalThis.window.__LEADS.route, `clients/leads:s-${SEARCH_ID}:c-review`);
+  assert.equal(surfaceValue("leads").route, `clients/leads:s-${SEARCH_ID}:c-review`);
   // The page's ask as it mounts is the same view: painted from what the boot read and re-read behind (a request the
   // runner's held answers share at boot) -- never a read of another view.
   await leadsView({ searchId: SEARCH_ID, list: "all", cls: "review", chips: {}, sort: "rating", dir: "desc" });

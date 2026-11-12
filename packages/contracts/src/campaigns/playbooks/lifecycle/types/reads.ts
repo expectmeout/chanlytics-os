@@ -243,6 +243,11 @@ export interface LifecycleTemplate {
   name: string;
   language: string;
   meta_status?: string | null;
+  /**
+   * Its slots, as the database keeps it (jsonb), as any build wrote it, which each reader takes apart as it reads it:
+   * the surface cache's fingerprint leaves it out (tooling/scripts/gen/surface-shapes.mjs).
+   * @stored
+   */
   variables: unknown;
   /** Why this product cannot send it, as the reader answers (templateBlocked): the call's text is never one of those. */
   blocked?: string | null;

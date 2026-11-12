@@ -5,8 +5,8 @@
  * own tests (business-tab-page.test.mjs) and each card's (business-tab-open.test.mjs) import it and share one page.
  *
  * Every claim in those files is something the page drew, or something a press on it sent: no source-text assertions.
- * The page draws from what the settings read hands over (`__SETTINGS`, with the preview the server resolved, and
- * the facts, which are the seam's alone: landFacts), and every sentence with a judgement in it is contracts', through the bridge the app installs
+ * The page draws from what the settings read hands over, on the seam alone (the record, with the preview the server
+ * resolved: landSettings; the facts: landFacts), and every sentence with a judgement in it is contracts', through the bridge the app installs
  * (bridge/business-tab.ts). A save goes through a stand-in for the bridge's versioned PUT (saving()) that records
  * what it was sent and says the server accepted it.
  *
@@ -23,6 +23,7 @@ import {
   timezoneWords,
   timezoneCity,
   knownTimezones,
+  setupSteps,
 } from "@chanlytics/contracts";
 import { installStubReact, again, unmount, all, find, byTestId, textOf, classes, press } from "./_stub-react.mjs";
 
@@ -53,19 +54,37 @@ const { setSurfaceValue, surfaceValue } = await import("../apps/dashboard/src/su
 /**
  * The settings read as the seam holds it once it lands (bridge/surfaces/settings.ts): the workspace's facts, which the
  * tab's rows read from there alone (settings/business/shell.ts factsNow; the bridge published them on the window too, as
- * `__FACTS`, until 11 Nov 2026) and WhatsApp's rows (landTemplates), beside the record and the policies the window still
- * holds, as the read lands all of them together. What a test put on the seam itself (a team, a message) stays.
+ * `__FACTS`, until 11 Nov 2026), WhatsApp's rows (landTemplates) and the policy rows (landPolicies), beside the record
+ * (landSettings), as the read lands all of them together. What a test put on the seam itself (a team, a message) stays.
  */
 const landFacts = (held) =>
   setSurfaceValue("settings", {
     ...(surfaceValue("settings") ?? {}),
-    settings: W.__SETTINGS ?? null,
     facts: held,
-    policies: W.__POLICIES,
+    policies: policiesHeld,
     templatesAll: templatesHeld,
   });
+/**
+ * The record the settings read holds now (the seam's `settings`: its config, its version and the preview the server
+ * resolved), which every reader of the page takes; a window global, `__SETTINGS`, until 12 Nov 2026. Undefined before the read.
+ */
+const settingsHeld = () => surfaceValue("settings")?.settings ?? undefined;
+/** The settings read landing a record, the rest of that read as it stands (undefined: the read not landed yet). */
+const landSettings = (record) => setSurfaceValue("settings", { ...(surfaceValue("settings") ?? {}), settings: record });
 /** WhatsApp's rows as the templates read last landed them: undefined is the read not landed yet, null one that failed. */
 let templatesHeld;
+/** The policy rows as the policies read last landed them: undefined is the read not landed yet, null one that failed. */
+let policiesHeld;
+/**
+ * The policies read landing again by itself: the seam's rows alone change (the bridge published them on the window too,
+ * as `__POLICIES`, until 12 Nov 2026). Answers the rows held before, to put back.
+ */
+const landPolicies = (rows) => {
+  const was = policiesHeld;
+  policiesHeld = rows;
+  setSurfaceValue("settings", { ...(surfaceValue("settings") ?? {}), policies: rows });
+  return was;
+};
 /**
  * The templates read landing again by itself, as it does when one is approved: the seam's rows alone change (the bridge
  * published them on the window too, as `__TEMPLATES_ALL`, until 11 Nov 2026). Answers the rows held before, to put back.
@@ -139,12 +158,12 @@ const brainOf = (profile, over = {}) => ({
 
 /**
  * The workspace's connections, as /api/v1/setup hands them over and the bridge publishes them
- * (surfaces/setup/surface.ts, its `__SETUP` mirror). Both lines are present, active, have answered something and
+ * (surfaces/setup/surface.ts, its surface). Both lines are present, active, have answered something and
  * were switched on by the owner, which is the three things capabilityStatus calls live. Texting is
  * on none of it: the line carries no approved registration, which is what `ready` needs.
  */
-const SETUP = () => ({
-  dto: {
+const SETUP = () => {
+  const dto = {
     business: {
       name: "Marisa's Beauty Salon",
       hours: true,
@@ -201,14 +220,13 @@ const SETUP = () => ({
         deactivated_at: null,
       },
     ],
-  },
-  role: "owner",
-  vm: null,
-  fetchedAt: Date.now(),
-});
+  };
+  // Its view model as the Setup read builds it (setup/surface.ts, contracts setupSteps), never null: a read always has one.
+  return { dto, role: "owner", vm: setupSteps({ ...dto, later: [] }), fetchedAt: Date.now() };
+};
 
 /**
- * The Autonomy matrix as the settings read publishes it (`__POLICIES`): the modes a provisioned
+ * The Autonomy matrix as the settings read lands it (the surface's `policies`): the modes a provisioned
  * workspace starts with (00017_provision_tenant), with nothing under the reply row's pause, which
  * is the common case -- most owners never set one, and the edge reads nothing as a day.
  */
@@ -315,15 +333,15 @@ const drawTab = ({
   part = WHOLE_RECORD,
 } = {}) => {
   drawnPart = part;
-  W.__SETTINGS = settings(profile, config, brain, zone);
+  landSettings(settings(profile, config, brain, zone));
   // What it can do reads three more surfaces: the connections the abilities run on, the Autonomy
   // matrix they are held by, and the templates a call sends the booking link as. Each is reset with
-  // the record, as __SETTINGS is: what the last test left is not this one's.
-  W.__SETUP = setup;
-  W.__POLICIES = policies;
+  // the record: what the last test left is not this one's.
+  setSurfaceValue("setup", setup);
+  policiesHeld = policies;
   templatesHeld = templates;
   if (resolved) {
-    const f = resolveFacts(W.__SETTINGS.config.brain, resolved);
+    const f = resolveFacts(settingsHeld().config.brain, resolved);
     landFacts({ facts: f, conflicts: factConflicts(f) });
   } else {
     landFacts(facts({ conflicts, facts: known }));
@@ -373,8 +391,8 @@ const saving = () => {
   let read = null;
   let version = null;
   W.__saveSettings = (config, v, accepted) => {
-    if (W.__SETTINGS !== read) {
-      read = W.__SETTINGS;
+    if (settingsHeld() !== read) {
+      read = settingsHeld();
       version = read.version;
     }
     sent.push({ config: structuredClone(config), version: v });
@@ -478,6 +496,8 @@ export {
   inline,
   labelled,
   landFacts,
+  landPolicies,
+  landSettings,
   landTemplates,
   marisa,
   openFold,
@@ -491,6 +511,7 @@ export {
   saveRow,
   saving,
   settings,
+  settingsHeld,
   typeAt,
   typeInto,
   went,

@@ -42,6 +42,11 @@ const W = globalThis.window;
 const S = W.__businessTabSave;
 // What each fold's "It will say" is asked of: every fold here must be one consequenceOf knows by name.
 const { BUSINESS_TAB, FOLD_BLOCK, loadSaveRules } = await import("../../../apps/dashboard/src/bridge/business-tab.ts");
+const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+/** The record the settings read holds now (the seam's `settings`; a window global, `__SETTINGS`, until 12 Nov 2026). */
+const settingsHeld = () => surfaceValue("settings")?.settings ?? undefined;
+/** The settings read landing a record, the rest of that read as it stands (undefined: the read not landed yet). */
+const landSettings = (record) => setSurfaceValue("settings", { ...(surfaceValue("settings") ?? {}), settings: record });
 // And what the save's own schema refuses, which schemaProblems puts under the fold's fields: its rules here, as the tab
 // has them by the time a fold is open.
 await loadSaveRules();
@@ -932,7 +937,7 @@ test("problemsOf says the old form's sentences, but for what an empty box means,
 
 test("a fold's save goes through the tab's one saver as a patch of the whole config, on the config current when it goes", () => {
   const saver = S.saver;
-  W.__SETTINGS = { version: 7, config: stored() };
+  landSettings({ version: 7, config: stored() });
   const sent = [];
   W.__saveSettings = (config, version, accepted) => {
     sent.push({ config: structuredClone(config), version });
@@ -976,7 +981,7 @@ test("a fold's save goes through the tab's one saver as a patch of the whole con
     assert.equal(sent.length, 3);
   } finally {
     saver.reset();
-    delete W.__SETTINGS;
+    landSettings(undefined);
     delete W.__saveSettings;
   }
 });
@@ -992,7 +997,7 @@ const door = () => {
     sent.push(call);
     return new Promise((resolve) => {
       call.accept = () => {
-        W.__SETTINGS = { config, version: version + 1 };
+        landSettings({ config, version: version + 1 });
         onAccepted({ config, version: version + 1 });
         resolve({ ok: true });
       };
@@ -1003,7 +1008,7 @@ const door = () => {
 };
 const read = (config, version = 7) => {
   S.saver.reset();
-  W.__SETTINGS = { config: structuredClone(config), version };
+  landSettings({ config: structuredClone(config), version });
 };
 const said = () => {
   const toasts = [];
@@ -1181,7 +1186,7 @@ test("a fold whose part of the settings changed after it opened is refused, and 
   // A colleague adds a service, and the re-read lands in this tab.
   const theirs = structuredClone(STORED);
   theirs.brain.profile.services.push({ name: "Keratin", duration_min: 120 });
-  W.__SETTINGS = { config: theirs, version: 8 };
+  landSettings({ config: theirs, version: 8 });
   const a = said();
   let closed = 0;
   S.saver.save(
@@ -1212,7 +1217,7 @@ test("a fold whose part of the settings changed after it opened is refused, and 
   const opened2 = S.draftOf("services", S.saver.base());
   const voiced = structuredClone(STORED);
   voiced.brain.profile.tone = "Formal.";
-  W.__SETTINGS = { config: voiced, version: 8 };
+  landSettings({ config: voiced, version: 8 });
   S.saver.save(S.foldJob("services", draft, { opened: opened2, said: "Saved", flash: () => {} }));
   await settle();
   assert.equal(sent.length, 1);
@@ -1592,7 +1597,7 @@ test("a draft with nothing left to write is never refused: the owner's own earli
   const opened = S.draftOf("tone", S.saver.base());
   const theirs = structuredClone(STORED);
   theirs.brain.profile.tone = "Bright.";
-  W.__SETTINGS = { config: theirs, version: 8 };
+  landSettings({ config: theirs, version: 8 });
   const a = said();
   let closed = 0;
   S.saver.save(
@@ -1694,7 +1699,7 @@ test("saveProblems is the one question a fold asks before it saves: the page's o
 // The settings read's own preview, built as the server builds it: willSay resolves a draft with its inputs.
 const { composePromptPreview } = await import("../../../apps/dashboard/src/server/receptionist/prompt-preview.ts");
 const previewed = (config) => {
-  W.__SETTINGS = {
+  landSettings({
     version: 7,
     config,
     prompt: composePromptPreview(config.brain, {
@@ -1707,7 +1712,7 @@ const previewed = (config) => {
       },
       openings: null,
     }),
-  };
+  });
   return config;
 };
 const linesOf = (text) => (text ? text.split("\n").filter((l) => l.trim() !== "") : []);
@@ -1738,10 +1743,10 @@ test("one helper says what a row's or a fold's save will tell the receptionist: 
       resolveSystemPrompt(
         next,
         "whatsapp",
-        W.__SETTINGS.prompt.tz,
+        settingsHeld().prompt.tz,
         new Date(),
-        W.__SETTINGS.prompt.inputs.policy,
-        W.__SETTINGS.prompt.inputs.known,
+        settingsHeld().prompt.inputs.policy,
+        settingsHeld().prompt.inputs.known,
       ).length,
     );
     assert.deepEqual(
@@ -1825,7 +1830,7 @@ test("one helper says what a row's or a fold's save will tell the receptionist: 
     );
     assert.equal(S.willSay({ was: null, next, sections: "hours", channel: "whatsapp" }), null);
   } finally {
-    delete W.__SETTINGS;
+    landSettings(undefined);
   }
 });
 
@@ -1872,7 +1877,7 @@ test("a save that crosses the resolver's line says so, whichever gesture sends i
     assert.match(starts.note, /starts being given your details/);
     assert.equal(starts.added, linesOf(starts.whole).join("\n"), "every line of the block is new");
   } finally {
-    delete W.__SETTINGS;
+    landSettings(undefined);
   }
 });
 
@@ -1926,7 +1931,7 @@ test("each block of the brain a save goes on is resolved once for that brain, by
     // them too: consequenceOf resolves with the preview's inputs, so a block kept from the old preview would have read
     // the new zone's heading as a change of this save.
     asked.length = 0;
-    W.__SETTINGS = { ...W.__SETTINGS, prompt: { ...W.__SETTINGS.prompt, tz: "America/Chicago" } };
+    landSettings({ ...settingsHeld(), prompt: { ...settingsHeld().prompt, tz: "America/Chicago" } });
     const zoned = S.willSay({ was: moved.brain, next: nextOf("17:00"), sections: "hours", channel: "whatsapp" });
     assert.deepEqual(
       asked.filter((a) => a[2] === "base"),
@@ -1936,7 +1941,7 @@ test("each block of the brain a save goes on is resolved once for that brain, by
     assert.match(zoned.whole, /America\/Chicago/);
   } finally {
     tab.consequenceOf = real;
-    delete W.__SETTINGS;
+    landSettings(undefined);
   }
 });
 
@@ -2020,7 +2025,7 @@ test("a block whose lines are runs says nothing goes unless the whole block goes
     });
     assert.match(fewer.removed, /Christmas/);
   } finally {
-    delete W.__SETTINGS;
+    landSettings(undefined);
   }
 });
 

@@ -96,6 +96,7 @@ import {
 } from "@/surfaces/settings/business/model/booking-rules-words";
 import type { TenantConfigWriteSchema } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/receptionist/prompt-preview";
+import { surfaceValue } from "../surfaces/surface-values";
 
 /**
  * The save's own rules (contracts TenantConfigWriteSchema, the one PUT /settings parses with), once they are here.
@@ -184,11 +185,6 @@ export type FoldSection = keyof typeof FOLD_BLOCK;
 /** A block of the prompt a draft would give the receptionist, and the length of that whole prompt. */
 export type ConsequenceVM = PromptBlockVM & { total: number };
 
-/** What consequenceFor reads off the window: the settings read's preview, with the inputs it was resolved with. */
-export interface ConsequenceWindow {
-  __SETTINGS?: { prompt?: PromptPreviewDto | null } | null;
-}
-
 /**
  * What one fold will add to the prompt, if the brain it would save were saved.
  *
@@ -233,7 +229,7 @@ export interface ConsequenceWindow {
  * a fold it does not know, or a channel that is not one, is a TypeError naming it.
  */
 export function consequenceFor(
-  w: ConsequenceWindow,
+  prompt: PromptPreviewDto | null | undefined,
   section: FoldSection,
   next: unknown,
   channel: "whatsapp" | "voice",
@@ -251,7 +247,6 @@ export function consequenceFor(
   }
   const row = FOLD_BLOCK[section];
   if (!row) return null;
-  const prompt = w.__SETTINGS?.prompt;
   // No inputs means an older server composed it: one still answering mid-deploy, or a dev session's cache, whose build key never changes.
   if (!prompt?.inputs) return null;
   const parsed = saveRules?.safeParse({ brain: next });
@@ -263,9 +258,9 @@ export function consequenceFor(
   return block ? { ...block, total: text.length } : null;
 }
 
-/** consequenceFor over this tab's window, at this moment: the one the page calls. */
+/** consequenceFor over the preview the settings read holds now (the surface's `settings`), at this moment: the one the page calls. */
 function consequenceOf(section: FoldSection, next: unknown, channel: "whatsapp" | "voice"): ConsequenceVM | null {
-  return consequenceFor(window, section, next, channel, new Date());
+  return consequenceFor(surfaceValue("settings")?.settings?.prompt, section, next, channel, new Date());
 }
 
 /**
@@ -340,7 +335,7 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // the photo switch's on its row (VISION_SWITCH_WORDS),
 // the calendar the openings are read from (calendarFeedKeyOf: its link, or a connected mailbox's Google calendar),
 // and capabilityStatus, which is where "this line answers" is decided for Setup and for this card alike -- the card
-// reads it off the Setup payload the bridge already publishes (__SETUP) rather than asking the channels itself.
+// reads it off the Setup payload the bridge already reads (its `setup` surface) rather than asking the channels itself.
 // CHIPS_SHOWN and chipsMoreWords are how many chips any row of the record draws at rest and how the rest are said:
 // one number and one spelling for the services, the notes and the rules alike (the kit's RecordChips keeps the cap).
 // How it answers' are the voice's starting points (TONE_PRESETS), the hand-off row's (handoffWords, handoffChatWords,

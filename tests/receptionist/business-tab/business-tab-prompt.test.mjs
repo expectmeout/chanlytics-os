@@ -12,15 +12,17 @@ import assert from "node:assert/strict";
 import { promptBlocks, promptCostWords, promptTotalWords, PROMPT_READERS, PROMPT_NOW } from "@chanlytics/contracts";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import {
-  W,
-  KNOWN,
-  composePromptPreview,
   composedPrompt,
+  composePromptPreview,
   drawTab,
+  KNOWN,
+  landSettings,
   marisa,
-  redrawTab,
   openFolds,
+  redrawTab,
+  settingsHeld,
   typeAt,
+  W,
   went,
 } from "../../_business-tab-harness.mjs";
 
@@ -41,7 +43,7 @@ const drawPrompt = (channel = "whatsapp", over = {}) => {
 };
 const sheetOf = (tree) => byTestId(tree, "rec-sheet-prompt");
 /** The resolved prompt the sheet cuts, cut the way it cuts it: with the stored brain, so a carried prompt is found. */
-const cut = (channel) => promptBlocks(W.__SETTINGS.prompt[channel], channel, W.__SETTINGS.config.brain);
+const cut = (channel) => promptBlocks(settingsHeld().prompt[channel], channel, settingsHeld().config.brain);
 /** Each block's line, the kit's folding row: its wrapper by its id, never the press inside it (`…-press`). */
 const blocksOf = (tree) =>
   all(sheetOf(tree), (n) => /^rec-prompt-block-[a-z0-9_-]+$/.test(n.props?.["data-testid"] || "")).filter(
@@ -64,7 +66,7 @@ const onScreen = (n) => {
 test("each block is a line of its own, with what it costs: its share as a thin meter, the exact count its name for a reader", () => {
   const tree = drawPrompt();
   const blocks = cut("whatsapp");
-  const total = W.__SETTINGS.prompt.whatsapp.length;
+  const total = settingsHeld().prompt.whatsapp.length;
   assert.equal(blocksOf(tree).length, blocks.length);
   for (const b of blocks) {
     const line = byTestId(tree, `rec-prompt-block-${b.id}-press`);
@@ -294,7 +296,7 @@ test("the prompt carried into a blank box is found, because the sheet cuts with 
   const own = byTestId(tree, "rec-prompt-block-extra_instructions");
   assert.ok(own, "the carried prompt is a block of its own");
   assert.match(textOf(own), /earlier instructions/, "and says where it came from");
-  assert.ok(textOf(own).includes(W.__SETTINGS.config.brain.system_prompt));
+  assert.ok(textOf(own).includes(settingsHeld().config.brain.system_prompt));
 });
 
 test("every width reads one quiet share on each block's line, and no rail of names beside them", () => {
@@ -392,7 +394,7 @@ test("the Autonomy tab's rules open the Autonomy tab", () => {
   // A record whose details compose nothing is answered with its own prompt and only the Autonomy tab's rules after it
   // (resolveSystemPrompt), so those rules are a block of their own -- here, with Booking and FAQ on "ask".
   drawTab({ profile: null });
-  W.__SETTINGS.prompt = composePromptPreview(W.__SETTINGS.config.brain, {
+  settingsHeld().prompt = composePromptPreview(settingsHeld().config.brain, {
     tz: "America/New_York",
     policy: { booking: { mode: "ask" }, faq: { mode: "ask" } },
     known: KNOWN,
@@ -457,7 +459,7 @@ test("the sheet draws what the server composed, word for word, and nothing when 
   const text = "A prompt the server composed.\n\nRules you must follow:\n- One rule.";
   drawTab({ profile: marisa });
   const composed = { whatsapp: `${text} (whatsapp)`, voice: `${text} (voice)`, now: "It is 7:23 PM." };
-  W.__SETTINGS = { ...W.__SETTINGS, prompt: { ...W.__SETTINGS.prompt, ...composed, tz: "America/New_York" } };
+  landSettings({ ...settingsHeld(), prompt: { ...settingsHeld().prompt, ...composed, tz: "America/New_York" } });
   press(byTestId(redrawTab(), "rec-prompt-open"));
   let tree = redrawTab();
   const sheet = sheetOf(tree);
@@ -469,7 +471,7 @@ test("the sheet draws what the server composed, word for word, and nothing when 
   assert.ok(textOf(byTestId(sheet, "rec-prompt-now")).includes("It is 7:23 PM."));
   // Nothing composed: no section, no door, no sheet -- an empty box would say "your receptionist is told nothing".
   drawTab({ profile: marisa });
-  W.__SETTINGS = { ...W.__SETTINGS, prompt: null };
+  landSettings({ ...settingsHeld(), prompt: null });
   tree = redrawTab();
   assert.equal(byTestId(tree, "rec-card-told"), null);
   assert.equal(byTestId(tree, "rec-prompt-open"), null);

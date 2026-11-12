@@ -4,8 +4,8 @@
  * step 11 of decision 0015, and its globals below are what the bridge publishes for the pages that remain.)
  *
  * The shell's globals, as the bridge publishes them (zone.ts installClock, identity.ts, seed-globals.ts and
- * inbox-verbs.ts' own), and window.__SETTINGS
- * built from the scenario the way bridge/surface-data.ts's settings apply builds it -- through the same
+ * inbox-verbs.ts' own), and the settings surface (its record, facts, messages, policies and roster)
+ * built from the scenario the way bridge/surfaces/settings.ts's apply builds it -- through the same
  * contracts functions, from this worktree's SOURCE. The server bundles this with the scenario's own object as a
  * banner (window.__HX_SCENARIO) and puts it FIRST in the document's head, before data/bridge-stubs.jsx, which writes
  * only what is missing. The server answers the spec's reads from that same object, so the page and the spec see one
@@ -32,6 +32,7 @@ import { setStatus } from "@/bridge/surface-status";
 import { installTabMemory } from "@/bridge/tab-memory";
 import { installNotifications } from "@/bridge/notifications";
 import { installAsk } from "@/bridge/ask";
+import { setSurfaceValue } from "@/surfaces/surface-values";
 import { templatesRead } from "./templates-read.mjs";
 
 interface Scenario {
@@ -131,7 +132,9 @@ const preview = (brain: C.BrainConfig) => ({
   tz: zone,
   inputs: { policy: {}, known: S.known },
 });
-w.__SETTINGS = {
+// The record the settings read holds (its `settings`), landed with the rest of that read below: a global of its own,
+// `__SETTINGS`, until 12 Nov 2026, which nothing reads any more.
+const record = {
   config: S.config,
   version: S.version,
   role: S.role,
@@ -145,7 +148,7 @@ w.__SETTINGS = {
 // left the mockup.
 
 /* ---- the three surfaces What it can do reads beside the settings read ---- */
-// The Setup payload as surfaces/setup/surface.ts publishes it (its `__SETUP` mirror), the Autonomy matrix a provisioned workspace starts with
+// The Setup payload as surfaces/setup/surface.ts reads it, the Autonomy matrix a provisioned workspace starts with
 // (00017_provision_tenant) and the workspace's approved messages. Built from THIS scenario's own channels, brain and
 // templates, so the card the page draws is the card the record earns: the nightly has nothing filled in and no
 // approved message, the salon answers on both lines and has the booking-link message a call sends the link as.
@@ -197,23 +200,54 @@ const setupDto = {
     .filter((k) => channel(k).active)
     .map((k) => ({ capability: k, activated_at: answered, activated_by: OWNER.id, deactivated_at: null })),
 };
-w.__SETUP = {
+// Setup's read, landed on its surface as the bridge lands it (a window mirror, `__SETUP`, until 12 Nov 2026), and named for
+// the harness's own test, which runs this bundle where the surface's store cannot be reached (`__HX_SETUP`, as `__HX_SETTINGS`).
+const setupValue = {
   dto: setupDto,
   role: S.role,
   vm: C.setupSteps({ ...(setupDto as any), later: [] }),
   fetchedAt: Date.now(),
 };
-w.__POLICIES = {
-  rows: [
-    { class: "faq", mode: "auto", limits: {} },
-    { class: "booking", mode: "auto", limits: {} },
-    { class: "reply", mode: "auto", limits: { max_replies_day: 20 } },
-    { class: "reengage", mode: "ask", limits: {} },
-    { class: "campaign", mode: "ask", limits: {} },
-    { class: "money", mode: "never", limits: {} },
-  ],
-  role: S.role,
+setSurfaceValue("setup", setupValue as any);
+w.__HX_SETUP = setupValue;
+/* ---- the settings surface (bridge/surfaces/settings.ts apply) ----
+ * What the settings read hands the pages, whole, as the bridge lands it: the record above, the facts resolved as the
+ * server resolves them (server/readers/settings.ts: resolveFacts over the scenario's known facts, and where two sources
+ * disagree), the scenario's messages, the Autonomy matrix a provisioned workspace starts with (00017_provision_tenant),
+ * and the roster, which is the harness's owner alone. Whole, never in part: what follows the settings read (the pickers,
+ * offered-templates.ts) reads every part of it. Nothing has sent anything here, so what sends each message and how many
+ * went out are unread (null). The policy rows were a global of their own, `__POLICIES`, until 12 Nov 2026.
+ */
+const settingsRead = templatesRead(S.templates ?? [], { all: true });
+const resolved = C.resolveFacts(S.config.brain ?? null, S.known);
+const settingsValue = {
+  settings: record,
+  facts: { facts: resolved, conflicts: C.factConflicts(resolved) },
+  templatesAll: whatsappTemplates,
+  templateVersions: settingsRead.templates.filter(
+    (t: any) => (C.OWN_VERSION_CHANNELS as readonly string[]).includes(t.channel) && !C.isReachOutRow(t),
+  ),
+  messages: settingsRead.messages,
+  templateUse: null,
+  templateSent: null,
+  policies: {
+    rows: [
+      { class: "faq", mode: "auto", limits: {} },
+      { class: "booking", mode: "auto", limits: {} },
+      { class: "reply", mode: "auto", limits: { max_replies_day: 20 } },
+      { class: "reengage", mode: "ask", limits: {} },
+      { class: "campaign", mode: "ask", limits: {} },
+      { class: "money", mode: "never", limits: {} },
+    ],
+    role: S.role,
+  },
+  team: [{ membershipId: "m-e2e-owner", userId: OWNER.id, email: OWNER.email, displayName: OWNER.name, role: S.role }],
+  invites: [],
 };
+setSurfaceValue("settings", settingsValue as any);
+// What was landed, for the harness's own test (e2e-harness.test.mjs), which runs this bundle where the surface's store
+// cannot be reached: a name of the harness's, as `__HX_SCENARIO` is. The app reads no such name.
+w.__HX_SETTINGS = settingsValue;
 // No __CHANNELS. The bridge publishes `toChannelVM(c, now)` (surface-data.ts), and defining the global at all flips
 // Settings' Connections pane -- so a hand-built row would draw a pane no spec here opens, out of a shape
 // the product does not use. The channels reach a page where it reads them: in the preview's inputs, above.
