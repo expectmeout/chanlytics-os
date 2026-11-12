@@ -7,7 +7,7 @@
  */
 import "server-only";
 import { fenced, fencedInline, type NewDraftAsk } from "@chanlytics/contracts";
-import type { DraftKnown } from "../campaigns/sequences/draft-judge";
+import { stoodStepsOf, type DraftKnown } from "../campaigns/sequences/draft-judge";
 
 type Stands = NonNullable<NewDraftAsk["stands"]>;
 
@@ -33,10 +33,7 @@ function standsAnswerOf(stands: Stands, known: DraftKnown) {
     name: stands.name,
     hour: stands.hour,
     when: stands.when,
-    steps: stands.steps.map(({ template_id: held, ...step }) => ({
-      ...step,
-      message: known.messages.find((message) => message.templateId === held)?.key ?? "",
-    })),
+    steps: stoodStepsOf(stands, known),
   };
 }
 

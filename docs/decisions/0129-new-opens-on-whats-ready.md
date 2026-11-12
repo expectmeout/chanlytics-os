@@ -60,8 +60,25 @@ What step 2 does not do: it does not stage the draft's arrival, page through rea
 from a draft, which the canvas drew as its second stage; and Warmer and Shorter still stand in the Messages editor, a new
 conversation, a lead's email and Ask's cards. What New cannot draft at all is not yet handed to Ask.
 
-Not proven by this step's tests: what the model itself answers. They run a stand-in model, and prove what it is told
-and how its answer is taken; that a real answer changes only what was asked is read from real drafts.
+The step's tests run a stand-in model: they prove what it is told and how its answer is taken, never what it writes.
+That was read from real drafts the day it went live.
+
+**What the first real run found** (11 November 2026, live, on the demo workspace; nothing kept or started). A step
+added, a wait and an hour changed, a signature, and one word ("warmer") each changed what was asked and left the rest;
+a discount and a channel that does not exist were left out and said. One ask failed: "make the second message shorter"
+came back with the second message gone. The model had shortened the WhatsApp words past a value the email still named;
+the message door refuses a message whose versions name different values, and the judge left the step out. So:
+
+7. **A step a change rewrote in words that cannot be kept stays as it stood,** and the draft's card says so
+   (`stepStays`), where the answer holds the same steps as the draft that stands. A change never loses a step its
+   owner did not ask to lose.
+8. **The drafter is told every version of a message names the same values.** First drafts lost steps to the same
+   refusal.
+9. **A change that changed nothing offers no Undo.**
+
+Still to weigh, from the same run: one word with no step named rewrote both messages, and wrote a message the business
+holds new, which waits for Meta's review again; and an invitation back that Ask writes on a visit's moment is filed as
+about their booking, with a text version, where it reads as an offer.
 
 ## Deploy order
 

@@ -534,8 +534,11 @@ export function DraftView(p: {
   leaving: ReactNode;
   /** The line under the draft, as it is typed. */
   line: { words: string; onWords: (words: string) => void };
-  /** What stands on top: the line Ask is changing it by, or the last one with what it changed (`by`) and where. */
-  note: { said: string; by: string | null; steps: readonly number[] } | null;
+  /**
+   * What stands on top: the line Ask is changing it by, or the last one with what it changed (`by`), where, and
+   * whether there is anything to undo.
+   */
+  note: { said: string; by: string | null; steps: readonly number[]; undo: boolean } | null;
 }) {
   const { draft, reads, acts } = p;
   const [sheet, setSheet] = useState<NewSheet | null>(null);
@@ -611,7 +614,7 @@ export function DraftView(p: {
                   said={p.note?.said ?? draft.said}
                   doing={p.doing}
                   by={p.note?.by}
-                  onAgain={redrafting ? acted.undo : p.note?.by ? acts.back : null}
+                  onAgain={redrafting ? acted.undo : p.note?.undo ? acts.back : null}
                   again={changing ? W.say.stop : W.say.undo}
                 />
               </div>

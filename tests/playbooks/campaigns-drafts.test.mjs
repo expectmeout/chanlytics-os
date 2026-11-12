@@ -668,11 +668,22 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   assert.equal(hostOf(tree, "sq-nw-again"), null, "a hand's change is the owner's: nothing to undo over it");
   assert.equal(nameBox().props.value, "Autumn colour for VIPs");
 
+  // A change that changed nothing says so, with nothing to undo.
+  asks.draft = () => ({
+    ...renamed({ stands: { steps: [{ texts: ["15% off colour"] }] } }),
+    cannot: "Left out: “by pigeon”. Nothing here flies.",
+  });
+  await say("Send it by pigeon");
+  tree = await landed(() => askedFor().length === 4 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  assert.ok(onTop().includes(CHANGE_WORDS.same), onTop());
+  assert.equal(hostOf(tree, "sq-nw-again"), null, "nothing changed, nothing to undo");
+  assert.ok(byTestId(tree, "sq-nw-cannot"), "what Ask left out is said in its card");
+
   // A change Ask could not make: said as a toast over the draft, which stays, and the line keeps its words to say again.
   asks.draft = () => null;
   toasts.length = 0;
   await say("Send it from the moon");
-  tree = await landed(() => askedFor().length === 4 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  tree = await landed(() => askedFor().length === 5 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
   assert.equal(toasts.length, 1, "said once");
   assert.equal(nameBox().props.value, "Autumn colour for VIPs");
   assert.equal(changeBox().props.value, "Send it from the moon");

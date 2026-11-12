@@ -388,6 +388,9 @@ export const NEW_WORDS = {
     nothingFits: "Ask couldn’t find who and what for this. Say it another way.",
     noMessage: "Ask couldn’t write a message that holds here. Pick one of yours, or write it.",
     stepDropped: "A step couldn’t be kept as Ask wrote it, so it is left out.",
+    /** A change that rewrote a step in words that cannot be kept: the step stands as it did (decision 0129 step 2). */
+    stepStays: (place: number) =>
+      `Step ${place} stays as it was. Ask’s new words for it couldn’t be kept, so nothing in it changed.`,
     handNotLast: "A call or a note ends a sequence, so it is the last step.",
     leftOut: (text: string) => `Left out: “${text}”`,
   },

@@ -34,7 +34,9 @@
  * request's keys, with the one rule a change adds; who it was for stays where the answer names no one the request lists,
  * a number the standing email already said is its owner's to keep, and the line it was drafted from stays on top. On the
  * page, a step that says what it said is the step it was, what the owner set by hand that Ask never names stays, what
- * changed is said by its place, and what Ask drafted keeps Ask's own words for a step the change left alone.
+ * changed is said by its place, and what Ask drafted keeps Ask's own words for a step the change left alone. And what
+ * the live run of 11 Nov 2026 found: a step a change rewrote in words that cannot be kept stays as it stood, said so, and
+ * the drafter is told the rule it broke (every version of a message names the same values).
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -1393,6 +1395,41 @@ test("changed, a draft keeps who it was for where the answer names no one the re
   // The same email in a first draft is Ask's own claim, which nothing backs: its words are left for the owner to write.
   const first = draftKept({ ...answered, who: "s1" }, KNOWN, { words: "Email the studios we found" });
   assert.equal(first.steps[0].email.body, "");
+});
+
+test("REGRESSION (the live run of 11 Nov 2026): a step a change rewrote in words that cannot be kept stays as it stood, and the draft says so; the drafter is told every version of a message names the same values", async () => {
+  // "Make the second one shorter": the WhatsApp words shortened past a value the email still names, which the message
+  // door refuses. The step came back gone; it stays as it stood.
+  const broken = {
+    ...COME_BACK,
+    whatsapp: "Hi {{first name}}, come back and see us.",
+    email_subject: "Come back",
+    email_body: "Hi {{first name}}, come back and see us: {{booking link}}",
+  };
+  const rewritten = answer({
+    steps: [step({ message: "k1" }), step({ after_days: 28, only_if: ["no_booking"], write: broken })],
+  });
+  answerWith(rewritten);
+  const out = await draftSequenceFrom(KNOWN, { words: "Make the second one shorter", stands: STANDS }, WHO_ASKS);
+  assert.equal(out.steps.length, 2, "no step is lost");
+  assert.match(
+    out.steps[1].message.written.versions.whatsapp.body,
+    /it has been a while\. Come back and see us: \{\{2\}\}$/,
+    "the step as it stood",
+  );
+  assert.equal(out.cannot, NEW_WORDS.cannot.stepStays(2));
+  assert.match(JSON.stringify(calls[0].request.system), /Every version of one message names the same values/);
+  // With what Ask says it left out, both are said.
+  answerWith({ ...rewritten, cannot: "Left out: “much”. It is short already." });
+  const both = await draftSequenceFrom(KNOWN, { words: "Much shorter", stands: STANDS }, WHO_ASKS);
+  assert.equal(both.cannot, `Left out: “much”. It is short already. ${NEW_WORDS.cannot.stepStays(2)}`);
+  // A first draft has nothing to fall back to: the step is left out and said, as before.
+  const first = draftKept(rewritten, KNOWN, LINE);
+  assert.deepEqual([first.steps.length, first.cannot], [1, NEW_WORDS.cannot.stepDropped]);
+  // Nor has a change whose answer holds other steps than the draft that stands: places no longer answer each other.
+  answerWith({ ...rewritten, steps: [...rewritten.steps, step({ after_days: 7, write: broken })] });
+  const more = await draftSequenceFrom(KNOWN, { words: "Add a third", stands: STANDS }, WHO_ASKS);
+  assert.deepEqual([more.steps.length, more.cannot], [1, NEW_WORDS.cannot.stepDropped]);
 });
 
 test("the draft's door takes a change of one word where a draft stands, and still asks a first line to say enough; a draft that stands is taken whole or not at all", () => {

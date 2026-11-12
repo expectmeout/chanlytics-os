@@ -329,7 +329,27 @@ function judgeStep(
   return { step: { ...base, does: "message", message, email: null, hand: "" } };
 }
 
-/** The steps kept, at most the audience's, a once's one; a call or a note only as the last. */
+/**
+ * The steps of a draft that stands, in the shape Ask answers one in: each held message by the key the request lists it
+ * under ("" where it lists none). What the drafter is told of them (drafts/sequence-change.ts), and what a step falls
+ * back to where a change rewrote it in words that cannot be kept.
+ */
+export function stoodStepsOf(
+  stands: NonNullable<NewDraftAsk["stands"]>,
+  known: Pick<DraftKnown, "messages">,
+): NewDraftAnswerStep[] {
+  return stands.steps.map(({ template_id: held, ...step }) => ({
+    ...step,
+    message: known.messages.find((message) => message.templateId === held)?.key ?? "",
+  }));
+}
+
+/**
+ * The steps kept, at most the audience's, a once's one; a call or a note only as the last. Where the line changes a draft
+ * that stands and the answer holds the same steps, one it rewrote in words that cannot be kept stays as it stood
+ * (`stayed`, by its place): a change never loses a step its owner did not ask to lose (the live run of 11 Nov 2026:
+ * "make the second message shorter" came back with no second message).
+ */
 function judgeSteps(
   answer: NewDraftAnswer,
   params: {
@@ -339,20 +359,29 @@ function judgeSteps(
     moment: KnownMoment | null;
     name: string;
     backing: string[];
+    stood: readonly NewDraftAnswerStep[] | null;
   },
-): { steps: NewStep[]; cannot: string[] } {
+): { steps: NewStep[]; cannot: string[]; stayed: number[] } {
   const max = params.kind === "once" ? 1 : NEW_STEPS_MAX[params.audience];
   const steps: NewStep[] = [];
   const cannot: string[] = [];
-  for (const a of answer.steps) {
+  const stayed: number[] = [];
+  const stood = params.stood?.length === answer.steps.length ? params.stood : null;
+  for (const [at, answered] of answer.steps.entries()) {
     if (steps.length >= max) break;
-    const j = judgeStep(a, steps.length, params);
-    if ("dropped" in j) {
-      cannot.push(j.dropped);
+    const judged = judgeStep(answered, steps.length, params);
+    const was = "dropped" in judged && stood?.[at] ? judgeStep(stood[at], steps.length, params) : null;
+    if (was && "step" in was) {
+      steps.push(was.step);
+      stayed.push(steps.length);
+      continue;
+    }
+    if ("dropped" in judged) {
+      cannot.push(judged.dropped);
       if (steps.length === 0) break;
       continue;
     }
-    steps.push(j.step);
+    steps.push(judged.step);
   }
   // A call or a note stands last: one before a message ends the steps there.
   const lastHand = steps.findIndex((s) => s.does !== "message");
@@ -360,8 +389,8 @@ function judgeSteps(
     steps.splice(lastHand + 1);
     cannot.push(NEW_WORDS.cannot.handNotLast);
   }
-  if (!handStepsHold(steps)) return { steps: [], cannot: [NEW_WORDS.cannot.nothingFits] };
-  return { steps, cannot };
+  if (!handStepsHold(steps)) return { steps: [], cannot: [NEW_WORDS.cannot.nothingFits], stayed: [] };
+  return { steps, cannot, stayed };
 }
 
 /**
@@ -467,8 +496,12 @@ export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDra
     draftWho?.kind === "moment" ? (known.moments.find((m) => m.trigger === draftWho.trigger) ?? null) : null;
   const name = (answer.name.trim() || draftWho?.label || NEW_WORDS.title).slice(0, 80);
   const backing = draftBackingOf(known, ask);
-  const { steps, cannot } = judgeSteps(answer, { audience, kind, known, moment, name, backing });
+  const stood = ask.stands ? stoodStepsOf(ask.stands, known) : null;
+  const { steps, cannot, stayed } = judgeSteps(answer, { audience, kind, known, moment, name, backing, stood });
   const sentence = answer.cannot.trim();
+  // What Ask says it left out, else what the judge left out; and a step that stays as it stood is always said.
+  const leftOut = sentence || [...new Set(cannot)].join(" ");
+  const notes = [leftOut, ...stayed.map((place) => NEW_WORDS.cannot.stepStays(place))].filter(Boolean).join(" ");
   if (steps.length === 0) throw new AppError("validation", sentence || cannot[0] || NEW_WORDS.cannot.nothingFits);
   const first = steps[0]?.message ?? null;
   const how = howOf({ kind, audience, who: draftWho, moment, first }, answer, known);
@@ -490,7 +523,7 @@ export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDra
     }),
     checks: [],
     twin: kind === "sequence" ? twinOf(draftWho, known.running) : null,
-    cannot: sentence || (cannot.length ? [...new Set(cannot)].join(" ") : null),
+    cannot: notes || null,
   };
   return { ...draft, checks: newChecksOf(draft, known.ready) };
 }

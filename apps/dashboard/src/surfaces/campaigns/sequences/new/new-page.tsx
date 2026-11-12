@@ -313,11 +313,12 @@ function useChange(on: {
     setLeft(null);
   };
   const changing = by !== null && on.asking.drafting === "again";
-  // What stands on top of the draft: the line Ask is changing it by, or the last one with what it changed.
+  // What stands on top of the draft: the line Ask is changing it by, or the last one with what it changed, and its
+  // Undo where something did: a change that changed nothing has nothing to put back.
   const note = changing
-    ? { said: by, by: null, steps: [] }
+    ? { said: by, by: null, steps: [], undo: false }
     : left
-      ? { said: left.line, by: left.said, steps: left.steps }
+      ? { said: left.line, by: left.said, steps: left.steps, undo: left.said !== CHANGE_WORDS.same }
       : null;
   return { words, setWords, changing, note, say, back, forget: () => setLeft(null) };
 }
