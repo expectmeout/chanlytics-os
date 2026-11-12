@@ -27,7 +27,6 @@ export const NEW_WORDS = {
     asked: "Ask’s draft",
     /** Said where the line stays while Ask could not draft it. */
     kept: "Your line is kept",
-    sayAgain: "Say it again",
     undo: "Undo",
     againFor: { people: "Drafting it again for people", leads: "Drafting it again for businesses" } satisfies Record<
       NewAudience,
@@ -111,8 +110,6 @@ export const NEW_WORDS = {
     passedSub: "Pick a later one, or send it now",
     /** A one-off set further ahead than a send may wait (the send door's BROADCAST_SCHEDULE_MAX_DAYS). */
     tooFar: (days: number) => `Pick a time within ${days} days`,
-    sayIt: "Say it",
-    orSay: "Or say it in a line, and Ask fills it in.",
     lineFirst: (n: number | null) =>
       `${n === null ? "The people" : `The ${n}`} on it now get step 1 at its first run; anyone who joins later, the day they join`,
     subSchedule: "Draft · nothing goes until you schedule it",
@@ -348,10 +345,6 @@ export const NEW_WORDS = {
     words: "Message",
     valuesSaid: (values: string) => `A value goes in braces: ${values}`,
     aValue: "A value",
-    warmer: "Warmer",
-    shorter: "Shorter",
-    asking: "Asking…",
-    undo: "Undo",
     offerNote: "An offer, so no text version. WhatsApp’s goes to Meta when you start it.",
     heldSub: "One of your messages",
     heldWords: "Its words are changed in Messages, for every step that sends it.",

@@ -3,19 +3,19 @@
  * press, who it reaches, its steps on the rail, what Ask checked, how it runs, and the one act it is set up for. What
  * stops or bends it is a card over the sentence (a part left out, a twin, no one to hear it, a WhatsApp version still with
  * Meta). A change Ask need not make again is made here (new-model.ts); a change of kind or audience is Ask's, drafted again
- * from the same line (`redraft`), the draft standing in its new shape with Undo while Ask writes it. Send now asks first
- * (send-now.tsx);
+ * from the same line (`redraft`), the draft standing in its new shape with Undo while Ask writes it. Any other change is
+ * said: the line under the draft (decision 0129 step 2, change.ts) changes what it is told to and leaves the rest, and
+ * what it changed is said on top, with Undo. Its foot, and Send now's question in it, are foot.tsx's;
  * leaving a changed draft asks too (the page's). On a wide pane what Ask checked and how it runs stand beside the steps
  * (the canvas's desk board). Every word is contracts' (new-words.ts).
  */
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   CAMPAIGNS_PAUSED_WORDS,
   CHANNELS_DOOR,
   GET_YES_ROUTE,
   NEW_WORDS as W,
   clockHour,
-  localHour,
   sequenceRoute,
   zonedInputValue,
   type ConsentChannel,
@@ -28,18 +28,29 @@ import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Switch } from "../../../kit/switch/switch";
-import { gate, routeDoor, type refusalToast } from "../../../frame-verbs";
+import { routeDoor, type refusalToast } from "../../../frame-verbs";
 import { keepHistory } from "../../../settings/connections/history-choice";
 import { connectMailbox } from "../../../settings/connections/mailbox-connect";
 import { CmPane } from "../../parts/split";
+import { CHANGE_WORDS } from "./change";
+import { CHANGE_LINE, NewLine } from "./line";
 import { MessageSheet, WordsSheet, type LibraryReads } from "./new-message-sheets";
 import * as M from "./new-model";
-import { AudienceToggle, CaseNote, ChecksList, ReachLine, SaidLine, WhoCaption, WordPick } from "./new-parts";
+import {
+  AudienceToggle,
+  CaseNote,
+  ChecksList,
+  ReachLine,
+  SaidLine,
+  ToLeadsNote,
+  WhoCaption,
+  WordPick,
+} from "./new-parts";
 import { DraftRail, OnceMessage, type RailActs } from "./new-rail";
 import { AddStepSheet } from "./add-step";
 import { Choice } from "./choice";
+import { DraftFoot } from "./foot";
 import { DraftVoice } from "./new-voice";
-import { ConfirmSend } from "./send-now";
 import {
   ChannelsSheet,
   FromSheet,
@@ -81,9 +92,12 @@ interface DraftActs {
   change: (next: NewDraftDto) => void;
   /** A change of kind or audience: Ask drafts it again from the same line (by hand, the page rebuilds it). */
   redraft: (fixed: { kind?: NewKind; audience?: NewAudience }) => void;
-  /** Ask's drafting again let go: the draft as it was. */
+  /** Ask's drafting again, or its changing, let go: the draft as it was. */
   undo: () => void;
-  again: () => void;
+  /** What the line under the draft says to change. */
+  say: (words: string) => void;
+  /** The line's last change undone: the draft as it stood before it. */
+  back: () => void;
   discard: () => void;
   make: (start: boolean) => void;
   close: () => void;
@@ -276,130 +290,11 @@ function HowItRuns({ draft, open }: { draft: NewDraftDto; open: (s: NewSheet) =>
   );
 }
 
-/** What To leads changes, said while Ask drafts it again for businesses (F1). */
-function ToLeadsNote() {
-  return (
-    <>
-      <p className="sq-nw-cap">{W.toLeads.title}</p>
-      <ul className="sq-nw-checks" data-testid="sq-nw-to-leads">
-        {W.toLeads.rows.map((r) => (
-          <li key={r.lead} className="sq-nw-check">
-            <Icon name="check" size={12} />
-            <span>
-              {r.lead}
-              <small>{r.sub}</small>
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="sq-nw-note">{W.toLeads.note}</p>
-    </>
-  );
-}
-
-/** What the foot says before its act: what still stops it, or who it reaches and when. */
-function footLineOf(d: NewDraftDto, tz: string, at: M.FootReads): { lead: string; sub: string | null; quiet: boolean } {
-  const stop = M.notReady(d, at);
-  if (stop) return { ...stop, quiet: false };
-  // A sequence's line only says when it begins, which a phone's foot leaves to its two acts (the canvas's phone boards).
-  if (d.kind === "sequence")
-    return {
-      lead:
-        d.audience === "leads"
-          ? W.draft.leadsWait
-          : W.draft.firstBatch(M.firstBatchWords(d.run_hour, localHour(tz, new Date()))),
-      sub: null,
-      quiet: true,
-    };
-  const n = d.reach?.can ?? null;
-  if (d.audience === "leads")
-    return n === null
-      ? { lead: W.draft.leadsWait, sub: null, quiet: false }
-      : { lead: W.draft.businesses(n), sub: W.draft.leadsWait, quiet: false };
-  const review = M.reviewOf(d);
-  if (review && review.only > 0)
-    return { lead: W.review.goes(review.can, review.others), sub: W.review.leftOut(review.only), quiet: false };
-  const when = d.at ? W.draft.goesAt(M.atWords(d.at)) : M.goesSoonWords(tz, Date.now());
-  return n === null ? { lead: when, sub: null, quiet: false } : { lead: W.draft.people(n), sub: when, quiet: false };
-}
-
-/** A draft to leads with no mailbox to send it: the foot's one act is the way to one. */
-const needsMailbox = (d: NewDraftDto): boolean => d.audience === "leads" && !!d.mailbox && !d.mailbox.label;
-
 /** To Google's consent with what the owner chose it brings in, and back to this draft, kept in the tab as it changes (new-page.tsx). */
 const connectForNew = (history: MailboxHistory) => {
   keepHistory(history);
   return connectMailbox("google", null, "new", history);
 };
-
-/** The one act a draft is set up for: Start a sequence, Send now or Schedule a one-off, Send one to leads. */
-function actOf(d: NewDraftDto, onMake: (start: boolean) => void, onSendNow: () => void) {
-  if (d.kind === "sequence")
-    return { label: W.draft.start, glyph: "play", go: () => onMake(true), testid: "sq-nw-start" };
-  if (d.audience === "leads") return { label: W.draft.send, glyph: null, go: () => onMake(true), testid: "sq-nw-send" };
-  if (d.at) return { label: W.draft.schedule, glyph: null, go: () => onMake(true), testid: "sq-nw-schedule" };
-  return { label: W.draft.sendNow, glyph: null, go: onSendNow, testid: "sq-nw-send-now" };
-}
-
-/**
- * The foot: what it reaches and when, then its act. A sequence keeps Keep as a draft beside Start, the house's pair on a
- * phone; a one-off has its one act, and is kept as a draft by leaving it (the page's ask). A twin holds Start back: two
- * would send twice. While Ask drafts it again, the foot says so and its act waits. Paused, Start waits and Keep stays:
- * keeping sends nothing.
- */
-function DraftFoot(p: {
-  draft: NewDraftDto;
-  tz: string;
-  at: M.FootReads;
-  busy: boolean;
-  doing: string | null;
-  onMake: (start: boolean) => void;
-  onSendNow: () => void;
-  onConnect: () => void;
-}) {
-  const { draft } = p;
-  const busy = p.busy || !!p.doing;
-  const stop = p.doing ? { lead: p.doing, sub: null } : M.notReady(draft, p.at);
-  const line = p.doing ? { lead: p.doing, sub: null, quiet: false } : footLineOf(draft, p.tz, p.at);
-  const act = actOf(draft, p.onMake, p.onSendNow);
-  // Keep beside Start once nothing but a pause stops it.
-  const pair = draft.kind === "sequence" && !p.doing && !M.notReady(draft, { ...p.at, paused: false });
-  return (
-    <div className="sq-nw-foot" data-foot-pair={pair ? "" : undefined}>
-      <p className={line.quiet ? "sq-nw-foot-line is-quiet" : "sq-nw-foot-line"}>
-        <b>{line.lead}</b>
-        {line.sub ? <small>{line.sub}</small> : null}
-      </p>
-      {pair ? (
-        <Button onClick={() => p.onMake(false)} disabled={busy} data-testid="sq-nw-keep">
-          {W.draft.keep}
-        </Button>
-      ) : null}
-      {needsMailbox(draft) ? (
-        <Button
-          variant="primary"
-          onClick={p.onConnect}
-          disabled={busy}
-          data-testid="sq-nw-connect"
-          {...gate("settings", "connect a mailbox")}
-        >
-          {W.sheets.connect}
-        </Button>
-      ) : (
-        <Button
-          variant="primary"
-          onClick={act.go}
-          disabled={busy || !!stop || (draft.kind === "sequence" && !!draft.twin)}
-          data-testid={act.testid}
-          {...gate("approve")}
-        >
-          {act.glyph ? <Icon name={act.glyph} size={13} /> : null}
-          {act.label}
-        </Button>
-      )}
-    </div>
-  );
-}
 
 /** The sheet a press opened, over the draft. */
 function DraftSheets(p: {
@@ -550,6 +445,8 @@ function DraftBody(p: {
   rail: RailActs;
   acts: DraftActs;
   redrafting: boolean;
+  /** The steps the line last changed, by their places. */
+  changed: readonly number[];
 }) {
   const { draft, acts } = p;
   return (
@@ -585,26 +482,43 @@ function DraftBody(p: {
             </div>
           ) : null}
           {draft.kind === "once" ? (
-            <OnceMessage draft={draft} acts={p.rail} />
+            <OnceMessage draft={draft} acts={p.rail} changed={p.changed} />
           ) : (
             <>
-              <DraftRail draft={draft} acts={p.rail} />
+              <DraftRail draft={draft} acts={p.rail} changed={p.changed} />
               <DraftVoice draft={draft} again={() => acts.redraft({})} />
             </>
           )}
-          {!draft.said ? (
-            <p className="sq-nw-note">
-              {W.draft.orSay}{" "}
-              <Button size="sm" variant="quiet" onClick={acts.again} data-testid="sq-nw-say-it">
-                {W.draft.sayIt}
-              </Button>
-            </p>
-          ) : null}
         </>
       )}
     </>
   );
 }
+
+/**
+ * The page's acts, each putting Send now's question away first: it is about the draft as it was asked, so any change, a
+ * draft drafted again or changed by the line, or Ask's work let go, never leaves it asking about "now" over a time picked
+ * since, or a count that has moved.
+ */
+const puttingAway = (acts: DraftActs, away: () => void): DraftActs => ({
+  ...acts,
+  change: (next) => {
+    away();
+    acts.change(next);
+  },
+  redraft: (fixed) => {
+    away();
+    acts.redraft(fixed);
+  },
+  undo: () => {
+    away();
+    acts.undo();
+  },
+  say: (words) => {
+    away();
+    acts.say(words);
+  },
+});
 
 /** New's draft, every choice a press, in New's pane. */
 export function DraftView(p: {
@@ -618,6 +532,10 @@ export function DraftView(p: {
   redraftingFor: NewAudience | null;
   /** The ask on leaving a changed draft, in place of the foot (the page's). */
   leaving: ReactNode;
+  /** The line under the draft, as it is typed. */
+  line: { words: string; onWords: (words: string) => void };
+  /** What stands on top: the line Ask is changing it by, or the last one with what it changed (`by`) and where. */
+  note: { said: string; by: string | null; steps: readonly number[] } | null;
 }) {
   const { draft, reads, acts } = p;
   const [sheet, setSheet] = useState<NewSheet | null>(null);
@@ -625,26 +543,19 @@ export function DraftView(p: {
   // Each opening counted, so a sheet that edits words starts from the draft as it stands (it may be drafted again since).
   const [opens, setOpens] = useState(0);
   const [confirming, setConfirming] = useState(false);
-  // Send now's question is about the draft as it was asked: any change, or a sheet opened to make one, puts it away, so
-  // it never asks about "now" over a time picked since, or a count that has moved.
-  const acted: DraftActs = {
-    ...acts,
-    change: (d) => {
-      setConfirming(false);
-      acts.change(d);
-    },
-    // Drafted again as the other kind or audience (the body's toggle), or Ask's drafting let go: asked again, or not at all.
-    redraft: (fixed) => {
-      setConfirming(false);
-      acts.redraft(fixed);
-    },
-    undo: () => {
-      setConfirming(false);
-      acts.undo();
-    },
-  };
+  const acted = puttingAway(acts, () => setConfirming(false));
+  // A change lands while the owner is at the line, under the draft: what it changed is brought into view, with its Undo.
+  const top = useRef<HTMLDivElement>(null);
+  const changedBy = p.note?.by ?? null;
+  useEffect(() => {
+    if (changedBy) top.current?.scrollIntoView?.({ block: "nearest" });
+  }, [changedBy, p.note?.said]);
   const change = acted.change;
   const redrafting = !!p.doing;
+  // Changed by the line, the draft stands whole while Ask works; drafted again as another kind or audience, it stands in
+  // its new shape with its steps to come (F1). Whole, the page keeps its length, and the owner their place in it.
+  const changing = redrafting && p.note?.by === null;
+  const reshaping = redrafting && !changing;
   const open = (s: NewSheet) => {
     setConfirming(false);
     setBlank(false);
@@ -676,42 +587,34 @@ export function DraftView(p: {
       onClose={acts.close}
       testid="sq-new"
       foot={
-        p.leaving ??
-        (confirming ? (
-          <ConfirmSend
-            draft={draft}
-            tz={reads.timezone}
-            busy={p.busy}
-            onYes={() => {
-              setConfirming(false);
-              acts.make(true);
-            }}
-            onNo={() => setConfirming(false)}
-          />
-        ) : (
+        p.leaving ?? (
           <DraftFoot
             draft={draft}
             tz={reads.timezone}
             at={footReadsOf(reads)}
             busy={p.busy}
             doing={p.doing}
+            confirming={confirming}
+            onConfirming={setConfirming}
             onMake={acts.make}
-            onSendNow={() => setConfirming(true)}
             onConnect={() => setSheet({ kind: "from" })}
           />
-        ))
+        )
       }
     >
       <div className="sq-nw" aria-busy={redrafting ? true : undefined}>
         <div className="sq-nw-cols">
           <div className="sq-nw-col">
-            {draft.said ? (
-              <SaidLine
-                said={draft.said}
-                doing={p.doing}
-                onAgain={redrafting ? acted.undo : acts.again}
-                again={redrafting ? W.say.undo : undefined}
-              />
+            {p.note || draft.said ? (
+              <div ref={top}>
+                <SaidLine
+                  said={p.note?.said ?? draft.said}
+                  doing={p.doing}
+                  by={p.note?.by}
+                  onAgain={redrafting ? acted.undo : p.note?.by ? acts.back : null}
+                  again={changing ? W.say.stop : W.say.undo}
+                />
+              </div>
             ) : null}
             <div className="sq-nw-col" inert={redrafting}>
               <DraftBody
@@ -722,12 +625,13 @@ export function DraftView(p: {
                 open={open}
                 rail={rail}
                 acts={acted}
-                redrafting={redrafting}
+                redrafting={reshaping}
+                changed={p.note?.steps ?? []}
               />
             </div>
           </div>
           <div className="sq-nw-col is-side" inert={redrafting}>
-            {redrafting ? (
+            {reshaping ? (
               p.redraftingFor === "leads" ? (
                 <ToLeadsNote />
               ) : null
@@ -739,6 +643,14 @@ export function DraftView(p: {
             )}
           </div>
         </div>
+        <NewLine
+          line={p.line.words}
+          onLine={p.line.onWords}
+          onDraft={acted.say}
+          hint={CHANGE_WORDS.hint}
+          says={CHANGE_LINE}
+          busy={redrafting || p.busy}
+        />
       </div>
       <DraftSheets
         sheet={sheet}

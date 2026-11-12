@@ -11,7 +11,7 @@ import { Button } from "../../../kit/button/button";
 import { CmPane } from "../../parts/split";
 import { Choice } from "./choice";
 import { Journey } from "./journey";
-import { NewLine, NEW_LINE_MIN } from "./line";
+import { DRAFT_LINE, NewLine, NEW_LINE_MIN } from "./line";
 import * as M from "./new-model";
 import { CaseNote, SaidLine } from "./new-parts";
 import { Ready, readyReadsOf, type StartReads } from "./ready";
@@ -118,6 +118,8 @@ export function StartView(p: StartProps) {
               onLine={p.onLine}
               onDraft={(words) => draft(words)}
               hint={p.failed ? W.say.kept : p.reads?.messages === 0 ? W.say.writes : W.say.hint}
+              says={DRAFT_LINE}
+              busy={false}
             />
           ) : (
             <CaseNote tone="plain" title={W.viewer.title} words={W.viewer.words} testid="sq-nw-viewer" />

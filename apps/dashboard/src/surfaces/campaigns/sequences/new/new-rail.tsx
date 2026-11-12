@@ -4,6 +4,7 @@
  * of it -- its message (one of yours, Ask's, or one written here), its words, a call's or a note's task, the values typed
  * into it -- and between two steps the wait and what must still hold, each a word pressed to change. Then Add a step;
  * where it stops is said once, in what Ask checked (the canvas's option 2). A one-off is its one message, with no rail.
+ * A step the line just changed wears an edge until the next change (`changed`, its place; change.ts).
  * Hookless; the sheets each press opens are the draft view's.
  */
 import {
@@ -165,7 +166,7 @@ function HandParts({ step, i, acts, asked }: { step: NewStep; i: number; acts: R
 }
 
 /** One step's box: its number and name, how it goes, its words, and the parts that change it. */
-function StepBox(p: { draft: NewDraftDto; i: number; acts: RailActs }) {
+function StepBox(p: { draft: NewDraftDto; i: number; acts: RailActs; changed: readonly number[] }) {
   const { draft, i, acts } = p;
   const step = draft.steps[i];
   if (!step) return null;
@@ -193,7 +194,7 @@ function StepBox(p: { draft: NewDraftDto; i: number; acts: RailActs }) {
       }
       by={byOf(step, draft, i)}
       pre={
-        <div className="sq-nw-step">
+        <div className="sq-nw-step" data-changed={p.changed.includes(i + 1) || undefined}>
           <StepWords step={step} first={i === 0} draft={draft} />
           {parts}
           {i > 0 ? (
@@ -246,7 +247,8 @@ function WaitRow({ draft, i, acts }: { draft: NewDraftDto; i: number; acts: Rail
 }
 
 /** A sequence's steps on its rail: each on its day, the waits between, and Add a step while it takes another. */
-export function DraftRail({ draft, acts }: { draft: NewDraftDto; acts: RailActs }) {
+export function DraftRail(props: { draft: NewDraftDto; acts: RailActs; changed: readonly number[] }) {
+  const { draft, acts } = props;
   const days = stepDaysOf(draft.steps);
   const room = draft.steps.length < NEW_STEPS_MAX[draft.audience];
   return (
@@ -255,7 +257,7 @@ export function DraftRail({ draft, acts }: { draft: NewDraftDto; acts: RailActs 
         {draft.steps.flatMap((s, i) => [
           i > 0 ? <WaitRow key={`wait-${i}`} draft={draft} i={i} acts={acts} /> : null,
           <RailRow key={`step-${i}`} day={SW.day(days[i] ?? 1)} testid={`sq-nw-step-${i + 1}`}>
-            <StepBox draft={draft} i={i} acts={acts} />
+            <StepBox draft={draft} i={i} acts={acts} changed={props.changed} />
           </RailRow>,
         ])}
         {room ? <RailAdd onAdd={() => acts.open({ kind: "add" })} gateProps={gate("approve")} /> : null}
@@ -265,12 +267,13 @@ export function DraftRail({ draft, acts }: { draft: NewDraftDto; acts: RailActs 
 }
 
 /** A one-off's one message, as its box: no rail, no wait, no end. */
-export function OnceMessage({ draft, acts }: { draft: NewDraftDto; acts: RailActs }) {
+export function OnceMessage(props: { draft: NewDraftDto; acts: RailActs; changed: readonly number[] }) {
+  const { draft, acts } = props;
   return (
     <>
       <p className="sq-nw-cap">{draft.audience === "leads" ? W.draft.theEmail : W.draft.theMessage}</p>
       <div className="sq-nw-once" data-testid="sq-nw-steps">
-        <StepBox draft={draft} i={0} acts={acts} />
+        <StepBox draft={draft} i={0} acts={acts} changed={props.changed} />
       </div>
     </>
   );

@@ -44,7 +44,7 @@
   opacity: 0.55;
 }
 
-/* The owner's line, kept on top, with its way to say it again. */
+/* The owner's line, kept on top: the one it was drafted from, or the one that last changed it, with its Undo. */
 .sq-nw-said {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
@@ -206,6 +206,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+/* A step the line under the draft just changed (change.ts): an accent edge down its side, until the next change. */
+.sq-nw-step[data-changed] {
+  padding-inline-start: var(--space-3);
+  border-inline-start: 2px solid var(--accent);
 }
 .sq-nw-stepacts {
   display: flex;

@@ -3,7 +3,7 @@
 import { ASK_MEMORY_WORDS } from "../../../ask/memory/memory";
 import type { ConsentChannel } from "../../../consent/channels";
 import type { ParamSourceKind } from "../../templates/params";
-import { FOLLOW_UP_CONDITIONS } from "../follow-up";
+import { FOLLOW_UP_CONDITIONS, type FollowUpCondition } from "../follow-up";
 import type { SequenceMode } from "../sequence";
 import {
   NEW_AUDIENCES,
@@ -15,6 +15,7 @@ import {
   type NewEmail,
   type NewKind,
   type NewStep,
+  type NewStepDoes,
   type NewWrittenMessage,
 } from "./steps";
 
@@ -103,6 +104,42 @@ export interface NewDraftAsk {
   who?: DraftWho | undefined;
   /** The draft said again: its name and how many steps it had. */
   previous?: { name: string; steps: number } | undefined;
+  /**
+   * The draft the line changes (decision 0129 step 2): the draft as it stands, what its owner changed by hand included,
+   * each step in the shape Ask answers one in, its held message by its id. With it, `words` is what the owner wants
+   * changed, and the answer is this draft with that changed and the rest as it stands.
+   */
+  stands?:
+    | {
+        /** The line it was first drafted from; "" for one built by hand. */
+        said: string;
+        kind: NewKind;
+        audience: NewAudience;
+        name: string;
+        who: DraftWho | null;
+        hour: number;
+        /** A one-off's moment as Ask says one: "now", or "YYYY-MM-DD HH:MM"; "" for a sequence. */
+        when: string;
+        steps: Array<{
+          does: NewStepDoes;
+          after_days: number;
+          only_if: FollowUpCondition[];
+          template_id: string | null;
+          texts: string[];
+          write: {
+            title: string;
+            offer: boolean;
+            whatsapp: string;
+            email_subject: string;
+            email_body: string;
+            text: string;
+          };
+          subject: string;
+          body: string;
+          words: string;
+        }>;
+      }
+    | undefined;
 }
 
 /** A draft's steps that hand a person over must be the last: one, at most, and never the first. */

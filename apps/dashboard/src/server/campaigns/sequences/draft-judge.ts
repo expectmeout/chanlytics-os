@@ -289,13 +289,16 @@ export function leadEmail(
 
 /**
  * What may back a number in a lead's step (decision 0113): each claim the owner stands behind, the business's name, and
- * what the owner typed into New, which Ask is told (drafts/sequence.ts) and may repeat as the owner's own words.
+ * what the owner typed into New, which Ask is told (drafts/sequence.ts) and may repeat as the owner's own words. Where
+ * the line changes a draft that stands, what it was first drafted from and its emails as they stand back one too: a
+ * number the owner already kept is theirs to keep, as a rewrite's is (drafts/sequence-rewrite.ts).
  */
 export function draftBackingOf(
   known: Pick<DraftKnown, "business" | "proof">,
-  ask: Pick<NewDraftAsk, "words">,
+  ask: Pick<NewDraftAsk, "words" | "stands">,
 ): string[] {
-  return numberBacking(known.proof, known.business, [ask.words]);
+  const stood = ask.stands ? [ask.stands.said, ...ask.stands.steps.flatMap((step) => [step.subject, step.body])] : [];
+  return numberBacking(known.proof, known.business, [ask.words, ...stood]);
 }
 
 /** A call's or a note's words, kept where they say something to do. */
@@ -361,7 +364,10 @@ function judgeSteps(
   return { steps, cannot };
 }
 
-/** Who the answer named, by its key, else the one the owner or a door chose. */
+/**
+ * Who the answer named, by its key, else the one the owner or a door chose. A draft being changed keeps who it was for
+ * where the answer names no one the request lists.
+ */
 function answerWhoOf(answer: NewDraftAnswer, known: DraftKnown, ask: NewDraftAsk): DraftWho | null {
   if (ask.who) return ask.who;
   const key = answer.who;
@@ -371,7 +377,8 @@ function answerWhoOf(answer: NewDraftAnswer, known: DraftKnown, ask: NewDraftAsk
   if (list) return { kind: "list", token: list.token, label: list.label };
   const search = known.searches.find((s) => s.key === key);
   if (search) return { kind: "search", id: search.id, label: search.label };
-  return key === "everyone" ? { kind: "everyone", label: NEW_WORDS.draft.everyoneNews } : null;
+  if (key === "everyone") return { kind: "everyone", label: NEW_WORDS.draft.everyoneNews };
+  return ask.stands?.who ?? null;
 }
 
 /** Who New names, as its list rule reads it (contracts newListOf): never who said stop; a one-off's list of yeses, everyone. */
@@ -466,7 +473,8 @@ export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDra
   const first = steps[0]?.message ?? null;
   const how = howOf({ kind, audience, who: draftWho, moment, first }, answer, known);
   const draft: NewDraftDto = {
-    said: ask.words.trim(),
+    // The line it was drafted from stays on top: a change says what to change, never what the draft is.
+    said: (ask.stands ? ask.stands.said : ask.words).trim(),
     business: known.business,
     kind,
     audience,
