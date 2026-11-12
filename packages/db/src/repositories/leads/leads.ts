@@ -34,6 +34,8 @@ export type LeadOneLead = Omit<
   | "stage_from"
   // A company's key is the finder's to dedupe by (00430); the page reads what the lead is and its people.
   | "source_key"
+  // How many times the leads clock asked its address again (00618, decision 0131): the clock's count, never the page's.
+  | "email_rechecks"
 >;
 
 /** The membership lead_member_of answers, the columns leads_page answers of it. */

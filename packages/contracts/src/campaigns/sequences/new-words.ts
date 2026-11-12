@@ -27,7 +27,6 @@ export const NEW_WORDS = {
     asked: "Ask’s draft",
     /** Said where the line stays while Ask could not draft it. */
     kept: "Your line is kept",
-    sayAgain: "Say it again",
     undo: "Undo",
     againFor: { people: "Drafting it again for people", leads: "Drafting it again for businesses" } satisfies Record<
       NewAudience,
@@ -111,8 +110,6 @@ export const NEW_WORDS = {
     passedSub: "Pick a later one, or send it now",
     /** A one-off set further ahead than a send may wait (the send door's BROADCAST_SCHEDULE_MAX_DAYS). */
     tooFar: (days: number) => `Pick a time within ${days} days`,
-    sayIt: "Say it",
-    orSay: "Or say it in a line, and Ask fills it in.",
     lineFirst: (n: number | null) =>
       `${n === null ? "The people" : `The ${n}`} on it now get step 1 at its first run; anyone who joins later, the day they join`,
     subSchedule: "Draft · nothing goes until you schedule it",
@@ -348,10 +345,6 @@ export const NEW_WORDS = {
     words: "Message",
     valuesSaid: (values: string) => `A value goes in braces: ${values}`,
     aValue: "A value",
-    warmer: "Warmer",
-    shorter: "Shorter",
-    asking: "Asking…",
-    undo: "Undo",
     offerNote: "An offer, so no text version. WhatsApp’s goes to Meta when you start it.",
     heldSub: "One of your messages",
     heldWords: "Its words are changed in Messages, for every step that sends it.",
@@ -395,6 +388,23 @@ export const NEW_WORDS = {
     nothingFits: "Ask couldn’t find who and what for this. Say it another way.",
     noMessage: "Ask couldn’t write a message that holds here. Pick one of yours, or write it.",
     stepDropped: "A step couldn’t be kept as Ask wrote it, so it is left out.",
+    /**
+     * Why a step Ask wrote cannot be kept, each a clause: said in the draft's card, and to Ask where it is asked once
+     * more (decision 0129 step 2). What the message door refuses is said in the door's own words.
+     */
+    why: {
+      noWords: "it has no words, or no name",
+      unknownValue: "its words name a value New doesn’t know, or leave a brace open",
+      valuesDiffer: "its email or text names a value its WhatsApp words don’t",
+      onlyFirst:
+        "a booking’s time or service, a proposal’s link or a freed time is only known on the first step of its own moment",
+      noMessage: "it names none of the business’s messages and writes none",
+    },
+    /** A step left out, with why. */
+    stepLeftOut: (place: number, reason: string) => `Step ${place} was left out: ${reason}.`,
+    /** A change that rewrote a step in words that cannot be kept: the step stands as it did, with why. */
+    stepStays: (place: number, reason: string) =>
+      `Step ${place} stays as it was. Ask’s new words for it couldn’t be kept: ${reason}.`,
     handNotLast: "A call or a note ends a sequence, so it is the last step.",
     leftOut: (text: string) => `Left out: “${text}”`,
   },

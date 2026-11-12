@@ -231,11 +231,6 @@ const NEW_WHO = z.discriminatedUnion("kind", [
   }),
 ]);
 
-/**
- * POST sequences/draft (decision 0065): the owner's line, and any choice already made (`kind`, `audience`, `who`: a door's,
- * or the owner's in the draft, which Ask keeps), and the draft it rewrites when they say it again (`previous`, its name and
- * how many steps it had: what the model is told of it).
- */
 /** POST sequences/:id/rewrite: the email as it stands (a later one has no subject), and what its owner wants changed. */
 export const REWRITE_BODY = z.strictObject({
   subject: z.string().max(REACH_OUT_SUBJECT_MAX).nullable(),
@@ -250,23 +245,6 @@ export const REWRITE_BODY = z.strictObject({
 /** POST sequences/voice (decision 0078): one email the owner wrote, whole, for Ask to read how they write. */
 export const VOICE_BODY = z.strictObject({
   text: z.string().trim().min(VOICE_PASTE_MIN, VOICE_WORDS.tooShort).max(VOICE_PASTE_MAX, VOICE_WORDS.tooLong),
-});
-
-export const DRAFT_BODY = z.strictObject({
-  words: z
-    .string()
-    .trim()
-    .min(8, "Say what it should do — one line is enough.")
-    .max(NEW_WORDS_MAX, `At most ${NEW_WORDS_MAX} characters.`),
-  kind: z.enum(NEW_KINDS).optional(),
-  audience: z.enum(NEW_AUDIENCES).optional(),
-  who: NEW_WHO.optional(),
-  previous: z
-    .strictObject({
-      name: z.string().max(80),
-      steps: z.number().int().min(1).max(8),
-    })
-    .optional(),
 });
 
 /** A message Ask wrote, as New holds it until it is filed (contracts NewWrittenMessage; write-message.ts judges it). */
@@ -306,6 +284,72 @@ const NEW_STEP = z.strictObject({
   email: z.strictObject({ subject: z.string().max(200).nullable(), body: z.string().max(4000) }).nullable(),
   hand: z.string().max(HAND_WORDS_MAX),
 });
+
+/**
+ * One step of a draft that stands, as Ask is told it (contracts NewDraftAsk `stands`): the shape Ask answers a step in,
+ * its held message by id. Its words are data to the model, and what comes back is judged as any draft is.
+ */
+const STANDS_STEP = z.strictObject({
+  does: z.enum(NEW_STEP_DOES),
+  after_days: z.number().int().min(0).max(90),
+  only_if: ONLY_IF,
+  template_id: anId("Which message?").nullable(),
+  texts: z.array(z.string().max(300)).max(10),
+  write: z.strictObject({
+    title: z.string().max(80),
+    offer: z.boolean(),
+    whatsapp: z.string().max(2000),
+    email_subject: z.string().max(400),
+    email_body: z.string().max(6000),
+    text: z.string().max(1000),
+  }),
+  subject: z.string().max(400),
+  body: z.string().max(6000),
+  words: z.string().max(HAND_WORDS_MAX),
+});
+
+/** How much a first line must say before Ask drafts from it; a change to a draft that stands may be a word ("Shorter"). */
+const DRAFT_LINE_MIN = 8;
+
+/**
+ * POST sequences/draft (decision 0065): the owner's line, and any choice already made (`kind`, `audience`, `who`: a door's,
+ * or the owner's in the draft, which Ask keeps), and the draft it rewrites when they say it again (`previous`, its name and
+ * how many steps it had: what the model is told of it). Or the draft the line changes (`stands`, decision 0129 step 2):
+ * the draft as it stands, and `words` what its owner wants changed.
+ */
+export const DRAFT_BODY = z
+  .strictObject({
+    words: z
+      .string()
+      .trim()
+      .min(1, "Say what should change.")
+      .max(NEW_WORDS_MAX, `At most ${NEW_WORDS_MAX} characters.`),
+    kind: z.enum(NEW_KINDS).optional(),
+    audience: z.enum(NEW_AUDIENCES).optional(),
+    who: NEW_WHO.optional(),
+    previous: z
+      .strictObject({
+        name: z.string().max(80),
+        steps: z.number().int().min(1).max(8),
+      })
+      .optional(),
+    stands: z
+      .strictObject({
+        said: z.string().max(NEW_WORDS_MAX),
+        kind: z.enum(NEW_KINDS),
+        audience: z.enum(NEW_AUDIENCES),
+        name: z.string().max(80),
+        who: NEW_WHO.nullable(),
+        hour: z.number().int().min(0).max(23),
+        when: z.string().max(40),
+        steps: z.array(STANDS_STEP).min(1, "Add a step.").max(8),
+      })
+      .optional(),
+  })
+  .refine((b) => !!b.stands || b.words.length >= DRAFT_LINE_MIN, {
+    path: ["words"],
+    message: "Say what it should do — one line is enough.",
+  });
 
 /**
  * POST sequences/new (decision 0065): New's draft, kept (`start` false) or started. A sequence or a one-off, to people or to

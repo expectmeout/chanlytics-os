@@ -419,11 +419,14 @@ test("the route: refused without the key; with it, the rows are read, each actio
     rounds_ended: 0,
     carried_on: 1,
     given_up: 0,
+    rechecks_asked: 0,
+    rechecks_held: 0,
     marks_due: 0,
     marks_kept: 0,
     failed: 0,
     source: "off",
   });
+  assert.deepEqual(w.rechecks, [200], "the addresses that did not answer are asked again, 200 at most a tick");
   assert.deepEqual(
     w.T.jobs.map((j) => [
       j.kind,

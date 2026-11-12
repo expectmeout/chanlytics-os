@@ -444,7 +444,15 @@ export const setChannels = (d: NewDraftDto, channels: readonly ConsentChannel[])
 });
 export const setMode = (d: NewDraftDto, mode: SequenceMode): NewDraftDto => ({ ...d, mode });
 export const setAddsNew = (d: NewDraftDto, on: boolean): NewDraftDto => ({ ...d, adds_new: on });
-export const setName = (d: NewDraftDto, name: string): NewDraftDto => ({ ...d, name: name.slice(0, 80) });
+/**
+ * A draft's name, and its first step's with it where that step carries the sequence's own (sequence_create names it so):
+ * left under the old name, its box said that name where it says its message, and the make sent it.
+ */
+export const setName = (d: NewDraftDto, name: string): NewDraftDto => {
+  const next = name.slice(0, 80);
+  const carried = (step: NewStep, at: number) => at === 0 && step.name.trim() === d.name.trim();
+  return { ...d, name: next, steps: d.steps.map((step, at) => (carried(step, at) ? { ...step, name: next } : step)) };
+};
 
 /**
  * A one-off whose WhatsApp version Ask wrote new (D5): Meta reviews that version first, and the send is made as it is sent

@@ -696,9 +696,16 @@ export function leadWorld({
         return false;
       return end(round, round.ending_pending ?? p_ending);
     },
+    // 00618: the clock's second try at the addresses that did not answer. Which leads it asks, and what a try costs, are
+    // the database suite's to prove (couldnt-check-is-checked-again.db); here, that the clock asks, and how many at most.
+    lead_check_retry: ({ p_limit }) => {
+      w.rechecks.push(p_limit);
+      return { asked: 0, held: 0 };
+    },
   };
   w.rpcs = rpcs;
   w.siteSpends = [];
+  w.rechecks = [];
   w.db = fakeDb(T, {}, rpcs);
   // 00140's index on lead_collect's (run_id, seq): a second insert is 23505, as the door meets it; a row inserted without a state has Postgres's default.
   const realFrom = w.db.from;

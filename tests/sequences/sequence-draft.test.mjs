@@ -36,7 +36,8 @@ import { fakeDb } from "../_fake-db.mjs";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { setModelStream } = await import("../../apps/dashboard/src/server/shared/model-json.ts");
-const { draftSequenceFrom, examplesOf } = await import("../../apps/dashboard/src/server/drafts/sequence.ts");
+const { draftRules, draftSequenceFrom, examplesOf } =
+  await import("../../apps/dashboard/src/server/drafts/sequence.ts");
 const { draftKept } = await import("../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
 const M = await import("../../apps/dashboard/src/surfaces/campaigns/sequences/new/new-model.ts");
 const { onceChannelsOf, leadFirstOf } = await import("../../apps/dashboard/src/server/drafts/sequence-new.ts");
@@ -254,10 +255,10 @@ test("a wait is the audience's, a value its run cannot fill leaves a later step 
     [null, 90],
   );
   assert.deepEqual(out.steps[1].message.params[1], { kind: "text", value: "" });
-  assert.match(
+  assert.equal(
     out.cannot,
-    /couldn’t be kept/,
-    "the step that names a visit's time after the first is left out, and said",
+    NEW_WORDS.cannot.stepLeftOut(3, NEW_WORDS.cannot.why.onlyFirst),
+    "the step that names a visit's time after the first is left out, and said with why",
   );
 });
 
@@ -294,6 +295,43 @@ test("Ask writes a message where none fits: kept as the message door files it, u
     ["marketing", ["whatsapp"]],
   );
   assert.ok(offer.checks.some((c) => c.tone === "warn" && /new message/.test(c.words)));
+  // A later step on the visit's moment is an offer, whatever Ask says (Ruben's call, 12 Nov 2026): an invitation back
+  // weeks after a visit is marketing, so only a yes to offers hears it, and its text version is dropped.
+  const later = draftKept(
+    answer({
+      steps: [
+        step({ write }),
+        step({
+          after_days: 28,
+          only_if: ["no_booking"],
+          write: {
+            ...write,
+            title: "Invite back",
+            whatsapp: "Hi {{first name}}, book your next visit: {{booking link}}",
+            text: "Book again: {{booking link}}",
+          },
+        }),
+      ],
+    }),
+    KNOWN,
+    LINE,
+  );
+  assert.deepEqual(
+    [later.steps[0].message.written.category, later.steps[0].message.offer],
+    ["utility", false],
+    "the first step is about their visit",
+  );
+  const back = later.steps[1].message;
+  assert.deepEqual(
+    [back.written.category, back.offer, back.channels, back.written.versions.sms],
+    ["marketing", true, ["whatsapp"], undefined],
+    "the step after it is an offer, never by text",
+  );
+  assert.match(
+    draftRules(false),
+    /a later step \(inviting them back, a nudge to book\) is an offer: `offer` true and no `text`/,
+    "and Ask is told so",
+  );
   // A value New does not know is no message: the first step is refused.
   assert.throws(
     () => draftKept(answer({ steps: [step({ write: { ...write, whatsapp: "Hi {{pet name}}" } })] }), KNOWN, LINE),

@@ -39,6 +39,7 @@ import {
   listRunsOfRounds,
   markLeadRunUnknown,
   releaseLeadRun,
+  retryLeadChecks,
 } from "@chanlytics/db/leads";
 import { recordOrEmpty, type SchemaSet, textOrEmpty, DbFailure } from "@chanlytics/contracts";
 
@@ -203,7 +204,47 @@ function sweepPorts(
   };
 }
 
-/** Last, in what is left of the tick: the marks the collects of the last few minutes had no time to read. */
+/** How many addresses that did not answer one sweep asks again (decision 0131): a check is a job, so the sweep only queues. */
+const RECHECKS_AT_ONCE = 200;
+
+/**
+ * The addresses whose mailbox check did not answer, asked again (decision 0131, lead_check_retry): each a day after its
+ * last check, at most twice, inside each workspace's searching budget and only while its searching is on. A read that
+ * fails is logged and the tick goes on; a database before 00618 has no such door, and asks nothing.
+ */
+async function checksAgain({
+  db,
+  L,
+}: Pick<SweepTick, "db" | "L">): Promise<{ asked: number; held: number; failed: number }> {
+  try {
+    return { ...(await retryLeadChecks(db, RECHECKS_AT_ONCE)), failed: 0 };
+  } catch (e) {
+    L.error("leads_sweep_action_failed", { kind: "rechecks", error: errField(e) });
+    return { asked: 0, held: 0, failed: 1 };
+  }
+}
+
+/**
+ * Last, the second tries: the addresses that did not answer, asked again (checksAgain), then, in what is left of the tick,
+ * the marks the collects of the last few minutes had no time to read (marksAgain). Their counts, and how many failed.
+ */
+async function secondTries(
+  { db, L }: Pick<SweepTick, "db" | "L">,
+  wires: LeadWires | undefined,
+  deadline: number,
+): Promise<{ rechecks_asked: number; rechecks_held: number; marks_due: number; marks_kept: number; failed: number }> {
+  const rechecks = await checksAgain({ db, L });
+  const marks = await marksAgain({ db, L }, wires, deadline);
+  return {
+    rechecks_asked: rechecks.asked,
+    rechecks_held: rechecks.held,
+    marks_due: marks.due,
+    marks_kept: marks.kept,
+    failed: rechecks.failed + marks.failed,
+  };
+}
+
+/** In what is left of the tick: the marks the collects of the last few minutes had no time to read. */
 async function marksAgain(
   { db, L }: Pick<SweepTick, "db" | "L">,
   wires: LeadWires | undefined,
@@ -244,6 +285,8 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
     given_up: 0,
     marks_due: 0,
     marks_kept: 0,
+    rechecks_asked: 0,
+    rechecks_held: 0,
     failed: 0,
     source: wires ? "on" : "off",
   };
@@ -343,10 +386,8 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
       L.error("leads_sweep_reconcile_failed", { error: errField(e) });
     }
   }
-  const marks = await marksAgain({ db, L }, wires, now + SWEEP_DEADLINE_MS);
-  counts.marks_due = marks.due;
-  counts.marks_kept = marks.kept;
-  counts.failed += marks.failed;
+  const later = await secondTries({ db, L }, wires, now + SWEEP_DEADLINE_MS);
+  Object.assign(counts, { ...later, failed: counts.failed + later.failed });
   L.info("leads_sweep_done", { ...counts, actions: actions.length });
   return json(200, { ok: true, ...counts });
 }
