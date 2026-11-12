@@ -817,6 +817,23 @@ const kitFitSheet = () =>
   `<button type="button" class="btn btn-primary">Send</button></div></footer></section>`;
 
 /**
+ * The kit's Sheet on a solid ground (`solid`, kit-behaves.tsx's; the Calendar's visit) with a flat foot (`flatFoot`): read
+ * and answered on with one rest, as tall as what it holds, its head running into it and its presses on its own ground.
+ */
+const kitSolidSheet = () =>
+  `<button type="button" class="btn">Open the visit</button>` +
+  `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
+  `<section class="sheet" role="dialog" tabindex="-1" data-solid="true">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Consultation</h2>` +
+  `<p class="rec-sheet-sub">Yesterday, 10:30 to 11 AM</p></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body">${KIT_ROWS}</div>` +
+  `<footer class="rec-sheet-foot rec-sheet-foot-flat"><div data-foot-pair="">` +
+  `<button type="button" class="btn">Missed</button>` +
+  `<button type="button" class="btn btn-primary">Kept</button></div></footer></section>`;
+
+/**
  * The kit's Sheet in a phone's job's shape, open on its second step (kit-behaves.tsx's): the control that opened it,
  * the wash, and the dialog with its way back, its title and its word, and the step's one act.
  */
@@ -2946,6 +2963,7 @@ export const FAMILIES = [
       { id: "sheet-kit-kicker", stage: "sheet", html: kitKickerSheet() },
       { id: "sheet-kit-rests", stage: "sheet", html: kitRestsSheet() },
       { id: "sheet-kit-fit", stage: "sheet", html: kitFitSheet() },
+      { id: "sheet-kit-solid", stage: "sheet", html: kitSolidSheet() },
     ],
   },
   {

@@ -139,6 +139,11 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
     bring: (p) => p.getByTestId("sheet-fit-open").click(),
     ready: "section.sheet.sheet-rests",
   },
+  {
+    entry: "sheet-kit-solid",
+    bring: (p) => p.getByTestId("sheet-solid-open").click(),
+    ready: "section.sheet[data-solid]",
+  },
   { entry: "menu-kit", bring: (p) => p.getByTestId("menu-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-who", bring: (p) => p.getByTestId("menu-who-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-set", bring: (p) => p.getByTestId("menu-set-open").click(), ready: ".more-menu" },
