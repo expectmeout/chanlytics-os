@@ -3,7 +3,14 @@
  * few typed words matched against them and against the people, threads and calls the browser already holds (askJump).
  * A question is not a jump.
  */
-import { REPORT_LENSES, lensRoute, type LensRow, SEQUENCES_ROUTE, MESSAGES_ROUTE } from "@chanlytics/contracts";
+import {
+  CONTENT_LIBRARY_ROUTE,
+  REPORT_LENSES,
+  lensRoute,
+  type LensRow,
+  SEQUENCES_ROUTE,
+  MESSAGES_ROUTE,
+} from "@chanlytics/contracts";
 
 /* ------------------------------------------------------------------- jump */
 
@@ -91,12 +98,13 @@ export const ASK_PAGES: JumpEntry[] = [
     sub: "opening hours, closed days, booking rules",
     also: ["hours", "booking link", "booking tool"],
   },
+  // Content's Library (the content redesign's stage 2): what was Settings › Files, found too by that name.
   {
-    label: "Files",
-    to: "admin/files",
+    label: "Library",
+    to: CONTENT_LIBRARY_ROUTE,
     kind: "page",
-    sub: "every photo the business keeps",
-    also: ["photos", "pictures", "images"],
+    sub: "every photo and clip the business keeps",
+    also: ["files", "photos", "pictures", "images", "clips"],
   },
   {
     label: "How it answers",

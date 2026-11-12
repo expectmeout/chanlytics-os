@@ -3,7 +3,7 @@
  * and for a video what was heard of it; what a person says of it; and its foot. Settings loads no Base UI popup, so the sheet is
  * the house's (kit/record/sheet). Each change is saved as it is made, and the door's refresh reads the list again.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import {
   FILE_WORDS as W,
   MAKE_POST_ASK,
@@ -17,8 +17,6 @@ import {
   type FileDto,
   type FileMade,
   type FilePosted,
-  type FileRecordDto,
-  type FileSound,
   type PostDto,
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
@@ -27,8 +25,8 @@ import { Icon } from "../kit/icon/icon";
 import { Notice } from "../kit/notice/notice";
 import { RecordSheet } from "../kit/record/sheet";
 import { afterSheetCloses } from "../kit/sheet/back";
-import { askAbout, canDo, type FrameFlash } from "../frame-verbs";
-import { FileChoices, FileReads, FileWho, NameField, type SheetPress } from "./file-fields";
+import { askAbout, canDo, refreshSurface, type FrameFlash } from "../frame-verbs";
+import { FileChoices, FileFrom, FileReads, FileWho, NameField, lookSaysOf, type SheetPress } from "./file-fields";
 import { Picture } from "./photo";
 import { PostGoogle, PostGoogleActs, PostOnGoogle, usePostGoogle } from "./places/post-google";
 import {
@@ -38,69 +36,11 @@ import {
   useSheetInstagram,
   type usePostInstagram,
 } from "./places/post-instagram";
+import { usePostRecord } from "./post-record";
 import { PostShapes } from "./post-shapes";
 import { PostVersion, PostVersionActs, usePostVersion } from "./post-version";
 import { fileVerbs, type FileChange } from "./verbs";
 import { VideoHeard, VideoOpened } from "./video-player";
-
-/** What the sheet says the look saw, or how it stands. A refused picture a person has since kept waits for no one. */
-function lookSaysOf(file: FileDto): string | null {
-  // A video not yet ready says so where its player stands: the look has nothing to read before.
-  if (file.kind === "video" && file.media_status !== "ready") return null;
-  if (file.look_status === "waiting") return W.looking;
-  if (file.look_status === "refused") return file.status === "inbox" ? W.refused : W.notRead;
-  if (file.look_status === "failed") return W.notRead;
-  return file.line;
-}
-
-/**
- * How a post was made and where it is up, or what was heard of a video, read as its sheet opens: none of it is on the list a page
- * reads. Nothing is said until it comes. A video's is read again as what it is heard changes (its list's `sound_said`).
- */
-function usePostRecord(file: FileDto) {
-  const [made, setMade] = useState<FileMade | null>(null);
-  const [connected, setConnected] = useState(false);
-  const [posted, setPosted] = useState<FilePosted | null>(null);
-  const [sound, setSound] = useState<FileSound | null>(null);
-  const [instagram, setInstagram] = useState<FileRecordDto["instagram"]>(null);
-  // Read again when asked: a post on its way to Instagram says where it stands as it moves.
-  const [asked, setAsked] = useState(0);
-  const reread = useCallback(() => setAsked((n) => n + 1), []);
-  const isPost = file.source === "made";
-  const isVideo = file.kind === "video";
-  const heard = isVideo ? `${file.media_status}|${file.sound_said ?? ""}` : "";
-  useEffect(() => {
-    if (!isPost && !isVideo) return undefined;
-    let live = true;
-    void fileVerbs.record(file.id).then((r) => {
-      if (!live || !r.ok) return;
-      setMade(r.data.made);
-      setConnected(r.data.google?.connected ?? false);
-      setPosted(r.data.google?.posted ?? null);
-      setInstagram(r.data.instagram ?? null);
-      setSound(r.data.sound ?? null);
-    });
-    return () => {
-      live = false;
-    };
-  }, [file.id, isPost, isVideo, heard, asked]);
-  return { made, connected, posted, setPosted, sound, instagram, reread };
-}
-
-/** Where a post came from, a door to that photo while it is here; anything else says the road that brought it. */
-function FileFrom({ file, made, open }: { file: FileDto; made: FileMade | null; open: (id: string) => void }) {
-  if (file.source !== "made" || !made) return <p className="files-from">{W.sources[file.source]}</p>;
-  const { from } = made;
-  if (!from) return <p className="files-from">{W.madeFromGone}</p>;
-  return (
-    <p className="files-from files-made-from">
-      {W.madeFrom}
-      <Button size="sm" variant="quiet" onClick={() => open(from.id)} data-testid="fl-made-from">
-        {fileSaidOf(from.name)}
-      </Button>
-    </p>
-  );
-}
 
 /** What Make a post asks Ask: a photo's own sentence, or a video's, whose post is drawn from the moment Ask chooses. */
 const postAskOf = (file: FileDto) => (file.kind === "video" ? W.video.makePostAsk : MAKE_POST_ASK);
@@ -309,10 +249,17 @@ function FileSheet({
   };
   const remove = async () => {
     setBusy(true);
-    const r = await fileVerbs.remove(file.id);
+    const removed = await fileVerbs.remove(file.id);
     setBusy(false);
-    if (!r.ok) return setProblem(r.message);
-    flash({ msg: <>{file.kind === "video" ? W.video.removed : W.removed}</> });
+    if (!removed.ok) return setProblem(removed.message);
+    // Ten minutes for Undo (00616): pressed in time, the file is back, and the library reads it again.
+    const undo = async () => {
+      const back = await fileVerbs.restore(file.id);
+      if (!back.ok) return flash({ tone: "danger", msg: <>{back.message}</> });
+      flash({ msg: <>{W.restored}</> });
+      void refreshSurface("files");
+    };
+    flash({ msg: <>{file.kind === "video" ? W.video.removed : W.removed}</>, undo: () => void undo() });
     onClose();
   };
   const press: SheetPress = { file, may, busy, say };

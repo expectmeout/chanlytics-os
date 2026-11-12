@@ -502,18 +502,14 @@ test("a card read again says what was saved, not what Ask first proposed: a pers
   assert.ok(!html.includes('alt="Now booking"'));
 });
 
-test("a file asked for from over its page is opened by the page: the address is no news to one already on screen", () => {
+test("a file asked for from Ask's card opens in Content's viewer, by the address alone (the content redesign's stage 2)", () => {
   const went = [];
   const opened = [];
-  S.openFile(FILE(5), (r) => went.push(r));
-  assert.deepEqual(went, [`admin/files?do=file:${FILE(5)}`], "the address says it, for a page not on screen yet");
-  assert.deepEqual(opened, []);
   const stop = S.followFileAsked((id) => opened.push(id));
-  S.openFile(FILE(6), () => {});
-  assert.deepEqual(opened, [FILE(6)]);
+  S.openFile(FILE(5), (r) => went.push(r));
   stop();
-  S.openFile(FILE(7), () => {});
-  assert.deepEqual(opened, [FILE(6)], "a page gone hears nothing");
+  assert.deepEqual(went, [`campaigns/content:${FILE(5)}`], "the route moves, which the frame hears on any page");
+  assert.deepEqual(opened, [], "Settings › Files, should it stand, is not told: the file opens in Content");
 });
 
 test("a page the router drew before it moved the address opens the file the address names once it has landed", () => {
@@ -566,7 +562,7 @@ test("a Spanish post says its own words, on the card and its presses", () => {
       outcome: { state: "done", receipt: "", atMs: 1, made: { kind: "post", id: FILE(2) } },
     }),
   );
-  for (const word of ["Vertical", "Cuadrado", "Historia", "Descargar", "Abrir en Archivos"])
+  for (const word of ["Vertical", "Cuadrado", "Historia", "Descargar", "Abrir en Contenido"])
     assert.ok(html.includes(word), word);
   assert.ok(!html.includes("Download"));
 });

@@ -23,6 +23,7 @@ import {
   keepManyFiles,
   findFile,
   deleteFileRow,
+  restoreFileRow,
   filesBucket,
   type FileMemberRow,
 } from "@chanlytics/db/files";
@@ -104,6 +105,14 @@ export async function keepFiles(
 /** DELETE files/[id]: hidden now, its bytes gone by the job. */
 export async function removeFile(ctx: RouteContext, member: Member, file: FileMemberRow): Promise<{ ok: true }> {
   const { error } = await deleteFileRow(ctx.supabase, member.tenantId, file.id);
+  if (error) throw fileDoorRefusal(error);
+  return { ok: true };
+}
+
+/** POST files/[id]/restore: Undo of a delete, while its purge waits (00616). One whose bytes have begun to go says so. */
+export async function restoreFile(ctx: RouteContext, member: Member, id: string): Promise<{ ok: true }> {
+  const { error } = await restoreFileRow(ctx.supabase, member.tenantId, id);
+  if (error?.code === "P0002") throw new AppError("not_found", W.restoreGone, 404);
   if (error) throw fileDoorRefusal(error);
   return { ok: true };
 }

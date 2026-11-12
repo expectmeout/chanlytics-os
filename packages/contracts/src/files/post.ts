@@ -136,7 +136,7 @@ export interface PostWords {
   share: string;
   shareFailed: string;
   gone: string;
-  openInFiles: string;
+  openInContent: string;
   shapesSaid: string;
   shapes: Record<PostShapeName, string>;
   edit: string;
@@ -162,18 +162,18 @@ export interface PostWords {
 export const POST_WORDS = {
   cardTitle: (line: string) => `Post: ${line}`,
   summary: (fileName: string) => `From ${fileName}. Comes in portrait, square and story.`,
-  save: "Save to Files",
-  saved: (name: string) => `Saved to Files as ${name}`,
+  save: "Save to Content",
+  saved: (name: string) => `Saved to Content as ${name}`,
   saveNew: "Save as new",
   cancel: "Cancel",
-  removed: "Taken out of Files",
+  removed: "Taken out of Content",
   undo: "Undo",
   notDrawn: "The picture could not be drawn. Saving still works.",
   download: "Download",
   share: "Share",
   shareFailed: "Sharing didn't open. Download it instead.",
-  gone: "This post isn't in Files any more.",
-  openInFiles: "Open in Files",
+  gone: "This post isn't in Content any more.",
+  openInContent: "Open in Content",
   shapesSaid: "Shape",
   shapes: { portrait: "Portrait", square: "Square", story: "Story" },
   edit: "Edit",
@@ -199,7 +199,7 @@ export const POST_WORDS = {
   },
   photoWont: {
     made: "That's a post already. Use the photo it came from.",
-    unkept: "Keep this photo in Files first.",
+    unkept: "Keep this photo in your Library first.",
     design: "This picture already has words or a design on it, so more would clash.",
     video: "This video is still being made ready. A post can use it once it is.",
     moment: "Choose the moment of the video the post is made from.",
@@ -209,18 +209,18 @@ export const POST_WORDS = {
 const POST_WORDS_ES: PostWords = {
   cardTitle: (line) => `Publicación: ${line}`,
   summary: (fileName) => `De ${fileName}. En vertical, cuadrado e historia.`,
-  save: "Guardar en Archivos",
-  saved: (name) => `Guardada en Archivos como ${name}`,
+  save: "Guardar en Contenido",
+  saved: (name) => `Guardada en Contenido como ${name}`,
   saveNew: "Guardar como nueva",
   cancel: "Cancelar",
-  removed: "Quitada de Archivos",
+  removed: "Quitada de Contenido",
   undo: "Deshacer",
   notDrawn: "No se pudo dibujar la imagen. Aun así puedes guardarla.",
   download: "Descargar",
   share: "Compartir",
   shareFailed: "No se pudo abrir compartir. Descárgala.",
-  gone: "Esta publicación ya no está en Archivos.",
-  openInFiles: "Abrir en Archivos",
+  gone: "Esta publicación ya no está en Contenido.",
+  openInContent: "Abrir en Contenido",
   shapesSaid: "Formato",
   shapes: { portrait: "Vertical", square: "Cuadrado", story: "Historia" },
   edit: "Editar",
@@ -246,7 +246,7 @@ const POST_WORDS_ES: PostWords = {
   },
   photoWont: {
     made: "Eso ya es una publicación. Usa la foto de la que salió.",
-    unkept: "Guarda primero esta foto en Archivos.",
+    unkept: "Guarda primero esta foto en tu Biblioteca.",
     design: "Esta imagen ya tiene texto o un diseño, y más texto chocaría.",
     video: "Este video todavía se está preparando. Una publicación puede usarlo cuando esté listo.",
     moment: "Elige el momento del video con el que se hace la publicación.",

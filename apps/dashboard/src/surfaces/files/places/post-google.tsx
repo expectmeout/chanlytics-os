@@ -36,12 +36,14 @@ export function usePostGoogle(
   const send = async () => {
     setBusy(true);
     setProblem(null);
-    const r = await fileVerbs.postToGoogle(id, clean);
+    const posted = await fileVerbs.postToGoogle(id, clean);
     setBusy(false);
-    if (!r.ok) return setProblem(r.message);
+    if (!posted.ok) return setProblem(posted.message);
     setWords(null);
     flash({ msg: <>{ON_GOOGLE.posted}</> });
-    saidUp({ name: r.data.name, search_url: r.data.search_url, at: new Date().toISOString() });
+    // A press here has no time, so Google answers with its name; one set for later (00616) is Content's composer's.
+    if (posted.data.name)
+      saidUp({ name: posted.data.name, search_url: posted.data.search_url, at: new Date().toISOString() });
   };
   return {
     open: words !== null,

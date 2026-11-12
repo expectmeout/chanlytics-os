@@ -20,6 +20,7 @@ import { useSwapMotion } from "../kit/motion/use-swap-motion";
 import { Press } from "../kit/press";
 import type { FrameFlash } from "../frame-verbs";
 import { isVideoFile, serverPictureIn, takeAway, tryAgain, tryAll, type SendingPhoto } from "./sending";
+import type { TileShape } from "../campaigns/content/model/tiles";
 
 /** A photo's small picture on the grid. */
 const smallPictureOf = (id: string): string => `${fileViewOf(id)}?w=480`;
@@ -89,7 +90,7 @@ function Picture({
 }
 
 /** Ask's three, while it looks at this photo. A tile that had them keeps them drawn as it finishes, so they fade, and one that never did draws nothing. */
-function AskLooking({ looking, coming = false }: { looking: boolean; coming?: boolean }) {
+export function AskLooking({ looking, coming = false }: { looking: boolean; coming?: boolean }) {
   const [drawn, setDrawn] = useState(looking);
   if (looking && !drawn) setDrawn(true);
   if (!drawn) return null;
@@ -148,13 +149,16 @@ function VideoFrame({ file, name }: { file: FileDto; name: string }) {
   );
 }
 
-export /** One photo on the grid: the picture, and the name it goes by, which the look changes under the eye. */
-function Photo({ file, onOpen }: { file: FileDto; onOpen: () => void }) {
+export /**
+ * One photo on the grid: the picture, and the name it goes by, which the look changes under the eye. A page that draws a
+ * file at its own shape says which (Campaigns › Content); Files' own grid says none, and its tiles stay square.
+ */
+function Photo({ file, onOpen, shape }: { file: FileDto; onOpen: () => void; shape?: TileShape }) {
   const name = fileSaidOf(file.name);
   const nameFades = useSwapMotion<HTMLSpanElement>(name);
   return (
     <Press className="files-photo" onClick={onOpen} data-testid="fl-tile">
-      <span className="files-frame">
+      <span className="files-frame" data-shape={shape}>
         {file.kind === "video" ? (
           <VideoFrame file={file} name={name} />
         ) : (

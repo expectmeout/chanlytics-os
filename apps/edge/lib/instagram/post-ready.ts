@@ -64,6 +64,7 @@ import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import { readKeptSecret } from "./credentials.js";
+import { tellPostMoved } from "../files/post-told.js";
 import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
@@ -123,8 +124,15 @@ export function refusalKept(answer: Pick<InstagramAnswer, "status" | "json">) {
 
 /** The post held: the recheck's words on it, and nothing sent. */
 export async function holdPost(db: Db, post: PostRow, words: string): Promise<{ skipped: string }> {
-  await movePost(db, { postId: post.id, from: ["queued", "preparing"], to: "held", patch: { held_reason: words } });
+  const moved = await movePost(db, {
+    postId: post.id,
+    from: ["queued", "preparing"],
+    to: "held",
+    patch: { held_reason: words },
+  });
   logger({ tenant_id: post.tenant_id }).info("post_held", { post_id: post.id });
+  // Held at its time, with no one there to see it: the bell says so (00616).
+  if (moved) await tellPostMoved(db, post, { is: "held", why: words });
   return { skipped: "held" };
 }
 
@@ -145,7 +153,10 @@ export async function keepPublished(
       published_at: media?.timestamp ?? null,
     },
   });
-  if (moved) logger({ tenant_id: post.tenant_id }).info("post_published", { post_id: post.id, place: post.place });
+  if (!moved) return;
+  logger({ tenant_id: post.tenant_id }).info("post_published", { post_id: post.id, place: post.place });
+  // One that waited for its time went up with no one there to see it: the bell says so (00616).
+  await tellPostMoved(db, post, { is: "up" });
 }
 
 /**

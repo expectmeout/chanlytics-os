@@ -136,7 +136,7 @@ test("ready the moment it can be played, as the bell rings: Ask's look comes aft
   // it was ready. The words of that wait are gone with it.
   const says = pieceWordsIn("en");
   const { html, read } = drawn(held({ stands: { is: "ready", file: made({ look_status: "waiting" }) } }));
-  assert.equal(read, `It's ready In Files, under Made by Ask. Open ${SUMMARY}`);
+  assert.equal(read, `It's ready In Content, under Made. Open ${SUMMARY}`);
   assert.ok(
     !html.includes("data-dim") && !html.includes("ask-piece-working"),
     "at full strength, nothing of Ask's over it",
@@ -159,7 +159,7 @@ test("a card that has its stills shows the video's own first frame from them, an
 
 test("ready: said once, where it is, and Open", () => {
   const { html, read } = drawn(held({ stands: { is: "ready", file: made() } }));
-  assert.equal(read, `It's ready In Files, under Made by Ask. Open ${SUMMARY}`);
+  assert.equal(read, `It's ready In Content, under Made. Open ${SUMMARY}`);
   assert.equal(times(read, "10 seconds"), 1, "its length is the card's own line, said once");
   assert.ok(!html.includes("data-dim"), "at full strength");
   assert.ok(html.includes('data-testid="ask-piece-open"'));
@@ -175,20 +175,20 @@ test("not made: why, once, and Try again for whoever may press", () => {
   assert.ok(html.includes('data-dim=""') && !html.includes("ask-piece-working"), "amber and still, never Ask's three");
   // A member who may not press reads why, with nothing dead to press.
   const reads = drawn(held({ stands: { is: "failed", why: "clips" } }), { onRetry: null });
-  assert.ok(!reads.html.includes("<button") && reads.read.includes("isn't in Files any more"));
+  assert.ok(!reads.html.includes("<button") && reads.read.includes("isn't in your Library any more"));
   // While the second try is on its way the press waits.
   assert.ok(drawn(held({ stands: { is: "failed", why: "draw" } }), { busy: true }).html.includes("disabled"));
 });
 
-test("deleted from Files since: the card says so, and nothing else", () => {
+test("deleted from Content since: the card says so, and nothing else", () => {
   const { html, read } = drawn(held({ stands: { is: "gone" } }));
-  assert.equal(read, "This video isn't in Files any more.");
+  assert.equal(read, "This video isn't in Content any more.");
   assert.ok(!html.includes("<button") && !html.includes("ask-piece-still"));
 });
 
 test("a Spanish video's card says its own words", () => {
   const ready = drawn(held({ stands: { is: "ready", file: made() } }, "es"), { language: "es" });
-  assert.ok(ready.read.startsWith("Está listo En Archivos, en Hecho por Ask. Abrir"), ready.read);
+  assert.ok(ready.read.startsWith("Está listo En Contenido, en Hecho. Abrir"), ready.read);
   const failed = drawn(held({ stands: { is: "failed", why: "draw" } }, "es"), { language: "es" });
   assert.ok(failed.read.startsWith("No se pudo hacer Esta vez no se pudo dibujar."), failed.read);
 });

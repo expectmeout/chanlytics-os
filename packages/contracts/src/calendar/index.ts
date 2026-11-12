@@ -158,6 +158,7 @@ export type { CalendarPerson, PersonVisitsDto, VisitDto } from "./people/visits"
 export { CALENDAR_RUN_SHEET_WORDS, CALENDAR_SHOW_WORDS, calendarRunMarksOf, runMarkShown } from "./runs";
 export type {
   CalendarMomentDto,
+  CalendarPostDto,
   CalendarRunDto,
   CalendarRunItem,
   CalendarRunKind,

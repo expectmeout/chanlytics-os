@@ -34,6 +34,7 @@ const out = await build({
   stdin: {
     contents:
       'export { ContentBody } from "../../apps/dashboard/src/surfaces/campaigns/content/body.tsx";\n' +
+      'export { ContentViews } from "../../apps/dashboard/src/surfaces/campaigns/content/views.tsx";\n' +
       'export { campaignsChrome } from "../../apps/dashboard/src/surfaces/campaigns/routes.ts";\n' +
       'export { setSurfaceValue, surfaceValue } from "../../apps/dashboard/src/surfaces/surface-values.ts";\n' +
       'export { readMoreContent } from "../../apps/dashboard/src/surfaces/campaigns/content/surface.ts";\n' +
@@ -116,7 +117,16 @@ const making = (over = {}) => ({
   created_at: "2026-11-11T15:00:00Z",
   ...over,
 });
-const page = (over = {}) => ({ making: [], made: [], next: null, tally: { made: 0, posted: 0 }, ...over });
+const TALLY = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0 };
+const page = (over = {}) => ({
+  view: "all",
+  making: [],
+  made: [],
+  lines: [],
+  next: null,
+  ...over,
+  tally: { ...TALLY, ...over.tally },
+});
 
 test("before the read lands it says it is reading, and draws nothing it has not read", () => {
   const html = draw(undefined);
@@ -140,7 +150,7 @@ test("nothing made says what Ask makes and offers the two ways to start", () => 
   const videos = S.renderToStaticMarkup(S.createElement(S.ContentBody, { held: page(), acts, videos: true }));
   assert.match(videos, /posts from your photos and videos from your clips/);
   assert.match(html, /Ask for one/);
-  assert.match(html, /Open Files/);
+  assert.match(html, /Open Library/);
   assert.equal(count(html, "cnv-making-title"), 0);
   assert.equal(count(html, "cnv-made-title"), 0);
 });
@@ -152,7 +162,7 @@ test("a video being made leads the page with its words and where it is at", () =
   assert.match(html, /Three years of layers\./);
   assert.match(html, /Putting it together/);
   assert.match(html, /Couldn(&#x27;|')t make it/);
-  assert.match(html, /One of its clips or photos isn(&#x27;|')t in Files any more/);
+  assert.match(html, /One of its clips or photos isn(&#x27;|')t in your Library any more/);
   assert.equal(count(html, "cnv-empty"), 0, "something being made is not nothing");
 });
 
@@ -164,12 +174,19 @@ test("each made piece is a tile that says where it stands, once", () => {
         { file: fileOf(2), posts: [post("instagram", "preparing")] },
         { file: fileOf(3), posts: [post("instagram", "published"), post("google", "published")] },
         { file: fileOf(4), posts: [post("instagram", "failed")] },
-        { file: fileOf(5, { kind: "video", media_status: "ready", seconds: 11.7 }), posts: [] },
+        {
+          file: fileOf(5, { kind: "video", media_status: "ready", seconds: 11.7, width: 1080, height: 1920 }),
+          posts: [],
+        },
       ],
       tally: { made: 5, posted: 2 },
     }),
   );
   assert.equal(count(html, "cnv-tile"), 5);
+  assert.match(html, /data-shape="tall"/, "a video's tile is tall");
+  assert.match(html, /data-shape="portrait"/, "a 4:5 post's tile is portrait");
+  assert.equal(count(html, "cnv-col"), 2, "a page with no width yet draws two columns, a phone's");
+  assert.doesNotMatch(html, /cnv-grid/, "the grid of equal squares is gone");
   assert.equal(count(html, "cnv-said"), 5);
   assert.equal(html.split("5 pieces made · 2 posted").length - 1, 1, "what is made is headed by its count, said once");
   assert.match(html, />Ready to post</);
@@ -252,4 +269,51 @@ test("the Content address wears Campaigns' crumbs and picks its tab in any works
   assert.equal(at.views.picked, "content");
   assert.equal(at.mount, "campaigns");
   assert.equal(at.crumbs.at(-1), "Content");
+});
+
+const line = (n, place, status, over = {}) => ({
+  post: { ...post(place, status), id: `line-${n}`, ...over },
+  file: fileOf(n),
+});
+
+test("Needs you is lines: what stopped and why, with its act, and a video not made", () => {
+  const html = draw(
+    page({
+      view: "needs",
+      lines: [line(1, "instagram", "failed", { error: "Instagram is busy right now." })],
+      making: [making({ status: "failed", failed_why: "clips", first_picture: fileOf(9).id })],
+    }),
+  );
+  assert.equal(count(html, "cnv-line"), 1);
+  assert.equal(count(html, "cnv-line-not-made"), 1);
+  assert.match(html, /Didn&#x27;t post: Instagram is busy right now\./);
+  assert.match(html, />Try again</);
+  assert.equal(count(html, "cnv-tile"), 0, "a view of lines draws no tiles");
+});
+
+test("Posted is lines with a door to the post itself, and a view with nothing says so in one sentence", () => {
+  const html = draw(
+    page({ view: "posted", lines: [line(1, "instagram", "published", { permalink: "https://example.com/p/1" })] }),
+  );
+  assert.match(html, /href="https:\/\/example\.com\/p\/1"/);
+  assert.match(draw(page({ view: "scheduled" })), /Nothing is waiting for its time\./);
+  assert.match(draw(page({ view: "making" })), /Nothing is being made\./);
+});
+
+test("Being made is tiles, its first clip dim under Ask at work", () => {
+  const html = draw(page({ view: "making", making: [making({ first_picture: fileOf(9).id })] }));
+  assert.equal(count(html, "cnv-making"), 1);
+  assert.ok(html.includes(`${fileOf(9).id}/view?w=480`));
+  assert.equal(count(html, "fl-looking"), 1);
+});
+
+test("the views say how many each holds, and Needs you is marked while it holds anything", () => {
+  const tally = { made: 8, posted: 3, needs: 2, making: 1, scheduled: 2 };
+  const html = S.renderToStaticMarkup(
+    S.createElement(S.ContentViews, { view: "all", tally, phone: false, onView: noop }),
+  );
+  for (const v of ["all", "needs", "making", "scheduled", "posted"]) assert.equal(count(html, `cnv-view-${v}`), 1);
+  assert.match(html, /aria-pressed="true"[^>]*data-testid="cnv-view-all"/);
+  assert.match(html, /Needs you<span class="cnv-owed"/);
+  assert.match(html, />8</);
 });

@@ -815,7 +815,7 @@ test("the card commits its plan as it is kept, by its own id, so one press is on
   assert.deepEqual(pieceSpec.commit(inBlocks, {}).body, { ...BLOCKS_PLAN, key: "p-card-8" });
   assert.equal(pieceSpec.receipt(card, {}), PIECE_WORDS.making);
   assert.equal(pieceSpec.made(card, { piece_id: "pc-1" }), "pc-1");
-  assert.equal(pieceSpec.open(card, null), "admin/files");
+  assert.equal(pieceSpec.open(card, null), "campaigns/content");
   assert.equal(pieceSpec.undo, undefined);
 });
 

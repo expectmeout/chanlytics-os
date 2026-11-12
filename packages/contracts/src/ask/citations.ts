@@ -102,11 +102,13 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
   "campaigns/sequences",
   // Campaigns › Messages, its other view (19 Oct 2026); its old route, `messages`, lands on it (RETIRED_PAGES).
   "campaigns/messages",
+  // Campaigns › Content (decision 0125), with the library that was Settings › Files (RETIRED_PAGES).
+  "campaigns/content",
+  "campaigns/content:library",
   ...LENS_ROUTES,
   "start",
   "admin/workspace",
   "admin/hours",
-  "admin/files",
   "admin/receptionist",
   // Cold email (decision 0113): a card of propose_settings' reach_out opens on its row.
   "admin/outreach",
@@ -195,6 +197,7 @@ const RETIRED_PAGES: ReadonlySet<string> = new Set([
   "broadcasts/to-send",
   "broadcasts/get-yes",
   "messages",
+  "admin/files",
 ]);
 
 /**

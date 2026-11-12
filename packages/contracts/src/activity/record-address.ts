@@ -6,6 +6,7 @@ import { listToken } from "../people/lists/token";
 import { personTabRoute, type PersonTab } from "../people/person-page/route";
 import { lensRoute, reviewRoute } from "../reports/lenses";
 import { messageRoute, runRoute, sequenceRoute } from "../campaigns/sequences/address";
+import { CONTENT_LIBRARY_ROUTE } from "../content/address";
 import type { RecordKind } from "./record-kinds";
 
 /**
@@ -88,7 +89,6 @@ const PANE = {
   channel: "admin/integrations",
   team: "admin/team",
   billing: "admin/billing",
-  file: "admin/files",
 } as const;
 
 /**
@@ -140,7 +140,8 @@ export function addressOf(ref: RecordRef): string {
     case "billing":
       return PANE.billing;
     case "file":
-      return PANE.file;
+      // Settings › Files is Content's Library now (the content redesign's stage 2).
+      return CONTENT_LIBRARY_ROUTE;
   }
 }
 

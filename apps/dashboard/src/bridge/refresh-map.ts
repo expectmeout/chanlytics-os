@@ -98,6 +98,7 @@ const filesIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? d
 // What Ask made (campaigns/content/surface.ts), where Campaigns › Content is drawn: a made file's change, a post sent or stopped.
 const contentIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([contentOverride]) : []);
 const filesAndContentIfDrawn = (): SurfaceOverride[] => [...filesIfDrawn(), ...contentIfDrawn()];
+const postMoved = (): SurfaceOverride[] => [...contentIfDrawn(), ...calendarRunsIfDrawn()];
 // Ask's morning (today/ask-morning-surface.ts; decision 0070; its cards rows of Need you, 0071), where Today is on screen: a card of the morning's turn
 // pressed in the Line, or on Today itself, leaves the cards Today offers, so none is drawn with a press it no longer takes.
 const morningIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([askMorningOverride]) : []);
@@ -543,11 +544,15 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST files/video": filesAndContentIfDrawn,
   "PATCH files/[id]": filesAndContentIfDrawn,
   "DELETE files/[id]": filesAndContentIfDrawn,
-  // A post put on a place or taken off it changes no file, so the feed is silent: Content, which draws where each stands, reads.
-  "POST files/[id]/google": contentIfDrawn,
-  "DELETE files/[id]/google": contentIfDrawn,
-  "POST files/[id]/instagram": contentIfDrawn,
-  "DELETE files/[id]/instagram": contentIfDrawn,
+  // Undo of a delete, and a still kept from a video (the content redesign's stage 3): a file back, or a new one.
+  "POST files/[id]/restore": filesAndContentIfDrawn,
+  "POST files/[id]/still": filesAndContentIfDrawn,
+  // A post put on a place or taken off it changes no file, so the feed is silent: Content, which draws where each stands, reads,
+  // and the Calendar's posts at their times.
+  "POST files/[id]/google": postMoved,
+  "DELETE files/[id]/google": postMoved,
+  "POST files/[id]/instagram": postMoved,
+  "DELETE files/[id]/instagram": postMoved,
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
   // Business tab's fold and the board's card both draw from, so the list says what is left at once. (Read again is a job: below.)
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],

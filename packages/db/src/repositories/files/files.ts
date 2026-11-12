@@ -190,6 +190,23 @@ export async function countFilesMade(db: Db, tenantId: TenantId): Promise<number
   return count ?? 0;
 }
 
+/** The most files one read names by id: a view of Content draws a page of lines, each one file. */
+const FILES_BY_ID_MAX = 100;
+
+/** These files, under the caller's RLS, where they are still there: the files a page of Content's lines is of. */
+export async function listFilesByIds(db: Db, tenantId: TenantId, ids: readonly string[]): Promise<FileMemberRow[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await db
+    .from("files")
+    .select(MEMBER_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .in("id", [...ids].slice(0, FILES_BY_ID_MAX))
+    .is("removed_at", null)
+    .or(ARRIVED);
+  if (error) throw new DbFailure(error, "files by id");
+  return data;
+}
+
 /** One file, under the caller's RLS; null where it is not there for them, or was removed. */
 export async function findFile(db: Db, id: string): Promise<FileMemberRow | null> {
   const { data, error } = await db

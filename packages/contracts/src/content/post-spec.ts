@@ -3,15 +3,15 @@
  * file, in a shape each, with an Undo for ten minutes. Whoever may delete a file may press it, since the Undo deletes it: an
  * operator may add a photo, not this.
  */
-import { postPlanOf, postWordsIn, type PostLanguage } from "./post";
-import { FILES_ROUTE } from "./views";
 import { asText, rec, type ProposalSpecAboveOperator } from "../ask/proposals/spec";
+import { postPlanOf, postWordsIn } from "../files/post";
+import { CONTENT_ROUTE } from "./address";
 
 const postSaysOf = (p: { payload: Record<string, unknown> }) => postWordsIn(postPlanOf(p.payload).language);
 
 export const postSpec: ProposalSpecAboveOperator = {
   needs: "partner",
-  doing: "save a post to Files",
+  doing: "save a post",
   gate: "settings",
   commit: ({ payload }) => ({ route: "POST files/post", body: postPlanOf(payload) }),
   receipt: (p, data) => postSaysOf(p).saved(asText(rec(data).name)),
@@ -27,7 +27,7 @@ export const postSpec: ProposalSpecAboveOperator = {
       return id && rec(data).twin !== true ? { file_id: id, language: plan.language, plan } : null;
     },
     call: (u) => ({ route: "DELETE files/[id]", params: { id: asText(u.file_id) }, goneIsDone: true }),
-    receipt: (_data, record) => postWordsIn(record.language as PostLanguage).removed,
+    receipt: (_data, record) => postWordsIn(postPlanOf(record).language).removed,
   },
-  open: () => FILES_ROUTE,
+  open: () => CONTENT_ROUTE,
 };
