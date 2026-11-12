@@ -345,7 +345,15 @@ type RewriteOutcome =
 export async function rewriteVersion(
   ctx: RouteContext,
   tenantId: TenantId,
-  input: { channel: "email" | "sms"; language: string; subject: string | null; body: string; tone: VersionTone },
+  input: {
+    channel: "email" | "sms" | "whatsapp";
+    language: string;
+    subject: string | null;
+    body: string;
+    /** One of the two presses a sequence's step still has, or the owner's own words (Messages' Ask line). */
+    tone?: VersionTone | undefined;
+    ask?: string | undefined;
+  },
 ): Promise<RewriteOutcome> {
   const { facts } = await workspaceFor(ctx, tenantId);
   const email = input.channel === "email";
@@ -354,7 +362,11 @@ export async function rewriteVersion(
     facts.guardrails.length ? `Rules the business follows: ${facts.guardrails.join(" ")}` : "",
     writeIn(input.language),
     "Keep its meaning, what it asks of the person, and every value written in double braces ({{1}}, {{first_name}}) exactly as it is: the same ones, none added, none dropped.",
-    email ? "It is an email: a subject line and its words." : "It is a text message: plain words, no subject.",
+    email
+      ? "It is an email: a subject line and its words."
+      : input.channel === "whatsapp"
+        ? "It is a WhatsApp message WhatsApp reviews before it can be sent: plain words, no subject, nothing WhatsApp refuses (no pressure, no promise the business did not make, no value at its very start or end)."
+        : "It is a text message: plain words, no subject.",
     "Answer with one JSON object and nothing else, no code fence:",
     email ? '{"subject": "the subject", "body": "the words"}' : '{"body": "the words"}',
   ]
@@ -363,7 +375,7 @@ export async function rewriteVersion(
   const user = [
     email && input.subject ? `Subject: ${input.subject}` : null,
     `Words:\n${input.body}`,
-    TONE_ASKED[input.tone],
+    input.ask ? `What to change: ${input.ask}` : TONE_ASKED[input.tone ?? "shorter"],
   ]
     .filter(Boolean)
     .join("\n\n");

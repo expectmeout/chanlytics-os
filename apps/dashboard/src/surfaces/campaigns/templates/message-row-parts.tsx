@@ -6,6 +6,8 @@
  * menu on the pane head's caret. Each is a function that returns its element, called by the row and the pane and not
  * drawn as a component of its own, so their trees are the trees they were.
  */
+import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { SEQUENCES_ROUTE, refusedWords } from "@chanlytics/contracts";
@@ -21,7 +23,7 @@ import { Menu } from "../../kit/menu/menu";
 import type { MenuItem } from "../../kit/menu/menu";
 import { Picker } from "../../kit/picker/picker";
 import { cmRowPress } from "../parts/head";
-import { CmLangGlyph, cmLanguageSearch, cmLanguages } from "../parts/picker";
+import { cmLanguageSearch, cmLanguages } from "../parts/picker";
 import { cmChevron } from "../parts/picks";
 import { MessagePreview } from "../parts/message-preview";
 import { TemplateComposer } from "./composer";
@@ -29,7 +31,8 @@ import type { TemplateMade } from "./composer-acts";
 import type { PresentRow, StarterGroup, TemplateGroup, TemplateRow, TplLang } from "./group";
 import { languageStatus } from "./message-row-facts";
 import type { StarterLibrary } from "./verbs";
-import { TPL_LIST_WORDS, tplTag, tplTitle } from "./words";
+import { wordsPencil } from "./sheet-head";
+import { TPL_LIST_WORDS, TPL_SHEET_WORDS, tplTitle } from "./words";
 
 /** What a closed line reads: its name, the one line under it, and what stands at its right. */
 interface LineCtx {
@@ -97,6 +100,8 @@ export interface RowCtx {
   closeActs: () => void;
   pick: (id: string, choice?: { group?: string }) => void;
   cancelNew: () => void;
+  /** The pane's foot, where what is answered stands (a rename's Save, a delete's question); null until it is drawn. */
+  dock: HTMLElement | null;
 }
 
 /**
@@ -193,19 +198,22 @@ export function closedLine(c: LineCtx) {
 }
 
 /**
- * The one control for a message's languages, where the message is read and written: the language in view with its
- * state drawn (filled approved, dotted in review, struck refused, a dashed ring for none), "+1" for the rest, and
- * every language there is behind it -- one WhatsApp holds, one the library wrote, or a new one to write. It was a
- * column of every closed row ("● EN ⌄" sixteen times), for a choice that changes nothing about who a run reaches:
- * a run sends one language to everyone.
+ * The one control for a message's languages, where the message is read and written: the language in view as a quiet word
+ * of the line ("English"), and every language there is behind it -- one WhatsApp holds, with where it stands, one the
+ * library wrote, or a new one to write. It was a pill ("⊘EN ⌄", its glyph never explained) on every message, for a choice
+ * that changes nothing about who a run reaches (the message sheet's canvas, 12 Nov 2026): the pane draws it where the
+ * message has two languages or one is being added, and the name's menu adds one (`open`: drawn already opened).
  */
-export function langBar(c: RowCtx) {
+export function LanguageWord({ c, open }: { c: RowCtx; open: boolean }) {
   const { g, langs, S, onFile, view, cur, mayAdd, note, pick } = c;
+  const token = useRef<HTMLButtonElement | null>(null);
+  // Asked for from the name's menu: the list opens as the word arrives, so the pick that asked for it is the one press.
+  useEffect(() => {
+    if (open) token.current?.click();
+  }, [open]);
   // The languages the one chip opens (contracts messageLanguageChoices): the ones the message holds on any channel, with
   // where each stands, the ones the starter library has written, and every other language WhatsApp takes when one may
   // be added.
-  const codes = onFile.map((r) => r.lang.id);
-  const more = codes.filter((code) => code !== view).length;
   const starter = g.starter;
   const choices = S.languageChoices({
     onFile: onFile.map((r) => ({ language: r.lang.id, meta_status: languageStatus(r) })),
@@ -225,13 +233,9 @@ export function langBar(c: RowCtx) {
         }
         groups={cmLanguages(choices, S.languageGroups)}
         chevron={cmChevron()}
-        face={
-          <>
-            <CmLangGlyph status={languageStatus(cur)} size={12} />
-            {tplTag(view, codes)}
-            {more > 0 ? ` +${more}` : null}
-          </>
-        }
+        face={cur.lang.label}
+        inline
+        ref={token}
         {...(choices.length > 7 ? { search: cmLanguageSearch(choices) } : {})}
         {...(note ? { note } : {})}
         data-testid="template-lang"
@@ -317,8 +321,14 @@ function cardFoot(c: RowCtx) {
  * playbook refuses it, and the question is not asked). Rename, Hide and Delete are the menu's; a delete asks first.
  */
 function cardActs(c: RowCtx, row: TemplateDto) {
-  const { S, busy, cur, renaming, draft, arm, sending, pausedWords } = c;
+  const { S, busy, cur, renaming, draft, arm, sending, pausedWords, dock } = c;
   const { closeActs, setRenaming, setDraft, setArm, setSentLang, setAdding, onRename, onDelete } = c;
+  const save = () => {
+    onRename(row, draft);
+    closeActs();
+  };
+  // What is answered stands in the pane's foot, docked as every drawer's acts are; where the pane has none, here.
+  const docked = (answers: ReactNode) => (dock ? createPortal(answers, dock) : answers);
   return (
     <div className="msg-card-acts" data-testid="template-row">
       {renaming ? (
@@ -333,10 +343,7 @@ function cardActs(c: RowCtx, row: TemplateDto) {
             placeholder={tplTitle({ name: row.name })}
             onValueChange={setDraft}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                onRename(row, draft);
-                closeActs();
-              }
+              if (e.key === "Enter") save();
               // This Escape is the form's: the pane's own Escape (the page's) leaves the page it is in.
               if (e.key === "Escape") {
                 e.preventDefault();
@@ -345,56 +352,57 @@ function cardActs(c: RowCtx, row: TemplateDto) {
             }}
             data-testid="template-title"
           />
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={busy}
-            onClick={() => {
-              onRename(row, draft);
-              closeActs();
-            }}
-            data-testid="template-title-save"
-          >
-            Save
-          </Button>
-          <Button variant="quiet" size="sm" onClick={() => setRenaming(false)}>
-            Cancel
-          </Button>
+          {docked(
+            <>
+              <Button variant="primary" disabled={busy} onClick={save} data-testid="template-title-save">
+                Save
+              </Button>
+              <Button variant="quiet" onClick={() => setRenaming(false)}>
+                Cancel
+              </Button>
+            </>,
+          )}
         </span>
       ) : arm && sending.length > 0 ? (
         // A running playbook still sends it: the route refuses the delete, so the question is not asked.
-        <div className="msg-delete-held" role="status" data-testid="template-delete-held">
-          <span>{S.stillSends(sending)}</span>
-          <Button
-            variant="quiet"
-            size="sm"
-            onClick={() => {
-              closeActs();
-              navigate(SEQUENCES_ROUTE);
-            }}
-          >
-            Open Campaigns
-          </Button>
-          <Button variant="quiet" size="sm" onClick={() => setArm(false)}>
-            Keep it
-          </Button>
-        </div>
+        docked(
+          <>
+            <span className="msg-delete-held" role="status" data-testid="template-delete-held">
+              {S.stillSends(sending)}
+            </span>
+            <Button
+              variant="quiet"
+              onClick={() => {
+                closeActs();
+                navigate(SEQUENCES_ROUTE);
+              }}
+            >
+              Open Campaigns
+            </Button>
+            <Button variant="quiet" onClick={() => setArm(false)}>
+              Keep it
+            </Button>
+          </>,
+        )
       ) : (
-        <Confirm
-          question={`Delete “${tplTitle(row)}” in ${cur.lang.label}?`}
-          detail={`It leaves WhatsApp; sends that use it fail from now on.${pausedWords}`}
-          yes="Yes, delete"
-          danger
-          busy={busy}
-          onYes={() => {
-            closeActs();
-            setSentLang(null);
-            setAdding(null);
-            onDelete(row);
-          }}
-          onNo={() => setArm(false)}
-          testid="template-delete"
-        />
+        docked(
+          <Confirm
+            question={`Delete “${tplTitle(row)}” in ${cur.lang.label}?`}
+            detail={`It leaves WhatsApp; sends that use it fail from now on.${pausedWords}`}
+            yes="Yes, delete"
+            danger
+            busy={busy}
+            docked={!!dock}
+            onYes={() => {
+              closeActs();
+              setSentLang(null);
+              setAdding(null);
+              onDelete(row);
+            }}
+            onNo={() => setArm(false)}
+            testid="template-delete"
+          />,
+        )
       )}
     </div>
   );
@@ -449,78 +457,89 @@ function whatsappItems({ busy, setDraft, setRenaming, setArm, onHide }: RowCtx, 
   ];
 }
 
-/** An email's or a text's acts, as the version view's own menu said them. */
-function versionItems(busy: boolean, acts: VersionActs): MenuItem[] {
-  const items: MenuItem[] = [
-    {
-      label: TPL_LIST_WORDS.editVersion(acts.word),
-      glyph: <Icon name="pencil" size={13} />,
-      disabled: busy,
-      gate: { "data-testid": "template-version-edit" },
-      onSelect: acts.onEdit,
-    },
-  ];
+/** An email's or a text's Remove, where it may be removed: its Edit is the pencil on its words. */
+function removeItem(busy: boolean, acts: VersionActs): MenuItem[] {
   const remove = acts.onRemove;
-  if (remove)
-    items.push({
-      label: TPL_LIST_WORDS.removeVersion(acts.word),
-      glyph: <Icon name="x" size={13} />,
-      tone: "danger",
-      disabled: busy,
-      gate: { "data-testid": "template-version-remove" },
-      onSelect: remove,
-    });
-  return items;
+  return remove
+    ? [
+        {
+          label: TPL_LIST_WORDS.removeVersion(acts.word),
+          glyph: <Icon name="x" size={13} />,
+          tone: "danger",
+          disabled: busy,
+          gate: { "data-testid": "template-version-remove" },
+          onSelect: remove,
+        },
+      ]
+    : [];
+}
+
+/** A language added from the name's menu, where the message has one and may have more: the language word opens for it. */
+export function addLanguageItem(onAdd: () => void): MenuItem {
+  return {
+    label: TPL_SHEET_WORDS.addLanguage,
+    glyph: <Icon name="globe" size={13} />,
+    gate: { "data-testid": "template-lang-add" },
+    onSelect: onAdd,
+  };
 }
 
 /**
- * The pane's one menu, on the caret at its head (no three dots: Ruben, 20 Oct 2026; Messages, the canvas of 10 Nov 2026,
- * which had two of them, one a channel): what can be done to the version in view. On WhatsApp, Rename, Put away and
- * Delete; on an email or a text, Edit and Remove. The kit's Menu takes no test id of an item, so each item's own is among
- * the props it hands its button (`gate`, which is spread there): the ids the rows' links carried stay. Null where nothing
- * may be done here.
+ * The pane's name, which is its one menu's press, the caret beside its words (no three dots: Ruben, 20 Oct 2026; the message
+ * sheet's canvas, 12 Nov 2026, where the caret stood apart at the head's far edge): what can be done to the message,
+ * whichever channel is in view -- Rename, Put away and Delete -- and on an email or a text that version's Remove, and any
+ * act the pane adds (`more`: a language). A small card at the name on a phone too, never a second sheet over the sheet.
+ * The kit's Menu takes no test id of an item, so each item's own is among the props it hands its button (`gate`, which
+ * is spread there). The name alone where nothing may be done here.
  */
-export function paneMenu(c: RowCtx, channel: VersionChannel, version: VersionActs | null) {
+export function paneName(c: RowCtx, channel: VersionChannel, version: VersionActs | null, more: readonly MenuItem[]) {
   const { g, row, canAct } = c;
-  const items =
-    channel === "whatsapp"
-      ? row && canAct
-        ? whatsappItems(c, row)
-        : []
-      : version
-        ? versionItems(c.busy, version)
-        : [];
-  if (items.length === 0) return null;
-  const name = TPL_LIST_WORDS.more(g.title);
+  // Rename and Put away, what the pane adds, a version's Remove, and Delete last, as the act that cannot be taken back.
+  const own = row && canAct ? whatsappItems(c, row) : [];
+  const items = [
+    ...own.slice(0, -1),
+    ...more,
+    ...(channel !== "whatsapp" && version ? removeItem(c.busy, version) : []),
+    ...own.slice(-1),
+  ];
+  if (items.length === 0) return g.title;
   return (
     <Menu
-      label={name}
+      label={TPL_LIST_WORDS.more(g.title)}
+      align="start"
+      anchored
       trigger={
-        <Button iconOnly variant="quiet" size="sm" aria-label={name} title={name} data-testid="template-menu">
-          <Icon name="chevron-down" size={14} />
-        </Button>
+        <LinkButton size="inherit" className="tpl-name" data-testid="template-menu">
+          <span className="tpl-name-words">{g.title}</span>
+          <Icon name="chevron-down" size={12} />
+        </LinkButton>
       }
-      groups={[{ header: g.title, items }]}
+      groups={[{ items }]}
     />
   );
 }
 
-/** The message as it is read where it is: the words as a customer sees them, then the foot, then what a verb has begun. */
-function readPane(c: RowCtx) {
-  const { bizName, row, body, values, footer, renaming, arm } = c;
+/**
+ * The message as it is read where it is: the words as a customer sees them, with their pencil where they may be changed
+ * (the bubble read is the bubble changed: the message sheet's canvas, 12 Nov 2026), then the foot.
+ */
+function readPane(c: RowCtx, onEdit: (() => void) | null) {
+  const { bizName, row, body, values, footer } = c;
   return (
     <>
-      <MessagePreview
-        from={bizName || "Your business"}
-        body={body}
-        values={values}
-        header={row ? row.header : null}
-        footer={footer}
-        buttons={row ? row.buttons : null}
-        compact
-      />
+      <div className="tpl-read-words">
+        <MessagePreview
+          from={bizName || "Your business"}
+          body={body}
+          values={values}
+          header={row ? row.header : null}
+          footer={footer}
+          buttons={row ? row.buttons : null}
+          compact
+        />
+        {onEdit ? wordsPencil(onEdit) : null}
+      </div>
       {cardFoot(c)}
-      {(renaming || arm) && row && cardActs(c, row)}
     </>
   );
 }
@@ -537,25 +556,33 @@ export function openRow(
   c: RowCtx,
   bar: ReactNode,
   version: ReactNode = null,
-  around: { need: string | null; facts: ReactNode } = { need: null, facts: null },
+  around: { need: string | null; cannot?: string | null; onEdit: (() => void) | null } = { need: null, onEdit: null },
 ) {
-  const { row, starterText } = c;
+  const { row, starterText, renaming, arm } = c;
   return (
     <div className="msg-row-open tpl-read" data-testid="template-open-body">
       {bar}
-      {/* Why it needs you, whichever channel and language is in view: the list's own sentence for it. */}
+      {/* Why it needs you, on WhatsApp's tab, where WhatsApp's no is about: the list's own sentence for it, two lines at
+          most, and whole on a tap on where it stands. */}
       {around.need ? (
-        <p className="bc-excl-hint warn" data-testid="template-need">
+        <p className="bc-excl-hint warn tpl-need-line" data-testid="template-need" title={around.need}>
           {around.need}
+        </p>
+      ) : null}
+      {/* A channel this business cannot send it by yet, on that channel's tab: why, in contracts' words. */}
+      {around.cannot ? (
+        <p className="bc-excl-hint warn" data-testid="template-channel-cannot">
+          {around.cannot}
         </p>
       ) : null}
       {version ?? (
         <>
           {around.need ? null : rowHints(row)}
-          {!row && !starterText ? newLanguage(c) : readPane(c)}
+          {!row && !starterText ? newLanguage(c) : readPane(c, around.onEdit)}
         </>
       )}
-      {around.facts}
+      {/* What the name's menu began, whichever channel is in view: the new name being typed, or a delete's question. */}
+      {(renaming || arm) && row ? cardActs(c, row) : null}
     </div>
   );
 }

@@ -17,6 +17,10 @@
  * that a press outside closes it through, and a pull down from its top lets it go, following the finger, as the Sheet's
  * does (kit/motion/swipe.ts touchSwipe; Ruben, 8 October 2026: it drew the sheet's handle and did not answer a pull). The touch
  * stays the menu's own (frame-verbs keepTouch): opened from inside a sheet or an open thread, its pull moved that too.
+ * A menu of a few words opened from inside a sheet may stay a small card at its control on a phone too (`anchored`), as
+ * on a desk: a second sheet over the sheet for three words was a page's worth of moving for one press (a message's
+ * Rename, Put away and Delete: the message sheet's canvas, 12 Nov 2026). Its parts say so (`data-anchored`), and kit.css's
+ * phone sheet leaves them be.
  *
  * It draws what the gallery's Menu family draws (tooling/scripts/e2e-harness/kit-gallery.mjs), which
  * e2e/kit/kit-behaves.spec.ts holds to it in a browser. `className` is for the page's layout, and comes last; the
@@ -152,6 +156,8 @@ export type MenuProps = {
    * sheet heads with their page): Base UI gives it a button's role, its keys and its focus.
    */
   nativeTrigger?: boolean;
+  /** On a phone too, a small card at its control rather than the phone's action sheet: a few words, opened over a sheet. */
+  anchored?: boolean;
   className?: string;
   ref?: Ref<HTMLDivElement>;
 };
@@ -353,21 +359,25 @@ function MenuPopup({
   align = "end",
   label,
   head,
+  anchored = false,
   className,
   ref,
   onClose,
 }: Omit<MenuProps, "trigger"> & { onClose: () => void }) {
   // A set of two-line options is wider on a desk, so the line under each name can be read (kit.css .more-menu-lines).
   const lines = groups.some((group) => group.choose !== undefined && saysLines(group.choose));
+  // A card kept at its control says so on each part, so the phone's sheet (kit.css) passes it by; it has no pull to let go.
+  const card = anchored ? { "data-anchored": "" } : {};
   return (
     <BaseMenu.Portal>
-      <BaseMenu.Backdrop className="more-backdrop" />
-      <BaseMenu.Positioner className="pop-place" sideOffset={MENU_GAP_PX} align={align}>
+      <BaseMenu.Backdrop className="more-backdrop" {...card} />
+      <BaseMenu.Positioner className="pop-place" sideOffset={MENU_GAP_PX} align={align} {...card}>
         <BaseMenu.Popup
           ref={ref}
           className={cx(menuClasses({ align }), lines && "more-menu-lines", head && "more-menu-titled", className)}
           aria-label={label ?? head?.title}
-          {...keepTouch(touchSwipe({ onDown: onClose, when: onAPhone }))}
+          {...card}
+          {...(anchored ? {} : keepTouch(touchSwipe({ onDown: onClose, when: onAPhone })))}
         >
           {head ? <Head head={head} onClose={onClose} /> : null}
           {groups.map((group, at) => (

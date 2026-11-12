@@ -17,16 +17,37 @@
  * A reach-out's email is written here too (step 5): the same editor over its own slot set (six named slots) and its own
  * rules (`rules`: a subject only on the first step, the cold email's limits, its own sentences), the one check and the one
  * preview reading both.
+ *
+ * In a message's own sheet (`oneBody`: the message sheet's canvas, 12 Nov 2026) it says less: the box is the words, with
+ * no label over it and no preview repeating them under it on any channel (what a preview said beside the words, a text's
+ * length and an email's footer, is the box's hint); no note before Send; and Send shows only once something changed, with
+ * one Undo beside it (Ask's last change, else every change), where Cancel stood, in the pane's foot (`dock`) as every
+ * drawer's acts are. Unchanged, the one act is Done.
  */
-import { useState } from "react";
-import { campaignEmailRules, validateEmailVersion, validateSmsVersion } from "@chanlytics/contracts";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import {
+  campaignEmailRules,
+  validateEmailVersion,
+  validateSmsVersion,
+  versionSlotsRefusal,
+} from "@chanlytics/contracts";
 import { namedProblem } from "./message-version-slots";
-import type { EmailRules, OwnVersionChannel, SlotSet, SlotValue, VersionWords } from "@chanlytics/contracts";
+import type {
+  EmailRules,
+  OwnVersionChannel,
+  SlotSet,
+  SlotValue,
+  VersionCheck,
+  VersionWords,
+} from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import { gate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { FieldError } from "../../kit/field-error/field-error";
+import { Icon } from "../../kit/icon/icon";
+import { LineField, LinePress } from "../../kit/line/line";
 import { UnsavedAsk, tabDraft, useUnsavedWork } from "../../kit/record/work";
 import { useSlotSeats } from "./slots/slot-seats";
 import type { BoxName } from "./slots/slot-seats";
@@ -34,7 +55,8 @@ import { ValuesMenu, WordsField } from "./slots/words-field";
 import { VersionPreview } from "./version-preview";
 import { templates as templateVerbs } from "./verbs";
 import type { VersionDraft } from "./verbs";
-import { TPL_VERSION_WORDS as WORDS } from "./words";
+import { textCount } from "./versions";
+import { TPL_SHEET_WORDS as SHEET, TPL_VERSION_WORDS as WORDS } from "./words";
 
 const DRAFT_KIND = "template-version";
 
@@ -49,10 +71,23 @@ export function keptWords(name: string, language: string, channel: string): Vers
   return typeof body === "string" ? { subject: typeof subject === "string" ? subject : null, body } : null;
 }
 
+/** The longest words WhatsApp takes in a message's body. */
+const WHATSAPP_WORDS_MAX = 1024;
+
+/** WhatsApp's words, checked as they are typed: there, within WhatsApp's length, and every value one the message has. */
+function whatsappCheck(body: string, slots: number): VersionCheck {
+  const words = body.replace(/\r\n/g, "\n").trim();
+  if (!words) return { ok: false, error: WORDS.whatsappEmpty };
+  if (words.length > WHATSAPP_WORDS_MAX) return { ok: false, error: WORDS.whatsappLong };
+  const refusal = versionSlotsRefusal(words, slots);
+  return refusal ? { ok: false, error: refusal } : { ok: true, value: { subject: null, body: words }, warnings: [] };
+}
+
 interface VersionEditorProps {
   /** The message's name: what the version is filed under. */
   name: string;
-  channel: OwnVersionChannel;
+  /** An email's or a text's version, or WhatsApp's words, which go back to WhatsApp (`onSendWords`). */
+  channel: OwnVersionChannel | "whatsapp";
   language: string;
   /** The words it starts from: the version on file, or what writing one begins with. */
   start: VersionWords;
@@ -71,15 +106,37 @@ interface VersionEditorProps {
   within?: { onWords: (words: VersionWords) => void };
   /** The save, answered with the server's word; null when it did not start. */
   onSave: (draft: VersionDraft) => Promise<ApiResult<unknown> | null>;
+  /** WhatsApp's words sent back to WhatsApp, in place of a version's save. */
+  onSendWords?: (body: string) => Promise<ApiResult<unknown> | null>;
+  /** How one person reads the words, where the channel has its own look (WhatsApp's bubble). */
+  preview?: (words: VersionWords) => ReactNode;
+  /** WhatsApp's reason for refusing these words: Ask writes them again as the editor opens. */
+  fix?: string | null;
+  /** In a message's own sheet: the words drawn once, and Send only once they changed (the canvas of 12 Nov 2026). */
+  oneBody?: boolean;
+  /** Nothing is on file yet: the words it opens on are a start to keep, so Save stands from the first. */
+  unfiled?: boolean;
+  /**
+   * Where its acts stand in a message's own sheet: the pane's foot, docked as every drawer's is (the kit's pair, Send first),
+   * not small buttons under the words. Null until the foot is drawn, and where it has none they stay under the words.
+   */
+  dock?: HTMLElement | null;
   onClose: () => void;
 }
 
-export function VersionEditor(p: VersionEditorProps) {
-  const { name, channel, language, start, slots, values, busy, within, onSave, onClose } = p;
+/**
+ * The words being written and everything read from them: the boxes' state (kept in the tab and told to a composer that
+ * holds them), the check, the save or the send back, Ask's rewrite (which a refusal starts as the editor opens), whether
+ * anything changed, and the one Undo.
+ */
+function useVersionWords(p: VersionEditorProps) {
+  const { name, channel, language, start, slots, busy, within, onSave, onClose } = p;
   const kind = p.rules ?? campaignEmailRules(slots);
   // An email with no subject of its own (a reach-out's later step answers the one before) has one box of words.
   const hasSubject = channel === "email" && kind.subject;
-  const [first] = useState(() => (within ? start : (keptWords(name, language, channel) ?? start)));
+  // What it opens on: the words the tab kept from an editor left open, else where it starts.
+  const [kept] = useState(() => (within ? null : keptWords(name, language, channel)));
+  const first = kept ?? start;
   const [subject, setSubject] = useState(first.subject ?? "");
   const [body, setBody] = useState(first.body);
   // What the server refused with, until the words change; the check's own sentence is read as they are typed.
@@ -93,13 +150,12 @@ export function VersionEditor(p: VersionEditorProps) {
   };
   const seats = useSlotSeats({ subject, body }, typed);
   const written = { subject: hasSubject ? subject : null, body };
-  const check =
-    channel === "email"
-      ? validateEmailVersion({ subject, body }, kind)
-      : validateSmsVersion({ body }, slots.keys.length, language);
+  const whatsapp = channel === "whatsapp";
+  const check = checkOf(channel, { subject, body }, { kind, slots: slots.keys.length, language });
+  const changed = subject !== (start.subject ?? "") || body !== start.body;
   const work = useUnsavedWork(DRAFT_KIND, within ? null : draftKey(name, language, channel), {
     value: { subject, body },
-    dirty: !within && (subject !== (start.subject ?? "") || body !== start.body),
+    dirty: !within && changed,
     onLeave: onClose,
   });
   const save = async () => {
@@ -108,9 +164,10 @@ export function VersionEditor(p: VersionEditorProps) {
     setProblem(null);
     const { subject: filed, body: words } = check.value;
     // A save that never reached the server says so; a refusal it did give is said as it came.
-    const r = await onSave({ name, language, channel, ...(filed ? { subject: filed } : {}), body: words }).catch(
-      () => ({ ok: false as const, message: WORDS.saveFailed }),
-    );
+    const sent = whatsapp
+      ? (p.onSendWords?.(words) ?? Promise.resolve(null))
+      : onSave({ name, language, channel, ...(filed ? { subject: filed } : {}), body: words });
+    const r = await sent.catch(() => ({ ok: false as const, message: WORDS.saveFailed }));
     if (r?.ok) {
       work.done();
       onClose();
@@ -130,49 +187,208 @@ export function VersionEditor(p: VersionEditorProps) {
     within?.onWords({ subject: hasSubject ? subjectNow : null, body: words.body });
   };
   const ask = useAskRewrite({ channel, language, written, saving, put, onProblem: setProblem });
-  const box = { slots, readOnly: saving || ask.asking !== null, seats };
+  // A refused message opens with Ask already writing words WhatsApp can take: the owner reads them and sends them back.
+  // Words the tab kept are those already written again: opened on them, Ask is not asked twice.
+  const fixed = useRef(kept !== null);
+  useEffect(() => {
+    if (!p.fix || fixed.current) return;
+    fixed.current = true;
+    void ask.rewrite(WORDS.fixAsk(p.fix));
+  }, [p.fix, ask]);
+  // One Undo: Ask's last change, else back to the words it opened on.
+  const undo = () => (ask.canUndo ? ask.undo() : put(start));
+  return {
+    kind,
+    hasSubject,
+    subject,
+    body,
+    problem,
+    saving,
+    typed,
+    seats,
+    written,
+    whatsapp,
+    check,
+    changed,
+    work,
+    save,
+    ask,
+    undo,
+  };
+}
+
+type EditorWords = ReturnType<typeof useVersionWords>;
+
+/** The words checked as they are typed, by their channel's own rules. */
+function checkOf(
+  channel: OwnVersionChannel | "whatsapp",
+  words: { subject: string; body: string },
+  rules: { kind: EmailRules<string>; slots: number; language: string },
+): VersionCheck {
+  if (channel === "email") return validateEmailVersion(words, rules.kind);
+  if (channel === "whatsapp") return whatsappCheck(words.body, rules.slots);
+  return validateSmsVersion({ body: words.body }, rules.slots, rules.language);
+}
+
+/**
+ * What a preview said beside the words, said under the box in a message's sheet, where no preview repeats them: a text's
+ * length on the wire, and what an email's sender adds. Nothing elsewhere, where the preview says it.
+ */
+function bodyHintOf(p: VersionEditorProps, ed: EditorWords): string | undefined {
+  if (!p.oneBody) return undefined;
+  if (p.channel === "sms") {
+    const count = textCount(ed.body, p.language);
+    return WORDS.counter(count.chars, count.parts);
+  }
+  return p.channel === "email" ? ed.kind.foot : undefined;
+}
+
+/** The send, or the save: its words while it is out, and the gate a role may not pass. */
+function SaveButton({ ed, busy, small }: { ed: EditorWords; busy: boolean; small: boolean }) {
+  const { whatsapp, saving } = ed;
+  return (
+    <Button
+      variant="primary"
+      {...(small ? { size: "sm" as const } : {})}
+      disabled={!ed.check.ok || busy || saving}
+      onClick={() => void ed.save()}
+      data-testid="template-version-save"
+      {...gate("approve", whatsapp ? "send words to WhatsApp" : "save a version")}
+    >
+      {whatsapp ? (saving ? WORDS.sendingBack : WORDS.sendBack) : saving ? WORDS.saving : WORDS.save}
+    </Button>
+  );
+}
+
+/**
+ * A message sheet's acts: Send (or Save) and its Undo once something changed, a new version's Save and Done, else Done
+ * alone. In the pane's foot where it has one, docked as every drawer's acts are.
+ */
+function SheetActs({ p, ed }: { p: VersionEditorProps; ed: EditorWords }) {
+  const done = (
+    <Button variant="quiet" onClick={p.onClose} data-testid="template-version-cancel">
+      {SHEET.done}
+    </Button>
+  );
+  if (!ed.changed && !p.unfiled) return done;
+  return (
+    <>
+      <SaveButton ed={ed} busy={p.busy} small={false} />
+      {ed.changed ? (
+        <Button
+          variant="quiet"
+          disabled={ed.saving || ed.ask.asking !== null}
+          onClick={ed.undo}
+          data-testid="template-version-undo"
+        >
+          {SHEET.undo}
+        </Button>
+      ) : (
+        done
+      )}
+    </>
+  );
+}
+
+/** The acts under the words elsewhere: Save and Cancel, which asks first where something was written. */
+function PageActs({ p, ed }: { p: VersionEditorProps; ed: EditorWords }) {
+  if (ed.work.asking) return <UnsavedAsk onYes={ed.work.discard} onNo={ed.work.stay} testid="template-version-leave" />;
+  return (
+    <>
+      <SaveButton ed={ed} busy={p.busy} small />
+      {p.within ? null : (
+        <Button variant="quiet" size="sm" onClick={ed.work.leave} data-testid="template-version-cancel">
+          {WORDS.cancel}
+        </Button>
+      )}
+    </>
+  );
+}
+
+/** The boxes: an email's subject, the words, the menu that puts a value in, and the one line to Ask. */
+function WordsBoxes({ p, ed }: { p: VersionEditorProps; ed: EditorWords }) {
+  const { channel, slots, values } = p;
+  const oneBody = p.oneBody ?? false;
+  const box = { slots, readOnly: ed.saving || ed.ask.asking !== null, seats: ed.seats, bare: oneBody };
+  return (
+    <div className="tpl-ver-write">
+      {ed.hasSubject ? (
+        <WordsField
+          {...box}
+          // The subject keeps its label: without it the line over the words is not plainly the subject.
+          bare={false}
+          name="subject"
+          label={WORDS.subjectLabel}
+          hint={WORDS.subjectCount(ed.subject.length, ed.kind.subjectMax)}
+          lines={1}
+          value={ed.subject}
+          maxLength={ed.kind.subjectMax}
+          onType={(words) => ed.typed("subject", words)}
+        />
+      ) : null}
+      <WordsField
+        {...box}
+        name="body"
+        label={WORDS.bodyLabel}
+        hint={bodyHintOf(p, ed)}
+        lines={channel === "email" ? 8 : 4}
+        value={ed.body}
+        onType={(words) => ed.typed("body", words)}
+      />
+      {slots.keys.length > 0 ? (
+        <div className="tpl-ver-values">
+          <ValuesMenu
+            channel={channel === "whatsapp" ? "sms" : channel}
+            slots={slots}
+            values={values}
+            onPick={ed.seats.add}
+          />
+        </div>
+      ) : null}
+      <AskLine
+        ask={ed.ask}
+        disabled={ed.saving || p.busy}
+        fixing={!!p.fix && ed.ask.asking !== null}
+        undoBeside={!oneBody}
+      />
+    </div>
+  );
+}
+
+/**
+ * How one person reads the words, beside them: WhatsApp's bubble where the page hands one, else the email or the text.
+ * Not in a message's sheet, where the box is the words and nothing repeats them.
+ */
+function WordsSeen({ p, ed }: { p: VersionEditorProps; ed: EditorWords }) {
+  const { channel } = p;
+  return (
+    <div className="tpl-ver-see">
+      <p className="tpl-ver-caption">{WORDS.previewCaption}</p>
+      {channel === "whatsapp" || p.preview ? (
+        p.preview?.(ed.written)
+      ) : (
+        <VersionPreview
+          channel={channel}
+          words={ed.written}
+          values={p.values}
+          language={p.language}
+          slots={p.slots}
+          rules={ed.kind}
+        />
+      )}
+    </div>
+  );
+}
+
+export function VersionEditor(p: VersionEditorProps) {
+  const { channel, slots, oneBody = false, dock = null } = p;
+  const ed = useVersionWords(p);
+  const { check, problem, written } = ed;
   return (
     <div className="tpl-ver-edit" data-testid="template-version-editor" data-channel={channel}>
       <div className="tpl-ver-split">
-        <div className="tpl-ver-write">
-          {hasSubject ? (
-            <WordsField
-              {...box}
-              name="subject"
-              label={WORDS.subjectLabel}
-              hint={WORDS.subjectCount(subject.length, kind.subjectMax)}
-              lines={1}
-              value={subject}
-              maxLength={kind.subjectMax}
-              onType={(words) => typed("subject", words)}
-            />
-          ) : null}
-          <WordsField
-            {...box}
-            name="body"
-            label={WORDS.bodyLabel}
-            lines={channel === "email" ? 8 : 4}
-            value={body}
-            onType={(words) => typed("body", words)}
-          />
-          {slots.keys.length > 0 ? (
-            <div className="tpl-ver-values">
-              <ValuesMenu channel={channel} slots={slots} values={values} onPick={seats.add} />
-            </div>
-          ) : null}
-          <RewriteLine ask={ask} disabled={saving || busy} />
-        </div>
-        <div className="tpl-ver-see">
-          <p className="tpl-ver-caption">{WORDS.previewCaption}</p>
-          <VersionPreview
-            channel={channel}
-            words={written}
-            values={values}
-            language={language}
-            slots={slots}
-            rules={kind}
-          />
-        </div>
+        <WordsBoxes p={p} ed={ed} />
+        {oneBody ? null : <WordsSeen p={p} ed={ed} />}
       </div>
       {check.ok && check.warnings.length > 0 ? (
         <p className="bc-excl-hint" data-testid="template-version-warnings">
@@ -180,56 +396,41 @@ export function VersionEditor(p: VersionEditorProps) {
         </p>
       ) : null}
       <FieldError message={problem ?? namedProblem(check, written, slots)} testid="template-version-error" />
-      <div className="tpl-ver-acts">
-        {work.asking ? (
-          <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="template-version-leave" />
-        ) : (
-          <>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={!check.ok || busy || saving}
-              onClick={() => void save()}
-              data-testid="template-version-save"
-              {...gate("approve", "save a version")}
-            >
-              {saving ? WORDS.saving : WORDS.save}
-            </Button>
-            {within ? null : (
-              <Button variant="quiet" size="sm" onClick={work.leave} data-testid="template-version-cancel">
-                {WORDS.cancel}
-              </Button>
-            )}
-          </>
-        )}
+      {ed.whatsapp && !oneBody ? (
+        <p className="tpl-ver-note" data-testid="template-words-note">
+          {WORDS.whatsappNote}
+        </p>
+      ) : null}
+      {/* In a message's sheet its acts stand in the pane's foot, docked as every drawer's are; under the words elsewhere. */}
+      {oneBody && dock ? createPortal(<SheetActs p={p} ed={ed} />, dock) : null}
+      <div className="tpl-ver-acts" data-one-body={oneBody || undefined} hidden={oneBody && !!dock}>
+        {oneBody ? dock ? null : <SheetActs p={p} ed={ed} /> : <PageActs p={p} ed={ed} />}
       </div>
     </div>
   );
 }
 
-type Tone = "warmer" | "shorter";
-
 /**
- * Ask writing the words again (Warmer, Shorter): the words in the boxes sent, every value kept (POST
- * templates/versions/rewrite), and put back into the boxes as if typed; the words they replaced kept for Undo. A refusal
- * is said where the check's sentence is.
+ * Ask writing the words again as the owner asks, in their own words (Ruben, 12 Nov 2026: one input, no preset changes): the
+ * words in the boxes sent, every value kept (POST templates/versions/rewrite), and put back into the boxes as if typed; the
+ * words they replaced kept for Undo. A refusal is said where the check's sentence is.
  */
 function useAskRewrite(o: {
-  channel: OwnVersionChannel;
+  channel: OwnVersionChannel | "whatsapp";
   language: string;
   written: VersionWords;
   saving: boolean;
   put: (words: VersionWords) => void;
   onProblem: (message: string) => void;
 }) {
-  const [asking, setAsking] = useState<Tone | null>(null);
+  const [asking, setAsking] = useState<string | null>(null);
   const [before, setBefore] = useState<VersionWords | null>(null);
-  const rewrite = async (tone: Tone) => {
-    if (asking || o.saving || !o.written.body.trim()) return;
-    setAsking(tone);
+  const rewrite = async (said: string) => {
+    if (asking || o.saving || !o.written.body.trim() || !said.trim()) return;
+    setAsking(said);
     const was = o.written;
     const r = await templateVerbs
-      .rewrite({ channel: o.channel, language: o.language, subject: was.subject, body: was.body, tone })
+      .rewrite({ channel: o.channel, language: o.language, subject: was.subject, body: was.body, ask: said.trim() })
       .catch(() => ({ ok: false as const, message: WORDS.saveFailed }));
     setAsking(null);
     if (!r.ok) {
@@ -247,28 +448,67 @@ function useAskRewrite(o: {
   return { asking, canUndo: before !== null, rewrite, undo };
 }
 
-/** Ask's two changes under the words, and the Undo of the last: one quiet line of presses. */
-function RewriteLine({ ask, disabled }: { ask: ReturnType<typeof useAskRewrite>; disabled: boolean }) {
+/**
+ * The one line to Ask under the words: the owner's own words for what to change, sent on Return or its round press, and
+ * the Undo of the last change beside it. While a refusal is answered, it says Ask is writing.
+ */
+function AskLine({
+  ask,
+  disabled,
+  fixing,
+  undoBeside,
+}: {
+  ask: ReturnType<typeof useAskRewrite>;
+  disabled: boolean;
+  fixing: boolean;
+  /** Its Undo beside it; in a message's sheet the one Undo stands beside Send. */
+  undoBeside: boolean;
+}) {
+  const [said, setSaid] = useState("");
+  const send = () => {
+    if (!said.trim() || ask.asking !== null || disabled) return;
+    void ask.rewrite(said).then(() => setSaid(""));
+  };
+  const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    send();
+  };
   return (
-    <p className="tpl-ver-ask" data-testid="template-version-ask">
-      <span>{WORDS.ask}</span>
-      {(["warmer", "shorter"] as const).map((tone) => (
-        <LinkButton
-          key={tone}
-          onClick={() => void ask.rewrite(tone)}
-          disabled={ask.asking !== null || disabled}
-          aria-busy={ask.asking === tone}
-          data-testid={`template-version-${tone}`}
+    <div className="tpl-ver-ask" data-testid="template-version-ask">
+      <div className="tpl-ask-line" data-busy={ask.asking !== null || undefined}>
+        <span className="tpl-ask-mark" aria-hidden="true">
+          <Icon name="three" size={14} />
+        </span>
+        <LineField
+          className="tpl-ask-words"
+          rows={1}
+          value={ask.asking !== null ? (fixing ? WORDS.fixing : ask.asking) : said}
+          readOnly={ask.asking !== null}
+          onChange={(event) => setSaid(event.currentTarget.value)}
+          onKeyDown={onKey}
+          placeholder={WORDS.askHint}
+          aria-label={WORDS.askLabel}
+          enterKeyHint="send"
+          maxLength={300}
+          data-testid="template-version-ask-words"
+        />
+        <LinePress
+          kind="send"
+          onClick={send}
+          disabled={!said.trim() || ask.asking !== null || disabled}
+          aria-label={WORDS.ask}
+          data-testid="template-version-ask-send"
           {...gate("approve", "ask for new words")}
         >
-          {ask.asking === tone ? WORDS.asking : WORDS[tone]}
-        </LinkButton>
-      ))}
-      {ask.canUndo ? (
+          <Icon name="arrow-up" size={14} />
+        </LinePress>
+      </div>
+      {undoBeside && ask.canUndo ? (
         <LinkButton onClick={ask.undo} data-testid="template-version-undo">
           {WORDS.undo}
         </LinkButton>
       ) : null}
-    </p>
+    </div>
   );
 }

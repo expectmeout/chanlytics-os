@@ -259,6 +259,38 @@ export async function createTemplate(
 }
 
 /**
+ * A template's words changed at Meta (POST /{template id}, its components whole: Meta replaces every one of them). An
+ * approved template takes this up to once a day and ten times in thirty days, a refused or paused one as often as asked
+ * (Meta's template management page, read 12 Nov 2026); Meta reviews the new words, and its answer arrives as any other
+ * (waba-events.ts). Its own words come back when it says no.
+ */
+export async function editTemplate(
+  token: string,
+  metaId: string,
+  components: MetaTemplateComponent[],
+): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  const res = await fetchFromProvider(
+    "meta",
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(metaId)}`,
+    {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ components }),
+      timeoutMs: CREATE_TIMEOUT_MS,
+    },
+  );
+  if (res.status === 0) return { ok: false, error: String(res.error), status: 0 };
+  const body = answerObject(res) as { success?: boolean; error?: { message?: string; error_user_msg?: string } } | null;
+  if (res.outcome !== "ok" || !body?.success)
+    return {
+      ok: false,
+      error: body?.error?.error_user_msg ?? body?.error?.message ?? `HTTP ${res.status}`,
+      status: res.status,
+    };
+  return { ok: true };
+}
+
+/**
  * Gone from Meta: by name and the template's own id, so one language goes and
  * not every language of that name.
  *

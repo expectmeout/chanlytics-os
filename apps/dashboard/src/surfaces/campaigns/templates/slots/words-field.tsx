@@ -32,6 +32,8 @@ export function ValuesMenu({ channel, slots, values, onPick, testid = "template-
   return (
     <Menu
       align="start"
+      // A few names at the press, a small card on a phone too: never a second sheet over the sheet it is written in.
+      anchored
       label={WORDS.addValueName(VERSION_CHANNEL_WORDS[channel])}
       trigger={
         <Button size="sm" data-testid={testid}>
@@ -63,6 +65,8 @@ interface WordsFieldProps {
   seats: SlotSeats;
   onType: (words: string) => void;
   testid?: string;
+  /** No label drawn over the box, where the box is all the sheet holds (a message's own sheet): it names the box alone. */
+  bare?: boolean;
 }
 
 /**
@@ -71,13 +75,13 @@ interface WordsFieldProps {
  * it here, and pressing the label hands the box the focus.
  */
 export function WordsField(p: WordsFieldProps) {
-  const { name, label, hint, lines, value, maxLength, slots, readOnly, seats, onType, testid } = p;
+  const { name, label, hint, lines, value, maxLength, slots, readOnly, seats, onType, testid, bare = false } = p;
   const seat = seats.seats[name];
   const hintId = `${useId()}-hint`;
   const box = useRef<HTMLDivElement | null>(null);
   return (
     <Field
-      label={label}
+      {...(bare ? { "aria-label": label } : { label })}
       hint={hint}
       hintId={hint ? hintId : undefined}
       onLabelPress={() => box.current?.focus()}

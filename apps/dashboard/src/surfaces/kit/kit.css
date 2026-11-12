@@ -950,7 +950,7 @@ a.chip:focus-visible {
     gap: 6px;
     padding: 2px 2px 8px;
   }
-  :is(.pop-place > .more-menu, .more-menu[data-sheet], .more-menu) .more-chips > .more-item {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet], .more-menu) .more-chips > .more-item {
     width: auto;
     min-height: 34px;
     padding: 0 12px;
@@ -960,18 +960,23 @@ a.chip:focus-visible {
     font-size: var(--text-sm);
     color: var(--ink-muted);
   }
-  :is(.pop-place > .more-menu, .more-menu[data-sheet], .more-menu) .more-chips > .more-item[aria-checked="true"] {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet], .more-menu)
+    .more-chips
+    > .more-item[aria-checked="true"] {
     border-color: transparent;
     background: var(--selected-fill);
     box-shadow: var(--selected-depth);
     color: var(--ink);
   }
-  :is(.pop-place > .more-menu, .more-menu[data-sheet], .more-menu) .more-chips > .more-item > .icon {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet], .more-menu)
+    .more-chips
+    > .more-item
+    > .icon {
     width: 13px;
     height: 13px;
     color: inherit;
   }
-  :is(.pop-place > .more-menu, .more-menu[data-sheet], .more-menu)
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet], .more-menu)
     .more-chips
     > .more-item[aria-checked="false"]
     > .icon {
@@ -981,7 +986,9 @@ a.chip:focus-visible {
     flex: none;
   }
   /* A key's focus draws the house's ring over a lit chip's own depth, as a picked segment's does. */
-  :is(.pop-place > .more-menu, .more-menu[data-sheet], .more-menu) .more-chips > .more-item:focus-visible {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet], .more-menu)
+    .more-chips
+    > .more-item:focus-visible {
     box-shadow: var(--focus-ring);
   }
   /* What is said of them all, under the chips at their edge rather than at a row's words. */
@@ -1089,7 +1096,7 @@ a.more-item {
    closes it through, wears the phone's one veil (tokens.css --surface-veil), as the drawer's and every sheet's does:
    it wore none, as the bell's did. The Sheet's own wash and handle are above. */
 @media (max-width: 900px) {
-  .pop-place:has(> .more-menu) {
+  .pop-place:not([data-anchored]):has(> .more-menu) {
     position: fixed !important;
     inset: auto var(--sheet-float) var(--sheet-foot) !important;
     transform: none !important;
@@ -1112,7 +1119,7 @@ a.more-item {
   }
   /* Floating clear of the foot (tokens.css --sheet-foot), it keeps of the home bar's room only what the float has not
      already given it. */
-  :is(.pop-place > .more-menu, .more-menu[data-sheet]) {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet]) {
     max-width: none;
     max-height: 72vh;
     overflow-y: auto;
@@ -1121,7 +1128,7 @@ a.more-item {
     border-bottom: 0;
     animation: more-sheet-in 220ms var(--ease-out);
   }
-  :is(.pop-place > .more-menu, .more-menu[data-sheet])::before {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet])::before {
     content: "";
     display: block;
     width: 36px;
@@ -1130,41 +1137,41 @@ a.more-item {
     border-radius: var(--radius-full);
     background: var(--line-strong);
   }
-  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet]) .more-item {
     min-height: 52px;
     padding: 0 12px;
     gap: 14px;
     border-radius: var(--radius-lg);
     font-size: var(--text-md);
   }
-  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item .icon {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet]) .more-item .icon {
     width: 18px;
     height: 18px;
   }
   /* A time or a count at an item's end, at the sheet's meta step. */
-  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item > .more-item-hint {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet]) .more-item > .more-item-hint {
     font-size: var(--text-base);
   }
   /* A caption on the sheet stands where its items' words do: the item's 12, past an 18px glyph and its 14 where they wear one. */
-  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-cap {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet]) .more-cap {
     padding-left: 12px;
   }
-  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item:has(> .icon) ~ .more-cap {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet]) .more-item:has(> .icon) ~ .more-cap {
     padding-left: 44px;
   }
   /* An item whose glyph stands on its square keeps its two lines together beside it (the item's gap is its columns'). */
-  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item:has(> .more-glyph, > .face) {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet]) .more-item:has(> .more-glyph, > .face) {
     row-gap: 1px;
   }
   /* What a choice does, under its words (a sentence beside them goes under: MoreMenu's on a phone, the kit Menu's at
      every width), at a size a phone reads, the row a thumb's height round both lines. */
-  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item-two {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet]) .more-item-two {
     padding-block: 9px;
   }
-  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item-two > .more-item-meta {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet]) .more-item-two > .more-item-meta {
     font-size: var(--text-sm);
   }
-  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item-two > .icon ~ .more-item-meta {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet]) .more-item-two > .icon ~ .more-item-meta {
     padding-left: 27px;
   }
   /* A line written to follow a dash ("asks you first") starts a sentence of its own under the words. */
@@ -1173,7 +1180,7 @@ a.more-item {
   }
   /* A set's two-line options: a thumb's height round both lines, the line at a size a phone reads, and what is said of
      them all at the options' edge. */
-  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item-lines {
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet]) .more-item-lines {
     min-height: 58px;
     padding-block: 9px;
     gap: 12px;
@@ -1187,7 +1194,7 @@ a.more-item {
   .more-menu-lines :is(.more-header, .more-cap) {
     padding-left: 12px;
   }
-  .more-backdrop[data-open] {
+  .more-backdrop[data-open]:not([data-anchored]) {
     background: var(--surface-veil);
   }
   /* A set of short values (MoreMenu `grid`: a day's times) is chips four across under their headings, the one held lit
@@ -1304,7 +1311,7 @@ a.more-item {
     padding: 0 12px;
     font-size: var(--text-md);
   }
-  .more-backdrop:has(~ .pop-place) {
+  .more-backdrop:not([data-anchored]):has(~ .pop-place) {
     z-index: 419;
     background: var(--surface-veil);
   }
@@ -4783,6 +4790,21 @@ a.list-row {
 .subtab-dot.is-warn {
   background: var(--warn);
 }
+/* Where a tab's own thing stands (SubTabs `standing`: a message's channels, the message sheet's canvas of 12 Nov 2026):
+   ready a dot in the ok ink, not written yet a ring, and where it never goes no dot and the tab's words dimmed. */
+.subtab-dot[data-look="ready"] {
+  background: var(--ok);
+}
+.subtab-dot[data-look="empty"] {
+  border: 1.5px solid var(--ink-faint);
+  background: transparent;
+}
+.subtab-dot[data-look="never"] {
+  background: transparent;
+}
+.subtab:has(> .subtab-dot[data-look="never"]) > .subtab-label {
+  color: var(--ink-faint);
+}
 .subtab-bar {
   position: absolute;
   bottom: 0;
@@ -5661,7 +5683,7 @@ a.list-row {
      the glass's depth at its top and sides. */
   .sheet,
   .rec-sheet,
-  :is(.pop-place > .more-menu, .more-menu[data-sheet]),
+  :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet]),
   .pop-place > .rec-combo-pop[data-sheet] {
     clip-path: inset(-100vmax -100vmax calc(var(--sheet-down) + var(--sheet-held)) -100vmax);
   }
@@ -5957,6 +5979,27 @@ footer.rec-sheet-foot .btn:where(:not(.btn-icon)) {
   }
 }
 
+/* An unsaid kicker (Sheet's `unsaid`: a message's sheet, whose pane's head says all there is; the message sheet's
+   canvas, 12 Nov 2026): the title names the dialog to a screen reader and is not drawn, and the head has no height of its
+   own, so the Close stands at its corner over the pane's head, which keeps clear of it, and the sheet is a line shorter. */
+.sheet[data-unsaid="true"] .rec-sheet-head {
+  height: 0;
+  padding-bottom: 0;
+  overflow: visible;
+}
+.sheet[data-unsaid="true"] .rec-sheet-heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.sheet[data-unsaid="true"] .rec-sheet-close {
+  position: relative;
+  z-index: 1;
+  margin-left: auto;
+}
+
 /* ---- One Close for every sheet ----
    Ruben, 20 Oct 2026: "a standard universally shared for the placement across the sheet to keep it clean throughout the
    site". Every sheet's Close is the one circle of the control layer's glass (34px, 44 under a finger), and it stands in
@@ -6042,10 +6085,10 @@ footer.rec-sheet-foot .btn:where(:not(.btn-icon)) {
   }
 }
 @media (max-width: 900px) {
-  .pop-place > .more-menu-titled {
+  .pop-place:not([data-anchored]) > .more-menu-titled {
     padding-top: 0;
   }
-  .pop-place > .more-menu-titled::before {
+  .pop-place:not([data-anchored]) > .more-menu-titled::before {
     margin: 8px auto 4px;
   }
   /* The sheet's rows stand 10px in; its head 16px in from the left and its Close 8px from the right. */

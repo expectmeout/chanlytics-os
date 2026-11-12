@@ -3809,7 +3809,9 @@ html.frame-on .cm-pane-sub .bc-run-link {
 .tpl-ver-preview {
   gap: var(--space-2);
 }
-/* A hint is centred in a row of its own by default (.bc-excl-hint); under a version it reads from the left. */
+/* A hint is centred in a row of its own by default (.bc-excl-hint); under a version, and as a message's own line (WhatsApp's
+   no, a channel this business cannot send it by yet), it reads from the left. */
+.tpl-read > .bc-excl-hint,
 .tpl-ver > .bc-excl-hint,
 .tpl-ver-none > .bc-excl-hint,
 .tpl-ver-preview > .bc-excl-hint,
@@ -3852,12 +3854,47 @@ html.frame-on .cm-pane-sub .bc-run-link {
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
-/* Ask's two changes under the words, and the Undo of the last: one quiet line of presses. */
+/* The one line to Ask under the words (version-editor.tsx AskLine), drawn as Ask's own: its three, the field that grows with
+   the words, the round send at its end, in one capsule of the inset ground; the Undo of the last change under it. */
 .tpl-ver-ask {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-3);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.tpl-ask-line {
+  display: flex;
+  align-self: stretch;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 40px;
+  padding: 3px 4px 3px 12px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-2xl);
+  background: var(--surface-inset-fill);
+}
+.tpl-ask-line:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--focus-field);
+}
+.tpl-ask-line[data-busy] .tpl-ask-words {
+  color: var(--ink-muted);
+}
+.tpl-ask-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--accent);
+}
+.tpl-ask-line .tpl-ask-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-base);
+}
+/* What sending WhatsApp's words back does, under its editor. */
+.tpl-ver-note {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--ink-muted);
@@ -4685,4 +4722,120 @@ div.tpl-slotbox:not([data-lines="1"]) {
   .msg-row-what::after {
     inset: -2px 0;
   }
+}
+
+/* A message, open, in as few words as it can be said (templates/sheet-head.tsx, template-pane.tsx; the message sheet's
+   canvas, 12 Nov 2026). Its name is its menu's press, the caret beside the words; a long name ends in an ellipsis and the
+   caret stays. */
+.cm-pane-title .tpl-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+.tpl-name-words {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tpl-name > svg {
+  flex: none;
+  color: var(--ink-dim);
+}
+/* The one line of facts under the name: what it is, what sends it (a door), what went. One line, cut where it runs long. */
+.tpl-facts-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tpl-facts-line > svg {
+  flex: none;
+}
+.tpl-facts-sep {
+  flex: none;
+  color: var(--ink-faint);
+}
+.tpl-facts-line .tpl-facts-door {
+  min-width: 0;
+  font-size: inherit;
+  color: var(--ink-muted);
+}
+.tpl-facts-by,
+.tpl-facts-went {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Where it stands, a word and its dot at the head's right; what it means is the card a tap opens. */
+.tpl-standing-says {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 17rem;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.tpl-standing-says p {
+  margin: 0;
+}
+.tpl-standing-says b {
+  color: var(--ink);
+}
+.tpl-standing-rule {
+  color: var(--ink-dim);
+}
+/* The words as they are read, their pencil at the bubble's corner. */
+.tpl-read-words {
+  position: relative;
+}
+.tpl-read-words > .tpl-read-pen,
+.tpl-ver-read > .tpl-read-pen {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+}
+.tpl-ver-read:has(> .tpl-read-pen) {
+  position: relative;
+}
+/* WhatsApp's no, on WhatsApp's tab: two lines at most; the whole of it is a tap on where it stands. */
+.tpl-need-line {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+/* The editor in a message's sheet: Send and its Undo side by side once something changed, Done alone before. */
+.tpl-ver-acts[data-one-body] {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* Where it stands rides the name's line, at its far end; the line of facts under them runs the head's whole width. */
+.tpl-pane > .cm-pane-head {
+  align-items: flex-start;
+}
+.tpl-pane .cm-pane-title > .tpl-standing {
+  flex: none;
+  margin-left: auto;
+}
+/* With no kicker (home/pane-sheet.tsx `bare`, the kit's unsaid kicker) the pane's head is the sheet's one head, on the
+   Close's line, clear of the Close at its corner. */
+.cmh-host-bare .cmh-host-body > .cm-pane > .cm-pane-head {
+  margin-right: 52px;
+}
+/* The message's foot (template-pane.tsx): what is answered stands there, docked as every drawer's acts are, and the capsule
+   is not drawn while nothing is asked. */
+.cm-pane-foot:has(> .tpl-foot:empty) {
+  display: none;
+}
+/* On a desk its acts stand at the foot's end, as a composer's Cancel and Send do; on a phone they are the kit's pair. */
+.tpl-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
 }

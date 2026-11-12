@@ -20,6 +20,21 @@ export const WHATSAPP_TEMPLATES_CREATE_DOOR = edgeDoor(
   answerFields({ id: z.string(), meta_status: z.string() }),
 );
 
+/** POST /api/admin/whatsapp/templates-edit: a template's words changed and sent back to Meta for review. */
+export const WHATSAPP_TEMPLATES_EDIT_DOOR = edgeDoor(
+  "/api/admin/whatsapp/templates-edit",
+  z.object({
+    tenant_id: DOOR_ID.optional(),
+    template_id: z.string().optional(),
+    /** Meta's components, whole: Meta replaces every one. */
+    components: z.array(z.unknown()).optional(),
+    body: z.string().optional(),
+    examples: z.array(z.string()).optional(),
+    labels: z.array(z.string()).optional(),
+  }),
+  answerFields({ id: z.string(), meta_status: z.string() }),
+);
+
 /** POST /api/admin/whatsapp/templates-delete: a template withdrawn at Meta. */
 export const WHATSAPP_TEMPLATES_DELETE_DOOR = edgeDoor(
   "/api/admin/whatsapp/templates-delete",

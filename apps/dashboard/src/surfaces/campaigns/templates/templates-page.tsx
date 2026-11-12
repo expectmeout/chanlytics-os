@@ -16,17 +16,18 @@
  * its chains, and each is a message with an email version that is written in its pane (step 5).
  *
  * The page lists the workspace's messages (the surface's `messages`), not its WhatsApp rows: a message written for email
- * or text alone is a row, and the starter set is offered with or without a WhatsApp number (its email and text versions
- * are written at once, its WhatsApp versions wait for a number). The number gates only what is WhatsApp's: a WhatsApp
- * version's rename, hide and delete, a WhatsApp language, a template written to a number's account.
+ * or text alone is a row, and each starter is listed with its words to read (the Messages redesign's step 5): it files
+ * itself as a WhatsApp number connects (starter-templates.ts fileStartersOnConnect), or as a sequence first names it, and
+ * no banner asks for the set. The number gates only what is WhatsApp's: a WhatsApp version's words, rename, hide and
+ * delete, a WhatsApp language. WhatsApp's own list is asked quietly as the page opens (useQuietCheck): no sync button.
  *
  * It is the Inbox's shape (parts/split.tsx): the list in a pane and, while something is open, that thing in a second
- * pane beside it -- a message, a reach-out's email, or the composer writing a new one. On a phone what is open rises over
+ * pane beside it -- a message, a reach-out's email, or New, which is one line to Ask (new-said.tsx: its step 4). On a phone what is open rises over
  * the list in the drawer Campaigns' home opens its own in (home/pane-sheet.tsx; Ruben, 11 Oct 2026: a message took the
  * screen over "like a page"), the list still under it. A message open is the address's (`campaigns/messages/<name>`,
  * contracts messageRoute: a message's one home, the Campaigns wiring review's rule A), written as it opens and closes,
  * replaced and never pushed, as the Inbox writes a thread's, so a link opens it, a reload keeps it, and Back leaves the
- * page. A reach-out's email and the composer stay the page's own, the email's words being its step's on its sequence.
+ * page. A reach-out's email and New stay the page's own, the email's words being its step's on its sequence.
  *
  * The page is real on every workspace. A demo session draws the same words as a real one, over what it holds; without a
  * read, the waiting line says which of the two is looking.
@@ -34,6 +35,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  HOUR_MS,
   BAR_LINE_WORDS,
   LIBRARY_WORDS,
   LIFECYCLE_WORDS,
@@ -61,20 +63,11 @@ import { MessageRow } from "./message-row";
 import { firstView, messageFacts, placeOfMessage } from "./message-row-facts";
 import type { MessageSetting } from "./message-row-facts";
 import { pageActs } from "./page-acts";
-import {
-  composerPane,
-  headRight,
-  headSub,
-  listBar,
-  listFoot,
-  matchesOf,
-  numberNotice,
-  startersOffer,
-  templateList,
-} from "./page-parts";
+import { headRight, headSub, listBar, matchesOf, numberNotice, templateList } from "./page-parts";
 import type { ListFolds, ListGroups } from "./page-parts";
+import { NewSaid } from "./new-said";
 import { TemplatePane } from "./template-pane";
-import { starters as library } from "./verbs";
+import { starters as library, syncTemplates } from "./verbs";
 import { brainOf } from "./words";
 
 /** No email or text rows read: one array for every draw, so nothing that takes it sees it change. */
@@ -286,6 +279,30 @@ function messageOpener(
   return { routed, shownKey, openOne, startNew, closeOpen, openMade };
 }
 
+/** How long WhatsApp's own list of messages is left before the page asks it again as it opens. */
+const QUIET_CHECK_MS = HOUR_MS;
+/** Asked once a visit at most: a page opened again in it reads what that asking brought. */
+let checkedThisVisit = false;
+
+/**
+ * WhatsApp asked quietly as the page opens (the Messages redesign's step 5: no sync button): its answer on a message
+ * written here comes by itself (waba-events), so this reads only what was made or changed in WhatsApp's own tools, where
+ * the list was last read over an hour ago, for whoever may. Nothing is said: what changed is in the list once read again.
+ */
+function useQuietCheck(may: boolean, templates: readonly TemplateDto[] | null | undefined) {
+  const synced = (templates ?? []).reduce<string | null>(
+    (m, t) => (t.synced_at && (!m || t.synced_at > m) ? t.synced_at : m),
+    null,
+  );
+  useEffect(() => {
+    if (!may || checkedThisVisit) return;
+    if (synced && Date.now() - Date.parse(synced) < QUIET_CHECK_MS) return;
+    checkedThisVisit = true;
+    // A check that did not answer leaves the list as it was read: the next visit asks again.
+    void syncTemplates();
+  }, [may, synced]);
+}
+
 function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   // The settings surface holds the templates, the numbers and what sends and went out; a reach-out's emails are their
   // own surface (Part 4 PR 8): their rows draw when they land.
@@ -311,24 +328,22 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   // Messages' first part (client/page-speed.ts, contracts PRIMARY_PART): its list, drawn once the settings read is in, or
   // what could not be read. Shown beside Sequences under Campaigns' one mount, it is timed from the press that showed it.
   usePartShown("templates", "list", templates !== undefined && messages !== undefined);
+  useQuietCheck(hasWhatsApp && canAct && !!templates, templates);
 
   if (templates === undefined || messages === undefined) return readingNow(view);
   if (templates === null || messages === null) return couldntLoad(view);
 
   const listing = listingOf(templates, messages, S);
-  const { langs, starters, customGroups, hiddenGroups, missingTotal, allMissing } = listing;
-  const partialSet = missingTotal > 0 && !allMissing;
-  const addingAll = doing === `add:all:${langs.map((l) => l.id).join(",")}`;
+  const { langs, starters, customGroups, hiddenGroups } = listing;
   const acts = pageActs({ doingRef, setDoing, flash });
-  const { rename, toggleHidden, remove, addStarters, sync, written } = acts;
+  const { rename, toggleHidden, remove, addStarters, written } = acts;
   // A new language is written and sent from the pane that opened it, by whoever may
   // add a template and only with a number to add it to; anyone else is told why in
   // the picker, where the languages it cannot add would have been. (An email's or a text's
   // version of a message needs no number: only a WhatsApp version does.)
   const addWhy = !hasWhatsApp ? LIBRARY_WORDS.addNeedsNumber : !canAct ? gateTitle("approve", "add a language") : null;
   const every = [...starters, ...customGroups, ...hiddenGroups];
-  const { routed, shownKey, openOne, startNew, closeOpen, openMade } = messageOpener({ route, named }, every, state);
-  const held = { templates, messages };
+  const { routed, shownKey, openOne, startNew, closeOpen } = messageOpener({ route, named }, every, state);
   const read = readEach(every, langs, versions);
   const card = messageCard(read, shownKey, openOne);
 
@@ -344,7 +359,7 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   const openGroup = routed;
   const openEmail = named || openGroup ? null : tplEmailOpen(emails, openKey);
   const pane = composing ? (
-    composerPane({ bizName, setComposing, openMade, flash, hasWhatsApp, beginMessage: acts.beginMessage, held })
+    <NewSaid onClose={() => setComposing(false)} />
   ) : openGroup ? (
     <TemplatePane
       key={openGroup.key}
@@ -367,6 +382,7 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
       canWrite={canAct}
       onSaveVersion={acts.saveVersion}
       onRemoveVersion={acts.removeVersion}
+      onSendWords={acts.sendWords}
     />
   ) : named ? (
     messageGone(closeOpen)
@@ -396,7 +412,6 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
       {listBar({ q, setQ, inLine })}
       {roleHint(canAct, hasWhatsApp)}
       {numberNotice({ channels, hasWhatsApp })}
-      {allMissing && startersOffer({ S, langs, busy, addingAll, addStarters, hasNumber: hasWhatsApp })}
       {templateList({
         groups,
         listEmails,
@@ -408,7 +423,6 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
         needle,
         q,
       })}
-      {listFoot({ listing, partialSet, busy, addingAll, addStarters, hasWhatsApp, doing, sync })}
     </div>
   );
 
@@ -425,7 +439,8 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
 
 /**
  * What is open, on a phone: over the list in the drawer Campaigns' home opens its own in, whose Close asks the composer
- * first about what was written (its foot has no Cancel).
+ * first about what was written (its foot has no Cancel). A message's own head is the drawer's one head: no "Messages"
+ * over its name (the message sheet's canvas, 12 Nov 2026).
  */
 function phoneDrawer({ pane, composing, onClose }: { pane: ReactNode; composing: boolean; onClose: () => void }) {
   return (
@@ -434,6 +449,7 @@ function phoneDrawer({ pane, composing, onClose }: { pane: ReactNode; composing:
       title={LIBRARY_WORDS.title}
       onClose={onClose}
       askFirst={composing}
+      bare={!composing}
       testid="tpl-drawer"
     >
       {pane}

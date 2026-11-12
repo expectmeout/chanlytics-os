@@ -95,14 +95,16 @@ export const syncTemplates = () => api()("POST templates/sync");
 export const templates = {
   sync: syncTemplates,
   draft: (body: DraftBody) => api()("POST templates/draft", { body }),
-  /** A version's words written again, warmer or shorter, every value kept: words handed back, never saved. */
+  /** A version's words written again as the owner asks, every value kept: words handed back, never saved. */
   rewrite: (body: {
-    channel: OwnVersionChannel;
+    channel: OwnVersionChannel | "whatsapp";
     language: string;
     subject: string | null;
     body: string;
-    tone: "warmer" | "shorter";
+    ask: string;
   }) => api()("POST templates/versions/rewrite", { body }),
+  /** WhatsApp's words changed and sent back to WhatsApp, which looks at them again (the Messages redesign's step 3). */
+  sendWords: (id: string, body: string) => api()("PUT templates/[id]", { params: { id }, body: { words: { body } } }),
   create: (body: CreateBody) => api()("POST templates", { body }),
   remove: (id: string) => api()("DELETE templates/[id]", { params: { id } }),
   /** Out of the composers, or back in. The row stays; syncs keep it. */

@@ -33,6 +33,7 @@ import {
   LIBRARY_WORDS,
   OWN_VERSION_CHANNELS,
   PLAYBOOK_LIMITS,
+  STARTER_LANGUAGES,
   campaignMessageOf,
   channelNeverCarries,
   channelsWords,
@@ -147,6 +148,17 @@ async function startersHere(ctx: RouteContext, tenantId: TenantId, keys: unknown
 
 export async function addStarterTemplates(ctx: RouteContext, req: Request, member: Member) {
   return fileStarters(ctx, member.tenantId, ((await readJsonBody(req)) as StartersAsked | null) ?? {});
+}
+
+/**
+ * The starter set, filed by itself as a WhatsApp number connects (the Messages redesign's step 5, the canvas's "by itself"):
+ * every starter the workspace is offered, in the set's languages, on every channel, so WhatsApp has looked at each one
+ * before a sequence needs it and nobody presses "Add the starter set". The connect route runs it once its own answer has
+ * gone (next/server `after`); idempotent, so a number connected again files nothing twice, and a starter is still filed
+ * when a sequence first names it (withStarterMessage) where this did not reach.
+ */
+export async function fileStartersOnConnect(ctx: RouteContext, tenantId: TenantId) {
+  return fileStarters(ctx, tenantId, { languages: STARTER_LANGUAGES.map((l) => l.id) });
 }
 
 /**

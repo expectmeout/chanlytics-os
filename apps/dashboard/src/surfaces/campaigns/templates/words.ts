@@ -106,6 +106,18 @@ export const tplSlotWord = (kind: string | undefined, label: string | undefined,
  * comes.
  */
 const lower = (channel: string): string => channel.toLowerCase();
+/** New, said (new-said.tsx): one line to Ask, which writes the message for every channel and files it on one press. */
+export const TPL_NEW_WORDS = {
+  title: "New message",
+  sub: "Say what it is for. Ask writes it for WhatsApp, email and text.",
+  label: "What the message is for",
+  hint: "What should it say, and to whom?",
+  send: "Ask",
+  note: "You read it before anything is saved. WhatsApp looks at its version first, usually within minutes.",
+  /** What Ask is asked, the owner's words inside it: a new message for Messages, every channel it can go by. */
+  asked: (words: string): string => `New message, for every channel it can go by: ${words}`,
+} as const;
+
 export const TPL_VERSION_WORDS = {
   /** The switch's name to a screen reader. */
   switchName: (title: string): string => `Channel for ${title}`,
@@ -142,6 +154,22 @@ export const TPL_VERSION_WORDS = {
   asking: "Writing…",
   /** The words as they were before Ask wrote them again. */
   undo: "Undo",
+  /** The one line to Ask under the words (Ruben, 12 Nov 2026: no preset changes, one input for any). */
+  askLabel: "Ask for a change",
+  askHint: "Tell Ask what to change",
+  /** What a refused message's words are written again for, with WhatsApp's own reason. */
+  fixAsk: (reason: string): string =>
+    `WhatsApp refused these words (${reason}). Write them again so WhatsApp approves them, saying the same thing.`,
+  fixing: "Ask is writing words WhatsApp can take…",
+  /** WhatsApp's own words, under its editor: what sending them back does. */
+  whatsappNote:
+    "WhatsApp looks at new words before they go out, usually within minutes. It takes a change to an approved message once a day.",
+  sendBack: "Send to WhatsApp",
+  sendingBack: "Sending…",
+  whatsappEmpty: "Write the message.",
+  whatsappLong: "WhatsApp takes 1,024 characters at most.",
+  sentBack: (title: string): string =>
+    `${title} went back to WhatsApp — it looks at the new words, usually within minutes`,
   /** How long the subject is, against what an inbox shows. */
   subjectCount: (n: number, max: number): string => `${n} of ${max}`,
   /** What a text comes to on the wire, STOP line included. */
@@ -157,6 +185,34 @@ export const TPL_VERSION_WORDS = {
   began: (title: string, channel: string, language: string): string =>
     `${title} is in ${CAMPAIGN_ROOMS.library}: the ${lower(channel)} version in ${language} is saved`,
 };
+
+/**
+ * The open message in as few words as it can be said (the message sheet's canvas, 12 Nov 2026): what it is in a word, what
+ * sends it and what went, on one line under its name; where it stands in a word, and what that means on a tap; the words'
+ * own pencil; and the editor's two answers once something changed. A rule that sat under every name ("An offer, for
+ * people who said yes to offers") is said where it is asked for.
+ */
+export const TPL_SHEET_WORDS = {
+  offer: "Offer",
+  note: "Note",
+  sent: (count: string, when: string | null): string => (when ? `${count} sent, the last ${when}` : `${count} sent`),
+  noneSent: "none sent yet",
+  /** The tap on where it stands: its name to a screen reader, and what it says. */
+  standing: (title: string): string => `Where ${title} stands`,
+  checking: "Checking",
+  checkingSays:
+    "WhatsApp is checking the new words, usually within minutes. If it says no, this comes back to Needs you with new words ready.",
+  goingSays: (by: string): string => `Going out: ${by}.`,
+  idleSays: "Nothing sends it now. It goes out once a sequence uses it.",
+  awaySays: "Put away: on file, out of the list and the composers. Its name brings it back.",
+  offerSays: "An offer reaches only people who said yes to offers, and never goes by text.",
+  noteSays: "A note about their own booking or proposal reaches anyone a send may.",
+  changeWords: "Change the words",
+  addLanguage: "Add a language",
+  done: "Done",
+  undo: "Undo",
+  write: (channel: string): string => `Write the ${channel.toLowerCase()}`,
+} as const;
 
 /**
  * What the list says (Messages, the canvas of 10 Nov 2026, steps 1 and 2): its groups, in the order a person asks about
@@ -207,5 +263,7 @@ export const TPL_LIST_WORDS = {
   putAwayTip: "Keep it on file, out of the list and the composers",
   bringBackTip: "Back in the list and the composers",
   editVersion: (channel: string): string => `Edit the ${channel.toLowerCase()}`,
+  /** WhatsApp's words, changed in the same editor and sent back for WhatsApp to look at. */
+  changeWords: "Change the words",
   removeVersion: (channel: string): string => `Remove the ${channel.toLowerCase()} version`,
 } as const;

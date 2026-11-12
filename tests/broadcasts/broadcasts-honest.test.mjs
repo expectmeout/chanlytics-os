@@ -229,6 +229,7 @@ const optionsOf = (p) => p.props.groups.flatMap((g) => g.options.map((o) => ({ .
 const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.ts`);
 const { templates, starters } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
 const { Menu } = await import(`${SRC}/surfaces/kit/menu/menu.tsx`);
+const { Popover } = await import(`${SRC}/surfaces/kit/popover/popover.tsx`);
 const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 /** What the page last said to the frame's head (kit/head/standing.ts): its line and its act, which the frame draws, not the page. */
 const headSaid = () => {
@@ -237,7 +238,6 @@ const headSaid = () => {
 };
 /** A part of the page, or of its head where the page says it to the frame. */
 const headed = (tree, id) => byTestId(tree, id) ?? byTestId(headSaid(), id);
-const { AFTER } = await import(`${SRC}/bridge/refresh-map.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { SubTabs } = await import(`${SRC}/surfaces/kit/sub-tabs/sub-tabs.tsx`);
 const { Face } = await import(`${SRC}/surfaces/kit/face/face.tsx`);
@@ -246,53 +246,45 @@ const { Face } = await import(`${SRC}/surfaces/kit/face/face.tsx`);
 const paneTitle = (tree) => textOf(find(byTestId(tree, "bc-run-solo"), (n) => n.type === "h2").props.children[0]);
 
 /**
- * A language chip is the kit's Picker (surfaces/kit/picker/), drawn as a token: its face says the letters of the language
- * in view and, after a space, "+1" for the rest. In its two parts: the letters, and "+1" ("" for none).
+ * The open message's language control is the kit's Picker (surfaces/kit/picker/), a quiet word: the name of the language in
+ * view, no code, glyph or count (the message sheet's canvas, 12 Nov 2026).
  */
-const chipSays = (chip) => {
-  const [letters, more = ""] = textOf(chip.props.face)
-    .trim()
-    .split(/\s+(?=\+\d)/);
-  return [letters, more];
+const chipSays = (chip) => textOf(chip.props.face).trim();
+/**
+ * Where the language in view stands on WhatsApp, as its tab's dot says it: "ok" approved and ready, "info" waiting on
+ * WhatsApp (in review, refused, paused), "none" not on WhatsApp in that language.
+ */
+const waState = (node) => {
+  const tab = find(node, (n) => n.type === SubTabs)?.props.tabs.find((t) => t.id === "whatsapp");
+  return tab?.need ? "info" : tab?.standing?.look === "ready" ? "ok" : "none";
 };
-/** The state of the language in view, as the glyph in the chip's face draws it ("ok", "info", "none"). */
-const chipTone = (chip) => find(chip.props.face, (n) => n.type === "svg").props["data-tone"];
+/** The open message's name, as its head says it: the words of its menu's press, or its title where it has no menu. */
+const nameOf = (pane) => {
+  const menu = find(pane, (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "template-menu");
+  return (menu ? textOf(menu.props.trigger) : textOf(find(pane, (n) => n.props?.className === "cm-pane-name"))).trim();
+};
+/**
+ * The open message's language control in a node: drawn where the message has two languages or one is being added, else
+ * asked for from the name's menu ("Add a language") and read again from the page.
+ */
+const chipIn = (node) => {
+  const chip = pickerOf(node, "template-lang");
+  if (chip) return chip;
+  const add = find(node, (n) => n.type === Menu)
+    ?.props.groups.flatMap((g) => g.items)
+    .find((i) => i.label === "Add a language");
+  if (!add) return null;
+  add.onSelect();
+  return pickerOf(messagesAgain(), "template-lang");
+};
 /** A language option's group, by the key the contracts file it under ("on", "ready", "add"), from its heading. */
 const groupKey = (heading) =>
   Object.entries(contracts.LANGUAGE_GROUP_WORDS).find(([, words]) => words === heading)?.[0];
 /** A language chip's options in a row, each with its group's key, and one of them by its code. */
-const optionsIn = (row) => optionsOf(pickerOf(row, "template-lang")).map((o) => ({ ...o, group: groupKey(o.group) }));
+const optionsIn = (row) => optionsOf(chipIn(row)).map((o) => ({ ...o, group: groupKey(o.group) }));
 const optionOf = (row, lang) => optionsIn(row).find((o) => o.value === lang);
 /** A language picked from the chip in a row, as its Picker is told. */
-const pickLanguage = (row, lang) => pickerOf(row, "template-lang").props.onValueChange(lang);
-/** Wait, a turn at a time and never long, for what an async chain is to make true; whether it did. */
-const until = async (ok) => {
-  for (let i = 0; i < 200 && !ok(); i += 1) await settle();
-  return ok();
-};
-/**
- * WhatsApp's sync held in flight, and let go. The page imports the verb (verbs.ts syncTemplates, the client's
- * POST templates/sync), so a test holds the answer where the client asks for it: the window's fetch. What the refresh
- * map re-reads behind a write is templates-truth.test.mjs's, so it is emptied for the route while the sync is held.
- */
-const holdSync = () => {
-  const was = { fetch: globalThis.fetch, after: AFTER["POST templates/sync"] };
-  let release = () => {};
-  globalThis.fetch = (url) => {
-    if (!String(url).includes("templates/sync")) return Promise.reject(new Error(`not held: ${url}`));
-    return new Promise((r) => {
-      release = (data) => r({ status: 200, headers: { get: () => null }, json: async () => ({ ok: true, data }) });
-    });
-  };
-  AFTER["POST templates/sync"] = () => [];
-  return {
-    finish: (data) => release(data),
-    restore() {
-      globalThis.fetch = was.fetch;
-      AFTER["POST templates/sync"] = was.after;
-    },
-  };
-};
+const pickLanguage = (row, lang) => chipIn(row).props.onValueChange(lang);
 /** A fresh mount: nothing kept from the last page, no listener left behind by it. */
 const fresh = () => {
   freshTree();
@@ -1281,82 +1273,16 @@ test("the page says what needs you and what goes out, and calls a message a mess
   assert.equal(textOf(headed(messagesAgain(), "template-new")).trim(), "New message", "and its act says so");
 });
 
-test("REGRESSION (C20): on Messages only the pressed control says it is working, and every control waits -- one flag relabelled every Add while a sync ran", async () => {
-  const sync = holdSync();
-  try {
-    // With a starter open, so its own Add is drawn and the assertion below is a
-    // reading rather than a loop over nothing.
-    let tree = messagesOpen({}, "starter-row");
-    press(byTestId(tree, "sync-templates"));
-    tree = messagesAgain();
-    // The control is the freshness state now -- a dot, when it last looked, and a
-    // press to look again -- so its working words are its own: it still says it is
-    // working, and it is still the only one that does.
-    assert.match(
-      textOf(byTestId(tree, "sync-templates")),
-      /Checking WhatsApp/,
-      "the pressed control says it is working",
-    );
-    // The kit's LinkButton and the host button it draws both carry the id: the one control is the host.
-    const addAll = all(tree, (n) => n.type === "button" && n.props?.["data-testid"] === "starter-add-all");
-    assert.equal(addAll.length, 1, "one press adds what the starter set is missing, in every language at once");
-    for (const b of addAll) {
-      assert.ok(!textOf(b).includes("Adding"), `REGRESSION: ${textOf(b)} while a sync ran`);
-      assert.equal(b.props.disabled, true, "and it waits for the sync");
-    }
-    // Its Add is the kit's Button now (drawn in the open message's pane): the host button is the one, not its wrappers.
-    const adds = all(tree, (n) => n.type === "button" && n.props?.["data-testid"] === "starter-add");
-    assert.equal(adds.length, 1, "the open starter offers the one language it is missing");
-    assert.ok(
-      adds.every((b) => b.props.disabled === true && !textOf(b).includes("Adding")),
-      "a message's own Add waits in its own words",
-    );
-    sync.finish({ seen: 2, approved: 2, marketing: 1 });
-    assert.ok(
-      await until(() => !/Checking WhatsApp/.test(textOf(byTestId(messagesAgain(), "sync-templates")))),
-      "the sync finished",
-    );
-    tree = messagesAgain();
-    assert.match(
-      textOf(byTestId(tree, "sync-templates")),
-      /Checked with WhatsApp|Not checked with WhatsApp yet/,
-      "and afterwards it says when it last looked, not what to press",
-    );
-    assert.match(textOf(toasts.at(-1).msg), /2 messages from WhatsApp — 2 approved, 1 marketing/, "and what it found");
-  } finally {
-    sync.restore();
-  }
-});
-
-test("A starter set part-way on file says what is left at the list's foot, in words a screen reader hears -- no notice, and it waits in its own words while a sync runs", async () => {
+test("Messages has no sync button and no act for the rest of the starter set: WhatsApp is asked as the page opens, and the starters file themselves as a number connects", () => {
+  // The Messages redesign's step 5 (12 Nov 2026): a press to ask WhatsApp, and one to add what the set was missing, were
+  // chores; WhatsApp tells the app of each answer, the page asks it quietly as it opens, and the set files itself.
   const first = starters.list[0];
-  let tree = messages({
+  const tree = messages({
     templatesAll: [templateRow({ id: "t-s", name: first.name, language: "en_US", meta_status: "approved" })],
   });
-  // The notice that said a language never written cost customers something is gone: a run sends one language to
-  // everyone on it. What is left to add is one quiet act under the list.
-  assert.equal(byTestId(tree, "starters"), null, "no notice part-way through the set");
-  const adds = all(tree, (n) => n.type === "button" && n.props?.["data-testid"] === "starter-add-all");
-  assert.equal(adds.length, 1);
-  assert.equal(textOf(adds[0]).trim(), "Add the rest of the starter set");
-  const left = String(adds[0].props["aria-description"]);
-  assert.ok(/in English/.test(left) && /in Spanish/.test(left), left);
-  assert.equal(adds[0].props["data-tip"], left, "the hover and a screen reader hear the one sentence");
-  const sync = holdSync();
-  try {
-    press(byTestId(tree, "sync-templates"));
-    tree = messagesAgain();
-    const waiting = byTestId(tree, "starter-add-all");
-    assert.equal(waiting.props.disabled, true, "it waits for the sync");
-    assert.ok(!textOf(waiting).includes("Adding"), textOf(waiting));
-    sync.finish({ seen: 1, approved: 1, marketing: 1 });
-    assert.ok(
-      await until(() => byTestId(messagesAgain(), "starter-add-all").props.disabled !== true),
-      "and is pressable again once the sync is done",
-    );
-  } finally {
-    sync.restore();
-  }
+  assert.equal(byTestId(tree, "sync-templates"), null, "no sync button");
+  assert.equal(byTestId(tree, "starter-add-all"), null, "no act to add the rest of the set");
+  assert.equal(byTestId(tree, "starters"), null, "and no notice");
 });
 
 test("A message needs you when a language a running sequence sends is missing -- not for a language nobody sends, nor one WhatsApp is still reading", () => {
@@ -1453,13 +1379,12 @@ test("A message is a row you scan, and the words open under it: what it is, what
     0,
     "the languages are the open message's, in its pane",
   );
-  const chips = all(
-    paneOf(messagesOpen({ templatesAll: [en] })),
-    (n) => n.type === Picker && n.props["data-testid"] === "template-lang",
-  );
-  assert.equal(chips.length, 1);
-  assert.deepEqual(chipSays(chips[0]), ["EN", ""]);
-  assert.equal(chipTone(chips[0]), "ok", "its state, drawn");
+  // One language is no choice (the message sheet's canvas, 12 Nov 2026): no control until the name's menu asks for one,
+  // and then the language in view as a word; where it stands is its WhatsApp tab's dot.
+  const openOne = paneOf(messagesOpen({ templatesAll: [en] }));
+  assert.equal(all(openOne, (n) => n.type === Picker && n.props["data-testid"] === "template-lang").length, 0);
+  assert.equal(waState(openOne), "ok", "its state, on its tab");
+  assert.equal(chipSays(chipIn(openOne)), "English");
 
   // A STARTER's chip, in its open row, opens its languages in groups: the one WhatsApp holds, the
   // one the library has written and the workspace never added -- a language that
@@ -1471,8 +1396,8 @@ test("A message is a row you scan, and the words open under it: what it is, what
     templatesAll: [en, templateRow({ id: "t-w", name: "winback_reply", language: "en_US", meta_status: "approved" })],
   });
   tree = openedRow((t) => all(t, (n) => n.props?.["data-testid"] === "starter-row")[0]);
-  const chip = pickerOf(paneOf(tree), "template-lang");
-  assert.deepEqual(chipSays(chip), ["EN", ""], "Spanish is not on file, so there is nothing more to count");
+  const chip = chipIn(paneOf(tree));
+  assert.equal(chipSays(chip), "English", "the language in view, as a word");
   // The list the chip opens is the Picker's groups, each under its heading.
   const options = optionsIn(paneOf(tree));
   const group = (g) => options.filter((o) => o.group === g).map((o) => o.value);
@@ -1486,12 +1411,8 @@ test("A message is a row you scan, and the words open under it: what it is, what
   pickLanguage(paneOf(tree), "es");
   tree = messagesAgain();
   const open = paneOf(tree);
-  assert.deepEqual(
-    chipSays(pickerOf(open, "template-lang")),
-    ["ES", "+1"],
-    "the chip says the language in view, and that English is on file too",
-  );
-  assert.equal(chipTone(pickerOf(open, "template-lang")), "none", "which WhatsApp has never seen");
+  assert.equal(chipSays(pickerOf(open, "template-lang")), "Spanish", "the chip says the language in view");
+  assert.equal(waState(open), "none", "which WhatsApp has never seen");
   assert.ok(
     byTestId(open, "template-open-body"),
     "the message stays open, on the language that was pressed (the chip above)",
@@ -1515,10 +1436,10 @@ test("A message is a row you scan, and the words open under it: what it is, what
     1,
     "in the one pane beside the list",
   );
-  assert.ok(textOf(paneOf(tree)).includes("offer"), "the pane is the pressed message's");
+  assert.ok(nameOf(paneOf(tree)).toLowerCase().includes("offer"), "the pane is the pressed message's");
 });
 
-test("Messages is the Inbox's shape: the search is the bar's line and WhatsApp's check the list's foot, the head's act is New alone, an open message's verbs are the menu on its caret, and New opens a pane too", async () => {
+test("Messages is the Inbox's shape: the search is the bar's line, no WhatsApp check to press, the head's act is New alone, an open message's verbs are the menu on its name, and New opens a pane too", async () => {
   const keep = { ...templates };
   const said = [];
   Object.assign(templates, {
@@ -1537,8 +1458,7 @@ test("Messages is the Inbox's shape: the search is the bar's line and WhatsApp's
     // WhatsApp was last asked is the list's foot (Messages, the canvas of 10 Nov 2026): no top bar of the list's own.
     const bar = find(tree, (n) => n.props?.className === "tpl-bar");
     assert.equal(bar, null, "no top bar on a desk");
-    const foot = find(tree, (n) => n.type === "footer" && n.props?.className === "msg-foot");
-    assert.ok(byTestId(foot, "sync-templates"), "the list's foot holds WhatsApp's check");
+    assert.equal(byTestId(tree, "sync-templates"), null, "no check to press: WhatsApp is asked as the page opens");
     assert.equal(lineBox()?.props["data-testid"], "templates-search", "the line searches the messages");
     assert.equal(byTestId(tree, "messages-real").props["data-open"], undefined, "nothing open: the list alone");
 
@@ -1546,19 +1466,18 @@ test("Messages is the Inbox's shape: the search is the bar's line and WhatsApp's
     press(byTestId(customRow(tree), "template-open"));
     tree = messagesAgain();
     assert.equal(byTestId(tree, "messages-real").props["data-open"], "true", "the page says something is open");
-    assert.ok(
-      textOf(find(paneOf(tree), (n) => n.props?.className === "cm-pane-title")).startsWith("Offer"),
-      "the pane is named as the row is",
-    );
+    assert.ok(nameOf(paneOf(tree)).startsWith("Offer"), "the pane is named as the row is");
     assert.equal(byTestId(customRow(tree), "template-menu"), null, "the row has no menu of its own");
-    assert.equal(textOf(byTestId(paneOf(tree), "template-menu")).trim(), "", "a caret at its head: no three dots");
+    // The name is the menu's press, its caret beside the words: no three dots (the message sheet's canvas, 12 Nov 2026).
+    const nameMenu = find(paneOf(tree), (n) => n.type === Menu);
+    assert.ok(textOf(nameMenu.props.trigger).trim().startsWith("Offer"), "the menu opens from the name");
+    assert.equal(nameMenu.props.anchored, true, "a small card at the name, never a second sheet");
     assert.deepEqual(
-      find(tree, (n) => n.type === Menu)
-        .props.groups.flatMap((g) => g.items)
-        .map((i) => [i.label, i.tone, i.gate["data-testid"]]),
+      nameMenu.props.groups.flatMap((g) => g.items).map((i) => [i.label, i.tone, i.gate["data-testid"]]),
       [
         ["Rename", undefined, "template-rename"],
         ["Put away", undefined, "template-hide"],
+        ["Add a language", undefined, "template-lang-add"],
         ["Delete", "danger", "template-delete"],
       ],
     );
@@ -1597,23 +1516,24 @@ test("Messages is the Inbox's shape: the search is the bar's line and WhatsApp's
       globalThis.window.canDo = canDo;
     }
 
-    // New is a pane too: the list stays beside it, a message pressed gives it way, and Cancel with nothing written closes it.
+    // New is a pane too, one line to Ask (new-said.tsx): the list stays beside it, a message pressed gives it way, and its
+    // Close closes it.
     tree = messages({ templatesAll: [templateRow()] });
     press(headed(tree, "template-new"));
     tree = messagesAgain();
-    assert.ok(byTestId(tree, "messages-composer"));
+    assert.ok(byTestId(tree, "template-new-words"), "one line to Ask");
     assert.equal(textOf(find(tree, (n) => n.props?.className === "cm-pane-title")).trim(), "New message");
     assert.ok(byTestId(tree, "custom-row"), "the list stays beside it");
     press(byTestId(customRow(tree), "template-open"));
     tree = messagesAgain();
-    assert.equal(byTestId(tree, "messages-composer"), null, "a message pressed gives it way");
+    assert.equal(byTestId(tree, "template-new-words"), null, "a message pressed gives it way");
     assert.ok(paneOf(tree));
     press(headed(tree, "template-new"));
     tree = messagesAgain();
     assert.equal(paneOf(tree), null, "and New gives way to the message");
-    press(byTestId(tree, "tpl-close"));
+    press(byTestId(tree, "cm-pane-close"));
     tree = messagesAgain();
-    assert.equal(byTestId(tree, "messages-composer"), null, "Cancel, with nothing written, closes it");
+    assert.equal(byTestId(tree, "template-new-words"), null, "its Close closes it");
   } finally {
     Object.assign(templates, keep);
   }
@@ -1685,8 +1605,8 @@ test("A language nobody has written is picked from the one chip and written in t
       [{ language: "pt_BR", translate: { id: "t-en" } }],
       "written FROM the English on file, once",
     );
-    assert.deepEqual(chipSays(pickerOf(row, "template-lang")), ["PT", "+1"]);
-    assert.equal(chipTone(pickerOf(row, "template-lang")), "none", "a language WhatsApp has never seen");
+    assert.equal(chipSays(pickerOf(row, "template-lang")), "Portuguese (Brazil)");
+    assert.equal(waState(row), "none", "a language WhatsApp has never seen");
     assert.ok(
       textOf(customRow(tree)).includes("“Hi {first name}, 20% off any service this week.”"),
       "the row still quotes the message while its new language is written",
@@ -1739,14 +1659,14 @@ test("A language nobody has written is picked from the one chip and written in t
       ],
     });
     tree = messagesAgain();
-    assert.equal(chipTone(pickerOf(paneOf(tree), "template-lang")), "info");
+    assert.equal(waState(paneOf(tree)), "info");
     assert.equal(textOf(byTestId(customRow(tree), "template-status")).trim(), "Portuguese (Brazil) in review");
   } finally {
     Object.assign(templates, keep);
   }
 });
 
-test("Cancel goes back to the language that was in view; a heading, or a role that may not add one, keeps the other languages out of the list and says why", async () => {
+test("Cancel goes back to the language that was in view; a heading, or a role that may not add one, offers no other language", async () => {
   const keep = { ...templates };
   Object.assign(templates, {
     draft: async () => ({ ok: false, message: "The assistant is not available right now. Try again in a moment." }),
@@ -1767,11 +1687,11 @@ test("Cancel goes back to the language that was in view; a heading, or a role th
     pickLanguage(row, "de");
     tree = messagesAgain();
     row = paneOf(tree);
-    assert.deepEqual(chipSays(pickerOf(row, "template-lang")), ["DE", "+1"]);
+    assert.equal(chipSays(pickerOf(row, "template-lang")), "German");
     press(byTestId(row, "tpl-cancel"));
     tree = messagesAgain();
     row = paneOf(tree);
-    assert.deepEqual(chipSays(pickerOf(row, "template-lang")), ["EN", ""], "back on English, and nothing more on file");
+    assert.equal(chipSays(pickerOf(row, "template-lang")), "English", "back on English");
     assert.equal(byTestId(row, "tpl-composer"), null);
     assert.ok(byTestId(row, "message-preview"), "the English, as the customer reads it");
   } finally {
@@ -1830,24 +1750,30 @@ test("Cancel goes back to the language that was in view; a heading, or a role th
     t = openedRow(customRow);
     pickLanguage(paneOf(t), "pt_BR");
     t = messagesAgain();
-    assert.deepEqual(chipSays(pickerOf(paneOf(t), "template-lang")), ["PT", "+1"]);
+    assert.equal(chipSays(pickerOf(paneOf(t), "template-lang")), "Portuguese (Brazil)");
     settingsChanged({ templatesAll: [offerEn()] });
     t = messagesAgain();
     const r = paneOf(t);
-    assert.deepEqual(chipSays(pickerOf(r, "template-lang")), ["EN", ""], "back on the language it has");
+    // Back on the one language it has, and one language is no choice: no control to choose from.
+    assert.equal(pickerOf(r, "template-lang"), null, "back on the one language it has");
+    assert.ok(byTestId(r, "message-preview"), "its English, as the customer reads it");
     assert.equal(byTestId(r, "tpl-composer"), null);
     assert.deepEqual(drafted, [], "and the assistant was never asked");
   } finally {
     Object.assign(templates, keep);
   }
 
-  // A heading would not come with it: no language to translate into, and the reason where they would be.
+  // A heading would not come with it, so no language is offered: with the one it has there is nothing to choose, and the
+  // name's menu has no "Add a language" (the message sheet's canvas, 12 Nov 2026: one language is no choice).
+  const addOf = (r) =>
+    (find(r, (n) => n.type === Menu)?.props.groups ?? [])
+      .flatMap((g) => g.items)
+      .some((i) => i.label === "Add a language");
   messages({ templatesAll: [offerEn({ header: "Fall news" })] });
   let tree = openedRow(customRow);
   let row = paneOf(tree);
-  assert.deepEqual([...new Set(optionsIn(row).map((o) => o.group))], ["on"]);
-  const noteOf = (r) => textOf(pickerOf(r, "template-lang").props.note);
-  assert.ok(noteOf(row).includes("it has a heading"), noteOf(row));
+  assert.equal(pickerOf(row, "template-lang"), null);
+  assert.equal(addOf(row), false, "a heading would not come with it");
 
   // Someone who may not add a template sees the languages WhatsApp holds, and why there are no more.
   const canDo = globalThis.window.canDo;
@@ -1856,8 +1782,8 @@ test("Cancel goes back to the language that was in view; a heading, or a role th
     tree = messages({ templatesAll: [offerEn()] });
     tree = openedRow(customRow);
     row = paneOf(tree);
-    assert.deepEqual([...new Set(optionsIn(row).map((o) => o.group))], ["on"]);
-    assert.equal(noteOf(row).trim(), "Only an owner or operator can add a language.");
+    assert.equal(pickerOf(row, "template-lang"), null);
+    assert.equal(addOf(row), false, "someone who may not add a template is offered no language");
   } finally {
     globalThis.window.canDo = canDo;
   }
@@ -1911,16 +1837,20 @@ test("A message says whether it may be sent to everyone, where it is open: marke
       ],
     });
     const tree = openedRow((t) => find(t, (n) => n.props?.["data-template"] === name));
-    const mark = find(paneOf(tree), (n) => /\bmsg-row-mark\b/.test(n.props?.className ?? ""));
-    return { mark, said: textOf(byTestId(paneOf(tree), "template-pane-users")) };
+    // What it is leads the line of facts under its name; who it reaches is said where it stands is tapped (the message
+    // sheet's canvas, 12 Nov 2026: a rule under every name was read on every open).
+    const tap = find(paneOf(tree), (n) => n.type === Popover && String(n.props.label).startsWith("Where "));
+    return {
+      facts: textOf(byTestId(paneOf(tree), "template-pane-users")),
+      rule: textOf(find(tap, (n) => n.props?.className === "tpl-standing-rule")),
+    };
   };
   const offer = kindOf("offer");
-  assert.equal(offer.mark.props["data-kind"], "offer");
-  assert.ok(String(offer.mark.props["data-tip"]).includes("said yes to offers"), offer.mark.props["data-tip"]);
-  assert.equal(offer.said, "An offer, for people who said yes to offers");
+  assert.ok(offer.facts.startsWith("Offer"), offer.facts);
+  assert.equal(offer.rule, "An offer reaches only people who said yes to offers, and never goes by text.");
   const note = kindOf("front_desk_note");
-  assert.equal(note.mark.props["data-kind"], "note");
-  assert.equal(note.said, "About their own booking or proposal");
+  assert.ok(note.facts.startsWith("Note"), note.facts);
+  assert.equal(note.rule, "A note about their own booking or proposal reaches anyone a send may.");
 });
 
 test("REGRESSION (C22): a message shows the quality WhatsApp rated it -- the rating was synced and never drawn", () => {
@@ -1960,7 +1890,7 @@ test("REGRESSION (C8): deleting a message a playbook sends names the playbook --
   const held = byTestId(tree, "template-delete-held");
   assert.ok(held && textOf(held).includes("“Win-back” still uses this template."), textOf(held));
   // The old Playbooks list is Campaigns' home now: the door says Campaigns and still goes to `outbound`, which lands there.
-  press(find(held, (n) => n.type === "button" && textOf(n).includes("Campaigns")));
+  press(find(tree, (n) => n.type === "button" && textOf(n).includes("Campaigns")));
   assert.equal(went.at(-1), "campaigns/sequences", "and a door to the playbooks");
 
   tree = armed({
@@ -2040,7 +1970,7 @@ test("Messages says how many of each went out and when the last one did -- and a
   tree = messages({ templatesAll: offer, templateSent: never });
   assert.equal(byTestId(byTestId(tree, "custom-row"), "template-sent"), null);
   tree = openedRow(customRow);
-  assert.ok(textOf(byTestId(paneOf(tree), "template-facts")).includes("None yet"), "its pane says none went");
+  assert.ok(textOf(byTestId(paneOf(tree), "template-pane-users")).includes("none sent yet"), "its pane says none went");
 
   // A roll-up that was not read makes no claim.
   tree = messages({ templatesAll: offer, templateSent: null });
@@ -2088,16 +2018,16 @@ test("A message says its state once, and a refusal is a line rather than a hover
       templateRow({ id: "t-es", name: "offer", language: "es", meta_status: "pending" }),
     ],
   });
-  // One chip for both, in the open row: the language in view, its state DRAWN, and "+1" for the
-  // other -- a language, not a state, in its words.
+  // One control for both, in the open message: the language in view as a word -- a language, not a state -- and where it
+  // stands is its WhatsApp tab's dot (the message sheet's canvas, 12 Nov 2026).
   let tree = openedRow(customRow);
   let chip = pickerOf(paneOf(tree), "template-lang");
-  assert.deepEqual(chipSays(chip), ["EN", "+1"]);
+  assert.equal(chipSays(chip), "English");
   assert.ok(
     !/approved|review/i.test(textOf(chip.props.face)),
     `the chip says a language, not a state: ${textOf(chip.props.face)}`,
   );
-  assert.equal(chipTone(chip), "ok");
+  assert.equal(waState(paneOf(tree)), "ok");
   // Opened, each language WhatsApp holds says its state in words at its right (the option's own word at its end).
   const held = optionsIn(paneOf(tree)).filter((o) => o.group === "on");
   assert.deepEqual(
@@ -2118,8 +2048,8 @@ test("A message says its state once, and a refusal is a line rather than a hover
   pickLanguage(paneOf(tree), held[1].value);
   tree = messagesAgain();
   chip = pickerOf(paneOf(tree), "template-lang");
-  assert.deepEqual(chipSays(chip), ["ES", "+1"], "Spanish in view, English the one more");
-  assert.equal(chipTone(chip), "info", "drawn in review");
+  assert.equal(chipSays(chip), "Spanish", "Spanish in view");
+  assert.equal(waState(paneOf(tree)), "info", "its tab waiting on WhatsApp");
   assert.equal(
     textOf(byTestId(tree, "template-status")).trim(),
     "Spanish in review",
