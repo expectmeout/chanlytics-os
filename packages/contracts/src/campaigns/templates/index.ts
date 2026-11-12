@@ -18,6 +18,7 @@ export type { CampaignMessage, CampaignMessageRow } from "./campaign-message";
 export {
   WHATSAPP_TEMPLATES_CREATE_DOOR,
   WHATSAPP_TEMPLATES_DELETE_DOOR,
+  WHATSAPP_TEMPLATES_EDIT_DOOR,
   WHATSAPP_TEMPLATES_SYNC_DOOR,
 } from "./edge-doors";
 export { customerEmailFoot, emailFoot, emailFootHtml, hasFootAddress } from "./email-foot";

@@ -98,7 +98,6 @@ const { settingsOverride } = await import(`${SRC}/bridge/surfaces/settings.ts`);
 const { channelsOverride } = await import(`${SRC}/surfaces/channels/surface.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
-const { Segmented } = await import(`${SRC}/surfaces/kit/segmented/segmented.tsx`);
 const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 console.error = quiet;
 
@@ -437,7 +436,7 @@ const unfolded = (tree) => {
   return now;
 };
 
-test("the Library draws the rows the spec counts, the quiet line only where there is no number, and its composer opens where the spec says", async () => {
+test("the Library draws the rows the spec counts, the quiet line only where there is no number, and New opens one line to Ask", async () => {
   // The recorded settings answers say no review link (none predates it), so the Library offers no review ask.
   const starterNames = contracts.startersOffered({ reviewLink: false }).map((s) => s.name);
   for (const [name, record] of WORKSPACES) {
@@ -480,29 +479,20 @@ test("the Library draws the rows the spec counts, the quiet line only where ther
     const pane = byTestId(open, "template-pane");
     assert.ok(pane, `${name}: the message opens beside the list`);
     assert.ok(byTestId(pane, "message-preview"), `${name}: on the bubble the customer sees`);
-    assert.equal(all(pane, (n) => n.type === Picker && n.props["data-testid"] === "template-lang").length, 1);
-    // New asks where the message is sent: Email, Text, WhatsApp, opening on WhatsApp with a number and on Email without.
+    // The language a quiet word where there is a choice: the win-back's library holds English and Spanish, and the
+    // workspace's own languages decide whether it is drawn (the message sheet's canvas, 12 Nov 2026): at most one.
+    assert.ok(all(pane, (n) => n.type === Picker && n.props["data-testid"] === "template-lang").length <= 1);
+    // New is one line to Ask (the Messages redesign's step 4), number or none: no form asks where it is sent first.
     press(headed(open, "template-new"));
     const writing = drawAgain(() => TemplatesPage());
-    const step = find(byTestId(writing, "messages-composer"), (n) => n.type === Segmented);
-    assert.deepEqual(
-      step.props.options.map((o) => o.testid),
-      ["tpl-where-email", "tpl-where-sms", "tpl-where-whatsapp"],
-      `${name}: where it is sent, three ways`,
-    );
-    assert.equal(
-      step.props.value,
-      hasNumber(record) ? "whatsapp" : "email",
-      `${name}: it opens where something can be written`,
-    );
-    assert.equal(!!byTestId(writing, "tpl-composer"), hasNumber(record), `${name}: WhatsApp's rows only with a number`);
-    assert.equal(!!byTestId(writing, "tpl-own"), !hasNumber(record), `${name}: an email's form where there is none`);
-    // Closed with nothing written, it asks nothing and the composer is gone.
-    press(byTestId(writing, "tpl-close"));
+    assert.ok(byTestId(writing, "template-new-words"), `${name}: one line to Ask`);
+    assert.equal(byTestId(writing, "messages-composer"), null, `${name}: no form`);
+    // Closed, it asks nothing and the line is gone.
+    press(byTestId(writing, "cm-pane-close"));
     assert.equal(
       byTestId(
         drawAgain(() => TemplatesPage()),
-        "messages-composer",
+        "template-new-words",
       ),
       null,
       `${name}: and the way out`,

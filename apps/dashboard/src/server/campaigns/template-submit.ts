@@ -44,7 +44,7 @@ interface TemplateAsked {
 }
 
 /** What the edge said when it did not submit the template, in the person's words: Meta's own reason where it gave one. */
-function submitRefusal(r: { reason: EdgeReason; detail?: string }): AppError {
+export function submitRefusal(r: { reason: EdgeReason; detail?: string }): AppError {
   if (r.reason === "meta_refused")
     return new AppError(
       "validation",

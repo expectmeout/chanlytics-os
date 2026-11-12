@@ -482,8 +482,9 @@ test("the pages: titles not names, the starter set in Settings, the message as t
       readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.ts${f === "group" || f === "words" ? "" : "x"}`),
     )
     .join(" ");
-  for (const id of ["starters", "starter-add", "starter-add-all", "template-menu"])
-    assert.ok(s.includes(`data-testid="${id}"`), id);
+  // No banner asks for the starter set (the Messages redesign's step 5): it files itself as a number connects.
+  for (const id of ["starter-add", "template-menu"]) assert.ok(s.includes(`data-testid="${id}"`), id);
+  for (const id of ["starters", "starter-add-all"]) assert.ok(!s.includes(`data-testid="${id}"`), `no ${id}`);
   assert.ok(s.includes('testid="template-lang"'), "one language control per message, the picker's");
   assert.ok(
     s.includes('data-testid={g.starter ? "starter-row" : "custom-row"}'),
@@ -687,7 +688,7 @@ test("a template's title: the workspace's own words, set through its door, shown
       readCode("packages/db/src/repositories/campaigns/templates/doors.ts").includes('db.rpc("set_template_title"'),
     "empty is no title — the door clears it",
   );
-  assert.ok(one.includes('"Say what changes: whether it is hidden, or its title."'));
+  assert.ok(one.includes('"Say what changes: whether it is hidden, its title, or its words."'));
   const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
   assert.ok(
     b.includes("body: { title } })") && b.includes("return templateTitle(t, row?.title ?? null);"),

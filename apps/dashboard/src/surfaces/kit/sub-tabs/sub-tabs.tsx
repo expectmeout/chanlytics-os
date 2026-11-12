@@ -54,6 +54,13 @@ export type SubTab = {
    * "Something needs you"), while the figure keeps saying how many are there.
    */
   need?: string;
+  /**
+   * Where the tab's own thing stands, where each tab is a version of one thing rather than a cut of a list (a message's
+   * channels: the message sheet's canvas, 12 Nov 2026): a dot after its words, named by `said` for a screen reader, filled
+   * where it is ready, a ring where it is not written yet, and none where it never goes there, the tab's words dimmed
+   * (`never`). A tab that needs you keeps `need`'s dot.
+   */
+  standing?: { said: string; look: "ready" | "empty" | "never" };
   /** What pressing it does, on hover. */
   hint?: string;
   /** The page's test id for this tab. */
@@ -191,6 +198,8 @@ export function SubTabs(props: SubTabsProps) {
               <span className="subtab-dot is-warn" role="img" aria-label={tab.need} />
             ) : tab.fresh ? (
               <span className="subtab-dot" role="img" aria-label={tab.fresh} />
+            ) : tab.standing ? (
+              <span className="subtab-dot" data-look={tab.standing.look} role="img" aria-label={tab.standing.said} />
             ) : null}
           </Tabs.Tab>
         ))}

@@ -882,7 +882,7 @@ test("one template: hidden or titled through the definer doors; deleting is refu
     template.PUT.run(send("PUT", {}), ctxFor(tables, { id: T2 }, rpcs)),
     "validation",
     400,
-    "Say what changes: whether it is hidden, or its title.",
+    "Say what changes: whether it is hidden, its title, or its words.",
   );
   assert.equal(doors.length, 0);
   assert.deepEqual(await template.PUT.run(send("PUT", { hidden: true }), ctxFor(tables, { id: T2 }, rpcs)), {

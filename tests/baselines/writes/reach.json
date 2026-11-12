@@ -643,18 +643,26 @@
       }
     },
     "POST channels/whatsapp/connect": {
-      "changes": "",
+      "changes": "sequence_steps UPDATE · sequences UPDATE · templates INSERT UPDATE",
+      "tells": "templates",
       "doors": "imports · tenant_channels",
       "door": {
-        "audiences": "broadcasts",
         "broadcasts": "broadcasts, clients/get-yes, inbox, today",
         "channels": "every page",
-        "people": "clients, clients/get-yes, clients/person, segments, today",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
-        "reports_campaigns": "reports, reports/campaigns",
+        "people": "clients/person, today",
         "reports_people": "reports/people",
-        "settings": "every page",
-        "setup": "every page"
+        "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
+      },
+      "missing": {
+        "ask_morning": "today",
+        "calendar": "admin/hours, admin/workspace, calendar, today",
+        "calendar_runs": "calendar",
+        "leads": "clients/leads, leads",
+        "person": "clients/person",
+        "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/sequences, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "every page",
+        "sequences": "every page"
       }
     },
     "POST channels/whatsapp/standing": {

@@ -13,6 +13,7 @@ import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { templateScope } from "@/server/shared/verbs";
 import { WHATSAPP_ACCOUNT_MISSING, WHATSAPP_NO_TOKEN } from "@/server/campaigns/whatsapp-refusals";
+import { TemplateWords, sendWordsBack } from "@/server/campaigns/template-words";
 import {
   countLiveRunsOfTemplate,
   listRunningStepsOfTemplate,
@@ -27,13 +28,16 @@ export const TemplateChange = z
   .object({
     hidden: z.boolean().optional(),
     title: z.string().nullable().optional(),
+    /** WhatsApp's words, changed and sent back to WhatsApp (template-words.ts): alone, never beside the others. */
+    words: TemplateWords.optional(),
   })
   .refine(
-    (b) => b.hidden !== undefined || b.title !== undefined,
-    "Say what changes: whether it is hidden, or its title.",
+    (b) => b.hidden !== undefined || b.title !== undefined || b.words !== undefined,
+    "Say what changes: whether it is hidden, its title, or its words.",
   );
 
 export async function changeTemplate(ctx: RouteContext, tpl: TemplateRow, input: z.infer<typeof TemplateChange>) {
+  if (input.words) return sendWordsBack(ctx, tpl, input.words);
   const id = tpl.id;
   const hasHidden = input.hidden !== undefined;
   const hasTitle = input.title !== undefined;

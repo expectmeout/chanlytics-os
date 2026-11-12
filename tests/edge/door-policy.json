@@ -427,6 +427,14 @@
         "aud": "/api/admin/whatsapp/templates-delete"
       }
     },
+    "POST /api/admin/whatsapp/templates-edit": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/whatsapp/templates-edit.ts",
+      "knock_args": {
+        "aud": "/api/admin/whatsapp/templates-edit"
+      }
+    },
     "POST /api/admin/whatsapp/templates-sync": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",

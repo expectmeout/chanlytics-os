@@ -6,6 +6,8 @@
  * list's name, what a selection can become): a short head with a way back where the job is a step of another, its
  * title, and a word to close it or none, then the job itself. What it lists and what its foot acts on are the page's.
  * A record's title may be a kicker (`kicker`): a quiet line over a pane that draws its own head, as Campaigns' drawers do.
+ * A kicker may be said to a screen reader alone (`unsaid`), where the pane's head says all there is: no line of its own,
+ * its Close at the head's corner over what it holds.
  *
  * Its behaviour is Base UI's Dialog (`@base-ui/react/dialog`, the plan's decision 15): modal, so focus is held inside
  * it and the page behind is inert to a pointer and a screen reader and does not scroll; Escape and a press on the
@@ -96,6 +98,12 @@ type SheetShape =
        * is read and answered on, as a sheet whose first rest fits already is (the Calendar's visit, beside Today's walk).
        */
       solid?: boolean;
+      /**
+       * A kicker said to a screen reader alone (a message's sheet, whose pane's head says its name, where it stands and
+       * what it is: the message sheet's canvas, 12 Nov 2026): no line of its own, the Close at the head's corner over what
+       * it holds, which keeps its head clear of it (kit.css, "An unsaid kicker").
+       */
+      unsaid?: boolean;
       back?: undefined;
     }
   | {
@@ -113,6 +121,7 @@ type SheetShape =
       rest?: undefined;
       flatFoot?: undefined;
       solid?: undefined;
+      unsaid?: undefined;
     };
 
 /** A sheet: whether it is open, what asks it to close, its head, what it holds, and its shape's parts. */
@@ -303,6 +312,7 @@ export function Sheet(props: SheetProps) {
           data-rest={shown.rest ? shown.rest.at : undefined}
           data-rest-fit={shown.rest?.fit ? "true" : undefined}
           data-solid={shown.solid ? "true" : undefined}
+          data-unsaid={shown.unsaid ? "true" : undefined}
           data-testid={testid}
           {...(shown.rest
             ? restSwipe({ rest: shown.rest.at, onRest: shown.rest.onRest, onClose, when: onAPhone })

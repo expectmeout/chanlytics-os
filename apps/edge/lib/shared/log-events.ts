@@ -883,6 +883,8 @@ export const LOG_EVENTS = [
   "wa_template_delete_failed",
   "wa_template_delete_unsynced",
   "wa_template_deleted",
+  "wa_template_edit_failed",
+  "wa_template_edited",
   "wa_templates_list_failed",
   "wa_templates_synced",
   "wa_turn_unreadable",

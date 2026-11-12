@@ -392,7 +392,9 @@ export type {
 } from "./templates/templates";
 export {
   deleteTemplateRow,
+  findTemplateWords,
   findWhatsAppTemplate,
+  keepTemplateWords,
   listWhatsAppTemplateKeys,
   patchWhatsAppTemplate,
   patchWhatsAppTemplateBack,

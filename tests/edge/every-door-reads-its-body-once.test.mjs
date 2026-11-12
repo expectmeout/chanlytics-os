@@ -74,6 +74,7 @@ const DOORS = [
   "whatsapp/standing",
   "whatsapp/templates-create",
   "whatsapp/templates-delete",
+  "whatsapp/templates-edit",
   "whatsapp/templates-sync",
 ];
 const NOT_OBJECTS = ["null", "[]", "5", '"x"', "true"];

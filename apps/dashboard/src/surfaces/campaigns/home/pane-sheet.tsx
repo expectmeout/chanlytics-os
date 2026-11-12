@@ -17,6 +17,10 @@
  *
  * On a phone it is as tall as what the pane holds, up to the sheet's cap, and past it the pane's body scrolls under its
  * head and foot (campaigns.css): a pinned height stood a three-line message on a screen of blank (Ruben, 14 Oct 2026).
+ *
+ * A pane whose own head says all there is to say (a message: the message sheet's canvas, 12 Nov 2026) draws no kicker
+ * (`bare`, the kit's `unsaid`): the title names the sheet to a screen reader alone, and the pane's head stands on the
+ * Close's line, clear of it.
  */
 import { useRef } from "react";
 import type { ReactNode } from "react";
@@ -46,6 +50,8 @@ interface PaneSheetProps {
   footCloses?: boolean;
   /** Open over another page (surfaces/see): on a phone the tab bar stands down while it is (mobile.css). */
   over?: boolean;
+  /** No kicker drawn: the title names the sheet to a screen reader, and the pane's head takes the Close's line. */
+  bare?: boolean;
   testid?: string;
   children: ReactNode;
 }
@@ -67,6 +73,7 @@ export function PaneSheet({
   wide = false,
   footCloses = false,
   over = false,
+  bare = false,
   testid,
   children,
 }: PaneSheetProps) {
@@ -85,8 +92,9 @@ export function PaneSheet({
       tools={tools}
       toolsInLine={toolsInLine}
       kicker
+      unsaid={bare}
       footCloses={footCloses}
-      className={cx("cmh-host", wide && "cmh-host-wide", over && "cmh-host-over")}
+      className={cx("cmh-host", wide && "cmh-host-wide", over && "cmh-host-over", bare && "cmh-host-bare")}
     >
       <div ref={body} className="cmh-host-body" data-testid={testid}>
         {children}

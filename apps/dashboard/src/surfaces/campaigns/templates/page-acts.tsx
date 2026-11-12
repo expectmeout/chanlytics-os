@@ -120,6 +120,21 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
         tplLangLabel(draft.language),
       ),
     );
+  // WhatsApp's words sent back to WhatsApp (step 3): one act at a time, the toast once it landed, a refusal the editor's.
+  const sendWords = async (row: TemplateDto, body: string) => {
+    if (doingRef.current) return null;
+    const what = `words:${row.id}`;
+    doingRef.current = what;
+    setDoing(what);
+    try {
+      const r = await templateVerbs.sendWords(row.id, body);
+      if (r.ok) flash({ tone: "ok", msg: <>{TPL_VERSION_WORDS.sentBack(tplTitle(row))}</> });
+      return r;
+    } finally {
+      doingRef.current = null;
+      setDoing(null);
+    }
+  };
   // A reach-out's email, written where it is read: its save sends what waits for the step back to the check, and says so.
   const saveEmail = (draft: VersionDraft) => writeVersion(draft, (saved) => reachOutEditedWords(saved.rechecked ?? 0));
   const removeVersion = (g: TemplateGroup, lang: TplLang, row: TemplateDto) =>
@@ -149,5 +164,6 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
     beginMessage,
     saveEmail,
     removeVersion,
+    sendWords,
   };
 }

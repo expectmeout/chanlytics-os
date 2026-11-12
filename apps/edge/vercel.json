@@ -257,6 +257,9 @@
           "api/admin/whatsapp/templates-delete.ts": {
             "maxDuration": 60
           },
+          "api/admin/whatsapp/templates-edit.ts": {
+            "maxDuration": 60
+          },
           "api/admin/whatsapp/templates-sync.ts": {
             "maxDuration": 60
           },

@@ -6,9 +6,12 @@
  * on the starter's words or a copy of the WhatsApp ones. A message the channel never carries (an offer, by text) has no
  * version there and cannot have one, so it says why in contracts' words and offers nothing. The editor takes the view's
  * place while a version is being written, and its words come back if the pane was left with them unsaved (the editor's
- * own rule).
+ * own rule). In a message's own sheet (`oneBody`: the canvas of 12 Nov 2026) the version's Edit is the pencil on its words,
+ * and a missing one is one press, said once.
  */
 import { useState } from "react";
+import type { ReactElement } from "react";
+import { createPortal } from "react-dom";
 import { VERSION_CHANNEL_WORDS } from "@chanlytics/contracts";
 import type { EmailRules, OwnVersionChannel, SlotSet, SlotValue, VersionWords } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
@@ -19,11 +22,12 @@ import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import type { MenuGroup, MenuItem } from "../../kit/menu/menu";
 import type { TplLang } from "./group";
+import { wordsPencil } from "./sheet-head";
 import { VersionEditor, keptWords } from "./version-editor";
 import { VersionPreview } from "./version-preview";
 import type { VersionDraft } from "./verbs";
 import type { VersionRow } from "./versions";
-import { TPL_VERSION_WORDS as WORDS } from "./words";
+import { TPL_SHEET_WORDS, TPL_VERSION_WORDS as WORDS } from "./words";
 
 interface VersionViewProps {
   /** The message's name (what a version is filed under), or null where it has no row to name it. */
@@ -60,6 +64,10 @@ interface VersionViewProps {
    * being written, and whether its Remove is being asked. The view then draws no menu of its own. None: it keeps its own.
    */
   held?: VersionHeld;
+  /** In a message's own sheet: the pencil on the words, the editor saying less, and a missing version one press. */
+  oneBody?: boolean;
+  /** The pane's foot, where the editor's acts and a Remove's question stand in a message's own sheet. */
+  dock?: HTMLElement | null;
 }
 
 /** A version's two states that the pane's menu sets: being written, and its Remove being asked. */
@@ -105,6 +113,10 @@ function versionMenu(p: { channel: OwnVersionChannel; busy: boolean; onEdit: () 
   );
 }
 
+/** A question asked in the pane's foot where the pane has one, docked as every drawer's is; here where it has none. */
+const docked = (dock: HTMLElement | null | undefined, question: ReactElement) =>
+  dock ? createPortal(question, dock) : question;
+
 /** A version on file: its preview, its menu and, once Remove is chosen, the question. */
 function Held(p: VersionViewProps & { row: VersionRow; onEdit: () => void }) {
   const { channel, lang, row, slots, values, rules, canWrite, busy, onEdit, onRemove, held } = p;
@@ -126,31 +138,51 @@ function Held(p: VersionViewProps & { row: VersionRow; onEdit: () => void }) {
         {canWrite && !held
           ? versionMenu({ channel, busy, onEdit, onRemove: onRemove ? () => setArm(true) : undefined })
           : null}
+        {canWrite && held && p.oneBody ? wordsPencil(onEdit, "template-version-edit") : null}
       </div>
-      {arm ? (
-        <Confirm
-          question={WORDS.removeAsk(word, lang.label)}
-          detail={WORDS.removeDetail}
-          yes={WORDS.removeYes}
-          danger
-          busy={busy}
-          onYes={() => {
-            setArm(false);
-            onRemove?.(row);
-          }}
-          onNo={() => setArm(false)}
-          testid="template-version-remove"
-        />
-      ) : null}
+      {arm
+        ? docked(
+            p.dock,
+            <Confirm
+              question={WORDS.removeAsk(word, lang.label)}
+              detail={WORDS.removeDetail}
+              yes={WORDS.removeYes}
+              danger
+              busy={busy}
+              docked={!!p.dock}
+              onYes={() => {
+                setArm(false);
+                onRemove?.(row);
+              }}
+              onNo={() => setArm(false)}
+              testid="template-version-remove"
+            />,
+          )
+        : null}
     </div>
   );
 }
 
 /** A message with no version here: what it says of that, and the act that writes one. */
 function None(p: VersionViewProps & { onWrite: () => void }) {
-  const { channel, lang, neverCarried, busy, onWrite } = p;
+  const { channel, lang, neverCarried, busy, onWrite, oneBody } = p;
   const word = VERSION_CHANNEL_WORDS[channel];
   // A message this channel never carries has no version and cannot have one: there is nothing to write, so no act is offered.
+  // In a message's own sheet a missing one is its one press, said once ("Write the email"), not a sentence and then a press.
+  if (oneBody && !neverCarried)
+    return (
+      <div className="tpl-ver-none" data-testid="template-version-none" data-one-body="">
+        <Button
+          disabled={busy}
+          onClick={onWrite}
+          data-testid="template-version-write"
+          {...gate("approve", "write a version")}
+        >
+          <Icon name="pencil" size={13} />
+          {TPL_SHEET_WORDS.write(word)}
+        </Button>
+      </div>
+    );
   return (
     <div className="tpl-ver-none" data-testid="template-version-none">
       <p className="bc-excl-hint">{neverCarried ?? WORDS.none(word, lang.label)}</p>
@@ -217,6 +249,9 @@ export function VersionView(p: VersionViewProps) {
         values={values}
         rules={rules}
         busy={busy}
+        oneBody={p.oneBody}
+        dock={p.dock}
+        unfiled={!row}
         onSave={onSave}
         onClose={() => setWriting(false)}
       />

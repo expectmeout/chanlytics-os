@@ -246,7 +246,8 @@ test("the recheck holds it in words and asks Google nothing: deleted since, or w
     assert.equal(w.post().held_reason, why);
     const [rang] = w.tables.notifications;
     assert.equal(rang.kind, "post_stopped");
-    assert.equal(rang.route, `campaigns/content:needs:${FILE}`, "the row opens it in Needs you");
+    // Opened in Needs you on its post sheet, where it says why (post-bell.ts postBellRouteOf, held: `post`).
+    assert.equal(rang.route, `campaigns/content:needs:${FILE}:post`, "the row opens it in Needs you");
   }
 });
 

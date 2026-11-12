@@ -14,6 +14,7 @@ import { pg } from "../shared/pg.js";
 import { getWaCredentialsForTenant } from "../shared/tenant-runtime.js";
 import {
   createTemplate,
+  editTemplate,
   mapCategory,
   mapStatus,
   deleteTemplate,
@@ -29,6 +30,7 @@ import { findWhatsAppAccount } from "@chanlytics/db/channels";
 import {
   deleteTemplateRow,
   findWhatsAppTemplate,
+  keepTemplateWords,
   listWhatsAppTemplateKeys,
   saveTemplateRow,
   saveTemplateRows,
@@ -130,6 +132,80 @@ export async function createWhatsappTemplate(
   if (error || !saved) return refuseFailure(503, "write_failed", error);
   log.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: created.data.id });
   return json(200, { ok: true, id: saved.id, meta_id: created.data.id, meta_status: status });
+}
+
+/** A template's values as its words number them, each with the words a person gave it and its example. */
+function variablesOf(text: string, labels: readonly string[], examples: readonly string[]) {
+  const positions = [...new Set([...text.matchAll(NUMBERED_SLOT)].map((m) => Number(m[1])))].sort((a, b) => a - b);
+  return positions.map((n) => ({
+    position: n,
+    label: labels[n - 1] || `Value ${n}`,
+    example: examples[n - 1] ?? null,
+  }));
+}
+
+/**
+ * POST /api/admin/whatsapp/templates-edit — a template's words changed in Chanlytics and sent back to Meta (the Messages
+ * redesign's step 3: one editor for every channel, WhatsApp's words too).
+ *
+ * Body { tenant_id, template_id, components, body, examples, labels }. The dashboard already checked what Meta refuses at
+ * the wire, with the template's own name, language and category, which an edit never changes. Meta takes the components
+ * whole; the row keeps the new words and is in review again, and Meta's answer moves it on as any other. Meta refuses an
+ * approved template's second change in a day in its own words, which come back as they came.
+ */
+export async function editWhatsappTemplate(
+  auth: Admitted,
+  body: Partial<{
+    tenant_id?: unknown;
+    template_id?: unknown;
+    components?: unknown;
+    body?: unknown;
+    examples?: unknown;
+    labels?: unknown;
+  }>,
+): Promise<Response> {
+  const log = logger();
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  body.tenant_id = ws.tenantId ?? undefined;
+  const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
+  const templateId = typeof body.template_id === "string" ? body.template_id : "";
+  const components = Array.isArray(body.components) ? (body.components as MetaTemplateComponent[]) : null;
+  const text = typeof body.body === "string" ? body.body : null;
+  const examples = Array.isArray(body.examples) ? body.examples.map(String) : [];
+  const labels = Array.isArray(body.labels) ? body.labels.map((l: unknown) => textOrEmpty(l).trim().slice(0, 40)) : [];
+  if (!isTenantId(tenantId) || !UUID.test(templateId) || !components || !text) return refuse(400, "bad_template");
+  const db = pg();
+  if (!db) return refuse(503, "no_database");
+
+  const { data: row, error: rowErr } = await findWhatsAppTemplate(db, tenantId, templateId);
+  if (rowErr) return refuseFailure(503, "read_failed", rowErr);
+  // A row Meta has no id for was never Meta's to change: it is written again from New, or synced in.
+  if (!row?.meta_id) return refuse(404, "not_found");
+  const { data: ch, error: chErr } = await findWhatsAppAccount(db, tenantId);
+  if (chErr) return refuseFailure(503, "read_failed", chErr);
+  if (!ch?.waba_id) return refuse(409, "no_waba");
+  const creds = await getWaCredentialsForTenant(db, tenantId);
+  if (creds.outcome !== "present") return refuse(503, "no_token");
+
+  const edited = await editTemplate(creds.credentials.accessToken, row.meta_id, components);
+  if (!edited.ok) {
+    log.error("wa_template_edit_failed", {
+      tenant_id: tenantId,
+      name: row.name,
+      status: edited.status,
+      error: edited.error.slice(0, 300),
+    });
+    return refuse(502, "meta_refused", edited.error);
+  }
+  const { error } = await keepTemplateWords(db, tenantId, row.id, {
+    components: jsonCopyOf(components),
+    body_preview: text,
+    variables: jsonCopyOf(variablesOf(text, labels, examples)),
+  });
+  if (error) return refuseFailure(503, "write_failed", error);
+  log.info("wa_template_edited", { tenant_id: tenantId, name: row.name, language: row.language });
+  return json(200, { ok: true, id: row.id, meta_status: "pending" });
 }
 
 /**

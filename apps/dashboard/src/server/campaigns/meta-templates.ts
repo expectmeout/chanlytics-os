@@ -105,6 +105,38 @@ export async function createTemplate(
   return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
 }
 
+/**
+ * A WhatsApp template's words changed and sent back to Meta through the edge (templates-edit): in review again, as the ledger
+ * says it was submitted; Meta's own words come back when it says no.
+ */
+export async function editTemplateWords(
+  tenantId: TenantId,
+  userId: string,
+  target: {
+    id: string;
+    name: string;
+    language: string;
+    components: unknown[];
+    body: string;
+    examples: string[];
+    labels: string[];
+  },
+): Promise<TemplateCreateOutcome> {
+  if (!deployment.providersLive) return { ok: false, reason: "preview" };
+  const { id, name, language, ...words } = target;
+  const answer = await callEdge(
+    "/api/admin/whatsapp/templates-edit",
+    { tenant_id: tenantId, template_id: id, ...words },
+    { workspace: tenantId, user: userId, timeoutMs: CREATE_TIMEOUT_MS },
+  );
+  const body = answer.body ?? {};
+  if (edgeAnswered(answer) && body.ok && body.id) {
+    await recordTemplateEvent(serviceDb(), tenantId, "submitted", { id, name, language }, userId);
+    return { ok: true, id: body.id, metaStatus: body.meta_status ?? "pending" };
+  }
+  return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
+}
+
 type TemplateDeleteOutcome = { ok: true; atMeta: boolean } | { ok: false; reason: EdgeReason; detail?: string };
 
 export async function deleteTemplate(

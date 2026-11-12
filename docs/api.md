@@ -3384,6 +3384,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | --- | --- | --- | --- |
 | `hidden` | boolean | no |  |
 | `title` | string or null | no |  |
+| `words` | object | no |  |
 
 ### `DELETE /api/v1/templates/[id]`
 
@@ -3451,11 +3452,12 @@ Writes; for a member of the workspace the request names, operator or above; coun
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `channel` | one of `"email"`, `"sms"` | yes |  |
+| `channel` | one of `"email"`, `"sms"`, `"whatsapp"` | yes |  |
 | `language` | string | yes |  |
 | `subject` | string or null | no |  |
 | `body` | string | yes | at least 1 characters; at most 4000 characters |
-| `tone` | one of `"warmer"`, `"shorter"` | yes |  |
+| `tone` | one of `"warmer"`, `"shorter"` | no |  |
+| `ask` | string | no | at least 1 characters; at most 300 characters |
 
 ## today
 
@@ -3554,7 +3556,7 @@ Every door on the edge whose body contracts declares (`packages/contracts/src/<d
 the dashboard's `callEdge` sends a declared door the body its schema takes, and the door reads its body through the same
 schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 
-54 doors.
+55 doors.
 
 ### `POST /api/admin/billing`
 
@@ -4001,6 +4003,17 @@ Read with GET; takes no body.
 | --- | --- | --- | --- |
 | `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `template_id` | string | no |  |
+
+### `POST /api/admin/whatsapp/templates-edit`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `template_id` | string | no |  |
+| `components` | array of any | no |  |
+| `body` | string | no |  |
+| `examples` | array of string | no |  |
+| `labels` | array of string | no |  |
 
 ### `POST /api/admin/whatsapp/templates-sync`
 

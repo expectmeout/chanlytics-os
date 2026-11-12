@@ -33,6 +33,34 @@ export const findWhatsAppTemplate = async (db: Db, tenantId: TenantId, templateI
     .eq("channel", "whatsapp")
     .maybeSingle();
 
+/**
+ * A WhatsApp template's words changed here and sent back to Meta: its words, its values and its components, and in review
+ * again, any refusal's reason gone with the words it was about. Meta's answer moves it on (waba-events).
+ */
+export const keepTemplateWords = async (
+  db: Db,
+  tenantId: TenantId,
+  templateId: string,
+  words: Required<Pick<TemplateUpdate, "components" | "body_preview" | "variables">>,
+) =>
+  db
+    .from("templates")
+    .update({ ...words, meta_status: "pending", rejected_reason: null, synced_at: new Date().toISOString() })
+    .eq("id", templateId)
+    .eq("tenant_id", tenantId)
+    .eq("channel", "whatsapp")
+    .select("id")
+    .maybeSingle();
+
+/** A WhatsApp template as a change of its words reads it: what stays (its name, language, category, footer and button). */
+export const findTemplateWords = async (db: Db, tenantId: TenantId, templateId: string) =>
+  db
+    .from("templates")
+    .select("id, channel, name, language, category, meta_status, components, variables")
+    .eq("id", templateId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
 /** One of the workspace's templates deleted. */
 export const deleteTemplateRow = async (db: Db, tenantId: TenantId, templateId: string) =>
   db.from("templates").delete().eq("id", templateId).eq("tenant_id", tenantId);

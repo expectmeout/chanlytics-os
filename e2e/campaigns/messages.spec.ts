@@ -78,44 +78,34 @@ test.describe("Messages on a real workspace", () => {
     const pane = real.getByTestId("template-pane");
     await expect(pane).toBeVisible();
     await expect(pane.getByTestId("message-preview")).toBeVisible();
-    // Its one language chip opens the languages there are, and closes without touching anything.
-    await expect(pane.getByTestId("template-lang")).toHaveCount(1);
-    // (The kit's Picker: its list pops on the body, its options are the page's `option`s, and Escape closes it.)
-    await pane.getByTestId("template-lang").click();
-    await expect(page.locator(".rec-combo-pop")).toBeVisible();
-    await expect(page.getByRole("option").first()).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.locator(".rec-combo-pop")).toHaveCount(0);
+    // Its language is a quiet word only where there is a choice (the message sheet's canvas, 12 Nov 2026): at most one, and
+    // where it is drawn it opens the languages there are and closes without touching anything.
+    const languages = await pane.getByTestId("template-lang").count();
+    expect(languages).toBeLessThanOrEqual(1);
+    if (languages === 1) {
+      // (The kit's Picker: its list pops on the body, its options are the page's `option`s, and Escape closes it.)
+      await pane.getByTestId("template-lang").click();
+      await expect(page.locator(".rec-combo-pop")).toBeVisible();
+      await expect(page.getByRole("option").first()).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".rec-combo-pop")).toHaveCount(0);
+    }
     const bubble = (await pane.getByTestId("message-preview").innerText()).trim();
     expect(bubble.length).toBeGreaterThan(20);
-    // The pane's menu (the kit's, drawn on the page's body) offers the verbs and closes without touching anything.
+    // The pane's menu, on its name (the kit's, drawn on the page's body), offers the verbs and closes without touching anything.
     if ((await pane.getByTestId("template-menu").count()) > 0) {
       await pane.getByTestId("template-menu").click();
       await expect(page.getByTestId("template-delete")).toBeVisible();
       await page.keyboard.press("Escape");
       await expect(page.getByTestId("template-delete")).toHaveCount(0);
     }
-    // The composer opens beside the list and asks where the message is sent first -- Email, Text, WhatsApp -- opening on
-    // WhatsApp where there is a number to write to and on Email where there is none, so a workspace without one is not
-    // met by a wall; it is cancelled again (nothing written, so nothing is asked). The page's one act, New, is drawn
-    // whenever a person may write, number or none, in the frame's head, outside the page's own element.
-    await expect(page.getByTestId("template-new")).toBeVisible();
-    await page.getByTestId("template-new").click();
-    const step = real.getByTestId("tpl-where-step");
-    await expect(step).toBeVisible();
-    for (const where of ["email", "sms", "whatsapp"])
-      await expect(step.getByTestId(`tpl-where-${where}`)).toBeVisible();
-    await expect(step.getByTestId(`tpl-where-${hasNumber ? "whatsapp" : "email"}`)).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    if (hasNumber) {
-      await expect(real.getByTestId("tpl-composer")).toBeVisible();
-    } else {
-      await expect(real.getByTestId("tpl-own")).toBeVisible();
-      await expect(real.getByTestId("tpl-composer")).toHaveCount(0);
-    }
-    await real.getByTestId("tpl-close").click();
+    // New is one line to Ask (the Messages redesign's step 4), number or none: no form asks where it is sent first. The
+    // page's one act, New, is drawn whenever a person may write, in the frame's head, outside the page's own element.
+    await expect(page.getByRole("button", { name: "New message" })).toBeVisible();
+    await page.getByRole("button", { name: "New message" }).click();
+    await expect(real.getByTestId("template-new-words")).toBeVisible();
     await expect(real.getByTestId("messages-composer")).toHaveCount(0);
+    await real.getByTestId("cm-pane-close").click();
+    await expect(real.getByTestId("template-new-words")).toHaveCount(0);
   });
 });
