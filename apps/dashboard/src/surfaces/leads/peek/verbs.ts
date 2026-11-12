@@ -1,7 +1,7 @@
 /** A lead's own email, from a mailbox the business connected (decision 0094): its send, and its Undo. */
 import type { LeadEmailWords } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
-import { leadCall } from "../surface";
+import { leadCall } from "../call";
 
 export function sendLeadEmail(
   id: string,

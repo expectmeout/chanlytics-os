@@ -44779,6 +44779,7 @@ CREATE INDEX leads_tenant_stage ON public.leads USING btree (tenant_id, stage) W
 
 CREATE INDEX leads_unknown_due ON public.leads USING btree (email_checked_at) WHERE (email_state = 'unknown'::text);
 
+
 --
 -- Name: leads_untouched_purge; Type: INDEX; Schema: public; Owner: -
 --

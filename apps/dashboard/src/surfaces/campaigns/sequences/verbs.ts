@@ -16,7 +16,7 @@ import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { refusalToast } from "../../frame-verbs";
 import type { FrameFlash } from "../../frame-verbs";
 import { warmSources } from "../reach-out/sources";
-import { checkLeadsAgain } from "../../leads/surface";
+import { checkLeadsAgain } from "../../leads/call";
 
 type RecordAnswer = ApiResult<Output<"GET sequences/[id]">>;
 type PeopleAnswer = ApiResult<Output<"GET sequences/[id]/people">>;
@@ -190,7 +190,7 @@ export async function pressed(
 
 /**
  * Check again (decision 0131): the mailbox check once more for the leads on a sequence's list whose address could not be
- * checked, through the call Leads presses (leads/surface.ts checkLeadsAgain, POST leads/check-again: the owner's, and it
+ * checked, through the call Leads presses (leads/call.ts checkLeadsAgain, POST leads/check-again: the owner's, and it
  * spends a fraction of a cent an address). Said in its own toast, or its refusal in the door's words; the page reads its People again either way.
  */
 export async function checkAddressesAgain(
