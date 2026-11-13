@@ -18,6 +18,7 @@ import { getStoredConfig } from "../workspace/config-row";
 import { numberBacking } from "../campaigns/sequences/numbers";
 import { LEAD_RULES, PREVIEW_RULE, readOrNull, getOwner, ownerSaid } from "./sequence";
 import { leadEmail, type OwnerKnown } from "../campaigns/sequences/draft-judge";
+import { LEFT_OUT_ASKED_MAX, leftOutKept } from "../campaigns/sequences/left-out";
 import type { TenantId } from "@chanlytics/contracts";
 
 /**
@@ -41,7 +42,7 @@ const REWRITE_RULES = [
   "You rewrite one email a small business sends to other businesses it has not written to before, as its owner asks.",
   "Do what the owner asks, and leave the rest as it stands: what they ask now comes before anything remembered about how they write. Keep each value in double braces where it stands unless they ask to drop it; {{opening}} always stays. Where there is no email yet, write it from what they say.",
   "Answer `subject` and `body`, the whole email: `subject` empty on a later one.",
-  "Where something they ask goes against the rules here, do the rest and say what you left out in `cannot`, in two short sentences in the language they wrote in: “Left out: “<their words>”.”, then why. Leave `cannot` empty when everything fit.",
+  `Where something they ask goes against the rules here, do the rest and say what you left out in \`cannot\`, in two short sentences in the language they wrote in, ${LEFT_OUT_ASKED_MAX} characters at most: “Left out: “<their words>”.”, then why. Leave \`cannot\` empty when everything fit.`,
   ...LEAD_RULES,
   DATA_NOT_INSTRUCTIONS,
 ];
@@ -55,7 +56,8 @@ const REWRITE_JSON_SCHEMA = {
 const RewriteAnswerSchema = z.object({
   subject: z.string().max(200),
   body: z.string().max(2000),
-  cannot: z.string().trim().max(300),
+  // No length: one that runs long is cut where it is kept (left-out.ts), never a reason to lose the rewrite.
+  cannot: z.string().trim(),
 });
 
 /** What the model is told: the business and how its owner writes, the email as it stands, and what should change. */
@@ -82,7 +84,7 @@ function rewriteKept(
   known: RewriteKnown,
 ): LeadRewriteDto {
   const first = ask.subject !== null;
-  const sentence = answer.cannot.trim() || null;
+  const sentence = leftOutKept(answer.cannot) || null;
   const backing = numberBacking(known.proof, known.business, [ask.subject, ask.body]);
   const email = leadEmail({ subject: answer.subject.trim() || (ask.subject ?? ""), body: answer.body }, first, backing);
   if (!email.body) throw new AppError("validation", sentence ?? LEAD_BUILD_WORDS.rewriteBroke);
