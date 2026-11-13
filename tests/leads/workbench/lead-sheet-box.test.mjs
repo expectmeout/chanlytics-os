@@ -201,7 +201,6 @@ const mailOf = (edit = editOf(), over = {}) => ({
   wordsUnread: false,
   leadId: LEAD,
   blanks: null,
-  found: null,
   ...over,
 });
 
@@ -749,11 +748,12 @@ test("Change it for this one opens the box, as Edit does", () => {
   assert.equal(s.said.opened, 1);
 });
 
-test("a value of theirs says where it came from in the row's own Source word, and nothing where the sheet has none", () => {
+test("a value of theirs says where it came from in the row's own Source word, and nothing where its lead says none", () => {
   const words = { subject: null, body: "Hi {{business}}." };
-  const edit = editOf({ first: false, written: words, stepWritten: words });
   const bubbleOf = (found) => {
-    const tree = sheetOf(mailOf(edit, { subject: null, found })).draw();
+    const lead = { ...THE_LEAD, found };
+    const edit = editOf({ first: false, written: words, stepWritten: words, lead });
+    const tree = sheetOf(mailOf(edit, { subject: null })).draw();
     return textOf(inTree(tree, (n) => n.type === Popover).props.children);
   };
   // A lead brought in on the owner's own list says the list, never a listing it was not found on.

@@ -5,7 +5,7 @@
  * previewMarkOf), and its bubble is the line the Sequence line draws (../preview.tsx PreviewLine), with Make it now, Open
  * it and Copy link. Both carry `data-fill`, which the email's own tap-to-type looks for and leaves alone (email-words.tsx).
  */
-import { PREVIEW_LINE_WORDS, previewLineOf, type LeadEmailPiece, type SlotLead } from "@chanlytics/contracts";
+import { PREVIEW_LINE_WORDS, previewLineOf, type LeadCardLead, type LeadEmailPiece } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Popover } from "../../../kit/popover/popover";
 import { LEAD_FILL_WORDS, fillInSaysOf, previewMarkOf } from "../model/fill-ins";
@@ -16,16 +16,13 @@ import { useLeadPreview } from "./preview-read";
 export function FillIn({
   piece,
   lead,
-  found,
   onChange,
 }: {
   piece: LeadEmailPiece;
-  lead: SlotLead | null;
-  /** The row's own Source word for this lead; null where the sheet has none. */
-  found: string | null;
+  lead: LeadCardLead | null;
   onChange: ((at: number) => void) | null;
 }) {
-  const says = lead && piece.slot ? fillInSaysOf(piece.slot, lead, found) : null;
+  const says = lead && piece.slot ? fillInSaysOf(piece.slot, lead, lead.found ?? null) : null;
   if (!says) return <span data-at={piece.at}>{piece.text}</span>;
   return (
     <Popover

@@ -11,7 +11,6 @@ import {
   leadCardStepsOf,
   leadOpeningOf,
   leadOwnWordsOf,
-  leadSourceWord,
   leadWordsInBox,
   leadWordsPieces,
   markedOpeningOf,
@@ -148,8 +147,6 @@ export interface SheetMail {
   leadId: string | null;
   /** The same words with each blank by its name, where they name any: what Show the blanks draws. Null: no switch. */
   blanks: EmailBlanks | null;
-  /** Where their values came from, in the row's own Source word, for a fill-in's bubble; null where it is not known. */
-  found: string | null;
   /** The name or the signature it ends with under the words, as the send ends it. */
   ending: string | null;
   /** What the check refused marked in its opening, where it is read before it goes. */
@@ -347,17 +344,11 @@ function factLineOf(leadId: string): string | null {
   return leadOpeningOf(null, { business_name, city, hours: hours ?? null, rating, reviews });
 }
 
-/** Where this lead's values came from, in its row's own Source word (contracts leadSourceWord); null with no record of it. */
-function foundWordOf(leadId: string): string | null {
-  const dto = leadDtoFor(leadId);
-  return dto ? leadSourceWord(dto) : null;
-}
-
 /** The words of one step for this lead, as they read and as they end, and what it takes to type them. */
 function stepWordsOf(
   i: Pick<SheetInputs, "vm" | "emails">,
   on: { step: LeadCardStepVM; chain: ReachOutChainDto; line: string | null },
-): Pick<SheetMail, "subject" | "pieces" | "leadId" | "blanks" | "found" | "ending" | "edit" | "wordsUnread"> | null {
+): Pick<SheetMail, "subject" | "pieces" | "leadId" | "blanks" | "ending" | "edit" | "wordsUnread"> | null {
   const { step, chain, line } = on;
   const lead = leadCardLeadOf(i.vm.id);
   if (!lead) return null;
@@ -379,7 +370,6 @@ function stepWordsOf(
     pieces: leadWordsPieces({ body: step.written.body, lead, workspace, opening: line }),
     leadId: i.vm.id,
     blanks: emailBlanksOf(step.written),
-    found: foundWordOf(i.vm.id),
     ending: ending.signature ?? ending.signOff,
     wordsUnread: !i.emails.wordsRead,
     edit: i.emails.wordsRead
@@ -454,7 +444,6 @@ function draftMailOf(vm: LeadPeekVM, place: SequencePlaceDto): SheetMail | null 
     pieces: [{ at: 0, kind: "words", text: draft.text }],
     leadId: null,
     blanks: null,
-    found: null,
     ending: null,
     opening: null,
     writing: false,
