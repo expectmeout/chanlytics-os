@@ -56,11 +56,20 @@ import { filesNamed } from "../../read/files";
  * that says "20% off this week" makes it again with its own offer. A morning's turn asks itself.
  */
 export async function ownersWords(toolContext: ToolContext, config: unknown): Promise<string> {
-  const questions = isAskMorningQuestion(toolContext.question) ? [] : [toolContext.question ?? ""];
   const kept = toolContext.subjectFile
     ? await readKeptWords(toolContext.ctx.supabase, toolContext.tenantId, toolContext.subjectFile)
     : "";
-  return [...questions, ...(toolContext.askedEarlier ?? []), config ? JSON.stringify(config) : "", kept].join("\n");
+  return [ownersTyped(toolContext), config ? JSON.stringify(config) : "", kept].join("\n");
+}
+
+/**
+ * What the owner typed in this thread, and nothing they did not: this turn's question and the ones before it. A client's
+ * words can only have come to a quote this way (act/files/piece.ts quotesSourced): their Settings are the business's own
+ * voice, never a client's. A morning's turn asks itself.
+ */
+export function ownersTyped(toolContext: ToolContext): string {
+  const questions = isAskMorningQuestion(toolContext.question) ? [] : [toolContext.question ?? ""];
+  return [...questions, ...(toolContext.askedEarlier ?? [])].join("\n");
 }
 
 /** What a drawn post is known by once the model has looked at it: the plan, whole, in one short key. */

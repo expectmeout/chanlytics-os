@@ -358,7 +358,7 @@ test("Being made is what is being made and what was not, and a view this build d
   await assert.rejects(read({}, "view=everything"), (e) => e.code === "validation");
 });
 
-test("an idea is ready only where what it is made from is there: a photo for a post, a review that says something for its video", async () => {
+test("an idea is ready only where what it is made from is there: a photo for a post, a review of four or five stars that says something for its video", async () => {
   const none = await read({});
   assert.deepEqual(
     none.body.ideas.map((i) => [i.key, i.ready]),
@@ -372,8 +372,14 @@ test("an idea is ready only where what it is made from is there: a photo for a p
   const { body } = await read({
     files: [made(4, { source: "upload", name: "a-photo" })],
     google_reviews: [
-      { id: "r-1", tenant_id: A, body: "They were on time and careful.", published_at: "2026-11-01T12:00:00Z" },
-      { id: "r-2", tenant_id: B, body: "Another workspace's.", published_at: "2026-11-02T12:00:00Z" },
+      {
+        id: "r-1",
+        tenant_id: A,
+        rating: 5,
+        body: "They were on time and careful.",
+        published_at: "2026-11-01T12:00:00Z",
+      },
+      { id: "r-2", tenant_id: B, rating: 5, body: "Another workspace's.", published_at: "2026-11-02T12:00:00Z" },
     ],
   });
   const ready = Object.fromEntries(body.ideas.map((i) => [i.key, i.ready]));
@@ -383,6 +389,19 @@ test("an idea is ready only where what it is made from is there: a photo for a p
     ["a-photo"],
     "the photo its row shows is the one Ask is asked to use",
   );
+  // A review of three stars or fewer is never quoted as one (packages/db listReviewWords), so it offers no video of itself.
+  const faint = await read({
+    google_reviews: [
+      {
+        id: "r-3",
+        tenant_id: A,
+        rating: 2,
+        body: "Lovely cut, but I waited an hour.",
+        published_at: "2026-11-03T12:00:00Z",
+      },
+    ],
+  });
+  assert.equal(faint.body.ideas.find((i) => i.key === "review").ready, false);
 });
 
 test("a post its owner put up by hand is read with its piece, apart from what was sent, and Posted leaves it out", async () => {

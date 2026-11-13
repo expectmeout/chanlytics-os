@@ -182,7 +182,8 @@ const IDEAS_FROM = 24;
 async function ideaFilesOf(db: Db, tenantId: TenantId) {
   const [kept, reviews] = await Promise.all([
     listFilesOnShelf(db, tenantId, { status: "filed", made: false }, { limit: IDEAS_FROM }),
-    // One review that says something is enough to offer its idea; a read that failed offers none, and fails no page.
+    // One review of four or five stars that says something is enough to offer its idea (the ones a quote may come
+    // from); a read that failed offers none, and fails no page.
     listReviewWords(db, tenantId, 1),
   ]);
   return contentIdeaFilesOf(kept.map(fileDtoOf), { review: !reviews.error && reviews.data.length > 0 });
