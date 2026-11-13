@@ -1,4 +1,4 @@
-import { warmRoute } from "@/server/workspace/routes-warm";
+import { routesWarmed } from "@/server/workspace/routes-warm";
 import * as playbooks from "../../v1/playbooks/route";
 
 /**
@@ -11,4 +11,4 @@ const HELD = { playbooks };
 
 export const maxDuration = 60;
 
-export const GET = warmRoute(Object.keys(HELD));
+export const GET = routesWarmed(Object.keys(HELD));

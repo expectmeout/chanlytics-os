@@ -22,7 +22,7 @@ export interface WarmHandler {
  * would be answered from a cache and no code would load (check:static-shell fails such a build). It reads nothing of
  * the request, names no workspace and reads no row, so it answers anyone (proxy.ts PUBLIC_PATHS).
  */
-export function warmRoute(routes: readonly string[]): WarmHandler {
+export function routesWarmed(routes: readonly string[]): WarmHandler {
   const held = [...routes].sort();
   const answer = async (): Promise<Response> => {
     await connection();

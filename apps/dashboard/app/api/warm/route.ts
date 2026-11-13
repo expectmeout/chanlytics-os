@@ -1,5 +1,5 @@
 import { PREFETCH_OPEN, openReads } from "@chanlytics/contracts";
-import { warmRoute } from "@/server/workspace/routes-warm";
+import { routesWarmed } from "@/server/workspace/routes-warm";
 import * as open from "../v1/open/route";
 import * as activity from "../v1/activity/route";
 import * as askMemory from "../v1/ask/memory/route";
@@ -64,4 +64,6 @@ const pathOf = (read: string): string => read.replace(/\?.*$/, "");
 /** What the opening read answers, for each page that opens through it: loaded with it. */
 const opened = PREFETCH_OPEN.flatMap((page) => openReads(page).flat().map(pathOf));
 
-export const GET = warmRoute([...new Set([...Object.keys(HELD), ...opened])].filter((r) => !ANOTHER_FUNCTIONS.has(r)));
+export const GET = routesWarmed(
+  [...new Set([...Object.keys(HELD), ...opened])].filter((r) => !ANOTHER_FUNCTIONS.has(r)),
+);

@@ -25,7 +25,7 @@ const long = await import(at(`${API}/warm/long/route.ts`));
 
 /** A read as the client spells it, by its route's path: `calendar?around=today` is `calendar`. */
 const pathOf = (read) => read.replace(/\?.*$/, "");
-/** What a warm-up holds, as its handler says it (server/workspace/routes-warm.ts warmRoute). */
+/** What a warm-up holds, as its handler says it (server/workspace/routes-warm.ts routesWarmed). */
 const heldBy = (route) => route.GET.held;
 
 /**
