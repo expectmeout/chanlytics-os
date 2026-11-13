@@ -2,7 +2,7 @@ import "server-only";
 import { NextResponse, connection } from "next/server";
 
 /** A warm-up's handler: it answers the routes it holds, and says them (`held`) to what holds the list to the pages' reads. */
-export interface WarmHandler {
+interface WarmHandler {
   (): Promise<Response>;
   /** The routes held, by the path the client asks each at, sorted. */
   readonly held: readonly string[];
