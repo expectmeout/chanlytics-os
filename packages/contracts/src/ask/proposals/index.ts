@@ -3,7 +3,6 @@
  * pages press and the readings of a spec (page-specs.ts), and each family's spec. Ask's own kinds come by their own
  * entry (`@chanlytics/contracts/ask-only`).
  */
-export { MESSAGE_CHANGE_WORDS } from "./messages";
 export {
   FIX_CARD_WORDS,
   MESSAGE_WORDS,
@@ -28,6 +27,7 @@ export {
 } from "./follow-ups";
 export type { AskFollowUp, FollowUpWake, FollowUpWorld } from "./follow-ups";
 export { ASK_THREAD_ROUTES } from "./inbox";
+export { MESSAGE_CHANGE_WORDS } from "./messages";
 export { addProposalSpecs, askUndoOpen, cardOpenRoute, PROPOSAL_GATE, proposalSpec, verbSpec } from "./page-specs";
 export { PAGE_SPECS } from "./page-specs";
 export type { VerbKind } from "./page-specs";
