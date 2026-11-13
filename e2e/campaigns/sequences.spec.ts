@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute } from "../address";
+import { openDraftedSequence } from "./new-draft";
 import { expectRunsReport } from "./run-report";
 import { apiGet } from "../workspace";
 import {
@@ -19,8 +20,8 @@ import {
  * Campaigns › Sequences (decision 0060), which is Campaigns: everything a workspace sends on its own as one list, a
  * sequence's record beside it on its three tabs, a run's address landing on its day of History, the old addresses landing
  * on it, and a new one started from what starts it, its composers over the page. Every count is read from the API's answer
- * and compared with what the page says; nothing is made, changed or sent here (no draft is asked for, so no model is
- * called).
+ * and compared with what the page says; nothing is made, changed or sent here (no draft is asked of a model: where a
+ * draft is drawn, Ask's answer is given, new-draft.ts).
  */
 test.describe("Campaigns › Sequences on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -183,5 +184,46 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
       await expect(page.getByTestId("sq-new").getByTestId("sq-nw-line")).toBeVisible();
       await expect(page.getByTestId("sq-page")).toBeVisible();
     }
+  });
+
+  test("a draft's step is pressed where it is touched: a value's field takes the typing and Take away takes the step away, and the box beside them still opens the step", async ({
+    page,
+  }) => {
+    // A step's box is one press laid over the whole of it (place.css). Its own controls sat under that press, so a
+    // pointer on Take away opened the step and took nothing away, and one in a value's field opened the message picker
+    // (found live, 13 Nov 2026; a keyboard reached both, and no test pressed either on a real page). Playwright's click
+    // waits for the element itself to be what the pointer hits, so each press here fails while the box covers it.
+    const pane = await openDraftedSequence(page);
+    const steps = pane.getByTestId("sq-nw-steps");
+    const picker = page.getByTestId("sq-nw-message");
+    await expect(steps.getByTestId("sq-nw-step-2")).toBeVisible();
+    // The value still to type takes the press, the typing after it, and no sheet opens over it.
+    const value = steps.getByTestId("sq-nw-value-2-1");
+    await value.click();
+    await expect(value).toBeFocused();
+    await page.keyboard.type("20% off colour");
+    await expect(value).toHaveValue("20% off colour");
+    await expect(picker).toHaveCount(0);
+    // The message's own pick opens the picker, as the box does: pressed, and closed again.
+    await steps.getByTestId("sq-nw-pick-2").click();
+    await expect(picker).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(picker).toHaveCount(0);
+    // The box beside its controls is still the press that opens the step: its words, where no control stands. The
+    // pointer is put there itself, since the press is the box's and never the words' own.
+    const words = await steps.getByTestId("sq-nw-step-2").locator(".mp-bubble").boundingBox();
+    if (!words) throw new Error("the second step's words are not drawn");
+    await page.mouse.click(words.x + words.width / 2, words.y + words.height / 2);
+    await expect(picker).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(picker).toHaveCount(0);
+    // Take away, pressed with a pointer, takes the second step away, and opens nothing.
+    await steps.getByTestId("sq-nw-remove-2").click();
+    await expect(steps.getByTestId("sq-nw-step-2")).toHaveCount(0);
+    await expect(steps.getByTestId("sq-nw-step-1")).toBeVisible();
+    await expect(picker).toHaveCount(0);
+    // Nothing was made by any of it: the draft is let go.
+    await pane.getByTestId("sq-nw-discard").click();
+    await expect(pane.getByTestId("sq-nw-line")).toBeVisible();
   });
 });

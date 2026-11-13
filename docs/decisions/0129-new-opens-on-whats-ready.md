@@ -121,10 +121,31 @@ Items 7 to 14 were run again live on the demo workspace on 12 November 2026, the
 four asks that had lost one before, a change that named no step left an approved message as it was and said so, a
 signature stood on its own line, Undo stepped back through four changes, and a change took about five seconds.
 
+**What pressing the live page found** (13 November 2026, the run that tried items 16 to 21 with the real Ask: all six
+held). Five things on the page itself, the first there since 20 October and found only because a pointer pressed it:
+every test of the draft pressed its controls through their props, on a page with no stylesheet.
+
+22. **A step is pressed where it is touched.** A step's box is one press laid over the whole of it (`place.css`), and
+    the step's own controls sat under that press: a pointer on Take away opened the step and took nothing away, one in
+    a value's field opened the message picker, and Edit the words opened the picker too. The controls stand over the
+    press (`new.css`). A message's words, which stood over it by the bubble's own layout and opened nothing, are the
+    box's press again. A browser spec presses each with a pointer.
+23. **A draft discarded lets the line's words go.** A change still out when the draft went had left them in the next
+    draft's line.
+24. **"By Ask" is said only of words still as Ask wrote them** (`change.ts` `placesByAsk`, read against what Ask last
+    drafted): an email the owner rewrote, a message whose words they edited, and a step they added and wrote said it
+    too, since it was said of any step in a draft Ask had drafted.
+25. **A line that changed nothing and says why stands on top, over the card that says why,** with Undo, which puts the
+    card away. It was said in passing and the card stood under the change before it, reading as that change's. One
+    that changed nothing and says nothing new is still said in passing.
+26. **What Ask said it left out goes with the steps it was said of:** a step swapped, rewritten, added or taken away by
+    hand lets the card go. It stayed up over a message since swapped, and Undo brought it back. A wait, a value typed,
+    who, when and the name leave it.
+
 ## Deploy order
 
 Either. The dashboard alone changes; no route, no table, nothing the two apps share.
 
 ## Held by
 
-`tests/campaigns/new-ready.test.mjs` (the rules), `tests/campaigns/new-ready-page.test.mjs` (the first screen drawn), `tests/playbooks/campaigns-drafts.test.mjs` (the line still drafts, and a line alone is not work), and `e2e/campaigns/campaigns-loads.spec.ts` (nothing drawn while loading is taken back). Step 2: `tests/campaigns/draft-changed-by-saying.test.mjs` (what the drafter is told of a draft that stands, how its answer is judged and taken, what changed said, a step that stays, the second ask, why a step cannot be kept) and `tests/playbooks/campaigns-drafts.test.mjs` (the line under a draft, on the page: asked, changed, Undo, a change Ask could not make).
+`tests/campaigns/new-ready.test.mjs` (the rules), `tests/campaigns/new-ready-page.test.mjs` (the first screen drawn), `tests/playbooks/campaigns-drafts.test.mjs` (the line still drafts, and a line alone is not work), and `e2e/campaigns/campaigns-loads.spec.ts` (nothing drawn while loading is taken back). Step 2: `tests/campaigns/draft-changed-by-saying.test.mjs` (what the drafter is told of a draft that stands, how its answer is judged and taken, what changed said, a step that stays, the second ask, why a step cannot be kept) and `tests/playbooks/campaigns-drafts.test.mjs` (the line under a draft, on the page: asked, changed, Undo, a change Ask could not make, a line that says why, a draft discarded, a message its owner rewrote). A step pressed with a pointer: `e2e/campaigns/sequences.spec.ts`.
