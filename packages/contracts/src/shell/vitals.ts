@@ -61,7 +61,9 @@ const detailMs = () => z.optional(z.number().check(z.minimum(0), z.maximum(VITAL
  * was its own (`server_ms`, from Server-Timing, and its database calls, `db_ms` over `db_n`), a script chunk that had to
  * arrive (`chunk_ms`), and what was left for drawing (`render_ms`). For the browser's: the element (`el`), the
  * interaction's type and its three phases, the longest script's share, the largest paint's four parts, the largest
- * shift's score, the document's state, and the phase the time went on most (`phase`).
+ * shift's score, the document's state, and the phase the time went on most (`phase`). For READ_FAILED: why the reads
+ * failed (`reason`: the refusal's own code, or `threw` where the read's own code did) and whether the tab was hidden
+ * when they did (`hidden`), so a tab asleep is told from a read the server refused.
  */
 const PageVitalDetail = z.object({
   wait: detailWord(),
@@ -84,6 +86,8 @@ const PageVitalDetail = z.object({
   shift: z.optional(z.number().check(z.minimum(0), z.maximum(100))),
   state: z.optional(z.enum(["loading", "dom-interactive", "dom-content-loaded", "complete"])),
   phase: detailWord(),
+  reason: detailWord(),
+  hidden: z.optional(z.boolean()),
 });
 export type PageVitalDetailDto = z.infer<typeof PageVitalDetail>;
 

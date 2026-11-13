@@ -3,8 +3,9 @@
  * 2026, L7). A read that failed, or a feed that dropped, was said on the tab's own status line and in its console, and
  * nowhere else: a customer's feed could be down for a day and nothing the platform reads would know. Now each tab counts
  * them and reports them beside its page speed (POST vitals, page_vitals): how long its feed was down (FEED_DOWN, ms), how
- * many times it came back (FEED_BACK), and each surface's reads that failed (READ_FAILED, the surface its part). Counts and
- * durations only, never a value; a tab that heard and read everything says nothing.
+ * many times it came back (FEED_BACK), and each surface's reads that failed (READ_FAILED, the surface its part, with why
+ * and whether the tab was hidden then). Counts, durations and the code's own words only, never a value; a tab that heard
+ * and read everything says nothing.
  */
 import { MIN_MS, type PageVitalReportDto } from "@chanlytics/contracts";
 import { speedHost } from "@/client/page-speed";
@@ -13,7 +14,7 @@ import { getConnection, onSurfaceStatusChange } from "../surface-status";
 let downSince: number | null = null;
 let downMs = 0;
 let back = 0;
-const failed = new Map<string, number>();
+const failed = new Map<string, { key: string; reason: string; hidden: boolean; n: number }>();
 let said = 0;
 /** The longest a report says (page_vitals.value): a feed down longer is said as ten minutes, on each put-away. */
 const LONGEST_MS = 10 * MIN_MS;
@@ -28,12 +29,18 @@ export function noteFeed(down: boolean, now: number = Date.now()): void {
   }
 }
 
-/** A surface's read failed: what READ_FAILED counts, under the surface. */
-export function noteReadFailed(key: string): void {
-  failed.set(key, (failed.get(key) ?? 0) + 1);
+/**
+ * A surface's read failed: what READ_FAILED counts, under the surface, apart for each reason and for a tab that was
+ * hidden. `reason` is the refusal's own code (`timeout`, `network`, `rate_limited`, `forbidden`…), or `threw` where
+ * the read's own code did; `hidden` whether the tab was out of sight then (a phone asleep, a tab behind another). Ten
+ * days of counts alone said that nearly half of all tabs had a read fail and nothing of why (13 Nov 2026).
+ */
+export function noteReadFailed(key: string, reason: string, hidden: boolean): void {
+  const counted = `${key}\n${reason}\n${hidden ? "hidden" : "seen"}`;
+  failed.set(counted, { key, reason, hidden, n: (failed.get(counted)?.n ?? 0) + 1 });
 }
 
-/** A surface's key as a part of a page's report (PAGE_NAME: a word in lower case, hyphens for its underscores). */
+/** A surface's key, or a failure's code, as a word a report takes (lower case, hyphens for its underscores). */
 const partOf = (key: string): string =>
   key
     .toLowerCase()
@@ -42,15 +49,18 @@ const partOf = (key: string): string =>
     .slice(0, 32);
 
 /** The reports what was counted makes, and forgets it: a feed still down is counted to `now` and goes on counting. */
-export function freshnessReports(now: number = Date.now()): Array<Pick<PageVitalReportDto, "name" | "value" | "part">> {
+export function freshnessReports(
+  now: number = Date.now(),
+): Array<Pick<PageVitalReportDto, "name" | "value" | "part" | "detail">> {
   const down = downMs + (downSince === null ? 0 : now - downSince);
   if (downSince !== null) downSince = now;
-  const out: Array<Pick<PageVitalReportDto, "name" | "value" | "part">> = [];
+  const out: Array<Pick<PageVitalReportDto, "name" | "value" | "part" | "detail">> = [];
   if (down > 0) out.push({ name: "FEED_DOWN", value: Math.min(down, LONGEST_MS) });
   if (back > 0) out.push({ name: "FEED_BACK", value: back });
-  for (const [key, n] of failed) {
+  for (const { key, reason, hidden, n } of failed.values()) {
     const part = partOf(key);
-    if (part) out.push({ name: "READ_FAILED", value: n, part });
+    if (part)
+      out.push({ name: "READ_FAILED", value: n, part, detail: { reason: partOf(reason) || "unknown", hidden } });
   }
   downMs = 0;
   back = 0;
