@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import { reportDaysCount, reportRangeOfKey, shiftKey } from "@chanlytics/contracts";
 import { again, classes, find, fresh, installStubReact, settle, textOf } from "../../_stub-react.mjs";
 import { CALENDAR, quiet, rday, reportDto, surface } from "../_report-world.mjs";
+import { until } from "../../shared/_until.mjs";
 
 const moves = [];
 installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
@@ -27,7 +28,7 @@ globalThis.document = { visibilityState: "hidden", addEventListener() {}, remove
 const S = "../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
-const { keepReportPeriod, paintHeldReports, reportsOverride, shownReportPeriod } = await import(
+const { forgetReports, keepReportPeriod, paintHeldReports, reportsOverride, shownReportPeriod } = await import(
   `${S}/surfaces/reports/surface.ts`
 );
 const { reportsPeopleOverride } = await import(`${S}/surfaces/reports/people-surface.ts`);
@@ -395,4 +396,31 @@ test("days that could not be read at all are a failure, never the period in thei
   );
   assert.deepEqual(asked, ["2026-08-01~2026-08-07"], "no second read: nothing says the period would be right");
   assert.equal(surfaceValue("reports"), before, "and what the page shows is left as it is");
+});
+
+test("a write while a read of the overview is out: its answer from before the write is neither drawn nor held, and the read after it is both", async () => {
+  // 13 Nov 2026: a deal recorded or the zone saved forgot what was held, but the read already out held its old answer again
+  // and drew it, until the read the write asked for replaced it.
+  at("reports");
+  keepReportPeriod("30d");
+  answers.delete("30d");
+  await reportsOverride.apply();
+  const drawn = surfaceValue("reports");
+  assert.equal(drawn.key, "30d");
+  let release = null;
+  const out = new Promise((r) => (release = r));
+  answers.set("30d", () => out.then(() => report("30d")));
+  asked.length = 0;
+  const before = reportsOverride.apply();
+  await until(() => asked.includes("30d"), "the read before the write is out");
+  forgetReports();
+  release();
+  await before;
+  assert.equal(surfaceValue("reports"), drawn, "REGRESSION: the answer from before the write was drawn after it");
+  assert.equal(paintHeldReports(), false, "REGRESSION: the answer from before the write was held after it");
+  answers.delete("30d");
+  await reportsOverride.apply();
+  assert.notEqual(surfaceValue("reports"), drawn, "the read after the write is drawn");
+  assert.equal(surfaceValue("reports").key, "30d");
+  assert.equal(paintHeldReports(), true, "and held");
 });

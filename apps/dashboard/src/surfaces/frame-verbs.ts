@@ -12,6 +12,7 @@ import { policiesNow } from "./settings/business/shell";
 import { workspacePath } from "@chanlytics/contracts";
 import { askAbout, backFrom, navigate, openAsk, tellAskHeld } from "./frame-doors";
 import type { SwipeHandlers, SwipeOptions } from "./kit/motion/swipe";
+import { BACK_SETTLE_MS } from "./kit/sheet/back";
 
 /** What a toast says, as the shell's one flash takes it (frame/flash.tsx `usePPToast`). */
 export interface FrameFlash {
@@ -114,8 +115,10 @@ export function drawnNow(change: () => void): void {
 /**
  * Move the address (`move`: a sheet's close, which may be a Back), then run `then` once the route on screen has moved
  * (the frame's address, `CHANLY.address.hear`: a Back as its popstate lands, a page's move as it is made), once. A Back
- * lands a moment after it is asked for, so what follows it waits for it. Where the frame hears no address (the
- * standalone mockup), `then` follows the move at once.
+ * lands a moment after it is asked for, so what follows it waits for it. A move that has not moved the route within that
+ * moment moved nothing (a close of what the address does not name), and `then` runs there, since it is what the person
+ * pressed for; nothing listens after, so no later move of theirs runs it. A move that throws leaves nothing listening,
+ * and nothing follows it. Where the frame hears no address (the standalone mockup), `then` follows the move at once.
  */
 export function afterMove(move: () => void, then: () => void): void {
   const hear = window.CHANLY?.address?.hear;
@@ -125,13 +128,27 @@ export function afterMove(move: () => void, then: () => void): void {
     return;
   }
   let done = false;
-  const stop = hear(() => {
-    if (done) return;
+  let late: ReturnType<typeof setTimeout> | undefined;
+  const end = (): boolean => {
+    if (done) return false;
     done = true;
     stop();
-    then();
+    clearTimeout(late);
+    return true;
+  };
+  const stop = hear(() => {
+    if (end()) then();
   });
-  move();
+  try {
+    move();
+  } catch (e) {
+    end();
+    throw e;
+  }
+  if (!done)
+    late = setTimeout(() => {
+      if (end()) then();
+    }, BACK_SETTLE_MS);
 }
 
 /**
