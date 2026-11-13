@@ -445,7 +445,7 @@ jobs:
           pnpm check:debt -- --against .debt/base.json --summary "$GITHUB_STEP_SUMMARY"
 
   tests:
-    name: Tests of what changed (${{ matrix.shard }}/4)
+    name: Tests of what changed (${{ matrix.shard }}/4)${{ matrix.clock && ', twelve hours on' || '' }}
     needs: scope
     # The `suite` label asks for the whole suite whatever the laptop ran.
     if: >-
@@ -460,6 +460,13 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
+        # Each part at CI's own clock, and again with the clock twelve hours on, side by side (the launcher's TEST_CLOCK,
+        # tooling/scripts/checks/test.mjs): #2285's playbooks test passed here at 23:11 in New York and was red on main
+        # for the other twenty hours of every day (13 Nov 2026). Twelve hours apart, a test that holds for less than
+        # half the day fails at one of the two.
+        clock: ["", "+12h"]
+    env:
+      TEST_CLOCK: ${{ matrix.clock }}
     steps:
       # Two commits deep: on a pull request the checkout is the merge commit GitHub tests, whose first parent is the
       # base, so HEAD^1..HEAD is what the pull request changes (the changed tests, below).
@@ -483,7 +490,7 @@ jobs:
       # here), or by hand (workflow_dispatch). Every other pull request runs the
       # tests of what it changed: the folders its paths name, the rules and the
       # ratchets always, and the tests whose imports reach a changed file, nearest
-      # first, within 800 test files, never the whole suite (Ruben, 10 Oct 2026:
+      # first, within 1,600 test files, never the whole suite (Ruben, 10 Oct 2026:
       # under ten minutes; tooling/scripts/checks/changed-tests.mjs). Without it a
       # pull request ran no test, and five ratchets went red on main unseen
       # between 29 Sep and 3 Oct; without the imports, five tests on 28 Oct. The
