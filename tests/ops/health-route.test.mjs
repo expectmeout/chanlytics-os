@@ -12,9 +12,15 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const { judgeHealth, GET } = await import(pathToFileURL(path.join(ROOT, "apps/edge/api/health.ts")).href);
 
-const db = (rows, backlog, healthError = null, backlogError = null) => ({
+/** The machine image on record for the video template this build draws with, as the database answers for it. */
+const IMAGE = { data: { snapshot_id: "snap_1", hash: "4e3e426db96a" }, error: null };
+const db = (rows, backlog, healthError = null, backlogError = null, image = IMAGE) => ({
   rpc: async (name) =>
     name === "sweep_health" ? { data: rows, error: healthError } : { data: backlog, error: backlogError },
+  from: (table) => {
+    assert.equal(table, "piece_images");
+    return { select: () => ({ eq: () => ({ maybeSingle: async () => image }) }) };
+  },
 });
 const row = (sweep, healthy) => ({
   sweep,
@@ -30,7 +36,27 @@ const NOW = new Date("2026-09-11T12:00:00.000Z");
 test("every clock healthy and nothing waiting is 200", async () => {
   const a = await judgeHealth(db([row("jobs", true), row("purge_events", true), row("partitions", true)], 0), NOW);
   assert.equal(a.status, 200);
-  assert.deepEqual(a.body, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: "2026-09-11T12:00:00.000Z" });
+  assert.deepEqual(a.body, {
+    ok: true,
+    unhealthy: [],
+    jobs_backlog: 0,
+    checked_at: "2026-09-11T12:00:00.000Z",
+    video_machine: true,
+  });
+});
+
+test("a video template with no machine image on record is said, and pages nobody: it is no clock", async () => {
+  const none = { data: null, error: null };
+  const a = await judgeHealth(db([row("jobs", true)], 0, null, null, none), NOW);
+  assert.equal(a.status, 200, "the pinger's judgement is the clocks' and the backlog's alone");
+  assert.equal(a.body.ok, true);
+  assert.equal(a.body.video_machine, false);
+  // Unread is unknown, never missing, and none of the database's words leave.
+  const unread = { data: null, error: { message: "permission denied for table piece_images (secret-ish)" } };
+  const b = await judgeHealth(db([row("jobs", true)], 0, null, null, unread), NOW);
+  assert.equal(b.status, 200);
+  assert.equal(b.body.video_machine, null);
+  assert.ok(!JSON.stringify(b.body).includes("secret-ish"));
 });
 
 test("one unhealthy clock is 503, named, with its detail kept inside", async () => {
@@ -82,6 +108,7 @@ test("the door itself: no database is 503 no_database; with one, the judgement i
       new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
     if (u.endsWith("/rest/v1/rpc/sweep_health")) return json([row("jobs", true), row("partitions", false)]);
     if (u.endsWith("/rest/v1/rpc/jobs_backlog")) return json(0);
+    if (u.includes("/rest/v1/piece_images?")) return json([{ snapshot_id: "snap_1", hash: "4e3e426db96a" }]);
     throw new Error(`the health door asked the database something it never did before: ${u}`);
   };
   process.env.SUPABASE_URL = "http://127.0.0.1:1";
@@ -96,12 +123,17 @@ test("the door itself: no database is 503 no_database; with one, the judgement i
     assert.equal(body.jobs_backlog, 0);
     assert.equal(body.ok, false);
     assert.ok(!JSON.stringify(body).includes("secret-ish"));
-    assert.deepEqual(calls.map((u) => u.slice(u.lastIndexOf("/") + 1)).sort(), ["jobs_backlog", "sweep_health"]);
+    assert.equal(body.video_machine, true);
+    assert.deepEqual(calls.map((u) => u.slice(u.lastIndexOf("/") + 1).split("?")[0]).sort(), [
+      "jobs_backlog",
+      "piece_images",
+      "sweep_health",
+    ]);
 
     const again = await GET();
     assert.equal(again.status, 503);
     assert.deepEqual(await again.json(), body);
-    assert.equal(calls.length, 2, "cached: a noisy pinger is not a load on the database");
+    assert.equal(calls.length, 3, "cached: a noisy pinger is not a load on the database");
   } finally {
     globalThis.fetch = realFetch;
     delete process.env.SUPABASE_URL;

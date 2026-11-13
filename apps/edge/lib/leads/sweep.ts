@@ -209,18 +209,19 @@ const RECHECKS_AT_ONCE = 200;
 
 /**
  * The addresses whose mailbox check did not answer, asked again (decision 0131, lead_check_retry): each a day after its
- * last check, at most twice, inside each workspace's searching budget and only while its searching is on. A read that
- * fails is logged and the tick goes on; a database before 00618 has no such door, and asks nothing.
+ * last check, at most twice, inside each workspace's searching budget and only while its searching is on; and the ones
+ * left 'checking' by a check that died, given back to "Couldn't check" (00623). A read that fails is logged and the tick
+ * goes on; a database before 00618 has no such door, and asks nothing.
  */
 async function checksAgain({
   db,
   L,
-}: Pick<SweepTick, "db" | "L">): Promise<{ asked: number; held: number; failed: number }> {
+}: Pick<SweepTick, "db" | "L">): Promise<{ asked: number; held: number; freed: number; failed: number }> {
   try {
     return { ...(await retryLeadChecks(db, RECHECKS_AT_ONCE)), failed: 0 };
   } catch (e) {
     L.error("leads_sweep_action_failed", { kind: "rechecks", error: errField(e) });
-    return { asked: 0, held: 0, failed: 1 };
+    return { asked: 0, held: 0, freed: 0, failed: 1 };
   }
 }
 
@@ -232,12 +233,20 @@ async function secondTries(
   { db, L }: Pick<SweepTick, "db" | "L">,
   wires: LeadWires | undefined,
   deadline: number,
-): Promise<{ rechecks_asked: number; rechecks_held: number; marks_due: number; marks_kept: number; failed: number }> {
+): Promise<{
+  rechecks_asked: number;
+  rechecks_held: number;
+  rechecks_freed: number;
+  marks_due: number;
+  marks_kept: number;
+  failed: number;
+}> {
   const rechecks = await checksAgain({ db, L });
   const marks = await marksAgain({ db, L }, wires, deadline);
   return {
     rechecks_asked: rechecks.asked,
     rechecks_held: rechecks.held,
+    rechecks_freed: rechecks.freed,
     marks_due: marks.due,
     marks_kept: marks.kept,
     failed: rechecks.failed + marks.failed,

@@ -18,7 +18,6 @@ import {
 } from "@chanlytics/contracts";
 import { listReviewWords } from "@chanlytics/db/google";
 import { checkPieceClips, pieceSecondsOf } from "@/server/content/piece";
-import { PIECE_RECIPES } from "@/server/content/piece-recipes";
 import { drawPieceBoard } from "@/server/content/storyboard";
 import type { FileForAsk } from "@/server/files/line";
 import { postDrawProblem, postWordsProblem } from "@/server/files/post-check";
@@ -35,7 +34,7 @@ import {
 } from "../../context/tool-defs";
 import { approvalWords, propose, refuse } from "../../context/context";
 import { filesNamed } from "../../read/files";
-import { ownersWords } from "./post";
+import { ownersTyped, ownersWords } from "./post";
 
 /**
  * A short video from the business's own clips and photos (decisions 0122 and 0126): blocks Ask arranges for the request (a
@@ -49,10 +48,12 @@ import { ownersWords } from "./post";
  * first video made without that look put its words on the client's face (the quality test, 10 Nov 2026), and the look every
  * finished file gets did not notice.
  *
- * How to arrange the blocks is advice, said in this tool's own words where the model reads them as it fills the plan
- * (content/piece-recipes.ts). Code holds what code can: every file is the business's own and kept, each stretch is inside its clip, whoever
+ * How to arrange the blocks is advice, the video maker's guide (ask/skills/video/skill.ts): in the turn whose question asks
+ * for a video, and read with the guide tool where it is not; this tool's own words say where, and carry none of it. Code
+ * holds what code can: every file is the business's own and kept, each stretch is inside its clip, whoever
  * is in them agreed, the words can be drawn and promise nothing the owner has not, and a quote is a client's own words, found
- * in a review the workspace holds or in what the owner wrote (contracts compilePiece, post-check).
+ * in a review of four or five stars the workspace holds, or typed here by the owner, who said a client wrote them (contracts
+ * compilePiece, post-check).
  */
 
 type Block = PiecePlan["blocks"][number];
@@ -133,7 +134,7 @@ const blockInput = z.object({
     .string()
     .optional()
     .describe(
-      `quote: a client's words exactly as written, at most ${PIECE_LIMITS.quote} characters, from a review this workspace holds (report, lens reviews) or from what the owner wrote here. Never reworded, never yours, never their name: code says where it was said.`,
+      `quote: a client's words exactly as written, at most ${PIECE_LIMITS.quote} characters, from a four or five star review this workspace holds (report, lens reviews), or pasted here by the owner as a client's (client_said). Never reworded, never yours or the business's, never their name: code says where it was said.`,
     ),
   over: z.string().optional().describe("quote: the picture it stands over, dimmed. Left out, the dark ground."),
   over_at: time.optional().describe("As before_at."),
@@ -173,6 +174,10 @@ const pieceInput = z.object({
     .boolean()
     .optional()
     .describe("Only when the owner said in this thread that the people shown agreed to be."),
+  client_said: z
+    .boolean()
+    .optional()
+    .describe("Only when the owner said in this thread that a client wrote the quote they typed here."),
   caption: z
     .string()
     .optional()
@@ -366,18 +371,37 @@ const quotePlain = (words: string): string =>
     .replace(/\s+/g, " ")
     .replace(/^[\s"'.]+|[\s"'.]+$/g, "");
 
+/** Why a quote is not shown, said to the model: it is no one's words, or the owner's typing with no word that a client wrote it. */
+const QUOTE_WONT = {
+  no_one:
+    "the quote is not in a review of four or five stars this workspace holds, nor in what the owner typed here. A quote is a client's own words, exactly as written: read them with report (lens reviews) and copy the sentence, or ask the owner to paste the review",
+  unsaid:
+    "the quote is in what the owner typed, and no one has said a client wrote it. Ask the owner in a sentence; if they say a client did, call again with client_said true",
+} as const;
+
+/** A quote that is not shown: its block, counted from one, and why. */
+interface QuoteRefused {
+  block: number;
+  wont: keyof typeof QUOTE_WONT;
+}
+
 /**
- * A plan with each of its quotes saying where it was said, or the block (counted from one) of the first quote that is no one's
- * own words. A quote is a client's: found, as it was written, in a review the workspace holds ("Google review") or else in
- * what the owner wrote in this thread ("A client"). One Ask composed, or reworded, is neither, and a review nobody wrote
- * never reaches a video. Where it was said is read here and never taken from the model, and nobody is named.
+ * A plan with each of its quotes saying where it was said, or the first quote that is no client's own words and why. A quote
+ * is a client's: found, as it was written, in a review of four or five stars the workspace holds ("Google review"), or else
+ * in what the owner typed in this thread, on their word that a client wrote it ("A client"). One Ask composed, or reworded,
+ * is neither; nor is a sentence of the business's own, from its Settings or typed by its owner with no such word. Where it
+ * was said is read here and never taken from the model, and nobody is named.
  */
-async function quotesSourced(toolContext: ToolContext, plan: PiecePlan, owner: string): Promise<PiecePlan | number> {
+async function quotesSourced(
+  toolContext: ToolContext,
+  plan: PiecePlan,
+  owner: { typed: string; vouched: boolean },
+): Promise<PiecePlan | QuoteRefused> {
   if (!plan.blocks.some((block) => block.is === "quote")) return plan;
   const read = await listReviewWords(toolContext.ctx.supabase, toolContext.tenantId, REVIEWS_READ);
   if (read.error) throw new DbFailure(read.error, "reading the reviews a quote is held to");
   const reviews = read.data.map((review) => quotePlain(review.body));
-  const owned = quotePlain(owner);
+  const typed = quotePlain(owner.typed);
   const says = pieceWordsIn(plan.language).quoteFrom;
   const blocks: Block[] = [];
   for (const [i, block] of plan.blocks.entries()) {
@@ -388,7 +412,8 @@ async function quotesSourced(toolContext: ToolContext, plan: PiecePlan, owner: s
     const text = quotePlain(block.text);
     // Marks alone are no one's words.
     const reviewed = text !== "" && reviews.some((review) => review.includes(text));
-    if (!reviewed && (text === "" || !owned.includes(text))) return i + 1;
+    if (!reviewed && (text === "" || !typed.includes(text))) return { block: i + 1, wont: "no_one" };
+    if (!reviewed && !owner.vouched) return { block: i + 1, wont: "unsaid" };
     blocks.push({ ...block, from: reviewed ? says.google_review : says.client });
   }
   return { ...plan, blocks };
@@ -472,11 +497,11 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
   const owner = await ownersWords(toolContext, config);
   const wordsWrong = wordsProblem(given, owner);
   if (wordsWrong) return refuse(wordsWrong);
-  const plan = await quotesSourced(toolContext, given, owner);
-  if (typeof plan === "number")
-    return refuse(
-      `block ${plan}: the quote is not in a review this workspace holds, nor in what the owner wrote. A quote is a client's own words, exactly as written: read them with report (lens reviews) and copy the sentence, or ask the owner to paste the review`,
-    );
+  const plan = await quotesSourced(toolContext, given, {
+    typed: ownersTyped(toolContext),
+    vouched: input.client_said === true,
+  });
+  if (!("shape" in plan)) return refuse(`block ${plan.block}: ${QUOTE_WONT[plan.wont]}`);
   const checked = await checkPieceClips(toolContext.ctx, toolContext.tenantId, plan, config);
   if (!checked.ok)
     return refuse(checked.cut ? `block ${checked.cut}: ${WONT_TO_MODEL[checked.wont]}` : WONT_TO_MODEL[checked.wont]);
@@ -500,7 +525,7 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
 
 export const pieceAct = defineAct({
   name: "propose_piece",
-  description: `Make a short video from the business's own clips and photos: upright, 8 to 15 seconds, built from blocks you arrange for this request, then a card with the business's name. It is drawn in about a minute once the owner presses Make it. Open the files with files first (view; zoom on a clip's stretch) and choose real moments. The first call draws a storyboard and shows it to you; its note says how the card is made. Use it for a video or a reel from their clips, their photos or words alone; for one picture with words, propose_post. ${PIECE_RECIPES} ${approvalWords("piece")}.`,
+  description: `Make a short video from the business's own clips and photos: upright, 8 to 15 seconds, built from blocks you arrange for this request, then a card with the business's name. It is drawn in about a minute once the owner presses Make it. Open the files with files first (view; zoom on a clip's stretch) and choose real moments. The first call draws a storyboard and shows it to you; its note says how the card is made. Use it for a video or a reel from their clips, their photos or words alone; for one picture with words, propose_post. How to arrange the blocks is the video maker's guide: where it is not in this turn already, read guide with skill video before the first call. ${approvalWords("piece")}.`,
   kind: "piece",
   input: pieceInput,
   label: "Planning a video",

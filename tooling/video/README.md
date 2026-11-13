@@ -39,7 +39,9 @@ as an image that never expires, and each video starts from the image in about a 
    was not built from the template this tree holds.
 
 A deploy whose edition has no image on record makes no video and says so; the edition before keeps its own image, so either
-deploy order works.
+deploy order works. A change that merged ahead of its image is caught at the deploy, before an owner presses Make it: the
+edge's health door answers `video_machine: false` (still 200: it is no clock, and pages nobody), and the smoke after the
+deploy fails on it (`tooling/scripts/checks/smoke.mjs`), which opens the commit's "Production smoke failed" issue.
 
 ## Building one by hand
 

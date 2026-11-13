@@ -81,6 +81,25 @@ test("leads that could not be checked: the row says how many and since when, and
   assert.ok(line(lead({ in_it: 999, stuck: { ...UNCHECKED, leads: 999 } })).length <= 44);
 });
 
+test("an address the clock still checks again asks nothing: the row says so, and it is no part of Needs you", () => {
+  // Three on its list, none planned, each waiting on the clock's own second try (00623: `rechecking`, never `stuck`).
+  const waiting = lead({ in_it: 0, rechecking: 3, last: null });
+  assert.equal(line(waiting), "3 addresses being checked again");
+  assert.notEqual(sequenceGroupOf(waiting), "needs");
+  assert.equal(line(lead({ rechecking: 1 })), "1 address being checked again");
+  // Once the tries are spent the database counts them as stuck, and the row asks for you as before.
+  const spent = lead({ rechecking: 1, stuck: { ...UNCHECKED, leads: 2 } });
+  assert.equal(line(spent), "2 leads couldn’t be checked · since Oct 29");
+  assert.equal(sequenceGroupOf(spent), "needs");
+  // What goes next is said first; a paused one, another kind of sequence, none, or a server before it say what they said.
+  assert.match(line(lead({ rechecking: 3, next: { at: "2026-11-12T14:00:00Z", people: 6 } })), /^Next /);
+  assert.equal(line(lead({ rechecking: 0, in_it: 4 })), "4 in it");
+  assert.equal(line(lead({ in_it: 4 })), "4 in it");
+  assert.equal(line(row({ rechecking: 3, in_it: 4 })), "4 in it");
+  assert.equal(line(lead({ state: "paused", rechecking: 3 })), line(lead({ state: "paused" })));
+  assert.ok(line(lead({ rechecking: 200 })).length <= 44);
+});
+
 test("what waits on you is said before what is stuck", () => {
   const both = lead({
     in_it: 4,

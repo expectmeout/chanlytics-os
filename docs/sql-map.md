@@ -241,7 +241,7 @@ being read is dropped by a migration.
 | `lead_check_ask` | the server's | the server | SQL `lead_addressee_choose`, `lead_check_again` and 1 more | The mailbox check of the named leads under one of their rounds (00430): |
 | `lead_check_commit` | the server's | the server | code `apps/edge/lib/leads/db.ts`; SQL `lead_search_import` | A batch of mailbox answers ([{lead_id, email_state, checked_at}]) from the check run p_run_id: |
 | `lead_check_estimate` | the server's | the server | SQL `lead_check_again`, `lead_check_ask` | What checking p_addresses addresses may cost (00506): |
-| `lead_check_retry` | the server's | the server | code `packages/db/src/repositories/leads/workbench.ts` | The leads clock (00618, decision 0131). |
+| `lead_check_retry` | the server's | the server | code `packages/db/src/repositories/leads/workbench.ts` | The leads clock (00618, decision 0131; |
 | `lead_collect_commit` | the server's | the server | code `apps/edge/lib/leads/db.ts` | One page of one run, in one transaction (E4). |
 | `lead_company_upsert` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | The people card's page of companies (00430), the service role's, before lead_collect_commit moves the run: |
 | `lead_convert_by` | the server's | its owner | SQL `lead_set_stage`, `leads_convert_on_deal` and 4 more | A lead's conversion, written once for every door that converts (Reach out Part 5, G19; |

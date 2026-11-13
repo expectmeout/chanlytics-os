@@ -700,7 +700,7 @@ export function leadWorld({
     // the database suite's to prove (couldnt-check-is-checked-again.db); here, that the clock asks, and how many at most.
     lead_check_retry: ({ p_limit }) => {
       w.rechecks.push(p_limit);
-      return { asked: 0, held: 0 };
+      return { asked: 0, held: 0, freed: 0 };
     },
   };
   w.rpcs = rpcs;
