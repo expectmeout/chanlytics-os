@@ -1673,23 +1673,19 @@ test("a person's page holds their newest 2,000 messages, as it asks: PostgREST a
   assert.equal(selects(live, "messages").length, 2);
   assert.deepEqual(held(r2.data.person), before, "each of the 1,500 once");
 
-  // 2,500: the newest 2,000, the oldest 500 left out, and one line that says the read stopped at its cap.
+  // 2,500: the newest 2,000, the oldest 500 left out, and one line that says the read stopped at its cap: a part, which
+  // the page is content with. One row past the 2,000 is asked for, which is how the read knows there were more.
   const many = heavy(2500);
   const capped = personCtx(many, P1, {}, { maxRows: 1000 });
   const { result, lines } = await logged("paged_read_capped", () => kernel.load(turnIn(capped), onePerson, { id: P1 }));
-  assert.deepEqual(
-    held(result.data.person),
-    many.messages
-      .slice(500)
-      .map((m) => m.id)
-      .sort(),
-    "the newest 2,000",
-  );
+  const newest = many.messages.slice(500).map((m) => m.id);
+  assert.deepEqual(held(result.data.person), newest.sort(), "the newest 2,000");
   assert.deepEqual(pages(capped), [
     [[0, 999], NEWEST_FIRST],
     [[1000, 1999], NEWEST_FIRST],
+    [[2000, 2000], NEWEST_FIRST],
   ]);
-  assert.deepEqual(lines, [{ what: "person messages", cap: 2000 }]);
+  assert.deepEqual(lines, [{ what: "person messages", cap: 2000, needs: "part" }]);
 
   // A person with a thread's worth: one page, as before.
   const few = personCtx(heavy(40), P1, {}, { maxRows: 1000 });

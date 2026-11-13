@@ -155,10 +155,13 @@ export async function readDealReport(
   span: { since: number; until: number } | null = null,
 ): Promise<DealReportDto | null> {
   // Every page of them (readAllRows), by id: PostgREST answers a thousand rows whatever a select asks for, so past a
-  // thousand deals every figure here counted an arbitrary thousand.
-  const data = await readAllRows("deals", (from, to) => pageDealReport(ctx.supabase, tenantId, from, to)).catch(
-    () => null,
-  );
+  // thousand deals every figure here counted an arbitrary thousand. Whole, since every figure is a count: past the cap
+  // the section is not drawn, as for a table it cannot read, and never drawn from a part.
+  const data = await readAllRows(
+    "deals",
+    (from, to) => pageDealReport(ctx.supabase, tenantId, from, to),
+    "whole",
+  ).catch(() => null);
   if (!data) return null;
   if (!data.length) return none();
   const since = span?.since ?? now.getTime() - days * DAY_MS;

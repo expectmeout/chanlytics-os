@@ -4,16 +4,41 @@
  * capped read said through the edge's logger -- a bare console line is one
  * no query returns and no tenant can be joined to.
  */
-import { DEFAULT_ROW_CAP, MAX_ROWS, readAllRows as readAll, type Page } from "@chanlytics/db/shared";
+import {
+  DEFAULT_ROW_CAP,
+  MAX_ROWS,
+  readAllRows as readAll,
+  type CappedLine,
+  type Page,
+  type PartRead,
+} from "@chanlytics/db/shared";
 import { logger } from "./log.js";
 
 export { DEFAULT_ROW_CAP, MAX_ROWS };
 
-/** Every row the query matches, a page at a time (packages/db readAllRows); hitting `cap` is logged, never thrown. */
+const sayCapped: CappedLine = (read, cap, needs) => logger().error("paged_read_capped", { what: read, cap, needs });
+
+/**
+ * Every row the query matches, a page at a time (packages/db readAllRows). `needs` says what a read stopped at `cap`
+ * means: `whole` throws ReadCutShort there, `part` answers the rows it read, marked; either is logged.
+ */
 export function readAllRows<T>(
   text: string,
   page: (from: number, to: number) => PromiseLike<Page<T>>,
+  needs: "whole",
+  cap?: number,
+): Promise<T[]>;
+export function readAllRows<T>(
+  text: string,
+  page: (from: number, to: number) => PromiseLike<Page<T>>,
+  needs: "part",
+  cap?: number,
+): Promise<PartRead<T>>;
+export function readAllRows<T>(
+  text: string,
+  page: (from: number, to: number) => PromiseLike<Page<T>>,
+  needs: "whole" | "part",
   cap = DEFAULT_ROW_CAP,
-): Promise<T[]> {
-  return readAll(text, page, cap, (w, c) => logger().error("paged_read_capped", { what: w, cap: c }));
+): Promise<T[] | PartRead<T>> {
+  return needs === "part" ? readAll(text, page, needs, cap, sayCapped) : readAll(text, page, needs, cap, sayCapped);
 }
