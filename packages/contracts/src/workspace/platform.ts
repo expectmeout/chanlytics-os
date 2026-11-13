@@ -528,28 +528,43 @@ export interface PlatformHealth {
   unhealthy: Array<{ sweep: string; detail: string | null }>;
   /** Due jobs nobody has claimed for two minutes. Null when it could not be read. */
   backlog: number | null;
+  /** How many clocks the read returned, healthy or not. None is never healthy (platformHealthOf). */
+  clocks: number;
   checkedAt: string;
 }
 
 /**
- * Healthy is every clock healthy AND nothing piling up.
+ * Healthy is every clock healthy AND nothing piling up, of at least one clock.
  *
  * A backlog that could not be READ is not a backlog of zero: null keeps the
  * verdict false, because "I could not find out" and "all clear" are the two
  * answers a health check must never confuse.
+ *
+ * No clock at all is the same confusion from the other side. Every clock is registered by a migration, so a read
+ * that returns none is a registry that came back empty, or a read that failed and was handed on as no rows: nothing
+ * is known to be running. It read as all clear until 13 Nov 2026.
  */
 export function platformHealthOf(
   rows: readonly SweepHealthRow[] | null | undefined,
   backlog: number | null,
   now = new Date(),
 ): PlatformHealth {
-  const unhealthy = (rows ?? []).filter((r) => !r.healthy).map((r) => ({ sweep: r.sweep, detail: r.detail }));
-  return { ok: unhealthy.length === 0 && backlog === 0, unhealthy, backlog, checkedAt: now.toISOString() };
+  const read = rows ?? [];
+  const unhealthy = read.filter((r) => !r.healthy).map((r) => ({ sweep: r.sweep, detail: r.detail }));
+  return {
+    ok: read.length > 0 && unhealthy.length === 0 && backlog === 0,
+    unhealthy,
+    backlog,
+    clocks: read.length,
+    checkedAt: now.toISOString(),
+  };
 }
 
 /** One sentence for the card: what is wrong, or that nothing is. */
 export function platformHealthWords(platformHealth: PlatformHealth): string {
   if (platformHealth.backlog === null) return "The platform's health could not be read just now.";
+  // Compared with zero and nothing looser: an answer kept from before the field has none, and says what it said.
+  if (platformHealth.clocks === 0) return "No clock is on record, so nothing here is known to be running.";
   const late =
     platformHealth.backlog > 0 ? `${platformHealth.backlog} job${platformHealth.backlog === 1 ? "" : "s"} late` : null;
   const clocks = platformHealth.unhealthy.length

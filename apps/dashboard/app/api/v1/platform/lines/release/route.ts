@@ -21,7 +21,6 @@ export const POST = write({
   scope: platform,
   role: null,
   rate: "platform_line_release",
-  fresh: true,
   act: LINE_ACTS.release,
   input: LineActSchema,
   handle: async ({ office, input }) => {

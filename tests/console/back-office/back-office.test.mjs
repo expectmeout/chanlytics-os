@@ -107,7 +107,6 @@ test("a backlog that could not be READ is never mistaken for a backlog of zero",
   assert.equal(platformHealthWords(unknown), "The platform's health could not be read just now.");
   // And no rows at all is not "healthy": it is the same unknown.
   assert.equal(platformHealthOf(null, null, now).ok, false);
-  assert.equal(platformHealthOf([], 0, now).ok, true, "but no rows with a real zero backlog is genuinely quiet");
 });
 import { importSrc, readCode, readRaw } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
