@@ -263,6 +263,13 @@ export type RunOutcome =
       mode: string;
       skipped:
         | "template_not_approved"
+        /**
+         * WhatsApp is still looking at the message's words (a new message, or a change sent back): the day's run waits for
+         * its answer. Never recorded, so the day stays open and the hourly sweep asks again, until the day's last hour.
+         */
+        | "template_in_review"
+        /** WhatsApp is holding the message for a few hours (its pause, which lifts by itself): the day's run waits, as for a review. */
+        | "template_on_hold"
         | "number_flagged"
         | "already_ran_today"
         | "no_calendar"

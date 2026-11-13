@@ -1305,7 +1305,7 @@ test("A message needs you when a language a running sequence sends is missing --
   // It sends the approved English, and Spanish is in review: it goes out, and the pill says Spanish is in review.
   tree = messages({ templatesAll: [en, es], playbooks: sends("en_US"), templateUse: use });
   assert.equal(row(tree).props["data-place"], "going", "REGRESSION: a language nobody sends asked for attention");
-  assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish in review");
+  assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish: being checked");
   assert.ok(textOf(headSaid()).includes("1 going out"), textOf(headSaid()));
   // Without the playbooks read, a language WhatsApp is still reading is no work of the owner's.
   tree = messages({ templatesAll: [en, es], playbooks: undefined, templateUse: use });
@@ -1660,7 +1660,7 @@ test("A language nobody has written is picked from the one chip and written in t
     });
     tree = messagesAgain();
     assert.equal(waState(paneOf(tree)), "info");
-    assert.equal(textOf(byTestId(customRow(tree), "template-status")).trim(), "Portuguese (Brazil) in review");
+    assert.equal(textOf(byTestId(customRow(tree), "template-status")).trim(), "Portuguese (Brazil): being checked");
   } finally {
     Object.assign(templates, keep);
   }
@@ -2042,7 +2042,7 @@ test("A message says its state once, and a refusal is a line rather than a hover
   // view, so a message half in review read as fine until Spanish was pressed.
   assert.equal(
     textOf(byTestId(tree, "template-status")).trim(),
-    "Spanish in review",
+    "Spanish: being checked",
     "the language that is not approved, in words, beside the title",
   );
   pickLanguage(paneOf(tree), held[1].value);
@@ -2052,7 +2052,7 @@ test("A message says its state once, and a refusal is a line rather than a hover
   assert.equal(waState(paneOf(tree)), "info", "its tab waiting on WhatsApp");
   assert.equal(
     textOf(byTestId(tree, "template-status")).trim(),
-    "Spanish in review",
+    "Spanish: being checked",
     "and the same words with the other language in view",
   );
   // A message whose every language is approved has nothing to say: a green
@@ -2075,8 +2075,8 @@ test("A message says its state once, and a refusal is a line rather than a hover
   const line = rowLine(tree);
   assert.equal(line.props["data-tone"], "warn");
   const said = textOf(line);
-  assert.ok(said.includes("abusive content"), said);
-  assert.ok(said.includes("send it back"), "and what to do about it");
+  assert.ok(said.includes("it reads as abusive or threatening"), said);
+  assert.ok(said.includes("Ask writes new words for you to send back"), "and what to do about it");
 
   // A reason Meta wrote as a sentence keeps its capital and its one full stop (contracts refusedWords).
   tree = messages({
@@ -2091,7 +2091,7 @@ test("A message says its state once, and a refusal is a line rather than a hover
   });
   assert.equal(
     textOf(rowLine(tree)),
-    "WhatsApp refused this one: Variables can't be at the start or end of the template. Change the words and send it back.",
+    "WhatsApp asked for a change: Variables can't be at the start or end of the template. Ask writes new words for you to send back.",
     "REGRESSION: 'variables can't be at the start or end of the template.. Change the words'",
   );
 });
@@ -2347,7 +2347,7 @@ test("A message written here can carry a Book now button, and it is the one kind
         name: "spring_offer",
         language: "en_US",
         category: "marketing",
-        body: "Hi {{1}}.",
+        body: "Hi {{1}}, come by this week.",
         examples: ["Dani"],
         button: made[0].button,
       });
@@ -2366,7 +2366,7 @@ test("A message written here can carry a Book now button, and it is the one kind
 });
 
 test("A button cannot take a value, and needs somewhere to go", () => {
-  const base = { name: "offer", language: "en_US", category: "marketing", body: "Hi {{1}}.", examples: ["Dani"] };
+  const base = { name: "offer", language: "en_US", category: "marketing", body: "Hi {{1}} there.", examples: ["Dani"] };
   const err = (button) => contracts.validateTemplateDraft({ ...base, button }).error;
   // The whole point: a button whose URL takes a value needs a parameter that
   // `sendTemplate` never sends, so Meta refuses every recipient.

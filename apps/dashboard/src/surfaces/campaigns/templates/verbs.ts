@@ -102,6 +102,8 @@ export const templates = {
     subject: string | null;
     body: string;
     ask: string;
+    /** These words answer WhatsApp's refusal of this version: kept beside it, so its editor opens on them again. */
+    fixing?: { template_id: string; reason: string };
   }) => api()("POST templates/versions/rewrite", { body }),
   /** WhatsApp's words changed and sent back to WhatsApp, which looks at them again (the Messages redesign's step 3). */
   sendWords: (id: string, body: string) => api()("PUT templates/[id]", { params: { id }, body: { words: { body } } }),

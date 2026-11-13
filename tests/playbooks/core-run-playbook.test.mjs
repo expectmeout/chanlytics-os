@@ -1504,16 +1504,39 @@ test("a message with no WhatsApp row stops no run that does not tick WhatsApp, a
   assert.deepEqual(alone.ops(), ["record"]);
 });
 
-test("a message whose WhatsApp row is pending holds WhatsApp's people and nobody else: {whatsapp, email} goes on for email and holds the person only WhatsApp reaches; {whatsapp} alone stops on it", async () => {
+test("a message WhatsApp is still looking at: the day's run waits for its answer, recording nothing, so the next sweep asks again (Ruben, 12 Nov 2026); in the day's last hour it holds WhatsApp's people and nobody else: {whatsapp, email} goes on for email and holds the person only WhatsApp reaches; {whatsapp} alone stops on it", async () => {
   const pending = { meta_status: "pending", category: "utility" };
   const people = [
     ["a", {}], // a number and an address: WhatsApp is held, so email
     ["w", { consent_channels: ["whatsapp"], email: null }], // WhatsApp alone: held
   ];
+  // During the day, whichever channels it ticks beside WhatsApp, and whoever asks: it waits, and its day stays open.
+  for (const channels of [["whatsapp"], ["whatsapp", "email"]])
+    for (const by of [{ kind: "system" }, { kind: "user", userId: "u1" }]) {
+      const waits = fakes({ message: messageOf({ whatsapp: pending, own: ["email"] }) });
+      const run = cmd({ playbook: reminder({ channels }), ctx: context(reminderCtx(people)), by });
+      assert.deepEqual(await runPlaybook(waits.ports, run), {
+        outcome: "off",
+        mode: "auto",
+        skipped: "template_in_review",
+      });
+      assert.deepEqual(waits.ops(), [], "nothing is recorded of a run that waits");
+    }
+  // A message WhatsApp is holding for a few hours (its pause, which lifts by itself) is waited out the same way.
+  const held = fakes({ message: messageOf({ whatsapp: { ...pending, meta_status: "paused" }, own: ["email"] }) });
+  const onHold = cmd({ playbook: reminder({ channels: ["whatsapp"] }), ctx: context(reminderCtx(people)) });
+  assert.equal((await runPlaybook(held.ports, onHold)).skipped, "template_on_hold");
+  assert.deepEqual(held.ops(), []);
+  // One that does not tick WhatsApp never waits for it.
+  const byEmail = fakes({ message: messageOf({ whatsapp: pending, own: ["email"] }) });
+  const emailed = cmd({ playbook: reminder({ channels: ["email"] }), ctx: context(reminderCtx(people)) });
+  assert.equal((await runPlaybook(byEmail.ports, emailed)).outcome, "sent");
+  // The day's last hour (20:30 in New York): the answer did not come, and the run goes on as it would without.
+  const lastHour = { now: new Date("2026-09-07T00:30:00Z") };
   const both = fakes({ message: messageOf({ whatsapp: pending, own: ["email"] }) });
   const r = await runPlaybook(
     both.ports,
-    cmd({ playbook: reminder({ channels: ["whatsapp", "email"] }), ctx: context(reminderCtx(people)) }),
+    cmd({ playbook: reminder({ channels: ["whatsapp", "email"] }), ctx: context(reminderCtx(people, lastHour)) }),
   );
   assert.equal(r.outcome, "sent", "template_not_approved is not the outcome: someone is on email");
   assert.deepEqual(
@@ -1529,7 +1552,7 @@ test("a message whose WhatsApp row is pending holds WhatsApp's people and nobody
   assert.deepEqual(
     await runPlaybook(
       alone.ports,
-      cmd({ playbook: reminder({ channels: ["whatsapp"] }), ctx: context(reminderCtx(people)) }),
+      cmd({ playbook: reminder({ channels: ["whatsapp"] }), ctx: context(reminderCtx(people, lastHour)) }),
     ),
     { outcome: "off", mode: "auto", skipped: "template_not_approved" },
     "WhatsApp is all this run goes by, and its version is not approved",

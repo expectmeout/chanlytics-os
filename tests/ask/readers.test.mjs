@@ -6590,17 +6590,19 @@ test("campaigns.messages reads the whole library, a WhatsApp version still in re
     [
       {
         name: "spring_offer",
+        title: "Spring offer",
         language: "en_US",
         category: "marketing",
+        away: false,
         versions: [
-          { channel: "whatsapp", id: TP1, state: "pending" },
-          { channel: "email", id: EM1, state: "approved" },
+          { channel: "whatsapp", id: TP1, state: "pending", words: { subject: null, body: "See you at {{1}}" } },
+          { channel: "email", id: EM1, state: "approved", words: { subject: null, body: "See you at {{1}}" } },
         ],
         slots: [{ position: 1, label: "First name", kind: "first_name" }],
         used_by: [{ id: PB1, name: "Spring" }],
       },
     ],
-    "one message, both versions with their states; this workspace's campaign alone",
+    "one message, both versions with their states and words; this workspace's campaign alone",
   );
   assert.deepEqual([...tc.read.template.keys()].sort(), [TP1, EM1].sort(), "each version a template a citation names");
   // The composers' list is as it was: the message, by the email a broadcast may go by now, and not the version in review.

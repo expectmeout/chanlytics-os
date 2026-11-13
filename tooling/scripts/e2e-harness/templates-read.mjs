@@ -30,8 +30,10 @@ export function templatesRead(rows, { all }) {
   // product cannot send it: judged on a WhatsApp row alone.
   const every = [...rows]
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-    .map(({ components, ...t }) => ({
+    .map(({ components, meta_id, ...t }) => ({
       ...t,
+      // Whether WhatsApp holds the row (an id of Meta's), as the reader says it: Meta's id itself stays behind.
+      at_meta: t.channel === "whatsapp" && !!meta_id,
       ...templateParts(components),
       blocked: t.channel === "whatsapp" ? templateBlocked({ components }) : null,
     }));
@@ -47,5 +49,7 @@ export function templatesRead(rows, { all }) {
     bookingName: booking?.name ?? null,
   });
   const sends = templateSends({ runs: [], recipients: [], inbox: [] });
-  return { templates, held, messages, booking, usedBy, sends };
+  // Nothing on the harness has changed a message's words, so no refused one has approved words to go back to.
+  const withBefore = templates.map((t) => ({ ...t, approved_before: null, fix_words: null }));
+  return { templates: withBefore, held, messages, booking, usedBy, sends };
 }

@@ -222,7 +222,27 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
     "+15551234567",
   );
   assert.equal(rejected.alert, true);
-  assert.ok(rejected.subject.includes("appointment_reminder") && rejected.body.includes("invalid format"));
+  // Said as an owner can act on it: the message by the name the Library gives it, Meta's code in words, and what to do.
+  assert.equal(rejected.subject, "WhatsApp asked for a change to “Appointment reminder”");
+  assert.equal(
+    rejected.body,
+    "WhatsApp asked for a change: the way its values are written. Ask writes new words for you to send back. Open “Appointment reminder” in Messages to send them.",
+  );
+  const told = (event) =>
+    mod.describeWabaChange(
+      { field: "message_template_status_update", value: { event, message_template_name: "spring_offer" } },
+      null,
+    );
+  assert.equal(told("PAUSED").subject, "WhatsApp is holding “Spring offer” for a few hours");
+  assert.match(
+    told("PAUSED").body,
+    /marked it as unwanted.*It comes back by itself, and what sends it waits until then\./,
+  );
+  assert.equal(told("DISABLED").subject, "WhatsApp turned “Spring offer” off");
+  assert.match(told("DISABLED").body, /Write a new message in its place\./);
+  assert.equal(told("APPROVED").subject, "WhatsApp approved “Spring offer”");
+  for (const event of ["REJECTED", "PAUSED", "DISABLED", "APPROVED"])
+    assert.doesNotMatch(`${told(event).subject} ${told(event).body}`, /template|will fail|restored/i, event);
   assert.equal(
     mod.describeWabaChange({ field: "account_update", value: { event: "PARTNER_REMOVED" } }, null).alert,
     true,
@@ -312,13 +332,13 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
     kind: "template_blocked",
     route: "campaigns/messages/winback_offer",
     about: { type: "template", id: "winback_offer" },
-    subject: "Template “winback_offer” refused",
-    body: "WhatsApp refused the template “winback_offer” (tag content mismatch). It cannot be sent until it is revised and approved.",
+    subject: "WhatsApp asked for a change to “Win-back (earlier)”",
+    body: "WhatsApp asked for a change: its words do not match the language or kind it was filed as. Ask writes new words for you to send back. Open “Win-back (earlier)” in Messages to send them.",
     alert: true,
   });
-  assert.equal(status("PAUSED").subject, "Template “winback_offer” paused");
-  assert.equal(status("DISABLED").subject, "Template “winback_offer” disabled");
-  assert.equal(status("APPROVED").subject, "Template “winback_offer” approved");
+  assert.equal(status("PAUSED").subject, "WhatsApp is holding “Win-back (earlier)” for a few hours");
+  assert.equal(status("DISABLED").subject, "WhatsApp turned “Win-back (earlier)” off");
+  assert.equal(status("APPROVED").subject, "WhatsApp approved “Win-back (earlier)”");
   assert.ok(!/reject/i.test(status("REJECTED").subject + status("REJECTED").body), "no one spells a refusal Rejected");
   // An event that names no template keeps the Library's own door, and names nothing it is about.
   const nameless = mod.describeWabaChange(

@@ -16,7 +16,8 @@
  * - A draft keeps a line under it (decision 0129 step 2): what is said there is asked of Ask with the draft as it
  *   stands, its answer is that draft changed with what changed said on top, Undo steps back through every change it
  *   made, a change that changed nothing is said in passing, and a change Ask could not make leaves the draft and the
- *   line as they were.
+ *   line as they were. A change is asked of the draft as it stands, never under the door's own choices; while Ask works
+ *   the name is held; and Discard stops Ask, so its answer never draws the draft again.
  * Run against the pages and the composers on a stub React, with the tab's memory installed as the app installs it, and
  * New's two doors (POST sequences/draft and sequences/new) answered as their routes answer.
  */
@@ -25,6 +26,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { until } from "../shared/_until.mjs";
 import * as contracts from "@chanlytics/contracts";
 import {
   installStubReact,
@@ -326,7 +328,7 @@ globalThis.fetch = async (url, init) => {
   if (init?.method === "POST") posted.push({ at, body });
   const data =
     at === "/api/v1/sequences/draft"
-      ? asks.draft(body)
+      ? await asks.draft(body)
       : at === "/api/v1/sequences/new"
         ? body.start
           ? { made: "b-new", kind: "once", state: "on", scheduled_for: iso(10 * 60_000) }
@@ -643,7 +645,12 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
     [ASKED.said, "Autumn colour", "now", "tpl-own", ["20% off colour"]],
     "the draft as it stands, the value typed in it",
   );
-  assert.deepEqual(asked.who, ASKED.who, "and the list the door named, kept");
+  assert.deepEqual(asked.stands.who, ASKED.who, "who it is for, as the draft says");
+  assert.deepEqual(
+    [asked.kind, asked.audience, asked.who],
+    [undefined, undefined, undefined],
+    "REGRESSION: a change is asked of the draft as it stands, never under the door's own choices",
+  );
   // Its answer is the draft changed: the name, with the value typed still in its step, and what changed said on top.
   assert.equal(nameBox().props.value, "Autumn colour for VIPs");
   assert.equal(valueBox(tree).props.value, "20% off colour");
@@ -708,11 +715,22 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   assert.equal(hostOf(tree, "sq-nw-again"), null, "nothing changed, nothing to undo");
   assert.ok(byTestId(tree, "sq-nw-cannot"), "what Ask left out is said in its card");
 
+  // While Ask works, the name is held: one typed then was written over by its answer.
+  let answerNow;
+  asks.draft = (body) => new Promise((resolve) => (answerNow = () => resolve(renamed(body))));
+  await say("Call it Autumn colour for VIPs");
+  await until(() => !!answerNow, "Ask asked");
+  tree = redraw(page);
+  assert.equal(nameBox().props.readOnly, true, "REGRESSION: the name could be typed while Ask worked");
+  answerNow();
+  tree = await landed(() => askedFor().length === 7 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  assert.equal(nameBox().props.readOnly, false);
+
   // A change Ask could not make: said as a toast over the draft, which stays, and the line keeps its words to say again.
   asks.draft = () => null;
   toasts.length = 0;
   await say("Send it from the moon");
-  tree = await landed(() => askedFor().length === 7 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  tree = await landed(() => askedFor().length === 8 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
   assert.equal(toasts.length, 1, "said once");
   assert.equal(nameBox().props.value, "Autumn colour for VIPs");
   assert.equal(changeBox().props.value, "Send it from the moon");
@@ -721,6 +739,20 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
     [],
     "nothing was made by any of it",
   );
+
+  // Discard while Ask works stops it: its answer, landing after, never draws the draft again.
+  answerNow = null;
+  asks.draft = (body) => new Promise((resolve) => (answerNow = () => resolve(renamed(body))));
+  await say("Call it something else");
+  await until(() => !!answerNow, "Ask asked");
+  tree = redraw(page);
+  press(hostOf(tree, "sq-nw-discard"));
+  tree = redraw(page);
+  assert.equal(byTestId(tree, "sq-nw-sentence"), null, "discarded");
+  answerNow();
+  tree = await landed();
+  assert.equal(byTestId(tree, "sq-nw-sentence"), null, "REGRESSION: Ask's answer drew the discarded draft again");
+  assert.equal(TM.draft("new", HERE), null, "and nothing is kept in the tab");
 });
 
 test("REGRESSION: a draft the tab kept is counted again as it comes back, against the playbooks read as it is now: a count from before never stands", async () => {

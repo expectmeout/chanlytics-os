@@ -94,6 +94,11 @@ export interface AskProposal {
     | "playbook_channels"
     | "playbook_change"
     | "message"
+    // A message on file changed (the message sheet's review, 12 Nov 2026): its words, its name, put away, deleted.
+    | "message_words"
+    | "message_rename"
+    | "message_away"
+    | "message_delete"
     // Every verb a page commits is a card Ask may propose (the operator, 15 Oct 2026: one table, ask-proposals/).
     | "answer"
     | "answer_many"

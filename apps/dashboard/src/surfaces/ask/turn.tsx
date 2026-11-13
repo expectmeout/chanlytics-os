@@ -204,14 +204,12 @@ export const AskAnswer = ({
   walk = false,
   sel = -1,
   next = true,
-  latest = false,
   t,
   onNav,
   onFollow,
   onOutcome,
   onEdit,
 }: AnswerDoors & {
-  latest?: boolean;
   answer: Answer;
   cardOpen?: Record<string, boolean>;
   cards?: AskProposal[];
@@ -261,7 +259,6 @@ export const AskAnswer = ({
                   onNav={onNav}
                   onOutcome={onOutcome}
                   onEdit={onEdit}
-                  onQuick={latest ? onFollow : undefined}
                   cardOpen={cardOpen}
                 />
               ) : (
@@ -273,7 +270,6 @@ export const AskAnswer = ({
                   onNav={onNav}
                   onOutcome={onOutcome}
                   onEdit={onEdit}
-                  onQuick={latest ? onFollow : undefined}
                   cardOpen={cardOpen}
                 />
               ),
@@ -419,7 +415,6 @@ export const AskTurn = ({
         walk={walk}
         sel={sel}
         next={next}
-        latest={latest}
         t={t}
         onNav={onNav}
         onFollow={onFollow}

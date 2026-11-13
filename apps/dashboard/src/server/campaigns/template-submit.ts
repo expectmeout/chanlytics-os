@@ -21,15 +21,26 @@ import { createTemplate } from "@/server/campaigns/meta-templates";
 import type { EdgeReason } from "@/server/shared/edge";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
-import { WHATSAPP_ACCOUNT_MISSING, WHATSAPP_NO_TOKEN } from "@/server/campaigns/whatsapp-refusals";
+import {
+  WHATSAPP_ACCOUNT_MISSING,
+  WHATSAPP_NO_COPY,
+  WHATSAPP_NO_TOKEN,
+  refuseTwinWords,
+  type ReviewWords,
+} from "@/server/campaigns/whatsapp-refusals";
 
 const SUBMIT_SAID: Record<string, string> = {
   preview: "Submitting only works on the production dashboard.",
   no_channel: LIBRARY_WORDS.writeNeedsNumber,
   no_waba: WHATSAPP_ACCOUNT_MISSING,
   no_token: WHATSAPP_NO_TOKEN,
-  write_failed: "The template was submitted but could not be saved here. Sync from Meta to see it.",
+  // A change of words the edge found WhatsApp has no copy of (no id of Meta's on the row).
+  not_found: WHATSAPP_NO_COPY,
+  write_failed: "WhatsApp has the words, but they could not be saved here. Check WhatsApp for changes to see them.",
 };
+
+/** What is said where the edge's reason has no sentence of its own: plainly, never its code (which the log keeps). */
+const SUBMIT_UNSAID = "WhatsApp could not be reached just now. Try again in a moment.";
 
 /** What a template written here is said with, Meta's to review: POST templates' body, as it came. */
 interface TemplateAsked {
@@ -50,20 +61,21 @@ export function submitRefusal(r: { reason: EdgeReason; detail?: string }): AppEr
       "validation",
       `WhatsApp did not accept it: ${r.detail ?? "no reason given"}. Change the message and try again.`,
     );
-  const sentence = SUBMIT_SAID[r.reason] ?? `The template could not be submitted (${r.reason}).`;
+  const sentence = SUBMIT_SAID[r.reason] ?? SUBMIT_UNSAID;
   const theirs = r.reason === "no_channel" || r.reason === "no_waba";
   return new AppError(theirs ? "conflict" : "upstream_meta", sentence, theirs ? 409 : 502);
 }
 
-export async function submitTemplate(ctx: RouteContext, req: Request, member: Member) {
-  return submitDraft(ctx, member, (await readJsonBody(req)) as TemplateAsked | null);
+export async function submitTemplate(ctx: RouteContext, req: Request, member: Member, review?: ReviewWords) {
+  return submitDraft(ctx, member, (await readJsonBody(req)) as TemplateAsked | null, review);
 }
 
 /**
  * The submission, from a body already read: POST templates' (submitTemplate), and a message written whole's WhatsApp
- * version (write-message.ts). Refusals are thrown in the person's words.
+ * version (write-message.ts). Refusals are thrown in the person's words. `review`: a reader's look at the words once
+ * every rule passed, before they are sent (whatsapp-refusals.ts ReviewWords), the route's to hand in.
  */
-export async function submitDraft(ctx: RouteContext, member: Member, body: TemplateAsked | null) {
+export async function submitDraft(ctx: RouteContext, member: Member, body: TemplateAsked | null, review?: ReviewWords) {
   const check = validateTemplateDraft({
     name: typeof body?.name === "string" ? body.name : "",
     language: typeof body?.language === "string" ? body.language : "",
@@ -88,6 +100,9 @@ export async function submitDraft(ctx: RouteContext, member: Member, body: Templ
   const dup = await findTemplateId(ctx.supabase, member.tenantId, value.name, value.language);
   // A name and language this workspace already holds, refused as a message written whole and Ask's card refuse it.
   if (dup) throw new AppError("conflict", TEMPLATE_SAME_NAME_WORDS, 409);
+  // Nor the words of another message WhatsApp already has from this business, nor what a reader sees it would refuse.
+  await refuseTwinWords(ctx, member.tenantId, { id: null, body: value.body, footer: value.footer });
+  await review?.(ctx, member.tenantId, value);
 
   const labels = Array.isArray(body?.labels)
     ? body.labels.map((l) =>

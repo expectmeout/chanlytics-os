@@ -114,8 +114,12 @@ export const TPL_NEW_WORDS = {
   hint: "What should it say, and to whom?",
   send: "Ask",
   note: "You read it before anything is saved. WhatsApp looks at its version first, usually within minutes.",
-  /** What Ask is asked, the owner's words inside it: a new message for Messages, every channel it can go by. */
-  asked: (words: string): string => `New message, for every channel it can go by: ${words}`,
+  /**
+   * What Ask is asked, the owner's words inside it: a new message for Messages with a version on every channel its kind
+   * may go by (an offer never by text), the email kept even where email is not set up yet (the door keeps it).
+   */
+  asked: (words: string): string =>
+    `New message, with a version for WhatsApp, email and text wherever its kind may go (an offer never by text): ${words}`,
 } as const;
 
 export const TPL_VERSION_WORDS = {
@@ -160,12 +164,27 @@ export const TPL_VERSION_WORDS = {
   /** What a refused message's words are written again for, with WhatsApp's own reason. */
   fixAsk: (reason: string): string =>
     `WhatsApp refused these words (${reason}). Write them again so WhatsApp approves them, saying the same thing.`,
+  /** Words refused before they were sent (their shape, or what a reader saw), which Ask writes again from the reason. */
+  fixBefore: (reason: string): string =>
+    `${reason} Write the words again so WhatsApp takes them, saying the same thing.`,
   fixing: "Ask is writing words WhatsApp can take…",
   /** WhatsApp's own words, under its editor: what sending them back does. */
   whatsappNote:
     "WhatsApp looks at new words before they go out, usually within minutes. It takes a change to an approved message once a day.",
   sendBack: "Send to WhatsApp",
   sendingBack: "Sending…",
+  /**
+   * A language added, for every version the message has (the message sheet's review, 12 Nov 2026): what Ask is asked of
+   * each email and text, and what is said once they are saved, or part-way where one could not be.
+   */
+  translateAsk: (language: string): string =>
+    `Write this same message in ${language}: the same meaning and the same values, in the words people there use. Add nothing.`,
+  translated: (title: string, language: string, saved: readonly string[]): string =>
+    `${title} in ${language}: its ${saved.join(" and ")} ${saved.length === 1 ? "version is" : "versions are"} saved`,
+  translatedPart: (saved: readonly string[], reason: string): string =>
+    `Its ${saved.join(" and ")} ${saved.length === 1 ? "version is" : "versions are"} saved; the rest is not: ${reason}`,
+  /** A refused change's way back: the words WhatsApp had approved, put in the box to send again. */
+  goBack: "Go back to the words WhatsApp approved",
   whatsappEmpty: "Write the message.",
   whatsappLong: "WhatsApp takes 1,024 characters at most.",
   sentBack: (title: string): string =>
@@ -202,13 +221,22 @@ export const TPL_SHEET_WORDS = {
   checking: "Checking",
   checkingSays:
     "WhatsApp is checking the new words, usually within minutes. If it says no, this comes back to Needs you with new words ready.",
-  goingSays: (by: string): string => `Going out: ${by}.`,
+  goingSays: (by: string): string => `Sent by ${by}.`,
   idleSays: "Nothing sends it now. It goes out once a sequence uses it.",
-  awaySays: "Put away: on file, out of the list and the composers. Its name brings it back.",
+  awaySays: "On file, out of the list and the composers. Its name brings it back.",
   offerSays: "An offer reaches only people who said yes to offers, and never goes by text.",
   noteSays: "A note about their own booking or proposal reaches anyone a send may.",
   changeWords: "Change the words",
   addLanguage: "Add a language",
+  /**
+   * A delete's question and what it says goes (the message sheet's Delete, 12 Nov 2026): every version of the message in
+   * the language in view, its other languages kept, said where it has any.
+   */
+  deleteAsk: (title: string, language: string | null): string =>
+    `Delete “${title}”${language ? ` in ${language}` : ""}?`,
+  /** A delete that stopped part-way: what already went, and why the rest did not. */
+  deletedPart: (gone: readonly string[], reason: string): string =>
+    `Its ${gone.join(" and ")} ${gone.length === 1 ? "version is" : "versions are"} deleted; the rest is not: ${reason}`,
   done: "Done",
   undo: "Undo",
   write: (channel: string): string => `Write the ${channel.toLowerCase()}`,
@@ -219,6 +247,17 @@ export const TPL_SHEET_WORDS = {
  * them, the line under a message's name where the list works it out, what stands at the right of a row, the head's line,
  * and the list's foot. A message is called a message, as the tab is: "template" was a third word for one thing.
  */
+/**
+ * Where a WhatsApp version stands, beside its message's name: what an owner can act on, never WhatsApp's own word for it
+ * (Ruben, 12 Nov 2026: "English paused" read as a system error). Its language is said only where there are several.
+ */
+const STANDING_WORDS: Record<string, string> = {
+  pending: "Being checked",
+  rejected: "Needs a change",
+  paused: "On hold",
+  disabled: "Turned off",
+};
+
 export const TPL_LIST_WORDS = {
   /** The groups: what needs you, what goes out now, what nothing sends now, and what was put away. */
   need: "Need you",
@@ -229,6 +268,9 @@ export const TPL_LIST_WORDS = {
   emails: "Cold emails",
   /** How many a folded group holds, to a screen reader, and what its head does. */
   fold: (name: string, n: number): string => `${name}, ${n}`,
+  /** Something sends the message, and no channel can carry it for this business now: why, in the channel's words. */
+  nothingCarries: (reason: string): string => `Nothing can send it here yet. ${reason}`,
+  standing: STANDING_WORDS,
   /** A running sequence sends a language the message has no version of that it can send. */
   sendsMissing: (language: string): string => `A sequence sends it in ${language}, which it has no version to send in.`,
   /** At a row's right: how many went out, of a message that goes out; when the last did, of one that does not now. */

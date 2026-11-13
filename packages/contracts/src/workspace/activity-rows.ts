@@ -40,6 +40,8 @@ export const ACTIVITY_NOISE_KINDS = [
   "person.resolved",
   // The calendar's hourly read, one row per appointment it kept (00348, decision 0002): the calendar is where they read it.
   "appointment.changed",
+  // Ask's draft for a refused message, kept for its editor (Messages, 12 Nov 2026): what the owner sends is template.submitted.
+  "template.fix_written",
 ] as const;
 
 /**

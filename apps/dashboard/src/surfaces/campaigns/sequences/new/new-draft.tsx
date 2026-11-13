@@ -25,8 +25,6 @@ import {
   type NewKind,
 } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
-import { Field } from "../../../kit/field/field";
-import { Icon } from "../../../kit/icon/icon";
 import { Switch } from "../../../kit/switch/switch";
 import { routeDoor, type refusalToast } from "../../../frame-verbs";
 import { keepHistory } from "../../../settings/connections/history-choice";
@@ -40,6 +38,7 @@ import {
   AudienceToggle,
   CaseNote,
   ChecksList,
+  DraftName,
   ReachLine,
   SaidLine,
   ToLeadsNote,
@@ -414,24 +413,6 @@ function DraftSheets(p: {
   );
 }
 
-/** The draft's head: its name, said in place and changed there, and its state. */
-function DraftName({ draft, change }: { draft: NewDraftDto; change: (d: NewDraftDto) => void }) {
-  return (
-    <span className="sq-nw-name">
-      <Field
-        shape="title"
-        aria-label={W.sheets.title}
-        value={draft.name}
-        onValueChange={(v) => change(M.setName(draft, v))}
-        maxLength={80}
-        spellCheck={false}
-        data-testid="sq-nw-name"
-      />
-      <Icon name="pencil" size={13} />
-    </span>
-  );
-}
-
 const subOf = (d: NewDraftDto): string =>
   d.kind === "once" ? (d.at ? W.draft.subSchedule : W.draft.subOnce) : d.said ? W.draft.sub : W.draft.subHand;
 
@@ -580,7 +561,7 @@ export function DraftView(p: {
   };
   return (
     <CmPane
-      title={<DraftName draft={draft} change={change} />}
+      title={<DraftName draft={draft} change={change} held={redrafting} />}
       sub={subOf(draft)}
       tools={
         <Button size="sm" variant="quiet" onClick={acts.discard} data-testid="sq-nw-discard">
