@@ -15,7 +15,7 @@
  * never painted over the one now shown. A pick that failed leaves Reports on the range it had (`paintKept`): the read
  * held for that range is painted, and where this tab holds none, whatever is published is of another range and is
  * taken away, so nothing says a range the page does not. A write that makes what is held wrong (`forget`) drops it, and
- * the next draw of its page reads it.
+ * the next draw of its page reads it; a read that was out before the write is neither held nor drawn.
  *
  * What a surface says of itself is its `state` (surface-values.ts `FollowState`), from the range shown, the range its
  * value is of and the outcome of its last read: "current", "coming" while a pick's read is out, "failed" when it could
@@ -58,7 +58,11 @@ export function periodSurface<K extends SurfaceKey, R extends ReportRange>({
 }: PeriodSurfaceOptions<K, R>) {
   /** The ranges this tab has read: going back to one paints at once, and a read behind it keeps it current. */
   const held = heldViews<{ value: NonNullable<SurfaceValues[K]>; readAt: number }>(4);
-  /** Moved on by every forget: a read that went out before it answers its own pass, and is not held past it. */
+  /**
+   * Moved on by every write that makes what is held wrong (`forget`, `outdate`): a read that went out before it is neither held
+   * nor drawn. Its page is never left waiting on it: a forget is made where its page is off screen, which reads it as it comes
+   * on screen, and an outdate asks for the read that replaces it, which takes its turn behind this one (activateOverride).
+   */
   let generation = 0;
   /** Whoever draws the surface is told it moved: what is published changed, or the range it follows did. */
   const announce = () => surfaceMoved(key);
@@ -135,8 +139,10 @@ export function periodSurface<K extends SurfaceKey, R extends ReportRange>({
       const name = reportRangeKey(range);
       const asked = generation;
       const value = await read(range);
+      // A write since it went out: what it read is what the write made wrong.
+      if (asked !== generation) return;
       // Held for the range it is of, even if the page has moved on: the read was made, and a pick back to it paints it.
-      if (asked === generation) held.hold(name, { value, readAt: Date.now() });
+      held.hold(name, { value, readAt: Date.now() });
       // A pick of another range while this read was out: its answer is for a range left, and is never painted over the new one.
       if (name !== shownKey()) return;
       setSurfaceValue(key, value);

@@ -143,6 +143,12 @@ const AskConfigSchema = z
         at: z.string(),
         playbooks: z.array(z.string()).max(2000),
         reply: z.string().nullable(),
+        // What the last stop could not: sequences it found still sending, and replies it could not hold. Pressed again,
+        // it tries them again; until then the page says what still goes out.
+        left: z.array(z.string()).max(2000).optional(),
+        replies_left: z.boolean().optional(),
+        // A Resume that could not put back what is still kept here: Stop everything stays on until one does.
+        resumed_at: z.string().optional(),
       })
       .optional(),
   })

@@ -33,7 +33,12 @@ export interface HealthAnswer {
    * before an owner presses Make it.
    */
   video_machine: boolean | null;
-  reason?: "health_unreadable" | "no_database" | "error";
+  /**
+   * Why it is not healthy, where the clocks and the backlog do not say: the health read failed, there is no database,
+   * the judgement threw, or the registry came back with no clock at all (`no_clocks`: nothing is watched, which is
+   * not all clear).
+   */
+  reason?: "health_unreadable" | "no_database" | "error" | "no_clocks";
 }
 
 /** The judgement, apart from the transport. */
@@ -72,6 +77,7 @@ export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ sta
       jobs_backlog,
       checked_at,
       video_machine: videoMachine,
+      ...(judged.clocks === 0 ? { reason: "no_clocks" as const } : {}),
     },
   };
 }

@@ -8,6 +8,7 @@ import type { FactSuggestionDto } from "@chanlytics/contracts";
 import { setPolicy } from "@/bridge/inbox-verbs";
 import { apiFor } from "@/bridge/api";
 import { commitVerb } from "@/bridge/verbs/commit";
+import type { StopPressed } from "./stop-words";
 
 /** What an answer said: the receipt (the server's own where it gave one: "already said"), or the refusal. */
 type FactAnswered = { ok: true; receipt: string } | { ok: false; message: string };
@@ -25,10 +26,10 @@ async function setAskAlone(on: boolean): Promise<{ ok: boolean; message: string 
   return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
 }
 
-/** Stop everything, and its Resume (D22). */
-async function stopAll(stopped: boolean): Promise<{ ok: boolean; message: string }> {
+/** Stop everything, and its Resume (D22): what the press did and what it could not, or why it was refused. */
+async function stopAll(stopped: boolean): Promise<{ ok: true; answer: StopPressed } | { ok: false; message: string }> {
   const r = await apiFor(window)("POST ask/stop", { body: { stopped } });
-  return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+  return r.ok ? { ok: true, answer: r.data } : { ok: false, message: r.message };
 }
 
 export const autonomyVerbs = { setPolicy, answerFact, setAskAlone, stopAll };

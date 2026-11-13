@@ -62,13 +62,16 @@ const TESTS = "tests";
 export const ALWAYS = [`${TESTS}/repo`, `${TESTS}/types`, `${TESTS}/docs`, `${TESTS}/routes/wire-casing.test.mjs`];
 
 /**
- * At most this many test files a pull request runs, the folders it names and the tests its imports reach: about two
- * seconds a file on the slowest of CI's four parts (#1915's 453 took 3:45 there, 29 Oct 2026), so under seven minutes
- * of tests, and the job's setup, inside Ruben's ten. Replayed over the 544 merges of 29 Sep to 29 Oct 2026, the median
- * pull request ran 161 test files and runs 310 (the tenth from the top, 419 and 678), and one in twelve reaches further
- * than this; where even the tests importing a changed module would pass it, the folders run alone, as before.
+ * At most this many test files a pull request runs, the folders it names and the tests its imports reach. The slowest of
+ * CI's four parts takes about 70 seconds to set up and a fifth of a second a file of the run: fitted over the 130 pull
+ * requests of 6 to 13 Nov 2026, it took three minutes at the median and five and a half at the most, so 1,600 files are
+ * under six minutes, inside Ruben's ten, and the debt check stays the longer wait (14 of the 20 pull requests past ten
+ * minutes that week; the replay of the migrations the other 6; the tests none). Replayed over the 135 merges of those
+ * days, at 800 the run left tests to the nightly in 64 of them, 450 files at the median, and 933 of the 1,188 tests of a
+ * change to the day's sending hours, the hour behind #2285's red test; at 1,600 it left none. Where even the tests
+ * importing a changed module would pass it, the folders run alone, as before.
  */
-export const BUDGET = 800;
+export const BUDGET = 1600;
 
 /**
  * Tests that read whole trees, which no import of theirs names, each with what it reads (a tree ends in "/", and one
@@ -81,8 +84,10 @@ export const BUDGET = 800;
  * of the dashboard's, wherever it sits (has-subjects, touch-hover, page-light/paper-at-the-edges, kit-css, and through
  * the measures style-measures), and only a path with a `styles` folder in it named them: #2018's two rules in
  * today/phone/phone.css broke has-subjects, and the red waited for #2019, which touched styles/ (1 Nov 2026).
- * layout-measure walks that one folder, and no stylesheet's path names tests/shell. The graph sees none of these: a
- * tree walked is read by no name. The appointment words' count, which every tree a reader reads could move (#1574,
+ * layout-measure walks that one folder, and no stylesheet's path names tests/shell. The delete script's test reads every
+ * migration for the tables with a tenant_id the script must back up: #2099's made sequence_lead_words and left the list
+ * alone, and main's nightly of 5 Nov 2026 was the first to run the test. The graph sees none of these: a tree walked is
+ * read by no name. The appointment words' count, which every tree a reader reads could move (#1574,
  * #1579, #1599 and #1602-#1604 each wrote "visit" in without running it, and main went red, 13-15 Oct 2026), is
  * check:debt's since 28 October 2026, and CI measures it on every pull request; the page tests of one word
  * (journey/one-page-one-word.test.mjs) import the modules they read, and the graph follows them.
@@ -100,6 +105,7 @@ export const READ_BY = {
   ],
   [`${TESTS}/styles`]: ["apps/dashboard/**.css"],
   [`${TESTS}/shell/layout-measure.test.mjs`]: ["apps/dashboard/src/styles/"],
+  [`${TESTS}/console/back-office/delete-tenant.test.mjs`]: ["supabase/migrations/"],
 };
 
 /** Whether what READ_BY names takes in a file: the file itself, a tree, or one kind of file at any depth of a tree. */
