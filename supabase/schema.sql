@@ -22355,6 +22355,25 @@ COMMENT ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer) 
 
 
 --
+-- Name: policies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.policies (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    class text NOT NULL,
+    mode text NOT NULL,
+    subject_type text,
+    subject_id uuid,
+    limits jsonb DEFAULT '{}'::jsonb NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT policies_class_check CHECK ((class = ANY (ARRAY['reply'::text, 'booking'::text, 'faq'::text, 'reengage'::text, 'campaign'::text, 'reviews'::text, 'money'::text, 'follow_up'::text, 'outreach'::text]))),
+    CONSTRAINT policies_mode_check CHECK ((mode = ANY (ARRAY['auto'::text, 'veto'::text, 'ask'::text, 'never'::text]))),
+    CONSTRAINT policies_subject_type_check CHECK ((subject_type = ANY (ARRAY['segment'::text, 'contact'::text])))
+);
+
+
+--
 -- Name: policy_change(uuid, text, text, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -41149,25 +41168,6 @@ COMMENT ON COLUMN public.platform_metrics.relay_lag_ms IS 'How long an event wai
 --
 
 COMMENT ON COLUMN public.platform_metrics.intake_lag_ms IS 'How long after the provider''s own clock said it happened a door kept its delivery that day, by provider (meta, retell, resend), at the 95th percentile in milliseconds, from the intake ledger (00337, decision 0032). Twilio stamps nothing, so texts are not counted. Null for a day no stamped delivery arrived in.';
-
-
---
--- Name: policies; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.policies (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    class text NOT NULL,
-    mode text NOT NULL,
-    subject_type text,
-    subject_id uuid,
-    limits jsonb DEFAULT '{}'::jsonb NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT policies_class_check CHECK ((class = ANY (ARRAY['reply'::text, 'booking'::text, 'faq'::text, 'reengage'::text, 'campaign'::text, 'reviews'::text, 'money'::text, 'follow_up'::text, 'outreach'::text]))),
-    CONSTRAINT policies_mode_check CHECK ((mode = ANY (ARRAY['auto'::text, 'veto'::text, 'ask'::text, 'never'::text]))),
-    CONSTRAINT policies_subject_type_check CHECK ((subject_type = ANY (ARRAY['segment'::text, 'contact'::text])))
-);
 
 
 --
