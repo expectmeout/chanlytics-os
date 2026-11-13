@@ -78,8 +78,8 @@ const SETS = [
 const ANCHORS = { w: "whatsapp", e: "email", s: "sms", we: "whatsapp", ws: "whatsapp", es: "email", wes: "whatsapp" };
 const WHY_WHATSAPP = {
   absent: "This message has no WhatsApp version.",
-  pending: "WhatsApp is still reviewing this message's WhatsApp version.",
-  rejected: "WhatsApp refused this message's WhatsApp version.",
+  pending: "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+  rejected: "WhatsApp asked for a change to this message's words. Ask writes new words for you to send back.",
 };
 const NO_EMAIL = "This message has no email version yet.";
 const NO_TEXT = "This message has no text version yet.";
@@ -414,19 +414,19 @@ test("a channel the message does not hold has one sentence, and the words an ema
   assert.equal(messageWhyNot(m(E()), "whatsapp"), "This message has no WhatsApp version.");
   assert.equal(
     messageWhyNot(m(W({ meta_status: "pending" })), "whatsapp"),
-    "WhatsApp is still reviewing this message's WhatsApp version.",
+    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
   );
   assert.equal(
     messageWhyNot(m(W({ meta_status: "rejected" }), E()), "whatsapp"),
-    "WhatsApp refused this message's WhatsApp version.",
+    "WhatsApp asked for a change to this message's words. Ask writes new words for you to send back.",
   );
   assert.equal(
     messageWhyNot(m(W({ meta_status: "paused" })), "whatsapp"),
-    "WhatsApp has paused this message's WhatsApp version.",
+    "WhatsApp is holding this message for a few hours, because some people marked it as unwanted. It comes back by itself.",
   );
   assert.equal(
     messageWhyNot(m(W({ meta_status: "disabled" })), "whatsapp"),
-    "WhatsApp has disabled this message's WhatsApp version.",
+    "WhatsApp turned this message off, because people kept marking it as unwanted. Write a new one in its place.",
   );
   assert.equal(
     messageWhyNot(m(W({ blocked: "a button that takes a value" })), "whatsapp"),
@@ -446,16 +446,19 @@ test("a run that stops for a WhatsApp version it cannot send says why in the wor
   const LEFT = "Everyone on this run goes by WhatsApp, so nothing was sent.";
   assert.equal(
     stopped(W({ meta_status: "pending" })),
-    `WhatsApp is still reviewing this message's WhatsApp version. ${LEFT}`,
+    `WhatsApp is checking this message. It sends by itself once approved, usually within minutes. ${LEFT}`,
   );
   assert.equal(
     stopped(W({ meta_status: "rejected" }), E()),
-    `WhatsApp refused this message's WhatsApp version. ${LEFT}`,
+    `WhatsApp asked for a change to this message's words. Ask writes new words for you to send back. ${LEFT}`,
   );
-  assert.equal(stopped(W({ meta_status: "paused" })), `WhatsApp has paused this message's WhatsApp version. ${LEFT}`);
+  assert.equal(
+    stopped(W({ meta_status: "paused" })),
+    `WhatsApp is holding this message for a few hours, because some people marked it as unwanted. It comes back by itself. ${LEFT}`,
+  );
   assert.equal(
     stopped(W({ meta_status: "disabled" })),
-    `WhatsApp has disabled this message's WhatsApp version. ${LEFT}`,
+    `WhatsApp turned this message off, because people kept marking it as unwanted. Write a new one in its place. ${LEFT}`,
   );
   assert.equal(
     stopped(W({ blocked: "a picture for a heading" })),
@@ -472,7 +475,7 @@ test("WhatsApp's refusal carries Meta's reason when it gave one, and a status th
   const reason = (over) => campaignMessageOf([W(over)], NAME, LANGUAGE).versions.whatsapp.reason;
   assert.equal(
     reason({ meta_status: "rejected", rejected_reason: "ABUSIVE_CONTENT" }),
-    "WhatsApp refused this one: abusive content. Change the words and send it back.",
+    "WhatsApp asked for a change: it reads as abusive or threatening. Ask writes new words for you to send back.",
   );
   assert.equal(reason({ meta_status: "rejected", rejected_reason: null }), null, "Meta gave none");
   assert.equal(reason({ meta_status: "pending", rejected_reason: "ABUSIVE_CONTENT" }), null);
@@ -484,7 +487,10 @@ test("a row that names no status, or one the set does not know, is waiting, as t
     const m = campaignMessageOf([W({ meta_status })], NAME, LANGUAGE);
     assert.equal(m.versions.whatsapp.status, "pending");
     assert.equal(messageHolds(m).whatsapp, false);
-    assert.equal(messageWhyNot(m, "whatsapp"), "WhatsApp is still reviewing this message's WhatsApp version.");
+    assert.equal(
+      messageWhyNot(m, "whatsapp"),
+      "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+    );
   }
 });
 

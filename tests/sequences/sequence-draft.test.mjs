@@ -284,7 +284,13 @@ test("Ask writes a message where none fits: kept as the message door files it, u
   const offer = draftKept(
     answer({
       steps: [
-        step({ write: { ...write, offer: true, whatsapp: "Hi {{first name}}, book this week: {{booking link}}" } }),
+        step({
+          write: {
+            ...write,
+            offer: true,
+            whatsapp: "Hi {{first name}}, book this week: {{booking link}} See you soon.",
+          },
+        }),
       ],
     }),
     KNOWN,
@@ -307,7 +313,7 @@ test("Ask writes a message where none fits: kept as the message door files it, u
           write: {
             ...write,
             title: "Invite back",
-            whatsapp: "Hi {{first name}}, book your next visit: {{booking link}}",
+            whatsapp: "Hi {{first name}}, book your next visit: {{booking link}} See you soon.",
             text: "Book again: {{booking link}}",
           },
         }),

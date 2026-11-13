@@ -186,7 +186,7 @@ test("a template Meta withdrew fails the broadcast before a single send; a sched
   assert.deepEqual(log[1], ["fail", "b1", "template_not_approved"]);
   assert.equal(
     log[2][1].body,
-    "WhatsApp refused this message's WhatsApp version. Everyone on this run goes by WhatsApp, so nothing was sent.",
+    "WhatsApp asked for a change to this message's words. Ask writes new words for you to send back. Everyone on this run goes by WhatsApp, so nothing was sent.",
   );
   const missing = fakes({ message: [] });
   await sendBroadcastBatch(missing.ports, cmd());
@@ -2801,11 +2801,11 @@ test("a message whose only row is a WhatsApp one that cannot be sent, with every
   };
   assert.equal(
     await stopped(versionsOf([], { whatsapp: { ...visitRows.whatsapp, meta_status: "pending" } })),
-    "WhatsApp is still reviewing this message's WhatsApp version. Everyone on this run goes by WhatsApp, so nothing was sent.",
+    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes. Everyone on this run goes by WhatsApp, so nothing was sent.",
   );
   assert.equal(
     await stopped(versionsOf([], { whatsapp: { ...visitRows.whatsapp, meta_status: "rejected" } })),
-    "WhatsApp refused this message's WhatsApp version. Everyone on this run goes by WhatsApp, so nothing was sent.",
+    "WhatsApp asked for a change to this message's words. Ask writes new words for you to send back. Everyone on this run goes by WhatsApp, so nothing was sent.",
   );
   assert.equal(
     await stopped(

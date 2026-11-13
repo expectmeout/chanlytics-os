@@ -14,7 +14,7 @@ export const listTemplatesForPage = async (db: Db, tenantId: TenantId) =>
   db
     .from("templates")
     .select(
-      "id, channel, name, language, body_preview, variables, category, meta_status, quality, rejected_reason, synced_at, source, hidden_at, title, components",
+      "id, channel, name, language, body_preview, variables, category, meta_status, quality, rejected_reason, synced_at, source, hidden_at, title, components, meta_id",
     )
     .eq("tenant_id", tenantId)
     .order("name");

@@ -309,18 +309,6 @@ export const AskNotNow = ({ t, busy, onDismiss }: { t: LineWords; busy: boolean;
   </Button>
 );
 
-// Quick changes under a card with words (D25 of the answers canvas): each is a question the person could type, so the model
-// writes the card again and the newer card sets this one aside (contracts searchCardsReplaced). None on an earlier turn.
-export const AskQuickChanges = ({ t, onFollow }: { t: LineWords; onFollow: (q: string) => unknown }) => (
-  <div className="ask-card-quick" data-testid="ask-card-quick">
-    {t.quickChanges.map((q) => (
-      <LinePress key={q.label} kind="chip" onClick={() => onFollow(q.asks)} data-testid="ask-card-change">
-        <span>{q.label}</span>
-      </LinePress>
-    ))}
-  </div>
-);
-
 // The take-back clock: a hairline ring emptying over a send's own window, drawn where the window stands (a card drawn
 // again mid-window starts part-empty) and running for what is left of it. Its end is the window's: `onDone` is the
 // animation's own end, which comes at the same moment under reduced motion, where the ring holds still (ask.css).

@@ -46,6 +46,7 @@ export function madePost(n: number, name: string, posts: PostDto[] = []): Conten
     line: "A post made from a photo.",
     issues: [],
     looks_like_stock: false,
+    looks_like: "design",
     created_at: new Date(Date.now() - n * 60_000).toISOString(),
   };
   return { file, posts };

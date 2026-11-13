@@ -520,6 +520,8 @@ export const EVENT_KINDS = [
   /** A message sent to WhatsApp for approval, and one deleted from the Library ({ name, language, by }). */
   "template.submitted",
   "template.removed",
+  /** Ask's words for a message WhatsApp refused, kept so its editor opens on them ({ words, reason, by }); a draft. */
+  "template.fix_written",
   /** The owner switched what the workspace answers on or off ({ capability, by }: calls, WhatsApp or texts). */
   "capability.activated",
   "capability.deactivated",
