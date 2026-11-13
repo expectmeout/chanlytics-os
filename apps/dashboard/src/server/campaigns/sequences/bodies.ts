@@ -336,6 +336,7 @@ export const DRAFT_BODY = z
     stands: z
       .strictObject({
         said: z.string().max(NEW_WORDS_MAX),
+        cannot: z.string().max(2000).optional(),
         kind: z.enum(NEW_KINDS),
         audience: z.enum(NEW_AUDIENCES),
         name: z.string().max(80),
