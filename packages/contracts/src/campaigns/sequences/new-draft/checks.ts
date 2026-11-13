@@ -113,6 +113,11 @@ export interface NewDraftAsk {
     | {
         /** The line it was first drafted from; "" for one built by hand. */
         said: string;
+        /**
+         * What the draft says it leaves out as it stands (its `cannot`); "" where it says nothing. A change is told it, so
+         * what its owner changed since is never said to be left out. Absent from a page opened before it.
+         */
+        cannot?: string | undefined;
         kind: NewKind;
         audience: NewAudience;
         name: string;
