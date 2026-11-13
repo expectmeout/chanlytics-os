@@ -10,6 +10,12 @@
  * Check it drew coral beside Finish setting up's Continue and then went quiet, its pane led a page where people waited and
  * then moved, Safari kept the coral's glow after it went (10 Nov 2026, Ruben's iPhone). Read here, from what each part will
  * draw (need-you-model.ts, setup-card.tsx useSetupActs, found.tsx useFoundModel), the first frame is the last.
+ *
+ * And what those parts are drawn from is known by the first draw (Today knows its shape at its first draw, 13 Nov 2026):
+ * Today's first read carries what Ask found's checks and To do's steps read of People (helpers.ts peopleForToday), Reports' headline
+ * and Ask's morning. Where it is not known yet (People not read, past the first draw's wait, or more than one page of it),
+ * the page keeps its two columns and Ask found under the day: not read yet is never nothing found. On a quiet desk the
+ * day stood alone in one column and split in two as Ask found came, which moved the day across the page.
  */
 import { useWaitsOnToday } from "../needs-you";
 import { useSurface } from "../use-surface";
@@ -24,9 +30,9 @@ type CoralHolder = "queue" | "todo" | "setup" | "found" | null;
 export interface TodayArrangement {
   /** Anyone waiting on the owner (the one count, needs-you.ts): setting up then stands under Need you, never over it. */
   waiting: boolean;
-  /** Ask found leads the work's column, wide: Today is read and Need you draws no pane. */
+  /** Ask found leads the work's column, wide: Today is read, what Ask found is drawn from is known, and Need you draws no pane. */
   lead: boolean;
-  /** Nothing waits and nothing was found: the day alone, one column. */
+  /** Nothing waits and nothing was found, known to be nothing: the day alone, one column. */
   alone: boolean;
   coral: CoralHolder;
 }
@@ -35,6 +41,11 @@ export interface TodayArrangement {
 interface ArrangementReads {
   /** Today has been read: before it, Need you has drawn nothing yet, and Ask found does not lead. */
   read: boolean;
+  /**
+   * What Ask found and To do's steps are drawn from is in, or has failed (found.tsx `shown`): before it, neither says
+   * anything, so Ask found does not lead and the day does not stand alone.
+   */
+  known: boolean;
   /** Need you draws a pane (need-you-model.ts `draws`). */
   needYou: boolean;
   /** Which of Need you's rows, and which of To do's, has its act the coral, by id; null where none. */
@@ -51,7 +62,7 @@ interface ArrangementReads {
 
 /** The arrangement, from what each part will draw. Pure: the page's tests hold the walk here. */
 export function arrangementOf(reads: ArrangementReads): TodayArrangement {
-  const lead = reads.read && !reads.needYou;
+  const lead = reads.read && reads.known && !reads.needYou;
   const coral: CoralHolder = reads.queueCoral
     ? "queue"
     : reads.todoCoral
@@ -73,6 +84,7 @@ export function useTodayArrangement(): TodayArrangement {
   const found = useFoundModel();
   return arrangementOf({
     read: !!vm,
+    known: found.shown,
     needYou: !!needYou?.draws,
     queueCoral: needYou?.coral ?? null,
     todoCoral: needYou?.todo.coral ?? null,

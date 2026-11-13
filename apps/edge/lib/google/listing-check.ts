@@ -85,9 +85,11 @@ export async function checkListing(
   // Every id, not the first thousand. Capped, the set of reviews we have
   // already seen was missing whatever fell past the page -- so a listing with
   // more than a thousand reviews announced old reviews as new, every hour, for
-  // ever.
-  const known = await readAllRows<{ review_id: string }>("google_reviews", (from, to) =>
-    pageGoogleReviewIds(db, row.tenant_id, from, to),
+  // ever. Whole: past the cap it refuses, and the check fails loudly rather than announce what it never read.
+  const known = await readAllRows<{ review_id: string }>(
+    "google_reviews",
+    (from, to) => pageGoogleReviewIds(db, row.tenant_id, from, to),
+    "whole",
   );
   const plan = planListingCheck(
     { rating: row.rating, review_count: row.review_count, checked_at: row.checked_at },

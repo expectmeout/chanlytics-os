@@ -61,7 +61,8 @@ const PERSON_MESSAGES = 2000;
  * restores order). Paged: PostgREST answers a thousand rows whatever a select asks for, so `.limit(2000)` read 1,000,
  * and past that the page lost their older messages and a proposal sent among them read as never sent. The id breaks
  * ties, so the order is the same on every page. A message that arrives between two pages moves the rest down a place,
- * and the next page opens with the last one read: each is kept once.
+ * and the next page opens with the last one read: each is kept once. A part on purpose: the page holds the newest
+ * PERSON_MESSAGES, and what falls past them is the oldest history.
  */
 function personMessages(rc: ReaderContext, convIds: string[]) {
   return readAllRows(
@@ -74,8 +75,9 @@ function personMessages(rc: ReaderContext, convIds: string[]) {
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .range(from, to),
+    "part",
     PERSON_MESSAGES,
-  ).then((rows) => [...new Map(rows.map((m) => [m.id, m])).values()]);
+  ).then(({ rows }) => [...new Map(rows.map((m) => [m.id, m])).values()]);
 }
 
 /** Where they came from, as the profile says it: the door's contact.added row for them, when there is one. */

@@ -4,6 +4,7 @@ import { read, workspace } from "@/server/shared/route";
 import { openPage, type OpenRead } from "@/server/workspace/page-open";
 import { GET as workspaces } from "../workspaces/route";
 import { GET as today } from "../today/route";
+import { GET as todayPeople } from "../today/people/route";
 import { GET as conversations } from "../conversations/route";
 import { GET as escalations } from "../escalations/route";
 import { GET as calls } from "../calls/route";
@@ -44,6 +45,8 @@ const READS: ReadonlyMap<string, OpenRead> = new Map<string, OpenRead>([
   ["workspaces", workspaces],
   // Today's day whole, its one read (GET today, Today in three zones, 2 Nov 2026).
   ["today", today],
+  // What Today draws from People, in its first tier (GET today/people): its People's first page is GET contacts', read once.
+  ["today/people", todayPeople],
   ["conversations", conversations],
   ["escalations", escalations],
   ["calls", calls],

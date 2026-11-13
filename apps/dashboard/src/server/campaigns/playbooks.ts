@@ -100,8 +100,11 @@ async function proposalsOut(
   ctx: RouteContext,
   tenantId: TenantId,
 ): Promise<{ contacts: Set<string>; oldestMs: number } | null> {
-  const rows = await readAllRows<{ id: string; contact_id: ContactId; proposed_at: string }>("deals", (from, to) =>
-    pageProposalsOut(ctx.supabase, tenantId, from, to),
+  // Whole: who holds a proposal out decides who a follow-up is for, and how many.
+  const rows = await readAllRows<{ id: string; contact_id: ContactId; proposed_at: string }>(
+    "deals",
+    (from, to) => pageProposalsOut(ctx.supabase, tenantId, from, to),
+    "whole",
   );
   if (!rows.length) return null;
   return {

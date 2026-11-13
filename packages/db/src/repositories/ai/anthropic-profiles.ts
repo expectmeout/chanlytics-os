@@ -111,8 +111,11 @@ const PROFILE_COLUMNS =
   "id, kind, user_id, tenant_id, reference_id, profile_id, claimed_at, enforcement_status, enforcement_actions, enforcement_at, tenants(left_empty_at)";
 
 export async function listAnthropicProfileRows(db: Db): Promise<AnthropicProfileRow[]> {
-  const rows = await readAllRows("anthropic_profiles", (from, to) =>
-    db.from("anthropic_profiles").select(PROFILE_COLUMNS).order("id").range(from, to),
+  // Whole: the sweep deletes the profiles of whoever left, and Health counts them.
+  const rows = await readAllRows(
+    "anthropic_profiles",
+    (from, to) => db.from("anthropic_profiles").select(PROFILE_COLUMNS).order("id").range(from, to),
+    "whole",
   );
   return rows.map((row) => ({
     id: row.id,

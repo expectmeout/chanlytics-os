@@ -6,6 +6,7 @@ import {
   listEveryoneIn,
   listEveryoneOnceIn,
   listPeoplePage,
+  listPeopleReplyModes,
   pageReplyRules,
   PEOPLE_PAGE,
   type PeopleCursor,
@@ -85,12 +86,18 @@ export async function listPeople(
   tenantId: TenantId,
   page: PeoplePage = {},
 ): Promise<PersonRowDto[]> {
-  // The policies with the rows, not after them: they are the workspace's, and a page waited a round trip for them.
-  const [rows, pols] = await Promise.all([
-    listPeoplePage(ctx.supabase, tenantId, { ...page, q: searchNeedle(page.q) || null }),
-    replyPolicies(ctx, tenantId),
+  // The page's reply modes with its rows, not after them, and its own people's alone (people_reply_modes, 00625): it
+  // read every reply policy of the workspace beside each page, however many people had a mode of their own.
+  const thisPage = { ...page, q: searchNeedle(page.q) || null };
+  const [rows, modes] = await Promise.all([
+    listPeoplePage(ctx.supabase, tenantId, thisPage),
+    listPeopleReplyModes(ctx.supabase, tenantId, thisPage).catch((e: unknown) => {
+      log.error("people_policies_read_failed", { error: e instanceof Error ? e.message : String(e) });
+      return null;
+    }),
   ]);
-  return withReplyModes(rows, pols);
+  // None said where they cannot be read, as before: the page says no mode rather than a guessed one.
+  return rows.map((r) => ({ ...r, effective_reply_mode: modes?.get(r.id) ?? null }));
 }
 
 /**
@@ -99,9 +106,10 @@ export async function listPeople(
  * with a mode of their own an arbitrary thousand came back, the workspace's own row not always among them, and People,
  * the CSV and Ask's people tool said the wrong mode. The workspace's own row first (its subject is null), then by id:
  * one whole order, so no page repeats or skips a row, and the row everyone without their own follows is on the first.
+ * Whole: a mode said from a part is a wrong mode said, so past the cap none is said, as when they cannot be read.
  */
 function replyPolicies(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId) {
-  return readAllRows("reply policies", (from, to) => pageReplyRules(ctx.supabase, tenantId, from, to)).catch(
+  return readAllRows("reply policies", (from, to) => pageReplyRules(ctx.supabase, tenantId, from, to), "whole").catch(
     (e: unknown) => {
       log.error("people_policies_read_failed", { error: e instanceof Error ? e.message : String(e) });
       return null;

@@ -7,7 +7,6 @@
 import {
   type ChannelsReady,
   type PersonRowDto,
-  followUpStandOf,
   type FollowUpFactsDto,
   type DealPaceVM,
   peopleAggregates,
@@ -25,7 +24,8 @@ import {
   poolRowOf,
   type ListContext,
   PEOPLE_LIST_GROUPS,
-  peopleListAction,
+  peopleListsOf,
+  peopleRowOf,
   savedListAction,
   type PersonRowVM,
   type HolderNames,
@@ -96,14 +96,20 @@ export function peopleSurfaceOf(
   names: HolderNames | null = null,
 ): PeopleSurface {
   const { tz, hasDeals, consultFirst, word } = loaded;
-  // Each row's standing with the proposal follow-up, where one runs (0006, contracts followUpStandOf): the
-  // Pipeline's chip and Today's leak read it off the row, judged by the pace and at the moment the rows are.
-  const fu = loaded.followUp;
-  const pace = loaded.dealPace;
-  const rows = loaded.people.map((r) => {
-    const vm = personRowOf(r, { tz, now, viewer, ready: loaded.channelsReady, names });
-    return fu ? { ...vm, followUp: followUpStandOf(vm, fu, tz, now.getTime(), pace, loaded.channelsReady) } : vm;
-  });
+  // Each row's standing with the proposal follow-up, where one runs (0006, contracts peopleRowOf): the Pipeline's chip and
+  // Today's leak read it off the row, judged by the pace and at the moment the rows are. Today's first read makes the people
+  // it names the same way (contracts today/people.ts).
+  const rows = loaded.people.map((r) =>
+    peopleRowOf(r, {
+      tz,
+      now,
+      viewer,
+      ready: loaded.channelsReady,
+      names,
+      followUp: loaded.followUp,
+      pace: loaded.dealPace,
+    }),
+  );
   const calendar = loaded.calendar;
   // What this workspace and this reader can give a list (lists.ts): a rule that needs more says why it can't be counted.
   const listCtx: ListContext = poolListContext({
@@ -117,24 +123,9 @@ export function peopleSurfaceOf(
   const listName = listNamer(savedLists);
   return {
     rows,
-    // The outcome lists only when there is a calendar to read them from; the deal lists once a deal was recorded here.
-    lists: PEOPLE_LISTS.filter(
-      (l) =>
-        (!l.needsCalendar || calendar.state === "ok") &&
-        (!l.needsConsultFirst || consultFirst) &&
-        (!l.needsDeals || hasDeals),
-    ).map((l) => {
-      const members = rows.filter(l.test);
-      return {
-        id: l.id,
-        label: l.label,
-        group: l.group,
-        tip: l.tip,
-        count: members.length,
-        ids: members.map((r) => r.id),
-        action: peopleListAction(l.id, members),
-      };
-    }),
+    // The outcome lists only when there is a calendar to read them from; the deal lists once a deal was recorded here
+    // (contracts peopleListsOf, which Today's first read counts its lists by).
+    lists: peopleListsOf(rows, { calendar: calendar.state, consultFirst, hasDeals }),
     groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
     hidden: PEOPLE_LISTS.flatMap((l) => {
       const need = unmetNeed(ruleNeeds(l.rule), listCtx);

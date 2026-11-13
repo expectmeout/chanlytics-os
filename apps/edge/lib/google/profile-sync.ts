@@ -265,12 +265,13 @@ export async function syncProfile(
   }
   // Read before anything is written: whether a notice of a breakage could be open, which the sync that works closes.
   const wasFailing = !!conn.sync_error;
+  // Whole: a review it never read would be announced as new.
   const known = await readAllRows<{
     review_id: string;
     replied_at: string | null;
     reply_text: string | null;
     origin: string;
-  }>("google_reviews", (from, to) => pageGoogleReviewReplies(db, conn.tenant_id, from, to));
+  }>("google_reviews", (from, to) => pageGoogleReviewReplies(db, conn.tenant_id, from, to), "whole");
   const plan = planProfileSync(
     { last_synced_at: conn.last_synced_at },
     new Map(
