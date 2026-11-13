@@ -7,7 +7,7 @@ import type { VisitSheetVM } from "./sheet-view";
 
 /** What the parts are drawn from, and what they do. */
 export interface VisitCtx {
-  b: CalendarBlockVM;
+  block: CalendarBlockVM;
   vm: VisitSheetVM;
   word: AppointmentWord;
   bookingLink: string | null;

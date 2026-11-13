@@ -113,7 +113,7 @@ function visitPersonLine(c: VisitCtx) {
  * foot's lead, and while the sheet asks whether they came, when the foot holds the two answers and no lead.
  */
 function visitReach(visitCtx: VisitCtx) {
-  const { vm, b: block } = visitCtx;
+  const { vm, block } = visitCtx;
   const message = vm.circles.message ?? (vm.ask && vm.primary?.act === "message" ? vm.primary.label : null);
   const call = vm.circles.call;
   if (!message && !call) return null;
@@ -231,7 +231,7 @@ function visitRows(vm: VisitSheetVM) {
  */
 function useAddToPeople(c: VisitCtx) {
   const [busy, setBusy] = useState(false);
-  const add = addToPeopleOf(c.b);
+  const add = addToPeopleOf(c.block);
   const press = async () => {
     if (!add) return;
     setBusy(true);
@@ -270,8 +270,8 @@ function messageThem(b: CalendarBlockVM): void {
 
 /** The booking link carried into their thread in the words for how the visit went, then the thread. */
 function carryLink(c: VisitCtx, words: (link: string) => string): void {
-  const p = c.b.person;
-  if (!p?.threadId || !c.bookingLink) return messageThem(c.b);
+  const p = c.block.person;
+  if (!p?.threadId || !c.bookingLink) return messageThem(c.block);
   if (p.bookingLinkAction.ready) carryReply(p.threadId, words(c.bookingLink));
   navigate(visitThreadRoute(p.threadId));
 }
@@ -301,9 +301,9 @@ function handOff(c: VisitCtx, open: () => void): void {
  * drafted for the member to send; Can't leaves the thread waiting on their reply.
  */
 function answerVisit(c: VisitCtx, booked: boolean): void {
-  const threadId = c.b.request?.threadId;
+  const threadId = c.block.request?.threadId;
   if (!threadId) return;
-  void answerRequest(threadId, booked, c.b.person?.name ?? c.b.guess ?? "They").then((r) => {
+  void answerRequest(threadId, booked, c.block.person?.name ?? c.block.guess ?? "They").then((r) => {
     if (!r.ok) return c.flash(r.message);
     if (!booked) return c.flash(r.receipt);
     const to = addressOf({ kind: "hold", conversationId: threadId });
@@ -366,7 +366,7 @@ function PrimaryAct({ c }: { c: VisitCtx }) {
 /** What More's press does, by its act; the copy and the cancel are drawn as their own items. */
 function moreItem(c: VisitCtx, m: { act: VisitMoreAct; label: string; danger: boolean }, ask: () => void): MenuItem {
   const { act, label, danger } = m;
-  const p = c.b.person;
+  const p = c.block.person;
   const said = (status: VisitWord) => () => {
     void sayHere(c, status).then((answer) => {
       if (answer) c.flash(answer.ok ? VISIT_WORDS[status] : answer.message);

@@ -91,7 +91,7 @@ function ctxOf(p: OpenVisitProps, kept: { outcome: VisitSheetOutcome | null; set
     moments: p.moments,
     outcome: kept.outcome,
   });
-  return { b, vm, word, bookingLink: p.bookingLink, close: p.onClose, flash: p.flash, settle: kept.settle };
+  return { block: b, vm, word, bookingLink: p.bookingLink, close: p.onClose, flash: p.flash, settle: kept.settle };
 }
 
 /** The open visit's context, with the word said in it kept while it stands (useVisitOutcome). */
