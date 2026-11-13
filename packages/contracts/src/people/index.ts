@@ -219,6 +219,7 @@ export { cameFromOf, visitLineForDto } from "./person-row/row-facts";
 export type { PersonRowVM } from "./person-row/row-facts";
 export { threadHeadFactOf, threadPersonFactsOf, toPersonRowVM } from "./person-row/row-vm";
 export type { ThreadHeadFact, ThreadPersonFact } from "./person-row/row-vm";
+export { peopleRowOf } from "./person-row/with-follow-up";
 export {
   attentionOf,
   holderOf,

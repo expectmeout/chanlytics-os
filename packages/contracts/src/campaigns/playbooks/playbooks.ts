@@ -83,7 +83,6 @@ export {
   followUpRunAt,
   followUpStandOf,
   followUpWords,
-  peopleRowOf,
 } from "./follow-ups";
 export type { FollowUpFactsDto, FollowUpStand } from "./follow-ups";
 export {

@@ -102,7 +102,7 @@ export { whatsappOffersOpen } from "./campaigns/broadcasts/whatsapp-offers";
 export { FREED_TIME_PASSED_WORDS, poolWords, reachLines, runApprovalRefusal, runDayPassed, runDaysAt, toApprovalVM, waitingRunOffer } from "./campaigns/playbooks/approval";
 export { campaignChannelsOf, playbookChannelsRead, WHATSAPP_VERSION_ALONE } from "./campaigns/playbooks/channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./campaigns/playbooks/failed";
-export { FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, followUpIsFor, followUpKey, followUpNames, followUpRunAt, followUpStandOf, followUpWords, peopleRowOf, PLAYBOOK_TOUCH_WINDOW_MS, playbookRunStop, playbookStopBy } from "./campaigns/playbooks/follow-ups";
+export { FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, followUpIsFor, followUpKey, followUpNames, followUpRunAt, followUpStandOf, followUpWords, PLAYBOOK_TOUCH_WINDOW_MS, playbookRunStop, playbookStopBy } from "./campaigns/playbooks/follow-ups";
 export { keptThanksAt, lateReminderAt } from "./campaigns/playbooks/late-reminder";
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./campaigns/playbooks/lifecycle/inputs";
 export { reachCountsOf, lifecycleComing, lifecycleReach, lifecycleResults, nextRunLine, resumeDetailOf, waitingOffer, workspacePausedOf } from "./campaigns/playbooks/lifecycle/tiles";
@@ -430,6 +430,7 @@ export { asPersonMode, OWN_MODE_NAMED, ownModesOf, ownModesWords, PERSON_MODE_LA
 export { ago, theirTurnWords } from "./people/person-row-facts";
 export { cameFromOf, visitLineForDto } from "./people/person-row/row-facts";
 export { threadHeadFactOf, threadPersonFactsOf, toPersonRowVM } from "./people/person-row/row-vm";
+export { peopleRowOf } from "./people/person-row/with-follow-up";
 export { attentionOf, holderOf, NEW_WINDOW_DAYS, PEOPLE_TABS, PERSON_STATE_LABELS, personStanding, personStateFor, QUIET_AFTER_DAYS, stopToldBesideState } from "./people/person-state";
 export { consentChangeWords } from "./people/person-timeline";
 export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, sinceWords } from "./people/person-words";

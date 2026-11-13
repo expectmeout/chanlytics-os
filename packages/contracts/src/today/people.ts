@@ -16,11 +16,12 @@
  * thousand are not the counts of everyone.
  */
 import type { ChannelsReady } from "../campaigns/broadcasts/reach-for";
-import { peopleRowOf, type FollowUpFactsDto, type FollowUpStand } from "../campaigns/playbooks/follow-ups";
+import type { FollowUpFactsDto, FollowUpStand } from "../campaigns/playbooks/follow-ups";
 import { consultationsWithoutProposal } from "../deals/consultations";
 import { dealPaceOf, eachOpenProposal, type DealPaceDto } from "../deals/waits";
 import { todayStepsDue } from "../notes/steps";
 import { peopleListsOf, type PeopleListCount } from "../people/lists/actions";
+import { peopleRowOf } from "../people/person-row/with-follow-up";
 import type { PersonRowDto } from "../people/person-dto";
 import type { PersonRowVM } from "../people/person-row/row-facts";
 
