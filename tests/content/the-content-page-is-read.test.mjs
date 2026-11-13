@@ -139,7 +139,7 @@ const read = async (tables, query = "") => {
   return { body };
 };
 
-const NOTHING = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0, library: 0, aside: 0 };
+const NOTHING = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0, library: 0, aside: 0, waiting: 0 };
 /** Ask's three ideas of what it can make, each with the files it would start from: none, where the Library holds none. */
 /** With nothing kept, no idea has what it is made from: none is offered (contracts contentIdeasReady). */
 const IDEAS_NONE = ["before_after", "review", "video", "photo_post"].map((key) => ({ key, files: [], ready: false }));
@@ -154,7 +154,6 @@ test("a workspace that made nothing reads an empty page, and says so in numbers"
     next: null,
     ideas: IDEAS_NONE,
     about: null,
-    needsOne: null,
     tally: NOTHING,
   });
 });
@@ -183,7 +182,16 @@ test("what was made comes newest first, each with its own posts, and nothing tha
   );
   assert.deepEqual(body.made[2].posts, []);
   // The Library holds the photo uploaded here, apart from what was made.
-  assert.deepEqual(body.tally, { made: 3, posted: 1, needs: 1, making: 0, scheduled: 0, library: 1, aside: 0 });
+  assert.deepEqual(body.tally, {
+    made: 3,
+    posted: 1,
+    needs: 1,
+    making: 0,
+    scheduled: 0,
+    library: 1,
+    aside: 0,
+    waiting: 0,
+  });
   assert.equal("external_id" in body.made[0].posts[0], false, "a post's id at the platform stays the server's");
 });
 

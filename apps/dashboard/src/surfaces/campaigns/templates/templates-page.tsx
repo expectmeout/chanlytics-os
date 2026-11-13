@@ -319,6 +319,19 @@ function useQuietCheck(may: boolean, templates: readonly TemplateDto[] | null | 
   }, [may, synced]);
 }
 
+/**
+ * The view the list draws: a phone's pick, but every group on a desk (its search the bar's line) and while a search holds
+ * words, since a search looks through every group (words in Going out were "not found" while Need you was picked).
+ */
+function listViewOf(
+  picked: MessagesView,
+  counts: Parameters<typeof shownViewOf>[1],
+  desk: boolean,
+  needle: string,
+): MessagesView {
+  return desk || needle ? "all" : shownViewOf(picked, counts);
+}
+
 function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   // The settings surface holds the templates, the numbers and what sends and went out; a reach-out's emails are their
   // own surface (Part 4 PR 8): their rows draw when they land.
@@ -376,9 +389,7 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
     idle: groups.idle.length,
     away: groups.away.length,
   };
-  // A phone's view of the list; a desk shows every group, its search the bar's line. A search looks through every
-  // group: words in Going out were "not found" while Need you was picked.
-  const shownView = inLine || needle ? "all" : shownViewOf(state.view, counts);
+  const shownView = listViewOf(state.view, counts, !!inLine, needle);
 
   // What is open beside the list: the composer, a message or a reach-out's email. A message the address names that the
   // list no longer has (deleted, or a number that went) says so.

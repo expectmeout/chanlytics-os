@@ -117,7 +117,7 @@ const making = (over = {}) => ({
   created_at: "2026-11-11T15:00:00Z",
   ...over,
 });
-const TALLY = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0, library: 0, aside: 0 };
+const TALLY = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0, library: 0, aside: 0, waiting: 0 };
 /** Ask's three ideas of what it can make (contracts content/ideas.ts), none with a file of the Library to start from. */
 const IDEAS = ["before_after", "video", "photo_post"].map((key) => ({ key, files: [] }));
 const page = (over = {}) => ({
@@ -128,7 +128,6 @@ const page = (over = {}) => ({
   next: null,
   ideas: IDEAS,
   about: null,
-  needsOne: null,
   ...over,
   tally: { ...TALLY, ...over.tally },
 });
