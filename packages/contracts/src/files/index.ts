@@ -20,6 +20,7 @@ export {
   FILE_BYTES_MAX,
   FILE_CACHE_S,
   FILE_LOOK_STATUSES,
+  FILE_LOOKS_LIKE,
   FILE_MIMES,
   FILE_NAME_MAX,
   FILE_NAME_WORDS,
@@ -37,7 +38,7 @@ export {
   FILES_PAGE,
   isFileMime,
 } from "./limits";
-export type { FileLookStatus, FileMime, FileShows, FileSource, FileStatus, FileWhoInIt } from "./limits";
+export type { FileLooksLike, FileLookStatus, FileMime, FileShows, FileSource, FileStatus, FileWhoInIt } from "./limits";
 export {
   FILE_COPY_KEEP_S,
   FILE_COPY_SIDE,

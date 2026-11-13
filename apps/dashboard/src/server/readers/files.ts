@@ -3,6 +3,7 @@ import {
   AppError,
   FILES_MAX,
   FILES_PAGE,
+  FILE_LOOKS_LIKE,
   FILE_WORDS as W,
   fileCursorOf,
   fileNameOf,
@@ -56,6 +57,7 @@ export function fileDtoOf(fileMember: FileMemberRow): FileDto {
     line: typeof look?.line === "string" ? look.line : null,
     issues: Array.isArray(look?.issues) ? look.issues.filter((i): i is string => typeof i === "string") : [],
     looks_like_stock: look?.looks_like_stock === true,
+    looks_like: FILE_LOOKS_LIKE.find((kind) => kind === look?.looks_like) ?? null,
     created_at: fileMember.created_at,
   };
 }
@@ -87,6 +89,7 @@ function fileForAskOf(fileMember: FileMemberRow): FileForAsk {
     quality: { sharp: qualityWord(quality?.sharp), light: qualityWord(quality?.light) },
     colors: lookWordsOf(look?.colors),
     subject: subject as FileForAsk["subject"],
+    use: typeof look?.use === "string" && look.use ? look.use : null,
     stands_at: typeof look?.poster_at === "number" ? look.poster_at : null,
     moments: lookMomentsOf(look?.moments),
   };

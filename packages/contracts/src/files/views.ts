@@ -8,6 +8,7 @@ import type { PiecePlan } from "../content/pieces";
 import {
   FILE_NAME_MAX,
   FILE_SHOWS,
+  type FileLooksLike,
   type FileLookStatus,
   type FileShows,
   type FileSource,
@@ -103,6 +104,8 @@ export interface FileDto {
   /** What hurts its use, as the look said it. */
   issues: string[];
   looks_like_stock: boolean;
+  /** What kind of picture it is, as the look said (edition 2); null before it has, on an earlier edition's row, and for a video. */
+  looks_like: FileLooksLike | null;
   created_at: string;
 }
 
@@ -205,12 +208,19 @@ export function whoStandsOf(file: Pick<FileDto, "who_in_it" | "look_status" | "p
 }
 
 /**
- * What the Inbox's one press takes: a photo the look read, that doesn't look like stock, and isn't a logo or a design. It
- * only chooses what a person is shown first and what the press covers: the press is their word, and nothing moves on the
- * model's alone.
+ * What the Inbox's one press takes: a photo the look read, that doesn't look like stock, and isn't a logo or a design. Where
+ * the look said what kind of picture it is (edition 2), only a camera's photo: one a computer rendered, a design or a
+ * screenshot is left for a person to open. It only chooses what a person is shown first and what the press covers: the
+ * press is their word, and nothing moves on the model's alone.
  */
-export const inboxCleanOf = (file: Pick<FileDto, "look_status" | "looks_like_stock" | "shows">): boolean =>
-  file.look_status === "done" && !file.looks_like_stock && file.shows !== "logo" && file.shows !== "graphic";
+export const inboxCleanOf = (
+  file: Pick<FileDto, "look_status" | "looks_like_stock" | "looks_like" | "shows">,
+): boolean =>
+  file.look_status === "done" &&
+  !file.looks_like_stock &&
+  (file.looks_like ?? "photo") === "photo" &&
+  file.shows !== "logo" &&
+  file.shows !== "graphic";
 
 /**
  * The shelves, each a filter over what a file says of itself. Kept ("all") is what the business brought, and what Ask made stands

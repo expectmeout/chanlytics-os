@@ -24,6 +24,8 @@ export interface FileForAsk extends FileDto {
   colors: string[];
   /** The main subject, as a share of the picture: [x1, y1, x2, y2]. */
   subject: [number, number, number, number] | null;
+  /** What a post could use it for, as the look said in a few words; null where it named none, and before edition 2. */
+  use: string | null;
   /** A video's: the moment the look chose to stand for the whole clip, in seconds; null for a picture, or before its look. */
   stands_at: number | null;
   /** A video's: the moments its look named as worth using on their own, best first; none for a picture, or before its look. */
@@ -114,9 +116,12 @@ export function fileWhoSaid(file: Pick<FileDto, "who_in_it" | "look_status" | "p
 }
 
 /** What a look's state says, where it is not an ordinary one. */
-function lookSaid(f: Pick<FileDto, "look_status" | "looks_like_stock">): string | null {
+function lookSaid(f: Pick<FileDto, "look_status" | "looks_like_stock" | "looks_like">): string | null {
   if (f.look_status === "failed") return "could not be read";
   if (f.look_status === "refused") return "would not be read";
+  // What kind of picture it is, where it is not the business's own photo and its shelf does not already say so.
+  if (f.looks_like === "rendered") return "looks rendered or AI-made";
+  if (f.looks_like === "screenshot") return "a screenshot";
   return f.looks_like_stock ? "may be stock" : null;
 }
 
