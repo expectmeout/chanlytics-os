@@ -5176,7 +5176,7 @@
     },
     {
       "name": "propose_publish",
-      "description": "Put a made post up on Instagram (post or story) and Google, now or at a time the owner named. The card says where, when and its caption. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "description": "Put a made post up on Instagram (post or story) and Google, now or at a named time; one already set moves to it. The card says where and when. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -5201,7 +5201,7 @@
           },
           "when": {
             "type": "string",
-            "description": "YYYY-MM-DD HH:MM, the business's clock, only for a time they named. Left out, now.",
+            "description": "YYYY-MM-DD HH:MM, the business's clock, only a time they named. Left out, now.",
             "maxLength": 20
           },
           "caption": {
@@ -8265,7 +8265,7 @@
     },
     {
       "name": "propose_publish",
-      "description": "Put a made post up on Instagram (post or story) and Google, now or at a time the owner named. The card says where, when and its caption. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "description": "Put a made post up on Instagram (post or story) and Google, now or at a named time; one already set moves to it. The card says where and when. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -8290,7 +8290,7 @@
           },
           "when": {
             "type": "string",
-            "description": "YYYY-MM-DD HH:MM, the business's clock, only for a time they named. Left out, now.",
+            "description": "YYYY-MM-DD HH:MM, the business's clock, only a time they named. Left out, now.",
             "maxLength": 20
           },
           "caption": {

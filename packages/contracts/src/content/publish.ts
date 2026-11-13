@@ -27,7 +27,13 @@ export function postCaptionOf(posts: readonly Pick<PostDto, "caption">[], made: 
 /** What Ask's card to put a post up holds. */
 export interface PostPublish {
   file_id: string;
+  /** Where it is put up. A place whose post is moved instead is in `moves`, never here too. */
   places: PostPlace[];
+  /**
+   * The posts already set for a time, each at its place, that go to this card's `when` in place of a second one there (00621,
+   * Change time as the page has it); none on most cards.
+   */
+  moves: { place: PostPlace; post_id: string }[];
   /** On Instagram, a post or a story; a story shows no caption. */
   as: InstagramPostKind;
   /** When it goes up, with its offset; null is as the card is pressed. */
@@ -40,12 +46,23 @@ export interface PostPublish {
   language: "en" | "es";
 }
 
+/** The moves a payload names, each a place and the post waiting there; anything else is left out. */
+function movesIn(value: unknown): PostPublish["moves"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((one) => {
+    const move = rec(one);
+    const postId = asText(move.post_id);
+    return isOneOf(POST_PLACES, move.place) && postId ? [{ place: move.place, post_id: postId }] : [];
+  });
+}
+
 /** A card's payload, read back. */
 export function postPublishOf(payload: Record<string, unknown>): PostPublish {
   const places = Array.isArray(payload.places) ? payload.places.filter((p) => isOneOf(POST_PLACES, p)) : [];
   return {
     file_id: asText(payload.file_id),
     places: POST_PLACES.filter((p) => places.includes(p)),
+    moves: movesIn(payload.moves),
     as: isOneOf(INSTAGRAM_POST_KINDS, payload.as) ? payload.as : "picture",
     when: nonBlankOrNull(payload.when),
     when_said: nonBlankOrNull(payload.when_said),
@@ -72,27 +89,53 @@ const PUBLISH_WORDS = {
     summary: (where: string, when: string | null) => (when ? `To ${where}, ${when}.` : `To ${where}, now.`),
     sent: (where: string) => `On its way to ${where}.`,
     set: (where: string, when: string) => `Set for ${when} on ${where}.`,
+    /** A card that only moves a post already set: its head, its line, and what its press says (the page's own words). */
+    moveTitle: (name: string) => `Move ${name}`,
+    moveSummary: (where: string, when: string) => `On ${where}, to ${when}.`,
+    alsoMoves: (where: string) => `${where} moves to it.`,
+    moved: (where: string, when: string) => `Now set for ${when} on ${where}.`,
   },
   es: {
     title: (name: string) => `Publicar ${name}`,
     summary: (where: string, when: string | null) => (when ? `En ${where}, ${when}.` : `En ${where}, ahora.`),
     sent: (where: string) => `En camino a ${where}.`,
     set: (where: string, when: string) => `Programado para ${when} en ${where}.`,
+    moveTitle: (name: string) => `Mover ${name}`,
+    moveSummary: (where: string, when: string) => `En ${where}, para ${when}.`,
+    alsoMoves: (where: string) => `${where} pasa a esa hora.`,
+    moved: (where: string, when: string) => `Ahora programado para ${when} en ${where}.`,
   },
 } as const;
+
+/** Where its moved posts are, in words, as where it goes is said. */
+const movedWhere = (p: PostPublish): string => whereSaid({ ...p, places: p.moves.map((move) => move.place) });
 
 /** The card's head and its one line, as Ask's tool makes them. */
 export function publishCardWords(p: PostPublish, name: string): { title: string; summary: string } {
   const says = PUBLISH_WORDS[p.language];
-  return { title: says.title(name), summary: says.summary(whereSaid(p), p.when_said) };
+  const moves = p.moves.length > 0 && p.when_said !== null;
+  // Only a move: the post is up for no new place, so the card says what moves and to when.
+  if (moves && p.places.length === 0)
+    return { title: says.moveTitle(name), summary: says.moveSummary(movedWhere(p), p.when_said ?? "") };
+  const summary = says.summary(whereSaid(p), p.when_said);
+  return { title: says.title(name), summary: moves ? `${summary} ${says.alsoMoves(movedWhere(p))}` : summary };
 }
 
-/** The press's calls: the caption kept first where it is new, then each place's own door, now or at its time. */
+/**
+ * The press's calls: each post already set moved to the card's time (the file's one door for it, 00621), then each place's
+ * own door, now or at its time. Words that go with a post are kept on the piece by its door, in the same step, as the page's
+ * Post keeps them (server posts/caption.ts keepPostWords): the card keeps new words itself, first, only where none goes with
+ * anything it posts, a story alone or a move alone.
+ */
 function publishCallsOf(p: PostPublish): ProposalCall[] {
   const id = { id: p.file_id };
   const when = p.when ? { when: p.when } : {};
   const calls: ProposalCall[] = [];
-  if (p.caption_new) calls.push({ route: "PATCH files/[id]", params: id, body: { caption: p.caption } });
+  const carried = p.places.includes("google") || (p.places.includes("instagram") && p.as === "picture");
+  if (p.caption_new && !carried) calls.push({ route: "PATCH files/[id]", params: id, body: { caption: p.caption } });
+  if (p.when)
+    for (const move of p.moves)
+      calls.push({ route: "PATCH files/[id]/posts", params: id, body: { post_id: move.post_id, when: p.when } });
   if (p.places.includes("google"))
     calls.push({ route: "POST files/[id]/google", params: id, body: { summary: p.caption, ...when } });
   if (p.places.includes("instagram"))
@@ -106,8 +149,8 @@ function publishCallsOf(p: PostPublish): ProposalCall[] {
 
 /**
  * Ask's card to put a made post up. Whoever may post from the page may press it: the press is the approval, as it is there.
- * No Undo of its own: a post set for a time has Don't post where it stands (Campaigns › Content), and one that went up is
- * taken down there.
+ * No Undo of its own: a post set for a time has Don't post and Change time where it stands (Campaigns › Content), and one
+ * that went up is taken down there.
  */
 export const publishSpec: ProposalSpecAboveOperator = {
   needs: "partner",
@@ -117,7 +160,10 @@ export const publishSpec: ProposalSpecAboveOperator = {
   receipt: ({ payload }) => {
     const p = postPublishOf(payload);
     const says = PUBLISH_WORDS[p.language];
-    return p.when_said ? says.set(whereSaid(p), p.when_said) : says.sent(whereSaid(p));
+    const moved = p.moves.length > 0 && p.when_said ? says.moved(movedWhere(p), p.when_said) : null;
+    if (p.places.length === 0 && moved) return moved;
+    const put = p.when_said ? says.set(whereSaid(p), p.when_said) : says.sent(whereSaid(p));
+    return moved ? `${put} ${moved}` : put;
   },
   open: ({ payload }) => `${CONTENT_ROUTE}:${asText(rec(payload).file_id)}`,
 };

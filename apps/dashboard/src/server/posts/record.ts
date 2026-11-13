@@ -10,7 +10,6 @@ import {
   postPlanOf,
   recordOrNull,
   type FilePosted,
-  type FileMade,
   type FileRecordDto,
   type PostDto,
   type PostPlan,
@@ -28,6 +27,7 @@ import {
 import { findFilePosted } from "@chanlytics/db/events";
 import { findConnection } from "@/server/connections/google";
 import { readInstagramPostable, instagramPostsOf } from "./instagram";
+import { fileMadeOf } from "./made-as";
 import { log } from "@/server/shared/log";
 import { handPostOf, sentPostsOf } from "@/server/readers/content";
 import { fileDtoOf } from "@/server/readers/files";
@@ -85,13 +85,6 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
 export async function readFilePosts(ctx: RouteContext, tenantId: TenantId, fileId: string): Promise<PostDto[]> {
   return sentPostsOf(await listFilePosts(ctx.supabase, tenantId, fileId));
 }
-
-/** How a post was made, as kept (`files.made`), read as the record says it: its plan, and the caption the owner wrote. */
-export const fileMadeOf = (created: Record<string, unknown>, from: FileMade["from"]): FileMade => ({
-  from,
-  plan: postPlanOf(recordOrNull(created.plan) ?? {}),
-  caption: typeof created.caption === "string" ? created.caption : null,
-});
 
 /**
  * Where the post is on Google (decision 0121, D16): its newest placement where that says it went up or came down; else what

@@ -10809,6 +10809,7 @@ export type Database = {
         }
         Returns: Json
       }
+      post_move: { Args: { p_post_id: string; p_when: string }; Returns: Json }
       post_moved: {
         Args: {
           p_from: string[]

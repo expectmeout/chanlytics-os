@@ -142,10 +142,14 @@ function DeskKeysLine(props: {
 }
 
 /**
- * What is open in the body: a draft first (the pane's own: the list of places with the composer, a post's or a video's
- * Change it), else the line to Ask alone (a piece with nothing to change by hand), or Rename.
+ * What is open in the body: a draft first (the pane's own: the list of places with the piece's caption typed in place under it,
+ * as the phone's one sheet holds them; a post's or a video's Change it), else the line to Ask alone (a piece with nothing to
+ * change by hand), or Rename.
  */
-function deskOpenedOf(open: DeskOpen, at: { hands: ViewerHands; close: () => void }): DeskOpened | null {
+function deskOpenedOf(
+  open: DeskOpen,
+  at: { hands: ViewerHands; close: () => void; facts: ReactNode },
+): DeskOpened | null {
   const { hands, close } = at;
   const { drafts, made, presses } = hands;
   if (drafts.open) {
@@ -154,7 +158,7 @@ function deskOpenedOf(open: DeskOpen, at: { hands: ViewerHands; close: () => voi
       title: head.title,
       sub: head.sub,
       close: head.cancel,
-      body: draftBody(drafts, null, hands.doors),
+      body: draftBody(drafts, null, hands.doors, at.facts),
       foot: draftFoot(drafts),
     };
   }
@@ -256,7 +260,19 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
   const says = viewerSaidOf({ file, posts, name }, record, clock);
   const next = pieceNextOf(file, posts, hands.takes, Date.now());
   const close = () => setOpen(null);
-  const opened = deskOpenedOf(open, { hands, close });
+  // Its caption and what it was made from, compact, under the list of places: what the phone's one sheet holds.
+  const facts = (
+    <ViewerFacts
+      shown={says.details}
+      may={hands.may}
+      busy={presses.busy}
+      say={presses.say}
+      caption={presses.caption}
+      typed={presses.captionTyped}
+      compact
+    />
+  );
+  const opened = deskOpenedOf(open, { hands, close, facts });
   const onLead = () => {
     presses.clear();
     acts.onNext(next);

@@ -187,6 +187,13 @@ export const FILE_WORDS = {
   /** A caption changed where it stands (Content's Details): only what Ask made has one. */
   captionNotMade: "Only a piece Ask made has a caption.",
   captionLong: (most: number) => `A caption takes up to ${most.toLocaleString("en-US")} characters.`,
+  /**
+   * A caption changed while a post waits to go up with it (server posts/caption.ts): the waiting post takes the new words, so
+   * words it could not take are refused before anything is kept.
+   */
+  captionWaitsEmpty: "A post is set to go up with these words. Keep a caption, or say Don't post first.",
+  captionWaitsGoogle: (most: number) =>
+    `A post set for Google takes up to ${most.toLocaleString("en-US")} characters. Shorten it, or say Don't post first.`,
   full: "This workspace holds as many files as it can. Remove some first.",
   wrongType: "That isn't a photo we can keep. Use a JPEG, PNG, WebP or HEIC.",
   tooBig: "That photo is over 25 MB.",
