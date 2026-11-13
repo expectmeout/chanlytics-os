@@ -853,7 +853,7 @@ test("an email's row says what it is about, then their words without the signatu
   // The email that came in on production, as it was kept: Need you quoted his signature and Gmail's picture stand-in.
   const body =
     "needs you test\n\nRuben Segura\nFounder, RJ Capital\n[image: RJ Capital] <https://rjcapital.io>\n" +
-    "rjcapital.io  |  ruben@rjcapital.io\n3495 US-1, Princeton, NJ 08540";
+    "rjcapital.io  |  ruben@rjcapital.example\n3495 US-1, Princeton, NJ 08540";
   const emailed = {
     ...msg("m1", "customer", body, "2026-09-06T13:00:00Z"),
     channel: "email",

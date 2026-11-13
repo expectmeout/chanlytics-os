@@ -12,6 +12,7 @@ import {
   REACH_OUT_SLOT_SET as SLOTS,
   capitalize,
   leadAddresseeOf,
+  previewBuildSlow,
   previewClaimable,
   previewStateOf,
   slotMentions,
@@ -31,9 +32,8 @@ export const LEAD_FILL_WORDS = {
   yourName: "Your name",
   yourBusiness: "Your business name",
   bookingLink: "Your booking link",
-  fromMaps: "From their Google Maps listing.",
-  fromDirectory: "From the business directory they are listed in.",
-  fromList: "From the list you brought in.",
+  /** Where their values came from: the row's own Source word, as the Leads table's column says it. */
+  source: (word: string) => `Source: ${word}`,
   named: "The person named at this company.",
   nobody: "Nobody is named at this company, so it says “there”.",
   signs: "The name this sequence signs with.",
@@ -56,7 +56,11 @@ export const LEAD_FILL_WORDS = {
    */
   mark: {
     none: "made when this goes",
+    /** Its door would refuse this lead one (a company, a closed lead, no name): said before the email goes. */
+    cannot: "can't be made for this lead, so this email is skipped",
     building: "being made",
+    /** Being made for longer than usual: still looked at, and its line says so. */
+    slow: "still being made, slower than usual",
     ready: "ready",
     claimed: "made theirs",
     failed: "couldn't be made, so this email is skipped",
@@ -67,35 +71,27 @@ export const LEAD_FILL_WORDS = {
 
 const F = LEAD_FILL_WORDS;
 
-/** A fill-in's bubble: what it is, where its value came from, whether it changes. */
+/** A fill-in's bubble: what it is, where its value came from (null where nothing says), whether it changes. */
 interface FillInSays {
   title: string;
-  from: string;
+  from: string | null;
   varies: string;
 }
 
 /**
- * Where a lead was found, as its fill-ins say it: by its source where the lead says one (the Maps card's, the people
- * card's, a file of the owner's), else by its kind, since the card's lead carries no source: a company is the people
- * card's, a place the Maps card's.
+ * What the blank `slot` says for this lead; null for the line, the receptionist's link, or a name that is no blank.
+ * `found` is the row's own Source word (contracts leadSourceWord: its Maps listing, a business directory, or the owner's
+ * own list), the one rule for where a lead's facts came from; null where the sheet has none, and the bubble then says
+ * nothing of where. Never a guess from the lead's kind: a lead brought in on a list is a place too.
  */
-function foundWords(lead: SlotLead): string {
-  const source = lead.source;
-  if (source === "maps" || source === "local_businesses") return F.fromMaps;
-  if (source === "people_at_companies") return F.fromDirectory;
-  if (source) return F.fromList;
-  return lead.kind === "company" ? F.fromDirectory : F.fromMaps;
-}
-
-/** What the blank `slot` says for this lead; null for the line, the receptionist's link, or a name that is no blank. */
-export function fillInSaysOf(slot: string, lead: SlotLead): FillInSays | null {
-  const found = foundWords(lead);
+export function fillInSaysOf(slot: string, lead: SlotLead, found: string | null): FillInSays | null {
+  const from = found ? F.source(found) : null;
   switch (slot) {
     case "business":
     case "company":
-      return { title: F.business, from: found, varies: F.each };
+      return { title: F.business, from, varies: F.each };
     case "city":
-      return { title: F.city, from: found, varies: F.each };
+      return { title: F.city, from, varies: F.each };
     case "first name":
       return { title: F.firstName, from: leadAddresseeOf(lead)?.first_name ? F.named : F.nobody, varies: F.each };
     case "title":
@@ -157,8 +153,12 @@ interface PreviewMark {
 export function previewMarkOf(dto: LeadPreviewDto | null, now: Date): PreviewMark | null {
   if (!dto) return null;
   const preview = dto.preview;
-  if (!preview) return dto.makes ? { say: F.mark.none, tone: "quiet" } : { say: F.mark.notOurs, tone: "warn" };
-  if (preview.state === "building") return { say: F.mark.building, tone: "busy" };
+  if (!preview) {
+    if (!dto.makes) return { say: F.mark.notOurs, tone: "warn" };
+    return dto.cannot ? { say: F.mark.cannot, tone: "warn" } : { say: F.mark.none, tone: "quiet" };
+  }
+  if (preview.state === "building")
+    return { say: previewBuildSlow(preview, now) ? F.mark.slow : F.mark.building, tone: "busy" };
   if (preview.state === "failed") return { say: F.mark.failed, tone: "warn" };
   if (preview.state === "claimed") return { say: F.mark.claimed, tone: "done" };
   return previewClaimable(previewStateOf(preview, now))

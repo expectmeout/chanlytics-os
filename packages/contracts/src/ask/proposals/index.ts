@@ -27,6 +27,7 @@ export {
 } from "./follow-ups";
 export type { AskFollowUp, FollowUpWake, FollowUpWorld } from "./follow-ups";
 export { ASK_THREAD_ROUTES } from "./inbox";
+export { MESSAGE_CHANGE_WORDS } from "./messages";
 export { addProposalSpecs, askUndoOpen, cardOpenRoute, PROPOSAL_GATE, proposalSpec, verbSpec } from "./page-specs";
 export { PAGE_SPECS } from "./page-specs";
 export type { VerbKind } from "./page-specs";

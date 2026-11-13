@@ -7,13 +7,15 @@
  * (meta-templates.ts); the template is the row (templateScope), and the route declares who may and how often.
  */
 import { z } from "zod";
-import { AppError, TEMPLATE_TITLE_MAX, playbooksStillSending } from "@chanlytics/contracts";
+import { AppError, DbFailure, TEMPLATE_TITLE_MAX, playbooksStillSending } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 import { deleteTemplate, recordTemplateEvent } from "@/server/campaigns/meta-templates";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { templateScope } from "@/server/shared/verbs";
 import { WHATSAPP_ACCOUNT_MISSING, WHATSAPP_NO_TOKEN } from "@/server/campaigns/whatsapp-refusals";
 import { TemplateWords, sendWordsBack } from "@/server/campaigns/template-words";
+import type { ReviewWords } from "@/server/campaigns/whatsapp-refusals";
 import {
   countLiveRunsOfTemplate,
   listRunningStepsOfTemplate,
@@ -36,8 +38,14 @@ export const TemplateChange = z
     "Say what changes: whether it is hidden, its title, or its words.",
   );
 
-export async function changeTemplate(ctx: RouteContext, tpl: TemplateRow, input: z.infer<typeof TemplateChange>) {
-  if (input.words) return sendWordsBack(ctx, tpl, input.words);
+/** `review`: a reader's look at changed words before they are sent to WhatsApp (whatsapp-refusals.ts), the route's to hand in. */
+export async function changeTemplate(
+  ctx: RouteContext,
+  tpl: TemplateRow,
+  input: z.infer<typeof TemplateChange>,
+  review?: ReviewWords,
+) {
+  if (input.words) return sendWordsBack(ctx, tpl, input.words, review);
   const id = tpl.id;
   const hasHidden = input.hidden !== undefined;
   const hasTitle = input.title !== undefined;
@@ -63,6 +71,25 @@ export async function changeTemplate(ctx: RouteContext, tpl: TemplateRow, input:
   };
 }
 
+/**
+ * Why a message cannot be deleted now, or null: a send using it (the job checks the template at each batch and would fail
+ * the broadcast), or a running playbook that sends it (it would skip every run from now on), named, so the owner can pause
+ * it or give it another message first; a paused one runs nothing, and the page names it before the delete. This door's,
+ * and Ask's card's (ask/tools/act/message-change.ts), so a card never promises what this refuses.
+ */
+export async function getDeleteRefusal(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  key: { name: string; language: string },
+): Promise<string | null> {
+  const { count, error } = await countLiveRunsOfTemplate(ctx.supabase, tenantId, key);
+  if (error) throw new DbFailure(error, "sends of a template");
+  if (count) return "A send is still using this message. Cancel it first.";
+  const { data: running, error: pErr } = await listRunningStepsOfTemplate(ctx.supabase, tenantId, key);
+  if (pErr) throw new DbFailure(pErr, "steps that send a template");
+  return running?.length ? playbooksStillSending(running.map((p) => String(p.name))) : null;
+}
+
 export async function deleteTemplateRow(ctx: RouteContext, tpl: TemplateRow) {
   const SAID: Record<string, string> = {
     preview: "Deleting only works on the production dashboard.",
@@ -73,14 +100,8 @@ export async function deleteTemplateRow(ctx: RouteContext, tpl: TemplateRow) {
     write_failed: "The template could not be removed here. Sync from Meta and try again.",
   };
   const id = tpl.id;
-  const { count, error: bErr } = await countLiveRunsOfTemplate(ctx.supabase, tpl.tenant_id, tpl);
-  if (bErr) throw new Error(bErr.message);
-  if (count) throw new AppError("conflict", "A send is still using this message. Cancel it first.", 409);
-  // A running playbook that sends it would skip every run from now on: named, so the owner can pause it or give
-  // it another message first. A paused one runs nothing, and the page names it before the delete.
-  const { data: running, error: pErr } = await listRunningStepsOfTemplate(ctx.supabase, tpl.tenant_id, tpl);
-  if (pErr) throw new Error(pErr.message);
-  if (running?.length) throw new AppError("conflict", playbooksStillSending(running.map((p) => String(p.name))), 409);
+  const refused = await getDeleteRefusal(ctx, tpl.tenant_id, tpl);
+  if (refused) throw new AppError("conflict", refused, 409);
 
   const result = await deleteTemplate(tpl.tenant_id, id, ctx.userId);
   if (!result.ok) {

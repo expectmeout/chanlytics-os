@@ -196,7 +196,7 @@ test("a message is written in another language only when it comes whole: the wor
     name: "offer",
     language: "en_US",
     category: "marketing",
-    body: "Hi {{1}}.",
+    body: "Hi {{1}}, come by this week.",
     examples: ["Dani"],
     button: { text: "Book now", url: "https://booksy.com/luna" },
   });
@@ -209,7 +209,7 @@ test("a message is written in another language only when it comes whole: the wor
 
 /* ------------------------------ the server's half ------------------------------ */
 
-const facts = { businessName: "Luna Studio", services: [{ name: "Colour" }], guardrails: [] };
+const facts = { businessName: "Luna Studio", services: [{ name: "Colour" }], guardrails: [], messageRules: [] };
 const source = (over = {}) => ({
   name: "winback_offer",
   category: "marketing",
@@ -248,6 +248,36 @@ test("the assistant is told the language by its name and its place, and never 'E
   );
 });
 
+test("a message is written under a message's rules, never the receptionist's: no 'automated assistant', the owner's figures kept", async () => {
+  // A rewrite on the live demo added "this is the business's automated assistant" to an owner's note (12 Nov 2026): the
+  // writers were handed the receptionist's rules. Now both read the business's own, made from the same settings.
+  const { workspaceFacts } = await import("../../apps/dashboard/src/server/ask/prompt/stable-system.ts");
+  const brain = {
+    business_name: "Luna Studio",
+    booking_link: "https://book.example/luna",
+    system_prompt: "Answer as the front desk of Luna Studio: brief and warm.",
+    fallbacks: { greeting: "g", error: "e", non_text: "n" },
+  };
+  const config = { brain: { ...brain, profile: { address: "1 Pier Rd", guardrails: { no_health_advice: true } } } };
+  const real = workspaceFacts("Luna Studio", "America/New_York", config, new Date("2026-11-12T15:00:00Z"));
+  assert.ok(
+    real.guardrails.some((g) => /automated assistant/.test(g)),
+    "the receptionist still says it is automated",
+  );
+  for (const prompt of [
+    server.draftSystemPrompt(real, "marketing", "en_US"),
+    server.rewriteSystemPrompt(real, "whatsapp", "en_US"),
+    server.rewriteSystemPrompt(real, "email", "en_US"),
+  ]) {
+    assert.doesNotMatch(prompt, /always says it is the business's automated assistant/, prompt);
+    assert.doesNotMatch(prompt, /never quotes or confirms a price/, "an owner's offer keeps its own figure");
+    assert.match(prompt, /does not speak as the receptionist or say it is automated/);
+    assert.match(prompt, /keeps every price, figure and date the owner gave exactly as given/);
+    assert.match(prompt, /gives no health advice/, "the business's own forbidding still holds");
+  }
+  assert.match(server.rewriteSystemPrompt(real, "sms", "en_US"), /add nothing the owner did not ask for/);
+});
+
 test("a translation comes back as the same message: its name, its slots, a name and a link kept as they are, and the check a submission passes", () => {
   const good = server.translatedDraft(
     source({ button: { text: "Book now", url: "https://booksy.com/luna" } }),
@@ -283,7 +313,7 @@ test("a translation comes back as the same message: its name, its slots, a name 
   // A slot's typed words are translated.
   const typed = server.translatedDraft(
     source({
-      body: "Hi {{1}}, {{2}}",
+      body: "Hi {{1}}, this week: {{2}}. See you soon.",
       examples: ["Dani", "we open late on Thursdays"],
       labels: ["First name", "The note"],
       kinds: ["first_name", "text"],
@@ -291,7 +321,7 @@ test("a translation comes back as the same message: its name, its slots, a name 
     }),
     "es",
     {
-      body: "Hola {{1}}, esta semana: {{2}}",
+      body: "Hola {{1}}, esta semana: {{2}}. Hasta pronto.",
       footer: "Responde STOP para darte de baja",
       examples: ["Dani", "abrimos tarde los jueves"],
     },

@@ -275,6 +275,11 @@ export interface WorkspaceFacts {
   services: Array<{ name: string; duration_min?: number; price_note?: string }>;
   languages: string[];
   guardrails: string[];
+  /**
+   * The rules a message the business sends in its own name keeps (messageRulesOf): Messages' writers read these, never the
+   * receptionist's (`guardrails`), which speak for it in a conversation.
+   */
+  messageRules: string[];
   /** The notes the receptionist is told today (contracts notesInForce), each with its last day where it has one. */
   notes: Note[];
   bookingNotes: string[];
@@ -286,6 +291,20 @@ export interface WorkspaceFacts {
   visionOn: boolean;
   /** The Autonomy rows, "Replies: auto" each, in the matrix's order; empty when the rows could not be read. */
   autonomy: string[];
+}
+
+/**
+ * The rules a message keeps that the business sends in its own name, the owner's words and figures (Messages, 12 Nov 2026):
+ * not the receptionist's. The receptionist speaks for the business in a conversation, so it says it is automated and
+ * quotes no price the switch forbids; a message is the business's own, so it never speaks as the receptionist, and keeps
+ * the owner's own figures as given, adding none. Health advice, where the business forbade it, is no message's either.
+ */
+function messageRulesOf(rules: { no_health_advice: boolean }): string[] {
+  return [
+    "Each message is the business's own, sent in its name: it does not speak as the receptionist or say it is automated, unless the owner's words do.",
+    "It keeps every price, figure and date the owner gave exactly as given, and adds none they did not give.",
+    ...(rules.no_health_advice ? ["It gives no health advice."] : []),
+  ];
 }
 
 /** What the calendar is fed by, as the settings alone say it: a link, a booking tool's emails, or the owner's own hands. */
@@ -333,6 +352,7 @@ export function workspaceFacts(
     services: (profile?.services ?? []).slice(0, 40),
     languages: profile?.languages ?? [],
     guardrails,
+    messageRules: messageRulesOf(result),
     // The composer's own rule and day (contracts notesInForce), then the ten Ask is told of.
     notes: notesInForce(profile?.notes, timezone, now).slice(0, 10),
     bookingNotes: profile?.booking_rules?.notes ?? [],

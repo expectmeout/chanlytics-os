@@ -146,7 +146,9 @@ export function BtBookingChoiceRow({
   const held = BUSINESS_TAB.bookingHeld(read.map);
   const linkInChat = BUSINESS_TAB.offersBookingLink(brain);
   const takes = BUSINESS_TAB.takesBookingRequests({ switchOn, linkInChat, bookingHeld: held });
-  const calendar = !!config?.calendar?.ical_url;
+  // The calendar the openings are read from (contracts calendarFeedKeyOf): its link, or the Google calendar a connected
+  // mailbox reads, as What it can do asks (can.tsx). The link alone was asked here until 13 Nov 2026.
+  const calendar = BUSINESS_TAB.calendarFeedKeyOf(config) !== null;
   const facts = { switchOn, held, linkInChat, takes, calendar };
   return (
     <ChoiceRow

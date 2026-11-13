@@ -285,8 +285,9 @@ function sequencesRead(scope: AskScope): ToolRun | null {
   // A campaign or a sequence, the one open, as its record shows it (every such thing is a sequence): never the whole list.
   if (scope.kind === "playbook" || scope.kind === "sequence")
     return { name: "sequences", input: { action: "sequence", sequence_id: scope.id } };
-  // A message of the Library: the Library is read whole, and the chip says which one by its name.
-  if (scope.kind === "message") return { name: "sequences", input: { action: "messages" } };
+  // A message of the Library: that message alone, by the name it is stored by, its words whole, so a change of them is
+  // written from the words it has (the message sheet's review, 12 Nov 2026).
+  if (scope.kind === "message") return { name: "sequences", input: { action: "messages", name: scope.id } };
   return null;
 }
 

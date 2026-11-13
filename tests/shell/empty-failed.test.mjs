@@ -493,7 +493,7 @@ test("Worth knowing is made from the numbers it is drawn from, once, by the page
 /* -------------------- Settings › Team, with a failed read ---------------- */
 
 Object.assign(globalThis.window, {
-  __ME: { email: "ruben@rjcapital.io", role: "owner" },
+  __ME: { email: "ruben@rjcapital.example", role: "owner" },
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
     initials: (n, e) =>
