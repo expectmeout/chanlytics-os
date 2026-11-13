@@ -1,46 +1,17 @@
 /**
  * What stands over both of Content's lists, the same on Made and on the Library (Ruben, 12 Nov 2026: one way for both): one
- * line to find by words, one amber line for what waits on the owner, a head with the way back to All where a list shows what
- * was set aside or what waits, and a quiet press at the foot of All for what was set aside.
+ * line to find by words, a head with the way back to All where a list shows what was set aside or what waits, and a quiet
+ * press at the foot of All for what was set aside. What waits on the owner is each list's first group, under its heading
+ * (body.tsx MadeGroups, files/library-groups.tsx), where an amber line led to it.
  */
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { CONTENT_WORDS as W, FILE_WORDS, type ContentPageDto, type FilesPageDto } from "@chanlytics/contracts";
-import { canDo, refreshSurface } from "../../frame-verbs";
+import { refreshSurface } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
-import { Icon } from "../../kit/icon/icon";
-import { Press } from "../../kit/press";
 import { FindWords } from "../../files/library-views";
 import { showFiles, type FilesView } from "../../files/surface";
 import { useSurface } from "../../use-surface";
 import { askContentFind } from "./surface";
-
-/**
- * One amber line over a list while something waits on the owner (the content canvas's "1 post didn't go out · Try again"):
- * what, and the one thing to do, the whole line one press. Made says what did not go out; the Library, what was found and
- * waits for a yes.
- */
-export function OwedLine({
-  said,
-  act,
-  onPress,
-  testid,
-}: {
-  said: string;
-  act: string;
-  onPress: () => void;
-  testid: string;
-}) {
-  return (
-    <Press className="cnv-needs" onClick={onPress} data-testid={testid}>
-      <span className="cnv-dot" aria-hidden="true" />
-      <span className="cnv-needs-words">{said}</span>
-      <span className="cnv-needs-act">
-        {act}
-        <Icon name="chevron" size={11} />
-      </span>
-    </Press>
-  );
-}
 
 /** Where a list stands apart from All (what was set aside, what waits): the way back, and what it is, with how many. */
 export function BackHead({
@@ -89,58 +60,61 @@ function useLibraryView(): { view: FilesView; dto: FilesPageDto } | null {
  * Add that vanishes as the read lands would be a press promised and taken back.
  */
 export function WhileLibraryHolds({ children }: { children: ReactNode }) {
+  return useLibraryHolds() ? <>{children}</> : null;
+}
+
+/** Whether the Library holds anything, as its own read says: not until it is read. */
+export function useLibraryHolds(): boolean {
   const held = useLibraryView();
-  return !held || held.dto.tally.total === 0 ? null : <>{children}</>;
+  return !!held && held.dto.tally.total > 0;
 }
 
-/** Made's search: All found by its words, read again as they change. Over All alone, as the Library's is over all it keeps. */
-function MadeFind({ dto }: { dto: ContentPageDto }) {
-  return (
-    <FindWords
-      about={dto.about}
-      onFind={(about) => {
-        if (askContentFind(about)) void refreshSurface("content");
-      }}
-      placeholder={W.find}
-      testid="cnv-find"
-    />
-  );
+/** How a find line is drawn: on a phone folded while it holds no words, its field the bar's glyph puts the caret in. */
+interface FindDrawn {
+  inputRef?: Ref<HTMLTextAreaElement>;
+  folds?: boolean;
 }
 
-/** The Library's search, over all it keeps: what waits or was set aside says where it is instead. */
-function LibraryFind() {
-  const held = useLibraryView();
-  if (!held || held.view.shelf !== "all" || held.dto.tally.total === 0) return null;
-  const { view } = held;
-  return (
-    <FindWords
-      about={view.about}
-      onFind={(about) => void showFiles({ ...view, about }).catch(() => undefined)}
-      placeholder={FILE_WORDS.find}
-      testid="fl-find"
-    />
-  );
+/** The find line of the list shown: the words it holds, what it is called, and what finding does. */
+export interface ContentFindLine {
+  about: string | null;
+  label: string;
+  testid: string;
+  onFind: (about: string | null) => void;
 }
 
-/** The one search line under the bar, the list's own: Made's over All, the Library's over all it keeps. */
-export function ContentFind({ library, made }: { library: boolean; made: ContentPageDto | null | undefined }) {
-  if (library) return <LibraryFind />;
-  if (!made || made.view !== "all" || (made.tally.made === 0 && !made.about)) return null;
-  return <MadeFind dto={made} />;
+/**
+ * The find line of the list shown, or null where the list draws none: Made's over All, where anything was made or a search
+ * stands; the Library's over all it keeps, where it keeps anything (what waits or was set aside says where it is instead).
+ * Asked once, by the page: a phone's bar shows the search's glyph while the line holds no words, as People's and the Inbox's
+ * do, and the line is drawn from the same answer (ContentFind), so the two never differ.
+ */
+export function useContentFind(library: boolean, page: ContentPageDto | null | undefined): ContentFindLine | null {
+  const files = useLibraryView();
+  if (library) {
+    if (!files || files.view.shelf !== "all" || files.dto.tally.total === 0) return null;
+    const { view } = files;
+    return {
+      about: view.about,
+      label: FILE_WORDS.find,
+      testid: "fl-find",
+      onFind: (about) => void showFiles({ ...view, about }).catch(() => undefined),
+    };
+  }
+  if (!page || page.view !== "all" || (page.tally.made === 0 && !page.about)) return null;
+  return {
+    about: page.about,
+    label: W.find,
+    testid: "cnv-find",
+    // All found by its words, read again as they change.
+    onFind: (about) => {
+      if (askContentFind(about)) void refreshSurface("content");
+    },
+  };
 }
 
-/** The Library's amber line: what was found on the website or Google and waits for a yes, with Look. Not while it is searched. */
-export function LibraryOwed() {
-  const held = useLibraryView();
-  if (!held || !canDo("settings")) return null;
-  const { view, dto } = held;
-  if (view.shelf !== "all" || view.about || dto.tally.waiting === 0) return null;
-  return (
-    <OwedLine
-      said={FILE_WORDS.waitingLine(dto.tally.waiting)}
-      act={FILE_WORDS.look}
-      onPress={() => void showFiles({ shelf: "inbox", kind: null, about: null }).catch(() => undefined)}
-      testid="fl-waiting"
-    />
-  );
+/** The one search line under the bar, the list's own (useContentFind); nothing where the list draws none. */
+export function ContentFind({ find, drawn = {} }: { find: ContentFindLine | null; drawn?: FindDrawn }) {
+  if (!find) return null;
+  return <FindWords about={find.about} onFind={find.onFind} placeholder={find.label} testid={find.testid} {...drawn} />;
 }

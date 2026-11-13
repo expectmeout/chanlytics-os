@@ -3,6 +3,7 @@ import {
   answerStyleOf,
   AppError,
   MIN_MS,
+  SECOND_MS,
   answerText,
   detectLanguage,
   fileSaidOf,
@@ -107,7 +108,15 @@ interface PreparedTurn {
   timezone: string;
   language: AskLanguage;
   personLabel: string;
+  /** When the request began (epoch ms): what is acted on alone after the answer is saved must end inside its limit. */
+  begunAt: number;
 }
+
+/**
+ * How long the request a turn runs in may take: the Ask route's and the morning's own `maxDuration` (150 s, the turn's two
+ * minutes and the time to store its answer). Past it the platform ends the request, whatever is still running.
+ */
+const ASK_ROUTE_MS = 150 * SECOND_MS;
 
 /**
  * The workspace's facts as a turn's stable block says them, and its zone: read once here for a turn and for its warm
@@ -159,6 +168,7 @@ async function filesAsked(ctx: RouteContext, tenantId: TenantId, ids: readonly s
 }
 
 export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: AskTurnAsk): Promise<PreparedTurn> {
+  const begunAt = Date.now();
   const { text, threadId, answering } = ask;
   const tenantId = member.tenantId;
 
@@ -216,8 +226,26 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
     timezone,
     language,
     personLabel,
+    begunAt,
   };
 }
+
+/**
+ * What the rows let run with no press (D10 of the answers canvas), off until an owner turns it on: the saved turn's cards, each
+ * started only with time to end inside the request's own limit. Outside a request (the morning's own turn), none.
+ */
+const runCardsAlone = (turn: PreparedTurn, savedId: string, proposals: AskProposal[]): Promise<AskProposal[]> =>
+  turn.ask.request
+    ? runAlone(
+        turn.ctx,
+        turn.ask.request,
+        turn.member,
+        savedId,
+        proposals,
+        new Date(),
+        turn.begunAt + ASK_ROUTE_MS,
+      ).catch(logAndGoOn("run alone", proposals))
+    : Promise.resolve(proposals);
 
 /**
  * A turn the person stopped (the route's `stop`), however far it got: kept as stopped, with what its Say had written as
@@ -381,13 +409,7 @@ export async function finishAskTurn(
   // A new search card sets aside the one still waiting above it (a change said to Ask): one search card in a thread
   // can be pressed, the newest. The Line sets the same cards aside as the answer lands (contracts withAnswerLanded).
   if (saved) await setAsideReplaced(ctx, cards, proposals, tenantId);
-  // What the rows let run with no press (D10 of the answers canvas): off until an owner turns it on.
-  const acted =
-    saved && ask.request
-      ? await runAlone(ctx, ask.request, member, saved.id, proposals, new Date()).catch(
-          logAndGoOn("run alone", proposals),
-        )
-      : proposals;
+  const acted = saved ? await runCardsAlone(preparedTurn, saved.id, proposals) : proposals;
   const message: AskMessageVM = {
     id: saved?.id ?? `unsaved-${Date.now()}`,
     role: "assistant",

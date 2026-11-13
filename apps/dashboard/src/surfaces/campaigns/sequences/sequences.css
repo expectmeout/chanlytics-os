@@ -9,51 +9,9 @@
   gap: 6px;
   padding: var(--space-4) var(--space-4) var(--space-2);
 }
-/* The view over the search, as Pipeline's "All deals 1 ⌄" stands over its (clients.css .pp-bar-pick): the view's name in the
-   base size's semibold, how many it holds beside it in a dim medium, the chevron dim; quiet words a thumb tall, no ground. */
-.sq-view-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 34px;
-}
-/* A thumb's 44px to press, standing in Pipeline's 34 (its ::after reaches the same 5px over and under): the words 4px in
-   from the search's edge, as Pipeline's sit over its. */
-.sq-view-pick {
-  gap: 6px;
-  min-width: 0;
-  margin-block: -5px;
-  padding-inline: 3px 0;
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-  color: var(--ink);
-}
-.sq-view-words {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.sq-view-count {
-  flex: none;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--ink-dim);
-  font-variant-numeric: tabular-nums;
-}
-.sq-view-pick .icon {
-  flex: none;
-  color: var(--ink-dim);
-}
-/* Its right: quiet words, as Pipeline's Select, Sort and Export stand at its bar's end (clients.css .pp-bar-acts), each a
-   thumb's 44px in the row's 34; Type says the type it keeps in the ink of a word that is on. */
-.sq-view-acts {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-1);
-  margin-left: auto;
-}
+/* The row over the search is Campaigns' one top (parts/list-top.tsx, campaigns.css .cm-list-bar); Type and Sort are its
+   quiet words, as Pipeline's Select, Sort and Export stand at its bar's end (clients.css .pp-bar-acts), each a thumb's 44px
+   in the row's 34; Type says the type it keeps in the ink of a word that is on. */
 .sq-view-act {
   margin-block: -5px;
   font-size: var(--text-sm);
@@ -74,12 +32,17 @@
 @media (max-width: 900px) {
   .cm-split:not([data-open]) .sq-list-head,
   .cm-split > [data-held] .sq-list-head {
-    padding: 0 0 var(--space-2);
+    padding: 0;
   }
   .cm-split:not([data-open]) .sq-list-rows,
   .cm-split > [data-held] .sq-list-rows {
     gap: 0;
     padding: 0 0 var(--space-4);
+  }
+  /* The top is Campaigns' one (campaigns.css, .cm-list-bar on a phone): the search under it, nothing between them. */
+  .cm-split:not([data-open]) .sq-list-head,
+  .cm-split > [data-held] .sq-list-head {
+    gap: 0;
   }
   /* A row keeps its fill under a finger, as the Inbox's and People's do: the row last opened stays lit, the list's
      selection, and so does the one a record was opened from while the record stands over the list and once it is back
@@ -99,27 +62,6 @@
   .sq-row:is(:hover, [data-hover]) + .sq-row::after {
     opacity: 0;
   }
-  /* A group's head as the Pipeline's section head is on a phone (kit.css, the stages' groups; Ruben, 20 Oct
-     2026: "the different groups like proposal out and clients looks cleaner"): its name in ink at the base step and
-     semibold, its count beside it at the small step, a hairline under the head across the list, and the head's own
-     room above it parting one group from the next. */
-  .sq-list-rows > .sq-group > .sq-group-name {
-    align-items: baseline;
-    gap: 6px;
-    /* The hairline across the list as the Pipeline's spans its table, 8px past the rows at either side. */
-    margin-inline: -8px;
-    padding: 18px 16px 8px;
-    border-bottom: 1px solid var(--line);
-    font-size: var(--text-sm);
-    font-weight: var(--weight-regular);
-    line-height: 18px;
-    color: var(--ink-dim);
-  }
-  .sq-list-rows > .sq-group > .sq-group-name > .sq-group-label {
-    font-size: var(--text-base);
-    font-weight: var(--weight-semibold);
-    color: var(--ink);
-  }
 }
 .sq-group {
   display: flex;
@@ -137,6 +79,30 @@
 }
 .sq-group-act {
   margin-left: auto;
+}
+/* The list's groups wear the one heading every list draws (kit/head/group-head.tsx; components.css .group-head), which
+   is a phone's whole look (Ruben, 20 Oct 2026: as the Pipeline's stages are). On a desk the list is a pane's: the
+   heading is the pane's small label, with no hairline, as a record's own headings are (.sq-group-name). */
+@media (width > 900px) {
+  .sq-list-rows > .sq-group > .group-head {
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-2) var(--space-1);
+    border-bottom: 0;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    line-height: inherit;
+    color: var(--ink-muted);
+  }
+  .sq-list-rows > .sq-group > .group-head > .group-head-name {
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+  }
+  .sq-list-rows > .sq-group > .group-head > .group-head-count {
+    font-weight: var(--weight-medium);
+    color: var(--ink-dim);
+  }
 }
 .sq-reading {
   min-height: var(--space-20);

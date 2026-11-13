@@ -1,5 +1,5 @@
 /**
- * A page of People reads its own people's reply modes (people_reply_modes, 00624), on a real database.
+ * A page of People reads its own people's reply modes (people_reply_modes, 00625), on a real database.
  *
  * The page is people_page's, taken with the arguments people_list takes, so the two reads name the same people; each
  * person's mode is their own reply policy, else the workspace's, else none. What this proves: the same people as

@@ -10791,6 +10791,31 @@ export type Database = {
         Args: { p_history?: number; p_tenant_id: string }
         Returns: Json
       }
+      policy_change: {
+        Args: {
+          p_class: string
+          p_limits?: Json
+          p_mode?: string
+          p_tenant_id: string
+          p_via?: string
+        }
+        Returns: {
+          class: string
+          id: string
+          limits: Json
+          mode: string
+          subject_id: string | null
+          subject_type: string | null
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "policies"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       post_again: {
         Args: { p_from: string; p_post_id: string }
         Returns: boolean

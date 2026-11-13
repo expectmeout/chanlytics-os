@@ -1,4 +1,4 @@
--- 00624 · The receptionist's day is one sum, and a page of People reads its own people's reply modes.
+-- 00625 · The receptionist's day is one sum, and a page of People reads its own people's reply modes.
 --
 -- llm_tokens_since        The budget a workspace's receptionist answers within (the reply policy's
 --                         max_llm_tokens_day) paged every usage.llm_tokens event of the last 24 hours to the edge and
@@ -39,7 +39,7 @@ $$;
 revoke execute on function public.llm_tokens_since(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function public.llm_tokens_since(uuid, timestamptz) to service_role;
 comment on function public.llm_tokens_since(uuid, timestamptz) is
-  'The workspace''s receptionist tokens (input and output of every usage.llm_tokens event; a value that is not a number counts nothing) from p_since on: what the edge''s budget weighs against the reply policy''s max_llm_tokens_day, one statement however busy the day (00624). Service role only.';
+  'The workspace''s receptionist tokens (input and output of every usage.llm_tokens event; a value that is not a number counts nothing) from p_since on: what the edge''s budget weighs against the reply policy''s max_llm_tokens_day, one statement however busy the day (00625). Service role only.';
 
 create or replace function public.people_reply_modes(
   p_tenant_id uuid,
@@ -73,4 +73,4 @@ revoke execute on function public.people_reply_modes(uuid, text, integer, intege
 grant execute on function public.people_reply_modes(uuid, text, integer, integer, timestamptz, timestamptz, uuid)
   to authenticated, service_role;
 comment on function public.people_reply_modes(uuid, text, integer, integer, timestamptz, timestamptz, uuid) is
-  'The reply mode in force for each person on one page of People: their own reply policy, else the workspace''s, else null. The page is people_page''s, taken with the arguments people_list takes (p_query, p_limit, p_offset, p_after_at, p_after_added, p_after_id), so a page''s rows and its modes are read side by side (00624). Row security decides what it sees.';
+  'The reply mode in force for each person on one page of People: their own reply policy, else the workspace''s, else null. The page is people_page''s, taken with the arguments people_list takes (p_query, p_limit, p_offset, p_after_at, p_after_added, p_after_id), so a page''s rows and its modes are read side by side (00625). Row security decides what it sees.';

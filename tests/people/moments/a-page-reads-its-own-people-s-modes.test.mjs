@@ -1,5 +1,5 @@
 /**
- * A page of People reads its own people's reply modes, and nobody else's (people_reply_modes, 00624).
+ * A page of People reads its own people's reply modes, and nobody else's (people_reply_modes, 00625).
  *
  * Beside each page of people the page read every reply policy the workspace held, a thousand rows a read, however many
  * people had a mode of their own: a workspace that set a mode for thousands of people paid for all of them on every
@@ -47,7 +47,7 @@ const policies = [
   { id: policyId(5000), tenant_id: A, class: "reply", subject_type: null, subject_id: null, mode: "veto" },
 ];
 
-/** The database in memory answers people_reply_modes as 00624 writes it, over this world's page and policies. */
+/** The database in memory answers people_reply_modes as 00625 writes it, over this world's page and policies. */
 const ctxOf = () => {
   const db = fakeDb({ policies, contacts: [] }, {}, { people_list: peopleList });
   return { db, ctx: { supabase: db } };

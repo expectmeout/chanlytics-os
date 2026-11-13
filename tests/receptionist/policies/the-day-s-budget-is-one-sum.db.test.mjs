@@ -1,5 +1,5 @@
 /**
- * The receptionist's day is one sum (00624).
+ * The receptionist's day is one sum (00625).
  *
  * The edge's budget stops a workspace's automatic replies once its last 24 hours of receptionist tokens reach the reply
  * policy's max_llm_tokens_day (core reply-gates.ts, apps/edge/lib/ai/budget.ts). It paged every usage.llm_tokens event

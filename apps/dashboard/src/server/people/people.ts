@@ -86,7 +86,7 @@ export async function listPeople(
   tenantId: TenantId,
   page: PeoplePage = {},
 ): Promise<PersonRowDto[]> {
-  // The page's reply modes with its rows, not after them, and its own people's alone (people_reply_modes, 00624): it
+  // The page's reply modes with its rows, not after them, and its own people's alone (people_reply_modes, 00625): it
   // read every reply policy of the workspace beside each page, however many people had a mode of their own.
   const thisPage = { ...page, q: searchNeedle(page.q) || null };
   const [rows, modes] = await Promise.all([

@@ -125,9 +125,9 @@ function pageOf(pieces: readonly ContentMadeDto[], query: URLSearchParams): Cont
       scheduled: all.filter((l) => waits(l.post)).length,
       library: 0,
       aside: 0,
+      waiting: 0,
     },
     ideas: [],
-    needsOne: null,
     about: null,
   };
 }

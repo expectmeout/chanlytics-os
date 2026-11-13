@@ -96,6 +96,17 @@ export async function showFiles(view: FilesView): Promise<void> {
   show(landed);
 }
 
+/**
+ * What was found online and waits for a yes, read beside the view on show: the Library draws it under its own heading over
+ * all it keeps (library-groups.tsx; Ruben, 12 Nov 2026: a heading over them, where a line led to them). Kept as that view
+ * was last seen too, so its own view shows at a press.
+ */
+export async function readFilesWaiting(): Promise<FilesPageDto> {
+  const dto = await read("GET files", { query: { shelf: "inbox" } });
+  seen.set(viewKeyOf(viewOf(dto)), { dto, fetchedAt: Date.now() });
+  return dto;
+}
+
 /** The next page of the view on show, after what is there. A read again then asks for all of it at once, as long as it now is. */
 export async function showMoreFiles(): Promise<void> {
   const held = surfaceValue("files")?.dto;

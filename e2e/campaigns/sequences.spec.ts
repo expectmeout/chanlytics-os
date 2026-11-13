@@ -61,7 +61,7 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
       const group = rows.getByRole("region", { name: SEQUENCE_WORDS.groups[g], exact: true });
       const n = counts.get(g) ?? 0;
       if (n === 0) await expect(group).toHaveCount(0);
-      else await expect(group.locator(".sq-group-name .tally")).toHaveText(String(n));
+      else await expect(group.locator(".group-head .group-head-count")).toHaveText(String(n));
     }
     // A search narrows the rows to the names that hold it.
     const first = list.sequences[0];

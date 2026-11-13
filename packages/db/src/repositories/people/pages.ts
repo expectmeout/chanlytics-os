@@ -135,7 +135,7 @@ export async function listPeoplePage(db: Db, tenantId: TenantId, page: PeoplePag
 }
 
 /**
- * The reply mode in force for each person on one page of People, by id (people_reply_modes, 00624): their own reply
+ * The reply mode in force for each person on one page of People, by id (people_reply_modes, 00625): their own reply
  * policy, else the workspace's, else null. Asked with the page's own arguments (pageArgsOf), so it is read beside
  * listPeoplePage, names the same people, and reads no other person's policy. A read that fails THROWS.
  */

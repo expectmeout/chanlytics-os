@@ -4202,7 +4202,7 @@ const MESSAGE_ROWS_ASKED =
   "id, channel, name, language, meta_status, category, variables, hidden_at, title, source, components, body_preview, rejected_reason";
 /**
  * Every query GET contacts asked at origin/main (e3184cff) for peopleWorld's first page, in order, with the columns it
- * selected (and, since 3 Oct 2026, the two reads of what the workspace can send on). The workspace's door. The first stage at once: the page and how many match, then the page's reply modes (its own people's alone since 00624, 13 Nov 2026, where every reply policy was read).
+ * selected (and, since 3 Oct 2026, the two reads of what the workspace can send on). The workspace's door. The first stage at once: the page and how many match, then the page's reply modes (its own people's alone since 00625, 13 Nov 2026, where every reply policy was read).
  * The second at once: whether a deal is on file and the workspace's word (18 Oct 2026, where how its customers buy was
  * read), the calendar's zone and settings (the feed itself is fetched, never read from the database), who each step is
  * for, the pace; then, once a deal is on file, the proposal

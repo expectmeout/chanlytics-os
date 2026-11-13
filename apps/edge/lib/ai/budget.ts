@@ -5,7 +5,7 @@
  * Two readers of one stream, and its one writer. The budget check runs before
  * a reply (and before a reach-out reply's draft) and asks one question: has
  * this workspace used its day's tokens? The database answers it in one sum
- * (llm_tokens_since, 00624). The summary runs on the diagnostics
+ * (llm_tokens_since, 00625). The summary runs on the diagnostics
  * endpoint and describes the last day: how many replies, how sure, how fast,
  * how many held or handed off. recordTokens is the one place a model call's
  * usage is written, so the budget reads every token the receptionist spent.
@@ -114,7 +114,7 @@ async function usageRows(
  * the cap it serves is a margin, not an invoice. A failed read counts as
  * zero and says so — a budget must never silence a receptionist by accident.
  *
- * One statement, however busy the day (llm_tokens_since, 00624). It paged the
+ * One statement, however busy the day (llm_tokens_since, 00625). It paged the
  * day's events to the edge and added them here, a round trip per thousand
  * replies before every automatic reply, and stopped early only once the cap
  * was reached; a workspace comfortably under its cap had its whole day read

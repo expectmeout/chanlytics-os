@@ -1298,7 +1298,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       };
       return { allowance: of("allowance"), budget: of("budget") };
     },
-    // A page of People's reply modes (00624): the people the suite's people_list answers for the same page, each with
+    // A page of People's reply modes (00625): the people the suite's people_list answers for the same page, each with
     // their own reply policy, else the workspace's (the first by id), else none, as the SQL joins them.
     people_reply_modes: (a) => {
       if (!rpcs.people_list) throw new Error("fakeDb: people_reply_modes reads the page people_list answers; model it");
@@ -1310,7 +1310,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         mode: reply.find((p) => p.subject_type === "contact" && p.subject_id === id)?.mode ?? workspace?.mode ?? null,
       }));
     },
-    // The receptionist's day (00624): input and output of the workspace's usage.llm_tokens events from p_since on, a
+    // The receptionist's day (00625): input and output of the workspace's usage.llm_tokens events from p_since on, a
     // value that is not a number counting nothing, as the SQL sums them.
     llm_tokens_since: ({ p_tenant, p_since }) => {
       const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
@@ -1394,6 +1394,37 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       if (row.version !== p_version) return { outcome: "stale", version: null, updated_at: null, updated_by: null };
       Object.assign(row, { config: p_config, version: p_version + 1, updated_at: stampOf(tables), updated_by: null });
       return { outcome: "saved", version: row.version, updated_at: row.updated_at, updated_by: null };
+    },
+    // A policy's change, as one write (00624): the workspace's own row for the class takes the mode when one is given
+    // and the dials merged into its limits, and the change is on the ledger in the same write, the dials' names in
+    // the door's order. Who may call it, the money lock and what two callers at once leave are SQL's, proved on a stack
+    // in receptionist/policies/a-policy-save-is-one-step.db.test.mjs.
+    policy_change: ({ p_tenant_id, p_class, p_mode, p_limits, p_via }) => {
+      const row = (tables.policies ?? []).find(
+        (r) => r.tenant_id === p_tenant_id && r.class === p_class && r.subject_type == null,
+      );
+      if (!row) return null;
+      const dials = p_limits ?? {};
+      Object.assign(row, {
+        mode: p_mode ?? row.mode,
+        limits: { ...row.limits, ...dials },
+        updated_at: stampOf(tables),
+      });
+      insertRow("events", {
+        tenant_id: p_tenant_id,
+        kind: "policy.changed",
+        category: "system",
+        subject_type: "workspace",
+        subject_id: p_tenant_id,
+        data: {
+          class: row.class,
+          mode: row.mode,
+          fields: Object.keys(dials).sort(),
+          by: opts.userId ?? null,
+          ...(p_via ? { via: p_via } : {}),
+        },
+      });
+      return { ...row };
     },
     // A broadcast assembled whole (00282): the run, its people and its send job as one write, the way the database
     // makes them. Who may call it, and whose templates, playbooks and people it accepts, are SQL's, proved on a stack

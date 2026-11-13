@@ -197,6 +197,23 @@ export type PieceStandingRow = Pick<
 >;
 
 /**
+ * When the workspace's newest video that is being made, or was made, was asked for; null before its first. A video that
+ * could not be made stops waiting on the owner once a newer one was begun (the dashboard's readers/content.ts).
+ */
+export async function findNewestPieceBegun(db: Db, tenantId: TenantId): Promise<string | null> {
+  const { data, error } = await db
+    .from("pieces")
+    .select("created_at")
+    .eq("tenant_id", tenantId)
+    .in("status", ["making", "made"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "newest piece begun");
+  return data?.created_at ?? null;
+}
+
+/**
  * The videos being made, and the ones not made since `failedSince`, newest first, under the caller's RLS: Content's "Being
  * made". A workspace makes three at a time (contracts PIECES_MAKING_MAX), so a page reads a handful, by pieces_tenant_newest.
  */

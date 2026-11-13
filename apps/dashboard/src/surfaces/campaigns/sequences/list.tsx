@@ -11,7 +11,7 @@
  * them. First contact is no sequence (D7: the receptionist leaves the list), and the list says nothing of it (Ruben, 21 Oct
  * 2026: its foot line broke the group).
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   BAR_LINE_WORDS,
   SEQUENCE_WORDS,
@@ -38,6 +38,8 @@ import { PUSH_WAIT_MS, pushesOver } from "../../kit/motion/held-list";
 import { Search } from "../../kit/search/search";
 import { StatePill } from "../../kit/pill/state-pill";
 import { navigate, routeDoor } from "../../frame-verbs";
+import { GroupHead } from "../../kit/head/group-head";
+import { foldedLookup } from "../../kit/head/list-find";
 import { usePageSearch } from "../../kit/head/page-search";
 import { ListBar, groupedOf, type SequencesType, type SequencesView } from "./list-bar";
 import { useRecordsAhead } from "./use-record";
@@ -158,7 +160,9 @@ export function SequencesList({ page, openId }: SequencesListProps) {
     return groupedOf(sortedSequences(kept, sort), page.sequences);
   }, [page.sequences, type, sort]);
   // A view whose group has emptied since it was picked (the last one that needed you, answered) is every sequence again.
-  const view = picked === "all" || all.some((g) => g.group === picked) ? picked : "all";
+  const pickedView = picked === "all" || all.some((g) => g.group === picked) ? picked : "all";
+  // A search looks through every group, whichever is picked: a sequence in another group was "not found".
+  const view = words === "" ? pickedView : "all";
   const groups = all
     .filter((g) => view === "all" || g.group === view)
     .map((g) => ({
@@ -171,6 +175,10 @@ export function SequencesList({ page, openId }: SequencesListProps) {
   // The rows shown, in their order, read ahead once the frame is idle so a press opens a record the tab holds (use-record.ts).
   // Ended ones, folded at the foot, are history: none is read ahead.
   useRecordsAhead(groups.flatMap(({ group, rows }) => (group === "ended" ? [] : rows.map(({ row }) => row.id))));
+  // A phone's empty search rests in the bar's glyph, as People's and the Inbox's do (Ruben, 12 Nov 2026: one top for every
+  // list): the field stays drawn, so the glyph's press puts the caret in it, and it opens while it has the caret or words.
+  const findRef = useRef<HTMLInputElement>(null);
+  const folded = !inLine && !search && page.sequences.length > 0;
   return (
     <>
       <div className="sq-list-head">
@@ -184,30 +192,40 @@ export function SequencesList({ page, openId }: SequencesListProps) {
             onType={setType}
             sort={sort}
             onSort={setSort}
+            onFind={folded ? () => findRef.current?.focus() : null}
           />
         ) : null}
-        {!inLine && <Search label={SEQUENCE_WORDS.search} value={search} onChange={setSearch} testid="sq-search" />}
+        {!inLine && (
+          <Search
+            className={foldedLookup("cm-lookup", folded)}
+            label={SEQUENCE_WORDS.search}
+            value={search}
+            onChange={setSearch}
+            inputRef={findRef}
+            testid="sq-search"
+          />
+        )}
       </div>
       <div className="sq-list-rows" data-testid="sq-rows">
         {groups.map(({ group, rows }) => (
           <section key={group} className="sq-group" aria-label={SEQUENCE_WORDS.groups[group]}>
             {/* One group picked is said by the view over the search: its head would say it twice. */}
             {view === "all" ? (
-              <h3 className="sq-group-name">
-                {/* Its name its own, so a phone sets it as the Pipeline's section head sets its stage (sequences.css). */}
-                <span className="sq-group-label">{SEQUENCE_WORDS.groups[group]}</span>
-                <span className={group === "needs" ? "tally tally-warn" : "tally"}>{rows.length}</span>
-                {folds(group) ? (
-                  <LinkButton
-                    className="sq-group-act"
-                    onClick={() => setEndedOpen((v) => !v)}
-                    aria-expanded={endedOpen}
-                    data-testid="sq-ended-toggle"
-                  >
-                    {endedOpen ? SEQUENCE_WORDS.hideEnded : SEQUENCE_WORDS.showEnded(rows.length)}
-                  </LinkButton>
-                ) : null}
-              </h3>
+              <GroupHead
+                label={SEQUENCE_WORDS.groups[group]}
+                count={rows.length}
+                end={
+                  folds(group) ? (
+                    <LinkButton
+                      onClick={() => setEndedOpen((v) => !v)}
+                      aria-expanded={endedOpen}
+                      data-testid="sq-ended-toggle"
+                    >
+                      {endedOpen ? SEQUENCE_WORDS.hideEnded : SEQUENCE_WORDS.showEnded(rows.length)}
+                    </LinkButton>
+                  ) : null
+                }
+              />
             ) : null}
             {(folds(group) && !endedOpen ? [] : rows).map(({ row, twin }) => (
               <SequenceRow

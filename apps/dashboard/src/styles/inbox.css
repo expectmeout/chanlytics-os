@@ -4184,11 +4184,8 @@ html.frame-on .tl-email-fold-row > .tl-email-fold {
     background: transparent;
   }
   /* The buckets are the Inbox's sub-menu, so they are not a second capsule under the strip of views (components.css draws
-     that one): the kit's sub-tabs, at the page's gutter, 4px under the strip. */
-  .main:has(> .main-scroll > .inbox:not([data-takeover])) .pg-slot,
-  :root[data-carrying] .main:has(> .main-scroll > .inbox) .pg-slot {
-    padding-bottom: 4px;
-  }
+     that one): the kit's sub-tabs, at the page's gutter, 4px under the strip (said once, for every page: components.css, "The
+     room under the strip of views on a phone"). */
   .inbox .ix-list > .ix-buckets {
     order: 0;
   }
@@ -4214,13 +4211,10 @@ html.frame-on .tl-email-fold-row > .tl-email-fold {
     overflow-y: hidden;
     scrollbar-width: none;
   }
+  /* The search's glyph (kit/head/list-find.tsx) as tall as the row here: a thumb's 44px at the screen's edge. Its field
+     folds as every list's does (components.css .lookup-folded). */
   .inbox .ix-bucket-row > .ix-find {
-    flex: none;
-  }
-  .inbox .ix-list > [data-folded]:not(:focus-within) {
-    height: 0;
-    padding: 0;
-    overflow: hidden;
+    align-self: auto;
   }
   /* The search under the tabs, at the strip's sides (the capsule is the kit's, 38px). */
   .inbox .ix-list > :nth-child(2) {

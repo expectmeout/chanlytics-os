@@ -8,6 +8,7 @@ import type { Database, Json } from "../../types";
 import type { MailboxConnectionRow } from "./connections";
 import { recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
+import { IDS_PER_READ } from "../people/pages";
 
 type Db = SupabaseClient<Database>;
 
@@ -28,16 +29,20 @@ export async function takeMailboxSync(db: Db, id: string, at: Date, leaseMs: num
   return (data ?? []).length > 0;
 }
 
-/** Where the sync left off, and the lease given back. A cursor of null keeps the one it had. */
+/**
+ * Where the sync left off, and the lease given back. A cursor of null keeps the one it had. `unread` leaves the moment
+ * of the last sync where it was: a mailbox whose lost cursor's gap is still to be read back measures the gap from it
+ * (edge mailbox/gap.ts), and stays first in the sweep's line until it has been.
+ */
 export async function endMailboxSync(
   db: Db,
-  params: { id: string; cursor: string | null; at: Date; error?: string | null },
+  params: { id: string; cursor: string | null; at: Date; error?: string | null; unread?: boolean },
 ): Promise<void> {
   const { error } = await db
     .from("mailbox_connections")
     .update({
       ...(params.cursor !== null ? { sync_cursor: params.cursor } : {}),
-      synced_at: params.at.toISOString(),
+      ...(params.unread ? {} : { synced_at: params.at.toISOString() }),
       sync_lease_until: null,
       ...(params.error !== undefined
         ? { last_error: params.error, last_error_at: params.error ? params.at.toISOString() : null }
@@ -97,6 +102,27 @@ export async function getKnownThreads(db: Db, tenantId: TenantId, threadIds: str
   });
   if (error) throw new DbFailure(error, "cannot read which threads are the workspace's");
   return new Set(data ?? []);
+}
+
+/**
+ * Of these provider ids, the ones an email row of the workspace already keeps: what an earlier read handed to the intake
+ * (ingest_inbound keeps a message once by its provider id). A mailbox's read-back after a lost cursor leaves them out
+ * (edge mailbox/gap.ts), so each sync goes on from where the last one stopped.
+ */
+export async function getHeldEmails(db: Db, tenantId: TenantId, providerIds: string[]): Promise<Set<string>> {
+  const held = new Set<string>();
+  const ids = [...new Set(providerIds)];
+  for (let index = 0; index < ids.length; index += IDS_PER_READ) {
+    const { data, error } = await db
+      .from("messages")
+      .select("external_id")
+      .eq("tenant_id", tenantId)
+      .eq("channel", "email")
+      .in("external_id", ids.slice(index, index + IDS_PER_READ));
+    if (error) throw new DbFailure(error, "cannot read which emails are already kept");
+    for (const row of data) if (row.external_id) held.add(row.external_id);
+  }
+  return held;
 }
 
 /** What became of an email the owner sent from their mailbox (00482): kept, with the holds it answered, or why not. */

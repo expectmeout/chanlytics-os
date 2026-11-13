@@ -14521,7 +14521,7 @@ $$;
 -- Name: FUNCTION llm_tokens_since(p_tenant uuid, p_since timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.llm_tokens_since(p_tenant uuid, p_since timestamp with time zone) IS 'The workspace''s receptionist tokens (input and output of every usage.llm_tokens event; a value that is not a number counts nothing) from p_since on: what the edge''s budget weighs against the reply policy''s max_llm_tokens_day, one statement however busy the day (00624). Service role only.';
+COMMENT ON FUNCTION public.llm_tokens_since(p_tenant uuid, p_since timestamp with time zone) IS 'The workspace''s receptionist tokens (input and output of every usage.llm_tokens event; a value that is not a number counts nothing) from p_since on: what the edge''s budget weighs against the reply policy''s max_llm_tokens_day, one statement however busy the day (00625). Service role only.';
 
 
 --
@@ -19167,7 +19167,7 @@ $$;
 -- Name: FUNCTION people_reply_modes(p_tenant_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.people_reply_modes(p_tenant_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'The reply mode in force for each person on one page of People: their own reply policy, else the workspace''s, else null. The page is people_page''s, taken with the arguments people_list takes (p_query, p_limit, p_offset, p_after_at, p_after_added, p_after_id), so a page''s rows and its modes are read side by side (00624). Row security decides what it sees.';
+COMMENT ON FUNCTION public.people_reply_modes(p_tenant_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'The reply mode in force for each person on one page of People: their own reply policy, else the workspace''s, else null. The page is people_page''s, taken with the arguments people_list takes (p_query, p_limit, p_offset, p_after_at, p_after_added, p_after_id), so a page''s rows and its modes are read side by side (00625). Row security decides what it sees.';
 
 
 --
@@ -22406,6 +22406,80 @@ $$;
 --
 
 COMMENT ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer) IS 'Each moment playbook''s runs, sent, delivered, replied and held (its people skipped or failed), its newest run (last_run), the run waiting for a person (waiting, else null) and its newest p_history runs (history, newest first), by playbook id, from run_counts; a playbook with no run is absent, and a reach-out step''s runs are never scanned. One jsonb, which PostgREST''s row cap never cuts: what GET playbooks answers of every card (00374). Security invoker: row security decides what is read.';
+
+
+--
+-- Name: policies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.policies (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    class text NOT NULL,
+    mode text NOT NULL,
+    subject_type text,
+    subject_id uuid,
+    limits jsonb DEFAULT '{}'::jsonb NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT policies_class_check CHECK ((class = ANY (ARRAY['reply'::text, 'booking'::text, 'faq'::text, 'reengage'::text, 'campaign'::text, 'reviews'::text, 'money'::text, 'follow_up'::text, 'outreach'::text]))),
+    CONSTRAINT policies_mode_check CHECK ((mode = ANY (ARRAY['auto'::text, 'veto'::text, 'ask'::text, 'never'::text]))),
+    CONSTRAINT policies_subject_type_check CHECK ((subject_type = ANY (ARRAY['segment'::text, 'contact'::text])))
+);
+
+
+--
+-- Name: policy_change(uuid, text, text, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.policy_change(p_tenant_id uuid, p_class text, p_mode text DEFAULT NULL::text, p_limits jsonb DEFAULT NULL::jsonb, p_via text DEFAULT NULL::text) RETURNS SETOF public.policies
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user  uuid := auth.uid();
+  v_dials jsonb := coalesce(p_limits, '{}'::jsonb);
+  v_row   public.policies;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- Who may, as the table's update policy says it of a workspace's own row (policies_member_update): a member who acts
+  -- for the workspace, a partner's seat only on a session that showed its second factor.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Only a member who acts for the workspace can change how it runs.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(v_dials) <> 'object' then
+    raise exception 'The dials are names and their values.' using errcode = '22023';
+  end if;
+  -- One statement: a second change of the same row waits for this one and then merges over what it wrote, and a mode
+  -- not given is never written.
+  update public.policies p
+     set mode = coalesce(p_mode, p.mode),
+         limits = p.limits || v_dials
+   where p.tenant_id = p_tenant_id and p.class = p_class and p.subject_type is null
+  returning p.* into v_row;
+  if v_row.id is null then
+    return;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (
+    p_tenant_id, 'policy.changed', 'system', 'workspace', p_tenant_id,
+    jsonb_build_object(
+      'class', v_row.class,
+      'mode', v_row.mode,
+      'fields', (select coalesce(jsonb_agg(k order by k collate "C"), '[]'::jsonb) from jsonb_object_keys(v_dials) as k),
+      'by', v_user
+    ) || case when p_via is null then '{}'::jsonb else jsonb_build_object('via', p_via) end
+  );
+  return next v_row;
+end $$;
+
+
+--
+-- Name: FUNCTION policy_change(p_tenant_id uuid, p_class text, p_mode text, p_limits jsonb, p_via text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.policy_change(p_tenant_id uuid, p_class text, p_mode text, p_limits jsonb, p_via text) IS 'A member''s change to their workspace''s own policy row for a class, as one write (00624): the mode when one is given, the dials merged into the limits on file, and the policy.changed row on the ledger with it. Under the table''s update rule for such a row (is_acting_member); the money lock is the trigger''s. Answers the row, or none where there is no row for the class.';
 
 
 --
@@ -41151,25 +41225,6 @@ COMMENT ON COLUMN public.platform_metrics.intake_lag_ms IS 'How long after the p
 
 
 --
--- Name: policies; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.policies (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    class text NOT NULL,
-    mode text NOT NULL,
-    subject_type text,
-    subject_id uuid,
-    limits jsonb DEFAULT '{}'::jsonb NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT policies_class_check CHECK ((class = ANY (ARRAY['reply'::text, 'booking'::text, 'faq'::text, 'reengage'::text, 'campaign'::text, 'reviews'::text, 'money'::text, 'follow_up'::text, 'outreach'::text]))),
-    CONSTRAINT policies_mode_check CHECK ((mode = ANY (ARRAY['auto'::text, 'veto'::text, 'ask'::text, 'never'::text]))),
-    CONSTRAINT policies_subject_type_check CHECK ((subject_type = ANY (ARRAY['segment'::text, 'contact'::text])))
-);
-
-
---
 -- Name: posts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -55711,6 +55766,65 @@ GRANT ALL ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer
 
 
 --
+-- Name: TABLE policies; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,DELETE,UPDATE ON TABLE public.policies TO authenticated;
+GRANT ALL ON TABLE public.policies TO service_role;
+
+
+--
+-- Name: COLUMN policies.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.class; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(class) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.mode; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(mode) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.subject_type; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(subject_type) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.subject_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(subject_id) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.limits; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(limits) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: FUNCTION policy_change(p_tenant_id uuid, p_class text, p_mode text, p_limits jsonb, p_via text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.policy_change(p_tenant_id uuid, p_class text, p_mode text, p_limits jsonb, p_via text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.policy_change(p_tenant_id uuid, p_class text, p_mode text, p_limits jsonb, p_via text) TO authenticated;
+GRANT ALL ON FUNCTION public.policy_change(p_tenant_id uuid, p_class text, p_mode text, p_limits jsonb, p_via text) TO service_role;
+
+
+--
 -- Name: FUNCTION post_again(p_post_id uuid, p_from text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -59777,56 +59891,6 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.platform_claims TO service_rol
 --
 
 GRANT ALL ON TABLE public.platform_metrics TO service_role;
-
-
---
--- Name: TABLE policies; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,DELETE,UPDATE ON TABLE public.policies TO authenticated;
-GRANT ALL ON TABLE public.policies TO service_role;
-
-
---
--- Name: COLUMN policies.tenant_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(tenant_id) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.class; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(class) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.mode; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(mode) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.subject_type; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(subject_type) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.subject_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(subject_id) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.limits; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(limits) ON TABLE public.policies TO authenticated;
 
 
 --
