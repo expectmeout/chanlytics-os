@@ -64,6 +64,11 @@
   background: none;
   animation: cnv-turn 0.9s linear infinite;
 }
+/* Set for its time: the accent's ring, still. Nothing moves until its time comes. */
+.cnv-stands[data-tone="timed"] .cnv-stands-dot {
+  border: 2px solid var(--accent);
+  background: none;
+}
 @keyframes cnv-turn {
   to {
     transform: rotate(1turn);
@@ -110,6 +115,10 @@
 }
 .cnv-said[data-tone="going"] .cnv-dot {
   background: var(--accent);
+}
+.cnv-said[data-tone="timed"] .cnv-dot {
+  border: 1.5px solid var(--accent);
+  background: none;
 }
 .cnv-said[data-tone="up"] .cnv-dot {
   background: var(--ok);
@@ -695,7 +704,7 @@
   border-radius: var(--radius-full);
   background: var(--viewer-ink-faint);
 }
-.cnv-status[data-tone="going"] .cnv-status-dot {
+.cnv-status:is([data-tone="going"], [data-tone="timed"]) .cnv-status-dot {
   background: var(--viewer-going-ink);
 }
 .cnv-status[data-tone="up"] .cnv-status-dot {
@@ -718,6 +727,49 @@
 }
 .cnv-viewer-up {
   align-self: center;
+}
+/* "I posted it" (viewer/by-hand.tsx): one quiet press under the acts; once said, where it stands with its door and the way
+   back, on one line that wraps. On the glass over the picture on a phone, on the pane's own ground on a desk. */
+.cnv-byhand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-h-sm);
+  font-size: var(--text-sm);
+  color: var(--viewer-ink-dim);
+}
+.cnv-desk-body .cnv-byhand {
+  justify-content: flex-start;
+  color: var(--ink-dim);
+}
+.cnv-byhand-said {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.cnv-byhand-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--viewer-up-ink);
+}
+.cnv-desk-body .cnv-byhand-dot {
+  background: var(--ok);
+}
+.cnv-byhand-link {
+  display: grid;
+  gap: 6px;
+}
+.cnv-byhand-problem {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--viewer-need-ink);
+}
+.cnv-desk-body .cnv-byhand-problem {
+  color: var(--warn-ink);
 }
 /* Delete, asked in place of the acts, on the glass so its words read over the picture. */
 .cnv-viewer-ask {
@@ -1198,7 +1250,7 @@
 .cnv-desk-body .cnv-status-dot {
   background: var(--ink-faint);
 }
-.cnv-desk-body .cnv-status[data-tone="going"] .cnv-status-dot {
+.cnv-desk-body .cnv-status:is([data-tone="going"], [data-tone="timed"]) .cnv-status-dot {
   background: var(--accent);
 }
 .cnv-desk-body .cnv-status[data-tone="up"] .cnv-status-dot {

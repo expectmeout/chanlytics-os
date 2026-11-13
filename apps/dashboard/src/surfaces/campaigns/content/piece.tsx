@@ -19,6 +19,7 @@ import { usePieceDrafts, usePiecePosts, usePiecePresses, type PieceHands, type P
 import { readAhead } from "./read-ahead";
 import type { PieceNext } from "./model/piece-open";
 import type { PlaceDoors } from "./post-both";
+import { byHandPressOf } from "./viewer/by-hand";
 import { PieceDesk } from "./viewer/desk";
 import type { PieceMoreActs } from "./viewer/more";
 import { PieceViewer } from "./viewer/viewer";
@@ -70,7 +71,8 @@ function pieceActsOf(
     // A video from the plan it was drawn by; a post from the photo it came from: with that gone, there is nothing to draw it
     // again from.
     onChange: video ? () => drafts.again.begin(video) : from && plan ? () => drafts.version.begin(plan) : null,
-    onAside: () => presses.say({ status: file.status === "set_aside" ? "filed" : "set_aside" }),
+    // Set aside, which lets a post of it that waited go and says so (piece-presses.tsx), or kept again.
+    onAside: () => (file.status === "set_aside" ? presses.say({ status: "filed" }) : presses.aside()),
     onDelete: () => presses.ask(true),
   };
 }
@@ -132,7 +134,8 @@ export function ContentPiece({
   flash: (f: FrameFlash) => void;
 }) {
   const { file } = made;
-  const record = usePostRecord(file);
+  // Read again as the page says its posts moved (one landed, one stopped), so the sheet says what the tile says.
+  const record = usePostRecord(file, made.posts.map((p) => `${p.id}:${p.status}`).join());
   const hands: PieceHands = { made, record, reread, open, onClose, flash };
   const at = usePiecePosts(made, record);
   const { posts, takes } = at;
@@ -147,8 +150,11 @@ export function ContentPiece({
     begun.current = true;
     both.begin();
   }, [post, both]);
+  // Where its owner said they posted it themselves: the page's, or its record's where the piece was read on its own.
+  const byHand = made.by_hand ?? null;
   const shown = {
-    made: { file, posts },
+    made: { file, posts, by_hand: byHand },
+    byHand: byHandPressOf(byHand, presses.change, flash),
     record: { made: record.made, video: record.video },
     takes,
     may: canDo("settings"),

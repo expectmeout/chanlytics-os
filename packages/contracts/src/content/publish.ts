@@ -1,6 +1,6 @@
 /**
- * A made post put up at its places by Ask, now or at a time (Ruben, 12 Nov 2026: a time is asked of Ask, never offered on the
- * page as times written into it, the same for every business). The owner says "post it Saturday at ten"; Ask answers with a
+ * A made post put up at its places by Ask, now or at a time (Ruben, 12 Nov 2026: no preset times written into the page; a time
+ * is the owner's, picked in Post it's Schedule or said to Ask). The owner says "post it Saturday at ten"; Ask answers with a
  * card that names the post, where it goes, when, and the caption that goes with it; the owner presses Post. The press goes
  * through each place's own door (POST files/[id]/google, POST files/[id]/instagram), as the page's Post it does, so every
  * check a door makes it still makes. A caption Ask wrote is kept on the post first, as Details keeps one, so the post says

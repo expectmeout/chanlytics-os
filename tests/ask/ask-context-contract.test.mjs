@@ -209,6 +209,14 @@ test("a scope has kinds of its own, and so do the context's rows; each is a kind
   assert.ok(!ASK_CITATION_KINDS.includes("run"), "run is the address's word, never a citation's");
 });
 
+test("a piece open in Content is the chip, wherever the address names it", () => {
+  const piece = { kind: "file", id: CALL, label: "this piece" };
+  for (const at of [`content:${CALL}`, `content:library:${CALL}`, `content:needs:${CALL}`, `content:${CALL}:post`])
+    assert.deepEqual(scopeFromRoute("campaigns", at), piece, at);
+  assert.equal(scopeFromRoute("campaigns", "content:needs"), null, "a view with nothing open is the page");
+  assert.equal(scopeFromRoute("campaigns", "content:library"), null);
+});
+
 test("a scope from every address a page can open, by the page's own parser", () => {
   assert.deepEqual(scopeFromRoute("live", CALL), { kind: "call", id: CALL, label: "this call" });
   assert.equal(scopeFromRoute("live", null), null);

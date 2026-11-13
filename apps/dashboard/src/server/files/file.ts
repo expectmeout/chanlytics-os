@@ -9,14 +9,18 @@ import {
   FILE_TYPES,
   FILE_WORDS as W,
   HOUR_MS,
+  POST_PLACES,
+  POST_PULLABLE,
   POST_SHAPES,
   SECOND_MS,
   WEEK_MS,
   fileMadePathOf,
   fileNameOf,
   filePathOf,
+  isOneOf,
   postPathOf,
   type FileShows,
+  type PostPlace,
 } from "@chanlytics/contracts";
 import {
   updateFileRow,
@@ -25,6 +29,8 @@ import {
   deleteFileRow,
   restoreFileRow,
   filesBucket,
+  listFilePosts,
+  pullPost,
   type FileMemberRow,
 } from "@chanlytics/db/files";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
@@ -65,7 +71,23 @@ export const fileScope = row(async (ctx: RouteContext, params): Promise<FileMemb
   return found;
 });
 
-/** PATCH files/[id]: what a person says of it. */
+/**
+ * A piece set aside is not posted (Ruben, 12 Nov 2026): each post of it still waiting to go out (for its time, or being made
+ * ready) is let go, as Don't post does (00611 post_pull, on the member's own session and permission). One already going up
+ * can't be stopped there, and goes. A post that stopped needs nobody once its piece is aside, so it is left as it is.
+ * Answers the places a post was let go at, as the database said it (post_pull `pulled`), which the page says, and nothing
+ * where the one that waited went up first.
+ */
+async function letWaitingPostsGo(ctx: RouteContext, member: Member, fileId: string): Promise<PostPlace[]> {
+  const stopped = new Set<PostPlace>();
+  for (const post of await listFilePosts(ctx.supabase, member.tenantId, fileId)) {
+    if (!isOneOf(POST_PULLABLE, post.status) || !isOneOf(POST_PLACES, post.place)) continue;
+    if ((await pullPost(ctx.supabase, post.id)).fate === "pulled") stopped.add(post.place);
+  }
+  return POST_PLACES.filter((place) => stopped.has(place));
+}
+
+/** PATCH files/[id]: what a person says of it. Answers where a post was let go as a made piece was set aside. */
 export async function changeFile(
   ctx: RouteContext,
   member: Member,
@@ -76,9 +98,12 @@ export async function changeFile(
     who_in_it?: "no_one" | "agreed" | undefined;
     status?: "filed" | "set_aside" | undefined;
   },
-): Promise<{ ok: true }> {
+): Promise<{ ok: true; stopped: PostPlace[] }> {
   const name = input.name === undefined ? undefined : fileNameOf(input.name);
   if (name === "") throw new AppError("validation", W.nameEmpty);
+  // Its waiting posts first: a failure there leaves the piece where it was, never aside with a post still to go.
+  const settingAside = input.status === "set_aside" && file.source === "made" && file.status !== "set_aside";
+  const stopped = settingAside ? await letWaitingPostsGo(ctx, member, file.id) : [];
   const { error } = await updateFileRow(ctx.supabase, {
     tenantId: member.tenantId,
     id: file.id,
@@ -88,7 +113,7 @@ export async function changeFile(
     status: input.status,
   });
   if (error) throw fileDoorRefusal(error);
-  return { ok: true };
+  return { ok: true, stopped };
 }
 
 /** POST files/keep: the Inbox's one press. Answers how many moved. */
@@ -102,8 +127,13 @@ export async function keepFiles(
   return { kept: typeof data === "number" ? data : 0 };
 }
 
-/** DELETE files/[id]: hidden now, its bytes gone by the job. */
+/**
+ * DELETE files/[id]: hidden now, its bytes gone by the job. A piece deleted is not posted either, as one set aside is not: its
+ * waiting posts are let go first, so a post whose time falls in Undo's ten minutes is neither sent nor told to the bell as one
+ * that "didn't post". Undo brings the piece back, not its time: it is posted again from it.
+ */
 export async function removeFile(ctx: RouteContext, member: Member, file: FileMemberRow): Promise<{ ok: true }> {
+  if (file.source === "made") await letWaitingPostsGo(ctx, member, file.id);
   const { error } = await deleteFileRow(ctx.supabase, member.tenantId, file.id);
   if (error) throw fileDoorRefusal(error);
   return { ok: true };

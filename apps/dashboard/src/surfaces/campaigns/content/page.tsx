@@ -25,15 +25,18 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import {
   CONTENT_ROUTE,
   CONTENT_WORDS as W,
+  DAY_MS,
   FILE_WORDS,
   SECOND_MS,
   contentMoving,
+  contentWakesAt,
   contentPlaceOf,
   contentRouteOf,
   contentViewDrawsLines,
   videoPreviewOf,
   type ContentList,
   contentIdeasFor,
+  contentIdeasReady,
   type ContentMadeDto,
   type ContentPageDto,
   type ContentPlace,
@@ -60,7 +63,7 @@ import { ContentBody, type ContentActs } from "./body";
 import { ContentPiece } from "./piece";
 import { MakeSheet, askIdeaOn } from "./sheets/make";
 import { askContentView, readMoreContent } from "./surface";
-import { BackHead, ContentFind, LibraryOwed } from "./heads";
+import { BackHead, ContentFind, LibraryOwed, WhileLibraryHolds } from "./heads";
 import {
   ContentLayoutChoice,
   ContentLists,
@@ -79,7 +82,10 @@ const ContentLibrary = lazy(() => import("./library"));
 const CONTENT_FOLLOW_MS = 5 * SECOND_MS;
 const CONTENT_FOLLOWS_AT_MOST = 120;
 
-/** Asks again while something moves; stops when nothing does, and after ten minutes of asking (the bell says what lands). */
+/**
+ * Asks again while something moves; stops when nothing does, and after ten minutes of asking (the bell says what lands). Not
+ * while the tab is behind another: nobody is looking, and the next tick once it is back in front asks.
+ */
 function useAsksWhileMoving(moving: boolean): void {
   const asks = useRef(0);
   useEffect(() => {
@@ -88,12 +94,27 @@ function useAsksWhileMoving(moving: boolean): void {
       return undefined;
     }
     const timer = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
       asks.current += 1;
       if (asks.current > CONTENT_FOLLOWS_AT_MOST) clearInterval(timer);
       else void refreshSurface("content");
     }, CONTENT_FOLLOW_MS);
     return () => clearInterval(timer);
   }, [moving]);
+}
+
+/**
+ * Reads the page again as the soonest post set for its time comes due (contracts contentWakesAt), where nothing else would: a
+ * page left open says Posting, then Posted, as it goes, and follows it (useAsksWhileMoving). Each read sets the next.
+ */
+function useWakesForItsTime(dto: ContentPageDto | null | undefined): void {
+  useEffect(() => {
+    const wakesAt = dto ? contentWakesAt(dto, Date.now()) : null;
+    if (wakesAt === null) return undefined;
+    // A timer holds no more than about 24 days: one further off is looked at a day on, and that read sets the next.
+    const timer = setTimeout(() => void refreshSurface("content"), Math.min(Math.max(wakesAt - Date.now(), 0), DAY_MS));
+    return () => clearTimeout(timer);
+  }, [dto]);
 }
 
 const ABOUT_CONTENT = { kind: "page", id: CONTENT_ROUTE, label: W.tab } as const;
@@ -106,11 +127,14 @@ const askIdea = askIdeaOn(ABOUT_CONTENT);
  * starters are the ideas it can make; Add on the Library, the library's own picker, where this person may add.
  */
 function ContentDoors({ library, add, make }: { library: boolean; add: (() => void) | null; make: () => void }) {
+  // An empty Library's own Add photos leads: one coral press, never two.
   if (library)
     return add ? (
-      <Button variant="primary" onClick={add} data-testid="cnv-head-add">
-        <ActWords icon={<Icon name="plus" size={14} />} words={W.add} />
-      </Button>
+      <WhileLibraryHolds>
+        <Button variant="primary" onClick={add} data-testid="cnv-head-add">
+          <ActWords icon={<Icon name="plus" size={14} />} words={W.add} />
+        </Button>
+      </WhileLibraryHolds>
     ) : null;
   return (
     <Button variant="primary" onClick={make} data-testid="cnv-head-make">
@@ -220,9 +244,18 @@ function useNamedPiece(
   useEffect(() => {
     if (!wanted) return undefined;
     let live = true;
-    void fileVerbs.record(wanted).then((r) => {
+    void fileVerbs.record(wanted).then((answer) => {
       if (!live) return;
-      if (r.ok) setAlone({ piece: { file: r.data.file, posts: r.data.instagram?.posts ?? [] }, asked });
+      // Every place's posts, so its tile and its sheet say where it stands at Google too (a server before them: Instagram's).
+      if (answer.ok)
+        setAlone({
+          piece: {
+            file: answer.data.file,
+            posts: answer.data.posts ?? answer.data.instagram?.posts ?? [],
+            by_hand: answer.data.by_hand ?? null,
+          },
+          asked,
+        });
       else {
         says.current.flash({ msg: <>{W.piece.gone}</> });
         says.current.close();
@@ -241,6 +274,13 @@ function useNamedPiece(
 /** The list a piece belongs to: what Ask made is Made's, anything else the Library's. */
 const listOfPiece = (piece: ContentMadeDto): ContentList => (piece.file.source === "made" ? "made" : "library");
 
+/**
+ * Whether Made holds nothing at all, as the tally says: nothing made, being made, waiting on the owner or set aside. Not known
+ * before the page is read. The Library's is its own read's (heads.tsx WhileLibraryHolds).
+ */
+const madeHoldsNothing = (tally: ContentPageDto["tally"] | null): boolean =>
+  !!tally && tally.made + tally.making + tally.needs + tally.aside === 0;
+
 /** The bar over the list: Made or the Library, Made's views, and on a desk All as tiles or a list. */
 function ContentBar(props: {
   place: ContentPlace;
@@ -252,6 +292,9 @@ function ContentBar(props: {
   const { place, tally, phone } = props;
   const library = place.list === "library";
   const onView = (v: ContentView) => navigate(contentRouteOf({ list: "made", view: v, open: null }));
+  // A list that holds nothing has nothing to look through: no Squares or List, no views (its first day says what to do).
+  const bare = !library && place.view === "all" && madeHoldsNothing(tally);
+  const layout = <ContentLayoutChoice layout={props.layout} choose={props.choose} phone={phone} />;
   return (
     <>
       <div className="cnv-bar">
@@ -262,10 +305,12 @@ function ContentBar(props: {
         />
         {/* Squares or rows, the one choice for both lists; Made's views beside it on a phone. */}
         <div className="cnv-bar-end">
-          {library || place.view === "all" || place.view === "making" || place.view === "aside" ? (
-            <ContentLayoutChoice layout={props.layout} choose={props.choose} phone={phone} />
+          {library ? (
+            <WhileLibraryHolds>{layout}</WhileLibraryHolds>
+          ) : !bare && (place.view === "all" || place.view === "making" || place.view === "aside") ? (
+            layout
           ) : null}
-          {phone ? (
+          {phone && !bare ? (
             library ? (
               <LibraryKinds phone />
             ) : place.view === "aside" ? null : (
@@ -275,7 +320,7 @@ function ContentBar(props: {
         </div>
       </div>
       {/* A desk has the room for the five views in a row, with their counts (the content canvas, board List). */}
-      {phone ? null : library ? (
+      {phone || bare ? null : library ? (
         <LibraryKinds phone={false} />
       ) : place.view === "aside" ? null : (
         <ContentViewRow view={place.view} tally={tally} onView={onView} />
@@ -313,7 +358,8 @@ export function ContentPage({ route, view }: { route: string; view?: CmView }) {
   const videos = videoPreviewOf(useSurface("settings")?.settings?.config);
   const phone = useCmPhone();
   const dto = held && held.dto;
-  useAsksWhileMoving(!!dto && contentMoving(dto));
+  useAsksWhileMoving(!!dto && contentMoving(dto, Date.now()));
+  useWakesForItsTime(dto);
   // The view the address names is the one read: what is on screen stands until it answers.
   useEffect(() => {
     if (!library && askContentView(place.view)) void refreshSurface("content");
@@ -344,6 +390,7 @@ export function ContentPage({ route, view }: { route: string; view?: CmView }) {
     onIdea: askIdea,
     onMaking: () => navigate(contentRouteOf({ list: "made", view: "making", open: null })),
     onAside: () => navigate(contentRouteOf({ list: "made", view: "aside", open: null })),
+    onLibrary: () => navigate(contentRouteOf({ list: "library", view: "all", open: null })),
     // A stopped or waiting post: its piece, opened straight to its sheet, where each place says why and what to do.
     onFix: (fileId: string) => show(fileId, true),
   };
@@ -397,7 +444,7 @@ export function ContentPage({ route, view }: { route: string; view?: CmView }) {
           <MakeSheet
             open={making}
             onClose={() => setMaking(false)}
-            ideas={contentIdeasFor(videos)}
+            ideas={contentIdeasReady(contentIdeasFor(videos), picks)}
             picks={picks}
             about={ABOUT_CONTENT}
           />

@@ -15,7 +15,7 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   calendar: "5f12f72ccde0120e",
   calendar_runs: "4859024c5ad61285",
   channels: "200700fcf97dd267",
-  content: "3230547024e1c433",
+  content: "ed6ecd2489f2b36d",
   conversations: "8357dddb866c2805",
   files: "b74dfb7a0d94c1be",
   google: "9d24a2f4070976f8",

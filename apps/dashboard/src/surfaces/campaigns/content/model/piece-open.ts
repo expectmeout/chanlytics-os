@@ -6,10 +6,11 @@ import {
   POST_ON_ITS_WAY,
   POST_PLACES,
   POST_PULLABLE,
-  SECOND_MS,
   newestAtEachPlace,
   postPhotoWont,
+  postPlaceTakenOf,
   postStoppedWhyOf,
+  postWaitsForItsTime,
   whoStandsOf,
   type ContentMadeDto,
   type FileDto,
@@ -19,6 +20,22 @@ import {
 
 /** What can take the piece now, as its record says (GET files/[id]): Instagram that takes a post, Google connected. */
 export type PieceTakes = Record<PostPlace, boolean>;
+
+/**
+ * What can take the piece now, from its posts and what its record says of each place. A place with a post on its way takes
+ * no second one until it lands, and Google takes a piece once (contracts postPlaceTakenOf). Instagram is taken while a post
+ * of ANY kind waits there: the sheet holds one row a place, so that row keeps its Don't post and opening the sheet arms
+ * nothing the door would refuse. A story beside a waiting post (00620) is Ask's card's until the sheet draws a line a kind.
+ */
+export function pieceTakesOf(
+  posts: readonly PostDto[],
+  can: { instagram: boolean; google: boolean; onGoogle: boolean },
+): PieceTakes {
+  return {
+    instagram: can.instagram && !postPlaceTakenOf(posts, "instagram"),
+    google: can.google && !can.onGoogle && !postPlaceTakenOf(posts, "google"),
+  };
+}
 
 /** The one act that leads. `pull` is the post Don't post would stop, while it still can be. */
 export type PieceNext =
@@ -48,13 +65,6 @@ function libraryNextOf(file: PieceFile): PieceNext {
   return { is: "none" };
 }
 
-/** A post set for later than this is one that waits for its time, rather than one going up now. */
-const SOON_MS = 2 * 60 * SECOND_MS;
-
-/** Whether a post waits for its time: on its way, and set for later than now. */
-const waitsForItsTime = (post: PostDto, nowMs: number): boolean =>
-  POST_ON_ITS_WAY.includes(post.status) && Date.parse(post.scheduled_for) - nowMs > SOON_MS;
-
 /**
  * What needs the owner, then what is going up now, then the next place it can go. A post that waits for its time leads with
  * nothing (pieceTimedOf says it, with its Don't post). Before the record is read it never guesses a place.
@@ -72,7 +82,7 @@ export function pieceNextOf(
   const stuck = newest.find((p) => p.status === "held" || p.status === "failed");
   if (stuck) return { is: "again", place: stuck.place };
   // One on its way at a place is the one there (00611 posts_one_on_its_way), whatever went up since it was asked for.
-  const going = posts.find((p) => POST_ON_ITS_WAY.includes(p.status) && !waitsForItsTime(p, nowMs));
+  const going = posts.find((p) => POST_ON_ITS_WAY.includes(p.status) && !postWaitsForItsTime(p, nowMs));
   if (going) return { is: "going", place: going.place, pull: POST_PULLABLE.includes(going.status) ? going.id : null };
   // A place is taken where the piece is up, or where a post waits for its time there: a second would be refused.
   const taken = new Set([
@@ -87,7 +97,7 @@ export function pieceNextOf(
 
 /** The post that waits for its time, where one does: what the foot says goes up when, with its Don't post. */
 export function pieceTimedOf(posts: readonly PostDto[], nowMs: number): PostDto | null {
-  return posts.find((p) => waitsForItsTime(p, nowMs)) ?? null;
+  return posts.find((p) => postWaitsForItsTime(p, nowMs)) ?? null;
 }
 
 /** Where a piece stands at one place. */
@@ -105,7 +115,7 @@ export function pieceStandsAt(posts: readonly PostDto[], place: PostPlace, nowMs
   if (post.status === "published") return { is: "up", at: post.published_at };
   if (post.status === "held" || post.status === "failed") return { is: "stuck", why: postStoppedWhyOf(post) };
   if (POST_ON_ITS_WAY.includes(post.status))
-    return waitsForItsTime(post, nowMs) ? { is: "timed", at: post.scheduled_for } : { is: "going" };
+    return postWaitsForItsTime(post, nowMs) ? { is: "timed", at: post.scheduled_for } : { is: "going" };
   return { is: "none" };
 }
 

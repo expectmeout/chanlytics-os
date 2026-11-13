@@ -621,6 +621,7 @@
     "00616_a_post_waits_for_google_and_a_delete_waits_for_undo.sql": "287985f0079607fa03c86341cde223641e19fc846c80b1f92651f1abff6a011d",
     "00617_the_sequences_list_sees_what_is_stuck.sql": "907fbb03074e3250979dab0ef3dfd887ef3d10932ed951cf52a1b131eed0f8f6",
     "00618_couldnt_check_is_checked_again.sql": "abc285393e7fa17e13f766d72a6745d956ce4e6109b1826951521ef00a51976e",
-    "00619_a_stopped_post_is_let_go_and_found_photos_are_not_mine.sql": "ccdc8813cf86d75cfbf25dd95a6faf66a7b58f86edc1fa5b3674f23c423436be"
+    "00619_a_stopped_post_is_let_go_and_found_photos_are_not_mine.sql": "ccdc8813cf86d75cfbf25dd95a6faf66a7b58f86edc1fa5b3674f23c423436be",
+    "00620_a_story_waits_apart_and_a_post_by_hand_is_kept.sql": "45c5f7aa4f3cb24fc8f0dd563ae34160eabb2d55394400c982a080df5c3fbe9a"
   }
 }

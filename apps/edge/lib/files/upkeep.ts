@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DAY_MS,
+  FILE_WORDS,
   FILE_LOOK_EDITION,
   HOUR_MS,
   MIN_MS,
@@ -28,9 +29,11 @@ import {
   listFilesToLookAgain,
   listFilesToPurgeAgain,
   listVideosToDigestAgain,
+  listPostsSilent,
   listVideosWaiting,
   markFileMediaFailed,
   markFileMediaReady,
+  movePost,
   recordFilePurged,
   removeLapsedUpload,
 } from "@chanlytics/db/files";
@@ -147,10 +150,35 @@ async function keepVideosMoving(db: Db, nowMs: number): Promise<{ asked: number;
   return { asked: waiting.length, digests: stopped.length };
 }
 
+/** A Google post a press began and never heard back on, this long on, is failed in words: 00616 post_begin's own ten minutes. */
+const GOOGLE_SILENT_AFTER_MS = 10 * MIN_MS;
+
+/**
+ * The sweep's posts: a Google post left publishing by a press whose call died (Google is asked by the press itself, with no
+ * job to settle it) is failed in the owner's words, so it stops saying Posting and waits for them: they look on the profile,
+ * then post it again or let it go. A move that finds it moved since leaves it.
+ */
+async function keepPostsHonest(db: Db, nowMs: number): Promise<number> {
+  const silent = await listPostsSilent(db, {
+    before: new Date(nowMs - GOOGLE_SILENT_AFTER_MS).toISOString(),
+    limit: SWEEP_TAKES,
+  });
+  const words = FILE_WORDS.google.unknown;
+  for (const post of silent)
+    await movePost(db, {
+      postId: post.id,
+      from: ["publishing"],
+      to: "failed",
+      patch: { error: { code: null, subcode: null, words } },
+    });
+  return silent.length;
+}
+
 /**
  * The sweep's pass, every half hour: a look that failed or was lost is tried again a day on while the file is young, a raised
- * edition reads what the last one read, and a removal that has not finished is asked for again. Few at a time, with no clock
- * of its own. It catches its own failures: nothing else the sweep does waits on files.
+ * edition reads what the last one read, a removal that has not finished is asked for again, and a Google post never heard
+ * back on stops saying Posting. Few at a time, with no clock of its own. It catches its own failures: nothing else the sweep
+ * does waits on files.
  */
 export async function keepFilesMoving(
   db: Db,
@@ -194,6 +222,7 @@ export async function keepFilesMoving(
       log.error("videos_sweep_failed", { error: errField(e) });
       return { asked: 0, digests: 0 };
     });
+    await keepPostsHonest(db, nowMs).catch((e: unknown) => log.error("files_sweep_failed", { error: errField(e) }));
     return { looks: looks.length, purges: purges.length, videos: videos.asked + videos.digests };
   } catch (e) {
     log.error("files_sweep_failed", { error: errField(e) });

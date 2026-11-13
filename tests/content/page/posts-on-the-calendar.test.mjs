@@ -42,7 +42,11 @@ test("a post is a mark at its time: up where it went, waiting for its time hollo
   const [stopped] = on(dto, "2026-09-10");
   assert.equal(stopped.words, "Didn't go on Instagram");
   assert.equal(stopped.tone, "warn");
-  assert.equal(stopped.route, `campaigns/content:needs:${FILE}`, "opened in Needs you, where it says why");
+  assert.equal(
+    stopped.route,
+    `campaigns/content:needs:${FILE}:post`,
+    "opened in Needs you, straight to its sheet, where it says why and what to do",
+  );
 });
 
 test("one pulled or taken down is no mark, and a server before posts draws none", () => {

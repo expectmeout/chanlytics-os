@@ -514,7 +514,13 @@ function postMarks(dto: CalendarRunsDto, days: Days): void {
       tone: stands === "up" ? "ok" : stands === "stopped" ? "warn" : "info",
       ahead: stands === "ahead",
       cold: false,
-      route: contentRouteOf({ list: "made", view: stands === "stopped" ? "needs" : "all", open: post.file_id }),
+      // A post that stopped opens straight to its sheet, where each place says why and what to do, as every other way in does.
+      route: contentRouteOf({
+        list: "made",
+        view: stands === "stopped" ? "needs" : "all",
+        open: post.file_id,
+        post: stands === "stopped",
+      }),
       door: CALENDAR_POST_WORDS.door,
       named: true,
       items: [],
