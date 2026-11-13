@@ -26,6 +26,7 @@ import {
   press,
   unmount,
 } from "../_stub-react.mjs";
+import { until } from "../shared/_until.mjs";
 
 installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 // record-foot.ts makes the record foot's context as it loads, and "react" under this runner's react-server condition has
@@ -456,4 +457,36 @@ test("a call's or a note's task is drawn whole, a long one too: on the record, a
   // The record's short one is whole in the same place.
   fresh();
   taskSays(byTestId(sheetOf(drawSheet({ kind: "step", id: "st-2" })).children, "sq-step-hand-2"), "call", WORDS);
+});
+
+test("REGRESSION: a message's editor is its own step's: moved to another step without closing, its fields and its save are that step's", async () => {
+  // 13 Nov 2026 (a review read at d0739a8fee): the call's and the note's editor was keyed by its step, the message's was not,
+  // so one kept on screen while its step changed showed the first step's wait and saved it onto the second.
+  const rec = {
+    ...recOf(),
+    steps: [step(1), step(2, { after_days: 3, only_if: ["no_booking"] }), step(3, { after_days: 7, only_if: [] })],
+  };
+  const editorOn = (id) =>
+    byTestId(sheetOf(drawSheet({ kind: "step", id }, { rec, edit: true })).children, "sq-editor");
+  const waitOf = (editor) => [
+    byTestId(editor, "sq-editor-days").props.value,
+    byTestId(editor, "sq-editor-hold").props.value,
+  ];
+  assert.deepEqual(waitOf(editorOn("st-2")), ["3", "no_booking"], "the second step's wait");
+  assert.deepEqual(
+    waitOf(editorOn("st-3")),
+    ["7", "always"],
+    "REGRESSION: the third step's editor held the second step's wait",
+  );
+  byTestId(editorOn("st-3"), "sq-editor-days").props.onValueChange("10");
+  press(byTestId(editorOn("st-3"), "sq-editor-save"));
+  await until(() => done === 1, "the save lands");
+  const writes = wire.filter(([method]) => method !== "GET");
+  assert.equal(writes.length, 1, "one write");
+  assert.match(writes[0][1], /st-3/, "it names the third step");
+  assert.deepEqual(
+    [writes[0][2].after_days, writes[0][2].only_if],
+    [10, []],
+    "REGRESSION: the save carried the second step's condition onto the third",
+  );
 });

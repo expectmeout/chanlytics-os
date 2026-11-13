@@ -46,6 +46,7 @@ export type { LeadsSurface } from "./surface-types";
 import type { LeadSearchesAnswer, LeadsPageAnswer, LeadsView } from "./surface-types";
 import type { DraftData } from "./peek/types";
 import { keptRows, leadRowsOf } from "./row-memo";
+import { oneOut } from "./one-out";
 import { queryOf } from "./view-query";
 
 const NO_COUNTS: LeadCounts = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
@@ -352,12 +353,23 @@ export async function leadsView(to: string | Partial<LeadsView>): Promise<void> 
   window.dispatchEvent(new CustomEvent("surface:leads"));
 }
 
-/** The next 500 of the same view; dropped if the view moved while it was out. */
+/** The page Load more has out, by the view and the cursor it reads from (one-out.ts). */
+const moreOut = oneOut<void>();
+
+/**
+ * The next 500 of the same view; dropped if the view moved while it was out. Asked again for the same view and cursor
+ * while that page is out, it is answered by the page out and asks for nothing.
+ */
 export async function leadsMore(): Promise<void> {
   const L = leadsLoaded;
   if (!L?.next) return;
-  const key = L.key;
-  const page = await leadsPage(L.view, L.next);
+  const after = L.next;
+  return moreOut(`${L.key}|${after.key}|${after.id}`, () => appendNextPage(L.key, L.view, after));
+}
+
+/** One page after `after` of the view read under `key`, added below the rows loaded where that view is still the one shown. */
+async function appendNextPage(key: string, shown: LeadsView, after: { key: string; id: string }): Promise<void> {
+  const page = await leadsPage(shown, after);
   if (!leadsLoaded || leadsLoaded.key !== key) return;
   const seen = new Set(leadsLoaded.rows.map((r) => r.id));
   leadsLoaded.rows = [...leadsLoaded.rows, ...page.rows.filter((r) => !seen.has(r.id))];
@@ -366,13 +378,20 @@ export async function leadsMore(): Promise<void> {
   window.dispatchEvent(new CustomEvent("surface:leads"));
 }
 
-/** "12 new": the owner asked for them, so the view is read again in its order -- page one afresh, in place, so the view held keeps up. */
-export async function leadsTakeOffered(): Promise<void> {
+/** The page one a take of what was offered has out, by its view (one-out.ts): a second take while it is out shares it. */
+const takeOut = oneOut<LeadsLoaded>();
+
+/**
+ * "12 new": the owner asked for them, so the view is read again in its order -- page one afresh, in place, so the view held
+ * keeps up. `still` is the page's own take (scope/rows-land.tsx, while a search runs and its reader is at the top): asked
+ * again as the read lands, a reader who has scrolled away or opened a lead since keeps them offered, put in under nobody.
+ */
+export async function leadsTakeOffered(still: () => boolean = () => true): Promise<void> {
   const L = leadsLoaded;
   if (!L) return readView(view);
   const key = L.key;
-  const fresh = await readPageOne(L.view);
-  if (!leadsLoaded || leadsLoaded.key !== key) return;
+  const fresh = await takeOut(key, () => readPageOne(L.view));
+  if (!leadsLoaded || leadsLoaded.key !== key || !still()) return;
   Object.assign(L, {
     searches: fresh.searches,
     counts: fresh.counts,
