@@ -18,16 +18,16 @@ import { readCode, readRaw } from "../_source.mjs";
 
 test("the words for the signed-in person: a given name or 'Your account', initials from the name or the email, the role in a word", () => {
   assert.deepEqual(identityWords(null), { name: "Your account", email: "", initials: "?", role: "", named: false });
-  assert.deepEqual(identityWords({ email: "billing@rjcapital.io", role: "owner" }), {
+  assert.deepEqual(identityWords({ email: "billing@rjcapital.example", role: "owner" }), {
     name: "Your account",
-    email: "billing@rjcapital.io",
+    email: "billing@rjcapital.example",
     initials: "B",
     role: "Owner",
     named: false,
   });
   assert.deepEqual(
-    identityWords({ email: "billing@rjcapital.io", display_name: "  Ruben Jimenez ", role: "operator" }),
-    { name: "Ruben Jimenez", email: "billing@rjcapital.io", initials: "RJ", role: "Operator", named: true },
+    identityWords({ email: "billing@rjcapital.example", display_name: "  Ruben Jimenez ", role: "operator" }),
+    { name: "Ruben Jimenez", email: "billing@rjcapital.example", initials: "RJ", role: "Operator", named: true },
   );
   assert.equal(
     identityWords({ email: "x@y.z", display_name: "Ana", role: "viewer" }).initials,

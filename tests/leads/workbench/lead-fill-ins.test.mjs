@@ -74,17 +74,24 @@ test("the blanks: a step's own words with every blank named, the line among them
 });
 
 test("what a fill-in says: what it is, where it came from, and whether it changes", () => {
-  assert.deepEqual(fillInSaysOf("business", LEAD), { title: F.business, from: F.fromMaps, varies: F.each });
-  assert.equal(fillInSaysOf("city", { ...LEAD, source: "people_at_companies" }).from, F.fromDirectory);
-  assert.equal(fillInSaysOf("business", { ...LEAD, source: "file" }).from, F.fromList);
-  // The card's lead says no source: a company is the people card's, a place the Maps card's.
-  assert.equal(fillInSaysOf("company", { ...LEAD, kind: "company" }).from, F.fromDirectory);
-  assert.equal(fillInSaysOf("first name", LEAD).from, F.nobody);
-  assert.deepEqual(fillInSaysOf("your name", LEAD), { title: F.yourName, from: F.signs, varies: F.same });
-  assert.equal(fillInSaysOf("booking link", LEAD).varies, F.same);
+  // Where their values came from is the row's own Source word (contracts leadSourceWord), as the Leads table says it.
+  const MAPS = "Google Maps listing";
+  assert.equal(F.source("Your list"), "Source: Your list");
+  assert.deepEqual(fillInSaysOf("business", LEAD, MAPS), { title: F.business, from: F.source(MAPS), varies: F.each });
+  assert.equal(fillInSaysOf("city", LEAD, "Your list").from, F.source("Your list"));
+  const company = { ...LEAD, kind: "company" };
+  assert.equal(fillInSaysOf("company", company, "Business directory").from, F.source("Business directory"));
+  // A lead the owner brought in on a list says the list, whatever its kind: the word is the row's, never a guess here.
+  assert.equal(fillInSaysOf("company", company, "Your list").from, F.source("Your list"));
+  // No word handed: the bubble says nothing of where.
+  assert.deepEqual(fillInSaysOf("business", LEAD, null), { title: F.business, from: null, varies: F.each });
+  assert.equal(fillInSaysOf("company", company, null).from, null);
+  assert.equal(fillInSaysOf("first name", LEAD, MAPS).from, F.nobody);
+  assert.deepEqual(fillInSaysOf("your name", LEAD, MAPS), { title: F.yourName, from: F.signs, varies: F.same });
+  assert.equal(fillInSaysOf("booking link", LEAD, MAPS).varies, F.same);
   // The line has its own tint and its own press, and the receptionist its own mark: neither is a bubble.
-  assert.equal(fillInSaysOf("opening", LEAD), null);
-  assert.equal(fillInSaysOf("their preview", LEAD), null);
+  assert.equal(fillInSaysOf("opening", LEAD, MAPS), null);
+  assert.equal(fillInSaysOf("their preview", LEAD, MAPS), null);
 });
 
 const NOW = new Date("2026-11-11T12:00:00Z");
@@ -126,4 +133,25 @@ test("the receptionist's mark says what will happen to the email, as the send wo
     say: words.claimed,
     tone: "done",
   });
+});
+
+test("the mark promises nothing the door would refuse: a lead that can get none is told before the email goes", () => {
+  for (const cannot of ["not_a_business", "closed", "no_name"])
+    assert.deepEqual(previewMarkOf({ preview: null, makes: true, cannot }, NOW), {
+      say: F.mark.cannot,
+      tone: "warn",
+    });
+  // Nothing in the way: made when this goes, as before.
+  assert.equal(previewMarkOf({ preview: null, makes: true, cannot: null }, NOW).say, F.mark.none);
+});
+
+test("one being made says so for two minutes, then that it is slower than usual", () => {
+  const madeAgo = (ms) => row({ state: "building", made_at: new Date(NOW.getTime() - ms).toISOString() });
+  assert.equal(previewMarkOf({ preview: madeAgo(30_000), makes: true }, NOW).say, F.mark.building);
+  assert.deepEqual(previewMarkOf({ preview: madeAgo(3 * 60_000), makes: true }, NOW), {
+    say: F.mark.slow,
+    tone: "busy",
+  });
+  // An answer that does not say when it was made: being made, never a guess.
+  assert.equal(previewMarkOf({ preview: row({ state: "building" }), makes: true }, NOW).say, F.mark.building);
 });

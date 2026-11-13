@@ -665,7 +665,7 @@ test("what the specs leave behind is put back", async () => {
 
 test("it refuses what it must not reset, and writes nothing there", async () => {
   await assert.rejects(
-    converge(world().db, { ownerEmail: "ruben@rjcapital.io", memberEmail: MATE, apply: true }),
+    converge(world().db, { ownerEmail: "ruben@rjcapital.example", memberEmail: MATE, apply: true }),
     /example\.com/,
   );
   await assert.rejects(converge(world().db, { ownerEmail: OWNER, memberEmail: OWNER, apply: true }), /two addresses/);

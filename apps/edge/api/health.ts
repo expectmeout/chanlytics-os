@@ -26,17 +26,31 @@ export interface HealthAnswer {
   /** Due jobs nobody has claimed for two minutes; null when it could not be read. */
   jobs_backlog: number | null;
   checked_at: string;
+  /**
+   * Whether the machine image the videos are drawn on is on record for this build's template; null when it could not
+   * be read. Not a clock: it moves neither `ok` nor the status, so a pinger pages nobody for it. The smoke after a
+   * deploy is what reads it (tooling/scripts/checks/smoke.mjs), where a template merged ahead of its image is caught
+   * before an owner presses Make it.
+   */
+  video_machine: boolean | null;
   reason?: "health_unreadable" | "no_database" | "error";
 }
 
 /** The judgement, apart from the transport. */
 export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ status: number; body: HealthAnswer }> {
   const checked_at = now.toISOString();
-  const [health, backlog] = await readPlatformHealth(db);
+  const [health, backlog, videoMachine] = await readPlatformHealth(db);
   if (health.error) {
     return {
       status: 503,
-      body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at, reason: "health_unreadable" },
+      body: {
+        ok: false,
+        unhealthy: [],
+        jobs_backlog: null,
+        checked_at,
+        video_machine: videoMachine,
+        reason: "health_unreadable",
+      },
     };
   }
   const rows = Array.isArray(health.data) ? health.data : [];
@@ -47,11 +61,18 @@ export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ sta
   //
   // The WIRE SHAPE IS UNCHANGED on purpose: this body is read by a pinger
   // somebody configured against it, and `unhealthy` there is a list of names.
-  // Sharing the rule is worth doing; changing what a monitor parses is not.
+  // Sharing the rule is worth doing; changing what a monitor parses is not. `video_machine` is a field beside them,
+  // and no part of the judgement: what a monitor reads is as it was.
   const judged = platformHealthOf(rows, jobs_backlog, now);
   return {
     status: judged.ok ? 200 : 503,
-    body: { ok: judged.ok, unhealthy: judged.unhealthy.map((u) => u.sweep), jobs_backlog, checked_at },
+    body: {
+      ok: judged.ok,
+      unhealthy: judged.unhealthy.map((u) => u.sweep),
+      jobs_backlog,
+      checked_at,
+      video_machine: videoMachine,
+    },
   };
 }
 
@@ -83,6 +104,7 @@ export const GET = door(async function GET(): Promise<Response> {
         unhealthy: [],
         jobs_backlog: null,
         checked_at,
+        video_machine: null,
         reason: "no_database",
       } satisfies HealthAnswer),
     );
@@ -92,7 +114,10 @@ export const GET = door(async function GET(): Promise<Response> {
     judged = await judgeHealth(db);
   } catch (e) {
     logKeptGoing("health's judgement", e);
-    judged = { status: 503, body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at, reason: "error" } };
+    judged = {
+      status: 503,
+      body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at, video_machine: null, reason: "error" },
+    };
   }
   return remember(judged.status, judged.body);
 });
