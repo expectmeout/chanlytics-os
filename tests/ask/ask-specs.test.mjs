@@ -659,6 +659,29 @@ const SHAPES = {
       caption_new: true,
       language: "en",
     }),
+    // A story alone shows no words: new ones are kept on the post by the card itself, first.
+    card("publish", {
+      file_id: "f1",
+      places: ["instagram"],
+      as: "story",
+      when: null,
+      when_said: null,
+      caption: "Come see the new floor, all week.",
+      caption_new: true,
+      language: "en",
+    }),
+    // One already set for its time, moved to the card's (00621): the file's one door for it.
+    card("publish", {
+      file_id: "f1",
+      places: [],
+      moves: [{ place: "instagram", post_id: "11111111-0000-4000-8000-000000000001" }],
+      as: "picture",
+      when: "2026-11-15T15:00:00.000Z",
+      when_said: "Sunday at 10:00 AM",
+      caption: "Come see the new floor.",
+      caption_new: false,
+      language: "en",
+    }),
   ],
   piece: [
     card("piece", {
@@ -907,7 +930,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     memory_change: ["PATCH ask/memory/[id]"],
     memory_forget: ["DELETE ask/memory/[id]", "POST ask/memory"],
     post: ["DELETE files/[id]", "POST files/post"],
-    publish: ["PATCH files/[id]", "POST files/[id]/google", "POST files/[id]/instagram"],
+    publish: ["PATCH files/[id]", "PATCH files/[id]/posts", "POST files/[id]/google", "POST files/[id]/instagram"],
     piece: ["POST files/video"],
     fix: [],
   });

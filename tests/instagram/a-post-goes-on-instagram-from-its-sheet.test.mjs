@@ -43,6 +43,7 @@ after(() => {
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/files/[id]/instagram/route.ts"));
+const posts = await import(at("apps/dashboard/app/api/v1/files/[id]/posts/route.ts"));
 const one = await import(at("apps/dashboard/app/api/v1/files/[id]/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
@@ -106,6 +107,7 @@ function world({ on = true, scopes = ALL, connected = true, lapsed = false, role
   if (on) ON.add(tenant);
   const begun = [];
   const pulled = [];
+  const moved = [];
   // Every door asked, in order: a post let go before its piece is set aside.
   const doors = [];
   const rows = posts.map((p) => postRow(tenant, p));
@@ -168,6 +170,15 @@ function world({ on = true, scopes = ALL, connected = true, lapsed = false, role
           }
           return { fate: "late", status: p?.status ?? null };
         },
+        // Change time (00621): a queued post moves; one being made ready is late.
+        post_move: ({ p_post_id, p_when }) => {
+          moved.push({ p_post_id, p_when });
+          const p = rows.find((r) => r.id === p_post_id);
+          if (!p) return { fate: "unknown" };
+          if (p.status !== "queued") return { fate: "late", status: p.status };
+          p.scheduled_for = p_when;
+          return { fate: "moved" };
+        },
       },
     ),
     userId: USER,
@@ -188,13 +199,12 @@ function world({ on = true, scopes = ALL, connected = true, lapsed = false, role
         },
       ]
     : [];
-  const service = fakeDb(
-    { tenant_channels: channels, files: [{ id: POST_ID, tenant_id: tenant, source: "made", made: null }], events: [] },
-    {},
-    {},
-  );
+  // How the post was made, as every made post keeps it: its words are kept here as it is posted (posts/caption.ts).
+  const made = { plan: { line: "Open late on Fridays", under: null }, caption: null };
+  const kept = [{ id: POST_ID, tenant_id: tenant, source: "made", made, removed_at: null }];
+  const service = fakeDb({ tenant_channels: channels, files: kept, events: [], posts: rows }, {}, {});
   setServiceClient(service);
-  return { ctx, tenant, begun, pulled, rows, doors };
+  return { ctx, tenant, begun, pulled, moved, rows, kept, doors };
 }
 const send = (w, method, body) =>
   new Request(`http://localhost/api/v1/x?workspace=${w.tenant}`, { method, body: JSON.stringify(body) });
@@ -286,6 +296,34 @@ test("Don't post stops it until it is sent, and says so once it is too late", as
     (e) => e.code === "not_found",
   );
   assert.deepEqual(other.pulled, [], "another file's post is never asked after");
+});
+
+test("Change time moves the same post in one step, until Instagram is making it ready", async () => {
+  const when = "2099-03-01T15:00:00.000Z";
+  const w = world({ posts: [{ status: "queued" }] });
+  assert.deepEqual(await posts.PATCH.run(send(w, "PATCH", { post_id: w.rows[0].id, when }), w.ctx), { moved: true });
+  assert.deepEqual([w.rows[0].status, w.rows[0].scheduled_for], ["queued", when], "the same post, at its new time");
+  assert.deepEqual(w.pulled, [], "never stopped and posted again");
+  const late = world({ posts: [{ status: "preparing" }] });
+  await assert.rejects(
+    posts.PATCH.run(send(late, "PATCH", { post_id: late.rows[0].id, when }), late.ctx),
+    (e) => e.message === ON_INSTAGRAM.moveLate,
+  );
+  const other = world();
+  await assert.rejects(
+    posts.PATCH.run(send(other, "PATCH", { post_id: "00000005-0000-4000-8000-000000000000", when }), other.ctx),
+    (e) => e.code === "not_found",
+  );
+  assert.deepEqual(other.moved, [], "another file's post is never asked after");
+});
+
+test("the press keeps its words on the piece in the same step, and a story keeps none", async () => {
+  const w = world();
+  await route.POST.run(send(w, "POST", { as: "picture", caption: "Open late on Fridays, all winter." }), w.ctx);
+  assert.equal(w.kept[0].made.caption, "Open late on Fridays, all winter.", "what went is what the piece says now");
+  const story = world();
+  await route.POST.run(send(story, "POST", { as: "story" }), story.ctx);
+  assert.equal(story.kept[0].made.caption, null);
 });
 
 test("a piece set aside is not posted: what still waits to go out is let go first, and what went stays", async () => {

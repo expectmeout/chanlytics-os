@@ -156,6 +156,7 @@ export const ROUTE_KEYS = [
   "GET workspaces",
   "PATCH ask/memory/[id]",
   "PATCH files/[id]",
+  "PATCH files/[id]/posts",
   "PATCH lead-searches/[id]",
   "PATCH mailbox-connections/[id]",
   "PATCH partner",

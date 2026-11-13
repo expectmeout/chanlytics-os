@@ -18,6 +18,7 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import { ROOT } from "../../_source.mjs";
 import { piecesToReadAhead } from "../../../apps/dashboard/src/surfaces/campaigns/content/model/piece-open.ts";
+import { until } from "../../shared/_until.mjs";
 
 const DASHBOARD_MODULES = path.join(ROOT, "apps/dashboard/node_modules");
 const CONTENT = "../../apps/dashboard/src/surfaces/campaigns/content";
@@ -46,12 +47,28 @@ const BOTH_AFTER =
   'import { createElement as el } from "react";\n' +
   'import { renderToStaticMarkup as draw } from "react-dom/server";\n' +
   "export function bothAfter(piece, script) {\n" +
-  "  const tell = { done() {}, flash() {}, pull() {}, pulling: false, pullProblem: null };\n" +
+  "  return bothAfterTold(piece, script, {});\n" +
+  "}\n" +
+  "export function bothAfterTold(piece, script, told) {\n" +
+  "  const tell = { done() {}, flash() {}, pull() {}, pulling: false, pullProblem: null, ...told };\n" +
   "  let step = 0;\n" +
   "  let seen = null;\n" +
   "  function Probe() {\n" +
   "    seen = usePostBoth(piece, tell);\n" +
   "    if (step < script.length) script[step++](seen);\n" +
+  "    return null;\n" +
+  "  }\n" +
+  "  draw(el(Probe));\n" +
+  "  return seen;\n" +
+  "}\n";
+
+/** The piece's own presses (piece-presses.tsx usePiecePresses), run for real the same way: what Don't post and its Undo ask. */
+const PRESSES_OF =
+  `import { usePiecePresses } from "${CONTENT}/piece-presses.tsx";\n` +
+  "export function piecePressesOf(hands, posts) {\n" +
+  "  let seen = null;\n" +
+  "  function Probe() {\n" +
+  "    seen = usePiecePresses(hands, posts);\n" +
   "    return null;\n" +
   "  }\n" +
   "  draw(el(Probe));\n" +
@@ -68,7 +85,8 @@ const out = await build({
       `export { PostBoth, PostBothActs } from "${CONTENT}/post-both.tsx";\n` +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n' +
-      BOTH_AFTER,
+      BOTH_AFTER +
+      PRESSES_OF,
     resolveDir: path.join(ROOT, "tests/content"),
     sourcefile: "a-piece-opens.ts",
     loader: "ts",
@@ -391,6 +409,7 @@ const bothOf = (draft, over = {}) => ({
   takes: { instagram: true, google: true },
   wont: { instagram: null, google: null },
   offers: { instagram: true, google: true },
+  kinds: ["picture", "story"],
   ready: true,
   sending: draft.instagram || draft.google,
   may: true,
@@ -428,6 +447,15 @@ test("on a desk the list stands in the pane's body under its head, its one coral
   assert.equal(count(html, "cnv-keys"), 0);
   assert.match(html, /<footer class="cm-pane-foot capsule">.*data-testid="cnv-compose-send"/);
   assert.equal(count(html, "cnv-compose-cancel"), 0, "the × lets it go");
+  // As the phone's one sheet holds it (Ruben, 12 Nov 2026: the desk still read the caption, and changed it elsewhere).
+  assert.equal(count(html, "cnv-caption-box"), 1, "its caption, typed in place under the places");
+  assert.equal(count(html, "cnv-made-line"), 1, "and what it was made from, on one line");
+  assert.doesNotMatch(
+    html,
+    /Made<\/span> (Today|Yesterday|Tomorrow) at/,
+    "said inside the line, its day is no capital: Made today, 3:00 PM",
+  );
+  assert.ok(html.indexOf('data-testid="cnv-compose"') < html.indexOf('data-testid="cnv-caption"'), "under the list");
 });
 
 test("with nothing switched on it is the list of where it is posted: no words, no time and no send", () => {
@@ -460,10 +488,10 @@ test("the list offers each place that can take it, says which are on, and its ca
   assert.match(html, /role="group" aria-label="Post it"/);
   assert.equal(placeSaid(html, "instagram"), null, "a place that can take it and holds nothing says nothing: one line");
   assert.equal(count(html, "cnv-as-picture"), 1, "Instagram as a post or a story");
-  assert.match(
-    html,
-    /data-testid="cnv-words"[^>]*>Saturdays fill first\.</,
-    "the caption that goes with it, said once",
+  assert.equal(
+    count(html, "cnv-words"),
+    0,
+    "its caption is the piece's own, typed in place under the list, not read here",
   );
   const foot = composeFoot(bothOf(draft()));
   assert.equal(saysOf(foot, "cnv-compose-send"), "Post", "Post, a word alone");
@@ -495,9 +523,26 @@ test("a place says where the piece stands there first: up with its door, on its 
   const timed = post("instagram", "queued", { id: "story", kind: "story", scheduled_for: LATER });
   const waits = bothOf(draft(OFF), { posts: [timed], takes: { instagram: false, google: true } });
   assert.match(tagOf(compose(waits), "cnv-place-instagram"), /data-stands="timed"/);
-  assert.equal(count(compose(waits), "cnv-switch-instagram"), 0, "one on its way there takes no second");
+  assert.equal(count(compose(waits), "cnv-switch-instagram"), 0, "a place that takes no more has no switch");
   assert.equal(count(compose(waits), "cnv-pull-instagram"), 1);
   assert.equal(count(compose({ ...waits, may: false }), "cnv-pull-instagram"), 0, "a reader stops nothing");
+  // And is told who can: a reader reaches the sheet from what needs the owner, and saw a status with nothing to press.
+  assert.equal(count(compose({ ...waits, may: false }), "cnv-cant-post"), 1, "a reader is told who can post");
+  assert.equal(count(compose(waits), "cnv-cant-post"), 0, "whoever may post is told nothing of it");
+  // Only where a press is missing: a piece up everywhere, with nothing waiting, has nothing left to post.
+  const allUp = bothOf(draft(OFF), {
+    posts: [post("instagram", "published"), post("google", "published")],
+    takes: { instagram: false, google: false },
+    could: { instagram: true, google: false },
+    may: false,
+  });
+  assert.equal(count(compose(allUp), "cnv-cant-post"), 0, "nothing to do, so nothing is said of who could");
+  const ready = bothOf(draft(OFF), {
+    takes: { instagram: false, google: false },
+    could: { instagram: true, google: true },
+    may: false,
+  });
+  assert.equal(count(compose(ready), "cnv-cant-post"), 1, "a piece ready to post waits on someone who can");
   assert.match(
     tagOf(compose({ ...waits, pulling: true }), "cnv-pull-instagram"),
     /disabled=""/,
@@ -510,9 +555,39 @@ test("a place says where the piece stands there first: up with its door, on its 
     marked("Didn't post · Google is busy right now."),
   );
   assert.equal(placeSaid(compose(stopped({})), "google"), marked("Didn't post"), "no reason is made up for it");
-  // Let go where it is said: the same Don't post that stops one waiting for its time (00619), for whoever may post.
+  // Let go where it is said (00619), for whoever may post: Dismiss, where Don't post stops one that waits (Ruben, 12 Nov 2026).
   assert.equal(count(compose(stopped({})), "cnv-pull-google"), 1, "a post that stopped is let go in its row");
+  assert.equal(saysOf(compose(stopped({})), "cnv-pull-google"), "Dismiss");
+  assert.equal(saysOf(compose(waits), "cnv-pull-instagram"), marked("Don't post"));
   assert.equal(count(compose({ ...stopped({}), may: false }), "cnv-pull-google"), 0, "a reader lets nothing go");
+});
+
+test("a post up on Instagram and a story set for later there are said apart, each with its own press", () => {
+  // Ruben, 12 Nov 2026: the story set for tomorrow hid the post up since Monday, and its See it.
+  const door = S.createElement("a", { href: "https://example.com/p/1", "data-testid": "door" }, "See it");
+  const story = post("instagram", "queued", {
+    id: "story",
+    kind: "story",
+    scheduled_for: LATER,
+    created_at: "2026-11-12T15:00:00Z",
+  });
+  const state = bothOf(draft(OFF), {
+    posts: [story, post("instagram", "published")],
+    takes: { instagram: false, google: true },
+  });
+  const html = compose(state, { instagram: door });
+  assert.match(placeSaid(html, "instagram"), /^Story goes up /, "what waits, named as the status row names it");
+  assert.match(
+    /data-testid="cnv-place-up-instagram"[\s\S]*?<span[^>]*>(Posted [^<]*)</.exec(html)?.[1] ?? "",
+    /^Posted \S+/,
+    "and the post that is up, under it",
+  );
+  assert.equal(count(html, "door"), 1, "with its door, once");
+  assert.equal(count(html, "cnv-pull-instagram"), 1, "the story's Don't post");
+  // A post up alone is said once, in its own row.
+  const alone = compose(bothOf(draft(OFF), { posts: [post("instagram", "published")] }), { instagram: door });
+  assert.equal(count(alone, "cnv-place-up-instagram"), 0);
+  assert.equal(count(alone, "door"), 1);
 });
 
 test("a place that cannot take it says why and has no switch; one the workspace is not offered is not listed", () => {
@@ -553,10 +628,105 @@ test("a Don't post that was refused says why in the list, which stands over the 
   assert.equal(count(compose(bothOf(draft(OFF))), "cnv-pull-problem"), 0);
 });
 
-test("a story alone asks for no words", () => {
+test("a story alone asks for no words, and says its caption shows on no story", () => {
   const html = compose(bothOf(draft({ google: false, as: "story" }), { words: "" }));
   assert.equal(count(html, "cnv-words"), 0);
   assert.equal(count(html, "cnv-compose-problem"), 0);
+  assert.match(html, /data-testid="cnv-story-words">A story shows no caption\.</);
+  assert.equal(
+    count(compose(bothOf(draft({ as: "story" }))), "cnv-story-words"),
+    0,
+    "with Google on, the words go there",
+  );
+  assert.equal(count(compose(bothOf(draft())), "cnv-story-words"), 0);
+});
+
+test("a post set for its time can be set for another, from its row, in the foot", () => {
+  const timed = post("instagram", "queued", { id: "story", kind: "story", scheduled_for: LATER });
+  const waits = bothOf(draft(OFF), { posts: [timed], takes: { instagram: false, google: true } });
+  assert.equal(saysOf(compose(waits), "cnv-move-instagram"), "Change time");
+  assert.equal(count(compose({ ...waits, may: false }), "cnv-move-instagram"), 0, "a reader moves nothing");
+  const going = bothOf(draft(OFF), {
+    posts: [post("instagram", "queued", { id: "now" })],
+    takes: { instagram: false, google: true },
+  });
+  assert.equal(count(compose(going), "cnv-move-instagram"), 0, "one going up now has no time to change");
+  const making = bothOf(draft(OFF), {
+    posts: [post("instagram", "preparing", { id: "making", scheduled_for: LATER })],
+    takes: { instagram: false, google: true },
+  });
+  assert.equal(count(compose(making), "cnv-move-instagram"), 0, "one Instagram is making ready keeps its time");
+  assert.equal(count(compose(making), "cnv-pull-instagram"), 1, "and can still be stopped");
+  assert.match(compose(making), /data-testid="cnv-words-held">Instagram already has this post/);
+  assert.equal(count(compose(waits), "cnv-words-held"), 0);
+  const foot = composeFoot(
+    bothOf(draft(OFF), { moving: { post: "story", place: "instagram", kind: "story", at: Date.parse(LATER) } }),
+  );
+  assert.equal(count(foot, "cnv-move"), 1, "the foot asks for the time");
+  assert.equal(saysOf(foot, "cnv-move-yes"), "Change time");
+  assert.equal(count(foot, "cnv-compose-send"), 0, "and sends nothing else meanwhile");
+});
+
+/** What the page asks of the server while `run` runs: each request's method, door and body, answered as `answer` says. */
+async function askedWhile(run, answer = () => ({ ok: true, data: {} })) {
+  const asked = [];
+  const realFetch = globalThis.window.fetch;
+  globalThis.window.fetch = async (url, init) => {
+    const body = init.body ? JSON.parse(init.body) : null;
+    asked.push({ method: init.method, door: /\/files\/[^/?]+\/?([a-z]*)/.exec(String(url))?.[1] ?? "", body });
+    const said = answer(init.method);
+    return new Response(JSON.stringify(said), {
+      status: said.ok ? 200 : 409,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    await run();
+  } finally {
+    globalThis.window.fetch = realFetch;
+  }
+  return asked;
+}
+
+test("Change time refused keeps the post at its time, and says why under its place", async () => {
+  const timed = post("google", "queued", { id: "11111111-0000-4000-8000-000000000008", scheduled_for: LATER });
+  const piece = pieceOf({ posts: [timed], takes: { instagram: true, google: false } });
+  const moved = [];
+  const state = S.bothAfterTold(
+    piece,
+    [opens, (s) => s.moveTime(timed.id), (s) => s.moveTo(Date.parse("2099-02-01T10:00:00Z"))],
+    { done: (places) => moved.push(places) },
+  );
+  const asked = await askedWhile(
+    () => state.move(),
+    () => ({ ok: false, error: { code: "conflict", message: "It is already being made ready to go." } }),
+  );
+  assert.deepEqual(
+    asked.map((a) => [a.method, a.door]),
+    [["PATCH", "posts"]],
+    "one step, so a refusal leaves the post as it was: never stopped first",
+  );
+  assert.deepEqual(moved, [[]], "the piece is read again, and its place says why");
+});
+
+test("Change time moves the same post to the new time, in one step", async () => {
+  const timed = post("instagram", "queued", {
+    id: "11111111-0000-4000-8000-000000000009",
+    kind: "story",
+    scheduled_for: LATER,
+  });
+  const moved = [];
+  const piece = pieceOf({ posts: [timed], takes: { instagram: false, google: true } });
+  const to = Date.parse("2099-02-01T10:00:00Z");
+  const state = S.bothAfterTold(piece, [opens, (s) => s.moveTime(timed.id), (s) => s.moveTo(to)], {
+    done: (places) => moved.push(places),
+  });
+  assert.deepEqual(state.moving, { post: timed.id, place: "instagram", kind: "story", at: to });
+  const asked = await askedWhile(() => state.move());
+  assert.deepEqual(asked, [
+    { method: "PATCH", door: "posts", body: { post_id: timed.id, when: "2099-02-01T10:00:00.000Z" } },
+  ]);
+  assert.deepEqual(moved, [["instagram"]]);
 });
 
 test("what stops a send is said once, and the send waits for it", () => {
@@ -568,6 +738,47 @@ test("what stops a send is said once, and the send waits for it", () => {
 test("a place that was refused says why under its row", () => {
   const state = bothOf(draft({ instagram: false }), { refused: { google: "Google is busy right now." } });
   assert.match(compose(state), /Google: Google is busy right now\./);
+});
+
+test("a story can go beside a post that waits: the switch offers the kind that is free, and each that waits has its line", () => {
+  // 00620: on Instagram a picture post and a story wait apart. The row's end is the switch for the kind still free, so the
+  // waiting post's Don't post stands on its own line.
+  const picture = post("instagram", "queued", { id: "picture", scheduled_for: LATER, created_at: agoIso(120_000) });
+  const beside = bothOf(draft({ google: false, as: "story" }), { posts: [picture], kinds: ["story"] });
+  const html = compose(beside);
+  assert.equal(count(html, "cnv-switch-instagram"), 1);
+  assert.equal(
+    saysOf(html, "cnv-pull-instagram"),
+    marked("Don't post"),
+    "the post that waits is still stopped from its line",
+  );
+  assert.equal(count(html, "cnv-move-instagram"), 1, "and its time is still changed there");
+  assert.match(tagOf(html, "cnv-as-picture"), /disabled=""/, "a second post is not offered while one waits");
+  assert.doesNotMatch(tagOf(html, "cnv-as-story"), /disabled=""/);
+  assert.equal(count(html, "cnv-place-too-instagram"), 0, "one that waits alone is the row's own line");
+
+  // Both wait: the newest is the row's, the other a line of its own, each with its own Change time and Don't post.
+  const story = post("instagram", "queued", { id: "story", kind: "story", scheduled_for: LATER });
+  const two = bothOf(draft(OFF), { posts: [story, picture], takes: { instagram: false, google: true }, kinds: [] });
+  const both = compose(two);
+  assert.match(placeSaid(both, "instagram"), /^Story goes up /);
+  assert.match(both, /data-testid="cnv-place-too-instagram"[^>]*><span class="cnv-dest-status">Post goes up /);
+  assert.equal(saysOf(both, "cnv-move-too-instagram"), "Change time");
+  assert.equal(saysOf(both, "cnv-pull-too-instagram"), marked("Don't post"));
+  assert.equal(count(both, "cnv-switch-instagram"), 0, "nothing more goes there until one lands");
+  const reader = compose({ ...two, may: false });
+  assert.equal(count(reader, "cnv-place-too-instagram"), 1, "a reader sees both lines");
+  assert.equal(count(reader, "cnv-pull-too-instagram") + count(reader, "cnv-move-too-instagram"), 0);
+  assert.equal(count(reader, "cnv-cant-post"), 1);
+
+  // The list's own state: opening it arms nothing where a post is on its way; switched on by hand, Instagram is the kind
+  // that is free, whatever was asked.
+  const piece = pieceOf({ posts: [picture] });
+  assert.deepEqual(onAfter(piece, opens), { instagram: false, google: true, sending: true });
+  const on = S.bothAfter(piece, [opens, (state) => state.toggle("instagram")]);
+  assert.deepEqual([on.draft.instagram, on.draft.as, on.kinds], [true, "story", ["story"]]);
+  const asked = S.bothAfter(piece, [opens, (state) => state.toggle("instagram"), (state) => state.choose("picture")]);
+  assert.equal(asked.draft.as, "story", "a second post is not chosen while one waits");
 });
 
 /** What the list reads of a piece (post-both.tsx PostBothPiece), with its record read and both places taking a post. */
@@ -610,16 +821,33 @@ test("opening the list switches on each place that can take the post now, and ne
   );
 });
 
-test("the list opened for one place switches on that place alone, and only where it can take the post", () => {
+test("where a post stopped, the list opens on that place alone, however it is opened, and only where it can take the post", () => {
+  // Ruben, 12 Nov 2026: Post again opened Instagram alone, and where it stands opened both.
+  const stoppedThere = pieceOf({ posts: [post("instagram", "failed")] });
+  assert.deepEqual(onAfter(stoppedThere, opens), { instagram: true, google: false, sending: true });
+  const story = pieceOf({ posts: [post("instagram", "held", { kind: "story" })] });
+  assert.equal(S.bothAfter(story, [opens]).draft.as, "story", "a story that stopped is tried again as a story");
+  assert.equal(S.bothAfter(pieceOf(), [opens]).draft.as, "picture");
+  // Tried again at a place that has stopped taking posts since (disconnected): it has no switch, so it is not on, and no
+  // other place is switched on in its stead.
+  const disconnected = pieceOf({ posts: [post("instagram", "failed")], takes: { instagram: false, google: true } });
+  assert.deepEqual(onAfter(disconnected, opens), { instagram: false, google: false, sending: false });
+});
+
+test("Post sends the words on screen, to each place's door, which keeps them on the piece in the same step", async () => {
+  // Ruben, 12 Nov 2026: words typed just before Post went out as they were before. The box under the places says what it
+  // holds (viewer/caption.tsx onText), and that is the caption the piece hands the list.
+  const kept = [];
+  const state = S.bothAfterTold(pieceOf({ caption: "Words on screen." }), [opens], { wordsKept: (w) => kept.push(w) });
+  const asked = await askedWhile(() => state.send());
+  assert.deepEqual(kept, ["Words on screen."], "and the caption's box is told, so it keeps them no second time");
   assert.deepEqual(
-    onAfter(pieceOf(), (state) => state.begin("google")),
-    { instagram: false, google: true, sending: true },
-  );
-  // Try again at a place that has stopped taking posts since (disconnected): it has no switch, so it is not on.
-  const disconnected = pieceOf({ takes: { instagram: false, google: true } });
-  assert.deepEqual(
-    onAfter(disconnected, (state) => state.begin("instagram")),
-    { instagram: false, google: false, sending: false },
+    asked.map((a) => [a.method, a.door, a.body.caption ?? a.body.summary]),
+    [
+      ["POST", "instagram", "Words on screen."],
+      ["POST", "google", "Words on screen."],
+    ],
+    "no save first and no wait: one step to each place",
   );
 });
 
@@ -652,6 +880,80 @@ test("the line to Ask is one box and one press, drawn as Ask's own line: named, 
     /placeholder="What should change\?"/,
     "alone, it asks what should change",
   );
+});
+
+test("words a post's door kept are kept once: the caption's box, going with its sheet, asks for no second save", async () => {
+  const hands = {
+    made: { file: fileOf("image"), posts: [] },
+    record: { made: { from: null, plan: {}, caption: "Old words." }, reread: noop },
+    reread: noop,
+    open: noop,
+    onClose: noop,
+    flash: noop,
+  };
+  const presses = S.piecePressesOf(hands, []);
+  presses.captionPosted("Posted words.");
+  const none = await askedWhile(async () => assert.equal(await presses.caption("  Posted words. "), null));
+  assert.deepEqual(none, [], "the door kept them as it posted");
+  const other = await askedWhile(async () => assert.equal(await presses.caption("Other words."), null));
+  assert.deepEqual(other, [{ method: "PATCH", door: "", body: { caption: "Other words." } }]);
+  const again = await askedWhile(async () => assert.equal(await presses.caption("Posted words."), null));
+  assert.equal(again.length, 1, "once other words are kept, the posted ones are a change again");
+  // Changed elsewhere since (Ask's card, another phone): the box, reading the piece again, holds other words, so the words
+  // a door once kept are a change again and are saved.
+  presses.captionPosted("Posted words.");
+  presses.captionTyped("Changed elsewhere.");
+  const since = await askedWhile(async () => assert.equal(await presses.caption("Posted words."), null));
+  assert.equal(since.length, 1, "never skipped on a mark the caption has moved past");
+  // A story alone carries no words: its door keeps none, so the box keeps what was typed.
+  const kept = [];
+  const story = S.bothAfterTold(
+    pieceOf({ caption: "Typed.", takes: { instagram: true, google: false } }),
+    [opens, (s) => s.choose("story")],
+    { wordsKept: (w) => kept.push(w) },
+  );
+  await askedWhile(() => story.send());
+  assert.deepEqual(kept, [null], "told that no words were kept");
+});
+
+test("Undo after Don't post sets the post again with the piece's caption as it stands, never the stopped post's own copy", async () => {
+  // The door keeps the words it is handed on the piece, so a stopped post's older copy would put old words back.
+  const timed = post("instagram", "queued", {
+    id: "11111111-0000-4000-8000-000000000007",
+    caption: "Old words.",
+    scheduled_for: LATER,
+  });
+  const flashed = [];
+  const hands = {
+    made: { file: fileOf("image"), posts: [timed] },
+    record: { made: { from: null, plan: {}, caption: "New words." }, reread: noop },
+    reread: noop,
+    open: noop,
+    onClose: noop,
+    flash: (f) => flashed.push(f),
+  };
+  const presses = S.piecePressesOf(hands, [timed]);
+  const asked = await askedWhile(async () => {
+    presses.pull(timed.id);
+    await until(() => flashed.length === 1, "Don't post's note");
+    assert.equal(typeof flashed[0].undo, "function", "a post that waited can be put back");
+    assert.equal(flashed[0].stays, true, "and its Undo stays through a tap besides");
+    flashed[0].undo();
+    await until(() => flashed.length === 2, "Undo's note");
+  });
+  assert.deepEqual(asked, [
+    { method: "DELETE", door: "instagram", body: { post_id: timed.id } },
+    { method: "POST", door: "instagram", body: { as: "picture", caption: "New words.", when: LATER } },
+  ]);
+  // One that stopped and was dismissed has no way back: it never waited.
+  const stopped = post("instagram", "failed", { id: "11111111-0000-4000-8000-000000000006" });
+  const dismissed = [];
+  const after = S.piecePressesOf({ ...hands, flash: (f) => dismissed.push(f) }, [stopped]);
+  await askedWhile(async () => {
+    after.pull(stopped.id);
+    await until(() => dismissed.length === 1, "Dismiss's note");
+  });
+  assert.equal(dismissed[0].undo, undefined);
 });
 
 test("the two after the open piece are read ahead, each once", () => {

@@ -259,7 +259,6 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
         doors={hands.doors}
         piece={{
           name: says.details.name,
-          sub: says.details.sub,
           facts: (
             <ViewerFacts
               shown={says.details}
@@ -267,6 +266,7 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
               busy={presses.busy}
               say={presses.say}
               caption={presses.caption}
+              typed={presses.captionTyped}
               compact
             />
           ),

@@ -94,3 +94,4 @@ export type {
   PostPatch,
   PostRow,
 } from "./posts";
+export { followPostCaption, movePostTime } from "./waiting-posts";

@@ -186,6 +186,43 @@ test("Don't post holds until the send, and is too late once it is being sent", {
   assert.equal((await as.viewer.client.rpc("post_pull", { p_post_id: second.post_id })).error?.code, "42501");
 });
 
+test("Change time moves the same post and its job, until a run has taken it (00621)", { skip }, async () => {
+  const later = new Date(Date.now() + 3 * 86_400_000).toISOString();
+  const to = new Date(Date.now() + 5 * 86_400_000);
+  const begun = ok(await begin("owner", await file(), { p_when: later }), "begin");
+  const move = (who, postId, when) => as[who].client.rpc("post_move", { p_post_id: postId, p_when: when });
+  assert.deepEqual(ok(await move("owner", begun.post_id, to.toISOString()), "move"), { fate: "moved" });
+  const moved = await postOf(begun.post_id);
+  assert.deepEqual(
+    [moved.status, Date.parse(moved.scheduled_for)],
+    ["queued", to.getTime()],
+    "the same post, at its time",
+  );
+  const [prepare] = await jobsOf("post_prepare", begun.post_id);
+  assert.equal(Date.parse(prepare.due_at), to.getTime() - 10 * 60_000, "its job ten minutes ahead of the new time");
+  // A Google post waits for its own job at its time.
+  const google = ok(await begin("owner", await file(), { p_place: "google", p_when: later }), "google");
+  assert.deepEqual(ok(await move("owner", google.post_id, to.toISOString()), "google move"), { fate: "moved" });
+  const [job] = await jobsOf("post_google", google.post_id);
+  assert.equal(Date.parse(job.due_at), to.getTime());
+  // Once a run has taken its job, or Instagram is making it ready, nothing moves.
+  ok(await db.from("jobs").update({ state: "fired" }).eq("payload->>post_id", begun.post_id), "taken");
+  assert.equal(ok(await move("owner", begun.post_id, later), "late").fate, "late");
+  assert.equal(Date.parse((await postOf(begun.post_id)).scheduled_for), to.getTime(), "its time unchanged");
+  const making = ok(await begin("owner", await file(), { p_when: later }), "begin");
+  ok(await db.from("posts").update({ status: "preparing" }).eq("id", making.post_id), "preparing");
+  assert.deepEqual(ok(await move("owner", making.post_id, to.toISOString()), "preparing"), {
+    fate: "late",
+    status: "preparing",
+  });
+  // Ahead of now and within thirty days; the settings permission's alone.
+  assert.equal((await move("owner", google.post_id, new Date(Date.now() - 60_000).toISOString())).error?.code, "22023");
+  const far = new Date(Date.now() + 40 * 86_400_000).toISOString();
+  assert.equal((await move("owner", google.post_id, far)).error?.code, "22023");
+  assert.equal((await move("viewer", google.post_id, to.toISOString())).error?.code, "42501");
+  assert.deepEqual(ok(await move("owner", randomUUID(), to.toISOString()), "unknown"), { fate: "unknown" });
+});
+
 test(
   "a member reads where a post stands, never the container or what was sent; a stranger reads nothing",
   { skip },
