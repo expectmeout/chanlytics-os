@@ -1015,3 +1015,31 @@ test("REGRESSION: what the head started and the page's own reads did not take is
     api().forget();
   }
 });
+
+test("REGRESSION: an answer the head started and nobody took is ended as it is let go, not left coming down -- unread, the browser kept its request open for as long as it kept the answer (Content's Library never took Sequences' list, and the nightly's walk of it never saw the network go quiet, 12 and 13 Nov 2026)", async () => {
+  let ended = 0;
+  /** An answer whose headers are in and whose body nobody has read: what a read the page never took is. */
+  const unread = () =>
+    new Response(
+      new ReadableStream({
+        cancel() {
+          ended += 1;
+        },
+      }),
+      { status: 200 },
+    );
+  // One the head could not get an answer for at all: there is nothing of it to end, and letting go of it says nothing.
+  const refused = Promise.reject(new Error("no answer"));
+  refused.catch(() => {});
+  const win = {
+    [PREFETCH_SLOT]: {
+      "/api/v1/sequences?workspace=acme": Promise.resolve(unread()),
+      "/api/v1/templates?all=1&workspace=acme": Promise.resolve(unread()),
+      "/api/v1/team?workspace=acme": refused,
+    },
+  };
+  const { dropPrefetched } = await importSrc("apps/dashboard/src/bridge/api.ts");
+  dropPrefetched(win);
+  assert.equal(win[PREFETCH_SLOT], undefined, "forgotten, as it was");
+  await until(() => ended === 2, "REGRESSION: each answer nobody took is ended, so its request finishes");
+});

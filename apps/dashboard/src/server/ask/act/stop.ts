@@ -4,6 +4,11 @@ import "server-only";
  * all sending: every sequence running is paused through its own door, replies wait for a person, and Ask stops acting alone.
  * What it paused and what replies were set to are kept, so Resume puts back exactly that and nothing a member paused by hand.
  *
+ * It never says stopped while something it reached still goes out on its own. A pause or a hold that fails is said in the
+ * answer and kept beside the record, and pressed again, a stop looks again: whatever still sends is tried again and, once
+ * paused, joins the record. A Resume that cannot bring something back keeps it in the record, and Stop everything stays on
+ * until a Resume brings back the rest.
+ *
  * A stop is always free: any member who may act may press it. Turning Ask's freedom on is an owner's or a partner's, since it
  * changes how the business runs.
  */
@@ -11,6 +16,7 @@ import { AppError, parseTenantConfigResult, type AskStopped, type TenantId } fro
 import { findConfigRow, findConfigRowVersioned, putTenantConfig } from "@chanlytics/db/workspace";
 import { listRunningPlaybookIds } from "@chanlytics/db/campaigns";
 import { logAndGoOn } from "@chanlytics/log";
+import { log } from "@/server/shared/log";
 import { serviceDb } from "@/server/shared/service-db";
 import { load, readerContext } from "@/server/shared/reader";
 import { policies as policiesReader } from "@/server/readers/facts";
@@ -58,46 +64,103 @@ async function callOwn(req: Request, method: string, path: string, body: unknown
   return !!res?.ok;
 }
 
-/** What Stop everything did: how many sends it paused, and whether replies now wait. */
-export interface StopAnswer {
-  stopped: boolean;
-  paused: number;
-  replies: boolean;
-}
-
-/** Pause all sending: every running sequence, replies held, Ask not acting alone. Pressed twice, it is stopped once. */
-export async function stopEverything(ctx: RouteContext, req: Request, member: Member): Promise<StopAnswer> {
-  const tenantId = member.tenantId as TenantId;
+/** What Stop everything keeps while it is on, as the workspace's settings hold it; null while it is off. */
+async function readStopped(ctx: RouteContext, tenantId: TenantId): Promise<AskStopped | null> {
   const { data: row } = await findConfigRow(ctx.supabase, tenantId);
   const parsed = parseTenantConfigResult(row?.config ?? null);
-  const already = parsed.ok ? (parsed.config.ask as { stopped?: AskStopped } | undefined)?.stopped : null;
-  if (already) return { stopped: true, paused: already.playbooks.length, replies: already.reply !== null };
-  const running = await listRunningPlaybookIds(ctx.supabase, tenantId);
-  const paused: string[] = [];
-  for (const id of running) if (await callOwn(req, "PUT", `playbooks/${id}`, { state: "paused" })) paused.push(id);
+  return parsed.ok ? ((parsed.config.ask as { stopped?: AskStopped } | undefined)?.stopped ?? null) : null;
+}
+
+/** What a press did, and what it could not: the page and Ask each say it in their own words. */
+export interface StopAnswer {
+  /**
+   * Stop everything is wholly on: after a stop, nothing it reached still goes out on its own; after a Resume, it still holds
+   * what did not come back.
+   */
+  stopped: boolean;
+  /** How many sequences it holds paused, which Resume puts back; after a Resume, how many it still holds. */
+  paused: number;
+  /** After a stop, whether replies wait for a person; after a Resume, whether it still holds them. */
+  replies: boolean;
+  /** After a stop, the sequences still sending that it could not pause: pressed again, it tries them again. */
+  left: number;
+}
+
+/**
+ * Replies held for a person: whether they wait now, and the mode Resume puts back (the one found before the first hold).
+ * A read of the rows that fails holds nothing, and is said as replies still going out.
+ */
+async function holdReplies(
+  ctx: RouteContext,
+  req: Request,
+  member: Member,
+  kept: string | null,
+): Promise<{ held: boolean; reply: string | null }> {
   const rows = await load(readerContext(ctx, member), policiesReader, undefined).then(
     (r) => r.data,
-    logAndGoOn("stop rows", []),
+    logAndGoOn("stop rows", null),
   );
-  const reply = rows.find((r) => r.class === "reply")?.mode ?? null;
-  const held =
-    reply && reply !== "ask" ? await callOwn(req, "PUT", "policies", { class: "reply", mode: "ask" }) : false;
-  const stopped: AskStopped = { at: new Date().toISOString(), playbooks: paused, reply: held ? reply : null };
-  await writeAskKey(tenantId, ctx.userId, "stopped", stopped);
-  return { stopped: true, paused: paused.length, replies: held };
+  if (rows === null) return { held: false, reply: kept };
+  const mode = rows.find((r) => r.class === "reply")?.mode ?? null;
+  // No row is Asks you (core replyPosture), and Asks you is what a stop wants.
+  if (mode === null || mode === "ask") return { held: true, reply: kept };
+  const held = await callOwn(req, "PUT", "policies", { class: "reply", mode: "ask" });
+  return { held, reply: held ? (kept ?? mode) : kept };
 }
 
-/** Lift it: what the stop paused goes back, replies go back to what they were, Ask's freedom to what it was. */
+/**
+ * Pause all sending: every running sequence, replies held, Ask not acting alone. Pressed again, it looks again: what still
+ * sends is paused and joins the record, replies are held if they are not.
+ */
+export async function stopEverything(ctx: RouteContext, req: Request, member: Member): Promise<StopAnswer> {
+  const tenantId = member.tenantId as TenantId;
+  const already = await readStopped(ctx, tenantId);
+  const paused = new Set(already?.playbooks ?? []);
+  const left: string[] = [];
+  for (const id of await listRunningPlaybookIds(ctx.supabase, tenantId)) {
+    if (await callOwn(req, "PUT", `playbooks/${id}`, { state: "paused" })) paused.add(id);
+    else left.push(id);
+  }
+  const replies = await holdReplies(ctx, req, member, already?.reply ?? null);
+  const stopped: AskStopped = {
+    at: already?.at ?? new Date().toISOString(),
+    playbooks: [...paused],
+    reply: replies.reply,
+    ...(left.length > 0 ? { left } : {}),
+    ...(replies.held ? {} : { replies_left: true }),
+  };
+  await writeAskKey(tenantId, ctx.userId, "stopped", stopped);
+  const answer = {
+    stopped: left.length === 0 && replies.held,
+    paused: paused.size,
+    replies: replies.held,
+    left: left.length,
+  };
+  if (!answer.stopped) log.warn("ask_stop_left", { tenant_id: tenantId, left: left.length, replies: replies.held });
+  return answer;
+}
+
+/**
+ * Lift it: what the stop paused goes back, replies go back to what they were, Ask's freedom to what it was. What does not
+ * come back stays in the record, so a Resume again puts back that and nothing else; the record goes once all of it did.
+ */
 export async function resumeEverything(ctx: RouteContext, req: Request, member: Member): Promise<StopAnswer> {
   const tenantId = member.tenantId as TenantId;
-  const { data: row } = await findConfigRow(ctx.supabase, tenantId);
-  const parsed = parseTenantConfigResult(row?.config ?? null);
-  const was = parsed.ok ? (parsed.config.ask as { stopped?: AskStopped } | undefined)?.stopped : null;
-  if (!was) return { stopped: false, paused: 0, replies: false };
-  for (const id of was.playbooks) await callOwn(req, "PUT", `playbooks/${id}`, { state: "running" });
-  if (was.reply) await callOwn(req, "PUT", "policies", { class: "reply", mode: was.reply });
-  await writeAskKey(tenantId, ctx.userId, "stopped", null);
-  return { stopped: false, paused: was.playbooks.length, replies: was.reply !== null };
+  const was = await readStopped(ctx, tenantId);
+  if (!was) return { stopped: false, paused: 0, replies: false, left: 0 };
+  const still: string[] = [];
+  for (const id of was.playbooks)
+    if (!(await callOwn(req, "PUT", `playbooks/${id}`, { state: "running" }))) still.push(id);
+  const reply =
+    was.reply && !(await callOwn(req, "PUT", "policies", { class: "reply", mode: was.reply })) ? was.reply : null;
+  if (still.length === 0 && reply === null) {
+    await writeAskKey(tenantId, ctx.userId, "stopped", null);
+    return { stopped: false, paused: 0, replies: false, left: 0 };
+  }
+  const kept: AskStopped = { at: was.at, playbooks: still, reply, resumed_at: new Date().toISOString() };
+  await writeAskKey(tenantId, ctx.userId, "stopped", kept);
+  log.warn("ask_resume_left", { tenant_id: tenantId, left: still.length, replies: reply !== null });
+  return { stopped: true, paused: still.length, replies: reply !== null, left: 0 };
 }
 
 /** The switch (D10): Ask may act on its own, following the rows. Off by default, and an owner's or a partner's to turn on. */

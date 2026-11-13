@@ -221,6 +221,19 @@ const bounce = report("failed", "5.1.1");
 const reportsList = (c, ids = []) =>
   c.url.includes("/messages?q=from") ? { json: { messages: ids.map((id) => ({ id, threadId: `t-${id}` })) } } : null;
 
+/**
+ * Gmail's list of what the mailbox received inside a window (listGmailSince, which the read-back after a lost cursor
+ * asks): these, each an id with its thread, else none.
+ */
+const gapList = (c, listed = []) =>
+  c.url.includes("/messages?q=after")
+    ? { json: { messages: listed.map(([id, threadId]) => ({ id, threadId })) } }
+    : null;
+/** The moment a list of the gap asked from (its `after:`, epoch seconds), read from the call. */
+const askedAfter = (call) => Number(/after:(\d+)/.exec(new URL(call.url).searchParams.get("q"))?.[1]);
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
+
 test("a sync reads what arrived from its cursor (decision 0073, R13): a reply in a thread a reach-out started and an email a person wrote are each one intake job, a report the bounce it reports, and a list's email is read and left where it is (D9)", async () => {
   const w = world();
   const net = providers((c) => {
@@ -337,7 +350,7 @@ test("one sync at a time: a mailbox another sync holds is left; a lease that lap
 test("a cursor Gmail no longer keeps starts again from now; a mailbox with none starts there; a message that could not be read keeps the cursor", async () => {
   const lost = world();
   const net = providers((c) => {
-    const reports = reportsList(c);
+    const reports = reportsList(c) ?? gapList(c);
     if (reports) return reports;
     if (c.url.includes("/history?"))
       return { status: 404, json: { error: { code: 404, message: "Requested entity was not found." } } };
@@ -348,8 +361,14 @@ test("a cursor Gmail no longer keeps starts again from now; a mailbox with none 
     assert.equal((await syncMailbox(lost.db, lost.mailbox, logger())).outcome, "restarted");
     assert.equal(lost.tables.mailbox_connections[0].sync_cursor, "900");
     const fresh = world({ cursor: null });
+    const asked = net.calls.length;
     assert.equal((await syncMailbox(fresh.db, fresh.mailbox, logger())).outcome, "started");
     assert.equal(fresh.tables.mailbox_connections[0].sync_cursor, "900");
+    assert.equal(
+      net.calls.slice(asked).filter((c) => c.url.includes("/messages?q=after")).length,
+      0,
+      "a mailbox that never had a cursor has no gap to read back",
+    );
   } finally {
     net.restore();
   }
@@ -367,6 +386,162 @@ test("a cursor Gmail no longer keeps starts again from now; a mailbox with none 
     assert.deepEqual(broken.tables.jobs, []);
   } finally {
     flaky.restore();
+  }
+});
+
+/** Gmail with a cursor it no longer keeps: the history is a 404, the profile's cursor 900, the gap as the case lists it. */
+const lostCursor = (listed, messages = {}) =>
+  providers((c) => {
+    const lists = reportsList(c) ?? gapList(c, listed);
+    if (lists) return lists;
+    if (c.url.includes("/history?"))
+      return { status: 404, json: { error: { code: 404, message: "Requested entity was not found." } } };
+    if (c.url.endsWith("/profile")) return { json: { emailAddress: "sam@getharbor.example", historyId: "900" } };
+    const id = /\/messages\/([^?]+)/.exec(c.url)?.[1];
+    const answer = id ? messages[id] : null;
+    if (!answer) return { status: 404 };
+    // A message Gmail cannot hand over just now is given as its status; any other is the message itself.
+    return typeof answer.status === "number" ? answer : { json: answer };
+  });
+const readsOf = (calls) => calls.flatMap((c) => /\/messages\/([^?]+)\?format/.exec(c.url)?.[1] ?? []);
+
+test("REGRESSION: a cursor Gmail no longer keeps reads back what arrived since the last read -- it started again from now, and a reply that came meanwhile was never taken in", async () => {
+  const synced = Date.now() - 3 * HOUR;
+  const w = world({ box: { synced_at: new Date(synced).toISOString() } });
+  const messages = {
+    r1: gmailMessage("r1", "g-thread"),
+    p1: gmailMessage("p1", "a-new-one", { from: "Rosa Diaz <rosa@example.com>", text: "Do you move pianos?" }),
+    x1: gmailMessage("x1", "someone-elses", {
+      from: "Shop News <news@shop.example>",
+      headers: [{ name: "List-Unsubscribe", value: "<mailto:leave@shop.example>" }],
+    }),
+  };
+  const listed = [
+    ["r1", "g-thread"],
+    ["p1", "a-new-one"],
+    ["x1", "someone-elses"],
+  ];
+  const net = lostCursor(listed, messages);
+  try {
+    const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    assert.deepEqual(
+      [out.outcome, out.read, out.replies, out.people, out.dropped],
+      ["restarted", 3, 1, 1, 1],
+      "each is read as an arrival is: the reply, the person's email, and the list's left where it is",
+    );
+    assert.deepEqual(
+      w.tables.jobs.map((j) => [j.kind, withoutRequestId(j.payload).received_id]),
+      [
+        ["email_ingest", "r1"],
+        ["email_ingest", "p1"],
+      ],
+    );
+    const list = net.calls.find((c) => c.url.includes("/messages?q=after"));
+    assert.equal(askedAfter(list), Math.floor((synced - HOUR) / 1000), "from the last read, an hour before it");
+    assert.equal(w.tables.mailbox_connections[0].sync_cursor, "900", "and the cursor is Gmail's newest");
+
+    // The same lost cursor again (a sync that ended before its cursor moved): each job once still.
+    await syncMailbox(w.db, { ...w.mailbox, sync_cursor: "100" }, logger({ tenant_id: T }));
+    assert.equal(w.tables.jobs.length, 2);
+
+    // And once the intake has kept them, a read-back goes on from there: what it holds is not read again.
+    for (const id of ["r1", "p1"])
+      w.tables.messages.push({ id: `m-${id}`, tenant_id: T, channel: "email", direction: "inbound", external_id: id });
+    const before = net.calls.length;
+    await syncMailbox(w.db, { ...w.mailbox, sync_cursor: "100" }, logger({ tenant_id: T }));
+    assert.deepEqual(readsOf(net.calls.slice(before)), ["x1"], "only what left no row is read again");
+    assert.equal(w.tables.jobs.length, 2);
+  } finally {
+    net.restore();
+  }
+});
+
+test("a read-back a message stopped keeps the lost cursor and the moment of the last sync, so the next sync lists the same gap and ends it", async () => {
+  const synced = new Date(Date.now() - 3 * HOUR).toISOString();
+  const w = world({ box: { synced_at: synced } });
+  const listed = [
+    ["r1", "g-thread"],
+    ["p1", "a-new-one"],
+  ];
+  // The first sync cannot read the reply (Gmail's bad minute); the second can.
+  const flaky = lostCursor(listed, {
+    r1: { status: 500, json: { error: { code: 500 } } },
+    p1: gmailMessage("p1", "a-new-one", { from: "Rosa Diaz <rosa@example.com>", text: "Do you move pianos?" }),
+  });
+  try {
+    await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    const box = w.tables.mailbox_connections[0];
+    assert.deepEqual([box.sync_cursor, box.synced_at], ["100", synced], "nothing moved: the gap is still to be read");
+    assert.deepEqual(
+      w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
+      ["p1"],
+      "what could be read was handed on",
+    );
+  } finally {
+    flaky.restore();
+  }
+  const mended = lostCursor(listed, { r1: gmailMessage("r1", "g-thread") });
+  try {
+    await syncMailbox(w.db, w.tables.mailbox_connections[0], logger({ tenant_id: T }));
+    const list = mended.calls.find((c) => c.url.includes("/messages?q=after"));
+    assert.equal(
+      askedAfter(list),
+      Math.floor((Date.parse(synced) - HOUR) / 1000),
+      "the same gap, from the same moment",
+    );
+    assert.deepEqual(w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id).sort(), ["p1", "r1"]);
+    const box = w.tables.mailbox_connections[0];
+    assert.equal(box.sync_cursor, "900", "read through: the cursor is Gmail's newest");
+    assert.notEqual(box.synced_at, synced, "and the mailbox is read as of now");
+  } finally {
+    mended.restore();
+  }
+});
+
+test("a gap too large to read whole brings in the replies to our own emails, and the owner is told the rest was not", async () => {
+  const synced = Date.now() - 9 * DAY;
+  const w = world({ box: { synced_at: new Date(synced).toISOString() } });
+  w.tables.notifications = [];
+  const others = Array.from({ length: 44 }, (_, i) => [`o${i}`, `t${i}`]);
+  const net = lostCursor([...others.slice(0, 20), ["r1", "g-thread"], ...others.slice(20)], {
+    r1: gmailMessage("r1", "g-thread"),
+  });
+  try {
+    const { result: out, lines } = await linesOf(() => syncMailbox(w.db, w.mailbox, logger({ tenant_id: T })));
+    assert.deepEqual([out.outcome, out.read, out.replies, out.people], ["restarted", 1, 1, 0]);
+    assert.deepEqual(readsOf(net.calls), ["r1"], "the rest is never read");
+    assert.deepEqual(
+      w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
+      ["r1"],
+    );
+    const { gap } = fieldsOf(lines.find((l) => l.event === "mailbox_synced"));
+    assert.deepEqual(
+      [gap.listed, gap.whole, gap.clipped, gap.unread],
+      [45, false, false, true],
+      "said on the sync's own line",
+    );
+    const told = w.tables.notifications.filter((n) => /was not read for a while/.test(n.subject ?? n.title ?? ""));
+    assert.equal(told.length, 1, "the owner is told once, in plain words");
+    assert.equal(w.tables.mailbox_connections[0].sync_cursor, "900");
+  } finally {
+    net.restore();
+  }
+});
+
+test("a gap older than the read-back reaches is read from its ceiling, and the owner is told so", async () => {
+  const w = world({ box: { synced_at: new Date(Date.now() - 60 * DAY).toISOString() } });
+  w.tables.notifications = [];
+  const net = lostCursor([]);
+  try {
+    const began = Date.now();
+    const { lines } = await linesOf(() => syncMailbox(w.db, w.mailbox, logger({ tenant_id: T })));
+    const list = net.calls.find((c) => c.url.includes("/messages?q=after"));
+    const ceiling = Math.floor((began - 30 * DAY) / 1000);
+    assert.ok(Math.abs(askedAfter(list) - ceiling) <= 5, "thirty days back, never the whole sixty");
+    assert.equal(fieldsOf(lines.find((l) => l.event === "mailbox_synced")).gap.clipped, true);
+    assert.equal(w.tables.notifications.length, 1, "what it could not reach is said to the owner");
+  } finally {
+    net.restore();
   }
 });
 

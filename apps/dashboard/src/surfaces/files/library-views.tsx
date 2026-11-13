@@ -4,9 +4,10 @@
  * which reads what Ask's look saw in each file, so "balayage" or "the team" finds them without a shelf of our naming; and what
  * waits for a yes, or was set aside, as a quiet line that opens it, never a tab of its own.
  */
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type Ref } from "react";
 import { FILE_WORDS as W, type FilesTally } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
+import { foldedLookup } from "../kit/head/list-find";
 import { Icon } from "../kit/icon/icon";
 import { LineField, LinePress } from "../kit/line/line";
 import { Notice } from "../kit/notice/notice";
@@ -54,11 +55,17 @@ export function FindWords({
   onFind,
   placeholder,
   testid,
+  inputRef,
+  folds = false,
 }: {
   about: string | null;
   onFind: (about: string | null) => void;
   placeholder: string;
   testid: string;
+  /** The field, which a glyph elsewhere puts the caret in (Content's bar on a phone). */
+  inputRef?: Ref<HTMLTextAreaElement>;
+  /** Rests folded while it holds no words, open while it has the caret (components.css .lookup-folded, every list's way). */
+  folds?: boolean;
 }) {
   const [words, setWords] = useState(about ?? "");
   const asked = useRef(about ?? "");
@@ -79,9 +86,10 @@ export function FindWords({
     find(words);
   };
   return (
-    <div className="files-find" data-testid={testid}>
+    <div className={foldedLookup("files-find", folds && !words)} data-testid={testid}>
       <Icon name="search" size={14} />
       <LineField
+        ref={inputRef}
         className="files-find-words"
         rows={1}
         value={words}

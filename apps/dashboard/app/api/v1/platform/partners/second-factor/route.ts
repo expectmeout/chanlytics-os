@@ -11,7 +11,6 @@ export const POST = write({
   scope: platform,
   role: null,
   rate: "platform_partner_second_factor",
-  fresh: true,
   act: "partner_second_factor",
   input: PartnerSecondFactorSchema,
   handle: async ({ office, input }) => ({

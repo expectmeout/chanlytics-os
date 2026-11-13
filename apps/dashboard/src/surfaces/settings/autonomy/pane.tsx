@@ -19,6 +19,7 @@ import {
   hardLimitsWords,
   heldDraftsByClass,
   tokensPerReply,
+  type AskStopped,
   type BudgetDial,
 } from "@chanlytics/contracts";
 import type { PolicyDials } from "@/bridge/inbox-verbs";
@@ -33,6 +34,7 @@ import { BusinessLimitRows } from "../business/tab";
 import { SetDial, SetRow } from "./controls";
 import { AutOwnModes } from "./own-modes";
 import { PolModeRow, PolPhoneRows, PolicyTable, polMode, useSetPhone } from "./matrix";
+import { stopLineOf, stopSaid } from "./stop-words";
 import { autonomyVerbs } from "./verbs";
 
 /** A step of a dial: its word, and the value it stores. */
@@ -251,7 +253,7 @@ function AskOnItsOwn({
   flash,
 }: {
   alone: boolean;
-  stopped: { playbooks: string[] } | null;
+  stopped: AskStopped | null;
   flash: (f: FrameFlash) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -265,15 +267,15 @@ function AskOnItsOwn({
         : { tone: "danger", msg: <>{r.message}</> },
     );
   };
+  // Something a stop could not stop is pressed again as a stop: pressing again tries again (stop-words.ts).
+  const line = stopLineOf(stopped);
   const stop = async () => {
     setBusy(true);
-    const r = await autonomyVerbs.stopAll(!stopped);
+    const r = await autonomyVerbs.stopAll(line.press === "stop");
     setBusy(false);
-    flash(
-      r.ok
-        ? { msg: <>{stopped ? "Back as it was." : "Everything is paused. Nothing goes out."}</> }
-        : { tone: "danger", msg: <>{r.message}</> },
-    );
+    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    const sentence = stopSaid(line.press, r.answer);
+    flash(sentence.warn ? { tone: "warn", msg: <>{sentence.words}</> } : { msg: <>{sentence.words}</> });
   };
   return (
     <section className="rec-card set-card" data-testid="aut-ask-alone">
@@ -300,21 +302,17 @@ function AskOnItsOwn({
       />
       <RecordRow
         id="aut-stop-everything"
-        label={stopped ? "Everything is paused" : "All sending"}
-        hint={
-          stopped
-            ? `${stopped.playbooks.length} paused, and replies wait for you.`
-            : "Pauses every send and holds replies for you, at once."
-        }
+        label={line.label}
+        hint={line.hint}
         value={
           <Button
             size="sm"
-            variant={stopped ? "quiet" : "danger"}
+            variant={line.press === "resume" ? "quiet" : "danger"}
             onClick={stop}
             aria-disabled={busy || undefined}
             data-testid="aut-stop-press"
           >
-            {stopped ? "Resume" : "Stop everything"}
+            {line.press === "resume" ? "Resume" : "Stop everything"}
           </Button>
         }
       />
@@ -387,9 +385,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
   const matrix = rows
     .filter((r) => !AUT_ASKED_ELSEWHERE.has(r.cls) && !AUT_MOVED_WITH.has(r.cls))
     .map((r) => (r.cls === "campaign" ? { ...r, ...AUT_MANY_ROW } : r));
-  const ask = (
-    read.settings?.config as { ask?: { alone?: boolean; stopped?: { playbooks: string[] } } } | null | undefined
-  )?.ask;
+  const ask = (read.settings?.config as { ask?: { alone?: boolean; stopped?: AskStopped } } | null | undefined)?.ask;
 
   return (
     <>

@@ -38,7 +38,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { setModelStream } = await import("../../apps/dashboard/src/server/shared/model-json.ts");
 const { draftRules, draftSequenceFrom, examplesOf } =
   await import("../../apps/dashboard/src/server/drafts/sequence.ts");
-const { draftKept } = await import("../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
+const { draftKept, stepsJudged } = await import("../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
 const M = await import("../../apps/dashboard/src/surfaces/campaigns/sequences/new/new-model.ts");
 const { onceChannelsOf, leadFirstOf } = await import("../../apps/dashboard/src/server/drafts/sequence-new.ts");
 const { NEW_MAKE_BODY, LEAD_FIRST_BODY, REWRITE_BODY, VOICE_BODY } =
@@ -617,6 +617,49 @@ test("asked once, as its own purpose, with only what the workspace offers and ho
   );
   assert.match(JSON.stringify(calls[1].request.messages), /The owner already chose: kind once/);
   assert.equal(kept.kind, "once");
+});
+
+/* ------------- a customer offer carries the owner's own discount (Ruben, 13 Nov 2026), never one Ask made up ------------- */
+
+const OFFER_LINE = { words: "Send everyone 20% off any service this week" };
+const offerWritten = (whatsapp) => ({
+  title: "This week's offer",
+  offer: true,
+  whatsapp,
+  email_subject: "",
+  email_body: "",
+  text: "",
+});
+const onceWith = (s) =>
+  answer({ kind: "once", who: "everyone", name: "This week's offer", when: "now", steps: [step(s)] });
+
+test("REGRESSION (13 Nov 2026): a customer offer carries the discount its owner asked for, in a message Ask writes or a value it types, and Ask is told so", () => {
+  const ours = "Hi {{first name}}, 20% off any service this week. Book here: {{booking link}} See you soon.";
+  const written = draftKept(onceWith({ write: offerWritten(ours) }), KNOWN, OFFER_LINE);
+  assert.match(written.steps[0].message.written.versions.whatsapp.body, /20% off any service this week/);
+  const typed = draftKept(onceWith({ message: "k2", texts: ["20% off any service this week"] }), KNOWN, OFFER_LINE);
+  assert.deepEqual(typed.steps[0].message.params[1], { kind: "text", value: "20% off any service this week" });
+  const rules = draftRules(false);
+  assert.match(rules, /A message to people carries an offer in the owner's own words and figures/);
+  assert.match(rules, /Never a price, a discount or a date in any words you write to leads\./);
+});
+
+test("REGRESSION (13 Nov 2026): a price or a discount the owner never gave stays out of a customer's message: written, it is refused with why; typed, it is left blank", () => {
+  const madeUp = "Hi {{first name}}, 30% off any service this week. Book here: {{booking link}} See you soon.";
+  assert.deepEqual(
+    stepsJudged(onceWith({ write: offerWritten(madeUp) }), KNOWN, OFFER_LINE).refused,
+    [{ place: 1, reason: NEW_WORDS.cannot.why.unsaidPrice }],
+    "a figure the owner did not give",
+  );
+  const halfPrice = "Hi {{first name}}, half price on any service this week. Book here: {{booking link}} See you soon.";
+  assert.deepEqual(
+    stepsJudged(onceWith({ write: offerWritten(halfPrice) }), KNOWN, { words: "Send everyone an offer this week" })
+      .refused,
+    [{ place: 1, reason: NEW_WORDS.cannot.why.unsaidPrice }],
+    "a discount where the owner named none",
+  );
+  const typed = draftKept(onceWith({ message: "k2", texts: ["30% off any service this week"] }), KNOWN, OFFER_LINE);
+  assert.deepEqual(typed.steps[0].message.params[1], { kind: "text", value: "" });
 });
 
 /* ------------------------------ the draft as the page holds it ------------------------------ */

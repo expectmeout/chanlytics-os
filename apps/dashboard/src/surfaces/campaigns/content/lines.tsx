@@ -13,7 +13,6 @@ import {
   contentPieceMarkOf,
   clockOf,
   fileSaidOf,
-  fileViewOf,
   inLocalWeek,
   postStoppedWhyOf,
   type ContentLineDto,
@@ -27,7 +26,8 @@ import { askAbout } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Press } from "../../kit/press";
-import { Picture } from "../../files/photo";
+import { GroupHead } from "../../kit/head/group-head";
+import { Picture, rowPictureOf } from "../../files/photo";
 import { tileShapeOf } from "./model/tiles";
 import { aheadDayOf, postedWhenOf, tileDayOf } from "./model/tile-day";
 
@@ -42,7 +42,7 @@ function Thumb({
   const name = fileSaidOf(file.name);
   return (
     <span className="cnv-thumb" data-shape={tileShapeOf(file)} data-dim={dim || undefined}>
-      <Picture src={`${fileViewOf(file.id)}?w=160`} alt={file.line ?? name} name={name} />
+      <Picture src={rowPictureOf(file.id)} alt={file.line ?? name} name={name} />
     </span>
   );
 }
@@ -131,19 +131,17 @@ function NotMade({ making }: { making: ContentMakingDto }) {
 }
 
 /**
- * All as rows, a phone's: what is being made first (a press opens Being made), then each piece made, newest first, its picture,
+ * All as rows, a phone's: what is being made first, then each piece made, newest first, its picture,
  * its name and where it stands in its tone, as Needs you's lines are; a press opens it.
  */
 export function PieceLines({
   made,
   making,
   onOpen,
-  onMaking,
 }: {
   made: readonly ContentMadeDto[];
   making: readonly ContentMakingDto[];
   onOpen: (fileId: string) => void;
-  onMaking: () => void;
 }) {
   const clock = pageClock();
   const now = Date.now();
@@ -154,7 +152,9 @@ export function PieceLines({
         const said = contentMakingSaid(m);
         return (
           <div key={m.id} className="cnv-line" data-testid="cnv-line-making">
-            <Press className="cnv-line-open" onClick={onMaking}>
+            {/* No press: it is no piece yet, and where it is at is all there is to say of it. Its press led to a view of the
+                same rows, and there to nothing. */}
+            <div className="cnv-line-open">
               {m.first_picture ? (
                 <Thumb
                   file={{ id: m.first_picture, kind: "video", width: null, height: null, name: said.title, line: null }}
@@ -167,7 +167,7 @@ export function PieceLines({
                 <b>{said.title}</b>
                 <span data-tone="going">{said.state}</span>
               </span>
-            </Press>
+            </div>
           </div>
         );
       })}
@@ -217,13 +217,48 @@ export function FileLines({ files, onOpen }: { files: readonly FileDto[]; onOpen
   );
 }
 
+/**
+ * What needs the owner, as lines: each post that stopped, with why, then each video that could not be made. Needs you's view
+ * draws them, and All's Needs you group over the rest (body.tsx MadeGroups): one drawing, so the two never differ.
+ */
+export function NeedsRows({
+  lines,
+  notMade,
+  openId = null,
+  onOpen,
+}: {
+  lines: readonly ContentLineDto[];
+  notMade: readonly ContentMakingDto[];
+  openId?: string | null;
+  onOpen: (fileId: string) => void;
+}) {
+  return (
+    <>
+      {lines.map((line) => (
+        <Line
+          key={line.post.id}
+          line={line}
+          sub={W.views.didntPost(postStoppedWhyOf(line.post) ?? W.piece.place[line.post.place])}
+          subNeeds
+          end={null}
+          open={line.file.id === openId}
+          onOpen={onOpen}
+        />
+      ))}
+      {notMade.map((m) => (
+        <NotMade key={m.id} making={m} />
+      ))}
+    </>
+  );
+}
+
 /** Lines in runs, each under its heading: a day, or This week and Earlier; and a line at the end where the view has one. */
 function Runs({ runs, foot = null }: { runs: { head: string; lines: ReactNode[] }[]; foot?: string | null }) {
   return (
-    <div className="cnv-lines" data-testid="cnv-lines">
+    <div className="cnv-lines cnv-groups" data-testid="cnv-lines">
       {runs.map((run) => (
         <section key={run.head} className="cnv-run" aria-label={run.head}>
-          <h3 className="cnv-run-head">{run.head}</h3>
+          <GroupHead label={run.head} />
           {run.lines}
         </section>
       ))}
@@ -270,20 +305,7 @@ export function ContentLines({
   if (dto.view === "needs")
     return (
       <div className="cnv-lines" data-testid="cnv-lines">
-        {dto.lines.map((line) => (
-          <Line
-            key={line.post.id}
-            line={line}
-            sub={W.views.didntPost(postStoppedWhyOf(line.post) ?? W.piece.place[line.post.place])}
-            subNeeds
-            end={null}
-            open={line.file.id === openId}
-            onOpen={onOpen}
-          />
-        ))}
-        {dto.making.map((m) => (
-          <NotMade key={m.id} making={m} />
-        ))}
+        <NeedsRows lines={dto.lines} notMade={dto.making} openId={openId} onOpen={onOpen} />
         <p className="cnv-lines-foot">{W.views.nothingElse}</p>
       </div>
     );

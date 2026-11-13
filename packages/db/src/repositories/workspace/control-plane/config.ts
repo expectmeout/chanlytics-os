@@ -160,45 +160,47 @@ export async function listPolicies(db: Db, tenantId: TenantId): Promise<PolicyRe
   return data ?? [];
 }
 
-export async function setPolicyMode(
+/**
+ * A change to a workspace's own policy row for a class, as the database's one write (policy_change, 00624): the mode
+ * when one is given, the dials merged where they are kept, and the change's row on the ledger with it. It was a read,
+ * a merge here and a write, so two saves at once lost one's dial, and a dial alone wrote back the mode it had read.
+ * Each part of the change is said, none assumed:
+ *
+ * - `mode`: the mode to write, or null, and the row keeps its own, whatever it is when the write lands.
+ * - `limits`: the dials to set, merged into the limits on file and never replacing them. `limits` holds several
+ *   unrelated settings for one class (a reply row carries both max_replies_day and reply_delay_ms), so a caller sets
+ *   what it means and the rest stays. None is `{}`.
+ * - `via`: the card the change came by (the ledger's `via`), or null for a form.
+ *
+ * Answers the row as it stands, or null where the workspace has no row for the class.
+ */
+export async function savePolicyChange(
   db: Db,
   tenantId: TenantId,
   policyClass: SchemaSet<"policies.class">,
-  mode: SchemaSet<"policies.mode">,
-  /**
-   * Merged into the existing limits, never replacing them.
-   *
-   * `limits` holds several unrelated settings for one class — a reply row
-   * carries both max_replies_day and reply_delay_ms — so a PUT that sent the
-   * whole object would silently drop whichever one the caller did not know
-   * about. Callers set what they mean and leave the rest alone.
-   */
-  limits?: Record<string, unknown>,
+  change: { mode: SchemaSet<"policies.mode"> | null; limits: Record<string, unknown>; via: string | null },
 ): Promise<PolicyRecord | null> {
-  let merged: Record<string, unknown> | undefined;
-  if (limits && Object.keys(limits).length) {
-    const { data: current, error: readError } = await db
-      .from("policies")
-      .select("limits")
-      .eq("tenant_id", tenantId)
-      .eq("class", policyClass)
-      .is("subject_type", null)
-      .maybeSingle();
-    // A read that failed is not a row with no limits: merging over nothing would write every other setting away.
-    if (readError) throw new DbFailure(readError, "setPolicyMode");
-    merged = { ...(recordOrEmpty(current?.limits) ?? {}), ...limits };
-  }
   const { data, error } = await db
-    .from("policies")
-    .update(merged ? { mode, limits: jsonCopyOf(merged) } : { mode })
-    .eq("tenant_id", tenantId)
-    .eq("class", policyClass)
-    .is("subject_type", null)
-    .select("id, class, mode, subject_type, subject_id, limits, updated_at")
+    .rpc("policy_change", {
+      p_tenant_id: tenantId,
+      p_class: policyClass,
+      p_limits: jsonCopyOf(change.limits),
+      ...(change.mode ? { p_mode: change.mode } : {}),
+      ...(change.via ? { p_via: change.via } : {}),
+    })
     .maybeSingle();
-  // the money-lock trigger raises here — surface it as-is, the route maps it
-  if (error) throw new DbFailure(error);
-  return data;
+  // The money-lock trigger raises here, and the door refuses whoever may not: said as the database said it, the route maps it.
+  if (error) throw new DbFailure(error, "savePolicyChange");
+  if (!data) return null;
+  return {
+    id: data.id,
+    class: data.class,
+    mode: data.mode,
+    subject_type: data.subject_type,
+    subject_id: data.subject_id,
+    limits: data.limits,
+    updated_at: data.updated_at,
+  };
 }
 
 /* ------------------------- receptionist mode per person ------------------- */

@@ -2404,10 +2404,8 @@
 .pp-bar .more-wrap { flex: none; }
 /* The search is the kit's (kit.css, "Search"); the bar places it, at the rows' 12px, 10px over the first. */
 .pp-lookup { flex: none; padding: 0 12px 10px; }
-/* A search at rest in its bar's glyph (phone-bar.tsx foldSearch): the field stays drawn, so a press or / can put the caret
-   in it, and it takes no room until it holds the caret, as Conversations' head does on a desk (conversations.css). */
-.pp-lookup-folded:not(:focus-within) { height: 0; padding: 0; overflow: hidden; }
-.pp-bar-find { align-self: center; }
+/* A search at rest in its bar's glyph (phone-bar.tsx foldSearch) is every list's (kit/head/list-find.tsx; components.css
+   .lookup-folded). */
 
 @media (max-width: 900px) {
   /* A list's own step, alone in its section on a phone: one card, on the gutter. */
@@ -2528,9 +2526,13 @@
   .pp-bar-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); animation: pp-bar-fade-in 140ms var(--ease-out); }
   /* Select's words in one place (phone-bar.tsx BarWord): the button keeps the longest's width, the words held to its
      right edge so the gap to Sort never moves, and the one shown crosses in as the last crosses out. */
-  .pp-bar-morph { display: inline-grid; justify-items: end; }
-  .pp-bar-morph > span { grid-area: 1 / 1; transition: opacity var(--duration-fast) var(--ease-out); }
-  .pp-bar-morph > span:not([data-on]) { opacity: 0; }
+  /* The words a bar word walks through cross at its right edge: the one shown is the button's width, the others lie over it
+     anchored right and take none, so its gap to the search's glyph is the bar's own (Ruben, 12 Nov 2026: Select stood 35px
+     off the glyph, held to "Select all"'s width, where Pipeline's Sort stood 19). The bar's words are anchored at its right
+     (.pp-bar-push), so Sort and Export never move as Select becomes Select all: only what is left of it does. */
+  .pp-bar-morph { position: relative; display: inline-flex; justify-content: flex-end; }
+  .pp-bar-morph > span { white-space: nowrap; transition: opacity var(--duration-fast) var(--ease-out); }
+  .pp-bar-morph > span:not([data-on]) { position: absolute; right: 0; opacity: 0; pointer-events: none; }
   /* Leads' Sort while its Filter leaves some out (leads/scope/phone-bar.tsx): a dot in the accent at the word's shoulder,
      which takes no width, so the bar's words stand where People's do. */
   .pp-bar-sort { position: relative; }
@@ -3021,16 +3023,9 @@
   .main-scroll:has(> .clients) > header .pg-sentence {
     display: none;
   }
-  /* The list picked stands 5px under the strip, as the Inbox's buckets and Conversations' channels stand 4px under theirs
-     (inbox.css, conversations.css): the strip is the frame's, in its slot, for People as for them. The room is the bar's
-     own now (below), so its targets can reach it: .cl-main clips what stands over its top edge. A person's page carried
-     back to its list shows the list's slot under it (data-carrying, kit motion/held-list.ts), so it stands as the list's.
-     Named by the strip the slot holds (shell-chrome.tsx `data-strip`), which stands from the first draw while People is
-     read: named by the page's root, the slot stood 16px taller over Reading… and the list came in 16px higher (the
-     People load review, 28 Oct 2026). */
-  .pg-slot[data-strip="people"] {
-    padding-bottom: 0;
-  }
+  /* The list picked stands right under the strip: the room is the bar's own (below), so its targets can reach it, .cl-main
+     clipping what stands over its top edge. The slot's room under the strip is said once, for every page (components.css,
+     "The room under the strip of views on a phone"). */
   /* The page's light shows through, as it does behind the Inbox and as it does behind People on a desk: the page stood on
      the flat ground (--bg) and hid the pools. */
   .main-scroll > .clients {

@@ -440,7 +440,8 @@ export async function openTurn(input: TurnInput, ports: AskPorts): Promise<TurnS
     opened: [],
     proposals: [],
     planWords: [],
-    strangers: false,
+    // A read named before round one (another page's, cross-page.ts) or a file the question came with may hold a stranger's words.
+    strangers: first.prefetched.some((p) => !READS_NO_STRANGER.has(p.run.name)) || (input.attached ?? []).length > 0,
     unmade,
     answerIn: null,
     planOwed: null,

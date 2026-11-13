@@ -303,6 +303,11 @@ export interface AskActAnswer {
    * went from a browser, under the same key, so it can never act twice. A way down, should a deployment refuse its own calls.
    */
   walkHere?: boolean;
+  /**
+   * A card of several calls that stopped part way: how many went before the one refused. What went stands, and `message`
+   * says so; absent where nothing went.
+   */
+  landed?: number;
 }
 
 /** How long a committed card's undo stays open, for every verb whose route sets no window of its own (askUndoOpen). */

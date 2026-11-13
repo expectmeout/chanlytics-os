@@ -3,9 +3,9 @@
  * the reply row's dials by the names the row keeps them under. A dial that is not a number is refused in its own words
  * by the schema; its range, which class may carry it and whether the class can honour the mode (contracts
  * policyModeOffered, over POLICY_CLASS_MODES) are judged here, and every refusal is a sentence. The money lock lives in
- * a database trigger, so even this route cannot unlock it. The change is recorded on the ledger every other
- * consequential act lands in (recordPolicyChanged). The route declares who may and how often; the GET's body is its
- * reader's (readers/autonomy.ts).
+ * a database trigger, so even this route cannot unlock it. The change is one write in the database (policy_change,
+ * 00624), which records it on the ledger every other consequential act lands in as it makes it. The route declares who
+ * may and how often; the GET's body is its reader's (readers/autonomy.ts).
  */
 import { z } from "zod";
 import {
@@ -18,36 +18,9 @@ import {
   policyModeRefusal,
   causedBy,
 } from "@chanlytics/contracts";
-import { listPolicies, setPolicyMode } from "@chanlytics/db/workspace";
-import { recordEvent } from "@chanlytics/db/events";
-import { log } from "@/server/shared/log";
-import { serviceDb } from "@/server/shared/service-db";
+import { listPolicies, savePolicyChange } from "@chanlytics/db/workspace";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
-import type { TenantId } from "@chanlytics/contracts";
-
-/**
- * The change, in the ledger every other consequential act lands in: the class, the mode, which limits moved -- never
- * their values -- who, and whether a card was tapped. Best effort, as the settings audit is: a ledger row that failed
- * to write must not fail the change that landed, and is logged under the name it always had. As the service role: a
- * session may not insert into events, so it never landed.
- */
-async function recordPolicyChanged(
-  ctx: RouteContext,
-  tenantId: TenantId,
-  cls: string,
-  mode: string,
-  fields: string[],
-): Promise<void> {
-  const { error } = await recordEvent(serviceDb(), tenantId, "policy.changed", "workspace", tenantId, {
-    class: cls,
-    mode,
-    fields,
-    by: ctx.userId,
-    ...(ctx.via ? { via: ctx.via } : {}),
-  });
-  if (error) log.error("policy_event_failed", { error });
-}
 
 /** Each dial's refusal, said once: by the schema for a value that is not a number, below for one out of its range. */
 const DIAL_WORDS = {
@@ -135,14 +108,42 @@ function wholeDial(cls: string, value: number | undefined, dial: (typeof WHOLE_D
   return value;
 }
 
+/**
+ * The change, as the database's one write (packages/db savePolicyChange over policy_change, 00624): the dials merged
+ * where they are kept, the mode when the change gave one (null: the row keeps its own), and the change's row on the
+ * ledger with it (the class, the mode, the dials' names and never their values, who, and the card). No row is a 404,
+ * and the money lock's refusal is said in the route's words.
+ */
+async function savePolicyRow(
+  ctx: RouteContext,
+  member: Member,
+  cls: (typeof POLICY_CLASSES)[number],
+  change: { mode: (typeof POLICY_MODES)[number] | null; limits: Record<string, unknown> },
+) {
+  try {
+    const row = await savePolicyChange(ctx.supabase, member.tenantId, cls, { ...change, via: ctx.via ?? null });
+    if (!row) throw new AppError("not_found", "Policy row not found.", 404);
+    return row;
+  } catch (e) {
+    if (e instanceof AppError) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/money decisions are owner-only/.test(msg)) {
+      throw causedBy(new AppError("forbidden", "Money stays owner-only by charter — that row is locked.", 403), e);
+    }
+    throw e;
+  }
+}
+
 export async function changePolicy(ctx: RouteContext, input: z.infer<typeof PolicyChange>, member: Member) {
   const cls = input.class;
   if (!isOneOf(POLICY_CLASSES, cls)) throw new AppError("validation", "Unknown policy class.");
   // A delay edit carries no mode: the row keeps the one it has. Requiring the
   // client to resend it meant a stale page changing the hold window could
   // silently flip Replies to whatever mode that page had loaded. Every dial
-  // travels the same way.
-  let mode = input.mode ?? "";
+  // travels the same way. The mode the row holds is read here to judge the change by, and is never written back: a
+  // dial saved while a teammate changed the mode put the old one back (the replies turned off, then on again).
+  const inputMode = input.mode ?? "";
+  let mode = inputMode;
   const dials = [
     input.reply_delay_ms,
     input.min_confidence,
@@ -203,17 +204,7 @@ export async function changePolicy(ctx: RouteContext, input: z.infer<typeof Poli
     const n = wholeDial(cls, input[dial.key], dial);
     if (n !== undefined) limits[dial.key] = n;
   }
-  try {
-    const row = await setPolicyMode(ctx.supabase, member.tenantId, cls, mode, limits);
-    if (!row) throw new AppError("not_found", "Policy row not found.", 404);
-    await recordPolicyChanged(ctx, member.tenantId, cls, mode, Object.keys(limits));
-    return { policy: row, was: policyWas(current) };
-  } catch (e) {
-    if (e instanceof AppError) throw e;
-    const msg = e instanceof Error ? e.message : String(e);
-    if (/money decisions are owner-only/.test(msg)) {
-      throw causedBy(new AppError("forbidden", "Money stays owner-only by charter — that row is locked.", 403), e);
-    }
-    throw e;
-  }
+  // The mode is written only when this change gave one: a dial alone hands the database none.
+  const row = await savePolicyRow(ctx, member, cls, { mode: inputMode === "" ? null : mode, limits });
+  return { policy: row, was: policyWas(current) };
 }
