@@ -60,8 +60,10 @@ function ledger(job = {}, { faults = {}, unique = [] } = {}) {
 const order = (db) => db.seen.filter((s) => s.op === "insert").map((s) => s.table);
 
 test("the door is on the platform scope with a support ceiling of its own, and asks for a workspace and a job", () => {
+  // A change made from the Console asks the Auth server whether the session is still live (route.ts asksAuthServer).
   assert.deepEqual(requeue.POST.policy, {
     kind: "write",
+    fresh: true,
     scope: "platform",
     role: null,
     rate: "platform_job_requeue",

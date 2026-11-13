@@ -41,14 +41,17 @@ const knock = (body, headers = { "x-diag-key": process.env.DIAG_KEY }) =>
   );
 const answer = async (res) => [res.status, await res.json()];
 
-/** Every request to the transport, captured; a delivered mail is Resend's 200 with an id. */
-function wire() {
+/**
+ * Every request to the transport, captured; a delivered mail is Resend's 200 with an id, and a refused one the status
+ * a test names (401: the platform's own key no longer works).
+ */
+function wire(status = 200) {
   const seen = [];
   const real = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
     seen.push({ url: String(url), body: typeof init?.body === "string" ? JSON.parse(init.body) : null });
-    return new Response(JSON.stringify({ id: "email_1" }), {
-      status: 200,
+    return new Response(JSON.stringify(status === 200 ? { id: "email_1" } : { message: "API key is invalid" }), {
+      status,
       headers: { "content-type": "application/json" },
     });
   };
@@ -147,6 +150,40 @@ test("a condition pages the platform once, remembered as the pager remembers its
     ["outside:migration_ledger", 1],
     ["outside:production_check_red", 2],
   ]);
+});
+
+test("REGRESSION: a page that did not go out is not a success -- mail the provider refused, and nobody on file to page, are each a 503 that says which; the door answered 200 for both", async () => {
+  const tables = { operator_pages: [] };
+  setPg(fakeDb(tables));
+  const refusing = wire(401);
+  try {
+    const [status, said] = await answer(await knock(RED));
+    assert.equal(status, 503, JSON.stringify(said));
+    assert.deepEqual(
+      { ok: said.ok, error: said.error, condition: said.condition, outcome: said.outcome },
+      { ok: false, error: "unavailable", condition: "production_check_red", outcome: "failed" },
+    );
+    assert.equal(refusing.mail().length, 1, "it was tried");
+    // A page that did not send earns no quiet: the next knock tries again, and is not told it was suppressed.
+    assert.equal((await answer(await knock(RED)))[1].outcome, "failed");
+  } finally {
+    refusing.restore();
+  }
+  const to = process.env.LEAD_TO;
+  process.env.LEAD_TO = "";
+  const net = wire();
+  try {
+    const [status, said] = await answer(await knock(RED));
+    assert.equal(status, 503, JSON.stringify(said));
+    assert.deepEqual(
+      { ok: said.ok, error: said.error, condition: said.condition, outcome: said.outcome },
+      { ok: false, error: "no_platform_mailbox", condition: "production_check_red", outcome: "unaddressed" },
+    );
+    assert.equal(net.seen.length, 0, "nobody to send it to, nothing sent");
+  } finally {
+    process.env.LEAD_TO = to;
+    net.restore();
+  }
 });
 
 test("every condition a workflow pages for is one the door accepts, so a typo cannot leave the pager mute", async () => {
