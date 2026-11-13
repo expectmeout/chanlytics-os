@@ -67,7 +67,7 @@ import { templates } from "../readers/templates";
 import { getStoredConfig } from "../workspace/config-row";
 import {
   draftKept,
-  refusedSteps,
+  stepsJudged,
   type RefusedStep,
   type DraftExample,
   type DraftKnown,
@@ -100,7 +100,7 @@ const RULES = [
   "Choose `kind`: sequence (steps over days, each a wait after the one before) or once (one message, now or on a day).",
   "Choose `audience`: people (the business's own customers, in People) or leads (other businesses a search found, which never said yes to it: you only email them).",
   "Choose `who` by its key from the lists below: a moment or a list for a sequence to people; everyone or a list for a message sent once to people; a search for leads. Leave it empty when none fits, and say why in `cannot`.",
-  "A step to people sends one of the business's messages by its key, with `texts` for its typed-words values in order; or, only where none of them fits, a new one in `write`: a short `title`, `offer` true for an offer, and its words for each channel it should go by: `whatsapp` and `text` short and plain, `email_subject` and `email_body`. Name only these values, in double braces: {{first name}}, {{business name}}, {{booking link}}, {{review link}}, and on a first step after a booking {{booked time}} and {{booked service}}. Every version of one message names the same values: a value the email or the text names, the `whatsapp` words name too, or the message cannot be kept. A text never carries an offer: leave `text` empty for one. On a moment about a booking, only its first step is about the booking itself; a later step (inviting them back, a nudge to book) is an offer: `offer` true and no `text`. A name the owner asks a message be signed with stands on a line of its own, last. Leave `message` empty when you write one, and every `write` field empty when you don't.",
+  "A step to people sends one of the business's messages by its key, with `texts` for its typed-words values in order; or, only where none of them fits, a new one in `write`: a short `title`, `offer` true for an offer, and its words for each channel it should go by: `whatsapp` and `text` short and plain, `email_subject` and `email_body`. WhatsApp refuses words that start or end with a value: put a few words after the last one (after a link too), and keep a few words of their own around each. Name only these values, in double braces: {{first name}}, {{business name}}, {{booking link}}, {{review link}}, and on a first step after a booking {{booked time}} and {{booked service}}. Every version of one message names the same values: a value the email or the text names, the `whatsapp` words name too, or the message cannot be kept. A text never carries an offer: leave `text` empty for one. On a moment about a booking, only its first step is about the booking itself; a later step (inviting them back, a nudge to book) is an offer: `offer` true and no `text`. A name the owner asks a message be signed with stands on a line of its own, last. Leave `message` empty when you write one, and every `write` field empty when you don't.",
   ...LEAD_RULES,
   `A step after the first waits \`after_days\` after the one before: ${NEW_WAIT_DAYS.people.min} to ${NEW_WAIT_DAYS.people.max} for people, ${NEW_WAIT_DAYS.leads.min} to ${NEW_WAIT_DAYS.leads.max} for leads. To people it may go only if they have not booked since (no_booking) or not written back (no_reply); a lead stops on a reply on its own, so leave \`only_if\` empty for leads and on a first step.`,
   "A step may instead hand each person to the team: `does` call or note, with `words` saying what to do when they come up. Only when the owner asks for it, and only as the last step, never the first. A message step leaves `words` empty.",
@@ -298,6 +298,11 @@ function draftAsked(known: DraftKnown, ask: NewDraftAsk): string {
 /** The drafter's own rules, as its system prompt says them: every workspace's, and a previewing one's one more. */
 export const draftRules = (previews: boolean): string => [...RULES, ...(previews ? [PREVIEW_RULE] : [])].join("\n");
 
+/** Whether a second answer mends the first: more steps kept, or as many with fewer refused and none taken away. */
+const mends = (now: ReturnType<typeof stepsJudged>, was: ReturnType<typeof stepsJudged>): boolean =>
+  now.kept > was.kept ||
+  (now.kept === was.kept && now.answered >= was.answered && now.refused.length < was.refused.length);
+
 /** What Ask is told where it is asked once more: the steps whose words could not be kept, each with why. */
 const againAsked = (refused: readonly RefusedStep[]): string =>
   `These steps could not be kept as you wrote them: ${refused
@@ -306,8 +311,10 @@ const againAsked = (refused: readonly RefusedStep[]): string =>
 
 /**
  * The draft from what is known: one model call, and what is kept of its answer; and one call more where the judge cannot
- * keep a step's words, told which and why, its answer kept where it leaves fewer such steps. A second call that fails
- * leaves the first answer standing.
+ * keep a step's words, told which and why. Its answer is kept where it mends (`mends`): it keeps more steps, or as many
+ * with fewer refused and none taken away. One that only leaves the refused step out mends nothing: the first answer says
+ * which step and why, and on a change the step stays (the review of 12 Nov 2026). A second call that fails leaves the
+ * first answer standing.
  */
 export async function draftSequenceFrom(
   known: DraftKnown,
@@ -332,14 +339,14 @@ export async function draftSequenceFrom(
       "draft",
     );
   let answer = await answerTo([{ role: "user", content: prompt }]);
-  const refused = refusedSteps(answer, known, ask);
-  if (refused.length > 0) {
+  const first = stepsJudged(answer, known, ask);
+  if (first.refused.length > 0) {
     const second = await answerTo([
       { role: "user", content: prompt },
       { role: "assistant", content: JSON.stringify(answer) },
-      { role: "user", content: againAsked(refused) },
+      { role: "user", content: againAsked(first.refused) },
     ]).catch(logAndGoOn("sequence draft asked again", null));
-    if (second && refusedSteps(second, known, ask).length < refused.length) answer = second;
+    if (second && mends(stepsJudged(second, known, ask), first)) answer = second;
   }
   // The lines learned from how the owner writes, which the page says it wrote with (decision 0078).
   const voice = (known.memory ?? []).filter((m) => m.source === "learned").map((m) => m.text);

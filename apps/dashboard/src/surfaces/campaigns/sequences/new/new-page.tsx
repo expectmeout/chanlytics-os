@@ -211,7 +211,8 @@ function useAsk(door: Fixed, flash: Flash) {
     setDrafting(again ? "again" : "fresh");
     setFailed(false);
     setRefused(null);
-    const r = await commitVerb("sequence_draft", { words, ...door, ...fixed });
+    // A change is asked of the draft as it stands: the door's choices opened New, and the owner may have changed them since.
+    const r = await commitVerb("sequence_draft", { words, ...(fixed.stands ? {} : door), ...fixed });
     if (id !== asked.current) return null;
     setDrafting(null);
     if (r.ok) return r.data as Output<"POST sequences/draft">;
@@ -542,8 +543,10 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     built(door.who && whoSuits(door.who, d.audience, d.kind) ? M.setWho(d, door.who) : d);
     asking.clear();
   };
-  // A kept one-off let go goes from Drafts too; any other draft was never made, so it is only let go here.
+  // A kept one-off let go goes from Drafts too; any other draft was never made, so it is only let go here. Ask at work
+  // on it is stopped first: its answer, landing after, drew the draft again.
   const discard = () => {
+    undo();
     letGo();
     setDraft(null);
     setDrafted(null);

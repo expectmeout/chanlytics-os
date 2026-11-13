@@ -19,7 +19,7 @@ import { PROPOSAL_GATE } from "@chanlytics/contracts/page-specs";
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
 import { atDone, atFailed, recordCardOutcome, type OnOutcome } from "./card-press";
-import { AskNotNow, AskQuickChanges } from "./card-parts";
+import { AskNotNow } from "./card-parts";
 import { askCalls, canDo, gate, gateTitle, settingsVersion } from "./shell";
 import type { LineWords } from "./words";
 
@@ -332,7 +332,6 @@ export const AskPlan = ({
   t,
   onNav,
   onOutcome,
-  onQuick,
 }: {
   cards: AskProposal[];
   messageId?: string | null;
@@ -340,7 +339,6 @@ export const AskPlan = ({
   onNav: (to: string) => void;
   onOutcome?: OnOutcome;
   onEdit?: (text?: string) => void;
-  onQuick?: (q: string) => unknown;
   cardOpen?: Record<string, boolean>;
 }) => {
   const plan = usePlanPress(cards, { messageId, t, onOutcome });
@@ -377,10 +375,6 @@ export const AskPlan = ({
       ) : null}
       {press.steps.length ? (
         <AskPlanPress plan={plan} head={head} idea={first?.origin?.by === "idea" && !pressedOnce} t={t} />
-      ) : null}
-      {/* Under the press, as a card's are (card.tsx): never between the press and what it turns on. */}
-      {press.steps.length && !pressedOnce && onQuick && says.length ? (
-        <AskQuickChanges t={t} onFollow={onQuick} />
       ) : null}
       <div className="ask-told" role="status">
         {said ? <AskPlanTold said={said} plan={plan} t={t} onNav={onNav} /> : null}

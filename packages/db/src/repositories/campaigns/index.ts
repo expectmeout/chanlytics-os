@@ -396,6 +396,7 @@ export {
   findWhatsAppTemplate,
   keepTemplateWords,
   listWhatsAppTemplateKeys,
+  listWhatsAppTwins,
   patchWhatsAppTemplate,
   patchWhatsAppTemplateBack,
   saveTemplateRow,

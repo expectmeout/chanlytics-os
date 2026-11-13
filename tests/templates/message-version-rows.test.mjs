@@ -180,7 +180,11 @@ test("a message with no WhatsApp version comes back by any of its versions, and 
   const message = campaignMessageOf(refusedRows, "winter_note", LANGUAGE);
   assert.equal(message?.anchor.channel, "whatsapp", "the refused WhatsApp row anchors it");
   assert.equal(message?.versions.whatsapp?.status, "rejected");
-  assert.match(message?.versions.whatsapp?.reason ?? "", /tag content mismatch/, "rejected_reason is read");
+  assert.match(
+    message?.versions.whatsapp?.reason ?? "",
+    /do not match the language or kind/,
+    "rejected_reason is read",
+  );
   assert.deepEqual(messageHolds(message), { whatsapp: false, email: true, sms: true });
 
   const noWhatsApp = world(onlyOwn);

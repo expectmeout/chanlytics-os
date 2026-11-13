@@ -259,6 +259,20 @@ test("writing a version: who may, and what is said in the person's words before 
   assert.equal(tables.templates.length, 2);
 });
 
+test("writing a version: a text of an offer is refused beside a message on file too, before the door, as it is for a message's first version", async () => {
+  // The door checked "texts carry no offers" only where a version begins a message (the message sheet's review, 12 Nov
+  // 2026): a text beside an offer on file reached the database, and Ask's new-words card would have filed one.
+  const tables = { memberships: both("viewer", "operator"), templates: [tpl(1, B, { category: "marketing" })] };
+  const w = world(tables);
+  const post = (body) => versions.POST.run(send("POST", body, inB), w.ctx());
+  await refused(post(write({ channel: "sms", body: "Hi {{1}}, from {{2}}." })), "validation", 400, "Texts");
+  assert.deepEqual(w.calls, [], "the door was never asked");
+  // A note about their own visit takes a text as it always did.
+  const note = world({ memberships: both("viewer", "operator"), templates: [tpl(1, B)] });
+  await versions.POST.run(send("POST", write({ channel: "sms", body: "Hi {{1}}, from {{2}}." }), inB), note.ctx());
+  assert.equal(note.calls.length, 1);
+});
+
 test("writing a version: the door is given what was checked and cleaned, its answer is the row, and what reads badly is a warning", async () => {
   const tables = { memberships: both("viewer", "operator"), templates: [tpl(1, B)] };
   const w = world(tables);

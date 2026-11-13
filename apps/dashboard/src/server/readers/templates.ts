@@ -17,6 +17,7 @@ import {
   templateSends,
   templateSendsOf,
   templateUsage,
+  versionWords,
   type MessageRead,
   type TemplateSends,
   DbFailure,
@@ -31,6 +32,7 @@ import {
   pageSendsSent,
   pageTemplatesFromInbox,
 } from "@chanlytics/db/campaigns";
+import { listWordsKept } from "@chanlytics/db/events";
 import { getTemplateSends as sendsByTemplate } from "@chanlytics/db/reports";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as facts from "./facts";
@@ -117,8 +119,11 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
   // in a .jsx file, where the compiler cannot see it. Only a WhatsApp row is
   // judged: an email's subject may hold a value ({{1}}), which reads as "a
   // heading that takes a value" on Meta's array and is no reason to hold the email.
-  const every = (data ?? []).map(({ components, ...t }) => ({
+  // Meta's id stays behind too: what a page needs of it is whether WhatsApp holds the row at all (`at_meta`), since only one
+  // it holds can have its words changed and sent back (template-words.ts).
+  const every = (data ?? []).map(({ components, meta_id, ...t }) => ({
     ...t,
+    at_meta: t.channel === "whatsapp" && !!meta_id,
     ...templateParts(components),
     blocked: t.channel === "whatsapp" ? templateBlocked({ components }) : null,
   }));
@@ -147,13 +152,18 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
   // owner; a name and a date let a message people send by hand name the latest
   // two.
   const runs = everyRow("broadcasts", (from, to) => pageRunsOfTemplates(rc.ctx.supabase, tenantId, from, to));
-  const [pb, runRows, sends, sequences] = await Promise.all([
+  // A WhatsApp version WhatsApp refused: the words it had approved before a change, which its editor offers to go back to
+  // (the ledger's `before`, meta-templates.ts recordTemplateEvent), and Ask's new words for this refusal, which its editor
+  // opens on (`template.fix_written`, template-words.ts keepFixWords).
+  const refused = templates.filter((t) => t.channel === "whatsapp" && t.meta_status === "rejected").map((t) => t.id);
+  const [pb, runRows, sends, sequences, wordsKept] = await Promise.all([
     // Its clock, for the line under what sends it ("runs daily at 10:00"), its last day, and its sequence and place there
     // ("VIP color clients · step 2").
     listStepsOfTemplates(rc.ctx.supabase, tenantId),
     runs,
     templateSendsRead(rc, runs),
     listSequenceNames(rc.ctx.supabase, tenantId),
+    listWordsKept(rc.ctx.supabase, tenantId, refused),
   ]);
   if (pb.error) throw new DbFailure(pb.error);
   // A campaign past its last day by the business's day (the turn's zone) sends nothing more: said so, never its clock (S1-3).
@@ -174,7 +184,13 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
     // The booking message is a WhatsApp template the receptionist sends: an email or a text of the same name is none.
     bookingName: booking?.name ?? null,
   });
-  return { templates, held, messages, booking, usedBy, sends };
+  const withBefore = templates.map((t) => {
+    const kept = wordsKept.get(t.id);
+    // Ask's fix answers the refusal it was written for: one the row no longer carries is stale, and is not offered.
+    const fix = kept?.fix && kept.fix.reason === (t.rejected_reason ?? "") ? kept.fix.words : null;
+    return { ...t, approved_before: kept?.before ?? null, fix_words: fix };
+  });
+  return { templates: withBefore, held, messages, booking, usedBy, sends };
 }
 
 /** GET templates' answer: the rows and their messages, and for Settings (`all`) what sends each and how many went out. */
@@ -192,32 +208,70 @@ type LibraryRead = Extract<TemplatesRead, { usedBy: unknown }>;
  * composers name and guess it (slotLabels, defaultSlotKinds); `used_by` is the campaigns that send it, by its name
  * (templateUsage's playbooks). A projection of the read, never a second one.
  */
-export function messageReadsOf(read: LibraryRead): MessageRead[] {
+export function messageReadsOf(read: LibraryRead, whole: (name: string) => boolean = () => false): MessageRead[] {
   const rows = new Map(read.templates.map((t) => [t.id, t]));
   const usedBy = new Map(Object.entries(read.usedBy));
   return read.messages.map((message) => {
     const row = rows.get(message.versions.whatsapp?.id ?? message.anchor.id);
-    const variables: unknown[] = Array.isArray(row?.variables) ? row.variables : [];
-    const labels = row ? slotLabels(row) : [];
     return {
       name: message.name,
+      title: message.title,
       language: message.language,
       category: message.purpose === "marketing" ? "marketing" : "utility",
-      versions: VERSION_CHANNELS.flatMap((channel) => {
-        const v = message.versions[channel];
-        return v ? [{ channel, id: v.id, state: metaStatusOf(rows.get(v.id)?.meta_status) }] : [];
-      }),
-      slots: (row ? defaultSlotKinds(row) : []).map((kind, i) => {
-        const at = variables.at(i);
-        const position = at && typeof at === "object" && "position" in at ? at.position : null;
-        return {
-          position: typeof position === "number" ? position : i + 1,
-          label: labels.at(i) ?? `Value ${i + 1}`,
-          kind,
-        };
-      }),
+      away: message.hidden,
+      versions: versionReadsOf(message, rows, whole(message.name)),
+      slots: row ? slotReadsOf(row) : [],
       used_by: (usedBy.get(message.name)?.playbooks ?? []).map((p) => ({ id: p.id, name: p.name })),
     };
+  });
+}
+
+/** How much of a version's words the library read whole quotes: a line, enough to tell one message from another. */
+const WORDS_LINE = 160;
+
+/** Words cut to a line where the library is read whole (`whole` false), never mid-word where it can help it. */
+const wordsToLine = (words: string, whole: boolean): string => {
+  if (whole || words.length <= WORDS_LINE) return words;
+  const cut = words.slice(0, WORDS_LINE);
+  const space = cut.lastIndexOf(" ");
+  return `${space > WORDS_LINE / 2 ? cut.slice(0, space) : cut}…`;
+};
+
+type LibraryMessage = LibraryRead["messages"][number];
+type LibraryRow = LibraryRead["templates"][number];
+
+/** A message's versions as Ask reads them: each on its channel with its state, its words and WhatsApp's reason for a no. */
+function versionReadsOf(
+  message: LibraryMessage,
+  rows: ReadonlyMap<string, LibraryRow>,
+  whole: boolean,
+): MessageRead["versions"] {
+  return VERSION_CHANNELS.flatMap((channel) => {
+    const version = message.versions[channel];
+    if (!version) return [];
+    const at = rows.get(version.id);
+    const words = at ? versionWords(at) : { subject: null, body: "" };
+    const state = metaStatusOf(at?.meta_status);
+    return [
+      {
+        channel,
+        id: version.id,
+        state,
+        words: { subject: words.subject, body: wordsToLine(words.body, whole) },
+        ...(state === "rejected" && at?.rejected_reason ? { refused: at.rejected_reason } : {}),
+      },
+    ];
+  });
+}
+
+/** The values a message fills, each named and guessed as the composers name and guess it. */
+function slotReadsOf(row: LibraryRow): MessageRead["slots"] {
+  const variables: unknown[] = Array.isArray(row.variables) ? row.variables : [];
+  const labels = slotLabels(row);
+  return defaultSlotKinds(row).map((kind, i) => {
+    const at = variables.at(i);
+    const position = at && typeof at === "object" && "position" in at ? at.position : null;
+    return { position: typeof position === "number" ? position : i + 1, label: labels.at(i) ?? `Value ${i + 1}`, kind };
   });
 }
 

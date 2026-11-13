@@ -336,7 +336,7 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   const listing = listingOf(templates, messages, S);
   const { langs, starters, customGroups, hiddenGroups } = listing;
   const acts = pageActs({ doingRef, setDoing, flash });
-  const { rename, toggleHidden, remove, addStarters, written } = acts;
+  const { rename, toggleHidden, addStarters, written } = acts;
   // A new language is written and sent from the pane that opened it, by whoever may
   // add a template and only with a number to add it to; anyone else is told why in
   // the picker, where the languages it cannot add would have been. (An email's or a text's
@@ -376,13 +376,14 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
       onAdd={(gg, lang) => addStarters([gg.starter.key], [lang.id])}
       onRename={rename}
       onHide={toggleHidden}
-      onDelete={remove}
+      onDelete={acts.removeMessage}
       onWritten={written}
       versions={versions}
       canWrite={canAct}
       onSaveVersion={acts.saveVersion}
       onRemoveVersion={acts.removeVersion}
       onSendWords={acts.sendWords}
+      onTranslateOwn={acts.translateOwn}
     />
   ) : named ? (
     messageGone(closeOpen)
@@ -449,7 +450,8 @@ function phoneDrawer({ pane, composing, onClose }: { pane: ReactNode; composing:
       title={LIBRARY_WORDS.title}
       onClose={onClose}
       askFirst={composing}
-      bare={!composing}
+      // Neither the open message nor New draws the kicker: each pane's own head names it (the live demo, 12 Nov 2026).
+      bare
       testid="tpl-drawer"
     >
       {pane}
