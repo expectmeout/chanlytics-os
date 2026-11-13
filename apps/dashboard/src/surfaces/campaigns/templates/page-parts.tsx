@@ -106,7 +106,11 @@ export function listBar(p: BarProps) {
   const total = VIEW_GROUPS.reduce((n, g) => n + p.counts[g], 0);
   const views: ListView<MessagesView>[] = [
     { value: "all", label: TPL_LIST_WORDS.views.all, count: total },
-    ...VIEW_GROUPS.filter((g) => p.counts[g] > 0).map((g) => ({ value: g, label: TPL_LIST_WORDS[g], count: p.counts[g] })),
+    ...VIEW_GROUPS.filter((g) => p.counts[g] > 0).map((g) => ({
+      value: g,
+      label: TPL_LIST_WORDS[g],
+      count: p.counts[g],
+    })),
   ];
   return (
     <div className="tpl-bar">

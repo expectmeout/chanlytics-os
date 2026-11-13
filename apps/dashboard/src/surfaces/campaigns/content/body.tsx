@@ -250,7 +250,12 @@ function MadeGroups({ dto, acts, shows }: ContentReadProps) {
         <ContentList groups={groups} openId={shows.openId} onOpen={acts.onOpen} onFix={acts.onFix} />
       ) : (
         groups.map((group) => (
-          <section key={group.key} className="cnv-group" aria-label={group.label} data-testid={`cnv-group-${group.key}`}>
+          <section
+            key={group.key}
+            className="cnv-group"
+            aria-label={group.label}
+            data-testid={`cnv-group-${group.key}`}
+          >
             <GroupHead
               label={group.label}
               count={shows.layout === "list" ? group.count : piecesUnder(group)}
@@ -280,13 +285,7 @@ function MadePart(props: ContentReadProps) {
   return (
     <section className="cnv-part" aria-label={contentHeadOf(dto.tally)} data-testid="cnv-made-part">
       {shows.layout === "list" && shows.desk ? (
-        <ContentList
-          groups={flat}
-          flat
-          openId={shows.openId}
-          onOpen={acts.onOpen}
-          onFix={acts.onFix}
-        />
+        <ContentList groups={flat} flat openId={shows.openId} onOpen={acts.onOpen} onFix={acts.onFix} />
       ) : shows.layout === "list" ? (
         <PieceLines made={dto.made} making={dto.making} onOpen={acts.onOpen} />
       ) : (

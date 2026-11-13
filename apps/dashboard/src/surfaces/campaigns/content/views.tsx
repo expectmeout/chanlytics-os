@@ -261,7 +261,11 @@ export function LibraryKinds({ phone, layout = null }: { phone: boolean; layout?
   ];
   const choose = (kind: LibraryKind) => void showFiles({ ...view, kind: KIND_OF[kind] }).catch(() => undefined);
   const props = { label: FILE_WORDS.title, choices, value, onChoose: choose, choiceTestid: "fl-kind" };
-  return phone ? <ViewsPill {...props} testid="fl-kinds" layout={layout} /> : <ViewsRow {...props} testid="fl-kinds-row" />;
+  return phone ? (
+    <ViewsPill {...props} testid="fl-kinds" layout={layout} />
+  ) : (
+    <ViewsRow {...props} testid="fl-kinds-row" />
+  );
 }
 
 const CONTENT_LISTS: readonly ContentList[] = ["made", "library"];

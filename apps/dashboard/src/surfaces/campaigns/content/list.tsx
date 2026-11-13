@@ -130,11 +130,7 @@ const COLUMNS: DataColumn<PieceRow, ListCtx>[] = [
         {row.made ? (
           <span className="cnv-cell-piece">
             <span className="cnv-thumb" data-shape={tileShapeOf(row.made.file)}>
-              <Picture
-                src={rowPictureOf(row.made.file.id)}
-                alt={row.made.file.line ?? row.name}
-                name={row.name}
-              />
+              <Picture src={rowPictureOf(row.made.file.id)} alt={row.made.file.line ?? row.name} name={row.name} />
             </span>
             <span className="cnv-line-words">
               <b>{row.name}</b>

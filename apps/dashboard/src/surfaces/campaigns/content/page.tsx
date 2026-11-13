@@ -395,9 +395,7 @@ export function ContentPage({ route, view }: { route: string; view?: CmView }) {
             phone={phone}
             layout={layout}
             choose={setLayout}
-            glyph={
-              phone && find && !find.about ? { label: find.label, onFind: () => findRef.current?.focus() } : null
-            }
+            glyph={phone && find && !find.about ? { label: find.label, onFind: () => findRef.current?.focus() } : null}
           />
           {/* One search under the bar, the list's own (Made's over All, the Library's over all it keeps). What needs the owner
               is each list's first group (body.tsx MadeGroups, files/library-groups.tsx). */}
