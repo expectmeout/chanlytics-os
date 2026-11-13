@@ -7,7 +7,8 @@
  */
 import "server-only";
 import { fenced, fencedInline, type NewDraftAsk } from "@chanlytics/contracts";
-import { stoodStepsOf, type DraftKnown } from "../campaigns/sequences/draft-judge";
+import type { DraftKnown } from "../campaigns/sequences/draft-judge";
+import { stoodStepsOf } from "../campaigns/sequences/draft-stands";
 
 type Stands = NonNullable<NewDraftAsk["stands"]>;
 
