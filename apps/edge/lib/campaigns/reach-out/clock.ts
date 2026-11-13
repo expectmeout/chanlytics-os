@@ -76,7 +76,7 @@ const LEAD_WRITE_TRIES = 3;
 const LEAD_WRITE_REST_MS = SECOND_MS;
 
 /** What the clock takes from outside, so a test stands in for it: the pause between two tries of a lead's write. */
-export interface ClockPorts {
+interface ClockPorts {
   rest?: (ms: number) => Promise<void>;
 }
 const restFor = (ms: number): Promise<void> => new Promise((done) => setTimeout(done, ms));

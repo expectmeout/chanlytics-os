@@ -30,13 +30,13 @@ import { tellGap } from "./notices.js";
 type Db = SupabaseClient<Database>;
 
 /** How far back a read-back reaches: thirty days. A gap older than that is said to its owner. */
-export const GAP_BACK_MS = 30 * DAY_MS;
+const GAP_BACK_MS = 30 * DAY_MS;
 /** How far before the last sync it starts: a sync that could not ask still stamped its moment (db endMailboxSync). */
 const GAP_OVERLAP_MS = HOUR_MS;
 /** Pages of the list read in one sync (two hundred ids each, ids alone): past it, the list is said to be unfinished. */
 const GAP_PAGES_MAX = 10;
 /** The most a gap may list and still be read whole: more is a sync's worth of reads many times over. */
-export const GAP_WHOLE_MAX = 40;
+const GAP_WHOLE_MAX = 40;
 
 /** A gap as it was listed: its span, how many it listed, and what the sync does with them. */
 export interface MailGap {
