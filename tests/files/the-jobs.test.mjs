@@ -92,12 +92,13 @@ const fileRow = (over = {}) => ({
 });
 
 /** The database and the bucket the jobs find. */
-function world({ files = [fileRow()], upload = null } = {}) {
+function world({ files = [fileRow()], upload = null, posts = [] } = {}) {
   const tables = {
     tenants: [{ id: T, name: "Harbor Moving", timezone: "America/New_York", status: "active" }],
     tenant_config: [],
     billing_accounts: [{ tenant_id: T, mode: "stripe", status: "active" }],
     files,
+    posts,
     files_let_go: [],
     notifications: [],
     jobs: [],
@@ -117,6 +118,13 @@ function world({ files = [fileRow()], upload = null } = {}) {
       file_look_keep: (a) => {
         kept.push(a);
         return null;
+      },
+      // 00611's move: only from where it stands.
+      post_moved: ({ p_post_id, p_from, p_to, p_patch }) => {
+        const post = tables.posts.find((p) => p.id === p_post_id);
+        if (!post || !p_from.includes(post.status)) return false;
+        Object.assign(post, p_patch, { status: p_to });
+        return true;
       },
       file_purged: (a) => {
         purged.push(a);
@@ -846,6 +854,34 @@ test("the sweep's pass: a removal that has not finished is asked for again, for 
   assert.equal(did.purges, 1);
   const [purge] = w.tables.jobs.filter((j) => j.kind === "file_purge");
   assert.deepEqual(purge.payload, { file_id: "stuck", why: "sweep" });
+});
+
+test("the sweep's pass: a Google post a press never heard back on stops saying Posting, in words, ten minutes on", async () => {
+  const placed = (id, over) => ({
+    id,
+    tenant_id: T,
+    file_id: "made-1",
+    place: "google",
+    status: "publishing",
+    updated_at: ago(11 * 60_000),
+    ...over,
+  });
+  const w = world({
+    files: [],
+    posts: [
+      placed("silent"),
+      placed("just-now", { updated_at: ago(60_000) }),
+      placed("instagram", { place: "instagram" }),
+      placed("up", { status: "published" }),
+    ],
+  });
+  await keepFilesMoving(w.db);
+  const by = Object.fromEntries(w.tables.posts.map((p) => [p.id, p]));
+  assert.equal(by.silent.status, "failed", "it waits for the owner: posted again, or let go");
+  assert.match(by.silent.error.words, /Google did not say whether this went up/);
+  assert.equal(by["just-now"].status, "publishing", "a press still talking to Google is left");
+  assert.equal(by.instagram.status, "publishing", "Instagram's are its jobs' to settle");
+  assert.equal(by.up.status, "published");
 });
 
 test("the sweep's pass catches its own failures: nothing else the sweep does waits on files", async () => {

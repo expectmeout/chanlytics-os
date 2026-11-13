@@ -1,7 +1,7 @@
 {
   "rows": 178,
-  "same": 11,
-  "differ": 167,
+  "same": 13,
+  "differ": 165,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -32,11 +32,8 @@
       }
     },
     "DELETE files/[id]": {
-      "changes": "files UPDATE · files_let_go INSERT",
-      "tells": "files",
-      "missing": {
-        "calendar_runs": "calendar"
-      }
+      "changes": "files UPDATE · files_let_go INSERT · posts UPDATE",
+      "tells": "files"
     },
     "DELETE files/[id]/google": {
       "changes": "posts UPDATE",
@@ -353,11 +350,8 @@
       "changes": "ask_memory_lines INSERT UPDATE"
     },
     "PATCH files/[id]": {
-      "changes": "files UPDATE · pieces UPDATE",
-      "tells": "files",
-      "missing": {
-        "calendar_runs": "calendar"
-      }
+      "changes": "files UPDATE · pieces UPDATE · posts INSERT UPDATE",
+      "tells": "files"
     },
     "PATCH lead-searches/[id]": {
       "changes": "lead_searches UPDATE",

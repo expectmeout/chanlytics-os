@@ -26,6 +26,7 @@ import { GET as team } from "../team/route";
 import { GET as policies } from "../policies/route";
 import { GET as templates } from "../templates/route";
 import { GET as coldEmailNote } from "../settings/reach-out/note/route";
+import { GET as contentNote } from "../content/note/route";
 
 /**
  * GET /api/v1/open?route=today[&period=7d] — a page's first reads, answered as one streamed request (decision 0053
@@ -66,6 +67,8 @@ const READS: ReadonlyMap<string, OpenRead> = new Map<string, OpenRead>([
   ["templates", templates],
   // Cold email's one line on Today (the page's own read, no surface's: surfaces/today/cold-email-note-read.ts).
   ["settings/reach-out/note", coldEmailNote],
+  // Content's card on Today, the same kind of read (surfaces/today/content-note-read.ts): answered here, not on its own.
+  ["content/note", contentNote],
 ]);
 
 const Query = z.object({

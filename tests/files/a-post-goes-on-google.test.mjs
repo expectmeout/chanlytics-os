@@ -338,6 +338,16 @@ test("Don't post takes back one set for its time on Google, up to its time; one 
   await assert.rejects(route.DELETE.run(send("DELETE", { post_id: other.id }), elsewhere.ctx), (e) => e.status === 404);
 });
 
+test("a post up on Google already is done: a press sent again posts nothing twice", async () => {
+  const up = placementRow({ external_id: NAME, permalink: "https://local.google.com/x" });
+  const { ctx, posts, uploaded } = world({ posts: [up] });
+  const said = await route.POST.run(send("POST", { summary: WORDS }), ctx);
+  assert.deepEqual(said, { name: NAME, search_url: "https://local.google.com/x", state: null });
+  assert.deepEqual(edge.asked, [], "Google is not asked again");
+  assert.equal(posts.length, 1, "no second placement");
+  assert.equal(uploaded.length, 0, "nothing drawn for it");
+});
+
 test("the press keeps its placement: begun before the edge is asked, its send kept, and up under Google's own name", async () => {
   const { ctx, posts, attempts } = world();
   await route.POST.run(send("POST", { summary: WORDS }), ctx);

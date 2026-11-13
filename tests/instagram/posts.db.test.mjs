@@ -134,6 +134,13 @@ test("the press writes the post, approved by whoever pressed, and its first job,
   assert.deepEqual(job.payload.attempt, "1");
   assert.ok(Date.parse(job.due_at) <= Date.now() + 60_000, "now");
   assert.deepEqual(ok(await begin("owner", fileId), "again"), { fate: "busy", post_id: begun.post_id });
+  // A story waits apart from the post (00620): taken while the post waits, and a second story is the first.
+  const story = ok(await begin("owner", fileId, { p_kind: "story" }), "story beside it");
+  assert.equal(story.fate, "begun");
+  assert.deepEqual(ok(await begin("owner", fileId, { p_kind: "story" }), "story again"), {
+    fate: "busy",
+    post_id: story.post_id,
+  });
 });
 
 test("a story keeps no caption, a reel waits, only a made post goes, and a deleted one is gone", { skip }, async () => {
@@ -301,5 +308,41 @@ test(
     );
     assert.equal(ok(await begin("owner", fileId, { p_place: "google" }), "again").fate, "begun");
     assert.equal((await postOf(google.post_id)).status, "failed");
+  },
+);
+
+test(
+  "I posted it: kept at the place hand as its owner says so, said again the same record, and taken back",
+  { skip },
+  async () => {
+    const fileId = await file();
+    const report = (who, over = {}) =>
+      as[who].client.rpc("post_report", { p_tenant_id: A, p_file_id: fileId, ...over });
+    const first = ok(await report("owner"), "report");
+    assert.equal(first.fate, "kept");
+    const kept = await postOf(first.post_id);
+    assert.deepEqual(
+      [kept.place, kept.kind, kept.status, kept.permalink, kept.approved_by, kept.via],
+      ["hand", "picture", "published", null, as.owner.id, "press"],
+    );
+    assert.ok(kept.published_at, "up as they say so");
+    // Its link, added after: the same record. A link that is no https address is refused.
+    const again = ok(await report("owner", { p_link: "https://www.tiktok.com/@harbor/video/1" }), "its link");
+    assert.equal(again.post_id, first.post_id);
+    assert.equal((await postOf(first.post_id)).permalink, "https://www.tiktok.com/@harbor/video/1");
+    assert.ok((await report("owner", { p_link: "tiktok.com/x" })).error, "no https, no link");
+    // It holds no place of ours: a press still sends the piece to Instagram.
+    assert.equal(ok(await begin("owner", fileId), "begin beside it").fate, "begun");
+    // Not posted after all: Don't post's door takes it back, and one said after is a new record.
+    assert.deepEqual(ok(await as.owner.client.rpc("post_pull", { p_post_id: first.post_id }), "take back"), {
+      fate: "pulled",
+    });
+    assert.notEqual(ok(await report("owner"), "said again").post_id, first.post_id);
+    // Said twice at once (a double press, two tabs), the database keeps one record (posts_one_by_hand).
+    const twice = await file();
+    const both = await Promise.all(
+      [1, 2].map(() => as.owner.client.rpc("post_report", { p_tenant_id: A, p_file_id: twice })),
+    );
+    assert.equal(ok(both[0], "first at once").post_id, ok(both[1], "second at once").post_id);
   },
 );

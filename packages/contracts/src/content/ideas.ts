@@ -70,30 +70,46 @@ export const CONTENT_IDEAS: readonly ContentIdea[] = [
 export const contentIdeasFor = (videos: boolean): readonly ContentIdea[] =>
   CONTENT_IDEAS.filter((idea) => idea.videos === videos);
 
-/** The files an idea would be made from, by name as files says them; none for one that is made from words (a review). */
+/**
+ * The files an idea would be made from, by name as files says them; none for one that is made from words (a review). `ready`
+ * says whether what it is made from is there at all: no photo, no post from one.
+ */
 export interface ContentIdeaFiles {
   key: ContentIdea["key"];
   files: { id: string; name: string }[];
+  ready: boolean;
 }
 
 /**
  * Which files each idea would use, from the newest kept files, newest first: the two newest photos of the work for a before
  * and after, up to four clips that can be played for a video, the newest photo for a post. A before and after with fewer
- * than two photos of the work names none, and Ask chooses.
+ * than two photos of the work names none, and Ask chooses; with fewer than two photos at all, there is nothing to choose.
  */
 export function contentIdeaFilesOf(
   kept: readonly Pick<FileDto, "id" | "name" | "kind" | "shows" | "media_status">[],
+  holds: { review: boolean },
 ): ContentIdeaFiles[] {
   const named = (files: typeof kept) => files.map((f) => ({ id: f.id, name: f.name }));
   const photos = kept.filter((f) => f.kind !== "video");
   const work = photos.filter((f) => f.shows === "work");
   const clips = kept.filter((f) => f.kind === "video" && f.media_status === "ready");
   return [
-    { key: "before_after", files: work.length >= 2 ? named(work.slice(0, 2)) : [] },
-    { key: "video", files: named(clips.slice(0, 4)) },
-    { key: "photo_post", files: named(photos.slice(0, 1)) },
+    { key: "before_after", files: work.length >= 2 ? named(work.slice(0, 2)) : [], ready: photos.length >= 2 },
+    // Made from a review's own words, which no file holds: there where the workspace holds a review that says something.
+    { key: "review", files: [], ready: holds.review },
+    { key: "video", files: named(clips.slice(0, 4)), ready: clips.length > 0 },
+    { key: "photo_post", files: named(photos.slice(0, 1)), ready: photos.length > 0 },
   ];
 }
+
+/**
+ * The ideas that can be made now: each whose material the read found, and each it says nothing of (before the page is read,
+ * nothing is known). Never "your newest photo" with no photo, nor "your newest review" with no review.
+ */
+export const contentIdeasReady = (
+  ideas: readonly ContentIdea[],
+  picks: readonly ContentIdeaFiles[],
+): readonly ContentIdea[] => ideas.filter((idea) => picks.find((pick) => pick.key === idea.key)?.ready ?? true);
 
 /** What Ask is asked for an idea: its words, and the files its row showed, by name, where it showed any. */
 export function contentIdeaAsk(

@@ -25,6 +25,7 @@ import type { PiecePresses, usePieceDrafts } from "../piece-presses";
 import { pieceNextOf, type PieceTakes } from "../model/piece-open";
 import { viewerSaidOf, type ViewerRecord } from "../model/viewer-line";
 import type { PlaceDoors } from "../post-both";
+import { PostedByHand, type ByHandPress } from "./by-hand";
 import { viewerClockOf } from "./clock";
 import { ViewerDetails, ViewerFacts } from "./details";
 import { ViewerFoot, statusOpensOf } from "./foot";
@@ -56,7 +57,13 @@ export interface ViewerHands {
   acts: ViewerActs;
   /** The doors to a post that is up at a place (piece.tsx postedDoorsOf), drawn under that place in the list of places. */
   doors: PlaceDoors;
+  /** "I posted it", and where it stands once said (by-hand.tsx). */
+  byHand: ByHandPress;
 }
+
+/** Whether "I posted it" is offered: a video Ask made, which nothing posts from here (decision 0121). */
+export const byHandOffered = (file: Pick<ContentMadeDto["file"], "kind" | "source">): boolean =>
+  file.source === "made" && file.kind === "video";
 
 /** Which of the viewer's own sheets is open. */
 type ViewerSheet = "details" | "rename" | "change" | null;
@@ -210,6 +217,15 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
           clock={clock}
           save={save}
           caption={file.kind === "video" ? says.words : null}
+          byHand={
+            <PostedByHand
+              press={hands.byHand}
+              may={hands.may}
+              offered={byHandOffered(file)}
+              clock={clock}
+              busy={presses.busy}
+            />
+          }
           asking={removeAsk(hands)}
           problem={presses.problem ?? save.said}
           acts={{

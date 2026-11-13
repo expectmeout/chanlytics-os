@@ -10,12 +10,10 @@ import {
   FILE_WORDS,
   fileSaidOf,
   ON_INSTAGRAM,
-  POST_ON_ITS_WAY,
   POST_PLACES,
   postCaptionOf,
   type ContentMadeDto,
   type PostDto,
-  type PostPlace,
 } from "@chanlytics/contracts";
 import { canDo, type FrameFlash } from "../../frame-verbs";
 import type { usePostRecord } from "../../files/post-record";
@@ -23,7 +21,7 @@ import { PostVersion, PostVersionActs, usePostVersion } from "../../files/post-v
 import { fileVerbs, type FileChange } from "../../files/verbs";
 import { PostBoth, PostBothActs, usePostBoth, type PlaceDoors } from "./post-both";
 import { VideoAgain, VideoAgainActs, useVideoAgain } from "./video-again";
-import { pieceStandsAt, type PieceTakes } from "./model/piece-open";
+import { pieceStandsAt, pieceTakesOf, type PieceTakes } from "./model/piece-open";
 import type { PieceOffers, PieceWont } from "./model/places";
 import { AskLine, type ChangeAbout } from "./sheets/ask-change";
 
@@ -52,20 +50,23 @@ export function usePiecePosts(
   piece: ContentMadeDto,
   record: PieceRecord,
 ): { posts: PostDto[]; takes: PieceTakes | null; wont: PieceWont | null; offers: PieceOffers | null } {
-  const recorded = record.instagram?.posts;
+  // Every place's (a line's piece holds its view's posts alone, and one read on its own held Instagram's alone). Where both
+  // hold a post, the page's says where it stands: the page asks again while anything moves, and the record follows it.
+  const recorded = record.posts;
   const posts = useMemo(() => {
     const held = new Set(piece.posts.map((p) => p.id));
     return [...piece.posts, ...(recorded ?? []).filter((p) => !held.has(p.id))].sort((a, b) =>
       b.created_at.localeCompare(a.created_at),
     );
   }, [piece.posts, recorded]);
-  const onItsWay = (place: PostPlace) => posts.some((p) => p.place === place && POST_ON_ITS_WAY.includes(p.status));
-  const onGoogle = !!record.posted || posts.some((p) => p.place === "google" && p.status === "published");
+  // What already holds a place is one rule, Ask's card's too (model/piece-open.ts pieceTakesOf, contracts postPlaceTakenOf).
+  // Google up before each post was kept is the record's alone (`posted`).
   const takes: PieceTakes | null = record.made
-    ? {
-        instagram: record.instagram?.can === "yes" && !onItsWay("instagram"),
-        google: record.connected && !onItsWay("google") && !onGoogle,
-      }
+    ? pieceTakesOf(posts, {
+        instagram: record.instagram?.can === "yes",
+        google: record.connected,
+        onGoogle: !!record.posted,
+      })
     : null;
   // Why a place can take none at all, short, where the list says it beside Connect (Settings > Connections), which puts it
   // right: a place hidden said nothing, and a sentence said what the press beside it now does.
@@ -100,12 +101,22 @@ export function usePiecePresses(hands: PieceHands, posts: readonly PostDto[]) {
     record.reread();
     reread();
   };
-  const change = async (body: FileChange): Promise<string | null> => {
+  // A change, and what it answers: why it could not be made, or where a post was let go with it (a piece set aside).
+  const changed = async (body: FileChange) => {
     setBusy(true);
     const r = await fileVerbs.change(file.id, body);
     setBusy(false);
-    if (r.ok) reread();
-    return r.ok ? null : r.message;
+    if (!r.ok) return { problem: r.message, stopped: [] };
+    reread();
+    return { problem: null, stopped: r.data.stopped };
+  };
+  const change = async (body: FileChange): Promise<string | null> => (await changed(body)).problem;
+  // Set aside: a post of it that still waited is let go with it on the server (files/file.ts), and the note says which, as
+  // the server said, so a post that went up before it could be stopped is never said to be stopped (Ruben, 12 Nov 2026).
+  const aside = async () => {
+    const { problem: refused, stopped } = await changed({ status: "set_aside" });
+    setProblem(refused);
+    if (stopped.length > 0) flash({ msg: <>{CONTENT_WORDS.piece.asideStops(stopped)}</> });
   };
   // The caption, written where it stands (Details): kept with how the piece was made, and its record read again, so Details,
   // Post it's box and Ask say the owner's words. Nothing else waits on it, so it holds no press of the pane's.
@@ -160,6 +171,7 @@ export function usePiecePresses(hands: PieceHands, posts: readonly PostDto[]) {
     caption,
     clear: () => setProblem(null),
     say: (body: FileChange) => void change(body).then(setProblem),
+    aside: () => void aside(),
     ask: (on: boolean) => setAsking(on),
     remove: () => void remove(),
     pull: (postId: string) => void pull(postId),
@@ -195,9 +207,11 @@ export function usePieceDrafts(
       reread();
       flash({
         msg: <>{CONTENT_WORDS.piece.change.saved}</>,
-        // Undo puts the first back where it was, and lets the change go.
+        // Undo puts the first back where it was, and lets the change go: only once the first is back, so an Undo that could
+        // not bring it back never leaves neither.
         undo: () =>
-          void fileVerbs.restore(was).then(async () => {
+          void fileVerbs.restore(was).then(async (back) => {
+            if (!back.ok) return flash({ tone: "danger", msg: <>{back.message}</> });
             await fileVerbs.remove(id);
             reread();
             open(was);

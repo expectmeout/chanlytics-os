@@ -2508,6 +2508,25 @@
     },
     {
       "table": "posts",
+      "name": "posts_external",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "place"
+        },
+        {
+          "column": "external_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "external_id"
+        }
+      }
+    },
+    {
+      "table": "posts",
       "name": "posts_one_on_its_way",
       "primary": false,
       "nullsNotDistinct": false,
@@ -2517,6 +2536,9 @@
         },
         {
           "column": "place"
+        },
+        {
+          "column": "kind"
         }
       ],
       "where": {
@@ -2533,21 +2555,35 @@
     },
     {
       "table": "posts",
-      "name": "posts_external",
+      "name": "posts_one_by_hand",
       "primary": false,
       "nullsNotDistinct": false,
       "keys": [
         {
-          "column": "place"
-        },
-        {
-          "column": "external_id"
+          "column": "file_id"
         }
       ],
       "where": {
-        "notNull": {
-          "column": "external_id"
-        }
+        "and": [
+          {
+            "cmp": "=",
+            "left": {
+              "column": "place"
+            },
+            "right": {
+              "value": "hand"
+            }
+          },
+          {
+            "cmp": "=",
+            "left": {
+              "column": "status"
+            },
+            "right": {
+              "value": "published"
+            }
+          }
+        ]
       }
     },
     {

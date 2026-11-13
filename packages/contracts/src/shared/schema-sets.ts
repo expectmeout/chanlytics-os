@@ -49,7 +49,7 @@ import type {
   FILE_WHO_IN_IT,
 } from "../files/limits";
 import type { SENDER_KINDS } from "../email/sender-reading";
-import type { POST_KINDS, POST_PLACES, POST_STATUSES, POST_VIAS } from "../content/posts";
+import type { POST_KINDS, POSTED_PLACES, POST_STATUSES, POST_VIAS } from "../content/posts";
 import type { PIECE_FAILS, PIECE_STAGES, PIECE_STATUSES } from "../content/piece-making";
 import type { PIECE_SHAPES } from "../content/pieces";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
@@ -164,7 +164,8 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof FILE_WHO_IN_IT>, SchemaSet<"files.who_in_it">>>,
 
   // A post on its way to a place (00611, decision 0121).
-  Holds<Exactly<Of<typeof POST_PLACES>, SchemaSet<"posts.place">>>,
+  // Where a post can be: the places a press sends it (POST_PLACES), and `hand`, one its owner put up themselves (00620).
+  Holds<Exactly<Of<typeof POSTED_PLACES>, SchemaSet<"posts.place">>>,
   Holds<Exactly<Of<typeof POST_KINDS>, SchemaSet<"posts.kind">>>,
   Holds<Exactly<Of<typeof POST_STATUSES>, SchemaSet<"posts.status">>>,
   Holds<Exactly<Of<typeof POST_VIAS>, SchemaSet<"posts.via">>>,

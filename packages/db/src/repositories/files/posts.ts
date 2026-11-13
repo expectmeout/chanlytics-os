@@ -150,6 +150,44 @@ export async function markPostUnanswered(db: Db, postId: string, attempt: 1 | 2)
   return data === true;
 }
 
+/**
+ * Google posts a press began and never heard back on (the press's own call died with its function): publishing, and not moved
+ * since `before`. For the service role, across workspaces: the files sweep fails each in words, as 00616 post_begin does for
+ * the next press of the same file, so it stops saying Posting and waits for the owner. Oldest first, `limit` at most.
+ */
+export async function listPostsSilent(db: Db, args: { before: string; limit: number }): Promise<{ id: string }[]> {
+  const { data, error } = await db
+    .from("posts")
+    .select("id")
+    .eq("place", "google")
+    .eq("status", "publishing")
+    .lt("updated_at", args.before)
+    .order("updated_at", { ascending: true })
+    .limit(args.limit);
+  if (error) throw new DbFailure(error, "posts silent");
+  return data;
+}
+
+/**
+ * I posted it (00620 post_report), on the member's own session: a made piece its owner put up themselves, with its link or
+ * none. Kept as a post at the place `hand`; said again, the same record with the link it now has. Answers kept (new, or the
+ * one already there), or why not.
+ */
+export async function reportPost(
+  db: Db,
+  post: { tenantId: TenantId; fileId: string; link: string | null },
+): Promise<{ fate: "kept" | "gone" | "not_a_post"; post_id: string | null }> {
+  const { data, error } = await db.rpc("post_report", {
+    p_tenant_id: post.tenantId,
+    p_file_id: post.fileId,
+    ...(post.link ? { p_link: post.link } : {}),
+  });
+  if (error) throw new DbFailure(error, "post report");
+  const answer = recordOrEmpty(data);
+  const fate = answer.fate === "gone" || answer.fate === "not_a_post" ? answer.fate : "kept";
+  return { fate, post_id: typeof answer.post_id === "string" ? answer.post_id : null };
+}
+
 /** A first attempt that never landed queued for the second and last, with its job, written together. */
 export async function queuePostAgain(db: Db, postId: string, from: "preparing" | "checking"): Promise<boolean> {
   const { data, error } = await db.rpc("post_again", { p_post_id: postId, p_from: from });
@@ -295,7 +333,9 @@ export async function countPostsOut(db: Db, tenantId: TenantId): Promise<number>
     .from("posts")
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
-    .eq("status", "published");
+    .eq("status", "published")
+    // What a press sent: a post its owner put up by hand (00620) is read with its piece, whose tile says so.
+    .neq("place", "hand");
   if (error) throw new DbFailure(error, "posts out");
   return count ?? 0;
 }
@@ -343,6 +383,12 @@ export async function listPostsInSpan(
   return data;
 }
 
+/**
+ * Where a post that waits for its time stands: queued, and in Instagram's last ten minutes preparing (00611 post_begin's job is
+ * due then), still waiting for its time as the page says it (contracts postWaitsForItsTime).
+ */
+const TIMED_STATUSES = ["queued", "preparing"] as const;
+
 /** Posts that wait for their time, past `after`, soonest first: Content's Scheduled. A workspace holds a handful. */
 export async function listPostsTimed(
   db: Db,
@@ -354,7 +400,7 @@ export async function listPostsTimed(
     .from("posts")
     .select(MEMBER_FILE_POST_COLUMNS)
     .eq("tenant_id", tenantId)
-    .eq("status", "queued")
+    .in("status", [...TIMED_STATUSES])
     .gt("scheduled_for", after);
   if (page.before) {
     const { at, id } = page.before;
@@ -374,7 +420,7 @@ export async function countPostsTimed(db: Db, tenantId: TenantId, after: string)
     .from("posts")
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
-    .eq("status", "queued")
+    .in("status", [...TIMED_STATUSES])
     .gt("scheduled_for", after);
   if (error) throw new DbFailure(error, "posts timed counted");
   return count ?? 0;
@@ -391,6 +437,7 @@ export async function listPostsUp(
     .select(MEMBER_FILE_POST_COLUMNS)
     .eq("tenant_id", tenantId)
     .eq("status", "published")
+    .neq("place", "hand")
     .not("published_at", "is", null);
   if (page.before) {
     const { at, id } = page.before;

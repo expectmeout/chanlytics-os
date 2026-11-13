@@ -5,7 +5,8 @@
  * Right before the send, the recheck: whoever approved it may still post for the business, the post was not pulled or
  * removed, and Instagram is still connected with posting allowed. Anything moved holds the post in words and sends nothing,
  * up to the moment of sending. Then the job says it is about to speak (ledger markSpoke), and Instagram is asked to publish.
- * A refusal fails the post in the owner's words; no answer leaves it Checking, and two minutes on the reconcile asks
+ * A refusal fails the post in the owner's words, but for Instagram being busy on a first send, which is asked again as a send
+ * with no answer is; no answer leaves it Checking, and two minutes on the reconcile asks
  * Instagram what it has: the container's status and the account's newest posts. Up when Instagram says the container was
  * published, or the account shows a post with the caption this one was sent with; one found by its time alone (a story
  * carries no caption) is where the post is, never proof that it went up. Not up, one more attempt begins, never a third
@@ -34,7 +35,7 @@ import {
   openPostAttempt,
   type PostRow,
 } from "@chanlytics/db/files";
-import { CertainFailure } from "@chanlytics/core";
+import { CertainFailure, isCertainFailure } from "@chanlytics/core";
 import { logAndGoOn } from "@chanlytics/log";
 import { markSpoke, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
 import type { Database } from "@chanlytics/db/types";
@@ -110,8 +111,12 @@ async function refusedSend(db: Db, at: Sending, sent: InstagramAnswer, deps: Pos
     answer: sent.json,
     error,
   });
-  await movePost(db, { postId: post.id, from: ["publishing"], to: "failed", patch: { error } });
   const refused = postRefusalOf(sent, `post ${post.id}`);
+  // Only busy, on the first send: a refusal took nothing, so it is tried once more by itself, the way a send with no answer
+  // is: Checking, the reconcile two minutes on, then the second and last attempt, which asks after this container before it
+  // sends (post-ready.ts). The owner hears of it only when that one is refused too (Ruben, 12 Nov 2026).
+  if (at.attempt === 1 && !isCertainFailure(refused) && (await markPostUnanswered(db, post.id, 1))) return;
+  await movePost(db, { postId: post.id, from: ["publishing"], to: "failed", patch: { error } });
   throw new CertainFailure(refused.message, error.words);
 }
 
