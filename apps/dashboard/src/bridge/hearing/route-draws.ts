@@ -41,7 +41,10 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
     // The bell: what cannot wait is one line under the head, drawn from its warnings (surfaces/today/zones/alert.tsx), and
     // Since you looked says its notes.
     "notifications",
+    // What Ask found's checks read beside People: the period's headline (surfaces/reports/headline.ts).
     "reports_headline",
+    // Ask's ideas in Ask found: the member's morning with Ask, read on its own (surfaces/today/ask-morning-surface.ts; decision 0070).
+    "ask_morning",
     "playbooks",
     "live",
     "people",
@@ -50,8 +53,6 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
     // The counts of the lists pinned here, read on their own (surfaces/today/pins-surface.ts; R10): People's are as of its
     // last read, which nothing on Today reads again.
     "today_pins",
-    // Ask's ideas in Need you: the member's morning with Ask, read on its own (surfaces/today/ask-morning-surface.ts; decision 0070).
-    "ask_morning",
   ],
   // The Calendar's campaign marks (surfaces/calendar/runs-surface.ts): their own span read, on demand. It read People's whole
   // book here for one pill and the deal beside a visit; the visit's person now carries those facts on the board's own read
@@ -173,8 +174,21 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
   // head, drawn from the bell's warnings (zones/alert.tsx, 9 Nov 2026), and read in the stream's second tier it landed 100
   // to 190 ms after the page and pushed all of it down, 54 px on a desk and 64 on a phone (the load review of 10 Nov 2026).
   // Each is a small read the head starts with Today's own (contracts PREFETCH_READS); People's book, read last, is
-  // waited for by none of it.
-  today: ["setup", "calendar", "broadcasts", "reach_out_replies", "google", "reply_drafts", "notifications"],
+  // waited for by none of it. And what Ask found and To do's steps are drawn from beside People, Reports' headline and
+  // Ask's morning as it stands: read in the stream's second tier, Ask found landed 0.3 to 1.3 s after the page and on a quiet
+  // desk split the day's one column in two (the load review of 13 Nov 2026). What they read of People is Today's own first
+  // read (surfaces/today/people-read.ts), which the first draw waits for as it waits for Cold email's line.
+  today: [
+    "setup",
+    "calendar",
+    "broadcasts",
+    "reach_out_replies",
+    "google",
+    "reply_drafts",
+    "notifications",
+    "reports_headline",
+    "ask_morning",
+  ],
   // The Inbox's rows of the runs waiting for your word stand above its threads: landing after them, four pushed them 330px down
   // on a phone (18 Oct 2026). Sent's runs read nothing of People and leave from the document's head with the threads.
   // And what a row and a thread draw from other reads: the calls a timeline holds (Conversations' read) and a reply to a

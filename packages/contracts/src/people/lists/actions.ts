@@ -8,6 +8,7 @@ import { MONTH_MS } from "../person-helpers";
 import { WEEK_MS } from "../../shared/time";
 import { sendOnceRoute } from "../../campaigns/sequences/address";
 import { GET_YES_ROUTE } from "./people-route";
+import { PEOPLE_LISTS, type PeopleListGroup } from "./builtin-lists";
 
 /* ---------------------------- lists and totals --------------------------- */
 
@@ -100,6 +101,47 @@ export function peopleListAction(id: string, members: PersonRowVM[]): PeopleList
     return broadcastStep(step.answered.cta, step.answered.to, members);
   if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
   return broadcastStep(step.cta, step.to, members);
+}
+
+/** A built-in list as People's rail counts it: what it is, who is on it of the rows counted, and its step. */
+export interface PeopleListCount {
+  id: string;
+  label: string;
+  group: PeopleListGroup;
+  /** What it holds, in one line (BUILTIN_LISTS): the rail's tip. */
+  tip: string;
+  count: number;
+  ids: string[];
+  action: PeopleListAction | null;
+}
+
+/**
+ * People's built-in lists this workspace counts, each counted over `rows`: the outcome lists only where there is a calendar to
+ * read them from, the consultations only with a consult-first service, the deal lists once a deal was recorded here. People's
+ * rail counts them so (surfaces/people/surface-map.ts), and Today's first read the lists its checks read (today/people.ts),
+ * so the two say one number for one list.
+ */
+export function peopleListsOf(
+  rows: PersonRowVM[],
+  workspace: { calendar: string; consultFirst: boolean; hasDeals: boolean },
+): PeopleListCount[] {
+  return PEOPLE_LISTS.filter(
+    (list) =>
+      (!list.needsCalendar || workspace.calendar === "ok") &&
+      (!list.needsConsultFirst || workspace.consultFirst) &&
+      (!list.needsDeals || workspace.hasDeals),
+  ).map((list) => {
+    const members = rows.filter(list.test);
+    return {
+      id: list.id,
+      label: list.label,
+      group: list.group,
+      tip: list.tip,
+      count: members.length,
+      ids: members.map((row) => row.id),
+      action: peopleListAction(list.id, members),
+    };
+  });
 }
 
 /**
