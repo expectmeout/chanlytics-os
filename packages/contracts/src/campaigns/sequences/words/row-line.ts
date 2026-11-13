@@ -3,8 +3,9 @@
  * first of these that is true. What waits on you and since when ("2 follow-ups wait for your OK · since Sun"); what is
  * stuck ("3 leads couldn’t be checked · since Oct 29", "Didn’t run · no calendar is connected"; stage 2); a twin on its
  * moment; a one-off's day; a paused one's people; what goes next and to how many ("Next tomorrow 9:00 AM · 6 people"),
- * a batch made, an occasion's next person, or the first of those between two steps; who is in it; that every lead is
- * through; what it sent; what starts it. Never a bare zero. The list and Ask read it, so Ask says what the row says.
+ * a batch made, an occasion's next person, or the first of those between two steps; leads whose address is being checked
+ * again ("3 addresses being checked again"); who is in it; that every lead is through; what it sent; what
+ * starts it. Never a bare zero. The list and Ask read it, so Ask says what the row says.
  */
 import { appointmentWords, type AppointmentWord } from "../../../journey/appointment-word";
 import { clockDate, clockNear, clockNearWhen, clockTime, clockWhen, zoneDayKey } from "../../../shared/clock";
@@ -104,6 +105,14 @@ function stuckLine(stuck: SequenceStuck, tz: string, nowMs: number): string {
   if (stuck.kind === "run") return runOffRowWords(stuck.reason);
   const leads = `${plural(stuck.leads, "lead", "leads")} ${STUCK_LEADS_WORDS[stuck.reason]}`;
   return `${leads} · ${waitedSinceWords(stuck.sinceMs, tz, nowMs)}`;
+}
+
+/**
+ * Leads on a running cold email's list whose address did not answer and is being checked again by itself (decision
+ * 0131): said where nothing of the sequence goes next, so a list that waits on a check is not read as an empty one.
+ */
+function recheckingLine(leads: number): string {
+  return `${plural(leads, "address", "addresses")} being checked again`;
 }
 
 /**
@@ -211,6 +220,8 @@ export function sequenceRowLine(
   if (row.coming && row.coming.people > 0) return nextLine(row.coming.at, row.coming.people, tz, nowMs);
   // No batch is made for them yet: the first of those between two steps with a time to come, and how many have one.
   if (row.between && row.between.people > 0) return nextLine(row.between.at, row.between.people, tz, nowMs);
+  // On by now: a draft, an ended and a paused one have each said theirs above.
+  if (row.starts === "leads" && (row.rechecking ?? 0) > 0) return recheckingLine(row.rechecking ?? 0);
   if (row.in_it > 0) return `${row.in_it} in it`;
   if (row.starts === "leads") return leadsIdleLine(row);
   return lastLine(row, tz, nowMs) ?? startsWhenWords(row, at.word);
