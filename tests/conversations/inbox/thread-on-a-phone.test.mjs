@@ -189,7 +189,7 @@ test("an email's quoted chain is behind a tap, and the bubble says what they wro
 // The email that came in on production on 27 Oct 2026, as it was kept.
 const SIGNED =
   "needs you test\n\nRuben Segura\nFounder, RJ Capital\n[image: RJ Capital] <https://rjcapital.io>\n" +
-  "rjcapital.io  |  ruben@rjcapital.io\n3495 US-1, Princeton, NJ 08540";
+  "rjcapital.io  |  ruben@rjcapital.example\n3495 US-1, Princeton, NJ 08540";
 
 test("their signature is one quiet fold under their words, and the whole of it on a press", () => {
   const dto = conv([

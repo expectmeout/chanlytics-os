@@ -11,6 +11,9 @@
  *     the skill's purpose (craftSystem). Its answer is checked in code before anything is shown.
  *   - guide: a short block put into Ask's own turn when the job comes up (guideBlock), prefetched where the question's
  *     words ask for it (skillsAsked, registry.ts) or read by the guide tool, by the skill's id.
+ *
+ * A job Ask does itself has no craft call, and its skill is its guide alone: the video maker's, how a video's blocks are
+ * arranged (the dashboard's server/ask/skills/video/skill.ts).
  */
 import type { ModelEffort } from "../../ai/models/routes";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
@@ -87,6 +90,6 @@ export function craftSystem(skill: AskSkill): string {
 export const SKILL_GUIDE_MAX = 1_200;
 
 /** A skill's guide, as a block of Ask's turn: its title and when it applies, then what Ask does about it. */
-export function guideBlock(skill: AskSkill): string {
+export function guideBlock(skill: Pick<AskSkill, "title" | "when" | "guide">): string {
   return [`Skill: ${skill.title}. It is used for: ${skill.when.jobs.join(" ")}`, skillBullets(skill.guide)].join("\n");
 }

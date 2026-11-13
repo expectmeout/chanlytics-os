@@ -18,7 +18,7 @@ import { installStubReact, fresh, again, all, find, byTestId, textOf, press, set
 const calls = { flash: [], invite: [], setRole: [], remove: [], resend: [], leave: 0, put: [], assign: [], viewAs: [] };
 installStubReact({
   __chrome: { state: stateOf },
-  __ME: { email: "ruben@rjcapital.io", role: "owner" },
+  __ME: { email: "ruben@rjcapital.example", role: "owner" },
   gate: () => ({}),
   // As the bridge publishes them (seed-globals.ts): the role table and the gate's sentence are contracts'.
   ROLE_PERMS,
@@ -68,7 +68,7 @@ Object.assign(teamVerbs, {
 const OWNER = {
   membershipId: "m-ruben",
   userId: "u1",
-  email: "ruben@rjcapital.io",
+  email: "ruben@rjcapital.example",
   displayName: "",
   role: "owner",
   joined_at: "2026-08-28T05:00:00Z",
@@ -112,7 +112,7 @@ function workspace({
   role = "owner",
   team = [OWNER, ALEX],
   invites = [JAMIE, SAM],
-  alerts = ["Ruben@RJCapital.io", "alex@example.com"],
+  alerts = ["Ruben@RJCapital.example", "alex@example.com"],
 } = {}) {
   setSurfaceValue("settings", {
     settings: {
@@ -254,7 +254,7 @@ test("alerts on and off go through the settings save, the rest of the section ke
   await settle();
   assert.equal(calls.put.length, 1);
   assert.deepEqual(calls.put[0].config.notifications, {
-    escalation_emails: ["Ruben@RJCapital.io", "alex@example.com", "bo@example.com"],
+    escalation_emails: ["Ruben@RJCapital.example", "alex@example.com", "bo@example.com"],
     from: "Front desk",
   });
   assert.equal(calls.put[0].version, 7);
@@ -279,7 +279,7 @@ test("removing someone who gets alerts offers to stop emailing them, on by defau
   await settle();
   await settle();
   assert.deepEqual(calls.remove, ["m-alex"]);
-  assert.deepEqual(calls.put.at(-1).config.notifications.escalation_emails, ["Ruben@RJCapital.io"]);
+  assert.deepEqual(calls.put.at(-1).config.notifications.escalation_emails, ["Ruben@RJCapital.example"]);
 });
 
 test("several addresses go at once and each is said apart; one already waiting offers Resend; the bucket stops the rest as not sent", async () => {
@@ -339,14 +339,17 @@ test("an operator reads the roster and the gate's sentence with whom to ask; the
     byTestId(foot, "team-gated") && byTestId(foot, "team-roles-compare-toggle"),
     "whom to ask, on the foot's line",
   );
-  assert.match(textOf(byTestId(tree, "team-gated")), /^Only an owner can change the team\. Ask ruben@rjcapital\.io\.$/);
+  assert.match(
+    textOf(byTestId(tree, "team-gated")),
+    /^Only an owner can change the team\. Ask ruben@rjcapital\.example\.$/,
+  );
   const mine = menuOf(tree, "team-more-m-alex");
   assert.deepEqual(
     mine.props.items.filter((i) => i.label).map((i) => i.label),
     ["Change your name", "Leave this workspace…"],
     "an operator may not change who gets alerts",
   );
-  globalThis.window.__ME = { email: "ruben@rjcapital.io", role: "owner" };
+  globalThis.window.__ME = { email: "ruben@rjcapital.example", role: "owner" };
   delete globalThis.window.ST_STORE;
 });
 

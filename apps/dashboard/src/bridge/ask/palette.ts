@@ -12,6 +12,7 @@ import {
   askIntent,
   bellCalls,
   buildAskSuggestions,
+  calendarFeedKeyOf,
   callJumpSub,
   callsAnswer,
   callsToday,
@@ -292,7 +293,8 @@ export function askPalette(win: Window, storage: Storage | null) {
         missedToday: tz ? callsToday(calls(), Date.now(), tz).missed.length : 0,
         // On the line by the heartbeat (callsToday's own count), never `live` alone.
         liveNow: callsToday(calls(), Date.now(), tz).live.length,
-        hasCalendar: !!surfaceValue("settings")?.settings?.config?.calendar?.ical_url,
+        // By the one rule (contracts calendarFeedKeyOf): a link, or a connected mailbox's calendar. The link alone until 13 Nov 2026.
+        hasCalendar: calendarFeedKeyOf(surfaceValue("settings")?.settings?.config) !== null,
         scope,
         // Whoever acts in the workspace (owner, operator, partner): the one table, as the pages' canDo("approve").
         canAct: !!ROLE_PERMS[w.__ME?.role as keyof typeof ROLE_PERMS]?.approve,

@@ -292,9 +292,11 @@ function sequencesRead(scope: AskScope): ToolRun | null {
 }
 
 /**
- * The guides of the skills a question asks for (contracts skillsAsked: a message to write, in either language), put in
+ * The guides of the skills a question asks for (skills/registry.ts skillsAsked: a message to write, a video to make, in
+ * either language), put in
  * before the model is asked as the reads above are, so the turn that drafts a customer message knows what the writer
- * behind its card needs from it. None for most questions, and nothing else changes then.
+ * behind its card needs from it, and the turn that makes a video how its blocks are arranged. None for most questions,
+ * and nothing else changes then.
  */
 function skillGuidesFor(text: string): string | null {
   const ids = skillsAsked(text.replace(/\s+/g, " ").trim());

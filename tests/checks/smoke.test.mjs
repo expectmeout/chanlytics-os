@@ -63,6 +63,24 @@ test("the health door's answer: 200 and ok is well; 503 is the door saying what 
   assert.match(judgeHealth(200, { ...well, ok: false }), /answered 200 with ok: false/);
 });
 
+test("a build whose video template has no machine image on record fails the smoke, though every clock ticks", () => {
+  const well = { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT };
+  // Not a clock: the door answers 200 with it, and the smoke is what reads it (a template merged ahead of its image
+  // makes every video wait half an hour and fail).
+  assert.match(
+    judgeHealth(200, { ...well, video_machine: false }),
+    /answered 200: no machine image is on record for the video template this build draws with/,
+  );
+  assert.match(judgeHealth(200, { ...well, video_machine: false }), /tooling\/video\/README\.md/);
+  assert.equal(judgeHealth(200, { ...well, video_machine: true }), null);
+  // Unread is not missing, and an edge a build behind says nothing of it.
+  assert.equal(judgeHealth(200, { ...well, video_machine: null }), null);
+  assert.equal(judgeHealth(200, well), null);
+  // Taking an unhealthy answer does not take this one: it is the deploy's own fault, not a clock's.
+  const ill = { ok: false, unhealthy: ["deadman"], jobs_backlog: 3, checked_at: AT, video_machine: false };
+  assert.match(judgeHealth(503, ill, { allowUnhealthy: true }), /no machine image is on record/);
+});
+
 test("the version door's answer names a build, and the one asked for when one is", () => {
   assert.equal(judgeVersion(200, { sha: "1388f2cc6aa" }), null);
   assert.equal(judgeVersion(200, { sha: "1388f2cc6aa" }, { sha: "1388f2cc6" }), null);

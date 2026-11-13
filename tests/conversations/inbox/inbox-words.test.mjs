@@ -8,7 +8,7 @@
  *   fills exactly two values -- a button whose only outcome was a refusal;
  * - its button said "Send booking link" whichever template was picked;
  * - the search offered "threads, clients, tags" on a workspace with no tags and no clients page;
- * - a teammate with no name was shouted in capitals: "BILLING@RJCAPITAL.IO HAS IT".
+ * - a teammate with no name was shouted in capitals: "BILLING@RJCAPITAL.EXAMPLE HAS IT".
  * Run against the contracts, the server's row mapping, and the pages on a stub React.
  */
 import { after, test } from "node:test";
@@ -690,7 +690,7 @@ test("the template send is the reply box's capsule: the message it will send at 
 });
 
 test("the search asks for what it searches, and a teammate's email keeps its own letters", () => {
-  rosterIs([{ userId: "u-b", email: "billing@rjcapital.io", displayName: "" }]);
+  rosterIs([{ userId: "u-b", email: "billing@rjcapital.example", displayName: "" }]);
   // The list's own box is a phone's: on a desk the search is the top bar's line (page-search.ts).
   const keep = globalThis.window.matchMedia;
   globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
@@ -716,10 +716,10 @@ test("the search asks for what it searches, and a teammate's email keeps its own
       "REGRESSION: 'Search threads, clients, tags…', on a workspace with no tags",
     );
     const pill = find(tree, (n) => n.type === "span" && hasClass("ix-state-pill")(n) && textOf(n).includes("has it"));
-    assert.equal(textOf(pill), "billing@rjcapital.io has it");
+    assert.equal(textOf(pill), "billing@rjcapital.example has it");
     assert.ok(
       hasClass("ix-name-pill")(pill),
-      "REGRESSION: a pill that capitalises shouted the email: BILLING@RJCAPITAL.IO HAS IT",
+      "REGRESSION: a pill that capitalises shouted the email: BILLING@RJCAPITAL.EXAMPLE HAS IT",
     );
   } finally {
     globalThis.window.matchMedia = keep;
