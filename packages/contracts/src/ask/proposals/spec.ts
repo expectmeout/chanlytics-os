@@ -145,7 +145,15 @@ export const PROPOSAL_WORDS = {
    * go, and the refusal says why in its own words.
    */
   batchStopped: (done: number, of: number, reason: string): string =>
-    `${done} of ${of} parts went, then: ${/[.!?…]$/.test(reason.trim()) ? reason.trim() : `${reason.trim()}.`} The rest did not go.`,
+    `${done} of ${of} parts went, then: ${/[.!?…]$/.test(reason.trim()) ? reason.trim() : `${reason.trim()}.`} The rest did not go. Try again and it picks up where it stopped.`,
+  /** A later part of a card refused with no words of its door's own: what batchStopped says for it. */
+  nextPartStopped: "The next part did not go through.",
+  /**
+   * A card Ask would have done on its own whose record could not be kept: it is never done unrecorded, so it waits for a
+   * press, which the card's Try again is.
+   */
+  unrecorded:
+    "I couldn't keep a record of doing this, so I didn't do this on my own. Nothing changed. Try again to do it now.",
   /** A plan's press stopped by a refusal, in the refusal's own words: what is done stands, and nothing went out. */
   planStopped: (reason: string): string =>
     `Stopped: ${/[.!?…]$/.test(reason.trim()) ? reason.trim() : `${reason.trim()}.`} Nothing went out.`,
@@ -157,6 +165,8 @@ export const CARD_MOVED_WORDS = {
     `${who} wrote again, so this may not fit now. Nothing went out. Ask me to write it again.`,
   answered: (who: string): string => `Someone has already answered ${who}. Nothing went out.`,
   teammateHas: "A teammate has this one. Nothing went out.",
+  /** The thread could not be read just then, so whether it moved is not known: it waits for a look that can be made. */
+  unchecked: "I couldn't check whether this conversation moved on since, so nothing went out. Try again in a moment.",
 } as const;
 
 /** A door's refusal as one sentence: its own words, or, where it gave none, the plain one for its status. */
