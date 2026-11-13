@@ -709,9 +709,9 @@ test(
       ok(await operator.rpc("sequence_overview", { p_tenant_id: tenantId, p_sequence_id: root }), "the list's read")[0];
     const quiet = await listed();
     assert.deepEqual(
-      [quiet.last_run_off, quiet.between, quiet.stuck, quiet.last],
-      [null, null, null, null],
-      "no run recorded, nobody between steps, nothing stuck, nothing gone",
+      [quiet.last_run_off, quiet.between, quiet.stuck, quiet.rechecking, quiet.last],
+      [null, null, null, 0, null],
+      "no run recorded, nobody between steps, nothing stuck, none being checked again (00622), nothing gone",
     );
 
     // A run that did nothing: the newest playbook.run event says why, as the record reads it, and the step its day.

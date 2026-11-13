@@ -131,6 +131,12 @@ export interface SequenceRowDto {
    */
   stuck?: { leads: number; since: string; reason: string } | null;
   /**
+   * How many leads on a running cold email's list wait on an address the leads clock is still going to check again by
+   * itself (decision 0131, 00622: a day apart, twice). They ask nothing of their owner, so they are no part of `stuck`,
+   * which counts a lead only once both tries are spent. Absent from a server before it: none.
+   */
+  rechecking?: number;
+  /**
    * Why its first step's last run did nothing, where the sequence is on and no cold email or one-off, and the business
    * day of that step's last run (decision 0128, stage 2): what the record reads beside its row, read for every row.
    * Null where it ran, sent or found nobody; absent from a server before it.
