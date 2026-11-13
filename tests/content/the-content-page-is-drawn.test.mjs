@@ -195,13 +195,18 @@ test("each made piece is a tile that says where it stands, once", () => {
           posts: [],
         },
       ],
-      tally: { made: 5, posted: 2 },
+      // All's first page carries the posts that stopped with their pieces, as the reader answers it (readers/content.ts).
+      lines: [{ post: post("instagram", "failed"), file: fileOf(4) }],
+      tally: { made: 5, posted: 2, needs: 1 },
     }),
   );
   assert.equal(count(html, "cnv-tile"), 5);
   assert.match(html, /class="files-grid cnv-grid"/, "the Library's grid: a square tile each, as the Library's are");
   assert.equal(count(html, "cnv-said"), 5);
-  assert.equal(html.split("5 pieces made · 2 posted").length - 1, 1, "what is made is headed by its count, said once");
+  // All stands under its headings, what needs the owner first: the piece whose post stopped heads it, once.
+  assert.equal(count(html, "cnv-made-part"), 1);
+  assert.equal(count(html, "cnv-group-needs"), 1, "what needs the owner is a group of its own, first");
+  assert.ok(html.indexOf('data-testid="cnv-group-needs"') < html.indexOf("Open saturdays 1"), "Needs you heads All");
   assert.match(html, />Ready to post</);
   assert.match(html, />Posting to Instagram</);
   assert.match(html, />On Instagram and Google · /);

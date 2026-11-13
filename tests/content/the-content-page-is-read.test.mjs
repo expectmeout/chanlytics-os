@@ -359,10 +359,18 @@ test("Posted comes a page at a time, and the next page starts where it ended", a
 
 test("Being made is what is being made and what was not, and a view this build does not know is refused", async () => {
   const { body } = await read(
-    { pieces: [piece(1), piece(2, { status: "failed", failed_why: "draw" })] },
+    { pieces: [piece(1, { status: "failed", failed_why: "draw" }), piece(2)] },
     "view=making",
   );
   assert.equal(body.making.length, 2);
+  // A video that could not be made stops waiting on the owner once a newer one was begun (Ruben, 12 Nov 2026: nobody ends
+  // up stuck), as a post that stopped does once it was sent again.
+  const after = await read({ pieces: [piece(1), piece(2, { status: "failed", failed_why: "draw" })] }, "view=making");
+  assert.deepEqual(
+    after.body.making.map((m) => m.status),
+    ["making"],
+  );
+  assert.equal(after.body.tally.needs, 0);
   await assert.rejects(read({}, "view=everything"), (e) => e.code === "validation");
 });
 
