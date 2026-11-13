@@ -449,6 +449,8 @@ export async function runWaitingCounts(
         .in("state", ["held", "drafted"])
         .order("id")
         .range(from, to),
+    // Whole: they are counted.
+    "whole",
   );
   for (const r of rows) {
     if (!r.broadcast_id) continue;

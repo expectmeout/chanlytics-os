@@ -966,11 +966,10 @@ test(
 );
 
 test(
-  "past its caps the fold reads short, which is why seeded truth is the oracle: the shop's newest thousand runs, and a chunk of two hundred cut at 20,000 people",
+  "past its caps the fold no longer counts short: a chunk of two hundred runs holds 22,000 people, and it refuses where the database counts every one",
   { skip },
   async () => {
     const w = await world();
-    const fold = await P.listPlaybooks({ supabase: before00362(db, ["playbook_totals", "run_counts"]) }, w.B.tenant);
     const sql = await P.listPlaybooks({ supabase: db }, w.B.tenant);
     const of = (rows, id) => rows.find((p) => p.id === id).totals;
     assert.deepEqual(
@@ -978,15 +977,11 @@ test(
       [1050, 1050, 11, 22000],
       "the database: every run and every person",
     );
-    assert.equal(of(fold, w.B.big).runs, 989, "the fold: the newest thousand runs, eleven of them Wide's");
-    assert.ok(
-      of(fold, w.B.wide).sent <= 20000,
-      `the fold: the first chunk cut at 20,000 people (${of(fold, w.B.wide).sent})`,
-    );
-    assert.deepEqual(
-      of(sql, w.B.big).history.map((h) => h.id),
-      of(fold, w.B.big).history.map((h) => h.id),
-      "the newest ten are the same runs: only the totals read short",
+    // It read the first 20,000 and counted them as everyone; a read a count depends on is whole or refused (paged.ts).
+    await assert.rejects(
+      () => P.listPlaybooks({ supabase: before00362(db, ["playbook_totals", "run_counts"]) }, w.B.tenant),
+      (e) => e.name === "ReadCutShort" && e.what === "run recipients" && e.cap === 20000,
+      "the fold: no total from the first 20,000 people",
     );
   },
 );

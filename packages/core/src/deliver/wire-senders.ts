@@ -50,6 +50,13 @@ export interface WireUnavailable {
   error: string;
 }
 export const wireUnavailable = (error: string): WireUnavailable => ({ unavailable: true, error });
+
+/**
+ * One channel's wire, bound: its sender, `null` for none (refused), or one that could not be bound. A workspace's Wire may
+ * hold it, or a promise of it that binds the first time a send asks (the edge's job tick does), so a job reads the
+ * credentials of the channel it sends on and no other.
+ */
+export type BoundWire = Sender | null | WireUnavailable;
 export function isWireUnavailable(value: unknown): value is WireUnavailable {
   return typeof value === "object" && value !== null && "unavailable" in value && value.unavailable === true;
 }
@@ -233,7 +240,8 @@ export async function putOnWire(
   asReply: boolean,
   now: (() => number) | undefined,
 ): Promise<WireResult> {
-  const send = wire[delivery.channel];
+  // Bound here, at the first send that needs it, where a workspace's wire is bound on first use (wireOnFirstUse).
+  const send = await wire[delivery.channel];
   if (isWireUnavailable(send)) throw new WireUnavailableError(delivery.channel, send.error);
   if (send === undefined)
     return { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" };

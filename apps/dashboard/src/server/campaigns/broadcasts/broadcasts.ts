@@ -255,9 +255,12 @@ function firstNameOfRecipient(r: RecipientRow): string | null {
  * column since 00440 made the one table of sends).
  */
 async function recipientsOf(ctx: RouteContext, tenantId: TenantId, id: string): Promise<RecipientRow[]> {
-  // The person is the tiebreak the pager needs (the key is broadcast_id, contact_id).
-  return readAllRows("broadcast recipients", (from, to) =>
-    pageRunPeople(ctx.supabase, tenantId, id, from, to),
+  // The person is the tiebreak the pager needs (the key is broadcast_id, contact_id). Whole: the sheet counts them and
+  // says what became of each, and a run holds at most BROADCAST_MAX_RECIPIENTS, far under the cap.
+  return readAllRows(
+    "broadcast recipients",
+    (from, to) => pageRunPeople(ctx.supabase, tenantId, id, from, to),
+    "whole",
   ) as Promise<RecipientRow[]>;
 }
 
@@ -328,14 +331,16 @@ export async function listPersonRuns(
   tenantId: TenantId,
   contactId: ContactId,
 ): Promise<PersonCampaignDto[]> {
-  const read = await readAllRows<{
+  // A part will do: their page lists their newest runs, each as it went, and counts nothing from them. Someone on more
+  // runs than the cap would see the newest of those read, and the pager's line says the read was cut.
+  const { rows: read } = await readAllRows<{
     broadcast_id: string | null;
     state: string;
     reason: string | null;
     sent_at: string | null;
     message_id: string | null;
     channel: string | null;
-  }>("broadcast_recipients", (from, to) => pagePersonSends(ctx.supabase, tenantId, contactId, from, to));
+  }>("broadcast_recipients", (from, to) => pagePersonSends(ctx.supabase, tenantId, contactId, from, to), "part");
   // A customer's send always names its batch (00540's check).
   const rows = read.flatMap((r) => (r.broadcast_id ? [{ ...r, broadcast_id: r.broadcast_id }] : []));
   if (rows.length === 0) return [];

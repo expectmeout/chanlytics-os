@@ -273,7 +273,8 @@ export async function listAppointmentsBetween(
  * booking's rows however they stand (a cancelled one is drawn struck, and leaves the feed's copy of it out), and the
  * feed's rows the feed still names, as their ids and statuses by key (the board draws the feed itself, which is why
  * listAppointmentsBetween leaves them out). It read each under one select's cap, so on a busy calendar's nine weeks the
- * marks past the thousandth row were dropped and their visits read as nobody's word.
+ * marks past the thousandth row were dropped and their visits read as nobody's word. A part will do past the cap: the
+ * board draws each visit it read as it stands and counts nothing from them, and the pager's line says a span was cut.
  */
 export async function findVisitsOver(
   db: Db,
@@ -285,34 +286,40 @@ export async function findVisitsOver(
   feed: Array<{ id: string; status: string; external_id: string | null; starts_at: string; lead_id: string | null }>;
 }> {
   const [noted, feed] = await Promise.all([
-    readAllRows<AppointmentRow>("visits_over_noted", (from, to) =>
-      db
-        .from("appointments")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .neq("source", "calendar_feed")
-        .or(unexpired())
-        .gt("ends_at", fromIso)
-        .lt("starts_at", toIso)
-        .order("starts_at", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to),
+    readAllRows<AppointmentRow>(
+      "visits_over_noted",
+      (from, to) =>
+        db
+          .from("appointments")
+          .select("*")
+          .eq("tenant_id", tenantId)
+          .neq("source", "calendar_feed")
+          .or(unexpired())
+          .gt("ends_at", fromIso)
+          .lt("starts_at", toIso)
+          .order("starts_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      "part",
     ),
-    readAllRows<FeedRowWord & Pick<AppointmentRow, "lead_id">>("visits_over_feed", (from, to) =>
-      db
-        .from("appointments")
-        .select("id, status, external_id, starts_at, lead_id")
-        .eq("tenant_id", tenantId)
-        .eq("source", "calendar_feed")
-        .is("vanished_at", null)
-        .gt("ends_at", fromIso)
-        .lt("starts_at", toIso)
-        .order("starts_at", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to),
+    readAllRows<FeedRowWord & Pick<AppointmentRow, "lead_id">>(
+      "visits_over_feed",
+      (from, to) =>
+        db
+          .from("appointments")
+          .select("id, status, external_id, starts_at, lead_id")
+          .eq("tenant_id", tenantId)
+          .eq("source", "calendar_feed")
+          .is("vanished_at", null)
+          .gt("ends_at", fromIso)
+          .lt("starts_at", toIso)
+          .order("starts_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      "part",
     ),
   ]);
-  return { noted, feed };
+  return { noted: noted.rows, feed: feed.rows };
 }
 
 /** A visit's person found as a lead (00426): the lead by its business's name, and the sequence that took it in last. */
@@ -383,7 +390,8 @@ type FeedRowWord = Pick<AppointmentRow, "id" | "status" | "external_id" | "start
 
 /**
  * The feed's rows over a span a member said a word of and the calendar still names, read whole: a select answers a
- * thousand rows at most (paged.ts), and a season of a busy calendar is more. What a reader of the feed lays on it.
+ * thousand rows at most (paged.ts), and a season of a busy calendar is more. What a reader of the feed lays on it, and
+ * what a pool's audience is joined to (recordOver): whole, so past the cap it refuses.
  */
 export async function listFeedWordsOver(
   db: Db,
@@ -391,19 +399,22 @@ export async function listFeedWordsOver(
   fromIso: string,
   toIso: string,
 ): Promise<FeedRowWord[]> {
-  return readAllRows<FeedRowWord>("appointments_feed_words", (from, to) =>
-    db
-      .from("appointments")
-      .select("id, status, external_id, starts_at")
-      .eq("tenant_id", tenantId)
-      .eq("source", "calendar_feed")
-      .is("vanished_at", null)
-      .in("status", [...SAID_STATUSES])
-      .gt("ends_at", fromIso)
-      .lt("starts_at", toIso)
-      .order("starts_at", { ascending: true })
-      .order("id", { ascending: true })
-      .range(from, to),
+  return readAllRows<FeedRowWord>(
+    "appointments_feed_words",
+    (from, to) =>
+      db
+        .from("appointments")
+        .select("id, status, external_id, starts_at")
+        .eq("tenant_id", tenantId)
+        .eq("source", "calendar_feed")
+        .is("vanished_at", null)
+        .in("status", [...SAID_STATUSES])
+        .gt("ends_at", fromIso)
+        .lt("starts_at", toIso)
+        .order("starts_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    "whole",
   );
 }
 
@@ -428,7 +439,8 @@ export async function recordOver(
 /**
  * A booking's rows over a span, however they stand, read whole: every row that is not the feed's own (a booking's
  * notice, its tool, a person). What a pool joins to the feed (recordOver), and what the hourly sweep tells the feed's
- * copies of a booking by (contracts booking-notice.ts bookingCopyTest). A failure throws.
+ * copies of a booking by (contracts booking-notice.ts bookingCopyTest): whole, so past the cap it refuses. A failure
+ * throws.
  */
 export async function listNotedOver(
   db: Db,
@@ -436,17 +448,20 @@ export async function listNotedOver(
   fromIso: string,
   toIso: string,
 ): Promise<AppointmentRow[]> {
-  return readAllRows<AppointmentRow>("appointments_noted", (from, to) =>
-    db
-      .from("appointments")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .neq("source", "calendar_feed")
-      .or(unexpired())
-      .gt("ends_at", fromIso)
-      .lt("starts_at", toIso)
-      .order("starts_at", { ascending: true })
-      .order("id", { ascending: true })
-      .range(from, to),
+  return readAllRows<AppointmentRow>(
+    "appointments_noted",
+    (from, to) =>
+      db
+        .from("appointments")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .neq("source", "calendar_feed")
+        .or(unexpired())
+        .gt("ends_at", fromIso)
+        .lt("starts_at", toIso)
+        .order("starts_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    "whole",
   );
 }

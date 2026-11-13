@@ -19,7 +19,9 @@ import {
   textOrEmpty,
   valueAt,
   DbFailure,
+  causedBy,
 } from "@chanlytics/contracts";
+import { ReadCutShort } from "@chanlytics/db/shared";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
 // one here made this module — which decides who may do what — unimportable by
 // anything that is not Next. It is the only such import in src/server, and
@@ -276,6 +278,7 @@ export function answerOfThrow(
       headers: refusalHeaders(error),
     };
   }
+  if (error instanceof ReadCutShort) return answerOfThrow(readCutShortRefusal(error), at);
   if (error instanceof DbFailure) {
     const refused = refusalOfDbFailure(error);
     if (refused) {
@@ -518,7 +521,25 @@ export function writeDoorRefusal(reply: { code?: string | null; message: string 
  */
 export function personWordsOf(thrown: unknown): string | null {
   if (thrown instanceof AppError) return thrown.message;
+  if (thrown instanceof ReadCutShort) return readCutShortRefusal(thrown).message;
   return thrown instanceof DbFailure ? (refusalOfDbFailure(thrown)?.message ?? null) : null;
+}
+
+/**
+ * A read that had to be whole, refused at its cap (packages/db paged.ts ReadCutShort), as an owner reads it: what
+ * happened, that it will not clear by itself, and the one thing to do. Nothing was done with any of it, and the pager's
+ * line has told the platform which read it was; the read's own name stays in the log.
+ */
+function readCutShortRefusal(cut: ReadCutShort): AppError {
+  const most = cut.cap.toLocaleString("en-US");
+  return causedBy(
+    new AppError(
+      "conflict",
+      `This takes in more than ${most} records, more than Chanlytics goes through at once, so nothing was done rather than only part of it. It won't clear by itself: ask us through Get help, and a person will sort it out with you.`,
+      409,
+    ),
+    cut,
+  );
 }
 
 export function refusalOfDbFailure(failure: DbFailure): AppError | null {

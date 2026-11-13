@@ -1245,6 +1245,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     (tables[table] ??= []).push(fresh);
     return fresh;
   };
+  // Each page people_list answered, by its arguments: what people_reply_modes reads its page from, as people_page is.
+  const peoplePages = new Map();
   const derived = {
     // The one door a person is resolved by (00342, 00344): the sweeps, the booking link and the email intake call it.
     resolve_person: (args) => resolvePersonIn(tables, args, insertRow),
@@ -1295,6 +1297,31 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         return { used: n(c?.used), reserved: n(c?.reserved) };
       };
       return { allowance: of("allowance"), budget: of("budget") };
+    },
+    // A page of People's reply modes (00625): the people the suite's people_list answers for the same page, each with
+    // their own reply policy, else the workspace's (the first by id), else none, as the SQL joins them.
+    people_reply_modes: (a) => {
+      if (!rpcs.people_list) throw new Error("fakeDb: people_reply_modes reads the page people_list answers; model it");
+      const reply = (tables.policies ?? []).filter((p) => p.tenant_id === a.p_tenant_id && p.class === "reply");
+      const workspace = reply.filter((p) => p.subject_type == null).sort((x, y) => (x.id < y.id ? -1 : 1))[0];
+      const page = peoplePages.get(JSON.stringify(a)) ?? rpcs.people_list({ p_contact_id: null, ...a });
+      return page.map(({ id }) => ({
+        id,
+        mode: reply.find((p) => p.subject_type === "contact" && p.subject_id === id)?.mode ?? workspace?.mode ?? null,
+      }));
+    },
+    // The receptionist's day (00625): input and output of the workspace's usage.llm_tokens events from p_since on, a
+    // value that is not a number counting nothing, as the SQL sums them.
+    llm_tokens_since: ({ p_tenant, p_since }) => {
+      const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+      return (tables.events ?? [])
+        .filter(
+          (e) =>
+            e.tenant_id === p_tenant &&
+            e.kind === "usage.llm_tokens" &&
+            Date.parse(e.created_at) >= Date.parse(p_since),
+        )
+        .reduce((sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.output_tokens), 0);
     },
     // Ask's day (00240, 00368): input, cache writes and output of the workspace's usage.ask_tokens events of the last
     // 24 hours, a value that is not a number counting nothing and a cache read never counted, as the SQL sums them.
@@ -2385,7 +2412,9 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       const run = () => {
         if (missing) return { data: null, error: missing };
         try {
-          return { data: fn(args, derived[name]), error: null };
+          const data = fn(args, derived[name]);
+          if (name === "people_list") peoplePages.set(JSON.stringify(args), data);
+          return { data, error: null };
         } catch (e) {
           const code = e && typeof e === "object" && "code" in e ? String(e.code) : undefined;
           const hint = e && typeof e === "object" && "hint" in e ? String(e.hint) : undefined;
