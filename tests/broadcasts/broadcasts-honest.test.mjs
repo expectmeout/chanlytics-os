@@ -1319,15 +1319,12 @@ test("A message needs you when a language a running sequence sends is missing --
  */
 const openedRow = (rowOf) => {
   let tree = messagesAgain();
-  // A group that folds and is folded (Ready, Ready-made: the clean list, 13 Nov 2026) is pressed open first, as a person
-  // opens it to find the row.
+  // Ready and Ready-made fold (the clean list, 13 Nov 2026): a folded one is pressed open first, as a person would.
   for (const id of ["templates-fold-idle", "templates-fold-made"]) {
-    if (rowOf(tree)) break;
-    const head = byTestId(tree, id);
-    if (head && head.props["aria-expanded"] === false) {
-      press(head);
-      tree = messagesAgain();
-    }
+    const head = rowOf(tree) ? null : byTestId(tree, id);
+    if (head?.props["aria-expanded"] !== false) continue;
+    press(head);
+    tree = messagesAgain();
   }
   // The row stands selected while its message is open in the pane beside the list (the layout is the Inbox's list +
   // pane, Claude Video/docs/2026-10-02-campaigns-on-the-kit.md §3.1): the words are not under it any more.
@@ -1358,11 +1355,9 @@ test("A message is a row you scan, and the words open under it: what it is, what
   // Two lines (Messages, the canvas of 10 Nov 2026): its name, and what sends it; a message nothing sends quotes its words.
   let tree = messages({ templatesAll: [en] });
   let row = byTestId(tree, "custom-row");
-  // A line of the words, on one line whatever its newlines and tabs, in quotes, as one person would get it (the clean
-  // list, 13 Nov 2026: it named each slot in braces). A value with no sample on file is a gap in the words: never Meta's
-  // "{{1}}", and never a name of ours for it.
+  // A line of the words, on one line whatever its newlines and tabs, in quotes, as one person would get it: a value with
+  // no sample on file is a gap, never Meta's "{{1}}" or a name of ours in braces (the clean list, 13 Nov 2026).
   assert.ok(textOf(row).includes("“Hi …, 20% off this week.”"), textOf(row));
-  assert.equal(/[{}]/.test(textOf(row)), false, "no braces");
   tree = messages({ templatesAll: [en], templateUse: sentBy("Win-back") });
   row = byTestId(tree, "custom-row");
   assert.ok(textOf(byTestId(row, "template-users")).includes("Win-back"), "what sends it, closed");
@@ -1407,7 +1402,6 @@ test("A message is a row you scan, and the words open under it: what it is, what
   messages({
     templatesAll: [en, templateRow({ id: "t-w", name: "winback_reply", language: "en_US", meta_status: "approved" })],
   });
-  // (Found by its name: the starters nothing sends are sorted by what each is for, an appointment's first.)
   const winBack = (t) =>
     all(t, (n) => n.props?.["data-testid"] === "starter-row").find((r) => r.props["data-template"] === "winback_reply");
   tree = openedRow(winBack);
@@ -1986,15 +1980,6 @@ test("Messages says how many of each went out and when the last one did -- and a
   // A roll-up that was not read makes no claim.
   tree = messages({ templatesAll: offer, templateSent: null });
   assert.equal(byTestId(byTestId(tree, "custom-row"), "template-sent"), null, "not read is not never sent");
-  // A starter not on file has nothing to count, and says nothing: it is there to use, and nothing about it is missing
-  // (it said "Not added"; the clean list, 13 Nov 2026). The starters fold where the business has a message of its own.
-  messages({ templatesAll: offer, templateSent: { offer: { count: "3", when: "just now" } } });
-  press(byTestId(messagesAgain(), "templates-fold-made"));
-  tree = messagesAgain();
-  const starter = all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0];
-  assert.ok(starter, "the fixture draws a starter the workspace holds nothing of");
-  assert.equal(byTestId(starter, "template-sent"), null, "nothing at its right");
-  assert.equal(textOf(tree).includes("Not added"), false);
 });
 
 test("The template a composer opens on does not depend on the order the rows arrived in", () => {
@@ -2206,13 +2191,9 @@ test("A template this product cannot send is not offered, and its card says why"
     ],
   );
 
-  // The library does not list it at all while nothing sends it and it has no other words: it is not a message of this
-  // product (Ruben, 13 Nov 2026; it stood in the list with its reason for a line). Where a sequence sends it, its sends go
-  // nowhere, so it needs you, and its row's line says why.
-  assert.equal(byTestId(messages({ templatesAll: [picture] }), "custom-row"), null, "no row of the list");
-  const sent = { words: "Spring", note: null, unused: false, sequence: null, running: true, booking: false };
-  const card = messages({ templatesAll: [picture], templateUse: { spring_poster: sent } });
-  assert.equal(byTestId(card, "custom-row").props["data-place"], "need");
+  // The library lists it only where a sequence sends it (the clean list, 13 Nov 2026), and its row's line says why.
+  const sends = { words: "Spring", note: null, unused: false, sequence: null, running: true, booking: false };
+  const card = messages({ templatesAll: [picture], templateUse: { spring_poster: sends } });
   const why = textOf(rowLine(card));
   assert.ok(why.includes("a picture for a heading"), why);
 

@@ -122,19 +122,16 @@ export type { SlotKey, SlotSet, SlotValue } from "./slot-sets";
 export { defaultParamSpecs, defaultSlotKinds, guessSlotKind, slotChoices, slotLabels, templateSlots } from "./slots";
 export type { VariableLike } from "./slots";
 export {
-  STARTER_MOMENTS,
   starterByKey,
   starterByName,
   starterDraft,
   starterEmailText,
   starterForTrigger,
-  starterMoment,
   startersForTrigger,
   starterSmsText,
   startersOffered,
   starterText,
 } from "./starter-lookup";
-export type { StarterMoment } from "./starter-lookup";
 export { messageLanguageCode, STARTER_LANGUAGES } from "./starter-templates/shapes";
 export type {
   StarterEmailText,

@@ -27,6 +27,10 @@ import {
   usedBy,
 } from "../sheet/_message-page.mjs";
 
+/** What each starter is for, as the list sorts the ready-made ones. */
+const { STARTER_MOMENTS, starterMoment } =
+  await import("../../../apps/dashboard/src/surfaces/campaigns/templates/group.ts");
+
 /** A group of the list by its place, and the name it stands under (the one heading every list draws, kit GroupHead). */
 const groupOf = (tree, place) => byTestId(tree, `templates-${place}`);
 const nameOf = (group) => textOf(all(group, (n) => n.props?.className === "group-head-name")[0] ?? null);
@@ -36,8 +40,8 @@ const momentsOf = (tree) => all(tree, (n) => n.type === "h4" && n.props?.classNa
 const placesOf = (tree) => all(tree, (n) => n.props?.["data-place"] && n.props?.["data-template"]);
 
 test("every starter of the set is for one of four moments, read from the class its own moment is filed under", () => {
-  const by = Object.fromEntries(contracts.STARTER_MOMENTS.map((moment) => [moment, []]));
-  for (const s of contracts.STARTER_TEMPLATES.filter((x) => !x.retired)) by[contracts.starterMoment(s)].push(s.key);
+  const by = Object.fromEntries(STARTER_MOMENTS.map((moment) => [moment, []]));
+  for (const s of contracts.STARTER_TEMPLATES.filter((x) => !x.retired)) by[starterMoment(s)].push(s.key);
   for (const keys of Object.values(by)) keys.sort();
   assert.deepEqual(by, {
     appointments: ["after_visit_check", "after_visit_review", "missed_visit", "two_hour_reminder", "visit_reminder"],
@@ -45,7 +49,7 @@ test("every starter of the set is for one of four moments, read from the class i
     offers: ["quick_note", "this_months_offer", "winback_reply"],
     calls: ["call_text"],
   });
-  assert.deepEqual([...contracts.STARTER_MOMENTS], ["appointments", "follow_ups", "offers", "calls"], "in this order");
+  assert.deepEqual([...STARTER_MOMENTS], ["appointments", "follow_ups", "offers", "calls"], "in this order");
 });
 
 test("a new business's list is the starters, there to use: one group, open, sorted by what each is for, and nothing about them missing", () => {

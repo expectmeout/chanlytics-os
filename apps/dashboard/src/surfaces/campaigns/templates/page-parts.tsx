@@ -7,7 +7,7 @@
  * its element, called by the page and not drawn as a component of its own, so the page's tree is the tree it was.
  */
 import type { ReactNode, RefObject } from "react";
-import { LIBRARY_WORDS, STARTER_MOMENTS, starterMoment } from "@chanlytics/contracts";
+import { LIBRARY_WORDS } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { gate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -19,7 +19,7 @@ import { ListFind, foldedLookup } from "../../kit/head/list-find";
 import { Icon } from "../../kit/icon/icon";
 import { CmDot } from "../parts/head";
 import { ListTop, ListViewPick, type ListView } from "../parts/list-top";
-import type { TemplateGroup, TplLang } from "./group";
+import { STARTER_MOMENTS, starterMoment, type TemplateGroup, type TplLang } from "./group";
 import { TplEmailRows, TplEmailsFailed } from "./emails";
 import type { tplEmails } from "./emails";
 import type { MessagePlace } from "./message-row-facts";
@@ -296,12 +296,12 @@ function listGroup({
 }
 
 /**
- * The ready-made starters under what each is for (contracts starterMoment), the moments in their order and a moment
+ * The ready-made starters under what each is for (group.ts starterMoment), the moments in their order and a moment
  * with none drawing nothing: each name stands among the rows, so a row is the list's own child as every other is.
  */
-function madeRows(made: readonly TemplateGroup[], card: ListProps["card"]): ReactNode {
+function madeRows(starters: readonly TemplateGroup[], card: ListProps["card"]): ReactNode {
   return STARTER_MOMENTS.flatMap((moment) => {
-    const of = made.filter((g) => g.starter && starterMoment(g.starter) === moment);
+    const of = starters.filter((g) => g.starter && starterMoment(g.starter) === moment);
     if (!of.length) return [];
     return [
       <h4 className="msg-moment" key={moment} data-testid={`templates-moment-${moment}`}>

@@ -469,8 +469,8 @@ export function placeOfMessage(group: TemplateGroup, facts: Facts): MessageSetti
   const use = facts.usage.use;
   const sends = !!(use && (use.running || use.booking));
   // A starter nothing has ever named is ready-made; one a sequence of theirs names, running or not, is the business's own.
-  const made = !!group.starter && (!use || use.unused);
-  const place: MessagePlace = away ? "away" : need ? "need" : sends ? "going" : made ? "made" : "idle";
+  const readyMade = !!group.starter && (!use || use.unused);
+  const place: MessagePlace = away ? "away" : need ? "need" : sends ? "going" : readyMade ? "made" : "idle";
   const line =
     place === "need"
       ? { said: need ?? "", saysUse: false }
