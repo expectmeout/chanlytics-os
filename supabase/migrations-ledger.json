@@ -79,7 +79,8 @@
     "00601": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00602": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00603": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
-    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)"
+    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
+    "00620": "taken by cm-content-fixes (a post and a story wait apart), which lands before this branch; drop this line when main holds that file (12 Nov 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -621,6 +622,7 @@
     "00616_a_post_waits_for_google_and_a_delete_waits_for_undo.sql": "287985f0079607fa03c86341cde223641e19fc846c80b1f92651f1abff6a011d",
     "00617_the_sequences_list_sees_what_is_stuck.sql": "907fbb03074e3250979dab0ef3dfd887ef3d10932ed951cf52a1b131eed0f8f6",
     "00618_couldnt_check_is_checked_again.sql": "abc285393e7fa17e13f766d72a6745d956ce4e6109b1826951521ef00a51976e",
-    "00619_a_stopped_post_is_let_go_and_found_photos_are_not_mine.sql": "ccdc8813cf86d75cfbf25dd95a6faf66a7b58f86edc1fa5b3674f23c423436be"
+    "00619_a_stopped_post_is_let_go_and_found_photos_are_not_mine.sql": "ccdc8813cf86d75cfbf25dd95a6faf66a7b58f86edc1fa5b3674f23c423436be",
+    "00621_a_post_moves_to_another_time.sql": "f4047f1d444513299399e669c025726a7672803b7a8fbb97b4f2fae0ece7f4e7"
   }
 }

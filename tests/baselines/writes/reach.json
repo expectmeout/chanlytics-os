@@ -1,6 +1,6 @@
 {
-  "rows": 178,
-  "same": 11,
+  "rows": 179,
+  "same": 12,
   "differ": 167,
   "writes": {
     "DELETE ask/memory/[id]": {
@@ -353,11 +353,14 @@
       "changes": "ask_memory_lines INSERT UPDATE"
     },
     "PATCH files/[id]": {
-      "changes": "files UPDATE · pieces UPDATE",
+      "changes": "files UPDATE · pieces UPDATE · posts UPDATE",
       "tells": "files",
       "missing": {
         "calendar_runs": "calendar"
       }
+    },
+    "PATCH files/[id]/posts": {
+      "changes": "posts UPDATE"
     },
     "PATCH lead-searches/[id]": {
       "changes": "lead_searches UPDATE",
@@ -1232,11 +1235,13 @@
       }
     },
     "POST files/[id]/google": {
-      "changes": "posts INSERT UPDATE · publish_attempts INSERT UPDATE",
-      "doors": "anthropic_profiles · business_reads · files · google_connections · google_listings · google_reviews · imports · notifications · tenant_channels"
+      "changes": "files UPDATE · pieces UPDATE · posts INSERT UPDATE · publish_attempts INSERT UPDATE",
+      "tells": "files",
+      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · notifications · tenant_channels"
     },
     "POST files/[id]/instagram": {
-      "changes": "posts INSERT UPDATE",
+      "changes": "files UPDATE · pieces UPDATE · posts INSERT UPDATE",
+      "tells": "files",
       "doors": "tenant_channels"
     },
     "POST files/[id]/restore": {

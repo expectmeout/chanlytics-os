@@ -14,6 +14,7 @@ import {
   type PostPlace,
   type PostPublish,
 } from "@chanlytics/contracts";
+import { listFilePosts } from "@chanlytics/db/files";
 import { postClaimsProblem } from "@/server/files/post-check";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
@@ -25,6 +26,7 @@ import { defineAct, type ProposalOutcome, type ToolContext } from "../../context
 import { approvalWords, propose, refuse } from "../../context/context";
 import { filesNamed } from "../../read/files";
 import { ownersWords } from "./post";
+import { movesOf } from "./publish-move";
 
 /**
  * A made post put up at its places, now or at a time the owner said (Ruben, 12 Nov 2026): the page offers no times of its own,
@@ -45,7 +47,7 @@ const publishInput = z.object({
     .string()
     .max(20)
     .optional()
-    .describe("YYYY-MM-DD HH:MM, the business's clock, only for a time they named. Left out, now."),
+    .describe("YYYY-MM-DD HH:MM, the business's clock, only a time they named. Left out, now."),
   caption: z.string().max(2200).optional().describe("Only for other words they asked for. Left out, its own."),
 });
 
@@ -104,7 +106,8 @@ async function captionOf(
   const asked = input.caption?.trim() ?? "";
   const caption = asked || kept;
   const isNew = !!asked && asked !== kept.trim();
-  const needsWords = at.places.includes("google") || at.as === "picture";
+  // Words go where a place that shows them is posted to: a card that only moves a post already set posts to none.
+  const needsWords = at.places.includes("google") || (at.places.includes("instagram") && at.as === "picture");
   if (needsWords && !caption)
     return { refused: "this post has no caption. Write one from the owner's words in caption, or ask them for it" };
   if (isNew) {
@@ -137,12 +140,18 @@ async function publishOutcome(toolContext: ToolContext, input: PublishInput): Pr
   const when = whenOf(input.when, toolContext.timezone);
   if ("refused" in when) return refuse(when.refused);
   const as = input.as ?? "picture";
-  const caption = await captionOf(toolContext, input, { fileId: file.id, places, as });
+  // A post already set for its time at a place asked moves to the time named, in place of a second one there (00621).
+  const posts = await listFilePosts(toolContext.ctx.supabase, toolContext.tenantId, file.id);
+  const set = movesOf(posts, { places, as, at: when.at }, Date.now());
+  if ("refused" in set) return refuse(set.refused);
+  const posting = places.filter((place) => !set.moves.some((move) => move.place === place));
+  const caption = await captionOf(toolContext, input, { fileId: file.id, places: posting, as });
   if ("refused" in caption) return refuse(caption.refused);
   const language = toolContext.language === "es" ? "es" : "en";
   const payload: PostPublish = {
     file_id: file.id,
-    places,
+    places: posting,
+    moves: set.moves,
     as,
     when: when.at === null ? null : new Date(when.at).toISOString(),
     when_said: when.at === null ? null : whenSaidOf(when.at, toolContext.timezone, language),
@@ -155,7 +164,7 @@ async function publishOutcome(toolContext: ToolContext, input: PublishInput): Pr
 
 export const publishAct = defineAct({
   name: "propose_publish",
-  description: `Put a made post up on Instagram (post or story) and Google, now or at a time the owner named. The card says where, when and its caption. ${approvalWords("publish")}.`,
+  description: `Put a made post up on Instagram (post or story) and Google, now or at a named time; one already set moves to it. The card says where and when. ${approvalWords("publish")}.`,
   kind: "publish",
   input: publishInput,
   label: "Putting a post up",

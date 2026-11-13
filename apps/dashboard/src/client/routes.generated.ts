@@ -153,6 +153,7 @@ export const ROUTES = {
   "GET workspaces": { method: "GET", path: "/api/v1/workspaces" },
   "PATCH ask/memory/[id]": { method: "PATCH", path: "/api/v1/ask/memory/[id]" },
   "PATCH files/[id]": { method: "PATCH", path: "/api/v1/files/[id]" },
+  "PATCH files/[id]/posts": { method: "PATCH", path: "/api/v1/files/[id]/posts" },
   "PATCH lead-searches/[id]": { method: "PATCH", path: "/api/v1/lead-searches/[id]" },
   "PATCH mailbox-connections/[id]": { method: "PATCH", path: "/api/v1/mailbox-connections/[id]" },
   "PATCH partner": { method: "PATCH", path: "/api/v1/partner" },
@@ -554,6 +555,7 @@ export type Routes = {
   "GET workspaces": typeof import("../../app/api/v1/workspaces/route").GET;
   "PATCH ask/memory/[id]": typeof import("../../app/api/v1/ask/memory/[id]/route").PATCH;
   "PATCH files/[id]": typeof import("../../app/api/v1/files/[id]/route").PATCH;
+  "PATCH files/[id]/posts": typeof import("../../app/api/v1/files/[id]/posts/route").PATCH;
   "PATCH lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").PATCH;
   "PATCH mailbox-connections/[id]": typeof import("../../app/api/v1/mailbox-connections/[id]/route").PATCH;
   "PATCH partner": typeof import("../../app/api/v1/partner/route").PATCH;

@@ -38,6 +38,11 @@ export function CaptionInPlace(props: {
   video: boolean;
   /** Keeps it, and answers why it could not be, in words, or null. */
   keep: (caption: string) => Promise<string | null>;
+  /**
+   * Told what the box holds as it changes, and null once it is gone: a post's sheet sends the words on screen, and its door
+   * keeps them in the same step (piece-presses.tsx useCaptionShown), however the box was left.
+   */
+  onText?: (text: string | null) => void;
 }) {
   const kept = props.words ?? "";
   const [text, setText] = useState(kept);
@@ -47,6 +52,25 @@ export function CaptionInPlace(props: {
   const box = useRef<HTMLTextAreaElement>(null);
   const held = useRef(false);
   useGrowAsTyped(box, text);
+  const heardBy = useRef(props.onText);
+  heardBy.current = props.onText;
+  useEffect(() => heardBy.current?.(text), [text]);
+  useEffect(() => {
+    const hears = heardBy;
+    return () => hears.current?.(null);
+  }, []);
+  // Words still being typed as the box goes (its sheet closed with the keys in it: a phone's tap on × or on Post takes no
+  // focus from it) are kept as it goes, as leaving it any other way keeps them. A story alone sends no words, so nothing
+  // else would have kept them.
+  const last = useRef({ text, kept, keep: props.keep });
+  last.current = { text, kept, keep: props.keep };
+  useEffect(() => {
+    const at = last;
+    const typed = held;
+    return () => {
+      if (typed.current && at.current.text.trim() !== at.current.kept.trim()) void at.current.keep(at.current.text);
+    };
+  }, []);
   // What is kept changed under it (its record read again once it was kept, another device): the box follows, unless it is
   // being typed in.
   useEffect(() => {

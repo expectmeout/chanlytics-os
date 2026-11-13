@@ -58,5 +58,18 @@ export const CONTENT_SHEET_WORDS = {
     notConnected: "Not connected",
     lineOff: "Posting is off",
     connect: "Connect",
+    /**
+     * A post set for its time, moved to another (Ruben, 12 Nov 2026: a time could only be changed by Don't post and starting
+     * over): the press beside when it goes up, the foot's act, and what is said once it is moved.
+     */
+    move: "Change time",
+    moved: (place: PostPlace, when: string) => `Now set for ${when} on ${POST_PLACE_SAID[place]}.`,
+    /** Change time's sentence, before the day and the time: "Story goes up", "Post goes up". */
+    goesUp: (kind: string) => `${kind} goes up`,
+    /**
+     * Ten minutes before its time Instagram makes the post ready with its words (the edge's post-ready.ts), and holds them: a
+     * caption changed now is the piece's, and reaches the next post, not this one.
+     */
+    wordsHeld: "Instagram already has this post's words: a change now reaches the next one.",
   },
 } as const;

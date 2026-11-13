@@ -22499,6 +22499,60 @@ COMMENT ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place 
 
 
 --
+-- Name: post_move(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_move(p_post_id uuid, p_when timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post public.posts;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select * into v_post from public.posts p where p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  if not coalesce(public.caller_has_permission(v_post.tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_when is null or p_when <= now() then
+    raise exception 'A new time is later than now.' using errcode = '22023';
+  end if;
+  -- contracts POST_AHEAD_DAYS_MAX, as post_begin holds it.
+  if p_when > now() + interval '30 days' then
+    raise exception 'A post goes within thirty days.' using errcode = '22023';
+  end if;
+  -- Held while it moves: Don't post and the job's own run wait on this row, and then find it moved.
+  select * into v_post from public.posts p where p.id = p_post_id and p.status = 'queued' for update;
+  if not found then
+    return jsonb_build_object('fate', 'late', 'status', (select p.status from public.posts p where p.id = p_post_id));
+  end if;
+  -- Its job moves only while no run has taken it: a run that has is already making it ready, or sending it.
+  update public.jobs j
+     set due_at = case when j.kind = 'post_prepare' then greatest(now(), p_when - interval '10 minutes') else p_when end,
+         updated_at = now()
+   where j.tenant_id = v_post.tenant_id and j.kind = any (array['post_prepare', 'post_google']) and j.state = 'scheduled'
+     and j.payload ->> 'post_id' = p_post_id::text;
+  if not found then
+    return jsonb_build_object('fate', 'late', 'status', v_post.status);
+  end if;
+  update public.posts p set scheduled_for = p_when, updated_at = now() where p.id = p_post_id;
+  return jsonb_build_object('fate', 'moved');
+end $$;
+
+
+--
+-- Name: FUNCTION post_move(p_post_id uuid, p_when timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_move(p_post_id uuid, p_when timestamp with time zone) IS 'A member''s Change time, with the settings permission (00621): a post still queued, its job not yet taken, set for another time within thirty days, its job moved with it. Answers {fate: moved, late (with where it stands), unknown}.';
+
+
+--
 -- Name: post_moved(uuid, text[], text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -55471,6 +55525,15 @@ GRANT ALL ON FUNCTION public.post_attempt_open(p_post_id uuid, p_attempt_no inte
 REVOKE ALL ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) TO authenticated;
 GRANT ALL ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) TO service_role;
+
+
+--
+-- Name: FUNCTION post_move(p_post_id uuid, p_when timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_move(p_post_id uuid, p_when timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_move(p_post_id uuid, p_when timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION public.post_move(p_post_id uuid, p_when timestamp with time zone) TO service_role;
 
 
 --

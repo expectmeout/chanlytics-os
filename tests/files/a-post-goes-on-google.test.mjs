@@ -390,6 +390,57 @@ test("words are needed, and no more than Google takes", async () => {
   assert.deepEqual(edge.asked, []);
 });
 
+test("a caption changed once a post is set for its time is the one it goes up with, and words it could not take are refused", async () => {
+  // Ruben, 12 Nov 2026: the sheet said the new words over "Goes up Sat", and the old ones went up.
+  const later = new Date(Date.now() + 3 * 24 * 3_600_000).toISOString();
+  const waiting = placementRow({
+    id: "00000005-0000-4000-8000-000000000000",
+    status: "queued",
+    caption: WORDS,
+    scheduled_for: later,
+  });
+  const story = placementRow({
+    id: "00000006-0000-4000-8000-000000000000",
+    place: "instagram",
+    kind: "story",
+    status: "queued",
+    scheduled_for: later,
+  });
+  const up = placementRow({
+    id: "00000007-0000-4000-8000-000000000000",
+    place: "instagram",
+    caption: WORDS,
+    status: "published",
+  });
+  const making = placementRow({
+    id: "00000008-0000-4000-8000-000000000000",
+    place: "instagram",
+    caption: WORDS,
+    status: "preparing",
+  });
+  const { ctx, posts } = world({ posts: [waiting, story, up, making] });
+  const captions = () => posts.map((p) => p.caption);
+  assert.deepEqual(await one.PATCH.run(send("PATCH", { caption: "  New words for Saturday.  " }), ctx), { ok: true });
+  assert.deepEqual(
+    captions(),
+    ["New words for Saturday.", null, WORDS, WORDS],
+    "the post that waits takes them; a story shows none; one up, or being made ready on Instagram, keeps its own",
+  );
+  await assert.rejects(
+    one.PATCH.run(send("PATCH", { caption: "   " }), ctx),
+    (e) => e.code === "validation" && /Keep a caption/.test(e.message),
+  );
+  await assert.rejects(
+    one.PATCH.run(send("PATCH", { caption: "x".repeat(1501) }), ctx),
+    (e) => e.code === "validation" && /Google takes up to 1,500/.test(e.message),
+  );
+  assert.equal(posts[0].caption, "New words for Saturday.", "a refused caption changes nothing");
+  // With nothing waiting, a caption is the owner's to clear.
+  const quiet = world({ posts: [up] });
+  assert.deepEqual(await one.PATCH.run(send("PATCH", { caption: "" }), quiet.ctx), { ok: true });
+  assert.equal(quiet.posts[0].caption, WORDS);
+});
+
 test("only whoever may save a post may put it up, or take it down", async () => {
   for (const role of ["viewer", "operator"]) {
     const { ctx } = world({ role });

@@ -59,8 +59,8 @@ function pieceActsOf(
     onAfter: beside?.after ? () => open(beside.after ?? "") : null,
     onNext: (next: PieceNext) => {
       presses.clear();
-      if (next.is === "post") drafts.both.begin();
-      else if (next.is === "post_to" || next.is === "again") drafts.both.begin(next.place);
+      // Post, Post to Google and Post again open the one sheet as where it stands opens it (post-both.tsx begin).
+      if (next.is === "post" || next.is === "post_to" || next.is === "again") drafts.both.begin();
       else if (next.is === "keep") presses.say({ status: "filed" });
       // A conversation of its own, so a post costs only what a post reads, whatever Ask was last asked (as Files').
       else if (next.is === "make") askAbout({ about, prompts: postAskOf(file), fresh: true });
@@ -84,8 +84,9 @@ function postedDoorsOf(hands: PieceHands): PlaceDoors {
   const { made, record, reread, flash } = hands;
   const { file } = made;
   const may = canDo("settings");
-  // Files' own line for a post that is up on Instagram, for its door to the post.
-  const upOnInstagram = record.instagram?.posts[0]?.status === "published" ? record.instagram.posts[0] : null;
+  // Files' own line for the newest post that is up on Instagram, for its door to the post: a story set for later since keeps
+  // it (Ruben, 12 Nov 2026: See it went missing once one was).
+  const upOnInstagram = record.instagram?.posts.find((p) => p.status === "published") ?? null;
   return {
     google: record.posted ? (
       <PostOnGoogle

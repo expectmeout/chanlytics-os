@@ -23,6 +23,7 @@ import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { bucket } from "../files/file";
 import { getMaterial } from "./material";
+import { keepPostWords } from "./caption";
 import { getPhoto, postDrawn } from "./make";
 import { readFileRecord } from "./record";
 
@@ -82,6 +83,8 @@ export async function postFileToGoogle(
   if (row.source !== "made" || row.kind === "video") throw new AppError("validation", ON_GOOGLE.notAPost);
   const { made } = await readFileRecord(ctx, member, row);
   if (!made?.from) throw new AppError("validation", ON_GOOGLE.noPhoto);
+  // The words that go are the piece's own from now on, kept in the same step (posts/caption.ts keepPostWords).
+  await keepPostWords(ctx, member, row, input.summary);
   const photoUrl = await pictureForGoogle(ctx, member, row.id, made.plan);
   const later = !!input.when && Date.parse(input.when) - Date.now() > GOOGLE_LATER_MS;
   const placed = await beginPost(ctx.supabase, {

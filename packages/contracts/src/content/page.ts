@@ -217,6 +217,8 @@ export const CONTENT_WORDS = {
       keep: "Keep it",
       make: "Make a post",
       dontPost: "Don't post",
+      /** A post that stopped, let go: not tried again, and no longer waiting for the owner (00619). */
+      dismiss: "Dismiss",
       /** A post that waits for its time: "Instagram story goes up tomorrow 9:00 PM". */
       timed: (post: string, when: string) => `${post} goes up ${when}`,
     },
@@ -367,7 +369,6 @@ export const CONTENT_WORDS = {
   },
   /** The composer: one post, to every place switched on. */
   post: {
-    title: "Post it",
     /** The one press, as every app that posts says it: where it goes is the switches over it (and its name for a screen reader). */
     go: "Post",
     /**
@@ -397,7 +398,7 @@ export const CONTENT_WORDS = {
     asWhat: "On Instagram, as",
     send: (places: readonly PostPlace[]) => `Post to ${places.map((p) => POST_PLACE_SAID[p]).join(" and ")}`,
     nowhere: "Choose where it goes.",
-    /** The caption is typed in Details alone (viewer/caption.tsx): where it is missing or too long, that is where it is put right. */
+    /** The caption is typed under the places, in the same sheet (viewer/caption.tsx): where it is missing or too long, it is put right there. */
     wordsNeeded: "Add a caption first.",
     tooLongForGoogle: "Google takes 1,500 characters at most. Shorten the caption, or turn Google off.",
     sent: (places: readonly PostPlace[]) => `On its way to ${places.map((p) => POST_PLACE_SAID[p]).join(" and ")}.`,

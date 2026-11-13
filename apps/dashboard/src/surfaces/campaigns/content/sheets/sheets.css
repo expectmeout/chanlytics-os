@@ -61,6 +61,11 @@
 .cnv-dest[data-stands="stuck"] .cnv-dest-words > .cnv-dest-said {
   grid-column: 2 / -1;
 }
+/* A post up there before a newer one that waits (post-both.tsx PlaceUpToo): a line of its own under the newer one's. */
+.cnv-dest-words > .cnv-dest-said.cnv-dest-up {
+  grid-column: 2;
+  grid-row: 3;
+}
 /* One line where the place has nothing to say, or where its line runs under the end: the glyph sits beside the name alone. */
 .cnv-dest:is([data-stands="stuck"], :not(:has(.cnv-dest-said))) .cnv-dest-glyph {
   grid-row: 1;
@@ -90,6 +95,9 @@
 }
 .cnv-dest[data-stands="stuck"] .cnv-dest-status {
   color: var(--warn-ink);
+}
+.cnv-dest .cnv-dest-up .cnv-dest-status {
+  color: var(--ok-ink);
 }
 /* The doors to a post that is up there (Files' own parts: see it, take it down), beside where it stands: their own line
    saying it is up is the row's already, so the presses stand alone, as text. */
@@ -150,7 +158,7 @@
 }
 .cnv-dest > .cnv-refused {
   grid-column: 1 / -1;
-  grid-row: 3;
+  grid-row: 4;
 }
 
 /* A time for the post, or Post's question (post-both.tsx PostBothActs): the sentence and what it means, then Back and the
