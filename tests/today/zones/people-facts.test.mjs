@@ -255,6 +255,36 @@ test("the reach check's reason holds over the first read whichever yes to offers
   }
 });
 
+test("a proposal follow-up that runs: where it stands for each person is People's own, laid on the first read's rows", async () => {
+  // A follow-up going by WhatsApp, which the workspace sends on (no channels read: WhatsApp alone), that went to Cleo two days ago.
+  // Her proposal carries its link, which a follow-up sends (FOLLOW_UP_NEEDS_LINK).
+  const people = everyone().map((p) =>
+    p.id === "p-cleo" ? { ...p, deal_proposal_url: "https://example.com/proposals/cleo" } : p,
+  );
+  const page = {
+    ...firstPage(people),
+    channels_ready: null,
+    follow_up: {
+      run_hour: 9,
+      last_run_for: null,
+      asks: false,
+      purpose: "utility",
+      had: { "p-cleo": ago(2) },
+      queued: {},
+      held: {},
+      heard: {},
+    },
+  };
+  const dto = await firstReadLands(page);
+  const book = bookOf(page);
+  const read = peopleForToday();
+  const cleo = (people) => people.rows.find((r) => r.id === "p-cleo").followUp;
+  assert.ok(cleo(book), "the follow-up stands for Cleo in People's book");
+  assert.deepEqual(dto.follow_ups, { "p-cleo": cleo(book) }, "the read carries where it stands, for her alone");
+  assert.deepEqual(cleo(read), cleo(book));
+  assert.deepEqual(checks(read), checks(book));
+});
+
 test("People past its first page: the first read says how many, the page waits for the book, and the book is what it reads", async () => {
   const page = firstPage(everyone());
   const dto = await firstReadLands(page, { whole: false, total: 4200 });

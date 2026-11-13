@@ -16,11 +16,10 @@
  * thousand are not the counts of everyone.
  */
 import type { ChannelsReady } from "../campaigns/broadcasts/reach-for";
-import type { FollowUpFactsDto } from "../campaigns/playbooks/follow-ups";
+import { peopleRowOf, type FollowUpFactsDto, type FollowUpStand } from "../campaigns/playbooks/follow-ups";
 import { consultationsWithoutProposal } from "../deals/consultations";
 import { dealPaceOf, eachOpenProposal, type DealPaceDto } from "../deals/waits";
 import { todayStepsDue } from "../notes/steps";
-import { peopleRowOf } from "../people/audience-pool";
 import { peopleListsOf, type PeopleListCount } from "../people/lists/actions";
 import type { PersonRowDto } from "../people/person-dto";
 import type { PersonRowVM } from "../people/person-row/row-facts";
@@ -40,8 +39,12 @@ export type TodayPeopleDto =
       lists: TodayPeopleListDto[];
       /** The people Today's checks and steps due can name (todayPeopleNamed), each as GET contacts answers them. */
       people: PersonRowDto[];
+      /**
+       * Where the proposal follow-up stands for each of them it reaches, by person (followUpStandOf, judged here at the
+       * read's moment): the page lays it on their row as People's page does (peopleRowOf), and loads no follow-up rule.
+       */
+      follow_ups: Record<string, FollowUpStand>;
       deal_pace: DealPaceDto | null;
-      follow_up: FollowUpFactsDto | null;
       channels_ready: ChannelsReady | null;
     }
   | { whole: false; total: number };
@@ -104,8 +107,10 @@ export function todayPeopleOf(
       hasDeals: first.has_deals,
     }).map(({ id, label, group, count, action }) => ({ id, label, group, count, action })),
     people: first.people.filter((p) => named.has(p.id)),
+    follow_ups: Object.fromEntries(
+      rows.flatMap((row) => (named.has(row.id) && row.followUp ? [[row.id, row.followUp] as const] : [])),
+    ),
     deal_pace: first.deal_pace,
-    follow_up: first.follow_up,
     channels_ready: first.channels_ready,
   };
 }

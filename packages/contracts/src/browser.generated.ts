@@ -102,7 +102,7 @@ export { whatsappOffersOpen } from "./campaigns/broadcasts/whatsapp-offers";
 export { FREED_TIME_PASSED_WORDS, poolWords, reachLines, runApprovalRefusal, runDayPassed, runDaysAt, toApprovalVM, waitingRunOffer } from "./campaigns/playbooks/approval";
 export { campaignChannelsOf, playbookChannelsRead, WHATSAPP_VERSION_ALONE } from "./campaigns/playbooks/channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./campaigns/playbooks/failed";
-export { FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, followUpIsFor, followUpKey, followUpNames, followUpRunAt, followUpStandOf, followUpWords, PLAYBOOK_TOUCH_WINDOW_MS, playbookRunStop, playbookStopBy } from "./campaigns/playbooks/follow-ups";
+export { FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, followUpIsFor, followUpKey, followUpNames, followUpRunAt, followUpStandOf, followUpWords, peopleRowOf, PLAYBOOK_TOUCH_WINDOW_MS, playbookRunStop, playbookStopBy } from "./campaigns/playbooks/follow-ups";
 export { keptThanksAt, lateReminderAt } from "./campaigns/playbooks/late-reminder";
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./campaigns/playbooks/lifecycle/inputs";
 export { reachCountsOf, lifecycleComing, lifecycleReach, lifecycleResults, nextRunLine, resumeDetailOf, waitingOffer, workspacePausedOf } from "./campaigns/playbooks/lifecycle/tiles";
@@ -394,7 +394,7 @@ export { checkNoteSuggestion, customerWords, NOTE_SUGGEST_KINDS, NOTE_SUGGEST_LI
 export { CALENDAR_UNREADABLE_TOLD_AFTER_MS, CALENDAR_UNREADABLE_WORDS, GOOGLE_SYNC_NOTICE_WORDS, GOOGLE_SYNC_TOLD_AFTER_MS } from "./notices/connection-news";
 export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } from "./notices/member-news";
 export { bookedOnce, BOOKING_VIAS, bookingArriving, bookingChanged, CATCH_UP_VISITS, feedAdditionIsBooking, VISIT_CHANGES_TOLD, visitChangeNews, visitNews } from "./notices/visit-news";
-export { consultFirstOf, peopleRowOf, peopleVisitsOf, personLikeOf, poolListContext, poolRowOf, poolRowsOf, withVisitsOf } from "./people/audience-pool";
+export { consultFirstOf, peopleVisitsOf, personLikeOf, poolListContext, poolRowOf, poolRowsOf, withVisitsOf } from "./people/audience-pool";
 export { dealFill, dealSheetFill, noteFill, noteSheetFill, SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, sayItFilled } from "./people/doors/say-it";
 export { confirmPageWords, looksMadeUp, maskAddress, SIGNUP_ASK_LIMITS, SIGNUP_CONFIRM_MS, SIGNUP_CONFIRM_SOURCE, signupAddressKey, signupAskLine, signupAskOf, signupAskRefusal, signupConfirmEmail, signupConfirmEmailHtml } from "./people/doors/signup-confirm";
 export { hashLegacyErasedEmail, hashLegacyErasedPhone, hashLegacyLeadSuppression } from "./people/erasure";

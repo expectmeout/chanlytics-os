@@ -120,6 +120,7 @@ export {
   nextRunLabel,
   nextRunOf,
   owedOncePerMoment,
+  peopleRowOf,
   planRun,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_CAP_CHOICES,

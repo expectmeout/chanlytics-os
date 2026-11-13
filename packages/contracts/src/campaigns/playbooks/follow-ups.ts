@@ -6,6 +6,8 @@ import { shiftKey } from "../../shared/zone/day-keys";
 import { clockNear, wallClockAt, zoneDayKey } from "../../shared/clock";
 import { type AskedPurpose, purposeOfPlaybook } from "../../consent/consent";
 import { type DealPaceVM, waitingOnProposal } from "../../deals/waits";
+import { poolRowOf, type PoolOptions } from "../../people/audience-pool";
+import type { PersonRowDto } from "../../people/person-dto";
 import type { PersonRowVM } from "../../people/person-row/row-facts";
 import type { DealVM } from "../../deals/vm";
 import { readyOrWhatsApp } from "../broadcasts/reach-any";
@@ -273,4 +275,31 @@ export function followUpWords(
 ): string {
   const day = clockNear(followUpStand.atMs, tz, nowMs);
   return followUpStand.asks ? `Follow-up to approve ${day}` : `Follow-up ${day}`;
+}
+
+/**
+ * A row as People's page holds it (0006): the row poolRowOf reads, with where the proposal follow-up stands for them where one
+ * runs (followUpStandOf), judged by the pace and at the moment the row is. People's page makes its rows so, and Today's first
+ * read the people it names (today/people.ts), so the two say one follow-up of one person. Here, beside the follow-up's rule,
+ * and not with the pool: a page that reads a row without the follow-up does not load it (Today's first draw, 13 Nov 2026).
+ */
+export function peopleRowOf(
+  person: PersonRowDto,
+  poolOptions: PoolOptions & { followUp: FollowUpFactsDto | null; pace: DealPaceVM | null },
+): PersonRowVM {
+  const vm = poolRowOf(person, poolOptions);
+  const fu = poolOptions.followUp;
+  return fu
+    ? {
+        ...vm,
+        followUp: followUpStandOf(
+          vm,
+          fu,
+          poolOptions.tz,
+          poolOptions.now.getTime(),
+          poolOptions.pace,
+          poolOptions.ready,
+        ),
+      }
+    : vm;
 }

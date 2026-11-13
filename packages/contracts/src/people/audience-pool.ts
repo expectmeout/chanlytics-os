@@ -13,9 +13,7 @@ import type { FeedItem } from "../calendar/feed";
 import { indexFeed, visitsIn, type OwnAddresses, type PersonLike } from "../calendar/people/matching";
 import { toVisitDto, type PersonVisitsDto, type VisitDto } from "../calendar/people/visits";
 import type { ChannelsReady } from "../campaigns/broadcasts/reach-for";
-import { followUpStandOf, type FollowUpFactsDto } from "../campaigns/playbooks/follow-ups";
 import { isOptedOutContact } from "../consent/consent";
-import type { DealPaceVM } from "../deals/waits";
 import { isEmailStopped } from "../conversations/thread-contact";
 import { isConsultationTitle } from "../deals/consultations";
 import type { ListContext } from "./lists/lists";
@@ -179,32 +177,6 @@ export function poolRowOf(person: PersonRowDto, poolOptions: PoolOptions): Perso
     poolOptions.ready,
     poolOptions.names ?? null,
   );
-}
-
-/**
- * A row as People's page holds it (0006): the row poolRowOf reads, with where the proposal follow-up stands for them where one
- * runs (followUpStandOf), judged by the pace and at the moment the row is. People's page makes its rows so, and Today's first
- * read the people it names (today/people.ts), so the two say one follow-up of one person.
- */
-export function peopleRowOf(
-  person: PersonRowDto,
-  poolOptions: PoolOptions & { followUp: FollowUpFactsDto | null; pace: DealPaceVM | null },
-): PersonRowVM {
-  const vm = poolRowOf(person, poolOptions);
-  const fu = poolOptions.followUp;
-  return fu
-    ? {
-        ...vm,
-        followUp: followUpStandOf(
-          vm,
-          fu,
-          poolOptions.tz,
-          poolOptions.now.getTime(),
-          poolOptions.pace,
-          poolOptions.ready,
-        ),
-      }
-    : vm;
 }
 
 /** Everyone's rows, as poolRowOf reads each. */

@@ -5,7 +5,7 @@
  */
 import {
   dealPaceOf,
-  peopleRowOf,
+  poolRowOf,
   todayDay,
   todayDayNote,
   todayHeadLine,
@@ -76,8 +76,9 @@ type TodayPeople = PeopleListsLike & { rows: readonly PersonRowVM[]; fetchedAt: 
 
 /**
  * Today's first read of People as rows (people-read.ts, contracts today/people.ts), for the member `viewer` at `now` in the
- * workspace's zone: People's page's own making of each row (peopleRowOf), its lists as counted, and the pace. Null where
- * People holds more than one page: the page then waits for the book, as it did.
+ * workspace's zone: each row as People's page makes it (poolRowOf, with where the proposal follow-up stands for them as the
+ * read judged it: contracts peopleRowOf), its lists as counted, and the pace. Null where People holds more than one page:
+ * the page then waits for the book, as it did.
  */
 function peopleOfFirstRead(
   dto: TodayPeopleDto,
@@ -88,9 +89,11 @@ function peopleOfFirstRead(
   return {
     lists: dto.lists,
     aggregates: { total: dto.total },
-    rows: dto.people.map((p) =>
-      peopleRowOf(p, { ...as, ready: dto.channels_ready, followUp: dto.follow_up, pace, names: holderName }),
-    ),
+    rows: dto.people.map((p) => {
+      const row = poolRowOf(p, { ...as, ready: dto.channels_ready, names: holderName });
+      const stand = dto.follow_ups[p.id];
+      return stand ? { ...row, followUp: stand } : row;
+    }),
     fetchedAt: as.now.getTime(),
     dealPace: pace,
   };

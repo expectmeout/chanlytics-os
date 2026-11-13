@@ -3,7 +3,6 @@ export { NOTE_LINE_MAX, NOTE_MAX, NOTE_REFUSALS, NOTE_WORDS, personNotesVM } fro
 export type { PersonNoteDto, PersonNoteTeamDto, PersonNoteVM } from "../notes/person-notes";
 export {
   consultFirstOf,
-  peopleRowOf,
   peopleVisitsOf,
   personLikeOf,
   poolListContext,
