@@ -42,7 +42,7 @@ import "./manifest";
 // frame.css is NOT imported here: it lives in app/(os)/layout.tsx so the
 // 254KB design system ships as document <link>s and downloads in parallel
 // with this chunk, rather than serially behind it.
-import { workspaceOverride, switchWorkspace, type Workspace } from "./surface-data";
+import { readIsOut, workspaceOverride, switchWorkspace, type Workspace } from "./surface-data";
 import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
 import { inboxOverride } from "@/surfaces/inbox/surface";
 import { todayOverride } from "@/surfaces/today/override";
@@ -302,8 +302,13 @@ hearSurfaces(SURFACES);
 const useSurface = surfaceHook({ useCallback, useSyncExternalStore });
 // What a page draws and has not read is read once as it comes on screen (surface-registry.ts readWhatWasMissed): a surface that
 // let a message pass while its page was elsewhere (onlyOnItsPage) or that a pass left for its page (keepForItsPage), and one read
-// only where it is drawn (onDemand) that was never read or has aged.
-readWhatWasMissed(SURFACES, (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key))));
+// only where it is drawn (onDemand) that was never read or has aged. One of those whose read is out already (the press's reach
+// started it, warmWhatItDraws below) takes that read: queued behind it, a second read the same rows again, and the page drew
+// them twice (Ruben, 12 Nov 2026: Content "refreshed" as it was pressed, where Sequences and Messages did not).
+readWhatWasMissed(
+  SURFACES,
+  (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key) && !(o.onDemand && readIsOut(o)))),
+);
 // And one somebody is reaching for (a pointer at its row, the phone's drawer opening) reads the same now, so the press finds
 // it in or on its way (surface-registry.ts warmWhatItDraws): Reports, which no other page's boot reads. Its code too, where
 // the page is a chunk of its own the boot does not carry: Campaigns' Sequences, its sheets and the Library's pane

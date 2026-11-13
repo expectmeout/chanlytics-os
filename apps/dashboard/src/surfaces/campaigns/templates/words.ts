@@ -266,6 +266,10 @@ export const TPL_LIST_WORDS = {
   away: "Put away",
   /** A cold email sequence's emails, which are a step's own words and are written with their sequence. */
   emails: "Cold emails",
+  /** The search over the list on a phone: its glyph's name and its box's. */
+  search: "Search messages",
+  /** The view over the list on a phone (parts/list-top.tsx): every message, or one group. */
+  views: { label: "Which messages", all: "All messages" },
   /** How many a folded group holds, to a screen reader, and what its head does. */
   fold: (name: string, n: number): string => `${name}, ${n}`,
   /** Something sends the message, and no channel can carry it for this business now: why, in the channel's words. */

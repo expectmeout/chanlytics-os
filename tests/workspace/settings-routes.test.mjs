@@ -50,13 +50,15 @@ const both = (harbor, bayside) => [
   membership(B, bayside, "bayside", "2026-02-01T00:00:00Z"),
 ];
 /**
- * A member's session over these tables, and the service role over the same ones: the ledger's rows (settings.changed,
- * policy.changed) are written as the service role, since a session may not insert into events.
+ * A member's session over these tables, and the service role over the same ones: the ledger's settings.changed row is
+ * written as the service role, since a session may not insert into events. A policy's change is the database's one
+ * write (policy_change, 00624), which puts its own row on the ledger as the session's person, so the session knows who
+ * it is.
  */
 const ctxFor = (tables, params = {}, rpcs = {}) => (
   setServiceClient(fakeDb(tables, {}, rpcs)),
   {
-    supabase: fakeDb(tables, {}, rpcs),
+    supabase: fakeDb(tables, {}, rpcs, { userId: USER }),
     userId: USER,
     email: "ada@example.com",
     // Past the second factor (0013, M3): a partner's seat asks for it; second-factor.test.mjs proves the refusal.
@@ -838,10 +840,10 @@ test("the autonomy change takes the row's own snake_case names, and for one rele
       "The pause is a whole number of hours from 1 to 168.",
     );
   }
-  // The ledger names the stored keys, whichever spelling arrived.
+  // The ledger names the stored keys, whichever spelling arrived, in the door's order (by name).
   assert.deepEqual(
     tables.events.filter((e) => e.kind === "policy.changed").map((e) => e.data.fields),
-    [Object.keys(dials), Object.keys(dials), ["reply_delay_ms"]],
+    [Object.keys(dials).sort(), Object.keys(dials).sort(), ["reply_delay_ms"]],
   );
 });
 

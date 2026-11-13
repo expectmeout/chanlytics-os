@@ -45,6 +45,9 @@ export const cmGoing = (el: Element, on: boolean) => {
   showHeld(on);
 };
 
+/** Whether the window is a phone's now, read once: for work done before a page is drawn (content/warm.ts). */
+export const cmPhoneNow = (): boolean => !!cmPhoneQuery()?.matches;
+
 /** Whether the window is a phone's, kept current as it changes size. */
 export function useCmPhone(): boolean {
   const [phone, setPhone] = useState(() => !!cmPhoneQuery()?.matches);

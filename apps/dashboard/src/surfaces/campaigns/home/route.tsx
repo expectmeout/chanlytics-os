@@ -46,6 +46,8 @@ const AdsPage = lazy(adsCode);
 // The Content view's code, a chunk of its own, fetched where Content is drawn: once the frame is idle on another view, or at its press.
 const contentCode = () => import("../content/page").then((m) => ({ default: m.ContentPage }));
 const ContentPage = lazy(contentCode);
+// Content readied ahead (content/warm.ts): its page read and its first screen's pictures in, from the same chunk as the page.
+const contentWarm = () => import("../content/warm").then((m) => m.warmContent());
 
 /** What stands where a view will be while its chunk loads: the page's own box, and the shell's quiet words after their beat. */
 function ViewReading() {
@@ -69,10 +71,12 @@ const VIEW_SEAT = "campaigns-view";
  * was left on, Messages the message), and the side the view shown comes in from: the view before it, on the draw that
  * changes it.
  */
-function useKeptViews(view: View, route: string, ahead: boolean) {
+function useKeptViews(view: View, route: string, ahead: { others: boolean; content: boolean }) {
   const drawn = useRef(new Set<View>());
   drawn.current.add(view);
-  if (ahead) drawn.current.add(view === "sequences" ? "messages" : "sequences");
+  if (ahead.others) drawn.current.add(view === "sequences" ? "messages" : "sequences");
+  // Content, once its read and its first pictures are in (useViewsAhead): drawn hidden, so its press shows it whole.
+  if (ahead.content) drawn.current.add("content");
   const sequencesAt = useRef(SEQUENCES_ROUTE);
   if (view === "sequences") sequencesAt.current = route;
   const messagesAt = useRef(MESSAGES_ROUTE);
@@ -110,9 +114,14 @@ function useKeptViews(view: View, route: string, ahead: boolean) {
  * On Ads it waits for the page's own first read as well (ads/first-read.ts): that read is the page's, made once its code is
  * in and not by the boot, so an idle frame with the boot in is not yet a page whose reads are. Nothing held Sequences' list,
  * or Sequences drawn hidden, behind it: which went first was left to how long each took.
+ *
+ * Content is readied the same way from any other view: its code, its page read and its first screen's pictures (content/warm.ts),
+ * and once those are in it is drawn hidden too (`content`). It was the one view a press built from nothing: "Reading…", then its
+ * tiles, then each picture fading in, where Sequences and Messages were simply there (Ruben, 12 Nov 2026).
  */
-function useViewsAhead(view: View, adsShown: boolean): boolean {
+function useViewsAhead(view: View, adsShown: boolean): { others: boolean; content: boolean } {
   const [ahead, setAhead] = useState(false);
+  const [contentReady, setContentReady] = useState(false);
   useEffect(() => {
     if (ahead || typeof window === "undefined") return undefined;
     let live = true;
@@ -123,8 +132,14 @@ function useViewsAhead(view: View, adsShown: boolean): boolean {
         if (view !== "sequences" && surfaceValue("sequences") === undefined) void refreshSurface("sequences");
         // Ads' code, fetched and not drawn: its page reads its own example when it is first shown.
         if (adsShown && view !== "ads") void adsCode();
-        // Content's code, fetched and not drawn: its read is its own, made when it is first shown.
-        if (view !== "content") void contentCode();
+        if (view !== "content") {
+          void contentCode();
+          // Drawn hidden once it holds what it shows; one that could not be readied is drawn as it is pressed, as before.
+          void contentWarm().then(
+            () => setContentReady(true),
+            () => undefined,
+          );
+        }
         setAhead(true);
       });
     };
@@ -135,7 +150,7 @@ function useViewsAhead(view: View, adsShown: boolean): boolean {
       stop?.();
     };
   }, [ahead, view, adsShown]);
-  return ahead;
+  return { others: ahead, content: contentReady };
 }
 
 /**

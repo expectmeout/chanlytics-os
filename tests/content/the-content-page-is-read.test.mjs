@@ -139,7 +139,7 @@ const read = async (tables, query = "") => {
   return { body };
 };
 
-const NOTHING = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0, library: 0, aside: 0 };
+const NOTHING = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0, library: 0, aside: 0, waiting: 0 };
 /** Ask's three ideas of what it can make, each with the files it would start from: none, where the Library holds none. */
 /** With nothing kept, no idea has what it is made from: none is offered (contracts contentIdeasReady). */
 const IDEAS_NONE = ["before_after", "review", "video", "photo_post"].map((key) => ({ key, files: [], ready: false }));
@@ -154,7 +154,6 @@ test("a workspace that made nothing reads an empty page, and says so in numbers"
     next: null,
     ideas: IDEAS_NONE,
     about: null,
-    needsOne: null,
     tally: NOTHING,
   });
 });
@@ -183,7 +182,16 @@ test("what was made comes newest first, each with its own posts, and nothing tha
   );
   assert.deepEqual(body.made[2].posts, []);
   // The Library holds the photo uploaded here, apart from what was made.
-  assert.deepEqual(body.tally, { made: 3, posted: 1, needs: 1, making: 0, scheduled: 0, library: 1, aside: 0 });
+  assert.deepEqual(body.tally, {
+    made: 3,
+    posted: 1,
+    needs: 1,
+    making: 0,
+    scheduled: 0,
+    library: 1,
+    aside: 0,
+    waiting: 0,
+  });
   assert.equal("external_id" in body.made[0].posts[0], false, "a post's id at the platform stays the server's");
 });
 
@@ -351,10 +359,18 @@ test("Posted comes a page at a time, and the next page starts where it ended", a
 
 test("Being made is what is being made and what was not, and a view this build does not know is refused", async () => {
   const { body } = await read(
-    { pieces: [piece(1), piece(2, { status: "failed", failed_why: "draw" })] },
+    { pieces: [piece(1, { status: "failed", failed_why: "draw" }), piece(2)] },
     "view=making",
   );
   assert.equal(body.making.length, 2);
+  // A video that could not be made stops waiting on the owner once a newer one was begun (Ruben, 12 Nov 2026: nobody ends
+  // up stuck), as a post that stopped does once it was sent again.
+  const after = await read({ pieces: [piece(1), piece(2, { status: "failed", failed_why: "draw" })] }, "view=making");
+  assert.deepEqual(
+    after.body.making.map((m) => m.status),
+    ["making"],
+  );
+  assert.equal(after.body.tally.needs, 0);
   await assert.rejects(read({}, "view=everything"), (e) => e.code === "validation");
 });
 

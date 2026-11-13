@@ -24,6 +24,7 @@ export type { FileFate, MediaFate, VideoFate } from "./doors";
 export {
   countFilesKept,
   countFilesMade,
+  countFilesWaiting,
   filesBucket,
   findFile,
   findFileForWork,
@@ -49,6 +50,7 @@ export {
   beginPiece,
   beginPieceFile,
   endPiece,
+  findNewestPieceBegun,
   findPiece,
   findPieceForWork,
   findPieceImage,

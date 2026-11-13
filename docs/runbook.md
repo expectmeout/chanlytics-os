@@ -1760,8 +1760,12 @@ while an older build is live:
 
 - An older edge reads a config section with a field it does not know and keeps its brain
   (`tenant-config-forward-compat.test.mjs`).
-- An older dashboard's settings save writes back only what it knows, so it drops a newer section or field (the
-  scorecard's defect 19). While the dashboard runs an older build, nobody saves Settings.
+- An older dashboard's settings save writes the whole column, and first puts back every key of the stored
+  configuration its own read left out, at any depth (`withStoredKeysKept`), so a section or field a newer build wrote
+  outlives the save (`tenant-config-forward-compat.test.mjs`, "a save after a rollback keeps what a newer build
+  stored"). Two saves keep nothing of it: one by a build from before #1347 (29 September 2026), which wrote back only
+  what it knew (the scorecard's defect 19), and one over a stored configuration the older build cannot read at all,
+  which it replaces. While the dashboard runs a build older than #1347, nobody saves Settings.
 
 **Rehearse it**, once a quarter and after any change to how the apps build, and write down when:
 
