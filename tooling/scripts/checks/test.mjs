@@ -9,10 +9,18 @@
  * it is handed on its way to a Windows program; a `process.env.TZ` set after start is too late for a module that read
  * the clock at import).
  *
+ * The clock is the machine's, unless `TEST_CLOCK` moves it whole hours on (`+12h`) or back. A test that reads it and
+ * holds only in some hours of the day passes or fails by when it runs: #2285's playbooks test passed in CI at 23:11 in
+ * New York on 13 Nov 2026 and was red on main for the other twenty hours of every day. So CI runs a change's tests at
+ * its own clock and twelve hours on (ci.yml), where a test that holds for less than half the day fails at one of the
+ * two (tests/fixtures/clock-ahead.mjs says what moves).
+ *
  *   corepack pnpm test                                     the node suite, in UTC, and what it ran of the code
  *   corepack pnpm test -- tests/calendar   only these files or globs (a directory is every test in it)
  *   TEST_TZ=Pacific/Auckland corepack pnpm test            the whole suite, twelve hours east (PowerShell:
  *                                                          $env:TEST_TZ='Pacific/Auckland'; corepack pnpm test)
+ *   TEST_CLOCK=+12h node tooling/scripts/checks/test.mjs <file>   a file's tests with the clock twelve hours on
+ *                                                          (PowerShell: $env:TEST_CLOCK='+12h')
  *   corepack pnpm test:db                                  the stack suites, in the same zone
  *
  * A flag (`--test-name-pattern=...`, `--test-only`) goes to Node's runner as it is.
@@ -21,8 +29,8 @@
  * (tooling/scripts/package-build.mjs, about a second), by the `bundled` export condition the run passes to Node and to
  * every script a test starts.
  *
- * Coverage. A full run in UTC (no files asked, no flag, no TEST_TZ: a zone leg is about the clock) has Node measure
- * what the suite ran of the code, and prints it per package and per tree with each held floor
+ * Coverage. A full run in UTC (no files asked, no flag, no TEST_TZ or TEST_CLOCK: such a leg is about the clock) has
+ * Node measure what the suite ran of the code, and prints it per package and per tree with each held floor
  * (tooling/scripts/checks/coverage.mjs). Under a floor is a red run. `UPDATE_BASELINES=1` (or `raise`) raises a floor
  * the suite has cleared with room to spare; `COVERAGE_FLOORS=lower` is the one way a floor falls, argued under "Rises"
  * in docs/debt.md. `TEST_COVERAGE=0` skips the measure for a full run that wants the speed, and `TEST_COVERAGE=1`
@@ -184,6 +192,32 @@ export function zoneOf(env) {
   return asked;
 }
 
+/** The module that moves a run's clock, loaded in every process of it (tests/fixtures/clock-ahead.mjs says how). */
+const CLOCK_AHEAD = path.join(ROOT, "tests/fixtures/clock-ahead.mjs");
+/** That module's load, as NODE_OPTIONS says it, whatever hours it was given. */
+const CLOCK_LOAD = /\s*--import\s+\S*\/tests\/fixtures\/clock-ahead\.mjs\?hours=\S*/g;
+
+/** The hours `TEST_CLOCK` moves a run's clock on (`+12h`) or back (`-6h`): 0, the machine's clock, when it is blank. */
+export function clockOf(env) {
+  const setting = String(env.TEST_CLOCK ?? "").trim();
+  if (!setting) return 0;
+  const hours = /^([+-]?\d{1,3})h$/.exec(setting);
+  if (!hours) throw new Error(`TEST_CLOCK=${setting} is not a clock: whole hours on or back, as +12h or -6h`);
+  return Number(hours[1]);
+}
+
+/**
+ * The NODE_OPTIONS a run's processes start with: the bundles' condition, and the clock's move where there is one, put in
+ * place of any move an outer run made, so a run started inside another reads its own clock.
+ */
+function nodeOptionsOf(env, hours) {
+  const outer = String(env.NODE_OPTIONS ?? "")
+    .replace(CLOCK_LOAD, "")
+    .trim();
+  const clock = hours ? `--import ${pathToFileURL(CLOCK_AHEAD).href}?hours=${hours}` : "";
+  return [outer, `--conditions=${BUNDLED}`, clock].filter(Boolean).join(" ");
+}
+
 /**
  * The command a run is: Node's own runner over the suite's files (or the ones asked for), with the loader every test
  * needs, and the environment it runs in. A directory asked for is every `*.test.mjs` under it. `coverage` is where a
@@ -201,12 +235,13 @@ export function planOf(argv, env) {
   const { first, alone, lone } = passFilesOf(db, named, asked);
   const oneAtATime = [...flags.filter((f) => !f.startsWith("--test-concurrency")), "--test-concurrency=1"];
   const zone = zoneOf(env);
+  const clock = clockOf(env);
   // A part of the suite (`--test-shard=i/n`) is the suite, cut: measured when TEST_LCOV names where its report is
   // kept, and judged by no floor, since the floors are the whole suite's (coverage.mjs judges the parts' reports
   // together, as the nightly does).
   const part = flags.length > 0 && flags.every((f) => f.startsWith("--test-shard="));
   const kept = part && String(env.TEST_LCOV ?? "").trim() ? path.resolve(ROOT, String(env.TEST_LCOV).trim()) : null;
-  const full = !asked.length && !db && (!flags.length || part) && !String(env.TEST_TZ ?? "").trim();
+  const full = !asked.length && !db && (!flags.length || part) && !String(env.TEST_TZ ?? "").trim() && !clock;
   const measured = env.TEST_COVERAGE === "1" ? !db : full && env.TEST_COVERAGE !== "0" && (!part || kept !== null);
   const coverage = measured ? (kept ?? path.join(os.tmpdir(), `chanlytics-${process.pid}.lcov`)) : null;
   const report = coverage
@@ -234,14 +269,15 @@ export function planOf(argv, env) {
   ];
   return {
     zone,
+    clock,
     coverage,
     held: measured && full && !part,
     // a part's report stays where TEST_LCOV put it, for the judge of all the parts
     keep: kept !== null,
     args: [...loader, ...report, ...(lone ? oneAtATime : flags), ...first],
     alone: alone ? [...loader, ...oneAtATime, ...alone] : null,
-    // A script a test starts (a check, an eval, an ops script) reads the packages as the test does.
-    env: { ...env, TZ: zone, NODE_OPTIONS: [env.NODE_OPTIONS, `--conditions=${BUNDLED}`].filter(Boolean).join(" ") },
+    // A script a test starts (a check, an eval, an ops script) reads the packages, and the clock, as the test does.
+    env: { ...env, TZ: zone, NODE_OPTIONS: nodeOptionsOf(env, clock) },
   };
 }
 
@@ -282,7 +318,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exit(2);
   }
   // On stderr, so a TAP reader of stdout sees only the runner's report.
-  console.error(`# the suite runs in ${plan.zone}${plan.zone === "UTC" ? "" : " (TEST_TZ)"}`);
+  const moved = plan.clock
+    ? `, the clock ${Math.abs(plan.clock)} hours ${plan.clock > 0 ? "on" : "back"} (TEST_CLOCK)`
+    : "";
+  console.error(`# the suite runs in ${plan.zone}${plan.zone === "UTC" ? "" : " (TEST_TZ)"}${moved}`);
   const built = await buildPackages();
   if (built.length) console.error(`# built the bundles of ${built.join(", ")}`);
   // One pass after another, every pass run; the status is the first that failed.

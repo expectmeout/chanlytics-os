@@ -28,6 +28,12 @@ import os from "node:os";
 import path from "node:path";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * The machine's own time, which a file's times are kept in: a run under TEST_CLOCK moves `Date` some hours on
+ * (tests/fixtures/clock-ahead.mjs) and never a file's times, so a lock's age read by `Date` was twelve hours, always
+ * stale.
+ */
+const machineNow = () => performance.timeOrigin + performance.now();
 
 export async function takeLock(name, { waitMs = 600_000, staleMs = 300_000 } = {}) {
   const dir = path.join(os.tmpdir(), `chanlytics-lock-${name}`);
@@ -42,7 +48,7 @@ export async function takeLock(name, { waitMs = 600_000, staleMs = 300_000 } = {
       if (e?.code !== "EEXIST") throw e;
     }
     try {
-      if (Date.now() - fs.statSync(dir).mtimeMs > staleMs) fs.rmSync(dir, { recursive: true, force: true });
+      if (machineNow() - fs.statSync(dir).mtimeMs > staleMs) fs.rmSync(dir, { recursive: true, force: true });
     } catch {
       // released between the two calls: try again
     }

@@ -49,6 +49,7 @@ export {
   endMailboxSync,
   findMailboxConnectionById,
   findSentEmailIdByMessageId,
+  getHeldEmails,
   getKnownThreads,
   keepMailboxWatch,
   keepOwnerEmail,

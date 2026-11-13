@@ -103,10 +103,11 @@ export function formatOfChanged() {
 }
 
 /**
- * What the laptop runs: each a name, and a command for the shell or a function that answers an exit status. The first
- * `FIRST` run one after the other (the packages' bundles, which the tests and the dead-export check read); everything
- * after them reads only what they wrote, so it runs side by side (runTogether). In a row they took fourteen minutes on 16 Oct 2026, of
- * which the tests were six and the lint four.
+ * What the laptop runs: each a name, a command for the shell or a function that answers an exit status, and what a
+ * command's environment adds, if anything. The first `FIRST` run one after the other (the packages' bundles, which the
+ * tests and the dead-export check read); everything after them reads only what they wrote, so it runs side by side
+ * (runTogether). In a row they took fourteen minutes on 16 Oct 2026, of which the tests were six and the lint four. The
+ * tests run twice, at the laptop's clock and twelve hours on, as ci.yml's parts do (13 Nov 2026).
  */
 export const LOCAL_CHECKS = [
   ["the packages' bundles", "node tooling/scripts/package-build.mjs"],
@@ -116,6 +117,11 @@ export const LOCAL_CHECKS = [
   ["no production dependency with a high or critical advisory", "corepack pnpm audit --prod --audit-level high"],
   ["production licences", "corepack pnpm licenses list --prod --json | node tooling/scripts/checks/licences.mjs"],
   ["the tests of what the branch changes", "node tooling/scripts/checks/changed-tests.mjs origin/main HEAD"],
+  [
+    "the tests of what the branch changes, twelve hours on",
+    "node tooling/scripts/checks/changed-tests.mjs origin/main HEAD",
+    { TEST_CLOCK: "+12h" },
+  ],
 ];
 export const FIRST = 1;
 
@@ -130,10 +136,10 @@ export async function runTogether(checks, cwd = ROOT, say = (text) => process.st
     say(`\ncheck:local: ${name}\n`);
     if (check() !== 0) failed.push(name);
   }
-  const one = ([name, command]) =>
+  const one = ([name, command, env]) =>
     new Promise((resolve) => {
       const started = Date.now();
-      const child = spawn(command, { cwd, shell: true });
+      const child = spawn(command, { cwd, shell: true, env: { ...process.env, ...env } });
       let out = "";
       child.stdout.on("data", (d) => (out += d));
       child.stderr.on("data", (d) => (out += d));

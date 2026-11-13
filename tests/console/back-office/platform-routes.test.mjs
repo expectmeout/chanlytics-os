@@ -87,12 +87,13 @@ function serviceWorld() {
 
 test("the eight declare their policy: the back office on the platform scope with no workspace role, its three actions on their own support ceilings; billing's two writes counted together, its read on its own ceiling", () => {
   const office = { kind: "read", scope: "platform", role: null, rate: null, spend: false };
-  const act = (rate) => ({ kind: "write", scope: "platform", role: null, rate, spend: false });
+  // Each of the three acts on any workspace, so each asks the Auth server whether the session is still live, as every
+  // change made from the Console does (route.ts asksAuthServer).
+  const act = (rate) => ({ kind: "write", fresh: true, scope: "platform", role: null, rate, spend: false });
   assert.deepEqual(overview.GET.policy, office);
   assert.deepEqual(tenant.GET.policy, office);
   assert.deepEqual(refile.POST.policy, { ...act("platform_line_refile"), act: "line_refile" });
-  // Releasing a number cannot be taken back: it asks the Auth server whether the session is still live.
-  assert.deepEqual(release.POST.policy, { ...act("platform_line_release"), fresh: true, act: "line_release" });
+  assert.deepEqual(release.POST.policy, { ...act("platform_line_release"), act: "line_release" });
   assert.deepEqual(retry.POST.policy, { ...act("platform_line_retry"), act: "line_retry" });
   // A read of the invoices takes from its own ceiling: pressing Show invoices never locks an owner out of Checkout for the hour.
   assert.deepEqual(invoices.GET.policy, {
