@@ -153,6 +153,14 @@ every test of the draft pressed its controls through their props, on a page with
     message's title, refused the same way past 120 and 80, are cut after a whole word at 80. An answer still out of
     shape is refused as it was, and its refusal keeps which fields broke it as its cause, never what they held, so the
     route's line says which.
+28. **A customer offer carries the discount its owner asked for, and never one Ask made up** (Ruben, 13 November
+    2026, asked after the same run: one draft in five wrote “20% off … valid until Sunday” into a customer's message
+    where the other four left it out, by a rule written for cold email that every draft was told and nothing held for a
+    customer). A message to people may name a price, a discount or a date only as the owner gave it, in their line or
+    in what stands of the draft they are changing (`numbers.ts` ownerPriceWords): Ask is told so, the rule for leads
+    says leads, and the judge holds it. A message Ask writes that names one the owner never gave is refused with why
+    (`unsaidPrice`, then asked once more), and a value Ask types with one is left blank, as before. A cold email still
+    names none, whoever gave it. This reverses the rule of 12 November that a first draft's typed price was always Ask's.
 
 ## Deploy order
 
@@ -160,4 +168,4 @@ Either. The dashboard alone changes; no route, no table, nothing the two apps sh
 
 ## Held by
 
-`tests/campaigns/new-ready.test.mjs` (the rules), `tests/campaigns/new-ready-page.test.mjs` (the first screen drawn), `tests/playbooks/campaigns-drafts.test.mjs` (the line still drafts, and a line alone is not work), and `e2e/campaigns/campaigns-loads.spec.ts` (nothing drawn while loading is taken back). Step 2: `tests/campaigns/draft-changed-by-saying.test.mjs` (what the drafter is told of a draft that stands, how its answer is judged and taken, what changed said, a step that stays, the second ask, why a step cannot be kept) and `tests/playbooks/campaigns-drafts.test.mjs` (the line under a draft, on the page: asked, changed, Undo, a change Ask could not make, a line that says why, a draft discarded, a message its owner rewrote). A step pressed with a pointer: `e2e/campaigns/sequences.spec.ts`. The second run's (27): `tests/sequences/sequence-draft.test.mjs` (a note, a name and a title that run long, in a draft and in a rewrite, and the fields an answer out of shape names).
+`tests/campaigns/new-ready.test.mjs` (the rules), `tests/campaigns/new-ready-page.test.mjs` (the first screen drawn), `tests/playbooks/campaigns-drafts.test.mjs` (the line still drafts, and a line alone is not work), and `e2e/campaigns/campaigns-loads.spec.ts` (nothing drawn while loading is taken back). Step 2: `tests/campaigns/draft-changed-by-saying.test.mjs` (what the drafter is told of a draft that stands, how its answer is judged and taken, what changed said, a step that stays, the second ask, why a step cannot be kept) and `tests/playbooks/campaigns-drafts.test.mjs` (the line under a draft, on the page: asked, changed, Undo, a change Ask could not make, a line that says why, a draft discarded, a message its owner rewrote). A step pressed with a pointer: `e2e/campaigns/sequences.spec.ts`. The second run's (27): `tests/sequences/sequence-draft.test.mjs` (a note, a name and a title that run long, in a draft and in a rewrite, and the fields an answer out of shape names). Item 28: `tests/sequences/sequence-draft.test.mjs` (a customer offer keeps the owner's figure and refuses another) and `tests/campaigns/draft-changed-by-saying.test.mjs` (a change that names a new figure gives it).

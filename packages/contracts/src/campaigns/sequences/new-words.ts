@@ -400,6 +400,7 @@ export const NEW_WORDS = {
         "a booking’s time or service, a proposal’s link or a freed time is only known on the first step of its own moment",
       noMessage: "it names none of the business’s messages and writes none",
       price: "it names a price or a discount, which Ask never writes",
+      unsaidPrice: "it names a price or a discount that isn’t in what was asked",
       firstLink: "a first email carries no link",
       unbackedNumber: "it names a number about the business that none of its claims backs",
     },
