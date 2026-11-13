@@ -75,6 +75,7 @@ import {
   type ClaimedJob,
   type TickCounts,
 } from "@chanlytics/jobs";
+import { wireUnavailable, type Sender, type WireUnavailable } from "@chanlytics/core";
 import { relayEvents } from "@chanlytics/db/events";
 import { isWorkspaceOurs } from "@chanlytics/db/console";
 import type { SweepTick } from "./sweep-door.js";
@@ -158,13 +159,36 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
  * (lib/instagram). Null on any is a refusal at the door, not a guess; a read that FAILED is neither (core
  * WireUnavailable): the reply waits for a heartbeat that can read the vault. Email's wire is bound to the workspace's own
  * addresses (its hosted mailbox, each mailbox it connected): it sends a frozen request only when it leaves as one.
+ *
+ * Each is bound the first time a send asks for its channel (boundOnFirstUse), and once: an email reply reads no
+ * WhatsApp number, texting line or Instagram account, a WhatsApp reply reads WhatsApp's alone, and a job that sends
+ * nothing reads none. They were all read, one after another, for every job whose kind sends, before it ran.
  */
-async function phoneWires(db: SweepTick["db"], tenantId: TenantId) {
-  const line = await findSmsSenderForTenant(db, tenantId);
+function phoneWires(db: SweepTick["db"], tenantId: TenantId) {
   return {
-    whatsapp: await findWhatsappWireForTenant(db, tenantId),
-    instagram: await findInstagramWireForTenant(db, tenantId),
-    sms: smsWire(line),
+    whatsapp: boundOnFirstUse(() => findWhatsappWireForTenant(db, tenantId)),
+    instagram: boundOnFirstUse(() => findInstagramWireForTenant(db, tenantId)),
+    sms: boundOnFirstUse(async () => smsWire(await findSmsSenderForTenant(db, tenantId))),
+  };
+}
+
+/** A channel's wire as a send finds it (core Wire): its sender, none, no such channel here, or one not bound. */
+type ChannelWire = Sender | null | undefined | WireUnavailable;
+
+/**
+ * A channel's wire bound the first time a send awaits it (core putOnWire), and once. `bind` answers as a bound wire
+ * does; one that throws is a read that FAILED, so the wire could not be bound (WireUnavailable) and the send waits,
+ * never a refusal.
+ */
+function boundOnFirstUse(bind: () => PromiseLike<ChannelWire>): PromiseLike<ChannelWire> {
+  let bound: Promise<ChannelWire> | null = null;
+  return {
+    then(onBound, onFailed) {
+      bound ??= Promise.resolve()
+        .then(bind)
+        .catch((e: unknown) => wireUnavailable(errField(e)));
+      return bound.then(onBound, onFailed);
+    },
   };
 }
 
@@ -221,24 +245,22 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
           // `wires`): a phone's receipts, a lead's page or the canary never asks the vault for a WhatsApp token. A kind
           // this build does not know is bound as every sending kind is, since nothing here can say it sends nothing.
           const wired = kindPolicyOf(job.kind)?.wires ?? true;
-          // Each wire is bound on its own (phoneWires): a mailbox that could not be read is email's wire unbound (core
-          // WireUnavailable), never a throw that fails a WhatsApp or SMS reply that needed no email at all.
+          // Each wire is bound on its own, the first time a send asks for its channel (boundOnFirstUse): a
+          // mailbox that could not be read is email's wire unbound (core WireUnavailable), never a throw that fails a
+          // WhatsApp or SMS reply that needed no email at all, which reads no mailbox.
           // A broadcast's batch may send OFFERS by email: only for that job is the campaigns domain asked about (it is
           // kept five minutes) and bound, as the wire's route and the intake's lane; every other job never sees it. For a
           // domain the deployment names the answer is never "no lane": verified binds it, one the provider says is not
           // verified closes offers and the run stops, and one it could not be asked about makes a run of offers wait while
           // the email wire stays bound for everything else (findEmailBound says each).
           const offers = job.kind === "broadcast_send" ? await getCampaignsBinding() : ({ state: "none" } as const);
-          const bound = wired ? await findEmailBound(db, job.tenant_id, offers, L) : null;
+          const bound = wired ? findEmailBound(db, job.tenant_id, offers, L) : null;
           // Email's intake: the provider fetch and the mail domain live here. Absent where email is off.
           const intake = bound ? emailIntake(db, bound.campaigns, bound.closed, bound.unread) : null;
           // The lead finder's pipeline: absent without APIFY_TOKEN, and a lead job then fails by name.
           const leads = leadPipeline();
           const wire = wired
-            ? {
-                ...(await phoneWires(db, job.tenant_id)),
-                ...(bound?.email !== undefined ? { email: bound.email } : {}),
-              }
+            ? { ...phoneWires(db, job.tenant_id), ...(bound ? { email: boundOnFirstUse(bound.bindEmail) } : {}) }
             : {};
           // The job as its handler holds it. What the handler says of it (that it spoke: ledger markSpoke) is carried
           // back to the claim once it returns or throws, where the ledger judges a retry from it.
