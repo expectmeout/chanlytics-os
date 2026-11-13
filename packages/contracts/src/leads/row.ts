@@ -393,10 +393,23 @@ function subLineOf(lead: LeadRowDto, distanceM: number | null): string {
     .join(" · ");
 }
 
+/**
+ * Where a lead came from, by its source's own name (leads.source, 00430), read off what its row carries: a company is
+ * the people card's, a place with a listing the Maps card's, and one with neither was brought in on a list of the
+ * owner's own (00242). The one rule: the row's word and the card's fill-ins both say it from here.
+ */
+export function leadSourceOf(
+  lead: Pick<LeadRowDto, "kind" | "place_id">,
+): "people_at_companies" | "local_businesses" | "import" {
+  if (lead.kind === "company") return "people_at_companies";
+  return lead.place_id ? "local_businesses" : "import";
+}
+
 /** Where a lead's facts came from, as foundLine says it: a directory, its Maps listing, else the owner's own list. */
 export function leadSourceWord(lead: Pick<LeadRowDto, "kind" | "place_id">): string {
-  if (lead.kind === "company") return LEAD_DIRECTORY_WORDS.source;
-  return lead.place_id ? LEAD_SOURCE_WORD : "Your list";
+  const source = leadSourceOf(lead);
+  if (source === "people_at_companies") return LEAD_DIRECTORY_WORDS.source;
+  return source === "local_businesses" ? LEAD_SOURCE_WORD : "Your list";
 }
 
 /** A round that is still going; one waiting on the owner is its own mark. */

@@ -819,3 +819,69 @@ test("while a receptionist is being made its mark looks again by itself, and say
   s.draw();
   assert.equal(asked(), after);
 });
+
+test("a lead that can get no receptionist: the mark says its email is skipped, and nothing offers to make one", async () => {
+  const none = "5e000000-0000-4000-8000-0000000000f2";
+  const words = { subject: null, body: "Try it: {{their preview}}" };
+  const edit = editOf({ leadId: none, first: false, written: words, stepWritten: words });
+  door.preview = { preview: null, makes: true, cannot: "no_name" };
+  const s = sheetOf(mailOf(edit, { subject: null, leadId: none }));
+  await until(() => textOf(byId(s.draw(), "lead-card-receptionist")).includes(F.mark.cannot), "the mark says so");
+  const tree = s.draw();
+  assert.equal(byId(tree, "lead-card-receptionist").props["data-tone"], "warn");
+  assert.equal(byId(tree, "lead-sheet-preview-make"), null, "no Make it now for one the door would refuse");
+  const bubble = inTree(tree, (n) => n.type === Popover);
+  assert.ok(textOf(bubble.props.children).includes(P.cannot("no_name")), "and its bubble says why");
+});
+
+test("a build slower than two minutes is still looked at, more slowly, and not for ever", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const slow = "5e000000-0000-4000-8000-0000000000f3";
+  const words = { subject: null, body: "Try it: {{their preview}}" };
+  const edit = editOf({ leadId: slow, first: false, written: words, stepWritten: words });
+  const building = {
+    state: "building",
+    token: "t",
+    failed_why: null,
+    ends_at: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+    first_sent_at: null,
+    opened_count: 0,
+    asked_count: 0,
+    call_count: 0,
+    call_seconds: 0,
+    tried_at: null,
+    claimed_at: null,
+    not_right: [],
+  };
+  // Each wait the card sets between looks, as it sets it: a look's answer lands, and only then is the next wait set.
+  const waits = [];
+  const turned = globalThis.setTimeout;
+  globalThis.setTimeout = (run, ms, ...rest) => {
+    waits.push(ms);
+    return turned(run, ms, ...rest);
+  };
+  t.after(() => {
+    globalThis.setTimeout = turned;
+  });
+  door.preview = { preview: building, makes: true };
+  const s = sheetOf(mailOf(edit, { subject: null, leadId: slow }));
+  const mark = () => textOf(byId(s.draw(), "lead-card-receptionist"));
+  const asked = () =>
+    sent.filter(([method, path]) => method === "GET" && path.endsWith(`/leads/${slow}/preview`)).length;
+  await until(() => mark().includes(F.mark.building) && waits.length === 1, "being made, its first wait set");
+  const first = asked();
+  for (let look = 1; look < 50; look += 1) {
+    t.mock.timers.tick(waits.at(-1));
+    await until(() => (s.draw(), waits.length === look + 1), `look ${look} lands and the next wait is set`);
+  }
+  // The last look's answer says when it was made, long ago: it lands as "slower than usual", and no wait follows it.
+  door.preview = { preview: { ...building, made_at: new Date(Date.now() - 12 * 60_000).toISOString() }, makes: true };
+  t.mock.timers.tick(waits.at(-1));
+  await until(() => mark().includes(F.mark.slow), "the last look lands");
+  // Two minutes of looks four seconds apart, then ten minutes of them half a minute apart, and then no more.
+  assert.deepEqual(waits, [...Array(30).fill(4_000), ...Array(20).fill(30_000)]);
+  assert.equal(asked(), first + 50);
+  t.mock.timers.tick(600_000);
+  s.draw();
+  assert.equal(asked(), first + 50, "it is not asked about for ever");
+});

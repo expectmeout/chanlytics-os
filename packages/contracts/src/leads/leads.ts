@@ -192,6 +192,7 @@ export {
   leadMarkSrc,
   toLeadRowVM,
   leadRowOf,
+  leadSourceOf,
   leadSourceWord,
   leadRail,
   leadSearchEmptyWords,

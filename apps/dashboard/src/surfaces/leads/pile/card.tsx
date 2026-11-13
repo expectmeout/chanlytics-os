@@ -10,6 +10,7 @@ import {
   leadCardReasonOf,
   leadCardSlotsOf,
   leadCardStepsOf,
+  leadSourceOf,
   type LeadCardCheck,
   type LeadCardEmailVM,
   type LeadCardLead,
@@ -54,6 +55,8 @@ export function leadCardLeadOf(leadId: string): LeadCardLead | null {
     business_name: dto.business_name,
     city: dto.city,
     kind: dto.kind ?? null,
+    // Where it was found, by the row's own rule: a fill-in says it (decision 0127), and a test email's foot with it.
+    source: leadSourceOf(dto),
     facts: dto.facts ?? null,
     to: peek ? peek.reach.email.address : dto.email,
     emailState: dto.email_state,

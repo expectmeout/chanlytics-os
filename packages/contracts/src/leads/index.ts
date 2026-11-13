@@ -223,6 +223,7 @@ export {
   leadSearchEmptyWords,
   leadSearchWords,
   leadSlots,
+  leadSourceOf,
   leadSourceWord,
   leadsRoute,
   leadsRouteUnchipped,

@@ -12,6 +12,7 @@ import {
   REACH_OUT_SLOT_SET as SLOTS,
   capitalize,
   leadAddresseeOf,
+  previewBuildSlow,
   previewClaimable,
   previewStateOf,
   slotMentions,
@@ -56,7 +57,11 @@ export const LEAD_FILL_WORDS = {
    */
   mark: {
     none: "made when this goes",
+    /** Its door would refuse this lead one (a company, a closed lead, no name): said before the email goes. */
+    cannot: "can't be made for this lead, so this email is skipped",
     building: "being made",
+    /** Being made for longer than usual: still looked at, and its line says so. */
+    slow: "still being made, slower than usual",
     ready: "ready",
     claimed: "made theirs",
     failed: "couldn't be made, so this email is skipped",
@@ -67,24 +72,23 @@ export const LEAD_FILL_WORDS = {
 
 const F = LEAD_FILL_WORDS;
 
-/** A fill-in's bubble: what it is, where its value came from, whether it changes. */
+/** A fill-in's bubble: what it is, where its value came from (null where nothing says), whether it changes. */
 interface FillInSays {
   title: string;
-  from: string;
+  from: string | null;
   varies: string;
 }
 
 /**
- * Where a lead was found, as its fill-ins say it: by its source where the lead says one (the Maps card's, the people
- * card's, a file of the owner's), else by its kind, since the card's lead carries no source: a company is the people
- * card's, a place the Maps card's.
+ * Where a lead was found, as its fill-ins say it, by its source (the Maps card's, the people card's, else a list of the
+ * owner's own): the card's lead says it by the one rule (contracts leadSourceOf). Null where a lead says no source: the
+ * bubble then says nothing of where, never a guess from its kind.
  */
-function foundWords(lead: SlotLead): string {
+function foundWords(lead: SlotLead): string | null {
   const source = lead.source;
+  if (!source) return null;
   if (source === "maps" || source === "local_businesses") return F.fromMaps;
-  if (source === "people_at_companies") return F.fromDirectory;
-  if (source) return F.fromList;
-  return lead.kind === "company" ? F.fromDirectory : F.fromMaps;
+  return source === "people_at_companies" ? F.fromDirectory : F.fromList;
 }
 
 /** What the blank `slot` says for this lead; null for the line, the receptionist's link, or a name that is no blank. */
@@ -157,8 +161,12 @@ interface PreviewMark {
 export function previewMarkOf(dto: LeadPreviewDto | null, now: Date): PreviewMark | null {
   if (!dto) return null;
   const preview = dto.preview;
-  if (!preview) return dto.makes ? { say: F.mark.none, tone: "quiet" } : { say: F.mark.notOurs, tone: "warn" };
-  if (preview.state === "building") return { say: F.mark.building, tone: "busy" };
+  if (!preview) {
+    if (!dto.makes) return { say: F.mark.notOurs, tone: "warn" };
+    return dto.cannot ? { say: F.mark.cannot, tone: "warn" } : { say: F.mark.none, tone: "quiet" };
+  }
+  if (preview.state === "building")
+    return { say: previewBuildSlow(preview, now) ? F.mark.slow : F.mark.building, tone: "busy" };
   if (preview.state === "failed") return { say: F.mark.failed, tone: "warn" };
   if (preview.state === "claimed") return { say: F.mark.claimed, tone: "done" };
   return previewClaimable(previewStateOf(preview, now))

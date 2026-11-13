@@ -44,7 +44,7 @@ export function FillIn({
       }
     >
       <p className="lw-fill-t">{says.title}</p>
-      <p className="lw-note">{says.from}</p>
+      {says.from ? <p className="lw-note">{says.from}</p> : null}
       <p className="lw-note">{says.varies}</p>
       {onChange ? (
         <Button size="sm" variant="secondary" onClick={() => onChange(piece.at)} data-testid="lead-card-fill-change">

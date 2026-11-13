@@ -24,6 +24,7 @@ import {
   toLeadPeekVM,
   leadCheckWord,
   toLeadRowVM,
+  leadSourceOf,
   leadRail,
   leadSearchEmptyWords,
   leadUndoable,
@@ -1529,6 +1530,10 @@ test("a row's Source says where its facts came from: a Maps listing, a business 
   assert.equal(toLeadRowVM(row(), TZ, NOW).source, "Google Maps listing");
   assert.equal(toLeadRowVM(row({ kind: "company", place_id: null }), TZ, NOW).source, "Business directory");
   assert.equal(toLeadRowVM(row({ place_id: null }), TZ, NOW).source, "Your list");
+  // The one rule under the word, by the source's own name (leads.source), for whoever says it another way.
+  assert.equal(leadSourceOf(row()), "local_businesses");
+  assert.equal(leadSourceOf(row({ kind: "company", place_id: null })), "people_at_companies");
+  assert.equal(leadSourceOf(row({ place_id: null })), "import");
 });
 
 test("the rail draws a sequence's own list with the sequences, apart from the search its leads came from, and the head counts no more", () => {
