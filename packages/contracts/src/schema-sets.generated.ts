@@ -226,7 +226,7 @@ export const SCHEMA_SETS = {
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
   "posts.kind": ["picture", "story", "reel"],
-  "posts.place": ["instagram", "google"],
+  "posts.place": ["instagram", "google", "hand"],
   "posts.status": [
     "queued", "preparing", "publishing", "checking", "published", "held", "failed", "pulled",
     "taken_down",

@@ -21,13 +21,14 @@ import { draftBody, draftFoot } from "../piece-presses";
 import { pieceNextOf } from "../model/piece-open";
 import { viewerSaidOf } from "../model/viewer-line";
 import { AskLine } from "../sheets/ask-change";
+import { PostedByHand } from "./by-hand";
 import { ViewerFacts } from "./details";
 import { ViewerActs, ViewerStatus, statusOpensOf, viewerHasStatus, viewerLeadOf } from "./foot";
 import { ViewerMore } from "./more";
 import { ViewerPicture } from "./picture";
 import { draftHeadOf } from "./sheets";
 import { viewerClockOf } from "./clock";
-import { removeAsk, type ViewerHands } from "./viewer";
+import { byHandOffered, removeAsk, type ViewerHands } from "./viewer";
 
 /** What a phone opens over the viewer as a sheet of its own, standing in the desk pane's body. */
 type DeskOpen = "change" | "rename" | null;
@@ -322,6 +323,15 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
                   onChange: acts.onChange ?? (file.source === "made" ? () => setOpen("change") : null),
                 }}
                 desk={{ more }}
+              />
+            )}
+            {presses.asking ? null : (
+              <PostedByHand
+                press={hands.byHand}
+                may={hands.may}
+                offered={byHandOffered(file)}
+                clock={clock}
+                busy={presses.busy}
               />
             )}
             <ViewerFacts

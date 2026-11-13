@@ -306,7 +306,8 @@ test("a person says who is in it as no one, or that they agreed, and never that 
   service();
   const patch = (b) => new Request(`http://localhost/api/v1/x${inA}`, { method: "PATCH", body: JSON.stringify(b) });
   const ctx = () => ctxFor({ files: [row()] }, { file_change: () => null }, { id: F });
-  assert.deepEqual(await one.PATCH.run(patch({ who_in_it: "agreed" }), ctx()), { ok: true });
+  // Said of a photo, nothing is let go: only a made piece set aside lets its waiting posts go (files/file.ts).
+  assert.deepEqual(await one.PATCH.run(patch({ who_in_it: "agreed" }), ctx()), { ok: true, stopped: [] });
   await refused(one.PATCH.run(patch({ who_in_it: "not_asked" }), ctx()), "validation");
   await refused(one.PATCH.run(patch({ ask_may_use: false, who_in_it: "maybe" }), ctx()), "validation");
 });

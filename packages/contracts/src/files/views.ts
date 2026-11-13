@@ -3,7 +3,7 @@
 import type { FileKind, FileMediaStatus } from "./kinds";
 import type { PostPlan, PostShapeName } from "./post";
 import type { FileSound } from "./sound";
-import type { InstagramPostable, PostDto } from "../content/posts";
+import type { HandPostDto, InstagramPostable, PostDto } from "../content/posts";
 import type { PiecePlan } from "../content/pieces";
 import {
   FILE_NAME_MAX,
@@ -163,6 +163,13 @@ export interface FileRecordDto {
    * switched on for the workspace, and on anything but a post.
    */
   instagram: { can: InstagramPostable; posts: PostDto[] } | null;
+  /**
+   * A made post's posts at every place, newest first, whatever the Meta link: where a piece read on its own stands (a link, the
+   * bell's row), as the page that lists it says. Absent on anything but a made post, and from a server before it was answered.
+   */
+  posts?: PostDto[];
+  /** Where its owner said they posted a made piece themselves (00620), or none. Absent on anything Ask did not make. */
+  by_hand?: HandPostDto | null;
   /** A video's: what was heard of it (sound.ts), each part named by who heard it. Absent on a picture. */
   sound?: FileSound;
   /**

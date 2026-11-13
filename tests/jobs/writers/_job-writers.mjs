@@ -52,6 +52,9 @@ export const JOB_WRITERS = {
     clock: "deadman",
     why: "every wire's message (WhatsApp, a text, a DM) accepted and never finished is opened for a person",
   },
+  "apps/edge/lib/google/post-later.ts|post_google": {
+    ledger: "Google's second and last ask, from inside the first, written before the post moves back to waiting",
+  },
   "apps/edge/lib/instagram/post-ready.ts|post_publish": {
     ledger: "the prepare that made the post ready runs again, asks after the same container, and schedules the send",
   },

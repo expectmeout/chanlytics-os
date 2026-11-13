@@ -1041,6 +1041,7 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 | `who_in_it` | one of `"no_one"`, `"agreed"` | no |  |
 | `status` | one of `"filed"`, `"set_aside"` | no |  |
 | `caption` | string | no | at most 4400 characters |
+| `posted` | object or null | no |  |
 
 ### `DELETE /api/v1/files/[id]`
 

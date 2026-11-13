@@ -141,9 +141,12 @@ function campaignsScope(
   }
   if (page === "campaigns" && param.startsWith("ads:ad:") && UUID.test(param.slice(7)))
     return { kind: "ad", id: param.slice(7), label: label || "this ad" };
-  // A piece Ask made, or a file of the Library, open in Content's viewer (the content redesign).
-  if (page === "campaigns" && param.startsWith("content:") && UUID.test(param.slice(8)))
-    return { kind: "file", id: param.slice(8), label: label || "this piece" };
+  // A piece Ask made, or a file of the Library, open in Content's viewer (the content redesign), wherever the address names it:
+  // after the Library, a view of Made, or before `:post` (content/address.ts contentPlaceOf reads each part so; content leans
+  // on ask, so ask reads the id here rather than leaning back).
+  const piece =
+    page === "campaigns" && param.startsWith("content:") ? param.split(":").find((p) => UUID.test(p)) : null;
+  if (piece) return { kind: "file", id: piece, label: label || "this piece" };
   // A run at its home under its sequence (the Campaigns wiring review's lane 2): the run, as Sent's sheet of it was; else the
   // sequence itself, open at its record.
   const place = page === "campaigns" ? parseSequencesRoute(`campaigns/${param}`) : null;

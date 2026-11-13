@@ -64,6 +64,7 @@ const out = await build({
       `export { PieceDesk } from "${CONTENT}/viewer/desk.tsx";\n` +
       `export { PieceViewer } from "${CONTENT}/viewer/viewer.tsx";\n` +
       `export { AskLine } from "${CONTENT}/sheets/ask-change.tsx";\n` +
+      `export { handLinkOf } from "${CONTENT}/model/hand-link.ts";\n` +
       `export { PostBoth, PostBothActs } from "${CONTENT}/post-both.tsx";\n` +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n' +
@@ -213,8 +214,11 @@ const handsOf = ({
   drafts = {},
   ready = true,
   acts = {},
+  byHand = null,
 } = {}) => ({
-  made: { file: fileOf(kind, over), posts },
+  made: { file: fileOf(kind, over), posts, by_hand: byHand },
+  // "I posted it" as piece.tsx hands it (viewer/by-hand.tsx byHandPressOf): where it stands, and its three acts.
+  byHand: { kept: byHand, say: noop, keepLink: async () => null, takeBack: noop },
   record,
   takes,
   may,
@@ -304,7 +308,7 @@ test("a post that waits for its time is said in the row, and the next place stil
     post("instagram", "queued", { id: "story", kind: "story", scheduled_for: LATER }),
   ];
   for (const html of both({ posts })) {
-    assert.equal(statusOf(html).tone, "going");
+    assert.equal(statusOf(html).tone, "timed", "set for its time: nothing turns until then");
     assert.match(statusOf(html).said, /^Story goes up /);
     assert.equal(count(html, "cnv-pull"), 0, "one Don't post, in the sheet");
     assert.equal(saysOf(html, "cnv-next"), "Post to Google");
@@ -657,4 +661,40 @@ test("the two after the open piece are read ahead, each once", () => {
   assert.deepEqual(piecesToReadAhead(made, "d", new Set()), []);
   assert.deepEqual(piecesToReadAhead(made, "a", new Set(["b"])), ["c"]);
   assert.deepEqual(piecesToReadAhead(made, "z", new Set()), []);
+});
+
+test("a video Ask made is marked as posted by its owner in one press, and once said it says so with its door", () => {
+  for (const html of both({ kind: "video" })) {
+    assert.equal(saysOf(html, "cnv-byhand-say"), "I posted it", "nothing posts a video from here: its owner says so");
+    assert.equal(count(html, "cnv-byhand"), 0);
+  }
+  const said = { id: "h-1", at: agoIso(DAY), link: null };
+  for (const html of both({ kind: "video", byHand: said })) {
+    assert.equal(count(html, "cnv-byhand-say"), 0, "said once");
+    assert.match(html, /Posted by you · yesterday/, "the tile's own sentence");
+    assert.equal(saysOf(html, "cnv-byhand-add"), "Add its link");
+    assert.equal(saysOf(html, "cnv-byhand-back"), "Not posted");
+  }
+  const linked = { ...said, link: "https://www.tiktok.com/@harbor/video/1" };
+  for (const html of both({ kind: "video", byHand: linked })) {
+    assert.match(html, /On TikTok, by you · yesterday/, "its link says where");
+    assert.match(tagOf(html, "cnv-byhand-see"), /href="https:\/\/www\.tiktok\.com\/@harbor\/video\/1"/);
+    assert.match(tagOf(html, "cnv-byhand-see"), /target="_blank"/);
+    assert.equal(count(html, "cnv-byhand-add"), 0, "it has its link");
+  }
+  // A picture post is posted from here, so it is offered no such press; a reader is offered none, and sees where it stands.
+  for (const html of both({})) assert.equal(count(html, "cnv-byhand-say"), 0);
+  for (const html of both({ kind: "video", may: false })) assert.equal(count(html, "cnv-byhand-say"), 0);
+  for (const html of both({ kind: "video", may: false, byHand: linked })) {
+    assert.equal(count(html, "cnv-byhand-see"), 1);
+    assert.equal(count(html, "cnv-byhand-back"), 0);
+  }
+});
+
+test("a pasted link is kept as an address a browser opens, with its https where none was pasted", () => {
+  assert.equal(S.handLinkOf("  https://www.instagram.com/reel/abc/  "), "https://www.instagram.com/reel/abc/");
+  assert.equal(S.handLinkOf("tiktok.com/@harbor/video/1"), "https://tiktok.com/@harbor/video/1", "copied from the bar");
+  assert.equal(S.handLinkOf("http://youtu.be/x"), "https://youtu.be/x");
+  for (const not of ["", "   ", "my reel", "instagram", "https://"]) assert.equal(S.handLinkOf(not), null, not);
+  assert.equal(S.handLinkOf(`https://example.com/${"x".repeat(500)}`), null, "longer than a link is kept");
 });

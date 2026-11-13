@@ -52,11 +52,15 @@ export function pieceStatusOf(
 ): PieceStatus {
   // The tile's own words for a post going up (contracts CONTENT_WORDS.mark), at the place the next step names.
   if (next.is === "going") return { tone: "going", said: CONTENT_WORDS.mark.going(next.place), pull: next.pull };
-  const mark = contentMarkOf(posts);
-  const timed = mark.is === "stuck" ? null : pieceTimedOf(posts, nowMs);
+  const mark = contentMarkOf(posts, nowMs);
+  // The tile says the day; the open piece says what goes up, and the hour: of the same post, the soonest, as the tile chose it.
+  const timed =
+    mark.is === "timed"
+      ? (posts.find((p) => p.place === mark.place && p.scheduled_for === mark.at) ?? pieceTimedOf(posts, nowMs))
+      : null;
   if (timed)
     return {
-      tone: "going",
+      tone: "timed",
       said: CONTENT_WORDS.piece.step.timed(CONTENT_WORDS.viewer.kinds[timed.kind], clock.ahead(timed.scheduled_for)),
       pull: POST_PULLABLE.includes(timed.status) ? timed.id : null,
     };

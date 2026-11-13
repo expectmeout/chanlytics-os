@@ -6,8 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CONTENT_WORDS as W } from "@chanlytics/contracts";
-import { pieceNextOf } from "../../../apps/dashboard/src/surfaces/campaigns/content/model/piece-open.ts";
+import { CONTENT_WORDS as W, postPlaceTakenOf } from "@chanlytics/contracts";
+import { pieceNextOf, pieceTakesOf } from "../../../apps/dashboard/src/surfaces/campaigns/content/model/piece-open.ts";
 import { pieceStatusOf, placesOf } from "../../../apps/dashboard/src/surfaces/campaigns/content/model/places.ts";
 import {
   postBothBegins,
@@ -76,7 +76,7 @@ test("the status row says one sentence: ready, going up, set for its time, or wh
   });
   assert.equal(statusOf([post("instagram", "publishing")]).pull, null, "too late to stop");
   assert.deepEqual(statusOf([waits("instagram", { kind: "story" })]), {
-    tone: "going",
+    tone: "timed",
     said: "Story goes up Sat, 9:00 AM",
     pull: "instagram-later",
   });
@@ -85,6 +85,38 @@ test("the status row says one sentence: ready, going up, set for its time, or wh
     said: "On Instagram and Google · Monday",
     pull: null,
   });
+});
+
+test("a place holds one post at a time, and Google holds a piece once: the page's switches and Ask's card ask alike", () => {
+  assert.equal(postPlaceTakenOf([], "instagram"), null);
+  assert.deepEqual(postPlaceTakenOf([waits("instagram")], "instagram"), {
+    is: "on_its_way",
+    scheduled_for: "2026-11-14T14:00:00.000Z",
+  });
+  assert.equal(postPlaceTakenOf([post("instagram", "published")], "instagram"), null, "a story after the post");
+  assert.deepEqual(postPlaceTakenOf([post("google", "published")], "google"), { is: "up" });
+  assert.equal(postPlaceTakenOf([post("google", "failed"), post("google", "pulled")], "google"), null);
+  // A story waits apart from the post (00620): a post set for Saturday leaves room for its story, not a second post.
+  assert.equal(postPlaceTakenOf([waits("instagram")], "instagram", "story"), null);
+  assert.equal(postPlaceTakenOf([waits("instagram")], "instagram", "picture")?.is, "on_its_way");
+  assert.equal(postPlaceTakenOf([waits("instagram", { kind: "story" })], "instagram", "picture"), null);
+});
+
+test("a place with a post waiting keeps its Don't post: the sheet offers no switch there, and arms nothing", () => {
+  const CONNECTED = { instagram: true, google: true, onGoogle: false };
+  assert.deepEqual(pieceTakesOf([], CONNECTED), { instagram: true, google: true });
+  // A post set for Saturday on Instagram: taken, though a story could wait beside it (00620, Ask's card's until the sheet
+  // draws a line a kind). Its row then holds Don't post, where a switch would have hidden it.
+  const waiting = [waits("instagram")];
+  const takes = pieceTakesOf(waiting, CONNECTED);
+  assert.deepEqual(takes, { instagram: false, google: true });
+  const [instagram] = placesOf(waiting, { ...CAN, takes }, NOW);
+  assert.deepEqual([instagram.takes, instagram.stands.is, instagram.pull], [false, "timed", "instagram-later"]);
+  assert.equal(postBothBegins(takes).instagram, false, "opening the sheet switches nothing on there");
+  // Google takes a piece once, by its posts or by the record of one from before posts were kept.
+  assert.equal(pieceTakesOf([post("google", "published")], CONNECTED).google, false);
+  assert.equal(pieceTakesOf([], { ...CONNECTED, onGoogle: true }).google, false);
+  assert.equal(pieceTakesOf([], { ...CONNECTED, instagram: false }).instagram, false, "not connected takes none");
 });
 
 test("a post going up says the tile's own words for it", () => {

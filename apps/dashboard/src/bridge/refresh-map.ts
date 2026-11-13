@@ -542,8 +542,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST files/keep": filesIfDrawn,
   "POST files/post": filesAndContentIfDrawn,
   "POST files/video": filesAndContentIfDrawn,
-  "PATCH files/[id]": filesAndContentIfDrawn,
-  "DELETE files/[id]": filesAndContentIfDrawn,
+  "PATCH files/[id]": () => [...filesIfDrawn(), ...postMoved()],
+  "DELETE files/[id]": () => [...filesIfDrawn(), ...postMoved()],
   // Undo of a delete (the content redesign's stage 3): a file back.
   "POST files/[id]/restore": filesAndContentIfDrawn,
   // A post put on a place or taken off it changes no file, so the feed is silent: Content, which draws where each stands, reads,

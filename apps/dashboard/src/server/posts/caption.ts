@@ -12,6 +12,7 @@ import {
   POST_CAPTION_MAX,
   postCaptionOf,
   recordOrNull,
+  type PostPlace,
   type TenantId,
 } from "@chanlytics/contracts";
 import {
@@ -25,23 +26,28 @@ import { changeFile } from "@/server/files/file";
 import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
+import { sayPostedByHand, type ByHandWord } from "./by-hand";
 import { fileMadeOf } from "./record";
 
 type FileChange = Parameters<typeof changeFile>[3];
 
-/** PATCH files/[id]: the caption, where one is sent, and then what else a person says of the file. */
+/**
+ * PATCH files/[id]: the caption, where one is sent, and then what else a person says of the file. Answers where a post was let
+ * go as a made piece was set aside (files/file.ts), which the page says.
+ */
 export async function changePiece(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
-  input: FileChange & { caption?: string | undefined },
-): Promise<{ ok: true }> {
-  const { caption, ...rest } = input;
+  input: FileChange & { caption?: string | undefined; posted?: ByHandWord | undefined },
+): Promise<{ ok: true; stopped: PostPlace[] }> {
+  const { caption, posted, ...rest } = input;
   if (caption !== undefined) await keepCaption(member, row, caption);
+  // "I posted it", or not after all (by-hand.ts): the owner's word of a piece they put up themselves.
+  if (posted !== undefined) await sayPostedByHand(ctx, member, row, posted);
   const saysMore =
     rest.name !== undefined || rest.shows !== undefined || rest.who_in_it !== undefined || rest.status !== undefined;
-  if (saysMore) await changeFile(ctx, member, row, rest);
-  return { ok: true };
+  return saysMore ? changeFile(ctx, member, row, rest) : { ok: true, stopped: [] };
 }
 
 /**

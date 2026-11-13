@@ -3,6 +3,7 @@
  * line to find by words, one amber line for what waits on the owner, a head with the way back to All where a list shows what
  * was set aside or what waits, and a quiet press at the foot of All for what was set aside.
  */
+import type { ReactNode } from "react";
 import { CONTENT_WORDS as W, FILE_WORDS, type ContentPageDto, type FilesPageDto } from "@chanlytics/contracts";
 import { canDo, refreshSurface } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -80,6 +81,16 @@ function useLibraryView(): { view: FilesView; dto: FilesPageDto } | null {
   if (!held) return null;
   const { dto } = held;
   return { view: { shelf: dto.shelf, kind: dto.kind, about: dto.about }, dto };
+}
+
+/**
+ * What stands over the Library only while it holds something: an empty Library's own page leads with its own Add photos (files
+ * pane.tsx), so the head's coral Add and the Squares or List choice wait for its first file. Nothing until it is read: a coral
+ * Add that vanishes as the read lands would be a press promised and taken back.
+ */
+export function WhileLibraryHolds({ children }: { children: ReactNode }) {
+  const held = useLibraryView();
+  return !held || held.dto.tally.total === 0 ? null : <>{children}</>;
 }
 
 /** Made's search: All found by its words, read again as they change. Over All alone, as the Library's is over all it keeps. */

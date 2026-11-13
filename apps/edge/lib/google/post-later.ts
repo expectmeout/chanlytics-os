@@ -13,6 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DAY_MS,
   FILE_WORDS,
+  MIN_MS,
   ON_INSTAGRAM,
   SECOND_MS,
   fileFolderOf,
@@ -31,7 +32,7 @@ import {
 } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import { CertainFailure } from "@chanlytics/core";
-import { markSpoke, type ClaimedJob } from "@chanlytics/jobs";
+import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { logger } from "../shared/log.js";
 import { tellPostMoved } from "../files/post-told.js";
 import { postOnProfile } from "./local-posts.js";
@@ -65,6 +66,32 @@ async function recheck(db: Db, post: PostRow): Promise<string | null> {
   const file = await findFileForWork(db, post.tenant_id, post.file_id);
   if (!file || file.removed_at) return ON_INSTAGRAM.held.removed;
   return null;
+}
+
+/** How long Google is given before a post it was too busy for is asked once more. */
+const GOOGLE_AGAIN_MS = 10 * MIN_MS;
+
+/**
+ * Google was too busy and made nothing (local-posts.ts BUSY_STATUSES): the post waits for one more ask, ten minutes on,
+ * before its owner hears of it (Ruben, 12 Nov 2026). The second ask's job is written before the post moves back, so a post
+ * is never left waiting with nothing to send it; a second busy answer fails it in the owner's words.
+ */
+async function askGoogleAgain(db: Db, post: PostRow, attemptId: string): Promise<{ skipped: string }> {
+  await closePostAttempt(db, {
+    attemptId,
+    outcome: "refused",
+    httpStatus: null,
+    answer: null,
+    error: { code: null, subcode: null, words: GOOGLE_SAYS.refused },
+  });
+  await scheduleJobOnce(db, {
+    tenantId: post.tenant_id,
+    kind: "post_google",
+    dueAt: new Date(Date.now() + GOOGLE_AGAIN_MS),
+    payload: { post_id: post.id, attempt: "2" },
+  });
+  await movePost(db, { postId: post.id, from: ["publishing"], to: "queued" });
+  return { skipped: "busy" };
 }
 
 /** post_google: the recheck, then the one ask. */
@@ -101,6 +128,7 @@ export async function sendGooglePost(db: Db, job: ClaimedJob): Promise<void | { 
     },
   });
   if (!answer.ok) {
+    if ("busy" in answer && answer.busy && attempt === 1) return askGoogleAgain(db, post, opened.id);
     const lost = answer.error === "not_connected" || answer.error === "no_token";
     const words = lost
       ? GOOGLE_SAYS.heldNoConnection

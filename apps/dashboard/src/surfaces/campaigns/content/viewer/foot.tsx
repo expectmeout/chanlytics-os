@@ -253,6 +253,8 @@ export function ViewerFoot(props: {
   save: ReturnType<typeof useSave>;
   /** A made video's caption, which Save video copies (ViewerActs). */
   caption: string | null;
+  /** "I posted it", and where it stands once said (by-hand.tsx): under the acts; nothing where it has nothing to say. */
+  byHand?: ReactNode;
   /** A question asked in place of the acts (Delete's), or none. */
   asking: ReactNode | null;
   /** What went wrong with the last press, or the share sheet's refusal. */
@@ -287,6 +289,7 @@ export function ViewerFoot(props: {
           acts={acts}
         />
       )}
+      {props.asking ? null : props.byHand}
       {/* One door to the piece's sheet (Ruben, 12 Nov 2026: two sheets told one piece in halves): a post's is where it
           stands, above; Details stands only where there is no such row, a video or a photo of the Library. */}
       {viewerHasStatus(file) ? null : (

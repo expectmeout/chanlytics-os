@@ -13,7 +13,16 @@ import type { ContentView } from "./address";
 import type { PieceFail, PieceStage } from "./piece-making";
 import { pieceWordsIn } from "./piece-words";
 import type { PieceLanguage } from "./pieces";
-import { POST_ON_ITS_WAY, POST_PLACE_SAID, type PostDto, type PostPlace } from "./posts";
+import {
+  POST_ON_ITS_WAY,
+  POST_PLACE_SAID,
+  POST_SOON_MS,
+  linkPlaceSaid,
+  postWaitsForItsTime,
+  type HandPostDto,
+  type PostDto,
+  type PostPlace,
+} from "./posts";
 
 /** How many made pieces a page holds, and the most one read answers (a page that has scrolled reads what it holds again). */
 export const CONTENT_PAGE = 24;
@@ -46,6 +55,8 @@ export interface ContentMakingDto {
 export interface ContentMadeDto {
   file: FileDto;
   posts: PostDto[];
+  /** Where its owner said they posted it themselves (00620), or none: read apart from its posts, which a press sends. */
+  by_hand?: HandPostDto | null;
 }
 
 /** One post at one place, with the piece it is of: a line of Needs you, Scheduled or Posted. */
@@ -110,19 +121,29 @@ export type ContentMark =
   /** A video Ask made, posted nowhere: nothing posts a video from here (decision 0121), so it is saved, and posted from the phone. */
   | { is: "save" }
   | { is: "going"; place: PostPlace }
+  /** Set for its time at a place, and that time: the soonest, where two wait. Not moving yet, so nothing turns. */
+  | { is: "timed"; place: PostPlace; at: string }
   /** Up, at each place, and when the newest of them went up (null where no time is kept). */
   | { is: "posted"; places: PostPlace[]; at: string | null }
   /** Held before its send, or refused: the file's own sheet says why. */
-  | { is: "stuck"; place: PostPlace };
+  | { is: "stuck"; place: PostPlace }
+  /** Posted by its owner's own hand, as they said (00620): when they said so, and where its link says, if it has one. */
+  | { is: "by_hand"; at: string; where: string | null };
 
-/** The newest post at each place: the list comes newest first. */
+/**
+ * The post that says where a piece stands at each place: the newest there (the list comes newest first). A post the owner let
+ * go (Don't post) is no news of its own: where an earlier one is still up at that place, that one says it, since letting a
+ * second post go never takes the first one down; else nothing stands there.
+ */
 export function newestAtEachPlace(posts: readonly PostDto[]): PostDto[] {
   const seen = new Set<PostPlace>();
   const newest: PostDto[] = [];
   for (const post of posts) {
     if (seen.has(post.place)) continue;
     seen.add(post.place);
-    newest.push(post);
+    const stillUp =
+      post.status === "pulled" ? posts.find((p) => p.place === post.place && p.status === "published") : null;
+    newest.push(stillUp ?? post);
   }
   return newest;
 }
@@ -131,18 +152,32 @@ export function newestAtEachPlace(posts: readonly PostDto[]): PostDto[] {
  * Where a made piece stands, as its tile, its row and Today count it: a video that went nowhere is to be saved, never "ready to
  * post" (Ruben, 12 Nov 2026: no press here posts it); anything else, where its posts say (contentMarkOf).
  */
-export function contentPieceMarkOf(piece: { file: Pick<FileDto, "kind">; posts: readonly PostDto[] }): ContentMark {
-  const mark = contentMarkOf(piece.posts);
-  return piece.file.kind === "video" && mark.is === "ready" ? { is: "save" } : mark;
+export function contentPieceMarkOf(
+  piece: { file: Pick<FileDto, "kind">; posts: readonly PostDto[]; by_hand?: HandPostDto | null },
+  nowMs: number,
+): ContentMark {
+  const mark = contentMarkOf(piece.posts, nowMs);
+  if (mark.is !== "ready") return mark;
+  // Nothing sent from here stands anywhere: what its owner said they posted themselves is where it stands.
+  if (piece.by_hand) return { is: "by_hand", at: piece.by_hand.at, where: linkPlaceSaid(piece.by_hand.link) };
+  return piece.file.kind === "video" ? { is: "save" } : mark;
 }
 
-/** Where a made piece stands, from its posts: what needs the owner first, then what is working, then what is done. */
-export function contentMarkOf(posts: readonly PostDto[]): ContentMark {
+/**
+ * Where a made piece stands, from its posts: what needs the owner first, then what is going up now, then what waits for its
+ * time, then what is up, then nothing. A post set for Saturday is not "Posting" all week: it is timed until its time comes.
+ * A post on its way is the one there whatever went up since it was asked for (00611 posts_one_on_its_way: one at a time per
+ * place), so a story set for Saturday still says so once the post before it is up; a stop speaks only while it is the newest.
+ */
+export function contentMarkOf(posts: readonly PostDto[], nowMs: number): ContentMark {
   const newest = newestAtEachPlace(posts);
   const stuck = newest.find((p) => p.status === "held" || p.status === "failed");
   if (stuck) return { is: "stuck", place: stuck.place };
-  const going = newest.find((p) => POST_ON_ITS_WAY.includes(p.status));
+  const onItsWay = posts.filter((p) => POST_ON_ITS_WAY.includes(p.status));
+  const going = onItsWay.find((p) => !postWaitsForItsTime(p, nowMs));
   if (going) return { is: "going", place: going.place };
+  const timed = [...onItsWay].sort((a, b) => a.scheduled_for.localeCompare(b.scheduled_for))[0];
+  if (timed) return { is: "timed", place: timed.place, at: timed.scheduled_for };
   const up = newest.filter((p) => p.status === "published");
   if (up.length === 0) return { is: "ready" };
   const times = up.flatMap((p) => (p.published_at ? [p.published_at] : [])).sort();
@@ -183,6 +218,13 @@ export const CONTENT_WORDS = {
       `Ask makes posts from your photos and videos from your clips. ${ideasSaid(ideas)} it can make now:`,
     /** Where the workspace takes no videos (features.video_preview): Ask makes no video there, so it says none. */
     bodyPhotos: (ideas: number) => `Ask makes posts from your photos. ${ideasSaid(ideas)} it can make now:`,
+    /** Nothing it could be made from yet: what Ask makes, and the one thing to do first. */
+    addFirst: (videos: boolean) =>
+      videos
+        ? "Ask makes posts from your photos and videos from your clips. Add a few to start."
+        : "Ask makes posts from your photos. Add a few to start.",
+    /** The door to the Library while it is empty. */
+    addDoor: (videos: boolean) => (videos ? "Add photos and clips" : "Add photos"),
   },
   /** Where a piece stands, under its tile (the content canvas: a dot and a few words). A video is ready to post too: its Post sheet offers what works. */
   mark: {
@@ -195,6 +237,10 @@ export const CONTENT_WORDS = {
       `On ${places.map((p) => POST_PLACE_SAID[p]).join(" and ")}${day ? ` · ${day}` : ""}`,
     /** Said once: why is the place's row in its sheet (Post it), where it is posted again or let go. */
     stuck: "Didn't post",
+    /** Set for its time: "Set for Saturday", "Set for today". The open piece says the place and the hour. */
+    timed: (day: string) => `Set for ${day}`,
+    /** Posted by the owner's own hand: "Posted by you · Monday", or "On TikTok, by you · Monday" where its link says where. */
+    byHand: (where: string | null, day: string) => `${where ? `On ${where}, by you` : "Posted by you"} · ${day}`,
   },
   /** One line over the pieces while anything needs the owner (the content canvas, PhHome): what, and Look. */
   needsLine: {
@@ -239,6 +285,29 @@ export const CONTENT_WORDS = {
      * 2026: a typo fixed left two). Where it is up, on its way or set for a time, Save as new keeps the one out there.
      */
     change: { save: "Save", saved: "Changed." },
+    /**
+     * I posted it (00620): the owner's word that a piece is up by their own hand, since nothing posts a video from here
+     * (decision 0121). One press; its link is theirs to add after, and says where. Not posted takes it back.
+     */
+    byHand: {
+      say: "I posted it",
+      said: "Marked as posted.",
+      /** Where it stands, in a word or two (the desk list's column). */
+      stands: "Posted by you",
+      addLink: "Add its link",
+      linkLabel: "Its link",
+      linkHint: "Paste its link",
+      keep: "Save",
+      see: "See it",
+      takeBack: "Not posted",
+      tookBack: "Marked as not posted.",
+      linkWrong: "Paste the post's full link, starting with https://",
+      /** Said of a photo of the Library: only what Ask made is posted from here, or marked so. */
+      notMade: "Only a piece Ask made is marked as posted.",
+    },
+    /** Set aside while a post of it waited to go out: that post is let go with it (server files/file.ts), and said so. */
+    asideStops: (places: readonly PostPlace[]) =>
+      `Set aside. Its post to ${places.map((p) => POST_PLACE_SAID[p]).join(" and ")} won't go out.`,
     rename: "Rename",
     video: (clock: string) => `Video · ${clock}`,
     picture: "Picture post",
@@ -411,17 +480,25 @@ export const CONTENT_WORDS = {
  */
 export function contentMarkSaid(mark: ContentMark, dayOf: (at: string) => string): string {
   if (mark.is === "going") return CONTENT_WORDS.mark.going(mark.place);
+  if (mark.is === "timed") return CONTENT_WORDS.mark.timed(dayOf(mark.at));
   if (mark.is === "posted") return CONTENT_WORDS.mark.posted(mark.places, mark.at ? dayOf(mark.at) : null);
   if (mark.is === "stuck") return CONTENT_WORDS.mark.stuck;
+  if (mark.is === "by_hand") return CONTENT_WORDS.mark.byHand(mark.where, dayOf(mark.at));
   if (mark.is === "save") return CONTENT_WORDS.mark.save;
   return CONTENT_WORDS.mark.ready;
 }
 
-/** A mark's tone, as its dot draws it: grey ready, the accent while it moves, green out, amber where it needs the owner. */
-export type ContentMarkTone = "ready" | "going" | "up" | "need";
+/**
+ * A mark's tone, as its dot draws it: grey ready, the accent turning while it moves, the accent still while it waits for its
+ * time, green out, amber where it needs the owner.
+ */
+export type ContentMarkTone = "ready" | "going" | "timed" | "up" | "need";
 
-export const contentMarkToneOf = (mark: ContentMark): ContentMarkTone =>
-  mark.is === "posted" ? "up" : mark.is === "stuck" ? "need" : mark.is === "save" ? "ready" : mark.is;
+export const contentMarkToneOf = (mark: ContentMark): ContentMarkTone => {
+  if (mark.is === "posted" || mark.is === "by_hand") return "up";
+  if (mark.is === "stuck") return "need";
+  return mark.is === "save" ? "ready" : mark.is;
+};
 
 /** What heads the made pieces, in one line: how many are made, and how many are out. */
 export function contentHeadOf(tally: ContentTally): string {
@@ -440,9 +517,27 @@ export function contentMakingSaid(making: ContentMakingDto): { title: string; st
 }
 
 /**
- * Whether the page should be read again on its own: a video still being made, or a post still on its way. Neither is told
- * to a page by the feed (00611, 00613), so the page asks while one moves and stops when none does.
+ * Whether the page should be read again on its own: a video still being made, or a post going up now. Neither is told to a
+ * page by the feed (00611, 00613), so the page asks while one moves and stops when none does. A post set for later is not
+ * moving: the page does not ask all week for it.
  */
-export function contentMoving(page: ContentPageDto): boolean {
-  return page.making.some((m) => m.status === "making") || page.made.some((m) => contentMarkOf(m.posts).is === "going");
+export function contentMoving(page: ContentPageDto, nowMs: number): boolean {
+  return (
+    page.making.some((m) => m.status === "making") ||
+    page.made.some((m) => contentMarkOf(m.posts, nowMs).is === "going")
+  );
+}
+
+/**
+ * When the page should read itself again for a post set for its time, where nothing moves meanwhile: as that time comes (soon,
+ * by POST_SOON_MS), the soonest of every post it holds, its pieces' and its lines'. Then the post is going up, the page asks
+ * while it moves (contentMoving), and the piece says Posting, then Posted, not "Set for today" until something else reads.
+ * Null where none waits.
+ */
+export function contentWakesAt(page: Pick<ContentPageDto, "made" | "lines">, nowMs: number): number | null {
+  const waiting = [...page.made.flatMap((m) => m.posts), ...page.lines.map((line) => line.post)].filter((post) =>
+    postWaitsForItsTime(post, nowMs),
+  );
+  if (waiting.length === 0) return null;
+  return Math.min(...waiting.map((post) => Date.parse(post.scheduled_for))) - POST_SOON_MS;
 }

@@ -22448,7 +22448,7 @@ begin
   if v_when > now() + interval '30 days' then
     raise exception 'A post goes within thirty days.' using errcode = '22023';
   end if;
-  -- One at a time per file and place, as every door that names or files takes it (00551).
+  -- One at a time per file, place and kind, as every door that names or files takes it (00551).
   perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|posts', 42));
   select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
   if not found or v_file.removed_at is not null then
@@ -22458,14 +22458,17 @@ begin
     return jsonb_build_object('fate', 'not_a_post', 'post_id', null);
   end if;
   -- A Google press is one call: one that died between its placement and its answer stops holding the next press after ten
-  -- minutes. Whether it went up is still the edge's events' to say.
+  -- minutes, in the words the files sweep says it with (contracts FILE_WORDS.google.unknown). Whether it went up is still
+  -- the edge's events' to say.
   update public.posts p
      set status = 'failed', updated_at = now(),
-         error = jsonb_build_object('code', null, 'subcode', null, 'words', 'Google did not say whether this went up.')
+         error = jsonb_build_object('code', null, 'subcode', null, 'words',
+                                    'Google did not say whether this went up. Look on your profile before posting it again.')
    where p.file_id = p_file_id and p.place = 'google' and p.status = 'publishing'
      and p.updated_at < now() - interval '10 minutes';
+  -- A post and a story wait apart (00620): busy is one of the same kind on its way at that place.
   select p.id into v_busy from public.posts p
-   where p.file_id = p_file_id and p.place = p_place
+   where p.file_id = p_file_id and p.place = p_place and p.kind = p_kind
      and p.status = any (array['queued', 'preparing', 'publishing', 'checking']);
   if found then
     return jsonb_build_object('fate', 'busy', 'post_id', v_busy);
@@ -22495,7 +22498,7 @@ end $$;
 -- Name: FUNCTION post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) IS 'A member''s press, with the settings permission (00611, 00616): a made post approved for a place, as a picture or a story, with its words and its time. The placement is written, and for Instagram its first job; for Google later than two minutes on, its post_google job at its time. Answers {fate: begun, busy (the one on its way), gone, not_a_post, not_yet, post_id}.';
+COMMENT ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) IS 'A member''s press, with the settings permission (00611, 00616, 00620): a made post approved for a place, as a picture or a story, with its words and its time; a picture and a story of one piece wait apart. The placement is written, and for Instagram its first job; for Google later than two minutes on, its post_google job at its time. Answers {fate: begun, busy (the one of its kind on its way), gone, not_a_post, not_yet, post_id}.';
 
 
 --
@@ -22553,9 +22556,10 @@ begin
     raise exception 'Not yours to change.' using errcode = '42501';
   end if;
   -- Up to the moment it is sent (the jobs read the row before they act, so a pulled post is never sent), and once it
-  -- stopped: let go, it waits for no one.
+  -- stopped: let go, it waits for no one. One the owner said they posted by hand is theirs to take back (00620).
   update public.posts p set status = 'pulled', updated_at = now()
-   where p.id = p_post_id and p.status = any (array['queued', 'preparing', 'held', 'failed']);
+   where p.id = p_post_id
+     and (p.status = any (array['queued', 'preparing', 'held', 'failed']) or (p.place = 'hand' and p.status = 'published'));
   if found then
     return jsonb_build_object('fate', 'pulled');
   end if;
@@ -22567,7 +22571,57 @@ end $$;
 -- Name: FUNCTION post_pull(p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_pull(p_post_id uuid) IS 'Don''t post (00611, 00619): a post queued or being prepared is pulled before it is sent, and one held or failed is let go. Answers {fate: pulled, late, unknown}.';
+COMMENT ON FUNCTION public.post_pull(p_post_id uuid) IS 'Don''t post (00611, 00619, 00620): a post queued or being prepared is pulled before it is sent, one held or failed is let go, and one kept by hand is taken back. Answers {fate: pulled, late, unknown}.';
+
+
+--
+-- Name: post_report(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_actor uuid := auth.uid();
+  v_file  public.files;
+  v_link  text := nullif(btrim(p_link), '');
+  v_id    uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if v_link is not null and (char_length(v_link) > 500 or v_link !~* '^https://[^[:space:]]+$') then
+    raise exception 'A link starts with https:// and is at most 500 characters.' using errcode = '22023';
+  end if;
+  select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
+  if not found or v_file.removed_at is not null then
+    return jsonb_build_object('fate', 'gone', 'post_id', null);
+  end if;
+  if v_file.source <> 'made' then
+    return jsonb_build_object('fate', 'not_a_post', 'post_id', null);
+  end if;
+  -- Said once a piece, which the database holds (posts_one_by_hand): said again, at once or twice together, it is the same
+  -- record, with the link it now has.
+  insert into public.posts as p (tenant_id, file_id, place, kind, caption, scheduled_for, approved_by, approved_at, via,
+                                 status, permalink, published_at)
+  values (p_tenant_id, p_file_id, 'hand', case when v_file.kind = 'video' then 'reel' else 'picture' end, null, now(),
+          v_actor, now(), 'press', 'published', v_link, now())
+  on conflict (file_id) where place = 'hand' and status = 'published'
+  do update set permalink = coalesce(excluded.permalink, p.permalink), updated_at = now()
+  returning p.id into v_id;
+  return jsonb_build_object('fate', 'kept', 'post_id', v_id);
+end $_$;
+
+
+--
+-- Name: FUNCTION post_report(p_tenant_id uuid, p_file_id uuid, p_link text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text) IS 'I posted it (00620): a member, with the settings permission, says a made piece is up by their own hand, with its link or none. Kept as a post at the place hand, published as they say so; said again, the same record with the link it now has. Answers {fate: kept, gone, not_a_post, post_id}.';
 
 
 --
@@ -40959,7 +41013,7 @@ CREATE TABLE public.posts (
     CONSTRAINT posts_caption_shape CHECK (((caption IS NULL) OR (char_length(caption) <= 2200))),
     CONSTRAINT posts_held_shape CHECK ((((status = 'held'::text) = (held_reason IS NOT NULL)) AND ((held_reason IS NULL) OR (char_length(held_reason) <= 300)))),
     CONSTRAINT posts_kind_check CHECK ((kind = ANY (ARRAY['picture'::text, 'story'::text, 'reel'::text]))),
-    CONSTRAINT posts_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text]))),
+    CONSTRAINT posts_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text, 'hand'::text]))),
     CONSTRAINT posts_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'preparing'::text, 'publishing'::text, 'checking'::text, 'published'::text, 'held'::text, 'failed'::text, 'pulled'::text, 'taken_down'::text]))),
     CONSTRAINT posts_via_check CHECK ((via = ANY (ARRAY['press'::text, 'card'::text])))
 );
@@ -45397,10 +45451,17 @@ CREATE UNIQUE INDEX posts_external ON public.posts USING btree (place, external_
 
 
 --
+-- Name: posts_one_by_hand; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX posts_one_by_hand ON public.posts USING btree (file_id) WHERE ((place = 'hand'::text) AND (status = 'published'::text));
+
+
+--
 -- Name: posts_one_on_its_way; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX posts_one_on_its_way ON public.posts USING btree (file_id, place) WHERE (status = ANY (ARRAY['queued'::text, 'preparing'::text, 'publishing'::text, 'checking'::text]));
+CREATE UNIQUE INDEX posts_one_on_its_way ON public.posts USING btree (file_id, place, kind) WHERE (status = ANY (ARRAY['queued'::text, 'preparing'::text, 'publishing'::text, 'checking'::text]));
 
 
 --
@@ -55488,6 +55549,15 @@ GRANT ALL ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text
 REVOKE ALL ON FUNCTION public.post_pull(p_post_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.post_pull(p_post_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.post_pull(p_post_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION post_report(p_tenant_id uuid, p_file_id uuid, p_link text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text) TO authenticated;
+GRANT ALL ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text) TO service_role;
 
 
 --
