@@ -2,6 +2,10 @@
  * What the route reads of Ask's answer to New (POST sequences/draft, decision 0065), in zod's classic API: checked in shape
  * before a word of it is judged against the workspace (the server's campaigns/sequences/draft-judge.ts). Apart from new-draft.ts,
  * which the browser reads, so the page loads none of the classic API.
+ *
+ * A name, a written message's title and what Ask says it left out carry no length here: the model is asked for them in a
+ * JSON schema that can hold it to none, so one that runs long is the judge's to cut, never a reason to lose the draft
+ * (the live run of 13 Nov 2026: a note past 300 characters came back as "unreadable").
  */
 import { z } from "zod";
 import { FOLLOW_UP_CONDITIONS } from "./follow-up";
@@ -13,7 +17,7 @@ export const NewDraftAnswerSchema = z.object({
   kind: z.enum(NEW_KINDS),
   audience: z.enum(NEW_AUDIENCES),
   who: z.string().trim().max(60),
-  name: z.string().trim().max(120),
+  name: z.string().trim(),
   hour: z.number().int(),
   when: z.string().trim().max(40),
   steps: z
@@ -25,7 +29,7 @@ export const NewDraftAnswerSchema = z.object({
         message: z.string().trim().max(10),
         texts: z.array(z.string().max(300)).max(10),
         write: z.object({
-          title: z.string().trim().max(80),
+          title: z.string().trim(),
           offer: z.boolean(),
           whatsapp: LONG_WORDS,
           email_subject: z.string().max(200),
@@ -38,7 +42,7 @@ export const NewDraftAnswerSchema = z.object({
       }),
     )
     .max(8),
-  cannot: z.string().trim().max(300),
+  cannot: z.string().trim(),
 });
 export type NewDraftAnswer = z.infer<typeof NewDraftAnswerSchema>;
 export type NewDraftAnswerStep = NewDraftAnswer["steps"][number];

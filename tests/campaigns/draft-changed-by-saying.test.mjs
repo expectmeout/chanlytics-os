@@ -494,7 +494,7 @@ const EVERYONE = { kind: "everyone", label: "everyone who said yes to offers" };
 const TRAINERS = { kind: "search", id: ID(9), label: "Personal trainers · Austin" };
 const OPENING = "{{opening}}\n\n";
 
-test("REGRESSION: a discount the owner typed into their own message is theirs: a change that leaves the step alone keeps it, one that changes the step keeps it, and a price Ask types itself is still left blank", async () => {
+test("REGRESSION: a discount the owner typed into their own message is theirs: a change that leaves the step alone keeps it, one that changes the step keeps it, and a price Ask types that the owner never gave is still left blank", async () => {
   const stands = {
     ...STANDS,
     kind: "once",
@@ -510,15 +510,19 @@ test("REGRESSION: a discount the owner typed into their own message is theirs: a
   const renamed = await draftSequenceFrom(KNOWN, { words: "Call it Autumn for all", stands }, WHO_ASKS);
   assert.deepEqual([renamed.name, typed(renamed)], ["Autumn for all", { kind: "text", value: "20% off colour" }]);
   assert.equal(calls.length, 1, "and nothing was refused, so Ask was asked once");
-  // The owner's words as the first line said them are no stand-in for a draft: a first draft's typed price is Ask's.
+  // The owner's own discount, as the first line said it, is the offer (Ruben, 13 Nov 2026: a customer offer carries it).
   const first = draftKept(once({ steps: [step({ message: "k2", texts: ["20% off colour"] })] }), KNOWN, {
     words: "Tell everyone about 20% off colour",
   });
-  assert.deepEqual(typed(first), { kind: "text", value: "" }, "what Ask types never names a price");
-  // Ask types another price over the owner's: Ask's is left blank, never the owner's kept under it.
+  assert.deepEqual(typed(first), { kind: "text", value: "20% off colour" }, "the owner gave that discount");
+  // A change that names a new figure gives it: it is the owner's too.
   answerWith(once({ steps: [step({ message: "k2", texts: ["30% off everything"] })] }));
   const raised = await draftSequenceFrom(KNOWN, { words: "Make it 30% off everything", stands }, WHO_ASKS);
-  assert.deepEqual(typed(raised), { kind: "text", value: "" });
+  assert.deepEqual(typed(raised), { kind: "text", value: "30% off everything" });
+  // A figure nobody gave, over the owner's, is Ask's: left blank, never the owner's kept under it.
+  answerWith(once({ steps: [step({ message: "k2", texts: ["40% off everything"] })] }));
+  const madeUp = await draftSequenceFrom(KNOWN, { words: "Make it warmer", stands }, WHO_ASKS);
+  assert.deepEqual(typed(madeUp), { kind: "text", value: "" });
 });
 
 test("REGRESSION: in a sequence, a step Ask changes keeps what its owner typed into the message that stands there", async () => {
