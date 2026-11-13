@@ -22581,7 +22581,7 @@ COMMENT ON FUNCTION public.post_pull(p_post_id uuid) IS 'Don''t post (00611, 006
 CREATE FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
+    AS $_$
 declare
   v_actor uuid := auth.uid();
   v_file  public.files;
@@ -22614,7 +22614,7 @@ begin
   do update set permalink = coalesce(excluded.permalink, p.permalink), updated_at = now()
   returning p.id into v_id;
   return jsonb_build_object('fate', 'kept', 'post_id', v_id);
-end $$;
+end $_$;
 
 
 --
