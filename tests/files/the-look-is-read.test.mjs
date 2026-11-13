@@ -22,7 +22,8 @@ const ANSWER = {
   subject_box: [100, 50, 600, 450],
   colors: ["#112233", "not a colour", "#AABBCC"],
   issues: [],
-  looks_like_stock: false,
+  looks_like: "photo",
+  use: "the place from the street",
 };
 
 test("an answer becomes the name and shelf on the row, and the rest on its look", () => {
@@ -108,12 +109,40 @@ test("every shelf is defined in the ask, so a person at work is not read as team
   assert.match(asked, /top-left/);
 });
 
+test("it says what kind of picture it is, and a stock photo still says so to every earlier reader", () => {
+  const look = (over) => fileLookOf({ ...ANSWER, ...over }, SIZE).look;
+  assert.deepEqual([look({}).looks_like, look({}).looks_like_stock], ["photo", false]);
+  assert.deepEqual(
+    [look({ looks_like: "Rendered" }).looks_like, look({ looks_like: "rendered" }).looks_like_stock],
+    ["rendered", false],
+  );
+  assert.equal(look({ looks_like: "stock" }).looks_like_stock, true);
+  assert.equal(look({ looks_like: "a painting" }).looks_like, null);
+  // An earlier edition's answer, and a video's, say the one word alone: it is kept, and no kind is made up for it.
+  const before = look({ looks_like: undefined, looks_like_stock: true });
+  assert.deepEqual([before.looks_like, before.looks_like_stock], [null, true]);
+});
+
+test("what a post could use it for is kept short, and is nothing where the look named none", () => {
+  assert.equal(fileLookOf(ANSWER, SIZE).look.use, "the place from the street");
+  assert.equal(fileLookOf({ ...ANSWER, use: "  " }, SIZE).look.use, null);
+  assert.equal(fileLookOf({ ...ANSWER, use: "x".repeat(200) }, SIZE).look.use.length, 80);
+});
+
+test("the ask says what an issue is, what kind a picture can be, and when the box may be the whole picture", () => {
+  const asked = fileLookAsked({ width: 1, height: 1, business: "x", services: [] });
+  assert.match(asked, /A person seen from behind, or a face not shown, is not an issue/);
+  assert.match(asked, /It is the whole picture only where nothing could be cut/);
+  for (const kind of FILE_LOOK_SCHEMA.properties.looks_like.enum)
+    assert.match(asked, new RegExp(`^  ${kind}: `, "m"), kind);
+});
+
 /**
  * What the model is told, and in what shape, with the edition it was written under. Rules that change with the edition left
  * alone are a catalog read under two sets of rules, and nothing would say which file was read under which (#2081 did this to
  * drafts). A change here raises FILE_LOOK_EDITION, then this hash and this number together: the sweep reads every file again.
  */
-const RULES = { edition: 1, hash: "e2cddc1d066b12b8" };
+const RULES = { edition: 2, hash: "aea9f0c9df95bc9c" };
 
 test("the look's rules do not change without their edition", () => {
   const asked = fileLookAsked({ width: 1000, height: 500, business: "A business", services: ["A service"] });

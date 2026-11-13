@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 181 | 181 |
+| door | 183 | 183 |
 | reader | 76 | 0 |
 | the server's | 337 | 293 |
 | computed column | 3 | 0 |
 | trigger | 100 | 70 |
-| all | 697 | 544 |
+| all | 699 | 546 |
 
 ## Called by nothing
 
@@ -82,7 +82,7 @@ being read is dropped by a migration.
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `call_transfer_answered` | reader | a signed-in person, the server | SQL `calls_note_transfer`; trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Whether a call's ending (calls.disconnection_reason) was a transfer and a person picked up (K7): |
-| `caller_has_permission` | door | a signed-in person, the server | SQL `ask_memory_write`, `create_mailbox` and 15 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
+| `caller_has_permission` | door | a signed-in person, the server | SQL `ask_memory_write`, `create_mailbox` and 17 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
 | `calls_note_first_touch` | trigger | the server | trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` | The first touch of the person an inbound call made (K3): |
 | `calls_note_transfer` | trigger | the server | trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Writes call.transferred { answered } when a call's ending becomes a transfer (K7), once per call: |
 | `campaign_answers` | reader | a signed-in person, the server | SQL `campaign_series` | What each person answered each campaign run: |
@@ -241,7 +241,7 @@ being read is dropped by a migration.
 | `lead_check_ask` | the server's | the server | SQL `lead_addressee_choose`, `lead_check_again` and 1 more | The mailbox check of the named leads under one of their rounds (00430): |
 | `lead_check_commit` | the server's | the server | code `apps/edge/lib/leads/db.ts`; SQL `lead_search_import` | A batch of mailbox answers ([{lead_id, email_state, checked_at}]) from the check run p_run_id: |
 | `lead_check_estimate` | the server's | the server | SQL `lead_check_again`, `lead_check_ask` | What checking p_addresses addresses may cost (00506): |
-| `lead_check_retry` | the server's | the server | code `packages/db/src/repositories/leads/workbench.ts` | The leads clock (00618, decision 0131). |
+| `lead_check_retry` | the server's | the server | code `packages/db/src/repositories/leads/workbench.ts` | The leads clock (00618, decision 0131; |
 | `lead_collect_commit` | the server's | the server | code `apps/edge/lib/leads/db.ts` | One page of one run, in one transaction (E4). |
 | `lead_company_upsert` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | The people card's page of companies (00430), the service role's, before lead_collect_commit moves the run: |
 | `lead_convert_by` | the server's | its owner | SQL `lead_set_stage`, `leads_convert_on_deal` and 4 more | A lead's conversion, written once for every door that converts (Reach out Part 5, G19; |
@@ -471,9 +471,11 @@ being read is dropped by a migration.
 | `post_again` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post's first attempt never landed (00611): |
 | `post_attempt_close` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A send's answer and outcome kept (00611), the answer cut to 4 KB, and its container and post ids copied to the placement. |
 | `post_attempt_open` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | One send of a post opened (00611), with the request as sent and never a token. |
-| `post_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | A member's press, with the settings permission (00611, 00616): |
+| `post_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | A member's press, with the settings permission (00611, 00616, 00620): |
+| `post_move` | door | a signed-in person, the server | code `packages/db/src/repositories/files/waiting-posts.ts` | A member's Change time, with the settings permission (00621): |
 | `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A placement moved from where it stood (p_from) to where it goes (00611), with its held reason, link, time, post id or refusal from p_patch; |
-| `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619): |
+| `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619, 00620): |
+| `post_report` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | I posted it (00620): a member, with the settings permission, says a made piece is up by their own hand, with its link or none. |
 | `post_unanswered` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post sent with no answer (00611): |
 | `preview_built` | the server's | the server | code `apps/edge/lib/previews/build.ts`, `apps/edge/lib/shared/log-events.ts` and 1 more | A preview's build answered (0079): |
 | `preview_called` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | A call to a preview ended (0079): |

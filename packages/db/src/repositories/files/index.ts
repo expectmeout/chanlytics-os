@@ -74,6 +74,7 @@ export {
   listPostAttempts,
   listPostsInSpan,
   listPostsOfFiles,
+  listPostsSilent,
   listPostsStopped,
   listPostsTimed,
   listPostsUp,
@@ -83,6 +84,7 @@ export {
   openPostAttempt,
   pullPost,
   queuePostAgain,
+  reportPost,
 } from "./posts";
 export type {
   MemberFilePostRow,
@@ -94,3 +96,4 @@ export type {
   PostPatch,
   PostRow,
 } from "./posts";
+export { followPostCaption, movePostTime } from "./waiting-posts";

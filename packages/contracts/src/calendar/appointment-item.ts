@@ -10,7 +10,14 @@ import type { CalendarItemDto, VisitMark } from "./dto";
 import { APPOINTMENT_STATUSES } from "./feed-appointments";
 import type { BusyBlock, FeedItem } from "./feed";
 import { visitStands } from "./words/visit";
-import { replyFactsOf, type MatchVia, type OwnAddresses, type PersonLike, type PersonMatch } from "./people/matching";
+import {
+  personLabelOf,
+  replyFactsOf,
+  type MatchVia,
+  type OwnAddresses,
+  type PersonLike,
+  type PersonMatch,
+} from "./people/matching";
 import { bookingCopyTest, bookingToolName } from "./booking-notice";
 import { appointmentKeyOf, recordKeyOf } from "./appointment-key";
 import { shiftKey, zoneMidnight } from "../shared/zone/day-keys";
@@ -83,7 +90,9 @@ export function feedItemOfAppointment(row: AppointmentLike): FeedItem {
 /**
  * The person a row is for: by the contact the read linked (said as the booking's own link, `record`), else by the number,
  * else by the address. Never by name. How it was found is how it is said: a row linked by its contact said "matched by
- * email" of a person nothing on the board had matched.
+ * email" of a person nothing on the board had matched. They are called by the name People holds, else the one the booking
+ * gave, else as the board calls anyone with no name (personLabelOf: their number, then their address): a person nobody
+ * had named was "" here, and their visit's sheet drew no name, an empty door and no Call (12 Nov 2026).
  */
 export function personOfAppointment(row: AppointmentLike, people: PersonLike[]): PersonMatch | null {
   const linked = row.contact_id ? people.find((p) => p.id === row.contact_id) : undefined;
@@ -95,7 +104,7 @@ export function personOfAppointment(row: AppointmentLike, people: PersonLike[]):
   const via: MatchVia = linked ? "record" : byPhone ? "phone" : "email";
   return {
     id: found.id,
-    name: found.name || row.client_name || "",
+    name: found.name.trim() || (row.client_name ?? "").trim() || personLabelOf(found),
     via,
     ...(found.thread !== undefined
       ? { thread: found.thread, wa_inbound_at: found.waInboundAt ?? null, ig_inbound_at: found.igInboundAt ?? null }

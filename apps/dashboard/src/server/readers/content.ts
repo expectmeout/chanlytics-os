@@ -11,8 +11,8 @@ import {
   PIECE_STAGES,
   POST_KINDS,
   POST_PLACES,
+  POST_SOON_MS,
   POST_STATUSES,
-  SECOND_MS,
   WEEK_MS,
   fileCursorOf,
   isOneOf,
@@ -30,6 +30,7 @@ import {
   type ContentTally,
   type ContentTodayDto,
   type ContentView,
+  type HandPostDto,
   type PostDto,
   type TenantId,
 } from "@chanlytics/contracts";
@@ -52,6 +53,7 @@ import {
   type MemberPostRow,
   type PieceStandingRow,
 } from "@chanlytics/db/files";
+import { listReviewWords } from "@chanlytics/db/google";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { cursorAsked, fileDtoOf } from "./files";
 
@@ -72,6 +74,24 @@ export function postDtoOf(row: MemberPostRow): PostDto {
     error: typeof words === "string" ? words : null,
     created_at: row.created_at,
   };
+}
+
+/** Whether a post's row is one its owner put up themselves (00620): kept at the place `hand`, and never a PostDto. */
+const isByHand = (row: Pick<MemberPostRow, "place">): boolean => row.place === "hand";
+
+/** A file's posts that a press sent, as a page reads them: one by hand is read apart (handPostOf). */
+export const sentPostsOf = (rows: readonly MemberPostRow[]): PostDto[] =>
+  rows.filter((row) => !isByHand(row)).map(postDtoOf);
+
+/**
+ * The post by hand a piece stands on, from its posts newest first: the newest its owner still says (one taken back is
+ * pulled), with when they said so and its link; none where they said none.
+ */
+export function handPostOf(
+  rows: readonly Pick<MemberPostRow, "id" | "place" | "status" | "permalink" | "published_at" | "created_at">[],
+): HandPostDto | null {
+  const kept = rows.find((row) => isByHand(row) && row.status === "published");
+  return kept ? { id: kept.id, at: kept.published_at ?? kept.created_at, link: kept.permalink } : null;
 }
 
 /** A video asked for that is no file yet, as the page reads it: where it stands, the words it opens on, the clip it starts from. */
@@ -115,9 +135,6 @@ async function piecesStillStanding(db: Db, tenantId: TenantId, failedSince: stri
   const newest = await findNewestPieceBegun(db, tenantId);
   return standing.filter((p) => p.status !== "failed" || !newest || p.created_at > newest);
 }
-
-/** A post set for later than this from now waits for its time (campaigns/content/model/piece-open.ts, the same two minutes). */
-const TIMED_AFTER_MS = 2 * 60 * SECOND_MS;
 
 /**
  * The stopped posts still the newest at their file and place: a post refused and sent again since is no longer the owner's
@@ -189,8 +206,13 @@ const IDEAS_FROM = 24;
  * page alone, where the first day and Make show them.
  */
 async function ideaFilesOf(db: Db, tenantId: TenantId) {
-  const kept = await listFilesOnShelf(db, tenantId, { status: "filed", made: false }, { limit: IDEAS_FROM });
-  return contentIdeaFilesOf(kept.map(fileDtoOf));
+  const [kept, reviews] = await Promise.all([
+    listFilesOnShelf(db, tenantId, { status: "filed", made: false }, { limit: IDEAS_FROM }),
+    // One review of four or five stars that says something is enough to offer its idea (the ones a quote may come
+    // from); a read that failed offers none, and fails no page.
+    listReviewWords(db, tenantId, 1),
+  ]);
+  return contentIdeaFilesOf(kept.map(fileDtoOf), { review: !reviews.error && reviews.data.length > 0 });
 }
 
 /** A page of what was made, newest first, each with its posts: All. One past the page, so its last says it is the last. */
@@ -221,19 +243,25 @@ async function madeFound(db: Db, tenantId: TenantId, about: string) {
   return { made: await piecesOf(db, tenantId, rows), next: null };
 }
 
-/** Pieces as Made draws them: each file with its posts at every place. */
+/**
+ * Pieces as Made draws them: each file with its posts at every place a press sent it, and apart from them the one its owner
+ * said they put up by hand (00620), which is no place of ours.
+ */
 async function piecesOf(db: Db, tenantId: TenantId, page: readonly Parameters<typeof fileDtoOf>[0][]) {
-  const postsOf = new Map<string, PostDto[]>();
+  const rowsOf = new Map<string, MemberFilePostRow[]>();
   for (const post of await listPostsOfFiles(
     db,
     tenantId,
     page.map((f) => f.id),
   )) {
-    const held = postsOf.get(post.file_id) ?? [];
-    held.push(postDtoOf(post));
-    postsOf.set(post.file_id, held);
+    const held = rowsOf.get(post.file_id) ?? [];
+    held.push(post);
+    rowsOf.set(post.file_id, held);
   }
-  return page.map((f) => ({ file: fileDtoOf(f), posts: postsOf.get(f.id) ?? [] }));
+  return page.map((f) => {
+    const rows = rowsOf.get(f.id) ?? [];
+    return { file: fileDtoOf(f), posts: sentPostsOf(rows), by_hand: handPostOf(rows) };
+  });
 }
 
 /** A page of a view's lines: what waits for its time, soonest first, or what is up, newest first. */
@@ -285,7 +313,7 @@ async function contentTodayOf(
       .filter((p) => p.status !== "failed" && !(p.file_id && arrived.has(p.file_id)))
       .map(makingDtoOf),
     // Ready to post: a video is to be saved, and is not counted (contracts contentPieceMarkOf).
-    ready: whole ? week.filter((m) => contentPieceMarkOf(m).is === "ready").length : null,
+    ready: whole ? week.filter((m) => contentPieceMarkOf(m, held.now).is === "ready").length : null,
     stopped: stoppedLines[0] ?? null,
   };
 }
@@ -324,7 +352,8 @@ export const content: Reader<ContentAsked, ContentPageDto> = {
     // The turn's clock, as every reader that says "now" reads it.
     const now = rc.now.getTime();
     const failedSince = new Date(now - CONTENT_FAILED_DAYS * DAY_MS).toISOString();
-    const timedAfter = new Date(now + TIMED_AFTER_MS).toISOString();
+    // A post set for later than soon waits for its time: the line the page draws (contracts postWaitsForItsTime).
+    const timedAfter = new Date(now + POST_SOON_MS).toISOString();
     const [standing, stopped] = await Promise.all([
       piecesStillStanding(db, rc.tenantId, failedSince),
       postsStillStopped(db, rc.tenantId),

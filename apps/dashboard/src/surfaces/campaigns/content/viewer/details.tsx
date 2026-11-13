@@ -23,6 +23,8 @@ interface ViewerFactsProps {
   say: (body: FileChange) => void;
   /** Keeps a made piece's caption, written where it stands; answers why it could not, or null (piece-presses.tsx). */
   caption: (words: string) => Promise<string | null>;
+  /** Told what the caption's box holds, under a post's places, where Post sends what is on screen (viewer/caption.tsx). */
+  typed?: (text: string | null) => void;
   /**
    * Under a post's places, in its one sheet (viewer/sheets.tsx): the caption, then what it was made from and when on one quiet
    * line, its pictures small beside the words, where Details gives each its own block.
@@ -35,13 +37,15 @@ function FactWords({
   shown,
   may,
   keep,
+  typed,
 }: {
   shown: ViewerDetailsShown;
   may: boolean;
   keep: ViewerFactsProps["caption"];
+  typed?: ViewerFactsProps["typed"];
 }) {
   if (shown.file.source === "made" && may)
-    return <CaptionInPlace words={shown.words} video={shown.file.kind === "video"} keep={keep} />;
+    return <CaptionInPlace words={shown.words} video={shown.file.kind === "video"} keep={keep} onText={typed} />;
   if (!shown.words) return null;
   return (
     <div className="cnv-fact">
@@ -64,7 +68,7 @@ function MadeLine({ shown }: { shown: ViewerDetailsShown }) {
       ) : null}
       {shown.facts.map((fact) => (
         <span key={fact.label} className="cnv-made-fact">
-          <span>{fact.label}</span> {fact.said}
+          <span>{fact.label}</span> {fact.inLine ?? fact.said}
         </span>
       ))}
     </div>
@@ -82,7 +86,7 @@ export function ViewerFacts(props: ViewerFactsProps) {
   if (props.compact)
     return (
       <div className="cnv-facts" data-testid="cnv-facts">
-        <FactWords shown={shown} may={may} keep={props.caption} />
+        <FactWords shown={shown} may={may} keep={props.caption} typed={props.typed} />
         <MadeLine shown={shown} />
       </div>
     );

@@ -86,6 +86,8 @@ const world = (over = {}) => ({
       kind: "whatsapp",
       status: "active",
       number_e164: "+15550100",
+      // Its WhatsApp Business Account on file: the edge asks WhatsApp to review a version only for such a number.
+      waba_id: "waba-1",
       config: { quality_rating: "GREEN", messaging_limit: "TIER_1K" },
     },
   ],
@@ -217,26 +219,30 @@ test("a WhatsApp version on a workspace with no connected number is refused in t
   assert.equal(email.proposal.kind, "message");
 });
 
-test("an email version where email is not set up is refused with the reason channelsReady gives; WhatsApp alone is a card", async () => {
+test("an email version where email is not set up is kept, as the page keeps one: the card says it goes once email can send, with channelsReady's reason", async () => {
+  // Ask refused the email the page would file (the live demo, 12 Nov 2026), so a New made WhatsApp alone. Now the card
+  // keeps it, and says when it goes.
   const none = { mailboxes: [] };
   const r = await propose(OFFER, none);
-  assert.equal(r.isError, true);
-  assert.equal(said(r), C.MESSAGE_WORDS.noMailbox(C.CHANNEL_WORDS.noMailbox));
-  assert.ok(said(r).startsWith(C.CHANNEL_WORDS.noMailbox));
-  const wa = await propose(without(OFFER, "email"), none);
-  assert.equal(wa.isError, false, wa.result);
+  assert.equal(r.isError, false, r.result);
+  assert.deepEqual(Object.keys(r.proposal.payload.versions), ["whatsapp", "email"], "the email is in the card");
+  const waits = C.MESSAGE_WORDS.emailWaits(C.CHANNEL_WORDS.noMailbox);
+  assert.ok(r.proposal.payload.follows.endsWith(` · ${waits}`), r.proposal.payload.follows);
+  assert.ok(waits.endsWith(C.CHANNEL_WORDS.noMailbox), "why, in channelsReady's sentence");
+  // Where email can send, nothing of it is said.
+  const ready = await propose(OFFER);
+  assert.doesNotMatch(ready.proposal.payload.follows, /goes once email can send/);
 });
 
-test("email that could not be checked (the edge did not answer) is no missing mailbox: the card waits a moment, and never says to write it without its email version", async () => {
+test("email that could not be checked (the edge did not answer) is no missing mailbox: the card is made, and says nothing of email waiting", async () => {
   // The edge's email wire unreachable: the deployment's answer is not known, so email is not guessed either way.
   globalThis.fetch = async (url) => {
     throw new Error(`connect ECONNREFUSED ${url}`);
   };
   await getEmailWire({ fresh: true });
   const r = await propose(OFFER);
-  assert.equal(r.isError, true);
-  assert.equal(said(r), C.MESSAGE_WORDS.emailUnchecked);
-  assert.doesNotMatch(said(r), /without an email version/);
+  assert.equal(r.isError, false, r.result);
+  assert.doesNotMatch(r.proposal.payload.follows, /goes once email can send/);
   // The state is the readiness's own field, not its sentence.
   const unknown = C.channelsReady({ whatsapp: null, textLine: null, email: { mailbox: true, domain: null } }).email;
   assert.equal(unknown.unchecked, true);
@@ -253,7 +259,7 @@ test("a name and language the Library holds, on any channel, is a twin: refused 
   for (const channel of ["email", "whatsapp"]) {
     const r = await propose(OFFER, { templates: [tpl(1, { channel })] });
     assert.equal(r.isError, true, channel);
-    assert.equal(said(r), C.MESSAGE_WORDS.twin("autumn_offer"), channel);
+    assert.equal(said(r), C.MESSAGE_WORDS.twin("Autumn offer"), channel);
     assert.ok(said(r).startsWith(C.TEMPLATE_SAME_NAME_WORDS), "the door's own sentence, first");
     wroteNothing(r);
   }
@@ -272,16 +278,20 @@ test("the language Ask names is filed under the product's code, through the one 
   const en = await propose(OFFER);
   assert.equal(en.isError, false, en.result);
   assert.deepEqual([en.proposal.payload.language, commitOf(en.proposal).language], ["en_US", "en_US"]);
-  assert.equal(en.proposal.title, "New message: autumn_offer, in English", "the card says the language in words");
+  assert.equal(
+    en.proposal.title,
+    "New message: Autumn offer, in English",
+    "the card says its name and language in words",
+  );
   const es = await propose({ ...OFFER, language: "es" });
   assert.deepEqual([es.proposal.payload.language, commitOf(es.proposal).language], ["es", "es"]);
-  assert.equal(es.proposal.title, "New message: autumn_offer, in Spanish");
+  assert.equal(es.proposal.title, "New message: Autumn offer, in Spanish");
   // An English message the Library holds, as the starters and the composer file it: a twin, never a second message.
   const held = await propose(OFFER, { templates: [tpl(1, { language: "en_US" })] });
-  assert.equal(said(held), C.MESSAGE_WORDS.twin("autumn_offer"));
+  assert.equal(said(held), C.MESSAGE_WORDS.twin("Autumn offer"));
   // A Spanish one held under es is the Spanish card's twin, and not the English card's.
   const spanish = { templates: [tpl(1, { language: "es" })] };
-  assert.equal(said(await propose({ ...OFFER, language: "es" }, spanish)), C.MESSAGE_WORDS.twin("autumn_offer"));
+  assert.equal(said(await propose({ ...OFFER, language: "es" }, spanish)), C.MESSAGE_WORDS.twin("Autumn offer"));
   assert.equal((await propose(OFFER, spanish)).isError, false);
 });
 
@@ -310,6 +320,19 @@ test("every other refusal the door makes before filing is the card's, in the doo
   assert.equal(said(bare), C.TEMPLATE_NAME_WORDS);
 });
 
+test("a WhatsApp version on a number whose WhatsApp Business Account is not on file is refused, as the door refuses it; its email alone is a card", async () => {
+  // The live demo, 12 Nov 2026: a number active with no account made a card whose Save filed nothing. The card now asks
+  // what the door asks (write-message.ts getWhatsAppFilingRefusal), so it never promises what the edge refuses.
+  const noAccount = { tenant_channels: [{ ...world().tenant_channels[0], waba_id: null }] };
+  const r = await propose(OFFER, noAccount);
+  assert.equal(r.isError, true);
+  assert.equal(said(r), C.MESSAGE_WORDS.noAccount);
+  assert.match(said(r), /Settings › Connections/, "where it is fixed");
+  wroteNothing(r);
+  const email = await propose(without(OFFER, "whatsapp"), noAccount);
+  assert.equal(email.isError, false, email.result);
+});
+
 /* ------------------------------------------------------------------ the card */
 
 test("an offer by WhatsApp and email is a card that quotes every version as the person reached on it reads it, says when each goes and who it reaches, and carries the door's body", async () => {
@@ -318,10 +341,13 @@ test("an offer by WhatsApp and email is a card that quotes every version as the 
   const p = r.proposal;
   assert.equal(p.kind, "message");
   assert.equal(p.needs, "operator");
-  assert.equal(p.title, C.MESSAGE_WORDS.title("autumn_offer", "en_US"));
+  // The card says what the owner calls it, never the name WhatsApp files it under; the door keeps the words as its title.
+  assert.equal(p.title, C.MESSAGE_WORDS.title("Autumn offer", "en_US"));
+  assert.doesNotMatch(p.title, /autumn_offer/);
   const slots = SLOTS.map((s, i) => ({ ...s, example: ["Dani", "the business"][i] }));
   assert.deepEqual(p.payload, {
     name: "autumn_offer",
+    title: "Autumn offer",
     language: "en_US",
     category: "marketing",
     versions: OFFER.versions,

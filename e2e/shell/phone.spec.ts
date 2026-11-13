@@ -1265,7 +1265,10 @@ test.describe("Phone shell on a real workspace", () => {
       }, rowSel);
       if (!was) throw new Error(`${hash}: no row stands a third of the way down the screen`);
       expect(was.scrolled, `${hash}: the list is scrolled down`).toBeGreaterThan(200);
-      const row = page.locator(`${rowSel}[data-e2e-opened]`);
+      // The list's own row, never the still picture of the list that stands under the row's page while a thumb carries it
+      // (kit/motion/held-list.ts showHeld, over leaving.ts stillCopyOf): a copy keeps every attribute but its ids, this mark
+      // among them, is inert, and can stand a moment after the Back has landed, so the mark alone found two rows some nights.
+      const row = page.locator(`${rowSel}[data-e2e-opened]:not([inert], [inert] *)`);
       // A thumb taps it where it stands. A locator's click first scrolls a row the frame's head half covers wholly into
       // view, so the list moved before the tap, and was put back where the tap found it, not where the test measured it.
       await page.touchscreen.tap(195, 300);

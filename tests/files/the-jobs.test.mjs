@@ -7,6 +7,7 @@
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { resetBreakers, setPublicFetch } from "@chanlytics/channels/shared";
+import { FILE_LOOK_EDITION } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { squarePng } from "../look/_png.mjs";
 import { at } from "../_cron-doors-world.mjs";
@@ -92,12 +93,13 @@ const fileRow = (over = {}) => ({
 });
 
 /** The database and the bucket the jobs find. */
-function world({ files = [fileRow()], upload = null } = {}) {
+function world({ files = [fileRow()], upload = null, posts = [] } = {}) {
   const tables = {
     tenants: [{ id: T, name: "Harbor Moving", timezone: "America/New_York", status: "active" }],
     tenant_config: [],
     billing_accounts: [{ tenant_id: T, mode: "stripe", status: "active" }],
     files,
+    posts,
     files_let_go: [],
     notifications: [],
     jobs: [],
@@ -117,6 +119,13 @@ function world({ files = [fileRow()], upload = null } = {}) {
       file_look_keep: (a) => {
         kept.push(a);
         return null;
+      },
+      // 00611's move: only from where it stands.
+      post_moved: ({ p_post_id, p_from, p_to, p_patch }) => {
+        const post = tables.posts.find((p) => p.id === p_post_id);
+        if (!post || !p_from.includes(post.status)) return false;
+        Object.assign(post, p_patch, { status: p_to });
+        return true;
       },
       file_purged: (a) => {
         purged.push(a);
@@ -242,7 +251,7 @@ const LOOK = {
   looks_like_stock: false,
 };
 const job = (kind, payload) => ({ id: "job-1", tenant_id: T, kind, payload, attempts: 1 });
-const lookJob = () => job("file_look", { file_id: F, edition: "1" });
+const lookJob = () => job("file_look", { file_id: F, edition: String(FILE_LOOK_EDITION) });
 const SOON = () => Date.now() + 30_000;
 
 test("a look: a copy goes up, the model reads it by id at the size it came back, and what it saw is kept in code", async () => {
@@ -802,13 +811,13 @@ const sweepRow = (id, over) =>
 test("the sweep's pass: a young look that failed or was lost is tried again, once for its file and edition", async () => {
   const w = world({
     files: [
-      sweepRow("failed", { look_status: "failed", look_edition: 1 }),
+      sweepRow("failed", { look_status: "failed", look_edition: FILE_LOOK_EDITION }),
       sweepRow("lost", { look_status: "waiting" }),
-      sweepRow("tried-today", { look_status: "failed", look_edition: 1, looked_at: ago(1000) }),
-      sweepRow("refused", { look_status: "refused", look_edition: 1 }),
-      sweepRow("done", { look_status: "done", look_edition: 1 }),
-      sweepRow("old", { look_status: "failed", look_edition: 1, created_at: ago(30 * DAY) }),
-      sweepRow("removed", { look_status: "failed", look_edition: 1, removed_at: ago(1000) }),
+      sweepRow("tried-today", { look_status: "failed", look_edition: FILE_LOOK_EDITION, looked_at: ago(1000) }),
+      sweepRow("refused", { look_status: "refused", look_edition: FILE_LOOK_EDITION }),
+      sweepRow("done", { look_status: "done", look_edition: FILE_LOOK_EDITION }),
+      sweepRow("old", { look_status: "failed", look_edition: FILE_LOOK_EDITION, created_at: ago(30 * DAY) }),
+      sweepRow("removed", { look_status: "failed", look_edition: FILE_LOOK_EDITION, removed_at: ago(1000) }),
     ],
   });
   const did = await keepFilesMoving(w.db);
@@ -816,15 +825,23 @@ test("the sweep's pass: a young look that failed or was lost is tried again, onc
   const looks = w.tables.jobs.filter((j) => j.kind === "file_look");
   assert.deepEqual(looks.map((j) => j.payload.file_id).sort(), ["failed", "lost"]);
   // As text: a job's once-only key reads strings, and a number would make every pass a new job (job_dedupe_key_of).
-  assert.deepEqual(new Set(looks.map((j) => j.payload.edition)), new Set(["1"]));
+  assert.deepEqual(new Set(looks.map((j) => j.payload.edition)), new Set([String(FILE_LOOK_EDITION)]));
   assert.ok(Date.parse(looks[1].due_at) > Date.parse(looks[0].due_at), "paced, so a pile doesn't page Health");
 });
 
 test("the sweep's pass: a raised edition reads again what the last one read, whatever its age, and a good look's age is no reason", async () => {
   const w = world({
     files: [
-      sweepRow("under-the-old-rules", { look_status: "done", look_edition: 0, created_at: ago(90 * DAY) }),
-      sweepRow("under-these-rules", { look_status: "done", look_edition: 1, created_at: ago(90 * DAY) }),
+      sweepRow("under-the-old-rules", {
+        look_status: "done",
+        look_edition: FILE_LOOK_EDITION - 1,
+        created_at: ago(90 * DAY),
+      }),
+      sweepRow("under-these-rules", {
+        look_status: "done",
+        look_edition: FILE_LOOK_EDITION,
+        created_at: ago(90 * DAY),
+      }),
     ],
   });
   await keepFilesMoving(w.db);
@@ -846,6 +863,34 @@ test("the sweep's pass: a removal that has not finished is asked for again, for 
   assert.equal(did.purges, 1);
   const [purge] = w.tables.jobs.filter((j) => j.kind === "file_purge");
   assert.deepEqual(purge.payload, { file_id: "stuck", why: "sweep" });
+});
+
+test("the sweep's pass: a Google post a press never heard back on stops saying Posting, in words, ten minutes on", async () => {
+  const placed = (id, over) => ({
+    id,
+    tenant_id: T,
+    file_id: "made-1",
+    place: "google",
+    status: "publishing",
+    updated_at: ago(11 * 60_000),
+    ...over,
+  });
+  const w = world({
+    files: [],
+    posts: [
+      placed("silent"),
+      placed("just-now", { updated_at: ago(60_000) }),
+      placed("instagram", { place: "instagram" }),
+      placed("up", { status: "published" }),
+    ],
+  });
+  await keepFilesMoving(w.db);
+  const by = Object.fromEntries(w.tables.posts.map((p) => [p.id, p]));
+  assert.equal(by.silent.status, "failed", "it waits for the owner: posted again, or let go");
+  assert.match(by.silent.error.words, /Google did not say whether this went up/);
+  assert.equal(by["just-now"].status, "publishing", "a press still talking to Google is left");
+  assert.equal(by.instagram.status, "publishing", "Instagram's are its jobs' to settle");
+  assert.equal(by.up.status, "published");
 });
 
 test("the sweep's pass catches its own failures: nothing else the sweep does waits on files", async () => {

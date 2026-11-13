@@ -271,6 +271,24 @@ test("Google let go of holds it for the owner to post again once it is connected
   assert.equal(refused.tables.publish_attempts[0].outcome, "refused");
 });
 
+test("Google too busy to take it is asked once more ten minutes on; busy again, the owner hears it in words", async () => {
+  const w = world();
+  calls.length = 0;
+  google = () => [503, { error: { status: "UNAVAILABLE", message: "The service is currently unavailable." } }];
+  const before = Date.now();
+  assert.deepEqual(await sendGooglePost(w.db, fired(w)), { skipped: "busy" });
+  assert.equal(w.post().status, "queued", "waiting again, not failed: Google made nothing");
+  assert.equal(w.tables.notifications.length, 0, "nothing to tell the owner yet");
+  const again = w.tables.jobs.find((j) => j.kind === "post_google" && j.payload.attempt === "2");
+  assert.ok(again, "its second and last ask is on the ledger");
+  assert.ok(Date.parse(again.due_at) - before >= 9 * 60_000, "ten minutes on");
+  // The second ask, busy again: failed in words, never a third.
+  calls.length = 0;
+  await assert.rejects(sendGooglePost(w.db, job("2")), (e) => e.name === "CertainFailure" || /refused/.test(e.message));
+  assert.equal(w.post().status, "failed");
+  assert.match(w.post().error.words, new RegExp(`^${FILE_WORDS.google.refused}`));
+});
+
 test("a post no longer waiting is left where it stands, and Google is asked nothing", async () => {
   for (const status of ["pulled", "published", "held", "failed"]) {
     const w = world({ status });

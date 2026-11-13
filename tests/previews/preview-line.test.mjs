@@ -62,6 +62,29 @@ test("the line, state by state: none yet, being set up, couldn't be made, ready,
   assert.equal(line(facts({ ends_at: "2026-11-01T00:00:00Z" })).words, W.ended, "past its end, ended, swept or not");
 });
 
+test("a lead that can get none is told why before any email goes, and offered no Make it now", () => {
+  const cannot = (why) => previewLineOf({ preview: null, makes: true, cannot: why }, NOW);
+  assert.deepEqual(cannot("closed"), {
+    words: W.cannot("closed"),
+    tone: "warn",
+    said: [],
+    make: false,
+    open: null,
+    link: null,
+  });
+  const said = ["not_a_business", "closed", "no_name"].map((why) => cannot(why).words);
+  assert.equal(new Set(said).size, 3, "each says its own why");
+  for (const words of said) assert.match(words, /^Can't be made: .+\. An email that carries its link is skipped\.$/);
+  // Nothing in the way: the line it had.
+  assert.equal(previewLineOf({ preview: null, makes: true, cannot: null }, NOW).make, true);
+});
+
+test("one being set up says so for two minutes, then that it is slower and still checked", () => {
+  const madeAgo = (ms) => facts({ state: "building", made_at: new Date(NOW.getTime() - ms).toISOString() });
+  assert.equal(line(madeAgo(60_000)).words, W.building);
+  assert.deepEqual([line(madeAgo(5 * 60_000)).words, line(madeAgo(5 * 60_000)).tone], [W.slow, "busy"]);
+});
+
 test("what they said is not right, under the line: by the fact's name, in their words, the newest three", () => {
   const said = line(
     facts({
@@ -113,10 +136,11 @@ beforeEach(() => {
 });
 
 /** The member's session: their workspace (ours or not) and its leads' previews, as RLS hands them. */
-function ctxFor({ ours = true, rows = [] } = {}) {
+function ctxFor({ ours = true, rows = [], leads = [] } = {}) {
   const tables = {
     tenants: [{ id: WS, ours }],
     lead_previews: rows,
+    leads,
     // The member the route resolves, as the session reads it.
     memberships: [
       {
@@ -158,14 +182,44 @@ test("GET leads/:id/preview: the row's facts, never its chat, and whether this w
     ...facts({ opened_count: 2 }),
     turns: [{ role: "user", content: "secret words" }],
     failed_why: null,
+    created_at: "2026-11-02T14:58:00Z",
   };
   const { ctx } = ctxFor({ rows: [row] });
   const out = await ask("GET", ctx);
   assert.equal(out.makes, true);
   assert.equal(out.preview.opened_count, 2);
+  assert.equal(out.preview.made_at, "2026-11-02T14:58:00Z", "when it was made, for how long it has been building");
   assert.equal("turns" in out.preview, false, "its chat stays on the row");
+  assert.equal(out.cannot, null, "one made already is its own answer");
   const none = await ask("GET", ctxFor({ ours: false }).ctx);
-  assert.deepEqual(none, { preview: null, makes: false });
+  assert.deepEqual(none, { preview: null, makes: false, cannot: null });
+});
+
+test("GET leads/:id/preview says, before any email goes, where this lead can get none: as its door would refuse it", async () => {
+  const lead = (over = {}) => ({
+    id: LEAD,
+    tenant_id: WS,
+    kind: "place",
+    stage: "ready",
+    business_name: "Harbor Movers",
+    city: "Austin",
+    erased_at: null,
+    blanked_at: null,
+    ...over,
+  });
+  const cannotFor = async (over, opts = {}) => (await ask("GET", ctxFor({ leads: [lead(over)], ...opts }).ctx)).cannot;
+  assert.equal(await cannotFor({}), null, "nothing in the way: made when its email goes");
+  assert.equal(await cannotFor({ stage: "nurture" }), null);
+  assert.equal(await cannotFor({ kind: "company" }), "not_a_business");
+  assert.equal(await cannotFor({ stage: "archived" }), "closed");
+  assert.equal(await cannotFor({ stage: "converted" }), "closed");
+  assert.equal(await cannotFor({ business_name: "A" }), "no_name");
+  assert.equal(await cannotFor({ business_name: "  " }), "no_name");
+  // In the door's own order (00497 preview_make): what it is, then where it stands, then its name.
+  assert.equal(await cannotFor({ kind: "company", stage: "archived", business_name: "A" }), "not_a_business");
+  assert.equal(await cannotFor({ stage: "archived", business_name: "A" }), "closed");
+  // A workspace that makes none is asked nothing of its lead.
+  assert.equal(await cannotFor({ kind: "company" }, { ours: false }), null);
 });
 
 test("POST leads/:id/preview: the edge's door makes it, and the line is read again; its refusals in its words", async () => {

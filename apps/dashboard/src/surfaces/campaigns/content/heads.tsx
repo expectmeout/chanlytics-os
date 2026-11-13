@@ -4,7 +4,7 @@
  * press at the foot of All for what was set aside. What waits on the owner is each list's first group, under its heading
  * (body.tsx MadeGroups, files/library-groups.tsx), where an amber line led to it.
  */
-import type { Ref } from "react";
+import type { ReactNode, Ref } from "react";
 import { CONTENT_WORDS as W, FILE_WORDS, type ContentPageDto, type FilesPageDto } from "@chanlytics/contracts";
 import { refreshSurface } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -52,6 +52,21 @@ function useLibraryView(): { view: FilesView; dto: FilesPageDto } | null {
   if (!held) return null;
   const { dto } = held;
   return { view: { shelf: dto.shelf, kind: dto.kind, about: dto.about }, dto };
+}
+
+/**
+ * What stands over the Library only while it holds something: an empty Library's own page leads with its own Add photos (files
+ * pane.tsx), so the head's coral Add and the Squares or List choice wait for its first file. Nothing until it is read: a coral
+ * Add that vanishes as the read lands would be a press promised and taken back.
+ */
+export function WhileLibraryHolds({ children }: { children: ReactNode }) {
+  return useLibraryHolds() ? <>{children}</> : null;
+}
+
+/** Whether the Library holds anything, as its own read says: not until it is read. */
+export function useLibraryHolds(): boolean {
+  const held = useLibraryView();
+  return !!held && held.dto.tally.total > 0;
 }
 
 /** How a find line is drawn: on a phone folded while it holds no words, its field the bar's glyph puts the caret in. */

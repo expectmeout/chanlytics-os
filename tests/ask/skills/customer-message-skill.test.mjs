@@ -117,7 +117,7 @@ test("the guide is a short block, and a question's words ask for the skill in En
     assert.deepEqual(skillsAsked(q), [], q);
   assert.ok(isAskSkillId("customer_message"));
   assert.ok(!isAskSkillId("toString"));
-  assert.deepEqual(ASK_SKILL_IDS, ["customer_message"]);
+  assert.deepEqual(ASK_SKILL_IDS, ["customer_message", "video"]);
 });
 
 test("the brief says the business, the message, each value, the opt-out line, and fences its notes and the draft", () => {

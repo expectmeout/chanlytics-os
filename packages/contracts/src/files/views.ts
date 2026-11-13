@@ -3,11 +3,12 @@
 import type { FileKind, FileMediaStatus } from "./kinds";
 import type { PostPlan, PostShapeName } from "./post";
 import type { FileSound } from "./sound";
-import type { InstagramPostable, PostDto } from "../content/posts";
+import type { HandPostDto, InstagramPostable, PostDto } from "../content/posts";
 import type { PiecePlan } from "../content/pieces";
 import {
   FILE_NAME_MAX,
   FILE_SHOWS,
+  type FileLooksLike,
   type FileLookStatus,
   type FileShows,
   type FileSource,
@@ -103,6 +104,8 @@ export interface FileDto {
   /** What hurts its use, as the look said it. */
   issues: string[];
   looks_like_stock: boolean;
+  /** What kind of picture it is, as the look said (edition 2); null before it has, on an earlier edition's row, and for a video. */
+  looks_like: FileLooksLike | null;
   created_at: string;
 }
 
@@ -163,6 +166,13 @@ export interface FileRecordDto {
    * switched on for the workspace, and on anything but a post.
    */
   instagram: { can: InstagramPostable; posts: PostDto[] } | null;
+  /**
+   * A made post's posts at every place, newest first, whatever the Meta link: where a piece read on its own stands (a link, the
+   * bell's row), as the page that lists it says. Absent on anything but a made post, and from a server before it was answered.
+   */
+  posts?: PostDto[];
+  /** Where its owner said they posted a made piece themselves (00620), or none. Absent on anything Ask did not make. */
+  by_hand?: HandPostDto | null;
   /** A video's: what was heard of it (sound.ts), each part named by who heard it. Absent on a picture. */
   sound?: FileSound;
   /**
@@ -198,12 +208,19 @@ export function whoStandsOf(file: Pick<FileDto, "who_in_it" | "look_status" | "p
 }
 
 /**
- * What the Inbox's one press takes: a photo the look read, that doesn't look like stock, and isn't a logo or a design. It
- * only chooses what a person is shown first and what the press covers: the press is their word, and nothing moves on the
- * model's alone.
+ * What the Inbox's one press takes: a photo the look read, that doesn't look like stock, and isn't a logo or a design. Where
+ * the look said what kind of picture it is (edition 2), only a camera's photo: one a computer rendered, a design or a
+ * screenshot is left for a person to open. It only chooses what a person is shown first and what the press covers: the
+ * press is their word, and nothing moves on the model's alone.
  */
-export const inboxCleanOf = (file: Pick<FileDto, "look_status" | "looks_like_stock" | "shows">): boolean =>
-  file.look_status === "done" && !file.looks_like_stock && file.shows !== "logo" && file.shows !== "graphic";
+export const inboxCleanOf = (
+  file: Pick<FileDto, "look_status" | "looks_like_stock" | "looks_like" | "shows">,
+): boolean =>
+  file.look_status === "done" &&
+  !file.looks_like_stock &&
+  (file.looks_like ?? "photo") === "photo" &&
+  file.shows !== "logo" &&
+  file.shows !== "graphic";
 
 /**
  * The shelves, each a filter over what a file says of itself. Kept ("all") is what the business brought, and what Ask made stands

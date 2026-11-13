@@ -2,10 +2,45 @@
  * A post on its way to a place, and where it stands there (decision 0121; 00611's `posts`): one record per place a made post
  * goes, so the sheet that shows the post says whether it is on Instagram, on its way, held or refused, in these words.
  */
+import { MIN_MS } from "../shared/time";
 
 /** Where a post can go. TikTok joins when its door exists. */
 export const POST_PLACES = ["instagram", "google"] as const;
 export type PostPlace = (typeof POST_PLACES)[number];
+
+/**
+ * Where a post can be, as the database keeps it (posts.place): the places a press sends it, and `hand`, one the owner put up
+ * themselves and said so (00620 post_report). A post by hand is never a PostDto: it is read apart (HandPostDto), since it has
+ * no place of ours, no send and nothing to stop.
+ */
+export const POSTED_PLACES = [...POST_PLACES, "hand"] as const;
+
+/** A piece its owner said they posted themselves (00620): when they said so, and its link where they gave one. */
+export interface HandPostDto {
+  id: string;
+  at: string;
+  link: string | null;
+}
+
+/** The longest link a post by hand keeps (00620 post_report). */
+export const HAND_LINK_MAX = 500;
+
+/** Where a link says a post is, by its host: "TikTok", "Instagram"; null where it names none of them, or there is no link. */
+export function linkPlaceSaid(link: string | null | undefined): string | null {
+  let host: string;
+  try {
+    host = new URL(link ?? "").hostname.toLowerCase();
+  } catch {
+    // No link, or none a browser would open: it names no place.
+    return null;
+  }
+  const at = (domain: string) => host === domain || host.endsWith(`.${domain}`);
+  if (at("instagram.com")) return "Instagram";
+  if (at("tiktok.com")) return "TikTok";
+  if (at("facebook.com") || at("fb.watch")) return "Facebook";
+  if (at("youtube.com") || at("youtu.be")) return "YouTube";
+  return null;
+}
 
 /** A place as a sentence says it. */
 export const POST_PLACE_SAID = { instagram: "Instagram", google: "Google" } as const satisfies Record<
@@ -51,6 +86,38 @@ const MENTIONS_MAX = 20;
 
 /** How far ahead a post may be set to go (00611 post_begin). */
 export const POST_AHEAD_DAYS_MAX = 30;
+
+/**
+ * A post set for no later than this from now goes as it is pressed; later, it waits for its time (00616 post_begin's own two
+ * minutes). The one line every reader draws: the page, Today, Ask's card and the doors.
+ */
+export const POST_SOON_MS = 2 * MIN_MS;
+
+/** Whether a post waits for its time: on its way, and set for later than soon. */
+export const postWaitsForItsTime = (post: Pick<PostDto, "status" | "scheduled_for">, nowMs: number): boolean =>
+  POST_ON_ITS_WAY.includes(post.status) && Date.parse(post.scheduled_for) - nowMs > POST_SOON_MS;
+
+/** What already holds a place: a post on its way there (now, or set for its time), or, on Google, one that is up. */
+type PostPlaceTaken = { is: "on_its_way"; scheduled_for: string } | { is: "up" };
+
+/**
+ * What stands in the way of another post of a piece at a place, or null where one can go: one of the same kind on its way
+ * there, since a place takes one of each kind at a time (00620 posts_one_on_its_way: a picture post and a story wait apart),
+ * and on Google one that is up, since a second would be the same post twice on the profile. Instagram takes a second (a story
+ * after the post). With no kind, any kind on its way holds the place. The page's switches and Ask's card ask it alike.
+ */
+export function postPlaceTakenOf(
+  posts: readonly Pick<PostDto, "place" | "kind" | "status" | "scheduled_for">[],
+  place: PostPlace,
+  kind?: PostKind,
+): PostPlaceTaken | null {
+  const onItsWay = posts.find(
+    (p) => p.place === place && (kind === undefined || p.kind === kind) && POST_ON_ITS_WAY.includes(p.status),
+  );
+  if (onItsWay) return { is: "on_its_way", scheduled_for: onItsWay.scheduled_for };
+  if (place === "google" && posts.some((p) => p.place === "google" && p.status === "published")) return { is: "up" };
+  return null;
+}
 
 /** A post, as the file's sheet reads it. `error` is the refusal in words, never Instagram's code. */
 export interface PostDto {
@@ -101,6 +168,8 @@ export const ON_INSTAGRAM = {
   pull: "Don't post",
   pulledFlash: "It won't be posted.",
   pullLate: "It is already being posted, so it can't be stopped here.",
+  /** Change time, too late: Instagram is already making it ready, or it is being sent (00621 post_move). */
+  moveLate: "It is already being made ready to go, so its time can't change now.",
   tryAgain: "Post again",
   status: {
     queued: "Waiting to go on Instagram",

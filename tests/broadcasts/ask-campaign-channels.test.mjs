@@ -1097,7 +1097,7 @@ test("a hidden message is refused a playbook, and a message whose WhatsApp row i
   const waiting = {
     templates: [template(REMINDER, "visit_reminder", { meta_status: "pending" }), version("email", "visit_reminder")],
   };
-  const STILL = "WhatsApp is still reviewing this message's WhatsApp version.";
+  const STILL = "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.";
   assert.equal(said(await propose({ ...BROADCAST, channels: ["whatsapp"] }, waiting)), STILL);
   assert.equal(said(await propose({ ...BROADCAST, channels: ["whatsapp", "email"] }, waiting)), STILL);
   // Naming none is WhatsApp alone: the same words, and the email it can go by.

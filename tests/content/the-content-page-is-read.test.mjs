@@ -113,6 +113,7 @@ const read = async (tables, query = "") => {
         files: [],
         posts: [],
         pieces: [],
+        google_reviews: [],
         ...tables,
         memberships: [
           {
@@ -140,7 +141,8 @@ const read = async (tables, query = "") => {
 
 const NOTHING = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0, library: 0, aside: 0 };
 /** Ask's three ideas of what it can make, each with the files it would start from: none, where the Library holds none. */
-const IDEAS_NONE = ["before_after", "video", "photo_post"].map((key) => ({ key, files: [] }));
+/** With nothing kept, no idea has what it is made from: none is offered (contracts contentIdeasReady). */
+const IDEAS_NONE = ["before_after", "review", "video", "photo_post"].map((key) => ({ key, files: [], ready: false }));
 
 test("a workspace that made nothing reads an empty page, and says so in numbers", async () => {
   const { body } = await read({});
@@ -354,4 +356,78 @@ test("Being made is what is being made and what was not, and a view this build d
   );
   assert.equal(body.making.length, 2);
   await assert.rejects(read({}, "view=everything"), (e) => e.code === "validation");
+});
+
+test("an idea is ready only where what it is made from is there: a photo for a post, a review of four or five stars that says something for its video", async () => {
+  const none = await read({});
+  assert.deepEqual(
+    none.body.ideas.map((i) => [i.key, i.ready]),
+    [
+      ["before_after", false],
+      ["review", false],
+      ["video", false],
+      ["photo_post", false],
+    ],
+  );
+  const { body } = await read({
+    files: [made(4, { source: "upload", name: "a-photo" })],
+    google_reviews: [
+      {
+        id: "r-1",
+        tenant_id: A,
+        rating: 5,
+        body: "They were on time and careful.",
+        published_at: "2026-11-01T12:00:00Z",
+      },
+      { id: "r-2", tenant_id: B, rating: 5, body: "Another workspace's.", published_at: "2026-11-02T12:00:00Z" },
+    ],
+  });
+  const ready = Object.fromEntries(body.ideas.map((i) => [i.key, i.ready]));
+  assert.deepEqual(ready, { before_after: false, review: true, video: false, photo_post: true });
+  assert.deepEqual(
+    body.ideas.find((i) => i.key === "photo_post").files.map((f) => f.name),
+    ["a-photo"],
+    "the photo its row shows is the one Ask is asked to use",
+  );
+  // A review of three stars or fewer is never quoted as one (packages/db listReviewWords), so it offers no video of itself.
+  const faint = await read({
+    google_reviews: [
+      {
+        id: "r-3",
+        tenant_id: A,
+        rating: 2,
+        body: "Lovely cut, but I waited an hour.",
+        published_at: "2026-11-03T12:00:00Z",
+      },
+    ],
+  });
+  assert.equal(faint.body.ideas.find((i) => i.key === "review").ready, false);
+});
+
+test("a post its owner put up by hand is read with its piece, apart from what was sent, and Posted leaves it out", async () => {
+  const hand = (n, over = {}) => posted(n, 1, "hand", "published", { permalink: null, ...over });
+  const { body } = await read({
+    files: [made(1), made(2)],
+    posts: [
+      hand(1, { permalink: "https://www.tiktok.com/@harbor/video/1", published_at: "2026-11-10T15:00:00.000Z" }),
+      posted(2, 1, "google", "published"),
+      posted(3, 2, "hand", "pulled"),
+    ],
+  });
+  const [first, second] = body.made;
+  assert.equal(first.file.name, "post-1");
+  assert.deepEqual(
+    first.posts.map((p) => p.place),
+    ["google"],
+    "never drawn as a post at a place of ours",
+  );
+  assert.equal(first.by_hand.link, "https://www.tiktok.com/@harbor/video/1");
+  assert.equal(first.by_hand.at, "2026-11-10T15:00:00.000Z");
+  assert.equal(second.by_hand, null, "one taken back says nothing");
+  assert.equal(body.tally.posted, 1, "Posted counts what a press sent");
+  const up = await read({ files: [made(1)], posts: [hand(1), posted(2, 1, "google", "published")] }, "view=posted");
+  assert.deepEqual(
+    up.body.lines.map((l) => l.post.place),
+    ["google"],
+  );
 });

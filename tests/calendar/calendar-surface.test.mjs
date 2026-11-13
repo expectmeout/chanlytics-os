@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { coversSpan, routeOfPath, spanForView } from "@chanlytics/contracts";
-import { fresh, again, byTestId, find, installStubReact, textOf, unmount } from "../_stub-react.mjs";
+import { all, fresh, again, byTestId, find, installStubReact, textOf, unmount } from "../_stub-react.mjs";
 
 // The cache's slot for the stub window's workspace (its address, /w/studio): local storage, one slot a workspace.
 const CACHE = "chanlytics.surfaces.v2:studio";
@@ -288,6 +288,56 @@ test("on a phone the bar is the frame's, under its row of views, and the page dr
     const settings = find(act, (n) => n.props?.trigger && byTestId(n.props.trigger, "cal-options"));
     assert.ok(settings, "and Settings beside the views, the kit's menu");
     assert.equal(byTestId(act, "cal-range"), null, "the range under them, not beside them");
+  } finally {
+    delete globalThis.window.matchMedia;
+    globalThis.setInterval = si;
+    globalThis.clearInterval = ci;
+    globalThis.__DEMO_MODE = false;
+    unmount();
+  }
+});
+
+test("each visit opens a sheet of its own: the cancel's question asked of one is not standing on the next the board opens", () => {
+  // The peek kept its parts' state from one visit to the next (12 Nov 2026): "Cancel this appointment?" asked of one stood
+  // open over the visit pressed after it, where its Yes would have cancelled that one, and a cancel is final. The page
+  // keys the open visit by the visit, so each is drawn from nothing.
+  const [si, ci] = [globalThis.setInterval, globalThis.clearInterval];
+  globalThis.setInterval = () => 0;
+  globalThis.clearInterval = () => {};
+  globalThis.window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  try {
+    // A demo's board draws the sample around the real minute. On its tomorrow every visit is still ahead, so each may be
+    // cancelled; the sample covers what the page draws, so nothing is read.
+    globalThis.__DEMO_MODE = true;
+    const sample = calendarSample(Date.now());
+    const days = sample.vm.days;
+    const tomorrow = days[days.findIndex((d) => d.key === sample.vm.today) + 1].key;
+    const at = { param: tomorrow, ...calendarAddress(tomorrow) };
+    fresh();
+    let tree = CalendarPage(at);
+    const page = () => (tree = again(() => CalendarPage(at)));
+    const blocks = () => all(tree, (n) => n.props?.["data-testid"] === "cal-block");
+    const who = () => textOf(byTestId(tree, "cal-visit-door")).trim();
+    const cancelOf = () =>
+      (find(byTestId(tree, "cal-panel"), (n) => Array.isArray(n.props?.groups))?.props.groups ?? [])
+        .flatMap((g) => g.items)
+        .find((item) => /^Cancel/.test(item.label));
+    const asked = () => find(tree, (n) => n.props?.testid === "cal-visit-cancel");
+    assert.ok(blocks().length >= 2, "two visits to open, one after the other");
+
+    blocks()[0].props.onClick();
+    page();
+    const first = who();
+    assert.ok(cancelOf(), "a visit still ahead may be cancelled");
+    cancelOf().onSelect();
+    page();
+    assert.ok(asked(), "its question is asked, in its foot");
+
+    blocks()[1].props.onClick();
+    page();
+    assert.notEqual(who(), first, "the next visit is the one open");
+    assert.equal(asked(), null, "and nothing is asked of it: the question was the first one's");
+    assert.ok(cancelOf(), "its own More is there to ask it");
   } finally {
     delete globalThis.window.matchMedia;
     globalThis.setInterval = si;

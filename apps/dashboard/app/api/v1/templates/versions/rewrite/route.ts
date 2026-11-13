@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AppError, TEMPLATE_LANGUAGES } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { VERSION_TONES, rewriteVersion } from "@/server/drafts/template/translate";
+import { keepFixWords } from "@/server/campaigns/template-words";
 
 /** The words a version holds at most, and its subject: past them nobody is writing one message. */
 const WORDS_MAX = 4000;
@@ -18,6 +19,8 @@ const Body = z
     tone: z.enum(VERSION_TONES).optional(),
     /** The owner's own words for what to change (Messages' Ask line), where a tone is not pressed. */
     ask: z.string().trim().min(1).max(ASK_MAX).optional(),
+    /** The words answer WhatsApp's refusal of this version: kept, so its editor opens on them again (keepFixWords). */
+    fixing: z.object({ template_id: z.uuid(), reason: z.string().max(1000) }).optional(),
   })
   .superRefine((b, ctx) => {
     if (!b.tone && !b.ask) ctx.addIssue({ code: "custom", path: ["ask"], message: "Say what to change." });
@@ -28,8 +31,9 @@ const Body = z
 /**
  * POST /api/v1/templates/versions/rewrite — { channel, language, subject?, body, tone | ask } → a message's words on any
  * channel written again, warmer, shorter or as the owner asks in their own words, every value it holds kept (Ask's changes where words are written: the Library's editor,
- * a sequence's step). Words handed back, never saved: the editor's own Save is the person's. Owner or operator; counted
- * against the workspace's assistant budget like any other assistant turn.
+ * a sequence's step). Words handed back, never saved: the editor's own Save is the person's; words written for a refused
+ * WhatsApp version (`fixing`) are kept beside it, so its editor opens on them again. Owner or operator; counted against
+ * the workspace's assistant budget like any other assistant turn.
  */
 export const POST = write({
   scope: workspace,
@@ -47,6 +51,7 @@ export const POST = write({
     });
     if (!result.ok)
       throw new AppError(result.reason === "refused" ? "upstream_anthropic" : "validation", result.message);
+    if (input.fixing) await keepFixWords(ctx, member.tenantId, input.fixing, result.body);
     return { subject: result.subject, body: result.body };
   },
 });

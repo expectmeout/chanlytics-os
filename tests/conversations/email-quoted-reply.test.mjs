@@ -1,7 +1,7 @@
 /**
  * An email replies by quoting the whole of what it answers, and the thread drew every line of it.
  *
- * Measured on app.chanlytics.com: ruben@rjcapital.io's "Got it, thanks!" rendered as six lines of
+ * Measured on app.chanlytics.com: ruben@rjcapital.example's "Got it, thanks!" rendered as six lines of
  * "On Thu, Sep 17, 2026 at 10:44 PM Marisa's Beauty Salon <…> wrote: > testing back at you >" on a
  * 375px screen — the whole bubble, for two words of reply. The chain is kept (an operator may need
  * to see what the customer was answering) but it is not what the bubble says.
@@ -337,7 +337,7 @@ test("the Inbox list and a person's page say the same words the thread does", as
 /*
  * An email in its parts (the email canvas's lane A, 27 Oct 2026): what they wrote, the signature under it, and the chain
  * it quoted. On production Ruben's "needs you test" arrived as "needs you test Ruben Segura Founder, RJ Capital [image:
- * RJ Capital] <https://rjcapital.io> rjcapital.io | ruben@rjcapital.io 3495 US-1, Princeton, NJ 08540", one paragraph,
+ * RJ Capital] <https://rjcapital.io> rjcapital.io | ruben@rjcapital.example 3495 US-1, Princeton, NJ 08540", one paragraph,
  * in the thread, in Need you and in Conversations: Gmail's plain text puts no "-- " before a signature, and every reader
  * took the whole of it as his words.
  *
@@ -347,7 +347,7 @@ test("the Inbox list and a person's page say the same words the thread does", as
 
 const PRODUCTION =
   "needs you test\n\nRuben Segura\nFounder, RJ Capital\n[image: RJ Capital] <https://rjcapital.io>\n" +
-  "rjcapital.io  |  ruben@rjcapital.io\n3495 US-1, Princeton, NJ 08540";
+  "rjcapital.io  |  ruben@rjcapital.example\n3495 US-1, Princeton, NJ 08540";
 
 /* ------------------------------ the signature ------------------------------ */
 
@@ -356,7 +356,7 @@ test("the email that came in on production: his words, and his signature apart, 
   assert.equal(p.said, "needs you test");
   assert.equal(
     p.signature,
-    "Ruben Segura\nFounder, RJ Capital\nrjcapital.io  |  ruben@rjcapital.io\n3495 US-1, Princeton, NJ 08540",
+    "Ruben Segura\nFounder, RJ Capital\nrjcapital.io  |  ruben@rjcapital.example\n3495 US-1, Princeton, NJ 08540",
   );
   assert.equal(p.quoted, null);
   assert.equal(emailSignatureLine(p.signature), "Ruben Segura · Founder, RJ Capital · rjcapital.io");
@@ -494,7 +494,9 @@ const email = (id, sender, body, subject, extra = {}) => ({
   body,
   status: sender === "customer" ? "received" : "sent",
   created_at: extra.at ?? "2026-10-27T17:42:03Z",
-  meta: { email: { subject, from: "ruben@rjcapital.io", from_name: sender === "customer" ? "Ruben Segura" : null } },
+  meta: {
+    email: { subject, from: "ruben@rjcapital.example", from_name: sender === "customer" ? "Ruben Segura" : null },
+  },
   ...extra,
 });
 
@@ -505,7 +507,7 @@ test("what an email says, wherever it is shown, is the words without the signatu
 const conversation = (messages) => ({
   id: "c1",
   state: "escalated",
-  contact: { id: "k1", email: "ruben@rjcapital.io", display_name: null, phone_e164: null },
+  contact: { id: "k1", email: "ruben@rjcapital.example", display_name: null, phone_e164: null },
   messages,
   last_wa_inbound_at: null,
 });
@@ -530,7 +532,7 @@ test("the thread says the subject once, in its head, and on a bubble only where 
   assert.equal(msgs[0].body, "needs you test");
   assert.deepEqual(msgs[0].signature, {
     line: "Ruben Segura · Founder, RJ Capital · rjcapital.io",
-    full: "Ruben Segura\nFounder, RJ Capital\nrjcapital.io  |  ruben@rjcapital.io\n3495 US-1, Princeton, NJ 08540",
+    full: "Ruben Segura\nFounder, RJ Capital\nrjcapital.io  |  ruben@rjcapital.example\n3495 US-1, Princeton, NJ 08540",
   });
   assert.equal(
     msgs[1].body,

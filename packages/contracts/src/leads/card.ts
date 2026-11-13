@@ -55,6 +55,8 @@ export type LeadCardChain = Pick<
 
 /** What the card knows of the lead for its email: the slots' facts, where the email would go, and the other ways to them. */
 export interface LeadCardLead extends SlotLead {
+  /** Where its values came from, in its row's own Source word (leadSourceWord): what a fill-in's bubble says (decision 0127). */
+  found?: string | null;
   /** The address it would be written to; null when it has none. */
   to: string | null;
   emailState: LeadEmailState;

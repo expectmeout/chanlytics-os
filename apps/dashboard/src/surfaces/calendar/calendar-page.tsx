@@ -396,7 +396,10 @@ function overlays(p: {
   return (
     <>
       {open && (
+        // One visit, one sheet: keyed by the visit, so what was asked or answered on one (the cancel's question, the
+        // word just said, a refusal) is never still standing on the next a desk's walk or a press on the board opens.
         <OpenVisit
+          key={open.b.id}
           b={open.b}
           day={open.d}
           todayKey={vm.today}

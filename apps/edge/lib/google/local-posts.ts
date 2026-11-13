@@ -3,7 +3,13 @@
  * route holds who may, and nothing here runs by itself. It goes as the owner, with the token the connection holds, and the ledger keeps
  * Google's name for it, which is how a sheet says it is up and how it comes down.
  */
-import { createLocalPost, deleteLocalPost, reviewParent, type GbpPostAsked } from "@chanlytics/channels/google";
+import {
+  PlacesError,
+  createLocalPost,
+  deleteLocalPost,
+  reviewParent,
+  type GbpPostAsked,
+} from "@chanlytics/channels/google";
 import type { EdgeRefusal, TenantId } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { connectionOf, type Db } from "../shared/google/rows.js";
@@ -22,19 +28,28 @@ async function asTheOwner(db: Db, tenantId: TenantId, now: Date) {
 
 const googleSaid = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+/**
+ * Google turned the ask away for now and made nothing: too many asks (429) or not able to take one this minute (503). Any
+ * other answer, or none, may have put the post up, and is never asked again blind.
+ */
+const BUSY_STATUSES: readonly number[] = [429, 503];
+
 export async function postOnProfile(
   db: Db,
   tenantId: TenantId,
   input: { fileId: string; by: string | null; post: GbpPostAsked },
   now = new Date(),
-): Promise<{ ok: true; name: string; search_url: string | null; state: string | null } | EdgeRefusal> {
+): Promise<
+  { ok: true; name: string; search_url: string | null; state: string | null } | (EdgeRefusal & { busy?: true })
+> {
   const owner = await asTheOwner(db, tenantId, now);
   if (!owner.ok) return owner;
   let created;
   try {
     created = await createLocalPost(http, owner.token, owner.parent, input.post);
   } catch (e) {
-    return { ok: false, error: "google_refused", detail: googleSaid(e) };
+    const busy = e instanceof PlacesError && BUSY_STATUSES.includes(e.status);
+    return { ok: false, error: "google_refused", detail: googleSaid(e), ...(busy ? { busy: true as const } : {}) };
   }
   await emitEvent(db, tenantId, "file.posted", "workspace", tenantId, {
     file_id: input.fileId,

@@ -18,12 +18,20 @@ import {
   type TenantId,
 } from "@chanlytics/contracts";
 import { findMetaInstagramRow } from "@chanlytics/db/channels";
-import { beginPost, listFilePosts, pullPost, type FileMemberRow, type MemberPostRow } from "@chanlytics/db/files";
+import {
+  beginPost,
+  listFilePosts,
+  movePostTime,
+  pullPost,
+  type FileMemberRow,
+  type MemberPostRow,
+} from "@chanlytics/db/files";
 import { readMetaSwitch } from "@/server/connections/meta";
 import { postDtoOf } from "@/server/readers/content";
 import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
+import { keepPostWords } from "./caption";
 
 /**
  * Whether this workspace's Instagram takes a post now; null where the Meta link is not switched on, and nothing is offered.
@@ -68,6 +76,8 @@ export async function postFileToInstagram(
   const caption = input.as === "story" ? null : input.caption?.trim() || null;
   const captionProblem = caption ? postCaptionProblem(caption) : null;
   if (captionProblem) throw new AppError("validation", captionProblem);
+  // The words that go are the piece's own from now on, kept in the same step (posts/caption.ts keepPostWords).
+  if (caption) await keepPostWords(ctx, member, row, caption);
   const begun = await beginPost(ctx.supabase, {
     tenantId: member.tenantId,
     fileId: row.id,
@@ -84,6 +94,35 @@ export async function postFileToInstagram(
   throw new AppError("validation", ON_INSTAGRAM.notYet);
 }
 
+/** A post of this file, at the door's place where the door is a place's, as the member reads it, or why not: the one a press names. */
+async function postOfFile(
+  ctx: RouteContext,
+  member: Member,
+  row: FileMemberRow,
+  at: { post_id: string; place?: PostPlace },
+) {
+  const posts = await listFilePosts(ctx.supabase, member.tenantId, row.id);
+  if (!posts.some((p) => p.id === at.post_id && (!at.place || p.place === at.place)))
+    throw new AppError("not_found", ON_INSTAGRAM.gone, 404);
+}
+
+/**
+ * PATCH files/[id]/posts: Change time (00621), at either place. The same post, its approval and its words, set for `when`, its
+ * job moved with it, in one step: never stopped and posted again. Late once a run has taken its job.
+ */
+export async function moveFilePost(
+  ctx: RouteContext,
+  member: Member,
+  row: FileMemberRow,
+  input: { post_id: string; when: string },
+): Promise<{ moved: true }> {
+  await postOfFile(ctx, member, row, input);
+  const moved = await movePostTime(ctx.supabase, input.post_id, input.when);
+  if (moved.fate === "late") throw new AppError("conflict", ON_INSTAGRAM.moveLate, 409);
+  if (moved.fate !== "moved") throw new AppError("not_found", ON_INSTAGRAM.gone, 404);
+  return { moved: true };
+}
+
 /**
  * DELETE files/[id]/instagram: Don't post, up to the moment it is sent. Google's door pulls its own the same way, a post set
  * for its time there (00616): `input.place` is the door's.
@@ -94,9 +133,7 @@ export async function pullFilePost(
   row: FileMemberRow,
   input: { post_id: string; place: PostPlace },
 ): Promise<{ pulled: true }> {
-  const posts = await listFilePosts(ctx.supabase, member.tenantId, row.id);
-  if (!posts.some((p) => p.id === input.post_id && p.place === input.place))
-    throw new AppError("not_found", ON_INSTAGRAM.gone, 404);
+  await postOfFile(ctx, member, row, input);
   const pulled = await pullPost(ctx.supabase, input.post_id);
   if (pulled.fate === "late") throw new AppError("conflict", ON_INSTAGRAM.pullLate, 409);
   if (pulled.fate !== "pulled") throw new AppError("not_found", ON_INSTAGRAM.gone, 404);

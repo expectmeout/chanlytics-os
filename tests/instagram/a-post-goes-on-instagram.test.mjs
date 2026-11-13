@@ -509,6 +509,27 @@ test("a send with no answer is Checking, and Instagram is asked two minutes on, 
   assert.equal(w.tables.publish_attempts.find((a) => a.step === "publish").outcome, "no_answer");
 });
 
+test("a first send Instagram was too busy for is asked again by itself; a second, the owner hears it", async () => {
+  const w = world({ status: "preparing", attempts: [...READY] });
+  meta[`POST /${ACCOUNT}/media_publish`] = [400, { error: { message: "Application request limit reached", code: 4 } }];
+  await postJobs(w.db, quick).publish(fired(w, "post_publish"));
+  assert.equal(w.post().status, "checking", "not failed: a refusal took nothing, so it is asked again");
+  assert.ok(
+    w.tables.jobs.find((j) => j.kind === "post_reconcile"),
+    "the reconcile, then the second attempt",
+  );
+  assert.equal(w.tables.publish_attempts.find((a) => a.step === "publish").outcome, "refused", "kept as it was");
+  assert.equal(w.post().error, null, "nothing for the owner yet");
+  // The second and last send, busy again: the owner's words.
+  const again = world({ status: "preparing", attempts: [...READY] });
+  meta[`POST /${ACCOUNT}/media_publish`] = [400, { error: { message: "Application request limit reached", code: 4 } }];
+  await assert.rejects(
+    postJobs(again.db, quick).publish(fired(again, "post_publish", "2")),
+    (e) => e.why === ON_INSTAGRAM.refused.busy,
+  );
+  assert.equal(again.post().status, "failed");
+});
+
 test("a send Instagram refused fails the post in the owner's words", async () => {
   const w = world({ status: "preparing", attempts: [...READY] });
   meta[`POST /${ACCOUNT}/media_publish`] = [400, { error: { message: "Invalid token", code: 190 } }];

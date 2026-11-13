@@ -141,7 +141,7 @@ const REASONS_ES: ReadonlyMap<string, string> = new Map([
   [OFFERS_BY_EMAIL_WORDS.paused, "Las ofertas por correo están en pausa mientras se calman las quejas y los rebotes."],
   [
     US_PAUSED,
-    "Meta ha pausado las ofertas por WhatsApp a números de EE. UU. Los mensajes sobre citas y las respuestas siguen saliendo.",
+    "WhatsApp no está entregando ofertas a números de EE. UU. por ahora. Los mensajes sobre citas y las respuestas siguen saliendo.",
   ],
 ]);
 

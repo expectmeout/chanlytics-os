@@ -73,7 +73,9 @@ function MakingStands({ making }: { making: ContentMakingDto }) {
 function standsWordOf(mark: ContentMark): string {
   if (mark.is === "posted") return W.piece.stands.up(null);
   if (mark.is === "going") return W.piece.stands.going;
+  if (mark.is === "timed") return W.views.name.scheduled;
   if (mark.is === "stuck") return W.piece.stands.stuck;
+  if (mark.is === "by_hand") return W.piece.byHand.stands;
   if (mark.is === "save") return W.mark.save;
   return W.mark.ready;
 }
@@ -147,14 +149,14 @@ const COLUMNS: DataColumn<PieceRow, ListCtx>[] = [
     key: "stands",
     label: W.views.columns.stands,
     width: { base: 180, max: 280 },
-    cell: (r) => {
+    cell: (r, at) => {
       if (!r.made)
         return (
           <td key="stands" className="cnv-cell">
             <MakingStands making={r.making} />
           </td>
         );
-      const mark = contentPieceMarkOf(r.made);
+      const mark = contentPieceMarkOf(r.made, at.now);
       return (
         <td key="stands" className="cnv-cell">
           <span className="cnv-said" data-tone={contentMarkToneOf(mark)}>

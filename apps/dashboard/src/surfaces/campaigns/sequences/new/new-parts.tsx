@@ -16,11 +16,14 @@ import {
   type NewStep,
 } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
+import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { cx } from "../../../kit/variants";
 import { MessagePreview } from "../../parts/message-preview";
+import { Choice } from "./choice";
+import { setName } from "./new-model";
 
 /**
  * The owner's line, kept on top: the one the draft was drafted from, or the one that last changed it, with what Ask is
@@ -58,6 +61,28 @@ export function SaidLine(p: {
         ) : null}
       </span>
     </div>
+  );
+}
+
+/**
+ * The draft's head: its name, said in place and changed there (out of new-draft.tsx, 12 Nov 2026). Held while Ask works
+ * on the draft: a name typed then was written over by Ask's answer.
+ */
+export function DraftName(props: { draft: NewDraftDto; change: (next: NewDraftDto) => void; held: boolean }) {
+  return (
+    <span className="sq-nw-name">
+      <Field
+        shape="title"
+        aria-label={W.sheets.title}
+        value={props.draft.name}
+        readOnly={props.held}
+        onValueChange={(typed) => props.change(setName(props.draft, typed))}
+        maxLength={80}
+        spellCheck={false}
+        data-testid="sq-nw-name"
+      />
+      <Icon name="pencil" size={13} />
+    </span>
   );
 }
 
@@ -146,6 +171,20 @@ export function ChecksList({ checks }: { checks: readonly NewCheck[] }) {
           </li>
         ))}
       </ul>
+    </>
+  );
+}
+
+/** How a sequence runs: Your OK, as its sheet names the way picked (out of new-draft.tsx, 13 Nov 2026). */
+export function HowItRuns({ draft, onOk }: { draft: NewDraftDto; onOk: () => void }) {
+  if (draft.kind === "once") return null;
+  const ok = draft.mode ? W.okSaid[draft.mode] : W.okSaid.ask;
+  return (
+    <>
+      <p className="sq-nw-cap">{W.draft.runs}</p>
+      <div className="sq-nw-rows">
+        <Choice glyph="check" name={W.draft.yourOk} said={ok} onPick={onOk} testid="sq-nw-yourok" />
+      </div>
     </>
   );
 }

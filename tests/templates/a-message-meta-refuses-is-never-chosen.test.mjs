@@ -129,15 +129,21 @@ test("the Inbox picker leaves out a message WhatsApp refuses, and says why in th
 
 test("WhatsApp's refusal keeps Meta's own sentence whole: its capital stays, its full stop is not doubled, and a code is said as words", () => {
   const { refusedWords } = contracts;
-  const tail = "Change the words and send it back.";
-  assert.equal(refusedWords("ABUSIVE_CONTENT"), `WhatsApp refused this one: abusive content. ${tail}`);
-  assert.equal(refusedWords("TAG_CONTENT_MISMATCH"), `WhatsApp refused this one: tag content mismatch. ${tail}`);
+  const tail = "Ask writes new words for you to send back.";
+  assert.equal(
+    refusedWords("ABUSIVE_CONTENT"),
+    `WhatsApp asked for a change: it reads as abusive or threatening. ${tail}`,
+  );
+  assert.equal(
+    refusedWords("TAG_CONTENT_MISMATCH"),
+    `WhatsApp asked for a change: its words do not match the language or kind it was filed as. ${tail}`,
+  );
   assert.equal(
     refusedWords("Variables can't be at the start or end of the template."),
-    `WhatsApp refused this one: Variables can't be at the start or end of the template. ${tail}`,
+    `WhatsApp asked for a change: Variables can't be at the start or end of the template. ${tail}`,
     "REGRESSION: 'variables can't be ... template.. Change the words'",
   );
-  assert.equal(refusedWords("  Too many variables!  "), `WhatsApp refused this one: Too many variables. ${tail}`);
+  assert.equal(refusedWords("  Too many variables!  "), `WhatsApp asked for a change: Too many variables. ${tail}`);
   assert.equal(refusedWords(""), null, "no reason, no sentence");
   assert.equal(refusedWords("  "), null);
   assert.equal(refusedWords(null), null);

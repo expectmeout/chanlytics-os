@@ -9079,6 +9079,8 @@ begin
      set email = v_email,
          email_state = coalesce(v_state, 'checking'),
          email_checked_at = v_at,
+         -- A new address is the clock's to ask twice, as the first was (00622): the tries are an address's, not a lead's.
+         email_rechecks = 0,
          facts = jsonb_set(jsonb_set(facts, '{people}', v_people), '{addressee}', to_jsonb(p_person)),
          version = version + 1
    where id = v_lead.id;
@@ -9718,64 +9720,118 @@ COMMENT ON FUNCTION public.lead_check_estimate(p_addresses integer) IS 'What che
 CREATE FUNCTION public.lead_check_retry(p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
+    AS $_$
 declare
+  v_limit integer := greatest(coalesce(p_limit, 0), 0);
+  v_share integer := greatest(v_limit / 4, 1);
+  v_t     record;
   v_r     record;
   v_asked integer := 0;
   v_held  integer := 0;
+  v_freed integer := 0;
 begin
-  -- The workspaces that may be asked for: their searching on and their spending allowed, read once each, never
-  -- once a lead. One whose switch is off is asked nothing, and no try of its leads is counted.
-  for v_r in
-    with open_ as (
-      select t.id from public.tenants t
-       where (p_tenant_id is null or t.id = p_tenant_id)
-         and public.lead_searches_on(t.id)
-         and public.lead_spend_refusal(t.id) is null
-    ),
-    due as (
-      -- Each address whose last check did not answer a day ago or more, tried by the clock fewer than twice, of a lead
-      -- kept or in Needs review, under the newest finished round it was found in: the longest waiting first.
-      select l.id as lead_id, l.tenant_id, rr.round_id
-        from public.leads l
-        join open_ o on o.id = l.tenant_id
-        cross join lateral (
-          select m.round_id
-            from public.lead_search_members m
-            join public.lead_rounds r on r.id = m.round_id and r.state = 'ended'
-           where m.lead_id = l.id and m.tenant_id = l.tenant_id
-             and m.class in ('review', 'qualified') and m.blanked_at is null
-           order by r.created_at desc
-           limit 1) rr
-       where l.email_state = 'unknown' and nullif(btrim(l.email), '') is not null
-         and l.erased_at is null and l.blanked_at is null
-         and l.email_checked_at <= now() - interval '1 day'
-         and l.email_rechecks < 2
-       order by l.email_checked_at, l.id
-       limit greatest(coalesce(p_limit, 0), 0)
-    )
-    select d.tenant_id, d.round_id, array_agg(d.lead_id order by d.lead_id) as lead_ids
-      from due d
-     group by d.tenant_id, d.round_id
+  -- First, an address left 'checking' by a check that died (00622). A check asked after its round ended rides a job of
+  -- its own (lead_check_ask); when that job fails for good nothing settles it, the sweep leaves it alone and the round
+  -- has ended already, so the address stood 'checking' for ever: never asked again, refused by Check again, and never
+  -- written to. One is given back to "Couldn't check" once no round of its is open, no check job naming it is on its
+  -- way, and no check run of its rounds is live or began within the hour (a run just over may still be read).
+  with dead as (
+    select c.id
+      from public.leads c
+     where c.email_state = 'checking'
+       and (p_tenant_id is null or c.tenant_id = p_tenant_id)
+       and not exists (select 1 from public.lead_search_members m
+                         join public.lead_rounds r on r.id = m.round_id
+                        where m.lead_id = c.id and r.state <> 'ended')
+       and not exists (select 1 from public.jobs j
+                        where j.tenant_id = c.tenant_id and j.kind = 'lead_check' and j.state in ('scheduled', 'fired')
+                          and j.payload -> 'lead_ids' @> to_jsonb(c.id::text))
+       and not exists (select 1 from public.lead_search_members m
+                         join public.lead_runs x on x.round_id = m.round_id
+                        where m.lead_id = c.id and x.purpose = 'check'
+                          and (x.state in ('claimed', 'starting', 'running', 'unknown')
+                               or x.created_at > now() - interval '1 hour'))
+     order by c.id
+     limit 500
+       for update of c skip locked
+  )
+  update public.leads l
+     set email_state = 'unknown', email_checked_at = now()
+    from dead d
+   where l.id = d.id;
+  get diagnostics v_freed = row_count;
+
+  -- An address on a name kept for examples (RFC 2606: example.com, .test, .invalid and their kind) has no mailbox to
+  -- ask. Its tries are spent unasked, so no check is paid for it and the list says at once that it could not be checked.
+  update public.leads l
+     set email_rechecks = 2
+   where l.email_state = 'unknown' and l.email_rechecks < 2
+     and (p_tenant_id is null or l.tenant_id = p_tenant_id)
+     and lower(btrim(l.email)) ~ '@([^@]+\.)?(example\.(com|net|org)|example|test|invalid|localhost)$';
+
+  -- Then the addresses that did not answer, a workspace at a time, the one that has waited longest first
+  -- (leads_recheck_due). Its searching on and its spending allowed are read once a workspace, never once a lead; one
+  -- whose switch is off is asked nothing and no try of its leads is counted.
+  for v_t in
+    select l.tenant_id
+      from public.leads l
+     where l.email_state = 'unknown' and l.email_rechecks < 2
+       and (l.email_checked_at is null or l.email_checked_at <= now() - interval '1 day')
+       and (p_tenant_id is null or l.tenant_id = p_tenant_id)
+     group by l.tenant_id
+     order by min(coalesce(l.email_checked_at, '-infinity'::timestamptz)), l.tenant_id
   loop
-    -- Asked as Check again asks (lead_check_ask): with room in the month's and the day's searching, or not at all.
-    -- A try is counted only once it is asked, so a day with no room costs none of an address's two.
-    if public.lead_check_ask(v_r.tenant_id, v_r.round_id, v_r.lead_ids) then
-      update public.leads set email_rechecks = email_rechecks + 1 where id = any (v_r.lead_ids);
-      v_asked := v_asked + cardinality(v_r.lead_ids);
-    else
-      v_held := v_held + cardinality(v_r.lead_ids);
-    end if;
+    exit when v_asked >= v_limit;
+    continue when not public.lead_searches_on(v_t.tenant_id) or public.lead_spend_refusal(v_t.tenant_id) is not null;
+    -- Each address whose last check did not answer a day ago or more, or was never made (a new address chosen with no
+    -- room in the day's searching), tried by the clock fewer than twice, of a lead kept or in Needs review, under the
+    -- newest finished round it was found in. A quarter of the call's limit a workspace, so one long list leaves room
+    -- for the next; its rows locked, so a press of Check again at the same moment is not counted as a try of the clock's.
+    for v_r in
+      select d.round_id, array_agg(d.id order by d.id) as lead_ids
+        from (
+          select l.id, rr.round_id
+            from public.leads l
+           cross join lateral (
+             select m.round_id
+               from public.lead_search_members m
+               join public.lead_rounds r on r.id = m.round_id and r.state = 'ended'
+              where m.lead_id = l.id and m.tenant_id = l.tenant_id
+                and m.class in ('review', 'qualified') and m.blanked_at is null
+              order by r.created_at desc
+              limit 1) rr
+           where l.tenant_id = v_t.tenant_id
+             and l.email_state = 'unknown' and l.email_rechecks < 2
+             and (l.email_checked_at is null or l.email_checked_at <= now() - interval '1 day')
+             and nullif(btrim(l.email), '') is not null
+             and l.erased_at is null and l.blanked_at is null
+           order by l.email_checked_at nulls first, l.id
+           limit least(v_share, v_limit - v_asked)
+             for update of l skip locked) d
+       group by d.round_id
+    loop
+      -- Asked as Check again asks (lead_check_ask): with room in the month's and the day's searching, or not at all.
+      -- A try is counted only once it is asked, so a day with no room costs none of an address's two; and a workspace
+      -- with no room is left there for the next one, where it used to stand at the head of the line and hold every
+      -- other workspace's addresses back until its month renewed.
+      if public.lead_check_ask(v_t.tenant_id, v_r.round_id, v_r.lead_ids) then
+        update public.leads set email_rechecks = email_rechecks + 1 where id = any (v_r.lead_ids);
+        v_asked := v_asked + cardinality(v_r.lead_ids);
+      else
+        v_held := v_held + cardinality(v_r.lead_ids);
+        exit;
+      end if;
+    end loop;
   end loop;
-  return jsonb_build_object('asked', v_asked, 'held', v_held);
-end $$;
+  return jsonb_build_object('asked', v_asked, 'held', v_held, 'freed', v_freed);
+end $_$;
 
 
 --
 -- Name: FUNCTION lead_check_retry(p_limit integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_check_retry(p_limit integer, p_tenant_id uuid) IS 'The leads clock (00618, decision 0131). Asks the mailbox check again, by itself, for each address whose last check did not answer a day ago or more, at most twice (leads.email_rechecks), of a lead kept or in Needs review, under the newest finished round it was found in, the longest waiting first, up to p_limit, in the workspace named or every one, and only where its searching is on and it may spend; through lead_check_ask, so with room in the day''s and month''s searching or not at all. Answers {asked, held}. Service role only.';
+COMMENT ON FUNCTION public.lead_check_retry(p_limit integer, p_tenant_id uuid) IS 'The leads clock (00618, decision 0131; 00622). First gives back to "Couldn''t check" an address left checking by a check that died (no round of its open, no check job naming it on its way, no check run of its rounds live or begun within the hour), and spends unasked the tries of an address on a name kept for examples (RFC 2606), which has no mailbox. Then asks the mailbox check again, by itself, for each address whose last check did not answer a day ago or more, or was never made, at most twice (leads.email_rechecks), of a lead kept or in Needs review, under the newest finished round it was found in: a workspace at a time, the one that has waited longest first, a quarter of p_limit each and p_limit in all, in the workspace named or every one whose searching is on and that may spend; through lead_check_ask, so with room in the day''s and month''s searching or not at all, and a workspace with no room is left for the next and holds no other back. Answers {asked, held, freed}. Service role only.';
 
 
 --
@@ -22448,7 +22504,7 @@ begin
   if v_when > now() + interval '30 days' then
     raise exception 'A post goes within thirty days.' using errcode = '22023';
   end if;
-  -- One at a time per file and place, as every door that names or files takes it (00551).
+  -- One at a time per file, place and kind, as every door that names or files takes it (00551).
   perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|posts', 42));
   select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
   if not found or v_file.removed_at is not null then
@@ -22458,14 +22514,17 @@ begin
     return jsonb_build_object('fate', 'not_a_post', 'post_id', null);
   end if;
   -- A Google press is one call: one that died between its placement and its answer stops holding the next press after ten
-  -- minutes. Whether it went up is still the edge's events' to say.
+  -- minutes, in the words the files sweep says it with (contracts FILE_WORDS.google.unknown). Whether it went up is still
+  -- the edge's events' to say.
   update public.posts p
      set status = 'failed', updated_at = now(),
-         error = jsonb_build_object('code', null, 'subcode', null, 'words', 'Google did not say whether this went up.')
+         error = jsonb_build_object('code', null, 'subcode', null, 'words',
+                                    'Google did not say whether this went up. Look on your profile before posting it again.')
    where p.file_id = p_file_id and p.place = 'google' and p.status = 'publishing'
      and p.updated_at < now() - interval '10 minutes';
+  -- A post and a story wait apart (00620): busy is one of the same kind on its way at that place.
   select p.id into v_busy from public.posts p
-   where p.file_id = p_file_id and p.place = p_place
+   where p.file_id = p_file_id and p.place = p_place and p.kind = p_kind
      and p.status = any (array['queued', 'preparing', 'publishing', 'checking']);
   if found then
     return jsonb_build_object('fate', 'busy', 'post_id', v_busy);
@@ -22495,7 +22554,61 @@ end $$;
 -- Name: FUNCTION post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) IS 'A member''s press, with the settings permission (00611, 00616): a made post approved for a place, as a picture or a story, with its words and its time. The placement is written, and for Instagram its first job; for Google later than two minutes on, its post_google job at its time. Answers {fate: begun, busy (the one on its way), gone, not_a_post, not_yet, post_id}.';
+COMMENT ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) IS 'A member''s press, with the settings permission (00611, 00616, 00620): a made post approved for a place, as a picture or a story, with its words and its time; a picture and a story of one piece wait apart. The placement is written, and for Instagram its first job; for Google later than two minutes on, its post_google job at its time. Answers {fate: begun, busy (the one of its kind on its way), gone, not_a_post, not_yet, post_id}.';
+
+
+--
+-- Name: post_move(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_move(p_post_id uuid, p_when timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post public.posts;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select * into v_post from public.posts p where p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  if not coalesce(public.caller_has_permission(v_post.tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_when is null or p_when <= now() then
+    raise exception 'A new time is later than now.' using errcode = '22023';
+  end if;
+  -- contracts POST_AHEAD_DAYS_MAX, as post_begin holds it.
+  if p_when > now() + interval '30 days' then
+    raise exception 'A post goes within thirty days.' using errcode = '22023';
+  end if;
+  -- Held while it moves: Don't post and the job's own run wait on this row, and then find it moved.
+  select * into v_post from public.posts p where p.id = p_post_id and p.status = 'queued' for update;
+  if not found then
+    return jsonb_build_object('fate', 'late', 'status', (select p.status from public.posts p where p.id = p_post_id));
+  end if;
+  -- Its job moves only while no run has taken it: a run that has is already making it ready, or sending it.
+  update public.jobs j
+     set due_at = case when j.kind = 'post_prepare' then greatest(now(), p_when - interval '10 minutes') else p_when end,
+         updated_at = now()
+   where j.tenant_id = v_post.tenant_id and j.kind = any (array['post_prepare', 'post_google']) and j.state = 'scheduled'
+     and j.payload ->> 'post_id' = p_post_id::text;
+  if not found then
+    return jsonb_build_object('fate', 'late', 'status', v_post.status);
+  end if;
+  update public.posts p set scheduled_for = p_when, updated_at = now() where p.id = p_post_id;
+  return jsonb_build_object('fate', 'moved');
+end $$;
+
+
+--
+-- Name: FUNCTION post_move(p_post_id uuid, p_when timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_move(p_post_id uuid, p_when timestamp with time zone) IS 'A member''s Change time, with the settings permission (00621): a post still queued, its job not yet taken, set for another time within thirty days, its job moved with it. Answers {fate: moved, late (with where it stands), unknown}.';
 
 
 --
@@ -22553,9 +22666,10 @@ begin
     raise exception 'Not yours to change.' using errcode = '42501';
   end if;
   -- Up to the moment it is sent (the jobs read the row before they act, so a pulled post is never sent), and once it
-  -- stopped: let go, it waits for no one.
+  -- stopped: let go, it waits for no one. One the owner said they posted by hand is theirs to take back (00620).
   update public.posts p set status = 'pulled', updated_at = now()
-   where p.id = p_post_id and p.status = any (array['queued', 'preparing', 'held', 'failed']);
+   where p.id = p_post_id
+     and (p.status = any (array['queued', 'preparing', 'held', 'failed']) or (p.place = 'hand' and p.status = 'published'));
   if found then
     return jsonb_build_object('fate', 'pulled');
   end if;
@@ -22567,7 +22681,57 @@ end $$;
 -- Name: FUNCTION post_pull(p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_pull(p_post_id uuid) IS 'Don''t post (00611, 00619): a post queued or being prepared is pulled before it is sent, and one held or failed is let go. Answers {fate: pulled, late, unknown}.';
+COMMENT ON FUNCTION public.post_pull(p_post_id uuid) IS 'Don''t post (00611, 00619, 00620): a post queued or being prepared is pulled before it is sent, one held or failed is let go, and one kept by hand is taken back. Answers {fate: pulled, late, unknown}.';
+
+
+--
+-- Name: post_report(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_actor uuid := auth.uid();
+  v_file  public.files;
+  v_link  text := nullif(btrim(p_link), '');
+  v_id    uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if v_link is not null and (char_length(v_link) > 500 or v_link !~* '^https://[^[:space:]]+$') then
+    raise exception 'A link starts with https:// and is at most 500 characters.' using errcode = '22023';
+  end if;
+  select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
+  if not found or v_file.removed_at is not null then
+    return jsonb_build_object('fate', 'gone', 'post_id', null);
+  end if;
+  if v_file.source <> 'made' then
+    return jsonb_build_object('fate', 'not_a_post', 'post_id', null);
+  end if;
+  -- Said once a piece, which the database holds (posts_one_by_hand): said again, at once or twice together, it is the same
+  -- record, with the link it now has.
+  insert into public.posts as p (tenant_id, file_id, place, kind, caption, scheduled_for, approved_by, approved_at, via,
+                                 status, permalink, published_at)
+  values (p_tenant_id, p_file_id, 'hand', case when v_file.kind = 'video' then 'reel' else 'picture' end, null, now(),
+          v_actor, now(), 'press', 'published', v_link, now())
+  on conflict (file_id) where place = 'hand' and status = 'published'
+  do update set permalink = coalesce(excluded.permalink, p.permalink), updated_at = now()
+  returning p.id into v_id;
+  return jsonb_build_object('fate', 'kept', 'post_id', v_id);
+end $_$;
+
+
+--
+-- Name: FUNCTION post_report(p_tenant_id uuid, p_file_id uuid, p_link text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text) IS 'I posted it (00620): a member, with the settings permission, says a made piece is up by their own hand, with its link or none. Kept as a post at the place hand, published as they say so; said again, the same record with the link it now has. Answers {fate: kept, gone, not_a_post, post_id}.';
 
 
 --
@@ -31775,15 +31939,25 @@ CREATE FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid DE
               from asked a) pairs
      cross join lateral public.sequence_queued_why_not(p_tenant_id, pairs.leads, pairs.sequences) w
   ),
-  -- The ones whose email could not be checked: nothing checks it again by itself, so they stand there until their owner
-  -- presses Check again on Leads. One refused for good (written to already, a customer, on the never-again list) asks
-  -- nothing of its owner and is not counted.
-  stuck as (
-    select a.sequence_id, count(*) as n, min(a.at) as since
+  -- The ones whose email could not be checked. The leads clock asks each again by itself, a day apart, twice (00618,
+  -- leads.email_rechecks; 00622 spends the tries of one it will never ask): while it still will, the lead is being
+  -- checked again and asks nothing of its owner (rechecking); with both tries spent it stands there until its owner
+  -- presses Check again or takes it out (stuck). One refused for good (written to already, a customer, on the
+  -- never-again list) asks nothing of its owner and is not counted.
+  unchecked as (
+    select a.sequence_id, a.at, coalesce(l.email_rechecks, 2) < 2 as again
       from asked a
       join whys w on w.sequence_id = a.sequence_id and w.lead_id = a.lead_id
+      left join public.leads l on l.id = a.lead_id and l.tenant_id = p_tenant_id
      where w.why = 'unchecked'
-     group by a.sequence_id
+  ),
+  stuck as (
+    select u.sequence_id,
+           count(*) filter (where not u.again) as n,
+           min(u.at) filter (where not u.again) as since,
+           count(*) filter (where u.again) as rechecking
+      from unchecked u
+     group by u.sequence_id
   )
   select coalesce(jsonb_agg(jsonb_build_object(
            'id', q.id,
@@ -31853,8 +32027,9 @@ CREATE FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid DE
            'in_it', coalesce(ii.n, 0),
            'between', case when bs.n is null then null else
              jsonb_build_object('at', bs.first_at, 'people', bs.n) end,
-           'stuck', case when sk.n is null then null else
+           'stuck', case when coalesce(sk.n, 0) = 0 then null else
              jsonb_build_object('leads', sk.n, 'since', sk.since, 'reason', 'unchecked') end,
+           'rechecking', coalesce(sk.rechecking, 0),
            -- Its first step's last run (decision 0128, stage 2): the business day it ran for, and why it did nothing
            -- where it did, the newest playbook.run event's `skipped` where that is a reason, as the record reads it
            -- (packages/db lastRunSkipped: a run that went writes a count there, which is no reason). Asked of a sequence
@@ -31886,7 +32061,7 @@ $$;
 -- Name: FUNCTION sequence_overview(p_tenant_id uuid, p_sequence_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid) IS 'The workspace''s sequences (0060), or the one named: how each starts (its first step, with the search it adds from: 00459, when its words were last let go: 00462, or a one-off''s date, or the once of one kept as a draft: 00465), how its batches are decided (its mode, 00462), where it stands, its steps, the days they span and the emails still to write (00459), its channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it (everyone whose place stands, sequence_places: 00459). Newest first. Under the caller''s row security. And (decision 0128, stage 2): who is between two steps with a time to come (between: the first one''s time, and how many have one); leads on a running cold email''s list that its first step refuses because their email could not be checked (stuck: how many of the 200 that have stood there longest, past a day, and since when; asked through sequence_queued_why_not, so only of a member); the business day its first step last ran and, where it is on and runs by its hour, why that run did nothing (last_run_for, last_run_off: the newest playbook.run event''s skipped, where it is a reason and not a count); and last counts a batch still going that has sent some, bar a one-off''s.';
+COMMENT ON FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid) IS 'The workspace''s sequences (0060), or the one named: how each starts (its first step, with the search it adds from: 00459, when its words were last let go: 00462, or a one-off''s date, or the once of one kept as a draft: 00465), how its batches are decided (its mode, 00462), where it stands, its steps, the days they span and the emails still to write (00459), its channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it (everyone whose place stands, sequence_places: 00459). Newest first. Under the caller''s row security. And (decision 0128, stage 2): who is between two steps with a time to come (between: the first one''s time, and how many have one); leads on a running cold email''s list that its first step refuses because their email could not be checked (stuck: how many of the 200 that have stood there longest, past a day, and since when, once the leads clock has spent its two tries at each; rechecking: how many it will still ask again by itself, 00622; asked through sequence_queued_why_not, so only of a member); the business day its first step last ran and, where it is on and runs by its hour, why that run did nothing (last_run_for, last_run_off: the newest playbook.run event''s skipped, where it is a reason and not a count); and last counts a batch still going that has sent some, bar a one-off''s.';
 
 
 --
@@ -35848,6 +36023,11 @@ begin
   -- allowance and budget back (lead_rounds_live serves this predicate).
   -- And a lead just found with a site and no mark, whose round has ended by
   -- the time the sweep's second try reaches it (leads_untouched_purge serves it).
+  -- And, at the top of each hour, an address the sweep's second tries are for (00622): one whose check did not answer
+  -- and that the clock may still ask again (leads_recheck_due serves it), or one standing 'checking' (leads_checking).
+  -- The clock asked the sweep only while a search was live, so on a quiet day no address was ever asked again (13 Nov
+  -- 2026: 67 due, none asked). Once an hour, since a retry is a day's matter, and an address no check can take would
+  -- otherwise call the edge at every slot.
   if exists (select 1 from public.lead_runs r where r.state in ('claimed', 'starting', 'running', 'unknown'))
      or exists (select 1 from public.lead_rounds r where r.state <> 'ended')
      or exists (
@@ -35861,7 +36041,12 @@ begin
           and l.blanked_at is null
           and l.website_host is not null
           and l.mark_path is null
-     ) then
+     )
+     or (extract(minute from now()) < 5 and (
+           exists (select 1 from public.leads l
+                    where l.email_state = 'unknown' and l.email_rechecks < 2
+                      and (l.email_checked_at is null or l.email_checked_at <= now() - interval '1 day'))
+           or exists (select 1 from public.leads l where l.email_state = 'checking'))) then
     return public.request_sweep('leads', '/api/cron/leads');
   end if;
   insert into public.sweep_status (sweep, requested_at) values ('leads', now())
@@ -35874,7 +36059,7 @@ end $$;
 -- Name: FUNCTION trigger_leads_sweep(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_leads_sweep() IS 'The lead finder''s clock. Calls the edge (/api/cron/leads) only when a run is live, a round has not ended -- a round whose start job died sits queued with no run, and its reservation comes back only when something ends it -- or a lead just found has a site and no mark, for the sweep''s second try; otherwise records that it looked, so sweep_health() can tell a quiet engine from a stopped clock.';
+COMMENT ON FUNCTION public.trigger_leads_sweep() IS 'The lead finder''s clock. Calls the edge (/api/cron/leads) only when a run is live, a round has not ended -- a round whose start job died sits queued with no run, and its reservation comes back only when something ends it -- or a lead just found has a site and no mark, for the sweep''s second try, or, at the top of each hour, an address is due the clock''s second try at its mailbox check or stands checking (00622); otherwise records that it looked, so sweep_health() can tell a quiet engine from a stopped clock.';
 
 
 --
@@ -40959,7 +41144,7 @@ CREATE TABLE public.posts (
     CONSTRAINT posts_caption_shape CHECK (((caption IS NULL) OR (char_length(caption) <= 2200))),
     CONSTRAINT posts_held_shape CHECK ((((status = 'held'::text) = (held_reason IS NOT NULL)) AND ((held_reason IS NULL) OR (char_length(held_reason) <= 300)))),
     CONSTRAINT posts_kind_check CHECK ((kind = ANY (ARRAY['picture'::text, 'story'::text, 'reel'::text]))),
-    CONSTRAINT posts_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text]))),
+    CONSTRAINT posts_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text, 'hand'::text]))),
     CONSTRAINT posts_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'preparing'::text, 'publishing'::text, 'checking'::text, 'published'::text, 'held'::text, 'failed'::text, 'pulled'::text, 'taken_down'::text]))),
     CONSTRAINT posts_via_check CHECK ((via = ANY (ARRAY['press'::text, 'card'::text])))
 );
@@ -44753,10 +44938,24 @@ CREATE INDEX lead_searches_thread ON public.lead_searches USING btree (thread_id
 
 
 --
+-- Name: leads_checking; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX leads_checking ON public.leads USING btree (tenant_id) WHERE (email_state = 'checking'::text);
+
+
+--
 -- Name: leads_name_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX leads_name_key ON public.leads USING btree (tenant_id, public.lead_name_key(business_name)) WHERE ((erased_at IS NULL) AND (blanked_at IS NULL));
+
+
+--
+-- Name: leads_recheck_due; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX leads_recheck_due ON public.leads USING btree (tenant_id, email_checked_at) WHERE ((email_state = 'unknown'::text) AND (email_rechecks < 2));
 
 
 --
@@ -44813,13 +45012,6 @@ CREATE UNIQUE INDEX leads_tenant_source_key_uq ON public.leads USING btree (tena
 --
 
 CREATE INDEX leads_tenant_stage ON public.leads USING btree (tenant_id, stage) WHERE ((erased_at IS NULL) AND (blanked_at IS NULL));
-
-
---
--- Name: leads_unknown_due; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX leads_unknown_due ON public.leads USING btree (email_checked_at) WHERE (email_state = 'unknown'::text);
 
 
 --
@@ -45397,10 +45589,17 @@ CREATE UNIQUE INDEX posts_external ON public.posts USING btree (place, external_
 
 
 --
+-- Name: posts_one_by_hand; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX posts_one_by_hand ON public.posts USING btree (file_id) WHERE ((place = 'hand'::text) AND (status = 'published'::text));
+
+
+--
 -- Name: posts_one_on_its_way; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX posts_one_on_its_way ON public.posts USING btree (file_id, place) WHERE (status = ANY (ARRAY['queued'::text, 'preparing'::text, 'publishing'::text, 'checking'::text]));
+CREATE UNIQUE INDEX posts_one_on_its_way ON public.posts USING btree (file_id, place, kind) WHERE (status = ANY (ARRAY['queued'::text, 'preparing'::text, 'publishing'::text, 'checking'::text]));
 
 
 --
@@ -55474,6 +55673,15 @@ GRANT ALL ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_plac
 
 
 --
+-- Name: FUNCTION post_move(p_post_id uuid, p_when timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_move(p_post_id uuid, p_when timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_move(p_post_id uuid, p_when timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION public.post_move(p_post_id uuid, p_when timestamp with time zone) TO service_role;
+
+
+--
 -- Name: FUNCTION post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -55488,6 +55696,15 @@ GRANT ALL ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text
 REVOKE ALL ON FUNCTION public.post_pull(p_post_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.post_pull(p_post_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.post_pull(p_post_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION post_report(p_tenant_id uuid, p_file_id uuid, p_link text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text) TO authenticated;
+GRANT ALL ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text) TO service_role;
 
 
 --

@@ -185,14 +185,6 @@ function RebookWork(p: WorkProps & { word: AppointmentWord; onDontSend: () => vo
   );
 }
 
-/** What the sequence that answers a word does for it, as the row says it: another time offered, or a thank-you. */
-const followsWords = (mark: VisitWord, follows: VisitFollowUp): string | undefined =>
-  mark === "missed"
-    ? W.visit.follows(follows.name, follows.when, follows.asks)
-    : mark === "kept"
-      ? W.visit.thanks(follows.name, follows.when, follows.asks)
-      : undefined;
-
 /** Yesterday's visit to mark: Kept, or Missed and the rebook Ask writes, sent from the row. */
 export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
   const { row, main, may, flash, keep, unkeep } = p;
@@ -222,7 +214,7 @@ export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
     return (
       <Done
         words={VISIT_WORDS[mark]}
-        detail={follows ? followsWords(mark, follows) : undefined}
+        detail={follows ? (VISIT_ASK_WORDS.follows(mark, follows) ?? undefined) : undefined}
         act={{ label: W.visit.change, onPress: () => setMark(null) }}
       />
     );
@@ -267,7 +259,7 @@ function keptWords(answer: Awaited<ReturnType<typeof markVisitsKept>>): string {
   return [
     marked + already_kept ? W.visit.allKept.done(marked + already_kept) : "",
     refused ? W.visit.allKept.refused(refused, why ?? "") : "",
-    follows ? W.visit.thanks(follows.name, follows.when, follows.asks) : "",
+    follows ? (VISIT_ASK_WORDS.follows("kept", follows) ?? "") : "",
   ]
     .filter(Boolean)
     .join(" · ");

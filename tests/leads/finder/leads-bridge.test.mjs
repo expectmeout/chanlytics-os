@@ -17,6 +17,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { SECOND_MS } from "@chanlytics/contracts";
+import { until } from "../../shared/_until.mjs";
 
 /* ------------------------------- the window ------------------------------ */
 
@@ -481,6 +483,63 @@ test("leadsMore appends only under the same view; its late answer after a view c
   assert.ok(
     !L().rows.some((r) => PAGE2.some((p) => p.id === r.id)),
     "page two of the old view never joined the new one",
+  );
+});
+
+test("REGRESSION: Load more asked again while its page is out asks for nothing: the second is answered by the first", async () => {
+  // 13 Nov 2026: the page's own guard is React state, which two presses in one moment both read as free, and a read the
+  // client shares is shared for two seconds only: a page of 500 that took longer was asked for twice.
+  const pageOne = (u) => u.includes("/api/v1/leads?") && !u.includes("after_key");
+  const pageTwo = (w) => w.reads.filter((r) => r.includes("after_key"));
+  const w = wire({ searches: [SEARCH_DONE], rows: PAGE1, next: PAGE2, counts: COUNTS, hold: true });
+  w.release("lead-searches");
+  w.release(pageOne);
+  await leadsView("clients/leads");
+  const real = Date.now;
+  const first = leadsMore();
+  try {
+    await until(() => pageTwo(w).length === 1, "the first press asks for page two");
+    Date.now = () => real() + 3 * SECOND_MS; // the page is slow: past the client's own sharing
+    const second = leadsMore();
+    w.release("after_key");
+    await Promise.all([first, second]);
+  } finally {
+    Date.now = real;
+  }
+  assert.equal(pageTwo(w).length, 1, "one request for page two");
+  assert.equal(L().rows.length, PAGE1.length + PAGE2.length, "and both presses answered with it, once");
+});
+
+test("REGRESSION: what was offered is taken in once at a time, and not under a reader who left the top before it landed", async () => {
+  // 13 Nov 2026: the page takes a running search's new leads in by itself while its reader is at the top (scope/rows-land.tsx).
+  // The take had no guard against a second, and put the rows in whatever the reader had done while it was out.
+  const pageOne = (u) => u.includes("/api/v1/leads?") && !u.includes("after_key");
+  const w = wire({ searches: [SEARCH_RUNNING], rows: PAGE1, counts: COUNTS });
+  await leadsView("clients/leads");
+  w.now({ rows: [NEW_A, ...PAGE1] });
+  await leadsOverride.apply();
+  assert.equal(L().offered, 1, "one new lead offered");
+  await leadsTakeOffered(() => false);
+  assert.equal(L().offered, 1, "REGRESSION: put in under a reader who had scrolled away or opened a lead");
+  assert.ok(!L().rows.some((r) => r.id === NEW_A.id), "and not drawn");
+  const held = wire({ keep: true, hold: true, searches: [SEARCH_RUNNING], rows: [NEW_A, ...PAGE1], counts: COUNTS });
+  const real = Date.now;
+  const first = leadsTakeOffered();
+  try {
+    await until(() => held.reads.filter(pageOne).length === 1, "the first take reads page one");
+    Date.now = () => real() + 3 * SECOND_MS; // the read is slow: past the client's own sharing
+    const second = leadsTakeOffered();
+    held.release("lead-searches");
+    held.release(pageOne);
+    await Promise.all([first, second]);
+  } finally {
+    Date.now = real;
+  }
+  assert.equal(held.reads.filter(pageOne).length, 1, "REGRESSION: a second take asked for page one again");
+  assert.equal(L().offered, 0, "taken in");
+  assert.ok(
+    L().rows.some((r) => r.id === NEW_A.id),
+    "and drawn",
   );
 });
 

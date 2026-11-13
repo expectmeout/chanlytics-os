@@ -143,11 +143,15 @@ async function readBroadcast(toolContext: ToolContext, input: { broadcast_id: st
  * Every version is a row an answer may cite, as the read gave it: a template, opened on the Library. Ask's plan reads the
  * Library through it too (act/plan.ts).
  */
-export async function readMessages(toolContext: ToolContext) {
+export async function readMessages(toolContext: ToolContext, input: { name?: string | undefined } = {}) {
   const read = await load(toolContext.rc, templatesReader, { all: true });
   const library = read.data;
   if (library.usedBy === undefined) throw new Error("templates: Settings' read came back without what sends each");
-  const messages = messageReadsOf(library);
+  // One message asked for by its name (or what the business calls it) is read with its words whole, and alone.
+  const wanted = input.name?.trim().toLowerCase() ?? "";
+  const named = (m: { name: string; title: string }) =>
+    !wanted || m.name.toLowerCase() === wanted || m.title.toLowerCase() === wanted;
+  const messages = messageReadsOf(library, () => wanted !== "").filter(named);
   const versions = new Set(messages.flatMap((m) => m.versions.map((v) => v.id)));
   noteRows(
     toolContext.read,
@@ -332,11 +336,13 @@ export const sequencesTool = defineActions({
       run: listAudiences,
     }),
     messages: readAction({
-      input: z.object({}),
+      input: z.object({
+        name: z.string().optional(),
+      }),
       examples: [{}],
       label: "Reading the messages",
       words:
-        "Action messages reads the Library whole: every message, a name in a language, with its category, each version on its channel and its state (approved, pending while WhatsApp reviews it, rejected, paused or disabled), the values it fills and the sequences that send it (used_by). Call it before a new message is written, so the Library never holds a twin; to pick a message a send can use now, action lists.",
+        "Action messages reads the Library whole: every message, a name in a language, with its title, category, away where put away, each version on its channel and its state (approved, pending while WhatsApp reviews it, rejected with its reason, paused or disabled) and words (cut to a line), the values it fills and the sequences that send it (used_by). With name (its name or title), that message alone, words whole. Call it before a new message is written, so the Library never holds a twin; to pick a message a send can use now, action lists.",
       run: readMessages,
     }),
     sent: readAction({

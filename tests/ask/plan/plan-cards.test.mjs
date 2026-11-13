@@ -243,6 +243,8 @@ const withCalendar = (over = {}) => {
         kind: "whatsapp",
         status: "active",
         number_e164: "+442079460958",
+        // Its WhatsApp Business Account on file, as a connected number's is: WhatsApp is asked to review a message only for one.
+        waba_id: "waba-1",
         config: { quality_rating: "GREEN", messaging_limit: "TIER_1K" },
       },
     ],
@@ -649,6 +651,7 @@ const waRow = (number) => ({
   kind: "whatsapp",
   status: "active",
   number_e164: number,
+  waba_id: "waba-1",
   config: { quality_rating: "GREEN", messaging_limit: "TIER_1K" },
 });
 

@@ -22,6 +22,7 @@ import {
   type FileShows,
   type FileVideoMime,
   type InstagramPostKind,
+  type PostPlace,
   type PiecePlan,
   type PostPicture,
   type PostPlan,
@@ -193,6 +194,8 @@ export interface FileChange {
   status?: "filed" | "set_aside";
   /** A made piece's caption, written where it stands (server posts/caption.ts). */
   caption?: string;
+  /** "I posted it": a made piece its owner put up themselves, with its link or none; null takes it back (posts/by-hand.ts). */
+  posted?: { link?: string | null } | null;
 }
 
 /** What came of asking for a post's picture: the picture and whether the business has a number to print, or what refused it. */
@@ -250,6 +253,15 @@ async function fileBytes(id: string, as: PostShapeName | "video"): Promise<Blob 
   return res?.ok ? res.blob().catch(() => null) : null;
 }
 
+/** What a post's door answers, as a press reads it: done, or why not in words. */
+type PostAnswer = { ok: true } | { ok: false; message: string };
+
+/** A post's two doors at one place: post it (now, or at `when`), and Don't post. Its time moves by its own id (movePost). */
+interface PostDoorsAt {
+  begin: (id: string, as: InstagramPostKind, words: string, when?: string) => Promise<PostAnswer>;
+  pull: (id: string, postId: string) => Promise<PostAnswer>;
+}
+
 export const fileVerbs = {
   add,
   pieceBoard,
@@ -277,6 +289,9 @@ export const fileVerbs = {
     }),
   pullFromInstagram: (id: string, postId: string) =>
     api()("DELETE files/[id]/instagram", { params: { id }, body: { post_id: postId } }),
+  /** Change time, for a post set for its time at either place (00621): the same post, set for another. */
+  movePost: (id: string, postId: string, when: string) =>
+    api()("PATCH files/[id]/posts", { params: { id }, body: { post_id: postId, when } }),
   change: (id: string, body: FileChange) => api()("PATCH files/[id]", { params: { id }, body }),
   /** Keep what was found online, or (`set_aside`) say it is not the business's: Keep and Not mine, for many at once. */
   keepMany: (ids: readonly string[], to: "filed" | "set_aside" = "filed") =>
@@ -285,3 +300,18 @@ export const fileVerbs = {
   /** Undo of a delete, for ten minutes after it (00616). */
   restore: (id: string) => api()("POST files/[id]/restore", { params: { id } }),
 };
+
+/**
+ * A post's doors, by its place (Campaigns › Content's sheet, its Undo, its Change time): one shape, so a press never asks where
+ * it goes before it knows which door. Google takes a picture alone, so what Instagram is posted as is Instagram's.
+ */
+export const postDoors = {
+  instagram: {
+    begin: (id, as, words, when) => fileVerbs.postToInstagram(id, as, words, when),
+    pull: (id, postId) => fileVerbs.pullFromInstagram(id, postId),
+  },
+  google: {
+    begin: (id, _as, words, when) => fileVerbs.postToGoogle(id, words, when),
+    pull: (id, postId) => fileVerbs.pullFromGoogle(id, postId),
+  },
+} as const satisfies Record<PostPlace, PostDoorsAt>;

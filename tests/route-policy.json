@@ -923,6 +923,13 @@
       "rate": null,
       "spend": false
     },
+    "PATCH files/[id]/posts": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "GET files/[id]": {
       "kind": "read",
       "scope": "row",
@@ -1769,6 +1776,7 @@
     },
     "POST platform/claims": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_claim",
@@ -1776,6 +1784,7 @@
     },
     "POST platform/deliveries/redrive": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_delivery_redrive",
@@ -1805,6 +1814,7 @@
     },
     "POST platform/jobs/pause": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_job_pause",
@@ -1813,6 +1823,7 @@
     },
     "POST platform/jobs/requeue-kind": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_job_requeue_kind",
@@ -1821,6 +1832,7 @@
     },
     "POST platform/jobs/requeue": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_job_requeue",
@@ -1829,6 +1841,7 @@
     },
     "POST platform/lines/refile": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_line_refile",
@@ -1846,6 +1859,7 @@
     },
     "POST platform/lines/replace": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_line_refile",
@@ -1854,6 +1868,7 @@
     },
     "POST platform/lines/retry": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_line_retry",
@@ -1894,6 +1909,7 @@
     },
     "POST platform/partners/standing": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_partner_standing",
@@ -1902,6 +1918,7 @@
     },
     "POST platform/partners/status": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_partner_status",
@@ -1918,6 +1935,7 @@
     },
     "POST platform/requests": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_request",
@@ -1926,6 +1944,7 @@
     },
     "POST platform/requests/step": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_request",
@@ -1941,6 +1960,7 @@
     },
     "POST platform/support/kind": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_support",
@@ -1949,6 +1969,7 @@
     },
     "POST platform/support/mark": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_support",
@@ -1957,6 +1978,7 @@
     },
     "POST platform/support/resend": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_support_resend",
@@ -1979,6 +2001,7 @@
     },
     "POST platform/waitlist/invited": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_waitlist_invited",

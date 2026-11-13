@@ -55,6 +55,11 @@ function viewerMadeAtOf(atMs: number, zone: string, nowMs: number): string {
   return W.dayAt(viewerDayOf(atMs, zone, nowMs), clockTime(atMs, zone));
 }
 
+/** "today, 9:41", "Monday, 9:41": the same, inside a line ("Made today, 9:41"), where a capital read as a stray. */
+function viewerMadeInLineOf(atMs: number, zone: string, nowMs: number): string {
+  return W.at(viewerDayOf(atMs, zone, nowMs), clockTime(atMs, zone));
+}
+
 /** How the viewer says a day and a time ahead, by the business's own clock (viewerDayOf, viewerAheadOf). */
 export interface ViewerClock {
   day: (at: string) => string;
@@ -126,6 +131,8 @@ export interface ViewerRecord {
 interface ViewerFact {
   label: string;
   said: string;
+  /** The same said inside a line after its label (a post's one sheet: "Made today, 9:41"), where it differs. */
+  inLine?: string;
 }
 
 /** What Details shows: the piece, its name and what it is, its words, what it was made from, and its rows. */
@@ -157,12 +164,12 @@ function viewerWordsOf(file: FileDto, posts: readonly PostDto[], record: ViewerR
  * Details' rows: when it was made, and by whom; a video's sound. Where it stands at each place is the status row's and its
  * list's alone (model/places.ts), said once.
  */
-function viewerRowsOf(file: FileDto, clock: { madeAt: string }): ViewerFact[] {
+function viewerRowsOf(file: FileDto, clock: { madeAt: string; madeInLine: string }): ViewerFact[] {
   const facts = W.facts;
   if (file.source !== "made")
     return [{ label: facts.added, said: `${clock.madeAt} · ${FILE_WORDS.sources[file.source]}` }];
   // When, alone: every piece here is Ask's, so "by Ask" said nothing.
-  const rows: ViewerFact[] = [{ label: facts.made, said: clock.madeAt }];
+  const rows: ViewerFact[] = [{ label: facts.made, said: clock.madeAt, inLine: clock.madeInLine }];
   if (file.kind === "video") rows.push({ label: facts.sound, said: file.sound_said ?? FILE_WORDS.video.notHeardYet });
   return rows;
 }
@@ -197,7 +204,10 @@ export function viewerSaidOf(
       sub: `${kind}${size}`,
       words,
       from,
-      facts: viewerRowsOf(file, { madeAt: viewerMadeAtOf(created, clock.zone, now) }),
+      facts: viewerRowsOf(file, {
+        madeAt: viewerMadeAtOf(created, clock.zone, now),
+        madeInLine: viewerMadeInLineOf(created, clock.zone, now),
+      }),
     },
   };
 }

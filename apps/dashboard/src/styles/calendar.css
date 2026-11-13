@@ -1110,8 +1110,13 @@
    the sheet's own ground, never a box round two presses, which was most of the sheet's bulk. */
 .cal-visit-ask { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .cal-visit-ask-question { margin: 0; font-size: var(--text-md); font-weight: var(--weight-medium); color: var(--ink); }
-.cal-visit-ask-said { flex: 1 1 0; margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
 .cal-visit-refused { margin: 0; font-size: var(--text-xs); color: var(--danger-ink); }
+/* A word said in the sheet, answered in its foot: the word and what it sets going, and at the line's end the other word,
+   the way back; it goes under the words where a phone has no room beside them. A refusal has the line to itself. */
+.cal-visit-outcome { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-3); min-width: 0; }
+.cal-visit-outcome-words { flex: 1 1 60%; min-width: 0; margin: 0; font-size: var(--text-sm); color: var(--ink); }
+.cal-visit-change { flex: none; }
+.cal-visit-outcome > .cal-visit-refused { flex-basis: 100%; }
 /* The keys' column is as wide as the longest key drawn, and every value starts on one line after it: a fixed 112px stood
    a phone's values in the middle of the sheet. */
 .cal-visit-rows { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-2) var(--space-4); margin: 0; }
@@ -1131,21 +1136,25 @@
 /* A phone's sheet stands the visit between its head and its foot with nothing of its own round it: the first line stood
    on the head and the footnote on the foot. Its head runs into it (the kit's solid sheet), so less stands over it than
    under. The foot's presses stand a step outside the words' column there (the kit's flat foot), so its words (the
-   question, and the line under its presses) keep that step, and start where the rows do. The desk's peek keeps its own
-   (.cal-side-body). */
+   question, what a word said here sets going, and the line under its presses) keep that step, and start where the rows
+   do. The desk's peek keeps its own (.cal-side-body). */
 @media (max-width: 900px) {
   .cal-visit { padding-block: var(--space-2) var(--space-4); }
   .cal-visit-ask-question,
+  .cal-visit-outcome-words,
   .cal-visit-foot > .cal-visit-quiet { padding-inline: var(--space-1); }
 }
 /* Their name and their deal are words that press: under a finger each keeps its line's height and reaches a thumb by a
    margin no one sees, where the shell's 44px floor for every button stood the two lines 48px apart. One class past
-   that floor (frame.css html.frame-on button), which loads after this sheet. */
+   that floor (frame.css html.frame-on button), which loads after this sheet. The way back under a word said here is a
+   word that presses too: at the floor it stood the foot a line taller than what it says. */
 @media (pointer: coarse) {
   html.frame-on .cal-visit-name,
-  html.frame-on .cal-visit-deal { position: relative; min-height: 0; }
+  html.frame-on .cal-visit-deal,
+  html.frame-on .cal-visit-change { position: relative; min-height: 0; }
   .cal-visit-name::after,
-  .cal-visit-deal::after { content: ""; position: absolute; inset: -6px -8px; }
+  .cal-visit-deal::after,
+  .cal-visit-change::after { content: ""; position: absolute; inset: -6px -8px; }
 }
 
 /* ---- The desk's peek: at the board's right edge, over its right columns, never narrowing the week (D5) ---- */

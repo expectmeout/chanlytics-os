@@ -43,6 +43,7 @@ after(() => {
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/files/[id]/instagram/route.ts"));
+const posts = await import(at("apps/dashboard/app/api/v1/files/[id]/posts/route.ts"));
 const one = await import(at("apps/dashboard/app/api/v1/files/[id]/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
@@ -106,6 +107,9 @@ function world({ on = true, scopes = ALL, connected = true, lapsed = false, role
   if (on) ON.add(tenant);
   const begun = [];
   const pulled = [];
+  const moved = [];
+  // Every door asked, in order: a post let go before its piece is set aside.
+  const doors = [];
   const rows = posts.map((p) => postRow(tenant, p));
   const ctx = {
     supabase: fakeDb(
@@ -126,14 +130,54 @@ function world({ on = true, scopes = ALL, connected = true, lapsed = false, role
             return { fate: "busy", post_id: rows[0].id };
           return { fate: "begun", post_id: "00000002-0000-4000-8000-000000000000" };
         },
+        file_change: (a) => {
+          doors.push(["file_change", a.p_status ?? null]);
+          return null;
+        },
+        file_remove: () => {
+          doors.push(["file_remove"]);
+          return null;
+        },
+        // 00620's door: said once a piece, and said again it is the same record with the link it now has.
+        post_report: ({ p_file_id, p_link }) => {
+          doors.push(["post_report", p_link ?? null]);
+          const kept = rows.find((r) => r.file_id === p_file_id && r.place === "hand" && r.status === "published");
+          if (kept) {
+            kept.permalink = p_link ?? kept.permalink;
+            return { fate: "kept", post_id: kept.id };
+          }
+          const row = postRow(tenant, {
+            id: "00000009-0000-4000-8000-000000000000",
+            file_id: p_file_id,
+            place: "hand",
+            kind: "picture",
+            caption: null,
+            status: "published",
+            permalink: p_link ?? null,
+            published_at: "2026-11-12T12:00:00.000Z",
+          });
+          rows.push(row);
+          return { fate: "kept", post_id: row.id };
+        },
         post_pull: ({ p_post_id }) => {
           pulled.push(p_post_id);
+          doors.push(["post_pull", p_post_id]);
           const p = rows.find((r) => r.id === p_post_id);
-          if (p && ["queued", "preparing"].includes(p.status)) {
+          // One kept by hand is its owner's to take back (00620).
+          if (p && (["queued", "preparing"].includes(p.status) || (p.place === "hand" && p.status === "published"))) {
             p.status = "pulled";
             return { fate: "pulled" };
           }
           return { fate: "late", status: p?.status ?? null };
+        },
+        // Change time (00621): a queued post moves; one being made ready is late.
+        post_move: ({ p_post_id, p_when }) => {
+          moved.push({ p_post_id, p_when });
+          const p = rows.find((r) => r.id === p_post_id);
+          if (!p) return { fate: "unknown" };
+          if (p.status !== "queued") return { fate: "late", status: p.status };
+          p.scheduled_for = p_when;
+          return { fate: "moved" };
         },
       },
     ),
@@ -155,13 +199,12 @@ function world({ on = true, scopes = ALL, connected = true, lapsed = false, role
         },
       ]
     : [];
-  const service = fakeDb(
-    { tenant_channels: channels, files: [{ id: POST_ID, tenant_id: tenant, source: "made", made: null }], events: [] },
-    {},
-    {},
-  );
+  // How the post was made, as every made post keeps it: its words are kept here as it is posted (posts/caption.ts).
+  const made = { plan: { line: "Open late on Fridays", under: null }, caption: null };
+  const kept = [{ id: POST_ID, tenant_id: tenant, source: "made", made, removed_at: null }];
+  const service = fakeDb({ tenant_channels: channels, files: kept, events: [], posts: rows }, {}, {});
   setServiceClient(service);
-  return { ctx, tenant, begun, pulled, rows };
+  return { ctx, tenant, begun, pulled, moved, rows, kept, doors };
 }
 const send = (w, method, body) =>
   new Request(`http://localhost/api/v1/x?workspace=${w.tenant}`, { method, body: JSON.stringify(body) });
@@ -255,6 +298,75 @@ test("Don't post stops it until it is sent, and says so once it is too late", as
   assert.deepEqual(other.pulled, [], "another file's post is never asked after");
 });
 
+test("Change time moves the same post in one step, until Instagram is making it ready", async () => {
+  const when = "2099-03-01T15:00:00.000Z";
+  const w = world({ posts: [{ status: "queued" }] });
+  assert.deepEqual(await posts.PATCH.run(send(w, "PATCH", { post_id: w.rows[0].id, when }), w.ctx), { moved: true });
+  assert.deepEqual([w.rows[0].status, w.rows[0].scheduled_for], ["queued", when], "the same post, at its new time");
+  assert.deepEqual(w.pulled, [], "never stopped and posted again");
+  const late = world({ posts: [{ status: "preparing" }] });
+  await assert.rejects(
+    posts.PATCH.run(send(late, "PATCH", { post_id: late.rows[0].id, when }), late.ctx),
+    (e) => e.message === ON_INSTAGRAM.moveLate,
+  );
+  const other = world();
+  await assert.rejects(
+    posts.PATCH.run(send(other, "PATCH", { post_id: "00000005-0000-4000-8000-000000000000", when }), other.ctx),
+    (e) => e.code === "not_found",
+  );
+  assert.deepEqual(other.moved, [], "another file's post is never asked after");
+});
+
+test("the press keeps its words on the piece in the same step, and a story keeps none", async () => {
+  const w = world();
+  await route.POST.run(send(w, "POST", { as: "picture", caption: "Open late on Fridays, all winter." }), w.ctx);
+  assert.equal(w.kept[0].made.caption, "Open late on Fridays, all winter.", "what went is what the piece says now");
+  const story = world();
+  await route.POST.run(send(story, "POST", { as: "story" }), story.ctx);
+  assert.equal(story.kept[0].made.caption, null);
+});
+
+test("a piece set aside is not posted: what still waits to go out is let go first, and what went stays", async () => {
+  const WAITING = "00000003-0000-4000-8000-000000000000";
+  const UP = "00000004-0000-4000-8000-000000000000";
+  const w = world({
+    posts: [
+      { id: WAITING, status: "queued" },
+      { id: UP, status: "published" },
+    ],
+  });
+  // The answer names where a post was let go, which the page's note says ("Its post to Instagram won't go out").
+  assert.deepEqual(await one.PATCH.run(send(w, "PATCH", { status: "set_aside" }), w.ctx), {
+    ok: true,
+    stopped: ["instagram"],
+  });
+  assert.deepEqual(w.doors, [
+    ["post_pull", WAITING],
+    ["file_change", "set_aside"],
+  ]);
+  assert.equal(w.rows.find((p) => p.id === UP).status, "published");
+  // One that began going up between the read and the pull goes: the database says late, and the answer names no place, so the
+  // note never says a post that went up was stopped.
+  const late = world({ posts: [{ id: WAITING, status: "queued" }] });
+  const rpc = late.ctx.supabase.rpc.bind(late.ctx.supabase);
+  late.ctx.supabase.rpc = (name, args) =>
+    name === "post_pull"
+      ? Promise.resolve({ data: { fate: "late", status: "publishing" }, error: null })
+      : rpc(name, args);
+  assert.deepEqual(await one.PATCH.run(send(late, "PATCH", { status: "set_aside" }), late.ctx), {
+    ok: true,
+    stopped: [],
+  });
+  // Kept again, nothing is let go: there is nothing to let go of.
+  const kept = world({ posts: [{ id: WAITING, status: "queued" }] });
+  assert.deepEqual(await one.PATCH.run(send(kept, "PATCH", { status: "filed" }), kept.ctx), { ok: true, stopped: [] });
+  assert.deepEqual(kept.doors, [["file_change", "filed"]]);
+  // Deleted, the same: its waiting post is let go before the piece goes, so its time never sends it nor rings the bell.
+  const gone = world({ posts: [{ id: WAITING, status: "queued" }] });
+  await one.DELETE.run(send(gone, "DELETE", {}), gone.ctx);
+  assert.deepEqual(gone.doors, [["post_pull", WAITING], ["file_remove"]]);
+});
+
 test("the sheet reads whether Instagram takes a post, and where each one stands, in words", async () => {
   const read = (w) => one.GET.run(new Request(`http://localhost/api/v1/x?workspace=${w.tenant}`), w.ctx);
   const w = world({
@@ -280,4 +392,46 @@ test("the sheet reads whether Instagram takes a post, and where each one stands,
     "not_connected",
     "a lapsed connection offers no press",
   );
+});
+
+test("I posted it: the owner's word is kept by its door, with its link or none, and taken back by Don't post's", async () => {
+  const w = world();
+  await one.PATCH.run(send(w, "PATCH", { posted: {} }), w.ctx);
+  assert.deepEqual(w.doors, [["post_report", null]]);
+  const [hand] = w.rows;
+  assert.deepEqual([hand.place, hand.status, hand.permalink], ["hand", "published", null]);
+  // Its link, added after: the same record.
+  await one.PATCH.run(send(w, "PATCH", { posted: { link: " https://www.tiktok.com/@harbor/video/1 " } }), w.ctx);
+  assert.equal(w.rows.length, 1);
+  assert.equal(hand.permalink, "https://www.tiktok.com/@harbor/video/1");
+  // The record a piece read on its own takes it from says so, and never as a post at a place of ours.
+  const record = await one.GET.run(send(w, "GET"), w.ctx);
+  assert.equal(record.by_hand.link, "https://www.tiktok.com/@harbor/video/1");
+  assert.deepEqual(record.posts, []);
+  // Not posted after all.
+  await one.PATCH.run(send(w, "PATCH", { posted: null }), w.ctx);
+  assert.equal(hand.status, "pulled");
+  assert.equal((await one.GET.run(send(w, "GET"), w.ctx)).by_hand, null);
+  // Taken back with none said is what was asked for: nothing is asked of any door.
+  const none = world();
+  await one.PATCH.run(send(none, "PATCH", { posted: null }), none.ctx);
+  assert.deepEqual(none.doors, []);
+});
+
+test("a link that is no https address is refused before any door, and a photo of the Library is marked by no one", async () => {
+  const w = world();
+  for (const link of [
+    "http://example.com/x",
+    "tiktok.com/x",
+    "https://exa mple.com",
+    `https://example.com/${"x".repeat(500)}`,
+  ])
+    await assert.rejects(one.PATCH.run(send(w, "PATCH", { posted: { link } }), w.ctx), (e) => e.status === 400, link);
+  assert.deepEqual(w.doors, []);
+  const photo = { ...w.ctx, params: { id: PHOTO_ID } };
+  await assert.rejects(
+    one.PATCH.run(send(w, "PATCH", { posted: {} }), photo),
+    /Only a piece Ask made is marked as posted/,
+  );
+  assert.deepEqual(w.doors, []);
 });

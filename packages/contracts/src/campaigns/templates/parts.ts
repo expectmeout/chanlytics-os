@@ -176,9 +176,25 @@ export function refusedWords(reason: string | null | undefined): string | null {
     .trim()
     .replace(/[.!?\s]+$/, "");
   if (!sentence) return null;
-  const words = /^[A-Z0-9_]+$/.test(sentence) ? sentence.toLowerCase().replace(/_/g, " ") : sentence;
-  return `WhatsApp refused this one: ${words}. Change the words and send it back.`;
+  const code = /^[A-Z0-9_]+$/.test(sentence);
+  const words = !code
+    ? sentence
+    : sentence in REFUSAL_CODES
+      ? REFUSAL_CODES[sentence]
+      : sentence.toLowerCase().replace(/_/g, " ");
+  // What to do is one thing, and Ask does most of it: its editor opens on new words written from this reason.
+  return words ? `WhatsApp asked for a change: ${words}. Ask writes new words for you to send back.` : null;
 }
+
+/** Meta's codes for a refusal, as an owner reads them; NONE is no reason at all. A code not here is said as its words. */
+const REFUSAL_CODES: Record<string, string | null> = {
+  ABUSIVE_CONTENT: "it reads as abusive or threatening",
+  INVALID_FORMAT: "the way its values are written",
+  PROMOTIONAL: "it reads as an offer, and was filed as a notice",
+  TAG_CONTENT_MISMATCH: "its words do not match the language or kind it was filed as",
+  SCAM: "it reads like a scam",
+  NONE: null,
+};
 
 /** "one has a picture for a heading, two have a button that takes a value" */
 const COUNT_WORDS = ["", "one", "two", "three", "four", "five"];

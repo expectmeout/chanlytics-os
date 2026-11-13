@@ -14,6 +14,8 @@
  *     rate_limited, a paused or ended workspace payment_required, and a preview, a missing key, a model that could not be
  *     reached or the API's refusal of the request are one 503 "not available"; a stream that breaks, an answer that
  *     does not parse and one out of shape are upstream_anthropic "unreadable"; the model's own refusal is a 422.
+ *     One out of shape keeps the fields that broke it as its cause, never what they held, so the route's line says
+ *     which (13 Nov 2026: a draft lost to one field's length, and no line said which).
  *
  * The stream is a seam: setModelStream hands a test its own.
  */
@@ -29,6 +31,7 @@ import {
   type SkillCraftPurpose,
   isOneOf,
   causedBy,
+  unheldByDoor,
 } from "@chanlytics/contracts";
 import { GatewayRefused, streamModel, type GatewayCall } from "./model/gateway";
 
@@ -140,6 +143,10 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, oth
     throw causedBy(new AppError("upstream_anthropic", `The ${otherText} came back unreadable. Try again.`), e);
   }
   const parsed = schema.safeParse(value);
-  if (!parsed.success) throw new AppError("upstream_anthropic", `The ${otherText} came back unreadable. Try again.`);
+  if (!parsed.success)
+    throw causedBy(
+      new AppError("upstream_anthropic", `The ${otherText} came back unreadable. Try again.`),
+      new Error(`out of shape at ${unheldByDoor(parsed.error).join(", ")}`),
+    );
   return parsed.data;
 }

@@ -19,6 +19,7 @@ import { usePieceDrafts, usePiecePosts, usePiecePresses, type PieceHands, type P
 import { readAhead } from "./read-ahead";
 import type { PieceNext } from "./model/piece-open";
 import type { PlaceDoors } from "./post-both";
+import { byHandPressOf } from "./viewer/by-hand";
 import { PieceDesk } from "./viewer/desk";
 import type { PieceMoreActs } from "./viewer/more";
 import { PieceViewer } from "./viewer/viewer";
@@ -59,8 +60,8 @@ function pieceActsOf(
     onAfter: beside?.after ? () => open(beside.after ?? "") : null,
     onNext: (next: PieceNext) => {
       presses.clear();
-      if (next.is === "post") drafts.both.begin();
-      else if (next.is === "post_to" || next.is === "again") drafts.both.begin(next.place);
+      // Post, Post to Google and Post again open the one sheet as where it stands opens it (post-both.tsx begin).
+      if (next.is === "post" || next.is === "post_to" || next.is === "again") drafts.both.begin();
       else if (next.is === "keep") presses.say({ status: "filed" });
       // A conversation of its own, so a post costs only what a post reads, whatever Ask was last asked (as Files').
       else if (next.is === "make") askAbout({ about, prompts: postAskOf(file), fresh: true });
@@ -70,7 +71,8 @@ function pieceActsOf(
     // A video from the plan it was drawn by; a post from the photo it came from: with that gone, there is nothing to draw it
     // again from.
     onChange: video ? () => drafts.again.begin(video) : from && plan ? () => drafts.version.begin(plan) : null,
-    onAside: () => presses.say({ status: file.status === "set_aside" ? "filed" : "set_aside" }),
+    // Set aside, which lets a post of it that waited go and says so (piece-presses.tsx), or kept again.
+    onAside: () => (file.status === "set_aside" ? presses.say({ status: "filed" }) : presses.aside()),
     onDelete: () => presses.ask(true),
   };
 }
@@ -84,8 +86,9 @@ function postedDoorsOf(hands: PieceHands): PlaceDoors {
   const { made, record, reread, flash } = hands;
   const { file } = made;
   const may = canDo("settings");
-  // Files' own line for a post that is up on Instagram, for its door to the post.
-  const upOnInstagram = record.instagram?.posts[0]?.status === "published" ? record.instagram.posts[0] : null;
+  // Files' own line for the newest post that is up on Instagram, for its door to the post: a story set for later since keeps
+  // it (Ruben, 12 Nov 2026: See it went missing once one was).
+  const upOnInstagram = record.instagram?.posts.find((p) => p.status === "published") ?? null;
   return {
     google: record.posted ? (
       <PostOnGoogle
@@ -132,7 +135,8 @@ export function ContentPiece({
   flash: (f: FrameFlash) => void;
 }) {
   const { file } = made;
-  const record = usePostRecord(file);
+  // Read again as the page says its posts moved (one landed, one stopped), so the sheet says what the tile says.
+  const record = usePostRecord(file, made.posts.map((p) => `${p.id}:${p.status}`).join());
   const hands: PieceHands = { made, record, reread, open, onClose, flash };
   const at = usePiecePosts(made, record);
   const { posts, takes } = at;
@@ -147,8 +151,11 @@ export function ContentPiece({
     begun.current = true;
     both.begin();
   }, [post, both]);
+  // Where its owner said they posted it themselves: the page's, or its record's where the piece was read on its own.
+  const byHand = made.by_hand ?? null;
   const shown = {
-    made: { file, posts },
+    made: { file, posts, by_hand: byHand },
+    byHand: byHandPressOf(byHand, presses.change, flash),
     record: { made: record.made, video: record.video },
     takes,
     may: canDo("settings"),

@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-397 handlers in 58 domains.
+398 handlers in 58 domains.
 
 ## activity
 
@@ -1041,6 +1041,7 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 | `who_in_it` | one of `"no_one"`, `"agreed"` | no |  |
 | `status` | one of `"filed"`, `"set_aside"` | no |  |
 | `caption` | string | no | at most 4400 characters |
+| `posted` | object or null | no |  |
 
 ### `DELETE /api/v1/files/[id]`
 
@@ -1107,6 +1108,15 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/[id]/play/route.ts`).
+
+### `PATCH /api/v1/files/[id]/posts`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `post_id` | string (uuid) | yes |  |
+| `when` | string (date-time) | yes |  |
 
 ### `POST /api/v1/files/[id]/restore`
 
@@ -3410,6 +3420,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `name` | string | yes |  |
+| `title` | string | no | at most 200 characters |
 | `language` | string | yes |  |
 | `category` | one of `"marketing"`, `"utility"` | yes |  |
 | `versions` | object | yes |  |
@@ -3458,6 +3469,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `body` | string | yes | at least 1 characters; at most 4000 characters |
 | `tone` | one of `"warmer"`, `"shorter"` | no |  |
 | `ask` | string | no | at least 1 characters; at most 300 characters |
+| `fixing` | object | no |  |
 
 ## today
 

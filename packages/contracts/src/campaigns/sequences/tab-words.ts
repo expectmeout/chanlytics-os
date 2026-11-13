@@ -300,6 +300,13 @@ export const SEQUENCE_PEOPLE_WORDS = {
   queued: { draft: "they join when you start it", paused: "they wait until it's on", on: "in its next batch" },
   /** Added to one that is on, where its next run is known (leadsPlannedWords): "in the batch planned tomorrow 9:00 AM". */
   queuedAt: (when: string) => `in the batch planned ${when}`,
+  /**
+   * What the Added fold promises, of the leads a batch can take alone: `where` they go (one of the two above), `whole` the
+   * fold's count and `refused` how many of its rows say why no batch takes them. It said "in its next batch" of a fold
+   * whose every lead was refused; now the ones refused are left out ("1 in its next batch"), and none is promised one.
+   */
+  queuedOf: (where: string, whole: number, refused: number) =>
+    refused <= 0 ? where : whole > refused ? `${whole - refused} ${where}` : "none can go yet",
   /** An email waiting for an OK whose opening the check is writing: asked again, or not written yet. */
   writing: "Its opening is being written…",
 } as const;

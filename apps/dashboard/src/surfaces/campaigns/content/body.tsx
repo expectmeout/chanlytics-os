@@ -25,6 +25,7 @@ import {
   PIECE_STAGES,
   contentHeadOf,
   contentIdeasFor,
+  contentIdeasReady,
   contentMakingSaid,
   contentPieceMarkOf,
   contentMarkSaid,
@@ -67,6 +68,8 @@ export interface ContentActs {
   onFix: (fileId: string) => void;
   /** Show what was set aside (Made's Set aside), from the foot of All, as the Library's is. */
   onAside: () => void;
+  /** Show the Library, where photos and clips are added: the first day's door while it is empty. */
+  onLibrary: () => void;
 }
 
 /** Where a piece stands, as one mark on its square, in its tone; its words for a screen reader. */
@@ -135,7 +138,7 @@ function MakingTile({ making }: { making: ContentMakingDto }) {
 
 /** A made piece: Files' own tile, square as the Library's are, and where it stands as one mark on it. The open one is outlined. */
 function MadeTile({ made, open, onOpen }: { made: ContentMadeDto; open: boolean; onOpen: (fileId: string) => void }) {
-  const mark = contentPieceMarkOf(made);
+  const mark = contentPieceMarkOf(made, Date.now());
   return (
     <div className="cnv-piece" data-open={open || undefined} data-tile={made.file.id} data-testid="cnv-tile">
       <Photo file={made.file} onOpen={() => onOpen(made.file.id)} />
@@ -299,10 +302,17 @@ function MadePart(props: ContentReadProps) {
 /**
  * Nothing made yet (the content canvas's first day): a raised card with Ask's three, the words, and what Ask makes; then the
  * ideas it can make now, each a row with the files it would be made from (sheets/make.tsx IdeaRows, Make's own rows), that
- * asks Ask for it on this page.
+ * asks Ask for it on this page. Only the ideas whose photos or clips are there (contracts contentIdeasReady); with nothing in
+ * the Library, the way to add some leads.
  */
-function FirstDay({ acts, videos, picks }: { acts: ContentActs; videos: boolean; picks: ContentPageDto["ideas"] }) {
-  const ideas = contentIdeasFor(videos);
+function FirstDay(props: {
+  acts: ContentActs;
+  videos: boolean;
+  picks: ContentPageDto["ideas"];
+  libraryEmpty: boolean;
+}) {
+  const { acts, videos, libraryEmpty } = props;
+  const ideas = contentIdeasReady(contentIdeasFor(videos), props.picks);
   return (
     <section className="cnv-first" aria-labelledby="cnv-first-title" data-testid="cnv-empty">
       <Panel className="cnv-first-head">
@@ -312,9 +322,17 @@ function FirstDay({ acts, videos, picks }: { acts: ContentActs; videos: boolean;
         <h2 className="cnv-first-title" id="cnv-first-title">
           {W.empty.title}
         </h2>
-        <p className="cnv-first-says">{(videos ? W.empty.body : W.empty.bodyPhotos)(ideas.length)}</p>
+        <p className="cnv-first-says">
+          {ideas.length > 0 ? (videos ? W.empty.body : W.empty.bodyPhotos)(ideas.length) : W.empty.addFirst(videos)}
+        </p>
+        {libraryEmpty ? (
+          <Button variant="secondary" onClick={acts.onLibrary} data-testid="cnv-first-add">
+            <Icon name="plus" size={14} />
+            {W.empty.addDoor(videos)}
+          </Button>
+        ) : null}
       </Panel>
-      <IdeaRows ideas={ideas} picks={picks} onIdea={acts.onIdea} />
+      {ideas.length > 0 ? <IdeaRows ideas={ideas} picks={props.picks} onIdea={acts.onIdea} /> : null}
     </section>
   );
 }
@@ -347,7 +365,7 @@ function ContentRead(props: ContentReadProps) {
   // Found by words and nothing there: said, as the Library says it, never the first day's ideas.
   if (dto.about && dto.made.length === 0) return none(FILE_WORDS.foundNone(dto.about));
   if (dto.making.length === 0 && dto.made.length === 0)
-    return <FirstDay acts={acts} videos={shows.videos} picks={dto.ideas} />;
+    return <FirstDay acts={acts} videos={shows.videos} picks={dto.ideas} libraryEmpty={dto.tally.library === 0} />;
   // All of it, where nothing is searched for: under its headings, what needs the owner first.
   if (dto.view === "all" && !dto.about) {
     const aside = dto.next ? 0 : dto.tally.aside;
