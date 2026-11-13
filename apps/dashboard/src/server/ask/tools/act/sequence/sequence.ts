@@ -16,6 +16,7 @@ import { actAction, defineActions } from "../../context/tool-defs";
 import { broadcastAction } from "../broadcast";
 import { reachOutAddAction } from "../leads/search";
 import { messageAction } from "../message";
+import { messageChangeActions } from "../message-change";
 import { playbookAction } from "../playbook/playbook";
 import { playbookChangeAction } from "../playbook-change";
 import { playbookChannelsAction } from "../playbook-channels";
@@ -222,6 +223,8 @@ export const propose_sequence = defineActions({
       build: proposeEnd,
     }),
     message: messageAction,
+    // A message on file changed: its words, its name, put away or back, deleted (the message sheet's review, 12 Nov 2026).
+    ...messageChangeActions,
     cold_email: actAction({
       kind: "reach_out_make",
       input: z.object({

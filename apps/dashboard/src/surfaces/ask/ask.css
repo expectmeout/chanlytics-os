@@ -911,12 +911,6 @@ body.ask-open .tb-ask .tb-ask-face {
   margin-right: 5px;
   color: var(--ok-ink);
 }
-/* Quick changes under a card with words: the kit's question chips, on one wrapping row. */
-.ask-card-quick {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
 .ask-card-change {
   padding: 10px 12px;
   border-radius: var(--radius-inset);

@@ -1,6 +1,7 @@
 import { write } from "@/server/shared/route";
 import { templateScope } from "@/server/shared/verbs";
 import { changeTemplate, deleteTemplateRow, TemplateChange } from "@/server/campaigns/template-row";
+import { reviewWords } from "@/server/drafts/template/review";
 
 /**
  * PUT /api/v1/templates/:id — { hidden?: boolean, title?: string | null }.
@@ -25,7 +26,8 @@ export const PUT = write({
   role: "operator",
   rate: "settings",
   input: TemplateChange,
-  handle: ({ ctx, row, input }) => changeTemplate(ctx, row, input),
+  // Changed words are read once more before they are sent back: only words WhatsApp's review takes are sent to it.
+  handle: ({ ctx, row, input }) => changeTemplate(ctx, row, input, reviewWords),
 });
 
 export const DELETE = write({

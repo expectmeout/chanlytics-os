@@ -13,7 +13,7 @@ export {
 } from "./delivery";
 export { type ActivitySubject, type ActivitySubjects, getActivitySubjects } from "./delivery";
 export type { DeliveredEvent, DeliveryRow } from "./delivery";
-export { emitEvent, findFilePosted, getSubjectsWith, recordEvent } from "./events";
+export { emitEvent, findFilePosted, getSubjectsWith, listWordsKept, recordEvent } from "./events";
 export type { EmittedKind, EventData } from "./events";
 export { findProviderEvent, findTextsAlreadyHeard, keepProviderEvent, scrubProviderEvents } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";

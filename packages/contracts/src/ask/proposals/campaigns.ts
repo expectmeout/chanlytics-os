@@ -575,22 +575,23 @@ export const MESSAGE_WORDS = {
   /** A WhatsApp version where no number is connected: what the door answers when the edge finds none. */
   noNumber: `${LIBRARY_WORDS.writeNeedsNumber} Say so, and write it for email or text alone, or once a number is connected.`,
   /**
-   * An email version where email cannot send, which is known (channelsReady: no mailbox, or no email for the deployment):
-   * why, in its sentence, else the mailbox's.
+   * A WhatsApp version where the number's WhatsApp Business Account is not on file, which the edge needs to ask WhatsApp
+   * to review anything (the door's check, write-message.ts getWhatsAppFilingRefusal).
    */
-  noMailbox: (reason: string | null): string =>
-    `${reason ?? CHANNEL_WORDS.noMailbox} Say so, and write it without an email version.`,
+  noAccount:
+    "This number's WhatsApp Business Account is not on file, so WhatsApp can't be asked to review a message. Say so: connecting the number again in Settings › Connections fixes it. Write it for email or text alone meanwhile.",
   /**
-   * An email version where whether email can send could not be asked just now (channelsReady's `unchecked`): not a no, so
-   * the email stays in the message, and the card is asked for again in a moment.
+   * An email version where email cannot send yet, which is known (channelsReady: no mailbox, or no email for the
+   * deployment): the email is kept all the same, as the page keeps one, and goes once email can send. Said under the card.
    */
-  emailUnchecked: `Whether email can send here could not be checked just now. Say so, and propose it again in a moment, with its email version.`,
+  emailWaits: (reason: string | null): string =>
+    `Its email is kept, and goes once email can send: ${reason ?? CHANNEL_WORDS.noMailbox}`,
   /** A name and language the Library holds: the door's sentence for a twin, and where that message's versions change. */
   twin: (name: string): string =>
-    `${TEMPLATE_SAME_NAME_WORDS} Say so: “${name}” in this language is in ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}, where its versions are changed.`,
-  /** The card's title: the name the door files the message under, and its language in words ("in English"). */
-  title: (name: string, language: string): string =>
-    `${CAMPAIGN_ROOMS.newMessage}: ${name}, in ${languageName(language)}`,
+    `${TEMPLATE_SAME_NAME_WORDS} Say so: “${name}” in this language is in ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}; its words change with action message_words, its name with action message_rename.`,
+  /** The card's title: what the owner calls the message (its title, else its name made words), and its language in words. */
+  title: (title: string, language: string): string =>
+    `${CAMPAIGN_ROOMS.newMessage}: ${title}, in ${languageName(language)}`,
   /**
    * When its versions are ready to send: an email's and a text's once Approve files them (the card itself sends nothing,
    * and in a plan it sits among the silent steps), WhatsApp's once WhatsApp has reviewed it, in the product's voice (a
@@ -687,6 +688,8 @@ export const messageSpec: ProposalSpec = {
       route: "POST templates/message",
       body: {
         name,
+        // What the owner calls it, kept as its title where it says more than its name (a card from before it has none).
+        ...(asText(pl.title) ? { title: asText(pl.title) } : {}),
         language: pl.language,
         category: pl.category,
         versions,

@@ -5,6 +5,7 @@
  * who said yes to offers"), and two rows under the words, one of which said "None yet". The words' own pencil is here
  * too, which WhatsApp's words and an email's or a text's version wear alike.
  */
+import { MESSAGE_CHANGE_WORDS } from "@chanlytics/contracts";
 import { SEQUENCES_ROUTE, sequenceRoute } from "@chanlytics/contracts";
 import { navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -97,7 +98,9 @@ export function standingTap(g: TemplateGroup, facts: Facts, setting: Setting) {
       : setting.place === "going" && use
         ? WORDS.goingSays(sentByWords(use))
         : setting.place === "away"
-          ? WORDS.awaySays
+          ? use && use.running
+            ? `${WORDS.awaySays} ${MESSAGE_CHANGE_WORDS.awayStill(sentByWords(use))}`
+            : WORDS.awaySays
           : WORDS.idleSays;
   return (
     <Popover

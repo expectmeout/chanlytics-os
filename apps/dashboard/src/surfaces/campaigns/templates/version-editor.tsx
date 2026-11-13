@@ -24,7 +24,7 @@
  * one Undo beside it (Ask's last change, else every change), where Cancel stood, in the pane's foot (`dock`) as every
  * drawer's acts are. Unchanged, the one act is Done.
  */
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   campaignEmailRules,
@@ -112,6 +112,15 @@ interface VersionEditorProps {
   preview?: (words: VersionWords) => ReactNode;
   /** WhatsApp's reason for refusing these words: Ask writes them again as the editor opens. */
   fix?: string | null;
+  /** The words WhatsApp approved before a change it refused: offered to go back to, put in the box to send again. */
+  approvedBefore?: string | null;
+  /**
+   * The refused version this editor answers, and Ask's words for this refusal where they were kept: it opens on them, with
+   * no second wait; where none were, Ask writes them as it opens and they are kept (keepFixWords).
+   */
+  fixFor?: { id: string; kept: string | null; reason: string } | null;
+  /** What waits while WhatsApp looks at new words (the sequences that send it, the booking text), said once they changed. */
+  holds?: string | null;
   /** In a message's own sheet: the words drawn once, and Send only once they changed (the canvas of 12 Nov 2026). */
   oneBody?: boolean;
   /** Nothing is on file yet: the words it opens on are a start to keep, so Save stands from the first. */
@@ -129,6 +138,40 @@ interface VersionEditorProps {
  * holds them), the check, the save or the send back, Ask's rewrite (which a refusal starts as the editor opens), whether
  * anything changed, and the one Undo.
  */
+type FixFor = VersionEditorProps["fixFor"];
+
+/**
+ * Words already written again: the tab's, from an editor left open, else Ask's for a refusal, kept from when they were first
+ * written. The editor opens on them, Undo going back to where it started.
+ */
+const writtenAgain = (kept: VersionWords | null, fixFor: FixFor): VersionWords | null =>
+  kept ?? (fixFor?.kept ? { subject: null, body: fixFor.kept } : null);
+
+/** The refusal Ask's new words answer, under which they are kept as they come back. */
+const fixKeyOf = (fixFor: FixFor): { template_id: string; reason: string } | undefined =>
+  fixFor ? { template_id: fixFor.id, reason: fixFor.reason } : undefined;
+
+/**
+ * A refusal of WhatsApp's words before they were sent, for their shape or for what a reader saw in them (the door's
+ * `validation`): its sentence, which Ask writes them again from. Null for any other answer (a limit, a twin, a send going
+ * out), which new words do not mend.
+ */
+const wordsRefusedOf = (whatsapp: boolean, answer: { ok: false; code?: string; message: string } | null) =>
+  whatsapp && answer?.code === "validation" ? answer.message : null;
+
+/**
+ * Words WhatsApp would refuse are written again by Ask at once, from the reason, so the owner reads words it takes and
+ * sends those, never left to work a rule out (Ruben, 12 Nov 2026: nothing an owner writes should hold their account up).
+ * Their own words are one Undo away, and the reason stays under the box.
+ */
+function useFixOnRefusal(reason: string | null, done: () => void, ask: ReturnType<typeof useAskRewrite>) {
+  useEffect(() => {
+    if (!reason) return;
+    done();
+    void ask.rewrite(WORDS.fixBefore(reason));
+  }, [reason, done, ask]);
+}
+
 function useVersionWords(p: VersionEditorProps) {
   const { name, channel, language, start, slots, busy, within, onSave, onClose } = p;
   const kind = p.rules ?? campaignEmailRules(slots);
@@ -136,12 +179,15 @@ function useVersionWords(p: VersionEditorProps) {
   const hasSubject = channel === "email" && kind.subject;
   // What it opens on: the words the tab kept from an editor left open, else where it starts.
   const [kept] = useState(() => (within ? null : keptWords(name, language, channel)));
-  const first = kept ?? start;
+  const opened = writtenAgain(kept, p.fixFor);
+  const first = opened ?? start;
   const [subject, setSubject] = useState(first.subject ?? "");
   const [body, setBody] = useState(first.body);
   // What the server refused with, until the words change; the check's own sentence is read as they are typed.
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // What the door refused of WhatsApp's words before sending them, until Ask has been asked to write them again.
+  const [refusedFor, setRefusedFor] = useState<string | null>(null);
   const typed = (field: BoxName, words: string) => {
     setProblem(null);
     (field === "subject" ? setSubject : setBody)(words);
@@ -175,6 +221,7 @@ function useVersionWords(p: VersionEditorProps) {
     }
     setSaving(false);
     setProblem(r ? r.message : null);
+    setRefusedFor(wordsRefusedOf(whatsapp, r));
   };
   /**
    * The words in the boxes as if typed: each box drawn again with them (the seats' put, which keeps its undo), so the
@@ -187,14 +234,19 @@ function useVersionWords(p: VersionEditorProps) {
     within?.onWords({ subject: hasSubject ? subjectNow : null, body: words.body });
   };
   const ask = useAskRewrite({ channel, language, written, saving, put, onProblem: setProblem });
+  useFixOnRefusal(
+    refusedFor,
+    useCallback(() => setRefusedFor(null), []),
+    ask,
+  );
   // A refused message opens with Ask already writing words WhatsApp can take: the owner reads them and sends them back.
   // Words the tab kept are those already written again: opened on them, Ask is not asked twice.
-  const fixed = useRef(kept !== null);
+  const fixed = useRef(opened !== null);
   useEffect(() => {
     if (!p.fix || fixed.current) return;
     fixed.current = true;
-    void ask.rewrite(WORDS.fixAsk(p.fix));
-  }, [p.fix, ask]);
+    void ask.rewrite(WORDS.fixAsk(p.fix), fixKeyOf(p.fixFor));
+  }, [p.fix, p.fixFor, ask]);
   // One Undo: Ask's last change, else back to the words it opened on.
   const undo = () => (ask.canUndo ? ask.undo() : put(start));
   return {
@@ -214,6 +266,7 @@ function useVersionWords(p: VersionEditorProps) {
     save,
     ask,
     undo,
+    put,
   };
 }
 
@@ -240,7 +293,24 @@ function bodyHintOf(p: VersionEditorProps, ed: EditorWords): string | undefined 
     const count = textCount(ed.body, p.language);
     return WORDS.counter(count.chars, count.parts);
   }
-  return p.channel === "email" ? ed.kind.foot : undefined;
+  // WhatsApp's: what Send does, which the sheet says nowhere else.
+  return p.channel === "email" ? ed.kind.foot : WORDS.whatsappNote;
+}
+
+/** A refused change's way back to the words WhatsApp approved, where they differ from what the box holds. */
+function GoBack({ p, ed }: { p: VersionEditorProps; ed: EditorWords }) {
+  const before = p.approvedBefore ?? null;
+  if (!before || before === ed.body) return null;
+  return (
+    <LinkButton
+      className="tpl-ver-back"
+      disabled={ed.saving || ed.ask.asking !== null}
+      onClick={() => ed.put({ subject: null, body: before })}
+      data-testid="template-words-back"
+    >
+      {WORDS.goBack}
+    </LinkButton>
+  );
 }
 
 /** The send, or the save: its words while it is out, and the gate a role may not pass. */
@@ -396,6 +466,12 @@ export function VersionEditor(p: VersionEditorProps) {
         </p>
       ) : null}
       <FieldError message={problem ?? namedProblem(check, written, slots)} testid="template-version-error" />
+      <GoBack p={p} ed={ed} />
+      {p.holds && ed.changed ? (
+        <p className="bc-excl-hint warn" data-testid="template-words-holds">
+          {p.holds}
+        </p>
+      ) : null}
       {ed.whatsapp && !oneBody ? (
         <p className="tpl-ver-note" data-testid="template-words-note">
           {WORDS.whatsappNote}
@@ -425,12 +501,20 @@ function useAskRewrite(o: {
 }) {
   const [asking, setAsking] = useState<string | null>(null);
   const [before, setBefore] = useState<VersionWords | null>(null);
-  const rewrite = async (said: string) => {
+  /** `fixing`: the words answer WhatsApp's refusal of this version, and are kept beside it as they come back. */
+  const rewrite = async (said: string, fixing?: { template_id: string; reason: string }) => {
     if (asking || o.saving || !o.written.body.trim() || !said.trim()) return;
     setAsking(said);
     const was = o.written;
+    const request = {
+      channel: o.channel,
+      language: o.language,
+      subject: was.subject,
+      body: was.body,
+      ask: said.trim(),
+    };
     const r = await templateVerbs
-      .rewrite({ channel: o.channel, language: o.language, subject: was.subject, body: was.body, ask: said.trim() })
+      .rewrite(fixing ? { ...request, fixing } : request)
       .catch(() => ({ ok: false as const, message: WORDS.saveFailed }));
     setAsking(null);
     if (!r.ok) {

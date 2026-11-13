@@ -149,7 +149,7 @@ const COME_BACK = {
   ...WRITE_NONE,
   title: "Come back",
   offer: true,
-  whatsapp: "Hi {{first name}}, it has been a while. Come back and see us: {{booking link}}",
+  whatsapp: "Hi {{first name}}, it has been a while. Come back and see us: {{booking link}} See you soon.",
 };
 const STANDS = {
   said: LINE.words,
@@ -164,7 +164,7 @@ const STANDS = {
 const WHO_ASKS = { tenantId: "t1", userId: "u1" };
 
 test("a line said under a draft changes the draft that stands: Ask is told it in the shape it answers in, by the request's keys, with the one rule a change adds, and the line it was drafted from stays on top (decision 0129 step 2)", async () => {
-  const shorter = { ...COME_BACK, whatsapp: "Hi {{first name}}, come back and see us: {{booking link}}" };
+  const shorter = { ...COME_BACK, whatsapp: "Hi {{first name}}, come back and see us: {{booking link}} See you soon." };
   answerWith(
     answer({
       steps: [step({ message: "k1" }), step({ after_days: 28, only_if: ["no_booking"], write: shorter })],
@@ -184,7 +184,10 @@ test("a line said under a draft changes the draft that stands: Ask is told it in
   // Judged as any draft is, and the line it was drafted from stays on top.
   assert.equal(out.said, LINE.words);
   assert.equal(out.steps[0].message.template_id, ID(1));
-  assert.match(out.steps[1].message.written.versions.whatsapp.body, /^Hi \{\{1\}\}, come back and see us: \{\{2\}\}$/);
+  assert.match(
+    out.steps[1].message.written.versions.whatsapp.body,
+    /^Hi \{\{1\}\}, come back and see us: \{\{2\}\} See you soon\.$/,
+  );
   assert.deepEqual([out.steps[1].after_days, out.steps[1].only_if], [28, ["no_booking"]]);
   // A first draft is told no draft, and no rule about one.
   answerWith(answer({ steps: [step({ message: "k1" })] }));
@@ -239,7 +242,7 @@ test("REGRESSION (the live run of 11 Nov 2026): a step a change rewrote in words
   assert.equal(out.steps.length, 2, "no step is lost");
   assert.match(
     out.steps[1].message.written.versions.whatsapp.body,
-    /it has been a while\. Come back and see us: \{\{2\}\}$/,
+    /it has been a while\. Come back and see us: \{\{2\}\} See you soon\.$/,
     "the step as it stood",
   );
   const differ = NEW_WORDS.cannot.why.valuesDiffer;
@@ -286,7 +289,7 @@ test("where a step's words cannot be kept, Ask is asked once more, told which st
     email_subject: "Come back",
     email_body: "Hi {{first name}}, come back and see us: {{booking link}}",
   };
-  const mended = { ...broken, whatsapp: "Hi {{first name}}, come back and see us: {{booking link}}" };
+  const mended = { ...broken, whatsapp: "Hi {{first name}}, come back and see us: {{booking link}} See you soon." };
   const drafted = (write) =>
     answer({ steps: [step({ message: "k1" }), step({ after_days: 28, only_if: ["no_booking"], write })] });
   // A first draft: the second step's versions disagree, Ask is told, and its second answer is the draft.
@@ -302,7 +305,7 @@ test("where a step's words cannot be kept, Ask is asked once more, told which st
   assert.deepEqual(JSON.parse(again[1].content), drafted(broken), "with what it answered");
   assert.match(again[2].content, /step 2: its email or text names a value its WhatsApp words don’t/);
   assert.deepEqual([out.steps.length, out.cannot], [2, null], "the second answer holds, and nothing is left out");
-  assert.match(out.steps[1].message.written.versions.whatsapp.body, /come back and see us: \{\{2\}\}$/);
+  assert.match(out.steps[1].message.written.versions.whatsapp.body, /come back and see us: \{\{2\}\} See you soon\.$/);
   // A change the same way: the step is the mended one, never the one that stood, and nothing is said to be left.
   calls.length = 0;
   answerInTurn(drafted(broken), drafted(mended));
@@ -310,7 +313,7 @@ test("where a step's words cannot be kept, Ask is asked once more, told which st
   assert.equal(calls.length, 2);
   assert.match(
     changed.steps[1].message.written.versions.whatsapp.body,
-    /^Hi \{\{1\}\}, come back and see us: \{\{2\}\}$/,
+    /^Hi \{\{1\}\}, come back and see us: \{\{2\}\} See you soon\.$/,
   );
   assert.equal(changed.cannot, null);
   // A second answer that is no better leaves the first: asked twice, never a third time.

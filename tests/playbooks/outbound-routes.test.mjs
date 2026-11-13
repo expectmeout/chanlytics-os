@@ -410,7 +410,7 @@ test("a broadcast: the workspace must be named, a viewer is refused as a viewer,
     ),
     "conflict",
     409,
-    "WhatsApp is still reviewing this message's WhatsApp version.",
+    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
   );
   await refused(
     broadcasts.POST.run(

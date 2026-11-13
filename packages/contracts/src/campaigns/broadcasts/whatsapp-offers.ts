@@ -18,7 +18,7 @@ const PLUS_ONE = /^\+1\d{10}$/;
  * says it in Spanish too, offer-plan-words.ts).
  */
 export const US_PAUSED =
-  "Meta has paused offers on WhatsApp to US numbers. Reminders, confirmations and replies still go.";
+  "WhatsApp is not delivering offers to US numbers for now. Reminders, confirmations and replies still go.";
 
 /** Whether Meta's pause holds for the offers this WhatsApp number sends: a US number's customers are in the US. */
 function whatsappOffersPaused(e164: string | null | undefined): boolean {
