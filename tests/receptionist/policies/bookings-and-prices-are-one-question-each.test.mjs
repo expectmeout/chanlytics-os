@@ -168,6 +168,29 @@ test("When someone wants to book: the switch on first, then the booking row held
   );
 });
 
+test("REGRESSION: a calendar connected through a mailbox is a calendar: offering times asks for nothing more -- it asked for a calendar link", () => {
+  /** What the menu says under a choice: what it does, or what it needs first. */
+  const saysUnder = (config, choice) => {
+    drawTab({ config });
+    press(byTestId(redrawTab(), "booking_choice-menu"));
+    const items = all(redrawTab(), (n) => n.props?.role === "menuitemradio");
+    return textOf(items.find((i) => textOf(i).startsWith(BOOKING_CHOICE_WORDS.options[choice].label)));
+  };
+  const needs = BOOKING_CHOICE_WORDS.needs.confirm;
+  // No calendar link: the openings are read from the calendar of a connected mailbox (contracts calendarFeedKeyOf).
+  const granted = { calendar: undefined, calendar_grant: { mailbox_id: "mb-1", provider: "google" } };
+  assert.ok(
+    !saysUnder(granted, "confirm").includes(needs),
+    "REGRESSION: a business on its Google calendar was told it needs one",
+  );
+  assert.ok(
+    saysUnder(granted, "confirm").includes(BOOKING_CHOICE_WORDS.options.confirm.says),
+    "it says what the choice does",
+  );
+  // With no calendar of either kind, it still says what it needs.
+  assert.ok(saysUnder({ calendar: undefined }, "confirm").includes(needs));
+});
+
 test("a refused write stops the choice there: nothing after it is sent, and the refusal is said", async () => {
   saving();
   const asked = policyDoor({ ok: false, message: "Your role can't change autonomy." });

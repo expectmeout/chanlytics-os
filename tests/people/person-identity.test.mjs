@@ -42,7 +42,7 @@ import { personLabel } from "../../apps/dashboard/src/server/shared/export-file.
 
 const TZ = "America/New_York";
 const NOW = new Date("2026-09-18T02:45:00Z");
-const ADDRESS = "ruben@rjcapital.io";
+const ADDRESS = "ruben@rjcapital.example";
 
 /** The contact exactly as CONVERSATION_COLUMNS selects it: email and all. */
 const contactRow = {

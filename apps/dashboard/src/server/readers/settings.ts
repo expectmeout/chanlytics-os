@@ -1,6 +1,7 @@
 import "server-only";
 import {
   AppError,
+  calendarFeedKeyOf,
   factConflicts,
   knownForwarding,
   parseTenantConfigResult,
@@ -168,11 +169,12 @@ export const settings: Reader<undefined, SettingsRead> = {
       // What the receptionist is told, composed here with the inputs the browser
       // cannot see (the Autonomy rows, these facts, the closures, the calendar's
       // openings), so the pane's card is the prompt and not a rendering of it.
-      // The feed address is read here and stays here.
+      // The feed address is read here and stays here. The calendar by the one rule (contracts calendarFeedKeyOf): the
+      // link, or a connected mailbox's calendar; the link alone was handed in until 13 Nov 2026.
       const prompt = await findPromptPreview(
         rc.ctx,
         rc.tenantId,
-        { brain: cfg.brain ?? null, calendarUrl: cfg.calendar?.ical_url ?? null },
+        { brain: cfg.brain ?? null, calendarUrl: calendarFeedKeyOf(cfg) },
         known,
         rc.now,
       );
