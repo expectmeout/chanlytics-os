@@ -54,12 +54,13 @@ const SEEDED = [ZILKER, TRAVIS, MUELLER, KETTLEBELL, FITCORP, HYDE_PARK];
  * The seed's own arithmetic, as `leadsStanding` counts it: the rail's numbers
  * are the COUNTED Qualified leads (lead_list_counts), so the six seeded places
  * stand as three leads -- two Ready and one Contacted -- and the waiting
- * search's three left-out places count for nothing: two kept searches. The list
- * a copy's reach-out writes to (e2e-harness/copy-states.mjs) is a sequence's own,
- * which the rail files under Sequences, so the head counts it no more than the
- * rail's Searches does (contracts leadsStanding, leadRail).
+ * search's three left-out places count for nothing. The line then says who
+ * needs you, the one search waiting on its answer, and no longer how many
+ * searches there are: that is the Lists sheet's to show, where every search is
+ * a row ("searches" stood twice in one line: Ruben, 12 Nov 2026; contracts
+ * leadsStanding). It read "· 2 searches" here until 13 Nov 2026.
  */
-const STANDING = "3 leads · 2 not contacted · 2 searches";
+const STANDING = "3 leads · 2 not contacted · 1 search needs you";
 /** contracts LEAD_NOT_A_FIT_ASK.short.chain: the why the Not a fit toast offers first. */
 const WHY_CHAIN_SHORT = "Chain";
 
@@ -119,6 +120,9 @@ test.describe("Leads on a real workspace", () => {
     // The page opens on the queue (#2137): who has not been contacted first, under their group's heading, the one
     // contacted after them. Strongest first is the read's order above, and a press on the heading's.
     await expectLeadsScope(page, { standing: STANDING, first: TRAVIS });
+    await expect(page.locator(".pg-head .pg-sentence"), "the Lists sheet counts the searches").not.toContainText(
+      "searches",
+    );
     const rows = page.locator(".cl-table tbody tr:not(.dtable-group)");
     await expect(rows.nth(1)).toContainText(ZILKER);
     await expect(rows.nth(2)).toContainText(HYDE_PARK);
