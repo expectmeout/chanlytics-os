@@ -19,6 +19,11 @@ export interface TableSection<R extends TableRow> {
   label: ReactNode;
   meta?: ReactNode;
   rows: readonly R[];
+  /**
+   * The figure beside its name: left out, how many rows it holds; null draws none, for a group of a list read a page at a
+   * time, whose rows on hand are not yet all it holds (Content's This week and Earlier).
+   */
+  count?: number | null;
   collapsed?: boolean;
   onToggle?: (() => void) | null;
   toggle?: ReactNode;
@@ -104,7 +109,7 @@ export function sectionBodies<R extends TableRow>(
           <th scope="rowgroup" colSpan={span}>
             <span className="dtable-group-line">
               <span className="dtable-group-label">{s.label}</span>
-              <span className="tally">{s.rows.length}</span>
+              {s.count === null ? null : <span className="tally">{s.count ?? s.rows.length}</span>}
               {s.meta ? (
                 <>
                   <span className="dtable-group-dot" aria-hidden="true">

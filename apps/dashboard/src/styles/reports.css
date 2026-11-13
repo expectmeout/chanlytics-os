@@ -362,14 +362,10 @@ a.rpt-cmp-send { text-decoration: none; color: inherit; }
 }
 /* The first card stands 14px under the row of views on a desk, where the Inbox's and People's panes stand (the slot's own
    14): the body's 12 over it stood Reports' cards 26 under their row. A phone's body is what scrolls, and keeps its 12
-   under a slot that gives up 12 of its 16, so its first card stands 16 under the row. */
+   under a slot that gives up 12 of its 16 (said once, for every page: components.css, "The room under the strip of views on a
+   phone"), so its first card stands 16 under the row. */
 @media (width > 900px) {
   .main-scroll > .rpt .rpt-body {
     padding-top: 0;
-  }
-}
-@media (max-width: 900px) {
-  .main:has(> .main-scroll > .rpt) .pg-slot {
-    padding-bottom: 4px;
   }
 }

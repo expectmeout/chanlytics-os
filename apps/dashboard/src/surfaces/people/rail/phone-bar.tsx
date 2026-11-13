@@ -13,10 +13,10 @@
  * 2026), so the dock at the foot holds the acts alone. `foldSearch` (the Pipeline's, whose rows start lower for the line
  * over them, 48px higher for this) rests the search in a glyph before the words while it holds none: the field stays
  * drawn, so the glyph's press, or /, puts the caret in it, a phone's keyboard with it, and it opens as it takes them
- * (clients.css .pp-lookup-folded).
+ * (components.css .lookup-folded).
  */
 import type { ReactNode, RefObject } from "react";
-import { Button } from "../../kit/button/button";
+import { ListFind, foldedLookup } from "../../kit/head/list-find";
 import { Icon } from "../../kit/icon/icon";
 import { Search } from "../../kit/search/search";
 
@@ -101,17 +101,7 @@ export function PeoplePhoneBar({
           {trailing || folded ? (
             <div className="pp-bar-push">
               {folded ? (
-                <Button
-                  variant="plain"
-                  size="sm"
-                  iconOnly
-                  className="pp-bar-find"
-                  aria-label={searchLabel}
-                  onClick={() => searchRef?.current?.focus()}
-                  data-testid={id("find")}
-                >
-                  <Icon name="search" size={16} />
-                </Button>
+                <ListFind label={searchLabel} onFind={() => searchRef?.current?.focus()} testid={id("find")} />
               ) : null}
               {trailing}
             </div>
@@ -119,7 +109,7 @@ export function PeoplePhoneBar({
         </div>
       ) : null}
       <Search
-        className={folded ? "pp-lookup pp-lookup-folded" : "pp-lookup"}
+        className={foldedLookup("pp-lookup", folded)}
         label={searchLabel}
         value={q}
         onChange={onQ}

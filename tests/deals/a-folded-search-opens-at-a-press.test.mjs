@@ -30,7 +30,7 @@ const searchOf = (tree) => find(tree, (n) => n.type === Search || n.props?.class
 
 test("at rest the search is a glyph named as the field is, and the field stays drawn", () => {
   const tree = draw({ foldSearch: true });
-  assert.match(searchOf(tree).props.className, /\bpp-lookup-folded\b/);
+  assert.match(searchOf(tree).props.className, /\blookup-folded\b/);
   assert.ok(byTestId(tree, "list-phone-search"), "the field, for the press and for /");
   assert.equal(byTestId(tree, "list-phone-find").props["aria-label"], "Search names");
 });
@@ -44,12 +44,12 @@ test("the glyph's press puts the caret in the field, inside the press, so a phon
 
 test("with words in it the field stays open and the glyph has gone", () => {
   const tree = draw({ foldSearch: true, q: "Sol" });
-  assert.doesNotMatch(searchOf(tree).props.className, /\bpp-lookup-folded\b/);
+  assert.doesNotMatch(searchOf(tree).props.className, /\blookup-folded\b/);
   assert.equal(byTestId(tree, "list-phone-find"), null);
 });
 
 test("a list that does not ask keeps its search where it stood", () => {
   const tree = draw({});
-  assert.doesNotMatch(searchOf(tree).props.className, /\bpp-lookup-folded\b/);
+  assert.doesNotMatch(searchOf(tree).props.className, /\blookup-folded\b/);
   assert.equal(byTestId(tree, "list-phone-find"), null);
 });

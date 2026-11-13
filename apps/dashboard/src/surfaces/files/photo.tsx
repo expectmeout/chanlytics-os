@@ -23,10 +23,31 @@ import { isVideoFile, serverPictureIn, takeAway, tryAgain, tryAll, type SendingP
 import type { TileShape } from "../campaigns/content/model/tiles";
 
 /** A photo's small picture on the grid. */
-const smallPictureOf = (id: string): string => `${fileViewOf(id)}?w=480`;
+export const smallPictureOf = (id: string): string => `${fileViewOf(id)}?w=480`;
+
+/** A file's picture beside its words: a row's, a table line's (Content's lines and its list). */
+export const rowPictureOf = (id: string): string => `${fileViewOf(id)}?w=160`;
 
 /** What has come in on this visit: drawn again, as the list takes over from a tile or back on a shelf, it stands and never fades in twice. */
 const cameIn = new Set<string>();
+
+/**
+ * A picture asked for before its page is drawn (a view drawn ahead, hidden: campaigns/content/warm.ts). Once it is in, it has
+ * come in: the page drawn then shows it at once, from the browser's own copy, rather than fading it in as it arrives. Answers
+ * once it is in, or could not be; never refuses.
+ */
+export function warmPicture(src: string): Promise<void> {
+  if (cameIn.has(src) || typeof Image !== "function") return Promise.resolve();
+  return new Promise((done) => {
+    const img = new Image();
+    img.onload = () => {
+      cameIn.add(src);
+      done();
+    };
+    img.onerror = () => done();
+    img.src = src;
+  });
+}
 
 export /**
  * A picture where it can be drawn. One Storage can't draw keeps its ground and says its name, never a broken glyph, or says
