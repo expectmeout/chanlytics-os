@@ -35,6 +35,7 @@ import { useMoved } from "./shell";
 import { useTodayWord } from "./zones/day-vm";
 import { withKept, type Kept } from "./zones/kept";
 import { dueSteps } from "./zones/queue-steps";
+import { TODAY_PEOPLE_HEARD } from "./people-read";
 import { askedVisits } from "./zones/queue-visits";
 
 /** Where the list keeps what this visit's presses came to, in the rows' store. */
@@ -95,7 +96,7 @@ export interface ToDoModel {
 function useToDoModel(at: { queueHolds: boolean; focus: string | null }): ToDoModel {
   // People's rows are the steps', the Calendar's blocks the visits', Google's the reviews' and the morning's the rests over
   // them: each moves this.
-  useMoved(["people", "calendar", "google", "ask_morning"]);
+  useMoved(["people", TODAY_PEOPLE_HEARD, "calendar", "google", "ask_morning"]);
   const [done, setDone] = useRowState<readonly string[]>(TO_DO_STATE, "done", NONE_DONE);
   const [kept, setKept] = useRowState<Kept>(TO_DO_STATE, "kept", NO_KEPT);
   const word = useTodayWord();
@@ -164,7 +165,16 @@ export interface NeedYouModel {
 export function useNeedYouModel(vm: TodayVM | null): NeedYouModel | null {
   // The runs (Sent's), the reviews and the people move the parts of the list; the replies to a reach-out move a row read
   // as that reply's (contracts withReplies).
-  useMoved(["today", "broadcasts", "people", "calendar", "reach_out_replies", "google", "settings"]);
+  useMoved([
+    "today",
+    "broadcasts",
+    "people",
+    TODAY_PEOPLE_HEARD,
+    "calendar",
+    "reach_out_replies",
+    "google",
+    "settings",
+  ]);
   const [kept, setKept] = useRowState<Kept>(NEED_YOU_STATE, "kept", NO_KEPT);
   // The row a desk has open: Up next until the member opens another (undefined), or none where they closed it (null).
   const [opened, setOpened] = useRowState<string | null | undefined>(NEED_YOU_STATE, "opened", undefined);

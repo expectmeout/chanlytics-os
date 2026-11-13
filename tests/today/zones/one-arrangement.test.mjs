@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { setupSteps } from "@chanlytics/contracts";
 import { again, all, fresh, textOf, unmount } from "../../_stub-react.mjs";
 import { peopleWithSteps } from "../record/_world.mjs";
+import { headline } from "../_headline.mjs";
 import { NOW, W, dayWith, row } from "./_world.mjs";
 
 const { TodayZones } = await import("../../../apps/dashboard/src/surfaces/today/zones/page.tsx");
@@ -77,17 +78,27 @@ const morningWithAnIdea = () => ({
   },
 });
 
-/** The page in a moment: who waits, the to-dos, what is left to set up, what Ask found. */
+/**
+ * The page in a moment, everything it opens on read: who waits, the to-dos, what is left to set up, what Ask found. Reports'
+ * headline says a week with nothing worth a look, and People holds Ana, with a step due where `steps` says: what Ask found's
+ * checks and To do's steps are drawn from is known (arrangement.ts `known`), so nothing found is nothing found.
+ */
 function moment({ waiting = [], steps = false, setup = false, found = false }) {
   setSurfaceValue("today", dayWith(waiting));
   setSurfaceValue("setup", setup ? setupLeft() : undefined);
   setSurfaceValue("ask_morning", found ? morningWithAnIdea() : undefined);
-  W.__PEOPLE = steps ? { rows: peopleWithSteps([["a", "Ana", -1]]), fetchedAt: NOW.getTime() } : undefined;
+  setSurfaceValue("reports_headline", headline({ days: 30, in: 9, ai: 9, you: 0, none: 0 }));
+  W.__PEOPLE = {
+    rows: steps ? peopleWithSteps([["a", "Ana", -1]]) : peopleWithSteps([["a", "Ana", null]]),
+    lists: [],
+    aggregates: { total: 1 },
+    fetchedAt: NOW.getTime(),
+  };
 }
 
 function cleared() {
   unmount();
-  for (const key of ["today", "setup", "ask_morning"]) setSurfaceValue(key, undefined);
+  for (const key of ["today", "setup", "ask_morning", "reports_headline"]) setSurfaceValue(key, undefined);
   delete W.__PEOPLE;
 }
 
@@ -208,6 +219,7 @@ test("nothing waits and nothing was found: the day alone in one column, and no c
 test("the walk, as the arrangement works it: the open row, else To do, else setting up while nobody waits, else Ask found where it leads", () => {
   const reads = {
     read: true,
+    known: true,
     needYou: false,
     queueCoral: null,
     todoCoral: null,
@@ -236,6 +248,11 @@ test("the walk, as the arrangement works it: the open row, else To do, else sett
     [at({}).lead, at({}).alone, at({ read: false }).lead],
     [true, true, false],
     "before Today is read Ask found does not lead",
+  );
+  assert.deepEqual(
+    [at({ known: false }).lead, at({ known: false }).alone],
+    [false, false],
+    "before what Ask found is drawn from is known, it does not lead and the day does not stand alone: not read is not nothing",
   );
   assert.equal(at({ found: { draws: true, acts: false } }).alone, false, "a read that failed is said in its pane");
 });

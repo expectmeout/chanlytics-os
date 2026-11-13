@@ -11,18 +11,18 @@
  * (need-you/call-work.tsx StepWork, decision 0071), beside Not now, which moves the step's day.
  */
 import type { TodayQueueRowVM, TodayStepsVM } from "@chanlytics/contracts";
-import type { PeopleSurface } from "@/surfaces/people/surface";
-import { TODAY_HELPERS } from "../helpers";
+import { TODAY_HELPERS, peopleForToday } from "../helpers";
 import { completeStep, type StepSay } from "../../step-done";
 import { refreshSurface } from "../../frame-verbs";
-import { borrowed, personNotes, workspaceClock } from "../shell";
+import { personNotes, workspaceClock } from "../shell";
 
 /**
- * The steps due, from People's rows as the People surface holds them; null while People is unread or the workspace's zone is
- * not known, and with none due: no step is claimed on a guess.
+ * The steps due, from People's rows as the People surface holds them, or as Today's first read carried them until it does
+ * (helpers.ts peopleForToday: the same rows, so To do draws its steps in its first frame and People's book moves none); null while
+ * neither is in or the workspace's zone is not known, and with none due: no step is claimed on a guess.
  */
 export function dueSteps(): TodayStepsVM | null {
-  const people = borrowed<PeopleSurface>("__PEOPLE");
+  const people = peopleForToday();
   const zone = workspaceClock()?.zone;
   if (!people || !zone) return null;
   return TODAY_HELPERS.steps(people.rows, people.fetchedAt || Date.now(), zone());

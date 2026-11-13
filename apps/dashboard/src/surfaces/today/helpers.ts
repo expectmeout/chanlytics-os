@@ -4,6 +4,8 @@
  * The page imports them; nothing reads them off `window`.
  */
 import {
+  dealPaceOf,
+  peopleRowOf,
   todayDay,
   todayDayNote,
   todayHeadLine,
@@ -18,14 +20,21 @@ import {
   todayLateRunsSub,
   todayDraftsSub,
   todayRunApproved,
+  type PersonRowVM,
   type ReachOutRepliesDto,
   type TodayNoReplyVM,
+  type TodayPeopleDto,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
+import type { PeopleSurface } from "../people/surface";
+import { holderName } from "../holder-names";
+import { meNow } from "../frame-verbs";
 import { todayBriefWords } from "./brief-words";
-import { todayLeaks } from "./leaks";
+import { todayLeaks, type PeopleListsLike } from "./leaks";
+import { keptTodayPeople } from "./people-read";
 import { todayPeriodLine } from "./period";
 import { withReplies, withoutWrongPerson } from "@/surfaces/campaigns/reach-out/reply-today";
+import { borrowed, workspaceClock } from "./shell";
 
 /** The readings of reach-out replies as the Inbox's surface holds them (reach-out/replies.ts); none when unread. */
 const readings = () => (window as Window & { __REPLIES?: ReachOutRepliesDto | null }).__REPLIES?.replies ?? [];
@@ -59,3 +68,54 @@ export const TODAY_HELPERS = {
   // withoutWrongPerson), over the same readings as the queue's, so the page asks for the replies once.
   withoutWrongPerson: (waiting: TodayNoReplyVM[]) => withoutWrongPerson(waiting, readings()),
 };
+
+/* ------------------------------------------------------------------ People, as Today reads it */
+
+/** What Today reads of People: the lists, how many there are, the rows its checks and steps read, and when they were made. */
+type TodayPeople = PeopleListsLike & { rows: readonly PersonRowVM[]; fetchedAt: number };
+
+/**
+ * Today's first read of People as rows (people-read.ts, contracts today/people.ts), for the member `viewer` at `now` in the
+ * workspace's zone: People's page's own making of each row (peopleRowOf), its lists as counted, and the pace. Null where
+ * People holds more than one page: the page then waits for the book, as it did.
+ */
+function peopleOfFirstRead(
+  dto: TodayPeopleDto,
+  as: { tz: string; now: Date; viewer: string | null },
+): TodayPeople | null {
+  if (!dto.whole) return null;
+  const pace = dealPaceOf(dto.deal_pace);
+  return {
+    lists: dto.lists,
+    aggregates: { total: dto.total },
+    rows: dto.people.map((p) =>
+      peopleRowOf(p, { ...as, ready: dto.channels_ready, followUp: dto.follow_up, pace, names: holderName }),
+    ),
+    fetchedAt: as.now.getTime(),
+    dealPace: pace,
+  };
+}
+
+/** Each first read made into rows once: the checks are worked out once a read and a minute (zones/found.tsx rulesOf). */
+const rowsOfRead = new WeakMap<TodayPeopleDto, TodayPeople | null>();
+
+/**
+ * People as Today reads it: People's book where the tab holds it, else what Today's first read carried of it, made into rows
+ * the way People's page makes its own; null while neither is in. Ask found's checks (zones/found.tsx), To do's steps due
+ * (zones/queue-steps.tsx) and the desk's foot read it here, so each stands in Today's first draw and says, once the book is
+ * in, what it said before it: the same rows, lists and checks (Today knows its shape at its first draw, 13 Nov 2026). The
+ * book is what moves afterwards (a step done, a teammate's note): People is read again, and this answers it.
+ */
+export function peopleForToday(): TodayPeople | PeopleSurface | null {
+  const book = borrowed<PeopleSurface>("__PEOPLE");
+  if (book) return book;
+  const dto = keptTodayPeople();
+  const zone = workspaceClock()?.zone;
+  if (!dto || !zone) return null;
+  let people = rowsOfRead.get(dto);
+  if (people === undefined) {
+    people = peopleOfFirstRead(dto, { tz: zone(), now: new Date(), viewer: meNow()?.id ?? null });
+    rowsOfRead.set(dto, people);
+  }
+  return people;
+}

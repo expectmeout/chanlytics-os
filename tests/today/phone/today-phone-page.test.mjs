@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import { NOTE_WORDS, clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import { unmarkedTimes } from "../../shell/views/_unmarked-times.mjs";
+import { headline } from "../_headline.mjs";
 import { NOW, ZONE, escalation, metrics, msg, peopleWithSteps, thread, waiting } from "../record/_world.mjs";
 
 const went = [];
@@ -612,8 +613,15 @@ test("on a phone the page is one column in the canvas's order: Ask found leads w
     "PhonePins",
     "TodayEnd",
   ]);
-  // And with no step due either, Need you draws no pane and Ask found leads.
-  delete W.__PEOPLE;
+  // And with no step due either, Need you draws no pane and Ask found leads: People read with nobody's step due and a quiet
+  // week's headline, so what Ask found is drawn from is known (today/arrangement.ts `known`). Not read, it would not lead.
+  W.__PEOPLE = {
+    rows: peopleWithSteps([["b", "Ben", null]]),
+    lists: [],
+    aggregates: { total: 1 },
+    fetchedAt: NOW.getTime(),
+  };
+  setSurfaceValue("reports_headline", headline({ days: 30, in: 9, ai: 9, you: 0, none: 0 }));
   assert.deepEqual(order(), [
     "TodayAlertBand",
     "today-setting-up",
@@ -626,6 +634,7 @@ test("on a phone the page is one column in the canvas's order: Ask found leads w
     "PhonePins",
     "TodayEnd",
   ]);
+  setSurfaceValue("reports_headline", undefined);
 });
 
 test("on a phone the walk steps into To do's rows after the people (the Parts board: 'To do's rows join the walk'), Done there is To do's, and its end offers only the to-dos it does not walk", () => {

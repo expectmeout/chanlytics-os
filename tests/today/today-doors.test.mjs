@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import { toTodayVM, setupSteps } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, kitPages, press, unmount } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
+import { headline } from "./_headline.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 const ZONE = "America/New_York";
@@ -832,6 +833,10 @@ test("while someone waits on you, what is left to set up stands under the queue,
     const col = find(page, (n) => String(n.props?.className ?? "").includes("tz-col"));
     return col.props.children.filter(Boolean).map((c) => c.type.name ?? c.props["data-testid"]);
   };
+  // What Ask found and To do's steps are drawn from is read (today/arrangement.ts `known`): a quiet week's headline, and
+  // People with nobody's step due. Not read, Ask found would not lead and the day would not stand alone.
+  setSurfaceValue("reports_headline", headline({ days: 30, in: 9, ai: 9, you: 0, none: 0 }));
+  globalThis.window.__PEOPLE = { rows: [], lists: [], aggregates: { total: 0 }, fetchedAt: NOW.getTime() };
   setSurfaceValue("today", todayWith([]));
   setSurfaceValue("ask_morning", morningWith(idea()));
   assert.deepEqual(
@@ -881,6 +886,8 @@ test("while someone waits on you, what is left to set up stands under the queue,
     setSurfaceValue("broadcasts", undefined);
     globalThis.window.__BROADCASTS = undefined;
     setSurfaceValue("today", undefined);
+    setSurfaceValue("reports_headline", undefined);
+    delete globalThis.window.__PEOPLE;
   }
 });
 

@@ -38,9 +38,14 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // (dashboard surfaces/today/cold-email-note-read.ts): no surface's, the page's own read, started here with the rest.
   // And Content's card, after Need you on a phone and atop the desk's first column, the same way (content-note-read.ts):
   // read once the page had drawn, its 230 px pushed the day down under it (the content parity review, 12 Nov 2026).
+  // And what Ask found and To do's steps due are drawn from: what they read of People (GET today/people, its first page, which
+  // GET contacts reads after it in the same turn), Reports' headline over the period this device last picked, and Ask's
+  // morning as it stands. They came in the second tier, People's whole book last, and Ask found landed 0.3 to 1.3 s after
+  // the page, To do's steps after To do (the load review of 13 Nov 2026): on a quiet desk the day stood alone and split in two.
   today: [
     // The day's read whole, one request where the page made six (GET today, Today in three zones, 2 Nov 2026).
     "today",
+    "today/people",
     "setup",
     "views",
     "calendar?around=today",
@@ -51,6 +56,8 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
     "notifications",
     "settings/reach-out/note",
     "content/note",
+    `reports/headline?period=${REPORT_PERIOD_DEFAULT}`,
+    "ask/morning",
   ],
   // And Sent's runs, whose waiting ones are rows of Needs you (surface-registry ROUTE_DRAWS): their own read, nothing of People.
   // And what its first draw waits for besides them, each drawn in a row or in the thread it opens on (ROUTE_WAITS, and the
@@ -191,9 +198,9 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
  * Held to the surfaces' own reads by route-prefetch.test.mjs, which runs each one.
  */
 export const PREFETCH_BESIDE: Readonly<Record<string, readonly string[]>> = {
-  // People's book and its lists (Worth a look's people, the day card's flags), the playbooks' moments, the channels read
-  // Live's strip and the runs are made of, and the period line: Reports' headline over
-  // the period this device last picked, as Reports reads it. Not the settings read: nothing on Today draws it, and the
+  // People's book and its lists (the pins, a row's person, the day card's flags), the playbooks' moments and the channels
+  // read Live's strip and the runs are made of. Not what Ask found and To do's steps are drawn from: Today's own reads carry
+  // it (today/people, Reports' headline, Ask's morning, above). Not the settings read: nothing on Today draws it, and the
   // composers that asked for it here follow it now (surfaces/offered-templates.ts), so it comes in the boot's second pass.
   today: [
     "contacts",
@@ -201,11 +208,7 @@ export const PREFETCH_BESIDE: Readonly<Record<string, readonly string[]>> = {
     "channels",
     // The calls Live's strip draws from, which Today's own read no longer asks for as it did (GET today carries the day's).
     "calls",
-    `reports/headline?period=${REPORT_PERIOD_DEFAULT}`,
     "playbooks",
-    // Ask's ideas in Need you: the member's morning as it stands (decision 0070). Only read here; the page asks for one to be
-    // written, which takes a turn of the model, so its rows come after the people's whatever tier it rode in.
-    "ask/morning",
   ],
   // Nothing: the Inbox's first screen is its own reads (a thread's person among them, THREAD_PERSON_READ), and People's book,
   // which a thread's head prefers where the tab holds it, is read in the boot's second pass, among the strangers.

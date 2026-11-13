@@ -152,6 +152,7 @@ export const ROUTE_KEYS = [
   "GET team/partner",
   "GET templates",
   "GET today",
+  "GET today/people",
   "GET views",
   "GET workspaces",
   "PATCH ask/memory/[id]",

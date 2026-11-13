@@ -111,6 +111,8 @@ export type {
   NotificationsDto,
   ServerNotificationKind,
 } from "./notifications/feed-input";
+export { todayPeopleOf } from "./people";
+export type { TodayPeopleDto } from "./people";
 export {
   firstLine,
   isPushKind,
