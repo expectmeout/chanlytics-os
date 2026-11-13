@@ -238,9 +238,11 @@ async function readAndPublish(o: SurfaceOverride, heard?: readonly RealtimeChang
     if (err instanceof ApiError && err.code === "unauthorized") throw err;
     if (err instanceof ApiError && err.retryAfterS) toldToWait.set(o.key, err.retryAfterS * 1000);
     else toldToWait.delete(o.key);
-    // A failed override NEVER breaks the surface — it just stays seeded. Counted for the tab's report (hearing/freshness.ts).
+    // A failed override NEVER breaks the surface — it just stays seeded. Counted for the tab's report (hearing/freshness.ts),
+    // with why it failed (the refusal's code, or that the read's own code threw) and whether the tab was hidden then.
     console.error("surface_override_failed", o.key, err instanceof Error ? err.message : err);
-    noteReadFailed(o.key);
+    const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+    noteReadFailed(o.key, err instanceof ApiError ? err.code : "threw", hidden);
     return false;
   }
 }
