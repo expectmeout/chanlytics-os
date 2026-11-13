@@ -73,6 +73,12 @@ export function staticShellFaults({ pages, prerender, files }) {
   if (!prerender.routes["/"]) faults.push("/: the home is not built whole");
   if (prerender.routes["/api/version"] || prerender.dynamicRoutes["/api/version"])
     faults.push("/api/version: prerendered, so it names the build, not the deploy that answers (connection())");
+  // A warm-up loads the routes it imports as the instance answers it (app/api/warm/route.ts): answered by a file, it loads none.
+  for (const door of ["/api/warm", "/api/warm/long"])
+    if (prerender.routes[door] || prerender.dynamicRoutes[door])
+      faults.push(
+        `${door}: prerendered, so the clock is answered by a file and no route's code is loaded (connection())`,
+      );
   return faults;
 }
 

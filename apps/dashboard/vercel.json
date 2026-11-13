@@ -1,3 +1,7 @@
 {
-  "crons": [{ "path": "/api/ask/morning-sweep", "schedule": "*/10 * * * *" }]
+  "crons": [
+    { "path": "/api/ask/morning-sweep", "schedule": "*/10 * * * *" },
+    { "path": "/api/warm", "schedule": "*/5 * * * *" },
+    { "path": "/api/warm/long", "schedule": "*/5 * * * *" }
+  ]
 }
