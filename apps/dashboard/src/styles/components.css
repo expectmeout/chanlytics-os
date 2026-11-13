@@ -378,6 +378,18 @@
 .live-bar-text { font-weight: 500; }
 .live-bar-clock { color: var(--accent-ink); font-variant-numeric: tabular-nums; }
 .live-bar-checking { color: var(--ink-muted); }
+/* The question asked before the page, and a change not saved on it, are left (kit/record/leave-ask.tsx LeaveHost): a band
+   across the top of the page, between the frame's top and the page, in view wherever the page was scrolled to. On a desk
+   the column holds it over the page's scroller; on a phone, where the window scrolls, it sticks under the frame's top. */
+.leave-ask {
+  flex: none;
+  padding: 10px var(--gutter-page);
+  border-bottom: 1px solid var(--surface-inset-edge);
+  background: var(--bg-raised);
+}
+@media (max-width: 720px) {
+  .leave-ask { position: sticky; top: calc(var(--frame-top-at) + var(--frame-top, 0px)); z-index: 2; }
+}
 
 /* ---------- Ask Chanlytics — unified topbar affordance ---------- */
 .tb-ask {

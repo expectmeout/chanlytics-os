@@ -215,6 +215,9 @@ await import("./_business-parts.mjs");
 // The page and its tabs are the TSX module (decision 0015 step 11), imported as the app imports it.
 const { SettingsPage } = await import("../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
 const { SET_TABS } = await import("../../../apps/dashboard/src/surfaces/settings/frame/tabs.ts");
+const { goToRoute, guardLeaving } = await import("../../../apps/dashboard/src/bridge/workspace.ts");
+const { answerLeave, holdMove, leaveAsking } =
+  await import("../../../apps/dashboard/src/surfaces/kit/record/held-move.ts");
 // The seam's settings value, as the settings read lands it beside the globals it still publishes (bridge/surfaces/settings.ts).
 const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 /** The record the settings read holds now (the seam's `settings`; a window global, `__SETTINGS`, until 12 Nov 2026). */
@@ -291,7 +294,6 @@ const draw = (tab, went = []) => {
   frames = [{ key: "root", hook: 0, kids: {} }];
   return SettingsPage({ tab, onTab: (id) => went.push(id) });
 };
-const again = draw;
 const railRow = (tree, label) =>
   find(
     tree,
@@ -446,48 +448,66 @@ test("the pane is the record, the card that sets one up, or the broken one -- an
 
 test("REGRESSION (S22): another Settings tab with unsaved changes asks first -- the pane was replaced, and the changes with it", () => {
   const folds = globalThis.window.__recordFolds;
-  // Press Team on the rail of a tree drawn with `went`; say whether the rail asked first, and where it went.
-  const pressTeam = (tree, went) => {
-    press(railRow(tree, "Team"));
-    return { asked: !!byTestId(again("workspace", went), "set-leave-confirm"), went: [...went] };
+  // The rail's move goes through the address, as SettingsRoute's does (navigate, then goToRoute), and the address asks the
+  // frame's held move (kit/record/held-move.ts) before a pane holding changes is replaced: one question, at the top of the
+  // page, for the rail as for every other way off a page.
+  const at = { pathname: "/w/acme/settings/workspace", search: "", hash: "" };
+  const pushed = [];
+  const move = (_data, _unused, url) => {
+    pushed.push(url);
+    at.pathname = url;
   };
+  const win = {
+    location: at,
+    history: { pushState: move, replaceState: move },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const pressTeam = () => {
+    frames = [{ key: "root", hook: 0, kids: {} }];
+    const tree = SettingsPage({ tab: "workspace", onTab: (id) => goToRoute(`admin/${id}`, {}, win) });
+    press(railRow(tree, "Team"));
+  };
+  const stop = guardLeaving(holdMove, win);
+  try {
+    fresh();
+    folds.request("hours", { dirty: () => true });
+    pressTeam();
+    assert.deepEqual([pushed, leaveAsking()], [[], true], "REGRESSION: the tab changed under the edit");
+    // Staying keeps the pane, and the fold with it.
+    answerLeave(false);
+    assert.deepEqual([pushed, folds.open()], [[], "hours"], "staying keeps what was open");
+    pressTeam();
+    answerLeave(true);
+    assert.deepEqual(pushed, ["/w/acme/settings/team"], "and leaving leaves");
 
-  fresh();
-  let went = [];
-  folds.request("hours", { dirty: () => true });
-  let tree = draw("workspace", went);
-  assert.deepEqual(pressTeam(tree, went), { asked: true, went: [] }, "REGRESSION: the tab changed under the edit");
-  // Staying keeps the pane, and the fold with it.
-  press(byTestId(again("workspace", went), "set-leave-no"));
-  tree = again("workspace", went);
-  assert.equal(byTestId(tree, "set-leave-confirm"), null);
-  assert.equal(folds.open(), "hours", "staying keeps what was open");
-  press(railRow(tree, "Team"));
-  tree = again("workspace", went);
-  press(byTestId(tree, "set-leave-yes"));
-  assert.deepEqual(went, ["team"], "and leaving leaves");
+    // Nothing holding changes: a tab is just a tab.
+    fresh();
+    at.pathname = "/w/acme/settings/workspace";
+    folds.request("hours", { dirty: () => false });
+    pressTeam();
+    assert.deepEqual([pushed.length, leaveAsking()], [2, false]);
 
-  // Nothing holding changes: a tab is just a tab.
-  fresh();
-  went = [];
-  folds.request("hours", { dirty: () => false });
-  assert.deepEqual(pressTeam(draw("workspace", went), went), { asked: false, went: ["team"] });
-
-  // And a fold whose save is OUT is asked about too, in words that are true of a change already on its way.
-  fresh();
-  went = [];
-  // A fold binds its dirty test and its "my save is out" test for as long as its hook is on the page (bind).
-  folds.bind(
-    "hours",
-    () => false,
-    () => true,
-  );
-  folds.request("hours");
-  tree = draw("workspace", went);
-  press(railRow(tree, "Team"));
-  tree = again("workspace", went);
-  assert.match(textOf(byTestId(tree, "set-leave-confirm")), /Leave while this saves/);
-  assert.deepEqual(went, []);
+    // A fold whose save is OUT is never asked about: the move waits for it, and goes once the save is taken.
+    fresh();
+    at.pathname = "/w/acme/settings/workspace";
+    let saving = true;
+    // A fold binds its dirty test and its "my save is out" test for as long as its hook is on the page (bind).
+    const unbind = folds.bind(
+      "hours",
+      () => false,
+      () => saving,
+    );
+    folds.request("hours");
+    pressTeam();
+    assert.deepEqual([pushed.length, leaveAsking()], [2, false], "waiting on the save, asking nothing");
+    saving = false;
+    folds.close("hours");
+    assert.equal(pushed.length, 3, "the save taken, the move went by itself");
+    unbind();
+  } finally {
+    stop();
+  }
 });
 
 test("REGRESSION (S22): leaving the page with unsaved changes asks the browser to ask -- a reload lost them silently", () => {
