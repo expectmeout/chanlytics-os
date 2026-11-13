@@ -23,6 +23,8 @@ import {
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
+import { ListFind } from "../../kit/head/list-find";
+import { ListBar as CmListBar, ListViewPick, type ListView } from "../parts/list-top";
 
 /** A group of the list and its rows, each with the twin it is sent beside. */
 type Grouped = { group: SequenceGroup; rows: { row: SequenceRowDto; twin: SequenceTwin | null }[] };
@@ -63,43 +65,20 @@ interface ListBarProps {
   onType: (type: SequencesType) => void;
   sort: SequenceSort;
   onSort: (sort: SequenceSort) => void;
+  /** A phone's search, resting in a glyph before Type and Sort while it holds no words (list.tsx); null where it is open. */
+  onFind?: (() => void) | null;
 }
 
 const tick = () => <Icon name="check" size={13} />;
 
-/** The view: its name and how many it holds, and the menu of every view with its count. A group that is empty is no view. */
+/** The view: every sequence or one group, with how many each holds (parts/list-top.tsx). A group that is empty is no view. */
 function ViewPick(p: ListBarProps) {
   const total = p.groups.reduce((n, g) => n + g.rows.length, 0);
-  const options = [
-    { value: "all", label: W.views.all, hint: String(total) },
-    ...p.groups.map((g) => ({ value: g.group, label: W.groups[g.group], hint: String(g.rows.length) })),
+  const views: ListView<SequencesView>[] = [
+    { value: "all", label: W.views.all, count: total },
+    ...p.groups.map((g) => ({ value: g.group, label: W.groups[g.group], count: g.rows.length })),
   ];
-  const picked = options.find((o) => o.value === p.view) ?? options[0];
-  return (
-    <Menu
-      align="start"
-      label={W.views.label}
-      trigger={
-        <Button variant="plain" size="sm" className="sq-view-pick" data-testid="sq-view">
-          <span className="sq-view-words">{picked?.label}</span>
-          <span className="sq-view-count" data-testid="sq-view-count">
-            {picked?.hint}
-          </span>
-          <Icon name="chevron-down" size={11} />
-        </Button>
-      }
-      groups={[
-        {
-          choose: {
-            value: picked?.value ?? "all",
-            onChoose: (v) => p.onView(SEQUENCE_GROUPS.find((g) => g === v) ?? "all"),
-            tick: tick(),
-            options,
-          },
-        },
-      ]}
-    />
-  );
+  return <ListViewPick label={W.views.label} views={views} value={p.view} onView={p.onView} testid="sq-view" />;
 }
 
 /**
@@ -178,15 +157,21 @@ function SortPick(p: ListBarProps) {
   );
 }
 
-/** The row: the view at its left, Type and Sort at its right. */
+/**
+ * The row (parts/list-top.tsx, Campaigns' one top): the view at its left, Type and Sort at its right, and on a phone the
+ * search's glyph before them, as People's stands before Select, Sort and Export (people/rail/phone-bar.tsx foldSearch).
+ */
 export function ListBar(p: ListBarProps) {
   return (
-    <div className="sq-view-bar">
-      <ViewPick {...p} />
-      <div className="sq-view-acts">
-        <TypePick {...p} />
-        <SortPick {...p} />
-      </div>
-    </div>
+    <CmListBar
+      view={<ViewPick {...p} />}
+      find={p.onFind ? <ListFind label={W.search} onFind={p.onFind} testid="sq-find" /> : null}
+      acts={
+        <>
+          <TypePick {...p} />
+          <SortPick {...p} />
+        </>
+      }
+    />
   );
 }

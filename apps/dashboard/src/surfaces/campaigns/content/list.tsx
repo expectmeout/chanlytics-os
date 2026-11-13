@@ -16,7 +16,6 @@ import {
   contentPieceMarkOf,
   contentMarkToneOf,
   fileSaidOf,
-  fileViewOf,
   type ContentMadeDto,
   type ContentMakingDto,
   type ContentMark,
@@ -28,7 +27,8 @@ import { DataTable } from "../../kit/table/data-table";
 import { useTableState, type TableState } from "../../kit/table/state";
 import { useDataTable } from "../../kit/table/use-data-table";
 import type { ViewStore } from "../../kit/table/view";
-import { Picture } from "../../files/photo";
+import { Picture, rowPictureOf } from "../../files/photo";
+import { piecesUnder, type MadeGroup } from "./model/groups";
 import { pieceStandsAt, pieceTimedOf, type PieceStandsAt } from "./model/piece-open";
 import { tileShapeOf } from "./model/tiles";
 
@@ -36,7 +36,7 @@ import { tileShapeOf } from "./model/tiles";
  * A line as the table holds it: its id and name, as every table's row has them, when it was asked for, and the piece, or the
  * video still being made.
  */
-type PieceRow = { id: string; name: string; at: string } & (
+type PieceRow = { id: string; name: string; at: string; group: MadeGroup["key"] } & (
   { made: ContentMadeDto; making: null } | { made: null; making: ContentMakingDto }
 );
 
@@ -45,7 +45,7 @@ function MakingPiece({ making, name }: { making: ContentMakingDto; name: string 
   return (
     <span className="cnv-cell-piece">
       <span className="cnv-thumb" data-shape="tall" data-dim="">
-        {making.first_picture ? <Picture src={`${fileViewOf(making.first_picture)}?w=160`} alt="" name={name} /> : null}
+        {making.first_picture ? <Picture src={rowPictureOf(making.first_picture)} alt="" name={name} /> : null}
       </span>
       <span className="cnv-line-words">
         <b>{name}</b>
@@ -131,7 +131,7 @@ const COLUMNS: DataColumn<PieceRow, ListCtx>[] = [
           <span className="cnv-cell-piece">
             <span className="cnv-thumb" data-shape={tileShapeOf(row.made.file)}>
               <Picture
-                src={`${fileViewOf(row.made.file.id)}?w=160`}
+                src={rowPictureOf(row.made.file.id)}
                 alt={row.made.file.line ?? row.name}
                 name={row.name}
               />
@@ -206,18 +206,23 @@ export const DEVICE_ONLY: ViewStore = {
 const LIST_SORTED_FIRST = { by: "piece", dir: "desc" } as const;
 
 export function ContentList({
-  made,
-  making,
+  groups,
+  flat = false,
   openId,
   onOpen,
-  onMaking,
+  onFix,
 }: {
-  made: readonly ContentMadeDto[];
-  /** What is being made, heading the list as the tiles head the grid; each opens Being made. */
-  making: readonly ContentMakingDto[];
+  /**
+   * The pieces under their headings (model/groups.ts): Needs you, Being made, This week, Earlier. Each is the table's own
+   * group, as the Pipeline's stages are; a video being made or not made is a line too, and opens nothing: it is no piece yet.
+   */
+  groups: readonly MadeGroup[];
+  /** One list with no headings: what was found by words, or set aside. */
+  flat?: boolean;
   openId: string | null;
   onOpen: (fileId: string) => void;
-  onMaking: () => void;
+  /** A piece that needs the owner opens straight to its sheet, as its row on a phone does. */
+  onFix: (fileId: string) => void;
 }) {
   const state: TableState = useTableState({
     scope: "content",
@@ -228,25 +233,33 @@ export function ContentList({
     store: DEVICE_ONLY,
   });
   const data = useMemo<PieceRow[]>(
-    () => [
-      ...making.map((m) => ({
-        id: m.id,
-        name: contentMakingSaid(m).title,
-        at: m.created_at,
-        made: null,
-        making: m,
-      })),
-      ...made.map((m) => ({
-        id: m.file.id,
-        name: fileSaidOf(m.file.name),
-        at: m.file.created_at,
-        made: m,
-        making: null,
-      })),
-    ],
-    [made, making],
+    () =>
+      groups.flatMap((group) => [
+        ...group.making.map((m) => ({
+          id: m.id,
+          name: contentMakingSaid(m).title,
+          at: m.created_at,
+          group: group.key,
+          made: null,
+          making: m,
+        })),
+        ...group.made.map((m) => ({
+          id: m.file.id,
+          name: fileSaidOf(m.file.name),
+          at: m.file.created_at,
+          group: group.key,
+          made: m,
+          making: null,
+        })),
+      ]),
+    [groups],
   );
-  const beingMade = new Set(making.map((m) => m.id));
+  // A row's press by what the row is: a video being made or not made opens nothing (it is no piece yet), a piece that
+  // needs the owner opens to its sheet, any other the piece.
+  const press = (id: string) => {
+    const row = data.find((each) => each.id === id);
+    if (row?.made) (row.group === "needs" ? onFix : onOpen)(id);
+  };
   const model = useDataTable({ state, columns: COLUMNS, data });
   const clock = pageClock();
   const ctx: ListCtx = { now: Date.now(), stamp: clock.stamp, when: clock.when };
@@ -264,7 +277,19 @@ export function ContentList({
       sortBy={shown.by}
       sortDir={shown.dir}
       onSort={(key) => state.pressSort(key, shown)}
-      onOpen={(id) => (beingMade.has(id) ? onMaking() : onOpen(id))}
+      onOpen={press}
+      // Each heading's rows in the order the member's sort gives them; the headings never move (as the Pipeline's stages).
+      sections={
+        flat
+          ? null
+          : groups.map((group) => ({
+              key: group.key,
+              label: group.label,
+              count: piecesUnder(group),
+              rows: model.rows.filter((row) => row.group === group.key),
+            }))
+      }
+      groups={flat ? null : "stages"}
       cursor={openId}
       noun="piece"
       empty={{ title: W.views.empty.all }}

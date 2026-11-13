@@ -36,8 +36,10 @@ import {
 import {
   countFilesKept,
   countFilesMade,
+  countFilesWaiting,
   countPostsOut,
   countPostsTimed,
+  findNewestPieceBegun,
   listFilesByIds,
   listFilesFound,
   listFilesOnShelf,
@@ -100,6 +102,20 @@ interface ContentAsked {
 
 type Db = ReaderContext["ctx"]["supabase"];
 
+/**
+ * The videos being made, and those that could not be and still wait on the owner: one that failed stops waiting once a
+ * newer video was begun, as a post that stopped does once it was sent again (postsStillStopped). It stood under Needs you
+ * for a week whatever was made since, a count no press answered (Ruben, 12 Nov 2026: nobody ends up stuck).
+ */
+async function piecesStillStanding(db: Db, tenantId: TenantId, failedSince: string): Promise<PieceStandingRow[]> {
+  const standing = await listPiecesStanding(db, tenantId, { failedSince, limit: CONTENT_MAKING_MAX });
+  // The newest begun is asked for only where a video that failed stands: on most reads none does, and the page and
+  // Today's note read this every time.
+  if (!standing.some((p) => p.status === "failed")) return standing;
+  const newest = await findNewestPieceBegun(db, tenantId);
+  return standing.filter((p) => p.status !== "failed" || !newest || p.created_at > newest);
+}
+
 /** A post set for later than this from now waits for its time (campaigns/content/model/piece-open.ts, the same two minutes). */
 const TIMED_AFTER_MS = 2 * 60 * SECOND_MS;
 
@@ -144,15 +160,25 @@ async function tallyOf(
   stopped: readonly MemberFilePostRow[],
   timedAfter: string,
 ): Promise<ContentTally> {
-  const [made, posted, scheduled, library, aside] = await Promise.all([
+  const [made, posted, scheduled, library, aside, waiting] = await Promise.all([
     countFilesMade(db, tenantId),
     countPostsOut(db, tenantId),
     countPostsTimed(db, tenantId, timedAfter),
     countFilesKept(db, tenantId),
     countFilesMade(db, tenantId, "set_aside"),
+    countFilesWaiting(db, tenantId),
   ]);
   const failed = standing.filter((p) => p.status === "failed").length;
-  return { made, posted, scheduled, library, aside, needs: stopped.length + failed, making: standing.length - failed };
+  return {
+    made,
+    posted,
+    scheduled,
+    library,
+    aside,
+    waiting,
+    needs: stopped.length + failed,
+    making: standing.length - failed,
+  };
 }
 
 /** How many of the newest kept files the ideas choose from: enough for two photos of the work and four clips among them. */
@@ -275,10 +301,7 @@ export const contentNote: Reader<undefined, { today: ContentTodayDto }> = {
     const db = rc.ctx.supabase;
     const now = rc.now.getTime();
     const [standing, stopped, page] = await Promise.all([
-      listPiecesStanding(db, rc.tenantId, {
-        failedSince: new Date(now - CONTENT_FAILED_DAYS * DAY_MS).toISOString(),
-        limit: CONTENT_MAKING_MAX,
-      }),
+      piecesStillStanding(db, rc.tenantId, new Date(now - CONTENT_FAILED_DAYS * DAY_MS).toISOString()),
       postsStillStopped(db, rc.tenantId),
       madePage(db, rc.tenantId, { limit: CONTENT_PAGE }),
     ]);
@@ -303,13 +326,11 @@ export const content: Reader<ContentAsked, ContentPageDto> = {
     const failedSince = new Date(now - CONTENT_FAILED_DAYS * DAY_MS).toISOString();
     const timedAfter = new Date(now + TIMED_AFTER_MS).toISOString();
     const [standing, stopped] = await Promise.all([
-      listPiecesStanding(db, rc.tenantId, { failedSince, limit: CONTENT_MAKING_MAX }),
+      piecesStillStanding(db, rc.tenantId, failedSince),
       postsStillStopped(db, rc.tenantId),
     ]);
     const about = view === "all" ? (request.about?.trim() ?? "") : "";
-    const failedVideos = standing.filter((p) => p.status === "failed").length;
-    const one = stopped.length === 1 && failedVideos === 0 ? (stopped[0]?.file_id ?? null) : null;
-    const empty = { making: [], made: [], lines: [], next: null, ideas: [], about: about || null, needsOne: one };
+    const empty = { making: [], made: [], lines: [], next: null, ideas: [], about: about || null };
     const [tally, shown] = await Promise.all([
       tallyOf(db, rc.tenantId, standing, stopped, timedAfter),
       view === "all" && about
@@ -320,11 +341,14 @@ export const content: Reader<ContentAsked, ContentPageDto> = {
             ? Promise.all([
                 madePage(db, rc.tenantId, request),
                 request.before ? Promise.resolve([]) : ideaFilesOf(db, rc.tenantId),
-              ]).then(([page, ideas]) => {
+                // What needs the owner heads All's first page, each stopped post with its piece (Made's Needs you group;
+                // Ruben, 12 Nov 2026: a heading over them, as Messages opens on Need you), rather than a line that led to them.
+                request.before || stopped.length === 0 ? Promise.resolve([]) : postLinesOf(db, rc.tenantId, stopped),
+              ]).then(([page, ideas, lines]) => {
                 // A video whose file has arrived is that file's tile: it is drawn once. What is being made heads the first page.
                 const onPage = new Set(page.made.map((m) => m.file.id));
                 const making = request.before ? [] : standing.filter((p) => !p.file_id || !onPage.has(p.file_id));
-                return { ...empty, ...page, making: making.map(makingDtoOf), ideas };
+                return { ...empty, ...page, making: making.map(makingDtoOf), ideas, lines };
               })
             : view === "making"
               ? Promise.resolve({ ...empty, making: standing.map(makingDtoOf) })

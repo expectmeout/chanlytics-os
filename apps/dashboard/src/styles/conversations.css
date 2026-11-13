@@ -382,11 +382,8 @@
   .cv-row > .ix-thread-check {
     display: none;
   }
-  /* 4px under the strip, as the Inbox's tabs are (its slot has 16 of padding under the strip). */
-  .main:has(> .main-scroll > .conversations:not([data-takeover])) .pg-slot,
-  :root[data-carrying] .main:has(> .main-scroll > .conversations) .pg-slot {
-    padding-bottom: 4px;
-  }
+  /* 4px under the strip, as the Inbox's tabs are: said once, for every page (components.css, "The room under the strip of
+     views on a phone"). */
   /* The list is the page itself: the pools show through, no ground of its own. */
   .conversations .cv-list {
     border: 0;

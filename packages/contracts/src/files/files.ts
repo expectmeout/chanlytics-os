@@ -117,6 +117,8 @@ export const FILE_WORDS = {
   /** As short as Made's amber line ("2 posts didn't go out"): what Look opens says where they were found. */
   waitingLine: (n: number) => (n === 1 ? "1 photo found online" : `${n} photos found online`),
   look: "Look",
+  /** Under the first few found online, where more wait than the Library's own list shows: the way to all of them. */
+  seeAllWaiting: (n: number) => `See all ${n}`,
   setAsideLine: (n: number) => `${n} set aside`,
   backToAll: "All",
   shelves: {

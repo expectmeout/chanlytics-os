@@ -195,6 +195,22 @@ export async function countFilesMade(
   return count ?? 0;
 }
 
+/**
+ * How many photos found online wait for the owner's yes (the Library's Found online): what Content marks beside Library
+ * while Made is shown, so what waits is said wherever the owner stands.
+ */
+export async function countFilesWaiting(db: Db, tenantId: TenantId): Promise<number> {
+  const { count, error } = await db
+    .from("files")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .is("removed_at", null)
+    .or(ARRIVED)
+    .eq("status", "inbox");
+  if (error) throw new DbFailure(error, "files waiting");
+  return count ?? 0;
+}
+
 /** How many files the business keeps that Ask did not make, a file on its way aside: the Library's count on Content. */
 export async function countFilesKept(db: Db, tenantId: TenantId): Promise<number> {
   const { count, error } = await db

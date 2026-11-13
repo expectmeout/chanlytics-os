@@ -60,7 +60,8 @@ import { ContentBody, type ContentActs } from "./body";
 import { ContentPiece } from "./piece";
 import { MakeSheet, askIdeaOn } from "./sheets/make";
 import { askContentView, readMoreContent } from "./surface";
-import { BackHead, ContentFind, LibraryOwed } from "./heads";
+import { BackHead, ContentFind, useContentFind } from "./heads";
+import { ListFind } from "../../kit/head/list-find";
 import {
   ContentLayoutChoice,
   ContentLists,
@@ -241,17 +242,32 @@ function useNamedPiece(
 /** The list a piece belongs to: what Ask made is Made's, anything else the Library's. */
 const listOfPiece = (piece: ContentMadeDto): ContentList => (piece.file.source === "made" ? "made" : "library");
 
-/** The bar over the list: Made or the Library, Made's views, and on a desk All as tiles or a list. */
+/** The search's glyph in a phone's bar while the find line rests: what it is called, and the press that puts the caret in it. */
+interface BarGlyph {
+  label: string;
+  onFind: () => void;
+}
+
+/**
+ * The bar over the list: Made or the Library, then the list's own. On a phone, the search's glyph while the find line rests
+ * and the views' pill, which holds Squares or List too (Ruben, 12 Nov 2026: one row as People's and the Inbox's, the glyph
+ * leading what stands at its right); on a desk, Squares or List as its track, and the views a row under the bar.
+ */
 function ContentBar(props: {
   place: ContentPlace;
   tally: ContentPageDto["tally"] | null;
   phone: boolean;
   layout: ContentLayout;
   choose: (layout: ContentLayout) => void;
+  /** Null where the bar shows none: a desk, a list with no find line, a search that holds words. */
+  glyph: BarGlyph | null;
 }) {
-  const { place, tally, phone } = props;
+  const { place, tally, phone, glyph } = props;
   const library = place.list === "library";
   const onView = (v: ContentView) => navigate(contentRouteOf({ list: "made", view: v, open: null }));
+  // Squares or rows, the one choice for both lists, where the list is drawn as either (not Made's lines).
+  const laidOut = library || place.view === "all" || place.view === "making" || place.view === "aside";
+  const layoutHeld = laidOut ? { value: props.layout, choose: props.choose } : null;
   return (
     <>
       <div className="cnv-bar">
@@ -260,16 +276,14 @@ function ContentBar(props: {
           tally={tally}
           onList={(l) => navigate(contentRouteOf({ list: l, view: "all", open: null }))}
         />
-        {/* Squares or rows, the one choice for both lists; Made's views beside it on a phone. */}
         <div className="cnv-bar-end">
-          {library || place.view === "all" || place.view === "making" || place.view === "aside" ? (
-            <ContentLayoutChoice layout={props.layout} choose={props.choose} phone={phone} />
-          ) : null}
+          {glyph ? <ListFind label={glyph.label} onFind={glyph.onFind} testid="cnv-find-open" /> : null}
+          {!phone && laidOut ? <ContentLayoutChoice layout={props.layout} choose={props.choose} /> : null}
           {phone ? (
             library ? (
-              <LibraryKinds phone />
-            ) : place.view === "aside" ? null : (
-              <ContentViews view={place.view} tally={tally} onView={onView} />
+              <LibraryKinds phone layout={layoutHeld} />
+            ) : (
+              <ContentViews view={place.view} tally={tally} onView={onView} layout={layoutHeld} />
             )
           ) : null}
         </div>
@@ -319,6 +333,9 @@ export function ContentPage({ route, view }: { route: string; view?: CmView }) {
     if (!library && askContentView(place.view)) void refreshSurface("content");
   }, [library, place.view]);
   const [layout, setLayout] = useContentLayout(phone);
+  // The find line's field: on a phone it rests folded under the bar, and the bar's glyph puts the caret in it.
+  const findRef = useRef<HTMLTextAreaElement>(null);
+  const find = useContentFind(library, dto);
   const toast = useCampaignsToast();
   const flash = (f: FrameFlash) => toast?.(f);
   const { show, walk, close } = usePieceAddress(place);
@@ -340,9 +357,7 @@ export function ContentPage({ route, view }: { route: string; view?: CmView }) {
   const acts: ContentActs = {
     onOpen: show,
     onMore: more,
-    onNeeds: () => navigate(contentRouteOf({ list: "made", view: "needs", open: null })),
     onIdea: askIdea,
-    onMaking: () => navigate(contentRouteOf({ list: "made", view: "making", open: null })),
     onAside: () => navigate(contentRouteOf({ list: "made", view: "aside", open: null })),
     // A stopped or waiting post: its piece, opened straight to its sheet, where each place says why and what to do.
     onFix: (fileId: string) => show(fileId, true),
@@ -374,11 +389,23 @@ export function ContentPage({ route, view }: { route: string; view?: CmView }) {
             right={<ContentDoors library={library} add={adder} make={() => setMaking(true)} />}
             allowance={false}
           />
-          <ContentBar place={place} tally={dto ? dto.tally : null} phone={phone} layout={layout} choose={setLayout} />
-          {/* One search under the bar, the list's own (Made's over All, the Library's over all it keeps); the Library's amber
-              line under it, where Made's stands over its pieces. */}
-          <ContentFind key={library ? "library" : "made"} library={library} made={dto} />
-          {library ? <LibraryOwed /> : null}
+          <ContentBar
+            place={place}
+            tally={dto ? dto.tally : null}
+            phone={phone}
+            layout={layout}
+            choose={setLayout}
+            glyph={
+              phone && find && !find.about ? { label: find.label, onFind: () => findRef.current?.focus() } : null
+            }
+          />
+          {/* One search under the bar, the list's own (Made's over All, the Library's over all it keeps). What needs the owner
+              is each list's first group (body.tsx MadeGroups, files/library-groups.tsx). */}
+          <ContentFind
+            key={library ? "library" : "made"}
+            find={find}
+            drawn={phone ? { inputRef: findRef, folds: true } : {}}
+          />
           {library ? (
             <Suspense fallback={null}>
               <ContentLibrary flash={flash} onOpen={show} onPieces={setShelf} onAdder={takeAdder} layout={layout} />

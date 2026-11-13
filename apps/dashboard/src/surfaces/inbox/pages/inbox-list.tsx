@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { BAR_LINE_WORDS, NEEDS_YOU_LIST_END } from "@chanlytics/contracts";
-import { Button } from "../../kit/button/button";
+import { ListFind, foldedLookup } from "../../kit/head/list-find";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Search } from "../../kit/search/search";
@@ -368,17 +368,12 @@ function bucketTabs(L: ListCtx) {
     <div className="ix-bucket-row">
       {tabs}
       {L.query ? null : (
-        <Button
-          variant="plain"
-          size="sm"
-          iconOnly
+        <ListFind
           className="ix-find"
-          aria-label={BAR_LINE_WORDS.inbox}
-          onClick={() => L.findRef.current?.focus()}
-          data-testid="inbox-find"
-        >
-          <Icon name="search" size={16} />
-        </Button>
+          label={BAR_LINE_WORDS.inbox}
+          onFind={() => L.findRef.current?.focus()}
+          testid="inbox-find"
+        />
       )}
     </div>
   );
@@ -397,7 +392,7 @@ function searchBox(L: ListCtx) {
   // A phone's empty search rests folded under the buckets' glyph (bucketTabs), open while it has the caret or words.
   const folded = !inLine && !query;
   return (
-    <div className="ix-search-row" data-folded={folded || undefined}>
+    <div className={foldedLookup("ix-search-row", folded)} data-folded={folded || undefined}>
       {visible.length > 0 &&
         pickAll({
           ids: visible.map((t) => t.id),

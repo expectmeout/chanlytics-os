@@ -172,6 +172,14 @@ export function readSlot(o: Pick<SurfaceOverride, "key" | "view">): string {
 }
 
 /**
+ * Whether a read of this surface (of the view shown, where the page picks one) is out now: a page arriving while the read its
+ * reach started is still out takes that one, rather than queue a second behind it (FrameApp.tsx readWhatWasMissed).
+ */
+export function readIsOut(o: Pick<SurfaceOverride, "key" | "view">): boolean {
+  return reading.has(readSlot(o));
+}
+
+/**
  * Read a surface and publish what it answered: one read at a time for each surface, so the newest read is the one
  * that lands last.
  *

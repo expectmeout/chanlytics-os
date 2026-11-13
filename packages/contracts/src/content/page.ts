@@ -68,6 +68,8 @@ export interface ContentTally {
   scheduled: number;
   /** What the Library keeps: the files the business added, which Ask did not make. */
   library: number;
+  /** Photos found online that wait for the owner's yes: marked beside Library while Made is shown. */
+  waiting: number;
   /** What Ask made and was set aside: Made's own Set aside, reached from the foot of All, never the Library's. */
   aside: number;
 }
@@ -82,13 +84,15 @@ export interface ContentPageDto {
   view: ContentView;
   making: ContentMakingDto[];
   made: ContentMadeDto[];
+  /**
+   * A view's lines (Needs you, Scheduled, Posted); and with All's first page, where nothing is searched for, the posts that
+   * stopped, each with its piece: what Made's Needs you group draws over the rest.
+   */
   lines: ContentLineDto[];
   next: string | null;
   tally: ContentTally;
   /** The files each idea would be made from (ideas.ts contentIdeaFilesOf): read with All's first page, empty with any other. */
   ideas: ContentIdeaFiles[];
-  /** The one piece that needs the owner, by its file, where exactly one post stopped and no video failed: the amber line opens it. */
-  needsOne: string | null;
   /** The words All was found by (files_found: a piece's name and what Ask's look saw or heard in it), or null: all of it. */
   about: string | null;
 }
@@ -311,7 +315,14 @@ export const CONTENT_WORDS = {
     making: "Making it again. It's in Made in about a minute.",
   },
   /** Content's two lists, as the control at the list's top says them. */
-  lists: { made: "Made", library: "Library", label: "Show what" },
+  lists: {
+    made: "Made",
+    library: "Library",
+    label: "Show what",
+    /** The amber dot beside a list that holds something for the owner, to a screen reader. */
+    madeNeeds: "Something in Made needs you",
+    libraryWaits: "Photos found online wait for you",
+  },
   /** Made's views, as the control beside Made says them, and what each says when it holds nothing. */
   views: {
     name: {
