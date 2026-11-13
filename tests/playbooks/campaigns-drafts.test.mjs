@@ -630,6 +630,10 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   asks.draft = renamed;
   await say("Call it Autumn colour for VIPs");
   assert.ok(onTop().includes("Call it Autumn colour for VIPs") && onTop().includes(CHANGE_WORDS.changing));
+  // One status on top stays while Ask works and after, so what the change did is read out as it lands.
+  const readOut = () =>
+    textOf(find(byTestId(tree, "sq-nw-said"), (n) => typeof n.type === "string" && n.props?.role === "status"));
+  assert.ok(readOut().includes(CHANGE_WORDS.changing), readOut());
   assert.equal(textOf(hostOf(tree, "sq-nw-again")), W.say.stop);
   assert.ok(
     byTestId(tree, "sq-nw-steps"),
@@ -659,6 +663,10 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   assert.equal(nameBox().props.value, "Autumn colour for VIPs");
   assert.equal(valueBox(tree).props.value, "20% off colour");
   assert.ok(onTop().includes("Call it Autumn colour for VIPs") && onTop().includes("Ask changed its name"), onTop());
+  assert.ok(
+    readOut().includes("Ask changed its name"),
+    `REGRESSION: what a change did was never read out: ${readOut()}`,
+  );
   assert.equal(changeBox().props.value, "", "the line is ready for the next change");
   assert.equal(TM.draft("new", HERE).draft.name, "Autumn colour for VIPs", "kept in the tab as any change is");
 
@@ -715,7 +723,11 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
     onTop().includes("Send it by pigeon") && onTop().includes(CHANGE_WORDS.same),
     `REGRESSION: the card stood under another line: ${onTop()}`,
   );
-  assert.ok(byTestId(tree, "sq-nw-cannot"), "what Ask left out is said in its card");
+  assert.equal(
+    byTestId(tree, "sq-nw-cannot")?.props.role,
+    "status",
+    "what Ask left out is said in its card, and read out",
+  );
   assert.equal(nameBox().props.value, "Autumn colour for VIPs", "and the draft is as it was");
   press(hostOf(tree, "sq-nw-again"));
   tree = redraw(page);

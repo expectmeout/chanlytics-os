@@ -13,7 +13,8 @@
  *   - A stream that does not begin is said in words as an AppError, and nothing is guessed: the day's budget spent is
  *     rate_limited, a paused or ended workspace payment_required, and a preview, a missing key, a model that could not be
  *     reached or the API's refusal of the request are one 503 "not available"; a stream that breaks, an answer that
- *     does not parse and one out of shape are upstream_anthropic "unreadable"; the model's own refusal is a 422.
+ *     does not parse and one out of shape are upstream_anthropic "unreadable", one cut off at its ceiling says it ran
+ *     long and to ask for less (trying again never helps it); the model's own refusal is a 422.
  *     One out of shape keeps the fields that broke it as its cause, never what they held, so the route's line says
  *     which (13 Nov 2026: a draft lost to one field's length, and no line said which).
  *
@@ -139,8 +140,17 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, oth
   let value: unknown;
   try {
     value = JSON.parse(text);
-  } catch (e) {
-    throw causedBy(new AppError("upstream_anthropic", `The ${otherText} came back unreadable. Try again.`), e);
+  } catch (unparsed) {
+    // Cut off at the answer's ceiling, the same ask comes back cut again: what helps is asking for less.
+    if (stop === "max_tokens")
+      throw causedBy(
+        new AppError(
+          "upstream_anthropic",
+          `The ${otherText} ran longer than Ask can write at once. Ask for less in one go.`,
+        ),
+        new Error("cut off at the answer's ceiling (max_tokens)"),
+      );
+    throw causedBy(new AppError("upstream_anthropic", `The ${otherText} came back unreadable. Try again.`), unparsed);
   }
   const parsed = schema.safeParse(value);
   if (!parsed.success)

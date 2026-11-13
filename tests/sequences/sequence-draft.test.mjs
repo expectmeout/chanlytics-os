@@ -47,7 +47,9 @@ const { learnVoice } = await import("../../apps/dashboard/src/server/campaigns/s
 const { rewriteFrom } = await import("../../apps/dashboard/src/server/drafts/sequence-rewrite.ts");
 const {
   LEAD_BUILD_WORDS,
+  HAND_WORDS_MAX,
   LEAD_REWRITE_CHANGE_MAX,
+  NEW_DRAFT_JSON_SCHEMA,
   NEW_WORDS,
   NEW_WORDS_MAX,
   VOICE_WORDS,
@@ -1438,9 +1440,72 @@ test("REGRESSION (13 Nov 2026): a name or a written message's title that runs lo
 });
 
 test("an answer out of shape is still refused in words, and the refusal keeps which fields broke it for the log, never what they held", async () => {
-  await assert.rejects(drafted({ who: "x".repeat(61), when: "y".repeat(41) }), (e) => {
+  await assert.rejects(drafted({ hour: "ten", when: 5 }), (e) => {
     assert.deepEqual([e.code, e.message], ["upstream_anthropic", "The draft came back unreadable. Try again."]);
-    assert.equal(e.cause?.message, "out of shape at when, who");
+    assert.equal(e.cause?.message, "out of shape at hour, when");
+    return true;
+  });
+});
+
+const long = (words, n) => `${words} `.repeat(n).trim();
+
+test("REGRESSION (13 Nov 2026): words that run long anywhere in Ask's answer never lose the draft: each part is held where it is used, and steps past the most a draft holds are said", async () => {
+  // Who and when said in words, not by a key or a time: the draft is drawn, and the owner picks who.
+  const named = await drafted({
+    who: long("everyone who visited in the last ninety days", 2),
+    when: long("next Tuesday", 5),
+  });
+  assert.deepEqual([named.steps.length, named.who], [1, null]);
+  // More steps than a sequence holds, each with a typed value that runs on: the first six are kept, the rest said.
+  const later = step({
+    message: "k2",
+    after_days: 28,
+    only_if: Array(9).fill("no_booking"),
+    texts: [long("A chair is free", 30)],
+  });
+  const many = await drafted({ steps: [step({ message: "k1" }), ...Array(8).fill(later)] });
+  assert.equal(many.steps.length, 6);
+  assert.ok(many.steps[1].message.params[1].value.length <= 200);
+  assert.deepEqual(many.steps[1].only_if, ["no_booking"], "a condition is said once");
+  assert.ok(many.cannot?.includes(NEW_WORDS.cannot.stepsPast(6)), String(many.cannot));
+  // A call's words that run long are kept to what a call's words hold.
+  const call = await drafted({
+    steps: [
+      step({ message: "k1" }),
+      step({ does: "call", after_days: 28, words: long("Ring them to ask how it went", 30) }),
+    ],
+  });
+  assert.ok(call.steps[1].hand.length > 0 && call.steps[1].hand.length <= HAND_WORDS_MAX);
+  // A lead's email past what an email holds is its owner's to write, its draft kept, and nothing it keeps runs long.
+  answerWith(
+    answer({
+      audience: "leads",
+      who: "s1",
+      steps: [
+        step({
+          subject: long("A week of answered calls", 12),
+          body: `{{opening}}\n\n${long("We answer every call.", 150)}`,
+        }),
+      ],
+    }),
+  );
+  const lead = await draftSequenceFrom(KNOWN, { words: "Email the trainers we found" }, WHO);
+  assert.deepEqual([lead.steps.length, lead.steps[0].email.body, lead.steps[0].email.subject], [1, "", null]);
+  // What Ask is asked for and what its answer is read as agree: nothing in the shape read back holds a length.
+  assert.doesNotMatch(JSON.stringify(NEW_DRAFT_JSON_SCHEMA), /maxLength|maxItems/);
+});
+
+test("REGRESSION: an answer cut off at its ceiling says so, and the log says why, never that trying again will help", async () => {
+  setModelStream(async function* (call) {
+    calls.push(call);
+    yield { type: "text", index: 0, text: JSON.stringify(answer({ steps: [step({ message: "k1" })] })).slice(0, 120) };
+    yield { type: "stop", stopReason: "max_tokens" };
+  });
+  await assert.rejects(draftSequenceFrom(KNOWN, LINE, WHO), (e) => {
+    assert.equal(e.code, "upstream_anthropic");
+    assert.equal(e.message, "The draft ran longer than Ask can write at once. Ask for less in one go.");
+    assert.doesNotMatch(e.message, /Try again/);
+    assert.match(String(e.cause?.message), /cut off at the answer's ceiling/);
     return true;
   });
 });

@@ -412,6 +412,11 @@ export const NEW_WORDS = {
     stepStays: (place: number, reason: string) =>
       `Step ${place} stays as it was. Ask’s new words for it couldn’t be kept: ${reason}.`,
     handNotLast: "A call or a note ends a sequence, so it is the last step.",
+    /** Ask answered with more steps than a draft holds: the first are kept, and the rest said. */
+    stepsPast: (most: number) =>
+      most === 1
+        ? "A message sent once is one step, so the rest are left out."
+        : `A sequence holds up to ${most} steps, so the rest are left out.`,
     leftOut: (text: string) => `Left out: “${text}”`,
   },
   /** Nothing here can start on what the line asks (D3): the closest ways, then the line again. */
