@@ -60,7 +60,7 @@ export function ListViewPick<V extends string>({
 }
 
 /** The row: the view at its left, and at its right the search's glyph where it rests and the list's own words after it. */
-export function ListBar({ view, find, acts }: { view: ReactNode; find: ReactNode; acts?: ReactNode }) {
+export function ListTop({ view, find, acts }: { view: ReactNode; find: ReactNode; acts?: ReactNode }) {
   return (
     <div className="cm-list-bar">
       {view}

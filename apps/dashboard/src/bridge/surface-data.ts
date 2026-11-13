@@ -175,8 +175,8 @@ export function readSlot(o: Pick<SurfaceOverride, "key" | "view">): string {
  * Whether a read of this surface (of the view shown, where the page picks one) is out now: a page arriving while the read its
  * reach started is still out takes that one, rather than queue a second behind it (FrameApp.tsx readWhatWasMissed).
  */
-export function readIsOut(o: Pick<SurfaceOverride, "key" | "view">): boolean {
-  return reading.has(readSlot(o));
+export function readIsOut(override: Pick<SurfaceOverride, "key" | "view">): boolean {
+  return reading.has(readSlot(override));
 }
 
 /**

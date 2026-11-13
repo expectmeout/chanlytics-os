@@ -89,7 +89,7 @@ export interface ContentFindLine {
  * Asked once, by the page: a phone's bar shows the search's glyph while the line holds no words, as People's and the Inbox's
  * do, and the line is drawn from the same answer (ContentFind), so the two never differ.
  */
-export function useContentFind(library: boolean, made: ContentPageDto | null | undefined): ContentFindLine | null {
+export function useContentFind(library: boolean, page: ContentPageDto | null | undefined): ContentFindLine | null {
   const files = useLibraryView();
   if (library) {
     if (!files || files.view.shelf !== "all" || files.dto.tally.total === 0) return null;
@@ -101,9 +101,9 @@ export function useContentFind(library: boolean, made: ContentPageDto | null | u
       onFind: (about) => void showFiles({ ...view, about }).catch(() => undefined),
     };
   }
-  if (!made || made.view !== "all" || (made.tally.made === 0 && !made.about)) return null;
+  if (!page || page.view !== "all" || (page.tally.made === 0 && !page.about)) return null;
   return {
-    about: made.about,
+    about: page.about,
     label: W.find,
     testid: "cnv-find",
     // All found by its words, read again as they change.

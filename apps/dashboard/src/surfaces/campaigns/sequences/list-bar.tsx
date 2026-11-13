@@ -24,7 +24,7 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { ListFind } from "../../kit/head/list-find";
-import { ListBar as CmListBar, ListViewPick, type ListView } from "../parts/list-top";
+import { ListTop, ListViewPick, type ListView } from "../parts/list-top";
 
 /** A group of the list and its rows, each with the twin it is sent beside. */
 type Grouped = { group: SequenceGroup; rows: { row: SequenceRowDto; twin: SequenceTwin | null }[] };
@@ -163,7 +163,7 @@ function SortPick(p: ListBarProps) {
  */
 export function ListBar(p: ListBarProps) {
   return (
-    <CmListBar
+    <ListTop
       view={<ViewPick {...p} />}
       find={p.onFind ? <ListFind label={W.search} onFind={p.onFind} testid="sq-find" /> : null}
       acts={

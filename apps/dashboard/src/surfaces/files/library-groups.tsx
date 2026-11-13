@@ -59,7 +59,7 @@ type Draw = (files: readonly FileDto[], lead?: ReactNode) => ReactNode;
  * failed, or more wait than stand here, See all is the way to them. An amber line led there once; with it gone, nothing
  * that waits may go unsaid.
  */
-function FoundOnline(p: {
+function FoundOnline(props: {
   waiting: readonly FileDto[];
   total: number;
   shows: number;
@@ -67,18 +67,18 @@ function FoundOnline(p: {
   flash: (f: FrameFlash) => void;
   go: (view: FilesView) => void;
 }) {
-  const { waiting, total } = p;
+  const { waiting, total } = props;
   return (
     <section className="cnv-group" aria-label={W.shelves.inbox} data-testid="fl-group-found">
       <GroupHead label={W.shelves.inbox} count={total} needs />
-      <InboxPress inbox={waiting} flash={p.flash} />
-      {p.draw(waiting.slice(0, p.shows))}
-      {total > Math.min(waiting.length, p.shows) ? (
+      <InboxPress inbox={waiting} flash={props.flash} />
+      {props.draw(waiting.slice(0, props.shows))}
+      {total > Math.min(waiting.length, props.shows) ? (
         <div className="files-more">
           <Button
             size="sm"
             variant="quiet"
-            onClick={() => p.go({ shelf: "inbox", kind: null, about: null })}
+            onClick={() => props.go({ shelf: "inbox", kind: null, about: null })}
             data-testid="fl-found-all"
           >
             {W.seeAllWaiting(total)}
@@ -89,7 +89,7 @@ function FoundOnline(p: {
   );
 }
 
-export function LibraryGroups(p: {
+export function LibraryGroups(props: {
   dto: FilesPageDto;
   /** The files as the wall draws them (pane.tsx shownOf), newest first. */
   shown: readonly FileDto[];
@@ -105,8 +105,8 @@ export function LibraryGroups(p: {
   setOpenId: (id: string | null) => void;
   go: (view: FilesView) => void;
 }) {
-  const { dto, rows, going, flash, setOpenId } = p;
-  const groups = timeGroupsOf(p.shown, (file) => file.created_at, {
+  const { dto, rows, going, flash, setOpenId } = props;
+  const groups = timeGroupsOf(props.shown, (file) => file.created_at, {
     zone: pageClock().zone(),
     nowMs: Date.now(),
     more: dto.next !== null,
@@ -129,15 +129,15 @@ export function LibraryGroups(p: {
   // Photos on their way are this week's: with its squares where it is there, else under no heading, over the rest.
   const week = groups.find((group) => group.key === "week");
   return (
-    <div ref={p.grid} className="cnv-groups" data-testid="fl-grid" aria-busy={p.busy || undefined}>
-      {p.waitingCount > 0 ? (
+    <div ref={props.grid} className="cnv-groups" data-testid="fl-grid" aria-busy={props.busy || undefined}>
+      {props.waitingCount > 0 ? (
         <FoundOnline
-          waiting={p.waiting}
-          total={p.waitingCount}
+          waiting={props.waiting}
+          total={props.waitingCount}
           shows={rows ? FOUND_ROWS : FOUND_SQUARES}
           draw={draw}
           flash={flash}
-          go={p.go}
+          go={props.go}
         />
       ) : null}
       {onTheirWay && !week ? <div className="files-grid">{onTheirWay}</div> : null}

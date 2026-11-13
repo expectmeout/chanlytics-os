@@ -32,8 +32,8 @@ export interface MadeGroup {
 }
 
 /** The pieces a run of stopped posts is of, once each, in the order they come: the page's own piece where it holds it. */
-function piecesOfLines(lines: readonly ContentLineDto[], made: readonly ContentMadeDto[]): ContentMadeDto[] {
-  const held = new Map(made.map((m) => [m.file.id, m]));
+function piecesOfLines(lines: readonly ContentLineDto[], kept: readonly ContentMadeDto[]): ContentMadeDto[] {
+  const held = new Map(kept.map((m) => [m.file.id, m]));
   const pieces = new Map<string, ContentMadeDto>();
   for (const line of lines) {
     const id = line.file.id;

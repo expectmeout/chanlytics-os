@@ -18,7 +18,7 @@ import { GroupHead } from "../../kit/head/group-head";
 import { ListFind, foldedLookup } from "../../kit/head/list-find";
 import { Icon } from "../../kit/icon/icon";
 import { CmDot } from "../parts/head";
-import { ListBar, ListViewPick, type ListView } from "../parts/list-top";
+import { ListTop, ListViewPick, type ListView } from "../parts/list-top";
 import type { TemplateGroup, TplLang } from "./group";
 import { TplEmailRows, TplEmailsFailed } from "./emails";
 import type { tplEmails } from "./emails";
@@ -100,42 +100,46 @@ interface BarProps {
  * box is the bar's line (the page heads canvas, H2, 31 Oct 2026), and the list opens on its first group. When WhatsApp was
  * last asked is the list's foot (listFoot), a line that says when it last looked.
  */
-export function listBar(p: BarProps) {
-  if (p.inLine) return null;
-  const folded = !p.q;
-  const total = VIEW_GROUPS.reduce((n, g) => n + p.counts[g], 0);
+export function listBar(bar: BarProps) {
+  if (bar.inLine) return null;
+  const folded = !bar.q;
+  const total = VIEW_GROUPS.reduce((n, g) => n + bar.counts[g], 0);
   const views: ListView<MessagesView>[] = [
     { value: "all", label: TPL_LIST_WORDS.views.all, count: total },
-    ...VIEW_GROUPS.filter((g) => p.counts[g] > 0).map((g) => ({
+    ...VIEW_GROUPS.filter((g) => bar.counts[g] > 0).map((g) => ({
       value: g,
       label: TPL_LIST_WORDS[g],
-      count: p.counts[g],
+      count: bar.counts[g],
     })),
   ];
   return (
     <div className="tpl-bar">
-      <ListBar
+      <ListTop
         view={
           <ListViewPick
             label={TPL_LIST_WORDS.views.label}
             views={views}
-            value={p.view}
-            onView={p.onView}
+            value={bar.view}
+            onView={bar.onView}
             testid="templates-view"
           />
         }
         find={
           folded ? (
-            <ListFind label={TPL_LIST_WORDS.search} onFind={() => p.findRef.current?.focus()} testid="templates-find" />
+            <ListFind
+              label={TPL_LIST_WORDS.search}
+              onFind={() => bar.findRef.current?.focus()}
+              testid="templates-find"
+            />
           ) : null
         }
       />
       <Search
         className={foldedLookup("cm-lookup", folded)}
         label={TPL_LIST_WORDS.search}
-        value={p.q}
-        onChange={p.setQ}
-        inputRef={p.findRef}
+        value={bar.q}
+        onChange={bar.setQ}
+        inputRef={bar.findRef}
         testid="templates-search"
       />
     </div>
