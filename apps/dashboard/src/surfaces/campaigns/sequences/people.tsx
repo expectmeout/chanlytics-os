@@ -92,12 +92,22 @@ function personLineOf(p: SequencePersonDto, tz: string, nowMs: number): string {
   return [place, at, why].filter(Boolean).join(" · ");
 }
 
-/** What the Added fold says beside its count, by the sequence's state: on, when its next batch is planned where known. */
-function queuedMarkOf(rec: SequenceRecordDto, nowMs: number): string {
+/**
+ * What the Added fold says beside its count, by the sequence's state: on, when its next batch is planned where known.
+ * Only of the leads a batch can take: it said "in its next batch" of a fold whose every lead no batch could take (a
+ * row says why, placeNotPlannedOf), so the ones the rows refuse are left out of the promise, and none is promised one.
+ */
+function queuedMarkOf(
+  rec: SequenceRecordDto,
+  nowMs: number,
+  rows: readonly SequencePersonDto[],
+  whole: number | undefined,
+): string {
   const s = rec.sequence.state;
   if (s === "draft" || s === "paused") return P.queued[s];
   const when = leadsPlannedWords(rec.sequence, rec.last_run_for, rec.timezone, nowMs);
-  return when ? P.queuedAt(when) : P.queued.on;
+  const where = when ? P.queuedAt(when) : P.queued.on;
+  return P.queuedOf(where, whole ?? 0, rows.filter((r) => placeNotPlannedOf(r.why) !== null).length);
 }
 
 /**
@@ -450,7 +460,7 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
             }
             mark={
               g === "queued"
-                ? queuedMarkOf(rec, nowMs)
+                ? queuedMarkOf(rec, nowMs, of(g), counts[g])
                 : foldMarkOf(g, of(g), counts[g] ?? 0, { tz: rec.timezone, nowMs })
             }
             remember

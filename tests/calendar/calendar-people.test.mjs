@@ -2485,8 +2485,8 @@ test("the table: identity that says who, Offers where First contact was, Visits 
  * the same way, to decide who is thanked after a visit.
  * -------------------------------------------------------------------------- */
 
-const OWNER_ADDR = "ruben@rjcapital.io";
-const OWNER_URL = "https://calendar.google.com/calendar/ical/ruben%40rjcapital.io/private-0123456789abcdef/basic.ics";
+const OWNER_ADDR = "ruben@rjcapital.example";
+const OWNER_URL = "https://calendar.google.com/calendar/ical/ruben%40rjcapital.example/private-0123456789/basic.ics";
 /** Meetings on the owner's own calendar, organised by other people, with the owner invited. */
 const MEETINGS_ICS = [
   "BEGIN:VCALENDAR",
@@ -2497,7 +2497,7 @@ const MEETINGS_ICS = [
   "DTEND:20260908T170000Z",
   "SUMMARY:Amazon Review",
   "ORGANIZER;CN=Greg Man:mailto:greg@agency.example",
-  "ATTENDEE;CN=Ruben Segura:mailto:ruben@rjcapital.io",
+  "ATTENDEE;CN=Ruben Segura:mailto:ruben@rjcapital.example",
   "ATTENDEE;CN=Greg Man:mailto:greg@agency.example",
   "END:VEVENT",
   "BEGIN:VEVENT",
@@ -2506,7 +2506,7 @@ const MEETINGS_ICS = [
   "DTEND:20260909T143000Z",
   "SUMMARY:Meeting with Ruben Segura",
   "ORGANIZER:mailto:calendly@notify.example",
-  "ATTENDEE;CN=Ruben:mailto:RUBEN@rjcapital.io",
+  "ATTENDEE;CN=Ruben:mailto:RUBEN@rjcapital.example",
   "END:VEVENT",
   // A real appointment: a customer, with the owner copied on it.
   "BEGIN:VEVENT",
@@ -2516,7 +2516,7 @@ const MEETINGS_ICS = [
   "SUMMARY:Balayage",
   "ORGANIZER:mailto:bookings@salon-tool.example",
   "ATTENDEE;CN=Ana Gomez:mailto:ana.gomez@gmail.com",
-  "ATTENDEE;CN=Ruben:mailto:ruben@rjcapital.io",
+  "ATTENDEE;CN=Ruben:mailto:ruben@rjcapital.example",
   "END:VEVENT",
   "END:VCALENDAR",
 ].join("\r\n");
@@ -2527,7 +2527,7 @@ test("a Google feed names its owner, and a calendar that is not a person names n
   const { calendarOwnerOf } = await import("@chanlytics/contracts");
   assert.equal(calendarOwnerOf(OWNER_URL), OWNER_ADDR);
   assert.equal(
-    calendarOwnerOf(OWNER_URL.replace("ruben%40rjcapital.io", "RUBEN%40RJCapital.io")),
+    calendarOwnerOf(OWNER_URL.replace("ruben%40rjcapital.example", "RUBEN%40RJCapital.example")),
     OWNER_ADDR,
     "in one spelling",
   );

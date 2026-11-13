@@ -5,7 +5,7 @@
  * previewMarkOf), and its bubble is the line the Sequence line draws (../preview.tsx PreviewLine), with Make it now, Open
  * it and Copy link. Both carry `data-fill`, which the email's own tap-to-type looks for and leaves alone (email-words.tsx).
  */
-import { PREVIEW_LINE_WORDS, previewLineOf, type LeadEmailPiece, type SlotLead } from "@chanlytics/contracts";
+import { PREVIEW_LINE_WORDS, previewLineOf, type LeadCardLead, type LeadEmailPiece } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Popover } from "../../../kit/popover/popover";
 import { LEAD_FILL_WORDS, fillInSaysOf, previewMarkOf } from "../model/fill-ins";
@@ -19,10 +19,10 @@ export function FillIn({
   onChange,
 }: {
   piece: LeadEmailPiece;
-  lead: SlotLead | null;
+  lead: LeadCardLead | null;
   onChange: ((at: number) => void) | null;
 }) {
-  const says = lead && piece.slot ? fillInSaysOf(piece.slot, lead) : null;
+  const says = lead && piece.slot ? fillInSaysOf(piece.slot, lead, lead.found ?? null) : null;
   if (!says) return <span data-at={piece.at}>{piece.text}</span>;
   return (
     <Popover
@@ -44,7 +44,7 @@ export function FillIn({
       }
     >
       <p className="lw-fill-t">{says.title}</p>
-      <p className="lw-note">{says.from}</p>
+      {says.from ? <p className="lw-note">{says.from}</p> : null}
       <p className="lw-note">{says.varies}</p>
       {onChange ? (
         <Button size="sm" variant="secondary" onClick={() => onChange(piece.at)} data-testid="lead-card-fill-change">
