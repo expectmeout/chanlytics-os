@@ -271,9 +271,13 @@ export function personInText(text: string, people: PersonLike[]): PersonLike | n
   return best;
 }
 
-// The same order People names someone by (people.ts personName), so a person
-// known only by an address reads as that address and not as "Unknown".
-const labelOf = (p: PersonLike): string => p.name.trim() || formatPhoneDisplay(p.phone) || p.email || "Unknown";
+/**
+ * What the board calls a person: the same order People names someone by (people.ts personName), so a person known only
+ * by a number or an address reads as that and not as "Unknown", and never as nobody. A booking's row names its person by
+ * it too (appointment-item.ts personOfAppointment), after the name the booking itself gave.
+ */
+export const personLabelOf = (person: PersonLike): string =>
+  person.name.trim() || formatPhoneDisplay(person.phone) || person.email || "Unknown";
 
 /** Who the appointment is for: a phone in the event first, then an address, then a whole name in its title, guests or description. */
 export function matchPerson(
@@ -290,7 +294,7 @@ export function matchPerson(
     for (const p of people) if (p.phone) byPhone.set(p.phone, p);
     for (const ph of result.phones) {
       const p = byPhone.get(ph);
-      if (p) return { id: p.id, name: labelOf(p), via: "phone", ...threadOf(p), ...replyFactsOf(p) };
+      if (p) return { id: p.id, name: personLabelOf(p), via: "phone", ...threadOf(p), ...replyFactsOf(p) };
     }
   }
   if (result.emails.length) {
@@ -301,14 +305,14 @@ export function matchPerson(
     for (const p of people) if (p.email) byEmail.set(p.email.toLowerCase(), p);
     for (const em of result.emails) {
       const p = byEmail.get(em);
-      if (p) return { id: p.id, name: labelOf(p), via: "email", ...threadOf(p), ...replyFactsOf(p) };
+      if (p) return { id: p.id, name: personLabelOf(p), via: "email", ...threadOf(p), ...replyFactsOf(p) };
     }
     // A business's own address (0052, I24): its person's, and said as their business, since it is not their own.
     const byBusiness = new Map<string, PersonLike>();
     for (const p of people) for (const em of p.businessEmails ?? []) byBusiness.set(em, p);
     for (const em of result.emails) {
       const p = byBusiness.get(em);
-      if (p) return { id: p.id, name: labelOf(p), via: "business", ...threadOf(p), ...replyFactsOf(p) };
+      if (p) return { id: p.id, name: personLabelOf(p), via: "business", ...threadOf(p), ...replyFactsOf(p) };
     }
   }
   const words = [item.title, ...result.names, item.description ?? ""].join("\n");
@@ -316,7 +320,7 @@ export function matchPerson(
   if (otherPersonInText)
     return {
       id: otherPersonInText.id,
-      name: labelOf(otherPersonInText),
+      name: personLabelOf(otherPersonInText),
       via: "name",
       ...threadOf(otherPersonInText),
       ...replyFactsOf(otherPersonInText),
@@ -326,7 +330,7 @@ export function matchPerson(
   return businessPerson
     ? {
         id: businessPerson.id,
-        name: labelOf(businessPerson),
+        name: personLabelOf(businessPerson),
         via: "business",
         ...threadOf(businessPerson),
         ...replyFactsOf(businessPerson),

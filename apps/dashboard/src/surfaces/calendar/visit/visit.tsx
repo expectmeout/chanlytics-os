@@ -3,7 +3,9 @@
  * from contracts' visitSheetOf, which decides every word and act. Its head says what it is, when, and how it stands; its
  * person line who it is for, as a door to their page, with the Message and Call circles that reach them; its rows what
  * nothing above says; its footnote where it changes; its foot More and one act by how it stands, or, for a visit over and
- * not marked, the ask "Did Maria come yesterday?" over Missed and Kept, as Today's sheet asks it (11 Nov 2026).
+ * not marked, the ask "Did Maria come yesterday?" over Missed and Kept, as Today's sheet asks it (11 Nov 2026). A word said
+ * here is answered here, as Today's row answers it: the visit stands as it was told at once, the foot says what the word
+ * sets going (the sequence that thanks them, or offers another time) and offers the other word as the way back.
  *
  * Every act is a door that already exists: a visit's word is the Calendar's (POST calendar/visits/[id]), the thread is the
  * Inbox's (or a new conversation), the booking link is carried into the thread as People's row carries it, a proposal is
@@ -21,11 +23,12 @@ import {
   addressOf,
   appointmentWords,
   formatPhoneDisplay,
-  type AppointmentWord,
   type CalendarBlockVM,
   type VisitWord,
 } from "@chanlytics/contracts";
 import { CALENDAR_VISIT_SHEET_WORDS as W, type VisitMoreAct, type VisitSheetVM } from "./sheet-view";
+import type { VisitCtx } from "./context";
+import { VisitOutcome, sayHere } from "./outcome";
 import { commitVerb } from "@/bridge/verbs/commit";
 import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
@@ -42,18 +45,6 @@ import { gate, navigate, openDealSheet, type DealSheetAsk } from "../../frame-ve
 import { openStepSheet } from "../../people/deal/deal-verbs";
 import { sayVisit } from "../../visit-line";
 import { answerRequest } from "../../booking-request";
-
-/** What the parts are drawn from, and what they do. */
-export interface VisitCtx {
-  b: CalendarBlockVM;
-  vm: VisitSheetVM;
-  word: AppointmentWord;
-  bookingLink: string | null;
-  /** Close the sheet or the peek (the address goes back with it). */
-  close: () => void;
-  /** Say something once, at the foot of the page (the board's toast). */
-  flash: (text: string) => void;
-}
 
 /** "Thu, Oct 15 · 12:30 – 1:30 PM · 1h · Repeats", with Today, Tomorrow or Yesterday first where it is one. */
 export function whenWords(vm: VisitSheetVM): string {
@@ -122,7 +113,7 @@ function visitPersonLine(c: VisitCtx) {
  * foot's lead, and while the sheet asks whether they came, when the foot holds the two answers and no lead.
  */
 function visitReach(visitCtx: VisitCtx) {
-  const { vm, b: block } = visitCtx;
+  const { vm, block } = visitCtx;
   const message = vm.circles.message ?? (vm.ask && vm.primary?.act === "message" ? vm.primary.label : null);
   const call = vm.circles.call;
   if (!message && !call) return null;
@@ -161,23 +152,20 @@ function visitReach(visitCtx: VisitCtx) {
 /**
  * "Did Maria come yesterday?" over its two answers, in the foot, as Today's sheet asks it (one sheet, 9 Nov 2026; here
  * 11 Nov): More, then the quiet answer, then the answer that is its act, the two equal. The same door Today and their
- * page press, each named for a screen reader with who and when. Once the door has written, the word stands in place of
- * the answers until the board reads again.
+ * page press, each named for a screen reader with who and when. Once the door has written, the sheet keeps its answer
+ * (sayHere) and draws the visit as it was told: the question goes, and the foot says what follows (outcome.tsx VisitOutcome).
  */
 function VisitAskFoot({ c, more }: { c: VisitCtx; more: ReactNode }) {
   const ask = c.vm.ask;
   const [busy, setBusy] = useState<VisitWord | null>(null);
-  const [said, setSaid] = useState<VisitWord | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const mark = ask?.line.mark;
-  if (!ask || !mark) return null;
+  if (!ask || !ask.line.mark) return null;
   const say = async (status: VisitWord) => {
     setBusy(status);
     setProblem(null);
     try {
-      const r = await sayVisit(mark.id, status);
-      if (r.ok) setSaid(status);
-      else setProblem(r.message);
+      const answer = await sayHere(c, status);
+      if (answer && !answer.ok) setProblem(answer.message);
     } finally {
       setBusy(null);
     }
@@ -207,16 +195,8 @@ function VisitAskFoot({ c, more }: { c: VisitCtx; more: ReactNode }) {
       ) : null}
       <div className="cal-visit-acts" data-foot-acts="">
         {more}
-        {said ? (
-          <p className="cal-visit-ask-said" role="status" data-testid="cal-visit-ask-said">
-            {VISIT_WORDS[said]}
-          </p>
-        ) : (
-          <>
-            {second ? answer(second, "secondary") : null}
-            {act ? answer(act, "primary") : null}
-          </>
-        )}
+        {second ? answer(second, "secondary") : null}
+        {act ? answer(act, "primary") : null}
       </div>
     </section>
   );
@@ -251,7 +231,7 @@ function visitRows(vm: VisitSheetVM) {
  */
 function useAddToPeople(c: VisitCtx) {
   const [busy, setBusy] = useState(false);
-  const add = addToPeopleOf(c.b);
+  const add = addToPeopleOf(c.block);
   const press = async () => {
     if (!add) return;
     setBusy(true);
@@ -290,8 +270,8 @@ function messageThem(b: CalendarBlockVM): void {
 
 /** The booking link carried into their thread in the words for how the visit went, then the thread. */
 function carryLink(c: VisitCtx, words: (link: string) => string): void {
-  const p = c.b.person;
-  if (!p?.threadId || !c.bookingLink) return messageThem(c.b);
+  const p = c.block.person;
+  if (!p?.threadId || !c.bookingLink) return messageThem(c.block);
   if (p.bookingLinkAction.ready) carryReply(p.threadId, words(c.bookingLink));
   navigate(visitThreadRoute(p.threadId));
 }
@@ -321,9 +301,9 @@ function handOff(c: VisitCtx, open: () => void): void {
  * drafted for the member to send; Can't leaves the thread waiting on their reply.
  */
 function answerVisit(c: VisitCtx, booked: boolean): void {
-  const threadId = c.b.request?.threadId;
+  const threadId = c.block.request?.threadId;
   if (!threadId) return;
-  void answerRequest(threadId, booked, c.b.person?.name ?? c.b.guess ?? "They").then((r) => {
+  void answerRequest(threadId, booked, c.block.person?.name ?? c.block.guess ?? "They").then((r) => {
     if (!r.ok) return c.flash(r.message);
     if (!booked) return c.flash(r.receipt);
     const to = addressOf({ kind: "hold", conversationId: threadId });
@@ -343,14 +323,14 @@ function withQuietLead(visitCtx: VisitCtx): VisitCtx {
 
 /** The lead act, by how the visit stands. */
 function PrimaryAct({ c }: { c: VisitCtx }) {
-  const { vm, b } = c;
+  const { vm, block } = c;
   const adding = useAddToPeople(c);
   const words = appointmentWords(c.word);
   const pa = vm.primary;
   if (!pa) return null;
   const press = () => {
     if (pa.act === "booked") return answerVisit(c, true);
-    if (pa.act === "message") return messageThem(b);
+    if (pa.act === "message") return messageThem(block);
     if (pa.act === "link") return carryLink(c, words.nextLink);
     if (pa.act === "new_time") return carryLink(c, words.newTimeLink);
     if (pa.act === "add") return void adding.press();
@@ -386,11 +366,11 @@ function PrimaryAct({ c }: { c: VisitCtx }) {
 /** What More's press does, by its act; the copy and the cancel are drawn as their own items. */
 function moreItem(c: VisitCtx, m: { act: VisitMoreAct; label: string; danger: boolean }, ask: () => void): MenuItem {
   const { act, label, danger } = m;
-  const p = c.b.person;
-  const mark = c.vm.line.mark;
+  const p = c.block.person;
   const said = (status: VisitWord) => () => {
-    if (!mark) return;
-    void sayVisit(mark.id, status).then((r) => c.flash(r.ok ? VISIT_WORDS[status] : r.message));
+    void sayHere(c, status).then((answer) => {
+      if (answer) c.flash(answer.ok ? VISIT_WORDS[status] : answer.message);
+    });
   };
   switch (act) {
     case "copy": {
@@ -446,7 +426,10 @@ function moreItem(c: VisitCtx, m: { act: VisitMoreAct; label: string; danger: bo
   }
 }
 
-/** The foot: More and the lead act, or the ask over its two answers; and, once asked, the cancel's question. */
+/**
+ * The foot: More and the lead act, or the ask over its two answers; over them, what a word just said here sets going;
+ * and, once asked, the cancel's question.
+ */
 export function VisitFoot({ c }: { c: VisitCtx }) {
   const { vm } = c;
   const [asking, setAsking] = useState(false);
@@ -502,10 +485,13 @@ export function VisitFoot({ c }: { c: VisitCtx }) {
           ) : null}
         </>
       ) : (
-        <div className="cal-visit-acts" data-foot-acts="">
-          {more}
-          <PrimaryAct c={c} />
-        </div>
+        <>
+          <VisitOutcome visit={c} />
+          <div className="cal-visit-acts" data-foot-acts="">
+            {more}
+            <PrimaryAct c={c} />
+          </div>
+        </>
       )}
       {vm.shut ? <p className="cal-visit-quiet">{vm.shut}</p> : null}
     </div>
