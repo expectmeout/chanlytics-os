@@ -2,7 +2,7 @@ import "server-only";
 import { NextResponse, connection } from "next/server";
 
 /** A warm-up's handler: it answers the routes it holds, and says them (`held`) to what holds the list to the pages' reads. */
-export interface WarmRoute {
+export interface WarmHandler {
   (): Promise<Response>;
   /** The routes held, by the path the client asks each at, sorted. */
   readonly held: readonly string[];
@@ -22,7 +22,7 @@ export interface WarmRoute {
  * would be answered from a cache and no code would load (check:static-shell fails such a build). It reads nothing of
  * the request, names no workspace and reads no row, so it answers anyone (proxy.ts PUBLIC_PATHS).
  */
-export function warmRoute(routes: readonly string[]): WarmRoute {
+export function warmRoute(routes: readonly string[]): WarmHandler {
   const held = [...routes].sort();
   const answer = async (): Promise<Response> => {
     await connection();
