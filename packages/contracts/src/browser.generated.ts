@@ -185,7 +185,7 @@ export { footerOf, refusedWords, sendableTemplates, templateBlocked, templateFoo
 export { SENDER_WORDS, senderLanguage, senderWords } from "./campaigns/templates/sender-words";
 export { fillSlots, numberedSlots, slotValueOf, slotWritten, slotMentions, slotOutside, slotsOut } from "./campaigns/templates/slot-sets";
 export { defaultParamSpecs, defaultSlotKinds, guessSlotKind, slotChoices, slotLabels, templateSlots } from "./campaigns/templates/slots";
-export { starterByKey, starterByName, starterDraft, starterEmailText, starterForTrigger, startersForTrigger, starterSmsText, startersOffered, starterText } from "./campaigns/templates/starter-lookup";
+export { STARTER_MOMENTS, starterByKey, starterByName, starterDraft, starterEmailText, starterForTrigger, starterMoment, startersForTrigger, starterSmsText, startersOffered, starterText } from "./campaigns/templates/starter-lookup";
 export { messageLanguageCode, STARTER_LANGUAGES } from "./campaigns/templates/starter-templates/shapes";
 export { STARTER_TEMPLATES } from "./campaigns/templates/starter-templates/table";
 export { placeholdersOf, placeholdersSequential, slugTemplateName, TEMPLATE_BODY_MAX, TEMPLATE_BODY_WORDS, TEMPLATE_BUTTON_TEXT_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LABEL_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_WORDS, TEMPLATE_SAME_NAME_WORDS, TEMPLATE_STATUS_WORDS, templateBodyTooLong, templateComponents, templateNameOk, validateTemplateDraft } from "./campaigns/templates/templates";

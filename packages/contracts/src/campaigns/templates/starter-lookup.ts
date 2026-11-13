@@ -40,6 +40,25 @@ export function startersOffered(here: { reviewLink: boolean }): StarterTemplate[
 }
 
 /**
+ * What a starter is for, as Messages sorts the ready-made ones (the clean list, 13 Nov 2026), in the order it lists them:
+ * an appointment's, a follow-up's, an offer or news, a call's.
+ */
+export const STARTER_MOMENTS = ["appointments", "follow_ups", "offers", "calls"] as const;
+export type StarterMoment = (typeof STARTER_MOMENTS)[number];
+
+/**
+ * Which of them a starter is: by the class its moment is filed under (triggers/kinds.ts `cls`: a booking's is an
+ * appointment's, a follow-up's is a follow-up's, and a moment that re-engages or campaigns sends an offer or news); a
+ * starter no moment sends is an offer or news where it is one (A quick note), and the call's text where it is not.
+ */
+export function starterMoment(starterTemplate: Pick<StarterTemplate, "category" | "trigger">): StarterMoment {
+  const momentClass = starterTemplate.trigger ? (triggerOf(starterTemplate.trigger)?.cls ?? null) : null;
+  if (momentClass === "booking") return "appointments";
+  if (momentClass === "follow_up") return "follow_ups";
+  return momentClass || starterTemplate.category === "marketing" ? "offers" : "calls";
+}
+
+/**
  * The starter written for a moment: the set's own, else the one it replaced. A moment no longer offered for a new
  * playbook (Welcome, Save our number) still finds the starter it was made with.
  */

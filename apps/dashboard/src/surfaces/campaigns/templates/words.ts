@@ -82,22 +82,19 @@ export const tplOneLine = (s: string | null | undefined): string =>
     .replace(/\s+/g, " ")
     .trim();
 
-// A slot by name inside a one-line quote -- "{first name}", "{business}", "{link}" --
-// by what fills it where the library knows, else by the label it was given.
-const TPL_SLOT_WORDS: Record<string, string> = {
-  first_name: "first name",
-  business_name: "business",
-  booking_link: "link",
-  visit_when: "time",
-  visit_service: "service",
-  proposal_link: "proposal link",
-  freed_when: "time",
+/**
+ * A row's one line reads as one person would get it (the clean list, 13 Nov 2026: never our notation; it named each slot
+ * in braces, "Hi {first name}"): each value by its sample, and where the business has not given its own name or link
+ * yet, by plain words for it. `[Booking link]` is the preview's blank, which the pane marks; a list's line says "your
+ * booking link". A value with no sample on file is a gap in the words, never a name for it.
+ */
+const TPL_OWN_BLANKS: Record<string, string> = {
+  business_name: "your business",
+  booking_link: "your booking link",
+  review_link: "your review link",
 };
-export const tplSlotWord = (kind: string | undefined, label: string | undefined, n: string): string =>
-  (kind && TPL_SLOT_WORDS[kind]) ||
-  String(label || `value ${n}`)
-    .toLowerCase()
-    .replace(/^(the|la|el|los|las) /, "");
+export const tplSampleWord = (value: string | undefined, kind: string | undefined): string =>
+  value && !/^\[.*\]$/.test(value) ? value : ((kind && TPL_OWN_BLANKS[kind]) ?? "…");
 
 /**
  * What the page says of a message's email and text versions (One message, every channel, step 1): the switch, the quiet
@@ -222,7 +219,12 @@ export const TPL_SHEET_WORDS = {
   checkingSays:
     "WhatsApp is checking the new words, usually within minutes. If it says no, this comes back to Needs you with new words ready.",
   goingSays: (by: string): string => `Sent by ${by}.`,
+  /** Something sends it and nothing can carry it here yet: nothing is lost, and it goes by itself. */
+  waitingSays: (by: string): string =>
+    `Set to go out with ${by}. It goes by itself as soon as there is a way to send it.`,
   idleSays: "Nothing sends it now. It goes out once a sequence uses it.",
+  /** A starter nothing sends: it is there to use as it is, and nothing is filed until it is used. */
+  madeSays: "Written for you and ready to use. It goes out once a sequence uses it.",
   awaySays: "On file, out of the list and the composers. Its name brings it back.",
   offerSays: "An offer reaches only people who said yes to offers, and never goes by text.",
   noteSays: "A note about their own booking or proposal reaches anyone a send may.",
@@ -244,8 +246,8 @@ export const TPL_SHEET_WORDS = {
 
 /**
  * What the list says (Messages, the canvas of 10 Nov 2026, steps 1 and 2): its groups, in the order a person asks about
- * them, the line under a message's name where the list works it out, what stands at the right of a row, the head's line,
- * and the list's foot. A message is called a message, as the tab is: "template" was a third word for one thing.
+ * them, the line under a message's name where the list works it out, what stands at the right of a row, and the head's
+ * line. A message is called a message, as the tab is: "template" was a third word for one thing.
  */
 /**
  * Where a WhatsApp version stands, beside its message's name: what an owner can act on, never WhatsApp's own word for it
@@ -259,17 +261,23 @@ const STANDING_WORDS: Record<string, string> = {
 };
 
 export const TPL_LIST_WORDS = {
-  /** The groups: what needs you, what goes out now, what nothing sends now, and what was put away. */
-  need: "Need you",
-  going: "Going out",
-  idle: "Not in use",
+  /**
+   * The groups (the clean list, 13 Nov 2026; Ruben's names): what has one press that fixes it, what something sends, the
+   * business's own that nothing sends, the starters nothing sends, and what was put away.
+   */
+  need: "Needs you",
+  going: "Sending",
+  idle: "Ready",
+  made: "Ready-made",
   away: "Put away",
   /** A cold email sequence's emails, which are a step's own words and are written with their sequence. */
   emails: "Cold emails",
+  /** What the ready-made ones are for, each a small head over its starters (contracts starterMoment). */
+  moments: { appointments: "Appointments", follow_ups: "Follow-ups", offers: "Offers and news", calls: "Calls" },
   /** How many a folded group holds, to a screen reader, and what its head does. */
   fold: (name: string, n: number): string => `${name}, ${n}`,
-  /** Something sends the message, and no channel can carry it for this business now: why, in the channel's words. */
-  nothingCarries: (reason: string): string => `Nothing can send it here yet. ${reason}`,
+  /** Something sends the message and nothing can carry it for this business yet: it waits, and goes by itself. */
+  waiting: "Waiting",
   standing: STANDING_WORDS,
   /** A running sequence sends a language the message has no version of that it can send. */
   sendsMissing: (language: string): string => `A sequence sends it in ${language}, which it has no version to send in.`,
@@ -277,21 +285,16 @@ export const TPL_LIST_WORDS = {
   sentCount: (count: string): string => `${count} sent`,
   notSentYet: "Not sent yet",
   sentWhen: (when: string): string => `Sent ${when}`,
-  /** The head's line: how many need you and how many go out. */
+  /** The head's line: how many need you and how many something sends. */
   needYou: (n: number): string => `${n} need${n === 1 ? "s" : ""} you`,
-  goingOut: (n: number): string => (n === 0 ? "Nothing going out yet" : `${n} going out`),
-  /** The list's foot: when WhatsApp was last asked about the workspace's messages, and the press that asks again. */
-  checked: (ago: string): string => `Checked with WhatsApp ${ago}`,
-  neverChecked: "Not checked with WhatsApp yet",
-  checking: "Checking WhatsApp…",
-  checkAgain: "Check WhatsApp for changes",
+  goingOut: (n: number): string => (n === 0 ? "Nothing sending yet" : `${n} sending`),
   /** A search with nothing in it. */
   noMatch: (q: string): string => `No message’s words have “${q}” in them.`,
   /** What a message written here is, under its name in its pane (a starter says its own line). */
   anOffer: "An offer, for people who said yes to offers",
   aNote: "About their own booking or proposal",
   /** The open message's head: where it stands, in the words of its group. */
-  placeWord: { need: "Needs you", going: "Going out", idle: "Not in use", away: "Put away" },
+  placeWord: { need: "Needs you", going: "Sending", idle: "Ready", made: "Ready-made", away: "Put away" },
   /** The open message's facts: what sends it, and what went out. */
   sentBy: "Sent by",
   sent: "Sent",

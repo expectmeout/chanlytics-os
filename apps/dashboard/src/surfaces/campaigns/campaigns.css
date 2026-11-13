@@ -1828,6 +1828,15 @@ html.frame-on .bc-nobody-door {
 .msg-group-head .icon {
   color: var(--ink-dim);
 }
+/* What a run of ready-made starters is for (Appointments, Follow-ups, Offers and news, Calls), among the rows at their
+   inset: a step quieter than the group's own name, with room over it so each run reads as one. */
+.msg-moment {
+  margin: var(--space-3) var(--space-2) var(--space-1);
+  padding: 0 var(--row-pad-x);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
 .msg-list {
   container-type: inline-size;
   min-width: 0;
@@ -3673,7 +3682,7 @@ html.frame-on .cm-pane-sub .bc-run-link {
     padding: 0 0 var(--space-6);
   }
   /* Its rows at the edge Sequences' stand at: the lozenge's 8px inset was the pane's. */
-  .cm-split:not([data-open]) .tpl-wrap :is(.msg-row-line, .msg-group-head, .msg-foot) {
+  .cm-split:not([data-open]) .tpl-wrap :is(.msg-row-line, .msg-group-head, .msg-moment) {
     margin-inline: 0;
   }
 }

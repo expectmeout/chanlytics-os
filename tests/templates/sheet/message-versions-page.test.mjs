@@ -1042,7 +1042,8 @@ test("an own-only message is a row the Library draws whole: its words quoted, it
   const row = rowOf(tree, HOURS);
   assert.ok(row, "the row is there, found by the name it is filed under");
   assert.equal(row.props["data-testid"], "custom-row");
-  assert.ok(textOf(row).includes("“Hi {first name}, our hours start {date}.”"), "its email's words: nothing sends it");
+  // Its email's words as one person would get them, each value by its sample (the clean list, 13 Nov 2026: no braces).
+  assert.ok(textOf(row).includes("“Hi Dani, our hours start Oct 1.”"), "its email's words: nothing sends it");
   // The search finds it by the words of an email's subject and body, as it finds a WhatsApp message by its own.
   lineBox().props.onChange({
     target: { value: "our hours start" },
@@ -1072,7 +1073,7 @@ test("an own-only message is a row the Library draws whole: its words quoted, it
   );
   assert.ok(byTestId(paneOf(tree), "template-version-edit"), "the pencil");
   // Its head says where it stands in the list, never a WhatsApp status it does not have (Messages, the canvas of 10 Nov 2026).
-  assert.equal(standingWord(tree), "Not in use", "nothing sends it");
+  assert.equal(standingWord(tree), "Ready", "nothing sends it, and it is theirs");
   assert.equal(tabOf(tree, "whatsapp").need, undefined, "and no WhatsApp dot: no WhatsApp version to wait on");
   // The menu is the message's whichever tab is in view: on WhatsApp's, which it has no version on, the same three.
   tree = switched(tree, "whatsapp");

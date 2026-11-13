@@ -59,11 +59,16 @@ test.describe("Messages on a real workspace", () => {
     // each name it wrote or synced, whatever languages and channels it holds, with Put away folding what it hid.
     const rows = libraryRows(messages, starterNames);
     await expect(real.getByTestId("templates-hidden")).toHaveCount(rows.hidden ? 1 : 0);
-    // The groups that fold (Not in use, Put away: Messages, the canvas of 10 Nov 2026) opened, so every row is there to count.
-    for (const fold of ["templates-fold-idle", "templates-hidden"]) {
+    // The groups that fold (Ready, Ready-made, Put away: Messages, the canvas of 10 Nov 2026, and the clean list of 13 Nov
+    // 2026) opened, so every row is there to count.
+    for (const fold of ["templates-fold-idle", "templates-fold-made", "templates-hidden"]) {
       const head = real.getByTestId(fold);
       if ((await head.count()) > 0 && (await head.getAttribute("aria-expanded")) === "false") await head.click();
     }
+    // No starter is said to be missing, and nothing under the list asks about WhatsApp (the clean list).
+    await expect(real).not.toContainText("Not added");
+    await expect(real).not.toContainText("Not in use");
+    await expect(real).not.toContainText("Checked with WhatsApp");
     // A message's languages are what it opens into: no closed row carries a language
     // control (they were a column of every row, "● EN ⌄" sixteen times), and the open
     // message carries ONE, however many languages it has.
@@ -71,8 +76,10 @@ test.describe("Messages on a real workspace", () => {
     expect(starterNames.length).toBeGreaterThanOrEqual(5);
     await expect(real.getByTestId("starter-row")).toHaveCount(rows.starterRows);
     await expect(real.getByTestId("custom-row")).toHaveCount(rows.customRows);
-    const first = real.getByTestId("starter-row").first();
-    await expect(first).toContainText("Win-back");
+    // The set's win-back, wherever it stands: the starters nothing sends are sorted by what each is for, an
+    // appointment's first, so the list no longer opens on it.
+    const first = real.getByTestId("starter-row").filter({ hasText: "Win-back" }).first();
+    await expect(first).toBeVisible();
     // Opened, the message is in the pane beside the list (the Inbox's list + pane, docs/2026-10-02-campaigns-on-the-kit.md
     // §3.1), not under its row, and carries words, never a bare {{1}} for a template WhatsApp holds.
     await first.getByTestId("template-open").click();
