@@ -142,10 +142,22 @@ every test of the draft pressed its controls through their props, on a page with
     hand lets the card go. It stayed up over a message since swapped, and Undo brought it back. A wait, a value typed,
     who, when and the name leave it.
 
+### What the same day's second run found (13 November 2026, the five above pressed on the live app)
+
+27. **Words that run long never lose the draft.** One draft in six came back "unreadable" (502): Ask's answer was read
+    whole and refused by its shape, where what it left out (`cannot`) was held to 300 characters it was never told of.
+    The route's line carried no cause, which a cut-off or broken answer keeps, and the notes drawn that run were 213,
+    271 and 274 characters: a line that leaves out two things quotes both, and a clause more loses everything. Ask is
+    told its room now (300), and a note past it is kept: whole to twice that, then in the whole sentences that fit
+    (`left-out.ts`), in a draft and in an email's rewrite, which held the same 300. A draft's name and a written
+    message's title, refused the same way past 120 and 80, are cut after a whole word at 80. An answer still out of
+    shape is refused as it was, and its refusal keeps which fields broke it as its cause, never what they held, so the
+    route's line says which.
+
 ## Deploy order
 
 Either. The dashboard alone changes; no route, no table, nothing the two apps share.
 
 ## Held by
 
-`tests/campaigns/new-ready.test.mjs` (the rules), `tests/campaigns/new-ready-page.test.mjs` (the first screen drawn), `tests/playbooks/campaigns-drafts.test.mjs` (the line still drafts, and a line alone is not work), and `e2e/campaigns/campaigns-loads.spec.ts` (nothing drawn while loading is taken back). Step 2: `tests/campaigns/draft-changed-by-saying.test.mjs` (what the drafter is told of a draft that stands, how its answer is judged and taken, what changed said, a step that stays, the second ask, why a step cannot be kept) and `tests/playbooks/campaigns-drafts.test.mjs` (the line under a draft, on the page: asked, changed, Undo, a change Ask could not make, a line that says why, a draft discarded, a message its owner rewrote). A step pressed with a pointer: `e2e/campaigns/sequences.spec.ts`.
+`tests/campaigns/new-ready.test.mjs` (the rules), `tests/campaigns/new-ready-page.test.mjs` (the first screen drawn), `tests/playbooks/campaigns-drafts.test.mjs` (the line still drafts, and a line alone is not work), and `e2e/campaigns/campaigns-loads.spec.ts` (nothing drawn while loading is taken back). Step 2: `tests/campaigns/draft-changed-by-saying.test.mjs` (what the drafter is told of a draft that stands, how its answer is judged and taken, what changed said, a step that stays, the second ask, why a step cannot be kept) and `tests/playbooks/campaigns-drafts.test.mjs` (the line under a draft, on the page: asked, changed, Undo, a change Ask could not make, a line that says why, a draft discarded, a message its owner rewrote). A step pressed with a pointer: `e2e/campaigns/sequences.spec.ts`. The second run's (27): `tests/sequences/sequence-draft.test.mjs` (a note, a name and a title that run long, in a draft and in a rewrite, and the fields an answer out of shape names).

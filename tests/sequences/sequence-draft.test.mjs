@@ -1345,3 +1345,59 @@ test("what the owner wants changed is asked for, within its bound; the door take
   assert.equal(REWRITE_BODY.safeParse({ ...good, change: "x".repeat(LEAD_REWRITE_CHANGE_MAX + 1) }).success, false);
   assert.equal(REWRITE_BODY.safeParse({ ...good, place: 2 }).success, false);
 });
+
+/* ------------------ words that run long never lose the draft (the live run of 13 Nov 2026) ------------------ */
+
+// The note the live app drew, word for word (271 characters), and the same a clause longer: past the 300 Ask's answer was
+// held to, where the whole draft was refused as unreadable.
+const LEFT_OUT =
+  "Left out: “20% off any service this week”, and “everyone who visited in the last 90 days”. Messages never carry a price, a discount or a date, and no list matches the last 90 days of visitors, so the draft sends a general offer to everyone who can hear a message instead.";
+const LEFT_OUT_LONGER = `${LEFT_OUT} Ask again with a list if you want fewer people.`;
+const drafted = async (a) => {
+  answerWith(answer({ steps: [step({ message: "k1" })], ...a }));
+  return draftSequenceFrom(KNOWN, LINE, WHO);
+};
+
+test("REGRESSION (13 Nov 2026): what Ask says it left out never loses the draft, however long it runs: it is kept in whole sentences, and Ask is told its room", async () => {
+  assert.ok(LEFT_OUT.length < 300 && LEFT_OUT_LONGER.length > 300);
+  const out = await drafted({ cannot: LEFT_OUT_LONGER });
+  assert.equal(out.steps.length, 1, "the draft is drawn");
+  assert.equal(out.cannot, LEFT_OUT_LONGER, "and its note is whole");
+  // One that runs on is kept to the whole sentences that fit, never cut inside one.
+  const runOn = `${LEFT_OUT} ${"The draft keeps every other part as you asked for it. ".repeat(12)}`.trim();
+  const cut = (await drafted({ cannot: runOn })).cannot;
+  assert.ok(cut.length > 500 && cut.length <= 600, String(cut.length));
+  assert.ok(runOn.startsWith(cut) && cut.endsWith("as you asked for it."), cut.slice(-40));
+  // One with no sentence to end on is cut after a whole word, and says it was.
+  const endless = (await drafted({ cannot: "and another thing ".repeat(60) })).cannot;
+  assert.ok(endless.length <= 600 && endless.endsWith("…"), endless.slice(-30));
+  assert.match(draftRules(false), /in two short sentences, 300 characters at most:/);
+});
+
+test("REGRESSION (13 Nov 2026): a rewrite's note of what it left out never loses the rewrite, and Ask is told its room", async () => {
+  answerWith({ ...REWRITTEN, cannot: LEFT_OUT_LONGER });
+  const out = await rewriteFrom(KNOWN, { ...FIRST, change: "Offer 20% off to last quarter's visitors" }, WHO);
+  assert.deepEqual([out.body, out.cannot], [REWRITTEN.body, LEFT_OUT_LONGER]);
+  assert.match(
+    String(calls[0].request.system),
+    /in two short sentences in the language they wrote in, 300 characters at most:/,
+  );
+});
+
+test("REGRESSION (13 Nov 2026): a name or a written message's title that runs long is cut after a whole word, and the draft stays", async () => {
+  const long = "The offer for everyone who came in this autumn ".repeat(4).trim();
+  const write = { ...WRITE_NONE, title: long, whatsapp: "Hi {{first name}}, thanks for coming in today!" };
+  const out = await drafted({ name: long, steps: [step({ write })] });
+  for (const kept of [out.name, out.steps[0].message.title]) {
+    assert.ok(kept.length <= 80 && kept.endsWith("…"), kept);
+    assert.ok(long.startsWith(kept.slice(0, -1)) && long[kept.length - 1] === " ", "cut where a word ends");
+  }
+});
+
+test("an answer out of shape is still refused in words, and the refusal keeps which fields broke it for the log, never what they held", async () => {
+  await assert.rejects(drafted({ who: "x".repeat(61), when: "y".repeat(41) }), (e) => {
+    assert.deepEqual([e.code, e.message], ["upstream_anthropic", "The draft came back unreadable. Try again."]);
+    assert.equal(e.cause?.message, "out of shape at when, who");
+    return true;
+  });
+});
