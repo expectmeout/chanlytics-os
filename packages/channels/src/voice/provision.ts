@@ -143,6 +143,14 @@ export function voiceAgentCreateBody(
   };
 }
 
+/**
+ * Whether an id is one the provider gives an agent (`agent_…`). A demo workspace's line names one the provider never
+ * made (`demo-voice-+12125550189`): there is nothing at the provider to read, provision or converge for it.
+ */
+export function isRetellAgentId(id: string): boolean {
+  return /^agent_[a-z0-9]+$/i.test(id);
+}
+
 /** The agent on the number. Pinned to latest_published, a saved draft cannot go live by itself. */
 export function voiceNumberBinding(options: { agentId: string; pinned: boolean }): Array<Record<string, unknown>> {
   return [{ agent_id: options.agentId, ...(options.pinned ? { agent_version: "latest_published" } : {}), weight: 1 }];
@@ -227,7 +235,7 @@ export function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan 
   if (number !== null && area !== null) errors.push("give a number to bind or an area code to buy in, not both");
   if (request.llmId && !/^llm_[a-z0-9]+$/i.test(request.llmId))
     errors.push("llm_id does not look like a Retell LLM id");
-  if (request.agentId && !/^agent_[a-z0-9]+$/i.test(request.agentId))
+  if (request.agentId && !isRetellAgentId(request.agentId))
     errors.push("agent_id does not look like a Retell agent id");
   const names = { agent: `${st.tenant.name} front desk`, nickname: `${st.tenant.name} · Chanlytics` };
   if (errors.length) return { ok: false, errors, nothing: true, reason: null, steps: [], names };
