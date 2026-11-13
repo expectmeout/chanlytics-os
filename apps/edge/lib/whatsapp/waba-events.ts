@@ -32,7 +32,8 @@ import {
   samePhone,
   standingAfterNameDecision,
   standingFromConfig,
-  TEMPLATE_STATUS_WORDS,
+  refusedWords,
+  templateTitle,
   WABA_FIELDS as WABA_FIELD_LIST,
   type NotificationsConfig,
   type ServerNotificationKind,
@@ -173,9 +174,6 @@ function aboutTemplate(v: Record<string, unknown>): Partial<Pick<WabaWords, "rou
   };
 }
 
-/** A status WhatsApp put on a template, in the Library's own word for it (TEMPLATE_STATUS_WORDS), lower case in a sentence. */
-const statusWord = (status: keyof typeof TEMPLATE_STATUS_WORDS): string => TEMPLATE_STATUS_WORDS[status].toLowerCase();
-
 /**
  * A template moved to another category. Moved to marketing is a restriction, not a failure: it can still be sent, but only to a
  * recorded yes. It reads with the ones it cannot.
@@ -192,33 +190,49 @@ function categoryWords(record: Record<string, unknown>): WabaWords {
   };
 }
 
-/** A template's status at Meta moved: refused, paused or disabled, or approved; null for a status nobody is told of. */
+/**
+ * A message's status at Meta moved: it asked for a change, is holding the message for a few hours, turned it off, or
+ * approved it; null for a status nobody is told of. Said as an owner can act on it (Ruben, 12 Nov 2026: "Template x
+ * paused. Sends that use it will fail until it is restored" read as a system error): what happened, whether it mends
+ * itself, and the one thing to do. The message is named as the Library names it (templateTitle).
+ */
 function templateStatusWords(record: Record<string, unknown>): WabaWords | null {
-  const name = typeof record.message_template_name === "string" ? record.message_template_name : "a template";
+  const title =
+    typeof record.message_template_name === "string" ? templateTitle(record.message_template_name) : "a message";
   const door = aboutTemplate(record);
   const event = textOrEmpty(record.event);
-  if (event === "REJECTED")
+  if (event === "REJECTED") {
+    const reason = refusedWords(typeof record.reason === "string" ? record.reason : null);
     return {
       ...BLOCKED,
       ...door,
-      subject: `Template “${name}” ${statusWord("rejected")}`,
-      body: `WhatsApp ${statusWord("rejected")} the template “${name}”${typeof record.reason === "string" && record.reason !== "NONE" ? ` (${record.reason.toLowerCase().replace(/_/g, " ")})` : ""}. It cannot be sent until it is revised and approved.`,
+      subject: `WhatsApp asked for a change to “${title}”`,
+      body: `${reason ?? "WhatsApp asked for a change to its words. Ask writes new words for you to send back."} Open “${title}” in Messages to send them.`,
       alert: true,
     };
-  if (event === "PAUSED" || event === "DISABLED")
+  }
+  if (event === "PAUSED")
     return {
       ...BLOCKED,
       ...door,
-      subject: `Template “${name}” ${statusWord(event === "PAUSED" ? "paused" : "disabled")}`,
-      body: `WhatsApp ${statusWord(event === "PAUSED" ? "paused" : "disabled")} the template “${name}”. Sends that use it will fail until it is restored.`,
+      subject: `WhatsApp is holding “${title}” for a few hours`,
+      body: `Some people who got “${title}” marked it as unwanted, so WhatsApp is holding it for a few hours. It comes back by itself, and what sends it waits until then.`,
+      alert: true,
+    };
+  if (event === "DISABLED")
+    return {
+      ...BLOCKED,
+      ...door,
+      subject: `WhatsApp turned “${title}” off`,
+      body: `People kept marking “${title}” as unwanted, so WhatsApp turned it off. Write a new message in its place.`,
       alert: true,
     };
   if (event === "APPROVED")
     return {
       ...READY,
       ...door,
-      subject: `Template “${name}” ${statusWord("approved")}`,
-      body: `WhatsApp ${statusWord("approved")} the template “${name}”. It can be sent now — from Campaigns, or from the Inbox outside the 24-hour window.`,
+      subject: `WhatsApp approved “${title}”`,
+      body: `“${title}” can be sent now, from Campaigns, or from the Inbox outside the 24-hour window.`,
       alert: true,
     };
   return null;

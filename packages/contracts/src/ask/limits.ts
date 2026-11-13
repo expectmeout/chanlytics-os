@@ -54,9 +54,11 @@ export const ASK_SPOKEN_TURN_BUDGET_MS = 45_000;
  * pays when tool search is refused and every tool rides up front (66,050 on 11 October 2026; 73,558 on 15 October, Ask
  * reading the sequences as their page does, decision 0060; the operator's full parity, 15 October, every page's verbs
  * as cards; 129,976 on 7 November, Cold email, decision 0113; 120,707 on 8 November, the tools' words
- * tightened). The most it may grow to, never a target: tests/ask/tools/ask-tools-size.test.mjs prints each role's.
+ * tightened; 129,996 on main on 12 November, and 131,801 with Ask changing a message on file, four actions whose words
+ * were cut to the least that says them, so the ceiling moved from 130,000). The most it may grow to, never a target:
+ * tests/ask/tools/ask-tools-size.test.mjs prints each role's.
  */
-export const ASK_TOOLS_CHARS_CEILING = 130_000;
+export const ASK_TOOLS_CHARS_CEILING = 132_000;
 
 /**
  * The most the owner's tools loaded on every question may be (the always-loaded core and the search tool), in characters:

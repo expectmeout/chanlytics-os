@@ -4771,6 +4771,33 @@ div.tpl-slotbox:not([data-lines="1"]) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* How many went is short and always said whole. On a phone the line wraps rather than cut what sends it to a word. */
+.tpl-facts-went {
+  flex: none;
+}
+@media (max-width: 900px) {
+  .tpl-facts-line {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    white-space: normal;
+  }
+  .tpl-facts-line .tpl-facts-by {
+    overflow: visible;
+    text-overflow: clip;
+  }
+}
+/* The open message on a phone keeps the tallest it has been while it is open (template-pane.tsx useGrowOnly): a short tab
+   (Text's one line) never drops the tabs under the thumb that pressed them. A desk's pane stands beside the list, and is
+   left its own height. */
+@media (max-width: 900px) {
+  .tpl-grow {
+    min-height: var(--tpl-tallest, 0);
+  }
+}
+/* A refused change's way back to the words WhatsApp approved, under the box. */
+.tpl-ver-back {
+  align-self: flex-start;
+}
 /* Where it stands, a word and its dot at the head's right; what it means is the card a tap opens. */
 .tpl-standing-says {
   display: flex;

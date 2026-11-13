@@ -3,6 +3,7 @@ import { read, write, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
 import { templates } from "@/server/readers/templates";
 import { submitTemplate } from "@/server/campaigns/template-submit";
+import { reviewWords } from "@/server/drafts/template/review";
 
 /**
  * GET /api/v1/templates — ONE workspace's approved templates.
@@ -48,5 +49,5 @@ export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "settings",
-  handle: ({ ctx, req, member }) => submitTemplate(ctx, req, member),
+  handle: ({ ctx, req, member }) => submitTemplate(ctx, req, member, reviewWords),
 });

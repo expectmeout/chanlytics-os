@@ -172,6 +172,7 @@ export const WORDS: Record<string, string> = {
   "playbook.changed": "A campaign was edited",
   "template.submitted": "A message was sent to WhatsApp for approval",
   "template.removed": "A message was deleted from Messages",
+  "template.fix_written": "Ask wrote new words for a message WhatsApp refused",
   "member.joined": "Joined the workspace",
   "member.left": "Left the workspace",
   "reach_out.lead_stopped": "A sequence stopped writing to a lead",

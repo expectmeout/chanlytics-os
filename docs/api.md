@@ -3420,6 +3420,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `name` | string | yes |  |
+| `title` | string | no | at most 200 characters |
 | `language` | string | yes |  |
 | `category` | one of `"marketing"`, `"utility"` | yes |  |
 | `versions` | object | yes |  |
@@ -3468,6 +3469,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `body` | string | yes | at least 1 characters; at most 4000 characters |
 | `tone` | one of `"warmer"`, `"shorter"` | no |  |
 | `ask` | string | no | at least 1 characters; at most 300 characters |
+| `fixing` | object | no |  |
 
 ## today
 

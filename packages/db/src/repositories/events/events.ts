@@ -183,7 +183,13 @@ interface TableData {
   };
   /** A message deleted from the Library, and one sent to WhatsApp for approval: its name, its language, and who. */
   "template.removed": { name: string; language: string; by: string };
-  "template.submitted": { name: string; language: string; by: string };
+  /**
+   * `before`: the words WhatsApp had approved that a change sent back replaced (Messages, 12 Nov 2026), so a refusal of the
+   * new ones can go back to them; absent where the change was to words not approved, or the message was new.
+   */
+  "template.submitted": { name: string; language: string; by: string; before?: string };
+  /** Ask's new words for a message WhatsApp refused, and the refusal they answer: what its editor opens on again. */
+  "template.fix_written": { words: string; reason: string; by: string };
   "usage.ask_tokens": JsonObject;
   "usage.llm_tokens": Record<string, unknown>;
   "voice.provisioned": JsonObject & { agent_id: string; llm_id: string };
@@ -280,6 +286,7 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "reach_out.lead_words_changed": { category: "lead", version: 1 },
   "settings.changed": { category: "system", version: 1 },
   "template.removed": { category: "message", version: 1 },
+  "template.fix_written": { category: "message", version: 1 },
   "template.submitted": { category: "message", version: 1 },
   "usage.ask_tokens": { category: "usage", version: 1 },
   "usage.llm_tokens": { category: "usage", version: 1 },
@@ -380,6 +387,51 @@ export async function findFilePosted(
     search_url: typeof post.search_url === "string" ? post.search_url : null,
     at: data.created_at,
   };
+}
+
+/**
+ * What the ledger kept of a message's words: the approved words a change replaced and when that change was sent
+ * (WhatsApp takes one a day to an approved message), and Ask's fix for a refusal.
+ */
+interface WordsKept {
+  before: string | null;
+  changedAt: string | null;
+  fix: { words: string; reason: string } | null;
+}
+
+/**
+ * For each of `templateIds`, the words the ledger kept (Messages, 12 Nov 2026): the words WhatsApp last approved that a
+ * change sent back since replaced (the latest `template.submitted` that kept its `before`), and Ask's latest new words for
+ * a refusal (`template.fix_written`), with the refusal they answer. An empty list asks nothing.
+ */
+export async function listWordsKept(
+  db: Db,
+  tenantId: TenantId,
+  templateIds: string[],
+): Promise<Map<string, WordsKept>> {
+  if (!templateIds.length) return new Map();
+  const { data, error } = await db
+    .from("events")
+    .select("kind, subject_id, data, created_at")
+    .eq("tenant_id", tenantId)
+    .in("kind", ["template.submitted", "template.fix_written"])
+    .in("subject_id", templateIds)
+    .order("created_at", { ascending: false });
+  if (error) throw new DbFailure(error, "words kept of refused messages");
+  const out = new Map<string, WordsKept>();
+  for (const row of data) {
+    if (!row.subject_id) continue;
+    const kept = out.get(row.subject_id) ?? { before: null, changedAt: null, fix: null };
+    const facts = recordOrEmpty(row.data);
+    if (row.kind === "template.submitted" && kept.before === null && typeof facts.before === "string") {
+      kept.before = facts.before;
+      kept.changedAt = row.created_at;
+    }
+    if (row.kind === "template.fix_written" && kept.fix === null && typeof facts.words === "string")
+      kept.fix = { words: facts.words, reason: typeof facts.reason === "string" ? facts.reason : "" };
+    out.set(row.subject_id, kept);
+  }
+  return out;
 }
 
 /**

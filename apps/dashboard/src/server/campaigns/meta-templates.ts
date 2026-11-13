@@ -25,19 +25,35 @@ export function recordTemplateEvent(
   kind: "submitted" | "removed",
   template: { id: string; name: string; language: string },
   by: string,
+  /** The approved words a change sent back replaced, kept so a refusal of the new ones can go back to them. */
+  before: string | null = null,
 ): Promise<void> {
-  return emitEvent(
-    db,
-    tenantId,
-    kind === "removed" ? "template.removed" : "template.submitted",
-    "template",
-    template.id,
-    {
-      name: template.name,
-      language: template.language,
-      by,
-    },
-  );
+  const facts = { name: template.name, language: template.language, by };
+  if (kind === "removed") return emitEvent(db, tenantId, "template.removed", "template", template.id, facts);
+  return emitEvent(db, tenantId, "template.submitted", "template", template.id, {
+    ...facts,
+    ...(before ? { before } : {}),
+  });
+}
+
+/** A message sent to WhatsApp under a member's hand, on the ledger with the service's key, as every ledger write is. */
+const recordSubmitted = (
+  tenantId: TenantId,
+  template: { id: string; name: string; language: string },
+  by: string,
+  before: string | null = null,
+): Promise<void> => recordTemplateEvent(serviceDb(), tenantId, "submitted", template, by, before);
+
+/**
+ * Ask's new words for WhatsApp's refusal of a message, kept on the ledger (`template.fix_written`) so its editor opens on
+ * them again: the words, the refusal they answer, and who asked. Best effort, as an event is.
+ */
+export function recordFixWords(
+  tenantId: TenantId,
+  templateId: string,
+  fix: { words: string; reason: string; by: string },
+): Promise<void> {
+  return emitEvent(serviceDb(), tenantId, "template.fix_written", "template", templateId, fix);
 }
 
 type SyncOutcome =
@@ -93,13 +109,7 @@ export async function createTemplate(
   if (edgeAnswered(answer) && body.ok && body.id) {
     // What a business will say to its customers went to Meta under this member's hand: the ledger says who and
     // which, as it says every other consequential act. Best effort: the message is with Meta either way.
-    await recordTemplateEvent(
-      serviceDb(),
-      tenantId,
-      "submitted",
-      { id: body.id, name: target.name, language: target.language },
-      userId,
-    );
+    await recordSubmitted(tenantId, { id: body.id, name: target.name, language: target.language }, userId);
     return { ok: true, id: body.id, metaStatus: body.meta_status ?? "pending" };
   }
   return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
@@ -120,10 +130,12 @@ export async function editTemplateWords(
     body: string;
     examples: string[];
     labels: string[];
+    /** The approved words these replace, where they were approved: the ledger keeps them (recordTemplateEvent). */
+    before: string | null;
   },
 ): Promise<TemplateCreateOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const { id, name, language, ...words } = target;
+  const { id, name, language, before, ...words } = target;
   const answer = await callEdge(
     "/api/admin/whatsapp/templates-edit",
     { tenant_id: tenantId, template_id: id, ...words },
@@ -131,7 +143,7 @@ export async function editTemplateWords(
   );
   const body = answer.body ?? {};
   if (edgeAnswered(answer) && body.ok && body.id) {
-    await recordTemplateEvent(serviceDb(), tenantId, "submitted", { id, name, language }, userId);
+    await recordSubmitted(tenantId, { id, name, language }, userId, before);
     return { ok: true, id: body.id, metaStatus: body.meta_status ?? "pending" };
   }
   return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };

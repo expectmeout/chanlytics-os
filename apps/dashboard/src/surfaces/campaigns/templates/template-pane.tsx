@@ -17,9 +17,9 @@
  * email's and a text's are version-view.tsx, which reads the rows of that name the page was handed (versions.ts) and
  * writes them through the page's acts.
  */
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { VERSION_CHANNELS, VERSION_CHANNEL_WORDS, channelChoices } from "@chanlytics/contracts";
+import { MESSAGE_CHANGE_WORDS, VERSION_CHANNELS, VERSION_CHANNEL_WORDS, channelChoices } from "@chanlytics/contracts";
 import type { CampaignMessage, VersionChannel } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
@@ -28,7 +28,7 @@ import { surfaceValue } from "../../surface-values";
 import { CmPane } from "../parts/split";
 import type { TemplateMade } from "./composer-acts";
 import type { StarterGroup, TemplateGroup, TplLang } from "./group";
-import { firstView, messageFacts, placeOfMessage } from "./message-row-facts";
+import { aboutOfMessage, firstView, messageFacts, placeOfMessage, sentByWords } from "./message-row-facts";
 import { LanguageWord, addLanguageItem, openRow, paneName } from "./message-row-parts";
 import type { RowCtx, VersionActs } from "./message-row-parts";
 import { factsLine, standingTap } from "./sheet-head";
@@ -36,7 +36,7 @@ import { VersionEditor, keptWords } from "./version-editor";
 import { VersionView } from "./version-view";
 import type { StarterLibrary, VersionDraft } from "./verbs";
 import { messageName, neverCarried, startingWords, versionFills, versionRowOf } from "./versions";
-import { TPL_VERSION_WORDS } from "./words";
+import { TPL_VERSION_WORDS, tplLangLabel } from "./words";
 
 interface PaneProps {
   g: TemplateGroup;
@@ -50,9 +50,10 @@ interface PaneProps {
   S: StarterLibrary;
   onClose: () => void;
   onAdd: (g: StarterGroup, lang: TplLang) => void;
-  onRename: (row: TemplateDto, draft: string) => void;
-  onHide: (row: TemplateDto) => void;
-  onDelete: (row: TemplateDto) => void;
+  onRename: (rows: readonly TemplateDto[], draft: string) => void;
+  onHide: (row: TemplateDto, stillSentBy?: string | null) => void;
+  /** The message deleted whole in the language in view: every version of it there. */
+  onDelete: (title: string, rows: readonly TemplateDto[]) => void;
   onWritten?: (g: TemplateGroup, lang: TplLang, made: TemplateMade) => void;
   /** The workspace's email and text rows, from which the message's own versions are found. */
   versions?: readonly TemplateDto[];
@@ -62,6 +63,26 @@ interface PaneProps {
   onRemoveVersion?: (g: TemplateGroup, lang: TplLang, row: TemplateDto) => void;
   /** WhatsApp's words changed and sent back to WhatsApp (step 3); answered as a save is. */
   onSendWords?: (row: TemplateDto, body: string) => Promise<ApiResult<unknown> | null>;
+  /** A language added: the message's email and text versions written in it too, each saved beside the message. */
+  onTranslateOwn?: (title: string, rows: readonly TemplateDto[], to: TplLang) => void;
+}
+
+/**
+ * Adding a language, for every version the message has (the message sheet's review, 12 Nov 2026: it wrote WhatsApp's
+ * alone): once WhatsApp's goes out in it, its email and text are written in it too; a message with no WhatsApp version
+ * adds a language by its email and text alone, straight from the pick, with no number needed.
+ */
+function languageAdds(props: PaneProps, facts: Facts) {
+  const own = [...facts.has.email, ...facts.has.sms];
+  const translate = (from: string | null, to: TplLang) => {
+    // A channel the message already has in the new language keeps its own words: only the missing ones are written.
+    const has = (r: TemplateDto) => own.some((o) => o.language === to.id && o.channel === r.channel);
+    const rows = from ? own.filter((r) => r.language === from && !has(r)) : [];
+    if (rows.length && props.onTranslateOwn) props.onTranslateOwn(props.g.title, rows, to);
+  };
+  const ownOnly =
+    !props.g.starter && facts.present.length === 0 && own.length > 0 && !!props.canWrite && !!props.onTranslateOwn;
+  return { ownOnly, translate };
 }
 
 /** The standings whose words WhatsApp lets be changed: approved, refused and paused (Meta's template management page). */
@@ -80,12 +101,18 @@ function useVersionHeld() {
   // A key being written; `-key` for one closed by hand, so words it kept do not open it again.
   const [writing, setWriting] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
-  return (key: string, kept: boolean) => ({
+  // How many times an editor was closed: the sheet's held height lets go of what the editor made it (useGrowOnly).
+  const [closes, setCloses] = useState(0);
+  const of = (key: string, kept: boolean) => ({
     writing: writing === null ? kept : writing === key,
-    setWriting: (on: boolean) => setWriting(on ? key : `-${key}`),
+    setWriting: (on: boolean) => {
+      setWriting(on ? key : `-${key}`);
+      if (!on) setCloses((n) => n + 1);
+    },
     removing: removing === key,
     setRemoving: (on: boolean) => setRemoving(on ? key : null),
   });
+  return Object.assign(of, { closes });
 }
 
 /**
@@ -97,9 +124,8 @@ function channelsCannot(message: CampaignMessage | null): Record<VersionChannel,
   const none = { whatsapp: null, email: null, sms: null };
   const ready = surfaceValue("playbooks")?.ready ?? null;
   if (!ready || !message) return none;
-  const about = message.purpose === "marketing" ? "ours" : "theirs";
   const cannot: Record<VersionChannel, string | null> = { ...none };
-  for (const c of channelChoices(ready, message.purpose, about))
+  for (const c of channelChoices(ready, message.purpose, aboutOfMessage(message)))
     if (!c.ok && !(c.channel === "sms" && message.purpose === "marketing")) cannot[c.channel] = c.why;
   return cannot;
 }
@@ -158,9 +184,12 @@ function whatsappPart(o: {
   dock: HTMLElement | null;
 }): { version: ReactNode; versionActs: VersionActs | null } {
   const { g, S, facts, canWrite, busy, heldOf, dock } = o;
-  const { present, lang, words, has } = facts;
+  const { present, lang, words, has, usage } = facts;
   const { view, row } = lang;
-  if (!row || !canWrite || !WORDS_CHANGE.has(row.meta_status)) return { version: null, versionActs: null };
+  // A row WhatsApp holds no copy of (never sent there) has no words to send back: New writes it. A server from before
+  // `at_meta` says nothing of it, and the edge answers in words.
+  if (!row || !canWrite || !WORDS_CHANGE.has(row.meta_status) || row.at_meta === false)
+    return { version: null, versionActs: null };
   const key = versionKey("whatsapp", view);
   const refused = row.meta_status === "rejected";
   const held = heldOf(key, refused || keptWords(row.name, view, "whatsapp") !== null);
@@ -181,6 +210,14 @@ function whatsappPart(o: {
       values={fills.values}
       busy={busy}
       fix={refused ? (row.rejected_reason ?? "no reason given") : null}
+      approvedBefore={refused ? (row.approved_before ?? null) : null}
+      // Kept under the refusal the row carries (none is ""), as the read finds it: never the prompt's "no reason given".
+      fixFor={refused ? { id: row.id, kept: row.fix_words ?? null, reason: row.rejected_reason ?? "" } : null}
+      holds={
+        row.meta_status === "approved"
+          ? MESSAGE_CHANGE_WORDS.holdsWhileChecked(usage.sending, !!usage.use?.booking)
+          : null
+      }
       oneBody
       dock={dock}
       onSave={() => Promise.resolve(null)}
@@ -266,11 +303,113 @@ function versionPart({
   return { version, versionActs };
 }
 
+/**
+ * The open message keeps the tallest it has been while it is open, on a phone (campaigns.css `.tpl-grow`): its sheet is as
+ * tall as what it holds (Ruben, 14 Oct 2026), so a short tab dropped the whole tab row ~200px under the thumb that pressed
+ * it, and the next press landed on what had risen there (the live demo, 12 Nov 2026). It grows, and never shrinks while
+ * open; the height is a property its stylesheet reads under the phone's width alone.
+ */
+function useGrowOnly(letGo: number) {
+  const tallest = useRef(0);
+  const held = useRef<HTMLDivElement | null>(null);
+  // An editor closed: what it made the sheet is let go of, and the sheet is as tall as what it holds again.
+  useEffect(() => {
+    tallest.current = 0;
+    held.current?.style.removeProperty("--tpl-tallest");
+  }, [letGo]);
+  return useCallback((el: HTMLDivElement | null) => {
+    held.current = el;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const seen = new ResizeObserver(([entry]) => {
+      const height = Math.ceil(entry?.contentRect.height ?? 0);
+      if (height <= tallest.current) return;
+      tallest.current = height;
+      el.style.setProperty("--tpl-tallest", `${height}px`);
+    });
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, []);
+}
+
+/** The channels as tabs, and the language word beside them, which keeps its place whichever is in view. */
+function viewBar(parts: {
+  c: RowCtx;
+  facts: Facts;
+  cannot: Record<VersionChannel, string | null>;
+  channel: VersionChannel;
+  setChannel: (channel: VersionChannel) => void;
+  /** Drawn where there is a choice; asked for from the menu, it goes again as its list closes with nothing added. */
+  languageWord: { shown: boolean; asked: boolean; done: () => void };
+}) {
+  const { c, facts, cannot, channel, setChannel, languageWord } = parts;
+  return (
+    <div className="tpl-viewbar">
+      <SubTabs
+        label={TPL_VERSION_WORDS.switchName(c.g.title)}
+        value={channel}
+        tabs={channelTabs(c.g, facts, c.standing, cannot)}
+        onSelect={(id) => setChannel(VERSION_CHANNELS.find((v) => v === id) ?? channel)}
+        className="tpl-channels"
+      />
+      {languageWord.shown ? <LanguageWord c={c} open={languageWord.asked} onClosed={languageWord.done} /> : null}
+    </div>
+  );
+}
+
+/** The version in view and its acts: WhatsApp's words (sent back to WhatsApp), or an email's or a text's. */
+function paneVersion(
+  props: PaneProps,
+  shown: { facts: Facts; channel: VersionChannel; heldOf: ReturnType<typeof useVersionHeld>; dock: HTMLElement | null },
+) {
+  const { g, S, canAct, canWrite = false, busy } = props;
+  const { facts, channel, heldOf, dock } = shown;
+  const onSend = props.onSendWords ?? (() => Promise.resolve(null));
+  if (channel === "whatsapp") return whatsappPart({ g, S, facts, canWrite: canAct, busy, heldOf, onSend, dock });
+  const at = facts.lang.cur.lang;
+  return versionPart({
+    ...{ g, S, facts, channel, canWrite, busy, heldOf, dock },
+    onSave: (written) => props.onSaveVersion?.(g, at, written) ?? Promise.resolve(null),
+    onRemove: (filed) => props.onRemoveVersion?.(g, at, filed),
+  });
+}
+
+/**
+ * Every version of the message in the language in view, and the one that names it (contracts' anchor): the menu acts on
+ * these whichever channels the message has, never only on a WhatsApp version.
+ */
+function versionsInView(facts: Facts): { inView: TemplateDto[]; anchor: TemplateDto | null } {
+  const { view, row, message } = facts.lang;
+  const inView = [...(row ? [row] : []), ...facts.has.email, ...facts.has.sms].filter((r) => r.language === view);
+  return { inView, anchor: inView.find((r) => r.id === message?.anchor.id) ?? inView[0] ?? null };
+}
+
+/**
+ * The language is a word of the bar only where there is a choice to make: two languages on file, one being added, or one
+ * in view that is not where it opened. One language says nothing; the name's menu adds another.
+ */
+function languageChoice(choice: {
+  facts: Facts;
+  firstLangId: string;
+  adding: string | null;
+  asked: boolean;
+  setAsked: (on: boolean) => void;
+  mayAdd: boolean;
+  mayWrite: boolean;
+}) {
+  const { facts, asked, setAsked } = choice;
+  const languages = new Set(facts.onFile.map((r) => r.lang.id)).size;
+  const shown = languages > 1 || asked || choice.adding !== null || facts.lang.view !== choice.firstLangId;
+  const more = !shown && choice.mayAdd && choice.mayWrite ? [addLanguageItem(() => setAsked(true))] : [];
+  return { languageWord: { shown, asked, done: () => setAsked(false) }, more };
+}
+
+/** What still sends it, said as it is put away: the sequences that run it, which putting it away does not stop. */
+const stillSentByOf = (usage: Facts["usage"]): string | null =>
+  usage.use && usage.use.running ? sentByWords(usage.use) : null;
+
 export function TemplatePane(p: PaneProps) {
   const { g, langs, bizName, canAct, canAdd = false, addWhy = null, busy, doing = null, S, onClose } = p;
   const { onAdd, onRename, onHide, onDelete, onWritten, versions, canWrite = false } = p;
-  const { onSaveVersion = () => Promise.resolve(null), onRemoveVersion = () => undefined } = p;
-  const { onSendWords = () => Promise.resolve(null) } = p;
   const first = firstView(g, langs);
   const [langId, setLangId] = useState(first.langId);
   // The language that was in view before one nobody has written was picked: the
@@ -291,6 +430,7 @@ export function TemplatePane(p: PaneProps) {
   // The pane's foot, once drawn: the editor's acts and the menu's answers stand there, docked as every drawer's do.
   const [dock, setDock] = useState<HTMLDivElement | null>(null);
   const heldOf = useVersionHeld();
+  const grow = useGrowOnly(heldOf.closes);
   // Which of the message's channels is in view: where it opens is the one its anchor is on (contracts rule 2: WhatsApp's,
   // else the email's, else the text's), WhatsApp's words as they always were where it has them.
   const [channel, setChannel] = useState<VersionChannel>(
@@ -301,11 +441,16 @@ export function TemplatePane(p: PaneProps) {
   // Where it stands is the list's reading, of the language it opens on: the head says what its row says.
   const setting = placeOfMessage(g, messageFacts({ g, langs, S, versions, view: first }));
   const { view, row } = lang;
+  const adds = languageAdds(p, facts);
+  const mayAdd = lang.mayAdd || adds.ownOnly;
+  const { inView, anchor } = versionsInView(facts);
   const closeActs = () => {
     setRenaming(false);
     setArm(false);
   };
   const pick = (id: string, choice?: { group?: string }) => {
+    // A message with no WhatsApp version writes its new language at once, by its email and text: nothing to draft.
+    if (choice?.group === "add" && adds.ownOnly) return adds.translate(view, { id, label: tplLangLabel(id) });
     if (id !== view) {
       // Back to a language that exists, never to one that was only being drafted.
       if (row || lang.written) setBack(view);
@@ -325,6 +470,7 @@ export function TemplatePane(p: PaneProps) {
     ...lang,
     ...words,
     ...usage,
+    mayAdd,
     g,
     langs,
     S,
@@ -334,9 +480,12 @@ export function TemplatePane(p: PaneProps) {
     doing,
     onAdd,
     onRename,
-    onHide,
+    onHide: (r: TemplateDto) => onHide(r, stillSentByOf(usage)),
     onDelete,
-    onWritten,
+    onWritten: (gg: TemplateGroup, to: TplLang, filed: TemplateMade) => {
+      onWritten?.(gg, to, filed);
+      adds.translate(lang.source?.from ?? null, to);
+    },
     present,
     onFile,
     standing,
@@ -356,34 +505,17 @@ export function TemplatePane(p: PaneProps) {
     pick,
     cancelNew,
     dock,
+    anchor,
+    inView,
+    canChange: canWrite,
   };
-  // The language is a word of the bar only where there is a choice to make: two languages on file, one being added, or one
-  // in view that is not where it opened. One language says nothing; the name's menu adds another.
-  const languages = new Set(onFile.map((r) => r.lang.id)).size;
   const cannot = channelsCannot(lang.message);
-  const langShown = languages > 1 || langAsked || adding !== null || view !== first.langId;
-  const more = !langShown && lang.mayAdd && canAct ? [addLanguageItem(() => setLangAsked(true))] : [];
-  // The channels as tabs, and the language word beside them, which keeps its place whichever is in view.
-  const bar = (
-    <div className="tpl-viewbar">
-      <SubTabs
-        label={TPL_VERSION_WORDS.switchName(g.title)}
-        value={channel}
-        tabs={channelTabs(g, facts, standing, cannot)}
-        onSelect={(id) => setChannel(VERSION_CHANNELS.find((v) => v === id) ?? channel)}
-        className="tpl-channels"
-      />
-      {langShown ? <LanguageWord c={c} open={langAsked} /> : null}
-    </div>
-  );
-  const { version, versionActs } =
-    channel === "whatsapp"
-      ? whatsappPart({ g, S, facts, canWrite: canAct, busy, heldOf, onSend: onSendWords, dock })
-      : versionPart({
-          ...{ g, S, facts, channel, canWrite, busy, heldOf, dock },
-          onSave: (written) => onSaveVersion(g, lang.cur.lang, written),
-          onRemove: (filed) => onRemoveVersion(g, lang.cur.lang, filed),
-        });
+  const { languageWord, more } = languageChoice({
+    ...{ facts, firstLangId: first.langId, adding, mayAdd },
+    ...{ asked: langAsked, setAsked: setLangAsked, mayWrite: adds.ownOnly || canAct },
+  });
+  const bar = viewBar({ c, facts, cannot, channel, setChannel, languageWord });
+  const { version, versionActs } = paneVersion(p, { facts, channel, heldOf, dock });
   return (
     <CmPane
       testid="template-pane"
@@ -396,11 +528,14 @@ export function TemplatePane(p: PaneProps) {
       // What is answered stands here, docked as every drawer's acts are; nothing is drawn of it while nothing is asked.
       foot={<div className="tpl-foot" data-foot-pair="" ref={setDock} />}
     >
-      {openRow(c, bar, version, {
-        need: channel === "whatsapp" && setting.place === "need" ? setting.said : null,
-        cannot: cannot[channel],
-        onEdit: channel === "whatsapp" ? (versionActs?.onEdit ?? null) : null,
-      })}
+      <div className="tpl-grow" ref={grow}>
+        {openRow(c, bar, version, {
+          // Why it needs you, on WhatsApp's tab; where nothing can carry it, each tab's own line says its why instead.
+          need: channel === "whatsapp" && setting.place === "need" && !setting.nowhere ? setting.said : null,
+          cannot: cannot[channel],
+          onEdit: channel === "whatsapp" ? (versionActs?.onEdit ?? null) : null,
+        })}
+      </div>
     </CmPane>
   );
 }
