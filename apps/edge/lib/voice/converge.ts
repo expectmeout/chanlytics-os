@@ -57,6 +57,7 @@ import {
   unpublishedLatestNote,
   newDraftNote,
   voiceNumberBinding,
+  isRetellAgentId,
 } from "@chanlytics/channels/voice";
 import { resolveChannel } from "@chanlytics/db/channels";
 import { listVoiceAgentsBeforeANumber } from "@chanlytics/db/facts";
@@ -90,7 +91,7 @@ function forRecord(a: Record<string, unknown>): Record<string, unknown> {
  * decision 0069), so the number bought later answers in an agent on the shell (or the refusal to read them).
  */
 async function agentsNamed(body: Body): Promise<string[] | Response> {
-  if (typeof body.agent_id === "string" && /^agent_[a-z0-9]+$/i.test(body.agent_id)) return [body.agent_id];
+  if (typeof body.agent_id === "string" && isRetellAgentId(body.agent_id)) return [body.agent_id];
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const { data, error } = await listActiveVoiceAgentRows(db);
