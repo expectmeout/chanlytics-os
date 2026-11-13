@@ -41,8 +41,8 @@ export {
   markCalendarFeedKept,
   putTenantConfig,
   replyTokensSince,
+  savePolicyChange,
   setPersonReplyMode,
-  setPolicyMode,
   setupChoicesOf,
 } from "./control-plane/config";
 export type {
