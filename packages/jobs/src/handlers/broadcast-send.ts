@@ -100,10 +100,11 @@ function withTemplate<T extends { template_name: string | null; template_languag
 
 /**
  * Why the tick could not bind this channel's wire for this tenant (the credentials read failed on the edge), or null. A
- * wire that is null is a number that carries none, and the door's to refuse.
+ * wire that is null is a number that carries none, and the door's to refuse. Asked only of a channel the run sends on,
+ * so a wire bound on first use (core wireOnFirstUse) is read for it and for no other.
  */
-function wireUnbound(ctx: JobContext, channel: Channel): string | null {
-  const wire = ctx.wire[channel];
+async function findWireUnbound(ctx: JobContext, channel: Channel): Promise<string | null> {
+  const wire = await ctx.wire[channel];
   return isWireUnavailable(wire) ? wire.error : null;
 }
 
@@ -116,7 +117,7 @@ function wirePorts(
   ctx: JobContext,
 ): Pick<BroadcastBatchPorts, "wireUnavailable" | "offersClosed" | "offersUnread" | "page"> {
   return {
-    wireUnavailable: (channel) => Promise.resolve(wireUnbound(ctx, channel)),
+    wireUnavailable: (channel) => findWireUnbound(ctx, channel),
     offersClosed: () => Promise.resolve(ctx.email?.campaignsClosed ?? null),
     offersUnread: () => Promise.resolve(ctx.email?.campaignsUnread ?? null),
     ...(ctx.page ? { page: ctx.page } : {}),
