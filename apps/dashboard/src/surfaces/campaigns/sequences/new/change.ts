@@ -81,6 +81,7 @@ function standingStep(step: NewStep): Stands["steps"][number] {
 export function standsOf(draft: NewDraftDto): Stands {
   return {
     said: draft.said,
+    cannot: draft.cannot ?? "",
     kind: draft.kind,
     audience: draft.audience,
     name: draft.name,

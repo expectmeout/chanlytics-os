@@ -767,3 +767,39 @@ test("REGRESSION: what Ask said it left out goes with the steps it was said of: 
   for (const [what, changed] of Object.entries(stays)) assert.equal(changed.cannot, said, what);
   assert.equal(M.setTyped(draft, 0, 1, "25% off").steps[0].message.params[1].value, "25% off");
 });
+
+test("REGRESSION (the live run of 13 Nov 2026): a change is told what the draft leaves out as it stands, so what its owner changed since is never said to be left out", async () => {
+  // "A one-off offer to everyone who visited in the last 90 days: 20% off any service this week", then "Make it 30% off
+  // everything", then "Make it warmer": told only the first line and the draft at 30%, Ask said the 20% was left out.
+  const note =
+    "Left out: “who visited in the last 90 days”. No list picks out recent visitors, so it goes to everyone.";
+  const stands = {
+    ...STANDS,
+    said: "A one-off offer to everyone who visited in the last 90 days: 20% off",
+    cannot: note,
+  };
+  const answered = answer({
+    steps: [step({ message: "k1" }), step({ after_days: 28, only_if: ["no_booking"], write: COME_BACK })],
+  });
+  answerWith(answered);
+  await draftSequenceFrom(KNOWN, { words: "Make it warmer", stands }, WHO_ASKS);
+  assert.match(
+    JSON.stringify(calls[0].request.messages),
+    /What the draft leaves out as it stands: <record>Left out: “who visited in the last 90 days”/,
+    "the note is data",
+  );
+  const rules = JSON.stringify(calls[0].request.system);
+  assert.match(rules, /again what the draft as it stands was said to leave out, where it still leaves it out/);
+  assert.match(rules, /the owner's own change since \(a new figure, another audience\): never say it is left out/);
+  // A draft that leaves nothing out is told nothing of it.
+  answerWith(answered);
+  await draftSequenceFrom(KNOWN, { words: "Make it warmer", stands: { ...stands, cannot: "" } }, WHO_ASKS);
+  assert.doesNotMatch(JSON.stringify(calls[1].request.messages), /leaves out as it stands/);
+  // The door takes the note, and a change from a page opened before it, which sends none.
+  assert.equal(DRAFT_BODY.safeParse({ words: "Warmer", stands }).success, true);
+  assert.equal(DRAFT_BODY.safeParse({ words: "Warmer", stands: STANDS }).success, true);
+  // The page tells the note the draft says, and "" where it says none (one a step's change let go among them).
+  assert.equal(C.standsOf({ ...twoSteps(), cannot: note }).cannot, note);
+  assert.equal(C.standsOf(twoSteps()).cannot, "");
+  assert.equal(C.standsOf(M.removeStep({ ...twoSteps(), cannot: note }, 1)).cannot, "");
+});
