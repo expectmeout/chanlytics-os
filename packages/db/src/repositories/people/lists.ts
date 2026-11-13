@@ -8,7 +8,9 @@
  * list's ids, and listRow the list a verb acts on, whose tenant_id is the workspace its role is judged in.
  * listSavedLists and findSavedList are scoped by workspace; listRow leaves the scope to row security alone, so a list the
  * caller cannot see is no list. Every member read is paged (readAllRows), because PostgREST answers one select with at
- * most 1000 rows and a list would silently lose people past a thousand memberships. A smart list keeps a rule (00155)
+ * most 1000 rows and a list would silently lose people past a thousand memberships; and whole, because a send's audience
+ * is made of them and People counts them, so past the pager's cap a read refuses rather than lose the lists that sort
+ * last (listSavedLists reads the memberships of every list in one). A smart list keeps a rule (00155)
  * and who is on it is judged on every read (contracts savedListIds), so its ids are empty here; a list archived (00169)
  * leaves People's rail and still resolves for the playbooks that name it.
  *
@@ -104,6 +106,7 @@ async function listRows(
             .order("name")
             .order("id")
             .range(from, to) as PromiseLike<Page<ListCols>>,
+        "whole",
       ),
     "id, name",
   );
@@ -114,14 +117,17 @@ async function listRows(
 export async function listSavedLists(db: Db, tenantId: TenantId): Promise<SavedListRow[]> {
   const [lists, members] = await Promise.all([
     listRows(db, tenantId),
-    readAllRows<{ segment_id: string; contact_id: ContactId }>("segment_members", (from, to) =>
-      db
-        .from("segment_members")
-        .select("segment_id, contact_id")
-        .eq("tenant_id", tenantId)
-        .order("segment_id")
-        .order("contact_id")
-        .range(from, to),
+    readAllRows<{ segment_id: string; contact_id: ContactId }>(
+      "segment_members",
+      (from, to) =>
+        db
+          .from("segment_members")
+          .select("segment_id, contact_id")
+          .eq("tenant_id", tenantId)
+          .order("segment_id")
+          .order("contact_id")
+          .range(from, to),
+      "whole",
     ),
   ]);
   const byList = new Map<string, string[]>();
@@ -141,8 +147,11 @@ export async function listSavedLists(db: Db, tenantId: TenantId): Promise<SavedL
 
 /** Every id on one list. */
 export async function listMemberIds(db: Db, listId: string): Promise<string[]> {
-  const rows = await readAllRows<{ contact_id: ContactId }>("segment_members", (from, to) =>
-    db.from("segment_members").select("contact_id").eq("segment_id", listId).order("contact_id").range(from, to),
+  const rows = await readAllRows<{ contact_id: ContactId }>(
+    "segment_members",
+    (from, to) =>
+      db.from("segment_members").select("contact_id").eq("segment_id", listId).order("contact_id").range(from, to),
+    "whole",
   );
   return rows.map((m) => m.contact_id);
 }

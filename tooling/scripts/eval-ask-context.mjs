@@ -1242,10 +1242,15 @@ export async function usageRows(rest, tenantId, since) {
   const path =
     `events?tenant_id=eq.${tenantId}&kind=eq.usage.ask_tokens&created_at=gte.${encodeURIComponent(since)}` +
     `&select=data&order=created_at.asc,id.asc`;
-  const rows = await readAllRows("Ask's usage rows", async (from, to) => ({
-    data: await rest(`${path}&offset=${from}&limit=${to - from + 1}`),
-    error: null,
-  }));
+  // Whole: the rows are summed into what Ask cost.
+  const rows = await readAllRows(
+    "Ask's usage rows",
+    async (from, to) => ({
+      data: await rest(`${path}&offset=${from}&limit=${to - from + 1}`),
+      error: null,
+    }),
+    "whole",
+  );
   return rows.map((r) => r.data ?? {}).filter((d) => !d.purpose || d.purpose === "ask");
 }
 

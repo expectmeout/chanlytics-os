@@ -216,10 +216,8 @@ export async function* listEveryoneOnceIn(db: Db, tenantId: TenantId): AsyncGene
       if (after) q = q.gt("id", after);
       return q.order("id").limit(size);
     },
+    "whole",
     COPY_READ_CAP,
-    (subject, cap) => {
-      throw new Error(`${subject}: more than ${cap}; no copy is whole`);
-    },
   );
   const missed = live.map((c) => c.id).filter((id) => !seen.has(id));
   for (let i = 0; i < missed.length; i += MISSED_AT_ONCE) {

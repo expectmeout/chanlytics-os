@@ -134,6 +134,7 @@ const runsSince = (since: Date): string => {
 };
 
 async function touchesOf(db: Db, tenantId: TenantId, since: Date, now: Date, followUpsOnly: boolean): Promise<Touch[]> {
+  // The runs and their sends are each read whole: a touch left out is a person sent twice in a week.
   const [all, zone] = await Promise.all([
     readAllRows<{
       id: string;
@@ -143,14 +144,18 @@ async function touchesOf(db: Db, tenantId: TenantId, since: Date, now: Date, fol
       created_at: string;
       run_for: string | null;
       params: unknown;
-    }>("broadcasts", (from, to) => {
-      const q = db
-        .from("sequence_batches")
-        .select("id, playbook_id:step_id, state, scheduled_for, created_at, run_for, params")
-        .eq("tenant_id", tenantId)
-        .or(runsSince(since));
-      return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
-    }),
+    }>(
+      "broadcasts",
+      (from, to) => {
+        const q = db
+          .from("sequence_batches")
+          .select("id, playbook_id:step_id, state, scheduled_for, created_at, run_for, params")
+          .eq("tenant_id", tenantId)
+          .or(runsSince(since));
+        return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
+      },
+      "whole",
+    ),
     findWorkspaceZone(db, tenantId).then((zone) => zone || DEFAULT_TIMEZONE, dbLogAndGoOn("findWorkspaceZone", null)),
   ]);
   const today = zone ? localDate(zone, now) : null;
@@ -172,20 +177,23 @@ async function touchesOf(db: Db, tenantId: TenantId, since: Date, now: Date, fol
       state: string;
       proposal_link: string | null;
       proposal_deal: string | null;
-    }>("broadcast_recipients", (from, to) =>
-      db
-        .from("sequence_sends")
-        // Of the words a recipient kept, the proposal's deal and link alone (0029): which one a follow-up was about.
-        .select(
-          "broadcast_id:batch_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
-        )
-        .eq("tenant_id", tenantId)
-        .is("lead_id", null)
-        .in("batch_id", ids.slice(index, index + RUN_IDS_PER_QUERY))
-        .in("state", ["sent", "queued"])
-        .order("batch_id")
-        .order("contact_id")
-        .range(from, to),
+    }>(
+      "broadcast_recipients",
+      (from, to) =>
+        db
+          .from("sequence_sends")
+          // Of the words a recipient kept, the proposal's deal and link alone (0029): which one a follow-up was about.
+          .select(
+            "broadcast_id:batch_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+          )
+          .eq("tenant_id", tenantId)
+          .is("lead_id", null)
+          .in("batch_id", ids.slice(index, index + RUN_IDS_PER_QUERY))
+          .in("state", ["sent", "queued"])
+          .order("batch_id")
+          .order("contact_id")
+          .range(from, to),
+      "whole",
     );
     for (const row of rows) {
       const run = row.broadcast_id ? ofRun.get(row.broadcast_id) : null;
