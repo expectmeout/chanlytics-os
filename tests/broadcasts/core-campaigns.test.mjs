@@ -279,7 +279,7 @@ test("a broadcast is refused in the person's words, in order, before anything is
     }),
     "conflict",
     409,
-    "WhatsApp is still reviewing this message's WhatsApp version.",
+    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
   );
   await refused(
     make(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }) }), {
@@ -1427,7 +1427,7 @@ test("the playbook's check: the trigger first, then the template through the one
     }),
     "conflict",
     409,
-    "WhatsApp refused this message's WhatsApp version.",
+    "WhatsApp asked for a change to this message's words. Ask writes new words for you to send back.",
   );
   await refused(
     checkPlaybook(
@@ -1952,7 +1952,7 @@ const EMAIL_VISIT = () => messageOf({ whatsapp: null, own: ["email"], ownCategor
 /** A message WhatsApp is still reviewing, with an email version beside it. */
 const IN_REVIEW = (own = ["email"]) =>
   messageOf({ whatsapp: template({ meta_status: "pending", category: "utility" }), own });
-const STILL_REVIEWING = "WhatsApp is still reviewing this message's WhatsApp version.";
+const STILL_REVIEWING = "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.";
 const NO_WHATSAPP = "This message has no WhatsApp version.";
 
 test("a broadcast by email on a message with no WhatsApp row, on a workspace with no WhatsApp number, is made: for the people who said yes to messages and have an address, on the email version", async () => {
@@ -2007,9 +2007,9 @@ test("ticks WhatsApp's version of a message WhatsApp is still reviewing: refused
   }
   // Meta's other verdicts say themselves, by the same sentence a page greys the tick with.
   for (const [meta_status, said] of [
-    ["rejected", "WhatsApp refused this message's WhatsApp version."],
-    ["paused", "WhatsApp has paused this message's WhatsApp version."],
-    ["disabled", "WhatsApp has disabled this message's WhatsApp version."],
+    ["rejected", "WhatsApp asked for a change to this message's words."],
+    ["paused", "WhatsApp is holding this message for a few hours, because some people marked it as unwanted."],
+    ["disabled", "WhatsApp turned this message off, because people kept marking it as unwanted."],
   ])
     await refused(
       make(fakes({ message: messageOf({ whatsapp: template({ meta_status }) }), channels: EVERY_CHANNEL }), {

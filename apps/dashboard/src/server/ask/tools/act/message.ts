@@ -13,7 +13,7 @@ import {
   purposeOfTemplate,
   slugTemplateName,
   templateBodyTooLong,
-  whatsappLineOf,
+  templateTitle,
 } from "@chanlytics/contracts";
 import { getChannelsReady } from "../../../campaigns/channels-ready";
 import { refuseWrittenUtility } from "../../../campaigns/template-versions";
@@ -21,11 +21,10 @@ import {
   checkMessage,
   findHeldValues,
   getMessageOnFile,
+  getWhatsAppFilingRefusal,
   type WriteMessageBody,
 } from "../../../campaigns/write-message";
 import { log } from "@/server/shared/log";
-import { load } from "../../../shared/reader";
-import { channels as channelsReader } from "../../../readers/channels";
 import { writeCustomerMessage } from "../../skills/customer-message";
 import { actAction, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { propose, refuse } from "../context/context";
@@ -45,8 +44,8 @@ function doorSays(check: () => void): string | null {
   }
 }
 
-/** The same for a check that reads: the door's words, or null. */
-async function doorSaysAfter(check: () => Promise<unknown>): Promise<string | null> {
+/** The same for a check that reads: the door's words, or null. Ask's card on a message on file asks it too. */
+export async function checkDoorRefusal(check: () => Promise<unknown>): Promise<string | null> {
   try {
     await check();
     return null;
@@ -82,26 +81,28 @@ function wordsRefusal(body: WriteMessageBody): string | null {
 }
 
 /**
- * The checks that read the workspace, each the rule the door or its send applies: a WhatsApp version needs the
- * workspace's WhatsApp line (contracts whatsappLineOf, the line the edge files a template for); an email version, a
- * workspace that can send email (contracts channelsReady, in its sentence), or, where that could not be asked just now
- * (its `unchecked`), a moment's wait, never a message without its email; and the Library may hold neither the message
- * (a twin, in MESSAGE_WORDS) nor a language of it said otherwise (the door's words). Null where all pass.
+ * The checks that read the workspace, each the door's own: a WhatsApp version needs a number whose WhatsApp Business
+ * Account is on file (write-message.ts getWhatsAppFilingRefusal, the one check for both); and the Library may hold
+ * neither the message (a twin, in MESSAGE_WORDS) nor a language of it said otherwise (the door's words). An email version
+ * is no refusal where email cannot send yet: the door keeps it, as the page does, and the card says when it goes
+ * (emailWaits). Null where all pass.
  */
 async function workspaceRefusal(toolContext: ToolContext, body: WriteMessageBody): Promise<string | null> {
-  const [chans, ready, twin] = await Promise.all([
-    body.versions.whatsapp ? load(toolContext.rc, channelsReader, undefined).then((r) => r.data.channels) : null,
-    body.versions.email
-      ? getChannelsReady(toolContext.ctx, toolContext.tenantId, { fresh: false, withPause: false })
-      : null,
+  const [whatsapp, twin] = await Promise.all([
+    body.versions.whatsapp ? getWhatsAppFilingRefusal(toolContext.ctx, toolContext.tenantId) : null,
     getMessageOnFile(toolContext.ctx, toolContext.tenantId, body),
   ]);
-  if (body.versions.whatsapp && !whatsappLineOf(chans)) return MESSAGE_WORDS.noNumber;
-  // Not known (the edge did not answer) is no "no": the email stays in the message, and the card is asked for again.
-  if (ready && !ready.email.ready)
-    return ready.email.unchecked ? MESSAGE_WORDS.emailUnchecked : MESSAGE_WORDS.noMailbox(ready.email.why);
-  if (twin) return MESSAGE_WORDS.twin(body.name);
-  return doorSaysAfter(() => findHeldValues(toolContext.ctx, toolContext.tenantId, body));
+  if (whatsapp) return whatsapp === "no_number" ? MESSAGE_WORDS.noNumber : MESSAGE_WORDS.noAccount;
+  if (twin) return MESSAGE_WORDS.twin(templateTitle(body.name, body.title));
+  return checkDoorRefusal(() => findHeldValues(toolContext.ctx, toolContext.tenantId, body));
+}
+
+/** Where an email version cannot go yet (known: no mailbox, or none for the deployment), why, said under the card. */
+async function emailWaits(toolContext: ToolContext, body: WriteMessageBody): Promise<string | null> {
+  if (!body.versions.email) return null;
+  const ready = await getChannelsReady(toolContext.ctx, toolContext.tenantId, { fresh: false, withPause: false });
+  // Not known (the edge did not answer) is no "no": nothing is said.
+  return ready.email.ready || ready.email.unchecked ? null : MESSAGE_WORDS.emailWaits(ready.email.why);
 }
 
 /**
@@ -117,9 +118,13 @@ async function proposeMessage(toolContext: ToolContext, input: MessageAsked): Pr
   const slots = [...(input.slots ?? [])]
     .sort((a, b) => a.position - b.position)
     .map((s) => ({ position: s.position, label: s.label.trim(), example: slotExample(s), kind: s.kind }));
+  // The name a person typed, as Meta takes one: "Autumn offer" is autumn_offer, and their words are its title. A name
+  // given already as Meta takes one ("thanks_for_coming") is no title: it is read as its name made words.
+  const name = slugTemplateName(input.name);
+  const ownName = input.name.replace(/\s+/g, " ").trim();
   const body: WriteMessageBody = {
-    // The name a person typed, as Meta takes one: "Autumn offer" is autumn_offer.
-    name: slugTemplateName(input.name),
+    name,
+    ...(ownName && ownName !== name ? { title: ownName } : {}),
     // The language as the product files it (English under en_US, beside the starters), never as Ask named it.
     language: messageLanguageCode(input.language),
     category: input.category,
@@ -141,10 +146,11 @@ async function proposeMessage(toolContext: ToolContext, input: MessageAsked): Pr
   );
   // What follows the versions: when each goes, and who it reaches. The card draws the versions whole (`said`) and this
   // under them; the summary, which the model reads, quotes them before it.
-  const follows = `${goes} · ${reaches.join(" ")}`;
+  const waits = await emailWaits(toolContext, body);
+  const follows = [goes, reaches.join(" "), waits].filter(Boolean).join(" · ");
   return propose({
     kind: "message",
-    title: MESSAGE_WORDS.title(body.name, body.language),
+    title: MESSAGE_WORDS.title(templateTitle(body.name, body.title), body.language),
     summary: `${writtenWords.says} · ${follows}`,
     payload: { ...written, said: writtenWords.rows, follows },
   });
@@ -194,7 +200,7 @@ export const messageAction = actAction({
   }),
   examples: [
     {
-      name: "october_offer",
+      name: "October offer",
       language: "en",
       category: "marketing",
       versions: {
@@ -209,6 +215,6 @@ export const messageAction = actAction({
   ],
   label: "Writing a message",
   words:
-    "Action message writes a new message for the Library and proposes it as a card: name (snake_case), language (en or es, as the rule for a message's language says; another language is another card under the same name), category marketing (an offer or news) or utility (about their own appointment or proposal, which needs a whatsapp version), versions, each optional and at least one (whatsapp {body}, email {subject, body}, sms {body}, never sms for marketing), and slots naming the values {{1}}, {{2}} in order (position, label, kind: text, first_name, business_name, booking_link or review_link). Read sequences with action messages first: a name the Library holds in that language is refused. A whatsapp version needs a connected number and WhatsApp's review; email needs email set up. Your versions are a first draft the message writer rewrites before the card is shown: put the facts in (the offer in their words and figures, its days), never a price they did not give. The card quotes every version; Approve files it, and nothing is sent.",
+    "Action message writes a new message for the Library and proposes it as a card: name (what they call it, in plain words: Autumn offer; its WhatsApp name is made from it), language (en or es, as the rule for a message's language says; another language is another card under the same name), category marketing (an offer or news) or utility (about their own appointment or proposal, which needs a whatsapp version), versions, each optional and at least one (whatsapp {body}, email {subject, body}, sms {body}, never sms for marketing), and slots naming the values {{1}}, {{2}} in order (position, label, kind: text, first_name, business_name, booking_link or review_link). Read sequences with action messages first: a name the Library holds in that language is refused. A whatsapp version needs a connected number and WhatsApp's review; an email version is kept even before email is set up, and goes once it is. Your versions are a first draft the message writer rewrites before the card is shown: put the facts in (the offer in their words and figures, its days), never a price they did not give. The card quotes every version; Approve files it, and nothing is sent.",
   build: proposeMessage,
 });

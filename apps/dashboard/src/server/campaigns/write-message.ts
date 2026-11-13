@@ -25,7 +25,9 @@
  */
 import {
   AppError,
+  DbFailure,
   LIBRARY_STARTER_WORDS,
+  LIBRARY_WORDS,
   MESSAGE_BEGIN_WORDS,
   OWN_VERSION_CHANNELS,
   TEMPLATE_LANGUAGES,
@@ -36,6 +38,7 @@ import {
   purposeOfTemplate,
   starterByName,
   templateNameOk,
+  templateTitle,
   validateOwnVersion,
   validateTemplateDraft,
   type ConsentChannel,
@@ -43,8 +46,10 @@ import {
   type ParamSpec,
   type TemplateStatus,
 } from "@chanlytics/contracts";
-import { findHeldMessage, listMessageVersionRows } from "@chanlytics/db/campaigns";
+import { findHeldMessage, listMessageVersionRows, setTemplateTitle } from "@chanlytics/db/campaigns";
+import { findWhatsAppAccount } from "@chanlytics/db/channels";
 import { submitDraft } from "@/server/campaigns/template-submit";
+import { WHATSAPP_ACCOUNT_MISSING, refuseTwinWords, type ReviewWords } from "@/server/campaigns/whatsapp-refusals";
 import { MESSAGE_VALUES_WORDS, fileWrittenVersion, refuseWrittenUtility } from "@/server/campaigns/template-versions";
 import { log } from "@/server/shared/log";
 import { isFaultCode, type RouteContext } from "@/server/shared/with-route";
@@ -57,6 +62,8 @@ import type { TenantId } from "@chanlytics/contracts";
  */
 export interface WriteMessageBody {
   name: string;
+  /** What the owner calls it, the words its `name` was made from ("Mother's Day offer"): kept as its title where they differ. */
+  title?: string | undefined;
   language: string;
   category: "marketing" | "utility";
   versions: {
@@ -158,6 +165,51 @@ export function checkMessage(body: WriteMessageBody): void {
   }
 }
 
+/** Why WhatsApp cannot be asked to review a version here: no active number, or that number's account not on file. */
+type WhatsAppFilingRefusal = "no_number" | "no_account";
+
+/**
+ * Whether WhatsApp can be asked to review a version for this workspace, as the edge's create asks it (templates-create):
+ * an active number, and that number's WhatsApp Business Account on file. One check for this door, before anything is
+ * filed, and for Ask's card (ask/tools/act/message.ts), so a card never promises a filing the edge refuses (the live
+ * demo, 12 Nov 2026: a number with no account made a card whose Save filed nothing). Null where it can. Whether the edge
+ * holds the number's token is the edge's alone to know, and it answers in words.
+ */
+export async function getWhatsAppFilingRefusal(
+  ctx: RouteContext,
+  tenantId: TenantId,
+): Promise<WhatsAppFilingRefusal | null> {
+  const { data, error } = await findWhatsAppAccount(ctx.supabase, tenantId);
+  if (error) throw new DbFailure(error, "the WhatsApp account");
+  if (!data) return "no_number";
+  return data.waba_id ? null : "no_account";
+}
+
+/** This door's words for it: the edge's own sentences (template-submit.ts). */
+const FILING_REFUSED: Record<WhatsAppFilingRefusal, string> = {
+  no_number: LIBRARY_WORDS.writeNeedsNumber,
+  no_account: WHATSAPP_ACCOUNT_MISSING,
+};
+
+/**
+ * The owner's own name for it kept as each filed version's title, where it says more than its name made words do ("Mother's
+ * Day offer", which autumn_offer's rule makes "Mother s day offer"). Best effort: a title not kept leaves the message as
+ * filed, called by its name, and is logged.
+ */
+async function keepTitle(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  body: WriteMessageBody,
+  filed: readonly VersionFiled[],
+) {
+  const title = body.title?.replace(/\s+/g, " ").trim() ?? "";
+  if (!title || title === templateTitle(body.name)) return;
+  for (const v of filed) {
+    const { error } = await setTemplateTitle(ctx.supabase, v.id, title);
+    if (error) log.warn("message_title_not_kept", { tenant_id: tenantId, channel: v.channel, error });
+  }
+}
+
 /**
  * A twin: whether the workspace holds the message already, its name in its language, on any channel. The door answers it
  * 409 (TEMPLATE_SAME_NAME_WORDS); its other versions are written in the Library.
@@ -194,10 +246,29 @@ export async function findHeldValues(
   return held.slots;
 }
 
+/**
+ * What WhatsApp's review would refuse of the message's WhatsApp words, said before anything is filed, so a refusal never
+ * leaves an email and a text filed beside nothing: the words of a message WhatsApp already has, and a reader's look
+ * (whatsapp-refusals.ts). Their shape was checkMessage's.
+ */
+async function refuseBeforeFiling(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  draft: ReturnType<typeof whatsappDraft>,
+  review: ReviewWords | undefined,
+): Promise<void> {
+  const check = validateTemplateDraft({ ...draft, button: null });
+  if (!check.ok) return;
+  await refuseTwinWords(ctx, tenantId, { id: null, body: check.value.body, footer: check.value.footer });
+  await review?.(ctx, tenantId, check.value);
+}
+
 export async function writeMessage(
   ctx: RouteContext,
   member: Member,
   body: WriteMessageBody,
+  /** A reader's look at WhatsApp's words before they are sent (whatsapp-refusals.ts), the route's to hand in. */
+  review?: ReviewWords,
 ): Promise<WriteMessageAnswer> {
   const { name, language, category } = body;
   const slots = slotsOf(body);
@@ -205,6 +276,10 @@ export async function writeMessage(
   if (await getMessageOnFile(ctx, member.tenantId, body)) throw new AppError("conflict", TEMPLATE_SAME_NAME_WORDS, 409);
   // A language of a message held in another: written beside it, as what it is held as.
   let held = await findHeldValues(ctx, member.tenantId, body);
+  // WhatsApp's version is asked for only where WhatsApp can be: else nothing is filed, said in the edge's own words.
+  const waRefused = body.versions.whatsapp ? await getWhatsAppFilingRefusal(ctx, member.tenantId) : null;
+  if (waRefused) throw new AppError("conflict", FILING_REFUSED[waRefused], 409);
+  if (body.versions.whatsapp) await refuseBeforeFiling(ctx, member.tenantId, whatsappDraft(body, slots), review);
 
   const filed: VersionFiled[] = [];
   const answer = (refused?: WriteMessageAnswer["refused"]): WriteMessageAnswer => ({
@@ -224,16 +299,23 @@ export async function writeMessage(
       held = slots.length;
       filed.push({ channel, id: saved.version.id, state: "approved" });
     } catch (e) {
+      // Nothing filed is no save: refused in its own words (a card says it as a refusal, and may be pressed again).
+      if (filed.length === 0) throw e;
+      await keepTitle(ctx, member.tenantId, body, filed);
       return answer({ channel, words: filingWords(e, member.tenantId, channel) });
     }
   }
-  if (!body.versions.whatsapp) return answer();
-  try {
-    const sent = await submitDraft(ctx, member, whatsappDraft(body, slots));
-    // As Meta answered: a version it refused in its create answer is filed refused, never said to be in review.
-    filed.push({ channel: "whatsapp", id: sent.id, state: metaStatusOf(sent.meta_status) });
-    return answer();
-  } catch (e) {
-    return answer({ channel: "whatsapp", words: filingWords(e, member.tenantId, "whatsapp") });
+  if (body.versions.whatsapp) {
+    try {
+      const sent = await submitDraft(ctx, member, whatsappDraft(body, slots));
+      // As Meta answered: a version it refused in its create answer is filed refused, never said to be in review.
+      filed.push({ channel: "whatsapp", id: sent.id, state: metaStatusOf(sent.meta_status) });
+    } catch (e) {
+      if (filed.length === 0) throw e;
+      await keepTitle(ctx, member.tenantId, body, filed);
+      return answer({ channel: "whatsapp", words: filingWords(e, member.tenantId, "whatsapp") });
+    }
   }
+  await keepTitle(ctx, member.tenantId, body, filed);
+  return answer();
 }

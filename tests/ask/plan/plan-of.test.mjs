@@ -1133,7 +1133,7 @@ const ES_ROWS = [
     }),
     steps: [noteStep(1), firstSend(2, [1], { template_id: V(2), channels: ["email"] })],
     words: [
-      "Va sin WhatsApp: Meta ha pausado las ofertas por WhatsApp a números de EE. UU. Los mensajes sobre citas y las respuestas siguen saliendo.",
+      "Va sin WhatsApp: WhatsApp no está entregando ofertas a números de EE. UU. por ahora. Los mensajes sobre citas y las respuestas siguen saliendo.",
       ES_REMINDS(),
       ES_REUSED,
       ES_NOTE,

@@ -249,12 +249,8 @@ const ASK_TEXT = {
     pause: "Pause",
     resume: "Resume",
     planKept: (n: number) => (n === 1 ? "1 part stays:" : `${n} parts stay:`),
-    // Quick changes under a card with words (D25): each is a question, written as the person would.
-    quickChanges: [
-      { label: "Shorter", asks: "Make it shorter." },
-      { label: "Warmer", asks: "Make it warmer." },
-      { label: "Spanish too", asks: "Write it in Spanish too." },
-    ],
+    // A card with words is changed by saying it on Ask's line (Ruben, 12 Nov 2026: no preset changes; the quick changes of
+    // D25 -- Shorter, Warmer, Spanish too -- are gone): what the line says while one is open.
     changeAnything: "Change anything…",
     postDrawing: "Drawing the picture",
   },
@@ -387,11 +383,6 @@ const ASK_TEXT = {
     pause: "Pausar",
     resume: "Reanudar",
     planKept: (n: number) => (n === 1 ? "Queda 1 parte:" : `Quedan ${n} partes:`),
-    quickChanges: [
-      { label: "Más corto", asks: "Hazlo más corto." },
-      { label: "Más cálido", asks: "Hazlo más cálido." },
-      { label: "También en inglés", asks: "Escríbelo también en inglés." },
-    ],
     changeAnything: "Cambia lo que quieras…",
     postDrawing: "Dibujando la imagen",
   },

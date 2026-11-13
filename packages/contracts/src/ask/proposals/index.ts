@@ -3,6 +3,7 @@
  * pages press and the readings of a spec (page-specs.ts), and each family's spec. Ask's own kinds come by their own
  * entry (`@chanlytics/contracts/ask-only`).
  */
+export { MESSAGE_CHANGE_WORDS } from "./messages";
 export {
   FIX_CARD_WORDS,
   MESSAGE_WORDS,

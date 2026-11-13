@@ -5,7 +5,6 @@
  */
 import { useState, type RefObject } from "react";
 import {
-  askCardHasWords,
   askTraitsOf,
   holdsAlike,
   openCardOf,
@@ -28,7 +27,6 @@ import {
   AskCardHead,
   AskCardReceipt,
   AskRing,
-  AskQuickChanges,
   AskSheet,
   type CardFold,
 } from "./card-parts";
@@ -210,7 +208,6 @@ export const AskCard = ({
   onNav,
   hideOpen = false,
   onOutcome,
-  onQuick,
   step = AT_NO_STEP,
 }: {
   p: AskProposal;
@@ -220,7 +217,6 @@ export const AskCard = ({
   hideOpen?: boolean;
   onOutcome?: OnOutcome;
   onEdit?: (text?: string) => void;
-  onQuick?: (q: string) => unknown;
   step?: CardStep;
 }) => {
   const pressed = useCardPress(p, { messageId, t, onNav, onOutcome, step });
@@ -294,11 +290,6 @@ export const AskCard = ({
           approveRef={approveRef}
         />
       ) : null}
-      {/* The quick changes stand under the press, never between it and the facts it turns on (decision 0088: the first
-          press is on a phone's first screen, straight after what it depends on). They stood over it from 9 November 2026
-          (#2211), a row of 30 px that took the 25 the first screen had to spare: the nightly found the press 5 px under
-          the field. Under the press they sit beside the field, which takes any other change. */}
-      {idle && !shut && onQuick && askCardHasWords(p.kind) ? <AskQuickChanges t={t} onFollow={onQuick} /> : null}
       {/* Always drawn, so what fills it is announced; empty, it takes no room (ask.css). */}
       <div className="ask-told" role="status">
         {idle || follows ? null : (
@@ -374,7 +365,6 @@ export const AskCards = ({
   onNav,
   onOutcome,
   onEdit,
-  onQuick,
   cardOpen,
 }: {
   cards: AskProposal[];
@@ -383,7 +373,6 @@ export const AskCards = ({
   onNav: (to: string) => void;
   onOutcome?: OnOutcome;
   onEdit?: (text?: string) => void;
-  onQuick?: (q: string) => unknown;
   cardOpen?: Record<string, boolean>;
 }) => {
   const group = useCardsTogether(cards);
@@ -396,7 +385,6 @@ export const AskCards = ({
       onNav={onNav}
       onOutcome={onOutcome}
       onEdit={onEdit}
-      onQuick={onQuick}
       hideOpen={!!cardOpen && cardOpen[p.id] === false}
       step={step}
     />

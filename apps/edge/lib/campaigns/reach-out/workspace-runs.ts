@@ -97,6 +97,8 @@ async function runWorkspaceMoments({ db, tenantId, now, until, log }: WorkspaceT
       await tried([p]);
       await told([p], result.error);
     }
+    // One that waits on WhatsApp (its review, or its hold) recorded nothing either: the next hour asks again, from the back.
+    if (result.outcome === "off" && /^template_(in_review|on_hold)$/.test(result.skipped)) await tried([p]);
     out[result.outcome] += 1;
   }
   return out;

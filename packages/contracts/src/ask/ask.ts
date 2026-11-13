@@ -184,16 +184,28 @@ export type AskSurface = (typeof ASK_SURFACES)[number];
 
 /**
  * One message of the library as sequences with action messages reads it (the dashboard's readers/templates.ts
- * messageReadsOf), and what a plan of Ask's is checked against: a name in a language, its category as a send judges a
- * yes (an authentication message is a utility one), each version on its channel with its row's status (a WhatsApp
- * version still in Meta's review among them; an email's or a text's is written approved), the numbered values it fills
- * with what each is called and most likely takes, and the campaigns that send it by name.
+ * messageReadsOf), and what a plan of Ask's is checked against: a name in a language and what the business calls it
+ * (`title`), its category as a send judges a yes (an authentication message is a utility one), whether it was put away,
+ * each version on its channel with its row's status (a WhatsApp version still in Meta's review among them; an email's or
+ * a text's is written approved), its words (an email's subject and body; cut to a line where the library is read whole,
+ * whole where one message is asked for by name) and why WhatsApp refused it, the numbered values it fills with what
+ * each is called and most likely takes, and the campaigns that send it by name. Ask reads the words before it changes
+ * them (the message sheet's review, 12 Nov 2026: it was asked to change words it could not see).
  */
 export interface MessageRead {
   name: string;
+  title: string;
   language: string;
   category: TemplateCategoryChoice;
-  versions: { channel: VersionChannel; id: string; state: TemplateStatus }[];
+  away: boolean;
+  versions: {
+    channel: VersionChannel;
+    id: string;
+    state: TemplateStatus;
+    words: { subject: string | null; body: string };
+    /** WhatsApp's reason, where it refused this version. */
+    refused?: string;
+  }[];
   slots: { position: number; label: string; kind: string }[];
   used_by: { id: string; name: string }[];
 }

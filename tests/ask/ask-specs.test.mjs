@@ -123,6 +123,11 @@ const KINDS = [
   "publish",
   // A video made from the business's clips (decision 0122).
   "piece",
+  // A message on file changed from Ask (the message sheet's review, 12 Nov 2026): its words, its name, put away, deleted.
+  "message_words",
+  "message_rename",
+  "message_away",
+  "message_delete",
   "teleport",
 ];
 
@@ -209,6 +214,11 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     // Putting a made post up is the settings permission's, as the page's Post it is.
     publish: "settings",
     piece: "settings",
+    // A message on file changed, as its sheet's own presses are: the approve permission's.
+    message_words: "approve",
+    message_rename: "approve",
+    message_away: "approve",
+    message_delete: "approve",
   });
 });
 
@@ -678,6 +688,53 @@ const SHAPES = {
   ],
   // A fix card commits nothing (its act is its door, campaigns.ts fixSpec): no shape reaches a route.
   fix: [],
+  // A message on file changed: WhatsApp's words sent back, an email's saved (and put back), a name, put away, deleted.
+  message_words: [
+    card("message_words", {
+      template_id: "t1",
+      name: "proposal_nudge",
+      language: "en_US",
+      channel: "whatsapp",
+      title: "Proposal nudge",
+      body: "Hi {{1}}, did you see the proposal?",
+      was: { subject: null, body: "Hi {{1}}" },
+    }),
+    card("message_words", {
+      template_id: "t2",
+      name: "proposal_nudge",
+      language: "en_US",
+      channel: "email",
+      title: "Proposal nudge",
+      subject: "Your proposal",
+      body: "Hi {{1}}, did you see it?",
+      was: { subject: "Proposal", body: "Hi {{1}}" },
+    }),
+  ],
+  message_rename: [
+    card("message_rename", {
+      name: "proposal_nudge",
+      title: "Follow-up",
+      was: "Proposal nudge",
+      versions: [
+        { channel: "whatsapp", id: "t1", had_title: null },
+        { channel: "email", id: "t2", had_title: "Nudge" },
+      ],
+    }),
+  ],
+  message_away: [
+    card("message_away", { template_id: "t1", name: "proposal_nudge", title: "Proposal nudge", away: true }),
+  ],
+  message_delete: [
+    card("message_delete", {
+      name: "proposal_nudge",
+      language: "en_US",
+      title: "Proposal nudge",
+      versions: [
+        { channel: "email", id: "t2" },
+        { channel: "whatsapp", id: "t1" },
+      ],
+    }),
+  ],
 };
 
 /**
@@ -910,6 +967,10 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     publish: ["PATCH files/[id]", "POST files/[id]/google", "POST files/[id]/instagram"],
     piece: ["POST files/video"],
     fix: [],
+    message_words: ["POST templates/versions", "PUT templates/[id]"],
+    message_rename: ["PUT templates/[id]"],
+    message_away: ["PUT templates/[id]"],
+    message_delete: ["DELETE templates/[id]", "DELETE templates/versions/[id]"],
   });
   for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
 });

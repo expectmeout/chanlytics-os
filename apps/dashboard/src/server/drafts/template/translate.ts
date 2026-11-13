@@ -169,7 +169,7 @@ export function translateSystemPrompt(workspaceFacts: WorkspaceFacts, src: Trans
     `Translate the template below from ${languageLabel(src.language)} into ${into}.${to && to.region ? ` Use the words and spelling people use in ${to.region}.` : ""} Write it the way a person from there writes to a customer: natural, not word for word.`,
     "",
     "WhatsApp's reviewers read the translation as a new template, so:",
-    "- Keep every numbered slot exactly as written, {{1}}, {{2}}, {{3}}, each once and meaning what it meant; keep them in the same order where the language allows. Do not start or end the message with a slot.",
+    "- Keep every numbered slot exactly as written, {{1}}, {{2}}, {{3}}, each once and meaning what it meant; keep them in the same order where the language allows. Do not start or end the message with a slot: where the original's order would, put a few words after it.",
     "- Keep the word STOP as it is: customers reply STOP to opt out, whatever language they write in.",
     `- The message stays under ${TEMPLATE_BODY_MAX} characters, the footer under ${TEMPLATE_FOOTER_MAX} and the button's words under ${TEMPLATE_BUTTON_TEXT_MAX}. No emoji the original does not have, no ALL CAPS, no more than one blank line in a row.`,
     src.category === "marketing"
@@ -357,21 +357,7 @@ export async function rewriteVersion(
 ): Promise<RewriteOutcome> {
   const { facts } = await workspaceFor(ctx, tenantId);
   const email = input.channel === "email";
-  const system = [
-    `You rewrite a message ${facts.businessName}, a small business, sends its customers, in its own voice: warm, brief, specific, never salesy.`,
-    facts.guardrails.length ? `Rules the business follows: ${facts.guardrails.join(" ")}` : "",
-    writeIn(input.language),
-    "Keep its meaning, what it asks of the person, and every value written in double braces ({{1}}, {{first_name}}) exactly as it is: the same ones, none added, none dropped.",
-    email
-      ? "It is an email: a subject line and its words."
-      : input.channel === "whatsapp"
-        ? "It is a WhatsApp message WhatsApp reviews before it can be sent: plain words, no subject, nothing WhatsApp refuses (no pressure, no promise the business did not make, no value at its very start or end)."
-        : "It is a text message: plain words, no subject.",
-    "Answer with one JSON object and nothing else, no code fence:",
-    email ? '{"subject": "the subject", "body": "the words"}' : '{"body": "the words"}',
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const system = rewriteSystemPrompt(facts, input.channel, input.language);
   const user = [
     email && input.subject ? `Subject: ${input.subject}` : null,
     `Words:\n${input.body}`,
@@ -391,6 +377,33 @@ export async function rewriteVersion(
       output: turn.text.slice(0, 400),
     });
   return out;
+}
+
+/**
+ * What a rewrite is told: the business's voice, the rules its own messages keep (never the receptionist's, which made a
+ * rewrite add "this is the automated assistant" to an owner's note), its language, that every value stays and nothing
+ * unasked is added, and the channel's shape. Pure, so what it says is held by a test.
+ */
+export function rewriteSystemPrompt(
+  facts: Pick<WorkspaceFacts, "businessName" | "messageRules">,
+  channel: "email" | "sms" | "whatsapp",
+  language: string,
+): string {
+  return [
+    `You rewrite a message ${facts.businessName}, a small business, sends its customers, in its own voice: warm, brief, specific, never salesy.`,
+    facts.messageRules.length ? `Rules for its messages: ${facts.messageRules.join(" ")}` : "",
+    writeIn(language),
+    "Keep its meaning, what it asks of the person, and every value written in double braces ({{1}}, {{first_name}}) exactly as it is: the same ones, none added, none dropped. Change only what is asked, and add nothing the owner did not ask for.",
+    channel === "email"
+      ? "It is an email: a subject line and its words."
+      : channel === "whatsapp"
+        ? "It is a WhatsApp message WhatsApp reviews before it can be sent: plain words, no subject, nothing WhatsApp refuses (no pressure, no promise the business did not make, no value at its very start or end, a few words of its own around each value, no shortened link)."
+        : "It is a text message: plain words, no subject.",
+    "Answer with one JSON object and nothing else, no code fence:",
+    channel === "email" ? '{"subject": "the subject", "body": "the words"}' : '{"body": "the words"}',
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /**
