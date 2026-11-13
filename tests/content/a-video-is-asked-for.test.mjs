@@ -29,7 +29,6 @@ const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { buildProposal, newToolContext, toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { pieceAct } = await import(at("apps/dashboard/src/server/ask/tools/act/files/piece.ts"));
-const { PIECE_RECIPES } = await import(at("apps/dashboard/src/server/content/piece-recipes.ts"));
 const { PIECE_CARD, PIECE_FRAME, PIECE_SIDE, pieceWordsBoxOf } = await import(
   at("packages/contracts/src/content/piece-frame.ts")
 );
@@ -258,11 +257,12 @@ function tablesOf({
   };
   return {
     files: [clipRow(clip), ...more],
-    // What clients wrote of the business, newest first.
-    google_reviews: reviews.map((body, i) => ({
+    // What clients wrote of the business, newest first: one given by its words alone is five stars.
+    google_reviews: reviews.map((review, i) => ({
       id: `rv-${i}`,
       tenant_id: A,
-      body,
+      rating: 5,
+      ...(typeof review === "string" ? { body: review } : review),
       published_at: `2026-11-0${9 - i}T12:00:00Z`,
     })),
     memberships: [],
@@ -513,7 +513,7 @@ test("a video from photos alone makes a card: each photo by the name files says,
   assert.equal(out.proposal.summary, "11 seconds, vertical. 3 parts from 3 of your photos.");
 });
 
-test("a quote is a client's own words: found in a review the workspace holds or in what the owner wrote, never Ask's", async () => {
+test("a quote is a client's own words: found in a review of four or five stars, or pasted by the owner as a client's; never Ask's, never the business's own", async () => {
   const reviews = ["Came in for a silk press. Best blowout in Brooklyn, hands down! Will be back.", "Lovely place."];
   const blocks = [
     { is: "clip", file: "salon-chair-reveal", from: 2.3, to: 4.8 },
@@ -545,14 +545,29 @@ test("a quote is a client's own words: found in a review the workspace holds or 
   const reworded = blocks.map((b) => (b.is === "quote" ? { ...b, text: "The best blowout in all of Brooklyn" } : b));
   const refused = await arranged({ blocks: reworded }, { more: PHOTOS, reviews });
   assert.equal(refused.proposal, null);
-  assert.match(refused.refusal, /^block 2: the quote is not in a review this workspace holds/);
-  // What the owner wrote in this thread is theirs to pass on.
-  const pasted = await arranged(
-    { blocks: reworded },
-    { more: PHOTOS, question: "Make a video from this review: The best blowout in all of Brooklyn" },
+  assert.match(refused.refusal, /^block 2: the quote is not in a review of four or five stars this workspace holds/);
+  // What the owner typed in this thread is a client's only on the owner's word that a client wrote it: Ask asks first.
+  const question = "Make a video with this on it: The best blowout in all of Brooklyn";
+  const unasked = await arranged({ blocks: reworded }, { more: PHOTOS, question });
+  assert.equal(unasked.proposal, null);
+  assert.match(
+    unasked.refusal,
+    /^block 2: the quote is in what the owner typed, and no one has said a client wrote it/,
   );
+  assert.match(unasked.refusal, /client_said true/);
+  const pasted = await arranged({ blocks: reworded, client_said: true }, { more: PHOTOS, question });
   assert.equal(pasted.proposal?.kind, "piece", pasted.result);
   assert.equal(pasted.proposal.payload.blocks[1].from, "A client");
+  // The business's own words are no client's: what its Settings hold is never a quote, whoever says a client wrote it.
+  const ours = blocks.map((b) => (b.is === "quote" ? { ...b, text: "brief and warm, never a price" } : b));
+  const own = await arranged({ blocks: ours, client_said: true }, { more: PHOTOS, reviews });
+  assert.equal(own.proposal, null);
+  assert.match(own.refusal, /^block 2: the quote is not in a review of four or five stars this workspace holds/);
+  // A review of three stars or fewer is never quoted as one: its kindest sentence would say what its writer did not.
+  const low = [{ body: "Best blowout in Brooklyn, hands down! But they kept me waiting an hour.", rating: 2 }];
+  const faint = await arranged({ blocks }, { more: PHOTOS, reviews: low });
+  assert.equal(faint.proposal, null);
+  assert.match(faint.refusal, /^block 2: the quote is not in a review of four or five stars this workspace holds/);
   // A clip held still says which moment.
   const unsaid = blocks.map(({ after_at: _unsaid, ...b }) => b);
   assert.match(
@@ -608,15 +623,12 @@ test("a video may open on a card: it has no opening words, and is known by its f
   assert.match((await arranged({ lines: [] })).refusal, /a video that opens on a picture has opening words/);
 });
 
-test("Ask is offered blocks and the ways to arrange them: the cuts it took before are no input of the tool", async () => {
-  assert.ok(pieceAct.description.includes(PIECE_RECIPES), "the recipes are said where the model fills the plan");
+test("Ask is offered blocks, and told where the ways to arrange them are: the cuts it took before are no input of the tool", async () => {
+  // The ways are the video maker's guide (tests/ask/skills/video-skill.test.mjs), in the turn that asks for a video: the
+  // tool says where they are, and carries none of them in every owner's tools block.
+  assert.match(pieceAct.description, /guide with skill video/);
   for (const way of ["Hook first:", "Before and after:", "Steps:", "A review:", "From photos:", "Words only"])
-    assert.ok(PIECE_RECIPES.includes(way), way);
-  assert.match(PIECE_RECIPES, /advice, not forms/);
-  // What the judged pieces taught (12 Nov 2026): say what changed, say a review once, in its own words alone.
-  assert.match(PIECE_RECIPES, /Open with what changed/);
-  assert.match(PIECE_RECIPES, /one quote card/);
-  assert.match(PIECE_RECIPES, /never the review reworded/);
+    assert.equal(pieceAct.description.includes(way), false, way);
   // One flat block, each field said once: no union of objects, and no word the tools have not sent the API before.
   const sent = toApiTools("owner", true).find((tool) => tool.name === "propose_piece").input_schema;
   assert.equal(/"oneOf"|"const"/.test(JSON.stringify(sent)), false);

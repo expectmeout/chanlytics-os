@@ -5,6 +5,9 @@
  *   GET <edge>/api/health        200 { ok: true, unhealthy: [], jobs_backlog, checked_at }: the platform's clocks and
  *                                its due work (apps/edge/api/health.ts). 503 { ok: false, ... } is the same door saying
  *                                something is wrong; --allow-unhealthy takes it as an answer (a preview with no database).
+ *                                Beside them `video_machine`: false is a build whose video template has no machine
+ *                                image on record, so no video can be made; the door still answers 200 (it is no clock)
+ *                                and this smoke fails, whatever else it was told to take.
  *   GET <edge>/api/version       200 { sha }: the build the edge runs (apps/edge/api/version.ts). A health door answers
  *                                well from the build before a deploy as from the one after, so without this the smoke
  *                                passed while the edge still served the old build (6 Oct 2026).
@@ -49,6 +52,10 @@ export function judgeHealth(status, body, { allowUnhealthy = false } = {}) {
   if (!Array.isArray(body.unhealthy)) return `answered ${status} without an unhealthy list`;
   if (typeof body.checked_at !== "string" || Number.isNaN(Date.parse(body.checked_at)))
     return `answered ${status} without a checked_at time`;
+  // The deploy's own fault and no clock's, so nothing takes it: a template merged ahead of its machine image makes every
+  // video asked for wait half an hour and fail. Null is unread, and an edge a build behind says nothing of it.
+  if (body.video_machine === false)
+    return `answered ${status}: no machine image is on record for the video template this build draws with, so no video can be made until one is built and recorded (tooling/video/README.md)`;
   if (status === 200 && body.ok) return null;
   if (status === 503 && !body.ok)
     return allowUnhealthy
