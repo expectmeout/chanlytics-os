@@ -74,21 +74,24 @@ test("the blanks: a step's own words with every blank named, the line among them
 });
 
 test("what a fill-in says: what it is, where it came from, and whether it changes", () => {
-  const found = { ...LEAD, source: "local_businesses" };
-  assert.deepEqual(fillInSaysOf("business", found), { title: F.business, from: F.fromMaps, varies: F.each });
-  assert.equal(fillInSaysOf("city", { ...LEAD, source: "people_at_companies" }).from, F.fromDirectory);
-  // A lead the owner brought in on a list of their own was found on no listing, whatever its kind.
-  assert.equal(fillInSaysOf("business", { ...LEAD, source: "import" }).from, F.fromList);
-  assert.equal(fillInSaysOf("company", { ...LEAD, kind: "company", source: "import" }).from, F.fromList);
-  // Where a lead says no source, the bubble says nothing of where: never a guess from its kind.
-  assert.deepEqual(fillInSaysOf("business", LEAD), { title: F.business, from: null, varies: F.each });
-  assert.equal(fillInSaysOf("company", { ...LEAD, kind: "company" }).from, null);
-  assert.equal(fillInSaysOf("first name", LEAD).from, F.nobody);
-  assert.deepEqual(fillInSaysOf("your name", LEAD), { title: F.yourName, from: F.signs, varies: F.same });
-  assert.equal(fillInSaysOf("booking link", LEAD).varies, F.same);
+  // Where their values came from is the row's own Source word (contracts leadSourceWord), as the Leads table says it.
+  const MAPS = "Google Maps listing";
+  assert.equal(F.source("Your list"), "Source: Your list");
+  assert.deepEqual(fillInSaysOf("business", LEAD, MAPS), { title: F.business, from: F.source(MAPS), varies: F.each });
+  assert.equal(fillInSaysOf("city", LEAD, "Your list").from, F.source("Your list"));
+  const company = { ...LEAD, kind: "company" };
+  assert.equal(fillInSaysOf("company", company, "Business directory").from, F.source("Business directory"));
+  // A lead the owner brought in on a list says the list, whatever its kind: the word is the row's, never a guess here.
+  assert.equal(fillInSaysOf("company", company, "Your list").from, F.source("Your list"));
+  // No word handed: the bubble says nothing of where.
+  assert.deepEqual(fillInSaysOf("business", LEAD, null), { title: F.business, from: null, varies: F.each });
+  assert.equal(fillInSaysOf("company", company, null).from, null);
+  assert.equal(fillInSaysOf("first name", LEAD, MAPS).from, F.nobody);
+  assert.deepEqual(fillInSaysOf("your name", LEAD, MAPS), { title: F.yourName, from: F.signs, varies: F.same });
+  assert.equal(fillInSaysOf("booking link", LEAD, MAPS).varies, F.same);
   // The line has its own tint and its own press, and the receptionist its own mark: neither is a bubble.
-  assert.equal(fillInSaysOf("opening", LEAD), null);
-  assert.equal(fillInSaysOf("their preview", LEAD), null);
+  assert.equal(fillInSaysOf("opening", LEAD, MAPS), null);
+  assert.equal(fillInSaysOf("their preview", LEAD, MAPS), null);
 });
 
 const NOW = new Date("2026-11-11T12:00:00Z");

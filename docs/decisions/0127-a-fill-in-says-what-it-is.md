@@ -28,7 +28,7 @@ Ruben, 11 November: "perhaps clicking or something on the variables can switch b
 
 A second read of what was built found three things the card said that it could not stand behind:
 
-- **Where a value came from was a guess.** The card's lead carried no source, so a lead brought in on the owner's own list said its Maps listing or a directory. The card's lead now says its source by the row's one rule (contracts `leadSourceOf`, which `leadSourceWord` reads too), and a lead that says none gets no line about where.
+- **Where a value came from was a guess.** The bubble told a lead's source from its kind, so a lead brought in on the owner's own list said its Maps listing or a directory. The bubble now says the row's own Source word (contracts `leadSourceWord`, the one rule, as the Leads table and the export say it), which the sheet hands it (`SheetMail.found`), and says nothing of where when the sheet has none.
 - **"Made when this goes" was promised on the workspace alone.** The read now also answers why this lead can get none, as its door would refuse it (`cannot`: not a business that takes bookings, a closed lead, no name to set it up under), and the mark and the line say so before any email goes, with no Make it now. The door (00497 `preview_make`) is still the rule. The edge's switch is not read here: the dashboard cannot see it, so that waits for a door on the edge.
 - **"Being made" could stand for ever.** The answer says when the preview was made (`made_at`); past two minutes the mark and the line say it is slower than usual (`previewBuildSlow`), and the looks go on every half minute for ten more minutes before they stop.
 

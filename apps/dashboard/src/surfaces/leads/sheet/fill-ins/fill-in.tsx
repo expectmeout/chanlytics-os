@@ -16,13 +16,16 @@ import { useLeadPreview } from "./preview-read";
 export function FillIn({
   piece,
   lead,
+  found,
   onChange,
 }: {
   piece: LeadEmailPiece;
   lead: SlotLead | null;
+  /** The row's own Source word for this lead; null where the sheet has none. */
+  found: string | null;
   onChange: ((at: number) => void) | null;
 }) {
-  const says = lead && piece.slot ? fillInSaysOf(piece.slot, lead) : null;
+  const says = lead && piece.slot ? fillInSaysOf(piece.slot, lead, found) : null;
   if (!says) return <span data-at={piece.at}>{piece.text}</span>;
   return (
     <Popover

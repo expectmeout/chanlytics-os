@@ -32,9 +32,8 @@ export const LEAD_FILL_WORDS = {
   yourName: "Your name",
   yourBusiness: "Your business name",
   bookingLink: "Your booking link",
-  fromMaps: "From their Google Maps listing.",
-  fromDirectory: "From the business directory they are listed in.",
-  fromList: "From the list you brought in.",
+  /** Where their values came from: the row's own Source word, as the Leads table's column says it. */
+  source: (word: string) => `Source: ${word}`,
   named: "The person named at this company.",
   nobody: "Nobody is named at this company, so it says “there”.",
   signs: "The name this sequence signs with.",
@@ -80,26 +79,19 @@ interface FillInSays {
 }
 
 /**
- * Where a lead was found, as its fill-ins say it, by its source (the Maps card's, the people card's, else a list of the
- * owner's own): the card's lead says it by the one rule (contracts leadSourceOf). Null where a lead says no source: the
- * bubble then says nothing of where, never a guess from its kind.
+ * What the blank `slot` says for this lead; null for the line, the receptionist's link, or a name that is no blank.
+ * `found` is the row's own Source word (contracts leadSourceWord: its Maps listing, a business directory, or the owner's
+ * own list), the one rule for where a lead's facts came from; null where the sheet has none, and the bubble then says
+ * nothing of where. Never a guess from the lead's kind: a lead brought in on a list is a place too.
  */
-function foundWords(lead: SlotLead): string | null {
-  const source = lead.source;
-  if (!source) return null;
-  if (source === "maps" || source === "local_businesses") return F.fromMaps;
-  return source === "people_at_companies" ? F.fromDirectory : F.fromList;
-}
-
-/** What the blank `slot` says for this lead; null for the line, the receptionist's link, or a name that is no blank. */
-export function fillInSaysOf(slot: string, lead: SlotLead): FillInSays | null {
-  const found = foundWords(lead);
+export function fillInSaysOf(slot: string, lead: SlotLead, found: string | null): FillInSays | null {
+  const from = found ? F.source(found) : null;
   switch (slot) {
     case "business":
     case "company":
-      return { title: F.business, from: found, varies: F.each };
+      return { title: F.business, from, varies: F.each };
     case "city":
-      return { title: F.city, from: found, varies: F.each };
+      return { title: F.city, from, varies: F.each };
     case "first name":
       return { title: F.firstName, from: leadAddresseeOf(lead)?.first_name ? F.named : F.nobody, varies: F.each };
     case "title":

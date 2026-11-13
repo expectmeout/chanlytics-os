@@ -201,6 +201,7 @@ const mailOf = (edit = editOf(), over = {}) => ({
   wordsUnread: false,
   leadId: LEAD,
   blanks: null,
+  found: null,
   ...over,
 });
 
@@ -746,6 +747,22 @@ test("Change it for this one opens the box, as Edit does", () => {
   byId(s.draw(), "lead-card-fill-change").props.onClick();
   assert.ok(byId(s.draw(), "lead-sheet-box-body"));
   assert.equal(s.said.opened, 1);
+});
+
+test("a value of theirs says where it came from in the row's own Source word, and nothing where the sheet has none", () => {
+  const words = { subject: null, body: "Hi {{business}}." };
+  const edit = editOf({ first: false, written: words, stepWritten: words });
+  const bubbleOf = (found) => {
+    const tree = sheetOf(mailOf(edit, { subject: null, found })).draw();
+    return textOf(inTree(tree, (n) => n.type === Popover).props.children);
+  };
+  // A lead brought in on the owner's own list says the list, never a listing it was not found on.
+  const brought = bubbleOf("Your list");
+  assert.ok(brought.includes(F.source("Your list")), brought);
+  assert.ok(!brought.includes("Google Maps"), brought);
+  assert.ok(bubbleOf("Google Maps listing").includes(F.source("Google Maps listing")));
+  const none = bubbleOf(null);
+  assert.ok(none.includes(F.business) && none.includes(F.each) && !none.includes("Source"), none);
 });
 
 test("Show the blanks draws the step's own words with each blank named, and takes no tap", () => {

@@ -74,8 +74,8 @@ export const PREVIEW_LINE_WORDS = {
   title: "Their receptionist",
   none: "Not made yet. It is made when an email that carries its link goes, and that email waits for it.",
   /** None made, and its door would refuse this lead: said before any email goes, with nothing to press. */
-  cannot: (why: NonNullable<LeadPreviewDto["cannot"]>) =>
-    `Can't be made: ${CANNOT_WHY[why]}. An email that carries its link is skipped.`,
+  cannot: (reason: NonNullable<LeadPreviewDto["cannot"]>) =>
+    `Can't be made: ${CANNOT_WHY[reason]}. An email that carries its link is skipped.`,
   building: "Being set up. It takes about half a minute.",
   slow: "Still being set up. It usually takes half a minute; this one is slower, and it is checked again by itself.",
   failed: (reason: string | null) => `Couldn't be made: ${reason === "no_name" ? NO_NAME : "its set-up failed"}.`,
@@ -120,8 +120,8 @@ export function previewLineOf(dto: LeadPreviewDto, now: Date): LeadPreviewLineVM
   });
   const base = { said: phrases, make: false };
   if (preview.state === "building") {
-    const said = previewBuildSlow(preview, now) ? words.slow : words.building;
-    return { ...base, words: said, tone: "busy", open: null, link: null };
+    const building = previewBuildSlow(preview, now) ? words.slow : words.building;
+    return { ...base, words: building, tone: "busy", open: null, link: null };
   }
   if (preview.state === "failed")
     return { ...base, words: words.failed(preview.failed_why), tone: "warn", open: null, link: null };

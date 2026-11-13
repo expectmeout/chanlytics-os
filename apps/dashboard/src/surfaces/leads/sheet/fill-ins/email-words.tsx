@@ -95,7 +95,7 @@ function PieceOf({
       </span>
     );
   if (piece.kind === "value")
-    return <FillIn piece={piece} lead={mail.edit ? mail.edit.lead : null} onChange={onFill} />;
+    return <FillIn piece={piece} lead={mail.edit ? mail.edit.lead : null} found={mail.found} onChange={onFill} />;
   if (piece.kind === "mark" && piece.slot === "their preview")
     return <ReceptionistMark leadId={mail.leadId} at={piece.at} />;
   const line = piece.kind === "line" || piece.slot === "opening";

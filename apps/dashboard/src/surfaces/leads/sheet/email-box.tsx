@@ -167,6 +167,7 @@ export function SentEmail({ leadId, sendId, box }: { leadId: string; sendId: str
     pieces: [{ at: 0, kind: "words", text: got.mail.body }],
     leadId: null,
     blanks: null,
+    found: null,
     ending: null,
     opening: null,
     writing: false,
