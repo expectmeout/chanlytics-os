@@ -6,6 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 import { ROOT } from "../../_source.mjs";
 import {
   BOUNDARY_RATCHETS,
@@ -13,6 +14,7 @@ import {
   DOMAIN_TREES,
   ONE_WAY_TREES,
   PACKAGE_MAP,
+  bridgeIntoSurfaces,
   circlesOf,
   declaredSiblings,
   domainOf,
@@ -23,6 +25,7 @@ import {
   packageNames,
   reachesPastExports,
   rootNames,
+  surfacesReachedIn,
 } from "./_boundaries.mjs";
 
 const graph = moduleGraph();
@@ -43,6 +46,7 @@ test("the measures read the tree, and a circle is a circle", () => {
   for (const name of [...ONE_WAY_TREES, ...COUNTED_TREES])
     assert.ok(domainShape(DOMAIN_TREES[name], graph).domains >= 3, `${name} has domains`);
   assert.deepEqual(BOUNDARY_RATCHETS.map((r) => r.file).sort(), [
+    "bridge-into-surfaces.json",
     "domain-circles.json",
     "long-doors.json",
     "module-circles.json",
@@ -51,6 +55,45 @@ test("the measures read the tree, and a circle is a circle", () => {
     "type-circles.json",
   ]);
   for (const r of BOUNDARY_RATCHETS) assert.ok(r.advice && r.name, `${r.file} says what it holds and what to do`);
+});
+
+test("bridge-into-surfaces counts each surface module a bridge module loads, by a value import, a re-export or an import(), once; a type is not counted", () => {
+  const frame = "apps/dashboard/src/bridge/frame.tsx";
+  const known = new Set([
+    frame,
+    "apps/dashboard/src/bridge/api.ts",
+    "apps/dashboard/src/surfaces/today/page.tsx",
+    "apps/dashboard/src/surfaces/today/rows.ts",
+    "apps/dashboard/src/surfaces/today/day.ts",
+    "apps/dashboard/src/surfaces/kit/button/button.tsx",
+    "apps/dashboard/src/surfaces/reports/reports-page.tsx",
+    "apps/dashboard/src/surfaces/people/chrome.ts",
+  ]);
+  const written = [
+    'import { TodayPage } from "@/surfaces/today/page";',
+    'import { rowsOf, type Row } from "../surfaces/today/rows";',
+    'import type { Day } from "@/surfaces/today/day";',
+    'import { type Mark } from "@/surfaces/kit/button/button";',
+    'import { api } from "./api";',
+    'export { TodayPage as Today } from "@/surfaces/today/page";',
+    'export type { Crumb } from "@/surfaces/people/chrome";',
+    'const Reports = lazy(() => import("@/surfaces/reports/reports-page"));',
+  ].join("\n");
+  const sf = ts.createSourceFile(frame, written, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  assert.deepEqual([...surfacesReachedIn(sf, frame, known)].sort(), [
+    "apps/dashboard/src/surfaces/reports/reports-page.tsx",
+    "apps/dashboard/src/surfaces/today/page.tsx",
+    "apps/dashboard/src/surfaces/today/rows.ts",
+  ]);
+  const counted = bridgeIntoSurfaces();
+  const keys = Object.keys(counted);
+  assert.ok(keys.length > 0, "the bridge's own modules are read");
+  assert.deepEqual(
+    keys.filter((f) => !f.startsWith("apps/dashboard/src/bridge/")),
+    [],
+    "only the bridge's modules are counted",
+  );
+  assert.ok(counted["apps/dashboard/src/bridge/FrameApp.tsx"] > 0, "the frame's own module counts too");
 });
 
 test("the packages lean one way, in the order written down", () => {

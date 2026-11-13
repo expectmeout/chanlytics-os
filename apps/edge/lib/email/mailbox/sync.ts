@@ -18,7 +18,8 @@
  *                       is read there, as any email is (core email-ingest.ts), into the lead's thread.
  *
  * One sync at a time per mailbox (its lease), from where the last left off (its cursor): Gmail's history id, Graph's
- * delta link. A cursor the provider no longer keeps starts again from now, said in the log. A message that could not
+ * delta link. A cursor Gmail no longer keeps starts again from now and reads back what arrived meanwhile (mailbox/gap.ts);
+ * Graph's starts again from the last sync, a day back at most. Both are said in the log. A message that could not
  * be applied leaves the cursor where it was, so the next sync reads it again: both of its roads are idempotent (a job
  * once per message, a receipt that finds its row failed already). Called by the push doors and by the sweep.
  */
@@ -61,6 +62,7 @@ import type { Database, Json } from "@chanlytics/db/types";
 import { scheduleJobOnce } from "@chanlytics/jobs";
 import { applyEmailReceipt } from "../receipts.js";
 import { getToken } from "./credentials.js";
+import { filterGapMail, listGap, closeGap, stillLost, type MailGap } from "./gap.js";
 import { markSignedOut } from "./wire.js";
 import { findLeftWhy, mailSortingFor, noteLeft, type MailSorting } from "./sorting.js";
 import { errField, type Logger } from "../../shared/log.js";
@@ -89,6 +91,8 @@ interface Arrived {
    * sender before a message is read, and its delta reads the inbox, so Outlook's Sent Items reach no sync yet.
    */
   sent?: boolean;
+  /** Listed by the read-back after a lost cursor (mailbox/gap.ts): received mail, never the mailbox's own or spam. */
+  gap?: boolean;
 }
 
 /** Gmail's labels that say a message is spam or thrown away, that it is a draft, and that the mailbox sent it. */
@@ -164,17 +168,23 @@ const none = (outcome: SyncOutcome["outcome"]): SyncOutcome => ({
 /** A sender that writes delivery reports: what Graph names as a message's sender, read before the message is. */
 const REPORTER = /^(mailer-daemon|postmaster|microsoftexchange[0-9a-f]*)@/i;
 
-/** The changes since the cursor: the messages added, and the cursor after them. Null cursor: it starts from now. */
+/**
+ * The changes since the cursor: the messages added, and the cursor after them. Null cursor: it starts from now. `gap`,
+ * where a lost cursor's gap was listed and its mail is among the arrivals (mailbox/gap.ts). `lost`, where the cursor is
+ * lost and this read did not get past it: the moment of the last sync stands, since the gap is measured from it.
+ */
 type Changes =
-  { ok: true; arrived: Arrived[]; cursor: string; started: boolean } | { ok: false; status: number; why: string };
+  | { ok: true; arrived: Arrived[]; cursor: string; started: boolean; gap?: MailGap; lost?: boolean }
+  | { ok: false; status: number; why: string; lost?: boolean };
 
 async function gmailChanges(
   token: string,
-  cursor: string | null,
+  row: Pick<MailboxConnectionRow, "id" | "sync_cursor" | "synced_at" | "connected_at">,
   log: Logger,
-  id: string,
+  now: number,
   until: number,
 ): Promise<Changes> {
+  const { id, sync_cursor: cursor } = row;
   const fromNow = async (): Promise<Changes> => {
     const p = await readGmailProfile(token);
     const historyId = recordOrNull(p.json)?.historyId;
@@ -182,6 +192,18 @@ async function gmailChanges(
     return { ok: true, arrived: [], cursor: historyId, started: true };
   };
   if (!cursor) return fromNow();
+  // A cursor Gmail no longer keeps: its newest first, which becomes the cursor, then what arrived since the last sync,
+  // so nothing between the two is missed. A list the line cut short keeps the cursor, and is asked again.
+  const afterTheGap = async (): Promise<Changes> => {
+    if (Date.now() >= until) return { ok: true, arrived: [], cursor, started: false, lost: true };
+    const fresh = await fromNow();
+    if (!fresh.ok) return { ...fresh, lost: true };
+    const listed = await listGap(token, row, now, until);
+    if (!listed.ok) return { ok: false, status: listed.status, why: "gap", lost: true };
+    if ("late" in listed) return { ok: true, arrived: [], cursor, started: false, lost: true };
+    const arrived = listed.mail.map((m) => ({ id: m.id, threadId: m.threadId, from: null, gap: true }));
+    return { ...fresh, arrived, gap: listed.gap };
+  };
   const arrived: Arrived[] = [];
   let page: string | null = null;
   let next = cursor;
@@ -190,8 +212,8 @@ async function gmailChanges(
     if (!result.ok) {
       if (!result.expired) return { ok: false, status: result.reply.status, why: "history" };
       log.warn("mailbox_sync_restarted", { mailbox: id, provider: "google" });
-      // Past the line, the profile waits for the next sync: its cursor is where it was, and expires again then.
-      return Date.now() < until ? fromNow() : { ok: true, arrived, cursor, started: false };
+      // Past the line, the profile and the gap wait for the next sync: its cursor is where it was, and is lost again then.
+      return afterTheGap();
     }
     arrived.push(
       ...result.added.map((a) => ({
@@ -510,8 +532,8 @@ export async function syncMailbox(
   if (row.state === "removed" || row.state === "reconnect") return none("no_token");
   const at = new Date(now);
   if (!(await takeMailboxSync(db, row.id, at, MAILBOX_SYNC_LEASE_MS))) return none("busy");
-  const end = (cursor: string | null, error: string | null) =>
-    endMailboxSync(db, { id: row.id, cursor, at, error }).catch((e: unknown) =>
+  const end = (cursor: string | null, error: string | null, unread = false) =>
+    endMailboxSync(db, { id: row.id, cursor, at, error, unread }).catch((e: unknown) =>
       log.error("mailbox_sync_failed", { mailbox: row.id, stage: "end", error: errField(e) }),
     );
   try {
@@ -529,10 +551,10 @@ export async function syncMailbox(
     const changes =
       row.provider === "microsoft"
         ? await graphChanges(token.token, row.sync_cursor, log, row, now, until)
-        : await gmailChanges(token.token, row.sync_cursor, log, row.id, until);
+        : await gmailChanges(token.token, row, log, now, until);
     if (!changes.ok) {
       log.warn("mailbox_sync_failed", { mailbox: row.id, stage: changes.why, status: changes.status });
-      await end(null, `Could not read the mailbox (${changes.status}).`);
+      await end(null, `Could not read the mailbox (${changes.status}).`, changes.lost);
       return none("failed");
     }
 
@@ -556,9 +578,10 @@ export async function syncMailbox(
     );
     const own = row.address.toLowerCase();
     const sorting = await mailSortingFor(db, row.tenant_id, log);
-    const wanted = arrived.filter(
-      (a) => !a.mine && a.from !== own && (!a.junk || (!!a.threadId && ours.has(a.threadId))),
-    );
+    const ofTheGap = await filterGapMail(db, row.tenant_id, changes.gap, arrived, ours);
+    const wanted = arrived
+      .filter((a) => !a.mine && a.from !== own && (!a.junk || (!!a.threadId && ours.has(a.threadId))))
+      .filter(ofTheGap);
     const seen = new Set<string>();
     const result: SyncOutcome = {
       ...none(changes.started ? (row.sync_cursor ? "restarted" : "started") : "synced"),
@@ -596,8 +619,10 @@ export async function syncMailbox(
       }
     }
     // Everything read and applied moves the cursor on; a message left behind keeps it, and the next sync reads again.
-    await end(behind ? null : changes.cursor, null);
-    log.info("mailbox_synced", { mailbox: row.id, ...result, arrived: arrived.length, behind });
+    // A lost cursor's gap not yet read through leaves the last sync's moment too: the next sync lists from it again.
+    await end(behind ? null : changes.cursor, null, stillLost(changes, behind));
+    const gap = await closeGap(db, row, changes.gap, behind, log);
+    log.info("mailbox_synced", { mailbox: row.id, ...result, arrived: arrived.length, behind, ...gap });
     return result;
   } catch (err) {
     log.error("mailbox_sync_failed", { mailbox: row.id, stage: "sync", error: errField(err) });

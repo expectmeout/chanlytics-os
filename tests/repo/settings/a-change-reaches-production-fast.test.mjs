@@ -310,10 +310,39 @@ test("check:local builds first, then runs the rest side by side and says each on
   assert.ok(text.indexOf("a failing one") < text.indexOf("a slow one"), "each is said as it ends, not in turn");
 });
 
-test("CI's tests run as four parts at once, and lint and format start from main's cache", () => {
+test("check:local runs the tests of what the branch changes at the laptop's clock and twelve hours on, as CI does", async () => {
+  const tests = LOCAL_CHECKS.filter(
+    ([, command]) => command === "node tooling/scripts/checks/changed-tests.mjs origin/main HEAD",
+  );
+  assert.deepEqual(
+    tests.map(([name, , env]) => [name, env?.TEST_CLOCK ?? ""]),
+    [
+      ["the tests of what the branch changes", ""],
+      ["the tests of what the branch changes, twelve hours on", "+12h"],
+    ],
+  );
+  // A check's own environment reaches its command, over the laptop's.
+  const printed = [];
+  const node = JSON.stringify(process.execPath);
+  const failed = await runTogether(
+    [["the clock it was given", `${node} -e "console.log('clock ' + process.env.TEST_CLOCK)"`, { TEST_CLOCK: "+12h" }]],
+    ROOT,
+    (text) => printed.push(text),
+  );
+  assert.deepEqual(failed, []);
+  assert.match(printed.join(""), /clock \+12h/);
+});
+
+test("CI's tests run as four parts at once, at CI's clock and twelve hours on, and lint and format start from main's cache", () => {
   const ci = read(".github/workflows/ci.yml");
-  assert.match(ci, /name: Tests of what changed \(\$\{\{ matrix\.shard \}\}\/4\)/);
-  assert.match(ci, /fail-fast: false\n\s+matrix:\n\s+shard: \[1, 2, 3, 4\]/);
+  // #2285's playbooks test passed at 23:11 in New York and was red the other twenty hours of the day (13 Nov 2026): each
+  // part runs at CI's own clock and again twelve hours on, side by side (tooling/scripts/checks/test.mjs, TEST_CLOCK).
+  assert.match(
+    ci,
+    /name: Tests of what changed \(\$\{\{ matrix\.shard \}\}\/4\)\$\{\{ matrix\.clock && ', twelve hours on' \|\| '' \}\}/,
+  );
+  assert.match(ci, /fail-fast: false\n\s+matrix:\n\s+shard: \[1, 2, 3, 4\]\n(?:\s+#.*\n)*\s+clock: \["", "\+12h"\]/);
+  assert.match(ci, /\n {6}TEST_CLOCK: \$\{\{ matrix\.clock \}\}\n/, "the launcher reads the job's clock");
   assert.match(ci, /changed-tests\.mjs HEAD\^1 HEAD --test-shard=\$\{\{ matrix\.shard \}\}\/4/);
   assert.match(ci, /pnpm test -- --test-shard=\$\{\{ matrix\.shard \}\}\/4/);
   assert.match(ci, /path: node_modules\/\.cache\/eslint/);

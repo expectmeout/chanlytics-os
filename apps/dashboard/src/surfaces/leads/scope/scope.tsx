@@ -6,7 +6,7 @@
  * through the surface's doors (../surface.ts). Nothing here names the vendor: the owner sees Claude finding businesses,
  * and where each fact came from. Its parts are plain functions, never components, so its tree is the one it always drew.
  */
-import { useEffect, type ReactElement } from "react";
+import type { ReactElement } from "react";
 import { LEAD_WORDS, leadReviewGroups, type LeadPeekVM, type LeadRowVM } from "@chanlytics/contracts";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -33,7 +33,7 @@ import { LeadPeekActions } from "../peek/acts";
 import { LeadLightbox } from "../peek/lightbox";
 import { leadRowReach } from "../sheet/reach";
 import { LeadSheet } from "../sheet/sheet";
-import { peekVMFor } from "../surface";
+import { leadsTakeOffered, peekVMFor } from "../surface";
 import type { LeadsScopeProps } from "../page/props";
 import { LeadsBulkBar } from "./bulk-bar";
 import { LeadsActs, LeadsControlsRight, LeadsHead } from "./controls";
@@ -42,6 +42,7 @@ import { LeadPlanSheet, LeadsImportAct, LeadsNewSearch, LeadsPhoneBar } from "./
 import { LinkButton } from "../../kit/link-button/link-button";
 import { LeadsRailRows } from "./rail";
 import { ldReviewSections } from "./review";
+import { RowsLand } from "./rows-land";
 
 type P = LeadsScopeProps;
 /** The rail's own pick is People's: under Leads it draws the rows it is handed, and picks nothing itself. */
@@ -478,6 +479,17 @@ const sheetMarkOf = (p: P) => (p.peek || p.pileSheet ? "" : undefined);
 const phoneStandingOf = (p: P, phone: boolean) =>
   phone && !p.firstDay && !p.newSearch ? <LeadsStandingRow leads={p.standing} onNeeds={p.onNeedsYou} /> : null;
 
+/** What a running search found, taken in by itself under a reader at the top with no lead open (rows-land.tsx). */
+const rowsLandOf = (p: P) => (
+  <RowsLand
+    offered={p.surface.offered}
+    running={p.strip?.state === "running"}
+    open={!!p.peek}
+    rows={p.scrollRef ?? null}
+    take={leadsTakeOffered}
+  />
+);
+
 const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections) => {
   const search = p.search;
   const table = tableOf(p, phone, sections);
@@ -489,7 +501,7 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
           name. A phone's head holds New search past the first day (phone-bar.tsx LeadsNewSearch), and its bar Import; a
           desk's first day holds no act beside the page's own door, and keeps the door for a list under it. */}
       {phone && !p.firstDay && !p.newSearch && phoneBarOf(p)}
-      <RowsLand p={p} />
+      {rowsLandOf(p)}
       <div className="cl-main-scroll pl-main" ref={p.scrollRef} data-sheet={sheetMarkOf(p)} {...leadRowReach(p.aim)}>
         {phone || p.firstDay ? <LeadsHead act={headActOf(p, phone)} /> : deskTopOf(p)}
         {phoneStandingOf(p, phone)}
@@ -553,32 +565,6 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
     </div>
   );
 };
-
-/**
- * Rows land while a search runs and you are at the top (D9 of the answers canvas): what a refresh found is taken in by itself,
- * in the groups it arrives in. The moment you scroll or open a lead they hold still and "3 new" comes back, so nothing moves
- * under your finger, which is what the rule it softens was for (E8).
- */
-function RowsLand({
-  p,
-}: {
-  p: {
-    surface: { offered: number };
-    onTakeOffered: () => unknown;
-    scrollRef?: { current: HTMLElement | null } | null;
-    strip?: { state: string } | null;
-    peek?: unknown;
-  };
-}) {
-  const offered = p.surface.offered;
-  const running = p.strip?.state === "running";
-  const atTop = (p.scrollRef?.current?.scrollTop ?? 0) < 8;
-  const open = !!p.peek;
-  useEffect(() => {
-    if (offered > 0 && running && atTop && !open) void p.onTakeOffered();
-  }, [offered, running, atTop, open, p]);
-  return null;
-}
 
 export const LeadsScope = (p: P) => {
   // The same band People's cards use and the same one the page's listener judges the Columns menu by. The page hands it

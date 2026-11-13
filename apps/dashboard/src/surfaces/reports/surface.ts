@@ -130,12 +130,17 @@ function readRange(range: ReportRange) {
 const refusesDays = (range: ReportRange, e: unknown): range is ReportDays =>
   typeof range !== "string" && e instanceof ApiError && e.code === "validation";
 
+/** Moved on by every forget: a read that went out before it is neither held nor drawn. */
+let reportsForgotten = 0;
+
 /**
  * A write made from another page changed what the overview counts (a deal recorded, the zone saved, a visit marked): nothing is
  * held of it, so no pick paints a read from before, and Reports reads it as it comes on screen (surface-registry.ts keepForItsPage).
- * Where Reports is on screen already the write reads it again at once instead (refresh-map.ts), as it does the lenses.
+ * Where Reports is on screen already the write reads it again at once instead (refresh-map.ts), as it does the lenses. A read out
+ * at the write is not held or drawn: either read takes its turn behind it (activateOverride), so the page is never left on it.
  */
 export function forgetReports(): void {
+  reportsForgotten += 1;
   reportsHeld.forget();
   keepForItsPage("reports");
 }
@@ -176,6 +181,7 @@ export const reportsOverride: SurfaceOverride = {
   view: shownReportKey,
   apply: async () => {
     const asked = shownReportRange();
+    const forgotten = reportsForgotten;
     // What is published is of the range that was read: the one asked for, or, where the report refuses the days asked
     // for, the period kept in this browser, read in their place and published with the days it stands in for. The page
     // always has real numbers that way, says which days it could not read, and moves the address off them
@@ -193,6 +199,8 @@ export const reportsOverride: SurfaceOverride = {
     // A pick of another range while this read was out: its answer is for a range left, and never lands on the new
     // one. A held range answers a pick at once and is read again behind it, so two reads can be out together.
     if (reportRangeKey(asked) !== shownReportKey()) return;
+    // A write since it went out: what it read is what the write made wrong (forgetReports).
+    if (forgotten !== reportsForgotten) return;
     const vm = toReportVM(data.report, { profile: data.profile });
     const whole: ReportsSurface = {
       vm,

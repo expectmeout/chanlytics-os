@@ -79,6 +79,23 @@ test("a backlog that cannot be read is not 'zero'", async () => {
   assert.equal(a.body.jobs_backlog, null);
 });
 
+test("REGRESSION: a registry that came back with no clock at all is 503 no_clocks -- it was 200, all clear, with nothing watched", async () => {
+  const a = await judgeHealth(db([], 0), NOW);
+  assert.equal(a.status, 503);
+  assert.deepEqual(a.body, {
+    ok: false,
+    unhealthy: [],
+    jobs_backlog: 0,
+    checked_at: "2026-09-11T12:00:00.000Z",
+    video_machine: true,
+    reason: "no_clocks",
+  });
+  // An answer that is no list at all is no clock either.
+  assert.equal((await judgeHealth(db(null, 0), NOW)).body.reason, "no_clocks");
+  // And a clock that is unhealthy is named, as it was: the reason is for the registry alone.
+  assert.equal((await judgeHealth(db([row("jobs", false)], 0), NOW)).body.reason, undefined);
+});
+
 test("a health function that cannot be read is 503 with a reason, and none of the database's words", async () => {
   const a = await judgeHealth(db(null, 0, { message: "permission denied for schema cron (secret-ish)" }), NOW);
   assert.equal(a.status, 503);

@@ -50,7 +50,7 @@ import {
 } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import { sendMessageId } from "@chanlytics/core";
-import { draftRefusalOf, isWaitRefusal, DbFailure } from "@chanlytics/contracts";
+import { draftRefusalOf, isWaitRefusal, DbFailure, SECOND_MS } from "@chanlytics/contracts";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan, type ReplanCounts } from "./replan.js";
 import type { Logger } from "../../shared/log.js";
 import { UNKNOWN_OUTCOME_MS } from "../../shared/unknown-outcome.js";
@@ -67,6 +67,19 @@ export const CLAIM_STUCK_AFTER_MS = 10 * 60_000;
 export const CLOCK_YIELD_AT_MS = 40_000;
 const PAGE = 500;
 const STUCK_PAGE = 100;
+/**
+ * How often a lead's write is tried once its send has moved, and the pause between two tries: a connection the database
+ * dropped is back by the next. One lead that used them all up is the database not answering, so the leads after it in
+ * the tick are tried once, as they were (leadWrites), and the tick's minute is never spent waiting.
+ */
+const LEAD_WRITE_TRIES = 3;
+const LEAD_WRITE_REST_MS = SECOND_MS;
+
+/** What the clock takes from outside, so a test stands in for it: the pause between two tries of a lead's write. */
+interface ClockPorts {
+  rest?: (ms: number) => Promise<void>;
+}
+const restFor = (ms: number): Promise<void> => new Promise((done) => setTimeout(done, ms));
 
 export interface ClockCounts extends ReplanCounts {
   reconciled: number;
@@ -92,6 +105,39 @@ function neverLeft(error: { reason?: string; http_status?: number } | null): boo
 
 const move = (db: Db, s: LeadSendRow, patch: Partial<LeadSendRow>): Promise<boolean> =>
   moveSend(db, { tenantId: s.tenant_id, id: s.id, from: s.state, patch });
+
+/**
+ * The lead's bookkeeping after its send moved to sent (packages/db recordLeadWritten), tried again where it failed
+ * (LEAD_WRITE_TRIES). The send is sent whatever becomes of it: a lead that still could not be written is said, never
+ * undone, and never holds its send. Until 13 November 2026 one failure was said and nothing tried again, and the send
+ * had left the queued list, so the lead read as never written to for good. A failure that outlasts the tries is still
+ * only said (the log's reach_out_lead_unwritten): no later tick finds it.
+ */
+function leadWrites(db: Db, log: Logger, ports: ClockPorts | undefined, late: () => boolean) {
+  const rest = ports?.rest ?? restFor;
+  // The sends whose lead used up its tries this tick: one is the database not answering, and the rest are tried once.
+  const spent: string[] = [];
+  return async (send: LeadSendRow, at: string): Promise<void> => {
+    let failure: unknown = null;
+    const tries = spent.length ? 1 : LEAD_WRITE_TRIES;
+    for (let tried = 1; tried <= tries; tried++) {
+      if (tried > 1) await rest(LEAD_WRITE_REST_MS);
+      try {
+        await recordLeadWritten(db, { tenantId: send.tenant_id, leadId: send.lead_id, at, sendId: send.id });
+        return;
+      } catch (e) {
+        failure = e;
+        if (late()) break;
+      }
+    }
+    spent.push(send.id);
+    log.error("reach_out_lead_unwritten", {
+      send_id: send.id,
+      lead_id: send.lead_id,
+      error: failure instanceof Error ? failure.message : String(failure),
+    });
+  };
+}
 
 /**
  * Whether a send the door turned back, or the provider never took, is planned again. A lead's own email (00540) never
@@ -195,6 +241,7 @@ export async function runReachOutClock(
   started: number = Date.now(),
   /** One workspace to keep to; every workspace when absent, as the clock runs. A test proves it on its own. */
   tenantId?: TenantId,
+  ports?: ClockPorts,
 ): Promise<ClockCounts> {
   const out: ClockCounts = {
     reconciled: 0,
@@ -216,6 +263,7 @@ export async function runReachOutClock(
     return true;
   };
   const again: Replan[] = [];
+  const writeLead = leadWrites(db, log, ports, late);
 
   /* reconcile */
   for (const queued of await listQueuedOutcomes(db, PAGE, tenantId)) {
@@ -231,14 +279,7 @@ export async function runReachOutClock(
       if (await move(db, send, { state: "sent", sent_at: at })) {
         out.sent += 1;
         // The send is sent whatever the lead's bookkeeping does: a lead that could not be written is said, not undone.
-        await recordLeadWritten(db, { tenantId: send.tenant_id, leadId: send.lead_id, at, sendId: send.id }).catch(
-          (e: unknown) =>
-            log.error("reach_out_lead_unwritten", {
-              send_id: send.id,
-              lead_id: send.lead_id,
-              error: e instanceof Error ? e.message : String(e),
-            }),
-        );
+        await writeLead(send, at);
       }
     } else if (queued.status === "failed" && error?.outcome === "unknown") {
       // Its receipt settles it (00177's guard lets exactly this row move on). A day with none: it may have gone.

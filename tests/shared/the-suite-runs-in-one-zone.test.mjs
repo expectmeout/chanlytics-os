@@ -1,7 +1,9 @@
 /**
  * `pnpm test` runs through one launcher (tooling/scripts/checks/test.mjs) that sets the zone before Node starts: UTC,
  * unless TEST_TZ names another. 18 of 628 time-related tests failed under Pacific/Auckland on 29 Sep 2026 and none under
- * UTC, where CI runs, so a laptop twelve hours east of CI saw a red suite CI never did.
+ * UTC, where CI runs, so a laptop twelve hours east of CI saw a red suite CI never did. And the clock, when TEST_CLOCK
+ * moves it some hours on: #2285's playbooks test passed in CI at 23:11 in New York on 13 Nov 2026 and was red on main the
+ * other twenty hours of the day, so CI runs a change's tests at its own clock and twelve hours on.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -10,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import {
   BUILDS_AT_SCALE,
   CHANGES_A_TABLE,
+  clockOf,
   databasePasses,
   importsLeaveTheThread,
   planOf,
@@ -20,6 +23,16 @@ import {
 
 const LAUNCHER = fileURLToPath(new URL("../../tooling/scripts/checks/test.mjs", import.meta.url));
 const PROBE = "tests/fixtures/zone-probe.mjs";
+const HOUR = 60 * 60 * 1000;
+
+/** The launcher run on one probe, as a person runs it: the suite's own runner's mark taken off, `env` laid over. */
+function launch(probe, env) {
+  const all = { ...process.env, ...env };
+  // A child of the suite's own runner is told so, and a runner started inside it then skips its files ("run() is
+  // being called recursively"): without this the probe would never run, and the launcher's env could be anything.
+  delete all.NODE_TEST_CONTEXT;
+  return spawnSync(process.execPath, [LAUNCHER, probe], { env: all, encoding: "utf8" });
+}
 
 test("the suite runs in UTC unless TEST_TZ names a zone, and a zone Node does not know is refused", () => {
   assert.equal(zoneOf({}), "UTC");
@@ -241,6 +254,7 @@ test("a full run in UTC is measured, and nothing else is: files, a flag, the db 
     [["--db"], {}],
     [[], { TEST_TZ: "Pacific/Auckland" }],
     [[], { TEST_TZ: "UTC" }],
+    [[], { TEST_CLOCK: "+12h" }],
     [[], { TEST_COVERAGE: "0" }],
   ]) {
     const plan = planOf(argv, env);
@@ -267,4 +281,50 @@ test("a run's children see the zone: UTC by default, and TEST_TZ's when it is se
     assert.match(run.stdout, /^(?:ok 1 - |✔ )the zone the launcher set/m, "the probe ran, and passed");
     assert.ok(run.stderr.includes(`the suite runs in ${zone}`), run.stderr);
   }
+});
+
+test("TEST_CLOCK moves the clock whole hours on, or back; blank is the machine's clock, and anything else is refused", () => {
+  assert.equal(clockOf({}), 0);
+  assert.equal(clockOf({ TEST_CLOCK: "  " }), 0);
+  assert.equal(clockOf({ TEST_CLOCK: "+12h" }), 12);
+  assert.equal(clockOf({ TEST_CLOCK: "12h" }), 12);
+  assert.equal(clockOf({ TEST_CLOCK: "-6h" }), -6);
+  assert.equal(clockOf({ TEST_CLOCK: "+0h" }), 0);
+  for (const setting of ["12", "+1.5h", "tomorrow", "+12 h", "+1000h"])
+    assert.throws(() => clockOf({ TEST_CLOCK: setting }), /TEST_CLOCK=.* is not a clock/, setting);
+  // It rides NODE_OPTIONS, the hours in the module's address, so every process the run starts reads the same clock; a
+  // run started inside one at another clock takes the outer clock's off first.
+  const moved = (env) => planOf([PROBE], env).env.NODE_OPTIONS;
+  assert.match(
+    moved({ TEST_CLOCK: "+12h" }),
+    /--import file:\/\/\S+\/tests\/fixtures\/clock-ahead\.mjs\?hours=12(?:\s|$)/,
+  );
+  assert.equal(moved({}).includes("clock-ahead"), false);
+  assert.equal(moved({ TEST_CLOCK: "+0h" }).includes("clock-ahead"), false);
+  const inner = moved({ TEST_CLOCK: "-3h", NODE_OPTIONS: moved({ TEST_CLOCK: "+12h" }) });
+  assert.equal(inner.match(/clock-ahead/g).length, 1, inner);
+  assert.match(inner, /clock-ahead\.mjs\?hours=-3(?:\s|$)/);
+  assert.equal(moved({ NODE_OPTIONS: moved({ TEST_CLOCK: "+12h" }) }).includes("clock-ahead"), false);
+});
+
+test("a run's tests, and every process they start, read TEST_CLOCK's clock; a date built from a number, or frozen, is as it says", () => {
+  const run = launch("tests/fixtures/clock-probe.mjs", { TEST_CLOCK: "+12h", EXPECT_AHEAD_MS: String(12 * HOUR) });
+  assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
+  assert.match(run.stdout, /^(?:ok 1 - |✔ )the clock the launcher set/m, "the probe ran, and passed");
+  assert.match(run.stderr, /the suite runs in UTC, the clock 12 hours on \(TEST_CLOCK\)/);
+});
+
+test("REGRESSION: a test that holds only in the evening fails at one of CI's two clocks (#2285's playbooks test, 13 Nov 2026)", () => {
+  // The machine's own hour in New York, whatever clock this run itself reads, and the hours on to 21:00 there.
+  const real = new Date(performance.timeOrigin + performance.now());
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", hourCycle: "h23" }).format(real),
+  );
+  const toEvening = (21 - hour + 24) % 24;
+  const clockSetting = (hours) => `${hours < 0 ? "-" : "+"}${Math.abs(hours)}h`;
+  const evening = launch("tests/fixtures/evening-probe.mjs", { TEST_CLOCK: clockSetting(toEvening) });
+  assert.equal(evening.status, 0, `at 21:00 in New York the probe passes, as #2285's did in CI\n${evening.stdout}`);
+  const morning = launch("tests/fixtures/evening-probe.mjs", { TEST_CLOCK: clockSetting(toEvening + 12) });
+  assert.notEqual(morning.status, 0, "twelve hours on, at 09:00 there, it fails: the second clock catches it");
+  assert.match(morning.stdout, /written in the evening, in New York/);
 });
