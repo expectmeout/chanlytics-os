@@ -3,7 +3,9 @@
  * from contracts' visitSheetOf, which decides every word and act. Its head says what it is, when, and how it stands; its
  * person line who it is for, as a door to their page, with the Message and Call circles that reach them; its rows what
  * nothing above says; its footnote where it changes; its foot More and one act by how it stands, or, for a visit over and
- * not marked, the ask "Did Maria come yesterday?" over Missed and Kept, as Today's sheet asks it (11 Nov 2026).
+ * not marked, the ask "Did Maria come yesterday?" over Missed and Kept, as Today's sheet asks it (11 Nov 2026). A word said
+ * here is answered here, as Today's row answers it: the visit stands as it was told at once, the foot says what the word
+ * sets going (the sequence that thanks them, or offers another time) and offers the other word as the way back.
  *
  * Every act is a door that already exists: a visit's word is the Calendar's (POST calendar/visits/[id]), the thread is the
  * Inbox's (or a new conversation), the booking link is carried into the thread as People's row carries it, a proposal is
@@ -21,11 +23,12 @@ import {
   addressOf,
   appointmentWords,
   formatPhoneDisplay,
-  type AppointmentWord,
   type CalendarBlockVM,
   type VisitWord,
 } from "@chanlytics/contracts";
 import { CALENDAR_VISIT_SHEET_WORDS as W, type VisitMoreAct, type VisitSheetVM } from "./sheet-view";
+import type { VisitCtx } from "./context";
+import { VisitOutcome, sayHere } from "./outcome";
 import { commitVerb } from "@/bridge/verbs/commit";
 import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
@@ -42,18 +45,6 @@ import { gate, navigate, openDealSheet, type DealSheetAsk } from "../../frame-ve
 import { openStepSheet } from "../../people/deal/deal-verbs";
 import { sayVisit } from "../../visit-line";
 import { answerRequest } from "../../booking-request";
-
-/** What the parts are drawn from, and what they do. */
-export interface VisitCtx {
-  b: CalendarBlockVM;
-  vm: VisitSheetVM;
-  word: AppointmentWord;
-  bookingLink: string | null;
-  /** Close the sheet or the peek (the address goes back with it). */
-  close: () => void;
-  /** Say something once, at the foot of the page (the board's toast). */
-  flash: (text: string) => void;
-}
 
 /** "Thu, Oct 15 · 12:30 – 1:30 PM · 1h · Repeats", with Today, Tomorrow or Yesterday first where it is one. */
 export function whenWords(vm: VisitSheetVM): string {
@@ -161,23 +152,20 @@ function visitReach(visitCtx: VisitCtx) {
 /**
  * "Did Maria come yesterday?" over its two answers, in the foot, as Today's sheet asks it (one sheet, 9 Nov 2026; here
  * 11 Nov): More, then the quiet answer, then the answer that is its act, the two equal. The same door Today and their
- * page press, each named for a screen reader with who and when. Once the door has written, the word stands in place of
- * the answers until the board reads again.
+ * page press, each named for a screen reader with who and when. Once the door has written, the sheet keeps its answer
+ * (sayHere) and draws the visit as it was told: the question goes, and the foot says what follows (outcome.tsx VisitOutcome).
  */
 function VisitAskFoot({ c, more }: { c: VisitCtx; more: ReactNode }) {
   const ask = c.vm.ask;
   const [busy, setBusy] = useState<VisitWord | null>(null);
-  const [said, setSaid] = useState<VisitWord | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const mark = ask?.line.mark;
-  if (!ask || !mark) return null;
+  if (!ask || !ask.line.mark) return null;
   const say = async (status: VisitWord) => {
     setBusy(status);
     setProblem(null);
     try {
-      const r = await sayVisit(mark.id, status);
-      if (r.ok) setSaid(status);
-      else setProblem(r.message);
+      const answer = await sayHere(c, status);
+      if (answer && !answer.ok) setProblem(answer.message);
     } finally {
       setBusy(null);
     }
@@ -207,16 +195,8 @@ function VisitAskFoot({ c, more }: { c: VisitCtx; more: ReactNode }) {
       ) : null}
       <div className="cal-visit-acts" data-foot-acts="">
         {more}
-        {said ? (
-          <p className="cal-visit-ask-said" role="status" data-testid="cal-visit-ask-said">
-            {VISIT_WORDS[said]}
-          </p>
-        ) : (
-          <>
-            {second ? answer(second, "secondary") : null}
-            {act ? answer(act, "primary") : null}
-          </>
-        )}
+        {second ? answer(second, "secondary") : null}
+        {act ? answer(act, "primary") : null}
       </div>
     </section>
   );
@@ -387,10 +367,10 @@ function PrimaryAct({ c }: { c: VisitCtx }) {
 function moreItem(c: VisitCtx, m: { act: VisitMoreAct; label: string; danger: boolean }, ask: () => void): MenuItem {
   const { act, label, danger } = m;
   const p = c.b.person;
-  const mark = c.vm.line.mark;
   const said = (status: VisitWord) => () => {
-    if (!mark) return;
-    void sayVisit(mark.id, status).then((r) => c.flash(r.ok ? VISIT_WORDS[status] : r.message));
+    void sayHere(c, status).then((answer) => {
+      if (answer) c.flash(answer.ok ? VISIT_WORDS[status] : answer.message);
+    });
   };
   switch (act) {
     case "copy": {
@@ -446,7 +426,10 @@ function moreItem(c: VisitCtx, m: { act: VisitMoreAct; label: string; danger: bo
   }
 }
 
-/** The foot: More and the lead act, or the ask over its two answers; and, once asked, the cancel's question. */
+/**
+ * The foot: More and the lead act, or the ask over its two answers; over them, what a word just said here sets going;
+ * and, once asked, the cancel's question.
+ */
 export function VisitFoot({ c }: { c: VisitCtx }) {
   const { vm } = c;
   const [asking, setAsking] = useState(false);
@@ -502,10 +485,13 @@ export function VisitFoot({ c }: { c: VisitCtx }) {
           ) : null}
         </>
       ) : (
-        <div className="cal-visit-acts" data-foot-acts="">
-          {more}
-          <PrimaryAct c={c} />
-        </div>
+        <>
+          <VisitOutcome visit={c} />
+          <div className="cal-visit-acts" data-foot-acts="">
+            {more}
+            <PrimaryAct c={c} />
+          </div>
+        </>
       )}
       {vm.shut ? <p className="cal-visit-quiet">{vm.shut}</p> : null}
     </div>

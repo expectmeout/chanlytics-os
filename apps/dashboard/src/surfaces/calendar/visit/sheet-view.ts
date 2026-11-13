@@ -3,7 +3,7 @@
  * board's edge on a desk draw this, and work none of it out. What it is and when; how it stands, said once; who it is for,
  * with their standing, business and deal (the board's own read of them, calendar-person-facts.ts); the one question an
  * ended visit asks; the few rows that say something new; where it changes; and one act by how it stands, then a Message
- * and a Call circle, then More.
+ * and a Call circle, then More. A word said in the sheet itself is answered there: what it sets going, and the way back.
  *
  * Its acts are the ones the pages already have, each by the rule that already decides it: a visit's word is the visit
  * line's (visitLineOf: no act the door would refuse, nothing asked of an event that is nobody's), the booking link is the
@@ -15,6 +15,7 @@ import {
   addToPeopleOf,
   ADD_TO_PEOPLE_WORDS,
   VISIT_ASK_WORDS,
+  VISIT_WORDS,
   visitLineOfBlock,
   type VisitLineVM,
   BOOKING_REQUEST_WORDS,
@@ -33,8 +34,9 @@ import {
   PERSON_PEEK_WORDS,
   personTabRoute,
   formatPhoneDisplay,
+  shortName,
 } from "@chanlytics/contracts";
-import type { CalendarBlockVM, CalendarMomentDto, PersonState } from "@chanlytics/contracts";
+import type { CalendarBlockVM, CalendarMomentDto, PersonState, VisitFollowUp, VisitWord } from "@chanlytics/contracts";
 
 /** The sheet's own words: its rows, its acts, its footnotes. */
 export const CALENDAR_VISIT_SHEET_WORDS = {
@@ -158,6 +160,17 @@ export interface VisitSheetVM {
   phone: string | null;
   /** A consultation's proposal, where the deal's rule offers one now (calendarPeekDeal). */
   proposal: { personId: string; mode: string; service: string | null } | null;
+  /**
+   * A word said in this sheet, answered where it was said: the word and what it sets going in one line ("Kept · “Thank
+   * you” thanks them tomorrow 10 AM."), and the other word as the way back, in one press, where the door allows it.
+   */
+  outcome: { words: string; change: { word: VisitWord; label: string } | null } | null;
+}
+
+/** What the door answered a word said in the sheet: the word, and the sequence that owes them a message for it. */
+export interface VisitSheetOutcome {
+  word: VisitWord;
+  follows: VisitFollowUp | null;
 }
 
 /** What the sheet is made from: the block, its day, the board's facts beside it, and the clock. */
@@ -180,10 +193,9 @@ export interface VisitSheetInput {
   next: string | null;
   /** The campaigns, for the reminder line (calendar_runs), or null before they are read. */
   moments: readonly CalendarMomentDto[] | null;
+  /** The word this sheet was just told of the visit and what the door said follows it; null before one is said here. */
+  outcome: VisitSheetOutcome | null;
 }
-
-/** A name's first word, as an act says it ("Message Maria"). */
-const firstOf = (name: string): string => name.trim().split(/\s+/)[0] || name;
 
 /** Up to two initials of a name, for a face. */
 function initialsOfName(name: string | null): string {
@@ -232,7 +244,7 @@ function personOf(
       known: true,
       id: person.id,
       name: person.name,
-      first: firstOf(person.name),
+      first: shortName(person.name),
       initials: initialsOfName(person.name),
       state: facts?.state ?? null,
       stateWord: facts?.stateWord ?? null,
@@ -336,6 +348,31 @@ function footnoteOf(visitSheetInput: VisitSheetInput, nobody: boolean): string {
 const linkGoes = (i: VisitSheetInput): boolean =>
   !!i.bookingLink && !!i.block.person?.threadId && !!i.block.person.bookingLinkAction.offered;
 
+/** The word said in the sheet, while the visit stands as it was told: null before one, and once the board says otherwise. */
+const outcomeNow = ({ outcome, block }: VisitSheetInput): VisitSheetOutcome | null =>
+  outcome && block.visit?.status === outcome.word ? outcome : null;
+
+/** Whether a sequence owes them a message for the Missed just said here (the door's answer, decision 0119). */
+const sequenceAnswers = (visitSheetInput: VisitSheetInput): boolean => {
+  const outcome = outcomeNow(visitSheetInput);
+  return outcome?.word === "missed" && outcome.follows !== null;
+};
+
+/**
+ * A word said in the sheet, answered where it was said: the word, what it sets going (VISIT_ASK_WORDS.follows), and the other
+ * word as the way back where the door allows a correction now (visitActsOf).
+ */
+function sheetOutcomeOf(visitSheetInput: VisitSheetInput, line: VisitLineVM): VisitSheetVM["outcome"] {
+  const outcome = outcomeNow(visitSheetInput);
+  if (!outcome) return null;
+  const detail = outcome.follows ? VISIT_ASK_WORDS.follows(outcome.word, outcome.follows) : null;
+  const other = line.acts.find((act) => act === "kept" || act === "missed");
+  return {
+    words: [VISIT_WORDS[outcome.word], detail].filter(Boolean).join(" · "),
+    change: other === "kept" || other === "missed" ? { word: other, label: SHEET_WORDS.moreActs[other] } : null,
+  };
+}
+
 /** The one act the foot leads with, by how the visit stands (each verb already exists). */
 function primaryOf(
   visitSheetInput: VisitSheetInput,
@@ -344,13 +381,17 @@ function primaryOf(
   proposalWords: string | null,
 ): VisitSheetVM["primary"] {
   const block = visitSheetInput.block;
+  const answered = sequenceAnswers(visitSheetInput);
   // A time a customer picked by text leads with its answer; Can't is in More (decision 0061).
   if (block.request?.open) return { act: "booked", label: BOOKING_REQUEST_WORDS.booked_it, quiet: false };
   if (!block.person) return addToPeopleOf(block) ? { act: "add", label: ADD_TO_PEOPLE_WORDS.act, quiet: false } : null;
-  const message = { act: "message" as const, label: SHEET_WORDS.message(firstOf(block.person.name)), quiet: false };
+  const message = { act: "message" as const, label: SHEET_WORDS.message(shortName(block.person.name)), quiet: false };
   const status = block.visit?.status;
+  // A Missed a sequence answers is offered no new time from here: the sequence asks them, and two asks is one too many.
   if (status === "missed" || status === "cancelled")
-    return linkGoes(visitSheetInput) ? { act: "new_time", label: SHEET_WORDS.newTime, quiet: false } : message;
+    return linkGoes(visitSheetInput) && !answered
+      ? { act: "new_time", label: SHEET_WORDS.newTime, quiet: false }
+      : message;
   // Not marked: the ask leads, and the thread waits beside it as the quiet act; a proposal follows a Kept.
   if (line.unmarked) return { ...message, quiet: true };
   // A consultation over with no proposal since, kept or with no row to mark (the deal's rule, calendarPeekDeal).
@@ -373,8 +414,10 @@ function visitMoreOf(visitSheetInput: VisitSheetInput, line: VisitLineVM, phone:
   if (phone) add("copy", moreActs.copy);
   if (block.person?.facts?.deal) add("deal", moreActs.deal);
   // A correction is a word about a visit that has been said (visitActsOf): Kept corrects to Missed, and Missed to Kept.
-  if (block.visit?.status === "kept" && line.acts.includes("missed")) add("missed", moreActs.missed);
-  if (block.visit?.status === "missed" && line.acts.includes("kept")) add("kept", moreActs.kept);
+  // A word said in this sheet offers it beside what it said (sheetOutcomeOf), so More does not say it twice.
+  const corrects = !outcomeNow(visitSheetInput);
+  if (corrects && block.visit?.status === "kept" && line.acts.includes("missed")) add("missed", moreActs.missed);
+  if (corrects && block.visit?.status === "missed" && line.acts.includes("kept")) add("kept", moreActs.kept);
   // A time a customer picked by text is cancelled by its answer, Can't, which leaves their thread waiting on a reply.
   if (block.request?.open) add("cant", BOOKING_REQUEST_WORDS.cant_it, true);
   else if (line.acts.includes("cancelled"))
@@ -411,7 +454,7 @@ function visitAskOf(i: VisitSheetInput, line: VisitLineVM): VisitSheetVM["ask"] 
   if (!line.unmarked || !line.asks.length || !line.mark?.id) return null;
   const name = i.block.person?.name ?? i.block.guess;
   const dayWord = i.rel ?? `${i.day.dow} ${i.day.date}`;
-  return { question: name ? UP_NEXT_WORDS.didTheyCome(firstOf(name), dayWord) : VISIT_ASK_WORDS.question, line };
+  return { question: name ? UP_NEXT_WORDS.didTheyCome(shortName(name), dayWord) : VISIT_ASK_WORDS.question, line };
 }
 
 /** Message beside the lead act where it is not the lead, and Call where someone People holds has a number. */
@@ -420,7 +463,7 @@ function circlesOf(
   primary: VisitSheetVM["primary"],
   phone: string | null,
 ): VisitSheetVM["circles"] {
-  const first = calendarBlock.person ? firstOf(calendarBlock.person.name) : null;
+  const first = calendarBlock.person ? shortName(calendarBlock.person.name) : null;
   return {
     message: first && primary?.act !== "message" ? SHEET_WORDS.message(first) : null,
     // Their page's Call, which rings from the member's phone and asks how it went: only someone People holds has one.
@@ -471,5 +514,6 @@ export function visitSheetOf(visitSheetInput: VisitSheetInput): VisitSheetVM {
     line,
     phone,
     proposal,
+    outcome: sheetOutcomeOf(visitSheetInput, line),
   };
 }
