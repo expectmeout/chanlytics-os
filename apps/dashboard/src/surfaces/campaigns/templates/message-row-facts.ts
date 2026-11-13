@@ -5,7 +5,14 @@
  * two that read a surface (`usageOf`) read what the surface holds now, as the JSX read `window.__TEMPLATE_USE`,
  * `__TEMPLATE_SENT` and `__PLAYBOOKS` with no surface argument.
  */
-import { messageHolds, messageStandingWords, messageWhyNot, NUMBERED_SLOT } from "@chanlytics/contracts";
+import {
+  channelChoices,
+  messageHolds,
+  messageStandingWords,
+  messageWhyNot,
+  NUMBERED_SLOT,
+  readyForMessage,
+} from "@chanlytics/contracts";
 import type { CampaignMessage, TemplateSentWords } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { surfaceValue } from "../../surface-values";
@@ -196,12 +203,17 @@ function marksOf(p: { g: TemplateGroup; message: CampaignMessage | null; usage: 
   // read and written, and where it came from (WhatsApp Manager) is its foot's.
   const flagged = g.rows
     .map(({ lang, row: r }) => {
-      const said = r && r.meta_status !== "approved" ? tplSaid(r.meta_status) : null;
-      return said ? { lang, said } : null;
+      const standing = r && r.meta_status !== "approved" ? tplSaid(r.meta_status) : null;
+      return r && standing ? { lang, standing, words: TPL_LIST_WORDS.standing[r.meta_status] ?? standing.label } : null;
     })
     .find(Boolean);
+  const several = g.rows.filter(({ row: r }) => r).length > 1;
   const tag: { words: string; tone: string } | null = flagged
-    ? { words: `${flagged.lang.label} ${flagged.said.label.toLowerCase()}`, tone: flagged.said.tone }
+    ? {
+        words: several ? `${flagged.lang.label}: ${flagged.words.toLowerCase()}` : flagged.words,
+        // What needs the owner is amber, as every "needs you" is: red is for what failed.
+        tone: flagged.standing.tone === "danger" ? "warn" : flagged.standing.tone,
+      }
     : skipped && skippedMissing
       ? { words: `${skippedAt ? skippedAt.lang.label : tplLangLabel(skipped)} missing`, tone: "warn" }
       : null;
@@ -263,7 +275,10 @@ export function messageFacts({ g, langs, S, view, canAdd = false, addWhy = null,
   const { row, message, starterText, fromRow, untranslatable } = lang;
   const has = versionsOfMessage(g, versions);
   const words = rowWords({ g, S, row, starterText, view: lang.view });
-  const usage = usageOf({ g, onFile, row });
+  // What sends it is found by its name and language, which every version shares: a message with no WhatsApp version is
+  // found by its email's or its text's.
+  const named = row ?? [...has.email, ...has.sms].find((r) => r.language === lang.view) ?? null;
+  const usage = usageOf({ g, onFile, row: named });
   const marks = marksOf({ g, message, usage });
   const own = [...has.email, ...has.sms];
   const line = lineWords({ g, S, row, starterText, fromRow, view: lang.view, own });
@@ -339,6 +354,8 @@ export interface MessageSetting {
   saysUse: boolean;
   /** At its right: how many went out, when the last did, or that a starter is not added; null for nothing. */
   aside: string | null;
+  /** It needs you because no channel can carry it here: each channel's tab says its own why, so the pane says it there. */
+  nowhere: boolean;
 }
 
 type Facts = ReturnType<typeof messageFacts>;
@@ -349,8 +366,43 @@ const STOPPED: ReadonlySet<string> = new Set(["rejected", "paused", "disabled"])
 /** The language the message has on file but put away: its WhatsApp row's, else its message's. */
 const isAway = (r: TemplateRow): boolean => (r.message ? r.message.hidden : !!r.row?.hidden_at);
 
-/** Why the message needs you, in the one sentence contracts says it in, or null where it does not. */
-function needWords(group: TemplateGroup, facts: Facts): string | null {
+/** Who a message is about, as the channel rules read it: an offer is the business's news, a note is theirs. */
+export const aboutOfMessage = (message: Pick<CampaignMessage, "purpose">): "ours" | "theirs" =>
+  message.purpose === "marketing" ? "ours" : "theirs";
+
+/**
+ * Why no channel can carry a message here now, or null where one can, or where the business's channels were not read
+ * (the sequences' read), which says nothing: every channel refused for it (contracts channelChoices over what the
+ * message holds on each, readyForMessage: Meta's pause on offers to US numbers, email not set up for offers, no texting
+ * line, a version not written or not approved). The reason of a channel it has a version on is said first.
+ */
+function nothingCarries(message: CampaignMessage | null): string | null {
+  const ready = surfaceValue("playbooks")?.ready ?? null;
+  if (!ready || !message) return null;
+  // A WhatsApp version WhatsApp is reviewing is read as the approved one it will be: waiting is not needing you, and what
+  // would hold it after (Meta's pause on offers) still says so.
+  const whatsapp = message.versions.whatsapp;
+  const judged =
+    whatsapp && whatsapp.status === "pending"
+      ? { ...message, versions: { ...message.versions, whatsapp: { ...whatsapp, status: "approved" as const } } }
+      : message;
+  const choices = channelChoices(readyForMessage(ready, judged), message.purpose, aboutOfMessage(message));
+  if (choices.some((c) => c.ok)) return null;
+  const reason = (choices.find((c) => c.why && message.versions[c.channel]) ?? choices.find((c) => c.why))?.why;
+  return reason ? TPL_LIST_WORDS.nothingCarries(reason) : null;
+}
+
+/**
+ * Something sends it, and no channel can carry it here (nothingCarries), or null: it goes to nobody, so it is not "Going
+ * out" (the live demo, 12 Nov 2026: an offer "going out" while Meta's pause held WhatsApp and email waited on a domain).
+ */
+function nowhereWords(facts: Facts): string | null {
+  const use = facts.usage.use;
+  return use && (use.running || use.booking) ? nothingCarries(facts.lang.message) : null;
+}
+
+/** WhatsApp stopped it, a running sequence sends a language it lacks, or a version it cannot send whole: why, or null. */
+function stoppedWords(group: TemplateGroup, facts: Facts): string | null {
   for (const r of group.rows) {
     const w = r.message?.versions.whatsapp ?? null;
     if (r.message && w && !w.hidden && STOPPED.has(w.status)) return w.reason ?? messageWhyNot(r.message, "whatsapp");
@@ -391,7 +443,8 @@ function asideOf(place: MessagePlace, sent: Facts["usage"]["sent"]): string | nu
 export function placeOfMessage(group: TemplateGroup, facts: Facts): MessageSetting {
   const onFile = onFileOf(group);
   const away = onFile.length > 0 && onFile.every(isAway);
-  const need = away ? null : needWords(group, facts);
+  const stopped = away ? null : stoppedWords(group, facts);
+  const need = away ? null : (stopped ?? nowhereWords(facts));
   const use = facts.usage.use;
   const place: MessagePlace = away ? "away" : need ? "need" : use && (use.running || use.booking) ? "going" : "idle";
   const line =
@@ -400,5 +453,5 @@ export function placeOfMessage(group: TemplateGroup, facts: Facts): MessageSetti
       : place === "going" && use
         ? { said: sentByWords(use), saysUse: true }
         : idleWords(group, facts);
-  return { place, ...line, aside: asideOf(place, facts.usage.sent) };
+  return { place, ...line, aside: asideOf(place, facts.usage.sent), nowhere: place === "need" && !stopped };
 }

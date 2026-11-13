@@ -321,6 +321,12 @@ export interface TemplateDto extends ApprovedTemplate {
   hidden_at?: string | null;
   /** The workspace's own words for it; null means its name, made words. */
   title?: string | null;
+  /** WhatsApp holds this row (Meta gave it an id): only such a one has its words changed and sent back. */
+  at_meta?: boolean;
+  /** A refused WhatsApp version's words WhatsApp approved before they were changed, which its editor can go back to. */
+  approved_before?: string | null;
+  /** Ask's new words for this refusal, kept once written: its editor opens on them with no second wait. */
+  fix_words?: string | null;
 }
 
 /** What the Inbox surface publishes: the seam's value for `inbox` (`INBOX_DATA` to the pages that have not moved). */

@@ -4940,7 +4940,7 @@ test("REGRESSION: on a US WhatsApp number the lists read says 26 said yes to off
   // naming each channel.
   assert.equal(everyone.why_none_offers, noChannelWords(`“${EVERYONE_LABEL}”`, "marketing"));
   assert.ok(!("why_none_messages" in everyone), "a message reaches all 26: nothing is missing");
-  assert.match(read.offers_go_by, /Meta has paused offers on WhatsApp to US numbers/);
+  assert.match(read.offers_go_by, /WhatsApp is not delivering offers to US numbers for now/);
   // One fact, one count: the winners read counts the same yes.
   const winners = await runTool(tc, { name: "people", input: { action: "winners" } });
   assert.equal(winners.isError, false, winners.result);
@@ -4973,7 +4973,7 @@ test("REGRESSION: on a US WhatsApp number a proposed playbook says 26 said yes a
   assert.equal(
     said,
     PLAYBOOK_CARD_REFUSALS.reachesNobody(
-      "26 people said yes to offers, but none can be reached now. Meta has paused offers on WhatsApp to US numbers. Reminders, confirmations and replies still go.",
+      "26 people said yes to offers, but none can be reached now. WhatsApp is not delivering offers to US numbers for now. Reminders, confirmations and replies still go.",
       null,
     ),
   );
@@ -9881,7 +9881,7 @@ test("a broadcast or a playbook proposed on a workspace with no WhatsApp number 
   const us = { ...WHATSAPP_NUMBER, number_e164: "+19295550198" };
   const paused = await buildProposal(toolContext([us]), "propose_sequence", broadcast);
   assert.deepEqual([paused.proposal, paused.isError], [null, true], paused.result);
-  assert.match(JSON.parse(paused.result).error, /Meta has paused offers on WhatsApp to US numbers/);
+  assert.match(JSON.parse(paused.result).error, /WhatsApp is not delivering offers to US numbers for now/);
   const unpaid = {
     ...WHATSAPP_NUMBER,
     config: { ...WHATSAPP_NUMBER.config, standing: { can_send: "AVAILABLE", has_payment_method: false } },

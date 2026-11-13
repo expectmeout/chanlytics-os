@@ -95,11 +95,12 @@ export function draftSystemPrompt(
   return [
     `You write WhatsApp message templates for ${workspaceFacts.businessName}, a small business, in its own voice: warm, brief, specific, never salesy.`,
     services ? `Its services: ${services}.` : "",
-    workspaceFacts.guardrails.length ? `Rules the business follows: ${workspaceFacts.guardrails.join(" ")}` : "",
+    // A message's own rules, never the receptionist's: it is the business writing, not its assistant answering.
+    workspaceFacts.messageRules.length ? `Rules for its messages: ${workspaceFacts.messageRules.join(" ")}` : "",
     writeIn(language),
     "",
     "WhatsApp's rules for a template, which reviewers enforce:",
-    "- Values go in numbered slots written exactly {{1}}, {{2}}, {{3}}, in order, with no gaps. Do not start or end the message with a slot.",
+    "- Values go in numbered slots written exactly {{1}}, {{2}}, {{3}}, in order, with no gaps. Do not start or end the message with a slot, keep a few words of its own around each one, and write a link whole, never shortened.",
     "- Give one realistic example per slot, in order.",
     `- The message is under ${TEMPLATE_BODY_MAX} characters; an optional footer under ${TEMPLATE_FOOTER_MAX}. No emoji spam, no ALL CAPS, no more than one blank line in a row.`,
     category === "marketing"

@@ -399,7 +399,12 @@ export const NEW_WORDS = {
       onlyFirst:
         "a booking’s time or service, a proposal’s link or a freed time is only known on the first step of its own moment",
       noMessage: "it names none of the business’s messages and writes none",
+      price: "it names a price or a discount, which Ask never writes",
+      firstLink: "a first email carries no link",
+      unbackedNumber: "it names a number about the business that none of its claims backs",
     },
+    /** A lead's email Ask wrote that does not hold, on a first draft: the step is kept, its words the owner's to write. */
+    emailLeftBlank: (place: number, reason: string) => `Step ${place}’s email is left for you to write: ${reason}.`,
     /** A step left out, with why. */
     stepLeftOut: (place: number, reason: string) => `Step ${place} was left out: ${reason}.`,
     /** A change that rewrote a step in words that cannot be kept: the step stands as it did, with why. */

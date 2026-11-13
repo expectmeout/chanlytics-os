@@ -28,6 +28,11 @@ const REASON_WORDS: Record<string, string> = {
   // The run's stop when WhatsApp is all it goes by and its message has no WhatsApp version to send (the stored name is a
   // closed set, and stays).
   template_not_approved: RUN_NOW_WITHOUT_VERSION_WORDS,
+  // WhatsApp is still looking at its message's words: the day's run waits, and goes by itself once they are approved.
+  template_in_review:
+    "WhatsApp is still looking at this message's words. It goes out by itself today, as soon as WhatsApp approves them.",
+  template_on_hold:
+    "WhatsApp is holding this message for a few hours. It goes out by itself today, as soon as WhatsApp lets it.",
   number_flagged: "WhatsApp flagged this number's quality; wait for it to recover.",
   already_ran_today: "It already ran today. It runs again tomorrow at its hour.",
   // Past the campaign's last day (00416 until): it runs nothing more until its end is moved or cleared.

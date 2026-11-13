@@ -1,4 +1,4 @@
-import { notToday, pacedRun } from "./paced";
+import { notToday, pacedRun, waitsOnWhatsApp } from "./paced";
 import { heldContactId } from "@chanlytics/contracts";
 import {
   batchModeOf,
@@ -157,6 +157,9 @@ async function allowed(
   message: Message,
 ): Promise<{ ended: RunOutcome } | { ended: null; listIds: ReadonlySet<string> | null; kept: KeptList | undefined }> {
   const { p, ctx } = run;
+  // WhatsApp looking at its words, or holding it: nothing is recorded of a run that waits, so the next sweep asks again.
+  const waits = waitsOnWhatsApp(run, message.m);
+  if (waits) return { ended: await run.off(waits, { record: false }) };
   const stop = playbookStopBy({
     channels: run.channels,
     templateStatus: message.m?.versions.whatsapp?.status ?? null,

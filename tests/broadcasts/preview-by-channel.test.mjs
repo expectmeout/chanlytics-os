@@ -659,13 +659,22 @@ test("a WhatsApp version still in review with an email beside it is an offered m
   assert.equal(offered.message.anchor.channel, "whatsapp");
   const by = sendByOf(offered, WORKSPACE());
   assert.deepEqual(by.ticked, ["email"]);
-  assert.equal(by.ticks.whatsapp.why, "WhatsApp is still reviewing this message's WhatsApp version.");
+  assert.equal(
+    by.ticks.whatsapp.why,
+    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+  );
   assert.equal(by.ticks.whatsapp.on, false);
   // Refused, paused and disabled each say their own; a message whose only version is one not approved is not offered at all.
   for (const [status, words] of [
-    ["rejected", "WhatsApp refused this message's WhatsApp version."],
-    ["paused", "WhatsApp has paused this message's WhatsApp version."],
-    ["disabled", "WhatsApp has disabled this message's WhatsApp version."],
+    ["rejected", "WhatsApp asked for a change to this message's words. Ask writes new words for you to send back."],
+    [
+      "paused",
+      "WhatsApp is holding this message for a few hours, because some people marked it as unwanted. It comes back by itself.",
+    ],
+    [
+      "disabled",
+      "WhatsApp turned this message off, because people kept marking it as unwanted. Write a new one in its place.",
+    ],
   ]) {
     const [m] = cmOfferedMessages(readOf([rowOf("whatsapp", { meta_status: status }), rowOf("email")]));
     assert.equal(sendByOf(m, WORKSPACE()).ticks.whatsapp.why, words, status);

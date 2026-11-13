@@ -1,4 +1,4 @@
-import { campaignEnded } from "@chanlytics/contracts";
+import { campaignEnded, inLastSendingHour, type CampaignMessage } from "@chanlytics/contracts";
 
 /**
  * The pace a paced offer keeps today: an offer on a list with a last day, as Ask's plan makes one, at no more than its cap and no
@@ -30,3 +30,28 @@ export const notToday = (
   runFor: string,
   full: boolean,
 ): "ended" | "no_room" | null => (campaignEnded(p, runFor) ? "ended" : full ? "no_room" : null);
+
+/**
+ * Whether the day's run waits on WhatsApp, and for what: it ticks WhatsApp, and WhatsApp is still looking at the
+ * message's words (a new message, or a change sent back: Ruben, 12 Nov 2026, "it can just be scheduled"), or is holding
+ * the message for a few hours (its pause, after people marked it as unwanted, which lifts by itself). A review most often
+ * takes minutes and a hold hours, so the run asks again with the next hourly sweep rather than closing the day as one
+ * that did nothing, which lost that day's sends for a wait that ended five minutes later. Not in the day's last hour,
+ * when it goes on as it would without (whoever is on email or text; else off, and said), nor for a run that has no day
+ * to wait in (a freed time, a late booking, an occasion). Null where it does not wait.
+ */
+export function waitsOnWhatsApp(
+  run: {
+    channels: readonly string[];
+    freed: unknown;
+    late: unknown;
+    occasion: unknown;
+    ctx: { tz: string; now: Date };
+  },
+  message: CampaignMessage | null,
+): "template_in_review" | "template_on_hold" | null {
+  const status = message?.versions.whatsapp?.status;
+  const hasDay = !run.freed && !run.late && !run.occasion && !inLastSendingHour(run.ctx.tz, run.ctx.now);
+  if (!hasDay || !run.channels.includes("whatsapp")) return null;
+  return status === "pending" ? "template_in_review" : status === "paused" ? "template_on_hold" : null;
+}

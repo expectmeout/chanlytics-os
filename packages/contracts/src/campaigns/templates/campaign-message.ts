@@ -219,12 +219,19 @@ export function messageHolds(campaignMessage: Pick<CampaignMessage, "versions">)
   };
 }
 
-/** What WhatsApp's standing says of a version that is not approved, in the owner's words. */
+/**
+ * What WhatsApp's standing says of a version that is not approved, in the owner's words: what is happening, whether it
+ * mends itself, and the one thing to do where there is one (Ruben, 12 Nov 2026: "WhatsApp has paused this message's
+ * WhatsApp version" read as a system error nobody could act on). A hold is WhatsApp's own, for hours, after people marked
+ * the message as unwanted, and lifts by itself; a message it turned off does not come back.
+ */
 const NOT_APPROVED_WORDS: Record<Exclude<TemplateStatus, "approved">, string> = {
-  pending: "WhatsApp is still reviewing this message's WhatsApp version.",
-  rejected: "WhatsApp refused this message's WhatsApp version.",
-  paused: "WhatsApp has paused this message's WhatsApp version.",
-  disabled: "WhatsApp has disabled this message's WhatsApp version.",
+  pending: "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+  rejected: "WhatsApp asked for a change to this message's words. Ask writes new words for you to send back.",
+  paused:
+    "WhatsApp is holding this message for a few hours, because some people marked it as unwanted. It comes back by itself.",
+  disabled:
+    "WhatsApp turned this message off, because people kept marking it as unwanted. Write a new one in its place.",
 };
 
 /**
@@ -251,7 +258,7 @@ const HOLDS_NOTHING: Pick<CampaignMessage, "versions"> = { versions: { whatsapp:
 /**
  * The workspace's channels with the message in them: a channel the workspace is ready on whose version the message does
  * not hold is not ready, and says so in the message's own sentence for it (messageWhyNot: "This message has no email
- * version yet.", "WhatsApp is still reviewing this message's WhatsApp version."), so every reader of "can this go by
+ * version yet.", "WhatsApp is checking this message. It sends by itself once approved, usually within minutes."), so every reader of "can this go by
  * email" asks one answer, and `reachFor` never enrols a person on a channel the message cannot be said on. A channel the
  * workspace is not ready on keeps its own reason, and what else it carries stays (email's `offers`, which the news by email
  * and an offer are judged by: closing the channel for a missing version must not make it say the campaigns domain is

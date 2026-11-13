@@ -52,6 +52,7 @@ export { planOf } from "./ask/plan/plan";
 export { FIX_CARD_WORDS, MESSAGE_WORDS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, proposalChannelsWords, RUN_VERBS, stepOfferWords, twinRunsWords } from "./ask/proposals/campaigns";
 export { answerStyleOf, ASK_FOLLOW_UPS_MAX, ASK_STYLE_MAX, ASK_STYLE_PAGE, ASK_VIEW_PAGE, FOLLOW_UP_PROMPT_MAX, FOLLOW_UP_SAID_MAX, FOLLOW_UP_WAKES, followUpDue, followUpsOf } from "./ask/proposals/follow-ups";
 export { ASK_THREAD_ROUTES } from "./ask/proposals/inbox";
+export { MESSAGE_CHANGE_WORDS } from "./ask/proposals/messages";
 export { addProposalSpecs, askUndoOpen, cardOpenRoute, PROPOSAL_GATE, proposalSpec, verbSpec, PAGE_SPECS } from "./ask/proposals/page-specs";
 export { answerSaidOf } from "./ask/proposals/people-verbs";
 export { PERSON_DETAIL_WORDS } from "./ask/proposals/person";

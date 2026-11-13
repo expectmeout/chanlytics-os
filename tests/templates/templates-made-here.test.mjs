@@ -100,14 +100,37 @@ test("names Meta accepts, slots in order, one example each: what is refused is r
     name: "x",
     language: "en_US",
     category: "marketing",
-    body: "{{1}} is on sale",
+    body: "This week {{1}} is on sale at the studio",
     examples: ["Balayage"],
   });
   assert.equal(warn.ok, true);
   assert.ok(
-    warn.warnings.some((w) => w.includes("starts or ends")) && warn.warnings.some((w) => w.includes("STOP")),
-    "warnings, not refusals, for what reviewers frown on",
+    warn.warnings.some((w) => w.includes("STOP")),
+    "a warning, not a refusal, for what reviewers only frown on",
   );
+  // What WhatsApp's review refuses is refused here first, so nothing is sent to be refused (Ruben, 12 Nov 2026).
+  const refused = (body, examples = ["Balayage"]) =>
+    validateTemplateDraft({ name: "x", language: "en_US", category: "utility", body, examples }).error ?? null;
+  assert.match(refused("{{1}} is on sale this week"), /starts or ends with a value/);
+  assert.match(refused("This week on sale: {{1}}"), /starts or ends with a value/);
+  assert.equal(refused("This week on sale: {{1}}."), null, "a full stop after it is words after it");
+  assert.match(refused("Hi {{1}}."), /so few words/, "too many values for its length");
+  assert.equal(refused("Hi {{1}}, thanks for coming."), null);
+  assert.match(refused("Hi {1}, thanks for coming in today.", []), /two braces each side/);
+  assert.match(refused("Hi {{name}}, thanks for coming in today.", []), /two braces each side/);
+  assert.match(refused("Book at bit.ly/luna before Friday.", []), /shortened links/);
+  assert.match(refused("Book at https://tinyurl.com/luna before Friday.", []), /shortened links/);
+  assert.equal(refused("Book at https://booksy.com/luna-studio before Friday.", []), null, "a full address passes");
+  assert.equal(refused("We moved to habit.co/studio, come see us.", []), null, "t.co is not every address ending so");
+  // More than one blank line in a row, which its review refuses, is mended: no owner means the difference.
+  const spaced = validateTemplateDraft({
+    name: "x",
+    language: "en_US",
+    category: "utility",
+    body: "See you soon.\n\n\n\nThe studio",
+    examples: [],
+  });
+  assert.equal(spaced.value.body, "See you soon.\n\nThe studio");
   assert.ok(
     TEMPLATE_LANGUAGES.some((l) => l.id === "es_MX") &&
       TEMPLATE_CATEGORIES.includes("marketing") &&
@@ -293,7 +316,7 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
   // it (the Templates page test), and `templates` is the verbs' export (surfaces/campaigns/templates/verbs.ts).
   assert.ok(readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts").includes("export const templates"));
   assert.ok(
-    /It can be sent now — from Campaigns, or from the Inbox outside the 24-hour window\.`,\s*alert: true,?\s*\}/.test(
+    /can be sent now, from Campaigns, or from the Inbox outside the 24-hour window\.`,\s*alert: true,?\s*\}/.test(
       readCode("apps/edge/lib/whatsapp/waba-events.ts"),
     ),
     "an approval is news the owner waits for",

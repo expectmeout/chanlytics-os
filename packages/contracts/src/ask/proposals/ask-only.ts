@@ -9,6 +9,7 @@
  * puts them in the lookups. The server's table (proposals.ts) has them from the start.
  */
 import { broadcastSpec, fixSpec, messageSpec, playbookChannelsSpec, playbookSpec } from "./campaigns";
+import { messageAwaySpec, messageDeleteSpec, messageRenameSpec, messageWordsSpec } from "./messages";
 import { followUpSpec } from "./follow-up";
 import { callHandOverSpec, whisperSpec } from "./inbox";
 import {
@@ -42,6 +43,10 @@ export const ASK_ONLY_SPECS = {
   playbook: playbookSpec,
   playbook_channels: playbookChannelsSpec,
   message: messageSpec,
+  message_words: messageWordsSpec,
+  message_rename: messageRenameSpec,
+  message_away: messageAwaySpec,
+  message_delete: messageDeleteSpec,
   // A campaign's one thing to fix first, drawn on Today and in the Line with its door (campaigns.ts fixSpec).
   fix: fixSpec,
   // People's and its lists'.

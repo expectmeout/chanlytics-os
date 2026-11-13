@@ -427,6 +427,8 @@ export const filesTool = defineActions({
           ...(isVideo(file) ? {} : { subject: file.subject }),
           issues: file.issues,
           looks_like_stock: file.looks_like_stock,
+          ...(file.looks_like ? { looks_like: file.looks_like } : {}),
+          ...(file.use ? { use: file.use } : {}),
           look: file.look_status,
           ...(file.width && file.height ? { size: [file.width, file.height] } : {}),
           ...(isVideo(file) ? await videoGot(turn, file) : {}),
