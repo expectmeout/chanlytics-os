@@ -598,7 +598,9 @@ each off until set:
 - `PAGER_URL` (the edge's origin, `https://chanlytics-messaging.vercel.app`)
   and `PAGER_KEY` (the edge's `DIAG_KEY`): the nightly's check of production and
   the ledger compare page the platform through `POST /api/admin/page`. Unset,
-  their issues are the only word.
+  their issues are the only word. Set, a page that did not go out fails its step: the door answers 503 for one
+  whose mail did not leave (`outcome: failed`) or that had nobody on file to go to (`unaddressed`, the edge's
+  `LEAD_TO` and `LEAD_FROM`), and the script judges the outcome, not only the status.
 - `SUPABASE_PROD_READ_URL`: a connection string for a role that reads the
   migration ledger and nothing else ("Apply a migration", below). A GitHub-hosted
   runner has no IPv6 and Supabase's direct database host is IPv6 only, so it is
@@ -1465,7 +1467,10 @@ checks that the door took the text in and the receptionist's reply left; any gap
 (`text_canary_not_taken_in`, `text_canary_no_reply`, `text_canary_reply_failed`, `text_canary_send_failed`), and a pass is one
 `text_canary_ok` line (`apps/edge/lib/sms/canary.ts`, the clock `text_canary`, 00595). It costs two texts a day.
 
-It is off until both of the edge's settings are set (`text_canary_off` says so):
+It is off until both of the edge's settings are set (`text_canary_off` says so). Off is not a pass: while any line
+texts, the platform is paged once a day under `text_canary_off` with what to set, and a tick that could not read the
+line's record pages under `text_canary_unread`. A deployment with no line that texts is paged for neither. To turn it
+on:
 
 1. Buy a number on the master Twilio account for the canary, and put it in a Messaging Service of its own with **no
    inbound request URL** (the receptionist's reply to it must come back to nobody: our door knows no line for it).

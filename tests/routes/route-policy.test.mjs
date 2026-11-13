@@ -98,6 +98,7 @@ test("what the routes declare is what the file says", () => {
 // The acts that cannot be taken back, or that hand over a workspace's people or its money, ask the Auth server whether
 // the session is still live (`fresh`, route.ts): getClaims() cannot tell a session revoked a minute ago from a live one.
 // The list is this test's; route-policy.json holds each route's declaration and this holds that no other route drifts in.
+// A change made from the Console is not on it: route() asks for every platform write, declared or not (the test below).
 const FRESH = [
   "DELETE me",
   "PATCH team/[id]",
@@ -120,20 +121,33 @@ const FRESH = [
   "POST billing/portal",
   "POST billing/resume",
   "POST billing/start-now",
-  // Who is on the team and who owns the workspace, and the platform's money, a partner's factor and a released number.
+  // Who is on the team and who owns the workspace.
   "POST team/partner",
   "DELETE team/partner",
   "POST handovers/[id]/accept",
-  "POST platform/partners/payout",
-  "POST platform/partners/second-factor",
-  "POST platform/lines/release",
 ];
+/** Every change made from the Console, as the routes declare them. */
+const CONSOLE_WRITES = Object.entries(declared)
+  .filter(([, p]) => p.scope === "platform" && p.kind === "write")
+  .map(([key]) => key);
+test("REGRESSION: every change made from the Console asks whether the session is still live -- three of nineteen did, and a session signed out elsewhere passed the other sixteen for up to an hour", () => {
+  // The platform's money, a partner's factor and a released number were the three; none of them is left out now.
+  for (const was of [
+    "POST platform/partners/payout",
+    "POST platform/partners/second-factor",
+    "POST platform/lines/release",
+  ])
+    assert.ok(CONSOLE_WRITES.includes(was), `${was} is still a platform write`);
+  const unasked = CONSOLE_WRITES.filter((key) => declared[key].fresh !== true);
+  assert.deepEqual(unasked, [], "a platform write is fresh by route()'s own rule (route.ts asksAuthServer)");
+});
+
 test("the sensitive acts ask whether the session is still live, and no other route pays for it unannounced", () => {
   const fresh = Object.entries(declared)
     .filter(([, p]) => p.fresh === true)
     .map(([key]) => key)
     .sort();
-  assert.deepEqual(fresh, [...FRESH].sort());
+  assert.deepEqual(fresh, [...FRESH, ...CONSOLE_WRITES].sort());
   assert.deepEqual(
     Object.entries(file.routes)
       .filter(([, p]) => p.fresh === true)
