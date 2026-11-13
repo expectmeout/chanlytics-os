@@ -1402,8 +1402,7 @@ test("A message is a row you scan, and the words open under it: what it is, what
   messages({
     templatesAll: [en, templateRow({ id: "t-w", name: "winback_reply", language: "en_US", meta_status: "approved" })],
   });
-  const winBack = (t) =>
-    all(t, (n) => n.props?.["data-testid"] === "starter-row").find((r) => r.props["data-template"] === "winback_reply");
+  const winBack = (t) => find(t, (n) => n.props?.["data-template"] === "winback_reply");
   tree = openedRow(winBack);
   const chip = chipIn(paneOf(tree));
   assert.equal(chipSays(chip), "English", "the language in view, as a word");
