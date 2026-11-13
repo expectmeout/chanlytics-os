@@ -14,7 +14,9 @@ import "server-only";
  */
 import {
   AppError,
+  CARD_MOVED_WORDS,
   PROPOSAL_SPECS,
+  PROPOSAL_WORDS,
   askCardLapsed,
   cardWithSteps,
   errorMessageOf,
@@ -41,14 +43,14 @@ import { readerContext } from "@/server/shared/reader";
 import { config as configReader } from "@/server/readers/facts";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
-import { cardMoved } from "./recheck";
+import { cardMoved, UNCHECKED } from "./recheck";
 
 /** How a card came to be acted on: a finger, a spoken or typed yes, a row that allowed it, the lock screen, a mail link. */
 export const ACT_BY = ["press", "yes", "row", "lock_screen", "mail"] as const;
 export type ActBy = (typeof ACT_BY)[number];
 
-/** How long a verb's own route may take, inside this route's own limit. */
-const CALL_TIMEOUT_MS = 50_000;
+/** How long a verb's own route may take, inside this route's own limit: an act is not started with less time than this left. */
+export const CALL_TIMEOUT_MS = 50_000;
 
 interface Answered {
   ok: boolean;
@@ -56,6 +58,8 @@ interface Answered {
   data: unknown;
   code: string;
   message: string;
+  /** The route's own words for a refusal, where it gave any: what a card stopped part way says after what went. */
+  own: string;
 }
 
 /** One of a spec's calls, as a request of its own to this app, under the member's own session. */
@@ -92,10 +96,11 @@ async function callRoute(
     log.error("ask_act_unreached", { route: call.route, error: e });
     return null;
   });
-  if (!res) return { ok: false, status: 0, data: null, code: "unreached", message: "" };
+  if (!res) return { ok: false, status: 0, data: null, code: "unreached", message: "", own: "" };
   // A route's answer that is no JSON is an empty one: its status says the rest.
   const body = recordOrEmpty(await res.json().catch(() => null));
-  if (res.ok && body.ok !== false) return { ok: true, status: res.status, data: body.data, code: "", message: "" };
+  if (res.ok && body.ok !== false)
+    return { ok: true, status: res.status, data: body.data, code: "", message: "", own: "" };
   const error = recordOrEmpty(body.error);
   return {
     ok: false,
@@ -103,6 +108,7 @@ async function callRoute(
     data: null,
     code: typeof error.code === "string" ? error.code : "unknown",
     message: errorMessageOf(error, res.status),
+    own: typeof error.message === "string" ? error.message : "",
   };
 }
 
@@ -163,7 +169,7 @@ const told = (calls: readonly ProposalCall[]): AskActAnswer["calls"] =>
 async function failed(
   ctx: RouteContext,
   sides: { messageId: string; proposalId: string; actionId: string | null },
-  words: { message: string; code: string; moved: boolean; redraft?: boolean; card: AskProposal },
+  words: { message: string; code: string; moved: boolean; redraft?: boolean; landed?: number; card: AskProposal },
 ): Promise<AskActAnswer> {
   const outcome: AskProposalOutcome = {
     state: "failed",
@@ -184,7 +190,19 @@ async function failed(
     calls: [],
     forward: failureDoorOf(words.code, words.message),
     ...(words.redraft ? { redraft: true } : {}),
+    ...(words.landed ? { landed: words.landed } : {}),
   };
+}
+
+/**
+ * A card's calls stopped by a refusal: in its own words where none had gone, and where some had, how many went and that the
+ * rest did not (contracts PROPOSAL_WORDS.batchStopped, the browser's walk's words), so a part that went is never told as
+ * nothing gone. Its record says the same: `partly_done`.
+ */
+function stoppedAt(refused: Answered, landed: number, of: number): { message: string; code: string; landed: number } {
+  if (landed === 0) return { message: refused.message, code: refused.code, landed };
+  const reason = refused.own || PROPOSAL_WORDS.nextPartStopped;
+  return { message: PROPOSAL_WORDS.batchStopped(landed, of, reason), code: "partly_done", landed };
 }
 
 /** What stops a press before anything is sent, in the person's words. */
@@ -206,8 +224,9 @@ async function cardAsItStands(
         moved: true,
       },
     };
-  // Is it still true? Who else is talking?
-  const moved = await cardMoved(ctx, tenantId, ctx.userId, card).catch(logAndGoOn("act recheck", null));
+  // Is it still true? Who else is talking? A look that could not be made is no yes: the press waits for one that can.
+  const moved = await cardMoved(ctx, tenantId, ctx.userId, card).catch(logAndGoOn("act recheck", UNCHECKED));
+  if (moved === UNCHECKED) return { stopped: { message: CARD_MOVED_WORDS.unchecked, code: "unchecked", moved: false } };
   if (moved) return { stopped: { message: moved.says, code: "moved", moved: true, redraft: moved.redraft } };
   // A plan's step: what its earlier steps made, in place of their tokens.
   const filled = cardWithSteps(card, card.plan ? planMadeOf(card.plan.id, proposals) : {});
@@ -228,6 +247,25 @@ async function sendThen(
   if (isRefusal(next)) return { ok: false, message: next.refused };
   const r = await callRoute(req, next, { key: `${key}:then` });
   return r.ok ? { ok: true, data: r.data } : { ok: false, message: r.message };
+}
+
+/**
+ * The card's row in ask_actions (D16), written before anything is sent. What Ask does on its own never runs without it: the
+ * day's count is read from those rows, so an act with none would be one nobody counted. A person's own press goes on without
+ * it, since its routes act once by their keys, and the missing row is logged. Null: no row, so no act.
+ */
+async function recordFirst(
+  ctx: RouteContext,
+  start: Parameters<typeof startAskAction>[1],
+): Promise<{ id: string | null } | null> {
+  const started = await startAskAction(ctx.supabase, start).catch((error: unknown) => {
+    log.error("ask_act_unrecorded", { tenant_id: start.tenantId, by: start.by, kind: start.kind, error });
+    return null;
+  });
+  // A row this card already has (pressed before) is its record; a table this database lacks is none.
+  const kept = started !== null && (started.id !== null || started.again);
+  if (start.by === "row" && !kept) return null;
+  return { id: started?.id ?? null };
 }
 
 /** Nothing was sent and nothing is kept: the browser walks it the way it always went (AskActAnswer.walkHere). */
@@ -253,7 +291,7 @@ export async function runAct(
   const stands = await cardAsItStands(ctx, tenantId, card, proposals);
   if ("stopped" in stands) return failed(ctx, sides, { ...stands.stopped, card });
   const { filled } = stands;
-  const started = await startAskAction(ctx.supabase, {
+  const started = await recordFirst(ctx, {
     tenantId,
     userId: ctx.userId,
     messageId: input.messageId,
@@ -263,7 +301,9 @@ export async function runAct(
     originBy: card.origin?.by ?? null,
     strangers: card.origin?.strangers ?? false,
     reason: input.why ?? null,
-  }).catch(logAndGoOn("act record", { id: null, again: false }));
+  });
+  if (!started)
+    return failed(ctx, sides, { message: PROPOSAL_WORDS.unrecorded, code: "unrecorded", moved: false, card });
   sides.actionId = started.id;
   const key = card.plan ? `plan:${card.plan.id}:${card.plan.step}` : card.id;
   const tab = await tabHere(ctx, member, card.kind);
@@ -275,8 +315,7 @@ export async function runAct(
   if (!sent.ok && sent.landed === 0 && wasUnreached(sent.refused)) return WALK_HERE;
   if (!sent.ok)
     return failed(ctx, sides, {
-      message: sent.refused.message,
-      code: sent.refused.code,
+      ...stoppedAt(sent.refused, sent.landed, calls.length),
       moved: sent.refused.status === 404 || sent.refused.status === 409,
       card,
     });
@@ -358,9 +397,15 @@ export const ACT_INPUT = z.object({
   by: z.string().optional(),
 });
 
-/** A way of pressing this build does not know is a press. */
+/**
+ * How a caller of the act door may say a card was acted on: a finger, a yes, the lock screen, a mail link. Never `row`: what
+ * Ask does on its own is set by the server alone (world.ts runAlone), so the record and the day's count it reads stay true.
+ */
+const ACT_BY_CALLER = ["press", "yes", "lock_screen", "mail"] as const satisfies readonly ActBy[];
+
+/** A way of pressing this build does not know, or one only the server may say, is a press. */
 export const actOf = (b: z.infer<typeof ACT_INPUT>): { messageId: string; proposalId: string; by: ActBy } => ({
   messageId: b.message_id,
   proposalId: b.proposal_id,
-  by: isOneOf(ACT_BY, b.by) ? b.by : "press",
+  by: isOneOf(ACT_BY_CALLER, b.by) ? b.by : "press",
 });
