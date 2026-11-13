@@ -55695,6 +55695,56 @@ GRANT ALL ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer
 
 
 --
+-- Name: TABLE policies; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,DELETE,UPDATE ON TABLE public.policies TO authenticated;
+GRANT ALL ON TABLE public.policies TO service_role;
+
+
+--
+-- Name: COLUMN policies.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.class; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(class) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.mode; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(mode) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.subject_type; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(subject_type) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.subject_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(subject_id) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.limits; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(limits) ON TABLE public.policies TO authenticated;
+
+
+--
 -- Name: FUNCTION policy_change(p_tenant_id uuid, p_class text, p_mode text, p_limits jsonb, p_via text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -59770,56 +59820,6 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.platform_claims TO service_rol
 --
 
 GRANT ALL ON TABLE public.platform_metrics TO service_role;
-
-
---
--- Name: TABLE policies; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,DELETE,UPDATE ON TABLE public.policies TO authenticated;
-GRANT ALL ON TABLE public.policies TO service_role;
-
-
---
--- Name: COLUMN policies.tenant_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(tenant_id) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.class; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(class) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.mode; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(mode) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.subject_type; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(subject_type) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.subject_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(subject_id) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.limits; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(limits) ON TABLE public.policies TO authenticated;
 
 
 --
