@@ -304,8 +304,8 @@ test.describe("Files, from a photo to a post", () => {
       await expect(page.getByTestId("post-save-new")).toBeEnabled({ timeout: 30_000 });
       await page.getByTestId("post-save-new").click();
       await expect.poll(() => made.length, { timeout: 60_000 }).toBe(2);
-      // The new one opens in its place: the pane's title names it.
-      await expect(pane.locator(".cm-pane-name")).toContainText("Open early this saturday", { timeout: 30_000 });
+      // The new one opens in its place: the pane's name says it (Content's own heading since #2281, where the pane's title was).
+      await expect(pane.locator(".cnv-desk-name")).toContainText("Open early this saturday", { timeout: 30_000 });
       // The post is out nowhere yet, so the change takes its place rather than standing as a twin beside it (Ruben, 12 Nov
       // 2026: a typo fixed left two): a file of its own is kept, and then the first is taken away. Until then this read
       // "a new version keeps another file", and looked for the first still there.
@@ -325,7 +325,7 @@ test.describe("Files, from a photo to a post", () => {
       await undoTheChange.click();
       await expect.poll(() => statusOf(made.at(0)), { timeout: 30_000 }).toBe(200);
       await expect.poll(() => statusOf(made.at(1)), { timeout: 30_000 }).toBe(404);
-      await expect(pane.locator(".cm-pane-name")).toContainText("Open late this saturday", { timeout: 30_000 });
+      await expect(pane.locator(".cnv-desk-name")).toContainText("Open late this saturday", { timeout: 30_000 });
 
       // Undo, on the card that made the post: it is gone.
       // Ask was closed to reach the pane; its door opens it again on the turn it held (open, a press would close it).
