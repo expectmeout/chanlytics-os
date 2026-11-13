@@ -434,7 +434,7 @@ export { attentionOf, holderOf, NEW_WINDOW_DAYS, PEOPLE_TABS, PERSON_STATE_LABEL
 export { consentChangeWords } from "./people/person-timeline";
 export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, sinceWords } from "./people/person-words";
 export { PREVIEW_LIMITS, PREVIEW_STATES, previewClaimable, previewFirstRunMarks, previewKnowsOf, previewMinePath, previewPageOf, previewSlotOf, previewStartersOf, previewStateOf, previewTurnsOf } from "./previews/lead-preview";
-export { PREVIEW_LINE_WORDS, previewLineOf } from "./previews/line";
+export { PREVIEW_LINE_WORDS, previewBuildSlow, previewLineOf } from "./previews/line";
 export { PREVIEW_TRIED_DAYS, previewSaidOf, previewTriedWords } from "./previews/tried";
 export { LEAD_PREVIEW_WORDS } from "./previews/words";
 export { checkFixRoute, datesIn, daysIn, FIX_BLOCK_OF, FIX_ROUTE_OPS, FIX_ROUTE_SCHEMA, FIX_WORDS, fixField, fixLine, fixRouteSystemPrompt, fixRouteUserContent, guardrailIn, languagesIn, linkIn, minutesIn, priceIn, routeFix, serviceIn, timesIn } from "./rehearsal/fix-router";

@@ -322,7 +322,7 @@
   },
   "apps/dashboard/src/surfaces/leads/sheet/fill-ins/preview-read.ts GET leads/[id]/preview": {
     "kind": "on-open",
-    "fresh": "Read as a lead's sheet opens, painted first from this tab's last answer for that lead (read-cache.ts) and read again behind it, and again after Make it now; then, only while one is being made, every 4 seconds for two minutes at most, so it says ready without a press (preview-read.ts lookAgainSoon). The card's mark for the link reads the same answer, and only where its email names the link (decision 0127).",
+    "fresh": "Read as a lead's sheet opens, painted first from this tab's last answer for that lead (read-cache.ts) and read again behind it, and again after Make it now; then, only while one is being made, every 4 seconds for two minutes and then every half minute for ten more at most, so it says ready without a press and a slow one says it is slow (preview-read.ts lookAgainSoon). The card's mark for the link reads the same answer, and only where its email names the link (decision 0127).",
     "why": "A lead's preview moves by Make it now, which reads it again after, or by the edge building it, sending it with an email or the business trying it: each is minutes apart and none is a fact the sender acts on in the second, and closing and opening the sheet reads it afresh (decision 0079)."
   },
   "apps/dashboard/src/surfaces/inbox/pages/calls-saying.ts GET conversations": {
