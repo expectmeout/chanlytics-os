@@ -26,7 +26,9 @@ const TZ = "America/New_York";
 const NOW = new Date("2026-09-08T16:00:00.000Z");
 const ANA = { id: "p1", name: "Ana Ruiz", via: "phone", thread: "t1", reply_wire: "sms" };
 
-installStubReact({ __DEMO_MODE: false, CHANLY: { nav: () => {} } });
+/** The routes the sheet's presses went to, as the frame's one door receives them. */
+const routed = [];
+installStubReact({ __DEMO_MODE: false, CHANLY: { nav: (route) => routed.push(route) } });
 const { OpenVisit } = await import("../../../apps/dashboard/src/surfaces/calendar/visit/visit-sheet");
 
 /** What the wire saw (request line and body), and what it answers a word said on a visit with. */
@@ -157,6 +159,10 @@ test("a Missed a sequence answers is offered no new time from the sheet: the seq
     /Message Ana/,
     "their thread is still a press away",
   );
+  routed.length = 0;
+  press(byTestId(tree, "cal-visit-primary-message"));
+  assert.equal(routed.length, 1, "and the press opens it");
+  assert.match(routed[0], /th-t1/, "their own");
 
   // One that waits for an OK says that it asks first.
   tree = open(shown);

@@ -323,14 +323,14 @@ function withQuietLead(visitCtx: VisitCtx): VisitCtx {
 
 /** The lead act, by how the visit stands. */
 function PrimaryAct({ c }: { c: VisitCtx }) {
-  const { vm, b } = c;
+  const { vm, block } = c;
   const adding = useAddToPeople(c);
   const words = appointmentWords(c.word);
   const pa = vm.primary;
   if (!pa) return null;
   const press = () => {
     if (pa.act === "booked") return answerVisit(c, true);
-    if (pa.act === "message") return messageThem(b);
+    if (pa.act === "message") return messageThem(block);
     if (pa.act === "link") return carryLink(c, words.nextLink);
     if (pa.act === "new_time") return carryLink(c, words.newTimeLink);
     if (pa.act === "add") return void adding.press();
