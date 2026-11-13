@@ -76,6 +76,7 @@ import {
 } from "../campaigns/sequences/draft-judge";
 import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
+import { LEFT_OUT_ASKED_MAX } from "../campaigns/sequences/left-out";
 import { CHANGE_RULE, standsAsked } from "./sequence-change";
 
 /** How much of a message's words the model is handed. */
@@ -107,7 +108,7 @@ const RULES = [
   `Up to ${NEW_STEPS_MAX.people} steps to people and ${NEW_STEPS_MAX.leads} to leads, the first included. A message sent once is one step.`,
   "`name`: what it is, in two to four words, as the owner would call it.",
   `\`hour\`: the hour a sequence sends, ${PLAYBOOK_HOURS.min} to ${PLAYBOOK_HOURS.max}; ${PLAYBOOK_DEFAULTS.runHour} unless the owner says otherwise. \`when\`: for a message sent once, "now", or "YYYY-MM-DD HH:MM" in the business's time, within ${NEW_ONCE_AHEAD_DAYS} days; empty for a sequence.`,
-  "If the owner asks for something nothing here can do, build the closest part you can and say in `cannot` what is left out, in two short sentences: “Left out: “<their words>”.”, then why, and what the draft does instead. Leave `cannot` empty when everything fit.",
+  `If the owner asks for something nothing here can do, build the closest part you can and say in \`cannot\` what is left out, in two short sentences, ${LEFT_OUT_ASKED_MAX} characters at most: “Left out: “<their words>”.”, then why, and what the draft does instead. Leave \`cannot\` empty when everything fit.`,
   DATA_NOT_INSTRUCTIONS,
 ];
 

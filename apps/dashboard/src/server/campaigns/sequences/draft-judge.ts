@@ -21,6 +21,7 @@ import {
   wordsIssueWords,
   newListOf,
   whoSuits,
+  clipAtWord,
   type ConsentChannel,
   type NewAudience,
   type NewDraftAnswer,
@@ -40,6 +41,7 @@ import type { PoolRead } from "@/lib/campaign-channels";
 import { carriersOf, newChecksOf, newReachOf, twinOf, type NewCounts, type NewRunning } from "@/lib/new-checks";
 import { checkMessage } from "../write-message";
 import { NOTHING_STOOD, standingAt, stoodStepsOf, type Standing } from "./draft-stands";
+import { leftOutKept } from "./left-out";
 import { numberBacking, unbackedNumbers } from "./numbers";
 
 /**
@@ -50,6 +52,11 @@ import { numberBacking, unbackedNumbers } from "./numbers";
  * the last step, never the first. What could not be kept is said once (`cannot`). Pure over what was read
  * (campaigns/sequences/draft.ts), so it is tested without a model.
  */
+
+/** How long a name Ask gives may run, a draft's or a written message's: a longer one is cut after a whole word. */
+const ASKED_NAME_MAX = 80;
+const nameKept = (name: string): string =>
+  name.trim().length <= ASKED_NAME_MAX ? name.trim() : clipAtWord(name, ASKED_NAME_MAX - 1);
 
 /** A moment this workspace may start a sequence on, as the model is handed it. */
 export interface KnownMoment {
@@ -258,7 +265,7 @@ function writtenParts(
   const sms = withText ? cleanWords(write.text) : "";
   const subject = cleanWords(write.email_subject);
   const email = cleanWords(write.email_body);
-  const title = write.title.trim();
+  const title = nameKept(write.title);
   if (!title || (!wa && !sms && !(subject && email))) return NEW_WORDS.cannot.why.noWords;
   const numbered = numberedValues([wa, sms, subject, email]);
   if (!numbered) return NEW_WORDS.cannot.why.unknownValue;
@@ -564,7 +571,7 @@ function judgedOf(answer: NewDraftAnswer, known: DraftKnown, ask: NewDraftAsk) {
   const draftWho = named && whoSuits(named, audience, kind) ? named : null;
   const moment =
     draftWho?.kind === "moment" ? (known.moments.find((m) => m.trigger === draftWho.trigger) ?? null) : null;
-  const name = (answer.name.trim() || draftWho?.label || NEW_WORDS.title).slice(0, 80);
+  const name = nameKept(answer.name.trim() || draftWho?.label || NEW_WORDS.title);
   const backing = draftBackingOf(known, ask);
   const stood = ask.stands ? stoodStepsOf(ask.stands, known) : null;
   const judged = judgeSteps(answer, { audience, kind, known, moment, name, backing, stood });
@@ -591,7 +598,7 @@ export function stepsJudged(
  */
 export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDraftAsk): NewDraftDto {
   const { kind, audience, draftWho, moment, name, steps, cannot, always } = judgedOf(answer, known, ask);
-  const sentence = answer.cannot.trim();
+  const sentence = leftOutKept(answer.cannot);
   // What Ask says it left out, else what the judge left out; and a step that stays as it stood is always said.
   const leftOut = sentence || [...new Set(cannot)].join(" ");
   const notes = [leftOut, ...always].filter(Boolean).join(" ");
