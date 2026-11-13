@@ -923,6 +923,13 @@
       "rate": null,
       "spend": false
     },
+    "PATCH files/[id]/posts": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "GET files/[id]": {
       "kind": "read",
       "scope": "row",

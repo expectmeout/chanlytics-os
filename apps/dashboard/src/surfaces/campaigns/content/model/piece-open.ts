@@ -3,6 +3,7 @@
  * stands beside it. Pure: the pane draws what these say.
  */
 import {
+  INSTAGRAM_POST_KINDS,
   POST_ON_ITS_WAY,
   POST_PLACES,
   POST_PULLABLE,
@@ -14,6 +15,7 @@ import {
   whoStandsOf,
   type ContentMadeDto,
   type FileDto,
+  type InstagramPostKind,
   type PostDto,
   type PostPlace,
 } from "@chanlytics/contracts";
@@ -22,17 +24,28 @@ import {
 export type PieceTakes = Record<PostPlace, boolean>;
 
 /**
- * What can take the piece now, from its posts and what its record says of each place. A place with a post on its way takes
- * no second one until it lands, and Google takes a piece once (contracts postPlaceTakenOf). Instagram is taken while a post
- * of ANY kind waits there: the sheet holds one row a place, so that row keeps its Don't post and opening the sheet arms
- * nothing the door would refuse. A story beside a waiting post (00620) is Ask's card's until the sheet draws a line a kind.
+ * The kinds Instagram can take of this piece now: each with none of its own on its way there, since a picture post and a
+ * story wait apart (00620; contracts postPlaceTakenOf, the rule Ask's card keeps too).
+ */
+export const instagramKindsFree = (posts: readonly PostDto[]): InstagramPostKind[] =>
+  INSTAGRAM_POST_KINDS.filter((kind) => !postPlaceTakenOf(posts, "instagram", kind));
+
+/** What Instagram is posted as: the kind wanted where it can go now, else the one that can. */
+export const instagramAsOf = (free: readonly InstagramPostKind[], wanted: InstagramPostKind): InstagramPostKind =>
+  free.includes(wanted) ? wanted : (free[0] ?? wanted);
+
+/**
+ * What can take the piece now, from its posts and what its record says of each place. Google takes a piece once, and none
+ * while one is on its way there (contracts postPlaceTakenOf). Instagram takes one of each kind at a time, so it takes another
+ * while either kind is free: the sheet draws a line for each post that waits there, with its own Don't post (model/places.ts),
+ * and offers the kind that is free. Opening the sheet still arms nothing where a post is on its way (postBothOpening).
  */
 export function pieceTakesOf(
   posts: readonly PostDto[],
   can: { instagram: boolean; google: boolean; onGoogle: boolean },
 ): PieceTakes {
   return {
-    instagram: can.instagram && !postPlaceTakenOf(posts, "instagram"),
+    instagram: can.instagram && instagramKindsFree(posts).length > 0,
     google: can.google && !can.onGoogle && !postPlaceTakenOf(posts, "google"),
   };
 }

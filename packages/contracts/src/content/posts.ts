@@ -168,6 +168,8 @@ export const ON_INSTAGRAM = {
   pull: "Don't post",
   pulledFlash: "It won't be posted.",
   pullLate: "It is already being posted, so it can't be stopped here.",
+  /** Change time, too late: Instagram is already making it ready, or it is being sent (00621 post_move). */
+  moveLate: "It is already being made ready to go, so its time can't change now.",
   tryAgain: "Post again",
   status: {
     queued: "Waiting to go on Instagram",

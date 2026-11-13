@@ -14,6 +14,7 @@ import {
   pieceFileIdsOf,
   postPlanOf,
   recordOrNull,
+  type FileMade,
   type PiecePlan,
   type TenantId,
 } from "@chanlytics/contracts";
@@ -23,6 +24,16 @@ import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 
 type Db = RouteContext["supabase"];
+
+/**
+ * How a post was made, as kept (`files.made`), read as the record says it: its plan, and the caption the owner wrote. Here, where
+ * the record (record.ts) and the caption (caption.ts) both read it, so neither reads the other.
+ */
+export const fileMadeOf = (created: Record<string, unknown>, from: FileMade["from"]): FileMade => ({
+  from,
+  plan: postPlanOf(recordOrNull(created.plan) ?? {}),
+  caption: typeof created.caption === "string" ? created.caption : null,
+});
 type PieceBlock = PiecePlan["blocks"][number];
 /** A picture held still in a block: a photo, or one moment of a clip. */
 type PieceShot = Extract<PieceBlock, { is: "pair" }>["before"];

@@ -546,12 +546,13 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE files/[id]": () => [...filesIfDrawn(), ...postMoved()],
   // Undo of a delete (the content redesign's stage 3): a file back.
   "POST files/[id]/restore": filesAndContentIfDrawn,
-  // A post put on a place or taken off it changes no file, so the feed is silent: Content, which draws where each stands, reads,
-  // and the Calendar's posts at their times.
-  "POST files/[id]/google": postMoved,
+  // A post put on a place, moved to another time (00621) or taken off it is told to no page (00611): Content reads, and the
+  // Calendar's posts at their times. One sent keeps its words on its file in the same step (keepPostWords): Files reads too.
+  "POST files/[id]/google": () => [...filesIfDrawn(), ...postMoved()],
   "DELETE files/[id]/google": postMoved,
-  "POST files/[id]/instagram": postMoved,
+  "POST files/[id]/instagram": () => [...filesIfDrawn(), ...postMoved()],
   "DELETE files/[id]/instagram": postMoved,
+  "PATCH files/[id]/posts": postMoved,
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
   // Business tab's fold and the board's card both draw from, so the list says what is left at once. (Read again is a job: below.)
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],

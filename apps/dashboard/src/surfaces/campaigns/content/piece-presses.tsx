@@ -3,7 +3,7 @@
  * presses that change it (a file's fields, a delete with Undo, Don't post), and the drafts that take the pane one at a time
  * (a post's new version, a video's words made again, the composer). Each its own hook, so the pane composes them.
  */
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
   CONTENT_SHEET_WORDS,
   CONTENT_WORDS,
@@ -11,6 +11,7 @@ import {
   fileSaidOf,
   ON_INSTAGRAM,
   POST_PLACES,
+  POST_PULLABLE,
   postCaptionOf,
   type ContentMadeDto,
   type PostDto,
@@ -18,7 +19,7 @@ import {
 import { canDo, type FrameFlash } from "../../frame-verbs";
 import type { usePostRecord } from "../../files/post-record";
 import { PostVersion, PostVersionActs, usePostVersion } from "../../files/post-version";
-import { fileVerbs, type FileChange } from "../../files/verbs";
+import { fileVerbs, postDoors, type FileChange } from "../../files/verbs";
 import { PostBoth, PostBothActs, usePostBoth, type PlaceDoors } from "./post-both";
 import { VideoAgain, VideoAgainActs, useVideoAgain } from "./video-again";
 import { pieceStandsAt, pieceTakesOf, type PieceTakes } from "./model/piece-open";
@@ -90,6 +91,73 @@ export function usePiecePosts(
 /** What the drafts read of the piece's posts: its posts, where it can go now, and why a place can take none. */
 type PiecePosts = ReturnType<typeof usePiecePosts>;
 
+/**
+ * The caption on screen, as the box under a post's places holds it (viewer/caption.tsx onText): what Post sends, and what each
+ * place's door keeps on the piece in the same step (server posts/caption.ts keepPostWords), so words typed just before Post go,
+ * however the box was left (Ruben, 12 Nov 2026). Null while no box under the places shows it.
+ */
+function useCaptionShown(fileId: string) {
+  const [shown, setShown] = useState<{ id: string; words: string } | null>(null);
+  // The words a place's door kept as it posted: the box, going with its sheet, need not keep the same words again.
+  const posted = useRef<{ id: string; words: string } | null>(null);
+  return {
+    shown: shown?.id === fileId ? shown.words : null,
+    typed: (text: string | null) => {
+      // The box holding other words than a door kept means the caption has moved since (typed over, or changed elsewhere and
+      // read again): those kept words are no reason to skip a save any more.
+      if (text !== null && posted.current && posted.current.words !== text.trim()) posted.current = null;
+      setShown(text === null ? null : { id: fileId, words: text });
+    },
+    posted: (words: string | null) => {
+      posted.current = words === null ? null : { id: fileId, words: words.trim() };
+    },
+    isPosted: (words: string) => posted.current?.id === fileId && posted.current.words === words.trim(),
+  };
+}
+
+/**
+ * Don't post, through the door of the place a post waits for (Google keeps a time too: 00616), and its Undo. Said where it was
+ * pressed, as a delete is: the row it stood in goes quiet, and the note says why. A post that waited is put back by Undo
+ * (Ruben, 12 Nov 2026: Don't post had no way back); one that stopped and was dismissed has none.
+ */
+function postPullOf(
+  piece: { id: string; posts: readonly PostDto[]; words: () => string | null },
+  tell: {
+    flash: (f: FrameFlash) => void;
+    moved: () => void;
+    busy: (on: boolean) => void;
+    problem: (words: string | null) => void;
+  },
+) {
+  // Undo: the post set again as it was, at its time while that is still ahead, else now, with the piece's caption as it stands
+  // now. The stopped post's own copy may be older than a caption changed since, and the door keeps what it is handed on the
+  // piece, so that copy would put old words back.
+  const putBack = async (post: PostDto) => {
+    const later = Date.parse(post.scheduled_for) > Date.now() ? post.scheduled_for : undefined;
+    const as = post.kind === "story" ? "story" : "picture";
+    const set = await postDoors[post.place].begin(piece.id, as, piece.words() ?? post.caption ?? "", later);
+    if (!set.ok) return tell.flash({ tone: "danger", msg: <>{set.message}</> });
+    tell.flash({ msg: <>{FILE_WORDS.restored}</> });
+    tell.moved();
+  };
+  return async (postId: string) => {
+    tell.busy(true);
+    // What an earlier press said went wrong is not this one's to keep saying.
+    tell.problem(null);
+    const post = piece.posts.find((p) => p.id === postId);
+    const pulled = await postDoors[post?.place ?? "instagram"].pull(piece.id, postId);
+    tell.busy(false);
+    if (!pulled.ok) return tell.problem(pulled.message);
+    const back = post && POST_PULLABLE.includes(post.status) ? post : null;
+    // Its Undo is kept through a tap besides it, as a send's is: four seconds is all any toast stands (TOAST_MAX_MS).
+    tell.flash({
+      msg: <>{ON_INSTAGRAM.pulledFlash}</>,
+      ...(back ? { undo: () => void putBack(back), stays: true } : {}),
+    });
+    tell.moved();
+  };
+}
+
 /** The presses that change the piece, each Files' own verb, and each reading the page again so the tile says what the pane does. */
 export function usePiecePresses(hands: PieceHands, posts: readonly PostDto[]) {
   const { made, record, reread, open, onClose, flash } = hands;
@@ -97,6 +165,7 @@ export function usePiecePresses(hands: PieceHands, posts: readonly PostDto[]) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  const shown = useCaptionShown(file.id);
   const moved = () => {
     record.reread();
     reread();
@@ -119,11 +188,14 @@ export function usePiecePresses(hands: PieceHands, posts: readonly PostDto[]) {
     if (stopped.length > 0) flash({ msg: <>{CONTENT_WORDS.piece.asideStops(stopped)}</> });
   };
   // The caption, written where it stands (Details): kept with how the piece was made, and its record read again, so Details,
-  // Post it's box and Ask say the owner's words. Nothing else waits on it, so it holds no press of the pane's.
+  // the sheet and Ask say the owner's words. Nothing else waits on it, so it holds no press of the pane's.
   const caption = async (words: string): Promise<string | null> => {
+    if (shown.isPosted(words)) return null;
     const r = await fileVerbs.change(file.id, { caption: words });
-    if (r.ok) record.reread();
-    return r.ok ? null : r.message;
+    if (!r.ok) return r.message;
+    shown.posted(null);
+    record.reread();
+    return null;
   };
   const remove = async () => {
     setBusy(true);
@@ -146,22 +218,10 @@ export function usePiecePresses(hands: PieceHands, posts: readonly PostDto[]) {
     reread();
     onClose();
   };
-  // Don't post, through the door of the place it waits for (Google keeps a time too: 00616).
-  const pull = async (postId: string) => {
-    setBusy(true);
-    // What an earlier press said went wrong is not this one's to keep saying.
-    setProblem(null);
-    const place = posts.find((p) => p.id === postId)?.place;
-    const pulled =
-      place === "google"
-        ? await fileVerbs.pullFromGoogle(file.id, postId)
-        : await fileVerbs.pullFromInstagram(file.id, postId);
-    setBusy(false);
-    if (!pulled.ok) return setProblem(pulled.message);
-    // Said where it was pressed, as a delete is: the row it stood in goes quiet, and the note says why.
-    flash({ msg: <>{ON_INSTAGRAM.pulledFlash}</> });
-    moved();
-  };
+  const pull = postPullOf(
+    { id: file.id, posts, words: () => shown.shown ?? postCaptionOf(posts, record.made) },
+    { flash, moved, busy: setBusy, problem: setProblem },
+  );
   return {
     busy,
     problem,
@@ -169,6 +229,10 @@ export function usePiecePresses(hands: PieceHands, posts: readonly PostDto[]) {
     moved,
     change,
     caption,
+    /** The words on screen under a post's places, which Post sends; and how the box there says them. */
+    captionShown: shown.shown,
+    captionTyped: shown.typed,
+    captionPosted: shown.posted,
     clear: () => setProblem(null),
     say: (body: FileChange) => void change(body).then(setProblem),
     aside: () => void aside(),
@@ -187,7 +251,7 @@ export type PiecePresses = ReturnType<typeof usePiecePresses>;
 export function usePieceDrafts(
   hands: PieceHands,
   at: PiecePosts,
-  presses: Pick<PiecePresses, "moved" | "pull" | "busy" | "problem">,
+  presses: Pick<PiecePresses, "moved" | "pull" | "busy" | "problem" | "captionShown" | "captionPosted">,
 ) {
   const { made, record, reread, open, flash } = hands;
   const { moved } = presses;
@@ -227,11 +291,18 @@ export function usePieceDrafts(
     {
       id: made.file.id,
       plan: record.made?.plan ?? null,
-      caption: postCaptionOf(at.posts, record.made),
+      caption: presses.captionShown ?? postCaptionOf(at.posts, record.made),
       ...at,
       may: canDo("settings"),
     },
-    { done: moved, flash, pull: presses.pull, pulling: presses.busy, pullProblem: presses.problem },
+    {
+      done: moved,
+      flash,
+      pull: presses.pull,
+      pulling: presses.busy,
+      pullProblem: presses.problem,
+      wordsKept: presses.captionPosted,
+    },
   );
   const about: ChangeAbout = { kind: "file", id: made.file.id, label: fileSaidOf(made.file.name) };
   return { version, again, both, about, replaces, open: both.open || version.open || again.open };
@@ -242,9 +313,10 @@ type PieceDrafts = ReturnType<typeof usePieceDrafts>;
 /**
  * The pane's body while a draft holds it, else what it shows at rest. A post's new version (its words and shape alone: how it
  * looks is Ask's) and a video's words end on the one line to Ask, which lets the draft go as it asks. `doors` are the doors
- * to a post that is up at a place (see it, take it down), drawn under that place in the composer's list.
+ * to a post that is up at a place (see it, take it down), drawn under that place in the composer's list; `facts` the piece's
+ * own (its caption typed in place, what it was made from), under the list, so the list and its words are one sheet.
  */
-export function draftBody(drafts: PieceDrafts, rest: ReactNode, doors: PlaceDoors = {}, words = true): ReactNode {
+export function draftBody(drafts: PieceDrafts, rest: ReactNode, doors: PlaceDoors, facts: ReactNode): ReactNode {
   if (drafts.again.open)
     return (
       <>
@@ -259,7 +331,13 @@ export function draftBody(drafts: PieceDrafts, rest: ReactNode, doors: PlaceDoor
         <AskLine about={drafts.about} onAsked={drafts.version.cancel} />
       </>
     );
-  if (drafts.both.open) return <PostBoth both={drafts.both} doors={doors} words={words} />;
+  if (drafts.both.open)
+    return (
+      <>
+        <PostBoth both={drafts.both} doors={doors} />
+        {facts}
+      </>
+    );
   return rest;
 }
 
@@ -277,6 +355,7 @@ export function draftFoot(drafts: PieceDrafts): ReactNode | undefined {
         label={drafts.replaces ? CONTENT_WORDS.piece.change.save : undefined}
       />
     );
-  if (drafts.both.open) return drafts.both.sending ? <PostBothActs both={drafts.both} /> : undefined;
+  if (drafts.both.open)
+    return drafts.both.sending || drafts.both.moving ? <PostBothActs both={drafts.both} /> : undefined;
   return undefined;
 }

@@ -17,10 +17,10 @@ export interface PostBothDraft {
 }
 
 /**
- * What the composer opens holding: every place that can take it, on Instagram as a post. No time: a post goes as it is sent,
- * and a time is asked of Ask (Ruben, 12 Nov 2026: two times written into the page were guesses, the same for every business).
- * Its words are not the draft's: they are the piece's caption, typed in Details alone (viewer/caption.tsx) and read as it is
- * sent (model/viewer-line.ts postCaptionOf).
+ * What the composer opens holding: every place that can take it, on Instagram as a post. No time is written in for the owner
+ * (Ruben, 12 Nov 2026: two times written into the page were guesses, the same for every business): Post sends it now, and
+ * Schedule asks for a day and a time. Its words are not the draft's: they are the piece's caption, typed under the places in
+ * the same sheet (viewer/caption.tsx) and kept before it is sent (piece-presses.tsx useCaptionKept).
  */
 export const postBothBegins = (takes: PieceTakes): PostBothDraft => ({
   instagram: takes.instagram,
