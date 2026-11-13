@@ -3,7 +3,8 @@
  * database in memory and a provider that keeps a record: off until both its settings are set; the first tick of the day
  * sends the canary's words from its Messaging Service to the platform's line; a tick soon after waits; a later one asks
  * the database what became of the text and passes, or pages under the key that says what failed: never taken in, nothing
- * answered it, or its answer did not leave.
+ * answered it, or its answer did not leave. And a check that is not checking is no pass: off where a line texts, or a
+ * record that could not be read, is told to the platform, once a day.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -12,7 +13,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const { sweepCanary } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/sms/canary.ts")).href);
+const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+const { sweepCanary } = await import(at("apps/edge/lib/sms/canary.ts"));
+const { pageOperator } = await import(at("apps/edge/lib/shared/alerts/page-operator.ts"));
 
 /** The canary's words and its two waits, as canary.ts says them: held here so a change to them is a change seen. */
 const CANARY_WORDS = "Hi! Are you open today? (a daily check from Chanlytics)";
@@ -34,10 +37,23 @@ const LINE = {
   voice_state: "active",
 };
 
-/** A world: the line, its record of texts, the messages the database holds, and what was sent and paged. */
-function world({ record = [], messages = [], set = true, refuse = false } = {}) {
+/**
+ * A world: the lines on file, the canary line's record of texts (or a read of it that fails), the messages the database
+ * holds, whether this deployment holds a line provider, and what was sent and paged.
+ */
+function world({
+  record = [],
+  messages = [],
+  set = true,
+  refuse = false,
+  lines: onFile = [LINE],
+  provider = true,
+  unreadable = false,
+  tables = {},
+  page = null,
+} = {}) {
   const db = fakeDb(
-    { lines: [LINE], messages },
+    { lines: onFile, messages, ...tables },
     {},
     { get_line_credentials: ({ p_line_id }) => (p_line_id === LINE.id ? { auth_token: "line-token" } : {}) },
   );
@@ -49,28 +65,33 @@ function world({ record = [], messages = [], set = true, refuse = false } = {}) 
     warn: (e, f) => lines.push([e, f]),
     error: (e, f) => lines.push([e, f]),
   };
-  const run = () =>
+  const run = (now = NOW) =>
     sweepCanary(
-      { db, L, started: NOW },
+      { db, L, started: now },
       {
-        provider: {
-          name: "twilio",
-          master: MASTER,
-          provider: {
-            recentTexts: async (acct, to, since) => {
-              assert.deepEqual([acct.sid, to, since], [LINE.subaccount_sid, TO, NOW - CHECK_WITHIN_MS]);
-              return record;
-            },
-            sendSms: async (acct, o) => {
-              sent.push({ acct, ...o });
-              return refuse ? { ok: false, sid: null, status: 400 } : { ok: true, sid: "SMcanary", status: 201 };
-            },
-          },
-        },
+        provider: provider
+          ? {
+              name: "twilio",
+              master: MASTER,
+              provider: {
+                recentTexts: async (acct, to, since) => {
+                  assert.deepEqual([acct.sid, to, since], [LINE.subaccount_sid, TO, now - CHECK_WITHIN_MS]);
+                  if (unreadable) throw new Error("twilio 503 (secret-ish)");
+                  return record;
+                },
+                sendSms: async (acct, o) => {
+                  sent.push({ acct, ...o });
+                  return refuse ? { ok: false, sid: null, status: 400 } : { ok: true, sid: "SMcanary", status: 201 };
+                },
+              },
+            }
+          : null,
         service: set ? SERVICE : null,
         to: set ? TO : null,
-        now: () => NOW,
-        page: async (key, subject, body) => pages.push({ key, subject, body }),
+        now: () => now,
+        page: page
+          ? (key, subject, body) => page(db, now, key, subject, body)
+          : async (key, subject, body) => pages.push({ key, subject, body }),
       },
     );
   return { run, sent, pages, lines };
@@ -87,10 +108,71 @@ const reply = (status) => ({
   created_at: new Date(NOW - 60_000).toISOString(),
 });
 
-test("off until both its settings are set: nothing is read, sent or paged", async () => {
-  const w = world({ set: false });
-  assert.deepEqual(await (await w.run()).json(), { ok: true, off: "not_set" });
-  assert.deepEqual([w.sent, w.pages], [[], []]);
+test("off until both its settings are set, and with no line that texts it is silent: nothing is sent or paged", async () => {
+  for (const onFile of [[], [{ ...LINE, provider: "carrier" }], [{ ...LINE, voice_state: "failed" }]]) {
+    const w = world({ set: false, lines: onFile });
+    assert.deepEqual(await (await w.run()).json(), { ok: true, off: "not_set" });
+    assert.deepEqual([w.sent, w.pages], [[], []], JSON.stringify(onFile[0]?.provider ?? "no line"));
+  }
+});
+
+test("REGRESSION: switched off where a line texts is told, not passed -- the check ran green every day having never checked anything", async () => {
+  // Off for want of its two settings, the state production was in on 13 Nov 2026: a clock that answered 200 daily and
+  // a line that texts, with no canary ever sent. The platform is told what to set; nothing is sent.
+  const unset = world({ set: false });
+  assert.deepEqual(await (await unset.run()).json(), { ok: true, off: "not_set" });
+  assert.deepEqual(unset.sent, []);
+  assert.deepEqual(
+    unset.pages.map((p) => [p.key, p.subject]),
+    [["text_canary_off", "The daily text check is not checking"]],
+  );
+  assert.match(unset.pages[0].body, /CANARY_SMS_SERVICE/);
+  assert.match(unset.pages[0].body, /CANARY_SMS_TO/);
+
+  // Set, but naming no line on file, while another line texts: off all the same, and said in its own words.
+  const elsewhere = world({ lines: [{ ...LINE, e164: "+13055550161" }] });
+  assert.deepEqual(await (await elsewhere.run()).json(), { ok: true, off: "no_line" });
+  assert.deepEqual(
+    elsewhere.pages.map((p) => p.key),
+    ["text_canary_off"],
+  );
+  assert.match(elsewhere.pages[0].body, /names no line on file/);
+  assert.notEqual(elsewhere.pages[0].body, unset.pages[0].body, "each reason says what to do about it");
+
+  // And a deployment that holds no line provider cannot check the lines it has on file.
+  const keyless = world({ provider: false });
+  assert.deepEqual(await (await keyless.run()).json(), { ok: true, off: "no_line_provider" });
+  assert.deepEqual(
+    keyless.pages.map((p) => p.key),
+    ["text_canary_off"],
+  );
+});
+
+test("REGRESSION: a record that could not be read is told and is no pass -- it answered ok and said nothing to anyone", async () => {
+  const w = world({ unreadable: true });
+  const answer = await (await w.run()).json();
+  assert.deepEqual(answer, { ok: true, step: "read_failed" });
+  assert.equal(answer.passed, undefined, "nothing was judged");
+  assert.deepEqual(w.sent, [], "nothing is sent blind");
+  assert.deepEqual(
+    w.pages.map((p) => [p.key, p.subject]),
+    [["text_canary_unread", "The daily text check could not read the line's record"]],
+  );
+  assert.ok(!JSON.stringify(w.pages).includes("secret-ish"), "the provider's own words stay in the log");
+});
+
+test("off is told once a day: the day's two ticks are one page, by the pager's own window, and the next day's is another", async () => {
+  process.env.LEAD_TO = "ops@platform.test";
+  process.env.LEAD_FROM = "Pager <pager@platform.test>";
+  const mail = [];
+  const page = (db, now, key, subject, body) =>
+    pageOperator({ db, now: () => now, send: async (_from, _to, s) => (mail.push(s), true) }, key, subject, body);
+  const w = world({ set: false, tables: { operator_pages: [] }, page });
+  await w.run(NOW - 15 * 60_000); // 14:00
+  await w.run(NOW); // 14:15
+  assert.deepEqual(mail, ["[Chanlytics] The daily text check is not checking"]);
+  await w.run(NOW + 24 * 3600_000 - 15 * 60_000); // the next day's 14:00
+  assert.equal(mail.length, 2);
 });
 
 test("the first tick of the day sends the canary's words from its service to the platform's line, on the master account", async () => {

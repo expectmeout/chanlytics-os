@@ -8,6 +8,8 @@
  * GitHub's workflows: the nightly's check of production red, and production's migrations disagreeing with main's for a day
  * (docs/runbook.md). Both reached nobody outside GitHub, so both come here and page the way the edge's own do: one
  * page per condition per six hours, to the platform's addresses, remembered in operator_pages and shown on /api/diag.
+ * What became of the page is the answer: 200 for one that went (`sent`) or was told inside its window already
+ * (`suppressed`), 503 for one that did not go out (`failed`, `unaddressed`), so the workflow that knocked goes red.
  *
  * The platform's key only (DIAG_KEY, held by the workflows as a secret): nothing mints a token for this door, and a
  * token, which names a workspace, is refused. The conditions are a closed set, so a workflow cannot page anything
@@ -53,5 +55,24 @@ export async function readPageFromOutside(auth: Admitted, request: Request): Pro
   if (!db) return refuse(503, "no_database");
   const outcome = await pageOperator({ db }, `outside:${condition}`, OUTSIDE_CONDITIONS[condition], detail);
   logger().info("outside_page", { condition, outcome });
+  // A page that did not go out is not a success. The door said 200 for every outcome until 13 Nov 2026, and the
+  // workflow that knocked printed "paged: failed" on a green step. The outcome rides beside the code, which is what
+  // the workflow's script judges by (tooling/scripts/ops/rolling-issue.mjs).
+  if (outcome === "failed")
+    return json(503, {
+      ok: false,
+      error: "unavailable",
+      detail: "the page's mail did not leave: its provider refused it or did not answer",
+      condition,
+      outcome,
+    });
+  if (outcome === "unaddressed")
+    return json(503, {
+      ok: false,
+      error: "no_platform_mailbox",
+      detail: "nobody is on file to page: the edge holds no LEAD_TO, or no LEAD_FROM to write from",
+      condition,
+      outcome,
+    });
   return json(200, { ok: true, condition, outcome });
 }
