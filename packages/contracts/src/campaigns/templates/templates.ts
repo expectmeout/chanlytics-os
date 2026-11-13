@@ -76,11 +76,71 @@ export function slugTemplateName(raw: string): string {
     .replace(/_+$/g, "");
 }
 
-/** A WhatsApp body as Meta reviews it: one kind of line break, and nothing blank at either end. */
+/**
+ * A WhatsApp body as Meta reviews it: one kind of line break, nothing blank at either end, a tab a space and never more
+ * than one blank line in a row (its review refuses more: mended here, since no owner means the difference).
+ */
 const bodyAsReviewed = (body: string | null | undefined): string =>
   String(body ?? "")
     .replace(/\r\n/g, "\n")
+    .replace(/\t/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
+
+/**
+ * Link shorteners, which WhatsApp's review refuses because they hide where a link goes: the well-known ones. The full
+ * address always works, so refusing one costs its writer nothing.
+ */
+const LINK_SHORTENERS = [
+  "bit.ly",
+  "tinyurl.com",
+  "t.co",
+  "goo.gl",
+  "ow.ly",
+  "is.gd",
+  "buff.ly",
+  "rebrand.ly",
+  "cutt.ly",
+  "shorturl.at",
+  "tiny.cc",
+  "rb.gy",
+  "t.ly",
+  "lnkd.in",
+  "v.gd",
+  "bl.ink",
+];
+const SHORT_LINK = new RegExp(
+  `(?:^|[\\s/.(])(?:${LINK_SHORTENERS.map((host) => host.replace(/\./g, "\\.")).join("|")})(?:/|\\b)`,
+  "i",
+);
+
+/** The fewest words of its own a body needs for each value it takes (shapeRefusal). */
+const WORDS_A_VALUE = 2;
+
+/**
+ * What WhatsApp's review refuses of a message's words whoever wrote them, refused here first, in the person's words, so
+ * nothing is sent to be refused (Ruben, 12 Nov 2026: only words WhatsApp takes are submitted). Its own list (Meta's
+ * template review page, read 12 Nov 2026): a value written any other way than {{1}}, values not numbered in order
+ * (placeholdersSequential, the draft's own check), a value at the very start or end, too many values for the words around
+ * them, and, by every provider's account, a shortened link. Meta publishes no number for "too many": the guides say about
+ * three words a value, and this refuses the plain case (fewer than WORDS_A_VALUE of its own words a value), leaving the
+ * rest to Meta's answer at the door. Null where the words pass. What a reader judges (a threat, a request for a card
+ * number, goods WhatsApp does not allow) is the dashboard's check at its doors, not this one.
+ */
+function shapeRefusal(body: string, link: string | null): string | null {
+  const plain = body.replace(NUMBERED_SLOT, " ");
+  if (/[{}]/.test(plain))
+    return "Write each value as {{1}} or {{2}}: two braces each side, and only its number inside.";
+  if (/^\s*\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}\s*$/.test(body))
+    return "WhatsApp refuses a message that starts or ends with a value. Put words before the first one and after the last.";
+  const values = placeholdersOf(body).length;
+  const words = plain.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
+  if (values > 0 && words < values * WORDS_A_VALUE)
+    return "WhatsApp refuses a message with this many values and so few words. Add a few words around them, or use fewer values.";
+  if (SHORT_LINK.test(body) || (link !== null && SHORT_LINK.test(link)))
+    return "WhatsApp refuses shortened links, since they hide where they go. Use the full address.";
+  return null;
+}
 
 /** Whether a WhatsApp body is past what Meta takes (TEMPLATE_BODY_MAX), read as its review reads it: the one test of it. */
 export function templateBodyTooLong(body: string): boolean {
@@ -187,12 +247,11 @@ export function validateTemplateDraft(templateDraftInput: TemplateDraftInput): T
       return { ok: false, error: "The button needs a web address to open, starting with https://." };
     button = { text, url };
   }
+  const refused = shapeRefusal(body, button?.url ?? null);
+  if (refused) return { ok: false, error: refused };
   const warnings: string[] = [];
-  if (/^\s*\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}\s*$/.test(body))
-    warnings.push("WhatsApp often rejects a message that starts or ends with a value; put words around it.");
   if (templateDraftInput.category === "marketing" && !/stop/i.test(body + " " + footer))
     warnings.push("A marketing message should say how to opt out, such as “Reply STOP to opt out”.");
-  if (/\n{3,}/.test(body)) warnings.push("More than one blank line in a row is usually rejected.");
   return {
     ok: true,
     value: {

@@ -10,7 +10,13 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { SEQUENCES_ROUTE, refusedWords } from "@chanlytics/contracts";
+import {
+  MESSAGE_CHANGE_WORDS,
+  SEQUENCES_ROUTE,
+  VERSION_CHANNELS,
+  refusedWords,
+  versionWord,
+} from "@chanlytics/contracts";
 import type { CampaignMessage, VersionChannel } from "@chanlytics/contracts";
 import { editorBox, focusAsDrawn, gate, navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -63,9 +69,12 @@ export interface RowCtx {
   busy: boolean;
   doing: string | null;
   onAdd: (g: StarterGroup, lang: TplLang) => void;
-  onRename: (row: TemplateDto, draft: string) => void;
-  onHide: (row: TemplateDto) => void;
-  onDelete: (row: TemplateDto) => void;
+  /** Renamed: every version of the message in the language, the one that names it first. */
+  onRename: (rows: readonly TemplateDto[], draft: string) => void;
+  /** Put away or brought back; `stillSentBy` names what still sends it, which putting it away does not stop. */
+  onHide: (row: TemplateDto, stillSentBy?: string | null) => void;
+  /** The message deleted whole in the language in view: every version of it there, named by its title. */
+  onDelete: (title: string, rows: readonly TemplateDto[]) => void;
   onWritten?: (g: TemplateGroup, lang: TplLang, made: TemplateMade) => void;
   /** The languages WhatsApp holds, and the languages the message holds a version in on any channel. */
   present: PresentRow[];
@@ -102,6 +111,25 @@ export interface RowCtx {
   cancelNew: () => void;
   /** The pane's foot, where what is answered stands (a rename's Save, a delete's question); null until it is drawn. */
   dock: HTMLElement | null;
+  /**
+   * The row that names the message in the language in view (contracts' anchor: its WhatsApp version's, else its email's,
+   * else its text's): what Rename and Put away act on, whichever channels it has. Null where none is on file.
+   */
+  anchor: TemplateDto | null;
+  /** Every version of the message in the language in view, on any channel: what its Delete takes. */
+  inView: readonly TemplateDto[];
+  /** Who may rename, put away and delete it: the role's answer alone, since a message with no WhatsApp version needs no number. */
+  canChange: boolean;
+}
+
+/** A delete's question, and what it says goes: every channel the message has in this language, its other languages kept. */
+function deleteWords(c: RowCtx): { question: string; detail: string } {
+  const others = new Set(c.onFile.map((r) => r.lang.id)).size > 1;
+  const channels = VERSION_CHANNELS.filter((ch) => c.inView.some((r) => r.channel === ch)).map(versionWord);
+  return {
+    question: TPL_SHEET_WORDS.deleteAsk(c.g.title, others ? c.cur.lang.label : null),
+    detail: `${MESSAGE_CHANGE_WORDS.deleteSaid(channels, others)}${c.pausedWords}`,
+  };
 }
 
 /**
@@ -204,7 +232,7 @@ export function closedLine(c: LineCtx) {
  * that changes nothing about who a run reaches (the message sheet's canvas, 12 Nov 2026): the pane draws it where the
  * message has two languages or one is being added, and the name's menu adds one (`open`: drawn already opened).
  */
-export function LanguageWord({ c, open }: { c: RowCtx; open: boolean }) {
+export function LanguageWord({ c, open, onClosed }: { c: RowCtx; open: boolean; onClosed?: () => void }) {
   const { g, langs, S, onFile, view, cur, mayAdd, note, pick } = c;
   const token = useRef<HTMLButtonElement | null>(null);
   // Asked for from the name's menu: the list opens as the word arrives, so the pick that asked for it is the one press.
@@ -236,6 +264,7 @@ export function LanguageWord({ c, open }: { c: RowCtx; open: boolean }) {
         face={cur.lang.label}
         inline
         ref={token}
+        {...(onClosed ? { onClosed } : {})}
         {...(choices.length > 7 ? { search: cmLanguageSearch(choices) } : {})}
         {...(note ? { note } : {})}
         data-testid="template-lang"
@@ -321,10 +350,11 @@ function cardFoot(c: RowCtx) {
  * playbook refuses it, and the question is not asked). Rename, Hide and Delete are the menu's; a delete asks first.
  */
 function cardActs(c: RowCtx, row: TemplateDto) {
-  const { S, busy, cur, renaming, draft, arm, sending, pausedWords, dock } = c;
+  const { S, busy, renaming, draft, arm, sending, dock } = c;
   const { closeActs, setRenaming, setDraft, setArm, setSentLang, setAdding, onRename, onDelete } = c;
+  // The one that names it first, then its other versions in the language.
   const save = () => {
-    onRename(row, draft);
+    onRename([row, ...c.inView.filter((r) => r.id !== row.id)], draft);
     closeActs();
   };
   // What is answered stands in the pane's foot, docked as every drawer's acts are; where the pane has none, here.
@@ -387,8 +417,7 @@ function cardActs(c: RowCtx, row: TemplateDto) {
       ) : (
         docked(
           <Confirm
-            question={`Delete “${tplTitle(row)}” in ${cur.lang.label}?`}
-            detail={`It leaves WhatsApp; sends that use it fail from now on.${pausedWords}`}
+            {...deleteWords(c)}
             yes="Yes, delete"
             danger
             busy={busy}
@@ -397,7 +426,7 @@ function cardActs(c: RowCtx, row: TemplateDto) {
               closeActs();
               setSentLang(null);
               setAdding(null);
-              onDelete(row);
+              onDelete(c.g.title, c.inView);
             }}
             onNo={() => setArm(false)}
             testid="template-delete"
@@ -419,14 +448,20 @@ export interface VersionActs {
   onRemove: (() => void) | null;
 }
 
-/** The WhatsApp version's acts: rename it, put it away (or bring it back) and delete it, for the members who may. */
-function whatsappItems({ busy, setDraft, setRenaming, setArm, onHide }: RowCtx, row: TemplateDto): MenuItem[] {
+/**
+ * The message's own acts, on the row that names it (its WhatsApp version's, else its email's, else its text's): rename it,
+ * put it away (or bring it back) and delete it, for the members who may, whichever channels it has.
+ */
+function messageItems({ busy, setDraft, setRenaming, setArm, onHide }: RowCtx, row: TemplateDto): MenuItem[] {
   const away = !!row.hidden_at;
   return [
     {
       label: "Rename",
       glyph: <Icon name="pencil" size={13} />,
-      title: "Call it something in your own words — WhatsApp keeps its name",
+      title:
+        row.channel === "whatsapp"
+          ? "Call it something in your own words — WhatsApp keeps its name"
+          : "Call it something in your own words",
       disabled: busy,
       gate: { "data-testid": "template-rename" },
       onSelect: () => {
@@ -493,15 +528,12 @@ export function addLanguageItem(onAdd: () => void): MenuItem {
  * is spread there). The name alone where nothing may be done here.
  */
 export function paneName(c: RowCtx, channel: VersionChannel, version: VersionActs | null, more: readonly MenuItem[]) {
-  const { g, row, canAct } = c;
-  // Rename and Put away, what the pane adds, a version's Remove, and Delete last, as the act that cannot be taken back.
-  const own = row && canAct ? whatsappItems(c, row) : [];
-  const items = [
-    ...own.slice(0, -1),
-    ...more,
-    ...(channel !== "whatsapp" && version ? removeItem(c.busy, version) : []),
-    ...own.slice(-1),
-  ];
+  const { g, anchor, canChange } = c;
+  // Rename and Put away, what the pane adds, a version's Remove, and Delete last, as the act that cannot be taken back. A
+  // version that is the message's only one has no Remove: its Delete is the message's.
+  const own = anchor && canChange ? messageItems(c, anchor) : [];
+  const removable = channel !== "whatsapp" && version && c.inView.length > 1;
+  const items = [...own.slice(0, -1), ...more, ...(removable ? removeItem(c.busy, version) : []), ...own.slice(-1)];
   if (items.length === 0) return g.title;
   return (
     <Menu
@@ -561,6 +593,8 @@ export function openRow(
   const { row, starterText, renaming, arm } = c;
   return (
     <div className="msg-row-open tpl-read" data-testid="template-open-body">
+      {/* The new name is typed where the name is read, over the tabs, never under the words at the sheet's foot. */}
+      {renaming && c.anchor ? cardActs(c, c.anchor) : null}
       {bar}
       {/* Why it needs you, on WhatsApp's tab, where WhatsApp's no is about: the list's own sentence for it, two lines at
           most, and whole on a tap on where it stands. */}
@@ -581,8 +615,8 @@ export function openRow(
           {!row && !starterText ? newLanguage(c) : readPane(c, around.onEdit)}
         </>
       )}
-      {/* What the name's menu began, whichever channel is in view: the new name being typed, or a delete's question. */}
-      {(renaming || arm) && row ? cardActs(c, row) : null}
+      {/* A delete's question, whichever channel is in view: its answer stands in the foot. */}
+      {arm && !renaming && c.anchor ? cardActs(c, c.anchor) : null}
     </div>
   );
 }

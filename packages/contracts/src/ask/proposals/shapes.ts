@@ -146,6 +146,11 @@ export const ASK_KIND_TRAITS = {
   reach_out_said: t("keep", "keeps", null, "keep", "keep"),
   sequence_send_said: t("keep", "keeps", null, "keep", "keep"),
   message: t("keep", "keeps", null, "keep", "save"),
+  // A message on file changed: its words, its name, put away or back, each pressed; a delete removes.
+  message_words: t("change", "how", null, "press", "change"),
+  message_rename: t("change", "how", null, "press", "change"),
+  message_away: t("change", "how", null, "press", "change"),
+  message_delete: t("change", "removes", null, "press", "delete"),
   sequence_draft: t("keep", "keeps", null, "keep", "save"),
   sequence_new: t("keep", "keeps", null, "keep", "open"),
   sequence_make: t("keep", "keeps", null, "keep", "make"),

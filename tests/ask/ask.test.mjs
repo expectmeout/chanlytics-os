@@ -512,7 +512,7 @@ test("a campaign's scope is read before the model is asked, by the read of its o
     });
   assert.deepEqual(scopedRead({ kind: "message", id: "reminder_24h", label: "Reminder" }), {
     name: "sequences",
-    input: { action: "messages" },
+    input: { action: "messages", name: "reminder_24h" },
   });
   assert.deepEqual(scopedRead({ kind: "visit", id: "v1", label: "this visit" }, "calendar/week:2026-11-12:a-v1"), {
     name: "calendar",
@@ -1491,6 +1491,10 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
           "discard",
           "end",
           "message",
+          "message_words",
+          "message_rename",
+          "message_away",
+          "message_delete",
           "cold_email",
           "leads",
         ],

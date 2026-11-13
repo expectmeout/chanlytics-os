@@ -20,6 +20,7 @@ import {
 } from "@chanlytics/contracts";
 import {
   createMessageVersion,
+  findHeldMessage,
   findMessageSlots,
   listOwnVersionsFiled,
   removeTemplateVersion,
@@ -234,6 +235,13 @@ export async function saveVersion(
   }
   if (!TEMPLATE_LANGUAGES.some((l) => l.id === versionRequest.language))
     throw new AppError("validation", "Pick a language from the list.");
+  // A text never carries an offer: refused beside a message on file as it is for a message's first version (beginMessage),
+  // in the sentence the ticks and the sends say (contracts channelNeverCarries).
+  if (versionRequest.channel === "sms") {
+    const message = await findHeldMessage(ctx.supabase, member.tenantId, versionRequest.name, versionRequest.language);
+    const never = message ? channelNeverCarries("sms", purposeOfTemplate(message.category)) : null;
+    if (never) throw new AppError("validation", never);
+  }
   const held = await findMessageSlots(ctx.supabase, member.tenantId, versionRequest.name, versionRequest.language);
   return writeOrBegin(ctx, member.tenantId, versionRequest, held);
 }

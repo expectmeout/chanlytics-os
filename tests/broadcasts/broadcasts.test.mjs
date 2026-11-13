@@ -1114,7 +1114,7 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
   assert.deepEqual([pending.proposal, pending.isError], [null, true]);
   assert.match(
     JSON.parse(pending.result).error,
-    /^WhatsApp is still reviewing this message's WhatsApp version\./,
+    /^WhatsApp is checking this message\./,
     "the standing of the one version it has, in contracts' words",
   );
   // The card commits through the broadcast route, the same door the page uses, and its undo is the cancel route:

@@ -111,6 +111,14 @@ function doors(tables, order, after) {
   };
   return {
     session: {
+      // The workspace's own words for a row (the owner's name for the message): the member's door, as Rename's.
+      set_template_title(a) {
+        order.push("title");
+        const row = tables.templates.find((t) => t.id === a.p_template_id);
+        if (!row) throw Object.assign(new Error("Template not found."), { code: "P0002" });
+        row.title = a.p_title;
+        return { template_id: row.id, title: a.p_title };
+      },
       save_template_version(a) {
         order.push(`save:${a.p_channel}`);
         const source = tables.templates.find((t) => t.tenant_id === a.p_tenant_id && t.name === a.p_name);
@@ -192,7 +200,16 @@ function open({ templates = [], edge = null, status = "pending" } = {}) {
       },
     ],
     tenant_channels: [
-      { id: "ch-wa", tenant_id: B, kind: "whatsapp", status: "active", config: {}, number_e164: "+15550100" },
+      // Its WhatsApp Business Account on file: the edge asks WhatsApp to review a version only for such a number.
+      {
+        id: "ch-wa",
+        tenant_id: B,
+        kind: "whatsapp",
+        status: "active",
+        config: {},
+        number_e164: "+15550100",
+        waba_id: "waba-1",
+      },
     ],
     templates: [...templates],
     events: [],
@@ -212,7 +229,7 @@ function open({ templates = [], edge = null, status = "pending" } = {}) {
     );
   const filed = (name = "spring_colour") =>
     tables.templates.filter((t) => t.name === name).map((t) => [t.channel, t.meta_status]);
-  return { tables, order, meta, post, filed, faults, after };
+  return { tables, order, meta, post, filed, faults, after, ctx };
 }
 
 async function refused(p, code, status, words) {
@@ -236,6 +253,52 @@ test("POST templates/message declares its policy as POST templates does, and has
   const w = open();
   await refused(w.post(message({ versions: { email: EMAIL } }), A), "forbidden", 403, "");
   assert.deepEqual(w.order, [], "a member who only looks files nothing");
+});
+
+test("a WhatsApp version on a number whose WhatsApp Business Account is not on file is refused before anything is filed, in the edge's own words: no email filed beside a WhatsApp version that could never go", async () => {
+  const w = open();
+  w.tables.tenant_channels[0].waba_id = null;
+  await refused(
+    w.post(message({ versions: { email: EMAIL, whatsapp: WHATSAPP } })),
+    "conflict",
+    409,
+    "WhatsApp Business Account is not on file",
+  );
+  assert.deepEqual(w.order, [], "nothing filed, and Meta was not asked");
+  // No number at all says so in the edge's own sentence for it.
+  const none = open();
+  none.tables.tenant_channels.length = 0;
+  await refused(
+    none.post(message({ versions: { whatsapp: WHATSAPP } })),
+    "conflict",
+    409,
+    LIBRARY_WORDS.writeNeedsNumber,
+  );
+});
+
+test("a message nothing of was filed is refused in the words of what refused it, never answered as one saved (the live demo, 12 Nov 2026: a card said ✓ Not saved)", async () => {
+  const w = open({ edge: { status: 409, body: { error: "no_waba" } } });
+  await refused(w.post(message({ versions: { whatsapp: WHATSAPP } })), "conflict", 409, "not on file");
+  assert.deepEqual(w.filed(), [], "nothing on file");
+});
+
+test("what the owner calls the message is kept as each version's title where it says more than the name made words; words that only spell the name are not", async () => {
+  const w = open();
+  const r = await w.post(message({ title: "Spring colour, 20% off", versions: { email: EMAIL, whatsapp: WHATSAPP } }));
+  assert.deepEqual(
+    r.versions.map((v) => v.channel),
+    ["email", "whatsapp"],
+  );
+  assert.deepEqual(
+    w.tables.templates.filter((t) => t.name === "spring_colour").map((t) => [t.channel, t.title]),
+    [
+      ["email", "Spring colour, 20% off"],
+      ["whatsapp", "Spring colour, 20% off"],
+    ],
+  );
+  const plain = open();
+  await plain.post(message({ title: "Spring colour", versions: { email: EMAIL } }));
+  assert.ok(!plain.order.includes("title"), "its name made words already says it");
 });
 
 test("(a) a utility message with an email and a text version and no WhatsApp one is refused in the product's words before anything is filed: nobody reviews a category its writer declares", async () => {
@@ -570,4 +633,47 @@ test("a fault once a version is filed is answered in one plain sentence and logg
   assert.ok(line, `the fault is logged: ${JSON.stringify(lines)}`);
   assert.deepEqual([line.level, line.tenant_id, line.channel], ["error", B, "whatsapp"]);
   assert.match(String(line.error), /connection reset by peer/);
+});
+
+test("what WhatsApp's review would refuse is said before anything is filed, so no email is filed beside a WhatsApp version that would come back refused: the words of a message WhatsApp already has, and what a reader sees", async () => {
+  const { writeMessage } = await import(at("apps/dashboard/src/server/campaigns/write-message.ts"));
+  const { AppError } = await import("@chanlytics/contracts");
+  // A twin: another message of the workspace WhatsApp holds, saying the same words under the same footer.
+  const twin = {
+    id: "99999999-9999-4999-8999-000000000001",
+    tenant_id: B,
+    channel: "whatsapp",
+    name: "autumn_colour",
+    title: "Autumn colour",
+    language: "en_US",
+    category: "marketing",
+    meta_status: "approved",
+    meta_id: "meta-9",
+    body_preview: WHATSAPP.body,
+    components: [
+      { type: "BODY", text: WHATSAPP.body },
+      { type: "FOOTER", text: WHATSAPP.footer },
+    ],
+    variables: [],
+    hidden_at: null,
+  };
+  const held = open({ templates: [twin] });
+  await refused(
+    held.post(message({ versions: { email: EMAIL, whatsapp: WHATSAPP } })),
+    "conflict",
+    409,
+    "the same words as one it already has from you (“Autumn colour”)",
+  );
+  assert.deepEqual([held.order, held.filed()], [[], []], "nothing filed, and WhatsApp not asked");
+  // The reader's look: handed the words as WhatsApp will review them, and its refusal stops the whole message.
+  const w = open();
+  const looked = [];
+  const refuses = async (_ctx, tenantId, words) => {
+    looked.push([tenantId, words.body, words.footer, words.category, words.language]);
+    throw new AppError("validation", "WhatsApp would refuse this: it asks for a full card number.");
+  };
+  const body = message({ versions: { email: EMAIL, whatsapp: WHATSAPP } });
+  await assert.rejects(writeMessage(w.ctx, { tenantId: B, role: "operator" }, body, refuses), /full card number/);
+  assert.deepEqual(looked, [[B, WHATSAPP.body, WHATSAPP.footer, "marketing", "en_US"]]);
+  assert.deepEqual([w.order, w.filed()], [[], []], "no email filed beside it");
 });
