@@ -82,7 +82,7 @@ export interface PlaceWaitsToo {
 }
 
 /** What can be done to a post on its way: stopped while it still can be, moved while no run has taken it, its words held. */
-const waitOf = (post: PostDto | null): Pick<PlaceWaitsToo, "pull" | "movable" | "making"> => ({
+const waitingActsOf = (post: PostDto | null): Pick<PlaceWaitsToo, "pull" | "movable" | "making"> => ({
   pull: post && POST_PULLABLE.includes(post.status) ? post.id : null,
   movable: post?.status === "queued" ? post.id : null,
   making: post?.status === "preparing" && post.kind !== "story",
@@ -92,7 +92,7 @@ const waitOf = (post: PostDto | null): Pick<PlaceWaitsToo, "pull" | "movable" | 
 const waitsTooOf = (post: PostDto, nowMs: number): PlaceWaitsToo => ({
   kind: post.kind,
   stands: postWaitsForItsTime(post, nowMs) ? { is: "timed", at: post.scheduled_for } : { is: "going" },
-  ...waitOf(post),
+  ...waitingActsOf(post),
 });
 
 /** One place in the list: where the piece stands there, and what can be done there now. */
@@ -147,7 +147,7 @@ export function placesOf(
       stands,
       takes: can.takes[place],
       wont: can.wont[place],
-      ...waitOf(onItsWay.find((p) => p.id === last?.id) ?? null),
+      ...waitingActsOf(onItsWay.find((p) => p.id === last?.id) ?? null),
       letGo: last && (last.status === "held" || last.status === "failed") ? last.id : null,
       kind: last?.kind ?? null,
       upToo: up ? { at: up.published_at } : null,
