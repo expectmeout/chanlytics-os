@@ -4,9 +4,9 @@ import { activeWorkspace, scoped } from "../workspace";
 
 /**
  * Files, from a photo to a post (decision 0099), on a real workspace: a photo goes up through real Storage, a press asks for a post,
- * the card is changed and kept for real, a phone's sheet is handed the picture inside the press, a new version keeps another file, and
- * Undo takes one back. Ask's answer alone is scripted, since a real turn costs money: the card it carries, and everything after it,
- * is the real thing. A photo's look runs as it does for anyone, at about $0.0005 a night.
+ * the card is changed and kept for real, a phone's sheet is handed the picture inside the press, a change takes the post's place,
+ * and Undo takes each back. Ask's answer alone is scripted, since a real turn costs money: the card it carries, and everything after
+ * it, is the real thing. A photo's look runs as it does for anyone, at about $0.0005 a night.
  *
  * Settings › Files is Campaigns › Content's Library now (the content redesign's stage 2, 11 Nov 2026): the library is drawn in
  * Content's list pane (`campaigns/content:library`), and a file opens in Content's pane beside it, where Files' sheet was.
@@ -18,6 +18,8 @@ const fromTheApp = { headers: { origin: new URL(BASE).origin } };
 const HEADLINE = "Open this Saturday";
 const CHANGED = "Open late this Saturday";
 const VERSION = "Open early this Saturday";
+/** The rows that chose how a post looks (its layout, its type) and its shape: drawn nowhere a person changes a post now. */
+const LOOK_CHOICES = '[data-testid^="post-layout"], [data-testid^="post-voice"], [data-testid^="post-shape"]';
 
 /** A photo no one has kept before: every run's is its own, or the library says it is already here. */
 async function aPhotoOfItsOwn(page: Page): Promise<Buffer> {
@@ -146,7 +148,7 @@ test.describe("Files, from a photo to a post", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.setTimeout(180_000);
 
-  test("a press makes a post; it changes where it stands, shares inside the press, keeps a new version, and Undo takes one back", async ({
+  test("a press makes a post; it changes where it stands, shares inside the press, a change takes its place, and Undo takes each back", async ({
     page,
   }) => {
     // What a phone offers: a desktop's Chromium has no sheet to hand a picture to. `isActive` is the point: Safari refuses a share
@@ -243,11 +245,12 @@ test.describe("Files, from a photo to a post", () => {
       await redrawn;
       await expect.poll(() => picture.getAttribute("src"), { timeout: 30_000 }).not.toBe(firstPicture);
       await expect(page.getByTestId("ask-card").filter({ hasText: CHANGED })).toBeVisible();
-      await card.getByTestId("post-layout-band").click();
-      await expect(card.getByTestId("post-layout-band")).toHaveAttribute("aria-pressed", "true");
-      await card.getByTestId("post-shape-square").click();
-      await expect(card.getByTestId("post-frame")).toHaveAttribute("data-shape", "square");
-      await card.getByTestId("post-shape-portrait").click();
+      // Its words alone: how a post looks is Ask's to choose, as it chose it when it made the post, and it comes in every
+      // shape, so the card offers no row of layouts and none of shapes (Ruben, 12 Nov 2026: no rows of presets). It drew
+      // both here, and this pressed them, until then.
+      await expect(card.getByTestId("post-edit")).toBeVisible();
+      await expect(card.locator(LOOK_CHOICES)).toHaveCount(0);
+      await expect(card.getByTestId("post-frame")).toHaveAttribute("data-shape", "portrait");
 
       // Words that can't be drawn hold Save, and say why.
       const approve = page.getByTestId("ask-card-approve");
@@ -276,15 +279,22 @@ test.describe("Files, from a photo to a post", () => {
         { name: expect.stringMatching(/^open-late-this-saturday.*-portrait\.jpg$/), active: true },
       ]);
 
-      // Open in Content, it says where it came from, and a new version (More › Change it) starts from what it was asked to be.
+      // Open in Content, it says where it came from, and a change (More › Change it) starts from what it was asked to be: its
+      // words alone there too.
       await card.getByTestId("post-open-files").click();
       await expect(pane).toBeVisible({ timeout: 30_000 });
+      // Ask stands over the right of a desk's page, and that is where Content draws the piece it opened: a file's sheet came
+      // over Ask while the library was Settings › Files' own, and the pane does not (the library became Content's on 11 Nov
+      // 2026, and a press on the pane's More was Ask's to take from then on). Its door closes it, as a person would to reach
+      // the pane.
+      await page.getByTestId("tb-ask").click();
+      await expect(card).toBeHidden();
       await expect(pane.getByTestId("fl-made-from")).toBeVisible({ timeout: 30_000 });
       await pane.getByTestId("cnv-more").click();
       await page.getByRole("menuitem", { name: "Change it" }).click();
       const version = pane.getByTestId("post-version");
       await expect(version.getByTestId("post-line")).toHaveValue(CHANGED);
-      await expect(version.getByTestId("post-layout-band")).toHaveAttribute("aria-pressed", "true");
+      await expect(version.locator(LOOK_CHOICES)).toHaveCount(0);
       await expect(page.getByTestId("post-save-new"), "nothing has changed yet").toBeDisabled();
       await version.getByTestId("post-line").fill(VERSION);
       await expect(page.getByTestId("post-save-new")).toBeEnabled({ timeout: 30_000 });
@@ -292,9 +302,20 @@ test.describe("Files, from a photo to a post", () => {
       await expect.poll(() => made.length, { timeout: 60_000 }).toBe(2);
       // The new one opens in its place: the pane's title names it.
       await expect(pane.locator(".cm-pane-name")).toContainText("Open early this saturday", { timeout: 30_000 });
-      expect(made.at(0), "the first is left as it was").not.toBe(made.at(1));
-      const first = await page.request.get(scoped(`/api/v1/files/${made.at(0) ?? ""}`, workspace));
-      expect(first.ok(), "and is still there").toBeTruthy();
+      // The post is out nowhere yet, so the change takes its place rather than standing as a twin beside it (Ruben, 12 Nov
+      // 2026: a typo fixed left two): a file of its own is kept, and then the first is taken away. Until then this read
+      // "a new version keeps another file", and looked for the first still there.
+      const statusOf = async (id: string | undefined) =>
+        (await page.request.get(scoped(`/api/v1/files/${id ?? ""}`, workspace))).status();
+      expect(made.at(0), "the change is a file of its own").not.toBe(made.at(1));
+      await expect.poll(() => statusOf(made.at(0)), { timeout: 30_000 }).toBe(404);
+      expect(await statusOf(made.at(1)), "the change stands").toBe(200);
+
+      // Undo, on the toast that said it changed: the first is back where it was, and the change is let go.
+      await page.locator(".pp-toast").getByRole("button", { name: "Undo" }).last().click();
+      await expect.poll(() => statusOf(made.at(0)), { timeout: 30_000 }).toBe(200);
+      await expect.poll(() => statusOf(made.at(1)), { timeout: 30_000 }).toBe(404);
+      await expect(pane.locator(".cm-pane-name")).toContainText("Open late this saturday", { timeout: 30_000 });
 
       // Where it came from opens that photo, in the Library it belongs to.
       await pane.getByTestId("fl-made-from").click();
@@ -304,18 +325,12 @@ test.describe("Files, from a photo to a post", () => {
       });
       await expect(pane.getByTestId("fl-made-from"), "and it came from nothing").toHaveCount(0);
 
-      // Undo, on the card that made the first: it is gone, and the version made from it stays.
-      // Ask stood beside the pane on a desk; a press of its door while open would close it.
+      // Undo, on the card that made the post: it is gone.
+      // Ask was closed to reach the pane; its door opens it again on the turn it held (open, a press would close it).
       if (!(await card.isVisible())) await page.getByTestId("tb-ask").click();
       await expect(card).toBeVisible();
       await page.getByTestId("ask-card").getByRole("button", { name: "Undo", exact: true }).click();
-      await expect
-        .poll(async () => (await page.request.get(scoped(`/api/v1/files/${made.at(0) ?? ""}`, workspace))).status(), {
-          timeout: 30_000,
-        })
-        .toBe(404);
-      const version2 = await page.request.get(scoped(`/api/v1/files/${made.at(1) ?? ""}`, workspace));
-      expect(version2.ok(), "the version stays").toBeTruthy();
+      await expect.poll(() => statusOf(made.at(0)), { timeout: 30_000 }).toBe(404);
     } finally {
       for (const id of [...made, photoId].filter(Boolean)) {
         const gone = await page.request.delete(scoped(`/api/v1/files/${id}`, workspace), fromTheApp);

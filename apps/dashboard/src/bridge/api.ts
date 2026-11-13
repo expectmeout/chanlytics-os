@@ -121,9 +121,22 @@ export function headStarted(path: string, win: Window = window): boolean {
  * first pass). Leads' head read is the list in Fit order, and a tab that last read another order never took it: it stayed
  * in the slot for the page's life, and the owner choosing Fit minutes later was answered from the document's first
  * second, which the surface then held as fresh for two minutes more.
+ *
+ * Let go, and ended: an answer whose body nobody reads is still coming down as far as the browser knows, so its request
+ * stayed open for as long as the browser kept the answer. Forgetting the slot alone left it so. Content opens on Campaigns'
+ * reads and never takes Sequences' list, and the nightly's walk of its Library waited 45 seconds for a network that never
+ * went quiet (12 and 13 Nov 2026). One that never answered has nothing to end.
  */
 export function dropPrefetched(win: Window): void {
+  const untaken = Object.values(prefetched(win) ?? {});
   Reflect.deleteProperty(win, PREFETCH_SLOT);
+  for (const held of untaken) {
+    if (!(held instanceof Promise)) continue;
+    // Nothing waits on the ending: a read that failed, or a body already let go of, is as ended as it gets.
+    void held
+      .then((answer: unknown) => (answer instanceof Response ? answer.body?.cancel() : undefined))
+      .catch(() => {});
+  }
 }
 
 /**
