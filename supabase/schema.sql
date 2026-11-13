@@ -9720,7 +9720,7 @@ COMMENT ON FUNCTION public.lead_check_estimate(p_addresses integer) IS 'What che
 CREATE FUNCTION public.lead_check_retry(p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
+    AS $_$
 declare
   v_limit integer := greatest(coalesce(p_limit, 0), 0);
   v_share integer := greatest(v_limit / 4, 1);
@@ -9824,7 +9824,7 @@ begin
     end loop;
   end loop;
   return jsonb_build_object('asked', v_asked, 'held', v_held, 'freed', v_freed);
-end $$;
+end $_$;
 
 
 --

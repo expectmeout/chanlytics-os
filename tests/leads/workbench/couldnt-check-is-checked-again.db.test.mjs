@@ -74,6 +74,7 @@ async function found(
     checked = ago(2 * DAY),
     rechecks = 0,
     round = L.round,
+    search = L.search,
     email = `hello@plumber${n}-${stamp}.madeup-fixture.com`,
   },
 ) {
@@ -98,7 +99,7 @@ async function found(
   ).id;
   ok(
     await db.from("lead_search_members").insert({
-      search_id: L.search,
+      search_id: search,
       lead_id: lead,
       round_id: round,
       tenant_id: A,
@@ -313,21 +314,28 @@ test(
   async () => {
     const dead = await found(11, { state: "checking" });
     const live = await found(12, { state: "checking" });
-    ok(
-      await db.from("jobs").insert({
-        tenant_id: A,
-        kind: "lead_check",
-        due_at: new Date(Date.now() + DAY).toISOString(),
-        payload: { round_id: L.round, batch: 0, again: `live-${stamp}`, lead_ids: [live] },
-      }),
-    );
+    // A search of its own, with a round still going: a second round of the ended search would need a signed-in person.
+    const other = ok(
+      await db
+        .from("lead_searches")
+        .insert({
+          tenant_id: A,
+          via: "people",
+          card: "local_businesses",
+          name: "Roofers",
+          asked: "",
+          plan: { version: 1 },
+        })
+        .select("id")
+        .single(),
+    ).id;
     const open = ok(
       await db
         .from("lead_rounds")
         .insert({
           tenant_id: A,
-          search_id: L.search,
-          seq: 2,
+          search_id: other,
+          seq: 1,
           purpose: "probe",
           plan: { version: 1 },
           plan_version: 1,
@@ -340,8 +348,16 @@ test(
         .select("id")
         .single(),
     ).id;
-    const searching = await found(13, { state: "checking", round: open });
+    const searching = await found(13, { state: "checking", round: open, search: other });
     try {
+      ok(
+        await db.from("jobs").insert({
+          tenant_id: A,
+          kind: "lead_check",
+          due_at: new Date(Date.now() + DAY).toISOString(),
+          payload: { round_id: L.round, batch: 0, again: `live-${stamp}`, lead_ids: [live] },
+        }),
+      );
       assert.equal(ok(await retry()).freed, 1, "the one nothing will ever answer for");
       assert.deepEqual(
         await stateOf(dead),
@@ -352,7 +368,7 @@ test(
       assert.equal((await stateOf(searching)).email_state, "checking", "its search still runs, and checks its own");
       assert.equal(ok(await retry()).freed, 0, "given back once");
     } finally {
-      ok(await db.rpc("lead_round_end", { p_round_id: open, p_ending: "stopped" }));
+      ok(await db.rpc("lead_round_end", { p_round_id: open, p_ending: "target_reached" }));
       await settle();
     }
   },
