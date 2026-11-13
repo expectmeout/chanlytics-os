@@ -4206,7 +4206,7 @@ const MESSAGE_ROWS_ASKED =
   "id, channel, name, language, meta_status, category, variables, hidden_at, title, source, components, body_preview, rejected_reason";
 /**
  * Every query GET contacts asked at origin/main (e3184cff) for peopleWorld's first page, in order, with the columns it
- * selected (and, since 3 Oct 2026, the two reads of what the workspace can send on). The workspace's door. The first stage at once: the page and how many match, then the page's reply modes.
+ * selected (and, since 3 Oct 2026, the two reads of what the workspace can send on). The workspace's door. The first stage at once: the page and how many match, then the page's reply modes (its own people's alone since 00624, 13 Nov 2026, where every reply policy was read).
  * The second at once: whether a deal is on file and the workspace's word (18 Oct 2026, where how its customers buy was
  * read), the calendar's zone and settings (the feed itself is fetched, never read from the database), who each step is
  * for, the pace; then, once a deal is on file, the proposal
@@ -4217,7 +4217,7 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
   ["rpc:people_list", null],
   ["contacts.select", "id"],
-  ["policies.select", "subject_type, subject_id, mode"],
+  ["rpc:people_reply_modes", null],
   ["deals.select", "id"],
   ["tenants.select", "appointment_word"],
   ["tenants.select", "name, timezone"],
@@ -4271,6 +4271,7 @@ const PEOPLE_ASKED_AT_MAIN = [
 const PEOPLE_ASKED_NOW = [
   ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
   ["rpc:people_list", null],
+  ["rpc:people_reply_modes", null],
   ["tenants.select", "appointment_word"],
   ["tenant_channels.select", "config, number_e164"],
   ["lines.select", "sms_state, reg_mock"],
@@ -4279,7 +4280,6 @@ const PEOPLE_ASKED_NOW = [
   // Whether a deal is on file, asked with the word and answered after the settings.
   ["deals.select", "id"],
   ["deals.select", "id, stage, proposed_at, decided_at"],
-  ["policies.select", "subject_type, subject_id, mode"],
   ["contacts.select", "id"],
   [
     "sequence_steps.select",

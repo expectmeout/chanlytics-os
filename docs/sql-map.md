@@ -19,11 +19,11 @@ nothing calls is neither named below with why nor dropped.
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
 | door | 183 | 183 |
-| reader | 76 | 0 |
-| the server's | 337 | 293 |
+| reader | 77 | 0 |
+| the server's | 338 | 293 |
 | computed column | 3 | 0 |
 | trigger | 100 | 70 |
-| all | 699 | 546 |
+| all | 701 | 546 |
 
 ## Called by nothing
 
@@ -323,6 +323,7 @@ being read is dropped by a migration.
 | `line_forwarding_test` | door | a signed-in person, the server | code `packages/db/src/repositories/lines/forwarding.ts` | Keep my number: open a 30-minute test window. |
 | `lines_sms_guard` | trigger | a signed-in person, the server | trigger `lines_sms_guard on lines` | sms_state moves as the hourly sync and the refile doors move it, in both directions among needs_record, registering, approved, active, rejected and failed. |
 | `lines_voice_guard` | trigger | a signed-in person, the server | trigger `lines_voice_guard on lines` | Forward moves only on voice_state: |
+| `llm_tokens_since` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspace's receptionist tokens (input and output of every usage.llm_tokens event; |
 | `lookup_user_for_invite` | the server's | the server | code `packages/db/src/repositories/workspace/team.ts` | The user id behind an email, or null. |
 | `mailbox_capacity` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/email-day.ts`; SQL `outreach_mailbox_facts`, `sequence_claim_from` | A connected mailbox's day (00424): |
 | `mailbox_connection_connect` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | Service-role only (the edge's connect, once the provider's grant is in hand): |
@@ -408,7 +409,8 @@ being read is dropped by a migration.
 | `pause_email_offers` | the server's | the server | code `packages/db/src/repositories/campaigns/email-offers.ts` | Pauses a workspace's offers by email (the gates, contracts' OFFER_GATES): |
 | `people_erase_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/erasure/legs.ts` | People's Delete… for a selection of any size (00547, decision 0036): |
 | `people_list` | reader | a signed-in person, the server | code `apps/dashboard/app/api/v1/contacts/route.ts`, `apps/dashboard/src/server/people/people.ts` and 4 more | Everyone this workspace has ever heard from, with both consent answers: |
-| `people_page` | reader | a signed-in person, the server | SQL `people_list` | The people on one page of People (0021), for people_list, which reads everything else for them alone: |
+| `people_page` | reader | a signed-in person, the server | SQL `people_list`, `people_reply_modes` | The people on one page of People (0021), for people_list, which reads everything else for them alone: |
+| `people_reply_modes` | reader | a signed-in person, the server | code `packages/db/src/repositories/people/pages.ts` | The reply mode in force for each person on one page of People: |
 | `people_series` | reader | a signed-in person, the server | code `apps/dashboard/src/surfaces/reports/people-surface.ts`, `packages/db/src/repositories/reports/series.ts` | Reports › People: who reached the business over p_days and the same number of days before them, as people and never as messages (distinct live people with an inbound message in their own words on What |
 | `person_before_note` | door | a signed-in person, the server | code `apps/dashboard/src/server/people/import-people.ts`, `packages/db/src/repositories/imports/before.ts` | One line of a client file, beyond who the person is (decision 0073, R22): |
 | `person_call_logged` | door | a signed-in person, the server | code `apps/dashboard/src/server/people/person-notes.ts`, `packages/contracts/src/people/person-page/call.ts` and 1 more | A call a member made, logged on the person (0052, canvas A M4): |

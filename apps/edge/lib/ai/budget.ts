@@ -4,7 +4,8 @@
  *
  * Two readers of one stream, and its one writer. The budget check runs before
  * a reply (and before a reach-out reply's draft) and asks one question: has
- * this workspace used its day's tokens? The summary runs on the diagnostics
+ * this workspace used its day's tokens? The database answers it in one sum
+ * (llm_tokens_since, 00624). The summary runs on the diagnostics
  * endpoint and describes the last day: how many replies, how sure, how fast,
  * how many held or handed off. recordTokens is the one place a model call's
  * usage is written, so the budget reads every token the receptionist spent.
@@ -18,7 +19,7 @@ import { DAY_MS, DbFailure } from "@chanlytics/contracts";
 import { MAX_ROWS } from "../shared/paged.js";
 import { logger, errField } from "../shared/log.js";
 import { finiteOrZero } from "@chanlytics/contracts";
-import { pageLlmUsage } from "@chanlytics/db/ai";
+import { findLlmTokensSince, pageLlmUsage } from "@chanlytics/db/ai";
 import type { TenantId } from "@chanlytics/contracts";
 
 /**
@@ -35,13 +36,11 @@ export async function recordTokens(
   await emitEvent(db, tenantId, "usage.llm_tokens", "conversation", conversationId, usage);
 }
 
-/** More rows than any workspace writes in a day; a bound, not a target. */
-const ROW_CAP = 20_000;
 /**
- * The summary's own, smaller bound. It runs on /api/diag and describes a day
- * rather than enforcing anything, so it is not worth twenty sequential
- * thousand-row reads of a partitioned table -- the page most likely to be
- * opened under load is the one that must not time out under it.
+ * The summary's bound. It runs on /api/diag and describes a day rather than
+ * enforcing anything, so it is not worth twenty sequential thousand-row reads
+ * of a partitioned table -- the page most likely to be opened under load is the
+ * one that must not time out under it.
  */
 const SUMMARY_ROW_CAP = 5_000;
 
@@ -51,14 +50,15 @@ interface UsageRow {
 }
 
 /**
- * The day's usage events, a page at a time, newest first.
+ * The day's usage events, a page at a time, newest first: what the summary
+ * describes. A part will do there: at its bound it describes the newest of the
+ * day, and says it stopped (`usage_read_capped`).
  *
- * This was one query with `.limit(ROW_CAP)` and ROW_CAP was 2000 — which
- * PostgREST answered with 1000 and no complaint (`api.max_rows`). So the sum
- * below stopped growing at whatever a thousand events came to, and the daily
- * token cap it serves stopped binding on exactly the busy workspaces it exists
- * for: past a thousand replies a day, `max_llm_tokens_day` could not be
- * reached however much the workspace spent.
+ * The budget read these too, once, as one query with `.limit(2000)` — which
+ * PostgREST answered with 1000 and no complaint (`api.max_rows`). So its sum
+ * stopped growing at whatever a thousand events came to, and the daily token
+ * cap stopped binding on exactly the busy workspaces it exists for. The budget
+ * now asks the database for the sum (getTokensLast24h).
  *
  * Bounded at BOTH ends, which is what makes offset paging safe here. `events`
  * is append-only and this reads it while replies are still writing to it, so
@@ -68,12 +68,11 @@ interface UsageRow {
  * before the first page, freezes the set being read -- and a frozen set can be
  * paged in whichever direction is useful.
  *
- * Which is NEWEST-first, and that half is not cosmetic either. Both callers
- * want the recent end: the budget stops as soon as the day's cap is reached,
- * and the summary describes the last 24 hours on a diagnostics page. Paged
- * oldest-first, a summary that stops at its bound describes the OLDEST events
- * of the window -- so a latency spike or a burst of vetoes, which is the whole
- * reason somebody opens that page, is the first thing to fall off it.
+ * Which is NEWEST-first, and that half is not cosmetic either. The summary
+ * describes the last 24 hours on a diagnostics page. Paged oldest-first, a
+ * summary that stops at its bound describes the OLDEST events of the window --
+ * so a latency spike or a burst of vetoes, which is the whole reason somebody
+ * opens that page, is the first thing to fall off it.
  *
  * `id` breaks ties, which offset paging needs and `created_at` alone, not
  * being unique, cannot give.
@@ -82,7 +81,7 @@ async function* usagePages(
   db: SupabaseClient<Database>,
   tenantId: TenantId | null,
   since: string,
-  cap = ROW_CAP,
+  cap: number,
 ): AsyncGenerator<UsageRow[]> {
   const until = new Date().toISOString();
   for (let from = 0; from < cap; from += MAX_ROWS) {
@@ -102,7 +101,7 @@ async function usageRows(
   db: SupabaseClient<Database>,
   tenantId: TenantId | null,
   since: string,
-  cap = ROW_CAP,
+  cap: number,
 ): Promise<UsageRow[]> {
   const all: UsageRow[] = [];
   for await (const page of usagePages(db, tenantId, since, cap)) all.push(...page);
@@ -115,31 +114,21 @@ async function usageRows(
  * the cap it serves is a margin, not an invoice. A failed read counts as
  * zero and says so — a budget must never silence a receptionist by accident.
  *
- * `stopAt` is the caller's cap, and it is what keeps this one round trip on
- * the workspaces that fit in a page while still being right on the ones that
- * do not: the only question asked is "is the day's budget used up", so the
- * paging stops the moment the answer is yes, and newest-first is what makes
- * that soon. A workspace comfortably UNDER its cap still has its day read out
- * to know so, which is a page per thousand replies -- bounded by ROW_CAP and
- * logged at it, but genuinely more work than the single truncated read this
- * replaced. Summing in the database, over the same events, is what would make
- * it one round trip again, and is the right next change here.
+ * One statement, however busy the day (llm_tokens_since, 00624). It paged the
+ * day's events to the edge and added them here, a round trip per thousand
+ * replies before every automatic reply, and stopped early only once the cap
+ * was reached; a workspace comfortably under its cap had its whole day read
+ * to know so. One statement also reads one snapshot, so a reply written while
+ * it adds is the next read's, never counted twice.
  */
-export async function getTokensLast24h(
-  db: SupabaseClient<Database>,
-  tenantId: TenantId,
-  stopAt = Number.POSITIVE_INFINITY,
-): Promise<number> {
+export async function getTokensLast24h(db: SupabaseClient<Database>, tenantId: TenantId): Promise<number> {
   const log = logger({ tenant_id: tenantId });
   try {
-    // Without a workspace the read would sum every workspace's day: a budget for none is an error, which counts zero.
+    // Without a workspace there is no day to count: a budget for none is an error, which counts zero.
     if (!tenantId) throw new Error("getTokensLast24h: a workspace is required");
-    let sum = 0;
-    for await (const page of usagePages(db, tenantId, new Date(Date.now() - DAY_MS).toISOString())) {
-      for (const r of page) sum += finiteOrZero(r.data?.input_tokens) + finiteOrZero(r.data?.output_tokens);
-      if (sum >= stopAt) break;
-    }
-    return sum;
+    const { data, error } = await findLlmTokensSince(db, tenantId, new Date(Date.now() - DAY_MS).toISOString());
+    if (error) throw new DbFailure(error, "llm_tokens_since");
+    return finiteOrZero(Number(data));
   } catch (e) {
     log.error("budget_read_failed", { error: errField(e) });
     return 0;

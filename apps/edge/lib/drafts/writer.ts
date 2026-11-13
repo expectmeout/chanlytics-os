@@ -119,7 +119,7 @@ async function channelFor(db: Db, tenantId: TenantId, wire: ChannelKind): Promis
 async function gateOf(db: Db, tenantId: TenantId, rt: TenantRuntime, source: ReplyDraftAsk["source"]) {
   const limits = rt.policy["reply"]?.limits ?? {};
   const cap = tokenCapOf(limits);
-  const used = cap > 0 ? await getTokensLast24h(db, tenantId, cap) : 0;
+  const used = cap > 0 ? await getTokensLast24h(db, tenantId) : 0;
   return draftRefusal({
     receptionist: !!rt.brain && !rt.configBroken && !rt.loadFailed && !!env.ANTHROPIC_API_KEY,
     // Only a reach-out's is the reply policy's (see the header).

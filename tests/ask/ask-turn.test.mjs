@@ -6305,7 +6305,7 @@ test("everyone in People is read once a turn, through the readers: a turn that l
   const everyone = () =>
     ctx.supabase.seen.filter((q) => q.rpc === "people_list").map((q) => q.args.p_query ?? q.args.p_offset ?? 0);
   const replyModes = () =>
-    ctx.supabase.seen.filter((q) => q.table === "policies" && q.columns === "subject_type, subject_id, mode").length;
+    ctx.supabase.seen.filter((q) => q.columns === "subject_type, subject_id, mode" || /reply_modes/.test(q.rpc)).length;
   // The prefetch's pair for "start a win-back playbook for the quiet clients", then the two cards.
   for (const action of ["moments", "lists"]) {
     const out = await runTool(tc, { name: "sequences", input: { action } });

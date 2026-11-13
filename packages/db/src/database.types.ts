@@ -9756,6 +9756,10 @@ export type Database = {
         Args: { p_line_id: string; p_tenant_id: string }
         Returns: Json
       }
+      llm_tokens_since: {
+        Args: { p_since: string; p_tenant: string }
+        Returns: number
+      }
       lookup_user_for_invite: {
         Args: { p_email: string; p_tenant_id: string }
         Returns: string
@@ -10366,6 +10370,21 @@ export type Database = {
           marketing_consent_updated_at: string
           phone_e164: string
           wa_profile_name: string
+        }[]
+      }
+      people_reply_modes: {
+        Args: {
+          p_after_added?: string
+          p_after_at?: string
+          p_after_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_query?: string
+          p_tenant_id: string
+        }
+        Returns: {
+          id: string
+          mode: string
         }[]
       }
       people_series: {
