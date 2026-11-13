@@ -50,8 +50,10 @@ test("a page's modes: its own people, each's own mode over the workspace's, and 
     t uuid; page uuid[]; off uuid;
     begin
       ${SIXTY}
+      -- A workspace is made with its own reply policy: it is set here, never written twice.
+      insert into public.policies (tenant_id, class, mode, subject_type, subject_id) values (t, 'reply', 'veto', null, null)
+        on conflict on constraint policies_tenant_id_class_subject_type_subject_id_key do update set mode = excluded.mode;
       insert into public.policies (tenant_id, class, mode, subject_type, subject_id) values
-        (t, 'reply', 'veto', null, null),
         (t, 'reply', 'ask', 'contact', page[1]),
         (t, 'reply', 'never', 'contact', off);
       seen := jsonb_build_object('same', ${SAME_PEOPLE}, 'modes', ${MODES}, 'own', page[1], 'off', off);`);
@@ -66,11 +68,12 @@ test("a page's modes: its own people, each's own mode over the workspace's, and 
   );
 });
 
-test("a workspace that set no mode of its own says none for those without theirs", { skip }, () => {
+test("with no mode of the workspace's own on file, those without theirs say none", { skip }, () => {
   const s = neverCommitted(`
     t uuid; page uuid[]; off uuid;
     begin
       ${SIXTY}
+      delete from public.policies where tenant_id = t and class = 'reply' and subject_type is null;
       insert into public.policies (tenant_id, class, mode, subject_type, subject_id) values (t, 'reply', 'never', 'contact', page[2]);
       seen := jsonb_build_object('modes', ${MODES}, 'own', page[2]);`);
   assert.equal(s.modes[s.own], "never");
