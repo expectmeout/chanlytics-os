@@ -81,6 +81,7 @@ const out = await build({
       `export { PieceDesk } from "${CONTENT}/viewer/desk.tsx";\n` +
       `export { PieceViewer } from "${CONTENT}/viewer/viewer.tsx";\n` +
       `export { AskLine } from "${CONTENT}/sheets/ask-change.tsx";\n` +
+      `export { handLinkOf } from "${CONTENT}/model/hand-link.ts";\n` +
       `export { PostBoth, PostBothActs } from "${CONTENT}/post-both.tsx";\n` +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n' +
@@ -231,8 +232,11 @@ const handsOf = ({
   drafts = {},
   ready = true,
   acts = {},
+  byHand = null,
 } = {}) => ({
-  made: { file: fileOf(kind, over), posts },
+  made: { file: fileOf(kind, over), posts, by_hand: byHand },
+  // "I posted it" as piece.tsx hands it (viewer/by-hand.tsx byHandPressOf): where it stands, and its three acts.
+  byHand: { kept: byHand, say: noop, keepLink: async () => null, takeBack: noop },
   record,
   takes,
   may,
@@ -322,7 +326,7 @@ test("a post that waits for its time is said in the row, and the next place stil
     post("instagram", "queued", { id: "story", kind: "story", scheduled_for: LATER }),
   ];
   for (const html of both({ posts })) {
-    assert.equal(statusOf(html).tone, "going");
+    assert.equal(statusOf(html).tone, "timed", "set for its time: nothing turns until then");
     assert.match(statusOf(html).said, /^Story goes up /);
     assert.equal(count(html, "cnv-pull"), 0, "one Don't post, in the sheet");
     assert.equal(saysOf(html, "cnv-next"), "Post to Google");
@@ -405,6 +409,7 @@ const bothOf = (draft, over = {}) => ({
   takes: { instagram: true, google: true },
   wont: { instagram: null, google: null },
   offers: { instagram: true, google: true },
+  kinds: ["picture", "story"],
   ready: true,
   sending: draft.instagram || draft.google,
   may: true,
@@ -518,7 +523,7 @@ test("a place says where the piece stands there first: up with its door, on its 
   const timed = post("instagram", "queued", { id: "story", kind: "story", scheduled_for: LATER });
   const waits = bothOf(draft(OFF), { posts: [timed], takes: { instagram: false, google: true } });
   assert.match(tagOf(compose(waits), "cnv-place-instagram"), /data-stands="timed"/);
-  assert.equal(count(compose(waits), "cnv-switch-instagram"), 0, "one on its way there takes no second");
+  assert.equal(count(compose(waits), "cnv-switch-instagram"), 0, "a place that takes no more has no switch");
   assert.equal(count(compose(waits), "cnv-pull-instagram"), 1);
   assert.equal(count(compose({ ...waits, may: false }), "cnv-pull-instagram"), 0, "a reader stops nothing");
   // And is told who can: a reader reaches the sheet from what needs the owner, and saw a status with nothing to press.
@@ -735,6 +740,47 @@ test("a place that was refused says why under its row", () => {
   assert.match(compose(state), /Google: Google is busy right now\./);
 });
 
+test("a story can go beside a post that waits: the switch offers the kind that is free, and each that waits has its line", () => {
+  // 00620: on Instagram a picture post and a story wait apart. The row's end is the switch for the kind still free, so the
+  // waiting post's Don't post stands on its own line.
+  const picture = post("instagram", "queued", { id: "picture", scheduled_for: LATER, created_at: agoIso(120_000) });
+  const beside = bothOf(draft({ google: false, as: "story" }), { posts: [picture], kinds: ["story"] });
+  const html = compose(beside);
+  assert.equal(count(html, "cnv-switch-instagram"), 1);
+  assert.equal(
+    saysOf(html, "cnv-pull-instagram"),
+    marked("Don't post"),
+    "the post that waits is still stopped from its line",
+  );
+  assert.equal(count(html, "cnv-move-instagram"), 1, "and its time is still changed there");
+  assert.match(tagOf(html, "cnv-as-picture"), /disabled=""/, "a second post is not offered while one waits");
+  assert.doesNotMatch(tagOf(html, "cnv-as-story"), /disabled=""/);
+  assert.equal(count(html, "cnv-place-too-instagram"), 0, "one that waits alone is the row's own line");
+
+  // Both wait: the newest is the row's, the other a line of its own, each with its own Change time and Don't post.
+  const story = post("instagram", "queued", { id: "story", kind: "story", scheduled_for: LATER });
+  const two = bothOf(draft(OFF), { posts: [story, picture], takes: { instagram: false, google: true }, kinds: [] });
+  const both = compose(two);
+  assert.match(placeSaid(both, "instagram"), /^Story goes up /);
+  assert.match(both, /data-testid="cnv-place-too-instagram"[^>]*><span class="cnv-dest-status">Post goes up /);
+  assert.equal(saysOf(both, "cnv-move-too-instagram"), "Change time");
+  assert.equal(saysOf(both, "cnv-pull-too-instagram"), marked("Don't post"));
+  assert.equal(count(both, "cnv-switch-instagram"), 0, "nothing more goes there until one lands");
+  const reader = compose({ ...two, may: false });
+  assert.equal(count(reader, "cnv-place-too-instagram"), 1, "a reader sees both lines");
+  assert.equal(count(reader, "cnv-pull-too-instagram") + count(reader, "cnv-move-too-instagram"), 0);
+  assert.equal(count(reader, "cnv-cant-post"), 1);
+
+  // The list's own state: opening it arms nothing where a post is on its way; switched on by hand, Instagram is the kind
+  // that is free, whatever was asked.
+  const piece = pieceOf({ posts: [picture] });
+  assert.deepEqual(onAfter(piece, opens), { instagram: false, google: true, sending: true });
+  const on = S.bothAfter(piece, [opens, (state) => state.toggle("instagram")]);
+  assert.deepEqual([on.draft.instagram, on.draft.as, on.kinds], [true, "story", ["story"]]);
+  const asked = S.bothAfter(piece, [opens, (state) => state.toggle("instagram"), (state) => state.choose("picture")]);
+  assert.equal(asked.draft.as, "story", "a second post is not chosen while one waits");
+});
+
 /** What the list reads of a piece (post-both.tsx PostBothPiece), with its record read and both places taking a post. */
 const pieceOf = (over = {}) => ({
   id: "ffffffff-0000-4000-8000-000000000001",
@@ -917,4 +963,40 @@ test("the two after the open piece are read ahead, each once", () => {
   assert.deepEqual(piecesToReadAhead(made, "d", new Set()), []);
   assert.deepEqual(piecesToReadAhead(made, "a", new Set(["b"])), ["c"]);
   assert.deepEqual(piecesToReadAhead(made, "z", new Set()), []);
+});
+
+test("a video Ask made is marked as posted by its owner in one press, and once said it says so with its door", () => {
+  for (const html of both({ kind: "video" })) {
+    assert.equal(saysOf(html, "cnv-byhand-say"), "I posted it", "nothing posts a video from here: its owner says so");
+    assert.equal(count(html, "cnv-byhand"), 0);
+  }
+  const said = { id: "h-1", at: agoIso(DAY), link: null };
+  for (const html of both({ kind: "video", byHand: said })) {
+    assert.equal(count(html, "cnv-byhand-say"), 0, "said once");
+    assert.match(html, /Posted by you · yesterday/, "the tile's own sentence");
+    assert.equal(saysOf(html, "cnv-byhand-add"), "Add its link");
+    assert.equal(saysOf(html, "cnv-byhand-back"), "Not posted");
+  }
+  const linked = { ...said, link: "https://www.tiktok.com/@harbor/video/1" };
+  for (const html of both({ kind: "video", byHand: linked })) {
+    assert.match(html, /On TikTok, by you · yesterday/, "its link says where");
+    assert.match(tagOf(html, "cnv-byhand-see"), /href="https:\/\/www\.tiktok\.com\/@harbor\/video\/1"/);
+    assert.match(tagOf(html, "cnv-byhand-see"), /target="_blank"/);
+    assert.equal(count(html, "cnv-byhand-add"), 0, "it has its link");
+  }
+  // A picture post is posted from here, so it is offered no such press; a reader is offered none, and sees where it stands.
+  for (const html of both({})) assert.equal(count(html, "cnv-byhand-say"), 0);
+  for (const html of both({ kind: "video", may: false })) assert.equal(count(html, "cnv-byhand-say"), 0);
+  for (const html of both({ kind: "video", may: false, byHand: linked })) {
+    assert.equal(count(html, "cnv-byhand-see"), 1);
+    assert.equal(count(html, "cnv-byhand-back"), 0);
+  }
+});
+
+test("a pasted link is kept as an address a browser opens, with its https where none was pasted", () => {
+  assert.equal(S.handLinkOf("  https://www.instagram.com/reel/abc/  "), "https://www.instagram.com/reel/abc/");
+  assert.equal(S.handLinkOf("tiktok.com/@harbor/video/1"), "https://tiktok.com/@harbor/video/1", "copied from the bar");
+  assert.equal(S.handLinkOf("http://youtu.be/x"), "https://youtu.be/x");
+  for (const not of ["", "   ", "my reel", "instagram", "https://"]) assert.equal(S.handLinkOf(not), null, not);
+  assert.equal(S.handLinkOf(`https://example.com/${"x".repeat(500)}`), null, "longer than a link is kept");
 });

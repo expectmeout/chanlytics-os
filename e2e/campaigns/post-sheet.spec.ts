@@ -20,13 +20,19 @@ import { contentMade, madePost, postSet, type ContentMade } from "./content-made
  */
 const FRESH = 1;
 const SET = 2;
+const WAITING = 3;
 const STORY = 1;
+const POST = 2;
 
-/** Two made posts: one posted nowhere yet, and one whose story is set for tomorrow on Instagram. */
+/**
+ * Three made posts: one posted nowhere yet, one whose story is set for tomorrow on Instagram, and one whose post is set for
+ * tomorrow there.
+ */
 function pieces() {
   return [
     madePost(FRESH, "saturdays-fill-first"),
     madePost(SET, "two-chairs-left", [postSet(STORY, "instagram", { kind: "story", hours: 30 })]),
+    madePost(WAITING, "open-late-on-fridays", [postSet(POST, "instagram", { hours: 30 })]),
   ];
 }
 
@@ -61,11 +67,12 @@ test.describe("Campaigns › Content, a made post's sheet", () => {
   let made: ContentMade;
   let fresh: ContentMadeDto;
   let set: ContentMadeDto;
+  let waiting: ContentMadeDto;
   let story: string;
   test.beforeEach(async ({ page }) => {
     await signIn(page);
     const all = pieces();
-    [fresh, set] = all as [ContentMadeDto, ContentMadeDto];
+    [fresh, set, waiting] = all as [ContentMadeDto, ContentMadeDto, ContentMadeDto];
     story = set.posts[0]!.id;
     made = await contentMade(page, all);
   });
@@ -176,5 +183,38 @@ test.describe("Campaigns › Content, a made post's sheet", () => {
     expect(Math.abs(Date.parse(String(back.body.when)) - (Date.now() + 30 * 3_600_000))).toBeLessThan(120_000);
     await expect(toast(page)).toHaveText(FILE_WORDS.restored);
     await expect(row).toHaveAttribute("data-stands", "timed");
+  });
+
+  test("a story goes beside a post that waits, and then each has its own line, Change time and Don't post", async ({
+    page,
+  }) => {
+    const post = waiting.posts[0]!.id;
+    await openPiece(page, waiting);
+    await openPlaces(page);
+    // Opening the list arms nothing where a post is on its way: the story is the owner's own switch.
+    await expect(page.getByTestId("cnv-switch-instagram")).not.toBeChecked();
+    await expect(page.getByTestId("cnv-place-said-instagram")).toHaveText(/^Post goes up /);
+    await expect(page.getByTestId("cnv-pull-instagram")).toBeVisible();
+
+    await page.getByTestId("cnv-switch-google").click();
+    await page.getByTestId("cnv-switch-instagram").click();
+    await expect(page.getByTestId("cnv-as-picture")).toBeDisabled();
+    await expect(page.getByTestId("cnv-as-story")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("cnv-compose-send").click();
+    await page.getByTestId("cnv-post-ask-yes").click();
+
+    await expect.poll(() => made.at("POST", "files/[id]/instagram").length).toBe(1);
+    expect(made.at("POST", "files/[id]/instagram")[0]?.body).toEqual({ as: "story" });
+    expect(made.at("POST", "files/[id]/google")).toHaveLength(0);
+
+    // The story is on its way, and the post still waits under it: stopped from its own line, the story untouched.
+    await openPlaces(page);
+    const too = page.getByTestId("cnv-place-too-instagram");
+    await expect(too).toHaveText(/Post goes up /);
+    await expect(page.getByTestId("cnv-move-too-instagram")).toBeVisible();
+    await page.getByTestId("cnv-pull-too-instagram").click();
+    await expect.poll(() => made.at("DELETE", "files/[id]/instagram").length).toBe(1);
+    expect(made.at("DELETE", "files/[id]/instagram")[0]?.body).toEqual({ post_id: post });
+    await expect(too).toHaveCount(0);
   });
 });

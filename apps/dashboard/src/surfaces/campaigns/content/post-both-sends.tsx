@@ -8,6 +8,7 @@ import {
   CONTENT_SHEET_WORDS,
   POST_PLACES,
   newestAtEachPlace,
+  postPlaceTakenOf,
   type InstagramPostKind,
   type PostDto,
   type PostPlace,
@@ -16,7 +17,7 @@ import { pageClock } from "@/bridge/zone";
 import type { FrameFlash } from "../../frame-verbs";
 import { fileVerbs, postDoors } from "../../files/verbs";
 import { postBothBegins, type PostBothDraft } from "./model/post-both";
-import { pieceStandsAt, type PieceTakes } from "./model/piece-open";
+import { instagramAsOf, instagramKindsFree, pieceStandsAt, type PieceTakes } from "./model/piece-open";
 
 /** Why each place that refused a post did, in its own words. */
 export type Refusals = Partial<Record<PostPlace, string>>;
@@ -96,17 +97,19 @@ export function usePostMove(
 
 /**
  * What the list opens holding (usePostBoth begin): what stopped, alone, where it can take a post again; else every place that
- * can take it and is not up. A place that stopped and can take none now (disconnected since) leaves nothing on: Post again was
- * pressed for it, so another place is never switched on in its stead.
+ * can take it and holds nothing of the piece yet. One it is up at, or on its way to (Instagram, where a story could still go
+ * beside a post that waits: 00620), is switched on by hand, never by opening the list. A place that stopped and can take none
+ * now (disconnected since) leaves nothing on: Post again was pressed for it, so another place is never switched on in its stead.
  */
 export function postBothOpening(open: PieceTakes, posts: readonly PostDto[], nowMs: number): PostBothDraft {
   const begun = postBothBegins(open);
   const stands = (place: PostPlace) => pieceStandsAt(posts, place, nowMs).is;
   const stopped = POST_PLACES.filter((place) => stands(place) === "stuck");
+  const fresh = (place: PostPlace) => stands(place) !== "up" && !postPlaceTakenOf(posts, place);
   const on = (place: PostPlace) =>
-    stopped.length > 0 ? begun[place] && stopped.includes(place) : begun[place] && stands(place) !== "up";
-  // A story that stopped is tried again as a story.
+    stopped.length > 0 ? begun[place] && stopped.includes(place) : begun[place] && fresh(place);
+  // A story that stopped is tried again as a story; else the kind Instagram can take now, a post before a story.
   const last = newestAtEachPlace(posts).find((p) => p.place === "instagram");
-  const as = stopped.includes("instagram") && last?.kind === "story" ? "story" : begun.as;
-  return { as, instagram: on("instagram"), google: on("google") };
+  const again = stopped.includes("instagram") && last?.kind === "story" ? "story" : begun.as;
+  return { as: instagramAsOf(instagramKindsFree(posts), again), instagram: on("instagram"), google: on("google") };
 }

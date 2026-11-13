@@ -116,7 +116,7 @@ test("a card that only moves says so, and its press moves the same post through 
   );
 });
 
-test("a card that posts to one place and moves another does both, the caption kept first where it is new", () => {
+test("a card that posts to one place and moves another does both, and new words are kept by the door they go through", () => {
   const both = card({ places: ["google"], as: "picture", caption_new: true });
   assert.equal(
     publishCardWords(both, "Silk press").summary,
@@ -125,7 +125,21 @@ test("a card that posts to one place and moves another does both, the caption ke
   );
   assert.deepEqual(
     callsOf(both).map((call) => call.route),
-    ["PATCH files/[id]", "PATCH files/[id]/posts", "POST files/[id]/google"],
+    ["PATCH files/[id]/posts", "POST files/[id]/google"],
+    "Google's door keeps the words it is handed, and the post that moved follows them",
+  );
+  // Where no words go with anything the card posts, it keeps new ones itself, first: a move alone, a story alone.
+  assert.deepEqual(
+    callsOf(card({ caption_new: true })).map((call) => call.route),
+    ["PATCH files/[id]", "PATCH files/[id]/posts"],
+  );
+  assert.deepEqual(
+    callsOf(card({ moves: [], places: ["instagram"], as: "story", caption_new: true })).map((call) => call.route),
+    ["PATCH files/[id]", "POST files/[id]/instagram"],
+  );
+  assert.deepEqual(
+    callsOf(card({ moves: [], places: ["instagram"], as: "picture", caption_new: true })).map((call) => call.route),
+    ["POST files/[id]/instagram"],
   );
   assert.equal(
     publishSpec.receipt({ payload: both }),

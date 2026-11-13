@@ -659,6 +659,17 @@ const SHAPES = {
       caption_new: true,
       language: "en",
     }),
+    // A story alone shows no words: new ones are kept on the post by the card itself, first.
+    card("publish", {
+      file_id: "f1",
+      places: ["instagram"],
+      as: "story",
+      when: null,
+      when_said: null,
+      caption: "Come see the new floor, all week.",
+      caption_new: true,
+      language: "en",
+    }),
     // One already set for its time, moved to the card's (00621): the file's one door for it.
     card("publish", {
       file_id: "f1",

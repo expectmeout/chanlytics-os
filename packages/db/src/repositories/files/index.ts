@@ -72,6 +72,7 @@ export {
   listPostAttempts,
   listPostsInSpan,
   listPostsOfFiles,
+  listPostsSilent,
   listPostsStopped,
   listPostsTimed,
   listPostsUp,
@@ -81,6 +82,7 @@ export {
   openPostAttempt,
   pullPost,
   queuePostAgain,
+  reportPost,
 } from "./posts";
 export type {
   MemberFilePostRow,

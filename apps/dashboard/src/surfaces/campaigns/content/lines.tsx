@@ -172,7 +172,7 @@ export function PieceLines({
         );
       })}
       {made.map((piece) => {
-        const mark = contentPieceMarkOf(piece);
+        const mark = contentPieceMarkOf(piece, now);
         return (
           <div key={piece.file.id} className="cnv-line" data-testid="cnv-line">
             <Press className="cnv-line-open" onClick={() => onOpen(piece.file.id)}>

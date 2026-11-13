@@ -10820,6 +10820,10 @@ export type Database = {
         Returns: boolean
       }
       post_pull: { Args: { p_post_id: string }; Returns: Json }
+      post_report: {
+        Args: { p_file_id: string; p_link?: string; p_tenant_id: string }
+        Returns: Json
+      }
       post_unanswered: {
         Args: { p_attempt: string; p_post_id: string }
         Returns: boolean

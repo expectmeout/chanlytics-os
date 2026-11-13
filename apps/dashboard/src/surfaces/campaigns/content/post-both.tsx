@@ -33,7 +33,7 @@ import { Switch } from "../../kit/switch/switch";
 import type { FrameFlash } from "../../frame-verbs";
 import { WhenDayTime, firstSlot } from "../broadcasts/when";
 import { postBothProblemOf, type PostBothDraft } from "./model/post-both";
-import type { PieceTakes } from "./model/piece-open";
+import { instagramAsOf, instagramKindsFree, type PieceTakes } from "./model/piece-open";
 import { placesOf, type PieceOffers, type PieceWont, type PlaceStanding } from "./model/places";
 import { postBothOpening, sendToEach, usePostMove, type Refusals } from "./post-both-sends";
 import { viewerStandsSaid, type ViewerClock } from "./model/viewer-line";
@@ -85,10 +85,19 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
   const change = (to: Partial<PostBothDraft>) => setHeld((d) => (d ? { ...d, ...to } : d));
   // What a person who may post can send to now: a reader's list switches nothing.
   const open: PieceTakes | null = takes ? { instagram: may && takes.instagram, google: may && takes.google } : null;
-  // The draft as it stands now: a place is on only while it can take the post. One that stopped taking it since it was
-  // switched on (a post went on its way there, the place was disconnected) has no switch to turn off, so it is off.
+  // What Instagram can take now: one of each kind at a time (00620), so a story while a post waits, and the other way round.
+  const kinds = instagramKindsFree(piece.posts);
+  // The draft as it stands now: a place is on only while it can take the post, Instagram as a kind it can take. One that
+  // stopped taking it since it was switched on (a post went on its way there, the place was disconnected) has no switch to
+  // turn off, so it is off.
   const draft: PostBothDraft | null =
-    held && open ? { ...held, instagram: held.instagram && open.instagram, google: held.google && open.google } : held;
+    held && open
+      ? {
+          as: instagramAsOf(kinds, held.as),
+          instagram: held.instagram && open.instagram,
+          google: held.google && open.google,
+        }
+      : held;
   const words = (caption ?? "").trim();
   // The words on screen are what goes, and each door keeps them on the piece in the same step (Ruben, 12 Nov 2026: words typed
   // just before Post went out as they were before).
@@ -123,6 +132,8 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
     could: takes,
     wont,
     offers,
+    /** The kinds Instagram can take now: the track draws the other one off. */
+    kinds,
     /** Whether the list can be opened yet: the piece's record has been read. */
     ready: !!plan && !!takes,
     sending,
@@ -155,7 +166,7 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
     stopMoving: mover.stop,
     move: mover.move,
     toggle: (place: PostPlace) => setHeld((d) => (d ? { ...d, [place]: !d[place] } : d)),
-    choose: (as: InstagramPostKind) => change({ as }),
+    choose: (as: InstagramPostKind) => change({ as: instagramAsOf(kinds, as) }),
     /** Don't post: the post is stopped or let go, and its place is switched off, so Post never sends what was let go. */
     pull: (postId: string) => {
       const place = piece.posts.find((p) => p.id === postId)?.place;
@@ -201,7 +212,13 @@ const placeDrawnOf = (at: PlaceStanding, door: ReactNode): PlaceStanding =>
  * Instagram's Post or Story, on one small track with the one chosen raised: Made and Library's track (views.tsx ContentLists)
  * at the size of a row's end, as the canvas draws it (PhAct, .ct-mini), where two loose presses drew the chosen one a round.
  */
-function InstagramAs({ as, choose }: { as: InstagramPostKind; choose: (as: InstagramPostKind) => void }) {
+function InstagramAs(props: {
+  as: InstagramPostKind;
+  /** The kinds that can go now: one with a post of its own on its way is drawn off, and its line under the place says why. */
+  kinds: readonly InstagramPostKind[];
+  choose: (as: InstagramPostKind) => void;
+}) {
+  const { as, kinds, choose } = props;
   return (
     <span className="cnv-as" role="group" aria-label={COMPOSER_SAYS.asWhat}>
       {INSTAGRAM_POST_KINDS.map((kind) => (
@@ -211,6 +228,7 @@ function InstagramAs({ as, choose }: { as: InstagramPostKind; choose: (as: Insta
           variant={kind === as ? "glass" : "quiet"}
           aria-pressed={kind === as}
           onClick={() => choose(kind)}
+          disabled={!kinds.includes(kind)}
           data-testid={`cnv-as-${kind}`}
         >
           {SHEET.kinds[kind]}
@@ -226,7 +244,9 @@ function PlaceEnd({ at, draft, both }: { at: PlaceStanding; draft: PostBothDraft
   if (at.takes)
     return (
       <span className="cnv-dest-end">
-        {place === "instagram" && draft.instagram ? <InstagramAs as={draft.as} choose={both.choose} /> : null}
+        {place === "instagram" && draft.instagram ? (
+          <InstagramAs as={draft.as} kinds={both.kinds} choose={both.choose} />
+        ) : null}
         <Switch
           label={SHEET.switchLabel(place)}
           checked={draft[place]}
@@ -235,7 +255,8 @@ function PlaceEnd({ at, draft, both }: { at: PlaceStanding; draft: PostBothDraft
         />
       </span>
     );
-  const pull = at.pull;
+  // Where a second post waits beside it, each Don't post stands on its own line (PlaceSaid, PlaceWaitsToo).
+  const pull = at.waitsToo ? null : at.pull;
   if (!pull || !both.may) return null;
   return (
     <span className="cnv-dest-end">
@@ -247,6 +268,61 @@ function PlaceEnd({ at, draft, both }: { at: PlaceStanding; draft: PostBothDraft
       >
         {CONTENT_WORDS.piece.step.dontPost}
       </Button>
+    </span>
+  );
+}
+
+/** What the presses beside where a post stands read of the list. */
+type LineHands = Pick<PostBothState, "may" | "busy" | "pulling" | "pull" | "moveTime">;
+
+/** A press beside where a post stands (Change time, Don't post, Dismiss): its words, drawn the height of its line. */
+function LineAct(props: { words: string; press: () => void; both: LineHands; testid: string }) {
+  return (
+    <Button
+      size="text"
+      variant="quiet"
+      className="cnv-dest-act"
+      onClick={props.press}
+      disabled={props.both.busy || props.both.pulling}
+      data-testid={props.testid}
+    >
+      {props.words}
+    </Button>
+  );
+}
+
+/**
+ * A post on its way at a place beside the newest there (a story set for Sunday beside a post set for Saturday: 00620), on a
+ * line of its own: what it is and when it goes, with its own Change time and Don't post, so neither hides the other.
+ */
+function PlaceWaitsToo({ at, both, clock }: { at: PlaceStanding; both: LineHands; clock: ViewerClock }) {
+  const too = at.waitsToo;
+  if (!too) return null;
+  const said =
+    too.stands.is === "timed"
+      ? CONTENT_WORDS.piece.step.timed(CONTENT_WORDS.viewer.kinds[too.kind], clock.ahead(too.stands.at))
+      : viewerStandsSaid(too.stands, clock);
+  const moves = both.may && too.stands.is === "timed" ? too.movable : null;
+  const stops = both.may ? too.pull : null;
+  return (
+    <span className="cnv-dest-said cnv-dest-too" data-testid={`cnv-place-too-${at.place}`}>
+      <span className="cnv-dest-status">{said}</span>
+      {moves ? (
+        <LineAct
+          words={PLACES.move}
+          press={() => both.moveTime(moves)}
+          both={both}
+          testid={`cnv-move-too-${at.place}`}
+        />
+      ) : null}
+      {stops ? (
+        <LineAct
+          words={CONTENT_WORDS.piece.step.dontPost}
+          press={() => both.pull(stops)}
+          both={both}
+          testid={`cnv-pull-too-${at.place}`}
+        />
+      ) : null}
     </span>
   );
 }
@@ -269,7 +345,9 @@ function PlaceUpToo({ at, door, clock }: { at: PlaceStanding; door: ReactNode; c
  * What a row says under a place's name, on one line: where it stands there, in its tone; the doors to a post that is up there
  * (see it, take it down) beside it; Connect, where the place takes none until it is put right (a post that stopped there for
  * it too); and Dismiss for a post that stopped, which lets it go (00619), where Don't post, at the row's end, stops one that
- * waits (Ruben, 12 Nov 2026: Don't post under Didn't post read as one more refusal). Nothing where the place has nothing to say.
+ * waits (Ruben, 12 Nov 2026: Don't post under Didn't post read as one more refusal). Where the row's end holds the switch for
+ * the kind still free (a story beside a post that waits: 00620), Don't post stands on this line. Nothing where the place has
+ * nothing to say.
  */
 function PlaceSaid({
   at,
@@ -280,14 +358,16 @@ function PlaceSaid({
   at: PlaceStanding;
   said: string | null;
   door: ReactNode;
-  both: Pick<PostBothState, "may" | "busy" | "pulling" | "pull" | "moveTime">;
+  both: LineHands;
 }) {
   const doors = at.stands.is === "up" && door ? door : null;
   const connects = (at.stands.is === "none" || at.stands.is === "stuck") && !at.takes && !!at.wont;
   const letGo = both.may ? at.letGo : null;
   // A post set for its time can be set for another while it waits and no run has taken it (00621).
   const moves = both.may && at.stands.is === "timed" ? at.movable : null;
-  if (!said && !doors && !connects && !letGo && !moves) return null;
+  // Its Don't post, where the row's end is the switch for the kind still free, or a second post waits on a line under it.
+  const stops = both.may && (at.takes || at.waitsToo) ? at.pull : null;
+  if (!said && !doors && !connects && !letGo && !moves && !stops) return null;
   return (
     <span className="cnv-dest-said">
       {said ? (
@@ -308,28 +388,23 @@ function PlaceSaid({
         </Button>
       ) : null}
       {moves ? (
-        <Button
-          size="text"
-          variant="quiet"
-          className="cnv-dest-act"
-          onClick={() => both.moveTime(moves)}
-          disabled={both.busy || both.pulling}
-          data-testid={`cnv-move-${at.place}`}
-        >
-          {PLACES.move}
-        </Button>
+        <LineAct words={PLACES.move} press={() => both.moveTime(moves)} both={both} testid={`cnv-move-${at.place}`} />
+      ) : null}
+      {stops ? (
+        <LineAct
+          words={CONTENT_WORDS.piece.step.dontPost}
+          press={() => both.pull(stops)}
+          both={both}
+          testid={`cnv-pull-${at.place}`}
+        />
       ) : null}
       {letGo ? (
-        <Button
-          size="text"
-          variant="quiet"
-          className="cnv-dest-act"
-          onClick={() => both.pull(letGo)}
-          disabled={both.busy || both.pulling}
-          data-testid={`cnv-pull-${at.place}`}
-        >
-          {CONTENT_WORDS.piece.step.dismiss}
-        </Button>
+        <LineAct
+          words={CONTENT_WORDS.piece.step.dismiss}
+          press={() => both.pull(letGo)}
+          both={both}
+          testid={`cnv-pull-${at.place}`}
+        />
       ) : null}
     </span>
   );
@@ -349,14 +424,22 @@ function PlaceRow(props: {
   const { draft, both } = props;
   const at = placeDrawnOf(props.at, props.door);
   const { place } = at;
+  // A line that holds its own presses (Don't post beside a switch, a second post that waits) runs across the row, under its end.
+  const across = (at.takes && !!at.pull) || !!at.waitsToo;
   return (
-    <div className="cnv-dest" data-stands={at.stands.is} data-testid={`cnv-place-${place}`}>
+    <div
+      className="cnv-dest"
+      data-stands={at.stands.is}
+      data-across={across || undefined}
+      data-testid={`cnv-place-${place}`}
+    >
       <span className="cnv-dest-glyph" aria-hidden="true">
         <Icon name={PLACE_GLYPH[place]} size={15} />
       </span>
       <span className="cnv-dest-words">
         <b>{CONTENT_WORDS.piece.place[place]}</b>
         <PlaceSaid at={at} said={placeSaidOf(at, props.clock)} door={props.door} both={both} />
+        <PlaceWaitsToo at={at} both={both} clock={props.clock} />
         <PlaceUpToo at={at} door={props.door} clock={props.clock} />
       </span>
       <PlaceEnd at={at} draft={draft} both={both} />
@@ -376,7 +459,7 @@ function PlaceRow(props: {
  */
 function readerMisses(both: Pick<PostBothState, "may" | "could" | "posts">, places: readonly PlaceStanding[]): boolean {
   if (both.may) return false;
-  if (places.some((at) => at.pull || at.letGo)) return true;
+  if (places.some((at) => at.pull || at.letGo || at.waitsToo?.pull)) return true;
   if (!both.could) return false;
   const armed = postBothOpening(both.could, both.posts, Date.now());
   return armed.instagram || armed.google;
@@ -415,7 +498,7 @@ export function PostBoth({ both, doors = {} }: { both: PostBothState; doors?: Pl
           {both.problem}
         </p>
       ) : null}
-      {both.may && places.some((at) => at.making) ? (
+      {both.may && places.some((at) => at.making || at.waitsToo?.making) ? (
         <p className="cnv-note" data-testid="cnv-words-held">
           {PLACES.wordsHeld}
         </p>

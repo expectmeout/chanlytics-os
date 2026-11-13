@@ -154,6 +154,9 @@ function recordOf(piece: ContentMadeDto, caption: string | null) {
     },
     google: { connected: true, posted: null },
     instagram: { can: "yes", posts: piece.posts.filter((p) => p.place === "instagram") },
+    // Every place's, as the record answers them (server posts/record.ts), and none put up by hand.
+    posts: piece.posts,
+    by_hand: null,
   };
 }
 

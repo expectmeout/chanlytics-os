@@ -1,6 +1,6 @@
 /**
- * A made post put up at its places by Ask, now or at a time (Ruben, 12 Nov 2026: a time is asked of Ask, never offered on the
- * page as times written into it, the same for every business). The owner says "post it Saturday at ten"; Ask answers with a
+ * A made post put up at its places by Ask, now or at a time (Ruben, 12 Nov 2026: no preset times written into the page; a time
+ * is the owner's, picked in Post it's Schedule or said to Ask). The owner says "post it Saturday at ten"; Ask answers with a
  * card that names the post, where it goes, when, and the caption that goes with it; the owner presses Post. The press goes
  * through each place's own door (POST files/[id]/google, POST files/[id]/instagram), as the page's Post it does, so every
  * check a door makes it still makes. A caption Ask wrote is kept on the post first, as Details keeps one, so the post says
@@ -122,14 +122,17 @@ export function publishCardWords(p: PostPublish, name: string): { title: string;
 }
 
 /**
- * The press's calls: the caption kept first where it is new, then each post already set moved to the card's time (the file's
- * one door for it, 00621), then each place's own door, now or at its time.
+ * The press's calls: each post already set moved to the card's time (the file's one door for it, 00621), then each place's
+ * own door, now or at its time. Words that go with a post are kept on the piece by its door, in the same step, as the page's
+ * Post keeps them (server posts/caption.ts keepPostWords): the card keeps new words itself, first, only where none goes with
+ * anything it posts, a story alone or a move alone.
  */
 function publishCallsOf(p: PostPublish): ProposalCall[] {
   const id = { id: p.file_id };
   const when = p.when ? { when: p.when } : {};
   const calls: ProposalCall[] = [];
-  if (p.caption_new) calls.push({ route: "PATCH files/[id]", params: id, body: { caption: p.caption } });
+  const carried = p.places.includes("google") || (p.places.includes("instagram") && p.as === "picture");
+  if (p.caption_new && !carried) calls.push({ route: "PATCH files/[id]", params: id, body: { caption: p.caption } });
   if (p.when)
     for (const move of p.moves)
       calls.push({ route: "PATCH files/[id]/posts", params: id, body: { post_id: move.post_id, when: p.when } });

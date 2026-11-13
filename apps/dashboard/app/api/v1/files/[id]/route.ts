@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FILE_NAME_MAX, FILE_SHOWS, POST_CAPTION_MAX } from "@chanlytics/contracts";
+import { FILE_NAME_MAX, FILE_SHOWS, HAND_LINK_MAX, POST_CAPTION_MAX } from "@chanlytics/contracts";
 import { read, write } from "@/server/shared/route";
 import { fileScope, removeFile } from "@/server/files/file";
 import { changePiece } from "@/server/posts/caption";
@@ -8,9 +8,10 @@ import { readFileRecord } from "@/server/posts/record";
 /**
  * GET /api/v1/files/:id — one file, and for a post the photo it came from and what it was asked to be. Every member reads it.
  *
- * PATCH /api/v1/files/:id — `{ name?, shows?, who_in_it?, status?, caption? }`: what a person says of a file. What they name
- * and shelve stays when the look runs again. Who is in it is a person's word: no one, or they agreed. A caption is a made
- * piece's, written where it stands, and kept with how it was made.
+ * PATCH /api/v1/files/:id — `{ name?, shows?, who_in_it?, status?, caption?, posted? }`: what a person says of a file. What
+ * they name and shelve stays when the look runs again. Who is in it is a person's word: no one, or they agreed. A caption is a
+ * made piece's, written where it stands, and kept with how it was made. `posted` is their word that they put a made piece up
+ * themselves (`{ link? }`), or that they did not after all (null).
  *
  * DELETE — it goes from every page at once, and its bytes, Anthropic's copy and its row by the file_purge job. Only its
  * fingerprint stays, so an import does not bring it back.
@@ -37,6 +38,20 @@ export const PATCH = write({
     caption: z
       .string()
       .max(POST_CAPTION_MAX * 2)
+      .optional(),
+    // "I posted it" (00620): the owner's word that a made piece is up by their own hand, with its link or none; null takes
+    // it back.
+    posted: z
+      .object({
+        link: z
+          .string()
+          .trim()
+          .max(HAND_LINK_MAX)
+          .regex(/^https:\/\/\S+$/i)
+          .nullable()
+          .optional(),
+      })
+      .nullable()
       .optional(),
   }),
   handle: ({ ctx, input, member, row }) => changePiece(ctx, member, row, input),

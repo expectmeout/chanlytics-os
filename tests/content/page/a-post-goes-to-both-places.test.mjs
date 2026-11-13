@@ -6,8 +6,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CONTENT_WORDS as W } from "@chanlytics/contracts";
-import { pieceNextOf } from "../../../apps/dashboard/src/surfaces/campaigns/content/model/piece-open.ts";
+import { CONTENT_WORDS as W, postPlaceTakenOf } from "@chanlytics/contracts";
+import {
+  instagramAsOf,
+  instagramKindsFree,
+  pieceNextOf,
+  pieceTakesOf,
+} from "../../../apps/dashboard/src/surfaces/campaigns/content/model/piece-open.ts";
 import { pieceStatusOf, placesOf } from "../../../apps/dashboard/src/surfaces/campaigns/content/model/places.ts";
 import {
   postBothBegins,
@@ -76,7 +81,7 @@ test("the status row says one sentence: ready, going up, set for its time, or wh
   });
   assert.equal(statusOf([post("instagram", "publishing")]).pull, null, "too late to stop");
   assert.deepEqual(statusOf([waits("instagram", { kind: "story" })]), {
-    tone: "going",
+    tone: "timed",
     said: "Story goes up Sat, 9:00 AM",
     pull: "instagram-later",
   });
@@ -85,6 +90,45 @@ test("the status row says one sentence: ready, going up, set for its time, or wh
     said: "On Instagram and Google · Monday",
     pull: null,
   });
+});
+
+test("a place holds one post at a time, and Google holds a piece once: the page's switches and Ask's card ask alike", () => {
+  assert.equal(postPlaceTakenOf([], "instagram"), null);
+  assert.deepEqual(postPlaceTakenOf([waits("instagram")], "instagram"), {
+    is: "on_its_way",
+    scheduled_for: "2026-11-14T14:00:00.000Z",
+  });
+  assert.equal(postPlaceTakenOf([post("instagram", "published")], "instagram"), null, "a story after the post");
+  assert.deepEqual(postPlaceTakenOf([post("google", "published")], "google"), { is: "up" });
+  assert.equal(postPlaceTakenOf([post("google", "failed"), post("google", "pulled")], "google"), null);
+  // A story waits apart from the post (00620): a post set for Saturday leaves room for its story, not a second post.
+  assert.equal(postPlaceTakenOf([waits("instagram")], "instagram", "story"), null);
+  assert.equal(postPlaceTakenOf([waits("instagram")], "instagram", "picture")?.is, "on_its_way");
+  assert.equal(postPlaceTakenOf([waits("instagram", { kind: "story" })], "instagram", "picture"), null);
+});
+
+test("Instagram takes one of each kind at a time: a story beside a post that waits, and each keeps its Don't post", () => {
+  const CONNECTED = { instagram: true, google: true, onGoogle: false };
+  assert.deepEqual(pieceTakesOf([], CONNECTED), { instagram: true, google: true });
+  assert.deepEqual(instagramKindsFree([]), ["picture", "story"]);
+  // A post set for Saturday on Instagram: its story can still go (00620), a second post cannot. The row keeps the waiting
+  // post's Don't post on its line, and its end is the switch for the kind that is free.
+  const waiting = [waits("instagram")];
+  const takes = pieceTakesOf(waiting, CONNECTED);
+  assert.deepEqual(takes, { instagram: true, google: true });
+  assert.deepEqual(instagramKindsFree(waiting), ["story"]);
+  assert.equal(instagramAsOf(instagramKindsFree(waiting), "picture"), "story", "posted as the kind that can go");
+  assert.equal(instagramAsOf(["picture", "story"], "story"), "story", "the kind wanted, where it can go");
+  const [instagram] = placesOf(waiting, { ...CAN, takes }, NOW);
+  assert.deepEqual([instagram.takes, instagram.stands.is, instagram.pull], [true, "timed", "instagram-later"]);
+  // Both kinds on their way: nothing more goes there until one lands.
+  const both = [waits("instagram", { id: "story-later", kind: "story" }), waits("instagram")];
+  assert.deepEqual(instagramKindsFree(both), []);
+  assert.equal(pieceTakesOf(both, CONNECTED).instagram, false);
+  // Google takes a piece once, by its posts or by the record of one from before posts were kept.
+  assert.equal(pieceTakesOf([post("google", "published")], CONNECTED).google, false);
+  assert.equal(pieceTakesOf([], { ...CONNECTED, onGoogle: true }).google, false);
+  assert.equal(pieceTakesOf([], { ...CONNECTED, instagram: false }).instagram, false, "not connected takes none");
 });
 
 test("a post going up says the tile's own words for it", () => {
@@ -124,6 +168,40 @@ test("the list holds each place the workspace is offered, with where the piece s
       ["google", false, "Connect it first."],
     ],
     "a place that is not connected is listed, with why it can take none",
+  );
+});
+
+test("a post and a story that both wait on Instagram are two lines, each with its own Don't post and Change time", () => {
+  const older = "2026-11-10T15:00:00.000Z";
+  const picture = waits("instagram", { created_at: older });
+  const story = waits("instagram", { id: "story-later", kind: "story", scheduled_for: "2026-11-15T14:00:00.000Z" });
+  const [at] = placesOf([story, picture], CAN, NOW);
+  assert.deepEqual(
+    [at.kind, at.stands, at.pull, at.movable],
+    ["story", { is: "timed", at: "2026-11-15T14:00:00.000Z" }, "story-later", "story-later"],
+    "the row is the newest there",
+  );
+  assert.deepEqual(at.waitsToo, {
+    kind: "picture",
+    stands: { is: "timed", at: "2026-11-14T14:00:00.000Z" },
+    pull: "instagram-later",
+    movable: "instagram-later",
+    making: false,
+  });
+  // One Instagram is making ready beside it holds its words, and its time; it can still be stopped.
+  const making = placesOf([story, { ...picture, status: "preparing" }], CAN, NOW)[0].waitsToo;
+  assert.deepEqual([making.pull, making.movable, making.making], ["instagram-later", null, true]);
+  // A post that waits under one that went up since is said on its own line too, where the row says the newer one is up.
+  const up = post("instagram", "published", { id: "story-up", kind: "story", created_at: "2026-11-11T16:00:00.000Z" });
+  const [under] = placesOf([up, picture], CAN, NOW);
+  assert.deepEqual([under.stands.is, under.pull, under.waitsToo?.pull], ["up", null, "instagram-later"]);
+  // One alone is the row's own, with no second line.
+  assert.equal(placesOf([picture], CAN, NOW)[0].waitsToo, null);
+  // A place nobody is offered is still listed while a post waits there.
+  const noInstagram = { ...CAN, takes: { instagram: false, google: true }, offers: { instagram: false, google: true } };
+  assert.equal(
+    placesOf([{ ...story, status: "pulled" }, picture], noInstagram, NOW).some((p) => p.place === "instagram"),
+    true,
   );
 });
 

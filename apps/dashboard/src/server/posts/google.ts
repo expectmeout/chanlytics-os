@@ -7,7 +7,15 @@
  * the edge is asked, its one send kept as an attempt, and settled by the answer: up, with Google's name for it, or refused in words.
  */
 import "server-only";
-import { AppError, DAY_MS, FILE_WORDS, SECOND_MS, fileFolderOf, type PostPlan } from "@chanlytics/contracts";
+import {
+  AppError,
+  DAY_MS,
+  FILE_WORDS,
+  POST_SOON_MS,
+  SECOND_MS,
+  fileFolderOf,
+  type PostPlan,
+} from "@chanlytics/contracts";
 import {
   beginPost,
   closePostAttempt,
@@ -66,9 +74,6 @@ function refusedBy(args: { status: number; body?: Record<string, unknown> | null
   return new AppError("upstream_provider", ON_GOOGLE.notSent);
 }
 
-/** Later than this, a post waits for its time on Google (00616 post_begin's own line); sooner, it goes at the press. */
-const GOOGLE_LATER_MS = 2 * 60 * SECOND_MS;
-
 /**
  * POST files/[id]/google: the post goes up, now, or at its time (00616): then the picture is drawn and kept now, and the
  * post's job asks Google at its time. What it says is a person's, and goes as they typed it.
@@ -81,12 +86,16 @@ export async function postFileToGoogle(
 ): Promise<{ name: string | null; search_url: string | null; state: string | null }> {
   // Google takes a picture: a video made here is not a post for it.
   if (row.source !== "made" || row.kind === "video") throw new AppError("validation", ON_GOOGLE.notAPost);
-  const { made } = await readFileRecord(ctx, member, row);
+  const { made, google } = await readFileRecord(ctx, member, row);
   if (!made?.from) throw new AppError("validation", ON_GOOGLE.noPhoto);
+  // Up already, it is done: a second would be the same post twice on the profile (contracts postPlaceTakenOf). A press sent
+  // again finds it so (Ask's card, pressed again after Instagram refused, sends each place's door in its order once more).
+  if (google?.posted) return { name: google.posted.name, search_url: google.posted.search_url, state: null };
   // The words that go are the piece's own from now on, kept in the same step (posts/caption.ts keepPostWords).
   await keepPostWords(ctx, member, row, input.summary);
   const photoUrl = await pictureForGoogle(ctx, member, row.id, made.plan);
-  const later = !!input.when && Date.parse(input.when) - Date.now() > GOOGLE_LATER_MS;
+  // Later than soon, it waits for its time on Google (00616 post_begin's own line); sooner, it goes at the press.
+  const later = !!input.when && Date.parse(input.when) - Date.now() > POST_SOON_MS;
   const placed = await beginPost(ctx.supabase, {
     tenantId: member.tenantId,
     fileId: row.id,

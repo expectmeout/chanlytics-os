@@ -161,6 +161,17 @@ test("nothing made says what Ask makes and offers what it can make now, each in 
   assert.equal(count(html, "cnv-made-title"), 0);
 });
 
+test("an idea is offered only where what it is made from is there, and an empty Library is the way in", () => {
+  const none = ["before_after", "video", "photo_post"].map((key) => ({ key, files: [], ready: false }));
+  const html = draw(page({ ideas: none }));
+  assert.equal(count(html, "cnv-idea-photo_post"), 0, "never your newest photo with no photo");
+  assert.match(html, /Ask makes posts from your photos\. Add a few to start\./);
+  assert.equal(count(html, "cnv-first-add"), 1, "the Library is empty: its door leads");
+  const kept = draw(page({ ideas: none.map((i) => ({ ...i, ready: i.key === "photo_post" })), tally: { library: 1 } }));
+  assert.equal(count(kept, "cnv-idea-photo_post"), 1);
+  assert.equal(count(kept, "cnv-first-add"), 0, "something kept: the ideas lead");
+});
+
 test("a video being made leads the page with its words and where it is at", () => {
   const html = draw(page({ making: [making(), making({ id: "p-2", status: "failed", failed_why: "clips" })] }));
   assert.equal(count(html, "cnv-making"), 2);
@@ -317,4 +328,12 @@ test("the views say how many each holds, and Needs you is marked while it holds 
   assert.match(html, /aria-pressed="true"[^>]*data-testid="cnv-view-row-all"/);
   assert.match(html, /Needs you<span class="cnv-owed"/);
   assert.match(html, />8</);
+});
+
+test("a piece its owner posted by hand says so on its tile, as one that is up", () => {
+  const said = { id: "h-1", at: "2026-11-11T15:00:00Z", link: "https://www.tiktok.com/@harbor/video/1" };
+  const html = draw(page({ made: [{ file: fileOf(1), posts: [], by_hand: said }], tally: { made: 1 } }));
+  assert.match(html, /data-tone="up" data-testid="cnv-said"/);
+  assert.match(html, /On TikTok, by you · /);
+  assert.doesNotMatch(html, /Ready to (post|save)/);
 });

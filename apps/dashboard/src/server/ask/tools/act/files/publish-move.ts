@@ -6,19 +6,16 @@
  */
 import "server-only";
 import {
-  MIN_MS,
   POST_PLACE_SAID,
+  POST_SOON_MS,
   type InstagramPostKind,
+  type PostDto,
   type PostPlace,
   type PostPublish,
 } from "@chanlytics/contracts";
-import type { MemberPostRow } from "@chanlytics/db/files";
-
-/** Later than this, a post waits for its time; sooner, it is going up now (00616 post_begin's own line). */
-const WAITS_PAST_MS = 2 * MIN_MS;
 
 /** What a move reads of a post. */
-type PostSet = Pick<MemberPostRow, "id" | "place" | "kind" | "status" | "scheduled_for">;
+type PostSet = Pick<PostDto, "id" | "place" | "kind" | "status" | "scheduled_for">;
 
 /** The post of this kind waiting for its time at a place, where one is: still queued, or being made ready on Instagram. */
 function setAt(posts: readonly PostSet[], place: PostPlace, as: InstagramPostKind, nowMs: number): PostSet | null {
@@ -29,7 +26,8 @@ function setAt(posts: readonly PostSet[], place: PostPlace, as: InstagramPostKin
         p.place === place &&
         p.kind === kind &&
         (p.status === "queued" || p.status === "preparing") &&
-        Date.parse(p.scheduled_for) - nowMs > WAITS_PAST_MS,
+        // Later than this a post waits for its time; sooner, it is going up now (contracts POST_SOON_MS, 00616 post_begin).
+        Date.parse(p.scheduled_for) - nowMs > POST_SOON_MS,
     ) ?? null
   );
 }

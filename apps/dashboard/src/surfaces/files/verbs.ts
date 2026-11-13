@@ -194,6 +194,8 @@ export interface FileChange {
   status?: "filed" | "set_aside";
   /** A made piece's caption, written where it stands (server posts/caption.ts). */
   caption?: string;
+  /** "I posted it": a made piece its owner put up themselves, with its link or none; null takes it back (posts/by-hand.ts). */
+  posted?: { link?: string | null } | null;
 }
 
 /** What came of asking for a post's picture: the picture and whether the business has a number to print, or what refused it. */

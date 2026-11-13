@@ -1,20 +1,24 @@
 import "server-only";
 import { z } from "zod";
 import {
+  DAY_MS,
   FILE_GOOGLE_WORDS_MAX,
   INSTAGRAM_POST_KINDS,
-  MIN_MS,
+  POST_AHEAD_DAYS_MAX,
+  POST_PLACE_SAID,
   POST_PLACES,
+  POST_SOON_MS,
   clockWhen,
   dateFormat,
   fileSaidOf,
   postCaptionProblem,
+  postPlaceTakenOf,
   publishCardWords,
   wallClockAt,
+  type PostDto,
   type PostPlace,
   type PostPublish,
 } from "@chanlytics/contracts";
-import { listFilePosts } from "@chanlytics/db/files";
 import { postClaimsProblem } from "@/server/files/post-check";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
@@ -22,6 +26,7 @@ import { filesNamedForAsk } from "../../../../readers/files";
 import { findConnection } from "../../../../connections/google";
 import { readPostCaption } from "../../../../posts/caption";
 import { readInstagramPostable } from "../../../../posts/instagram";
+import { readFilePosts } from "../../../../posts/record";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
 import { approvalWords, propose, refuse } from "../../context/context";
 import { filesNamed } from "../../read/files";
@@ -29,15 +34,12 @@ import { ownersWords } from "./post";
 import { movesOf } from "./publish-move";
 
 /**
- * A made post put up at its places, now or at a time the owner said (Ruben, 12 Nov 2026): the page offers no times of its own,
- * and a time is asked of Ask. The act never acts: it checks the post, the places and the time, and makes the card
+ * A made post put up at its places, now or at a time the owner said in words (Ruben, 12 Nov 2026), as the page's own Schedule
+ * sets one by hand (Post it, #2281). The act never acts: it checks the post, the places and the time, and makes the card
  * (contracts content/publish.ts), whose press goes through each place's own door. The caption is the post's own, as Details
  * says it, unless the owner asks for other words; Ask's are held to what the owner said, as a post's words are, and kept on
  * the post as it is pressed, so the post says what went.
  */
-
-/** A time the door takes as now: one this close is the press's own (00611 post_begin, 00616). */
-const NOW_WITHIN_MS = 2 * MIN_MS;
 
 const publishInput = z.object({
   file: z.string().min(1).max(120).optional().describe("Its name as files says it; left out, the question's post."),
@@ -61,11 +63,34 @@ function whenOf(said: string | undefined, zone: string): { at: number | null } |
   const at = wallClockAt(zone, parts[1] ?? "", Number(parts[2]), Number(parts[3]));
   if (!Number.isFinite(at)) return { refused: `when ${said} is not a time` };
   const ahead = at - Date.now();
-  if (ahead < -NOW_WITHIN_MS)
+  // A time this close is the press's own: it goes as the card is pressed (contracts POST_SOON_MS, 00616 post_begin).
+  if (ahead < -POST_SOON_MS)
     return {
       refused: `${said} has passed on the business's clock. Ask them for a later time, or leave when out for now`,
     };
-  return { at: ahead <= NOW_WITHIN_MS ? null : at };
+  if (ahead > POST_AHEAD_DAYS_MAX * DAY_MS)
+    return {
+      refused: `${said} is more than ${POST_AHEAD_DAYS_MAX} days ahead, the most a post can wait. Ask for a nearer day`,
+    };
+  return { at: ahead <= POST_SOON_MS ? null : at };
+}
+
+/**
+ * Why a place already holds this post, for the model: one of the same kind on its way there (now, or set for its time), or
+ * one up on Google (contracts postPlaceTakenOf, the rule the page's switches keep). A story waits apart from the post (00620).
+ * Null where it can go.
+ */
+function placeTakenSaid(posts: readonly PostDto[], request: { place: PostPlace; as: PostPublish["as"] }, zone: string) {
+  const { place } = request;
+  const taken = postPlaceTakenOf(posts, place, place === "instagram" ? request.as : "picture");
+  if (!taken) return null;
+  const where = place === "instagram" && request.as === "story" ? "Instagram as a story" : POST_PLACE_SAID[place];
+  if (taken.is === "up")
+    return `this post is already up on ${where}, and a second would show twice there. Say so, and leave ${where} out`;
+  const due = Date.parse(taken.scheduled_for);
+  return due - Date.now() > POST_SOON_MS
+    ? `this post is already set for ${clockWhen(due, zone, Date.now())} on ${where}. Say so: Don't post on it in Campaigns › Content lets that one go first, or leave ${where} out`
+    : `this post is already on its way to ${where}. Say so, and leave ${where} out`;
 }
 
 /** The time as the card says it, in the turn's language, on the business's clock: "Sat 10:00 AM", "sábado, 15 nov, 10:00". */
@@ -137,14 +162,19 @@ async function publishOutcome(toolContext: ToolContext, input: PublishInput): Pr
     const why = await placeRefusal(toolContext, place);
     if (why) return refuse(why);
   }
+  const as = input.as ?? "picture";
+  // The time first: only a time named can say that a post already set at a place asked is to move to it (00621).
   const when = whenOf(input.when, toolContext.timezone);
   if ("refused" in when) return refuse(when.refused);
-  const as = input.as ?? "picture";
-  // A post already set for its time at a place asked moves to the time named, in place of a second one there (00621).
-  const posts = await listFilePosts(toolContext.ctx.supabase, toolContext.tenantId, file.id);
+  const posts = await readFilePosts(toolContext.ctx, toolContext.tenantId, file.id);
   const set = movesOf(posts, { places, as, at: when.at }, Date.now());
   if ("refused" in set) return refuse(set.refused);
+  // Where nothing moves, a place that already holds this post takes no second one: on its way now, or up on Google.
   const posting = places.filter((place) => !set.moves.some((move) => move.place === place));
+  for (const place of posting) {
+    const taken = placeTakenSaid(posts, { place, as }, toolContext.timezone);
+    if (taken) return refuse(taken);
+  }
   const caption = await captionOf(toolContext, input, { fileId: file.id, places: posting, as });
   if ("refused" in caption) return refuse(caption.refused);
   const language = toolContext.language === "es" ? "es" : "en";
