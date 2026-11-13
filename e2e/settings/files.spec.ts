@@ -279,19 +279,23 @@ test.describe("Files, from a photo to a post", () => {
         { name: expect.stringMatching(/^open-late-this-saturday.*-portrait\.jpg$/), active: true },
       ]);
 
-      // Open in Content, it says where it came from, and a change (More › Change it) starts from what it was asked to be: its
-      // words alone there too.
+      // Open in Content, it says what it was made from, and a change starts from what it was asked to be: its words alone
+      // there too.
       await card.getByTestId("post-open-files").click();
       await expect(pane).toBeVisible({ timeout: 30_000 });
       // Ask stands over the right of a desk's page, and that is where Content draws the piece it opened: a file's sheet came
-      // over Ask while the library was Settings › Files' own, and the pane does not (the library became Content's on 11 Nov
-      // 2026, and a press on the pane's More was Ask's to take from then on). Its door closes it, as a person would to reach
-      // the pane.
+      // over Ask while the library was Settings › Files' own, and the pane does not (a file opens in Content's pane since 12
+      // Nov 2026, #2268, and a press on the pane was Ask's to take from then on). Its door closes it, as a person would to
+      // reach the pane.
       await page.getByTestId("tb-ask").click();
       await expect(card).toBeHidden();
-      await expect(pane.getByTestId("fl-made-from")).toBeVisible({ timeout: 30_000 });
-      await pane.getByTestId("cnv-more").click();
-      await page.getByRole("menuitem", { name: "Change it" }).click();
+      // What it was made from is the photo itself, drawn small among the piece's facts (the content canvas, #2281): Files'
+      // sheet had a press there that opened the photo, and the pane draws its picture.
+      const facts = pane.getByTestId("cnv-facts");
+      await expect(facts).toContainText("Made from", { timeout: 30_000 });
+      await expect(facts.locator(`img[src*="/api/v1/files/${photoId}/view"]`)).toHaveCount(1);
+      // Change it is the pane's own pencil, beside its lead (Ruben, 12 Nov 2026: one way to change a piece), not More's.
+      await pane.getByTestId("cnv-change").click();
       const version = pane.getByTestId("post-version");
       await expect(version.getByTestId("post-line")).toHaveValue(CHANGED);
       await expect(version.locator(LOOK_CHOICES)).toHaveCount(0);
@@ -308,22 +312,20 @@ test.describe("Files, from a photo to a post", () => {
       const statusOf = async (id: string | undefined) =>
         (await page.request.get(scoped(`/api/v1/files/${id ?? ""}`, workspace))).status();
       expect(made.at(0), "the change is a file of its own").not.toBe(made.at(1));
-      await expect.poll(() => statusOf(made.at(0)), { timeout: 30_000 }).toBe(404);
+      // "Changed." is said once the first is taken away (piece-presses.tsx usePieceDrafts), and lasts a few seconds: the
+      // pointer rests on its Undo, which holds it, while the two are looked at.
+      const changed = page.locator(".pp-toast").filter({ hasText: "Changed." });
+      await expect(changed).toBeVisible({ timeout: 30_000 });
+      const undoTheChange = changed.getByRole("button", { name: "Undo" });
+      await undoTheChange.hover();
+      expect(await statusOf(made.at(0)), "the first is taken away").toBe(404);
       expect(await statusOf(made.at(1)), "the change stands").toBe(200);
 
       // Undo, on the toast that said it changed: the first is back where it was, and the change is let go.
-      await page.locator(".pp-toast").getByRole("button", { name: "Undo" }).last().click();
+      await undoTheChange.click();
       await expect.poll(() => statusOf(made.at(0)), { timeout: 30_000 }).toBe(200);
       await expect.poll(() => statusOf(made.at(1)), { timeout: 30_000 }).toBe(404);
       await expect(pane.locator(".cm-pane-name")).toContainText("Open late this saturday", { timeout: 30_000 });
-
-      // Where it came from opens that photo, in the Library it belongs to.
-      await pane.getByTestId("fl-made-from").click();
-      await expect(page.getByTestId("cnv-library"), "the photo's list").toBeVisible({ timeout: 30_000 });
-      await expect(pane.getByTestId("cnv-next"), "a photo's pane: its press").toHaveText("Make a post", {
-        timeout: 30_000,
-      });
-      await expect(pane.getByTestId("fl-made-from"), "and it came from nothing").toHaveCount(0);
 
       // Undo, on the card that made the post: it is gone.
       // Ask was closed to reach the pane; its door opens it again on the turn it held (open, a press would close it).
