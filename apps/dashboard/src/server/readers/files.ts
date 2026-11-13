@@ -3,7 +3,7 @@ import {
   AppError,
   FILES_MAX,
   FILES_PAGE,
-  FILE_LOOKS_LIKE,
+  FILE_LOOK_SCHEMA,
   FILE_WORDS as W,
   fileCursorOf,
   fileNameOf,
@@ -35,6 +35,9 @@ function filePeopleOf(raw: unknown): FilePeople | null {
     : null;
 }
 
+/** The kinds of picture a look answers in, as its own schema lists them (contracts files/look.ts, edition 2). */
+const LOOKS_LIKE = FILE_LOOK_SCHEMA.properties.looks_like.enum;
+
 /** A row as the page and Ask read it: never where it is stored, and of its look only what a person reads. */
 export function fileDtoOf(fileMember: FileMemberRow): FileDto {
   const look = recordOrNull(fileMember.look);
@@ -57,7 +60,7 @@ export function fileDtoOf(fileMember: FileMemberRow): FileDto {
     line: typeof look?.line === "string" ? look.line : null,
     issues: Array.isArray(look?.issues) ? look.issues.filter((i): i is string => typeof i === "string") : [],
     looks_like_stock: look?.looks_like_stock === true,
-    looks_like: FILE_LOOKS_LIKE.find((kind) => kind === look?.looks_like) ?? null,
+    looks_like: LOOKS_LIKE.find((kind) => kind === look?.looks_like) ?? null,
     created_at: fileMember.created_at,
   };
 }
