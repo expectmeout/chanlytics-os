@@ -132,7 +132,7 @@ export interface SequenceRowDto {
   stuck?: { leads: number; since: string; reason: string } | null;
   /**
    * How many leads on a running cold email's list wait on an address the leads clock is still going to check again by
-   * itself (decision 0131, 00622: a day apart, twice). They ask nothing of their owner, so they are no part of `stuck`,
+   * itself (decision 0131, 00623: a day apart, twice). They ask nothing of their owner, so they are no part of `stuck`,
    * which counts a lead only once both tries are spent. Absent from a server before it: none.
    */
   rechecking?: number;

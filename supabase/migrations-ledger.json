@@ -79,7 +79,8 @@
     "00601": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00602": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00603": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
-    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)"
+    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
+    "00622": "the bell's six fixes (the_bell_reads_what_was_seen, cm-bell-dots) went on production first, 13 Nov 2026, and its file is not on main yet; it lands as 00622 and takes this gap out"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -624,6 +625,6 @@
     "00619_a_stopped_post_is_let_go_and_found_photos_are_not_mine.sql": "ccdc8813cf86d75cfbf25dd95a6faf66a7b58f86edc1fa5b3674f23c423436be",
     "00620_a_story_waits_apart_and_a_post_by_hand_is_kept.sql": "45c5f7aa4f3cb24fc8f0dd563ae34160eabb2d55394400c982a080df5c3fbe9a",
     "00621_a_post_moves_to_another_time.sql": "f4047f1d444513299399e669c025726a7672803b7a8fbb97b4f2fae0ece7f4e7",
-    "00622_a_recheck_wakes_its_clock_and_no_workspace_holds_another.sql": "97c3dc1bad4ab5a0bb0ec8a0125768ccb835fa8e95ef0c1df2698123304c9959"
+    "00623_a_recheck_wakes_its_clock_and_no_workspace_holds_another.sql": "f5078f2802c231da9a5b4e70b7c5aeeeb82c83de6e20ec8cfbc803f1019c542a"
   }
 }

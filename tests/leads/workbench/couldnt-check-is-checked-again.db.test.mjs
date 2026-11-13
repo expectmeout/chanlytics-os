@@ -1,5 +1,5 @@
 /**
- * "Couldn't check" is checked again (decision 0131, migrations 00618 and 00622).
+ * "Couldn't check" is checked again (decision 0131, migrations 00618 and 00623).
  *
  * An address whose mailbox check did not answer (`email_state = 'unknown'`) stood so for good: nothing tried again by
  * itself, and Check again (lead_check_again, 00506) took only a lead in Needs review, so a lead the search judged a fit
@@ -10,7 +10,7 @@
  *   2. The leads clock asks again by itself (lead_check_retry): each address a day after its last check, at most twice,
  *      only in a workspace whose searching is on and may spend, and it counts each try (leads.email_rechecks).
  *   3. The clock's door is the service role's alone.
- *   4. What 00622 mended, read on production the day after: an address on a name kept for examples is never asked, one
+ *   4. What 00623 mended, read on production the day after: an address on a name kept for examples is never asked, one
  *      never checked is due, one left 'checking' by a check that died is given back, and a workspace with no room is
  *      asked nothing and loses no try (it used to stand at the head of every workspace's line).
  *
@@ -63,7 +63,7 @@ async function memberClient(role) {
 
 /**
  * A lead found by the search, as its round left it: its address's state, when it was checked, and its class. Its address
- * is on a made-up name that is no example's: one on a name kept for examples (RFC 2606) is never asked (00622), which
+ * is on a made-up name that is no example's: one on a name kept for examples (RFC 2606) is never asked (00623), which
  * `email` is for.
  */
 async function found(
@@ -278,7 +278,7 @@ async function settle() {
 }
 
 test(
-  "an address on a name kept for examples is never asked: its tries are spent unasked (00622)",
+  "an address on a name kept for examples is never asked: its tries are spent unasked (00623)",
   { skip },
   async () => {
     const sample = await found(7, { email: `hello@plumber7-${stamp}.example` });
@@ -300,7 +300,7 @@ test(
   },
 );
 
-test("an address never checked is due: a new one chosen with no room is asked (00622)", { skip }, async () => {
+test("an address never checked is due: a new one chosen with no room is asked (00623)", { skip }, async () => {
   const never = await found(10, { checked: null });
   ok(await retry());
   assert.deepEqual(await stateOf(never), { email_state: "checking", email_rechecks: 1 });
@@ -308,7 +308,7 @@ test("an address never checked is due: a new one chosen with no room is asked (0
 });
 
 test(
-  "an address left checking by a check that died is given back; one with its job on its way, or its search still running, is left (00622)",
+  "an address left checking by a check that died is given back; one with its job on its way, or its search still running, is left (00623)",
   { skip },
   async () => {
     const dead = await found(11, { state: "checking" });
@@ -359,7 +359,7 @@ test(
 );
 
 test(
-  "a workspace with no room in its searching is asked nothing, loses no try, and says how many wait (00622)",
+  "a workspace with no room in its searching is asked nothing, loses no try, and says how many wait (00623)",
   { skip },
   async () => {
     ok(

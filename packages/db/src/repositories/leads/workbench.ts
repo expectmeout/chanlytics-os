@@ -120,10 +120,10 @@ export const applyLeadBulk = async (db: Db, args: Args<"lead_bulk">) => db.rpc("
 export const askLeadsChecked = async (db: Db, args: Args<"lead_check_again">) => db.rpc("lead_check_again", args);
 
 /**
- * The leads clock's second try at the addresses that did not answer (lead_check_retry, 00618 and 00622, decision 0131):
+ * The leads clock's second try at the addresses that did not answer (lead_check_retry, 00618 and 00623, decision 0131):
  * each one a day after its last check, at most twice, inside each workspace's searching budget and only while its
  * searching is on. Up to `limit` leads a call; how many were asked, how many waited for room, and how many left
- * 'checking' by a check that died were given back to "Couldn't check" (absent from a database before 00622: none).
+ * 'checking' by a check that died were given back to "Couldn't check" (absent from a database before 00623: none).
  * Service role only.
  */
 export async function retryLeadChecks(db: Db, limit: number): Promise<{ asked: number; held: number; freed: number }> {

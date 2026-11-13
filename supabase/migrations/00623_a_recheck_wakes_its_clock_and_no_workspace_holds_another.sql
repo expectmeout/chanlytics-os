@@ -1,4 +1,4 @@
--- 00622 · A recheck wakes its clock, and no workspace holds another back (decision 0131, amended 13 Nov 2026).
+-- 00623 · A recheck wakes its clock, and no workspace holds another back (decision 0131, amended 13 Nov 2026).
 --
 -- 00618 had the leads clock ask again, by itself, for an address whose mailbox check did not answer. Read on production
 -- the day after, and at the volume it is built for, it fell short in these ways:
@@ -23,6 +23,10 @@
 --
 -- Deploy order: either. Each function keeps its name and arguments; the answers only gain a key (`freed`, `rechecking`),
 -- which a server before this one does not read and one after it reads as absent on a database before it. Re-runnable.
+--
+-- Built as 00622 and applied to production on 13 Nov 2026 with that number in its comments (the bodies and comments
+-- below say 00622 where they name it): another branch's 00622 went on first, minutes before, so its row stands as
+-- 00623. The functions and comments production holds are the ones below, exactly.
 
 set local lock_timeout = '3s';
 

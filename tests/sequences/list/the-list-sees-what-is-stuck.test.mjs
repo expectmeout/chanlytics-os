@@ -82,7 +82,7 @@ test("leads that could not be checked: the row says how many and since when, and
 });
 
 test("an address the clock still checks again asks nothing: the row says so, and it is no part of Needs you", () => {
-  // Three on its list, none planned, each waiting on the clock's own second try (00622: `rechecking`, never `stuck`).
+  // Three on its list, none planned, each waiting on the clock's own second try (00623: `rechecking`, never `stuck`).
   const waiting = lead({ in_it: 0, rechecking: 3, last: null });
   assert.equal(line(waiting), "3 addresses being checked again");
   assert.notEqual(sequenceGroupOf(waiting), "needs");

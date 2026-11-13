@@ -39,10 +39,10 @@ searching, as a search does (`lead_check_ask`, `lead_spend_room`).
 - **An address that changes** keeps the clock's count of tries for the old one. Check again still asks it.
 - **The lead's own card offers no button:** its sequence's People and Leads' Needs review do.
 
-## Mended (13 November 2026, migration 00622)
+## Mended (13 November 2026, migration 00623)
 
 Read on production the day after it merged, and at the volume it is built for, the first build fell short. Each of these
-is mended in `00622`:
+is mended in `00623` (built as 00622, so the function comments in production still say so: another branch's 00622 went on first):
 
 1. **The clock never ran on a quiet day.** The database calls the leads sweep only while a search is live
    (`trigger_leads_sweep`), and the retry was a step of that sweep, so with no search running no address was asked
@@ -77,7 +77,7 @@ to kept and counts it in the month's allowance, as Check again does (`lead_check
 ## Held by
 
 `tests/leads/workbench/couldnt-check-is-checked-again.db.test.mjs` (the door takes a kept lead; the clock asks a day
-later, at most twice, never with searching off; its door is the service role's; and what 00622 mended: a name kept
+later, at most twice, never with searching off; its door is the service role's; and what 00623 mended: a name kept
 for examples, an address never checked, a check that died, a workspace with no room), in CI's database suites;
 `tests/sequences/people/couldnt-check-is-checked-again.test.mjs` (the People read asks why of the listed leads alone;
 Check again covers the leads added whose address could not be checked; the words).

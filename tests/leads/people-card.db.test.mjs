@@ -427,7 +427,7 @@ test(
 
     ok(await db.rpc("lead_round_end", { p_round_id: round, p_ending: "stopped" }));
     const before = await checks();
-    // The leads clock's two tries are an address's (00622): spent on the one it leaves, the new one has both.
+    // The leads clock's two tries are an address's (00623): spent on the one it leaves, the new one has both.
     ok(await db.from("leads").update({ email_rechecks: 2 }).eq("id", omega.id));
     const chosen = await choose(1);
     assert.deepEqual([chosen.ok, chosen.addressee, chosen.email_state], [true, 1, "checking"]);

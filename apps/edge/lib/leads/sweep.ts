@@ -210,7 +210,7 @@ const RECHECKS_AT_ONCE = 200;
 /**
  * The addresses whose mailbox check did not answer, asked again (decision 0131, lead_check_retry): each a day after its
  * last check, at most twice, inside each workspace's searching budget and only while its searching is on; and the ones
- * left 'checking' by a check that died, given back to "Couldn't check" (00622). A read that fails is logged and the tick
+ * left 'checking' by a check that died, given back to "Couldn't check" (00623). A read that fails is logged and the tick
  * goes on; a database before 00618 has no such door, and asks nothing.
  */
 async function checksAgain({
