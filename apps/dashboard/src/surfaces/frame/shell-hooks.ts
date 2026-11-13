@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { firstRowsStand } from "@chanlytics/contracts";
 import type { watchKeyboard } from "../kit/motion/keyboard";
+import { isDocumentScroller, scrollerOf } from "../kit/motion/page-scroll";
 import { frameChrome, frameShell, frameSurfaceState, fromWindow, isDemoFrame } from "./frame-window";
 import { parseRoute, routeFailed, routeReady, shellAddress, type RouteAt, type ShellRoute } from "./shell-routes";
 import { stripPlace, stripSlide } from "./surface-tabs";
@@ -251,18 +252,22 @@ export function useShellKeys({
 }
 
 /**
- * The page on screen back to its top: whatever scrolls in it, the route view itself (Today), the list a page of panes
- * scrolls in, or on a phone the window. The tab bar's place pressed again, and the phone app's tab (shell:top).
+ * The page on screen back to its top: the box its view scrolls in (page-scroll.ts scrollerOf), which on a phone, the only
+ * place it is pressed, is the window, every page's scroller there since 21 Oct 2026 (mobile.css, "The window scrolls"),
+ * and `main` where that scrolls the view itself. A box that scrolls on its own inside the page (an open sheet, a reply's
+ * long words, a table with a height of its own) keeps its place: every box under `main` went to its top too while a phone's
+ * pages each scrolled in a box of their own (12 Oct 2026). The tab bar's place pressed again, and the phone app's tab
+ * (shell:top).
  */
 export const pageToTop = () => {
   const main = document.getElementById("main");
   if (!main) return;
   const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const behavior: ScrollBehavior = still ? "auto" : "smooth";
-  for (const el of [main, ...Array.from(main.querySelectorAll("*"))]) {
-    if (el.scrollTop > 0) el.scrollTo({ top: 0, behavior });
-  }
-  if (window.scrollY > 0) window.scrollTo({ top: 0, behavior });
+  const view = scrollerOf(main, { self: true });
+  if (!isDocumentScroller(view)) {
+    if (view.scrollTop > 0) view.scrollTo({ top: 0, behavior });
+  } else if (window.scrollY > 0) window.scrollTo({ top: 0, behavior });
 };
 
 // Where the phone's drawer goes that its tab bar does not, as its items go there: Settings is `admin`, whose page opens on

@@ -421,6 +421,7 @@ test("the route: refused without the key; with it, the rows are read, each actio
     given_up: 0,
     rechecks_asked: 0,
     rechecks_held: 0,
+    rechecks_freed: 0,
     marks_due: 0,
     marks_kept: 0,
     failed: 0,

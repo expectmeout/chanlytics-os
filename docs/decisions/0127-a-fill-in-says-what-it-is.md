@@ -24,6 +24,14 @@ Ruben, 11 November: "perhaps clicking or something on the variables can switch b
 - A subject shows its blanks where the blanks are shown, and its values plain where it is read.
 - On a phone the receptionist's facts open in the same bubble a fill-in opens, not a sheet of their own: one mechanism, and the lead sheet's swipes keep working under it.
 
+## Amended, 12 November 2026
+
+A second read of what was built found three things the card said that it could not stand behind:
+
+- **Where a value came from was a guess.** The bubble told a lead's source from its kind, so a lead brought in on the owner's own list said its Maps listing or a directory. The bubble now says the row's own Source word (contracts `leadSourceWord`, the one rule, as the Leads table and the export say it), which the card's lead carries (`LeadCardLead.found`), and says nothing of where when its lead says none.
+- **"Made when this goes" was promised on the workspace alone.** The read now also answers why this lead can get none, as its door would refuse it (`cannot`: not a business that takes bookings, a closed lead, no name to set it up under), and the mark and the line say so before any email goes, with no Make it now. The door (00497 `preview_make`) is still the rule. The edge's switch is not read here: the dashboard cannot see it, so that waits for a door on the edge.
+- **"Being made" could stand for ever.** The answer says when the preview was made (`made_at`); past two minutes the mark and the line say it is slower than usual (`previewBuildSlow`), and the looks go on every half minute for ten more minutes before they stop.
+
 ## Tests
 
 `tests/leads/workbench/lead-fill-ins.test.mjs` holds the rules (the pieces, the blanks, what a fill-in says, what the mark says). `tests/leads/workbench/lead-sheet-box.test.mjs` draws the card: a fill-in's press and bubble, a tap on it that types nothing, the switch, and the mark before and after its read. The kit's Popover itself is Base UI's, which the page tests stand in for: a browser proves it.

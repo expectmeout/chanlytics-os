@@ -144,6 +144,16 @@ test("the guide rides every form of the turn's words, and a question in Spanish 
   assert.equal(withSkillGuides(words, "how did last week go?"), words);
 });
 
+test("a question that asks for a video carries the video maker's guide, in English and in Spanish", () => {
+  const words = () => ({ type: "text", text: "words" });
+  const video = skillGuide("video");
+  const said = (question) => withSkillGuides(words, question)().text;
+  assert.equal(said("Make a reel from my clips of the color work"), `words\n\n${video}`);
+  assert.equal(said("Hazme un vídeo de antes y después"), `words\n\n${video}`);
+  // A message about a video is written by one skill and arranged by the other: both guides, in the registry's order.
+  assert.equal(said("Write a message telling clients about our new video"), `words\n\n${GUIDE}\n\n${video}`);
+});
+
 /** A round that calls propose_sequence's action message: what a card's tool is handed is captured. */
 const MESSAGE_CALL = ROUND([
   {
@@ -183,7 +193,8 @@ test("the guide read answers a skill's guide by its id, and names the skills for
   const run = guideTool.actions[""].run;
   assert.deepEqual(await run({}, { skill: "customer_message" }), { skill: "customer_message", guide: GUIDE });
   assert.deepEqual(await run({}, { skill: "review_reply" }), {
-    error: "No skill is called review_reply. The skills: customer_message.",
+    error: "No skill is called review_reply. The skills: customer_message, video.",
   });
+  assert.deepEqual(await run({}, { skill: "video" }), { skill: "video", guide: skillGuide("video") });
   assert.ok(guideTool.actions[""].input.safeParse({}).success, "with no skill it reads the product as before");
 });

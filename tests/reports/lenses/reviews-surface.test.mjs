@@ -19,6 +19,7 @@ import { MIN_MS, headlineOf, reportDaysCount, toReviewsReportVM } from "@chanlyt
 import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { CALENDAR, REVIEWS_NOW, reportDto, reviewsDto, reviewsGoogle } from "../_report-world.mjs";
+import { until } from "../../shared/_until.mjs";
 
 installStubReact();
 Object.assign(globalThis, {
@@ -298,6 +299,48 @@ for (const [name, follower, key] of USERS) {
     release();
     await before;
     assert.equal(follower.isStale(), true, "REGRESSION: a read from before the write was held as if it came after");
+  });
+
+  /** A read of thirty days held open until the test lets it go, and out on the wire before the test goes on. */
+  const heldOpen = async () => {
+    const route = key === "reports_reviews" ? "reports/reviews" : "reports/headline";
+    let release = () => {};
+    parked = { route, period: "30d", until: new Promise((r) => (release = r)) };
+    const read = follower.override.apply();
+    await until(() => asked.includes(`${route} 30d`), "the read before the write is out");
+    return async () => {
+      release();
+      await read;
+      parked = null;
+    };
+  };
+
+  test(`${name}: a read a write overtook is never drawn: after a forget its answer is neither published nor held, and the read after it is both`, async () => {
+    reset("30d");
+    const land = await heldOpen();
+    follower.forget();
+    await land();
+    assert.equal(surfaceValue(key), undefined, "REGRESSION: the answer from before the write was drawn after it");
+    assert.equal(follower.paintHeld(), false, "and nothing of it is held");
+    assert.equal(follower.isStale(), true, "so its page reads it as it comes on screen");
+    await follower.override.apply();
+    assert.equal(of(key), "30d", "the read after the write is drawn");
+    assert.equal(follower.isStale(), false, "and held");
+  });
+
+  test(`${name}: a read a write overtook while its page is on screen (outdate): what is drawn stays until the read after the write replaces it`, async () => {
+    reset("30d");
+    await follower.override.apply();
+    const drawn = surfaceValue(key);
+    const land = await heldOpen();
+    follower.outdate();
+    await land();
+    assert.equal(surfaceValue(key), drawn, "REGRESSION: the answer from before the write replaced what was drawn");
+    assert.equal(follower.isStale(), true, "nothing of it is held");
+    await follower.override.apply();
+    assert.notEqual(surfaceValue(key), drawn, "the read after the write replaces it");
+    assert.equal(of(key), "30d");
+    assert.equal(follower.isStale(), false, "and is held");
   });
 }
 

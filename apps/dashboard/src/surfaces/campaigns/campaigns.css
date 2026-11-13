@@ -1808,25 +1808,36 @@ html.frame-on .bc-nobody-door {
   gap: var(--space-1);
   min-width: 0;
 }
-/* A group's name over its rows, at the rows' own inset; a group that folds is its name, its count and a chevron, one press. */
-.msg-group-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--space-8);
-  margin: 0 var(--space-2);
-  padding: 0 var(--row-pad-x);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  color: var(--ink);
-  text-align: left;
-}
-.msg-group-n {
-  font-weight: var(--weight-regular);
-  color: var(--ink-dim);
-}
-.msg-group-head .icon {
-  color: var(--ink-dim);
+/* A group's name over its rows is the one heading every list draws (kit/head/group-head.tsx; components.css .group-head),
+   which is a phone's whole look. On a desk the list is a pane's: the heading is the pane's label at the rows' own inset,
+   with no hairline; a group that folds is its name, its count and a chevron, one press. */
+@media (width > 900px) {
+  .msg-group > .group-head {
+    --group-head-pad: 0 var(--row-pad-x);
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--space-8);
+    margin: 0 var(--space-2);
+    border-bottom: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    line-height: inherit;
+    color: var(--ink);
+  }
+  .msg-group > .group-head .group-head-name {
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+  }
+  .msg-group > .group-head .group-head-count {
+    font-weight: var(--weight-regular);
+    color: var(--ink-dim);
+  }
+  .msg-group > .group-head > .group-head-fold {
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--space-8);
+  }
 }
 /* What a run of ready-made starters is for (Appointments, Follow-ups, Offers and news, Calls), among the rows at their
    inset: a step quieter than the group's own name, with room over it so each run reads as one. */
@@ -3682,24 +3693,82 @@ html.frame-on .cm-pane-sub .bc-run-link {
     padding: 0 0 var(--space-6);
   }
   /* Its rows at the edge Sequences' stand at: the lozenge's 8px inset was the pane's. */
-  .cm-split:not([data-open]) .tpl-wrap :is(.msg-row-line, .msg-group-head, .msg-moment) {
+  .cm-split:not([data-open]) .tpl-wrap :is(.msg-row-line, .msg-moment) {
     margin-inline: 0;
+  }
+  /* The first group's heading stands right under the row (components.css .group-head, the one every list draws), and the
+     heading's own room parts one group from the next. */
+  .cm-split:not([data-open]) .tpl-wrap > .tpl-bar + .msg-section {
+    margin-top: calc(-1 * var(--space-3));
+  }
+  .cm-split:not([data-open]) .tpl-wrap :is(.msg-section, .msg-group) {
+    gap: 0;
   }
 }
 /* The top bar, as the Inbox's list opens on its search: the box takes the list's width and what WhatsApp's sync state
    leaves, which is as wide as its words. The kit's search capsule is the box (by position: it is a kit class). */
-.tpl-bar {
+/* ---- A list's top (parts/list-top.tsx): Sequences' and Messages', one way (Ruben, 12 Nov 2026) ----
+   The view at its left, as Pipeline's "All deals 1 ⌄" stands over its list (clients.css .pp-bar-pick): the view's name in the
+   base size's semibold, how many it holds beside it in a dim medium, the chevron dim, a thumb's 44px to press standing in the
+   row's 34 (its reach goes 5px over and under); at its right the search's glyph while the search rests, then the list's own
+   quiet words. */
+.cm-list-bar {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
+  gap: var(--space-2);
+  min-height: 34px;
 }
-.tpl-bar > :first-child {
-  flex: 1 1 0;
+.cm-view-pick {
+  gap: 6px;
   min-width: 0;
+  margin-block: -5px;
+  padding-inline: 3px 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
 }
-.tpl-bar > :not(:first-child) {
+.cm-view-words {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cm-view-count {
   flex: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.cm-view-pick .icon {
+  flex: none;
+  color: var(--ink-dim);
+}
+.cm-list-acts {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+/* On a phone the top is People's and the Inbox's, tier for tier (clients.css .pp-bar): right under the strip, a thumb's 44px
+   with its words on its middle 16px in and its last word 16px from the edge; the search under it takes no room while it rests,
+   open while it has the caret or words (kit/head/list-find.tsx; components.css .lookup-folded). */
+@media (max-width: 900px) {
+  .cm-split:not([data-open]) .cm-list-bar,
+  .cm-split > [data-held] .cm-list-bar {
+    min-height: 44px;
+    padding-right: var(--space-1);
+  }
+  .cm-lookup {
+    padding-top: var(--space-1);
+  }
+}
+/* Messages' top on a phone (templates/page-parts.tsx listBar): the row, then the search under it. */
+.tpl-bar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 /* The open message in its pane: the pane's body is its inset, so what was the open row's own is not added to it. Its
    fields and the message beside them fold by the pane's own width, as they folded by the row's list (the rules for
@@ -4438,6 +4507,11 @@ div.tpl-slotbox:not([data-lines="1"]) {
 .cmh[data-phone] {
   gap: var(--space-3);
   padding: 0 var(--space-3) 120px;
+}
+/* Ads has no list row under Campaigns' strip, which now leaves that room to each view's own row (components.css): it keeps
+   the 16px the strip stood over it with. */
+.cmh.ads[data-phone] {
+  padding-top: var(--space-4);
 }
 /* The strip's parts keep their size (the search circle was squeezed to 16px, under a thumb's 44), but the chips' box,
    which takes the rest and scrolls across; its 5px above and below keep the chips' 44px press areas inside the box,

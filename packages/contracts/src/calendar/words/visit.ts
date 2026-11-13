@@ -1,6 +1,6 @@
 /** Words: visit. */
 
-import type { VisitMark } from "../dto";
+import type { VisitFollowUp, VisitMark } from "../dto";
 import { isGuess, matchWordsOf, type MatchVia } from "../people/matching";
 import type { VisitWord } from "../../shared/enums";
 
@@ -124,6 +124,24 @@ export const VISIT_ASK_WORDS = {
     detail: "It can't be undone here. Its reminders stop; the calendar keeps the time until it is changed there.",
     yes: "Yes, cancelled",
     no: "Keep it",
+  },
+  /**
+   * What the answer sets going, in the sentence the page that took it says (the door's answer, VisitFollowUp): the
+   * sequence that answers a Missed, by name and when (decision 0119), so the page offers no second message of its own,
+   * and the one that thanks them the day after a Kept (0123), each saying where it asks first. Today's row and the
+   * Calendar's sheet say the one sentence. Nothing follows a Cancelled: null.
+   */
+  follows: (word: VisitWord, follows: VisitFollowUp): string | null => {
+    const { name, when, asks } = follows;
+    if (word === "missed")
+      return asks
+        ? `“${name}” has a message for them ${when}, and asks you before it goes.`
+        : `“${name}” offers them another time ${when}.`;
+    if (word === "kept")
+      return asks
+        ? `“${name}” has a thank-you for them ${when}, and asks you before it goes.`
+        : `“${name}” thanks them ${when}.`;
+    return null;
   },
 } as const;
 

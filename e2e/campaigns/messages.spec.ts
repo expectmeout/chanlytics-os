@@ -100,12 +100,19 @@ test.describe("Messages on a real workspace", () => {
     }
     const bubble = (await pane.getByTestId("message-preview").innerText()).trim();
     expect(bubble.length).toBeGreaterThan(20);
-    // The pane's menu, on its name (the kit's, drawn on the page's body), offers the verbs and closes without touching anything.
+    // The pane's menu, on its name (the kit's, drawn on the page's body), offers what can be done and closes without touching
+    // anything. Delete is the message's own act, so it is among them where the workspace holds the message and not for a
+    // starter it has not added, whose menu may still offer a language (the message sheet's canvas, 12 Nov 2026: until
+    // then a menu was drawn only for a message on file, and this read "a menu, so Delete").
     if ((await pane.getByTestId("template-menu").count()) > 0) {
+      const winBack = startersOffered({ reviewLink }).find((s) => s.title === "Win-back");
+      const onFile = messages.some((m) => m.name === winBack?.name);
       await pane.getByTestId("template-menu").click();
-      await expect(page.getByTestId("template-delete")).toBeVisible();
+      const menu = page.getByRole("menu");
+      await expect(menu.getByRole("menuitem").first()).toBeVisible();
+      await expect(page.getByTestId("template-delete")).toHaveCount(onFile ? 1 : 0);
       await page.keyboard.press("Escape");
-      await expect(page.getByTestId("template-delete")).toHaveCount(0);
+      await expect(menu).toHaveCount(0);
     }
     // New is one line to Ask (the Messages redesign's step 4), number or none: no form asks where it is sent first. The
     // page's one act, New, is drawn whenever a person may write, in the frame's head, outside the page's own element.

@@ -9,7 +9,7 @@
  */
 import { useSyncExternalStore } from "react";
 import type { CalendarBlockVM, CalendarMomentDto } from "@chanlytics/contracts";
-import { CALENDAR_VISIT_SHEET_WORDS as W, visitSheetOf } from "./sheet-view";
+import { CALENDAR_VISIT_SHEET_WORDS as W, visitSheetOf, type VisitSheetOutcome } from "./sheet-view";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
@@ -17,7 +17,9 @@ import { onAPhone } from "../../frame-verbs";
 import type { CalendarFrame } from "../types";
 import { calendar } from "../verbs";
 import { crDur, crNotesWorth, crWhen } from "../words";
-import { VisitBody, VisitFoot, whenWords, type VisitCtx } from "./visit";
+import type { VisitCtx } from "./context";
+import { useVisitOutcome } from "./outcome";
+import { VisitBody, VisitFoot, whenWords } from "./visit";
 import { visitWordHere } from "../../workspace-word";
 
 /** What the open visit is drawn from: the block, its day, the board around it, and what closing and walking do. */
@@ -66,8 +68,11 @@ function dayWalk(day: CalendarFrame): CalendarBlockVM[] {
   return [...day.allDay, ...day.blocks];
 }
 
-/** The parts' context: the view model for this visit at this minute, and what its acts do. */
-function ctxOf(p: OpenVisitProps): VisitCtx {
+/**
+ * The parts' context: the view model for this visit at this minute, and what its acts do. `b` is the visit as the sheet
+ * draws it (as it was just told, where a word was said here: useVisitOutcome), with that word's answer and its keeper.
+ */
+function ctxOf(p: OpenVisitProps, kept: { outcome: VisitSheetOutcome | null; settle: VisitCtx["settle"] }): VisitCtx {
   const { b, day } = p;
   const word = visitWordHere();
   const contacts = b.contacts;
@@ -84,8 +89,15 @@ function ctxOf(p: OpenVisitProps): VisitCtx {
     notes: crNotesWorth(b.description, b.person, contacts),
     next: nextVisitOf(b, p.days),
     moments: p.moments,
+    outcome: kept.outcome,
   });
-  return { b, vm, word, bookingLink: p.bookingLink, close: p.onClose, flash: p.flash };
+  return { block: b, vm, word, bookingLink: p.bookingLink, close: p.onClose, flash: p.flash, settle: kept.settle };
+}
+
+/** The open visit's context, with the word said in it kept while it stands (useVisitOutcome). */
+function useVisitCtx(p: OpenVisitProps): VisitCtx {
+  const { block, outcome, settle } = useVisitOutcome(p.b);
+  return ctxOf({ ...p, b: block }, { outcome, settle });
 }
 
 /** The desk's walk: "‹ 2 of 4 ›" through the day's visits, each step opening the next in this one's place. */
@@ -120,7 +132,7 @@ export function walkFrom(day: CalendarFrame, id: string, n: number): CalendarBlo
 
 /** The desk's peek: its head (what, when, the walk, Close), its body and its foot, beside a board that stays live. */
 function VisitPeek(p: OpenVisitProps) {
-  const c = ctxOf(p);
+  const c = useVisitCtx(p);
   return (
     <aside className="pk cal-side" role="dialog" aria-label={c.vm.title} data-testid="cal-panel">
       <header className="cal-side-head">
@@ -155,7 +167,7 @@ function VisitPeek(p: OpenVisitProps) {
 
 /** The phone's sheet: the kit's, its title the visit's, the when line under it, the body, and the foot that holds still. */
 function VisitSheetPhone(p: OpenVisitProps) {
-  const c = ctxOf(p);
+  const c = useVisitCtx(p);
   return (
     <Sheet
       open

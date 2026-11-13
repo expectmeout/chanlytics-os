@@ -39,6 +39,7 @@ corepack pnpm lint                            # ESLint: an error fails; the warn
 corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
 corepack pnpm test                            # the node suite, in UTC (~20 min; run the files a change touches instead, one per command: node tooling/scripts/checks/test.mjs <file>), and what it ran of the code held at a floor; database suites skip without credentials
 TEST_TZ=Pacific/Auckland corepack pnpm test   # the same suite with the clock twelve hours east: CI's second leg (PowerShell: $env:TEST_TZ='Pacific/Auckland'). CI runs both legs only on a pull request labelled `suite`, or by hand (Ruben, 1 Oct 2026); every other pull request runs the tests of what it changed (tooling/scripts/checks/changed-tests.mjs), never the whole suite (Ruben, 10 Oct 2026: a push is through CI in under ten minutes), and the nightly the whole suite
+TEST_CLOCK=+12h node tooling/scripts/checks/test.mjs <file>   # a file's tests with the clock twelve hours on, in the tests and every process they start (PowerShell: $env:TEST_CLOCK='+12h'): every pull request's tests run so too, beside CI's own clock, since a test that holds only in some hours of the day passed in CI and was red on main the rest (#2285, 13 Nov 2026)
 TEST_SLOW_IMPORTS=1 node tooling/scripts/checks/test.mjs <file>   # where tsx loads modules off the main thread (an older Node), every import the file's tests make waits 20 to 80 ms: a test that counts turns of the loop for an act's work fails every time here, where it failed once in a while beside a heavy job; a test waits for what it asserts (tests/shared/_until.mjs). Where tsx loads in the main thread (Node 24) an import takes one turn, and the launcher says so and runs nothing
 corepack pnpm check:debt                      # every number the build holds, this tree against origin/main: a rise or a new offender fails unless the pull request says `Debt: <why>` (CI's debt job; -- --parts measures for seconds, -- --totals for the register's numbers)
 corepack pnpm check:dead-exports              # knip's dead exports, counted (check:debt holds them)
@@ -297,7 +298,7 @@ path (`apps/dashboard/app`, `apps/edge/api`, `apps/mobile/src/app`). `tests/repo
 
 ## Before you open a pull request
 
-CI is the gate: it runs the build and bundle, lint, hygiene, the debt this change adds, the typecheck and the tests of what the branch changes (in four parts), all at once,
+CI is the gate: it runs the build and bundle, lint, hygiene, the debt this change adds, the typecheck and the tests of what the branch changes (in four parts, each at CI's clock and twelve hours on), all at once,
 and the required check `Typecheck` passes only when every part did, so a pull request set to merge itself (`land`) lands
 nothing unchecked. Run the tests of the folders you touched while you work; `check:local` is there when you want CI's
 whole check on the laptop first. The pull request must say what changes for a customer, what to set or apply before

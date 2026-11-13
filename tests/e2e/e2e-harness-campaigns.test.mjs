@@ -298,6 +298,7 @@ const newPane = (record, draft) => {
     // The line under the draft (decision 0129 step 2), empty, with nothing changed by it yet.
     line: { words: "", onWords() {} },
     note: null,
+    byAsk: [],
     acts: { change() {}, redraft() {}, undo() {}, say() {}, back() {}, discard() {}, make() {}, close() {} },
   };
   freshTree();

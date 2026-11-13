@@ -345,6 +345,20 @@ test("a row is drawn with the notice's words, its person by the number or the ad
     ]).via,
     "email",
   );
+  // What they are called: the name People holds, else the one the booking gave, else what the board calls anyone nobody
+  // has named, their number and then their address. Never "": a visit's sheet drew no name, an empty door and no Call for it.
+  const nameOf = (person, over = {}) => personOfAppointment(row({ contact_id: person.id, ...over }), [person]).name;
+  const nobody = { id: "p4", name: "", phone: "+13055550144", email: "dana.rivera@example.com" };
+  assert.equal(nameOf({ ...nobody, name: "Dana R." }), "Dana R.", "People's own name first");
+  assert.equal(nameOf(nobody), "Dana Rivera", "then the name the booking gave");
+  assert.equal(nameOf(nobody, { client_name: null }), "+1 (305) 555-0144", "then their number, as the board says one");
+  assert.equal(nameOf(nobody, { client_name: "  " }), "+1 (305) 555-0144", "a name of spaces is none");
+  assert.equal(
+    nameOf({ ...nobody, phone: null }, { client_name: null }),
+    "dana.rivera@example.com",
+    "then their address",
+  );
+  assert.equal(nameOf({ ...nobody, phone: null, email: null }, { client_name: null }), "Unknown");
   const feedItem = feedItemOfAppointment(row());
   assert.equal(feedItem.uid, "appt:a1");
   assert.deepEqual(feedItem.attendees, [{ name: "Dana Rivera", email: "dana.rivera@example.com" }]);

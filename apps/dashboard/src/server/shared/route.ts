@@ -114,8 +114,9 @@ interface Policy {
   readonly kind: "read" | "write";
   /**
    * Present, and true, on a route whose act is sensitive enough that a session revoked a minute ago must not pass: the
-   * Auth server is asked whether it is still live before the handler runs (requireFreshSession). Absent otherwise, so
-   * route-policy.json changes only on the routes that declare it.
+   * Auth server is asked whether it is still live before the handler runs (requireFreshSession). On a route that
+   * declares it, and on every platform write whether it does or not (asksAuthServer). Absent otherwise, so
+   * route-policy.json changes only on those routes.
    */
   readonly fresh?: true;
   readonly scope: Scope["kind"];
@@ -167,7 +168,10 @@ interface ReadSpec<S extends Scope, Q, O> {
 
 interface WriteSpec<S extends Scope, I, O> {
   scope: S;
-  /** Ask the Auth server whether the session is still live before the handler runs (Policy.fresh). */
+  /**
+   * Ask the Auth server whether the session is still live before the handler runs (Policy.fresh). A platform write
+   * need not say it: every one is asked (asksAuthServer).
+   */
   fresh?: boolean;
   /** Who may change this. null only on the account and platform scopes; route-policy.test holds that. */
   role: Role | null;
@@ -360,10 +364,21 @@ async function onceForKey<O>(
   return out;
 }
 
+/**
+ * Whether a route asks the Auth server if its session is still live: one that declares it, and every change made from
+ * the Console. A platform write acts on any workspace, so a session signed out elsewhere must not make one for the hour
+ * its token still verifies; until 13 Nov 2026 three of the nineteen declared it and the other sixteen let it by. The
+ * Console's reads are not asked: each page would wait on the Auth server for every read it makes.
+ */
+function asksAuthServer(kind: Policy["kind"], spec: { scope: Scope; fresh?: boolean }): boolean {
+  return spec.fresh === true || (kind === "write" && spec.scope.kind === "platform");
+}
+
 function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I, O>) {
+  const fresh = asksAuthServer(kind, spec);
   const policy: Policy = Object.freeze({
     kind,
-    ...(spec.fresh ? { fresh: true as const } : {}),
+    ...(fresh ? { fresh: true as const } : {}),
     scope: spec.scope.kind,
     role: spec.role ?? null,
     rate: spec.rate ?? null,
@@ -375,7 +390,7 @@ function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I
 
   const run = async (req: Request, ctx: RouteCtx): Promise<O> => {
     const { member, given } = await resolve(spec.scope, kind, req, ctx);
-    if (spec.fresh) await requireFreshSession(ctx);
+    if (fresh) await requireFreshSession(ctx);
     if (spec.role) {
       if (!member) throw new Error(`a ${spec.scope.kind}-scoped route cannot require a role`);
       requireRole(member, spec.role);

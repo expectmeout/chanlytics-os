@@ -21,7 +21,7 @@ import { installStubReact, fresh, again, find, byTestId, textOf, classes } from 
 const calls = { flash: [], remove: [], cancel: [], arm: [], nav: [] };
 // The roster and its one open invitation, as the settings read lands them on the seam (below): the surface's alone.
 const TEAM = [
-  { membershipId: "m-ruben", email: "ruben@rjcapital.io", displayName: "Ruben", role: "owner" },
+  { membershipId: "m-ruben", email: "ruben@rjcapital.example", displayName: "Ruben", role: "owner" },
   { membershipId: "m-lena", email: "lena@example.com", displayName: "Lena Park", role: "operator" },
 ];
 const INVITES = [{ id: "i-jay", email: "jay@example.com", role: "viewer", expires_at: "2026-09-20T00:00:00Z" }];
@@ -29,7 +29,7 @@ installStubReact({
   StatStrip: "StatStrip",
   StatCell: "StatCell",
   __chrome: { state: stateOf },
-  __ME: { email: "ruben@rjcapital.io", role: "owner" },
+  __ME: { email: "ruben@rjcapital.example", role: "owner" },
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
     initials: (name, email) =>

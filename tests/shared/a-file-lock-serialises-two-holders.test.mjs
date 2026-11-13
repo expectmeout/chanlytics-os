@@ -33,7 +33,8 @@ test("a second holder waits until the first lets go, and then has it", async () 
 test("a lock older than staleMs was left by a dead process and is taken over", async () => {
   const n = name();
   fs.mkdirSync(dirOf(n));
-  const old = new Date(Date.now() - 60_000);
+  // A minute ago on the machine's clock, which a file's times are kept in, whatever clock the run reads (TEST_CLOCK).
+  const old = new Date(performance.timeOrigin + performance.now() - 60_000);
   fs.utimesSync(dirOf(n), old, old);
   const release = await takeLock(n, { staleMs: 30_000, waitMs: 5_000 });
   await release();

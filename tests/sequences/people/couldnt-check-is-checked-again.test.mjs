@@ -101,6 +101,15 @@ test("Check again covers the leads added whose address could not be checked, and
   assert.deepEqual(leadsToCheckAgain([person("queued", 3, { why: "written" })]), []);
 });
 
+test("the Added fold promises a batch only to the leads one can take", () => {
+  const P = SEQUENCE_PEOPLE_WORDS;
+  assert.equal(P.queuedOf(P.queued.on, 3, 0), "in its next batch");
+  assert.equal(P.queuedOf(P.queued.on, 3, 2), "1 in its next batch");
+  assert.equal(P.queuedOf(P.queuedAt("tomorrow 9:00 AM"), 5, 2), "3 in the batch planned tomorrow 9:00 AM");
+  // Every lead refused (the three plumbers): nothing is promised.
+  assert.equal(P.queuedOf(P.queued.on, 3, 3), "none can go yet");
+});
+
 test("the words: a row says why, and the act says how many", () => {
   assert.equal(placeNotPlannedOf("unchecked"), "Their address couldn't be checked");
   assert.equal(SEQUENCE_PEOPLE_WORDS.checkAgainAll(1), "Check again");

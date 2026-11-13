@@ -27,9 +27,9 @@ import {
   usedBy,
 } from "../sheet/_message-page.mjs";
 
-/** A group of the list by its place, and the name it stands under. */
+/** A group of the list by its place, and the name it stands under (the one heading every list draws, kit GroupHead). */
 const groupOf = (tree, place) => byTestId(tree, `templates-${place}`);
-const nameOf = (group) => textOf(all(group, (n) => n.props?.className === "msg-group-name")[0] ?? null);
+const nameOf = (group) => textOf(all(group, (n) => n.props?.className === "group-head-name")[0] ?? null);
 /** The names over the runs of ready-made starters, in the order drawn. */
 const momentsOf = (tree) => all(tree, (n) => n.type === "h4" && n.props?.className === "msg-moment").map(textOf);
 /** The rows the list draws, by the place each stands in. */

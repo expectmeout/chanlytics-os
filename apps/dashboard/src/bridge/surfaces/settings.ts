@@ -57,9 +57,11 @@ export interface WorkspaceSettings {
   };
   /**
    * The calendar's feed, as the read hands it over: whole to an owner, masked to anyone else (server/readers/settings.ts
-   * feedVisibleTo). Ask's palette offers the day's questions where one is set (palette.ts).
+   * feedVisibleTo), and the mailbox whose calendar is read where one is granted (decision 0073). Ask's palette offers the
+   * day's questions where either is set (palette.ts, contracts calendarFeedKeyOf).
    */
   calendar?: { ical_url?: string | null } | null;
+  calendar_grant?: { mailbox_id?: string | null; provider?: string | null } | null;
 }
 
 /** What Settings holds of the workspace (the surface's `settings`): its config, the version it is at, and the prompt the receptionist reads. */

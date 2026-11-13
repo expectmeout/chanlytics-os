@@ -274,6 +274,10 @@ export const TPL_LIST_WORDS = {
   emails: "Cold emails",
   /** What the ready-made ones are for, each a small head over its starters (contracts starterMoment). */
   moments: { appointments: "Appointments", follow_ups: "Follow-ups", offers: "Offers and news", calls: "Calls" },
+  /** The search over the list on a phone: its glyph's name and its box's. */
+  search: "Search messages",
+  /** The view over the list on a phone (parts/list-top.tsx): every message, or one group. */
+  views: { label: "Which messages", all: "All messages" },
   /** How many a folded group holds, to a screen reader, and what its head does. */
   fold: (name: string, n: number): string => `${name}, ${n}`,
   /** Something sends the message and nothing can carry it for this business yet: it waits, and goes by itself. */

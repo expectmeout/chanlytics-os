@@ -55,6 +55,15 @@ export const FILE_SHOWS = [
 
 export type FileShows = (typeof FILE_SHOWS)[number];
 
+/**
+ * What kind of picture a file is, by how it was made, as its look says (look.ts, since edition 2): a camera's photo, a
+ * stock photo, one a computer made to pass for a photo (a 3D mockup, an AI image), a design (a flyer, a card, a logo, a
+ * photo with words set over it), or a screen's capture. One word, "looks like stock", stood for the second and third.
+ */
+export const FILE_LOOKS_LIKE = ["photo", "stock", "rendered", "design", "screenshot"] as const;
+
+export type FileLooksLike = (typeof FILE_LOOKS_LIKE)[number];
+
 export const FILE_WHO_IN_IT = ["not_asked", "no_one", "agreed"] as const;
 
 export type FileWhoInIt = (typeof FILE_WHO_IN_IT)[number];

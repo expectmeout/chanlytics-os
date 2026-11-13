@@ -209,9 +209,33 @@ test("without the pager's address the issue is the only word, and says so; a ref
   assert.deepEqual(done, ["the page was refused: 403 "]);
 });
 
+test("REGRESSION: a page the door took and could not deliver is said as that, whatever status carried it -- 'paged: failed' read as a page", async () => {
+  const plan = { redRuns: 2, actions: [{ kind: "page", redRuns: 2 }] };
+  const told = (page) =>
+    applyPlan(plan, {
+      repo: "r/r",
+      token: "t",
+      fetch: fakeWire({ page }).fetch,
+      pager: { url: "https://edge.example.com", key: "k" },
+      condition: "nightly_red",
+      detail: "x",
+    });
+  // An edge from before 13 Nov 2026 says 200 with the outcome inside; one since says 503. Either deploy order.
+  for (const status of [200, 503]) {
+    assert.deepEqual(await told({ status, body: { ok: status === 200, outcome: "failed" } }), [
+      "the page did not go out: the mail was refused or timed out (failed)",
+    ]);
+    assert.deepEqual(await told({ status, body: { ok: status === 200, outcome: "unaddressed" } }), [
+      "the page did not go out: the edge has nobody on file to page, LEAD_TO and LEAD_FROM (unaddressed)",
+    ]);
+  }
+  // One already told inside the pager's window is a page: somebody heard.
+  assert.deepEqual(await told({ status: 200, body: { ok: true, outcome: "suppressed" } }), ["paged: suppressed"]);
+});
+
 test("run as the workflows run it, a page the door refuses fails the step: a mute pager is not a green one", () => {
   const stub = pathToFileURL(path.join(ROOT, "tests/ops/workflows/_github-stub.mjs")).href;
-  const run = (pageStatus) =>
+  const run = (pageStatus, pageOutcome = "") =>
     spawnSync(
       process.execPath,
       [
@@ -230,6 +254,7 @@ test("run as the workflows run it, a page the door refuses fails the step: a mut
           PAGER_URL: "https://edge.example.com",
           PAGER_KEY: "made-up",
           STUB_PAGE_STATUS: String(pageStatus),
+          STUB_PAGE_OUTCOME: pageOutcome,
         },
         encoding: "utf8",
       },
@@ -240,4 +265,17 @@ test("run as the workflows run it, a page the door refuses fails the step: a mut
   const refused = run(403);
   assert.equal(refused.status, 1, "the issue was opened, the page was not, and the step says so");
   assert.match(refused.stdout, /opened #1; the page was refused: 403/);
+  // REGRESSION: the door answered 200 for a page that never left, and the step stayed green on "paged: failed".
+  for (const [status, outcome] of [
+    [200, "failed"],
+    [503, "failed"],
+    [200, "unaddressed"],
+    [503, "unaddressed"],
+  ]) {
+    const unsent = run(status, outcome);
+    assert.equal(unsent.status, 1, `${status} ${outcome}: ${unsent.stdout}${unsent.stderr}`);
+    assert.match(unsent.stdout, /opened #1; the page did not go out: /);
+  }
+  const quiet = run(200, "suppressed");
+  assert.equal(quiet.status, 0, "told inside the window already: a green step");
 });

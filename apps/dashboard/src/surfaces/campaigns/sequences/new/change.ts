@@ -136,6 +136,37 @@ export function draftedAfter(drafted: NewDraftDto | null, before: NewDraftDto, a
   };
 }
 
+/**
+ * Whether a line left nothing on the draft: it changed no part (`sentence`, changesOf's), and the answer says nothing of
+ * why that the draft did not say already (its card, `cannot`). Such a line is said in passing. One that changed nothing
+ * and says why stands on top over its card as a change does: left on the change before it, the card read as that change's.
+ */
+export const leftNothing = (before: NewDraftDto, after: NewDraftDto, sentence: string): boolean =>
+  sentence === CHANGE_WORDS.same && (!after.cannot || after.cannot === before.cannot);
+
+/** A step's words alone, as Ask or the owner wrote them: a message written here, a lead's email, a task; none, null. */
+function writtenOf(step: NewStep): string | null {
+  if (step.does !== "message") return step.hand.trim() ? JSON.stringify([step.hand]) : null;
+  const written = step.message?.written;
+  if (written) return JSON.stringify([step.message?.title, written.versions]);
+  return step.email?.body ? JSON.stringify([step.email.subject ?? "", step.email.body]) : null;
+}
+
+/**
+ * The steps whose words are still as Ask wrote them, by their places: "By Ask" is said of those alone. Ask's answer
+ * (`drafted`, the draft as Ask last wrote it) holds a step with the same words, wherever it now stands, so a step moved
+ * up by one taken away is still Ask's; a step the owner rewrote, or added and wrote, is theirs and says nothing of Ask.
+ * A draft built by hand has no answer, and no step of it is Ask's.
+ */
+export function placesByAsk(draft: NewDraftDto, drafted: NewDraftDto | null): number[] {
+  if (!drafted) return [];
+  const asks = new Set(drafted.steps.map(writtenOf));
+  return draft.steps.flatMap((step, at) => {
+    const words = writtenOf(step);
+    return words !== null && asks.has(words) ? [at + 1] : [];
+  });
+}
+
 /** What a change changed: the steps it touched, by their places, and all of it said in a line. */
 export function changesOf(before: NewDraftDto, after: NewDraftDto): { steps: number[]; said: string } {
   const words = CHANGE_WORDS.part;

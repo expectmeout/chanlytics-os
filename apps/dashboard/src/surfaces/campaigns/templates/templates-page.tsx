@@ -64,7 +64,16 @@ import { MessageRow } from "./message-row";
 import { firstView, messageFacts, placeOfMessage } from "./message-row-facts";
 import type { MessageSetting } from "./message-row-facts";
 import { pageActs } from "./page-acts";
-import { headRight, headSub, listBar, matchesOf, numberNotice, templateList } from "./page-parts";
+import {
+  headRight,
+  headSub,
+  listBar,
+  matchesOf,
+  numberNotice,
+  shownViewOf,
+  templateList,
+  type MessagesView,
+} from "./page-parts";
 import type { ListFolds, ListGroups } from "./page-parts";
 import { NewSaid } from "./new-said";
 import { TemplatePane } from "./template-pane";
@@ -162,6 +171,10 @@ function usePageState() {
   const [pressed, setPressed] = useState<{ key: string; at: string } | null>(null);
   // What the search box holds: the rows whose words have it stay, the rest stand down.
   const [q, setQ] = useState("");
+  // Which messages the list shows on a phone (page-parts.tsx listBar): every one, or one group; and the search's field,
+  // which the bar's glyph puts the caret in while the search rests.
+  const [view, setView] = useState<MessagesView>("all");
+  const findRef = useRef<HTMLInputElement>(null);
   // On a desk the box is the bar's line (page-search.ts); a phone keeps its box over the list.
   const inLine = usePageSearch({ label: BAR_LINE_WORDS.messages, value: q, onValue: setQ, testid: "templates-search" });
   const [toastNode, flash] = useFrameToast();
@@ -179,6 +192,9 @@ function usePageState() {
     setPressed,
     q,
     setQ,
+    view,
+    setView,
+    findRef,
     inLine,
     toastNode,
     flash,
@@ -308,6 +324,19 @@ function useQuietCheck(may: boolean, templates: readonly TemplateDto[] | null | 
   }, [may, synced]);
 }
 
+/**
+ * The view the list draws: a phone's pick, but every group on a desk (its search the bar's line) and while a search holds
+ * words, since a search looks through every group (words in Going out were "not found" while Need you was picked).
+ */
+function listViewOf(
+  picked: MessagesView,
+  counts: Parameters<typeof shownViewOf>[1],
+  desk: boolean,
+  needle: string,
+): MessagesView {
+  return desk || needle ? "all" : shownViewOf(picked, counts);
+}
+
 function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   // The settings surface holds the templates, the numbers and what sends and went out; a reach-out's emails are their
   // own surface (Part 4 PR 8): their rows draw when they land.
@@ -358,6 +387,15 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   // A cold email sequence's emails (Reach out Part 4 PR 8, R19): contracts' rows over the chains, found by their words too.
   const emails = tplEmails(chains);
   const listEmails = tplEmailsMatching(emails, needle);
+  const counts = {
+    need: groups.need.length,
+    going: groups.going.length,
+    idle: groups.idle.length,
+    made: groups.made.length,
+    emails: listEmails.length,
+    away: groups.away.length,
+  };
+  const shownView = listViewOf(state.view, counts, !!inLine, needle);
 
   // What is open beside the list: the composer, a message or a reach-out's email. A message the address names that the
   // list no longer has (deleted, or a number that went) says so.
@@ -414,8 +452,9 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
         sub={headSub({ need: groups.need.length, going: groups.going.length })}
         right={headRight({ onNew: startNew })}
       />
-      {/* The top of the list on a phone, as the Inbox's opens: the search. A desk's is the bar's line. */}
-      {listBar({ q, setQ, inLine })}
+      {/* The top of the list on a phone, Campaigns' one top: the view, the search's glyph, the box under them. A desk's search
+          is the bar's line. */}
+      {listBar({ q, setQ, inLine, view: shownView, onView: state.setView, counts, findRef: state.findRef })}
       {roleHint(canAct, hasWhatsApp)}
       {numberNotice({ channels, hasWhatsApp })}
       {templateList({
@@ -428,6 +467,7 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
         onFold: (group, open) => setFolds((was) => ({ ...was, [group]: open })),
         needle,
         q,
+        view: shownView,
       })}
     </div>
   );

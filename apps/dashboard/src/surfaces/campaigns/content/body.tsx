@@ -17,7 +17,7 @@
  * A view of Made is tiles where it is there to be looked at (All, Being made) and lines where it is about when or what to do
  * (Needs you, Scheduled, Posted: lines.tsx). On a desk All may be a list instead (list.tsx), the person's choice.
  */
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
   CONTENT_WORDS as W,
   FILE_WORDS,
@@ -45,9 +45,11 @@ import { Icon } from "../../kit/icon/icon";
 import { Meter } from "../../kit/meter/meter";
 import { Panel } from "../../kit/panel/panel";
 import { AskLooking, Photo, Picture } from "../../files/photo";
-import { ContentLines, PieceLines } from "./lines";
-import { OwedLine, QuietMore } from "./heads";
+import { GroupHead } from "../../kit/head/group-head";
+import { ContentLines, NeedsRows, PieceLines } from "./lines";
+import { QuietMore } from "./heads";
 import { ContentList } from "./list";
+import { madeFlatOf, madeGroupsOf, piecesUnder, type MadeGroup } from "./model/groups";
 import type { ContentLayout } from "./views";
 import { tileDayOf } from "./model/tile-day";
 
@@ -60,12 +62,8 @@ export interface ContentActs {
   onOpen: (fileId: string) => void;
   /** Read the next page of what was made. */
   onMore: () => void;
-  /** Show what needs the owner (Made's Needs you): the line over the pieces' Try again. */
-  onNeeds: () => void;
   /** Ask for one of the first day's ideas (content/ideas.ts), naming the files its row showed. */
   onIdea: OnIdea;
-  /** Show what is being made (Made's Being made): a row of the list that is a video still being made, which is no piece yet. */
-  onMaking: () => void;
   /** A stopped or waiting post: its piece, opened straight to its sheet (Post it), the one place a post is acted on. */
   onFix: (fileId: string) => void;
   /** Show what was set aside (Made's Set aside), from the foot of All, as the Library's is. */
@@ -213,31 +211,69 @@ function MadeGrid({ dto, acts, shows }: ContentReadProps) {
   );
 }
 
-/**
- * What the line over the pieces says: how many posts did not go out (the tally's needs, less the videos not made, which the
- * first page holds whole), how many videos could not be made, or both.
- */
-function needsSaid(dto: ContentPageDto): string {
-  const videos = dto.making.filter((m) => m.status === "failed").length;
-  const posts = Math.max(0, dto.tally.needs - videos);
-  if (posts > 0 && videos > 0) return W.needsLine.both(posts, videos);
-  return posts > 0 ? W.needsLine.posts(posts) : W.needsLine.videos(videos);
+/** A group's pieces as squares: its videos being made or not made, then its pieces; one that needs the owner opens to its sheet. */
+function GroupTiles({ group, acts, shows }: { group: MadeGroup; acts: ContentActs; shows: ContentShows }) {
+  const open = group.key === "needs" ? acts.onFix : acts.onOpen;
+  return (
+    <TileGrid>
+      {group.making.map((m) => (
+        <MakingTile key={m.id} making={m} />
+      ))}
+      {group.made.map((m) => (
+        <MadeTile key={m.file.id} made={m} open={m.file.id === shows.openId} onOpen={open} />
+      ))}
+    </TileGrid>
+  );
+}
+
+/** A group's pieces as rows, a phone's: what needs the owner as Needs you's own lines, the rest as All's (lines.tsx). */
+function GroupRows({ group, acts, shows }: { group: MadeGroup; acts: ContentActs; shows: ContentShows }) {
+  if (group.key === "needs")
+    return (
+      <div className="cnv-lines">
+        <NeedsRows lines={group.lines} notMade={group.making} openId={shows.openId} onOpen={acts.onFix} />
+      </div>
+    );
+  return <PieceLines made={group.made} making={group.making} onOpen={acts.onOpen} />;
 }
 
 /**
- * One line over the pieces while anything needs the owner (the content canvas): what, in amber, and Try again, which shows
- * Needs you. The whole line is the press: the page's own amber row, not a kit button restyled (a kit kind's hover would take
- * its amber away).
+ * All of Made under its headings (model/groups.ts; Ruben, 12 Nov 2026: Content's list stands under headings, as Sequences',
+ * Messages' and the Pipeline's do): Needs you, Being made, This week, Earlier, each that holds anything. Needs you is the
+ * amber line that stood over the pieces, opened: each post that stopped is one press from its sheet, where the line took two.
+ * Squares or rows under each heading, as chosen; a desk's list is the one table, its groups the table's own (list.tsx).
  */
-function NeedsLine({ dto, acts }: { dto: ContentPageDto; acts: ContentActs }) {
-  const one = dto.needsOne;
+function MadeGroups({ dto, acts, shows }: ContentReadProps) {
+  const zone = pageClock().zone();
+  // Held while the read is the same read: the desk's table is made over these rows, and keeps them by reference.
+  const groups = useMemo(() => madeGroupsOf(dto, { zone, nowMs: Date.now() }), [dto, zone]);
   return (
-    <OwedLine
-      said={needsSaid(dto)}
-      act={W.needsLine.look}
-      onPress={one ? () => acts.onFix(one) : acts.onNeeds}
-      testid="cnv-needs"
-    />
+    <div className="cnv-groups" data-testid="cnv-made-part">
+      {shows.layout === "list" && shows.desk ? (
+        <ContentList groups={groups} openId={shows.openId} onOpen={acts.onOpen} onFix={acts.onFix} />
+      ) : (
+        groups.map((group) => (
+          <section
+            key={group.key}
+            className="cnv-group"
+            aria-label={group.label}
+            data-testid={`cnv-group-${group.key}`}
+          >
+            <GroupHead
+              label={group.label}
+              count={shows.layout === "list" ? group.count : piecesUnder(group)}
+              needs={group.key === "needs"}
+            />
+            {shows.layout === "list" ? (
+              <GroupRows group={group} acts={acts} shows={shows} />
+            ) : (
+              <GroupTiles group={group} acts={acts} shows={shows} />
+            )}
+          </section>
+        ))
+      )}
+      {dto.next ? <ShowMore acts={acts} shows={shows} /> : null}
+    </div>
   );
 }
 
@@ -247,18 +283,14 @@ function NeedsLine({ dto, acts }: { dto: ContentPageDto; acts: ContentActs }) {
  */
 function MadePart(props: ContentReadProps) {
   const { dto, acts, shows } = props;
+  // One group with no heading, for the desk's table (list.tsx): held while the read is the same read.
+  const flat = useMemo(() => madeFlatOf(dto), [dto]);
   return (
     <section className="cnv-part" aria-label={contentHeadOf(dto.tally)} data-testid="cnv-made-part">
       {shows.layout === "list" && shows.desk ? (
-        <ContentList
-          made={dto.made}
-          making={dto.making}
-          openId={shows.openId}
-          onOpen={acts.onOpen}
-          onMaking={acts.onMaking}
-        />
+        <ContentList groups={flat} flat openId={shows.openId} onOpen={acts.onOpen} onFix={acts.onFix} />
       ) : shows.layout === "list" ? (
-        <PieceLines made={dto.made} making={dto.making} onOpen={acts.onOpen} onMaking={acts.onMaking} />
+        <PieceLines made={dto.made} making={dto.making} onOpen={acts.onOpen} />
       ) : (
         <MadeGrid {...props} />
       )}
@@ -334,17 +366,25 @@ function ContentRead(props: ContentReadProps) {
   if (dto.about && dto.made.length === 0) return none(FILE_WORDS.foundNone(dto.about));
   if (dto.making.length === 0 && dto.made.length === 0)
     return <FirstDay acts={acts} videos={shows.videos} picks={dto.ideas} libraryEmpty={dto.tally.library === 0} />;
-  // What is being made alone: a part of its own among squares; rows, where rows were chosen, as All's are.
+  // All of it, where nothing is searched for: under its headings, what needs the owner first.
+  if (dto.view === "all" && !dto.about) {
+    const aside = dto.next ? 0 : dto.tally.aside;
+    return (
+      <>
+        <MadeGroups {...props} />
+        {aside > 0 ? (
+          <QuietMore said={FILE_WORDS.setAsideLine(aside)} onPress={acts.onAside} testid="cnv-set-aside" />
+        ) : null}
+      </>
+    );
+  }
+  // What is found by words, being made or set aside: one flat list. What is being made alone is a part of its own among
+  // squares; rows, where rows were chosen, as All's are.
   const makingAlone = dto.making.length > 0 && dto.made.length === 0;
-  const aside = dto.view === "all" && !dto.next && !dto.about ? dto.tally.aside : 0;
   return (
     <>
-      {dto.view === "all" && !dto.about && dto.tally.needs > 0 ? <NeedsLine dto={dto} acts={acts} /> : null}
       {makingAlone && shows.layout === "grid" ? <MakingPart making={dto.making} /> : null}
       {dto.made.length > 0 || (makingAlone && shows.layout === "list") ? <MadePart {...props} /> : null}
-      {aside > 0 ? (
-        <QuietMore said={FILE_WORDS.setAsideLine(aside)} onPress={acts.onAside} testid="cnv-set-aside" />
-      ) : null}
     </>
   );
 }

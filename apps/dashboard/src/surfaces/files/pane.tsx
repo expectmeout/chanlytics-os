@@ -37,6 +37,7 @@ import { useSwapMotion } from "../kit/motion/use-swap-motion";
 import { canDo, gate, refreshSurface, type FrameFlash } from "../frame-verbs";
 import { useSurface } from "../use-surface";
 import { InboxPress } from "./inbox-press";
+import { LibraryGroups, libraryGroups, useWaitingFiles } from "./library-groups";
 import { ALL_FILES, FindLine, KindTabs, SetAsideLine, ShelfHead, WaitingLine } from "./library-views";
 import { Photo, PhotosOnTheirWay } from "./photo";
 import { addPhotos, clearSaid, inLandedOrder, isVideoFile, stillGoing, useSending, type SendingPhoto } from "./sending";
@@ -350,6 +351,11 @@ function FilesLibrary(props: FilesLibraryProps) {
   const shown = shownOf(files, shelf, standing);
   // Nothing here yet: the one thing to do stands where the eye is, and not again in the corner.
   const emptyPage = tally.total === 0 && going.length === 0;
+  // All it keeps stands under headings (library-groups.tsx): what was found online first, where this person may keep it
+  // and no one kind is picked, then this week's and earlier. A search, and a shelf of its own, is one flat list.
+  const grouped = libraryGroups(dto) && !emptyPage;
+  const showsWaiting = grouped && may && !dto.kind;
+  const waiting = useWaitingFiles(dto, showsWaiting);
   const add = useCallback(() => picker.current?.click(), []);
   // The page's head holds the Add where the library stands in Content: handed the press, and taken back as it goes.
   useEffect(() => {
@@ -402,17 +408,33 @@ function FilesLibrary(props: FilesLibraryProps) {
           {W.foundNone(dto.about)}
         </p>
       )}
-      <LibraryWall
-        rows={rows}
-        total={tally.total}
-        going={going}
-        shown={shown}
-        grid={grid}
-        busy={pressed !== null}
-        firstAdd={emptyPage && mayAdd ? add : null}
-        flash={flash}
-        setOpenId={setOpenId}
-      />
+      {grouped ? (
+        <LibraryGroups
+          dto={dto}
+          shown={shown}
+          waiting={waiting}
+          waitingCount={showsWaiting ? tally.waiting : 0}
+          going={going}
+          rows={rows}
+          grid={grid}
+          busy={pressed !== null}
+          flash={flash}
+          setOpenId={setOpenId}
+          go={go}
+        />
+      ) : (
+        <LibraryWall
+          rows={rows}
+          total={tally.total}
+          going={going}
+          shown={shown}
+          grid={grid}
+          busy={pressed !== null}
+          firstAdd={emptyPage && mayAdd ? add : null}
+          flash={flash}
+          setOpenId={setOpenId}
+        />
+      )}
       <LibraryFoot dto={dto} more={more} gettingMore={gettingMore} go={go} />
       {emptyPage && <NothingYet may={mayAdd} dropping={dropping} add={add} videos={videos} />}
     </section>

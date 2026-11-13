@@ -142,6 +142,34 @@
   .cnv > .cm-list {
     padding: 0 0 120px;
   }
+  /* The row under the strip is a thumb's 44px with its words on its middle, as People's, the Inbox's and Sequences' are
+     (campaigns.css .cm-list-bar; Ruben, 12 Nov 2026). */
+  .cnv-bar {
+    min-height: 44px;
+  }
+  /* Made or Library's words 16px in, where People's list and the Inbox's buckets start. */
+  .cnv-bar > .cnv-lists {
+    margin-left: var(--space-1);
+  }
+  /* The search's glyph stands off the views' pill by the pill's own edge, which is what the eye measures from, as it stands
+     off a bar word by its ink elsewhere (Ruben, 12 Nov 2026: one spacing from the glyph on every bar). */
+  .cnv-bar-end > .list-find {
+    margin-right: var(--space-1);
+  }
+  /* The first heading stands right under the bar, 18px over its name, as the Pipeline's, Sequences' and Messages' do: the
+     list's own 14px gap is not added to it. */
+  .cnv > .cm-list > .cnv-groups,
+  .cnv > .cm-list > .cnv-library {
+    margin-top: -14px;
+  }
+  /* The Library's shelf head says nothing over all it keeps: it takes no room over the first heading. */
+  .cnv-library > .files-views:empty {
+    margin-bottom: 0;
+  }
+  /* The find line resting folded under the bar (heads.tsx, the bar's glyph opens it) takes no room, the list's gap included. */
+  .cnv > .cm-list > .lookup-folded:not(:focus-within) {
+    margin-bottom: -14px;
+  }
 }
 
 /* On a desk the grid keeps the room and the open piece stands narrow beside it, a piece being taller than it is wide.
@@ -221,7 +249,6 @@
 .cnv-cell-end {
   text-align: end;
 }
-.cnv-lists,
 .cnv-views,
 .cnv-layout {
   display: flex;
@@ -295,18 +322,22 @@
   flex-direction: column;
   min-width: 0;
 }
-/* A day's head, in the mono face as the canvas writes a date (ct.css .ct-day). */
-.cnv-run-head {
-  margin: 14px 0 4px;
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
+/* A view's runs and All's groups, each under the one heading every list wears (kit/head/group-head.tsx; components.css
+   .group-head): the heading parts one from the next, so the groups stand with no gap of their own. On a desk the first
+   heading stands right under the search line over it, with a group's 18px kept for the ones after. */
+.cnv-groups {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
-.cnv-run:first-child > .cnv-run-head {
-  margin-top: 4px;
+@media (width > 900px) {
+  .cnv-groups > :first-child > .group-head {
+    padding-top: 4px;
+  }
+}
+/* A group's squares stand off its heading's hairline; its rows start right under it, as a table's do. */
+.cnv-group > .files-grid {
+  margin-top: 10px;
 }
 .cnv-line {
   display: flex;
@@ -937,8 +968,12 @@
 
 /* ---- The home, as the content canvas draws it (body.tsx, views.tsx, page.tsx) ---- */
 
-/* Made or Library on one track, each with its count, the one shown raised; Made's views a pill at the far end. */
-.cnv-lists,
+/* Made or Library are the kit's sub-tabs (views.tsx ContentLists), words on a line under Campaigns' capsule, so the two tiers
+   read apart (Ruben, 12 Nov 2026: a second capsule looked like the strip over it), as the Inbox's buckets stand under its.
+   Grid or List on a desk keeps its small track at the bar's far end. */
+.cnv-lists {
+  flex: none;
+}
 .cnv-layout {
   gap: 0;
   padding: 3px;
@@ -947,8 +982,8 @@
 }
 /* What is chosen is Chanlytics' coral (Ruben, 12 Nov 2026): the side shown raised says its words in the accent's ink, as a chosen
    view and a narrowed views pill stand on the accent's soft fill. */
-:is(.cnv-lists, .cnv-layout) > button[aria-pressed="true"],
-:is(.cnv-lists, .cnv-layout) > button[aria-pressed="true"] > svg {
+.cnv-layout > button[aria-pressed="true"],
+.cnv-layout > button[aria-pressed="true"] > svg {
   color: var(--accent-ink);
 }
 /* The Library's All, Photos and Videos, as Made or Library: the one chosen says its words in the accent's ink. */
@@ -968,25 +1003,21 @@
 .cnv-layout > button {
   font-size: var(--text-sm);
 }
-/* Made or Library and the views' pill say their words at the size Campaigns' own tabs over them do (the canvas's .ct-seg). */
-.cnv-bar :is(.cnv-lists, .cnv-bar-end) > button {
+/* The views' pill says its words at the size Campaigns' own tabs over it do (the canvas's .ct-seg). */
+.cnv-bar .cnv-bar-end > button {
   padding: 0 12px;
   font-size: var(--text-base);
 }
-/* On a phone Grid or List is its glyph alone, beside the views' pill. */
-.cnv-layout > button:has(> svg:only-child) {
-  padding: 0 8px;
-}
-/* Under a finger, Made or Library and the views' pill are drawn at a small control's height, as Campaigns' own tabs over them
+/* Under a finger, the views' pill and Grid or List are drawn at a small control's height, as Campaigns' own tabs over them
    are (kit .stabs-tab) and as the canvas draws the row, where the 44px floor stood them half again as tall; each keeps a
    thumb's reach round it, drawn no taller, on its ::before (the glass kind draws its rim on ::after). */
 @media (pointer: coarse) {
-  .cnv-bar :is(.cnv-lists, .cnv-layout, .cnv-bar-end) > button {
+  .cnv-bar :is(.cnv-layout, .cnv-bar-end) > button {
     position: relative;
     min-height: 0;
     height: var(--control-h-sm);
   }
-  .cnv-bar :is(.cnv-lists, .cnv-layout, .cnv-bar-end) > button::before {
+  .cnv-bar :is(.cnv-layout, .cnv-bar-end) > button::before {
     content: "";
     position: absolute;
     inset: -8px -1px;
@@ -1016,41 +1047,12 @@
 .cnv-view > .cnv-count {
   margin-left: auto;
 }
-
-/* One line over the pieces while anything needs the owner: amber, its dot, and Try again at its end. The whole line is one
-   press, the page's own row (body.tsx NeedsLine). */
-.cnv-needs {
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  width: 100%;
-  min-height: 40px;
-  padding: 0 14px;
-  border-radius: var(--radius-full);
-  background: var(--warn-soft);
-  color: var(--warn-ink);
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
-  text-align: left;
+/* Squares or List under the views in the same card (views.tsx LayoutRows), a hairline between the two. */
+.cnv-views-open .cnv-views-layout {
+  border-top: 1px solid var(--line);
 }
-.cnv-needs .cnv-dot {
-  width: 7px;
-  height: 7px;
-  background: var(--warn);
-}
-.cnv-needs-words {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cnv-needs-act {
-  display: inline-flex;
-  flex: none;
-  gap: 2px;
-  align-items: center;
-  font-weight: var(--weight-semibold);
+.cnv-views-layout > .cnv-view {
+  gap: 10px;
 }
 
 /* The first day: a raised card of Ask's three, its words and what Ask makes, in the middle; then the ideas it can make now,

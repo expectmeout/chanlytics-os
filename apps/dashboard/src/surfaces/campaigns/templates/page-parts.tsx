@@ -6,7 +6,7 @@
  * use and nothing about it is missing, and WhatsApp is asked quietly as the page opens. Each is a function that returns
  * its element, called by the page and not drawn as a component of its own, so the page's tree is the tree it was.
  */
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { LIBRARY_WORDS, STARTER_MOMENTS, starterMoment } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { gate } from "../../frame-verbs";
@@ -14,9 +14,11 @@ import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Search } from "../../kit/search/search";
 import { ActWords } from "../../kit/head/act-words";
+import { GroupHead } from "../../kit/head/group-head";
+import { ListFind, foldedLookup } from "../../kit/head/list-find";
 import { Icon } from "../../kit/icon/icon";
-import { LinkButton } from "../../kit/link-button/link-button";
 import { CmDot } from "../parts/head";
+import { ListTop, ListViewPick, type ListView } from "../parts/list-top";
 import type { TemplateGroup, TplLang } from "./group";
 import { TplEmailRows, TplEmailsFailed } from "./emails";
 import type { tplEmails } from "./emails";
@@ -65,24 +67,81 @@ export function headRight({ onNew }: HeadRightProps) {
   );
 }
 
+/** Which messages the list shows: every one, or one group. */
+export type MessagesView = "all" | MessagePlace | "emails";
+
+/** The groups a view can be, in the list's order. */
+const VIEW_GROUPS: readonly Exclude<MessagesView, "all">[] = ["need", "going", "idle", "made", "emails", "away"];
+
+/** How many messages each group holds. */
+export type ViewCounts = Readonly<Record<Exclude<MessagesView, "all">, number>>;
+
+/** The view the list shows: the one picked, or every message where the group picked has emptied since. */
+export const shownViewOf = (view: MessagesView, counts: ViewCounts): MessagesView =>
+  view !== "all" && counts[view] === 0 ? "all" : view;
+
 interface BarProps {
   q: string;
   setQ: (q: string) => void;
   /** The search is the bar's line (a desk's): the list draws no box of its own. */
   inLine: boolean;
+  /** The view the list shows (the page's shownViewOf, or every message under a search). */
+  view: MessagesView;
+  onView: (view: MessagesView) => void;
+  counts: ViewCounts;
+  /** The search's field, which the glyph puts the caret in. */
+  findRef: RefObject<HTMLInputElement | null>;
 }
 
 /**
- * The top of the list on a phone, as the Inbox's list opens on its search: the box that finds a message by its words,
- * across the list's width. On a desk the box is the bar's line (the page heads canvas, H2, 31 Oct 2026), and the list
- * opens on its first group. When WhatsApp was last asked stood beside it, a press a person had to remember: it is the
- * list's foot now (listFoot), a line that says when it last looked.
+ * The top of the list on a phone, Campaigns' one top (parts/list-top.tsx), as Sequences' and People's are (Ruben, 12 Nov
+ * 2026): the view at its left, every message or one group with how many it holds, and the search's glyph at its right while
+ * the search holds no words; the box under it, folded while it rests, open while it has the caret or words. On a desk the
+ * box is the bar's line (the page heads canvas, H2, 31 Oct 2026), and the list opens on its first group. When WhatsApp was
+ * last asked is the list's foot (listFoot), a line that says when it last looked.
  */
-export function listBar({ q, setQ, inLine }: BarProps) {
-  if (inLine) return null;
+export function listBar(bar: BarProps) {
+  if (bar.inLine) return null;
+  const folded = !bar.q;
+  const total = VIEW_GROUPS.reduce((n, g) => n + bar.counts[g], 0);
+  const views: ListView<MessagesView>[] = [
+    { value: "all", label: TPL_LIST_WORDS.views.all, count: total },
+    ...VIEW_GROUPS.filter((g) => bar.counts[g] > 0).map((g) => ({
+      value: g,
+      label: TPL_LIST_WORDS[g],
+      count: bar.counts[g],
+    })),
+  ];
   return (
     <div className="tpl-bar">
-      <Search label="Search messages" value={q} onChange={setQ} testid="templates-search" />
+      <ListTop
+        view={
+          <ListViewPick
+            label={TPL_LIST_WORDS.views.label}
+            views={views}
+            value={bar.view}
+            onView={bar.onView}
+            testid="templates-view"
+          />
+        }
+        find={
+          folded ? (
+            <ListFind
+              label={TPL_LIST_WORDS.search}
+              onFind={() => bar.findRef.current?.focus()}
+              testid="templates-find"
+            />
+          ) : null
+        }
+      />
+      <Search
+        className={foldedLookup("cm-lookup", folded)}
+        label={TPL_LIST_WORDS.search}
+        value={bar.q}
+        onChange={bar.setQ}
+        inputRef={bar.findRef}
+        testid="templates-search"
+      />
     </div>
   );
 }
@@ -171,6 +230,8 @@ interface ListProps {
   onFold: (group: keyof ListFolds, open: boolean) => void;
   needle: string;
   q: string;
+  /** The view the list shows (shownViewOf): every message, or one group alone. */
+  view: MessagesView;
 }
 
 /** A group's name over its rows: a press that folds it where it folds, its name alone where it does not. */
@@ -187,24 +248,21 @@ function groupHead({
   open: boolean;
   onFold: ListProps["onFold"];
 }) {
-  if (!fold)
-    return (
-      <h3 className="msg-group-head">
-        <span className="msg-group-name">{name}</span>
-      </h3>
-    );
   return (
-    <LinkButton
-      className="msg-group-head"
-      onClick={() => onFold(fold, !open)}
-      aria-expanded={open}
-      aria-label={TPL_LIST_WORDS.fold(name, n)}
-      data-testid={fold === "away" ? "templates-hidden" : `templates-fold-${fold}`}
-    >
-      <span className="msg-group-name">{name}</span>
-      <span className="msg-group-n tabular">{n}</span>
-      <Icon name={open ? "chevron-up" : "chevron-down"} size={12} />
-    </LinkButton>
+    <GroupHead
+      label={name}
+      count={fold ? n : null}
+      fold={
+        fold
+          ? {
+              open,
+              onFold: () => onFold(fold, !open),
+              label: TPL_LIST_WORDS.fold(name, n),
+              testid: fold === "away" ? "templates-hidden" : `templates-fold-${fold}`,
+            }
+          : null
+      }
+    />
   );
 }
 
@@ -216,6 +274,7 @@ function listGroup({
   fold,
   open,
   onFold,
+  only,
 }: {
   place: MessagePlace | "emails";
   n: number;
@@ -223,13 +282,15 @@ function listGroup({
   fold: keyof ListFolds | null;
   open: boolean;
   onFold: ListProps["onFold"];
+  /** The view picked: where it is one group, that group alone stands, open, its name said by the view over it. */
+  only: MessagesView;
 }) {
-  if (n === 0) return null;
+  if (n === 0 || (only !== "all" && only !== place)) return null;
   const name = TPL_LIST_WORDS[place];
   return (
     <div className="msg-group" data-place={place} data-testid={`templates-${place}`}>
-      {groupHead({ name, n, fold, open, onFold })}
-      {open ? <div className="msg-list">{rows()}</div> : null}
+      {only === "all" ? groupHead({ name, n, fold, open, onFold }) : null}
+      {open || only !== "all" ? <div className="msg-list">{rows()}</div> : null}
     </div>
   );
 }
@@ -258,13 +319,19 @@ function madeRows(made: readonly TemplateGroup[], card: ListProps["card"]): Reac
  * where the business has nothing else to read. A search opens every group and keeps the rows whose words have it.
  */
 export function templateList(p: ListProps) {
-  const { groups, listEmails, openKey, onOpenKey, card, folds, onFold, needle, q } = p;
+  const { groups, listEmails, openKey, onOpenKey, card, folds, onFold, needle, q, view } = p;
   const searching = needle !== "";
   const busy = groups.need.length + groups.going.length;
   const idleOpen = searching || (folds.idle ?? busy === 0);
   const madeOpen = searching || (folds.made ?? busy + groups.idle.length === 0);
   const listed = busy + groups.idle.length + groups.made.length + groups.away.length + listEmails.length;
-  const of = (place: MessagePlace) => ({ place, n: groups[place].length, rows: () => groups[place].map(card), onFold });
+  const of = (place: MessagePlace) => ({
+    place,
+    n: groups[place].length,
+    rows: () => groups[place].map(card),
+    onFold,
+    only: view,
+  });
   return (
     <section className="msg-section" data-testid="templates">
       {listGroup({ ...of("need"), fold: null, open: true })}
@@ -278,6 +345,7 @@ export function templateList(p: ListProps) {
         fold: "emails",
         open: searching || folds.emails,
         onFold,
+        only: view,
       })}
       {listGroup({ ...of("away"), fold: "away", open: searching || folds.away })}
       {needle && listed === 0 && (

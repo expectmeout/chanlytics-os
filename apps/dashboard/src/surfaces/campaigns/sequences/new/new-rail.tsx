@@ -4,7 +4,8 @@
  * of it -- its message (one of yours, Ask's, or one written here), its words, a call's or a note's task, the values typed
  * into it -- and between two steps the wait and what must still hold, each a word pressed to change. Then Add a step;
  * where it stops is said once, in what Ask checked (the canvas's option 2). A one-off is its one message, with no rail.
- * A step the line just changed wears an edge until the next change (`changed`, its place; change.ts).
+ * A step the line just changed wears an edge until the next change (`changed`, its place; change.ts), and one whose words
+ * are still as Ask wrote them says so (`byAsk`, its place; change.ts placesByAsk): never one the owner rewrote, or added.
  * Hookless; the sheets each press opens are the draft view's.
  */
 import {
@@ -117,6 +118,7 @@ function PersonParts({ step, i, acts, asked }: { step: NewStep; i: number; acts:
             onValueChange={(v) => acts.typed(i, at, v)}
             maxLength={200}
             data-testid={`sq-nw-value-${i + 1}-${at}`}
+            className="sq-nw-value"
           />
         ) : null,
       )}
@@ -125,10 +127,10 @@ function PersonParts({ step, i, acts, asked }: { step: NewStep; i: number; acts:
 }
 
 /** A lead's email, said under its words: who wrote it and the press that edits it. */
-function LeadParts({ step, i, acts, asked }: { step: NewStep; i: number; acts: RailActs; asked: boolean }) {
+function LeadParts({ i, acts, asked }: { i: number; acts: RailActs; asked: boolean }) {
   return (
     <span className="sq-nw-stepacts">
-      {asked && step.email?.body ? <span className="sq-nw-by">{W.draft.byAsk}</span> : null}
+      {asked ? <span className="sq-nw-by">{W.draft.byAsk}</span> : null}
       <LinkButton size="inherit" onClick={() => acts.open({ kind: "words", i })} data-testid={`sq-nw-edit-${i + 1}`}>
         {W.draft.editWords}
       </LinkButton>
@@ -151,7 +153,7 @@ function HandParts({ step, i, acts, asked }: { step: NewStep; i: number; acts: R
             { value: "note", label: W.does.note, testid: `sq-nw-note-${i + 1}` },
           ]}
         />
-        {asked && step.hand ? <span className="sq-nw-by">{W.draft.fromLine}</span> : null}
+        {asked ? <span className="sq-nw-by">{W.draft.fromLine}</span> : null}
       </span>
       <Field
         label={W.draft.whatToDo}
@@ -165,17 +167,25 @@ function HandParts({ step, i, acts, asked }: { step: NewStep; i: number; acts: R
   );
 }
 
+/** What a step's box reads beside the draft: the steps the line last changed, and those still as Ask wrote them. */
+interface StepMarks {
+  /** The steps the line last changed, by their places. */
+  changed: readonly number[];
+  /** The steps whose words are still as Ask wrote them, by their places. */
+  byAsk: readonly number[];
+}
+
 /** One step's box: its number and name, how it goes, its words, and the parts that change it. */
-function StepBox(p: { draft: NewDraftDto; i: number; acts: RailActs; changed: readonly number[] }) {
+function StepBox(p: { draft: NewDraftDto; i: number; acts: RailActs } & StepMarks) {
   const { draft, i, acts } = p;
   const step = draft.steps[i];
   if (!step) return null;
-  const asked = !!draft.said;
+  const asked = p.byAsk.includes(i + 1);
   const parts =
     step.does !== "message" ? (
       <HandParts step={step} i={i} acts={acts} asked={asked} />
     ) : draft.audience === "leads" ? (
-      <LeadParts step={step} i={i} acts={acts} asked={asked} />
+      <LeadParts i={i} acts={acts} asked={asked} />
     ) : (
       <PersonParts step={step} i={i} acts={acts} asked={asked} />
     );
@@ -247,7 +257,7 @@ function WaitRow({ draft, i, acts }: { draft: NewDraftDto; i: number; acts: Rail
 }
 
 /** A sequence's steps on its rail: each on its day, the waits between, and Add a step while it takes another. */
-export function DraftRail(props: { draft: NewDraftDto; acts: RailActs; changed: readonly number[] }) {
+export function DraftRail(props: { draft: NewDraftDto; acts: RailActs } & StepMarks) {
   const { draft, acts } = props;
   const days = stepDaysOf(draft.steps);
   const room = draft.steps.length < NEW_STEPS_MAX[draft.audience];
@@ -257,7 +267,7 @@ export function DraftRail(props: { draft: NewDraftDto; acts: RailActs; changed: 
         {draft.steps.flatMap((s, i) => [
           i > 0 ? <WaitRow key={`wait-${i}`} draft={draft} i={i} acts={acts} /> : null,
           <RailRow key={`step-${i}`} day={SW.day(days[i] ?? 1)} testid={`sq-nw-step-${i + 1}`}>
-            <StepBox draft={draft} i={i} acts={acts} changed={props.changed} />
+            <StepBox draft={draft} i={i} acts={acts} changed={props.changed} byAsk={props.byAsk} />
           </RailRow>,
         ])}
         {room ? <RailAdd onAdd={() => acts.open({ kind: "add" })} gateProps={gate("approve")} /> : null}
@@ -267,13 +277,13 @@ export function DraftRail(props: { draft: NewDraftDto; acts: RailActs; changed: 
 }
 
 /** A one-off's one message, as its box: no rail, no wait, no end. */
-export function OnceMessage(props: { draft: NewDraftDto; acts: RailActs; changed: readonly number[] }) {
+export function OnceMessage(props: { draft: NewDraftDto; acts: RailActs } & StepMarks) {
   const { draft, acts } = props;
   return (
     <>
       <p className="sq-nw-cap">{draft.audience === "leads" ? W.draft.theEmail : W.draft.theMessage}</p>
       <div className="sq-nw-once" data-testid="sq-nw-steps">
-        <StepBox draft={draft} i={0} acts={acts} changed={props.changed} />
+        <StepBox draft={draft} i={0} acts={acts} changed={props.changed} byAsk={props.byAsk} />
       </div>
     </>
   );

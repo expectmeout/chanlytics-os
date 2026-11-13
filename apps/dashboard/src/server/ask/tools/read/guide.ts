@@ -125,7 +125,7 @@ async function readGuide(toolContext: ToolContext, input: { skill?: string | und
 export const guideTool = defineRead({
   name: "guide",
   description:
-    "How Chanlytics works, page by page, for this member: what each page is for, what you can do there for them by card (tool and action), what stays on the page and why, and what Setup says is missing and what each piece stops. Read it when they ask what you can do, where something is, or how to start; for a new owner, before anything else. With skill customer_message it answers that skill's guide instead: what to hand the writer that rewrites a message's words for customers. It changes nothing.",
+    "How Chanlytics works, page by page, for this member: what each page is for, what you can do there for them by card (tool and action), what stays on the page and why, and what Setup says is missing and what each piece stops. Read it when they ask what you can do, where something is, or how to start; for a new owner, before anything else. With skill customer_message or video it answers that skill's guide instead: what to hand the writer that rewrites a message's words for customers, or how a video's blocks are arranged. It changes nothing.",
   input: z.object({ skill: z.string().optional() }),
   label: "Reading how it works",
   run: readGuide,

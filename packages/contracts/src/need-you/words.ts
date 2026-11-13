@@ -260,14 +260,6 @@ export const NEED_YOU_WORDS = {
       `They missed their ${word} ${when}. Say sorry we missed them, and ask whether they would like another time. Use the booking link where one helps.`,
     rebookSent: "Missed · rebook sent",
     /**
-     * A Missed that a sequence answers (decision 0119): which one writes to them and when, so the row offers no second
-     * message of its own. Change takes the word back, and the message with it.
-     */
-    follows: (name: string, when: string, asks: boolean) =>
-      asks
-        ? `“${name}” has a message for them ${when}, and asks you before it goes.`
-        : `“${name}” offers them another time ${when}.`,
-    /**
      * Every one of yesterday's left to mark, said kept at once (Today's Mark all kept, decision 0123's loose end): the
      * press, its question, and what it came to. A Kept cannot be taken back to unmarked, only changed to Missed, so the
      * question says so, and what follows.
@@ -283,11 +275,10 @@ export const NEED_YOU_WORDS = {
       refused: (n: number, reason: string) =>
         `${n === 1 ? "1 couldn't be marked" : `${n} couldn't be marked`}: ${reason}`,
     },
-    /** A Kept that a sequence answers (decision 0123): the thank-you waits for this word, and the row says when it goes. */
-    thanks: (name: string, when: string, asks: boolean) =>
-      asks
-        ? `“${name}” has a thank-you for them ${when}, and asks you before it goes.`
-        : `“${name}” thanks them ${when}.`,
+    /**
+     * What a Missed or a Kept that a sequence answers sets going is said in the visit's own words (calendar/words/visit.ts
+     * VISIT_ASK_WORDS.follows), which the Calendar's sheet says too. Change takes the word back, and the message with it.
+     */
     noWay: (reason: string) => `Nothing to send a rebook by. ${reason}`,
     change: "Change",
   },

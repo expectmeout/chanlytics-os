@@ -20,8 +20,8 @@ const DO = "do";
 
 let seq = 0;
 
-/** How long a step back may take to say it landed before the next sheet stands its entry anyway. */
-const BACK_SETTLE_MS = 400;
+/** How long a step back may take to say it landed before the next sheet stands its entry anyway, or afterMove goes on. */
+export const BACK_SETTLE_MS = 400;
 
 /** Back's own move settling: an entry taken back is gone before the next sheet stands one, never after it. */
 let settling: Promise<void> = Promise.resolve();
