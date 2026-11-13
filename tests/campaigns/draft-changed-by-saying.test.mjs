@@ -671,3 +671,95 @@ test("a message its owner wrote, on a later step and with a text version, comes 
   const rewritten = await draftSequenceFrom(KNOWN, { words: "Warmer nudge", stands }, WHO_ASKS);
   assert.equal(rewritten.steps[1].message.written.versions.sms, undefined);
 });
+
+/* ------------------------------ what pressing the live page found (13 Nov 2026) ------------------------------ */
+
+/** A sequence to leads as Ask drafts it: an email a step, each with the words given, the first with a subject. */
+const toLeads = (bodies) => {
+  const first = { ...M.draftByHand("sequence", "leads", "Harbor Studio"), said: "Emails to trainers", who: TRAINERS };
+  return bodies.reduce((draft, body, at) => {
+    const held = at === 0 ? draft : M.addStep(draft, "message");
+    return M.setEmail(held, at, { subject: at === 0 ? "A week of answered calls" : null, body });
+  }, first);
+};
+
+test("REGRESSION: By Ask is said only of words still as Ask wrote them: an email the owner rewrote, or a step they added and wrote, is theirs, and a step moved up by one taken away is still Ask's", () => {
+  const asked = toLeads(["First words.", "Second words.", "Third words."]);
+  assert.deepEqual(C.placesByAsk(asked, asked), [1, 2, 3], "as Ask answered it, every email is Ask's");
+  // The live run: the second email rewritten by hand, with a price in it, still said By Ask.
+  const mine = M.setEmail(asked, 1, { subject: null, body: "My own second email, $99 a month." });
+  assert.deepEqual(C.placesByAsk(mine, asked), [1, 3], "the one its owner rewrote says nothing of Ask");
+  assert.deepEqual(
+    C.placesByAsk(M.setEmail(asked, 1, asked.steps[1].email), asked),
+    [1, 2, 3],
+    "its sheet saved over words left as they were changes nothing",
+  );
+  const retitled = M.setEmail(asked, 0, { subject: "Mine", body: asked.steps[0].email.body });
+  assert.deepEqual(C.placesByAsk(retitled, asked), [2, 3], "a subject of the owner's is the owner's email");
+  assert.deepEqual(C.placesByAsk(M.removeStep(asked, 1), asked), [1, 2], "moved up a place, the third is still Ask's");
+  const added = M.setEmail(M.addStep(asked, "message"), 3, { subject: null, body: "One more, from me." });
+  assert.deepEqual(C.placesByAsk(added, asked), [1, 2, 3], "a step added and written by hand is its owner's");
+  assert.deepEqual(C.placesByAsk(M.addStep(asked, "message"), asked), [1, 2, 3], "one still to write says nothing");
+  // After a change by the line to another email, the owner's own is still theirs: what Ask drafted there is kept apart.
+  const shorter = {
+    ...mine,
+    steps: [mine.steps[0], mine.steps[1], { ...mine.steps[2], email: { subject: null, body: "Third." } }],
+  };
+  const after = C.changedFrom(mine, shorter);
+  assert.deepEqual(C.placesByAsk(after, C.draftedAfter(asked, mine, after)), [1, 3]);
+  // To people: a message Ask wrote is Ask's until its words are the owner's; one of the business's own says nothing.
+  const two = twoSteps();
+  assert.deepEqual(C.placesByAsk(two, two), [2]);
+  assert.deepEqual(C.placesByAsk(M.setMessage(two, 1, askWrote("Hi {{1}}, my own words.")), two), []);
+  // A call from the line is the line's until its task is typed over.
+  const call = M.setHand(M.addStep(two, "call"), 2, "Ring them about the offer");
+  assert.deepEqual(C.placesByAsk(call, call), [2, 3]);
+  assert.deepEqual(C.placesByAsk(M.setHand(call, 2, "Ring them at noon"), call), [2]);
+  assert.deepEqual(
+    C.placesByAsk(M.setDoes(call, 2, "note"), call),
+    [2, 3],
+    "turned a note, its words are the line's still",
+  );
+  assert.deepEqual(C.placesByAsk(two, null), [], "a draft built by hand has no step of Ask's");
+});
+
+test("REGRESSION: a line that changed nothing and says why is never said in passing: it stands over the card that says why, where the change before it stood", () => {
+  const before = twoSteps();
+  const same = C.changedFrom(before, before);
+  const said = C.changesOf(before, same).said;
+  assert.equal(said, C.CHANGE_WORDS.same);
+  assert.equal(C.leftNothing(before, same, said), true, "nothing changed and nothing said of why: in passing");
+  const why = { ...same, cannot: "Left out: “by pigeon”. Nothing here flies." };
+  assert.equal(C.leftNothing(before, why, said), false, "it says why: the line stands on top, over its card");
+  assert.equal(C.leftNothing(why, why, said), true, "the same reason said again leaves nothing new");
+  assert.equal(C.leftNothing(why, same, said), true, "a reason no longer said is no reason");
+  const renamed = { ...same, name: "Welcome back" };
+  assert.equal(C.leftNothing(before, renamed, C.changesOf(before, renamed).said), false, "a change is a change");
+});
+
+test("REGRESSION: what Ask said it left out goes with the steps it was said of: a step swapped, rewritten, added or taken away lets the card go, and a wait, a value typed, who, when and the name leave it", () => {
+  const said = NEW_WORDS.cannot.stepStays(2, NEW_WORDS.cannot.why.price);
+  const draft = { ...twoSteps(), cannot: said };
+  const gone = {
+    "its message swapped": M.setMessage(draft, 1, held),
+    "its words rewritten": M.setMessage(draft, 1, askWrote("Hi {{1}}, my own words.")),
+    "a step added": M.addStep(draft, "message"),
+    "a call added": M.addStep(draft, "call"),
+    "a step taken away": M.removeStep(draft, 1),
+  };
+  for (const [what, changed] of Object.entries(gone)) assert.equal(changed.cannot, null, what);
+  const leads = { ...toLeads(["First words.", "Second words."]), cannot: said };
+  assert.equal(M.setEmail(leads, 1, { subject: null, body: "Mine." }).cannot, null, "an email rewritten");
+  const stays = {
+    "its wait": M.setWait(draft, 1, 14),
+    "what it waits on": M.setOnlyIf(draft, 1, ["no_reply"]),
+    "a value typed": M.setTyped(draft, 0, 1, "25% off"),
+    who: M.setWho(draft, EVERYONE),
+    "its hour": M.setHour(draft, 14),
+    "its name": M.setName(draft, "Thank you"),
+    "how it runs": M.setMode(draft, "veto"),
+    "the first step, which is never taken away": M.removeStep(draft, 0),
+  };
+  for (const [what, changed] of Object.entries(stays)) assert.equal(changed.cannot, said, what);
+  assert.equal(M.setTyped(draft, 0, 1, "25% off").steps[0].message.params[1].value, "25% off");
+});

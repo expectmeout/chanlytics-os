@@ -39,6 +39,7 @@ import {
   CaseNote,
   ChecksList,
   DraftName,
+  HowItRuns,
   ReachLine,
   SaidLine,
   ToLeadsNote,
@@ -47,7 +48,6 @@ import {
 } from "./new-parts";
 import { DraftRail, OnceMessage, type RailActs } from "./new-rail";
 import { AddStepSheet } from "./add-step";
-import { Choice } from "./choice";
 import { DraftFoot } from "./foot";
 import { DraftVoice } from "./new-voice";
 import {
@@ -269,26 +269,6 @@ function DraftCases(p: {
   return cards.length ? <div className="sq-nw-cases">{cards}</div> : null;
 }
 
-/** How a sequence runs: Your OK, as its sheet names the way picked. */
-function HowItRuns({ draft, open }: { draft: NewDraftDto; open: (s: NewSheet) => void }) {
-  if (draft.kind === "once") return null;
-  const ok = draft.mode ? W.okSaid[draft.mode] : W.okSaid.ask;
-  return (
-    <>
-      <p className="sq-nw-cap">{W.draft.runs}</p>
-      <div className="sq-nw-rows">
-        <Choice
-          glyph="check"
-          name={W.draft.yourOk}
-          said={ok}
-          onPick={() => open({ kind: "ok" })}
-          testid="sq-nw-yourok"
-        />
-      </div>
-    </>
-  );
-}
-
 /** To Google's consent with what the owner chose it brings in, and back to this draft, kept in the tab as it changes (new-page.tsx). */
 const connectForNew = (history: MailboxHistory) => {
   keepHistory(history);
@@ -428,6 +408,8 @@ function DraftBody(p: {
   redrafting: boolean;
   /** The steps the line last changed, by their places. */
   changed: readonly number[];
+  /** The steps whose words are still as Ask wrote them, by their places. */
+  byAsk: readonly number[];
 }) {
   const { draft, acts } = p;
   return (
@@ -463,10 +445,10 @@ function DraftBody(p: {
             </div>
           ) : null}
           {draft.kind === "once" ? (
-            <OnceMessage draft={draft} acts={p.rail} changed={p.changed} />
+            <OnceMessage draft={draft} acts={p.rail} changed={p.changed} byAsk={p.byAsk} />
           ) : (
             <>
-              <DraftRail draft={draft} acts={p.rail} changed={p.changed} />
+              <DraftRail draft={draft} acts={p.rail} changed={p.changed} byAsk={p.byAsk} />
               <DraftVoice draft={draft} again={() => acts.redraft({})} />
             </>
           )}
@@ -520,6 +502,8 @@ export function DraftView(p: {
    * whether there is anything to undo.
    */
   note: { said: string; by: string | null; steps: readonly number[]; undo: boolean } | null;
+  /** The steps whose words are still as Ask wrote them, by their places: each says "By Ask" (change.ts placesByAsk). */
+  byAsk: readonly number[];
 }) {
   const { draft, reads, acts } = p;
   const [sheet, setSheet] = useState<NewSheet | null>(null);
@@ -611,6 +595,7 @@ export function DraftView(p: {
                 acts={acted}
                 redrafting={reshaping}
                 changed={p.note?.steps ?? []}
+                byAsk={p.byAsk}
               />
             </div>
           </div>
@@ -622,7 +607,7 @@ export function DraftView(p: {
             ) : (
               <>
                 <ChecksList checks={draft.checks} />
-                <HowItRuns draft={draft} open={open} />
+                <HowItRuns draft={draft} onOk={() => open({ kind: "ok" })} />
               </>
             )}
           </div>
