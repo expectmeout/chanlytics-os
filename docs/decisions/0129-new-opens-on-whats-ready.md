@@ -92,6 +92,31 @@ the message door refuses a message whose versions name different values, and the
     says: only a yes to offers hears it, never by text, and WhatsApp reviews it as marketing. Ask is told the same rule.
     A message the business already holds keeps the kind it was approved as.
 
+**What a review of the code found** (12 November 2026, after the live runs: six holes, five proven by running the real
+judge over a stand-in model). The live runs had tried one kind of draft, a sequence to people with nothing typed into
+it; and the page's test answered the draft's door with a canned draft, so nothing an owner typed ever went through the
+judge. The holes shared a cause: on a change, the judge judged again what Ask had not touched.
+
+16. **What Ask left word for word as it stood is taken as it stands,** never judged again
+    (`campaigns/sequences/draft-stands.ts`): a discount the owner typed into their own message, which the rule that Ask
+    types no price had emptied on any change; an email to leads they wrote themselves, which any change had emptied
+    where it broke a cold email's rule. In a step Ask did change, words the owner typed into the message that stands
+    there are still theirs.
+17. **A lead's email whose rewrite does not hold stays as it stood,** said with why, and Ask is asked once more, as a
+    person's message is. It came back empty, with nothing said. On a first draft its step is still kept with its words
+    left to write, and the draft now says why.
+18. **A step added after the draft's own moves none of them:** the step that stood at a place is still what a refused
+    rewrite there falls back to. An answer with fewer steps took one away, and nothing falls back.
+19. **A second answer is kept only where it mends:** more steps kept, or as many with fewer refused and none taken
+    away. One that only left the refused step out had won, and the step was gone with nothing said.
+20. **A change is asked of the draft as it stands,** never under the choices of the door New was opened by: a draft
+    switched to leads since was refused on every change.
+21. **Discard stops Ask at work,** whose answer had drawn the discarded draft again; and the name is held while Ask
+    works, where one typed then was written over.
+
+A change is now tried on every kind of draft before it is called done: a sequence to people, a message sent once with a
+value typed into it, and a sequence to leads.
+
 Items 7 to 14 were run again live on the demo workspace on 12 November 2026, the day they shipped: no step was lost in
 four asks that had lost one before, a change that named no step left an approved message as it was and said so, a
 signature stood on its own line, Undo stepped back through four changes, and a change took about five seconds.

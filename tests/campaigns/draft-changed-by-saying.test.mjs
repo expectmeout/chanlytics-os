@@ -13,6 +13,11 @@
  * that cannot be kept says why in a clause; Ask is asked once more, told which step and why, and the better of its two
  * answers is kept; a change that names no step leaves a message the business holds as it is; a signature stands alone.
  *
+ * And what my own review found (12 Nov 2026), each through the real judge, on every kind of draft: what Ask left word for
+ * word as it stood is taken as it stands (a discount the owner typed into their own message, an email they wrote); a
+ * lead's email whose rewrite does not hold stays as it stood, said with why, and Ask is asked once more; a second answer
+ * that only leaves the refused step out mends nothing; a step added after the draft's own moves none of them.
+ *
  * What the model itself writes is not proven here: that is read from real drafts, on the demo workspace.
  */
 import { test, beforeEach } from "node:test";
@@ -74,6 +79,15 @@ const KNOWN = {
       offer: false,
       channels: ["whatsapp", "sms"],
       slots: ["first_name"],
+    },
+    {
+      key: "k2",
+      templateId: ID(2),
+      title: "Autumn offer",
+      body: "Hi {{1}}, {{2}} this autumn.",
+      offer: true,
+      channels: ["whatsapp", "email"],
+      slots: ["first_name", "text"],
     },
   ],
   running: [],
@@ -238,12 +252,18 @@ test("REGRESSION (the live run of 11 Nov 2026): a step a change rewrote in words
   // A first draft has nothing to fall back to: the step is left out, and the draft says which and why.
   const first = draftKept(rewritten, KNOWN, LINE);
   assert.deepEqual([first.steps.length, first.cannot], [1, NEW_WORDS.cannot.stepLeftOut(2, differ)]);
-  // Nor has a change whose answer holds other steps than the draft that stands: places no longer answer each other.
+  // A step added after the draft's own moves none of them: the second still stays, and the new one is left out, said.
   answerWith({ ...rewritten, steps: [...rewritten.steps, step({ after_days: 7, write: broken })] });
   const more = await draftSequenceFrom(KNOWN, { words: "Add a third", stands: STANDS }, WHO_ASKS);
   assert.deepEqual(
     [more.steps.length, more.cannot],
-    [1, `${NEW_WORDS.cannot.stepLeftOut(2, differ)} ${NEW_WORDS.cannot.stepLeftOut(3, differ)}`],
+    [2, `${NEW_WORDS.cannot.stepLeftOut(3, differ)} ${NEW_WORDS.cannot.stepStays(2, differ)}`],
+  );
+  // An answer with fewer steps than the draft took one away, and which is not known: nothing falls back.
+  answerWith({ ...rewritten, steps: [step({ write: broken })] });
+  await assert.rejects(
+    draftSequenceFrom(KNOWN, { words: "Only one message", stands: STANDS }, WHO_ASKS),
+    (e) => e.status === 400,
   );
 });
 
@@ -463,4 +483,188 @@ test("Ask's answer is taken as the draft changed: a step that says what it said 
   assert.equal(kept.steps[0], drafted.steps[0]);
   assert.equal(kept.steps[1], after.steps[1], "the step the change wrote is Ask's as it came");
   assert.equal(C.draftedAfter(null, before, after), null, "a draft Ask never drafted keeps none");
+});
+
+/* ------------------------------ what Ask did not touch (the review of 12 Nov 2026) ------------------------------ */
+
+const EVERYONE = { kind: "everyone", label: "everyone who said yes to offers" };
+const TRAINERS = { kind: "search", id: ID(9), label: "Personal trainers · Austin" };
+const OPENING = "{{opening}}\n\n";
+
+test("REGRESSION: a discount the owner typed into their own message is theirs: a change that leaves the step alone keeps it, one that changes the step keeps it, and a price Ask types itself is still left blank", async () => {
+  const stands = {
+    ...STANDS,
+    kind: "once",
+    name: "Autumn colour",
+    who: EVERYONE,
+    when: "now",
+    steps: [stood({ template_id: ID(2), texts: ["20% off colour"] })],
+  };
+  const once = (parts) => answer({ kind: "once", who: "everyone", name: "Autumn colour", when: "now", ...parts });
+  const typed = (out) => out.steps[0].message.params[1];
+  // Ask renames it and answers the step word for word.
+  answerWith(once({ name: "Autumn for all", steps: [step({ message: "k2", texts: ["20% off colour"] })] }));
+  const renamed = await draftSequenceFrom(KNOWN, { words: "Call it Autumn for all", stands }, WHO_ASKS);
+  assert.deepEqual([renamed.name, typed(renamed)], ["Autumn for all", { kind: "text", value: "20% off colour" }]);
+  assert.equal(calls.length, 1, "and nothing was refused, so Ask was asked once");
+  // The owner's words as the first line said them are no stand-in for a draft: a first draft's typed price is Ask's.
+  const first = draftKept(once({ steps: [step({ message: "k2", texts: ["20% off colour"] })] }), KNOWN, {
+    words: "Tell everyone about 20% off colour",
+  });
+  assert.deepEqual(typed(first), { kind: "text", value: "" }, "what Ask types never names a price");
+  // Ask types another price over the owner's: Ask's is left blank, never the owner's kept under it.
+  answerWith(once({ steps: [step({ message: "k2", texts: ["30% off everything"] })] }));
+  const raised = await draftSequenceFrom(KNOWN, { words: "Make it 30% off everything", stands }, WHO_ASKS);
+  assert.deepEqual(typed(raised), { kind: "text", value: "" });
+});
+
+test("REGRESSION: in a sequence, a step Ask changes keeps what its owner typed into the message that stands there", async () => {
+  const stands = {
+    ...STANDS,
+    steps: [stood({ template_id: ID(1) }), stood({ template_id: ID(2), after_days: 7, texts: ["20% off colour"] })],
+  };
+  answerWith(
+    answer({ steps: [step({ message: "k1" }), step({ message: "k2", after_days: 14, texts: ["20% off colour"] })] }),
+  );
+  const out = await draftSequenceFrom(KNOWN, { words: "Wait two weeks before the offer", stands }, WHO_ASKS);
+  assert.deepEqual(
+    [out.steps[1].after_days, out.steps[1].message.params[1]],
+    [14, { kind: "text", value: "20% off colour" }],
+  );
+});
+
+test("REGRESSION: an email to leads its owner wrote is theirs: a change about another email leaves it word for word, whatever rule it breaks, and says nothing of it", async () => {
+  const mine = {
+    subject: "A week of answered calls",
+    body: `${OPENING}We answer every call for $49 a month. Try a week?`,
+  };
+  const stands = {
+    ...STANDS,
+    said: "",
+    audience: "leads",
+    name: "Trainers",
+    who: TRAINERS,
+    steps: [stood(mine), stood({ after_days: 7, body: "Just bumping this up, {{first name}}." })],
+  };
+  answerWith(
+    answer({
+      audience: "leads",
+      who: "s1",
+      name: "Trainers",
+      steps: [step(mine), step({ after_days: 7, body: "Bumping this, {{first name}}." })],
+    }),
+  );
+  const out = await draftSequenceFrom(KNOWN, { words: "Make the second email shorter", stands }, WHO_ASKS);
+  assert.deepEqual(out.steps[0].email, mine, "the owner's own email, as it stood");
+  assert.equal(out.steps[1].email.body, "Bumping this, {{first name}}.");
+  assert.deepEqual([out.cannot, calls.length], [null, 1]);
+});
+
+test("REGRESSION: an email to leads Ask rewrites in words that do not hold stays as it stood, said with why, and Ask is asked once more; mended, the mended one is the draft's", async () => {
+  const first = { subject: "A week of answered calls", body: `${OPENING}We answer every call for you. Try a week?` };
+  const stands = {
+    ...STANDS,
+    said: "",
+    audience: "leads",
+    name: "Trainers",
+    who: TRAINERS,
+    steps: [stood(first), stood({ after_days: 7, body: "Just bumping this up, {{first name}}." })],
+  };
+  const drafted = (later) =>
+    answer({
+      audience: "leads",
+      who: "s1",
+      name: "Trainers",
+      steps: [step(first), step({ after_days: 7, body: later })],
+    });
+  const priced = drafted("Bumping this, {{first name}}: only $49 a month.");
+  // Not mended: the email stays, and the draft says which and why.
+  answerInTurn(priced);
+  const stays = await draftSequenceFrom(KNOWN, { words: "Say the price in the second", stands }, WHO_ASKS);
+  assert.equal(stays.steps[1].email.body, "Just bumping this up, {{first name}}.", "never emptied");
+  assert.equal(stays.cannot, NEW_WORDS.cannot.stepStays(2, NEW_WORDS.cannot.why.price));
+  assert.equal(calls.length, 2, "asked once more");
+  assert.match(calls[1].request.messages[2].content, /step 2: it names a price or a discount/);
+  // Mended on the second ask.
+  calls.length = 0;
+  answerInTurn(priced, drafted("Bumping this, {{first name}}. Worth a week's try?"));
+  const mended = await draftSequenceFrom(KNOWN, { words: "Say the price in the second", stands }, WHO_ASKS);
+  assert.deepEqual(
+    [mended.steps[1].email.body, mended.cannot, calls.length],
+    ["Bumping this, {{first name}}. Worth a week's try?", null, 2],
+  );
+});
+
+test("a first draft to leads whose email does not hold is asked for once more; still not holding, its step is kept with its words left to write, and the draft says why", async () => {
+  const linked = answer({
+    audience: "leads",
+    who: "s1",
+    name: "Trainers",
+    steps: [step({ subject: "Hi", body: `${OPENING}See https://example.com` })],
+  });
+  answerInTurn(linked);
+  const out = await draftSequenceFrom(KNOWN, { words: "Email the trainers we found" }, WHO_ASKS);
+  assert.deepEqual(
+    [out.steps.length, out.steps[0].email.body, calls.length],
+    [1, "", 2],
+    "the step is kept, its email the owner's to write",
+  );
+  assert.equal(out.cannot, NEW_WORDS.cannot.emailLeftBlank(1, NEW_WORDS.cannot.why.firstLink));
+  // An email Ask left empty to begin with is no refusal: nothing to say, and nothing to ask again.
+  calls.length = 0;
+  answerInTurn(answer({ audience: "leads", who: "s1", name: "Trainers", steps: [step({ subject: "Hi", body: "" })] }));
+  const empty = await draftSequenceFrom(KNOWN, { words: "Email the trainers we found" }, WHO_ASKS);
+  assert.deepEqual([empty.steps[0].email.body, empty.cannot, calls.length], ["", null, 1]);
+});
+
+test("REGRESSION: a second answer that only leaves the refused step out mends nothing: the first answer stands, with its step said or kept", async () => {
+  const broken = {
+    ...COME_BACK,
+    whatsapp: "Hi {{first name}}, come back and see us.",
+    email_subject: "Come back",
+    email_body: "Hi {{first name}}, come back and see us: {{booking link}}",
+  };
+  const differ = NEW_WORDS.cannot.why.valuesDiffer;
+  const two = answer({ steps: [step({ message: "k1" }), step({ after_days: 28, write: broken })] });
+  const one = answer({ steps: [step({ message: "k1" })] });
+  // A first draft: the step is left out either way, and the first answer says which and why.
+  answerInTurn(two, one);
+  const drafted = await draftSequenceFrom(KNOWN, LINE, WHO_ASKS);
+  assert.deepEqual(
+    [drafted.steps.length, drafted.cannot, calls.length],
+    [1, NEW_WORDS.cannot.stepLeftOut(2, differ), 2],
+  );
+  // A change: the step that stood is kept, never lost to the second answer.
+  calls.length = 0;
+  answerInTurn(two, one);
+  const changed = await draftSequenceFrom(KNOWN, { words: "Make the second one shorter", stands: STANDS }, WHO_ASKS);
+  assert.deepEqual([changed.steps.length, changed.cannot], [2, NEW_WORDS.cannot.stepStays(2, differ)]);
+});
+
+test("a message its owner wrote, on a later step and with a text version, comes back from a change it had no part in as it stood", async () => {
+  const theirs = {
+    ...WRITE_NONE,
+    title: "A nudge",
+    whatsapp: "Hi {{first name}}, a nudge.",
+    text: "Hi {{first name}}!",
+  };
+  const stands = { ...STANDS, steps: [stood({ template_id: ID(1) }), stood({ after_days: 7, write: theirs })] };
+  answerWith(answer({ hour: 14, steps: [step({ message: "k1" }), step({ after_days: 7, write: theirs })] }));
+  const out = await draftSequenceFrom(KNOWN, { words: "Send at 2pm", stands }, WHO_ASKS);
+  assert.deepEqual(
+    [out.run_hour, out.steps[1].message.written.versions.sms, out.cannot],
+    [14, { body: "Hi {{1}}!" }, null],
+    "its text version stays: only what Ask writes anew is held to the rule for a later step",
+  );
+  // Rewritten by Ask, it is judged as any later step is: an offer, with no text version.
+  answerWith(
+    answer({
+      steps: [
+        step({ message: "k1" }),
+        step({ after_days: 7, write: { ...theirs, whatsapp: "Hi {{first name}}, a little nudge." } }),
+      ],
+    }),
+  );
+  const rewritten = await draftSequenceFrom(KNOWN, { words: "Warmer nudge", stands }, WHO_ASKS);
+  assert.equal(rewritten.steps[1].message.written.versions.sms, undefined);
 });
