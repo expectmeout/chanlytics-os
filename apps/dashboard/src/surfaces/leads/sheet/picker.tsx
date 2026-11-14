@@ -10,7 +10,7 @@
  */
 import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import { LEAD_SHEET_WORDS as W, newStartFirst, type LeadPickerRowVM } from "./model/view";
+import { LEAD_SHEET_WORDS as W, newSheetEmailOf, newStartFirst, type LeadPickerRowVM } from "./model/view";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
@@ -139,6 +139,8 @@ export type NewStart = { kind: "copy"; from: string; name: string } | { kind: "a
 
 interface NewProps {
   who: { name: string } | { count: number };
+  /** How many of them have no email: all of them, and nothing can be made; some, and the sheet says they won't be written to. */
+  noEmail?: number;
   /** The sequence a copy starts from: the pick, else the newest; Change copies another. */
   copies: readonly LeadPickerRowVM[];
   /** The search the leads came from, which Ask's draft writes from; none outside a search. */
@@ -198,7 +200,9 @@ export function SheetNew(p: NewProps) {
         : { kind: "blank" };
   // Ask writes its draft before the sequence is made: the press says so while it does.
   const drafting = p.drafting || (p.busy && how === "ask");
-  const ready = name.trim().length > 0 && !p.busy && !drafting;
+  const count = "count" in p.who ? p.who.count : 1;
+  const emails = newSheetEmailOf(count, p.noEmail ?? 0);
+  const ready = name.trim().length > 0 && !p.busy && !drafting && !emails?.blocks;
   return (
     <div className="lw-step" data-testid="lead-sheet-new-step">
       {stepHead(W.make.title, p.onBack, who ? W.make.sub(who) : W.make.subMany("count" in p.who ? p.who.count : 0))}
@@ -215,6 +219,16 @@ export function SheetNew(p: NewProps) {
         <span>{W.make.from}</span>
       </div>
       <div className="lw-start" role="radiogroup" aria-label={W.make.from}>
+        {/* Ask's draft first: a copy is of another sequence's emails, which rarely fit a new kind of business. */}
+        {p.canAsk ? (
+          <StartRow
+            on={how === "ask"}
+            title={W.make.ask}
+            line={W.make.askLine}
+            onPick={() => setHow("ask")}
+            testid="lead-sheet-new-ask"
+          />
+        ) : null}
         {copy ? (
           <StartRow
             on={how === "copy"}
@@ -240,15 +254,6 @@ export function SheetNew(p: NewProps) {
             testid="lead-sheet-new-copy"
           />
         ) : null}
-        {p.canAsk ? (
-          <StartRow
-            on={how === "ask"}
-            title={W.make.ask}
-            line={W.make.askLine}
-            onPick={() => setHow("ask")}
-            testid="lead-sheet-new-ask"
-          />
-        ) : null}
         <StartRow
           on={how === "blank"}
           title={W.make.blank}
@@ -257,6 +262,11 @@ export function SheetNew(p: NewProps) {
           testid="lead-sheet-new-blank"
         />
       </div>
+      {emails ? (
+        <p className="lw-note" data-testid="lead-sheet-new-no-email">
+          {emails.line}
+        </p>
+      ) : null}
       <Button
         variant="primary"
         className="lw-new-go"

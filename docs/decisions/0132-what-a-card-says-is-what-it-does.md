@@ -57,6 +57,13 @@ The items below are each a place where that happened, and what it does now.
    never "WhatsApp connected" (one read of the channel rows, beside Today's others); it still counts as a line that takes
    messages in.
 10. **A paused campaign turned on again is "Turn back on: …"**, never "Resume: …".
+11. **New says before its press that leads with no email won't be written to.** Leads picked on Leads and taken to a new
+    sequence: where none has an email, New says "None of these 35 has an email yet, so an email sequence can't reach them."
+    and its press makes nothing; where some have none, it says how many won't be written to. Ask's draft is told the
+    picked leads are who it goes to, so it never says no search is ready; a draft it could not write says "Nothing was made:
+    Ask couldn't write a draft" before Ask's own words. New offers Ask's draft before a copy, since a copy is of another
+    sequence's emails. (35 med spas, none with an email, went to "A draft by Ask", which failed: "No search of med spas is
+    ready, so I can't choose who this goes to".)
 
 ## Held by
 
@@ -71,3 +78,5 @@ The items below are each a place where that happened, and what it does now.
   `tests/whatsapp/whatsapp-connect-door.test.mjs`.
 - Item 9: `tests/today/today-vm.test.mjs`, and Today's reads in `tests/email/mailbox-routes.test.mjs`.
 - Item 10: `tests/playbooks/change/check-playbook-patch.test.mjs`.
+- Item 11: `tests/leads/workbench/lead-sheet.test.mjs` (what New says) and `tests/sequences/sequence-draft.test.mjs` (what Ask
+  is told of the picked leads).

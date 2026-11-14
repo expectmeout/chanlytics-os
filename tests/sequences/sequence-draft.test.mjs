@@ -622,6 +622,28 @@ test("asked once, as its own purpose, with only what the workspace offers and ho
   assert.equal(kept.kind, "once");
 });
 
+test("REGRESSION (the live run of 14 Nov 2026): leads picked on Leads are who a draft goes to, so Ask never says no search is ready", async () => {
+  // 35 med spas picked, their search holding no checked email: Ask said "No search of med spas is ready, so I can't choose
+  // who this goes to" and drafted nothing.
+  answerWith(answer({ audience: "leads", steps: [step({ subject: "Hi", body: "{{opening}}\n\nA week on us?" })] }));
+  const ids = Array.from({ length: 35 }, (_, i) => `${String(i).padStart(8, "0")}-1111-4111-8111-111111111111`);
+  await draftSequenceFrom(
+    KNOWN,
+    {
+      words: "Email the med spas we found, then follow up a week later",
+      kind: "sequence",
+      audience: "leads",
+      who: { kind: "leads", ids, label: "med spas" },
+    },
+    { tenantId: "t1", userId: "u1" },
+  );
+  const told = JSON.stringify(calls[calls.length - 1].request.messages);
+  assert.match(
+    told,
+    /Who it goes to is chosen: the 35 leads the owner picked\. Write its steps for them; never say a search is not ready/,
+  );
+});
+
 /* ------------- a customer offer carries the owner's own discount (Ruben, 13 Nov 2026), never one Ask made up ------------- */
 
 const OFFER_LINE = { words: "Send everyone 20% off any service this week" };

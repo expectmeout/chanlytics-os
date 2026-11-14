@@ -272,11 +272,18 @@ export function draftAskedParts(known: DraftKnown, ask: NewDraftAsk): ToldPart[]
       : "The business has no message it can send yet: write the ones its steps need.",
   ];
   const kept = chosen.length ? `The owner already chose: ${chosen.join("; ")}. Keep these.` : null;
+  // Leads picked on Leads are who it goes to, whatever their searches' state: Ask said "No search of med spas is ready, so I
+  // can't choose who this goes to" over 35 picked med spas (Ruben, 14 Nov 2026), whose search held no checked email.
+  const picked =
+    ask.who?.kind === "leads"
+      ? `Who it goes to is chosen: the ${ask.who.ids.length} leads the owner picked. Write its steps for them; never say a search is not ready or that you cannot choose who it goes to.`
+      : null;
   // A line said under a draft changes the draft that stands; any other line is what it should do, drafted whole.
   const askLines = ask.stands
-    ? [kept, ...standsAsked(ask.stands, ask.words, known)]
+    ? [kept, picked, ...standsAsked(ask.stands, ask.words, known)]
     : [
         kept,
+        picked,
         `What the owner says it should do: ${ask.words.trim()}`,
         ask.previous
           ? `The last draft was "${ask.previous.name}", ${ask.previous.steps} steps. Draft it again from what the owner says now.`

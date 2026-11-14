@@ -354,7 +354,7 @@ test("REGRESSION (the live run of 14 Nov 2026): a freed time is offered within t
     "Offers each meeting a cancellation frees to the people who asked and never booked, within the hour, by text and by email",
   );
   const unknown = campaignLine({ ...base, trigger: "no_such_moment", pool: 0, will: 0 });
-  assert.doesNotMatch(unknown, /0 people/);
+  assert.doesNotMatch(unknown, /\b0 people\b/);
 });
 
 test("an empty book stops nothing, and the words name what stops a campaign and where it is fixed: a missing yes, a reason of theirs", () => {

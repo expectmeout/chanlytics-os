@@ -20,6 +20,8 @@ import { laterLead } from "../surface";
 interface BulkAddProps {
   /** The leads chosen and shown. */
   ids: string[];
+  /** How many of them have no email address, which no email sequence can write to. */
+  noEmail: number;
   aim: LeadAim;
   /** The search they are seen in: Later is its own, and Ask's draft for New writes from it. */
   search: { id: string; name: string } | null;
@@ -82,10 +84,13 @@ export function useBulkAdd(p: BulkAddProps) {
   /** New: a draft by name holding them all, the pick from now. */
   const make = (name: string, start: NewStart) =>
     run(async () => {
+      // None of them has an email: an email sequence could reach none of them, so nothing is made or drafted (New's sheet
+      // says it before its press; this holds the press itself).
+      if (p.noEmail >= n) return p.flash({ tone: "error", msg: W.make.noneEmail(n) });
       let asked: { steps: unknown; as_drafted: unknown } | null = null;
       if (start.kind === "ask") {
         const d = await reachOuts.draftLeads({ name, lead_ids: p.ids, search_name: p.search?.name ?? null });
-        if (!d.ok) return p.flash(refusalToast(d, "Ask could not write a draft"));
+        if (!d.ok) return p.flash(refusalToast(d, W.make.askFailed));
         asked = d.data;
       }
       const r = await commitVerb("sequence_make", {
@@ -129,7 +134,21 @@ export function useBulkAdd(p: BulkAddProps) {
     setStep("new");
     setOpen(true);
   };
-  return { n, busy: busy || p.busy, step, setStep, open, setOpen, ask, target, rows, addTo, make, later };
+  return {
+    n,
+    noEmail: p.noEmail,
+    busy: busy || p.busy,
+    step,
+    setStep,
+    open,
+    setOpen,
+    ask,
+    target,
+    rows,
+    addTo,
+    make,
+    later,
+  };
 }
 export type BulkAdd = ReturnType<typeof useBulkAdd>;
 
@@ -151,6 +170,7 @@ export function BulkChoose({
   return b.step === "new" ? (
     <SheetNew
       who={{ count: b.n }}
+      noEmail={b.noEmail}
       copies={b.rows ?? []}
       canAsk={!!search}
       suggest={suggest}
