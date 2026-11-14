@@ -5190,7 +5190,7 @@ test("a stop says why and that nothing went out, in the plan's own words, never 
   }
 });
 
-test("a plan of sends alone presses its first, and the next press its next: each may build on what the one before comes back with", () => {
+test("REGRESSION (the live run of 14 Nov 2026): a plan of sends that need nothing of each other presses them all at once, and its press says how many", () => {
   const calls = planBridge();
   const AskAnswer = AskAnswerKit.AskAnswer;
   try {
@@ -5206,17 +5206,22 @@ test("a plan of sends alone presses its first, and the next press its next: each
         },
       ),
     );
-    assert.deepEqual(PC.planPressOf(journey).steps, [1]);
-    const tree = render(AskAnswer, planProps(journey));
+    assert.deepEqual(PC.planPressOf(journey).steps, [1, 2, 3]);
     const t = askText("en");
-    assert.equal(
-      textOf(byTestId(tree, "ask-plan-approve")),
-      t.press(PC.askPressOf(journey[0]), PC.askPressCount(journey[0])),
-    );
-    assert.deepEqual(
-      PC.planPressOf([{ ...journey[0], outcome: { state: "done", receipt: "x", atMs: 1 } }, ...journey.slice(1)]).steps,
-      [2],
-    );
+    assert.equal(PC.askPressOf(journey[0]), "start");
+    assert.equal(textOf(byTestId(render(AskAnswer, planProps(journey)), "ask-plan-approve")), t.pressAll(3));
+    // All three on: the line says so, How it runs stands open with each one's own receipt, and nothing is left to press.
+    const on = journey.map((c, i) => ({
+      ...c,
+      outcome: { state: "done", receipt: `Campaign ${i + 1} is on.`, atMs: 1 },
+    }));
+    const after = render(AskAnswer, planProps(on));
+    assert.equal(textOf(byTestId(after, "ask-plan-receipt")), t.planAllOn(3));
+    assert.match(textOf(byTestId(after, "ask-plan-how")), /Campaign 2 is on\./);
+    assert.equal(byTestId(after, "ask-plan-approve"), null);
+    // One left over (a press that stopped part-way) says it starts with the next press.
+    const part = [on[0], ...journey.slice(1)];
+    assert.equal(textOf(byTestId(render(AskAnswer, planProps(part)), "ask-plan-left")), t.planLeft(2));
   } finally {
     calls.restore();
   }
@@ -5346,8 +5351,12 @@ test("REGRESSION (ruling 3): what the plan's press made survives a reload, throu
     assert.equal(textOf(byTestId(tree, "ask-plan-receipt")), askText("en").planFiled, "it says where it stands");
     assert.deepEqual(sent.length, 3, "nothing is sent by drawing it again");
     press(byTestId(tree, "ask-plan-approve"));
-    await until(() => sent.length === 4, "the send went");
-    assert.equal(sent[3].key, "POST /api/v1/broadcasts");
+    // The offer's one press starts all of it (Ruben, 14 Nov 2026): its two sends and its campaign, in the plan's order.
+    await until(() => sent.length === 6, "the sends went");
+    assert.deepEqual(
+      sent.slice(3).map((s) => s.key),
+      ["POST /api/v1/broadcasts", "POST /api/v1/broadcasts", "POST /api/v1/playbooks"],
+    );
     assert.equal(sent[3].body.template_id, PV(1), "its token filled from what step 1 made, read back after the reload");
   } finally {
     calls.restore();

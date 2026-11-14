@@ -1,6 +1,7 @@
 /**
- * A plan's one press (contracts planPressOf, D2 of the answers canvas): what it keeps and its first send, in order, never a second
- * send at once, and WhatsApp's first read in the way of a send that goes by it. Run as it is, over cards written here.
+ * A plan's one press (contracts planPressOf): what it keeps and every send the card names, in order; a send that builds on
+ * another's result is the next press, and WhatsApp's first read stands in the way of a send that goes by it. Run as it is,
+ * over cards written here.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -26,8 +27,24 @@ const offer = () => [
   step(4, "playbook", false, { template_id: "@step:1", channels: ["email"] }, [1, 2, 3]),
 ];
 
-test("the press takes what keeps records and the first send, in order", () => {
-  assert.deepEqual(planPressOf(offer()), { steps: [1, 2, 3, 4], send: 4, review: null, undone: null });
+test("the press takes what keeps records and the send, in order", () => {
+  assert.deepEqual(planPressOf(offer()), { steps: [1, 2, 3, 4], send: 4, sends: [4], review: null, undone: null });
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): a card that names four new campaigns and two to turn back on starts all six with its one press", () => {
+  // "Set up and turn on all": Booking follow-up, Fill a cancellation, the 2-hour reminder and Missed meeting, each its own
+  // send, and Meeting reminder and After the meeting turned back on. One press started the first and the two back on, the
+  // card kept saying Start it, and Ask later said the other three "weren't approved".
+  const setUp = [
+    step(1, "playbook_change", true),
+    step(2, "playbook_change", true),
+    ...[3, 4, 5, 6].map((n) => step(n, "playbook", false, { starter_key: `s${n}`, channels: ["email"] }, [1, 2])),
+  ];
+  const press = planPressOf(setUp);
+  assert.deepEqual(press.steps, [1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(press.sends, [3, 4, 5, 6]);
+  const done = setUp.map((c) => ({ ...c, outcome: { state: "done", receipt: "", atMs: 1 } }));
+  assert.deepEqual(planPressOf(done).steps, [], "nothing is left to press");
 });
 
 test("a later send is the next press, since it may build on what the first comes back with", () => {
@@ -56,7 +73,17 @@ test("WhatsApp reads new words first: the press files them and stops short of th
     step(1, "message", true, { versions: { whatsapp: { body: "x" } } }),
     step(2, "broadcast", false, { template_id: "@step:1", channels: ["whatsapp"] }, [1]),
   ];
-  assert.deepEqual(planPressOf(cards), { steps: [1], send: null, review: 1, undone: null });
+  assert.deepEqual(planPressOf(cards), { steps: [1], send: null, sends: [], review: 1, undone: null });
+});
+
+test("the sends before one WhatsApp must read first go; it and those after it wait, so none goes out of the plan's order", () => {
+  const cards = [
+    step(1, "message", true, { versions: { whatsapp: { body: "x" } } }),
+    step(2, "playbook", false, { starter_key: "s", channels: ["email"] }, [1]),
+    step(3, "broadcast", false, { template_id: "@step:1", channels: ["whatsapp"] }, [1]),
+    step(4, "playbook", false, { starter_key: "t", channels: ["email"] }, [1]),
+  ];
+  assert.deepEqual(planPressOf(cards), { steps: [1, 2], send: 2, sends: [2], review: 1, undone: null });
 });
 
 test("a step undone stops a send that needs it, said as such", () => {

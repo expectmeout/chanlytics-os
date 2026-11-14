@@ -295,40 +295,67 @@ export function planGroupOf<P extends HeldCard>(
   return { id, steps, left };
 }
 
+/** Every step a card's input names by its token (`@step:n`), at any depth. */
+function stepsNamed(value: unknown, into: Set<number> = new Set()): Set<number> {
+  if (typeof value === "string") {
+    const m = STEP_TOKEN.exec(value);
+    if (m) into.add(Number(m[1]));
+  } else if (Array.isArray(value)) value.forEach((v) => stepsNamed(v, into));
+  else if (value && typeof value === "object") Object.values(value).forEach((v) => stepsNamed(v, into));
+  return into;
+}
+
 /**
- * What a plan's one press does now (D2 of the answers canvas, which reverses the old rule on purpose: the card says the
- * send, and the press names it). Walking its steps in order, it takes every step not made yet up to and including the
- * first send; a send after that is the next press, since it may build on what that first one comes back with. Where the
- * first send's message is written by this plan and WhatsApp must read it first (`review`, the step that writes it), the
- * press stops short of the send: there is nothing it could do yet. A step the person undid stops any send that names it
- * (`undone`). `steps` empty is a plan with nothing left to press.
+ * What a plan's one press does now. The card names every send it holds, so its one press takes them all (Ruben, 14 Nov
+ * 2026, "fix everything else": a card that said "Turn on the booking follow-up, fill a cancellation, 2-hour reminder and
+ * missed meeting campaigns" started one of the four, kept saying Start it, and Ask then told him the other three "weren't
+ * approved"; this reverses D2 of the answers canvas, which took one send a press). Walking its steps in order, it takes
+ * every step not made yet. It stops, and the card says what the next press starts, at a send that builds on a send not
+ * made before this press (it names it in `after` or by its token, and needs what that one comes back with), and at one
+ * whose message this plan writes and WhatsApp must read first (`review`, the step that writes it): the press files the
+ * words, and that send and those after it wait. A step the person undid stops any send that names it (`undone`). `sends`
+ * are the sends this press takes, `send` the first of them; `steps` empty is a plan with nothing left to press.
  */
 export function planPressOf<P extends HeldCard>(
   cards: readonly P[],
-): { steps: number[]; send: number | null; review: number | null; undone: number | null } {
+): { steps: number[]; send: number | null; sends: number[]; review: number | null; undone: number | null } {
   const group = planGroupOf(cards);
   const made = planMadeOf(
     group.id,
     group.steps.map((s) => s.card),
   );
-  const out = { steps: [] as number[], send: null as number | null, review: null as number | null };
+  const sendSteps = new Set(group.steps.filter((s) => !s.card.plan?.silent).map((s) => s.step));
+  // A send not made before this press: what a later send that names it would build on is not there yet.
+  const pendingSend = (n: number) => sendSteps.has(n) && !made[n];
+  const out = {
+    steps: [] as number[],
+    sends: [] as number[],
+    review: null as number | null,
+    undone: null as number | null,
+  };
+  const said = () => ({ ...out, send: out.sends[0] ?? null });
   for (const s of group.steps) {
     if (made[s.step] || s.card.outcome?.state === "dismissed") continue;
     if (s.card.plan?.silent) {
       out.steps.push(s.step);
       continue;
     }
-    if (s.note) return { ...out, undone: s.wait && "undone" in s.wait ? s.wait.undone : null };
+    if (s.note) {
+      if (!out.sends.length) out.undone = s.wait && "undone" in s.wait ? s.wait.undone : null;
+      return said();
+    }
+    const builds = [...(s.card.plan?.after ?? []), ...stepsNamed(s.card.payload)].some(pendingSend);
+    if (builds) return said();
     if (s.review !== null && !made[s.review]) {
-      // WhatsApp reads the words first: the press files them, and the send waits.
+      // WhatsApp reads the words first: the press files them, and this send waits, with every send after it, so a plan's
+      // sends never go out of the order it wrote them in.
       out.review = s.review;
-      return { ...out, undone: null };
+      return said();
     }
     out.steps.push(s.step);
-    out.send = s.step;
-    return { ...out, undone: null };
+    out.sends.push(s.step);
   }
-  return { ...out, undone: null };
+  return said();
 }
 
 /**
