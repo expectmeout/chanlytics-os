@@ -46,6 +46,18 @@ export const DEFAULT_THEME_PREF: ThemePref = "dark";
 export const themePrefOf = (stored: unknown): ThemePref => (isThemePref(stored) ? stored : DEFAULT_THEME_PREF);
 
 /**
+ * Pages a stranger opens from an email (a lead's own receptionist, decision 0079): they follow the visitor's device,
+ * light where it cannot say. What this device keeps is the app's theme, a member's, and the person reading here is
+ * the business the email went to.
+ */
+export const STRANGER_PAGE_PREFIXES: readonly string[] = ["/preview/"];
+
+/** The preference a page is drawn in: the device's on a stranger's page, else what this device keeps. */
+export function pagePrefOf(stored: unknown, path: string): ThemePref {
+  return STRANGER_PAGE_PREFIXES.some((p) => path.startsWith(p)) ? "system" : themePrefOf(stored);
+}
+
+/**
  * The look: the finish every page is drawn in, the interface kit's second setting beside the theme
  * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.1 and §3.2). Glass, the canvases', is the one look
  * since Classic, the app as it was drawn before, retired on 2 October 2026 (the plan's step 5.7): a device that kept
@@ -121,7 +133,8 @@ export const THEME_COLOR_META = 'meta[name="theme-color"]';
  * to come down with data-theme="dark" hard-coded and be corrected in an effect after the bundle had mounted, so a
  * light-theme workspace opened dark and flipped on every refresh. This is themePrefOf then resolveTheme, spelled once
  * more where an import cannot reach; theme-boot.test.mjs runs it against them for everything a device could hold
- * and both device settings. A storage that refuses or a window with no matchMedia stamps the app's own theme.
+ * and both device settings. A storage that refuses or a window with no matchMedia stamps the app's own theme. A
+ * stranger's page (STRANGER_PAGE_PREFIXES) follows the device whatever is kept, as pagePrefOf says.
  *
  * It paints the browser's bars from the same theme, for the same reason. theme-color was declared against
  * (prefers-color-scheme), which is the DEVICE's setting and not the app's: a member whose app is light on a dark
@@ -143,6 +156,7 @@ export function themeBootScript(): string {
     `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");`,
     `if(s&&${known}.indexOf(s.theme)>=0)p=s.theme;`,
     `if(s&&${looks}.indexOf(s.look)>=0)k=s.look}catch(e){}`,
+    `var w=(window.location&&window.location.pathname)||"";if(${JSON.stringify(STRANGER_PAGE_PREFIXES)}.some(function(x){return w.indexOf(x)===0}))p="system";`,
     'var d=!!(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);',
     'var t=p==="system"?(d?"dark":"light"):p;',
     "document.documentElement.dataset.theme=t;",

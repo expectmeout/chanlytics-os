@@ -24,6 +24,8 @@ import assert from "node:assert/strict";
 import {
   themeBootScript,
   themePrefOf,
+  pagePrefOf,
+  STRANGER_PAGE_PREFIXES,
   resolveTheme,
   lookPrefOf,
   DEVICE_PREFS_STORAGE,
@@ -88,7 +90,15 @@ const fakeDoc = ({ markupMetas = [THEME_COLORS.dark], noHead = false } = {}) => 
 };
 
 /** The script run in a window: the theme and the look it stamped, what the bars ended up, or what it threw. */
-const boot = ({ stored, systemDark, storageThrows = false, noMatchMedia = false, markupMetas, noHead = false }) => {
+const boot = ({
+  stored,
+  systemDark,
+  storageThrows = false,
+  noMatchMedia = false,
+  markupMetas,
+  noHead = false,
+  path = "/",
+}) => {
   const { doc, bars, contents } = fakeDoc({ ...(markupMetas === undefined ? {} : { markupMetas }), noHead });
   const localStorage = {
     getItem: () => {
@@ -102,7 +112,7 @@ const boot = ({ stored, systemDark, storageThrows = false, noMatchMedia = false,
   const fn = new Function("window", "document", "localStorage", themeBootScript());
   let threw = null;
   try {
-    fn({ matchMedia, localStorage }, doc, localStorage);
+    fn({ matchMedia, localStorage, location: { pathname: path } }, doc, localStorage);
   } catch (e) {
     threw = e;
   }
@@ -551,4 +561,21 @@ test("it says the place the address lights and whether its page searches in Ask'
   const bare = outlineBoot({ pathname: "/w/acme/inbox" });
   assert.equal(bare.lit, null);
   assert.equal(bare.search, false);
+});
+
+test("a page a stranger opens from an email follows their device, whatever this device keeps", () => {
+  const page = `${STRANGER_PAGE_PREFIXES[0]}TokenTokenTokenToken01`;
+  for (const kept of [null, "dark", "light", "system"])
+    for (const systemDark of [true, false]) {
+      const stored = kept ? JSON.stringify({ theme: kept }) : null;
+      const { theme, bars } = boot({ stored, systemDark, path: page });
+      assert.equal(theme, systemDark ? "dark" : "light", `kept ${kept}, device dark ${systemDark}`);
+      assert.equal(theme, resolveTheme(pagePrefOf(kept, page), systemDark));
+      assert.equal(bars, THEME_COLORS[theme]);
+    }
+  // A browser that cannot say which it prefers gets the light page.
+  assert.equal(boot({ stored: null, systemDark: true, noMatchMedia: true, path: page }).theme, "light");
+  // Every other page keeps the app's own rule.
+  assert.equal(boot({ stored: null, systemDark: false, path: "/today" }).theme, resolveTheme(themePrefOf(null), false));
+  assert.equal(pagePrefOf("light", "/today"), "light");
 });
