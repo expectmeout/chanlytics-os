@@ -39,7 +39,7 @@ export async function turnWorld(ctx: RouteContext, member: Member, now: Date): P
     load(rc, configReader, undefined).then((r) => r.data, logAndGoOn("alone config", null)),
     load(rc, policiesReader, undefined).then((r) => r.data, logAndGoOn("alone policies", null)),
     load(rc, factsReader, undefined).then((r) => r.data, logAndGoOn("alone facts", null)),
-    askAloneCounts(ctx.supabase, member.tenantId as TenantId, now).catch(logAndGoOn("alone counts", null)),
+    askAloneCounts(ctx.supabase, member.tenantId, now).catch(logAndGoOn("alone counts", null)),
   ]);
   // Acting alone rests on today's count, the week's undos and the business's own hours: one that could not be read is no
   // zero and no UTC, so nothing runs alone and each card waits for a press (decision 0132; it read 0 and UTC).

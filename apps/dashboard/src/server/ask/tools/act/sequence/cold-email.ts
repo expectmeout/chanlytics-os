@@ -168,7 +168,7 @@ async function searchFeeding(
     return { refusal: "search_id must be a search or a list of leads from leads with action searches" };
   try {
     const row = await searchRow(toolContext.ctx, toolContext.tenantId, searchId);
-    return await reachWords(toolContext, searchId, `“${row.name ?? "the search"}”`, withUnconfirmed);
+    return await reachWords(toolContext, searchId, `“${row.name}”`, withUnconfirmed);
   } catch (e) {
     if (e instanceof AppError) return { refusal: e.message };
     throw e;
