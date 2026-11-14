@@ -165,9 +165,25 @@ export const headSaid = () => {
 export const headed = (tree, id) => byTestId(tree, id) ?? byTestId(headSaid(), id);
 export const rowOf = (tree, name) => find(tree, (n) => n.props?.["data-template"] === name);
 export const paneOf = (tree) => byTestId(tree, "template-pane");
-/** A message opened beside the list, as a press on its row opens it. */
+/**
+ * The list with the group a message stands in pressed open, where it folds and is folded (Ready, where something else
+ * needs you or is sending; Ready-made, where the business has anything else to read): the press a person makes first.
+ */
+export const unfoldedFor = (tree, name) => {
+  let now = tree;
+  for (const id of ["templates-fold-idle", "templates-fold-made"]) {
+    if (rowOf(now, name)) break;
+    const head = byTestId(now, id);
+    if (head && head.props["aria-expanded"] === false) {
+      press(head);
+      now = redraw();
+    }
+  }
+  return now;
+};
+/** A message opened beside the list, as a press on its row opens it (its group unfolded first, where it is folded). */
 export const opened = (tree, name) => {
-  press(find(rowOf(tree, name), (n) => n.props?.["data-testid"] === "template-open"));
+  press(find(rowOf(unfoldedFor(tree, name), name), (n) => n.props?.["data-testid"] === "template-open"));
   return redraw();
 };
 /** The open message's channels, as the kit's sub-tabs (Messages, the canvas of 10 Nov 2026: they were a switch). */

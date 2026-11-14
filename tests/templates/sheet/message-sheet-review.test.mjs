@@ -26,6 +26,7 @@ import {
   paneOf,
   press,
   redraw,
+  rowOf,
   sendsIt,
   setSurfaceValue,
   settle,
@@ -37,18 +38,30 @@ import {
   usedBy,
 } from "./_message-page.mjs";
 
-test("a message something sends that no channel can carry here needs you, with why, never 'Going out'; one a channel carries goes out, its card saying its word once", () => {
+test("a message something sends that no channel can carry here waits, in a quiet word with nothing to press, never 'Needs you' and never a channel's reason on its row; one a channel carries is sending, its card saying its word once", () => {
   const rows = [custom(HOURS)];
   page({ rows });
   sendsIt(usedBy(HOURS));
   setSurfaceValue("playbooks", { rows: [], ready: NOTHING_READY });
-  let tree = opened(redraw(), HOURS);
-  assert.equal(standingWord(tree), "Needs you");
-  const why = standingSays(tree);
-  assert.ok(why.startsWith("Needs you. Nothing can send it here yet."), why);
-  assert.ok(why.includes(contracts.CHANNEL_WORDS.noWhatsApp), "the reason of the channel it has a version on, first");
+  let tree = redraw();
+  // Its row stands with what something sends, never under Needs you: no press on this page mends a channel (the clean
+  // list, 13 Nov 2026; it said "Nothing can send it here yet." and the channel's reason on every such row).
+  assert.equal(byTestId(tree, "templates-need"), null, "nothing needs you");
+  const row = rowOf(tree, HOURS);
+  assert.equal(row.props["data-place"], "going");
+  const word = (of) => find(of, (n) => n.props?.testid === "template-status") ?? null;
+  assert.equal(word(row).props.label, "Waiting", "one quiet word");
+  assert.equal(word(row).props.value, "plain", "in no warning's tone");
+  assert.equal(textOf(row).includes("Nothing can send"), false, "and no reason under its name");
+  assert.equal(textOf(row).includes(contracts.CHANNEL_WORDS.noWhatsApp), false);
+  tree = opened(tree, HOURS);
+  assert.equal(standingWord(tree), "Waiting");
+  assert.equal(
+    standingSays(tree),
+    "Waiting. Set to go out with Hours · step 2. It goes by itself as soon as there is a way to send it.",
+  );
 
-  // A channel that carries it: Going out, and the card says the word once, then what sends it.
+  // A channel that carries it: Sending, and the card says the word once, then what sends it.
   setSurfaceValue("playbooks", {
     rows: [],
     ready: contracts.channelsReady({
@@ -58,11 +71,24 @@ test("a message something sends that no channel can carry here needs you, with w
     }),
   });
   tree = redraw();
-  assert.equal(standingWord(tree), "Going out");
-  assert.equal(standingSays(tree), "Going out. Sent by Hours · step 2.");
+  assert.equal(standingWord(tree), "Sending");
+  assert.equal(standingSays(tree), "Sending. Sent by Hours · step 2.");
+  assert.equal(word(rowOf(tree, HOURS)), null, "and its row wears no word");
   // The channels not read say nothing of them: what sends it decides.
   setSurfaceValue("playbooks", undefined);
-  assert.equal(standingWord(redraw()), "Going out");
+  assert.equal(standingWord(redraw()), "Sending");
+
+  // An email it has words for, where email could not be asked about just now: a question nobody answered is not a no,
+  // so nothing is said of it. With no email of its own, the same unanswered question changes nothing: it waits.
+  const unasked = contracts.channelsReady({ whatsapp: null, textLine: null, email: { mailbox: true, domain: null } });
+  page({ rows, versions: [ownRow("email", HOURS)] });
+  sendsIt(usedBy(HOURS));
+  setSurfaceValue("playbooks", { rows: [], ready: unasked });
+  assert.equal(word(rowOf(redraw(), HOURS)), null, "a check that did not answer says nothing");
+  page({ rows });
+  sendsIt(usedBy(HOURS));
+  setSurfaceValue("playbooks", { rows: [], ready: unasked });
+  assert.equal(word(rowOf(redraw(), HOURS)).props.label, "Waiting");
 });
 
 test("a message put away that something still sends says so on its card: putting it away stops nothing", () => {
