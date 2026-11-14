@@ -35,7 +35,7 @@ import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { routeDoor } from "../../../frame-verbs";
-import { STARTER_MOMENTS, starterMoment } from "../../templates/group";
+import { STARTER_LANGUAGE, STARTER_MOMENTS, starterMoment } from "../../templates/group";
 import { starters } from "../../templates/verbs";
 import { TPL_LIST_WORDS, tplOwn } from "../../templates/words";
 import { valuesByName } from "./change";
@@ -70,9 +70,6 @@ function notHereOf(m: NewMessage, first: boolean, who: DraftWho | null): string 
 }
 
 const channelsSaid = (m: NewMessage): string => channelsSaidOf(m.channels, " · ");
-
-/** The language a ready-made starter is filed in as a draft is made: English, as every new campaign's starter is. */
-const STARTER_LANGUAGE = "en_US";
 
 /**
  * A ready-made starter as a step's message (the clean list, 14 Nov 2026): its words and values as the set writes them, the
@@ -179,19 +176,19 @@ export function MessageSheet(p: {
         <>
           <p className="sq-nw-cap">{TPL_LIST_WORDS.made}</p>
           <div className="sq-nw-rows">
-            {readyMade.map((s) => {
-              const m = starterMessageOf(s);
-              const notHere = notHereOf(m, p.i === 0, p.draft.kind === "sequence" ? p.draft.who : null);
+            {readyMade.map((starter) => {
+              const message = starterMessageOf(starter);
+              const notHere = notHereOf(message, p.i === 0, p.draft.kind === "sequence" ? p.draft.who : null);
               return (
                 <Choice
-                  key={s.key}
+                  key={starter.key}
                   glyph="chat"
-                  name={s.title}
-                  said={notHere ?? purposeSaid(s)}
-                  on={step?.message?.starter === s.key}
+                  name={starter.title}
+                  said={notHere ?? purposeSaid(starter)}
+                  on={step?.message?.starter === starter.key}
                   off={notHere !== null}
-                  onPick={() => p.onMessage(m)}
-                  testid={`sq-nw-starter-${s.key}`}
+                  onPick={() => p.onMessage(message)}
+                  testid={`sq-nw-starter-${starter.key}`}
                 />
               );
             })}

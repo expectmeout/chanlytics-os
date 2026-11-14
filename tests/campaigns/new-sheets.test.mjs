@@ -290,7 +290,6 @@ test("the starters nothing has filed are offered under Ready-made, by what each 
     [null, "quick_note", note.title, null, true],
   );
   assert.ok(m.channels.includes("whatsapp"), "WhatsApp's version goes for review as it is filed");
-  assert.equal(M.reviewedOnMake(m), true);
   // Kept or started, its key rides to the server, which files it there (drafts/sequence-new.ts templateOf).
   assert.equal(M.makeBodyOf(M.setMessage(ONCE, 0, m), false, null).steps[0].message.starter, "quick_note");
 });

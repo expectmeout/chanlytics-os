@@ -80,12 +80,12 @@ async function fileWritten(ctx: RouteContext, member: Member, newWrittenMessage:
 async function templateOf(
   ctx: RouteContext,
   member: Member,
-  s: Step,
+  step: Step,
   channels: readonly ConsentChannel[],
 ): Promise<string> {
-  if (s.message?.template_id) return s.message.template_id;
-  if (s.message?.written) return fileWritten(ctx, member, s.message.written);
-  if (s.message?.starter) return fileStarterForUse(ctx, member.tenantId, s.message.starter, channels);
+  if (step.message?.template_id) return step.message.template_id;
+  if (step.message?.written) return fileWritten(ctx, member, step.message.written);
+  if (step.message?.starter) return fileStarterForUse(ctx, member.tenantId, step.message.starter, channels);
   throw new AppError("validation", NEW_WORDS.cannot.noMessage);
 }
 

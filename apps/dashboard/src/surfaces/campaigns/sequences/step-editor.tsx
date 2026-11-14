@@ -24,17 +24,12 @@ import {
   NEW_WORDS,
   PREVIEW_CHANNEL_WORDS,
   SEQUENCE_EDIT_WORDS as E,
-  LIBRARY_STARTER_WORDS,
   defaultParamSpecs,
   exampleParams,
   exampleParamsFor,
   parseParamSpecs,
-  purposeOfTemplate,
   messageAboutOfClass,
   slotLabels,
-  starterEmailText,
-  starterSmsText,
-  starterText,
   stepApprovalOf,
   visitWhenExample,
   type ConsentChannel,
@@ -42,7 +37,6 @@ import {
   type HandKind,
   type ParamSpec,
   type SequenceStepDto,
-  type StarterTemplate,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
@@ -61,11 +55,10 @@ import { messagePaneContext } from "../parts/message-pane";
 import { MessagePreview } from "../parts/message-preview";
 import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
 import { useCmPhone } from "../parts/split";
-import { starters, templates as templateVerbs } from "../templates/verbs";
-import { TPL_LIST_WORDS } from "../templates/words";
 import { RecordFootContext } from "./record-foot";
 import { HandTask } from "./step-words";
 import { useBatchRead } from "./use-record";
+import { pickMetaOf, readyMadeOf, stepSaved } from "./step-pick";
 import { pressed } from "./verbs";
 
 type Flash = (flash: FrameFlash) => void;
@@ -115,64 +108,6 @@ function stepSpecsOf(picked: CmOffered | null, step: SequenceStepDto | null): Pa
 /** Whether two sets of typed words say the same. */
 const sameTyped = (a: Record<number, string>, b: Record<number, string>) =>
   Object.keys({ ...a, ...b }).every((k) => (a[Number(k)] ?? "") === (b[Number(k)] ?? ""));
-
-/** The language a picked starter is filed in, as a new campaign's is. */
-const STARTER_LANGUAGE = "en_US";
-/** A ready-made starter's place among the editor's picks: its key behind this mark, apart from every message's id. */
-const STARTER_PICK = "starter:";
-
-/**
- * A ready-made starter as the editor offers and previews it (the clean list, 14 Nov 2026): its words as the set writes
- * them, on the channels it is written for, under a pick of its own. Nothing is filed until Save (templateIdOf).
- */
-function starterOffered(starter: StarterTemplate): CmOffered {
-  const text = starterText(starter, STARTER_LANGUAGE);
-  const email = starterEmailText(starter, STARTER_LANGUAGE);
-  const sms = starterSmsText(starter, STARTER_LANGUAGE);
-  return {
-    id: `${STARTER_PICK}${starter.key}`,
-    channel: "whatsapp",
-    name: starter.name,
-    language: STARTER_LANGUAGE,
-    body_preview: text.body,
-    variables: text.slots.map((slot, i) => ({ position: i + 1, label: slot.label, example: slot.example })),
-    footer: text.footer,
-    category: starter.category,
-    meta_status: "pending",
-    quality: null,
-    rejected_reason: null,
-    synced_at: null,
-    source: "starter",
-    title: starter.title,
-    purpose: purposeOfTemplate(starter.category),
-    channels: CONSENT_CHANNELS.filter((c) => c === "whatsapp" || (c === "email" ? !!email : !!sms)),
-    versions: {
-      ...(email ? { email: { subject: email.subject, body: email.body } } : {}),
-      ...(sms ? { sms: { subject: null, body: sms.body } } : {}),
-    },
-  };
-}
-
-/** The ready-made starters a step may take: those offered here that nothing on file is named for, once Settings is read. */
-function readyMadeOf(templatesAll: readonly { name: string }[] | null | undefined): CmOffered[] {
-  if (!templatesAll) return [];
-  const held = new Set(templatesAll.map((t) => t.name));
-  return starters.list.filter((s) => !s.retired && !held.has(s.name)).map(starterOffered);
-}
-
-/**
- * The version a step takes for its pick: a message's own id, or, for a ready-made starter, the version filing it leaves
- * (POST templates/starter, on the sequence's channels: its WhatsApp version goes to WhatsApp for review now). Null where
- * filing failed, said in the server's words.
- */
-async function templateIdOf(picked: CmOffered, channels: readonly string[], flash: Flash): Promise<string | null> {
-  if (!picked.id.startsWith(STARTER_PICK)) return picked.id;
-  const key = picked.id.slice(STARTER_PICK.length);
-  const r = await templateVerbs.fileStarters({ keys: [key], languages: [STARTER_LANGUAGE], channels: [...channels] });
-  if (r.ok && r.data.template_id) return r.data.template_id;
-  flash({ tone: "danger", msg: <>{r.ok ? LIBRARY_STARTER_WORDS.notAdded : r.message}</> });
-  return null;
-}
 
 /** The message a step sends now, among those offered: by its name and language, else the first offered. */
 const pickedOf = (offered: readonly CmOffered[], step: SequenceStepDto | null): string =>
@@ -474,37 +409,22 @@ export function StepEditor({
   const save = async () => {
     if (!picked) return;
     setBusy(true);
-    // A ready-made starter is filed as its Save is pressed, and the step takes the version that leaves.
-    const templateId = await templateIdOf(picked, channels, flash);
-    if (!templateId) {
-      setBusy(false);
-      return;
-    }
     const only = [...STEP_HOLDS[hold].only];
-    const fields = { sequence_id: sequenceId, after_days: Number(days), only_if: only };
-    // A first step keeps its moment and its hour: only its words change, through the words door; a wait unchanged is
-    // not written again.
-    const keepsWait = first || (step !== null && !waitChanged);
-    const ok = keepsWait
-      ? true
-      : await pressed(
-          "sequence_step",
-          step ? { ...fields, step_id: step.id } : { ...fields, template_id: templateId, params },
-          flash,
-          () => {},
-        );
-    // A step that stays gets its new words apart: they may wait for WhatsApp while it sends its own.
-    const worded =
-      ok && step && wordsChanged
-        ? await pressed(
-            "sequence_words",
-            { sequence_id: sequenceId, step_id: step.id, template_id: templateId, params },
-            flash,
-            () => {},
-          )
-        : ok;
+    const done = await stepSaved({
+      picked,
+      channels,
+      flash,
+      sequenceId,
+      step,
+      first,
+      days: Number(days),
+      only,
+      waitChanged,
+      wordsChanged,
+      params,
+    });
     setBusy(false);
-    if (worded) onDone();
+    if (done) onDone();
   };
 
   return (
@@ -529,9 +449,7 @@ export function StepEditor({
                   options={offered.map((m) => ({
                     value: m.id,
                     label: m.title ?? m.name,
-                    meta: m.id.startsWith(STARTER_PICK)
-                      ? TPL_LIST_WORDS.made
-                      : m.channels.map((c) => PREVIEW_CHANNEL_WORDS[c]).join(", "),
+                    meta: pickMetaOf(m),
                   }))}
                   data-testid="sq-editor-message"
                 />

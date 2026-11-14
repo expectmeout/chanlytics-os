@@ -24,7 +24,7 @@ import { LinkButton } from "../../../kit/link-button/link-button";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { gate } from "../../../frame-verbs";
 import { RailAdd, RailBox, RailRow } from "../place/rail";
-import { reviewedOnMake, valueLabelOf } from "./new-model";
+import { valueLabelOf } from "./new-model";
 import { StepWords, WordPick } from "./new-parts";
 import type { NewSheet } from "./new-sheets";
 
@@ -191,7 +191,10 @@ function StepBox(p: { draft: NewDraftDto; i: number; acts: RailActs } & StepMark
     );
   // A message Ask wrote, or a ready-made starter, goes to Meta for its WhatsApp version; until then the step goes by email
   // and text.
-  const review = reviewedOnMake(step.message) ? { tone: "next" as const, words: W.checks.newMessageDetail } : null;
+  const review =
+    step.message?.written?.versions.whatsapp || step.message?.starter
+      ? { tone: "next" as const, words: W.checks.newMessageDetail }
+      : null;
   return (
     <RailBox
       place={i + 1}
