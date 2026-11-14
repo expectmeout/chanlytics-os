@@ -369,21 +369,29 @@ export function planInReview<P extends HeldCard>(cards: readonly P[]): boolean {
 /** How many waiting cards the model is named: past it, the person says which. */
 const WAITING_NAMED = 6;
 
+/** How much of a waiting card's own terms the model is given beside its name. */
+const WAITING_TERMS_CHARS = 240;
+
 /**
  * The cards waiting in a thread for their press, as the turn's words name them to the model (D18 of the answers canvas), so a
- * yes can be matched to one by its id. A plan is one card, named by its first step. Null where none waits.
+ * yes can be matched to one by its id; each with its own terms, so what Ask says a card does is what the card says (Ruben,
+ * 14 Nov 2026: Ask twice said a waiting search kept only med spas with an email, which the card never said). A plan is one
+ * card, named by its first step. Null where none waits.
  */
-export function waitingCardsWords(cards: readonly Pick<AskProposal, "id" | "title" | "plan">[]): string | null {
+export function waitingCardsWords(
+  cards: readonly Pick<AskProposal, "id" | "title" | "plan" | "summary">[],
+): string | null {
   const seen = new Set<string>();
   const named = cards.flatMap((p) => {
     if (p.plan) {
       if (seen.has(p.plan.id)) return [];
       seen.add(p.plan.id);
     }
-    return [`“${p.plan?.head?.title ?? p.title}” (${p.id})`];
+    const terms = p.plan ? "" : (p.summary ?? "").trim().slice(0, WAITING_TERMS_CHARS);
+    return [`“${p.plan?.head?.title ?? p.title}” (${p.id})${terms ? `: ${terms}` : ""}`];
   });
   if (named.length === 0) return null;
-  return `Cards waiting in this thread for their press: ${named.slice(-WAITING_NAMED).join(", ")}.`;
+  return `Cards waiting in this thread for their press, each with its own terms (say what a card does from these, never from memory): ${named.slice(-WAITING_NAMED).join("; ")}.`;
 }
 
 /**

@@ -102,8 +102,26 @@ test("a yes names a waiting card by its id; a plan is one card, by its first ste
   const cards = offer();
   cards[0].title = "New message";
   cards[0].plan.head = { title: "Free posture check", sub: "", press: "offer", says: [] };
-  assert.equal(waitingCardsWords(cards), "Cards waiting in this thread for their press: “Free posture check” (p-1).");
+  assert.equal(
+    waitingCardsWords(cards),
+    "Cards waiting in this thread for their press, each with its own terms (say what a card does from these, never from memory): “Free posture check” (p-1).",
+  );
   assert.equal(waitingCardsWords([]), null);
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): a waiting card is named with its own terms, so Ask says what it does from the card", () => {
+  // Ask twice said the waiting New York search kept only med spas with an email; the card never said so.
+  const search = {
+    id: "p-ny",
+    kind: "lead_search",
+    title: "Find 300 med spas",
+    summary: "Find 300 med spas in New York, NY: independent, not part of a chain; has its own website (confirmed).",
+    payload: {},
+  };
+  assert.match(
+    waitingCardsWords([search]),
+    /“Find 300 med spas” \(p-ny\): Find 300 med spas in New York, NY: independent, not part of a chain; has its own website \(confirmed\)\./,
+  );
 });
 
 test("a newer card about the same thing sets the older one aside; about another thing, it stands", () => {

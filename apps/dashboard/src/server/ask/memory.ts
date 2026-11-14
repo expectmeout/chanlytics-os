@@ -29,6 +29,7 @@ import {
   type SearchAnswering,
 } from "./prompt/prompt";
 import { createThread, readRaws, readThread } from "./store";
+import { runsDecided } from "./act/recheck";
 import { replayBlocks, resultBlocks, type CallOutcome, type RoundBlock } from "./round";
 import type { Msg, TurnInput } from "./loop/turn-head";
 import { log } from "@/server/shared/log";
@@ -275,6 +276,9 @@ export async function findThreadForTurn(
       notices = history.length ? toldIn(found.messages) : null;
       cited = citedIn(found.messages);
       waiting = found.messages.flatMap((m) => m.proposals ?? []).filter((p) => !p.outcome);
+      // A batch decided on Campaigns since its card was made waits for nothing: Ask never names it as waiting.
+      const decided = new Set((await runsDecided(ctx, tenantId, waiting)).map((d) => d.id));
+      waiting = waiting.filter((p) => !decided.has(p.id));
       cards = found.messages.filter((m) => m.proposals?.length).map((m) => ({ id: m.id, proposals: m.proposals }));
       offered = found.messages.flatMap((m) =>
         m.role === "user" ? [m.text] : (m.answer?.do.next ?? m.followups ?? []),
