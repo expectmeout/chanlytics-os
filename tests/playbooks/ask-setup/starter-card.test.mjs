@@ -258,7 +258,7 @@ test("a moment whose starter is not on file: a card that names the starter, says
   assert.match(p.summary, / · on WhatsApp and by email/);
   assert.equal(
     LIBRARY_STARTER_WORDS.whatsappForReview,
-    "WhatsApp waits: its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back. Its runs hold those people until WhatsApp approves it.",
+    "WhatsApp checks its new wording first. Its WhatsApp messages wait until then and go by themselves.",
   );
   assert.ok(p.summary.includes(` · ${LIBRARY_STARTER_WORDS.whatsappForReview}`), p.summary);
   assert.ok(!/still reviewing|Meta|minutes/.test(p.summary), p.summary);
@@ -333,10 +333,7 @@ test("a starter card on a number WhatsApp flagged keeps the workspace's own reas
   );
   assert.ok(!s.includes(LIBRARY_STARTER_WORDS.whatsappForReview), s);
   assert.ok(!s.includes("until WhatsApp approves it"), s);
-  assert.equal(
-    LIBRARY_STARTER_WORDS.whatsappSentForReview,
-    "Its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back.",
-  );
+  assert.equal(LIBRARY_STARTER_WORDS.whatsappSentForReview, "WhatsApp checks its new wording first.");
   assert.ok(s.includes(` · ${LIBRARY_STARTER_WORDS.whatsappSentForReview}`), s);
 });
 

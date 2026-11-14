@@ -385,13 +385,13 @@ export function answerForCards(
   const first = structured(
     lead?.headline ??
       plan.headline ??
+      // What the card is and where it stands, never "Here it is" or a count to look at (Ruben, 14 Nov 2026: "Here it is:
+      // Find 300 med spas." said the card's title again, and "9 to look at." said nothing of what waited on him).
       (length === 1
-        ? es
-          ? sentence(`Aquí está: ${cards[0]?.title ?? ""}`)
-          : sentence(`Here it is: ${cards[0]?.title ?? ""}`)
+        ? `${sentence(cards[0]?.title ?? "")} ${es ? "No pasa nada hasta que lo pulses." : "Nothing happens until you press it."}`
         : es
-          ? `${length} para mirar.`
-          : `${length} to look at.`),
+          ? `${length} listos abajo. No pasa nada hasta que los pulses.`
+          : `${length} ready below. Nothing happens until you press them.`),
     es ? "es" : "en",
   );
   first.say.detail = clip(plan.detail ?? "", ASK_ANSWER_CAPS.plan);

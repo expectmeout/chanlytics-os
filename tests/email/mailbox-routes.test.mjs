@@ -298,9 +298,10 @@ test("Today counts the workspace's email line beside the routing rows, and only 
   // The line is one row: Today asks nothing of how the workspace sends (its own domains, the edge's switch for them). The
   // day's bookings are read beside it (server/metrics/bookings.ts), from the record's own two tables.
   const BOOKINGS_READ = new Set(["events", "appointments"]);
+  // And the channel rows, read beside the rest (never after), for what WhatsApp holds against its number (decision 0132).
   assert.deepEqual(
-    [...new Set(withBox.seen.filter((q) => q.table && !BOOKINGS_READ.has(q.table)).map((q) => q.table))],
-    ["mailboxes"],
+    [...new Set(withBox.seen.filter((q) => q.table && !BOOKINGS_READ.has(q.table)).map((q) => q.table))].sort(),
+    ["mailboxes", "tenant_channels"],
     "REGRESSION: every read of Today from a workspace with a mailbox read its sending domains and asked the edge too",
   );
 

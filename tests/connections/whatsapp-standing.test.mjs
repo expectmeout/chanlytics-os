@@ -48,11 +48,13 @@ const act = (label, href) => ({ label, to: href, href, who: "owner" });
 const LIBRARY = { label: "Messages", to: "campaigns/messages", who: "operator" };
 
 /** The row's sentences for the account's payment method: none on file, and one Meta reports a problem with. */
-const NEEDS_CARD = "Meta needs a payment method on your WhatsApp account before it delivers reminders and campaigns.";
+const NEEDS_CARD =
+  "WhatsApp needs a card on file before it delivers reminders and campaigns; they wait and go once one is added.";
 const CARD_FAILING =
-  "Meta reports a problem with the payment method on your WhatsApp account: reminders and campaigns are not delivered until it is fixed.";
+  "The card on your WhatsApp account has a problem, so reminders and campaigns wait; they go once it is fixed.";
 const REPLIES_STILL_GO = "Replies to customers who write first still go out.";
 const IN_SUITE = "Add one in Meta Business Suite › Billing.";
+const FIX_IN_SUITE = "Fix it in Meta Business Suite › Billing.";
 const BLOCKED_SENTENCE = "Meta says WhatsApp cannot send from this number right now.";
 /** The verification's note: not verified, the day's cap where the sentence does not say it, and Meta's page to verify on. */
 const notVerified = (cap, href = SECURITY_CENTER) => ({
@@ -161,7 +163,7 @@ test("a number whose account's payment method Meta reports a problem with waits 
   assert.deepEqual([r.state, r.stateWords, r.group], ["attention", "Payment needed", "connected"]);
   assert.equal(
     r.sentence,
-    `${CARD_FAILING} ${IN_SUITE}`,
+    `${CARD_FAILING} ${FIX_IN_SUITE}`,
     "BLOCKED: nothing of replies still going; no business or account known: Business Suite, and no page to open",
   );
   assert.equal(r.verb, null);
@@ -641,6 +643,6 @@ test("Meta's words written for a developer never reach an owner, and the number'
   const held = numberHealthWithStanding(unrated, BLOCKED);
   assert.equal(held.tone, "danger");
   assert.equal(held.word, "Payment needed", "the row's word, never the rating's Flagged");
-  assert.match(held.refusal, /payment method/);
+  assert.match(held.refusal, /card on your WhatsApp account|card on file/);
   assert.equal(numberHealthWithStanding(unrated, null).word, undefined, "nothing held: the rating speaks");
 });

@@ -389,7 +389,7 @@ test("a number that turns BLOCKED is told to the owner, once: the bell row and t
   // The account has no payment method (Meta's funding answer): the notice says what Meta stops, and where to mend it, in
   // contracts' words, not Meta's.
   const body =
-    "WhatsApp can't start conversations from +1 (305) 555-0142: Meta needs a payment method on your WhatsApp account before it delivers reminders and campaigns. Add one in Meta Business Suite › Billing.";
+    "WhatsApp can't start conversations from +1 (305) 555-0142: WhatsApp needs a card on file before it delivers reminders and campaigns; they wait and go once one is added. Add one in Meta Business Suite › Billing.";
   const subject = "WhatsApp can't start conversations from your number";
   assert.deepEqual(
     w.tables.notifications.map((n) => [n.tenant_id, n.kind, n.route, n.title, n.body]),

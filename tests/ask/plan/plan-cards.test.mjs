@@ -916,7 +916,7 @@ test("REGRESSION: cover_journey with the win-back paused on its moment resumes i
   const { cards } = cardsAreSteps(r, intent, calendarWorld({ playbooks: [{ id: MONTHLY, ...paused, until: null }] }));
   assert.deepEqual(
     cards.map((p) => [p.kind, p.title, p.payload.playbook_id, p.payload.state]),
-    [["playbook_change", "Resume: Win-back", MONTHLY, "running"]],
+    [["playbook_change", "Turn back on: Win-back", MONTHLY, "running"]],
   );
   assert.equal(said(r).words, "Resumes “Win-back”, paused on its moment, on a card of its own.");
 });
@@ -1169,7 +1169,7 @@ test("a setup's plan alone in its round: its campaigns are plain cards (D3), so 
       ["playbook", undefined],
     ],
   );
-  assert.equal(r.answer.say.headline, "3 to look at.");
+  assert.equal(r.answer.say.headline, "3 ready below. Nothing happens until you press them.");
   assert.equal(
     r.answer.say.detail,
     "Starts 3 campaigns now, each its own card: a reminder the day before a booked time, a follow-up the day after a booked time and a win-back once they go quiet. The reminder, the follow-up and the win-back reach nobody today; each card says why.",

@@ -72,7 +72,13 @@ export function todayStanding(
   todayFacts: TodayFacts,
 ): Pick<TodayVM["standing"], "chips" | "lines" | "alert" | "paused"> {
   const { metrics, wires } = todayFacts;
-  const chips = wires.map((w) => ({ text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on }));
+  // A wire its provider holds something against says so ("WhatsApp: payment needed"), never "connected" while it delivers
+  // no reminder or campaign (Ruben, 14 Nov 2026).
+  const chips = wires.map((w) =>
+    w.on && w.held
+      ? { text: `${w.label}: ${w.held.toLowerCase()}`, ok: false }
+      : { text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on },
+  );
   const down = wires.filter((w) => !w.on);
   const on = wires.filter((w) => w.on);
   const up = on.length;

@@ -598,6 +598,29 @@ test("REGRESSION: the day's recap never calls the count a WhatsApp count -- answ
   );
 });
 
+test("REGRESSION (the live run of 14 Nov 2026): a number WhatsApp holds a payment against says so on Today, never that it is connected", () => {
+  const held = toTodayVM(
+    metrics({
+      channels: [
+        { kind: "whatsapp", status: "active", number: "+13055550188", held: "Payment needed" },
+        { kind: "sms", status: "active", number: "+13055550123" },
+      ],
+    }),
+    [],
+    [],
+    [],
+    NOW,
+  );
+  assert.deepEqual(
+    held.standing.chips.map((c) => [c.text, c.ok]),
+    [
+      ["WhatsApp: payment needed", false],
+      ["Texting connected", true],
+    ],
+  );
+  assert.equal(held.standing.lines.text, "2 of 2 lines connected", "it still takes messages in: the count stands");
+});
+
 test("the count above the work sees every wire, and calls each one what the owner does", () => {
   const EMAIL = { kind: "email", status: "active", number: null, address: "bestmovers@mail.chanlytics.com" };
   const all = toTodayVM(

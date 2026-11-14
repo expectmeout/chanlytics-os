@@ -64,6 +64,8 @@ interface TodayWire {
   on: boolean;
   /** Where customers reach it, as a person reads it ("+1 (212) 555-0142", or the address); null with nothing to name it by. */
   where: string | null;
+  /** What its provider holds against it, in the row's word ("Payment needed"); null where nothing is held. */
+  held: string | null;
 }
 
 /**
@@ -130,6 +132,7 @@ function todayWires(m: MetricsSummaryDto): TodayWire[] {
     // A number as a person reads it, "+1 (212) 555-0142": the quiet day's proof
     // said the column's "+12125550142".
     where: c.address ?? formatPhoneDisplay(c.number),
+    held: c.held ?? null,
   }));
 }
 

@@ -368,7 +368,7 @@ export const NEW_WORDS = {
     twin: (name: string) => `${name} does this already`,
     twinDetail: "Two would send twice.",
     newMessage: (n: number) => `Step ${n} is a new message`,
-    newMessageDetail: "Email now, WhatsApp after Meta’s review",
+    newMessageDetail: "Email now, WhatsApp once it approves the words",
     canGo: (n: number, by: string) => `Step ${n} can go by ${by} today`,
     stops: "Stops when they book",
     stopsDetail: "Never to anyone who said stop",

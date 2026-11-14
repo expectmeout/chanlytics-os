@@ -43,7 +43,7 @@ test("a change names any of nine things, in the order a card says them, and says
       W.title({ state: "running" }, "Win-back"),
       W.title({ name: "x" }, "Win-back"),
     ],
-    ["Pause: Win-back", "Resume: Win-back", "Change: Win-back"],
+    ["Pause: Win-back", "Turn back on: Win-back", "Change: Win-back"],
   );
   assert.equal(W.name("Past clients"), "Renamed “Past clients”");
   assert.equal(W.run_hour(9, 10), "Runs at 9:00 AM by your clock, where it ran at 10:00 AM");

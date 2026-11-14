@@ -640,7 +640,11 @@ test("words beside a card are the model thinking aloud, never the answer; an ans
   );
   const made = scripted([ROUND([prose("Adding Ada."), tool("propose_person", ADD_ADA)])]);
   const r2 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(made.round));
-  assert.equal(r2.answer.say.headline, "Here it is: Add Ada to People.", "the card made is the answer");
+  assert.equal(
+    r2.answer.say.headline,
+    "Add Ada to People. Nothing happens until you press it.",
+    "the card made is the answer",
+  );
 
   const claimed = answerJson("I proposed adding Ada.");
   const back = scripted([
@@ -677,7 +681,7 @@ test("an answer beside its cards that claims a write is said as the cards' own s
   );
   assert.deepEqual(
     [r.answer.say.headline, r.answer.say.detail, r.proposals.length, lines.length],
-    ["Here it is: Add Ada to People.", "She is in People now.", 1, 1],
+    ["Add Ada to People. Nothing happens until you press it.", "She is in People now.", 1, 1],
   );
   assert.deepEqual(JSON.parse(lines[0]), { cards: 1, tenant_id: A });
   const honest = scripted([ROUND([prose(answerJson("One card: Ada, for People.")), invite])]);
@@ -722,7 +726,7 @@ test("cards alone are the answer: every card made, no second round, the cards sa
   assert.equal(r.rounds, 1);
   assert.equal(r.proposals.length, 1);
   assert.deepEqual(r.answer, answerForCards(r.proposals, "en"));
-  assert.equal(r.text, "Here it is: Add Ada to People.");
+  assert.equal(r.text, "Add Ada to People. Nothing happens until you press it.");
   assert.ok(
     events.some((e) => e.t === "say" && e.headline === r.answer.say.headline),
     "the cards' sentence is said as the answer",
@@ -9887,7 +9891,10 @@ test("a broadcast or a playbook proposed on a workspace with no WhatsApp number 
     config: { ...WHATSAPP_NUMBER.config, standing: { can_send: "AVAILABLE", has_payment_method: false } },
   };
   const held2 = await buildProposal(toolContext([unpaid]), "propose_sequence", broadcast);
-  assert.match(JSON.parse(held2.result).error, /Meta needs a payment method on your WhatsApp account/);
+  assert.match(
+    JSON.parse(held2.result).error,
+    /WhatsApp needs a card on file before it delivers reminders and campaigns/,
+  );
   // A playbook is no longer proposed with no number (its runs would hold everyone): no campaign card, as for the broadcast,
   // but a card of the one thing to fix, in the route's words, with Connections for its door (the 30 Oct 2026 review, item 6).
   const playbook = { action: "moment", trigger: "everyone_monthly", template_id: TPL, params: [] };
