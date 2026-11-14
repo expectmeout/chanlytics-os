@@ -71,6 +71,12 @@ export interface LeadSearchPlan {
   asked: string;
   terms: string[];
   area: LeadArea;
+  /**
+   * How far past its area the search may look for its count, in metres from the centre (decision 0133): 0 is the area
+   * on the card alone. Absent, the area's default (contracts' reachOf: 25 miles from a city, 15 from a ZIP, twice a
+   * circle's radius); a plan made before it was asked reads the same.
+   */
+  reach_m?: number;
   count: number;
   contact: LeadContactStandard;
   criteria: LeadCriterion[];
@@ -160,7 +166,7 @@ const same = (a: unknown, b: unknown) => stableStringify(a) === stableStringify(
 /** The changed plan, with its version bumped when the area, count, contact standard, criteria or exclusions moved (S15). */
 export function planVersionOf(plan: LeadSearchPlan, changed: Partial<LeadSearchPlan>): LeadSearchPlan {
   const next: LeadSearchPlan = { ...plan, ...changed, version: plan.version };
-  const material = (["area", "count", "contact", "criteria", "exclusions"] as const).some(
+  const material = (["area", "reach_m", "count", "contact", "criteria", "exclusions"] as const).some(
     (k) => !same(plan[k], next[k]),
   );
   return { ...next, version: material ? plan.version + 1 : plan.version };

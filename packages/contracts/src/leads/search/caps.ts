@@ -41,6 +41,31 @@ export const LEAD_MAX_PLACES = 1000;
  * 4 min 55 s, 14 Nov 2026). A term that comes back under its ask has read the whole city.
  */
 export const LEAD_DEEP_PER_TERM = 600;
+
+/* ---------------------------------------------------------- the reach -- */
+
+/** A mile, in metres, as a search's reach is said (decision 0133). */
+export const LEAD_REACH_MILE_M = 1_609;
+/**
+ * How far a search looks past its area when the owner has not said (decision 0133, Ruben's D2, 14 Nov 2026): 25 miles
+ * from a city's centre, 15 from a ZIP's; a circle looks out to twice its radius.
+ */
+const LEAD_REACH_DEFAULT_MILES = { city: 25, zip: 15 } as const;
+/** The farthest an owner may ask a search to look: 50 miles. */
+export const LEAD_REACH_MAX_M = 50 * LEAD_REACH_MILE_M;
+
+/**
+ * How far a search looks, in metres from its centre: the owner's own reach where the plan holds one (0 is only the area
+ * on the card), else its area's default.
+ */
+export function reachOf(
+  area: { kind: "zip" | "city" | "radius"; radius_m: number },
+  reachM: number | null | undefined,
+): number {
+  if (typeof reachM === "number") return Math.max(0, Math.min(LEAD_REACH_MAX_M, reachM));
+  if (area.kind === "radius") return 2 * area.radius_m;
+  return LEAD_REACH_DEFAULT_MILES[area.kind] * LEAD_REACH_MILE_M;
+}
 /** Every fact a place gives the judge is cut to this many characters (§7.1). */
 export const LEAD_FACT_MAX = 120;
 /** What a place's own website says is cut to this, where a plan reads sites: its booking link, title, description and first words. */

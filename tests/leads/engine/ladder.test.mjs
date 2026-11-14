@@ -6,7 +6,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { haversineM } from "../../../packages/core/src/leads/geo.ts";
-import { LEAD_REACH_MILE_M, nextRung, reachOf } from "../../../packages/core/src/leads/ladder.ts";
+import { LEAD_REACH_MILE_M, reachOf } from "../../../packages/contracts/src/leads/search/caps.ts";
+import { nextRung } from "../../../packages/core/src/leads/ladder.ts";
 
 const BROOKLYN = { lat: 40.6782, lng: -73.9442 };
 const city = {

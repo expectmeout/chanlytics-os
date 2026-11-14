@@ -353,6 +353,7 @@ export {
   LEAD_TRIAL_ALLOWANCE,
   leadAllowanceFor,
   leadMonth,
+  reachOf,
   US_ZIP,
 } from "./search/caps";
 // A search's card in Ask: its rows, its press, the card a newer one replaces, and the waiting card as a turn is told it.

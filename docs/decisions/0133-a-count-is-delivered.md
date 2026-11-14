@@ -85,11 +85,13 @@ Each step is one pull request, in either deploy order unless it says otherwise.
    - `maxPerTerm` reads 600 for a city area;
    - a term asked past what it holds says the area is read;
    - the three caps (00626), in a migration applied before the merge.
-2. **The ladder and the reach**, with no widening yet:
+2. **The ladder and the reach**, with no widening yet and nothing a customer sees:
    - `ladder.ts`;
-   - `plan.reach_m` (optional, so old plans read as their area's default);
-   - the card's reach line;
-   - `nearbyFor` takes the ladder.
+   - `plan.reach_m` (optional, so old plans read as their area's default).
+
+   The card's reach line and `nearbyFor` taking the ladder ship with step 3: a card says the reach only once a search
+   walks it (decision 0132).
+
 3. **Legs** (migration: the purpose, the ending, the door, `lead_searches.areas_read`):
    - the runner opens the next leg;
    - yield as finished per place;
