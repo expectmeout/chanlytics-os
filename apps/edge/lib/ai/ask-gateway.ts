@@ -29,6 +29,7 @@ import {
   MODELS,
   MODEL_EFFORTS,
   MODEL_ROUTES,
+  SEQUENCE_DRAFT_MAX_TOKENS,
   SKILL_CRAFT_MAX_TOKENS,
   THINKING_TYPES,
   askRoundCap,
@@ -346,7 +347,8 @@ const mayName = (purpose: GatewayPurpose, model: string): boolean =>
 /**
  * The most a purpose's request may write: Ask's round what the effort in force at its messages' end earns (askRoundCap:
  * a draft's thinking counts), a warm next to nothing, a skill's craft call the skills' (its thinking counts toward it,
- * at high effort), a small draft the drafts'.
+ * at high effort), a sequence's draft room for its every step (contracts SEQUENCE_DRAFT_MAX_TOKENS), a small draft the
+ * drafts'.
  */
 const ceilingOf = (purpose: GatewayPurpose, effort: ModelEffort | null): number =>
   purpose === "ask"
@@ -355,7 +357,9 @@ const ceilingOf = (purpose: GatewayPurpose, effort: ModelEffort | null): number 
       ? ASK_WARM_MAX_TOKENS
       : purpose === "message_draft"
         ? SKILL_CRAFT_MAX_TOKENS
-        : GATEWAY_MAX_TOKENS;
+        : purpose === "sequence_draft"
+          ? SEQUENCE_DRAFT_MAX_TOKENS
+          : GATEWAY_MAX_TOKENS;
 
 /** A request the gateway will not send: `bad_request`, with the rule it broke in `detail`. */
 const badRequest = (detail: string) => ({ ok: false as const, error: "bad_request" as const, detail });

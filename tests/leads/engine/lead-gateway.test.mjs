@@ -70,6 +70,21 @@ test("a format that is not a JSON schema is refused; one of any size goes throug
   assert.equal(validateGatewayRequest({ ...base, output_config: { format: big } }, "lead_draft").ok, true);
 });
 
+test("REGRESSION (the live run of 13 Nov 2026): a sequence's draft may write a whole draft, up to its own ceiling, the number its drafter asks for; the small drafts keep theirs", async () => {
+  const C = await import("@chanlytics/contracts");
+  assert.ok(C.SEQUENCE_DRAFT_MAX_TOKENS > 2000, "six steps Ask writes, each in three versions, ran past 2,000");
+  const draft = validateGatewayRequest({ ...base, max_tokens: 20_000 }, "sequence_draft");
+  assert.equal(draft.ok && draft.request.max_tokens, C.SEQUENCE_DRAFT_MAX_TOKENS);
+  const asked = validateGatewayRequest({ ...base, max_tokens: C.SEQUENCE_DRAFT_MAX_TOKENS }, "sequence_draft");
+  assert.equal(
+    asked.ok && asked.request.max_tokens,
+    C.SEQUENCE_DRAFT_MAX_TOKENS,
+    "what the drafter asks for is let through",
+  );
+  for (const small of ["lead_draft", "list_draft", "person_draft"])
+    assert.equal(validateGatewayRequest({ ...base, max_tokens: 20_000 }, small).request.max_tokens, 2000, small);
+});
+
 test("a skill's craft call (message_draft): Ask's route's model, at high effort, up to the skills' ceiling, in the ledger as a template's words", async () => {
   const C = await import("@chanlytics/contracts");
   for (const p of C.SKILL_CRAFT_PURPOSES) assert.ok(GATEWAY_PURPOSES.includes(p), `the edge lets ${p} through`);

@@ -195,6 +195,15 @@ export function numberedValues(
 }
 
 /**
+ * The most a sequence's draft may write: the edge's ceiling for its purpose (lib/ai/ask-gateway.ts) and what the drafter
+ * asks for (server/drafts/sequence.ts). Room for a whole draft, each of its six steps a message Ask writes in three
+ * versions: the small drafts' 2,000 cut one off (the live run of 13 Nov 2026, "the day after every visit: nine messages,
+ * one a week", 2,000 written in 11.8 s), where the dashboard asked for 2,400 and the edge held it to 2,000. The answer
+ * spends what it writes, never the ceiling.
+ */
+export const SEQUENCE_DRAFT_MAX_TOKENS = 4_000;
+
+/**
  * The shape the model fills, in the house's convention (people/lists/schemas.ts LIST_DRAFT_JSON_SCHEMA): every
  * property required, "" and [] for none. Who and a held message are named by the keys the request lists them under,
  * so nothing the model writes is an id. A step either sends a message (a person's: a held one by its key, with `texts`

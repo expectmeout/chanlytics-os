@@ -50,6 +50,7 @@ const {
   HAND_WORDS_MAX,
   LEAD_REWRITE_CHANGE_MAX,
   NEW_DRAFT_JSON_SCHEMA,
+  SEQUENCE_DRAFT_MAX_TOKENS,
   NEW_WORDS,
   NEW_WORDS_MAX,
   VOICE_WORDS,
@@ -1502,6 +1503,7 @@ test("REGRESSION: an answer cut off at its ceiling says so, and the log says why
     yield { type: "stop", stopReason: "max_tokens" };
   });
   await assert.rejects(draftSequenceFrom(KNOWN, LINE, WHO), (e) => {
+    assert.equal(calls[0].request.max_tokens, SEQUENCE_DRAFT_MAX_TOKENS, "asked for room for a whole draft");
     assert.equal(e.code, "upstream_anthropic");
     assert.equal(e.message, "The draft ran longer than Ask can write at once. Ask for less in one go.");
     assert.doesNotMatch(e.message, /Try again/);
