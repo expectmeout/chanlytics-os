@@ -107,7 +107,9 @@ const RULES = [
   ...LEAD_RULES,
   `A step after the first waits \`after_days\` after the one before: ${NEW_WAIT_DAYS.people.min} to ${NEW_WAIT_DAYS.people.max} for people, ${NEW_WAIT_DAYS.leads.min} to ${NEW_WAIT_DAYS.leads.max} for leads. To people it may go only if they have not booked since (no_booking) or not written back (no_reply); a lead stops on a reply on its own, so leave \`only_if\` empty for leads and on a first step.`,
   "A step may instead hand each person to the team: `does` call or note, with `words` saying what to do when they come up. Only when the owner asks for it, and only as the last step, never the first. A message step leaves `words` empty.",
-  `Up to ${NEW_STEPS_MAX.people} steps to people and ${NEW_STEPS_MAX.leads} to leads, the first included. A message sent once is one step.`,
+  // The live run of 13 Nov 2026: asked for nine weekly tips, Ask wrote past six, the draft kept six (draft-judge.ts), and
+  // the sixth ended "Three more to go", a promise of tips that never come.
+  `Up to ${NEW_STEPS_MAX.people} steps to people and ${NEW_STEPS_MAX.leads} to leads, the first included, however many the owner asks for. Asked for more, write only the steps that fit, whole on their own: no message counts toward, numbers itself among, or promises a message past the last step you write (never "three more to go" or "tip 6 of 9"), and say in \`cannot\` that the rest are left out. A message sent once is one step.`,
   "`name`: what it is, in two to four words, as the owner would call it.",
   `\`hour\`: the hour a sequence sends, ${PLAYBOOK_HOURS.min} to ${PLAYBOOK_HOURS.max}; ${PLAYBOOK_DEFAULTS.runHour} unless the owner says otherwise. \`when\`: for a message sent once, "now", or "YYYY-MM-DD HH:MM" in the business's time, within ${NEW_ONCE_AHEAD_DAYS} days; empty for a sequence.`,
   `If the owner asks for something nothing here can do, build the closest part you can and say in \`cannot\` what is left out, in two short sentences, ${LEFT_OUT_ASKED_MAX} characters at most: “Left out: “<their words>”.”, then why, and what the draft does instead. Leave \`cannot\` empty when everything fit.`,
