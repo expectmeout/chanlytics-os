@@ -8,7 +8,7 @@
  * zcta-centroids.generated.ts is written by tooling/scripts/gen/zcta-centroids.mjs
  * from the Census 2020 gazetteer: one zip,lat,lng row a line, sorted by zip.
  */
-import type { LeadArea } from "@chanlytics/contracts";
+import { US_ZIP, type LeadArea } from "@chanlytics/contracts";
 import { ZCTA_ROWS } from "./zcta-centroids.generated";
 
 export interface LatLng {
@@ -156,7 +156,7 @@ const ZIP3_STATES: ReadonlyArray<readonly [number, number, string]> = [
 ];
 
 export function stateOfZip(zip: string): string | null {
-  if (!/^\d{5}$/.test(zip)) return null;
+  if (!US_ZIP.test(zip)) return null;
   const prefix = Number(zip.slice(0, 3));
   return ZIP3_STATES.find(([from, to]) => prefix >= from && prefix <= to)?.[2] ?? null;
 }

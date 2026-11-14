@@ -79,7 +79,6 @@ function repliesOf(answered: unknown): RecentReplies | null {
   });
 }
 
-/** The hold the window's own replies waited, by the one rule: those the window's midnight keeps. Undefined where none waited one. */
 /**
  * What WhatsApp holds against the workspace's number, in the row's word ("Payment needed"), or null where it holds nothing or
  * the row could not be read: Today's chip said "WhatsApp connected" while WhatsApp would deliver no reminder or campaign
@@ -95,6 +94,7 @@ async function whatsappHeld(supabase: SupabaseClient<Database>, tenantId: Tenant
   return standing ? (standingRow(standing)?.stateWords ?? null) : null;
 }
 
+/** The hold the window's own replies waited, by the one rule: those the window's midnight keeps. Undefined where none waited one. */
 function holdSummary(rows: RecentReplies, since: string): MetricsSummaryDto["reply_hold"] {
   const from = Date.parse(since);
   return replyHoldDtoOf(holdOf(rows.filter((r) => Date.parse(r.asked_at) >= from))) ?? undefined;

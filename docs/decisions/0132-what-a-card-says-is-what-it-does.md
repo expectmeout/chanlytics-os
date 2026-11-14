@@ -1,8 +1,8 @@
 # 0132 · What a card says is what it does
 
 **Status:** Accepted by Ruben, 14 November 2026 ("Leave apify for last let's fix everything else and refine it better"),
-on the review of his phone walk of that morning (Ask, Campaigns, Leads). Written against main at `15f850bdca`. Being
-built in one lane; nothing merged.
+on the review of his phone walk of that morning (Ask, Campaigns, Leads), and built. Written against main at `15f850bdca`,
+in one lane, shipped as one pull request.
 
 ## Context
 

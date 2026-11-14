@@ -1137,7 +1137,8 @@ function withCampaignWord(frozen) {
  * 11 Oct 2026 (Leads on a phone, and the ideas for a new search, 00398): a plan's sentence marks where its criteria
  * begin and end (contracts planWords: "in Austin, TX: a; b; reached by …"), where these bytes ran them on after the area,
  * and a plan Ask proposes names its kind (`category_key`, the key an idea and the platform's counts read it by), beside
- * its name. 4 Nov 2026: its facts lost a key nothing set. The one frozen plan is the plumbers', kept as it was made.
+ * its name. 4 Nov 2026: its facts lost a key nothing set. 14 Nov 2026 (decision 0132): a search made for email counts a
+ * lead only with a checked email, and says so. The one frozen plan is the plumbers', kept as it was made.
  */
 const withThePlansWords = (frozen) =>
   frozen
@@ -1145,6 +1146,7 @@ const withThePlansWords = (frozen) =>
       "in Austin, TX has a website (confirmed) family-owned, reached by",
       "in Austin, TX: has a website (confirmed); family-owned; reached by",
     )
+    .replaceAll("; reached by a checked email or a phone.", "; each with a checked email.")
     .replace('"name":"plumbers","asked"', '"name":"plumbers","category_key":"plumber","asked"')
     .replace('"cannotSee":null,', "");
 
@@ -1603,7 +1605,9 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       pool || NAMES[old] === "report" || NAMES[old] === "workspace.settings" ? drop(dealt, "tenants.select") : dealt;
     const withOneDealRead = NAMES[old] === "sequences.moments" ? drop(withoutBuys, "deals.select") : withoutBuys;
     // 0076: Today reads what was booked (bookings.ts); 00512: a lead plan, the month's allowance. Bytes unchanged.
-    const booked = old === "get_today" ? ["events.select", "appointments.select"] : [];
+    // 14 Nov 2026 (decision 0132): and the number's row, for what WhatsApp holds against it (metrics.ts whatsappHeld): one
+    // `tenant_channels` read more. Its bytes are unchanged: this world's number is held by nothing.
+    const booked = old === "get_today" ? ["events.select", "appointments.select", "tenant_channels.select"] : [];
     const allowance = leadPlan && !want.isError ? ["rpc:lead_allowance"] : [];
     const reads =
       NAMES[old] === "report"

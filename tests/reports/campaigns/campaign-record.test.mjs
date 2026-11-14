@@ -878,5 +878,5 @@ test("numberHealthOfConfig: a rating, an event, a tier and what Meta holds, read
     [false, "danger"],
     "an account with no payment method carries no campaign",
   );
-  assert.match(noCard.refusal, /payment method/);
+  assert.match(noCard.refusal, /card on file/);
 });

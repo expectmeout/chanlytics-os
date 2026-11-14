@@ -216,7 +216,7 @@ test("cards alone are still the answer where nothing is owed: every card made in
   );
   assert.deepEqual(
     [r2.rounds, r2.text],
-    [2, "Here it is: List: Mornings."],
+    [2, "List: Mornings. Nothing happens until you press it."],
     "the list refused, then made by the same call: nothing is owed",
   );
 });
