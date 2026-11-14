@@ -82,6 +82,12 @@ The items below are each a place where that happened, and what it does now.
     a search for leads the owner will email as one made for email. Reverses decision 0010 for email searches on Ruben's
     word ("if this is for cold email then we must generate only ones with email"): his two med spa searches counted 154
     leads against the month, each by its phone, none with an email.
+16. **A held opening says what was read, and is written to them.** An opening held for a claim says "the opening says
+    something we couldn't find in what we read of them" (or "nothing we read of them says so"), never "we found nothing
+    on", which over a quote of their site read as the check contradicting itself. The writer writes to the business as
+    "you" and its name, never about the owner or the sender in the third person ("…The owner saw that you work across
+    channels."). The writer's one automatic rewrite before a hold stands (F2). A batch's place in the queue says "2 of 3
+    waiting" on a phone too, never a bare "2 of 3".
 
 ## Held by
 
@@ -102,3 +108,5 @@ The items below are each a place where that happened, and what it does now.
 - Item 14: `tests/leads/engine/lead-core.test.mjs`.
 - Item 15: `tests/leads/engine/lead-search.test.mjs` (the class) and `tests/leads/engine/lead-runner.test.mjs` (nothing counted at
   collect).
+- Item 16: `tests/reach-out/reach-out-opening.test.mjs` and `tests/sequences/sequence-tab-words.test.mjs`; the phone's
+  "waiting" is drawn by `approval.tsx` roRunHead, held by no test.

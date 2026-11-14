@@ -102,6 +102,8 @@ export function openingSystemPrompt(): string {
     "The owner's email makes the case for what they offer: never lead into it with a guess about this business. Say only what the record shows.",
     `A guess said softly is still a guess: never write ${HEDGES_QUOTED} or any word that supposes what the record does not say.`,
     "What the owner searched for is their own words about their search, not a fact about this business: never say it about them.",
+    // Ruben, 14 Nov 2026: an opening read "...The owner saw that you work across channels.", a note about the sender.
+    'Write to the business as "you" and its name; never write about the owner, the sender or yourself in the third person (never "the owner saw").',
     `At most ${OPENING_WORDS_MAX} words, one or two sentences, plain and specific, in the owner's tone. No greeting, no sign-off, no link or web address, no price, no promise, no flattery the record cannot back.`,
     `Tag it with its angle: ${ANGLE_WORDS_MAX} words or fewer naming what it leans on, such as "their reviews", "booking page" or "open late".`,
     "List in facts_used every record field your sentence relies on.",

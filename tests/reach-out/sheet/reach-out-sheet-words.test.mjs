@@ -314,7 +314,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
       },
     ],
   }).held[0];
-  assert.equal(claim.why, "The opening guesses how busy they are; we found nothing that says so");
+  assert.equal(claim.why, "The opening guesses how busy they are; nothing we read of them says so");
   assert.deepEqual(claim.opening, {
     before: "Hyde Park Bootcamp has 201 reviews, ",
     said: "clearly you're handling real volume",
