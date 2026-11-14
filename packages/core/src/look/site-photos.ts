@@ -44,11 +44,46 @@ function wholeUrl(raw: string | null | undefined, pageUrl: string): string | nul
   }
 }
 
+/** The most videos one page offers: a site's reels, its hero clip. */
+export const SITE_VIDEOS_MAX = 6;
+
+/** A video file the video platform can fetch by its address, by what the address ends in. A player's page is not one. */
+const A_VIDEO_FILE = /\.(mp4|m4v|mov|webm)(\?|#|$)/i;
+
+/** A player on another platform the page embeds: counted, never fetched (Stream cannot take a YouTube or Vimeo page). */
+const EMBEDDED_PLAYER = /(?:youtube(?:-nocookie)?\.com\/embed\/|player\.vimeo\.com\/video\/)[\w-]+/gi;
+
+/** Each `<video>` a page plays and each `<source>` it names, with the poster the `<video>` shows before it plays. */
+function videoTagsOf(html: string): { src: string | null; poster: string | null }[] {
+  const tags: { src: string | null; poster: string | null }[] = [];
+  for (const [tag] of html.matchAll(/<(?:video|source)\b[^>]*>/gi)) {
+    const a = attrsOf(tag);
+    tags.push({ src: a.src ?? a["data-src"] ?? null, poster: a.poster ?? a["data-poster"] ?? null });
+  }
+  return tags;
+}
+
+/**
+ * The videos a page plays (decision 0099 and the empty state of 14 Nov 2026): each `<video>` and `<source>` whose address is
+ * a file, made whole, each once; and how many players of other platforms it embeds, which nothing here can fetch.
+ */
+export function siteVideosFrom(html: string, pageUrl: string): { videos: string[]; embedded: number } {
+  const videos: string[] = [];
+  for (const { src } of videoTagsOf(html)) {
+    const url = wholeUrl(src, pageUrl);
+    if (url && A_VIDEO_FILE.test(url) && !videos.includes(url)) videos.push(url);
+  }
+  const embedded = new Set([...html.matchAll(EMBEDDED_PLAYER)].map((m) => m[0].toLowerCase())).size;
+  return { videos: videos.slice(0, SITE_VIDEOS_MAX), embedded };
+}
+
 export function sitePhotosFrom(html: string, pageUrl: string): string[] {
   const found: string[] = [];
+  // A video's poster is a frame of the video, which comes in as the video: not a photo of its own.
+  const posters = new Set(videoTagsOf(html).flatMap(({ poster }) => wholeUrl(poster, pageUrl) ?? []));
   const offer = (raw: string | null | undefined) => {
     const url = wholeUrl(raw, pageUrl);
-    if (url && !NOT_A_PHOTO.test(url) && !found.includes(url)) found.push(url);
+    if (url && !NOT_A_PHOTO.test(url) && !posters.has(url) && !found.includes(url)) found.push(url);
   };
   for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
     const a = attrsOf(tag);

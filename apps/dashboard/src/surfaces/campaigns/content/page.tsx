@@ -23,7 +23,6 @@ import "./content.css";
 import "./sheets/sheets.css";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  CONTENT_ROUTE,
   CONTENT_WORDS as W,
   DAY_MS,
   FILE_WORDS,
@@ -60,6 +59,7 @@ import { CmHead } from "../parts/head";
 import { CmSplit, cmGoing, useCmPhone, type CmView } from "../parts/split";
 import { useCampaignsToast } from "../home/route-toast";
 import { ContentBody, type ContentActs } from "./body";
+import { ABOUT_CONTENT } from "./model/ask-about";
 import { ContentPiece } from "./piece";
 import { MakeSheet, askIdeaOn } from "./sheets/make";
 import { askContentView, readMoreContent } from "./surface";
@@ -117,8 +117,6 @@ function useWakesForItsTime(dto: ContentPageDto | null | undefined): void {
     return () => clearTimeout(timer);
   }, [dto]);
 }
-
-const ABOUT_CONTENT = { kind: "page", id: CONTENT_ROUTE, label: W.tab } as const;
 
 /** One of the ideas, asked of Ask on this page in the language it last spoke, naming the files its row showed. */
 const askIdea = askIdeaOn(ABOUT_CONTENT);

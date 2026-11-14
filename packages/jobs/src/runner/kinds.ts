@@ -295,6 +295,19 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["source", "batch"],
     never: [],
   },
+  // An Instagram account's posts and reels (00626): a step asked again finds the run it started (its payload), and a read
+  // kept twice keeps nothing twice (file_fetch's fingerprints). Nothing waits on it but the Library's card, which the ledger
+  // tells, so the owner is told there.
+  instagram_read: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "elsewhere",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 30 * SECOND_MS,
+    ids: ["handle", "step", "try"],
+    never: [],
+  },
   // A removed file's bytes, Anthropic's copy and its row let go, or bytes that never became a file. The owner sees it gone
   // already, so a failure is ours: Health counts it, and the sweep asks again for a week.
   file_purge: {

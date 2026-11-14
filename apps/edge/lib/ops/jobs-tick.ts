@@ -26,6 +26,7 @@ import { findSmsSenderForTenant, smsWire } from "../lines/sms.js";
 import { findEmailBound, emailIntake } from "../email/email.js";
 import { mailboxIntake } from "../email/mailbox/intake.js";
 import { historyImports } from "../imports/history-import.js";
+import { instagramReader } from "../imports/instagram-read.js";
 import { websiteReader } from "../imports/website-read.js";
 import { fileJobs } from "../files/upkeep.js";
 import { postJobs } from "../instagram/post-send.js";
@@ -142,6 +143,8 @@ async function customersOf(db: SweepTick["db"], tenantIds: readonly TenantId[]):
 const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
   imports: historyImports(db),
   website: websiteReader(db),
+  // An Instagram account's posts and reels (00626), through the scraping platform's key held here.
+  instagram: instagramReader(db),
   // A business's files looked at, brought in and let go (decision 0099).
   files: fileJobs(db),
   // A post on its way to Instagram (decision 0121): the business's token is in the vault here. And one on its way to Google

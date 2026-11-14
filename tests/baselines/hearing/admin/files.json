@@ -24,9 +24,9 @@
     "lines INSERT": "settings setup today · 7 routes",
     "lines UPDATE": "settings setup today · 7 routes",
     "lines DELETE": "settings setup today · 7 routes",
-    "google_listings INSERT": "google settings setup · 9 routes",
-    "google_listings UPDATE": "google settings setup · 9 routes",
-    "google_listings DELETE": "google settings setup · 9 routes",
+    "google_listings INSERT": "files google settings setup · 10 routes",
+    "google_listings UPDATE": "files google settings setup · 10 routes",
+    "google_listings DELETE": "files google settings setup · 10 routes",
     "google_reviews INSERT": "google · 3 routes",
     "google_reviews UPDATE": "google · 3 routes",
     "billing_accounts INSERT": "billing setup today · 5 routes",
@@ -84,7 +84,7 @@
     "appointments DELETE": "calendar people settings today · 9 routes",
     "contacts INSERT": "conversations inbox today · 6 routes",
     "contacts UPDATE": "calendar conversations inbox today · 7 routes",
-    "tenant_config UPDATE": "calendar settings · 5 routes",
+    "tenant_config UPDATE": "calendar files settings · 6 routes",
     "policies INSERT": "google reach_outs settings · 8 routes",
     "policies UPDATE": "google reach_outs settings · 8 routes",
     "policies DELETE": "google reach_outs settings · 8 routes",
@@ -101,6 +101,12 @@
     "invitations INSERT": "settings setup · 6 routes",
     "invitations UPDATE": "settings setup · 6 routes",
     "invitations DELETE": "settings setup · 6 routes",
-    "tenants UPDATE": "workspace · 1 route"
+    "tenants UPDATE": "workspace · 1 route",
+    "imports INSERT": "files · 1 route",
+    "imports UPDATE": "files · 1 route",
+    "imports DELETE": "files · 1 route",
+    "business_reads INSERT": "files · 1 route",
+    "business_reads UPDATE": "files · 1 route",
+    "business_reads DELETE": "files · 1 route"
   }
 }

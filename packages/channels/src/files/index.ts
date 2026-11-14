@@ -7,6 +7,7 @@ export { readRender, readRenderBytes, startRender, stopRender } from "./machine"
 export type { RenderJob, RenderMachine, RenderState } from "./machine";
 export {
   askStreamAudio,
+  askStreamToFetch,
   deleteStreamVideo,
   fetchStreamAudio,
   fetchStreamFrame,
@@ -31,6 +32,7 @@ export type {
   StreamReserved,
   StreamSigning,
   StreamState,
+  StreamTaken,
   StreamUsage,
   StreamVideo,
 } from "./stream";

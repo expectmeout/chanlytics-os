@@ -23,6 +23,7 @@ import {
   shelfFilterOf,
   CONTENT_TODAY_PIECES,
   contentIdeaFilesOf,
+  reviewIdeaTitleOf,
   contentPieceMarkOf,
   type ContentLineDto,
   type ContentMakingDto,
@@ -56,6 +57,8 @@ import {
 import { listReviewWords } from "@chanlytics/db/google";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { cursorAsked, fileDtoOf } from "./files";
+import { readContentSources } from "../files/found";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** A post as a page reads it: a platform's refusal in the owner's words, never its code, and never its id there. */
 export function postDtoOf(row: MemberPostRow): PostDto {
@@ -212,7 +215,11 @@ async function ideaFilesOf(db: Db, tenantId: TenantId) {
     // from); a read that failed offers none, and fails no page.
     listReviewWords(db, tenantId, 1),
   ]);
-  return contentIdeaFilesOf(kept.map(fileDtoOf), { review: !reviews.error && reviews.data.length > 0 });
+  const newest = reviews.error ? null : (reviews.data[0] ?? null);
+  return contentIdeaFilesOf(kept.map(fileDtoOf), {
+    review: newest !== null,
+    reviewTitle: newest ? reviewIdeaTitleOf(newest) : null,
+  });
 }
 
 /** A page of what was made, newest first, each with its posts: All. One past the page, so its last says it is the last. */
@@ -339,6 +346,20 @@ export const contentNote: Reader<undefined, { today: ContentTodayDto }> = {
 };
 
 /**
+ * Where Ask looked for photos and videos, and what came of it (the empty state's card): read only while nothing is kept, and
+ * only on All's first page (`empty`), so a workspace with a library pays nothing for it. A read that fails says nothing.
+ */
+const readSourcesWhileEmpty = async (
+  db: Db,
+  tenantId: TenantId,
+  now: number,
+  page: { tally: ContentTally; view: string; about: string; before: string | null | undefined },
+) =>
+  page.tally.library === 0 && page.view === "all" && !page.about && !page.before
+    ? readContentSources(db, tenantId, now).catch(logAndGoOn("content: where Ask looked", null))
+    : null;
+
+/**
  * GET content, as the route answers it (Campaigns › Content), for one view of Made: All, a page of what was made here,
  * newest first, each with its posts at every place, and what is being made on its first page; Being made, the videos being
  * made and those not made this week; Needs you, the posts that stopped and the videos not made; Scheduled, the posts that
@@ -389,6 +410,7 @@ export const content: Reader<ContentAsked, ContentPageDto> = {
                   }))
                 : linesPage(db, rc.tenantId, view, request, timedAfter).then((page) => ({ ...empty, ...page })),
     ]);
-    return { data: { view, ...shown, tally }, rows: [], stamp: readerStamp() };
+    const sources = await readSourcesWhileEmpty(db, rc.tenantId, now, { tally, view, about, before: request.before });
+    return { data: { view, ...shown, tally, sources }, rows: [], stamp: readerStamp() };
   },
 };

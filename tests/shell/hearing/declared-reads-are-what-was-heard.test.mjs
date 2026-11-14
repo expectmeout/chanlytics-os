@@ -245,10 +245,13 @@ const HEARD_BEFORE = {
   // What Ask remembers (decision 0070): no record the feed carries; read where drawn.
   ask_memory: [],
   // A business's files (decision 0099): heard where the pane is drawn, so a name the look just gave shows without a press.
-  files: ["files"],
+  // And, while it holds nothing, where Ask looked for photos and videos (decision 0134): the website's read and the ledger's
+  // run, the website its settings name, and whether a listing is linked.
+  files: ["files", "imports", "business_reads", "tenant_config", "google_listings"],
   // What Ask made (decision 0125): a made piece is a file, so a video landing or a name the look gives moves its tile; and a
-  // review, which its "newest review" idea is offered from, so a first one landing offers it without a press.
-  content: ["files", "google_reviews"],
+  // review, which its "newest review" idea is offered from, so a first one landing offers it without a press. And, while
+  // nothing is kept, where Ask looked (decision 0134), as the Library hears it.
+  content: ["files", "google_reviews", "imports", "business_reads", "tenant_config", "google_listings"],
   // The drafts Ask kept for Need you's rows, read with Today's first reads (decision 0071): written and read by the rows.
   reply_drafts: ["conversation_drafts"],
   // And the person a visit is (W-person-list-lead-6): an update of them, never a person made.
@@ -336,9 +339,9 @@ const HEARD_BEFORE = {
  */
 const ON_ITS_PAGE_BEFORE = {
   // A business's files (decision 0099): nothing but Settings › Files draws them.
-  files: ["files"],
-  // What Ask made (decision 0125): nothing but Campaigns › Content draws it, nor its idea from a review.
-  content: ["files", "google_reviews"],
+  files: ["files", "imports", "business_reads", "tenant_config", "google_listings"],
+  // What Ask made (decision 0125): nothing but Campaigns › Content draws it, nor its idea from a review, nor where Ask looked.
+  content: ["files", "google_reviews", "imports", "business_reads", "tenant_config", "google_listings"],
   // What Ask noticed and the cards about a batch: heard on Today, the page that draws them (decision 0087).
   ask_morning: ["sequence_batches", "sequences", "sequence_steps"],
   people: [

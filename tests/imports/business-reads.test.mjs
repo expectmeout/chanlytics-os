@@ -133,7 +133,11 @@ test("where the site says customers book, read for what it is, and whether that 
 });
 
 test("the website's reading answers in the shape the facts are read in: every field asked for, nothing else", () => {
-  assert.deepEqual([...WEBSITE_READ_SCHEMA.required], ["services", "closed", "rules", "answers", "description"]);
+  // film: three shots to film for a video, read apart from the facts (filmShotsOf) and kept beside them.
+  assert.deepEqual(
+    [...WEBSITE_READ_SCHEMA.required],
+    ["services", "closed", "rules", "answers", "description", "film"],
+  );
   assert.equal(WEBSITE_READ_SCHEMA.additionalProperties, false);
   assert.deepEqual([...WEBSITE_READ_SCHEMA.properties.services.items.required], ["name", "price_note", "duration_min"]);
 });

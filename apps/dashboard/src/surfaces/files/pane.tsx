@@ -85,9 +85,10 @@ const BLANK_TILES = [0, 1, 2, 3, 4, 5];
 /**
  * What the head says, where it says anything: a first batch as it lands, since the tally has none of them until the list is read,
  * or what an empty page is for. Once files are here nothing: the tabs count them, and what waits says so itself (Ruben, 12 Nov
- * 2026: the count stood over the tabs that said it, and what waited was said three times).
+ * 2026: the count stood over the tabs that said it, and what waited was said three times). Where the page's own empty state
+ * stands in (`own`: Content's card, which has its own title), nothing either.
  */
-function headingOf(tally: FilesTally, going: readonly SendingPhoto[], videos: boolean): string | null {
+function headingOf(tally: FilesTally, going: readonly SendingPhoto[], videos: boolean, own: boolean): string | null {
   if (tally.total > 0) return null;
   const arrived = going.filter((p) => p.id);
   if (arrived.length > 0)
@@ -97,6 +98,7 @@ function headingOf(tally: FilesTally, going: readonly SendingPhoto[], videos: bo
       waiting: 0,
       looking: 0,
     });
+  if (own) return null;
   return videos ? W.video.emptyTitle : W.emptyTitle;
 }
 
@@ -116,12 +118,16 @@ function NothingYet({
   dropping,
   add,
   videos,
+  instead,
 }: {
   may: boolean;
   dropping: boolean;
   add: () => void;
   videos: boolean;
+  /** The page's own empty state, drawn by the wall in place of these words and its squares. */
+  instead: FilesLibraryProps["empty"];
 }) {
+  if (instead) return null;
   return (
     <div className="files-none" data-testid="fl-empty">
       <p className="files-none-says">{videos ? W.video.emptyBody : W.emptyBody}</p>
@@ -172,6 +178,12 @@ interface FilesLibraryProps {
    * grid. Nothing kept yet is the grid all the same, its empty squares where the first photos land.
    */
   rows?: ((files: readonly FileDto[], open: (id: string) => void) => ReactNode) | null;
+  /**
+   * What an empty library says in place of its own words and its empty squares, where the page that holds it knows more
+   * (Content: what Ask looked at, found-card.tsx): handed the picker's press (null where this person may not add) and
+   * whether videos are taken. Absent, its own.
+   */
+  empty?: ((p: { add: (() => void) | null; videos: boolean }) => ReactNode) | null;
 }
 
 /** The library's head: its heading where it says one, and its Add where the page's head does not hold it. */
@@ -251,10 +263,14 @@ function LibraryWall(p: {
   busy: boolean;
   /** The empty squares' own press, where nothing is kept yet and this person may add. */
   firstAdd: (() => void) | null;
+  /** The page's own empty state (FilesLibraryProps.empty), drawn here in place of the squares while nothing is kept. */
+  empty: FilesLibraryProps["empty"];
+  videos: boolean;
   flash: (f: FrameFlash) => void;
   setOpenId: (id: string | null) => void;
 }) {
   const { rows, going, flash, setOpenId } = p;
+  if (p.empty && p.total === 0 && going.length === 0) return p.empty({ add: p.firstAdd, videos: p.videos });
   if (rows && p.total > 0)
     return (
       <div ref={p.grid} aria-busy={p.busy || undefined}>
@@ -299,7 +315,7 @@ function LibraryFoot(p: { dto: FilesPageDto; more: () => void; gettingMore: bool
 
 /** The library as it stands, and what can be done to it. The shelf's read and what a press changes stand on what the page was last told. */
 function FilesLibrary(props: FilesLibraryProps) {
-  const { dto, setOpenId, flash, place = LIBRARY_IN_CONTENT, onAdder, rows = null } = props;
+  const { dto, setOpenId, flash, place = LIBRARY_IN_CONTENT, onAdder, rows = null, empty } = props;
   const { files, shelf, tally } = dto;
   const view: FilesView = { shelf, kind: dto.kind, about: dto.about };
   const sending = useSending();
@@ -320,7 +336,7 @@ function FilesLibrary(props: FilesLibraryProps) {
   const [startedEmpty] = useState(tally.total === 0);
   const shelvesOpen = useRowOpens(startedEmpty);
   const videos = useVideosTaken();
-  const heading = headingOf(tally, going, videos);
+  const heading = headingOf(tally, going, videos, Boolean(empty));
   const headingFades = useSwapMotion<HTMLHeadingElement>(heading ?? "");
   const may = canDo("settings");
   const mayAdd = canDo("add_files");
@@ -431,12 +447,14 @@ function FilesLibrary(props: FilesLibraryProps) {
           grid={grid}
           busy={pressed !== null}
           firstAdd={emptyPage && mayAdd ? add : null}
+          empty={empty}
+          videos={videos}
           flash={flash}
           setOpenId={setOpenId}
         />
       )}
       <LibraryFoot dto={dto} more={more} gettingMore={gettingMore} go={go} />
-      {emptyPage && <NothingYet may={mayAdd} dropping={dropping} add={add} videos={videos} />}
+      {emptyPage && <NothingYet may={mayAdd} dropping={dropping} add={add} videos={videos} instead={empty} />}
     </section>
   );
 }
@@ -451,11 +469,13 @@ export function LibraryInContent({
   onOpen,
   onAdder,
   rows,
+  empty,
 }: {
   flash: (f: FrameFlash) => void;
   onOpen: (id: string) => void;
   onAdder: (add: (() => void) | null) => void;
   rows: FilesLibraryProps["rows"];
+  empty?: FilesLibraryProps["empty"];
 }) {
   const held = useSurface("files");
   if (held === undefined)
@@ -482,6 +502,7 @@ export function LibraryInContent({
       place={LIBRARY_IN_CONTENT}
       onAdder={onAdder}
       rows={rows}
+      empty={empty}
     />
   );
 }

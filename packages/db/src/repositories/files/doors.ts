@@ -242,14 +242,53 @@ export async function beginFileVideo(
     ...(video.actor ? { p_actor: video.actor } : {}),
   });
   if (error) throw new DbFailure(error, "file video begin");
+  return videoFateOf(data, "file video begin");
+}
+
+/** A video door's answer, read: its fate, the row, and the reservation a row kept earlier holds. */
+function videoFateOf(data: unknown, doing: string): VideoFate {
   const answer = recordOrEmpty(data);
   if (answer.fate !== "kept" && answer.fate !== "here" && answer.fate !== "full" && answer.fate !== "minutes")
-    throw new Error("file video begin: no fate answered");
+    throw new Error(`${doing}: no fate answered`);
   return {
     fate: answer.fate,
     file_id: typeof answer.file_id === "string" ? answer.file_id : null,
     media_ref: typeof answer.media_ref === "string" ? answer.media_ref : null,
   };
+}
+
+/**
+ * A found video on its way (00626), once the video platform is fetching it from its address: the row, uploading, at its
+ * road's status (inbox, or filed for a connected profile). Its twin is by `fingerprint`, the road's name for it hashed, since
+ * its bytes are never ours. The service role's; asked twice it answers the same.
+ */
+export async function recordVideoFound(
+  db: Db,
+  video: {
+    tenantId: TenantId;
+    id: string;
+    mediaRef: string;
+    status: "inbox" | "filed";
+    source: string;
+    sourceRef: string;
+    name: string;
+    mime: string;
+    fingerprint: string;
+  },
+): Promise<VideoFate> {
+  const { data, error } = await db.rpc("file_video_found", {
+    p_tenant_id: video.tenantId,
+    p_id: video.id,
+    p_media_ref: video.mediaRef,
+    p_status: video.status,
+    p_source: video.source,
+    p_source_ref: video.sourceRef,
+    p_name: video.name,
+    p_mime: video.mime,
+    p_fingerprint: video.fingerprint,
+  });
+  if (error) throw new DbFailure(error, "file video found");
+  return videoFateOf(data, "file video found");
 }
 
 /** A video's bytes have all gone: its tile says it is being made ready. Only from uploading. */

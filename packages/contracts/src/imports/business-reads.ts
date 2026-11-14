@@ -9,6 +9,7 @@ import { DATA_NOT_INSTRUCTIONS } from "../ai/fence";
 import { sameListed } from "../calendar/service-offer";
 import { bookingPageOf } from "../google/booking-page";
 import { DAY_KEY } from "../shared/zone/day-keys";
+import { isObjectRecord } from "../shared/unknown";
 
 export const BUSINESS_READ_SOURCES = ["google_profile", "website"] as const;
 export type BusinessReadSource = (typeof BUSINESS_READ_SOURCES)[number];
@@ -217,13 +218,14 @@ export const WEBSITE_READ_SYSTEM = [
   "rules: booking rules in a short sentence each (a deposit, cancelling or rescheduling, arriving late, age, what to bring).",
   "answers: questions the pages answer, each the question and its answer in a sentence or two.",
   "description: one short paragraph of what the business says of itself, in its own words, or null.",
+  "film: three short clips its owner could film on a phone to show what the pages say the business does, each what (the shot, a few words) and how (where to stand or how long, a few words). Never a face up close. Empty where the pages say too little.",
 ].join("\n");
 
 /** The JSON schema the reading answers in (Anthropic's structured output), the shape businessReadFactsOf reads. */
 export const WEBSITE_READ_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["services", "closed", "rules", "answers", "description"],
+  required: ["services", "closed", "rules", "answers", "description", "film"],
   properties: {
     services: {
       type: "array",
@@ -258,8 +260,40 @@ export const WEBSITE_READ_SCHEMA = {
       },
     },
     description: { type: ["string", "null"] },
+    film: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["what", "how"],
+        properties: { what: { type: "string" }, how: { type: "string" } },
+      },
+    },
   },
 } as const;
+
+/** One clip to film, as the website's read wrote it for this business (Content's empty state: "For a video, film these three"). */
+export interface FilmShot {
+  what: string;
+  how: string;
+}
+
+/** The most shots a read keeps. */
+const FILM_SHOTS_MAX = 3;
+
+/** The shots a read's answer wrote, cleaned and at most FILM_SHOTS_MAX; none where it wrote none. */
+export function filmShotsOf(raw: unknown): FilmShot[] {
+  const film = isObjectRecord(raw) ? raw.film : null;
+  if (!Array.isArray(film)) return [];
+  return film
+    .flatMap((x) => {
+      const shot = isObjectRecord(x) ? x : {};
+      const subject = cleanText(shot.what, 80);
+      const way = cleanText(shot.how, 80);
+      return subject && way ? [{ what: subject, how: way }] : [];
+    })
+    .slice(0, FILM_SHOTS_MAX);
+}
 
 /** Why a website could not be read, said at Check. */
 export const WEBSITE_UNREAD_WORDS = {

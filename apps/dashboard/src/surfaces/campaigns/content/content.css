@@ -1286,3 +1286,182 @@
   font-weight: var(--weight-semibold);
   color: var(--ink-muted);
 }
+
+/* The empty state (14 Nov 2026, the canvas "Content empty state"): what Ask looked at, a line a place, then the one line to
+   Ask for a link and the phone's own adding. The card is the first day's raised card; its marks are the tiles' own dots. */
+.cnv-found {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 8px 0 24px;
+  padding: 20px 16px 16px;
+}
+.cnv-found-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.cnv-found-three {
+  display: inline-flex;
+  flex: none;
+  color: var(--ink);
+}
+.cnv-found-three .files-looking {
+  position: relative;
+  top: auto;
+  right: auto;
+  width: 30px;
+  height: 30px;
+}
+.cnv-found-said {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.cnv-found-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+.cnv-found-body {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-dim);
+}
+.cnv-found-lines {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+}
+.cnv-found-line {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 50px;
+  padding: 8px 12px 8px 10px;
+  border-top: 1px solid var(--line);
+}
+.cnv-found-line:first-child {
+  border-top: 0;
+}
+.cnv-found-glyph {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  background: var(--line);
+  color: var(--ink-dim);
+}
+.cnv-found-words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cnv-found-words b {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cnv-found-words span,
+.cnv-found-hint,
+.cnv-found-or {
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+}
+.cnv-found-status {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.cnv-found-dot.cnv-stands {
+  position: static;
+  width: auto;
+  height: auto;
+  background: none;
+}
+.cnv-found-dot .cnv-stands-dot {
+  width: 7px;
+  height: 7px;
+}
+.cnv-found-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cnv-found-hint {
+  margin: 0;
+  padding: 0 14px;
+}
+.cnv-found-or {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+}
+.cnv-found-or::before,
+.cnv-found-or::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--line);
+}
+
+/* What to film for a video, as the website's read wrote it: three numbered lines in the card's own quiet list. */
+.cnv-found-film {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cnv-found-film-head {
+  margin: 0;
+  padding: 2px 2px 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.cnv-found-shots {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+}
+.cnv-found-shot {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+}
+.cnv-found-shot:first-child {
+  border-top: 0;
+}
+.cnv-found-n {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  background: var(--line);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}

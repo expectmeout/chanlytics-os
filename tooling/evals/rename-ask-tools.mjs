@@ -43,6 +43,7 @@ export const ADDED_SINCE = [
   "people.winners",
   "press_card.stop",
   "press_card.yes",
+  "propose_bring_in",
   "propose_call.hand_over",
   "propose_follow_up.clear",
   "propose_follow_up.keep",

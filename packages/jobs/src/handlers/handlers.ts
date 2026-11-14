@@ -403,6 +403,12 @@ async function fileFetch(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await ctx.files.fetch(job, ctx.deadline);
 }
 
+/** instagram_read: an Instagram account's posts and reels, one step a run (00626). payload: { handle, step, try, run_id? } */
+async function instagramRead(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.instagram) throw new Error("instagram_read: this runtime holds no Instagram reader");
+  await ctx.instagram.read(job, ctx.deadline);
+}
+
 /** file_purge: a removed file's bytes and Anthropic's copy of it let go (00551). payload: { file_id } */
 async function filePurge(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.files) throw new Error("file_purge: this runtime holds no file reader");
@@ -532,6 +538,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   erasure_finish: finishErasure,
   file_look: fileLook,
   file_fetch: fileFetch,
+  instagram_read: instagramRead,
   file_purge: filePurge,
   video_digest: videoDigest,
   post_prepare: postPrepare,

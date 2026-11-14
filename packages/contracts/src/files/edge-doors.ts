@@ -61,6 +61,16 @@ export const FILE_VIDEO_START_DOOR = edgeDoor(
   answerFields({ fate: z.string(), upload_url: z.string(), file_id: z.string() }),
 );
 
+/**
+ * POST /api/admin/files/bring-in: a link the owner's card brought in (content/bring-in.ts): its website read again for its
+ * photos and videos, or its Instagram's posts and reels; each waits in the Library for a Keep.
+ */
+export const FILE_BRING_IN_DOOR = edgeDoor(
+  "/api/admin/files/bring-in",
+  z.object({ tenant_id: DOOR_ID.optional(), link: z.string().max(500) }),
+  answerFields({ fate: z.string() }),
+);
+
 /** POST /api/admin/files/play: the player's address for one video, under a token for an hour. */
 export const FILE_PLAY_DOOR = edgeDoor(
   "/api/admin/files/play",

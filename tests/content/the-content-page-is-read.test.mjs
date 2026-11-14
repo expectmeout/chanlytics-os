@@ -144,7 +144,23 @@ const NOTHING = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0, library
 /** With nothing kept, no idea has what it is made from: none is offered (contracts contentIdeasReady). */
 const IDEAS_NONE = ["before_after", "review", "video", "photo_post"].map((key) => ({ key, files: [], ready: false }));
 
-test("a workspace that made nothing reads an empty page, and says so in numbers", async () => {
+/** Where Ask looked, with nothing known anywhere (contracts content/sources.ts): each place unnamed and never read. */
+const NOWHERE = {
+  places: ["website", "google_listing", "instagram"].map((place) => ({
+    place,
+    address: null,
+    reading: false,
+    reading_until: null,
+    read_at: null,
+    photos: 0,
+    videos: 0,
+    seen: null,
+    unread: null,
+  })),
+  film: [],
+};
+
+test("a workspace that made nothing reads an empty page, says so in numbers, and where Ask looked", async () => {
   const { body } = await read({});
   assert.deepEqual(body, {
     view: "all",
@@ -155,7 +171,34 @@ test("a workspace that made nothing reads an empty page, and says so in numbers"
     ideas: IDEAS_NONE,
     about: null,
     tally: NOTHING,
+    sources: NOWHERE,
   });
+});
+
+test("a place is read for half an hour after its run started and no longer, and says until when", async () => {
+  /** A run of a road's photos and videos, started `minutes` ago and on its way still. */
+  const run = (source, minutes) => ({
+    tenant_id: A,
+    source,
+    connection_id: null,
+    state: "running",
+    counts: {},
+    parts_done: 0,
+    parts_total: null,
+    oldest: null,
+    started_at: minutesAgo(minutes),
+    finished_at: null,
+    last_error: null,
+    via: source === "instagram" ? "harborsalon" : null,
+  });
+  const { body } = await read({ imports: [run("website_media", 10), run("instagram", 40)] });
+  const [website, , instagram] = body.sources.places;
+  assert.equal(website.reading, true);
+  // The page reads itself again as the half hour ends, where no notice told it the run had ended (found-card.tsx).
+  assert.equal(website.reading_until, new Date(Date.parse(minutesAgo(10)) + 30 * MIN_MS).toISOString());
+  // A run that has said nothing for longer died: no "Looking", and nothing to wait for.
+  assert.equal(instagram.reading, false);
+  assert.equal(instagram.reading_until, null);
 });
 
 test("what was made comes newest first, each with its own posts, and nothing that is not made here", async () => {

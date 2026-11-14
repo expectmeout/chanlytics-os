@@ -85,5 +85,12 @@ test("what nothing catches is few, and small: each kind on the list costs a pers
     .filter(([, row]) => row.lost)
     .map(([writer]) => writer.split("|")[1])
     .sort();
-  assert.deepEqual(lost, ["erasure_finish", "push_receipts", "push_send", "push_send", "website_read"]);
+  assert.deepEqual(lost, [
+    "erasure_finish",
+    "instagram_read",
+    "push_receipts",
+    "push_send",
+    "push_send",
+    "website_read",
+  ]);
 });

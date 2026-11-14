@@ -9022,6 +9022,20 @@ export type Database = {
         }
         Returns: Json
       }
+      file_video_found: {
+        Args: {
+          p_fingerprint: string
+          p_id: string
+          p_media_ref: string
+          p_mime: string
+          p_name: string
+          p_source: string
+          p_source_ref: string
+          p_status: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       files_found: {
         Args: {
           p_limit: number
