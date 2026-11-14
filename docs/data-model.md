@@ -71,7 +71,7 @@ what the script writes.
 | [`lead_platform`](#lead_platform) | `packages/db/src/repositories/leads/leads.ts` | on, no policy, so only the service role reaches it |
 | [`lead_preferences`](#lead_preferences) | none | on, 1 policy |
 | [`lead_previews`](#lead_previews) | `packages/db/src/repositories/campaigns/lead-previews.ts` | on, 1 policy |
-| [`lead_rounds`](#lead_rounds) | `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/leads/sweep.ts` | on, 1 policy |
+| [`lead_rounds`](#lead_rounds) | `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/leads/sweep.ts`, `packages/db/src/repositories/leads/workbench.ts` | on, 1 policy |
 | [`lead_runs`](#lead_runs) | `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/sweep.ts` | on, 1 policy |
 | [`lead_search_members`](#lead_search_members) | `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/workbench.ts` | on, 1 policy |
 | [`lead_searches`](#lead_searches) | `packages/db/src/repositories/campaigns/reach-out/leads.ts`, `packages/db/src/repositories/campaigns/reach-out/sheet.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/workbench.ts` | on, 1 policy |
@@ -1835,7 +1835,7 @@ Foreign keys:
 
 The unit of execution and of money: the probe (seq 1), each top-up and each Find new ones. Carries the plan it ran, its reservation and spend, one ending; final once ended (lead_rounds_guard). The search's state is its latest round's.
 
-- Owned by: `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/leads/sweep.ts`
+- Owned by: `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/leads/sweep.ts`, `packages/db/src/repositories/leads/workbench.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

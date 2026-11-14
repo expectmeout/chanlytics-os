@@ -11,6 +11,8 @@ import {
   leadPlanLikely,
   planCeiling,
   planMinutesSaid,
+  planReachChoices,
+  planReachSaid,
   planVersionOf,
   planWhere,
   planWords,
@@ -46,12 +48,13 @@ function planOptions(
     const choices: readonly number[] = LEAD_COUNT_CHOICES || [50, 100, 200, 500];
     const counts = choices.includes(plan.count) ? [...choices] : [...choices, plan.count].sort((a, b) => a - b);
     // A count one area cannot hold says so, rather than quoting a time it will not take: five real searches all ended
-    // "few new matches" short of 50, because three terms return the same places.
+    // "few new matches" short of 50, because three terms return the same places. A search that looks further out by
+    // itself (decision 0133) is not held to one area.
     return counts.map((n) => ({
       id: String(n),
       label: String(n),
       note:
-        planCeiling && n > planCeiling(plan)
+        !f.widens && planCeiling && n > planCeiling(plan)
           ? "more than this area likely holds"
           : `about ${planMinutesSaid({ ...plan, count: n }, "min")}`,
       on: n === plan.count,
@@ -66,12 +69,22 @@ function planOptions(
       apply: () => change({ area: a }),
     }));
   }
+  if (id === "reach") {
+    // How far a search that widens by itself looks (decision 0133): only the card's area, or so many miles from it.
+    return planReachChoices(plan).map((choice) => ({
+      id: String(choice.miles),
+      label: choice.label,
+      on: choice.on,
+      apply: () => change({ reach_m: choice.reachM }),
+    }));
+  }
   if (id === "contact") {
     return [
-      // Which way to reach them comes first (decision 0010): either one checked makes a lead count.
+      // Which way to reach them comes first (decision 0010). An email search counts a checked email alone (#2321); a phone
+      // search, a valid number or a checked email.
       {
         id: "email",
-        label: "reached by a checked email or a phone",
+        label: "reached by a checked email",
         on: plan.contact === "email",
         apply: () => change({ contact: "email" }),
       },
@@ -102,6 +115,7 @@ const PICK_TITLES: Record<string, string> = {
   who: "Change who you want",
   area: "Change where to look",
   contact: "Change what to find",
+  reach: "Change how far",
 };
 
 /** What a picker's step is called on a phone's sheet (scope.tsx), the title a desk's picker carries on hover. */
@@ -137,6 +151,37 @@ function planSentenceOf(
       />
     );
   });
+}
+
+/**
+ * How far the search looks (decision 0133), where it widens by itself: "Looks in Brooklyn first, then nearby, up to 25
+ * miles away", and the picker that changes it. Nothing where it does not: a card says no reach a search will not take.
+ */
+function reachRow(
+  plan: LeadSearchPlan,
+  facts: LeadPlanFacts,
+  opts: {
+    pick: string | null;
+    onPick: (pick: string | null) => void;
+    change: (over: PlanPatch) => void;
+    inline: boolean;
+  },
+) {
+  if (!facts.widens) return null;
+  return (
+    <p className="lf-reach" data-testid="plan-reach-line">
+      <span>{planReachSaid(plan)}</span>{" "}
+      <LeadPick
+        id="reach"
+        label={PICK_TITLES.reach ?? "Change how far"}
+        open={opts.pick === "reach"}
+        inline={opts.inline}
+        options={planOptions("reach", plan, facts, opts.change)}
+        onOpen={opts.onPick}
+        onPick={(option) => option.apply()}
+      />
+    </p>
+  );
 }
 
 /** What the plan leaves out, each a chip that keeps it. */
@@ -247,6 +292,7 @@ export const LeadPlanCard = ({
         </span>
       ) : null}
       {plan.exclusions.length ? leavingRow(plan, change) : null}
+      {answering ? null : reachRow(plan, f, { pick, onPick, change, inline: !asSteps })}
       <div className="lf-likely" data-testid="plan-likely">
         {likely.emailPct === null ? null : (
           <span className="bar" aria-hidden="true">

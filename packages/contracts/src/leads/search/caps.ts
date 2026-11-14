@@ -53,6 +53,8 @@ export const LEAD_REACH_MILE_M = 1_609;
  * from a city's centre, 15 from a ZIP's; a circle looks out to twice its radius.
  */
 export const LEAD_REACH_DEFAULT_MILES = { city: 25, zip: 15 } as const;
+/** What the card's "how far" offers, in miles (decision 0133): 0 is only the area on the card. */
+export const LEAD_REACH_CHOICE_MILES = [0, 10, 25, 50] as const;
 /** The farthest an owner may ask a search to look: 50 miles. */
 export const LEAD_REACH_MAX_M = 50 * LEAD_REACH_MILE_M;
 

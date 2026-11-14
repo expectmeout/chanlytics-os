@@ -27,6 +27,7 @@ import {
   findSearchCard,
   findSearchScope,
   listLeadCardsLive,
+  listRoundAreas,
   listSearchCards,
   readLeadListCounts,
   removeLeadSearch,
@@ -318,6 +319,27 @@ export function toSearchDto(searchView: SearchViewRow): LeadSearchDto {
   };
 }
 
+/**
+ * The area each search's latest round reads where that round is a leg (decision 0133), by round: the view carries the
+ * search's own plan, and a leg's is the next area out. Read only where a search has one.
+ */
+async function legAreasOf(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: TenantId,
+  rows: readonly SearchViewRow[],
+): Promise<Map<string, LeadArea>> {
+  const ids = rows.flatMap((r) => (r.purpose === "widen" && r.round_id ? [r.round_id] : []));
+  if (!ids.length) return new Map();
+  const { data, error } = await listRoundAreas(ctx.supabase, tenantId, ids);
+  if (error) throw new DbFailure(error, "cannot read the areas a search's legs read");
+  return new Map(
+    data.flatMap((x) => {
+      const area = nearbyOf([x.area])[0];
+      return area ? [[x.id, area] as const] : [];
+    }),
+  );
+}
+
 /** Every kept search with its latest round, and the rail's counts: one read of each. */
 export async function getSearches(
   ctx: Pick<RouteContext, "supabase">,
@@ -329,7 +351,13 @@ export async function getSearches(
     // Which cards find leads now (00430): what the rail, the first day and Ask may offer. Unread, the Maps card alone.
     listLeadCardsLive(ctx.supabase).catch(() => ["local_businesses"]),
   ]);
-  return { searches: rows.map(toSearchDto), counts, cards_live: live };
+  const legs = await legAreasOf(ctx, tenantId, rows);
+  const searches = rows.map((row) => {
+    const dto = toSearchDto(row);
+    const area = legs.get(row.round_id ?? "");
+    return area && dto.round ? { ...dto, round: { ...dto.round, area } } : dto;
+  });
+  return { searches, counts, cards_live: live };
 }
 
 /* --------------------------------------------------------- a search, kept */

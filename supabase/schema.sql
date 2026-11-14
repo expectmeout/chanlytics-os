@@ -11582,7 +11582,7 @@ begin
   -- between them. A month with fewer leads left than the count still wants gives the leg what is left; the day's or the
   -- month's searching used ends the search in its own words.
   if p_ending in ('few_new_matches', 'searched_everything')
-     and exists (select 1 from public.lead_platform p where p.id and (p.widen_on or r.tenant_id = any (p.widen_tenants))) then
+     and public.lead_search_widens(r.tenant_id) then
     select * into s from public.lead_searches where id = r.search_id;
     if s.removed_at is null and s.via in ('ask', 'people') and coalesce(s.plan->>'card', '') = 'local_businesses'
        and not exists (select 1 from public.lead_rounds x where x.search_id = r.search_id and x.seq > r.seq) then
@@ -11985,6 +11985,7 @@ CREATE FUNCTION public.lead_rounds_notify() RETURNS trigger
 declare
   v_name text;
   v_via  text;
+  v_want integer;
   v_n    integer;
   v_seen boolean;
   v_wide boolean;
@@ -11995,7 +11996,8 @@ begin
   if OLD.state = 'waiting_on_owner' and NEW.state is distinct from 'waiting_on_owner' then
     perform public.notifications_close_about(NEW.tenant_id, array['leads_question'], 'lead_round', NEW.id::text);
   end if;
-  select s.name, s.via into v_name, v_via from public.lead_searches s where s.id = NEW.search_id;
+  select s.name, s.via, (s.plan->>'count')::integer into v_name, v_via, v_want
+    from public.lead_searches s where s.id = NEW.search_id;
   if v_name is null then return null; end if;
   -- A list: a file rings once its check ran; a choice never rings (00242).
   if v_via = 'chosen' or (v_via = 'import' and coalesce(OLD.state, '') <> 'checking') then return null; end if;
@@ -12012,7 +12014,8 @@ begin
     -- found (decision 0133).
     select exists (select 1 from public.lead_rounds x where x.search_id = NEW.search_id and x.purpose = 'widen') into v_wide;
     select count(*)::integer into v_n from public.lead_search_members m
-     where (m.round_id = NEW.id or (v_wide and m.search_id = NEW.search_id)) and m.class = 'qualified' and m.blanked_at is null;
+     where (m.round_id = NEW.id or (v_wide and m.search_id = NEW.search_id)) and m.class = 'qualified' and m.blanked_at is null
+       and (v_via = 'import' or public.lead_member_shown(m.class, m.counted));
     -- Whether the source returned anything at all, in any class: the strip's "seen" (00491).
     select exists (select 1 from public.lead_search_members m where m.round_id = NEW.id) into v_seen;
     insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id)
@@ -12028,8 +12031,16 @@ begin
                   left('Your search for ' || v_name || ' stopped: the source stopped answering', 200)
                 when NEW.ending = 'day_used' then
                   left('Your search for ' || v_name || ' stopped: today''s searching is used up', 200)
+                when NEW.ending = 'month_leads_used' then
+                  left('Your search for ' || v_name || ' stopped: this month''s leads are used', 200)
+                when NEW.ending = 'budget_used' then
+                  left('Your search for ' || v_name || ' stopped: this month''s searching is used up', 200)
+                when NEW.ending = 'reach_searched' and v_want is not null then
+                  left('Your search for ' || v_name || ' found ' || v_n || ' of ' || v_want, 200)
                 else left('Your search for ' || v_name || ' is done', 200) end,
-           case when v_via <> 'import' then case when v_n > 0 then v_n || ' found.' else 'Nothing new was counted.' end
+           case when v_via <> 'import' and NEW.ending = 'reach_searched' then
+                  'Every area within reach was searched, and no more that fit were found.'
+                when v_via <> 'import' then case when v_n > 0 then v_n || ' found.' else 'Nothing new was counted.' end
                 when NEW.ending not in ('target_reached', 'searched_everything') then 'Its addresses wait in Needs review.'
                 when v_n > 0 then v_n || ' have a checked address.' else 'None of the addresses checked out.' end,
            'clients/leads:s-' || NEW.search_id::text, 'lead_round', NEW.id::text
@@ -12983,6 +12994,25 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.lead_search_undo(p_search_id uuid) IS 'Owner (permission find). The Done strip''s Undo, for twenty-four hours after a round ends (§8.6): every lead of that round nobody has touched leaves the search, and the ones that counted go back to the allowance of the month they counted in (S11), except a lead exported or copied, which leaves but keeps its charge (§0.2). Touched is read off the work: the stage moved, a person was made, a call or an email was recorded, a number was marked wrong, or the membership was kept, put back or excluded by hand. Writes one undo_search operation so the toast can put it back through lead_undo. {error: removed | running | too_late} when it cannot.';
+
+
+--
+-- Name: lead_search_widens(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_search_widens(p_tenant_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select coalesce((select p.widen_on or p_tenant_id = any (p.widen_tenants) from public.lead_platform p where p.id), false)
+$$;
+
+
+--
+-- Name: FUNCTION lead_search_widens(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_search_widens(p_tenant_id uuid) IS 'Whether this workspace''s searches widen until their count (decision 0133): lead_platform.widen_on, or the workspace named in widen_tenants. lead_round_end reads it before it opens a leg, and the plan card before it says how far a search looks.';
 
 
 --
@@ -54458,6 +54488,15 @@ GRANT ALL ON FUNCTION public.lead_search_rename(p_search_id uuid, p_name text) T
 REVOKE ALL ON FUNCTION public.lead_search_undo(p_search_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_search_undo(p_search_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.lead_search_undo(p_search_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_search_widens(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_search_widens(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_search_widens(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_search_widens(p_tenant_id uuid) TO service_role;
 
 
 --

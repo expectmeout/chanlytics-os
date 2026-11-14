@@ -109,6 +109,10 @@ export interface LeadEndingFacts {
   /** How many places the source returned at all, and what left them all out. */
   seen: number;
   leftOutBy: string | null;
+  /** reach_searched: how far the search looked, in miles (decision 0133, planReachMiles); absent says "within reach". */
+  reachMiles?: number;
+  /** month_leads_used: the day the month's leads renew, in the workspace's zone ("Dec 1"); absent says nothing of it. */
+  renewsOn?: string;
 }
 
 export interface LeadEndingLine {
@@ -150,6 +154,21 @@ export function leadEndingFound(ending: LeadRoundEnding, leadEndingFacts: Pick<L
   );
 }
 
+/** What was left out, said only where the search shows it (a list of the owner's own): a search passes none (0133). */
+const leftOutPart = (f: LeadEndingFacts): string[] => (f.excluded > 0 ? [`${f.excluded} left out`] : []);
+
+/** The day the month's leads renew, where the caller knows it. */
+const renewalPart = (f: LeadEndingFacts): string[] => (f.renewsOn ? [`your leads renew on ${f.renewsOn}`] : []);
+
+/**
+ * What a search that widened says it read (decision 0133): the areas within its reach, never that no more exist (an
+ * outside review taken 14 Nov 2026), and that what it did not find is not counted and stays the owner's this month.
+ */
+const reachParts = (f: LeadEndingFacts): string[] => [
+  `every area within ${f.reachMiles ? `${f.reachMiles} miles` : "reach"} was searched, and no more that fit were found`,
+  ...(f.target > f.counted ? [`the other ${f.target - f.counted} stay yours this month`] : []),
+];
+
 /**
  * Every ending, said once (§8.8, the States artboard): what happened, what was
  * kept, what was counted, and one next step. Two shapes only -- "Found N ..."
@@ -170,10 +189,12 @@ export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEnd
       return {
         mark,
         title: `Found ${leadEndingFacts.counted} ${leadEndingFacts.name}`,
+        // What was left out is said only where the search shows it (a list of the owner's own): a search the finder ran
+        // passes none, and says its finished leads alone (decision 0133).
         parts: [
           `${leadEndingFacts.emails} you can email`,
           `${leadEndingFacts.phones} by phone`,
-          `${leadEndingFacts.excluded} left out`,
+          ...leftOutPart(leadEndingFacts),
         ],
         step:
           leadEndingFacts.excluded > 0
@@ -204,7 +225,7 @@ export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEnd
       return {
         mark,
         title: `Stopped at ${leadEndingFacts.counted}`,
-        parts: ["this month's leads are used", yours],
+        parts: ["this month's leads are used", yours, ...renewalPart(leadEndingFacts)],
         step: null,
       };
     case "budget_used":
@@ -277,10 +298,7 @@ export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEnd
       return {
         mark,
         title: `Found ${leadEndingFacts.counted} of ${leadEndingFacts.target} ${leadEndingFacts.name}`,
-        parts: [
-          "every area within reach was searched, and no more that fit were found",
-          ...(leadEndingFacts.counted > 0 ? [yours] : []),
-        ],
+        parts: reachParts(leadEndingFacts),
         step: null,
       };
     // Decision 0133: its next leg would have passed the day's searching, which renews tomorrow.

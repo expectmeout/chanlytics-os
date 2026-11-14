@@ -9553,6 +9553,7 @@ export type Database = {
         Returns: Json
       }
       lead_search_undo: { Args: { p_search_id: string }; Returns: Json }
+      lead_search_widens: { Args: { p_tenant_id: string }; Returns: boolean }
       lead_searches_on: { Args: { p_tenant_id: string }; Returns: boolean }
       lead_set_stage: {
         Args: {

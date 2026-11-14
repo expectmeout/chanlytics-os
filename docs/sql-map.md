@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 184 | 184 |
+| door | 185 | 185 |
 | reader | 77 | 0 |
 | the server's | 338 | 293 |
 | computed column | 3 | 0 |
 | trigger | 101 | 71 |
-| all | 703 | 548 |
+| all | 704 | 549 |
 
 ## Called by nothing
 
@@ -259,7 +259,7 @@ being read is dropped by a migration.
 | `lead_member_move` | the server's | the server | SQL `lead_bulk`, `lead_member_exclude` and 2 more | The body of lead_member_keep, lead_member_exclude and lead_member_put_back: |
 | `lead_member_of` | reader | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | The membership of one lead the Leads page would show (lead_member_shown, not blanked): |
 | `lead_member_put_back` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/search-acts.ts` | Owner (permission find). |
-| `lead_member_shown` | reader | a signed-in person, the server | SQL `lead_member_of`, `lead_pile_counts` and 1 more; in `CREATE VIEW public.lead_searches_view` | Whether the Leads page shows a membership of this class: |
+| `lead_member_shown` | reader | a signed-in person, the server | SQL `lead_member_of`, `lead_pile_counts` and 2 more; in `CREATE VIEW public.lead_searches_view` | Whether the Leads page shows a membership of this class: |
 | `lead_month` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 11 more | The workspace's calendar month of an instant, YYYY-MM, in tenants.timezone: |
 | `lead_month_used` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | What this workspace has used and reserved of the month's two ceilings, as {allowance: |
 | `lead_name_key` | the server's | the server | SQL `reach_out_record` |  |
@@ -297,6 +297,7 @@ being read is dropped by a migration.
 | `lead_search_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | Owner. Removes a search: |
 | `lead_search_rename` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | Operator. Renames a search; |
 | `lead_search_undo` | door | a signed-in person, the server | code `apps/dashboard/src/surfaces/leads/surface.ts`, `packages/db/src/repositories/leads/workbench.ts` | Owner (permission find). |
+| `lead_search_widens` | door | a signed-in person, the server | code `apps/dashboard/src/server/leads/page-read.ts`, `apps/dashboard/src/server/leads/plan-facts.ts` and 1 more; SQL `lead_round_end` | Whether this workspace's searches widen until their count (decision 0133): |
 | `lead_searches_on` | the server's | the server | code `apps/dashboard/src/server/leads/plan-facts.ts`, `apps/edge/lib/leads/db.ts`; SQL `lead_addressee_choose`, `lead_check_again` and 6 more | Whether this workspace may search: |
 | `lead_set_stage` | door | a signed-in person, the server | code `packages/contracts/src/people/person-page/call.ts`, `packages/db/src/repositories/leads/workbench.ts`; SQL `person_call_logged`, `reach_out_send_decide` | Operator. The one door for a lead's stage, its six call outcomes, "Did you send it?" and Not a fit. |
 | `lead_settle_usage` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 2 more | A run's new usage, settled against the month's budget and both day counters -- the round's own day and the platform_day it reserved in: |

@@ -28,7 +28,7 @@ import {
   DbFailure,
 } from "@chanlytics/contracts";
 import { getLeadPileCounts, listSequencePlaces } from "@chanlytics/db/campaigns";
-import { getLeadViewCounts, listSearchNames, readLeadOne, readLeadsPage } from "@chanlytics/db/leads";
+import { findSearchWidens, getLeadViewCounts, listSearchNames, readLeadOne, readLeadsPage } from "@chanlytics/db/leads";
 import { readMonthUsed, renewsOnOf } from "./allowance";
 import { listSearchCounts } from "./searches";
 import { getTenantFacts } from "../shared/tenant";
@@ -361,9 +361,13 @@ async function monthStanding(
   now: Date = new Date(),
 ): Promise<LeadMonthDto> {
   const { timezone } = await getTenantFacts(ctx.supabase, tenantId);
-  const used = await readMonthUsed(ctx, tenantId, leadMonth(timezone, now));
+  const [used, widens] = await Promise.all([
+    readMonthUsed(ctx, tenantId, leadMonth(timezone, now)),
+    // Unread, the card says no reach: it says only what a search will surely do (decision 0133).
+    findSearchWidens(ctx.supabase, tenantId).catch(logAndGoOn("lead_search_widens", false)),
+  ]);
   const left = Math.max(0, used.cap - used.allowance);
-  return { used: used.cap - left, left, renewsOn: renewsOnOf(timezone, now) };
+  return { used: used.cap - left, left, renewsOn: renewsOnOf(timezone, now), widens };
 }
 
 /**

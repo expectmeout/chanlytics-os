@@ -14,6 +14,7 @@ import {
   peopleWho,
   planArea,
   planMinutes,
+  planReachMiles,
   planWhere,
   planWho,
   type LeadPeoplePlan,
@@ -44,18 +45,30 @@ type Round = NonNullable<LeadSearchDto["round"]>;
 /** A places search with its round: what every reader below the people branch is handed. */
 type PlacesSearch = LeadSearchDto & { round: Round; plan: LeadSearchPlan };
 
+/**
+ * What the search is counting to: what the owner asked for, never the first 25 the probe sizes the round with (Ruben, 14
+ * Nov 2026: asked for 300, the strip said "0 of 25"), nor what a leg still wants (decision 0133: its count runs across
+ * every leg, so 120 found before it is 120 of 300, never of the 180 left); a top-up's own count is its target.
+ */
+const ldGoal = (r: Round, plan: LeadSearchPlan): number =>
+  r.purpose === "probe" ? Math.max(r.target, plan.count) : r.purpose === "widen" ? plan.count : r.target;
+
 /** What leadEndingLine needs, read off the search's latest round and its plan. */
-const ldEndingFacts = (s: PlacesSearch, nearby: readonly string[]) => {
+const ldEndingFacts = (s: PlacesSearch, nearby: readonly string[], renewsOn: string | null) => {
   const r = s.round;
   const only = s.plan.exclusions.length === 1 && s.plan.exclusions[0] ? ldLowerFirst(s.plan.exclusions[0].text) : null;
   return {
     name: planWho(s.plan),
     area: planArea(s.plan.area),
     counted: r.counted,
-    target: r.target,
+    target: ldGoal(r, s.plan),
     emails: r.emails_checked,
     phones: r.with_phone,
-    excluded: r.excluded,
+    // A search the finder ran shows its finished leads alone (decision 0133): what it set aside is ours, never a pile or a
+    // number of its ending. A list of the owner's own draws its own strip (lists.stripOf).
+    excluded: 0,
+    reachMiles: planReachMiles(s.plan),
+    ...(renewsOn ? { renewsOn } : {}),
     checking: r.state === "checking",
     foundBefore: r.counted,
     // Where to look next: what the caller knows, else what the round itself wrote when it ran dry (00145).
@@ -93,12 +106,12 @@ function questionStrip(
   };
 }
 
-/** A round that ended: the sentence's own next step, then Sort by fit where the table is worth re-ordering, then the piles. */
-function endedStrip(s: PlacesSearch, nearby: readonly string[]): StripVM {
+/** A round that ended: the sentence's own next step, then Sort by fit where the table is worth re-ordering. */
+function endedStrip(s: PlacesSearch, nearby: readonly string[], renewsOn: string | null): StripVM {
   const r = s.round;
   const plan = s.plan;
   const counted = r.counted;
-  const line = leadEndingLine(r.ending || "paused", ldEndingFacts(s, nearby));
+  const line = leadEndingLine(r.ending || "paused", ldEndingFacts(s, nearby, renewsOn));
   const look = !!line.step && ldLookStep(line.step.id) && !!r.nearby && r.nearby.length > 0;
   const step: StripAction[] = line.step
     ? [
@@ -113,15 +126,12 @@ function endedStrip(s: PlacesSearch, nearby: readonly string[]): StripVM {
     : [];
   const sorts =
     counted > 0 &&
-    (r.ending === "target_reached" || r.ending === "searched_everything") &&
+    (r.ending === "target_reached" || r.ending === "searched_everything" || r.ending === "reach_searched") &&
     (!line.step || line.step.id !== "sort_fit")
       ? [{ id: "sort_fit", label: "Sort by fit" }]
       : [];
-  // The ending's numbers are the way into each pile: quiet links, never beside a primary step that already opens one.
-  const piles = [
-    ...(r.review > 0 ? [{ id: "review", label: `${r.review} need a look`, arg: "review", pile: true }] : []),
-    ...(r.excluded > 0 ? [{ id: "excluded", label: `${r.excluded} left out`, arg: "excluded", pile: true }] : []),
-  ].filter((a) => !line.step || line.step.id !== a.id);
+  // No way into Needs review or Left out (decision 0133): a search shows its finished leads, and what it set aside is
+  // the team's to read, in the Console.
   // Only an ending that delivered wears the check and the full bar: one the source could not start did too (29 Oct 2026).
   const found = leadEndingFound(r.ending || "paused", { counted });
   return {
@@ -130,7 +140,7 @@ function endedStrip(s: PlacesSearch, nearby: readonly string[]): StripVM {
     title: line.title,
     parts: line.parts,
     progress: found ? 1 : null,
-    actions: [...step, ...sorts, ...piles],
+    actions: [...step, ...sorts],
   };
 }
 
@@ -157,10 +167,7 @@ const peopleStripOf = (s: LeadSearchDto, plan: LeadPeoplePlan): StripVM => {
       progress,
       actions: [{ id: "stop", label: PW.stop }],
     };
-  const piles = [
-    ...(r.review > 0 ? [{ id: "review", label: `${r.review} need a look`, arg: "review", pile: true }] : []),
-    ...(r.excluded > 0 ? [{ id: "excluded", label: `${r.excluded} left out`, arg: "excluded", pile: true }] : []),
-  ];
+  // Its finished companies alone (decision 0133): no way into what the finder set aside.
   const found = !!r.ending && leadEndingFound(r.ending, { counted: r.counted });
   return {
     state: found ? "found" : "ended",
@@ -168,11 +175,11 @@ const peopleStripOf = (s: LeadSearchDto, plan: LeadPeoplePlan): StripVM => {
     title: PW.ended(r.ending, r.counted, r.target),
     parts: [],
     progress: found ? 1 : null,
-    actions: [{ id: "people_more", label: PW.more, primary: true, arg: plan }, ...piles],
+    actions: [{ id: "people_more", label: PW.more, primary: true, arg: plan }],
   };
 };
 
-const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[]): StripVM | null => {
+const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[], renewsOn: string | null): StripVM | null => {
   if (!s) return null;
   if (s.people) return peopleStripOf(s, s.people);
   if (!s.plan) return null;
@@ -191,9 +198,7 @@ const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[]): StripVM 
     };
   const withRound: PlacesSearch = { ...s, plan, round: r };
   const counted = r.counted;
-  // What the owner asked for, never the first 25 the probe sizes the round with (Ruben, 14 Nov 2026: asked for 300, the
-  // strip said "0 of 25"); a later round's own count is its target.
-  const goal = r.purpose === "probe" ? Math.max(r.target, plan.count) : r.target;
+  const goal = ldGoal(r, plan);
   const progress = goal > 0 ? Math.min(1, counted / goal) : null;
   // Removing the untouched leads (POST lead-searches/[id]/undo) is the search menu's, named for what it removes and gives
   // back (contracts leadUndoable): an "Undo" here, beside "the 24 found are yours", read as deleting what was just paid for.
@@ -202,7 +207,7 @@ const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[]): StripVM 
     // After Stop the emails of what was already found are still checked, and the strip says so in the ending's own words,
     // with `checking` true (S12, 17).
     if (String(r.ending_pending) === "stopped") {
-      const line = leadEndingLine("stopped", ldEndingFacts(withRound, nearby));
+      const line = leadEndingLine("stopped", ldEndingFacts(withRound, nearby, renewsOn));
       return { state: "checking", alert: false, title: line.title, parts: line.parts, progress, actions: [] };
     }
     return {
@@ -219,10 +224,13 @@ const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[]): StripVM 
     const parts = [`${counted} of ${goal}`, `${r.emails_checked} emails checked`, `about ${minutesLeft} min left`];
     // The first 25 size the rest of the round (S6), so until they are in the estimate is an assumption and says so (P3).
     if (counted < LEAD_PROBE_SEEN) parts.push("estimates update after the first 25");
+    // A leg reads the next area out (decision 0133): the strip names it, and says the card's area is done.
+    const leg = r.purpose === "widen" && r.area ? r.area : null;
+    if (leg) parts.splice(1, 0, `${planArea(plan.area)} searched`);
     return {
       state: "running",
       alert: false,
-      title: `Finding ${who} ${where}`,
+      title: `Finding ${who} ${leg ? planWhere(leg) : where}`,
       parts,
       progress,
       count: { n: counted, of: goal },
@@ -230,7 +238,7 @@ const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[]): StripVM 
     };
   }
   // Every ending is said once, by contracts' leadEndingLine. The strip composes.
-  return endedStrip(withRound, nearby);
+  return endedStrip(withRound, nearby, renewsOn);
 };
 
 /**
@@ -243,9 +251,9 @@ const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[]): StripVM 
 export const leadStrip = (
   s: LeadSearchDto | null,
   _now: Date,
-  extra?: { nearby?: string[]; offered?: number } | null,
+  extra?: { nearby?: string[]; offered?: number; month?: { renewsOn: string } | null } | null,
 ) => {
-  const vm = ldStripOf(s, (extra && extra.nearby) || []);
+  const vm = ldStripOf(s, (extra && extra.nearby) || [], (extra && extra.month && extra.month.renewsOn) || null);
   if (!vm) return null;
   const n = (extra && extra.offered) || 0;
   if (n <= 0) return vm;

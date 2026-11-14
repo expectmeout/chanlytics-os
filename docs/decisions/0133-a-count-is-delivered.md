@@ -1,8 +1,8 @@
 # 0133 · A count is delivered
 
 **Status:** Decided by Ruben, 14 November 2026 ("Yes, all five", to D1-D5 of the plan below, and "Yes, take them", to an
-outside review's six changes); steps 1 to 3 built (00626, 00627; widening ships off), steps 4 and 5 not yet. Written
-against main at `e40c45927f`; built in one lane, `cm-count-delivered`.
+outside review's six changes); steps 1 to 3 built (00626, 00627; widening ships off), step 4 built but for the four
+parts its section names, step 5 not yet. Written against main at `e40c45927f`; built in one lane, `cm-count-delivered`.
 
 ## Context
 
@@ -111,15 +111,31 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
    - the platform's page;
    - the card's count line by the contact standard;
    - the time as a range.
-4. **The owner's side**, before the switch is on for anyone:
-   - only finished leads for a search;
-   - the card's reach line;
-   - the strip's live line across legs;
-   - the endings' sentences with the reach in miles;
-   - "300 asked, 250 left this month" said on the card before the press;
-   - Ask's words; Today and the bell.
+4. **The owner's side**, before the switch is on for anyone. Built:
+   - **only finished leads for a search:** its band is Qualified alone, and its strip links to no Needs review or Left
+     out, nor says a number of them (`leadBand` and the strip read `isLeadList`: a list of the owner's own keeps all
+     three, D4);
+   - **the card's reach line,** where the workspace widens (`lead_search_widens`, 00627, the one rule `lead_round_end`
+     reads too): "Looks in Brooklyn first, then nearby, up to 25 miles away", and "Change how far" (only the card's
+     area, 10, 25 or 50 miles, and the plan's own) writes `plan.reach_m`. Ask's card says the same as a row. Where it
+     does not widen, no reach is said, and a count past one area is said as before;
+   - **the strip across legs:** a leg counts the whole search ("86 of 200", never of what the leg still wants), names
+     the area it reads, and says the card's area is done (`round.area`, read for a leg's round alone);
+   - **the endings:** `reach_searched` says the miles and that the leads not found stay the owner's this month;
+     `month_leads_used` says the day the leads renew;
+   - **the card before the press:** its count binds to the leads left, as before (`leadPlanAsk`); its email choice says
+     a checked email alone;
+   - **the bell and Today** (one notice, both read it): a widened search's notice counts its finished leads, and an
+     ending short of its count says why in its title (the reach searched, the month's leads, the month's searching).
 
-   And a source's failure tried again before `source_failed`, its kinds told apart (a refused key is no timeout).
+   Not yet, each its own piece before the switch is on for everyone:
+   - **a source's failure tried again before `source_failed`.** The kinds are told apart already (a refused key or
+     build tells the platform at once, a lost answer is reconciled, a busy source is retried by the ledger); a run that
+     failed or timed out partway is not tried again, since a run's id is its round, phase and term, and a second try
+     needs an attempt in it;
+   - **Ask setting the reach from words** ("only in Brooklyn"): the tool's schema is pinned by its fixtures;
+   - **"Look up to 50 miles"** on a short ending, and **"Find them on Dec 1"** on the month's;
+   - **the Console's view** of what the finder set aside, per search.
 
 5. **Real searches before everyone:** a dense city, a sparse town, a rare niche and two searches at once, on Ruben's
    own workspace (`widen_tenants`), each timed and costed; the switch on for everyone only once the cost and the time
@@ -133,8 +149,11 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
   the card's; it sizes from what counted; once dry, it names the next area past its own.
 - `tests/leads/engine/lead-search.test.mjs`: a city asks deep and a ZIP does not; the caps.
 - `tests/leads/engine/lead-sources.test.mjs`: the platform's page at 80%, once a day.
-- `tests/leads/lead-widen.db.test.mjs`: a round's end opens a leg only where widening is on, carries on silently, stops
-  on its guards and on a day's cap, and the leg that ends rings with every leg's count.
+- `tests/leads/rounds/a-search-widens-until-its-count.db.test.mjs`: a round's end opens a leg only where widening is
+  on, carries on silently, stops on its guards and on a day's cap, and the leg that ends rings with every leg's count.
+- `tests/leads/finder/leads-finder.test.mjs` (step 4): the card's reach and its picker, only where the search widens;
+  a leg's strip; the reach's ending; no pile of ours on a search's strip or band, all three on a list's; the month's
+  renewal; Ask's card's row.
 
 ## Risks
 

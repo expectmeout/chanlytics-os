@@ -11,7 +11,7 @@ import type { LeadPlanFacts } from "../dtos";
 import { leadPlanAsk, leadPlanFactLine } from "../plan";
 import { peoplePlanAsk, peoplePlanFactLine, peoplePlanOf, peoplePlanRows, type PeopleMonth } from "./people-plan/plan";
 import type { LeadSearchPlan } from "./plan";
-import { lowerFirst, planArea, planWho } from "./sentence";
+import { lowerFirst, planArea, planReachSaid, planWho } from "./sentence";
 
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
@@ -34,7 +34,7 @@ export const startsSearch = (askProposal: Pick<AskProposal, "kind" | "payload" |
  * around, how many, what each must have (on its listing, on its website, or Claude's read; a nice-to-have only ranks it),
  * what it leaves out (and anyone already the owner's), and which contact shows first.
  */
-function leadPlanRows(plan: LeadSearchPlan): Array<{ label: string; value: string }> {
+function leadPlanRows(plan: LeadSearchPlan, facts: LeadPlanFacts | null): Array<{ label: string; value: string }> {
   const km = Math.round(plan.area.radius_m / 1000);
   // A ZIP's area is said as it is searched, near it; a city or a state by its name.
   const place = plan.area.kind === "zip" && plan.area.zip ? `Near ${plan.area.zip}` : planArea(plan.area);
@@ -46,6 +46,8 @@ function leadPlanRows(plan: LeadSearchPlan): Array<{ label: string; value: strin
     { label: "Finds", value: cap(planWho(plan)) },
     { label: "Searched as", value: plan.terms.join(" · ") },
     { label: "Where", value: km > 0 ? `${place}, about ${km} km around` : place },
+    // How far a search that widens by itself looks (decision 0133); said only where it does.
+    ...(facts?.widens ? [{ label: "How far", value: planReachSaid(plan) }] : []),
     { label: "How many", value: String(plan.count) },
     ...(must.length ? [{ label: "Must have", value: must.join(" · ") }] : []),
     {
@@ -95,7 +97,7 @@ export function searchCardView(askProposal: AskProposal): SearchCardView | null 
     const facts = isPlanFacts(pl.facts) ? pl.facts : null;
     const ask = leadPlanAsk(plan, facts);
     return {
-      sheet: { holds: ask.covers ? [ask.covers] : [], rows: leadPlanRows(plan) },
+      sheet: { holds: ask.covers ? [ask.covers] : [], rows: leadPlanRows(plan, facts) },
       foot: leadPlanFactLine(plan, facts),
       source: null,
       press: { label: ask.label, disabled: ask.count < 1 },

@@ -152,6 +152,11 @@ export interface LeadSearchRoundDto {
   nearby: LeadArea[];
   /** The qualified members by fit band (D5, 00146), for the band bar. Optional: a fixture from before carries none. */
   fits?: { strong: number; look: number; long: number };
+  /**
+   * The area a leg reads (decision 0133): a `widen` round's own, the nearest one left within the search's reach, which the
+   * strip names while it runs. Null for any other round, and absent from a server before it.
+   */
+  area?: LeadArea | null;
 }
 
 export interface LeadSearchDto {
@@ -224,6 +229,8 @@ export interface LeadMonthDto {
   used: number;
   left: number;
   renewsOn: string;
+  /** Whether this workspace's searches look further out by themselves, short of their count (decision 0133, lead_search_widens). */
+  widens?: boolean;
 }
 
 /**
@@ -287,4 +294,9 @@ export interface LeadPlanFacts {
   renewsOn: string;
   /** The areas the card's picker offers beside the plan's: the nearby areas of the round it was opened from, if any. */
   nearby: LeadArea[];
+  /**
+   * Whether the search looks further out by itself until its count, within the reach on its card (decision 0133,
+   * lead_search_widens): the card says how far, and offers to change it, only then. Absent reads as no.
+   */
+  widens?: boolean;
 }
