@@ -118,12 +118,16 @@ function TbLine({ onAsk, askLabel }: { onAsk: () => void; askLabel: string | nul
 /** The unread rows the real bell does not list (S6-10): its badge counts them, as the bell's number everywhere else does. */
 const tbOlderOf = (real: Bell | null) => (real && real.older ? real.older() : 0);
 
+/** The notes that wear a dot, and the older unread ones the bell does not list: what is still unread after a look. */
+const tbDotsOf = (real: Bell | null, shown: readonly BellNote[]) =>
+  shown.filter((n) => n.unread).length + tbOlderOf(real);
+
 /**
  * The bell's number: what is new since the member last looked (the bridge's own count, decision 0124). A bell that says
  * no number of its own is counted by its rows' dots, as it was.
  */
 const tbNewOf = (real: Bell | null, shown: readonly BellNote[]) =>
-  real && real.unread ? real.unread() : shown.filter((n) => n.unread).length + tbOlderOf(real);
+  real && real.unread ? real.unread() : tbDotsOf(real, shown);
 
 /** The workspace's own rows and this device's alerts, read again as the bridge's bell changes. */
 function useRealBell(real: Bell | null) {
@@ -192,11 +196,35 @@ const putBack = (item: DemoNote, idx: number) => (list: DemoNote[]) => {
   return next;
 };
 
+/**
+ * Mark all read on the workspace's bell: the dots go at once and the toast says how many, beside Undo. A save the server
+ * did not take, the read's or the Undo's, is said in the toast's place in a failure's own tone (told from "marked read"
+ * across the room, and it stays longer); the dots are back by then.
+ */
+function readAllOnBell(real: Bell, flash: Flash) {
+  const { read, saved, undo } = real.readAll();
+  const say = (words: string) => (ok: boolean) => {
+    if (!ok) flash({ msg: <>{words}</>, tone: "danger" });
+  };
+  flash({
+    msg: <>{BELL_READ_WORDS.done(read)}</>,
+    undo: () => void undo().then(say(BELL_READ_WORDS.undoFailed)),
+  });
+  void saved.then(say(BELL_READ_WORDS.readFailed));
+}
+
+/** A group's notes read by one press: one write where the bridge has it; a stand-in bell, and the seeded notes, read each. */
+const tbReadManyOf =
+  (real: Bell | null, read: (id: string) => void) =>
+  (ids: readonly string[]): void =>
+    real?.readMany ? real.readMany(ids) : ids.forEach(read);
+
 /** What a press in the bell does: on the bridge's rows where the workspace has them, else on the seeded notes. */
 function bellActs({ real, notifs, setNotifs, realRows, setAlertState, flash, closeBell }: BellActsAt) {
   const markRead = (id: string) => setNotifs((list) => list.map((n) => (n.id === id ? { ...n, unread: false } : n)));
-  // A note marked read where it stands (a thumb slid it right): the bridge's mark, or the seeded note's flag.
+  // A note marked read where it stands (its check, or a thumb slid it right): the bridge's mark, or the seeded note's flag.
   const read = (id: string) => (real ? real.read(id) : markRead(id));
+  const readMany = tbReadManyOf(real, read);
   const act = (id: string, to: string | null) => {
     read(id);
     closeBell();
@@ -218,8 +246,7 @@ function bellActs({ real, notifs, setNotifs, realRows, setAlertState, flash, clo
   };
   const readAll = () => {
     if (real) {
-      const { read, undo } = real.readAll();
-      flash({ msg: <>{BELL_READ_WORDS.done(read)}</>, undo });
+      readAllOnBell(real, flash);
       return;
     }
     const prev = notifs;
@@ -253,7 +280,7 @@ function bellActs({ real, notifs, setNotifs, realRows, setAlertState, flash, clo
       undo: () => setNotifs(putBack(item, idx)),
     });
   };
-  return { act, onAlerts, readAll, read, dismiss };
+  return { act, onAlerts, readAll, read, readMany, dismiss };
 }
 
 type Crumb = string | { label: string; to?: string; go?: () => void };
@@ -321,14 +348,13 @@ const tbPresence = () => {
 };
 
 /**
- * The bell's words for a pointer: what needs you on a workspace, what agents did in the demo. Nothing where nothing is new: a press
- * of Later handed the keys back to it, and "Nothing needs you right now" popped up over the greeting (9 Nov 2026).
+ * The bell's words for a pointer: what is new on a workspace, or what is still unread once it has been looked at
+ * (contracts BELL_READ_WORDS); what agents did in the demo. Nothing where nothing is new or unread: a press of Later
+ * handed the keys back to it, and "Nothing needs you right now" popped up over the greeting (9 Nov 2026).
  */
-const bellTip = (real: Bell | null, unread: number) =>
+const bellTip = (real: Bell | null, unread: number, dots: number) =>
   real
-    ? unread > 0
-      ? `${unread} new — what needs you`
-      : undefined
+    ? BELL_READ_WORDS.tip(unread, dots)
     : unread > 0
       ? `${unread} unread — what agents did while you weren't looking`
       : "What agents did while you weren't looking";
@@ -368,6 +394,8 @@ function useBell(flash: Flash) {
   // The seeded feed is demo theater: outside a demo we show no count rather than a badge promising things that don't exist.
   const shown: BellNote[] = real ? realRows : isDemoFrame() ? notifs.map(tbOverlay) : [];
   const unread = tbNewOf(real, shown);
+  // What still wears a dot: with nothing new, the closed bell says it quietly (decision 0124).
+  const dots = tbDotsOf(real, shown);
   const ping = useBellPing(unread, real, notifs);
   // The bell's press is the member looking (Today in three zones, 2 Nov 2026): once it closes, what it held is seen,
   // so its number starts again and Today's Since you looked does too. No note is read by it (decision 0124): a dot goes
@@ -377,7 +405,7 @@ function useBell(flash: Flash) {
     real?.seenAll();
   }, [real]);
   const acts = bellActs({ real, notifs, setNotifs, realRows, setAlertState, flash, closeBell });
-  return { real, shown, unread, ping, openNotifs, setOpenNotifs, closeBell, alertState, acts };
+  return { real, shown, unread, dots, ping, openNotifs, setOpenNotifs, closeBell, alertState, acts };
 }
 
 type BellState = ReturnType<typeof useBell>;
@@ -389,15 +417,17 @@ const tbBell = (b: BellState) => {
     <>
       <button
         className={`btn btn-ghost btn-icon btn-sm tb-bell ${b.ping ? "ping" : ""}`}
-        data-tip={bellTip(b.real, b.unread)}
+        data-tip={bellTip(b.real, b.unread, b.dots)}
         data-tip-side="bottom"
-        aria-label={b.unread > 0 ? `Notifications, ${b.unread} unread` : "Notifications"}
+        // A workspace's bell says what is new, then what is unread; the demo's notes are unread, as they were.
+        aria-label={BELL_READ_WORDS.name(b.real ? b.unread : 0, b.dots)}
         aria-haspopup="dialog"
         aria-expanded={b.openNotifs}
         onClick={() => (b.openNotifs ? b.closeBell() : b.setOpenNotifs(true))}
       >
         <Glyph name="bell" />
         {b.unread > 0 && <span className="tb-bell-badge tally tally-icon">{b.unread}</span>}
+        {b.unread === 0 && b.dots > 0 && <span className="tb-bell-unread" aria-hidden="true" />}
       </button>
       {b.openNotifs && (
         <NotifPopover
@@ -406,6 +436,7 @@ const tbBell = (b: BellState) => {
           onReadAll={b.acts.readAll}
           onDismiss={b.acts.dismiss}
           onRead={b.acts.read}
+          onReadMany={b.acts.readMany}
           onClose={b.closeBell}
           alerts={b.real ? b.alertState : null}
           onAlerts={b.acts.onAlerts}

@@ -23,6 +23,9 @@ export const markNotification = async (db: Db, args: Args<"notification_mark">) 
 export const markNotificationsSeen = async (db: Db, args: Args<"notifications_seen">) =>
   db.rpc("notifications_seen", args);
 
-/** The member's bell read through in a workspace, or put back where it stood (notifications_read_through, 00614). */
+/**
+ * The member's bell read through in a workspace, up to a moment (`p_read`) or up to now, or put back where it stood
+ * (notifications_read_through, 00614, 00622).
+ */
 export const markNotificationsReadThrough = async (db: Db, args: Args<"notifications_read_through">) =>
   db.rpc("notifications_read_through", args);

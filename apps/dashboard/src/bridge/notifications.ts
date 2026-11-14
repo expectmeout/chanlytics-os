@@ -12,8 +12,9 @@
  *   - when a member last looked is the server's (seen_at): closing the bell writes it there, every device reads it
  *     back, and it moves the bell's number alone. This device keeps its own copy only so the badge does not wait for
  *     the re-read;
- *   - how far they have read is the server's too (read_through_at, 00614): Mark all read moves it, a look does not,
- *     and a press made in this tab is held in memory only until the server's own moment is read again;
+ *   - how far they have read is the server's too (read_through_at, 00614): Mark all read moves it up to the newest
+ *     note this tab holds (00622), a look does not, and a press made in this tab is held in memory only until the
+ *     server's own moment is read again, or until its write fails;
  *   - read and dismissed marks on DERIVED rows (a thread that needs you, a
  *     held draft, a missed call, an open invitation — rows nothing stores)
  *     stay on this device, keyed by the workspace's id, and go when their
@@ -28,10 +29,10 @@
  */
 import {
   ALERT_KINDS,
+  BELL_LIST_ROWS,
   EMPTY_READ_STATE,
   agoLabel,
   bellCalls,
-  bellReadThroughMs,
   bellSections,
   type BellSectionVM,
   buildNotificationFeed,
@@ -49,7 +50,6 @@ import {
   nameKnownCustomers,
   serverNotificationRows,
   settledNoticeIds,
-  unreadCount,
   type RunDays,
 } from "@chanlytics/contracts";
 import { bellActionOf } from "@/surfaces/campaigns/reach-out/reply-today";
@@ -57,7 +57,14 @@ import { bellFeed, holdMarksOf, bellOlderOf } from "@/bridge/surfaces/hold-rows"
 import { surfaceValue } from "../surfaces/surface-values";
 import { approvalDaysNow } from "../surfaces/campaigns/broadcasts/when-words";
 import { api as client, serversClockOf } from "./api";
-import type { Input } from "../client/api";
+import {
+  MARK_RETRY_MS,
+  markAttempt,
+  readAllOf,
+  readThroughOf,
+  type BellReadAll,
+  type MarkBody,
+} from "./surfaces/read-through";
 import { onSurfaceMoved } from "./surface-status";
 import { getActiveWorkspace, goToRoute } from "./workspace";
 
@@ -320,11 +327,15 @@ export interface BellApi {
   /** The member looked at the bell (it closed): its number starts again from now. No note is read by it. */
   seenAll(): void;
   /**
-   * Mark all read: every dot goes, here at once and on the server for every device, and the number with them. Answers
-   * how many notes it read and the way back, which puts the dots where they stood and leaves the look as it is.
+   * Mark all read: every dot on the notes this tab holds goes, here at once and on the server for every device, and
+   * the number with them; a note that arrives after is not read by it. Answers how many notes it read, whether the
+   * server took it (`saved`: false once its second try has failed, and the dots are back by then), and the way back,
+   * which puts the dots where the server says they stood and leaves the look as it is; it answers whether that saved.
    */
-  readAll(): { read: number; undo: () => void };
+  readAll(): BellReadAll;
   read(key: string): void;
+  /** Several notes read by one press (a group's check): the server's rows in one write, a derived row's on this device. */
+  readMany(keys: readonly string[]): void;
   dismiss(key: string): void;
   restore(key: string): void;
   /** Device alerts: whether they are on, and whether they can be. */
@@ -349,6 +360,22 @@ function serverIdsOf(key: string, dto: NotificationsDto | null | undefined): str
   return key.startsWith(SERVER_KEY_PREFIX)
     ? [key.slice(SERVER_KEY_PREFIX.length)]
     : holdMarksOf(key, dto).map((n) => n.id);
+}
+
+/**
+ * A group's notes read by one press: the server's rows written (`write`), in writes no longer than the route takes (the
+ * bell lists that many), and the keys whose marks are this device's kept here (`keep`).
+ */
+function readGroup(
+  keys: readonly string[],
+  dto: NotificationsDto | null | undefined,
+  write: (ids: string[]) => void,
+  keep: (keys: string[]) => void,
+): void {
+  const ids = [...new Set(keys.flatMap((key) => serverIdsOf(key, dto)))];
+  for (let from = 0; from < ids.length; from += BELL_LIST_ROWS) write(ids.slice(from, from + BELL_LIST_ROWS));
+  const here = keys.filter((key) => serverIdsOf(key, dto).length === 0);
+  if (here.length) keep(here);
 }
 
 /** The phone app's icon: the kept rows' unread, less the ones the surfaces settle now (contracts settledNoticeIds). */
@@ -379,42 +406,6 @@ async function askAlerts(
   }
   save({ alerts: permission === "granted" });
   return { on: permission === "granted", permission };
-}
-
-/** No kept rows read yet: what a press made before the bell's first read rides on. */
-const NO_KEPT_ROWS: NotificationsDto = { notifications: [], seen_at: null };
-
-/**
- * How far the member has read, as this tab holds it (decision 0124). It is the server's (GET notifications'
- * `read_through_at`), the same on every device; and a Mark all read, or its Undo, that this tab just made is held here
- * while its write and the re-read behind it are on their way, so the dots answer the press at once and do not blink back
- * if the write lands before the read. The held moment is let go when the bell's rows are read again after the write
- * landed: the server's moment is then the same.
- */
-function readThroughOf(win: Window & Globals) {
-  let pressed: { at: number; landed: boolean } | null = null;
-  win.addEventListener("surface:notifications", () => {
-    if (pressed?.landed) pressed = null;
-  });
-  return {
-    /** Whether a press is held: the bell's moment is this tab's for now, whatever the server last said. */
-    held: (): boolean => pressed !== null,
-    /** The kept rows as the server holds them, read through the press this tab just made where one is on its way. */
-    kept: (): NotificationsDto | null | undefined => {
-      const dto = win.__NOTIFICATIONS?.dto;
-      if (!pressed) return dto;
-      return { ...(dto ?? NO_KEPT_ROWS), read_through_at: new Date(pressed.at).toISOString() };
-    },
-    /** Hold `at` as the moment read through while `write` is on its way. */
-    press: (at: number, write: Promise<unknown>): void => {
-      const mine = { at, landed: false };
-      pressed = mine;
-      const land = () => {
-        mine.landed = true;
-      };
-      void write.then(land, land);
-    },
-  };
 }
 
 /**
@@ -459,11 +450,12 @@ function hearFeed(win: Window & Globals, alertsOn: () => boolean, emit: () => vo
 
 /**
  * Install the bell. `win` and `storage` are injectable so the rule can be
- * executed in a test without a browser.
+ * executed in a test without a browser, and `retryMs` so a failed write's second try does not hold a test two seconds.
  */
 export function installNotifications(
   win: Window & Globals = window,
   storage: StorageLike | null = safeStorage(),
+  retryMs: number = MARK_RETRY_MS,
 ): BellApi {
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((cb) => cb());
@@ -478,7 +470,7 @@ export function installNotifications(
    * read on one the badge is the same number on both.
    */
   const seenAt = () => Math.max(state().seenAt, Date.parse(win.__NOTIFICATIONS?.dto?.seen_at ?? "") || 0);
-  // How far the member has read: the server's, or a press this tab just made (readThroughOf).
+  // How far the member has read: the server's, or a press this tab just made (surfaces/read-through.ts).
   const through = readThroughOf(win);
   // The unread kept rows the bell does not list, less the holds it draws itself (contracts bellOlderOf; S6-10).
   const older = () => bellOlderOf(win.__NOTIFICATIONS?.dto, seenAt(), rows());
@@ -517,11 +509,13 @@ export function installNotifications(
         waits: whatWaits(),
       }).sort((a, b) => b.at - a.at),
     );
-  // A kept row's marks go to the server, and the refresh map re-reads the
-  // surface after one lands, so every device agrees; a failure here loses a
-  // mark, never a notification — the next read re-syncs.
-  const mark = async (body: Input<"PUT notifications">) => {
-    await client()("PUT notifications", { body });
+  // A kept row's marks go to the server, and the refresh map re-reads the surface after one lands, so every device
+  // agrees. A write the server did not take is tried once more (surfaces/read-through.ts markAttempt).
+  const attempt = markAttempt((body) => client()("PUT notifications", { body }), retryMs);
+  // One mark on a row, or the look: a failure after its second try loses the mark, never a notification, and the row
+  // says so itself (its dot stays, its note is listed still) until the next read.
+  const mark = async (body: MarkBody) => {
+    await attempt(body);
     emit();
   };
   // A mark on a row the server keeps -- a kept row, or the derived row of a hold the edge has kept -- goes there; false for
@@ -549,26 +543,29 @@ export function installNotifications(
       save({ seenAt: Date.now() });
       void mark({ seen: true });
     },
-    readAll: () => {
-      // Where the dots stood before the press: the server's moment, or this device's last look before the bell's rows are read.
-      const fromServer = !!win.__NOTIFICATIONS?.dto || through.held();
-      const was = fromServer ? bellReadThroughMs(through.kept()) : state().seenAt;
-      const read = unreadCount(rows()) + older();
-      const now = Date.now();
-      through.press(now, mark({ read_all: true }));
-      save({ seenAt: now });
-      return {
-        read,
-        undo: () => {
-          through.press(was, mark({ read_through: new Date(was).toISOString() }));
-          emit();
-        },
-      };
-    },
+    readAll: () =>
+      readAllOf({
+        rows: rows(),
+        older: older(),
+        dto: win.__NOTIFICATIONS?.dto,
+        lookedAt: state().seenAt,
+        through,
+        attempt,
+        look: () => save({ seenAt: Date.now() }),
+        seenAll: () => api.seenAll(),
+        emit,
+      }),
     keptUnread: () => keptUnreadIn(win, seenAt()),
     read: (key) => {
       if (!markOnServer(key, { read: true })) save({ read: [...new Set([...state().read, key])] });
     },
+    readMany: (keys) =>
+      readGroup(
+        keys,
+        win.__NOTIFICATIONS?.dto,
+        (ids) => void mark({ ids, read: true }),
+        (here) => save({ read: [...new Set([...state().read, ...here])] }),
+      ),
     dismiss: (key) => {
       if (!markOnServer(key, { dismissed: true })) save({ dismissed: [...new Set([...state().dismissed, key])] });
     },

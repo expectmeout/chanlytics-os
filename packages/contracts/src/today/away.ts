@@ -5,7 +5,7 @@
  * happened since the bell was last closed, and the bell groups through bellSections; todayAwayGrouped is kept by its tests
  * until a tidy takes it.
  *
- * ONE GROUPING. The away card is the bell's "New" section less what Today draws elsewhere, in the order a warning asks:
+ * ONE GROUPING. The away card is the bell's "Unread" section less what Today draws elsewhere, in the order a warning asks:
  * it groups through `bellSections`, the one function, so the bell and the card say "9 calls" about the same nine calls and a
  * group opens the same way in both (a press unfolds the notes under it, each of which opens its own record and is read as it
  * is opened: AwayGroupVM.members). What differs is the bell's to keep and the card's to leave: the bell holds read notes under
@@ -286,8 +286,8 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   };
   const fresh = rows.filter((r) => r.unread && !aboutQueued(r));
 
-  // The bell's own grouping (bellSections), over what is unread and not drawn above: every row here is new, so its one section
-  // is "New", and its lines are the card's groups, each kind said once where the newest of it stood.
+  // The bell's own grouping (bellSections), over what is unread and not drawn above: every row here is unread, so its one
+  // section is "Unread", and its lines are the card's groups, each kind said once where the newest of it stood.
   const groups = bellSections(fresh)
     .flatMap((section) => section.lines)
     .map((line): AwayGroupVM<T> => {
@@ -365,14 +365,33 @@ export interface BellLineVM<T extends BellNoteLike> {
 }
 
 export interface BellSectionVM<T extends BellNoteLike> {
-  /** "New", "Earlier", or the sentence for the unread rows the bell does not list (bellOlderWords), which has no lines. */
+  /** "Unread", "Earlier", or the sentence for the unread rows the bell does not list (bellOlderWords), which has no lines. */
   label: string;
   lines: Array<BellLineVM<T>>;
 }
 
-/** What Mark all read says it did, beside its Undo (decision 0124). */
+/**
+ * The bell's words for what is read (decision 0124): what Mark all read says it did, beside its Undo; its two
+ * sections; the check on a note and on a group; the closed bell's name and tip; and what is said when a save fails.
+ */
 export const BELL_READ_WORDS = {
   done: (n: number): string => (n === 1 ? "1 marked read" : `${n} marked read`),
+  /** The section over the notes that wear a dot. It said "New" while a look read them; a note is unread until it is read. */
+  unread: "Unread",
+  earlier: "Earlier",
+  /** The check on a note or a group: read where it stands, without opening it. */
+  readOne: "Mark read",
+  readOneOf: (title: string): string => `Mark read: ${title}`,
+  /** The closed bell, to a screen reader: what is new since the look, else what is still unread. */
+  name: (fresh: number, unread: number): string =>
+    fresh > 0 ? `Notifications, ${fresh} new` : unread > 0 ? `Notifications, ${unread} unread` : "Notifications",
+  /** The closed bell, to a pointer: none where nothing is new or unread. */
+  tip: (fresh: number, unread: number): string | undefined =>
+    fresh > 0 ? `${fresh} new — what needs you` : unread > 0 ? `${unread} unread` : undefined,
+  /** Mark all read was not taken, after its second try: the dots are back by the time this is said. */
+  readFailed: "Mark all read didn't save, so your notes are unread again. Press it once more.",
+  /** Its Undo was not taken: the notes stay read. */
+  undoFailed: "Undo didn't save, so those notes stay read.",
 } as const;
 
 /** The unread kept rows the bell does not list, and the act that clears them (the bell lists its newest BELL_LIST_ROWS). */
@@ -425,11 +444,11 @@ export function bellSections<T extends BellNoteLike>(rows: readonly T[], older =
   };
   return [
     part(
-      "New",
+      BELL_READ_WORDS.unread,
       rows.filter((r) => r.unread),
     ),
     part(
-      "Earlier",
+      BELL_READ_WORDS.earlier,
       rows.filter((r) => !r.unread),
     ),
   ]
