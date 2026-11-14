@@ -159,7 +159,7 @@ test("the plan schema keeps its keys unique and its shape whole; the sentence sa
   const p = plan();
   assert.equal(
     planSentence(p),
-    "Find 200 personal trainers in Austin, TX: with a website; reached by a checked email or a phone. Leaving out: chain gyms.",
+    "Find 200 personal trainers in Austin, TX: with a website; each with a checked email. Leaving out: chain gyms.",
   );
   const seen = plan({
     contact: "phone",
@@ -179,7 +179,7 @@ test("the plan schema keeps its keys unique and its shape whole; the sentence sa
   const acronym = plan({ exclusions: [{ key: "cvs", text: "CVS pharmacies", origin: "claude" }] });
   assert.equal(
     planSentence(acronym),
-    "Find 200 personal trainers in Austin, TX: with a website; reached by a checked email or a phone. Leaving out: CVS pharmacies.",
+    "Find 200 personal trainers in Austin, TX: with a website; each with a checked email. Leaving out: CVS pharmacies.",
     "an acronym's own case survives: only a lowercase second letter gets folded",
   );
 });
@@ -430,16 +430,42 @@ test("classify: everything passing under the standard qualifies; a required fail
     { class: "excluded", excluded_by: "unreachable", fit: null, reasons: ["unreachable"] },
     "no phone and no email: left out, never review",
   );
-  // ONE VERIFIED WAY TO REACH THEM IS ENOUGH (decision 0010): a phone that dials qualifies a lead even under a search
-  // that prefers email, and a number that does not dial is review until an email checks out.
+  // REGRESSION (the live run of 14 Nov 2026, decision 0132): a search made for email counts a lead only with an email
+  // that checked out; a phone that dials is a lead only for a search made for calls (decision 0010). Ruben's two med spa
+  // searches counted 154 leads, each with a phone and none with an email.
   const passing = answer([
     { key: "website", answer: "pass", facts: ["host"] },
     { key: "chain", answer: "pass", facts: ["name"] },
   ]);
   const phoneOnly = classify(p, passing, facts({ emails: [], phone_matches_site: true }), "none", true, "ok");
-  assert.equal(p.contact, "email", "this plan prefers email");
-  assert.deepEqual([phoneOnly.class, phoneOnly.reasons], ["qualified", []], "a phone that dials is a lead");
-  const badPhone = classify(p, passing, facts({ emails: [], phone_matches_site: true }), "none", true, "invalid");
+  assert.equal(p.contact, "email", "this plan is made for email");
+  assert.deepEqual(
+    [phoneOnly.class, phoneOnly.reasons],
+    ["review", ["email:none"]],
+    "a phone alone is no lead for email: Needs review's No email, never counted",
+  );
+  const mailed = classify(p, passing, facts({ emails: ["hi@x.example"], phone_matches_site: true }), "ok", true, "ok");
+  assert.deepEqual([mailed.class, mailed.reasons], ["qualified", []], "an email that checked out is a lead");
+  const checking = classify(
+    p,
+    passing,
+    facts({ emails: ["hi@x.example"], phone_matches_site: true }),
+    "checking",
+    true,
+    "ok",
+  );
+  assert.deepEqual([checking.class, checking.reasons], ["review", ["email:checking"]], "it waits for its check");
+  const forCalls = { ...p, contact: "phone" };
+  const called = classify(forCalls, passing, facts({ emails: [], phone_matches_site: true }), "none", true, "ok");
+  assert.deepEqual([called.class, called.reasons], ["qualified", []], "for calls, a phone that dials is a lead");
+  const badPhone = classify(
+    forCalls,
+    passing,
+    facts({ emails: [], phone_matches_site: true }),
+    "none",
+    true,
+    "invalid",
+  );
   assert.deepEqual(
     [badPhone.class, badPhone.reasons],
     ["review", ["phone:invalid"]],
@@ -523,9 +549,10 @@ test("classify: everything passing under the standard qualifies; a required fail
     );
     assert.deepEqual([r.class, r.reasons], ["review", [`email:${state}`]], state);
   }
-  // No email picked either: nothing left to check, and the reason names the phone that was missing.
+  // No email picked either: nothing left to check, and for a search made for email the reason names the email that was
+  // missing (decision 0132); for one made for calls, the phone (below).
   const neither = classify(p, passing, facts(), "none", true, "none");
-  assert.deepEqual([neither.class, neither.reasons], ["review", ["phone:none"]]);
+  assert.deepEqual([neither.class, neither.reasons], ["review", ["email:none"]]);
   const phone = plan({ contact: "phone" });
   assert.equal(
     classify(
@@ -885,7 +912,7 @@ const brooklyn = (over = {}) =>
   });
 
 test('REGRESSION: the sentence says the area once -- a plural that carried the area read "Find 60 Hair salons in Brooklyn in in Brooklyn, NY"', () => {
-  assert.equal(planSentence(brooklyn()), "Find 60 hair salons in Brooklyn, NY, reached by a checked email or a phone.");
+  assert.equal(planSentence(brooklyn()), "Find 60 hair salons in Brooklyn, NY, each with a checked email.");
   assert.equal(planWho(brooklyn()), "hair salons", "the place clause whose words are the area's is dropped");
   assert.equal(planWhere(brooklyn().area), "in Brooklyn, NY", "the label already says where: no second preposition");
   assert.equal(planArea(brooklyn().area), "Brooklyn, NY", 'and the bare noun, for a sentence that says its own "in"');
@@ -933,7 +960,7 @@ test("the sentence is the plan card's words joined: every picker is one word of 
       ["who", "personal trainers"],
       ["where", "in Austin, TX"],
       ["criterion", "with a website"],
-      ["contact", "reached by a checked email or a phone"],
+      ["contact", "each with a checked email"],
     ],
   );
   assert.equal(
@@ -941,10 +968,7 @@ test("the sentence is the plan card's words joined: every picker is one word of 
     "website",
     "a criterion word names the criterion it opens",
   );
-  assert.equal(
-    planSaid(p),
-    "Find 200 personal trainers in Austin, TX: with a website; reached by a checked email or a phone.",
-  );
+  assert.equal(planSaid(p), "Find 200 personal trainers in Austin, TX: with a website; each with a checked email.");
   assert.equal(planLeavingOut(p), " Leaving out: chain gyms.");
   assert.equal(
     planSentence(p),

@@ -1213,7 +1213,8 @@ const noPhones = (w) => {
     for (const it of items) Object.assign(it, { phone: null, phoneUnformatted: null, phones: [] });
 };
 
-test("under a search that prefers email, a place whose phone dials counts at collect (decision 0010) -- and its email is still checked, for the owner who wants to write", async () => {
+test("REGRESSION (the live run of 14 Nov 2026, decision 0132): under a search made for email, a place whose phone dials counts nothing at collect -- it waits for its email's check, and one with no email is never counted", async () => {
+  // Ruben's two med spa searches for cold email counted 154 leads at collect, each by its phone, none with an email.
   const { w, p } = await probed({
     plan: {
       ...PLAN,
@@ -1223,16 +1224,16 @@ test("under a search that prefers email, a place whose phone dials counts at col
     },
   });
   for (const r of w.runs()) await collect(p(`c-${r.id}`), r.id, "p0", `c-${r.id}`);
-  const qualified = w.members().filter((m) => m.class === "qualified");
-  assert.ok(qualified.length > 0, "a phone that dials is a lead, whichever the search prefers");
-  assert.ok(
-    qualified.every((m) => m.counted),
-    "and it counts now, not after the checks",
+  assert.equal(w.members().filter((m) => m.class === "qualified").length, 0, "a phone that dials is no lead for email");
+  assert.equal(
+    w.members().filter((m) => m.counted).length,
+    0,
+    "nothing counts against the month before its email checks out",
   );
   const lead = (m) => w.T.leads.find((l) => l.id === m.lead_id);
   assert.ok(
-    qualified.some((m) => lead(m).email && lead(m).email_state === "checking"),
-    "its email still goes to the mailbox check",
+    w.members().some((m) => lead(m).email && lead(m).email_state === "checking" && m.class === "review"),
+    "one with an email waits for the mailbox check",
   );
 });
 

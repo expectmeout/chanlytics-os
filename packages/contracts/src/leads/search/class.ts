@@ -70,11 +70,13 @@ export interface LeadClassification {
  * or one outside the area, or one with no verified way to reach it, also sends it to review. Everything else
  * qualifies. A fit band is derived for ordering.
  *
- * ONE VERIFIED WAY TO REACH THEM IS ENOUGH (decision 0010; Ruben, 25 September 2026: "as long as a number or email
- * is verified then it may count"). A phone that dials (`phoneState` ok) or a mailbox that checked out (`emailState`
- * ok). The plan's `contact` is the owner's preference -- which is shown first -- and never a gate: a B2B search that
- * finds a good number, or a local one that finds a checked email, has found a lead. Without either, the email is the
- * one way left when there is one, and its token (`email:<state>`) is what lead_check_commit promotes on a check.
+ * ONE VERIFIED WAY TO REACH THEM IS ENOUGH for a search made for calls (decision 0010; Ruben, 25 September 2026: "as
+ * long as a number or email is verified then it may count"): a phone that dials (`phoneState` ok) or a mailbox that
+ * checked out (`emailState` ok). A SEARCH MADE FOR EMAIL (`contact` email) COUNTS A LEAD ONLY WITH AN EMAIL THAT CHECKED
+ * OUT (decision 0132; Ruben, 14 Nov 2026: "if this is for cold email then we must generate only ones with email": his
+ * two med spa searches counted 154 leads, each with a phone and none with an email): one with none goes to Needs
+ * review's "No email on their site", never counted against the month. Without a way that counts, the email is the one
+ * way left when there is one, and its token (`email:<state>`) is what lead_check_commit promotes on a check.
  */
 export function classify(
   plan: LeadSearchPlan,
@@ -129,9 +131,10 @@ export function classify(
   }
   if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
   if (!inArea) reasons.push("out_of_area");
-  if (phoneState !== "ok" && emailState !== "ok") {
+  const reachable = plan.contact === "email" ? emailState === "ok" : phoneState === "ok" || emailState === "ok";
+  if (!reachable) {
     if (emailState !== "none") reasons.push(`email:${emailState}`);
-    else reasons.push(`phone:${phoneState}`);
+    else reasons.push(plan.contact === "email" ? "email:none" : `phone:${phoneState}`);
   }
   const fit: LeadFit = softFail ? "long" : unknown ? "look" : "strong";
   return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };

@@ -6969,11 +6969,13 @@ test("the workspace's pages are read once a turn, each tool as its page reads it
   const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
   assert.deepEqual(
     ["tenant_channels", "templates", "lead_searches_view"].map(selects),
-    [2, 1, 1],
+    [3, 1, 1],
     // 3 Oct 2026: the channels reader's one read serves workspace.settings and campaigns.audiences alike; the audience
     // pool's rows are judged against what the workspace can send on (readers/facts.ts channelsReady: the number's config
-    // and the texting line), once a turn, a read of its own.
-    "the channels once for workspace.settings and campaigns.audiences alike, and once for the pool's readiness; the templates once, the searches once",
+    // and the texting line), once a turn, a read of its own. 14 Nov 2026 (decision 0132): Today's read says what WhatsApp
+    // holds against the number, once a turn, beside its other reads, so its chip never says "connected" while WhatsApp
+    // delivers nothing.
+    "the channels once for workspace.settings and campaigns.audiences alike, once for the pool's readiness and once for Today's WhatsApp hold; the templates once, the searches once",
   );
   assert.equal(ctx.supabase.seen.filter((q) => q.rpc === "lead_list_counts").length, 1, "the rail's counts once");
   // Every tool result the model was handed, by its call's id, across both rounds.

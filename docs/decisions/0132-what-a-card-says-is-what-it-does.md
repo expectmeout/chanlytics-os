@@ -74,6 +74,14 @@ The items below are each a place where that happened, and what it does now.
     while a selection is on, a phone's bar is Select's alone, with no Sort, Import or Map.
 14. **A nearby ZIP is in its own state.** The areas offered when a search runs dry are searched and said in their own state
     by the ZIP's prefix ("near 07310, NJ" beside a search in New York), never the search's.
+15. **A search made for email counts only leads with an email.** Under a plan whose contact is email, a lead counts (is
+    Qualified, and taken from the month) only once its email checks out; one with a phone alone goes to Needs review's "No
+    email on their site", never counted, and one whose email is being checked waits for it and is counted when the
+    mailbox answers ok (lead_check_commit already promotes it). A search made for calls keeps decision 0010's rule: a
+    phone that dials or an email that checks out. Its sentence says "each with a checked email", and Ask is told to plan
+    a search for leads the owner will email as one made for email. Reverses decision 0010 for email searches on Ruben's
+    word ("if this is for cold email then we must generate only ones with email"): his two med spa searches counted 154
+    leads against the month, each by its phone, none with an email.
 
 ## Held by
 
@@ -92,3 +100,5 @@ The items below are each a place where that happened, and what it does now.
   is told of the picked leads).
 - Items 12 and 13: `tests/leads/finder/leads-vm.test.mjs` and `tests/leads/finder/leads-honest.test.mjs`.
 - Item 14: `tests/leads/engine/lead-core.test.mjs`.
+- Item 15: `tests/leads/engine/lead-search.test.mjs` (the class) and `tests/leads/engine/lead-runner.test.mjs` (nothing counted at
+  collect).
