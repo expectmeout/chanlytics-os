@@ -67,6 +67,8 @@ interface CreateBody {
 interface StarterBody {
   keys?: string[];
   languages?: string[];
+  /** The channels its use goes by (a sequence's): the versions filed, WhatsApp's sent for review where WhatsApp is one. */
+  channels?: string[];
 }
 /**
  * What a message is, said with its first version when the workspace holds no row of its name: an offer or news (the
@@ -114,8 +116,11 @@ export const templates = {
   /** The workspace's own words for it; null goes back to the name. Meta's name is untouched. */
   rename: (id: string, title: string | null) => api()("PUT templates/[id]", { params: { id }, body: { title } }),
   show: (id: string) => api()("PUT templates/[id]", { params: { id }, body: { hidden: false } }),
-  /** The starter set, or some of it, in the languages asked: idempotent, submitted to Meta where new. */
-  addStarters: (body: StarterBody) => api()("POST templates/starter", { body }),
+  /**
+   * A starter filed as a use of it asks (a step's editor, on Save): idempotent, its WhatsApp version submitted to Meta where
+   * new. Asked for one, the answer names the version a step sends (`template_id`).
+   */
+  fileStarters: (body: StarterBody) => api()("POST templates/starter", { body }),
   /** An email or text version of a message, written or written again: refused in the server's words where it does not fit. */
   saveVersion: (body: VersionDraft) => api()("POST templates/versions", { body }),
   /** One email or text version gone; the message and its other versions stay. */

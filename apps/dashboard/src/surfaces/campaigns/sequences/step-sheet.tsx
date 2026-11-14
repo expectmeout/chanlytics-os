@@ -299,6 +299,7 @@ function SheetBody(p: {
         step={step}
         policyClass={rec.sequence.first?.policy_class ?? ""}
         batchId={waitingFor(rec, step)}
+        channels={rec.sequence.channels}
         flash={flash}
         onDone={p.onDone}
         onCancel={p.onCancel}

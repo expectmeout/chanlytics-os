@@ -137,7 +137,6 @@ function useBroadcastsPage({ data, initialRun = null, flash: hosted, over }: Bro
   // The row whose stop is armed, and the one whose stop is on its way.
   const [armId, setArmId] = useState<string | null>(null);
   const [stopping, setStopping] = useState<string | null>(null);
-  const [addingStarters, setAddingStarters] = useState(false);
   // Starters in review at WhatsApp: the honest line while nothing is approved yet.
   const starterPending = starterPendingOf();
   useEffect(() => {
@@ -181,8 +180,6 @@ function useBroadcastsPage({ data, initialRun = null, flash: hosted, over }: Bro
     setArmId,
     stopping,
     setStopping,
-    addingStarters,
-    setAddingStarters,
     starterPending,
   };
   // One approve at a time: a second press while the first is out would be refused by the server, so the button says

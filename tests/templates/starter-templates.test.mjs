@@ -457,8 +457,8 @@ test("the door: idempotent, one language at a time, synced in when the number's 
   assert.ok(r.includes("Pick at least one starter template, in English or Spanish."));
   const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
   assert.ok(
-    b.includes('addStarters: (body: StarterBody) => api()("POST templates/starter", { body })'),
-    "the verb goes through the client; the map refreshes every surface that shows templates",
+    b.includes('fileStarters: (body: StarterBody) => api()("POST templates/starter", { body })'),
+    "the verb goes through the client (a step editor files the starter it picked); the map refreshes every surface that shows templates",
   );
   assert.ok(
     b.includes("export const starters: StarterLibrary = {") &&
@@ -470,7 +470,7 @@ test("the door: idempotent, one language at a time, synced in when the number's 
   assert.deepEqual(
     refreshMap.AFTER["POST templates/starter"]().map((o) => o.key),
     ["settings"],
-    "the playbook composer learns of a newly added starter from the settings read it is made of, with no hook of its own",
+    "the playbook composer learns of a newly filed starter from the settings read it is made of, with no hook of its own",
   );
   assert.equal(Object.hasOwn(refreshMap, "HOOKS"), false, "no window hook is called behind a write any more");
 });
@@ -482,7 +482,8 @@ test("the pages: titles not names, the starter set in Settings, the message as t
       readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.ts${f === "group" || f === "words" ? "" : "x"}`),
     )
     .join(" ");
-  // No banner asks for the starter set (the Messages redesign's step 5): it files itself as a number connects.
+  // No banner and no press adds the set (the clean list, 14 Nov 2026): a starter is filed the first time something uses it,
+  // and a language the set wrote is added to one already in use (`starter-add`).
   for (const id of ["starter-add", "template-menu"]) assert.ok(s.includes(`data-testid="${id}"`), id);
   for (const id of ["starters", "starter-add-all"]) assert.ok(!s.includes(`data-testid="${id}"`), `no ${id}`);
   assert.ok(s.includes('testid="template-lang"'), "one language control per message, the picker's");
@@ -527,9 +528,7 @@ test("the pages: titles not names, the starter set in Settings, the message as t
   const t = ["composer-forms.tsx", "composer.tsx"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}`))
     .join(" ");
-  assert.ok(
-    t.includes('data-testid="tpl-start-from"') && t.includes("export const starterWords = ") && !t.includes("WaBubble"),
-  );
+  assert.ok(t.includes('data-testid="tpl-start-from"') && !t.includes("starterWords") && !t.includes("WaBubble"));
   // Campaigns' rules live in their own sheet; the starter list's own rows (.tpl-starter-*) went with the list.
   const css = readCode("apps/dashboard/src/surfaces/campaigns/campaigns.css");
   assert.ok(css.includes(".mp-bubble {") && !css.includes(".tpl-starter-row"));

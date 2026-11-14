@@ -17,9 +17,9 @@
  * its chains, and each is a message with an email version that is written in its pane (step 5).
  *
  * The page lists the workspace's messages (the surface's `messages`), not its WhatsApp rows: a message written for email
- * or text alone is a row, and each starter is listed with its words to read (the Messages redesign's step 5): it files
- * itself as a WhatsApp number connects (starter-templates.ts fileStartersOnConnect), or as a sequence first names it, and
- * no banner asks for the set. The number gates only what is WhatsApp's: a WhatsApp version's words, rename, hide and
+ * or text alone is a row, and each starter is listed with its words to read (the Messages redesign's step 5): it is filed
+ * the first time something uses it (a sequence, a send, Ask's card, or its words changed here: the clean list, 14 Nov
+ * 2026), and no banner asks for the set. The number gates only what is WhatsApp's: a WhatsApp version's words, rename, hide and
  * delete, a WhatsApp language. WhatsApp's own list is asked quietly as the page opens (useQuietCheck): no sync button.
  *
  * It is the Inbox's shape (parts/split.tsx): the list in a pane and, while something is open, that thing in a second
@@ -370,7 +370,7 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   const listing = listingOf(templates, messages, S);
   const { langs, starters, customGroups, hiddenGroups } = listing;
   const acts = pageActs({ doingRef, setDoing, flash });
-  const { rename, toggleHidden, addStarters, written } = acts;
+  const { rename, toggleHidden, addLanguage, written } = acts;
   // A new language is written and sent from the pane that opened it, by whoever may
   // add a template and only with a number to add it to; anyone else is told why in
   // the picker, where the languages it cannot add would have been. (An email's or a text's
@@ -416,7 +416,7 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
       doing={doing}
       S={S}
       onClose={closeOpen}
-      onAdd={(gg, lang) => addStarters([gg.starter.key], [lang.id])}
+      onAdd={addLanguage}
       onRename={rename}
       onHide={toggleHidden}
       onDelete={acts.removeMessage}

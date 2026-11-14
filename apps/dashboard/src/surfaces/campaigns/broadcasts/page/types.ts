@@ -165,8 +165,6 @@ export interface BcBase {
   setArmId: Setter<string | null>;
   stopping: string | null;
   setStopping: Setter<string | null>;
-  addingStarters: boolean;
-  setAddingStarters: Setter<boolean>;
   starterPending: number;
 }
 
@@ -286,10 +284,9 @@ export interface BcRunActs {
   approve: (row: BcActRow, words?: string | null) => Promise<boolean>;
 }
 
-/** The send, and the starter set added from the send screen. */
+/** The send. */
 export interface BcSendActs {
   submit: (scheduled: boolean) => Promise<void>;
-  addStarters: () => Promise<void>;
 }
 
 /** The runs a sheet reads: every run, those still to go out in their order, and the run the address opens. */

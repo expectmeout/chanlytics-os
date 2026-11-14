@@ -1,6 +1,6 @@
 /**
  * What a press on the broadcasts page does (moved from legacy/pages/broadcasts.jsx, decision 0015): stop and approve on
- * a run, the send itself, and the starter set added from the send screen. Each says so the moment the server takes it.
+ * a run, and the send itself. Each says so the moment the server takes it.
  */
 import {
   SENDING_NOW_WORDS,
@@ -14,8 +14,6 @@ import {
   runRoute,
 } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
-import { starterWords } from "../../templates/composer";
-import { templates } from "../../templates/verbs";
 import { broadcasts } from "../verbs";
 import type { SendBody } from "../verbs";
 import { bcWhenWords } from "../when-words";
@@ -95,7 +93,7 @@ export function bcRunActs({
   return { cancel, approve };
 }
 
-// The send, and the starter set added from the send screen.
+// The send.
 export function bcSendActs({
   ready,
   canSend,
@@ -114,22 +112,9 @@ export function bcSendActs({
   setWriting,
   data,
   cancel,
-  addingStarters,
-  setAddingStarters,
 }: Pick<
   BcBase,
-  | "canSend"
-  | "setBusy"
-  | "whenAt"
-  | "name"
-  | "setArmed"
-  | "flash"
-  | "work"
-  | "clearWords"
-  | "setWriting"
-  | "data"
-  | "addingStarters"
-  | "setAddingStarters"
+  "canSend" | "setBusy" | "whenAt" | "name" | "setArmed" | "flash" | "work" | "clearWords" | "setWriting" | "data"
 > &
   Pick<BcSlotWords, "ready" | "specs"> &
   Pick<BcReach, "tpl" | "active" | "on" | "breathe"> &
@@ -194,12 +179,5 @@ export function bcSendActs({
       links: [{ label: "See who", to: runRoute(r.data.id) }],
     });
   };
-  const addStarters = async () => {
-    if (addingStarters) return;
-    setAddingStarters(true);
-    const r = await templates.addStarters({ languages: ["en_US"] });
-    setAddingStarters(false);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>{starterWords(r.data)}</> : <>{r.message}</> });
-  };
-  return { submit, addStarters };
+  return { submit };
 }

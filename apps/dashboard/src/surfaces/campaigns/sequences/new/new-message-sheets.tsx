@@ -12,9 +12,14 @@ import {
   NEW_VALUES,
   NEW_WORDS as W,
   REACH_OUT_SLOTS,
+  defaultParamSpecs,
   numberedValues,
+  slotLabels,
   slugTemplateName,
   momentNamesVisit,
+  starterEmailText,
+  starterSmsText,
+  starterText,
   triggerOf,
   type CampaignMessage,
   type DraftWho,
@@ -23,13 +28,16 @@ import {
   type NewMessage,
   type NewWrittenMessage,
   type ParamSpec,
+  type StarterTemplate,
 } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { routeDoor } from "../../../frame-verbs";
-import { tplOwn } from "../../templates/words";
+import { STARTER_MOMENTS, starterMoment } from "../../templates/group";
+import { starters } from "../../templates/verbs";
+import { TPL_LIST_WORDS, tplOwn } from "../../templates/words";
 import { valuesByName } from "./change";
 import { channelsSaidOf, heldMessageOf } from "./new-model";
 import { Choice } from "./choice";
@@ -63,6 +71,49 @@ function notHereOf(m: NewMessage, first: boolean, who: DraftWho | null): string 
 
 const channelsSaid = (m: NewMessage): string => channelsSaidOf(m.channels, " · ");
 
+/** The language a ready-made starter is filed in as a draft is made: English, as every new campaign's starter is. */
+const STARTER_LANGUAGE = "en_US";
+
+/**
+ * A ready-made starter as a step's message (the clean list, 14 Nov 2026): its words and values as the set writes them, the
+ * channels it is written for (WhatsApp's goes to WhatsApp for review as it is filed), and its key, by which Keep or Start
+ * files it (drafts/sequence-new.ts templateOf).
+ */
+function starterMessageOf(starter: StarterTemplate): NewMessage {
+  const named = { name: starter.name, variables: [] };
+  const writes = {
+    whatsapp: true,
+    email: !!starterEmailText(starter, STARTER_LANGUAGE),
+    sms: !!starterSmsText(starter, STARTER_LANGUAGE),
+  };
+  return {
+    template_id: null,
+    starter: starter.key,
+    title: starter.title,
+    body: starterText(starter, STARTER_LANGUAGE).body,
+    channels: (["whatsapp", "email", "sms"] as const).filter((c) => writes[c]),
+    params: defaultParamSpecs(named),
+    offer: starter.category === "marketing",
+    written: null,
+    labels: slotLabels(named),
+  };
+}
+
+/**
+ * The ready-made starters a step may take: those offered here that the workspace holds no message of yet, by what each is
+ * for (templates/group.ts starterMoment). None until the Library is read, so a starter on file is never offered twice.
+ */
+function readyMadeOf(library: LibraryReads | null): StarterTemplate[] {
+  if (!library) return [];
+  const held = new Set(library.messages.map((m) => m.name));
+  const ready = starters.list.filter((s) => !s.retired && !held.has(s.name));
+  return STARTER_MOMENTS.flatMap((moment) => ready.filter((s) => starterMoment(s) === moment));
+}
+
+/** What a ready-made starter is for, as the list says it: "For the day before an appointment". */
+const purposeSaid = (starter: StarterTemplate): string =>
+  starter.purpose.charAt(0).toUpperCase() + starter.purpose.slice(1);
+
 /** A step's message: Ask's, one of the workspace's, or one the owner writes. */
 export function MessageSheet(p: {
   open: boolean;
@@ -79,6 +130,7 @@ export function MessageSheet(p: {
     .filter((m) => m.offered)
     .map((m) => heldMessageOf(m, p.library?.rows ?? []))
     .filter((m): m is NewMessage => m !== null);
+  const readyMade = readyMadeOf(p.library);
   return (
     <PickSheet
       open={p.open}
@@ -123,6 +175,29 @@ export function MessageSheet(p: {
           );
         })}
       </div>
+      {readyMade.length > 0 ? (
+        <>
+          <p className="sq-nw-cap">{TPL_LIST_WORDS.made}</p>
+          <div className="sq-nw-rows">
+            {readyMade.map((s) => {
+              const m = starterMessageOf(s);
+              const notHere = notHereOf(m, p.i === 0, p.draft.kind === "sequence" ? p.draft.who : null);
+              return (
+                <Choice
+                  key={s.key}
+                  glyph="chat"
+                  name={s.title}
+                  said={notHere ?? purposeSaid(s)}
+                  on={step?.message?.starter === s.key}
+                  off={notHere !== null}
+                  onPick={() => p.onMessage(m)}
+                  testid={`sq-nw-starter-${s.key}`}
+                />
+              );
+            })}
+          </div>
+        </>
+      ) : null}
     </PickSheet>
   );
 }

@@ -374,6 +374,13 @@ export function heldMessageOf(
   };
 }
 
+/**
+ * Whether a step's message sends a WhatsApp version to Meta as the draft is made: one Ask wrote with a WhatsApp version,
+ * or a ready-made starter (every starter has one), each filed then (drafts/sequence-new.ts templateOf).
+ */
+export const reviewedOnMake = (m: NewMessage | null | undefined): boolean =>
+  !!(m?.written?.versions.whatsapp || m?.starter);
+
 /** What a typed value is asked as: its slot's own name, where the message gives one ("Value 2" is no name). */
 export function valueLabelOf(m: NewMessage, at: number): string | null {
   const named = m.written?.slots[at]?.label ?? m.labels?.[at] ?? "";
@@ -473,7 +480,7 @@ export const setName = (d: NewDraftDto, name: string): NewDraftDto => {
 export function reviewOf(d: NewDraftDto): { others: string; only: number; can: number } | null {
   const first = d.steps[0]?.message;
   if (d.kind !== "once" || d.audience !== "people") return null;
-  if (!first?.written?.versions.whatsapp || !d.channels.includes("whatsapp")) return null;
+  if (!reviewedOnMake(first) || !d.channels.includes("whatsapp")) return null;
   const others = d.channels.filter((c) => c !== "whatsapp");
   // Counted for the channels Ask drafted it with; with WhatsApp the only one left on, everyone hears only WhatsApp.
   const only = others.length ? (d.reach?.only_whatsapp ?? 0) : (d.reach?.can ?? 0);
@@ -655,7 +662,12 @@ export function makeBodyOf(d: NewDraftDto, start: boolean, draftId: string | nul
       only_if: s.only_if,
       does: s.does,
       message: s.message
-        ? { template_id: s.message.template_id, params: s.message.params, written: s.message.written }
+        ? {
+            template_id: s.message.template_id,
+            params: s.message.params,
+            written: s.message.written,
+            ...(s.message.starter ? { starter: s.message.starter } : {}),
+          }
         : null,
       email: s.email,
       hand: s.hand,
