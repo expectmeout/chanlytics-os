@@ -1327,9 +1327,11 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
 .sb-agent-paused .sb-agent-name { color: var(--ink-muted); }
 .sb-agent-paused .sb-agent-task { font-style: italic; }
 
-/* Notification per-item dismiss */
+/* Notification per-item dismiss, and the check that reads a note where it stands (decision 0124: a dot goes only by
+   a press, so a desk needs one that does not open the note). The check stands beside the ×; on a group's line, which
+   has no ×, where its time is. */
 .tbn-item { position: relative; }
-.tbn-x {
+.tbn-x, .tbn-read {
   position: absolute;
   z-index: 1;
   top: 6px;
@@ -1345,24 +1347,43 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
   transform: scale(0.85);
   transition: opacity 120ms var(--ease-out), transform 120ms var(--ease-out), background 120ms, color 120ms;
 }
-.tbn-item:hover .tbn-x, .tbn-x:focus-visible { opacity: 1; pointer-events: auto; transform: none; }
+.tbn-read { right: 30px; }
+.tbn-item-group .tbn-read { right: 34px; }
+.tbn-item:hover :is(.tbn-x, .tbn-read), :is(.tbn-x, .tbn-read):focus-visible { opacity: 1; pointer-events: auto; transform: none; }
 /* A touch screen has no hover to show it, so there the × is always in the row (it waited for the pointer, and a phone
    could only Mark all read, 25 Sep). It keeps its size; its press area is a thumb wide, and the time moves over for it. */
 @media (hover: none) {
-  .tbn-x { opacity: 1; pointer-events: auto; transform: none; }
+  :is(.tbn-x, .tbn-read) { opacity: 1; pointer-events: auto; transform: none; }
   /* Its own 22px (the touch floor stretched it to 22 by 44); the press area is the thumb's 44 square, but no wider
      than the note: 8px of it past the × on the note's side, 14 before it, so the list is never wider than itself. */
-  html.frame-on .tbn-x { min-height: 22px; }
+  html.frame-on :is(.tbn-x, .tbn-read) { min-height: 22px; }
   .tbn-x::after { content: ""; position: absolute; inset: -11px -8px -11px -14px; }
   .tbn-item:not(.tbn-item-group) .tbn-line1 { padding-right: 24px; }
+  /* The check on a touch screen: a group's stands alone, a thumb wide, and its time moves over for it. A note's stands
+     clear of the ×'s press area, each with its own, and both the time and the title make room. */
+  .tbn-read::after { content: ""; position: absolute; inset: -11px -2px -11px -14px; }
+  .tbn-item-group .tbn-read::after { inset: -11px -8px -11px -14px; }
+  .tbn-item-group.unread .tbn-line1 { padding-right: 26px; }
+  .tbn-item:not(.tbn-item-group) .tbn-read { right: 46px; }
+  .tbn-item.unread:not(.tbn-item-group) .tbn-line1 { padding-right: 62px; }
+}
+/* On a phone a thumb slides a note to read it (the sheet's grounds, above), so a note carries no check there: the row
+   keeps its two lines whole. A group cannot be slid, and keeps its own. */
+@media (max-width: 720px) {
+  .tbn-item:not(.tbn-item-group) .tbn-read { display: none; }
+  .tbn-item.unread:not(.tbn-item-group) .tbn-line1 { padding-right: 24px; }
 }
 /* Only where a pointer hovers (iOS keeps :hover on what lands under the finger, see .tbn-open). The × takes the time's
    place on hover; a group has no ×, so it keeps its time. */
 @media (hover: hover) {
   .tbn-x:hover { color: var(--danger); background: var(--danger-soft); }
-  .tbn-item:not(.tbn-item-group):hover .tbn-time { opacity: 0; }
+  .tbn-read:hover { color: var(--info-ink); background: var(--info-soft); }
+  .tbn-item:not(.tbn-item-group):hover .tbn-time, .tbn-item-group.unread:hover .tbn-time { opacity: 0; }
+  /* An unread line's time keeps a slot as wide as the check, so the title never runs under it and nothing moves as
+     the pointer comes over. */
+  .tbn-item.unread .tbn-time { min-width: 30px; text-align: right; }
 }
-.tbn-x:active { transform: scale(0.9); }
+:is(.tbn-x, .tbn-read):active { transform: scale(0.9); }
 .tbn-time { transition: opacity 120ms var(--ease-out); }
 
 /* Non-interactive info elements with tips read as "explainable", not clickable */
@@ -2282,6 +2303,12 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   box-shadow: none;
   color: transparent;
   overflow: hidden;
+}
+/* Nothing new, but notes still unread: the same dot at the same shoulder, quiet (decision 0124). It is not the kit's
+   tally, so it places itself. */
+.topbar .tb-bell > .tb-bell-unread {
+  position: absolute;
+  background: var(--ink-faint);
 }
 
 /* The live call is the island (liquid.py live_pill): always dark, as the hardware it borrows from, so it sets its own

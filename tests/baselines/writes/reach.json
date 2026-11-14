@@ -1876,7 +1876,7 @@
       }
     },
     "POST partner/invitations/[id]/accept": {
-      "changes": "memberships INSERT UPDATE · partner_invitations DELETE · partner_tenants INSERT",
+      "changes": "memberships INSERT UPDATE · notification_reads INSERT UPDATE · partner_invitations DELETE · partner_tenants INSERT",
       "tells": "memberships",
       "extra": {
         "partner": "broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
@@ -1890,6 +1890,7 @@
         "conversations": "conversations, inbox",
         "inbox": "inbox",
         "leads": "clients/leads, leads",
+        "notifications": "today",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
         "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
@@ -2445,7 +2446,7 @@
       }
     },
     "POST team/invite": {
-      "changes": "invitations DELETE INSERT · memberships INSERT",
+      "changes": "invitations DELETE INSERT · memberships INSERT · notification_reads INSERT UPDATE",
       "missing": {
         "alerts": "admin/notifications",
         "ask_morning": "today",
@@ -2455,6 +2456,7 @@
         "conversations": "conversations, inbox",
         "inbox": "inbox",
         "leads": "clients/leads, leads",
+        "notifications": "today",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",

@@ -19,6 +19,7 @@ import {
   REACH_OUT_DAY_ROUTE,
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, unmount, all, find, textOf, classes, press } from "../_stub-react.mjs";
+import { until } from "../shared/_until.mjs";
 
 const NOW = Date.parse("2026-09-25T15:00:00Z");
 const kept = (over) => ({
@@ -250,7 +251,7 @@ test("the bell says notes of one kind once, where the newest stood, new above ea
   const s = bellSections(rows);
   assert.deepEqual(
     s.map((x) => x.label),
-    ["New", "Earlier"],
+    ["Unread", "Earlier"],
   );
   assert.deepEqual(
     s[0].lines.map((l) => [l.title ?? l.row.title, l.count]),
@@ -282,7 +283,7 @@ test("the unread rows the bell does not list are said once, after its own, with 
   assert.deepEqual(
     bellSections(rows, 3).map((x) => [x.label, x.lines.length]),
     [
-      ["New", 1],
+      ["Unread", 1],
       ["3 older unread notices are not listed. Mark all read clears them.", 0],
     ],
   );
@@ -293,7 +294,7 @@ test("the unread rows the bell does not list are said once, after its own, with 
   );
   assert.deepEqual(
     bellSections(rows).map((x) => x.label),
-    ["New"],
+    ["Unread"],
   );
   // The away card: the older rows are in its total, and alone they are its sentence, never "All caught up."
   const only = todayAwayGrouped([], [], 5, 2);
@@ -413,12 +414,95 @@ test("a group is one line saying how many; a press opens its notes under it, eac
   assert.deepEqual(acts.acted, ["c2", "conversations/phone"]);
 });
 
-test("the mockup's bell, with no sections of its own, still stands new above earlier", () => {
+test("the mockup's bell, with no sections of its own, still stands unread above earlier", () => {
   fresh();
   W.__notifs = undefined;
   const tree = again(() => popover([bellRow("a", "call", "A"), bellRow("b", "call", "B", false)]));
-  assert.deepEqual(all(tree, (n) => classes(n).includes("tbn-sec")).map(textOf), ["New", "Earlier"]);
+  assert.deepEqual(all(tree, (n) => classes(n).includes("tbn-sec")).map(textOf), ["Unread", "Earlier"]);
   assert.equal(all(tree, (n) => classes(n).includes("tbn-item")).length, 2, "not folded");
+});
+
+/* ------------------------------ the check on a note and on a group ------------------------------ */
+// A dot goes only by a press (decision 0124), and on a desk the one press a note had opened it: an unread note, and a
+// group with an unread note in it, carries a check that reads it where it stands.
+
+const checked = (items, acts = {}, many = true) =>
+  NotifPopover({
+    items,
+    onAction: (id, to) => (acts.acted = [id, to]),
+    onReadAll() {},
+    onDismiss() {},
+    onRead: (id) => (acts.read = [...(acts.read ?? []), id]),
+    onReadMany: many ? (ids) => (acts.readMany = [...ids]) : null,
+    onClose() {},
+    alerts: null,
+  });
+const checksOf = (node) => all(node, (n) => classes(n).includes("tbn-read"));
+
+test("an unread note carries a check that reads it without opening it; a read note has none", () => {
+  fresh();
+  const acts = {};
+  W.__notifs = { sections: bellSections };
+  const items = [bellRow("a", "needs_you", "Note a"), bellRow("b", "review", "Note b", false)];
+  const tree = again(() => checked(items, acts));
+  const [unread, read] = all(tree, (n) => classes(n).includes("tbn-item"));
+  assert.deepEqual(
+    checksOf(unread).map((b) => [b.props.title, b.props["aria-label"]]),
+    [["Mark read", "Mark read: Note a"]],
+    "REGRESSION: on a desk a note could only be read by opening it",
+  );
+  assert.equal(checksOf(read).length, 0, "nothing to read on a note that is read");
+  press(checksOf(unread)[0]);
+  assert.deepEqual(acts.read, ["a"]);
+  assert.equal(acts.acted, undefined, "the note is not opened, and the bell stays open");
+});
+
+test("a group's check reads every unread note under it in one press, and only those", () => {
+  fresh();
+  const acts = {};
+  W.__notifs = { sections: bellSections };
+  const calls = [
+    bellRow("c1", "call", "Ana phoned"),
+    bellRow("c2", "call", "Bo phoned"),
+    bellRow("c3", "call", "Cy phoned"),
+  ];
+  let tree = again(() => checked(calls, acts));
+  const head = () => find(tree, (n) => classes(n).includes("tbn-item-group"));
+  assert.deepEqual(
+    checksOf(head()).map((b) => b.props["aria-label"]),
+    ["Mark read: 3 calls"],
+    "REGRESSION: a group could only be unfolded, never read as one",
+  );
+  press(checksOf(head())[0]);
+  assert.deepEqual(acts.readMany, ["c1", "c2", "c3"], "one press, one act for the group");
+  assert.equal(acts.read, undefined, "not a press a note");
+  // Read, the group keeps its place and its line while the bell is open, without its dot or its check.
+  const read = calls.map((n) => ({ ...n, unread: false }));
+  tree = again(() => checked(read, acts));
+  assert.ok(head(), "still one line for the three");
+  assert.ok(!classes(head()).includes("unread"));
+  assert.equal(checksOf(head()).length, 0);
+});
+
+test("a bell that reads no group as one reads each of its notes", () => {
+  fresh();
+  const acts = {};
+  W.__notifs = { sections: bellSections };
+  const calls = [
+    bellRow("c1", "call", "Ana phoned"),
+    bellRow("c2", "call", "Bo phoned", false),
+    bellRow("c3", "call", "Cy phoned"),
+  ];
+  // One of the three is read already: the group stands under Unread with the two that are not.
+  const tree = again(() =>
+    checked(
+      calls.filter((n) => n.unread),
+      acts,
+      false,
+    ),
+  );
+  press(checksOf(find(tree, (n) => classes(n).includes("tbn-item-group")))[0]);
+  assert.deepEqual(acts.read, ["c1", "c3"]);
 });
 
 /* ------------------------------ a thumb on a note ------------------------------ */
@@ -536,8 +620,8 @@ test("slid right, an unread note is marked read where it stands and comes back; 
     tree = again(() => thumbed(items, h));
     assert.deepEqual(
       order(tree),
-      ["New", "Note a", "Note b", "Earlier", "Note c"],
-      "read, it keeps its place under New",
+      ["Unread", "Note a", "Note b", "Earlier", "Note c"],
+      "read, it keeps its place under Unread",
     );
     assert.ok(!classes(notes(tree)[0]).includes("unread"), "and is drawn read");
     assert.equal(
@@ -592,7 +676,7 @@ test("the bell groups by what its notes are about, as the away card does: sixtee
     about,
   });
   const [section] = bellSections(Array.from({ length: 16 }, (_, i) => note(i, { type: "conversation", id: "c1" })));
-  assert.equal(section.label, "New");
+  assert.equal(section.label, "Unread");
   assert.equal(section.lines[0].title, "1 conversation needs you", "REGRESSION: it said 16 conversations");
   assert.equal(section.lines[0].count, 16, "and the line stands for every note it holds");
   assert.equal(section.lines[0].members.length, 16);
@@ -684,7 +768,14 @@ test("Mark all read is its own press: it reads the notes through the bell, says 
     seenAll: () => void (pressed.seen += 1),
     readAll: () => {
       pressed.read += 1;
-      return { read: 4, undo: () => void (pressed.undone += 1) };
+      return {
+        read: 4,
+        saved: Promise.resolve(true),
+        undo: () => {
+          pressed.undone += 1;
+          return Promise.resolve(true);
+        },
+      };
     },
   };
   const bellOf = (tree) => find(tree, (n) => String(n.props?.className || "").includes("tb-bell "));
@@ -692,7 +783,17 @@ test("Mark all read is its own press: it reads the notes through the bell, says 
   try {
     fresh();
     const closed = draw();
-    assert.equal(bellOf(closed).props["aria-label"], "Notifications, 3 unread", "the bell's own number");
+    assert.equal(
+      bellOf(closed).props["aria-label"],
+      "Notifications, 3 new",
+      "the bell's own number, and REGRESSION: it called what is new since the look unread",
+    );
+    assert.equal(bellOf(closed).props["data-tip"], "3 new — what needs you");
+    assert.equal(
+      find(closed, (n) => classes(n).includes("tb-bell-unread")),
+      null,
+      "the number is the sign while anything is new",
+    );
     bellOf(closed).props.onClick();
     find(again(draw), (n) => typeof n.props?.onReadAll === "function").props.onReadAll();
     assert.equal(pressed.read, 1, "read through the bell's own door");
@@ -700,6 +801,99 @@ test("Mark all read is its own press: it reads the notes through the bell, says 
     assert.equal(textOf(flashes.at(-1).msg), "4 marked read", "how many it read, in contracts' words");
     flashes.at(-1).undo();
     assert.equal(pressed.undone, 1, "Undo is the bell's own way back");
+  } finally {
+    unmount();
+    delete W.__notifs;
+    delete W.usePPToast;
+  }
+});
+
+test("looked at but not read: the closed bell says so quietly, by a sign and by its name, until the notes are read", () => {
+  W.usePPToast = () => [null, () => undefined];
+  const notes = [
+    { id: "n-1", kind: "booking", title: "1 booked", message: "Tove Lind", at: 0, unread: true, actions: [] },
+    { id: "n-2", kind: "review", title: "A review", message: "Five stars", at: 0, unread: true, actions: [] },
+    { id: "n-3", kind: "review", title: "An older review", message: "Four stars", at: 0, unread: false, actions: [] },
+  ];
+  const bellWith = (feed, older = 0) => ({
+    feed: () => feed,
+    alerts: () => null,
+    onChange: () => () => undefined,
+    older: () => older,
+    // Nothing is new since the look.
+    unread: () => 0,
+    seenAll() {},
+  });
+  const bellOf = (tree) => find(tree, (n) => String(n.props?.className || "").includes("tb-bell "));
+  const draw = () => Topbar({ crumbs: ["Today"], theme: "light", themePref: "light", onAsk() {}, onMenu() {} });
+  const signOf = (tree) => find(tree, (n) => classes(n).includes("tb-bell-unread"));
+  try {
+    W.__notifs = bellWith(notes);
+    fresh();
+    const looked = draw();
+    assert.ok(signOf(looked), "REGRESSION: once looked at, the closed bell said nothing though two notes were unread");
+    assert.equal(
+      find(looked, (n) => classes(n).includes("tb-bell-badge")),
+      null,
+      "no number: nothing is new",
+    );
+    assert.equal(bellOf(looked).props["aria-label"], "Notifications, 2 unread");
+    assert.equal(bellOf(looked).props["data-tip"], "2 unread");
+    unmount();
+
+    W.__notifs = bellWith(
+      notes.map((n) => ({ ...n, unread: false })),
+      0,
+    );
+    fresh();
+    const read = draw();
+    assert.equal(signOf(read), null, "read, the bell is plain");
+    assert.equal(bellOf(read).props["aria-label"], "Notifications");
+    assert.equal(bellOf(read).props["data-tip"], undefined);
+  } finally {
+    unmount();
+    delete W.__notifs;
+    delete W.usePPToast;
+  }
+});
+
+test("a Mark all read, or an Undo, the server did not take is said in plain words where the toast stood", async () => {
+  const flashes = [];
+  W.usePPToast = () => [null, (p) => flashes.push(p)];
+  const took = { read: false, undo: false };
+  W.__notifs = {
+    feed: () => [{ id: "n-1", kind: "booking", title: "1 booked", message: "Tove", at: 0, unread: true, actions: [] }],
+    alerts: () => null,
+    onChange: () => () => undefined,
+    older: () => 0,
+    unread: () => 1,
+    seenAll() {},
+    readAll: () => ({ read: 1, saved: Promise.resolve(took.read), undo: () => Promise.resolve(took.undo) }),
+  };
+  const bellOf = (tree) => find(tree, (n) => String(n.props?.className || "").includes("tb-bell "));
+  const draw = () => Topbar({ crumbs: ["Today"], theme: "light", themePref: "light", onAsk() {}, onMenu() {} });
+  const readAll = () => find(again(draw), (n) => typeof n.props?.onReadAll === "function").props.onReadAll();
+  const said = () => flashes.map((p) => textOf(p.msg));
+  try {
+    fresh();
+    bellOf(draw()).props.onClick();
+    readAll();
+    assert.deepEqual(said(), ["1 marked read"], "at once, as the dots go");
+    await until(() => flashes.length > 1, "the failure is said");
+    assert.deepEqual(
+      said().at(-1),
+      "Mark all read didn't save, so your notes are unread again. Press it once more.",
+      "REGRESSION: a failed Mark all read was silent, and the toast went on saying it was done",
+    );
+    assert.equal(flashes.at(-1).undo, undefined, "nothing to undo");
+    assert.equal(flashes.at(-1).tone, "danger", "a failure's tone, never the tick that said it was done");
+
+    took.read = true;
+    flashes.length = 0;
+    readAll();
+    flashes[0].undo();
+    await until(() => flashes.length > 1, "the failed Undo is said");
+    assert.equal(said().at(-1), "Undo didn't save, so those notes stay read.");
   } finally {
     unmount();
     delete W.__notifs;

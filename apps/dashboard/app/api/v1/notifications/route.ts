@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { AppError } from "@chanlytics/contracts";
+import { AppError, BELL_LIST_ROWS } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { load, readerContext } from "@/server/shared/reader";
 import { notifications } from "@/server/readers/notifications";
 import { dbRefusal } from "@/server/shared/with-route";
-import { markBellReadThrough, markBellSeen, markOne } from "@/server/notices/bell";
+import { markBellReadThrough, markBellSeen, markManyRead, markOne } from "@/server/notices/bell";
 
 /**
  * GET /api/v1/notifications — the workspace's kept notifications of the last
@@ -22,16 +22,19 @@ const Mark = z.object({
   read_all: z.boolean().optional(),
   read_through: z.iso.datetime({ offset: true, message: "read_through is a moment, in ISO 8601." }).optional(),
   id: z.string().optional(),
+  // A group's notes, read by one press: no more than the bell lists.
+  ids: z.array(z.string()).min(1).max(BELL_LIST_ROWS).optional(),
   read: z.boolean().optional(),
   dismissed: z.boolean().optional(),
 });
 
 /**
  * PUT /api/v1/notifications — { seen: true } (the member looked: the number starts again, no note is read),
- * { read_all: true } (Mark all read: every note up to now is read, and looked at; answers `was`, the moment they had
- * read through before), { read_through } (its Undo: back to that moment, never forward), or { id, read?, dismissed? }:
- * this person's own marks, which every member may make (a viewer reads the bell too). The definer functions write only
- * the caller's rows.
+ * { read_all: true, read_through } (Mark all read: every note up to that moment, the newest the bell had listed, is
+ * read, and looked at; never past now and never back; with no moment, up to now; answers `was`, the moment they had
+ * read through before), { read_through } alone (its Undo: back to that moment, never forward), { ids, read: true } (a
+ * group's notes read by one press), or { id, read?, dismissed? }: this person's own marks, which every member may make
+ * (a viewer reads the bell too). The definer functions write only the caller's rows.
  */
 export const PUT = write({
   scope: workspace,
@@ -41,14 +44,25 @@ export const PUT = write({
   handle: async ({ ctx, member, input: body }) => {
     const tenantId = member.tenantId;
     if (body.read_all === true || body.read_through !== undefined)
-      return markBellReadThrough(ctx, tenantId, body.read_through);
+      return markBellReadThrough(ctx, tenantId, body.read_through, body.read_all === true);
     if (body.seen === true) {
       const { data, error } = await markBellSeen(ctx, { p_tenant_id: tenantId });
       if (error) throw dbRefusal(error);
       return { seen_at: ((data ?? {}) as { seen_at?: string }).seen_at ?? null };
     }
+    if (body.ids) {
+      if (body.read !== true)
+        throw new AppError("validation", "Several notes are marked read: send { ids, read: true }.");
+      return markManyRead(
+        ctx,
+        body.ids.map((id) => requireUuid(id, "notification")),
+      );
+    }
     if (typeof body.id !== "string")
-      throw new AppError("validation", "Send { seen: true }, { read_all: true } or { id, read?, dismissed? }.");
+      throw new AppError(
+        "validation",
+        "Send { seen: true }, { read_all: true }, { ids, read: true } or { id, read?, dismissed? }.",
+      );
     const id = requireUuid(body.id, "notification");
     const read = typeof body.read === "boolean" ? body.read : undefined;
     const dismissed = typeof body.dismissed === "boolean" ? body.dismissed : undefined;

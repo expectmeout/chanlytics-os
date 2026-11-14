@@ -201,7 +201,10 @@ before(async () => {
     null,
   );
   ctx.notification = await seed("notifications", { tenant_id: A, kind: "alert", title: "tenancy", body: "probe" });
-  await seed("notification_reads", { tenant_id: A, user_id: ctx.viewerId }, null);
+  // The viewer's own row is theirs from the moment their seat was made (00622, memberships_start_the_bell): seeding
+  // it again would be refused as a second row for one person.
+  const bell = await db.from("notification_reads").select("user_id").eq("tenant_id", A).eq("user_id", ctx.viewerId);
+  assert.equal(bell.data?.length, 1, `a seat's bell row is made with the seat: ${bell.error?.message ?? "none found"}`);
   await seed("notification_marks", { notification_id: ctx.notification, user_id: ctx.viewerId }, null);
   // What the viewer has seen of a person (00349): their floor, and their mark on one person. Their own rows.
   await seed("contact_reads", { tenant_id: A, user_id: ctx.viewerId }, null);
