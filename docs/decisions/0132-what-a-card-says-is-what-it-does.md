@@ -112,9 +112,12 @@ The items below are each a place where that happened, and what it does now.
     reading no websites"), with where to look and where the pin is.
 
 Not done, and why: the writer's openings are not rewritten more than once before a hold (F2 stands); a cold email from a
-search in one card is new work, not a fix. 0.14.792 is pinned on the provider's word and the log's: no probe of it was
-run (a few cents of Ruben's), as the 23 Oct move to 0.14.775 had one; the first search after the merge, or a probe on his
-word, shows its items carry a domain and emails.
+search in one card is new work, not a fix.
+
+Probed on Ruben's word ("Yes, run the check"), 14 Nov 2026 16:20 UTC: 0.14.792 (build laWvC2kq0M7jC95UN) with the card's own
+input, three Brooklyn med spas, $0.015 (run shERZ5EHJsGgfEFZf). Succeeded in 27 seconds with no contact or sign-in error in its
+log; each of the three items names its site's domain, all three carry Instagram, two Facebook, and ReVita Glow MedSpa
+carries info@revitaglowspa.com, where the morning's run on 0.14.775 had returned nothing for the same place.
 
 ## Held by
 

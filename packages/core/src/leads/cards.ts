@@ -389,6 +389,7 @@ export const CARDS: { local_businesses: LeadCardRunner; people_at_companies: Peo
     // calls to its own contacts service were refused ("User was not found or authentication token is not valid"): it read
     // no business's website, and a run of more than a few places crashed when its contacts monitor set its concurrency to
     // NaN (Ruben's med spa searches of 14 Nov: 233 sites, none read; 6 of 12 runs failed). 0.14.792 takes the same input.
+    // Probed on 14 Nov (three Brooklyn med spas, $0.015): every site read, its domain named, an email on one.
     build: "0.14.792",
     buildId: "laWvC2kq0M7jC95UN",
     fields: MAPS_FIELDS,
