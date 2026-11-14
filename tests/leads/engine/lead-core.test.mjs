@@ -816,3 +816,36 @@ test("REGRESSION (the live run of 14 Nov 2026): a nearby ZIP is searched and sai
   for (const a of near.filter((x) => x.zip.startsWith("10")))
     assert.deepEqual([a.state, a.label], ["NY", `near ${a.zip}`], "one in the search's own state says only its ZIP");
 });
+
+test("REGRESSION (the live run of 14 Nov 2026): a search whose fetches failed partway stopped; it never searched everything", () => {
+  // Brooklyn's three first fetches succeeded and its three bigger ones failed after 33, 70 and 82 places: it said
+  // searched_everything and offered places nearby.
+  const r = (id, state, seen) => ({ id, state, items_seen: seen, purpose: "discover", term: id });
+  const runs = [
+    r("a", "succeeded", 9),
+    r("b", "succeeded", 8),
+    r("c", "succeeded", 8),
+    r("d", "failed", 33),
+    r("e", "failed", 70),
+    r("f", "failed", 82),
+  ];
+  assert.deepEqual(
+    termsShortOf(runs.slice(3), () => 120),
+    [false, false, false],
+    "a failed run is not a short term",
+  );
+  const round = { cost_reserved_usd: 5, cost_usd: 1, allowance_reserved: 300, allowance_used: 57 };
+  assert.equal(
+    discoveryEnding(round, runs, { counted: 57, target: 300, termsShort: [false, false, false], stopped: false }),
+    "source_failed",
+  );
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): a place whose website the provider never read says so, never that its site holds no email", () => {
+  // The provider's items carried no domain and no contacts for any of 233 med spa sites: each was filed "No email on their site".
+  assert.equal(card.mapItem(mapsItem(1)).contactsRead, true, "a site it named, read");
+  const unread = card.mapItem(mapsItem(2, { domain: undefined, emails: [], instagrams: [], facebooks: [] }));
+  assert.equal(unread.contactsRead, false, "a website, no domain, nothing found: never read");
+  const noSite = card.mapItem(mapsItem(3, { website: undefined, domain: undefined, emails: [] }));
+  assert.equal(noSite.contactsRead, true, "no website: nothing to read, and nothing unsaid");
+});

@@ -92,9 +92,19 @@ The items below are each a place where that happened, and what it does now.
     follow-up at 10:00 AM", where "to everyone" before the moment's name read as sending to everyone; the steps whose
     message Ask wrote are said once ("Steps 1 and 2 are new messages"), amber only where WhatsApp reads them first.
 
+18. **A search whose fetches failed stopped; it never searched everything.** A place-finding run that failed or timed out
+    is not a term that ran short, and any such run ends the round "Stopped at 57: the source stopped answering" with Try
+    again, never "searched everything" with places nearby. (Brooklyn's three first fetches succeeded and its three bigger
+    ones failed after 33 to 94 places; it said it had searched everything and offered JFK's ZIP.)
+19. **A site never read says so.** The provider's item names a site's `domain` when it reads it for contacts; a place with
+    a website and no domain and nothing found on it was never read, and its Needs review pile is "Their site couldn't be
+    read", never "No email on their site" with "Their home, contact and about pages were read". (On 14 Nov none of 233 med
+    spa sites was read: the runs took 16 seconds for 9 places, where 5 Nov's read 32 in 158, and left no record of the
+    contact pages visited, with the same input and the same pinned build.)
+
 Not done, and why: the writer's openings are not rewritten more than once before a hold (F2 stands); a cold email from a
-search in one card is new work, not a fix; the morning's failed place fetches and the emails no site gave are Apify's,
-left for last on Ruben's word.
+search in one card is new work, not a fix. Why the provider stopped reading sites, and why its bigger runs failed, is
+Apify's: the runs' logs are in Apify's console, which this work could not open; the actor was changed on 13 Nov.
 
 ## Held by
 
@@ -118,3 +128,4 @@ left for last on Ruben's word.
 - Item 16: `tests/reach-out/reach-out-opening.test.mjs` and `tests/sequences/sequence-tab-words.test.mjs`; the phone's
   "waiting" is drawn by `approval.tsx` roRunHead, held by no test.
 - Item 17: `tests/campaigns/new-send-checks.test.mjs` (the rows); the who line is new-draft.tsx whoWords, held by no test.
+- Items 18 and 19: `tests/leads/engine/lead-core.test.mjs` and `tests/leads/finder/leads-vm.test.mjs` (the pile).

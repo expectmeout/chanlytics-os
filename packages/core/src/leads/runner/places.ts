@@ -112,6 +112,9 @@ export function memberOf(
     );
     reason = judgePlaceAnswer.reason;
   }
+  // A site never read has no "no email" to say: its pile says it could not be read (contracts review's site_unread).
+  if (cleanPlace.raw.contactsRead === false)
+    verdict = { ...verdict, reasons: verdict.reasons.map((r) => (r === "email:none" ? "email:unread" : r)) };
   const excluded = verdict.class === "excluded";
   return {
     place: {

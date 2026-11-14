@@ -882,6 +882,7 @@ test("Needs review is grouped by what resolves it, in the order an owner would w
     rv("j", ["email:ok"]),
     rv("k", ["email:ok", "unknown:website"]),
     rv("p", ["phone:none"]),
+    rv("u", ["email:unread"]),
     { id: "q", cls: "qualified", reasons: [] },
   ];
   const groups = leadReviewGroups(rows, SEARCH_DONE);
@@ -893,6 +894,7 @@ test("Needs review is grouped by what resolves it, in the order an owner would w
       ["mailbox_silent", "Their mail server wouldn't answer", ["b", "h"], ["check_again", "keep", "exclude"]],
       ["bad_email", "Their email bounces", ["i"], ["keep", "exclude"]],
       ["no_email", "No email on their site", ["c"], ["keep", "exclude"]],
+      ["site_unread", "Their site couldn't be read", ["u"], ["keep", "exclude"]],
       ["no_phone", "No phone on their listing", ["p"], ["keep", "exclude"]],
       ["catch_all", "Unconfirmed — the mailbox accepts any address", ["d"], ["keep", "exclude"]],
       ["unsure", "Couldn't tell if — with a website", ["e", "k"], ["keep", "exclude"]],

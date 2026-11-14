@@ -22,6 +22,7 @@ export const LEAD_REVIEW_GROUP_WORDS = {
   mailbox_silent: "Their mail server wouldn't answer",
   bad_email: "Their email bounces",
   no_email: "No email on their site",
+  site_unread: "Their site couldn't be read",
   no_phone: "No phone on their listing",
   catch_all: "Unconfirmed — the mailbox accepts any address",
   unsure: "Couldn't tell if",
@@ -45,6 +46,7 @@ const REVIEW_GROUP_ORDER: LeadReviewGroupId[] = [
   "mailbox_silent",
   "bad_email",
   "no_email",
+  "site_unread",
   "no_phone",
   "catch_all",
   "unsure",
@@ -58,6 +60,7 @@ const REVIEW_GROUP_ACTS: Record<LeadReviewGroupId, LeadReviewAct[]> = {
   mailbox_silent: ["check_again", "keep", "exclude"],
   bad_email: ["keep", "exclude"],
   no_email: ["keep", "exclude"],
+  site_unread: ["keep", "exclude"],
   no_phone: ["keep", "exclude"],
   catch_all: ["keep", "exclude"],
   unsure: ["keep", "exclude"],
@@ -73,6 +76,7 @@ function reviewGroupOf(reason: string): LeadReviewGroupId | null {
   if (reason === "email:unknown") return "mailbox_silent";
   if (reason === "email:invalid") return "bad_email";
   if (reason === "email:none") return "no_email";
+  if (reason === "email:unread") return "site_unread";
   // A search that counts a phone as enough holds back a place whose number nothing could match (classify's
   // "phone:none"). It is a pile like any other: without it, those leads sat in the queue under no heading at all.
   if (reason === "phone:none") return "no_phone";
@@ -97,6 +101,8 @@ export const LEAD_REVIEW_GROUP_WHY: Record<LeadReviewGroupId, string> = {
   mailbox_silent: "Their mail server did not answer the check. Asking again settles most of them.",
   bad_email: "The address on their site does not exist, so an email would bounce. Their number may still be good.",
   no_email: "Their home, contact and about pages were read, and no address was on any of them.",
+  site_unread:
+    "Their site couldn't be read when the search ran, so whether it shows an email isn't known. Their phone may still be good.",
   no_phone:
     "This search counts a phone as enough, and no number on the listing could be matched against their site. An email may still reach them.",
   catch_all: "Their server accepts every address, so the check cannot tell whether this one is real.",
