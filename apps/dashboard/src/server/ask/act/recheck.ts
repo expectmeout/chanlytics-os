@@ -85,7 +85,7 @@ export async function runsDecided(
   tenantId: TenantId,
   cards: readonly AskProposal[],
 ): Promise<Array<{ id: string; state: string }>> {
-  const runIdOf = (p: AskProposal) => (typeof p.payload?.broadcast_id === "string" ? p.payload.broadcast_id : "");
+  const runIdOf = (p: AskProposal) => (typeof p.payload.broadcast_id === "string" ? p.payload.broadcast_id : "");
   const runCards = cards.filter((p) => p.kind === "run" && runIdOf(p));
   if (runCards.length === 0) return [];
   const read = await listRunRowsByIds(ctx.supabase, tenantId, runCards.map(runIdOf)).catch(

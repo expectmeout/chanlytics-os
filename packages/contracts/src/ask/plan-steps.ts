@@ -387,7 +387,7 @@ export function waitingCardsWords(
       if (seen.has(p.plan.id)) return [];
       seen.add(p.plan.id);
     }
-    const terms = p.plan ? "" : (p.summary ?? "").trim().slice(0, WAITING_TERMS_CHARS);
+    const terms = p.plan ? "" : p.summary.trim().slice(0, WAITING_TERMS_CHARS);
     return [`“${p.plan?.head?.title ?? p.title}” (${p.id})${terms ? `: ${terms}` : ""}`];
   });
   if (named.length === 0) return null;

@@ -690,3 +690,37 @@ test("a sequence to leads is checked at the pace every new one starts at: one em
     "REGRESSION: New said 12 while the sequence it makes paces 20",
   );
 });
+
+test("REGRESSION (the live run of 14 Nov 2026): the steps whose message Ask wrote are said once together, amber only where WhatsApp reads them first", () => {
+  // Booking follow-up's draft said "Step 1 is a new message" and "Step 2 is a new message", the same amber row twice.
+  const written = (whatsapp) => ({
+    ...NEWS,
+    template_id: null,
+    written: { versions: { email: { subject: "x", body: "y" }, ...(whatsapp ? { whatsapp: { body: "z" } } : {}) } },
+  });
+  const step = (message) => ({
+    name: "",
+    after_days: null,
+    only_if: [],
+    does: "message",
+    message,
+    email: null,
+    hand: "",
+  });
+  const base = M.setWho(M.draftByHand("sequence", "people", "x"), {
+    kind: "moment",
+    trigger: "asked_no_booking",
+    label: "Booking follow-up",
+  });
+  const two = { ...base, steps: [step(written(true)), step(written(true))] };
+  const rows = newChecksOf(two, ALL).filter((c) => /new message/.test(c.words));
+  assert.deepEqual(rows, [
+    { tone: "warn", words: "Steps 1 and 2 are new messages", detail: NEW_WORDS.checks.newMessageDetail },
+  ]);
+  const byEmail = { ...base, steps: [step(written(false))] };
+  assert.deepEqual(
+    newChecksOf(byEmail, ALL).filter((c) => /new message/.test(c.words)),
+    [{ tone: "ok", words: "Step 1 is a new message", detail: null }],
+    "by email alone nothing waits: no amber",
+  );
+});

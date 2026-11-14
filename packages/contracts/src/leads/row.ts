@@ -512,7 +512,7 @@ export function leadSearchNamesOf(searches: readonly LeadSearchDto[]): Map<strin
   for (const s of searches) seen.set(s.name, (seen.get(s.name) ?? 0) + 1);
   return new Map(
     searches.map((s) => {
-      const where = s.plan?.area?.label;
+      const where = s.plan?.area.label;
       return [s.id, (seen.get(s.name) ?? 0) > 1 && where ? `${s.name} · ${where}` : s.name];
     }),
   );

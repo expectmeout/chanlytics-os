@@ -88,6 +88,13 @@ The items below are each a place where that happened, and what it does now.
     "you" and its name, never about the owner or the sender in the third person ("…The owner saw that you work across
     channels."). The writer's one automatic rewrite before a hold stands (F2). A batch's place in the queue says "2 of 3
     waiting" on a phone too, never a bare "2 of 3".
+17. **New says a moment's sequence plainly, and a new message once.** Its who line says "A sequence for Booking
+    follow-up at 10:00 AM", where "to everyone" before the moment's name read as sending to everyone; the steps whose
+    message Ask wrote are said once ("Steps 1 and 2 are new messages"), amber only where WhatsApp reads them first.
+
+Not done, and why: the writer's openings are not rewritten more than once before a hold (F2 stands); a cold email from a
+search in one card is new work, not a fix; the morning's failed place fetches and the emails no site gave are Apify's,
+left for last on Ruben's word.
 
 ## Held by
 
@@ -110,3 +117,4 @@ The items below are each a place where that happened, and what it does now.
   collect).
 - Item 16: `tests/reach-out/reach-out-opening.test.mjs` and `tests/sequences/sequence-tab-words.test.mjs`; the phone's
   "waiting" is drawn by `approval.tsx` roRunHead, held by no test.
+- Item 17: `tests/campaigns/new-send-checks.test.mjs` (the rows); the who line is new-draft.tsx whoWords, held by no test.

@@ -4,6 +4,7 @@
  * what it could not do in these words, and the page says everything else in them.
  */
 import { CAMPAIGN_ROOMS } from "../../shell/campaign-rooms";
+import { joinWords } from "../../shared/words";
 import type { NewAudience, NewKind, NewStepDoes } from "./new-draft/steps";
 import type { NewNobody } from "./new-draft/checks";
 import type { SequenceMode } from "./sequence";
@@ -68,6 +69,9 @@ export const NEW_WORDS = {
     everyoneOffers: "everyone who said yes to offers",
     everyoneNews: "everyone who said yes to messages",
     toEveryoneWho: "to everyone who",
+    // A sequence a moment starts, said by the moment's name: "A sequence for Booking follow-up at 10:00 AM". "To everyone"
+    // before a name read as sending to everyone (Ruben, 14 Nov 2026).
+    forMoment: "for",
     toBusinesses: "to the businesses in",
     to: "to",
     at: "at",
@@ -368,6 +372,8 @@ export const NEW_WORDS = {
     twin: (name: string) => `${name} does this already`,
     twinDetail: "Two would send twice.",
     newMessage: (n: number) => `Step ${n} is a new message`,
+    // Several said once: "Steps 1 and 2 are new messages" (Ruben, 14 Nov 2026: the same amber row stood once a step).
+    newMessages: (ns: readonly number[]) => `Steps ${joinWords(ns.map(String))} are new messages`,
     newMessageDetail: "Email now, WhatsApp once it approves the words",
     canGo: (n: number, by: string) => `Step ${n} can go by ${by} today`,
     stops: "Stops when they book",

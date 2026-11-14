@@ -146,7 +146,7 @@ export async function findMetricsSummary(
   const booked = bookings === undefined ? held : { ...held, bookings };
   // The WhatsApp wire says what WhatsApp holds against it, where it holds something.
   const dto = waHeld
-    ? { ...booked, channels: (booked.channels ?? []).map((c) => (c.kind === "whatsapp" ? { ...c, held: waHeld } : c)) }
+    ? { ...booked, channels: booked.channels.map((c) => (c.kind === "whatsapp" ? { ...c, held: waHeld } : c)) }
     : booked;
   if (email === null) return { ...dto, linesRead: false };
   const wires = emailWires(email);

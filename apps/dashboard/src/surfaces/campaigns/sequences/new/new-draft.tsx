@@ -111,6 +111,7 @@ function whoWords(d: NewDraftDto): { lead: string; label: string; empty: boolean
     return { lead: W.draft.toBusinesses, label: who?.label ?? W.draft.pickSearch, empty: !who };
   if (d.kind === "once") return { lead: W.draft.to, label: who?.label ?? W.draft.pickWho, empty: !who };
   if (who?.kind === "list") return { lead: W.draft.toEveryoneWho, label: W.draft.joins(who.label), empty: false };
+  if (who?.kind === "moment") return { lead: W.draft.forMoment, label: who.label, empty: false };
   return { lead: W.draft.toEveryone, label: who?.label ?? W.draft.pickWhen, empty: !who };
 }
 
