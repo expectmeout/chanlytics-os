@@ -187,8 +187,11 @@
   inset: 0;
   border-radius: var(--radius-xl);
 }
+/* The box is the ring, so the press draws none of its own: every button's ring (components.css) drew a second, round
+   the step's title, under the box's. */
 .sq-stepbox-open:focus-visible {
   outline: none;
+  box-shadow: none;
 }
 .sq-stepbox-open:focus-visible::after {
   outline: 2px solid var(--accent);

@@ -9,6 +9,7 @@ import {
   NUMBERED_SLOT,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
+  REACH_OUT_SUBJECT_MAX,
   handStepsHold,
   linkCount,
   newConditionsOf,
@@ -349,6 +350,10 @@ export function leadEmail(
   return leadEmailRefusal(item, first, backing) === null ? item : { subject: first ? item.subject : null, body: "" };
 }
 
+/** A subject kept over an email left to write: one past what a subject holds is the owner's to write too. */
+const subjectHeld = (subject: string | null): string | null =>
+  subject && subject.length <= REACH_OUT_SUBJECT_MAX ? subject : null;
+
 /** A lead's email as it was written: a later one answers in the first's thread, so it has no subject. */
 const emailWritten = (written: Pick<NewDraftAnswerStep, "subject" | "body">, first: boolean): NewEmail => ({
   subject: first ? cleanWords(written.subject) || null : null,
@@ -400,7 +405,9 @@ function judgeStep(
   const base = {
     name: first ? params.name : "",
     after_days: first ? null : newWaitOf(params.audience, newDraftAnswerStep.after_days),
-    only_if: first ? [] : newDraftAnswerStep.only_if.filter((c) => newConditionsOf(params.audience).includes(c)),
+    only_if: first
+      ? []
+      : [...new Set(newDraftAnswerStep.only_if)].filter((c) => newConditionsOf(params.audience).includes(c)),
   };
   if (newDraftAnswerStep.does !== "message") {
     const hand = handWords(newDraftAnswerStep);
@@ -411,7 +418,7 @@ function judgeStep(
     // An email that stands and came back untouched is its owner's as it stands; any other holds, or is left to write.
     const written = emailWritten(newDraftAnswerStep, first);
     const reason = standing.untouched ? null : leadEmailRefusal(written, first, params.backing);
-    const email = reason === null ? written : { subject: written.subject, body: "" };
+    const email = reason === null ? written : { subject: subjectHeld(written.subject), body: "" };
     const step: NewStep = { ...base, does: "message", message: null, email, hand: "" };
     return reason !== null && written.body ? { step, reason } : { step };
   }
@@ -453,7 +460,10 @@ function judgeSteps(
   const always: string[] = [];
   const refused: RefusedStep[] = [];
   for (const [at, answered] of answer.steps.entries()) {
-    if (steps.length >= max) break;
+    if (steps.length >= max) {
+      always.push(NEW_WORDS.cannot.stepsPast(max));
+      break;
+    }
     const standing = standingAt(params.stood, answered, { at, of: answer.steps.length });
     const placed = placeStep(answered, { at, index: steps.length }, params, standing);
     if (placed.reason) refused.push({ place: at + 1, reason: placed.reason });

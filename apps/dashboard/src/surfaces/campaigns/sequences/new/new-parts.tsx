@@ -43,13 +43,15 @@ export function SaidLine(p: {
       <Icon name="sparkle" size={14} />
       <p className="sq-nw-said-words">{p.said}</p>
       <span className="sq-nw-said-by">
-        {p.doing ? (
-          <span className="sq-nw-busy" role="status">
-            {p.doing}
-          </span>
-        ) : (
-          <span data-testid="sq-nw-said-by">{p.by ?? W.say.asked}</span>
-        )}
+        {/* One status that stays while Ask works and after: what a change did is read out as it lands, as what Ask was
+            doing was (it was a status that went with the work, so its answer was never said). */}
+        <span role="status">
+          {p.doing ? (
+            <span className="sq-nw-busy">{p.doing}</span>
+          ) : (
+            <span data-testid="sq-nw-said-by">{p.by ?? W.say.asked}</span>
+          )}
+        </span>
         {p.onAgain && p.button ? (
           <Button size="sm" onClick={p.onAgain} data-testid="sq-nw-again">
             {p.again ?? W.say.undo}
@@ -218,9 +220,12 @@ export function CaseNote(p: {
   acts?: ReactNode;
   glyph?: string;
   testid: string;
+  /** Read out when it comes or changes (what a draft leaves out, which a change can say anew); a bad one always is. */
+  live?: boolean;
 }) {
+  const role = p.tone === "bad" ? "alert" : p.live ? "status" : undefined;
   return (
-    <div className="sq-nw-case" data-tone={p.tone} role={p.tone === "bad" ? "alert" : undefined} data-testid={p.testid}>
+    <div className="sq-nw-case" data-tone={p.tone} role={role} data-testid={p.testid}>
       <p className="sq-nw-case-head">
         <Icon name={p.glyph ?? (p.tone === "plain" ? "info" : "alert")} size={15} />
         {p.title}

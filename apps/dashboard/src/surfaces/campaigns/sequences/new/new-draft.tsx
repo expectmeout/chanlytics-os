@@ -228,7 +228,7 @@ function DraftCases(p: {
     );
   if (draft.cannot) {
     const c = M.cannotParts(draft.cannot);
-    cards.push(<CaseNote key="cannot" tone="warn" title={c.title} words={c.words} testid="sq-nw-cannot" />);
+    cards.push(<CaseNote key="cannot" tone="warn" title={c.title} words={c.words} testid="sq-nw-cannot" live />);
   }
   if (draft.twin)
     cards.push(
