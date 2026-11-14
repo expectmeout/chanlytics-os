@@ -963,6 +963,10 @@ test("the make sends a one-off by what carries it then: a message Ask wrote goes
   assert.deepEqual(onceChannelsOf(written, ["whatsapp", "email"]), ["email"]);
   assert.deepEqual(onceChannelsOf(written, ["whatsapp"]), [], "nothing else carries it: the make refuses in words");
   assert.deepEqual(onceChannelsOf({ message: { written: null } }, ["whatsapp", "email"]), ["whatsapp", "email"]);
+  // A ready-made starter is filed as it is made too, its WhatsApp version sent for review then (the clean list, 14 Nov 2026).
+  assert.deepEqual(onceChannelsOf({ message: { written: null, starter: "quick_note" } }, ["whatsapp", "email"]), [
+    "email",
+  ]);
   // A lead's step as a sequence to leads holds it: the first its subject, a later one in its thread, a call last.
   const email = (subject, body) => ({ does: "message", email: { subject, body }, after_days: 7, hand: "" });
   assert.deepEqual(leadChainStepOf(email("Hi", "Words"), 0), { subject: "Hi", body: "Words", after_days: null });

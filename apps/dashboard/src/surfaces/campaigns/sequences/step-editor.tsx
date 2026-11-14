@@ -58,6 +58,7 @@ import { useCmPhone } from "../parts/split";
 import { RecordFootContext } from "./record-foot";
 import { HandTask } from "./step-words";
 import { useBatchRead } from "./use-record";
+import { pickMetaOf, readyMadeOf, stepSaved } from "./step-pick";
 import { pressed } from "./verbs";
 
 type Flash = (flash: FrameFlash) => void;
@@ -362,6 +363,8 @@ interface StepEditorProps {
   policyClass: string;
   /** The batch that waits for this step, whose people the preview may be read as; none where nothing waits. */
   batchId?: string | null;
+  /** The channels the sequence goes by: what a ready-made starter it picks is filed on, as Save is pressed. */
+  channels: readonly string[];
   flash: Flash;
   onDone: () => void;
   onCancel: () => void;
@@ -372,12 +375,17 @@ export function StepEditor({
   step,
   policyClass,
   batchId = null,
+  channels,
   flash,
   onDone,
   onCancel,
 }: StepEditorProps) {
   const settings = useSurface("settings");
-  const offered = useMemo(() => cmOfferedFrom(settings) ?? [], [settings]);
+  // The workspace's messages, then the ready-made starters nothing has filed (the clean list, 14 Nov 2026).
+  const offered = useMemo(
+    () => [...(cmOfferedFrom(settings) ?? []), ...readyMadeOf(settings?.templatesAll)],
+    [settings],
+  );
   const first = step?.place === 1;
   const when = visitWhenExample(step?.trigger);
   const [days, setDays] = useState(String(step?.after_days ?? 3));
@@ -402,30 +410,21 @@ export function StepEditor({
     if (!picked) return;
     setBusy(true);
     const only = [...STEP_HOLDS[hold].only];
-    const fields = { sequence_id: sequenceId, after_days: Number(days), only_if: only };
-    // A first step keeps its moment and its hour: only its words change, through the words door; a wait unchanged is
-    // not written again.
-    const keepsWait = first || (step !== null && !waitChanged);
-    const ok = keepsWait
-      ? true
-      : await pressed(
-          "sequence_step",
-          step ? { ...fields, step_id: step.id } : { ...fields, template_id: picked.id, params },
-          flash,
-          () => {},
-        );
-    // A step that stays gets its new words apart: they may wait for WhatsApp while it sends its own.
-    const worded =
-      ok && step && wordsChanged
-        ? await pressed(
-            "sequence_words",
-            { sequence_id: sequenceId, step_id: step.id, template_id: picked.id, params },
-            flash,
-            () => {},
-          )
-        : ok;
+    const done = await stepSaved({
+      picked,
+      channels,
+      flash,
+      sequenceId,
+      step,
+      first,
+      days: Number(days),
+      only,
+      waitChanged,
+      wordsChanged,
+      params,
+    });
     setBusy(false);
-    if (worded) onDone();
+    if (done) onDone();
   };
 
   return (
@@ -450,7 +449,7 @@ export function StepEditor({
                   options={offered.map((m) => ({
                     value: m.id,
                     label: m.title ?? m.name,
-                    meta: m.channels.map((c) => PREVIEW_CHANNEL_WORDS[c]).join(", "),
+                    meta: pickMetaOf(m),
                   }))}
                   data-testid="sq-editor-message"
                 />

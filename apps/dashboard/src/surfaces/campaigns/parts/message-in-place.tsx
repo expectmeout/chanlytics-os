@@ -97,7 +97,7 @@ export function MessageInPlace({ name, flash, onClose }: MessageInPlaceProps) {
       doing={doing}
       S={library}
       onClose={onClose}
-      onAdd={(gg, lang) => acts.addStarters([gg.starter.key], [lang.id])}
+      onAdd={acts.addLanguage}
       onRename={acts.rename}
       onHide={acts.toggleHidden}
       onDelete={acts.removeMessage}

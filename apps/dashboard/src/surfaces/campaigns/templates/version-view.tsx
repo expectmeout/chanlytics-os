@@ -202,11 +202,12 @@ function None(p: VersionViewProps & { onWrite: () => void }) {
 }
 
 /**
- * A starter not added yet: nothing is on file to write a version of (the server would refuse it), so the version the
- * library wrote is shown as it reads and said to come with the set; one the library did not write is said not to.
+ * A ready-made starter nothing has filed yet: the version the library wrote, as it reads, and its Edit where the member
+ * may write (`onEdit`): saved, the starter is filed on its own words and the member's are written beside them (server
+ * template-versions.ts beginVersion; the clean list, 14 Nov 2026). One the library did not write is said not to.
  */
-function Unfiled(p: VersionViewProps) {
-  const { channel, lang, start, slots, values, rules, neverCarried, starterHas } = p;
+function Unfiled(p: VersionViewProps & { onEdit: (() => void) | null }) {
+  const { channel, lang, start, slots, values, rules, neverCarried, starterHas, canWrite, busy, onEdit, held } = p;
   if (!starterHas || neverCarried)
     return (
       <div className="tpl-ver-none" data-testid="template-version-none">
@@ -224,8 +225,9 @@ function Unfiled(p: VersionViewProps) {
           slots={slots}
           rules={rules}
         />
+        {canWrite && onEdit && !held ? versionMenu({ channel, busy, onEdit }) : null}
+        {canWrite && onEdit && held && p.oneBody ? wordsPencil(onEdit, "template-version-edit") : null}
       </div>
-      <p className="bc-excl-hint">{WORDS.withStarters}</p>
     </div>
   );
 }
@@ -237,8 +239,9 @@ export function VersionView(p: VersionViewProps) {
   const [own, setOwn] = useState(() => !!name && !!keptWords(name, lang.id, channel));
   const writing = held ? held.writing : own;
   const setWriting = held ? held.setWriting : setOwn;
-  if (!name || !p.filed) return <Unfiled {...p} />;
-  if (writing && name) {
+  if (!name) return <Unfiled {...p} onEdit={null} />;
+  if (!p.filed && !writing) return <Unfiled {...p} onEdit={() => setWriting(true)} />;
+  if (writing) {
     return (
       <VersionEditor
         name={name}

@@ -14,6 +14,9 @@ import type { TemplateDto } from "@/surfaces/inbox/types";
 import { tplAnd, tplLangLabel } from "./words";
 import type { StarterLibrary } from "./verbs";
 
+/** The language a ready-made starter is filed in the first time a sequence or a send uses it: English, as Ask's card files one. */
+export const STARTER_LANGUAGE = "en_US";
+
 /**
  * What a starter is for, as the list sorts the ready-made ones (the clean list, 13 Nov 2026), in the order it lists them:
  * an appointment's, a follow-up's, an offer or news, a call's.

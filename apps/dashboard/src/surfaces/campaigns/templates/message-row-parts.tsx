@@ -68,6 +68,7 @@ export interface RowCtx {
   canAct: boolean;
   busy: boolean;
   doing: string | null;
+  /** A language the set wrote, added to a starter the workspace already uses (never one nothing has filed). */
   onAdd: (g: StarterGroup, lang: TplLang) => void;
   /** Renamed: every version of the message in the language, the one that names it first. */
   onRename: (rows: readonly TemplateDto[], draft: string) => void;
@@ -309,17 +310,20 @@ function newLanguage(c: RowCtx) {
 const QUALITY_AT_REST: ReadonlySet<string> = new Set(["HIGH", "GREEN", "UNKNOWN"]);
 
 /**
- * The foot of an open message: the rating WhatsApp gave it where that rating warns, and the act that adds a language;
- * where the language in view is not on WhatsApp, that the words are what WhatsApp would review. Where it was made ("Made
- * here", "From WhatsApp Manager") and a high rating stood here too: nothing an owner acts on (Messages, the canvas of 10
- * Nov 2026), as the name WhatsApp files it under was not (Ruben, 11 Oct 2026).
+ * The foot of an open message: the rating WhatsApp gave it where that rating warns, and, on a starter the workspace already
+ * uses, the act that adds a language the set wrote; where the language in view is not on WhatsApp, that the words are what
+ * WhatsApp would review. A ready-made starter nothing has filed says nothing of WhatsApp and adds nothing: it goes there
+ * the first time something sends it (the clean list, 14 Nov 2026). Where it was made ("Made here", "From WhatsApp
+ * Manager") and a high rating stood here too: nothing an owner acts on (Messages, the canvas of 10 Nov 2026), as the name
+ * WhatsApp files it under was not (Ruben, 11 Oct 2026).
  */
 function cardFoot(c: RowCtx) {
-  const { g, busy, doing, row, cur, starterText, onAdd } = c;
+  const { g, busy, doing, row, cur, starterText, onFile, onAdd } = c;
   const quality = row && row.quality ? String(row.quality).toUpperCase() : null;
   const warns = quality !== null && !QUALITY_AT_REST.has(quality);
-  const adds = !row && !!g.starter && !!starterText;
-  if (row && !warns) return null;
+  const readyMade = !!g.starter && onFile.length === 0;
+  const adds = !row && !!g.starter && !!starterText && !readyMade;
+  if (row ? !warns : readyMade) return null;
   return (
     <div className="msg-card-foot">
       {row ? null : (
@@ -327,16 +331,15 @@ function cardFoot(c: RowCtx) {
       )}
       {/* The rating WhatsApp gives the template in view, as of the last sync, where it warns. */}
       {warns ? <StatePill kind="template_quality" value={quality} testid="template-quality" /> : null}
-      {/* The language the library has written and the workspace never added,
-          offered where its words already are: the picker puts that language
-          in view, and this adds it as it is -- no assistant, no draft. */}
+      {/* A language the set wrote, offered where its words already are: the picker puts that language in view, and this
+          adds it as it is -- no assistant, no draft. */}
       {adds && (
         <Button
           size="sm"
           disabled={busy}
           onClick={() => onAdd(g, cur.lang)}
           data-testid="starter-add"
-          {...gate("approve", "add a starter template")}
+          {...gate("approve", "add a language")}
         >
           {doing === `add:${g.starter.key}:${cur.lang.id}` ? "Adding…" : `Add ${cur.lang.label}`}
         </Button>

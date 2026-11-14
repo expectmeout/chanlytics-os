@@ -49,6 +49,7 @@ interface PaneProps {
   doing?: string | null;
   S: StarterLibrary;
   onClose: () => void;
+  /** A language the set wrote, added to a starter the workspace already uses. */
   onAdd: (g: StarterGroup, lang: TplLang) => void;
   onRename: (rows: readonly TemplateDto[], draft: string) => void;
   onHide: (row: TemplateDto, stillSentBy?: string | null) => void;
@@ -264,12 +265,15 @@ function versionPart({
   const name = messageName(g);
   const key = versionKey(channel, view);
   const held = heldOf(key, !!name && !!keptWords(name, view, channel));
+  const starterHas = !!(channel === "email" ? g.starter?.email?.[view] : g.starter?.sms?.[view]);
+  // A ready-made starter's version is changed as a filed one is, before its first use (the clean list, 14 Nov 2026).
+  const readyMade = onFile.length === 0 && starterHas && neverCarried(channel, g, lang.message) === null;
   const versionActs: VersionActs | null =
-    filedRow && name && canWrite && !held.writing
+    (filedRow || readyMade) && name && canWrite && !held.writing
       ? {
           word: VERSION_CHANNEL_WORDS[channel],
           onEdit: () => held.setWriting(true),
-          onRemove: () => held.setRemoving(true),
+          onRemove: filedRow ? () => held.setRemoving(true) : null,
         }
       : null;
   if (!fills) return { version: null, versionActs };
@@ -289,7 +293,7 @@ function versionPart({
       slots={fills.slots}
       values={fills.values}
       neverCarried={neverCarried(channel, g, lang.message)}
-      starterHas={!!(channel === "email" ? g.starter?.email?.[view] : g.starter?.sms?.[view])}
+      starterHas={starterHas}
       filed={onFile.length > 0}
       canWrite={canWrite}
       busy={busy}

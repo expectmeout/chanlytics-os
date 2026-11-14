@@ -172,9 +172,10 @@ export function refuseWrittenUtility(category: "marketing" | "utility", words: s
 /**
  * The first version of a message the workspace holds no row of. A starter of the registry begins as itself: its category,
  * its values and no title of its own (the starter's title is read from the registry), only on a channel it writes
- * something for in this language, else it is not found, as it was before this door existed, and only with the starter's
- * own words there (the starter set's): the member's words are not the starter's, and a utility category is the
- * starter's alone, so they are refused until the starter set is added and its words changed in the Library. Any other name needs
+ * something for in this language, else it is not found, as it was before this door existed, and always with the
+ * starter's own words (the starter set's): a utility category is the starter's alone, so the message begins on the
+ * starter's words, and a member's words, checked first, are then written beside them as any filed message's are (a
+ * ready-made starter changed before its first use, the clean list of 14 Nov 2026). Any other name needs
  * `message`, which is what a member writes it as: under a name of the shape Meta takes, with the values and title it
  * says, and an offer or news, never about a visit or a proposal. Nobody reviews a message with no WhatsApp row, so only
  * a starter, which Chanlytics writes, may be about a visit. With neither, there is no message.
@@ -186,14 +187,16 @@ async function beginVersion(db: Acting, tenantId: TenantId, versionRequest: Vers
     if (!own) throw new AppError("not_found", "Message not found.", 404);
     const variables = starterVariables(starter, versionRequest.language);
     const words = checkedWords(versionRequest, variables.length);
-    const theirs = checkedWords({ ...versionRequest, subject: own.subject, body: own.body }, variables.length).value;
-    if (words.value.subject !== theirs.subject || words.value.body !== theirs.body)
-      throw new AppError("validation", MESSAGE_BEGIN_WORDS.starterNeedsItsOwnWords);
-    return beginMessage(db.userId, tenantId, versionRequest, words, {
+    const theirs = checkedWords({ ...versionRequest, subject: own.subject, body: own.body }, variables.length);
+    const begun = await beginMessage(db.userId, tenantId, versionRequest, theirs, {
       category: starter.category,
       variables,
       title: null,
     });
+    if (words.value.subject === theirs.value.subject && words.value.body === theirs.value.body) return begun;
+    // The member's own words, beside the starter's: a ready-made one is changed before its first use as a filed one is
+    // after it (the clean list, 14 Nov 2026), and the message still began as the starter wrote it.
+    return writeVersion(db, tenantId, versionRequest, variables.length);
   }
   if (!versionRequest.message) throw new AppError("not_found", "Message not found.", 404);
   if (!templateNameOk(versionRequest.name)) throw new AppError("validation", TEMPLATE_NAME_WORDS);

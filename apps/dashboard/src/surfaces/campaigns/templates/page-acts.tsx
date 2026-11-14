@@ -19,8 +19,7 @@ import type { OwnVersionChannel } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { useFrameToast } from "../../frame-verbs";
-import { starterWords } from "./composer";
-import type { TemplateGroup, TplLang } from "./group";
+import type { StarterGroup, TemplateGroup, TplLang } from "./group";
 import { syncTemplates, templates as templateVerbs } from "./verbs";
 import type { VersionDraft } from "./verbs";
 import { TPL_SHEET_WORDS, TPL_VERSION_WORDS, tplLangLabel, tplTitle } from "./words";
@@ -159,11 +158,18 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
       () => deleteWhole(rows),
       () => <>{MESSAGE_CHANGE_WORDS.deleted(title)}</>,
     );
-  const addStarters = (keys: string[] | null, languages: string[]) =>
+  // A language the set wrote, added to a starter the workspace already uses: filed as it is (POST templates/starter), its
+  // WhatsApp version sent for review. A ready-made starter nothing has filed is never added this way: its first use files
+  // it (the clean list, 14 Nov 2026).
+  const addLanguage = (g: StarterGroup, lang: TplLang) =>
     run(
-      `add:${keys ? keys.join(",") : "all"}:${languages.join(",")}`,
-      () => templateVerbs.addStarters({ ...(keys ? { keys } : {}), languages }),
-      (r) => <>{starterWords(r.data)}</>,
+      `add:${g.starter.key}:${lang.id}`,
+      () => templateVerbs.fileStarters({ keys: [g.starter.key], languages: [lang.id] }),
+      () => (
+        <>
+          <b>{g.title}</b> in {lang.label} is added — WhatsApp reads its words, usually within minutes
+        </>
+      ),
     );
   const sync = () =>
     run(
@@ -244,7 +250,7 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
     toggleHidden,
     removeMessage,
     translateOwn,
-    addStarters,
+    addLanguage,
     sync,
     written,
     saveVersion,

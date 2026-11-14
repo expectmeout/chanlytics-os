@@ -1,7 +1,4 @@
-import { after } from "next/server";
 import { z } from "zod";
-import { logAndGoOn } from "@chanlytics/log";
-import { fileStartersOnConnect } from "@/server/campaigns/starter-templates";
 import { AppError } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { recordDecision } from "@/server/shared/verbs";
@@ -20,7 +17,9 @@ import { REASON_WORDS } from "@/server/connections/whatsapp-connect-words";
  * for (R21). Owner only, rate-limited
  * with the other settings changes. The edge does the exchange, the
  * registration and the Vault write; this route proves who is asking, keeps
- * the ledger, and says what happened in the owner's words.
+ * the ledger, and says what happened in the owner's words. Nothing is filed as
+ * the number arrives: a starter goes to WhatsApp the first time something uses
+ * it (the clean list, 14 Nov 2026), never the whole set at once.
  */
 const ID = /^\d{6,32}$/;
 
@@ -71,9 +70,6 @@ export const POST = write({
       registration: item.registration,
       keep_app: input.keep_app === true,
     });
-    // The starter messages go to WhatsApp as the number arrives, once this answer has gone: WhatsApp has looked at them
-    // before a sequence needs one (the Messages redesign's step 5). A failure stops nothing; each is filed when first used.
-    after(() => fileStartersOnConnect(ctx, member.tenantId).catch(logAndGoOn("starters on connect")));
     return {
       ok: true,
       channel_id: item.channelId,
