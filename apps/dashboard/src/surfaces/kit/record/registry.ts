@@ -14,8 +14,10 @@
  * dirty one stays open and the registry records { holding, wants } until one of three answers: discard() (throw its
  * changes away and open the one asked for), stay() (keep editing it), or close(id) from the holding fold itself (saved
  * or cancelled; the one asked for then opens). If the fold asked for leaves the page first, the ask goes with it, and
- * the holding fold stays open with its changes. close(id) from a fold that is not the open one does nothing.
- * subscribe(fn) hears every change. A page reaches all of this through useRecordFold rather than by hand.
+ * the holding fold stays open with its changes. close(id) from a fold that is not the open one does nothing but
+ * forget the change the tab kept of it (kept.ts: a save taken after its page was left), as close() and discard() forget
+ * the change of the fold they let go; a fold leaving the page keeps it. subscribe(fn) hears every change. A page
+ * reaches all of this through useRecordFold rather than by hand.
  *
  * A save in progress is not an open, unsaved editor. While the open fold's save is out (`saving`, the second test its
  * hook binds), its fields are read-only (the page hands each of the kit's controls `readOnly`), what is asked of it
@@ -34,6 +36,7 @@
  * hook binds one of each for its life, so the test it binds is the test it hands its requests); and reset() is for tests
  * (it forgets what is open and asked).
  */
+import { dropChange } from "./kept";
 import { listen, logError, unlisten } from "./shell-verbs";
 
 /** A fold's id: the page's word for it (a number or an empty string is one too). */
@@ -53,6 +56,15 @@ const holding = (check: Check) => {
   } catch {
     return true;
   }
+};
+
+/**
+ * What the tab kept of a fold the person let go (kept.ts): closed by its page, saved or cancelled, whether or not it is
+ * the open one (a save taken after its page was left closes it too), or its change thrown away. A fold that leaves the
+ * page is not let go of by anyone: what it kept waits for the page to come back.
+ */
+const forgetChange = (id: FoldId | null | undefined) => {
+  if (id != null) dropChange(id);
 };
 
 /**
@@ -175,8 +187,8 @@ function createRecFolds() {
       };
     },
     discard() {
-      if (asked) become(asked.wants, asked.check);
-      else become(null);
+      forgetChange(openId);
+      become(asked ? asked.wants : null, asked?.check);
     },
     stay() {
       if (!asked) return;
@@ -184,9 +196,9 @@ function createRecFolds() {
       tell();
     },
     close(id?: FoldId | null) {
+      forgetChange(id ?? openId);
       if (id != null && id !== openId) return;
-      if (asked) become(asked.wants, asked.check);
-      else become(null);
+      become(asked ? asked.wants : null, asked?.check);
     },
     // For tests (see above).
     reset() {
