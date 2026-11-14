@@ -111,21 +111,13 @@ export async function proposeColdEmail(
   if (mailbox.why) return refuse(mailbox.why);
   const searchId = str(input.search_id, 40);
   const token = stepNamed(toolContext, searchId);
-  let fedBy = `the leads step ${token} keeps`;
-  if (token === null) {
-    if (!UUID.test(searchId))
-      return refuse("search_id must be a search or a list of leads from leads with action searches");
-    try {
-      const row = await searchRow(toolContext.ctx, toolContext.tenantId, searchId);
-      fedBy = `“${row.name ?? "the search"}”`;
-    } catch (e) {
-      if (e instanceof AppError) return refuse(e.message);
-      throw e;
-    }
-    const reached = await reachWords(toolContext, searchId, fedBy, input.include_unconfirmed === true);
-    if ("refusal" in reached) return refuse(reached.refusal);
-    fedBy = reached.to;
-  }
+  // A plan's step is fed by the leads an earlier step keeps; a search named by id, by its own leads, counted.
+  const fed =
+    token === null
+      ? await searchFeeding(toolContext, searchId, input.include_unconfirmed === true)
+      : { to: `the leads step ${token} keeps` };
+  if ("refusal" in fed) return refuse(fed.refusal);
+  const fedBy = fed.to;
   const chain = {
     name: str(input.name, 80),
     // A token is checked in the shape of the id it stands for, and kept as the token for the commit to fill.
@@ -164,6 +156,23 @@ export async function proposeColdEmail(
     // A plan step's token stays the token, for the commit to fill with the list that step made.
     payload: { chain: { ...checked.data, search_id: searchId }, words_shown: true },
   });
+}
+
+/** A search named by its id: its name, and who of its leads the card can write to; or why there is no card. */
+async function searchFeeding(
+  toolContext: ToolContext,
+  searchId: string,
+  withUnconfirmed: boolean,
+): Promise<{ to: string } | { refusal: string }> {
+  if (!UUID.test(searchId))
+    return { refusal: "search_id must be a search or a list of leads from leads with action searches" };
+  try {
+    const row = await searchRow(toolContext.ctx, toolContext.tenantId, searchId);
+    return await reachWords(toolContext, searchId, `“${row.name ?? "the search"}”`, withUnconfirmed);
+  } catch (e) {
+    if (e instanceof AppError) return { refusal: e.message };
+    throw e;
+  }
 }
 
 /**
