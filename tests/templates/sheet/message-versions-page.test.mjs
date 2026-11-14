@@ -74,7 +74,6 @@ import {
   standingWord,
   starterByKey,
   starterRow,
-  starterWords,
   stubbed,
   surfaceValue,
   switched,
@@ -780,21 +779,32 @@ test("another language is another version: the pane's language decides which one
   );
 });
 
-/* ---------------------------------- a starter not added ---------------------------------- */
+/* ---------------------------------- a ready-made starter ---------------------------------- */
 
-test("a starter nobody added shows the version the set wrote, says it comes with the set, and offers nothing to write", () => {
-  const tree = page({ rows: [], versions: [] });
-  const email = viewing(tree, AFTER_VISIT, "email");
-  const pane = paneOf(email);
+test("a ready-made starter nothing has filed shows the version the set wrote and its Edit, and Save sends the owner's words under the starter's name", async () => {
+  const calls = stubbed();
+  let tree = viewing(page({ rows: [], versions: [] }), AFTER_VISIT, "email");
+  const pane = paneOf(tree);
   assert.ok(byTestId(pane, "template-version-starter"), "the set's own email, as it reads");
-  assert.equal(
-    textOf(byTestId(pane, "template-version-subject")),
-    starterByKey(AFTER_VISIT).email.en_US.subject,
-    "its subject as the library wrote it",
+  const mail = starterByKey(AFTER_VISIT).email.en_US;
+  assert.equal(textOf(byTestId(pane, "template-version-subject")), mail.subject, "its subject as the library wrote it");
+  // Nothing says it comes with a set or waits to be added: it is there to use (the clean list, 14 Nov 2026).
+  assert.equal(textOf(pane).includes("starter set"), false, textOf(pane));
+  assert.equal(byTestId(pane, "starter-add"), null, "no Add");
+  assert.equal(byTestId(pane, "template-version-write"), null, "nothing to write: its words are there");
+  // Its words change before its first use as a filed one's do: the pencil opens them, and Save sends them under its name
+  // (the server files the starter's own first, template-versions.ts beginVersion).
+  press(byTestId(pane, "template-version-edit"));
+  tree = redraw();
+  assert.equal(boxOf(tree, "Subject").props.value, mail.subject, "the editor opens on the set's own words");
+  boxOf(tree, "Subject").props.onValueChange("See you soon");
+  press(saveOf(redraw()));
+  await settle();
+  const name = starterByKey(AFTER_VISIT).name;
+  assert.deepEqual(
+    calls.map(([verb, body]) => [verb, body.name, body.channel, body.subject]),
+    [["save", name, "email", "See you soon"]],
   );
-  assert.ok(textOf(pane).includes("This version comes with the starter set: adding the message adds it too."));
-  assert.equal(byTestId(pane, "template-version-write"), null, "nothing on file to write a version of");
-  assert.equal(byTestId(pane, "template-version-menu"), null, "and nothing to edit or remove");
   // An offer the set wrote no text of: texts carry no offers, said as on a message on file.
   const offer = viewing(page({ rows: [], versions: [] }), WINBACK, "sms");
   assert.ok(textOf(paneOf(offer)).includes("Texts carry no offers."));
@@ -1199,34 +1209,6 @@ test("what a text says for a message written here is channelNeverCarries' senten
     `${contracts.CHANNEL_WORDS.noOffersByText} ${NEW_WORDS.textGoesByEmail}`,
   );
   assert.equal(NEW_WORDS.textGoesByEmail, "This one can go by email.");
-});
-
-test("what the starter set says it did: what went to WhatsApp, what was written as email and text, what could not be and why, and that WhatsApp waits for a number", () => {
-  const none = { submitted: 0, synced: 0, existing: 0, failed: 0 };
-  assert.equal(starterWords(none), "Nothing to add");
-  assert.equal(starterWords({ ...none, skipped: 7 }), "WhatsApp versions wait for a number");
-  assert.equal(
-    starterWords({ ...none, existing: 7, versions_saved: 1, skipped: 7 }),
-    "7 already on file · 1 email and text version written · WhatsApp versions wait for a number",
-  );
-  assert.equal(
-    starterWords({
-      ...none,
-      submitted: 2,
-      versions_saved: 3,
-      versions_failed: 2,
-      results: [
-        { status: "submitted", title: "Win-back", versions: [{ status: "saved" }] },
-        { status: "submitted", title: "Reminder", versions: [{ status: "failed", detail: "Not switched on." }] },
-      ],
-    }),
-    "2 submitted to WhatsApp for review — usually approved within minutes · 3 email and text versions written · 2 email and text versions could not be written: Not switched on.",
-  );
-  assert.equal(
-    starterWords({ ...none, failed: 1, results: [{ status: "failed", title: "Win-back", detail: "Meta said no" }] }),
-    "1 could not be added: Win-back (Meta said no)",
-    "a WhatsApp failure reads as it did",
-  );
 });
 
 test("the Library's count says what it holds on hover in contracts' words, whether or not the workspace has a WhatsApp number: every message, by each channel it goes by", () => {

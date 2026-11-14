@@ -387,8 +387,8 @@ export const MESSAGE_BEGIN_WORDS = {
    * Its own sentence, since customIsAnOffer (POST templates/versions's) is not true of this door.
    */
   utilityNeedsWhatsapp: `A message ${THEIRS_WORDS}, needs a WhatsApp version, which WhatsApp reviews.`,
-  starterNeedsItsOwnWords:
-    "A starter begins with its own words. Add the starter set, then change the words in Messages.",
+  /** A message written whole under a ready-made starter's name: the starter is changed in its own place, never replaced. */
+  starterNeedsItsOwnWords: "That name is a ready-made message's. Open it in Messages to change its words.",
   doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.",
   /**
    * A message written whole in a language of a message already on file in another, said as something else (POST

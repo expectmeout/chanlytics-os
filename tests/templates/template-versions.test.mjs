@@ -705,6 +705,9 @@ test("the channels asked for are the ones written: a number and WhatsApp alone a
     w.calls.map(([door, a]) => `${door}:${a.p_name}/${a.p_channel}`),
     ["create:quick_note/email"],
   );
+  // Asked for one starter in one language, the answer names the version a step sends (a step's editor files the starter
+  // it picked, then takes this): the message's own, as filed.
+  assert.equal(mail.template_id, tables.templates.find((t) => t.name === "quick_note")?.id ?? "none");
   // The default, with a number, asks for every channel: a starter with none on file meets the guard.
   await refused(
     post(w, { keys: ["call_text"], languages: ["en_US"] }),
@@ -827,38 +830,43 @@ test("a starter's first version, with no row of its name, begins the message as 
   assert.deepEqual(w.calls.at(-1)[1].p_variables, valuesOf(starterByName("quick_note"), "en_US"));
 });
 
-test("a starter begins only with its own words: a member's are refused in one sentence, so a utility category is never put on words the member wrote", async () => {
-  const { tables, w } = empty();
+test("a starter always begins on its own words, so a utility category is only ever put on words Chanlytics wrote; a member's own, checked first, are saved beside them in the same press", async () => {
   const mail = starterEmailText(starterByName("visit_reminder"), "en_US");
   const sms = starterSmsText(starterByName("visit_reminder"), "en_US");
-  const sentence = "A starter begins with its own words. Add the starter set, then change the words in Messages.";
-  assert.equal(MESSAGE_BEGIN_WORDS.starterNeedsItsOwnWords, sentence);
-  for (const [why, over] of [
-    [
-      "an offer's words under a visit's name and category",
-      { subject: "Spring sale", body: "Hi {{1}}, 20% off today." },
-    ],
-    ["the starter's body with a subject of the member's", { subject: "Buy now", body: mail.body }],
-    ["the starter's subject with a body of the member's", { subject: mail.subject, body: "Hi {{1}}, a sale." }],
-    ["one word changed", { subject: mail.subject, body: mail.body.replace("Hi", "Hello") }],
-    ["a text's words in an email", { subject: mail.subject, body: sms.body }],
-    ["words that say nothing of a visit, with a message that says utility", { body: "Hi {{1}}", message: OFFER }],
-    ["an extra line", { subject: mail.subject, body: `${mail.body}\n\nAnd 10% off.` }],
-  ]) {
-    await refused(begin(w, write(over)), "validation", 400, sentence);
-    assert.deepEqual(w.calls, [], why);
-  }
-  // A text of the starter is held to the starter's text.
-  await refused(
-    begin(w, write({ channel: "sms", subject: null, body: `${sms.body} Reply now for 10% off.` })),
-    "validation",
-    400,
-    sentence,
+  // What a message written whole under a starter's name meets (write-message.ts checkMessage): a ready-made one is
+  // changed in its own place (the clean list, 14 Nov 2026).
+  assert.equal(
+    MESSAGE_BEGIN_WORDS.starterNeedsItsOwnWords,
+    "That name is a ready-made message's. Open it in Messages to change its words.",
   );
+  // A member's own words on a ready-made starter nothing has filed: it begins on the starter's words, its category and
+  // values, then the member's are written beside them, as a filed one's are.
+  for (const [why, over] of [
+    ["one word changed", { subject: mail.subject, body: mail.body.replace("Hi", "Hello") }],
+    ["a subject of the member's", { subject: "See you tomorrow", body: mail.body }],
+    ["an extra line", { subject: mail.subject, body: `${mail.body}\n\nSee you then.` }],
+  ]) {
+    const { tables, w } = empty();
+    const saved = await begin(w, write(over));
+    assert.equal(saved.template.name, "visit_reminder", why);
+    assert.deepEqual(
+      w.calls.map(([door, a]) => [door, a.p_subject, a.p_body, a.p_category]),
+      [
+        ["create", mail.subject, mail.body, "utility"],
+        ["save", over.subject, over.body, undefined],
+      ],
+      why,
+    );
+    assert.equal(tables.templates.length > 0, true, why);
+  }
+  // Words that do not fit the starter's values are refused before anything is filed: nothing begins on a refusal.
+  const { tables, w } = empty();
+  await refused(begin(w, write({ subject: mail.subject, body: "Hi {{9}}" })), "validation", 400);
   assert.deepEqual(w.calls, []);
   assert.equal(tables.templates.length, 0);
 
-  // The starter's words as the route cleans them are the starter's still: padding and Windows line endings change none.
+  // The starter's words as the route cleans them are the starter's still: padding and Windows line endings change none,
+  // and nothing is written beside them.
   const padded = await begin(
     w,
     write({ subject: `  ${mail.subject}  `, body: `\r\n${mail.body.replace(/\n/g, "\r\n")}  ` }),
@@ -868,8 +876,8 @@ test("a starter begins only with its own words: a member's are refused in one se
     w.calls.map(([door, a]) => [door, a.p_subject, a.p_body, a.p_category]),
     [["create", mail.subject, mail.body, "utility"]],
   );
-  // The message exists now, and a version beside it is the member's to word: the rule is about beginning one.
-  const mine = await begin(w, write({ channel: "sms", subject: null, body: "Hi {{1}}, my own words." }));
+  // The message exists now, and a version beside it is the member's to word.
+  const mine = await begin(w, write({ channel: "sms", subject: null, body: `${sms.body} See you then.` }));
   assert.equal(mine.template.channel, "sms");
   assert.equal(w.calls.at(-1)[0], "save");
 });

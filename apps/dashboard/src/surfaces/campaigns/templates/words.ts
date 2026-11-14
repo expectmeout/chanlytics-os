@@ -125,9 +125,7 @@ export const TPL_VERSION_WORDS = {
   /** The message has no version on this channel in the language in view. */
   none: (channel: string, language: string): string => `No ${lower(channel)} version in ${language} yet.`,
   write: (channel: string): string => `Write the ${lower(channel)} version`,
-  /** A starter not added yet: its version is shown as written, and comes with the set. */
-  withStarters: "This version comes with the starter set: adding the message adds it too.",
-  /** A starter not added yet that the library wrote no version of on this channel. */
+  /** A ready-made starter that the library wrote no version of on this channel. */
   noneInSet: (channel: string): string => `The starter set has no ${lower(channel)} version of this message.`,
   edit: "Edit",
   remove: "Remove",

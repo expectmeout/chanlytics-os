@@ -21,6 +21,7 @@ import {
 import { createBroadcast } from "@chanlytics/core";
 import { keepOnceDraft } from "@chanlytics/db/campaigns";
 import { getMessageOnFile, writeMessage } from "@/server/campaigns/write-message";
+import { fileStarterForUse } from "@/server/campaigns/starter-templates";
 import { load, readerContext } from "@/server/shared/reader";
 import * as facts from "@/server/readers/facts";
 import { createBroadcastPorts } from "@/server/campaigns/ports";
@@ -72,21 +73,33 @@ async function fileWritten(ctx: RouteContext, member: Member, newWrittenMessage:
   return found.id;
 }
 
-/** The message a person's step sends: one the workspace holds, or the one Ask wrote, filed now. */
-async function templateOf(ctx: RouteContext, member: Member, s: Step): Promise<string> {
-  if (s.message?.template_id) return s.message.template_id;
-  if (s.message?.written) return fileWritten(ctx, member, s.message.written);
+/**
+ * The message a person's step sends: one the workspace holds, the one Ask wrote, filed now, or a ready-made starter, filed
+ * now on the channels the draft goes by (starter-templates.ts fileStarterForUse: nothing is filed before a use).
+ */
+async function templateOf(
+  ctx: RouteContext,
+  member: Member,
+  step: Step,
+  channels: readonly ConsentChannel[],
+): Promise<string> {
+  if (step.message?.template_id) return step.message.template_id;
+  if (step.message?.written) return fileWritten(ctx, member, step.message.written);
+  if (step.message?.starter) return fileStarterForUse(ctx, member.tenantId, step.message.starter, channels);
   throw new AppError("validation", NEW_WORDS.cannot.noMessage);
 }
 
+/** A step's message that is filed as the draft is made: one Ask wrote, or a ready-made starter. */
+const filedOnMake = (step: Step): boolean => !!(step.message?.written || step.message?.starter);
+
 /**
- * The channels a one-off goes by when it is sent: the draft's, but WhatsApp's where its message is one Ask wrote, whose
- * WhatsApp version goes to Meta as it is filed and is no version to send until Meta approves it (the send door refuses a
- * tick it cannot carry, core message-channels.ts refuseTicks). Its email and text go; nothing waits for Meta (decision
- * 0065, call 8).
+ * The channels a one-off goes by when it is sent: the draft's, but WhatsApp's where its message is filed as it is made (one
+ * Ask wrote, or a ready-made starter), whose WhatsApp version goes to Meta as it is filed and is no version to send until
+ * Meta approves it (the send door refuses a tick it cannot carry, core message-channels.ts refuseTicks). Its email and
+ * text go; nothing waits for Meta (decision 0065, call 8).
  */
 export function onceChannelsOf(step: Step, channels: readonly ConsentChannel[]): ConsentChannel[] {
-  return step.message?.written ? channels.filter((c) => c !== "whatsapp") : [...channels];
+  return filedOnMake(step) ? channels.filter((c) => c !== "whatsapp") : [...channels];
 }
 
 /**
@@ -116,14 +129,14 @@ function peopleStartOf(draftWho: DraftWho): Record<string, string> {
 async function makePeopleSequence(ctx: RouteContext, member: Member, newMake: NewMakeBody): Promise<NewMade> {
   const [first, ...rest] = newMake.steps;
   if (!first || first.does !== "message") throw new AppError("validation", NEW_WORDS.cannot.noMessage);
-  const firstTemplate = await templateOf(ctx, member, first);
+  const firstTemplate = await templateOf(ctx, member, first, newMake.channels);
   const then = [];
   for (const error of rest) {
     then.push(
       error.does === "message"
         ? {
             after_days: error.after_days ?? 1,
-            template_id: await templateOf(ctx, member, error),
+            template_id: await templateOf(ctx, member, error, newMake.channels),
             params: error.message?.params ?? [],
             only_if: error.only_if,
             ...(error.name ? { name: error.name } : {}),
@@ -213,12 +226,18 @@ async function makePeopleOnce(ctx: RouteContext, member: Member, newMake: NewMak
   if (!step || step.does !== "message") throw new AppError("validation", NEW_WORDS.cannot.noMessage);
   const audience = onceAudienceOf(newMake.who);
   if (!newMake.start) {
-    const filed = step.message?.written
-      ? {
-          ...step,
-          message: { template_id: await templateOf(ctx, member, step), params: step.message.params, written: null },
-        }
-      : step;
+    const filed =
+      step.message && filedOnMake(step)
+        ? {
+            ...step,
+            message: {
+              template_id: await templateOf(ctx, member, step, newMake.channels),
+              params: step.message.params,
+              written: null,
+              starter: null,
+            },
+          }
+        : step;
     const kept = await keepOnceDraft(ctx.supabase, {
       tenantId: member.tenantId,
       id: newMake.draft_id ?? null,
@@ -231,7 +250,7 @@ async function makePeopleOnce(ctx: RouteContext, member: Member, newMake: NewMak
   }
   const channels = onceChannelsOf(step, newMake.channels);
   if (channels.length === 0) throw new AppError("conflict", NEW_WORDS.review.noneYet, 409);
-  const templateId = await templateOf(ctx, member, step);
+  const templateId = await templateOf(ctx, member, step, newMake.channels);
   const tz = (await load(readerContext(ctx, member), facts.facts, undefined)).data.timezone;
   const at = newMake.at ? fromZonedInput(newMake.at, tz) : null;
   const sent = await createBroadcast(createBroadcastPorts(ctx, member.tenantId, { fresh: true }), {

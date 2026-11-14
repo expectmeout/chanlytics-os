@@ -33,7 +33,6 @@ import {
   LIBRARY_WORDS,
   OWN_VERSION_CHANNELS,
   PLAYBOOK_LIMITS,
-  STARTER_LANGUAGES,
   campaignMessageOf,
   channelNeverCarries,
   channelsWords,
@@ -41,6 +40,7 @@ import {
   enrolPurpose,
   messageFitsMoment,
   messageHolds,
+  starterByKey,
   startersForTrigger,
   startersOffered,
   starterDraft,
@@ -91,6 +91,9 @@ type Outcome = "submitted" | "exists" | "synced" | "failed" | "skipped";
 
 /** A moment, as contracts triggerOf reads one. */
 type Trigger = NonNullable<ReturnType<typeof triggerOf>>;
+
+/** A body that names no starter of the set this workspace is offered. */
+const PICK_A_STARTER = "Pick at least one starter template, in English or Spanish.";
 
 /** The language a new campaign's starter is filed in: English, as the composer's one press adds it. */
 const STARTER_LANGUAGE = "en_US";
@@ -146,24 +149,29 @@ async function startersHere(ctx: RouteContext, tenantId: TenantId, keys: unknown
   return offered;
 }
 
-export async function addStarterTemplates(ctx: RouteContext, req: Request, member: Member) {
-  return fileStarters(ctx, member.tenantId, ((await readJsonBody(req)) as StartersAsked | null) ?? {});
-}
-
 /**
- * The starter set, filed by itself as a WhatsApp number connects (the Messages redesign's step 5, the canvas's "by itself"):
- * every starter the workspace is offered, in the set's languages, on every channel, so WhatsApp has looked at each one
- * before a sequence needs it and nobody presses "Add the starter set". The connect route runs it once its own answer has
- * gone (next/server `after`); idempotent, so a number connected again files nothing twice, and a starter is still filed
- * when a sequence first names it (withStarterMessage) where this did not reach.
+ * POST templates/starter: starters filed as a use of them asks (the clean list, 14 Nov 2026): a sequence's step editor
+ * files the one it picked, on the sequence's channels, as its Save is pressed. No page adds the set, nor a starter by
+ * itself, and nothing is filed as a number connects: a starter is ready to use as it is, and goes to WhatsApp for review
+ * the first time something sends it. Asked for one starter in one language, the answer names the version a step sends
+ * (`template_id`, its message's anchor; null where nothing of it is on file).
  */
-export async function fileStartersOnConnect(ctx: RouteContext, tenantId: TenantId) {
-  return fileStarters(ctx, tenantId, { languages: STARTER_LANGUAGES.map((l) => l.id) });
+export async function addStarterTemplates(ctx: RouteContext, req: Request, member: Member) {
+  const filed = await fileStarters(ctx, member.tenantId, ((await readJsonBody(req)) as StartersAsked | null) ?? {});
+  const [only] = filed.results;
+  const starter = filed.results.length === 1 && only ? starterByKey(only.key) : null;
+  if (!only || !starter) return { ...filed, template_id: null };
+  const rows = await listMessageVersionRows(ctx.supabase, member.tenantId, {
+    name: starter.name,
+    language: only.language,
+  });
+  return { ...filed, template_id: campaignMessageOf(rows, starter.name, only.language)?.anchor.id ?? null };
 }
 
 /**
- * The starter set, filed for a workspace: the route's body (above), and a new campaign's one starter (withStarterMessage).
- * Everything the route did, with the workspace by its id. Not exported: only this module files starters.
+ * Starters filed for a workspace: the route's body (above), a new campaign's one starter (withStarterMessage) and a step's
+ * (fileStarterForUse). Everything the route did, with the workspace by its id. Not exported: only this module files
+ * starters.
  */
 async function fileStarters(ctx: RouteContext, tenantId: TenantId, body: StartersAsked) {
   const SAID: Record<string, string> = {
@@ -183,8 +191,7 @@ async function fileStarters(ctx: RouteContext, tenantId: TenantId, body: Starter
   const wanted = offered
     .filter((s) => keys.includes(s.key))
     .flatMap((s) => languages.filter((l) => !!s.texts[l]).map((l) => ({ s, l })));
-  if (wanted.length === 0)
-    throw new AppError("validation", "Pick at least one starter template, in English or Spanish.");
+  if (wanted.length === 0) throw new AppError("validation", PICK_A_STARTER);
   const { whatsapp, number, own } = await starterChannelsOf(ctx, tenantId, body.channels);
 
   const rows = await listTemplatesNamed(ctx.supabase, tenantId, [...new Set(wanted.map((w) => w.s.name))]);
@@ -490,29 +497,63 @@ export async function withStarterMessage(
   const { starter_key: _key, ...rest } = record;
   // Every check that could refuse the card, before anything is filed: nothing reaches Meta for a card that is refused.
   const judged = await checkStarterPlaybook(ctx, member.tenantId, record);
-  const filed = await fileStarters(ctx, member.tenantId, {
-    keys: [key],
-    languages: [STARTER_LANGUAGE],
-    channels: judged.channels,
-  });
-  const result = filed.results.find((r) => r.key === key && r.language === STARTER_LANGUAGE) ?? null;
-  const rows = await listMessageVersionRows(ctx.supabase, member.tenantId, {
-    name: judged.starter.name,
-    language: STARTER_LANGUAGE,
-  });
-  const message = campaignMessageOf(rows, judged.starter.name, STARTER_LANGUAGE);
+  const { result, message } = await filedForUse(ctx, member.tenantId, judged.starter, judged.channels);
   const holds = message ? messageHolds(message) : null;
-  if (!result || !message || !judged.channels.some((c) => holds?.[c])) {
-    // Where its WhatsApp version did reach WhatsApp, that version is in the Library, in review, and the words say so.
-    const reached = result?.status === "submitted" || result?.status === "synced";
-    throw new AppError(
-      "conflict",
-      reached ? LIBRARY_STARTER_WORDS.notAddedSentForReview : LIBRARY_STARTER_WORDS.notAdded,
-      409,
-    );
-  }
+  if (!result || !message || !judged.channels.some((c) => holds?.[c])) throw notFiled(result);
   return {
     body: { ...rest, template_id: message.anchor.id, params: judged.params, channels: judged.channels },
     starter: { key, status: result.status, meta_status: result.meta_status },
   };
+}
+
+/* ---- A starter filed the first time something uses it ---- */
+
+/**
+ * One starter filed in English on the channels a use goes by (fileStarters), and its message as the filing left it, read
+ * back (null where no version of it is on file).
+ */
+async function filedForUse(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  starter: StarterTemplate,
+  channels: readonly ConsentChannel[],
+) {
+  const filed = await fileStarters(ctx, tenantId, { keys: [starter.key], languages: [STARTER_LANGUAGE], channels });
+  const result = filed.results.find((r) => r.key === starter.key && r.language === STARTER_LANGUAGE) ?? null;
+  const rows = await listMessageVersionRows(ctx.supabase, tenantId, { name: starter.name, language: STARTER_LANGUAGE });
+  return { result, message: campaignMessageOf(rows, starter.name, STARTER_LANGUAGE) };
+}
+
+/**
+ * A filing that left nothing to send a starter by: where its WhatsApp version did reach WhatsApp, that version is in
+ * Messages, in review, and the words say so.
+ */
+function notFiled(result: StarterResult | null): AppError {
+  const reached = result?.status === "submitted" || result?.status === "synced";
+  return new AppError(
+    "conflict",
+    reached ? LIBRARY_STARTER_WORDS.notAddedSentForReview : LIBRARY_STARTER_WORDS.notAdded,
+    409,
+  );
+}
+
+/**
+ * A starter filed the first time something uses it (the clean list, 14 Nov 2026): a step of New's draft, as the draft is
+ * kept or started (drafts/sequence-new.ts). In English, on the channels the draft goes by: its email and text versions at
+ * once, and its WhatsApp version sent to WhatsApp for review where those hold WhatsApp and there is a number, the run that
+ * sends it waiting for the answer as a run waits for any version in review. Answers the version a step names (the
+ * message's anchor). A key that is no starter of the set is refused as a pick of none; a filing that left no version on
+ * file, in the words a new campaign's starter is.
+ */
+export async function fileStarterForUse(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  key: string,
+  channels: readonly ConsentChannel[],
+): Promise<string> {
+  const starter = starterByKey(key);
+  if (!starter) throw new AppError("validation", PICK_A_STARTER);
+  const { result, message } = await filedForUse(ctx, tenantId, starter, channels);
+  if (!result || !message) throw notFiled(result);
+  return message.anchor.id;
 }

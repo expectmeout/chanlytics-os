@@ -70,21 +70,11 @@ export const NEW_MESSAGE_WORDS = {
 } as const;
 
 /**
- * What the starter set says it does, on the Library's banner and after it is added. Its email and text versions are
- * written at once, whatever the workspace has connected; its WhatsApp versions go to a number's account, so they wait
- * for one, and WhatsApp reviews each.
+ * What a starter's filing says (the clean list, 14 Nov 2026: a starter is filed the first time something uses it, never
+ * added by a press). Its email and text versions are written at once, whatever the workspace has connected; its WhatsApp
+ * version goes to a number's account, so it waits for one, and WhatsApp reviews it.
  */
 export const LIBRARY_STARTER_WORDS = {
-  /** The banner's second line: the languages it comes in, and what is written now. */
-  banner: (languages: string, hasNumber: boolean): string =>
-    hasNumber
-      ? `In ${languages} — email and text versions are written at once, and WhatsApp reviews each of its versions, usually within minutes.`
-      : `In ${languages} — email and text versions are written at once; WhatsApp versions are added when a number is connected.`,
-  /** The toast's clauses: what was written, what could not be, and what waits. */
-  versionsWritten: (n: number): string => `${n} email and text version${n === 1 ? "" : "s"} written`,
-  versionsFailed: (n: number, reason: string | null): string =>
-    `${n} email and text version${n === 1 ? "" : "s"} could not be written${reason ? `: ${reason}` : ""}`,
-  waitsForNumber: "WhatsApp versions wait for a number",
   /** The route's refusal when the channels it is asked for are none it knows. */
   pickAChannel: "Pick at least one channel: WhatsApp, email or text.",
   /** A new campaign named by a starter that is not its moment's own, or by no starter the set has (A0). */
@@ -123,9 +113,11 @@ export const LIBRARY_STARTER_WORDS = {
     could
       ? `The “${title}” starter can send nothing ${on} until WhatsApp approves its WhatsApp version: let the campaign go ${could} too, or start it once WhatsApp has.`
       : `The “${title}” starter can send nothing ${on} until WhatsApp approves its WhatsApp version: start the campaign once WhatsApp has.`,
-  /** The starter was judged and filing it failed, so no campaign was started (a version refused, or none to send). */
-  notAdded:
-    "The starter message could not be added just now, so nothing was started. Try again, or add it from Messages.",
+  /**
+   * The starter was judged and filing it failed, so nothing that uses it was started or saved (a version refused, or none
+   * to send). Filing is the use's own: there is no other place to add it from (the clean list, 14 Nov 2026).
+   */
+  notAdded: "The starter message could not be set up just now, so nothing was started. Try again in a minute.",
   /**
    * The same, where its WhatsApp version did reach WhatsApp (sent for review, or found in the number's account): that
    * version is in the Library and stays there, and a second press sends nothing to WhatsApp again.
