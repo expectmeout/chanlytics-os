@@ -110,3 +110,25 @@ The spec's "What proves it". In short:
 
 - Retell's delete paths for an agent and its LLM, read against its API reference at the build.
 - Whether a partner's workspaces make previews, credited at claim (0016): a later step.
+
+## Amended, 14 November 2026: their first minute
+
+Ruben's canvas of 11 November ("Their receptionist: heard in one press, theirs in a minute") put the page's first
+minute second in its build order. This part of it is built:
+
+- **It follows the visitor's device.** The page opened dark for every business, because a device that has chosen
+  nothing wears the app's default and a business owner's has chosen nothing. A page a stranger opens from an email
+  (contracts `STRANGER_PAGE_PREFIXES`, `/preview/` alone) is now drawn in the device's theme, light where the device
+  cannot say, whatever this device keeps for the app (`pagePrefOf`, and the theme's boot script before first paint).
+  The booking page and the other public pages keep the app's rule for now.
+- **It is theirs on sight.** Their Google photo (the lead's `image_url`, drawn only from Google's own host) across the
+  top with their mark over it, and their name alone as the heading.
+- **Hear it first.** Calling it comes before texting it.
+- **It speaks first.** The chat opens on its greeting as their business, which always says it is the automated
+  assistant (decision 0051's rule); the greeting is shown, never stored or counted.
+- **Only questions it can answer.** The starters come from what it knows (a service it lists, a day it is closed or its
+  hours, where it is) and fall back on "Can someone call me back?". Never a price, which it refuses, and never a visit
+  time, since many businesses come to the customer.
+
+Not yet: the greeting as a recording heard with no microphone asked. The phone's voice (MiniMax's Tamsin, through
+Retell) has no source for a clip in the same voice, and a clip in another would not sound like the call.
