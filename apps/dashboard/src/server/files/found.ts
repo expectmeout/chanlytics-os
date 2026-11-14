@@ -28,9 +28,19 @@ function seenOf(facts: unknown): ContentSourceSeen | null {
 /** How long a run is believed: one that stopped saying anything for longer than this died, and the page stops saying "Looking". */
 const RUN_BELIEVED_MS = HOUR_MS / 2;
 
-/** Whether a road's run is going now, as the ledger says and not older than it can be. */
-const runIsGoing = (row: ImportLedgerRow | undefined, now: number): boolean =>
-  !!row && ON_ITS_WAY.has(row.state) && now - Date.parse(row.started_at ?? "") < RUN_BELIEVED_MS;
+/**
+ * Whether a road's run is going now, as the ledger says and not older than it can be, and until when it is believed: the page
+ * reads itself again then, where the run ends with nothing told.
+ */
+function runBelievedOf(
+  row: ImportLedgerRow | undefined,
+  now: number,
+): Pick<ContentSourceDto, "reading" | "reading_until"> {
+  const until = row && ON_ITS_WAY.has(row.state) ? Date.parse(row.started_at ?? "") + RUN_BELIEVED_MS : Number.NaN;
+  return until > now
+    ? { reading: true, reading_until: new Date(until).toISOString() }
+    : { reading: false, reading_until: null };
+}
 
 /** An import's states while it is on its way: queued, or running. */
 const ON_ITS_WAY: ReadonlySet<string> = new Set(["queued", "running"]);
@@ -70,7 +80,7 @@ export async function readContentSources(db: Db, tenantId: TenantId, now: number
   const website: ContentSourceDto = {
     place: "website",
     address: (typeof named === "string" && named.trim()) || site?.read_from || null,
-    reading: runIsGoing(siteRun, now),
+    ...runBelievedOf(siteRun, now),
     read_at: siteRun?.finished_at ?? (seen ? (site?.read_at ?? null) : null),
     ...cameFrom(found, ["website"]),
     seen,
@@ -79,7 +89,7 @@ export async function readContentSources(db: Db, tenantId: TenantId, now: number
   const listing: ContentSourceDto = {
     place: "google_listing",
     address: place || photosRun ? "listing" : null,
-    reading: runIsGoing(photosRun, now),
+    ...runBelievedOf(photosRun, now),
     read_at: photosRun?.finished_at ?? (place ? (site?.read_at ?? null) : null),
     ...cameFrom(found, ["google_listing", "google_profile"]),
     seen: null,
@@ -88,7 +98,7 @@ export async function readContentSources(db: Db, tenantId: TenantId, now: number
   const instagram: ContentSourceDto = {
     place: "instagram",
     address: instagramRun?.via ?? null,
-    reading: runIsGoing(instagramRun, now),
+    ...runBelievedOf(instagramRun, now),
     read_at: instagramRun?.finished_at ?? null,
     ...cameFrom(found, ["instagram"]),
     seen: null,

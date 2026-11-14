@@ -12,6 +12,7 @@ const { contentMoving } = await importSrc("packages/contracts/src/content/page.t
 const place = (over) => ({
   address: null,
   reading: false,
+  reading_until: null,
   read_at: null,
   photos: 0,
   videos: 0,
@@ -117,14 +118,13 @@ test("an Instagram pasted is a line of its own, by its handle", () => {
   );
 });
 
-test("the page asks again on its own while a place is being read, and rests once none is", () => {
+test("a place being read is not asked after: what it brings is told as it lands, so the page rests while it runs", () => {
   const page = {
     making: [],
     made: [],
     lines: [],
-    sources: sources({ address: "https://harbor.example", reading: true }),
+    sources: sources({ address: "https://harbor.example", reading: true, reading_until: new Date().toISOString() }),
   };
-  assert.equal(contentMoving(page, Date.now()), true);
-  assert.equal(contentMoving({ ...page, sources: sources() }, Date.now()), false);
-  assert.equal(contentMoving({ ...page, sources: undefined }, Date.now()), false);
+  assert.equal(contentMoving(page, Date.now()), false);
+  assert.equal(contentMoving({ ...page, making: [{ status: "making" }] }, Date.now()), true, "a video made still is");
 });

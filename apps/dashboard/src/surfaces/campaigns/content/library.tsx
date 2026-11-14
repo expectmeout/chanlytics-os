@@ -44,7 +44,9 @@ export default function ContentLibrary({
       rows={layout === "list" ? (shown, open) => <FileLines files={shown} onOpen={open} /> : null}
       empty={
         sources
-          ? ({ add, videos }) => <FoundCard sources={sources} videos={videos} onAdd={add} onLibrary={null} />
+          ? ({ add, videos }) => (
+              <FoundCard sources={sources} videos={videos} onAdd={add} onLibrary={null} surface="files" />
+            )
           : null
       }
     />

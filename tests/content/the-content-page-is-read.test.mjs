@@ -150,6 +150,7 @@ const NOWHERE = {
     place,
     address: null,
     reading: false,
+    reading_until: null,
     read_at: null,
     photos: 0,
     videos: 0,
@@ -172,6 +173,32 @@ test("a workspace that made nothing reads an empty page, says so in numbers, and
     tally: NOTHING,
     sources: NOWHERE,
   });
+});
+
+test("a place is read for half an hour after its run started and no longer, and says until when", async () => {
+  /** A run of a road's photos and videos, started `minutes` ago and on its way still. */
+  const run = (source, minutes) => ({
+    tenant_id: A,
+    source,
+    connection_id: null,
+    state: "running",
+    counts: {},
+    parts_done: 0,
+    parts_total: null,
+    oldest: null,
+    started_at: minutesAgo(minutes),
+    finished_at: null,
+    last_error: null,
+    via: source === "instagram" ? "harborsalon" : null,
+  });
+  const { body } = await read({ imports: [run("website_media", 10), run("instagram", 40)] });
+  const [website, , instagram] = body.sources.places;
+  assert.equal(website.reading, true);
+  // The page reads itself again as the half hour ends, where no notice told it the run had ended (found-card.tsx).
+  assert.equal(website.reading_until, new Date(Date.parse(minutesAgo(10)) + 30 * MIN_MS).toISOString());
+  // A run that has said nothing for longer died: no "Looking", and nothing to wait for.
+  assert.equal(instagram.reading, false);
+  assert.equal(instagram.reading_until, null);
 });
 
 test("what was made comes newest first, each with its own posts, and nothing that is not made here", async () => {

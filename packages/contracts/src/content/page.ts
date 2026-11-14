@@ -535,17 +535,16 @@ export function contentMakingSaid(making: ContentMakingDto): { title: string; st
 }
 
 /**
- * Whether the page should be read again on its own: a video still being made, a post going up now, or a place being read for
- * its photos and videos (sources.ts). None is told to a
+ * Whether the page should be read again on its own: a video still being made, or a post going up now. Neither is told to a
  * page by the feed (00611, 00613), so the page asks while one moves and stops when none does. A post set for later is not
- * moving: the page does not ask all week for it.
+ * moving: the page does not ask all week for it. A place read for its photos and videos is not asked after either: what it
+ * brings, its ledger's run and the website's read are told by the feed as they land (00480, 00551), and the card reads itself
+ * once more where a run ends unheard (sources.ts `reading_until`).
  */
 export function contentMoving(page: ContentPageDto, nowMs: number): boolean {
   return (
     page.making.some((m) => m.status === "making") ||
-    page.made.some((m) => contentMarkOf(m.posts, nowMs).is === "going") ||
-    // A website or an Instagram being read for its photos and videos: nothing tells the page as they come either.
-    (page.sources?.places.some((p) => p.reading) ?? false)
+    page.made.some((m) => contentMarkOf(m.posts, nowMs).is === "going")
   );
 }
 

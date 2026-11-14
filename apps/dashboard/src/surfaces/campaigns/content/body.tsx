@@ -319,7 +319,13 @@ function FirstDay(props: {
   if (libraryEmpty && sources)
     return (
       <section className="cnv-first" data-testid="cnv-empty">
-        <FoundCard sources={sources} videos={videos} onAdd={acts.onLibrary} onLibrary={acts.onLibrary} />
+        <FoundCard
+          sources={sources}
+          videos={videos}
+          onAdd={acts.onLibrary}
+          onLibrary={acts.onLibrary}
+          surface="content"
+        />
         {ideas.length > 0 ? <IdeaRows ideas={ideas} picks={props.picks} onIdea={acts.onIdea} /> : null}
       </section>
     );

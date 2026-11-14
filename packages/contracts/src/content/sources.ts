@@ -25,6 +25,11 @@ export interface ContentSourceDto {
   address: string | null;
   /** Being read or brought in now. */
   reading: boolean;
+  /**
+   * While it is read, when a run that has said nothing since stops being believed (its start and half an hour): the page
+   * reads itself once then, where no notice would have told it the run ended. Null where it is not read.
+   */
+  reading_until: string | null;
   /** When it was last read; null for never. */
   read_at: string | null;
   /** What came in from it and is still here (waiting or kept). */
