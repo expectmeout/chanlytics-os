@@ -1,8 +1,8 @@
 # 0133 · A count is delivered
 
-**Status:** Decided by Ruben, 14 November 2026 ("Yes, all five", to D1-D5 of the plan below); step 1 built (00626),
-steps 2 to 5 not yet. Written against main at `e40c45927f`; built in steps in one lane, `cm-count-delivered`, each step
-its own pull request.
+**Status:** Decided by Ruben, 14 November 2026 ("Yes, all five", to D1-D5 of the plan below); steps 1 and 2 built
+(00626, and the ladder, which nothing reads yet), steps 3 to 5 not yet. Written against main at `e40c45927f`; built in
+steps in one lane, `cm-count-delivered`, step 1 and 2 in one pull request and each later step its own.
 
 ## Context
 
@@ -133,6 +133,11 @@ Each step is one pull request, in either deploy order unless it says otherwise.
   real run before the switch is on for everyone.
 
 ## Open questions
+
+- How a leg reads a rung's three ZIPs. Either one round each, which is three times the legs and keeps the runner as it
+  is; or one round whose area is the rung, its runs asking `customGeolocation` as a `MultiPoint` with a radius, which
+  the source's input schema takes. The second keeps one run per term, but needs an area kind of several centres, read by
+  the sentence and the judge's in-area check. Decided when step 3 is built.
 
 - Whether a ZIP's or a circle's `customGeolocation` splits past 120 as a city does: a probe of a few dollars, on
   Ruben's word, before step 2 widens their per-term ask.
