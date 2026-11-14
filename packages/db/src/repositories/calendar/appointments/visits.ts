@@ -93,8 +93,7 @@ export async function getEarlierVisitRows(
   beforeIso: string,
 ): Promise<{ rows: EarlierVisitRow[]; capped: boolean }> {
   const or = [`contact_id.eq.${personName.id}`, clientFilter(personName)].filter(Boolean).join(",");
-  let capped = false;
-  const rows = await readAllRows<EarlierVisitRow>(
+  const { rows, capped } = await readAllRows<EarlierVisitRow>(
     "appointments_earlier",
     (from, to) =>
       db
@@ -108,10 +107,8 @@ export async function getEarlierVisitRows(
         .order("starts_at", { ascending: false })
         .order("id", { ascending: false })
         .range(from, to),
+    "part",
     EARLIER_ROWS_MAX,
-    () => {
-      capped = true;
-    },
   );
   return { rows, capped };
 }

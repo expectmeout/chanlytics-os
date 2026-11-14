@@ -91,19 +91,23 @@ export async function leaveSequenceForLeads(
 /**
  * Who a customer's sequence has reached, by contact id: everyone it holds now, or sent anything to (an enrollment that is
  * in, or one with a send that went). A sequence on a list goes once to each person (the loop review's item 6), so its run
- * leaves them out. Every page read; a read that fails throws: unread is not nobody.
+ * leaves them out. Every page read; a read that fails throws: unread is not nobody. Whole, for the same reason: past
+ * the cap it refuses, and the run sends nobody rather than send again to whoever fell past it.
  */
 export async function wasSequenceReached(db: Db, tenantId: TenantId, sequenceId: string): Promise<Set<string>> {
-  const rows = await readAllRows("who the sequence reached", (from, to) =>
-    db
-      .from("sequence_enrollments")
-      .select("contact_id")
-      .eq("tenant_id", tenantId)
-      .eq("sequence_id", sequenceId)
-      .is("lead_id", null)
-      .or("state.eq.in,sent_at.not.is.null")
-      .order("id")
-      .range(from, to),
+  const rows = await readAllRows(
+    "who the sequence reached",
+    (from, to) =>
+      db
+        .from("sequence_enrollments")
+        .select("contact_id")
+        .eq("tenant_id", tenantId)
+        .eq("sequence_id", sequenceId)
+        .is("lead_id", null)
+        .or("state.eq.in,sent_at.not.is.null")
+        .order("id")
+        .range(from, to),
+    "whole",
   );
   return new Set(rows.flatMap((r) => (r.contact_id ? [r.contact_id] : [])));
 }

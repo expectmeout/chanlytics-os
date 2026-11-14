@@ -116,6 +116,10 @@ export async function scrubModelTurns(db: Db, tenantId: TenantId, needles: reado
 export const findAskTokensToday = async (db: Db, tenantId: TenantId) =>
   db.rpc("ask_tokens_day", { p_tenant: tenantId });
 
+/** The tokens the workspace's receptionist spent from `since` on, in and out, summed in one statement (llm_tokens_since). */
+export const findLlmTokensSince = async (db: Db, tenantId: TenantId, since: string) =>
+  db.rpc("llm_tokens_since", { p_tenant: tenantId, p_since: since });
+
 /**
  * One page (`from` to `to`) of the model's spend between `since` and `until`, the newest first: every workspace's, or
  * with `tenantId` one workspace's.

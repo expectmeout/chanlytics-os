@@ -30,7 +30,8 @@ const SEND_LEAD_MS = 2 * DAY_MS;
 /**
  * The runs that fall in a span: a campaign's runs by the business's day they ran for (`run_for`, from `fromDay` to
  * `toDay`), and the one-off sends scheduled from a little before the span to its end (a send sits where it finished,
- * else began, else was scheduled: the contracts' placement decides the day). Two reads, waited for together.
+ * else began, else was scheduled: the contracts' placement decides the day). Two reads, waited for together. A part will
+ * do past the cap: the board draws each run it read as it went, and the pager's line says the span was cut.
  */
 export async function listRunsInSpan(
   db: Db,
@@ -39,32 +40,38 @@ export async function listRunsInSpan(
 ): Promise<SpanRunRow[]> {
   const sendsFrom = new Date(Date.parse(span.fromIso) - SEND_LEAD_MS).toISOString();
   const [runs, sends] = await Promise.all([
-    readAllRows<SpanRunRow>("calendar_runs_campaign", (from, to) =>
-      db
-        .from("sequence_batches")
-        .select(RUN_COLUMNS)
-        .eq("tenant_id", tenantId)
-        .not("step_id", "is", null)
-        .gte("run_for", span.fromDay)
-        .lte("run_for", span.toDay)
-        .order("run_for", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to),
+    readAllRows<SpanRunRow>(
+      "calendar_runs_campaign",
+      (from, to) =>
+        db
+          .from("sequence_batches")
+          .select(RUN_COLUMNS)
+          .eq("tenant_id", tenantId)
+          .not("step_id", "is", null)
+          .gte("run_for", span.fromDay)
+          .lte("run_for", span.toDay)
+          .order("run_for", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      "part",
     ),
-    readAllRows<SpanRunRow>("calendar_runs_send", (from, to) =>
-      db
-        .from("sequence_batches")
-        .select(RUN_COLUMNS)
-        .eq("tenant_id", tenantId)
-        .is("step_id", null)
-        .gte("scheduled_for", sendsFrom)
-        .lt("scheduled_for", span.toIso)
-        .order("scheduled_for", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to),
+    readAllRows<SpanRunRow>(
+      "calendar_runs_send",
+      (from, to) =>
+        db
+          .from("sequence_batches")
+          .select(RUN_COLUMNS)
+          .eq("tenant_id", tenantId)
+          .is("step_id", null)
+          .gte("scheduled_for", sendsFrom)
+          .lt("scheduled_for", span.toIso)
+          .order("scheduled_for", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      "part",
     ),
   ]);
-  return [...runs, ...sends];
+  return [...runs.rows, ...sends.rows];
 }
 
 /**
@@ -76,14 +83,21 @@ export type MomentScheduleRow = Pick<
   "id" | "sequence_id" | "name" | "trigger" | "state" | "run_hour" | "last_run_for" | "until" | "words_ok_at"
 >;
 
-/** Every campaign's schedule columns, and nothing more: the board forecasts from these alone. */
+/**
+ * Every campaign's schedule columns, and nothing more: the board forecasts from these alone. A part will do past the
+ * cap: each forecast drawn is its campaign's own, and the pager's line says the read was cut.
+ */
 export async function listMomentSchedules(db: Db, tenantId: TenantId): Promise<MomentScheduleRow[]> {
-  return readAllRows<MomentScheduleRow>("calendar_moment_schedules", (from, to) =>
-    db
-      .from("sequence_steps")
-      .select("id, sequence_id, name, trigger, state, run_hour, last_run_for, until, words_ok_at")
-      .eq("tenant_id", tenantId)
-      .order("id", { ascending: true })
-      .range(from, to),
+  const read = await readAllRows<MomentScheduleRow>(
+    "calendar_moment_schedules",
+    (from, to) =>
+      db
+        .from("sequence_steps")
+        .select("id, sequence_id, name, trigger, state, run_hour, last_run_for, until, words_ok_at")
+        .eq("tenant_id", tenantId)
+        .order("id", { ascending: true })
+        .range(from, to),
+    "part",
   );
+  return read.rows;
 }

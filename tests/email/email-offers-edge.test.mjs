@@ -358,8 +358,8 @@ test("a job is bound with email by what the campaigns domain came to: the lane w
   const lane = { domain: CAMPAIGNS, unsubscribeSecret: "unsub-secret", unsubscribeOrigin: "https://app.example.com" };
   /** What the tick binds: the wire, and the intake as it is handed what the campaigns domain came to. */
   const bound = async (offers, database = db) => {
-    const b = await findEmailBound(database, T, offers, L);
-    return { ...b, intake: emailIntake(database, b.campaigns, b.closed, b.unread) };
+    const b = findEmailBound(database, T, offers, L);
+    return { ...b, email: await b.bindEmail(), intake: emailIntake(database, b.campaigns, b.closed, b.unread) };
   };
   // Open: the wire gains the campaigns route, and the intake carries the lane.
   const open = await bound({ state: "open", lane });

@@ -14499,6 +14499,32 @@ COMMENT ON FUNCTION public.lines_voice_guard() IS 'Forward moves only on voice_s
 
 
 --
+-- Name: llm_tokens_since(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.llm_tokens_since(p_tenant uuid, p_since timestamp with time zone) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select coalesce(sum(
+           case when jsonb_typeof(e.data -> 'input_tokens') = 'number' then (e.data ->> 'input_tokens')::numeric else 0 end
+         + case when jsonb_typeof(e.data -> 'output_tokens') = 'number' then (e.data ->> 'output_tokens')::numeric else 0 end
+         ), 0)::bigint
+    from public.events e
+   where e.tenant_id = p_tenant
+     and e.kind = 'usage.llm_tokens'
+     and e.created_at >= p_since
+$$;
+
+
+--
+-- Name: FUNCTION llm_tokens_since(p_tenant uuid, p_since timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.llm_tokens_since(p_tenant uuid, p_since timestamp with time zone) IS 'The workspace''s receptionist tokens (input and output of every usage.llm_tokens event; a value that is not a number counts nothing) from p_since on: what the edge''s budget weighs against the reply policy''s max_llm_tokens_day, one statement however busy the day (00625). Service role only.';
+
+
+--
 -- Name: lookup_user_for_invite(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -19114,6 +19140,34 @@ $$;
 --
 
 COMMENT ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'The people on one page of People (0021), for people_list, which reads everything else for them alone: the person p_contact_id names, by their key; else the live people matching p_query in person_moments'' order (in_touch_at, then added_at, then the id, falling), after p_offset or just past the cursor p_after_at, p_after_added, p_after_id, at most p_limit (1000) of them. It walks person_moments_order to the end of the page: sorting is off, so no plan reads the workspace whole and sorts it. As the caller, so RLS decides.';
+
+
+--
+-- Name: people_reply_modes(uuid, text, integer, integer, timestamp with time zone, timestamp with time zone, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.people_reply_modes(p_tenant_id uuid, p_query text DEFAULT NULL::text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0, p_after_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_added timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, mode text)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select pg.id,
+         coalesce(own.mode,
+                  (select ws.mode
+                     from policies ws
+                    where ws.tenant_id = p_tenant_id and ws.class = 'reply' and ws.subject_type is null
+                    order by ws.id
+                    limit 1))
+    from people_page(p_tenant_id, null, p_query, p_limit, p_offset, p_after_at, p_after_added, p_after_id) pg
+    left join policies own
+      on own.tenant_id = p_tenant_id and own.class = 'reply' and own.subject_type = 'contact' and own.subject_id = pg.id
+$$;
+
+
+--
+-- Name: FUNCTION people_reply_modes(p_tenant_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.people_reply_modes(p_tenant_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'The reply mode in force for each person on one page of People: their own reply policy, else the workspace''s, else null. The page is people_page''s, taken with the arguments people_list takes (p_query, p_limit, p_offset, p_after_at, p_after_added, p_after_id), so a page''s rows and its modes are read side by side (00625). Row security decides what it sees.';
 
 
 --
@@ -54475,6 +54529,14 @@ GRANT ALL ON FUNCTION public.lines_voice_guard() TO service_role;
 
 
 --
+-- Name: FUNCTION llm_tokens_since(p_tenant uuid, p_since timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.llm_tokens_since(p_tenant uuid, p_since timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.llm_tokens_since(p_tenant uuid, p_since timestamp with time zone) TO service_role;
+
+
+--
 -- Name: FUNCTION lookup_user_for_invite(p_tenant_id uuid, p_email text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -55199,6 +55261,15 @@ GRANT ALL ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_
 REVOKE ALL ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION people_reply_modes(p_tenant_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.people_reply_modes(p_tenant_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.people_reply_modes(p_tenant_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.people_reply_modes(p_tenant_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) TO service_role;
 
 
 --

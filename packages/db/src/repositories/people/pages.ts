@@ -102,29 +102,51 @@ export function peopleCursorOf(row: PersonRowDto | undefined): PeopleCursor | nu
   return row?.in_touch_at && row.added_at ? { at: row.in_touch_at, added: row.added_at, id: row.id } : null;
 }
 
+/** Which page of People is asked for: a search, and after a cursor or an offset. */
+type PeoplePageAsked = { q?: string | null; offset?: number; limit?: number; after?: PeopleCursor | null };
+
 /**
- * One page of people: after a cursor, or an offset. The page arguments are named only when they leave their defaults,
- * so a database that has not been given 00112 answers the first page as it always has, and one before 00276 is never
- * named a cursor (a cursor comes only from a row that carries its place). A read that fails THROWS: a page the
- * database could not answer is never an empty workspace.
+ * A page's arguments as people_page takes them, through people_list and people_reply_modes alike, so the two read the
+ * same people. Each is named only when it leaves its default, so a database that has not been given 00112 answers the
+ * first page as it always has, and one before 00276 is never named a cursor (a cursor comes only from a row that
+ * carries its place).
  */
-export async function listPeoplePage(
-  db: Db,
-  tenantId: TenantId,
-  page: { q?: string | null; offset?: number; limit?: number; after?: PeopleCursor | null } = {},
-): Promise<PersonRowDto[]> {
+function pageArgsOf(tenantId: TenantId, page: PeoplePageAsked) {
   const offset = page.offset ?? 0;
   const limit = page.limit ?? PEOPLE_PAGE;
   const after = page.after ?? null;
-  const { data, error } = await db.rpc("people_list", {
+  return {
     p_tenant_id: tenantId,
     ...(page.q ? { p_query: page.q } : {}),
     ...(offset > 0 ? { p_offset: offset } : {}),
     ...(limit !== PEOPLE_PAGE ? { p_limit: limit } : {}),
     ...(after ? { p_after_at: after.at, p_after_added: after.added, p_after_id: after.id } : {}),
-  });
+  };
+}
+
+/**
+ * One page of people: after a cursor, or an offset (pageArgsOf). A read that fails THROWS: a page the database could
+ * not answer is never an empty workspace.
+ */
+export async function listPeoplePage(db: Db, tenantId: TenantId, page: PeoplePageAsked = {}): Promise<PersonRowDto[]> {
+  const { data, error } = await db.rpc("people_list", pageArgsOf(tenantId, page));
   if (error) throw new DbFailure(error);
   return (data ?? []).map(rowOfPeopleList);
+}
+
+/**
+ * The reply mode in force for each person on one page of People, by id (people_reply_modes, 00625): their own reply
+ * policy, else the workspace's, else null. Asked with the page's own arguments (pageArgsOf), so it is read beside
+ * listPeoplePage, names the same people, and reads no other person's policy. A read that fails THROWS.
+ */
+export async function listPeopleReplyModes(
+  db: Db,
+  tenantId: TenantId,
+  page: PeoplePageAsked = {},
+): Promise<Map<string, string | null>> {
+  const { data, error } = await db.rpc("people_reply_modes", pageArgsOf(tenantId, page));
+  if (error) throw new DbFailure(error, "people_reply_modes");
+  return new Map(data.map((row) => [row.id, row.mode]));
 }
 
 type PeopleListRow = Database["public"]["Functions"]["people_list"]["Returns"][number];
@@ -216,10 +238,8 @@ export async function* listEveryoneOnceIn(db: Db, tenantId: TenantId): AsyncGene
       if (after) q = q.gt("id", after);
       return q.order("id").limit(size);
     },
+    "whole",
     COPY_READ_CAP,
-    (subject, cap) => {
-      throw new Error(`${subject}: more than ${cap}; no copy is whole`);
-    },
   );
   const missed = live.map((c) => c.id).filter((id) => !seen.has(id));
   for (let i = 0; i < missed.length; i += MISSED_AT_ONCE) {

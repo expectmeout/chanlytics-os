@@ -15,7 +15,7 @@ import { isFindingCard, isRested, type AskRested } from "@chanlytics/contracts";
 import type { TodayLeakVM } from "../leaks";
 
 /** How many rows Ask found draws: the rest are said as "and 2 more". */
-const ASK_FOUND_SHOWN = 3;
+export const ASK_FOUND_SHOWN = 3;
 
 /** What a row came from, which says how its act is pressed. */
 export type AskFoundSource = "rule" | "noticed" | "call" | "tried" | "idea";
@@ -70,6 +70,10 @@ export const ASK_FOUND_WORDS = {
   approve: "Approve",
   openInAsk: "Open in Ask",
   askWhy: "Ask why",
+  /** Where Ask's ideas will come while it writes the member's morning (Ruben's "hold its place", 13 Nov 2026). */
+  reading: "Ask is reading your morning…",
+  /** The same place, the morning written with no idea in it: said, so the place it held does not close. */
+  readNothing: "Nothing more from Ask this morning.",
 } as const;
 
 /** A row that names nobody and is not asked about: every row but a rule's. */

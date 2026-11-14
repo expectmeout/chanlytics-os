@@ -168,26 +168,28 @@ export function emailIntake(
  * provider could not be asked about it, so the email wire is bound as ever (without the campaigns route) and the intake says
  * so: a run of offers WAITS and asks again (core offersUnread), and a visit's email, which leaves from the mail domain, goes.
  * Without a lane the batch held each of its offers as having no channel, a skip that is final; binding the whole wire
- * unavailable held every email of the batch, a visit reminder's too.
+ * unavailable held every email of the batch, a visit reminder's too. The wire is handed over as its binding
+ * (`bindEmail`), which the tick runs the first time a send asks for email: a job that sends nothing by email reads no mailbox.
  */
-export async function findEmailBound(
+export function findEmailBound(
   db: Db,
   tenantId: TenantId,
   offers: CampaignsBinding,
   log: Logger,
-): Promise<{
-  email: Awaited<ReturnType<typeof findEmailWire>>;
+): {
+  bindEmail: () => Promise<Awaited<ReturnType<typeof findEmailWire>>>;
   campaigns: CampaignsLane | null;
   closed: string | null;
   unread: string | null;
-}> {
+} {
   const campaigns = offers.state === "open" ? offers.lane : null;
-  const email = await findEmailWire(db, tenantId, campaigns).catch((e: unknown) => {
-    log.error("email_wire_unavailable", { tenant_id: tenantId, error: errField(e) });
-    return wireUnavailable(errField(e));
-  });
+  const bindEmail = () =>
+    findEmailWire(db, tenantId, campaigns).catch((e: unknown) => {
+      log.error("email_wire_unavailable", { tenant_id: tenantId, error: errField(e) });
+      return wireUnavailable(errField(e));
+    });
   return {
-    email,
+    bindEmail,
     campaigns,
     closed: offers.state === "closed" ? offers.why : null,
     unread: offers.state === "unread" ? offers.why : null,

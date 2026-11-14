@@ -101,14 +101,18 @@ export const leadStepKey = (stepId: string, leadId: string): string => `${stepId
 export async function getLeadWordsOfLeads(db: Db, leadIds: readonly string[]): Promise<Map<string, LeadEmailText>> {
   const out = new Map<string, LeadEmailText>();
   for (const ids of chunksOf(leadIds)) {
-    const rows = await readAllRows("the leads' own words", (from, to) =>
-      db
-        .from("sequence_lead_words")
-        .select("step_id, lead_id, subject, body")
-        .in("lead_id", ids)
-        .order("step_id")
-        .order("lead_id")
-        .range(from, to),
+    // Whole: a lead missed here is sent the step's words for everyone instead of their own.
+    const rows = await readAllRows(
+      "the leads' own words",
+      (from, to) =>
+        db
+          .from("sequence_lead_words")
+          .select("step_id, lead_id, subject, body")
+          .in("lead_id", ids)
+          .order("step_id")
+          .order("lead_id")
+          .range(from, to),
+      "whole",
     );
     for (const r of rows) out.set(leadStepKey(r.step_id, r.lead_id), { subject: r.subject, body: r.body });
   }
@@ -123,15 +127,19 @@ export async function getOwnWordsAtSteps(
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   for (const ids of chunksOf(stepIds)) {
-    const rows = await readAllRows("who keeps their own words", (from, to) =>
-      db
-        .from("sequence_lead_words")
-        .select("step_id, lead_id")
-        .eq("tenant_id", tenantId)
-        .in("step_id", ids)
-        .order("step_id")
-        .order("lead_id")
-        .range(from, to),
+    // Whole: they are counted.
+    const rows = await readAllRows(
+      "who keeps their own words",
+      (from, to) =>
+        db
+          .from("sequence_lead_words")
+          .select("step_id, lead_id")
+          .eq("tenant_id", tenantId)
+          .in("step_id", ids)
+          .order("step_id")
+          .order("lead_id")
+          .range(from, to),
+      "whole",
     );
     for (const r of rows) out.set(r.step_id, (out.get(r.step_id) ?? 0) + 1);
   }

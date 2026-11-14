@@ -125,6 +125,21 @@ export function addressInWorkspace(slug: string, address: AddressParts): string 
 
 /* ------------------------------ the route on screen ------------------------------ */
 
+/** A move the browser is about to make, as the Navigation API asks it of a page before anything moves. */
+interface AskedMove {
+  navigationType: string;
+  cancelable: boolean;
+  destination: { key: string; url: string };
+  preventDefault(): void;
+}
+
+/** The Navigation API's part Back and Forward are asked about with (guardLeaving), where the browser has it. */
+interface Traversals {
+  traverseTo(key: string): { committed?: Promise<unknown>; finished?: Promise<unknown> };
+  addEventListener(type: "navigate", fn: (event: AskedMove) => void): void;
+  removeEventListener(type: "navigate", fn: (event: AskedMove) => void): void;
+}
+
 /** The parts of a window the address reads, follows and moves; a test's stand-in has these and little else. */
 export interface AddressWindow {
   location: AddressParts;
@@ -134,6 +149,7 @@ export interface AddressWindow {
   };
   addEventListener(type: string, fn: () => void, options?: AddEventListenerOptions): void;
   removeEventListener(type: string, fn: () => void): void;
+  navigation?: Traversals;
 }
 
 /** The route on screen, `inbox/th-1`, and `today` when the address names none. Read here and nowhere else. */
@@ -205,7 +221,7 @@ export interface GoOptions {
 }
 
 /** The App Router's own navigation, which the frame registers (FrameHost) for the routes that have a page of their own. */
-export interface AppRouter {
+interface AppRouter {
   push(href: string): void;
   replace(href: string): void;
   /** Warm a route's page: its code and its prerendered payload, so a move there asks the server for nothing. */
@@ -230,6 +246,15 @@ export function onRouteAsked(fn: ((route: string) => void) | null): void {
 }
 
 /**
+ * Asked before a move off the page: false, and the move goes now; true, and the asker holds it, making it (`go`) once the
+ * person says so (kit/record/held-move.ts holdMove).
+ */
+type AskToLeave = (go: () => void) => boolean;
+
+/** Who is asked before the page is left: the frame's question, handed over as it mounts (guardLeaving). */
+let askedToLeave: AskToLeave | null = null;
+
+/**
  * Move to a route: a path pushed (or, for a page saying the same place more exactly, replaced) through the history
  * the App Router patches, which follows it for usePathname and keeps its Back. Not router.push: every shell route is
  * drawn by the same catch-all page, so that would ask the server for a page that draws nothing on every press, and a
@@ -252,6 +277,9 @@ export function goToRoute(asked: string, opts: GoOptions = {}, win: AddressWindo
   // rule C): the bell's row, a door, a page's own press. A page saying where it stands (`replace`) is no press, and the
   // thing's own door to its home (`home`) goes there.
   if (!opts.replace && !opts.home && inPlace(route)) return;
+  // A page holding a change not saved asks before it is left, and moves on "Yes, leave" (guardLeaving). A page saying
+  // where it stands, or a redirect (`replace`), is nobody leaving.
+  if (!opts.replace && route !== routeOnScreen(win) && askedToLeave?.(() => goToRoute(route, opts, win))) return;
   // A move is timed from its ask, and a page with a page of its own is drawn only once the router has fetched it.
   routeAsked?.(route);
   const to = hrefOfRoute(route, win);
@@ -264,6 +292,44 @@ export function goToRoute(asked: string, opts: GoOptions = {}, win: AddressWindo
   } else if (opts.replace) win.history.replaceState(null, "", to);
   else if (here !== to) win.history.pushState(null, "", to);
   if (!(opts.replace && opts.quiet)) notifyAddress();
+}
+
+/** Move the tab to one of its entries. A step another overtakes (a second Back) refuses, and that one is asked instead. */
+function traverse(nav: Traversals, key: string): void {
+  const step = nav.traverseTo(key);
+  void step.committed?.catch(() => {});
+  void step.finished?.catch(() => {});
+}
+
+/**
+ * A page holding a change not saved asks before it is left (the interaction review's Part 6, 13 Nov 2026): `ask` is asked
+ * before every move goToRoute makes off the route on screen, and before Back and Forward. The frame's question hands its
+ * own over as it mounts (kit/record/leave-ask.tsx LeaveHost): the bridge loads nothing of the surfaces'. Answers the stop.
+ *
+ * Back and Forward are asked before they happen: the browser asks the page before it moves (the Navigation API's
+ * `navigate`), and a held move is cancelled, so the address never moves, the App Router hears nothing and the page stays
+ * drawn, until "Yes, leave" takes the tab where Back or Forward was going. Never after: the App Router follows Back from its
+ * own popstate listener, heard before any the frame could add (a window's listeners are heard in the order they were added,
+ * capturing or not), and the page and the change were gone by the time a popstate of ours was heard (Chrome 156, the running
+ * app, 13 Nov 2026). A Back that stays on the page's route is a sheet's own (kit/sheet/back.ts): the sheet takes it, and
+ * asks its own question. A Back the browser lets nobody cancel goes, unasked, as it always did: Chrome lets a page cancel one
+ * Back per press on the page, so a second Back with nothing pressed between goes. A browser without the Navigation API
+ * (before Safari 26.2 and Firefox 147) leaves Back and Forward as they were.
+ */
+export function guardLeaving(ask: AskToLeave, win: AddressWindow = window): () => void {
+  askedToLeave = ask;
+  const nav = win.navigation;
+  const asked = (move: AskedMove) => {
+    if (move.navigationType !== "traverse" || !move.cancelable || !nav) return;
+    const to = move.destination;
+    if (routeOfAddress(new URL(to.url)) === routeOnScreen(win)) return;
+    if (ask(() => traverse(nav, to.key))) move.preventDefault();
+  };
+  nav?.addEventListener("navigate", asked);
+  return () => {
+    if (askedToLeave === ask) askedToLeave = null;
+    nav?.removeEventListener("navigate", asked);
+  };
 }
 
 /**

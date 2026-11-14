@@ -1,8 +1,9 @@
 /**
  * Campaigns > Messages (the route's `messages`, the path's `templates`): the wording the receptionist and the campaigns
  * send, on each channel, shown as the customer sees it (moved from legacy/pages/messages.jsx, decision 0015). One row per
- * message, in groups a person reads top down (Messages, the canvas of 10 Nov 2026): what needs you, what goes out, what
- * nothing sends now and what was put away, each under its name, the last two folded -- opening, beside the list, on the
+ * message, in groups a person reads top down (Messages, the canvas of 10 Nov 2026; the clean list, 13 Nov 2026): what
+ * needs you, what something sends, the business's own that nothing sends, the starters ready to use and what was put
+ * away, each under its name, all but the first two folding -- opening, beside the list, on the
  * bubble for the language in view, its channels, its languages, what sends it and what went out, and the verbs an
  * operator has under the menu on its caret. Meta's own sample is never shown; a message the workspace put away is its own
  * group, still on file. A WhatsApp version is approved by WhatsApp
@@ -84,14 +85,18 @@ const NO_VERSIONS: readonly TemplateDto[] = [];
 
 /**
  * The list's groups, each with its messages in the order they came (the starter set's, then the workspace's own): where
- * each stands is placeOfMessage's reading of it.
+ * each stands is placeOfMessage's reading of it, and one it reads as no row of the list (`unlisted`) is in none.
  */
 function messageGroupsOf(
   listed: readonly TemplateGroup[],
   read: ReadonlyMap<string, { setting: MessageSetting }>,
 ): ListGroups {
-  const of = (place: MessageSetting["place"]) => listed.filter((g) => read.get(g.key)?.setting.place === place);
-  return { need: of("need"), going: of("going"), idle: of("idle"), away: of("away") };
+  const of = (place: MessageSetting["place"]) =>
+    listed.filter((g) => {
+      const setting = read.get(g.key)?.setting;
+      return setting?.place === place && !setting.unlisted;
+    });
+  return { need: of("need"), going: of("going"), idle: of("idle"), made: of("made"), away: of("away") };
 }
 
 /** What each message's row and its pane's head read of it, worked out once: the language it opens on, and where it stands. */
@@ -157,8 +162,8 @@ function usePageState() {
   // A message half-written when the page was left opens again as the page does: the tab kept its words (the
   // composer's own useUnsavedWork, under "new").
   const [composing, setComposing] = useState(() => !!tabDraft("template", "new"));
-  // Which of the list's groups stand open: Not in use's own (null) opens it where nothing else is there to read.
-  const [folds, setFolds] = useState<ListFolds>({ idle: null, away: false, emails: true });
+  // Which of the list's groups stand open: Ready's and Ready-made's own (null) open them where nothing else is there to read.
+  const [folds, setFolds] = useState<ListFolds>({ idle: null, made: null, away: false, emails: true });
   // Which reach-out email is open, by its key, in the pane beside the list (a message open is the address's). One thing open
   // at a time: the words of two messages side by side is the wall this page stopped being.
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -385,8 +390,9 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   const counts = {
     need: groups.need.length,
     going: groups.going.length,
-    emails: listEmails.length,
     idle: groups.idle.length,
+    made: groups.made.length,
+    emails: listEmails.length,
     away: groups.away.length,
   };
   const shownView = listViewOf(state.view, counts, !!inLine, needle);

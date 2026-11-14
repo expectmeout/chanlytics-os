@@ -9,7 +9,9 @@ import {
   type LeadSearchDto,
   type MetricsSummaryDto,
   type PreviewTriedDto,
+  type TodayPeopleDto,
   type TodayVM,
+  todayPeopleOf,
 } from "@chanlytics/contracts";
 import { findAnsweredSince, findBellSeenAt, findContactName, listSentSince } from "@chanlytics/db/notices";
 import { getTodayDoneCount } from "@chanlytics/db/people";
@@ -23,6 +25,8 @@ import { escalations } from "./escalations";
 import { calls } from "./calls";
 import { searches } from "./searches";
 import { previewsTried } from "./leads";
+import * as facts from "./facts";
+import { people } from "./people";
 import { log } from "@/server/shared/log";
 
 interface TodayRead {
@@ -164,6 +168,33 @@ export const today: Reader<undefined, TodayRead> = {
         previewsTried: t ? t.data.previews : null,
       },
       rows: [...c.rows, ...(k?.rows ?? []), ...(r?.rows ?? []), ...(g?.rows ?? [])],
+      stamp: readerStamp(),
+    };
+  },
+};
+
+/**
+ * What Today draws from People, as its first read carries it (GET today/people; contracts today/people.ts): People's lists
+ * counted as the rail counts them, how many are in People, and the people Ask found's checks and To do's steps due can
+ * name, so neither waits for People's whole book (Today knows its shape at its first draw, 13 Nov 2026). Worked out over
+ * People's first page, read as GET contacts reads it, with the same arguments: a turn that answers both (GET open, which
+ * opens Today) reads People once. For the member asking, at the turn's moment, in the business's zone. A workspace-wide
+ * read of People, so no row of its own: the people it names are People's rows, cited where People is read.
+ */
+export const todayPeople: Reader<undefined, TodayPeopleDto> = {
+  name: "todayPeople",
+  async read(rc) {
+    const [first, zone] = await Promise.all([
+      load(rc, people, { q: null, offset: 0, after: null, thread: null }).then((r) => r.data),
+      load(rc, facts.facts, undefined).then((r) => r.data.timezone),
+    ]);
+    return {
+      data: todayPeopleOf(
+        first,
+        { whole: !first.page.has_more, total: first.page.total },
+        { tz: zone, now: rc.now, viewer: rc.userId },
+      ),
+      rows: [],
       stamp: readerStamp(),
     };
   },

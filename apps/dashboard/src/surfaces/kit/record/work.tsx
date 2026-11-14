@@ -5,7 +5,7 @@
  * The one rule for a composer (the loading standard's G): its words are kept in the tab as they are typed (the tab's
  * memory, by `kind`, and `key` where there is one composer per thing -- a playbook being changed), come back when the
  * composer opens again, and go when the server takes them (`done`) or the person throws them away. While it holds
- * words, the tab asks before closing over them and Settings' rail before replacing them (the registry's hold), and its
+ * words, the tab asks before closing over them (the registry's hold; a move off the page does not, since they come back), and its
  * Cancel asks once (`leave` -> `asking`; UnsavedAsk draws the question; `discard` and `stay` answer it). With nothing
  * typed, Cancel closes at once. The page says what counts as words (`dirty`) and what to keep (`value`); what was kept
  * is read as the page's state is made, with tabDraft(kind, key).

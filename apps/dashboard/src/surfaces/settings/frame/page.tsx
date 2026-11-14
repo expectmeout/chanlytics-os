@@ -1,16 +1,14 @@
 /**
  * Settings, the page (moved from legacy/pages/settings.jsx, decision 0015 step 11): its rail, the phone's list of
- * sections, the leave guard, and the pane the route names. Every pane is a module of this surface, imported
+ * sections, and the pane the route names. Every pane is a module of this surface, imported
  * (settings/<pane>/), and AI memory is a pane that says it is not built.
  */
-import { Fragment, useState, useSyncExternalStore, type RefCallback } from "react";
+import { Fragment, useSyncExternalStore, type RefCallback } from "react";
 import { CONSOLE_PATH } from "@chanlytics/contracts";
-import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { useSlide } from "../../kit/motion/use-slide";
 import { viewDeck } from "../../kit/motion/view-deck";
-import { recFolds } from "../../kit/record/registry";
 import { RecordRow } from "../../kit/record/row";
 import { useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
@@ -131,34 +129,6 @@ function PaneConsole() {
   );
 }
 
-/** The leave guard: asked before a pane, and the changes in it, are replaced. */
-function LeaveAsk({
-  leaving,
-  onYes,
-  onNo,
-}: {
-  leaving: { id: string; saving: boolean };
-  onYes: () => void;
-  onNo: () => void;
-}) {
-  return (
-    <Confirm
-      question={leaving.saving ? "Leave while this saves?" : "Leave without saving?"}
-      detail={
-        leaving.saving
-          ? "Your change is on its way and carries on without this page. If it does not go through you are told, and what you typed is not kept."
-          : "Nothing you changed on this tab has been saved."
-      }
-      yes="Yes, leave"
-      no="Stay"
-      discard={!leaving.saving}
-      onYes={onYes}
-      onNo={onNo}
-      testid="set-leave"
-    />
-  );
-}
-
 /** The rail's row for a section: its glyph, its name, and a mark where the business's gap is on its page. */
 function SettingsRailRow({ t, on, gap, go }: { t: SetTab; on: boolean; gap: boolean; go: (id: string) => void }) {
   return (
@@ -188,18 +158,9 @@ export function SettingsPage({ tab = "", onTab = () => {} }: { tab?: string; onT
   useSurface("settings");
   const gapPane = businessGapPane();
   const [toastNode, flash] = useFrameToast();
-  // The tab asked for while a pane holds unsaved changes (the fold registry answers: the record kit's open fold, whatever
-  // pane drew it): the rail asks before the pane, and the changes with it, are replaced (S22). And while a fold's save is
-  // out it asks in other words, kept from the moment it asked: "Leave without saving?" is untrue of a change on its way
-  // to the server, and a yes never stopped the save.
-  const [leaving, setLeaving] = useState<{ id: string; saving: boolean } | null>(null);
-  const go = (id: string) => {
-    if (id !== active.id && (recFolds.dirty() || recFolds.saving())) {
-      setLeaving({ id, saving: recFolds.saving() });
-      return;
-    }
-    onTab(id);
-  };
+  // A pane holding a change not saved is asked about before it is replaced (S22) by the move the rail makes, as every move
+  // off a page is (kit/record/held-move.ts): one question, at the top of the page, which waits for a save that is out. The
+  // rail asked it itself, inside its pane, until 13 Nov 2026.
   const listed = listedTabs(partner, active.id);
   const groups = groupsOf(listed);
   // A section is a view of this page: its pane is replaced as the section changes (keyed by it), registers with the
@@ -230,23 +191,12 @@ export function SettingsPage({ tab = "", onTab = () => {} }: { tab?: string; onT
           <Fragment key={g.name}>
             <div className="set-nav-group">{g.name}</div>
             {g.tabs.map((t) => (
-              <SettingsRailRow key={t.id} t={t} on={active.id === t.id} gap={gapPane === t.id} go={go} />
+              <SettingsRailRow key={t.id} t={t} on={active.id === t.id} gap={gapPane === t.id} go={onTab} />
             ))}
           </Fragment>
         ))}
       </aside>
       <div className="set-pane" key={active.id} ref={viewDeck.view("settings")} data-slide={slide}>
-        {leaving && (
-          <LeaveAsk
-            leaving={leaving}
-            onYes={() => {
-              const to = leaving.id;
-              setLeaving(null);
-              onTab(to);
-            }}
-            onNo={() => setLeaving(null)}
-          />
-        )}
         <SetPane id={active.id} row={settingsRowOf(tab)} flash={flash} />
       </div>
 

@@ -53,6 +53,7 @@ export {
   listEveryoneOnceIn,
   listNamesOfPeople,
   listPeoplePage,
+  listPeopleReplyModes,
   listPersonDecisions,
   logPersonCall,
   mergePeople,

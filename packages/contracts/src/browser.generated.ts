@@ -398,7 +398,7 @@ export { consultFirstOf, peopleVisitsOf, personLikeOf, poolListContext, poolRowO
 export { dealFill, dealSheetFill, noteFill, noteSheetFill, SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, sayItFilled } from "./people/doors/say-it";
 export { confirmPageWords, looksMadeUp, maskAddress, SIGNUP_ASK_LIMITS, SIGNUP_CONFIRM_MS, SIGNUP_CONFIRM_SOURCE, signupAddressKey, signupAskLine, signupAskOf, signupAskRefusal, signupConfirmEmail, signupConfirmEmailHtml } from "./people/doors/signup-confirm";
 export { hashLegacyErasedEmail, hashLegacyErasedPhone, hashLegacyLeadSuppression } from "./people/erasure";
-export { cannotBeSentWords, NO_CHANNEL_REACH, NO_NUMBER_REACH, noChannelWords, noNumberWords, noYesWords, peopleAggregates, peopleListAction, saidYesWords, savedListAction } from "./people/lists/actions";
+export { cannotBeSentWords, NO_CHANNEL_REACH, NO_NUMBER_REACH, noChannelWords, noNumberWords, noYesWords, peopleAggregates, peopleListAction, peopleListsOf, saidYesWords, savedListAction } from "./people/lists/actions";
 export { BUILTIN_LISTS, LIST_GROUP_WORDS, listAsks, PEOPLE_LIST_GROUPS, PEOPLE_LISTS } from "./people/lists/builtin-lists";
 export { LIST_ANY_MAX, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_NEEDS, LIST_PURPOSES, LIST_RULE_FIELDS, LIST_RULE_MAX, LIST_STANDINGS } from "./people/lists/fields";
 export { listMembers, listNamer, listNeeds, listsFor, listUnknownWords, membersOf, resolveList, ruleNeedsViewer, savedListIds, savedListLookup, savedListTip, unmetNeed, viewerListWords } from "./people/lists/lists";
@@ -430,6 +430,7 @@ export { asPersonMode, OWN_MODE_NAMED, ownModesOf, ownModesWords, PERSON_MODE_LA
 export { ago, theirTurnWords } from "./people/person-row-facts";
 export { cameFromOf, visitLineForDto } from "./people/person-row/row-facts";
 export { threadHeadFactOf, threadPersonFactsOf, toPersonRowVM } from "./people/person-row/row-vm";
+export { peopleRowOf } from "./people/person-row/with-follow-up";
 export { attentionOf, holderOf, NEW_WINDOW_DAYS, PEOPLE_TABS, PERSON_STATE_LABELS, personStanding, personStateFor, QUIET_AFTER_DAYS, stopToldBesideState } from "./people/person-state";
 export { consentChangeWords } from "./people/person-timeline";
 export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, sinceWords } from "./people/person-words";
@@ -516,6 +517,7 @@ export { emailWires, TODAY_BOOKED_SHOWN } from "./today/metrics";
 export { ALERT_PANE_WORDS, ALERT_TOPICS, alertGrid, alertTestMail, BELL_LINE_KINDS, bellLineFor, EMAIL_ALWAYS_KINDS, EMAILED_NOTIFICATION_KINDS, emailsFor, emailsNotificationKind, openItLine, phoneLine, withTopicEmail, withTopicPush } from "./today/notification-kinds";
 export { buildNotificationFeed, callOfKey, conversationOfNeedsKey, dedupeFeed, jobNewsWords, kindListDoor, nameKnownCustomers, noteWhose, noticeRoute, REACH_OUT_DAY_ROUTE, SERVER_KEY_PREFIX, serverNotificationRows, verbForRoute } from "./today/notifications/feed";
 export { agoLabel, ALERT_KINDS, applyReadState, bellCalls, bellReadThroughMs, EMPTY_READ_STATE, SERVER_NOTIFICATION_KINDS, unreadCount } from "./today/notifications/feed-input";
+export { todayPeopleOf } from "./today/people";
 export { firstLine, isPushKind, parseDevice, parseMemberAlerts, PUSH_KINDS, PUSH_PLATFORMS, pushesFor, pushFor, pushOffOf, BELL_LIST_ROWS, BELL_WINDOW_DAYS, isForReader, keptUnreadOf, olderUnreadOf, PUSH_RECEIPTS_AFTER_MS, unreadFor } from "./today/push";
 export { isHoldRow, isPersonRow, namesAPerson, saidOfMessages } from "./today/queue";
 export { NO_REPLY_AFTER_MS } from "./today/rows";

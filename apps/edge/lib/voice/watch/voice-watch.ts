@@ -19,6 +19,7 @@ import {
   getAgent,
   getConcurrency,
   getRetellLlm,
+  isRetellAgentId,
   voiceShellDrift,
   type RetellConcurrency,
 } from "@chanlytics/channels/voice";
@@ -82,6 +83,9 @@ export async function watchVoice(
   const drifted: Array<{ agentId: string; tenantId: TenantId; drift: string[] }> = [];
   try {
     for (const a of await listActiveVoiceAgents(db)) {
+      // A demo workspace's line names an agent the provider never made: nothing to read, and its "could not be read"
+      // paged every morning from 4 to 13 Nov 2026. A real agent that cannot be read is still drift.
+      if (!isRetellAgentId(a.agentId)) continue;
       const drift = await agentDrift(apiKey, a.agentId);
       if (drift.length) drifted.push({ ...a, drift });
     }

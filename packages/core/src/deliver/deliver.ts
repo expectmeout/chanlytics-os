@@ -67,7 +67,7 @@ import type { Database, Json } from "@chanlytics/db/types";
 import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./email";
 import { heldByThread, lateDraft, liveHoldOf } from "./hold";
 import { textRefusal } from "./text";
-import { namedFailure, putOnWire, type WireUnavailable } from "./wire-senders";
+import { namedFailure, putOnWire, type BoundWire } from "./wire-senders";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export type { DeliveryRefusal };
@@ -141,9 +141,9 @@ export type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
  * environment, which is how one business's message left on another's line.
  * A WireUnavailable: the channel may well be this workspace's, but its
  * credentials could not be read just now -- nothing is sent, nothing is
- * failed, and the caller tries again later.
+ * failed, and the caller tries again later. Each may be one awaited when first sent on.
  */
-export type Wire = Partial<Record<Channel, Sender | null | WireUnavailable>>;
+export type Wire = Partial<Record<Channel, BoundWire | PromiseLike<BoundWire | undefined>>>;
 
 export interface Delivery {
   tenantId: TenantId;
