@@ -9375,9 +9375,9 @@ begin
   v := case p_name
     when 'month_leads'      then 500   -- Qualified leads a workspace finds in its month (LEAD_MONTHLY_ALLOWANCE)
     when 'trial_leads'      then 50    -- ... while its billing says trialing (LEAD_TRIAL_ALLOWANCE, decision 0090)
-    when 'month_usd'        then 25    -- what searching may cost a workspace in its month (LEAD_MONTHLY_BUDGET_USD)
-    when 'day_usd'          then 10    -- ... in its day (LEAD_DAY_CAP_USD)
-    when 'platform_day_usd' then 50    -- ... what it may cost the platform in a UTC day (LEAD_PLATFORM_DAY_CAP_USD)
+    when 'month_usd'        then 40    -- what searching may cost a workspace in its month (LEAD_MONTHLY_BUDGET_USD)
+    when 'day_usd'          then 25    -- ... in its day (LEAD_DAY_CAP_USD)
+    when 'platform_day_usd' then 400   -- ... what it may cost the platform in a UTC day (LEAD_PLATFORM_DAY_CAP_USD)
     when 'list_rows'        then 500   -- rows a file brings, leads one press chooses (LEAD_LIST_MAX)
   end;
   -- A name it does not know is a mistake in the caller, never "no cap": a comparison with null would let anything by.

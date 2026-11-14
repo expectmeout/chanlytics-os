@@ -73,6 +73,17 @@ const searchWords = {
 };
 
 /** The plan every test starts from: 200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms. */
+/** A ZIP's area: one map view, which the source answers with about 120 places a term. */
+const ZIP_AREA = {
+  kind: "zip",
+  label: "near 78704",
+  state: "TX",
+  center: { lat: 30.2433, lng: -97.7697 },
+  radius_m: 8_000,
+  zip: "78704",
+  query: "78704, TX, USA",
+};
+
 const plan = (over = {}) =>
   LeadSearchPlanSchema.parse({
     version: 1,
@@ -131,7 +142,7 @@ test("the decisions are the constants the PRD names, and the nine endings are on
       LEAD_JUDGE_BATCH,
       LEAD_MAX_PLACES,
     ],
-    [500, 25, 10, 50, 0.6, 25, 25, 1000],
+    [500, 40, 25, 400, 0.6, 25, 25, 1000],
   );
   assert.deepEqual(
     [...LEAD_ROUND_ENDINGS],
@@ -284,9 +295,19 @@ test("placesToAsk spreads the probe's 25 across every term, and a later round as
     "no yield yet is the 4x clamp, not infinity",
   );
   assert.deepEqual(
-    placesToAsk(plan(), 400, 0.5),
+    placesToAsk(plan({ area: ZIP_AREA }), 400, 0.5),
     { total: 240, perTerm: [120, 120] },
-    "one search on the source tops out near 120",
+    "one map view on the source tops out near 120: a ZIP or a circle asks no more",
+  );
+  assert.deepEqual(
+    placesToAsk(plan(), 400, 0.5),
+    { total: 800, perTerm: [400, 400] },
+    "a city is split into map pages by the source itself, so a term reads deep (decision 0133: one run read 243 med spas in Brooklyn)",
+  );
+  assert.deepEqual(
+    placesToAsk(plan(), 1000, 0.5).perTerm,
+    [500, 500],
+    "a city's term is held to 600 and the round to LEAD_MAX_PLACES",
   );
   assert.ok(
     placesToAsk(plan({ terms: ["trainer", "coach", "gym", "studio", "fitness"] }), 400, 0.3).total <= LEAD_MAX_PLACES,
@@ -981,7 +1002,9 @@ test("the sentence is the plan card's words joined: every picker is one word of 
 });
 
 test("the count picker's options each say about how long they take, and a plan never claims under two minutes", () => {
-  const three = (n) => plan({ count: n, terms: ["personal trainer", "strength coach", "fitness coach"] });
+  const three = (n, area = ZIP_AREA) =>
+    plan({ count: n, terms: ["personal trainer", "strength coach", "fitness coach"], area });
+  const city = plan().area;
   assert.deepEqual([...LEAD_COUNT_CHOICES], [50, 100, 200, 500]);
   // Measured over five real searches (20 Sep 2026): 8 places a minute, not the canvas's 50. 500 is the same round
   // as 200, capped at what one round may ask for -- and the picker says so instead of quoting 200's time twice.
@@ -997,7 +1020,18 @@ test("the count picker's options each say about how long they take, and a plan n
   assert.deepEqual(
     LEAD_COUNT_CHOICES.map((n) => n > planCeiling(three(n))),
     [false, false, true, true],
-    "200 and 500 are more than one area likely holds",
+    "200 and 500 are more than one ZIP likely holds",
+  );
+  assert.equal(planCeiling(three(50, city)), 900, "a city's three terms read deep: 600 places each, half qualifying");
+  assert.deepEqual(
+    LEAD_COUNT_CHOICES.map((n) => n > planCeiling(three(n, city))),
+    [false, false, false, false],
+    "a city holds every count the picker offers",
+  );
+  assert.deepEqual(
+    LEAD_COUNT_CHOICES.map((n) => planMinutes(three(n, city))),
+    [16, 28, 53, 128],
+    "a city's 500 is a round of its own, and its time says so",
   );
   assert.ok(planMinutes(plan({ count: 1 })) >= 2, "never under two minutes: the probe alone is 25 places");
   assert.equal(LEAD_ASSUMED_YIELD, 0.5);

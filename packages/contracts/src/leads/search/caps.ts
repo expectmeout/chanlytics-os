@@ -20,10 +20,14 @@ export const LEAD_TRIAL_ALLOWANCE = 50;
 export function leadAllowanceFor(billingStatus: string | null | undefined): number {
   return billingStatus === "trialing" ? LEAD_TRIAL_ALLOWANCE : LEAD_MONTHLY_ALLOWANCE;
 }
-/** §16.32: what searching may cost a workspace a month: scraping, judging, checks, retries. */
-export const LEAD_MONTHLY_BUDGET_USD = 25;
-export const LEAD_DAY_CAP_USD = 10;
-export const LEAD_PLATFORM_DAY_CAP_USD = 50;
+/**
+ * §16.32: what searching may cost a workspace a month: scraping, judging, checks, retries. Each cap is a count it must
+ * carry at a dear niche's 8¢ a checked-email lead (decision 0133, 00626; Ruben's D1, 14 Nov 2026): the month's 500 leads,
+ * a search of 300 in a day, and every workspace's day together.
+ */
+export const LEAD_MONTHLY_BUDGET_USD = 40;
+export const LEAD_DAY_CAP_USD = 25;
+export const LEAD_PLATFORM_DAY_CAP_USD = 400;
 /** §16.5: under this share of Qualified among the first places, the round stops and asks. */
 export const LEAD_QUESTION_THRESHOLD = 0.6;
 /** Below this many judged places the question is not asked: too little to go on. */
@@ -31,6 +35,12 @@ export const LEAD_QUESTION_MIN_EVIDENCE = 10;
 export const LEAD_PROBE_PLACES = 25;
 export const LEAD_JUDGE_BATCH = 25;
 export const LEAD_MAX_PLACES = 1000;
+/**
+ * What one term may be asked for in a city: the source splits a city into map pages by itself, where a ZIP's or a
+ * circle's one map view stops near the card's 120 (decision 0133: "med spa" in Brooklyn read 243 places in one run of
+ * 4 min 55 s, 14 Nov 2026). A term that comes back under its ask has read the whole city.
+ */
+export const LEAD_DEEP_PER_TERM = 600;
 /** Every fact a place gives the judge is cut to this many characters (§7.1). */
 export const LEAD_FACT_MAX = 120;
 /** What a place's own website says is cut to this, where a plan reads sites: its booking link, title, description and first words. */
