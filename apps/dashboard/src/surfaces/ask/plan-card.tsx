@@ -45,6 +45,8 @@ function planSaid(now: readonly AskProposal[], t: LineWords, inReview: boolean):
   const failed = now.find((p) => p.outcome?.state === "failed");
   if (failed?.outcome) return { line: failed.outcome.receipt, ok: false };
   const doneSends = now.filter((p) => !p.plan?.silent && p.outcome?.state === "done");
+  // Several sends on: each says under How it runs when it starts (AskPlanHow), so the line says they all went.
+  if (doneSends.length > 1) return { line: t.planAllOn(doneSends.length), ok: true };
   const send = doneSends.at(-1)?.outcome;
   if (send) return { line: send.paused ? t.planPaused : send.receipt, ok: true };
   // Its send taken back is what matters: a setting somebody saved over since stays as it is, and nothing goes out either way.
@@ -86,7 +88,11 @@ const usePlanPress = (
       Date.now(),
       version ?? (o.undo.version_after as number | undefined) ?? null,
     );
-  const running = now.find((p) => p.kind === "playbook" && p.outcome?.state === "done" && p.outcome.undo?.playbook_id);
+  // One campaign started is paused or opened from the card; several are each their own on Campaigns.
+  const started = now.filter(
+    (p) => p.kind === "playbook" && p.outcome?.state === "done" && p.outcome.undo?.playbook_id,
+  );
+  const running = started.length === 1 ? started[0] : undefined;
   const holding = async (act: () => Promise<void>) => {
     setBusy(true);
     setErr("");
@@ -185,7 +191,10 @@ const AskPlanSays = ({ says }: { says: AskPlanHead["says"] }) => (
   </div>
 );
 
-/** How it runs, folded away: each step's line, and what no step says. */
+/**
+ * How it runs, folded away: each step's line, and what no step says. Once several steps are done it stands open, each
+ * done step saying what its press made of it (its receipt: on, and when its first batch goes), the rest what they will do.
+ */
 const AskPlanHow = ({
   ordered,
   also,
@@ -196,13 +205,17 @@ const AskPlanHow = ({
   t: LineWords;
 }) =>
   ordered.length > 1 || also.length ? (
-    <details className="ask-card-how" data-testid="ask-plan-how">
+    <details
+      className="ask-card-how"
+      data-testid="ask-plan-how"
+      open={ordered.filter((p) => p.outcome?.state === "done").length > 1 || undefined}
+    >
       <summary>{t.howItRuns}</summary>
       <ul>
         {ordered.map((p) => (
           <li key={p.id}>
             {p.outcome?.state === "done" ? <Icon name="check" size={11} className="ok" /> : null}
-            {p.plan?.does || p.line || p.title}
+            {p.outcome?.state === "done" && p.outcome.receipt ? p.outcome.receipt : p.plan?.does || p.line || p.title}
           </li>
         ))}
         {also.map((line) => (
@@ -282,11 +295,15 @@ const AskPlanPress = ({
 }) => {
   const { A, busy, now, goPress, dismiss } = plan;
   const press = A.planPressOf(now);
-  const sendCard = press.send === null ? null : (now.find((p) => p.plan?.step === press.send) ?? null);
+  const sendCards = press.sends.flatMap((n) => now.find((p) => p.plan?.step === n) ?? []);
   const word = (() => {
-    if (press.review !== null) return t.pressReview;
-    if (head?.press === "offer" && sendCard) return t.pressOffer;
-    if (sendCard) return t.press(askPressOf(sendCard), askPressCount(sendCard));
+    if (!sendCards.length && press.review !== null) return t.pressReview;
+    if (head?.press === "offer" && sendCards.length) return t.pressOffer;
+    // Several sends at once are named by their count where they all start: "Start all 4".
+    if (sendCards.length > 1)
+      return sendCards.every((p) => askPressOf(p) === "start") ? t.pressAll(sendCards.length) : t.pressPlan;
+    const [only] = sendCards;
+    if (only) return t.press(askPressOf(only), askPressCount(only));
     return t.pressPlan;
   })();
   const stepCards = press.steps.flatMap((n) => now.find((p) => p.plan?.step === n) ?? []);
@@ -371,6 +388,11 @@ export const AskPlan = ({
       {press.review !== null ? (
         <p className="ask-card-foot" data-testid="ask-step-note">
           {t.reviewFirst}
+        </p>
+      ) : null}
+      {pressedOnce && press.steps.length ? (
+        <p className="ask-card-foot" data-testid="ask-plan-left">
+          {t.planLeft(now.filter((p) => !p.plan?.silent && !p.outcome).length)}
         </p>
       ) : null}
       {press.steps.length ? (

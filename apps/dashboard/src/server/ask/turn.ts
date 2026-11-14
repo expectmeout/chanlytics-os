@@ -451,10 +451,15 @@ export async function finishAskTurn(
   return { thread: { id: turn.id, title: turn.title }, result, message };
 }
 
-/** The cards waiting on this thread, by id, each with the turn it is on and the cards of that turn: what a yes may press. */
+/**
+ * What a yes may press: the cards still waiting on the latest answer that made any, by id, each with its turn and that
+ * turn's cards. A card further up is made again, so the person presses one they can see (decision 0132: "Yes, run the New
+ * York City search" pressed a card an hour and forty minutes up the thread).
+ */
 function waitingOnThread(cards: ReadonlyArray<Pick<AskMessageVM, "id" | "proposals">>) {
+  const latest = cards.filter((m) => m.proposals.length).slice(-1);
   return new Map(
-    cards.flatMap((m) =>
+    latest.flatMap((m) =>
       (m.proposals ?? [])
         .filter((p) => !p.outcome)
         .map((p): [string, { card: AskProposal; messageId: string; cards: readonly AskProposal[] }] => [

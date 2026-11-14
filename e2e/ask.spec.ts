@@ -421,7 +421,7 @@ test.describe("Ask on a phone", () => {
 
 /** What holds all three: WhatsApp's review, on every campaign whose message has a WhatsApp version not yet on file. */
 const WHATSAPP_REVIEW =
-  "WhatsApp waits: its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back. Its runs hold those people until WhatsApp approves it.";
+  "WhatsApp checks its new wording first. Its WhatsApp messages wait until then and go by themselves.";
 
 const campaign = (n: number, title: string, line: string, moment: string, runs: string, reaches: string) => ({
   id: `e2e-card-${n}`,

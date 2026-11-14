@@ -16,7 +16,7 @@ import { leadDb } from "./db.js";
 import { leadWires, type LeadWires } from "./wires.js";
 import { storeLeadMark } from "./marks.js";
 import { tellLeadQuestion } from "./tell.js";
-import { recordPageSourceRefused } from "./sources.js";
+import { recordPageContactsUnread, recordPageSourceRefused } from "./sources.js";
 import { logger } from "../shared/log.js";
 
 const SEQ = /^[a-z0-9.]{1,40}$/;
@@ -60,6 +60,7 @@ function portsFor(wires: LeadWires, ctx: JobContext, job: ClaimedJob): LeadPorts
     // effort, after the write; it never throws.
     tell: async (e) => {
       if (e.kind === "question") await tellLeadQuestion(ctx.db, e.roundId);
+      else if (e.kind === "contacts_unread") await recordPageContactsUnread(ctx.db, e);
       else await recordPageSourceRefused(ctx.db, e);
     },
     deadline: ctx.deadline,

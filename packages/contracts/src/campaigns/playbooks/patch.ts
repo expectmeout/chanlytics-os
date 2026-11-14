@@ -54,8 +54,9 @@ const keysSaid = (last: string): string =>
 
 /** The words of a change: a card's title and parts, and its refusals. */
 export const PLAYBOOK_PATCH_WORDS = {
+  // "Turn back on", the words Ask's answer says it in, never "Resume" (Ruben, 14 Nov 2026: "Resume: Meeting reminder").
   title: (p: PlaybookPatch, name: string): string =>
-    p.state === "paused" ? `Pause: ${name}` : p.state === "running" ? `Resume: ${name}` : `Change: ${name}`,
+    p.state === "paused" ? `Pause: ${name}` : p.state === "running" ? `Turn back on: ${name}` : `Change: ${name}`,
   name: (to: string): string => `Renamed “${to}”`,
   run_hour: (to: number, was: number): string =>
     `Runs at ${clockHour(to)} by your clock, where it ran at ${clockHour(was)}`,

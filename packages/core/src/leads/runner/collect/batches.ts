@@ -8,6 +8,7 @@ import {
   type LeadRoundState,
   type LeadRunState,
 } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 import { CARDS, areaCenter } from "../../cards";
 import { FINAL_RUN_STATES, runStateOf } from "../../endings";
 import { inArea, type LatLng } from "../../geo";
@@ -28,6 +29,9 @@ import type {
 import { markPlaces } from "../mark-places";
 import { readSitesBeforeJudge, findSiteFact, type SiteReads } from "../site-reads";
 import { centerOf, memberOf, takeBatch, type Prepared } from "../places";
+
+/** How many places with a website, none of them read, make a page worth paging: fewer can be chance. */
+const UNREAD_SITES_PAGE = 5;
 import { roundDecision } from "../round-decision";
 import {
   DUPLICATE_REASON,
@@ -169,9 +173,17 @@ export async function collectHeld(
   let lastRoundState: LeadRoundState | null;
   let lastRunState: LeadRunState | null;
   let judgeRefused: string | null = null;
+  // Places with a website on this page, and how many of those the provider read for contacts.
+  let withSite = 0;
+  let siteRead = 0;
 
   do {
     const batch = takeBatch(card, plan, items, cursor, judgeBatchPlaces(plan));
+    for (const p of batch.prepared)
+      if (p.clean.raw.website) {
+        withSite += 1;
+        if (p.clean.raw.contactsRead) siteRead += 1;
+      }
     // Identity, by what the workspace already holds: place ids, suppressions, shared details (decision 25).
     const { rows, toJudge, yoursAt } = await identified(leadPorts, round, batch.prepared, geo);
     const { said, judgments, refused, cutAt } = await judgedBatch(leadPorts, round, run.id, from, toJudge, sites);
@@ -259,6 +271,14 @@ export async function collectHeld(
     cursor = end;
     if (stopHere || runDone) break;
   } while (cursor < items.length);
+
+  // A page of places with websites, none of them read: the provider stopped reading sites (14 Nov 2026: its contacts
+  // service refused the pinned build for a day, unseen, while 233 sites came back empty). The platform is paged, never an
+  // owner; best effort, after the commits.
+  if (withSite >= UNREAD_SITES_PAGE && siteRead === 0)
+    await leadPorts
+      .tell?.({ kind: "contacts_unread", actor: run.actor, build: run.build, sites: withSite })
+      .catch(logAndGoOn("telling the platform a lead source read no websites"));
 
   return {
     kind: "committed",

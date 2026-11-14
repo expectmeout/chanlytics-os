@@ -248,7 +248,7 @@ test("a campaign whose only channel cannot deliver is a card of what to fix: Wha
   const world = { tenant_channels: whatsapp(PAYMENT_FAILING), lines: [], mailboxes: [], templates: [offer] };
   const { made, rows } = propose({ trigger: "quiet_30", template_id: OFFER }, world);
   const PAYMENT =
-    "Meta reports a problem with the payment method on your WhatsApp account: reminders and campaigns are not delivered until it is fixed.";
+    "The card on your WhatsApp account has a problem, so reminders and campaigns wait; they go once it is fixed.";
   assert.deepEqual(fixOf(await made), {
     kind: "fix",
     title: "Fix WhatsApp first",
@@ -344,6 +344,17 @@ test("the line says what a campaign does, to whom and when, and how it goes, for
     line({ trigger: "proposal_waiting", pool: 3, will: 3, goesBy: ["email"] }),
     "Follows up 3 proposals waiting on an answer, daily at 10:00 AM, by email",
   );
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): a freed time is offered within the hour it frees, and a campaign nobody is counted for ahead never says it goes to 0 people", () => {
+  const base = { word, list: null, run_hour: 10, cadence_days: 30, goesBy: ["sms", "email"] };
+  // Ruben's set-up card said "Fill a cancellation to 0 people, daily at 10:00 AM, by text and by email".
+  assert.equal(
+    campaignLine({ ...base, trigger: "slot_opened", pool: 0, will: 0 }),
+    "Offers each meeting a cancellation frees to the people who asked and never booked, within the hour, by text and by email",
+  );
+  const unknown = campaignLine({ ...base, trigger: "no_such_moment", pool: 0, will: 0 });
+  assert.doesNotMatch(unknown, /\b0 people\b/);
 });
 
 test("an empty book stops nothing, and the words name what stops a campaign and where it is fixed: a missing yes, a reason of theirs", () => {

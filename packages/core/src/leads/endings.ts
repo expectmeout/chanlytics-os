@@ -26,9 +26,17 @@ export function runStateOf(status: string): "running" | "succeeded" | "failed" |
   }
 }
 
-/** A term is short when its run saw fewer places than it asked for. Unknown asks read as not short. */
+/** A run that never finished reading its term: it says nothing of how many places the term holds. */
+const unfinished = (r: LeadRunRow): boolean => r.state === "failed" || r.state === "timed_out" || r.state === "aborted";
+
+/**
+ * A term is short when its run saw fewer places than it asked for. Unknown asks read as not short, and so does a run that
+ * failed partway: it stopped, the area did not run out (Ruben, 14 Nov 2026: three runs failed after 33 to 94 places, and
+ * the search said it had searched everything).
+ */
 export function termsShortOf(runs: LeadRunRow[], askedOf: (run: LeadRunRow) => number | null): boolean[] {
   return runs.map((r) => {
+    if (unfinished(r)) return false;
     const request = askedOf(r);
     return request !== null && r.items_seen < request;
   });
@@ -47,7 +55,9 @@ export function discoveryEnding(
     budgetLeftUsd: round.cost_reserved_usd - round.cost_usd,
     allowanceLeft: round.allowance_reserved - round.allowance_used,
     stopped: input.stopped,
-    sourceFailed: discover.length > 0 && discover.every((r) => r.state === "failed" || r.state === "timed_out"),
+    // Any run that failed or timed out stopped the search short of what it asked: "the source stopped answering", with
+    // Try again, never "searched everything" and its places nearby (the live run of 14 Nov 2026).
+    sourceFailed: discover.some((r) => r.state === "failed" || r.state === "timed_out"),
     unanswered: false,
     paused: false,
   });

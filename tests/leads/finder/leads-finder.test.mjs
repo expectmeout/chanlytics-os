@@ -328,12 +328,12 @@ test("a changed count re-plans without the model, and a changed area makes a new
   const st = { plan: PLAN, pick: null, refusal: null };
   assert.equal(
     textOf(byTestId(drawCard(st), "plan-sentence")),
-    "Find 200 personal trainers in Austin, TX: with a website; reached by a checked email or a phone.",
+    "Find 200 personal trainers in Austin, TX: with a website; each with a checked email.",
   );
   pickOption(st, "count", "50");
   assert.equal(
     textOf(byTestId(drawCard(st), "plan-sentence")),
-    "Find 50 personal trainers in Austin, TX: with a website; reached by a checked email or a phone.",
+    "Find 50 personal trainers in Austin, TX: with a website; each with a checked email.",
   );
   assert.equal(st.plan.version, 2, "the count is one of the five that make a new version (S15; planVersionOf on main)");
   const counts = byTestId((click(byTestId(drawCard(st), "plan-count")), drawCard(st)), "plan-count-50");
@@ -347,7 +347,7 @@ test("a changed count re-plans without the model, and a changed area makes a new
   assert.equal(st.plan.version, 3, "and so is the area");
   assert.equal(
     textOf(byTestId(drawCard(st), "plan-sentence")),
-    "Find 50 personal trainers in Round Rock, TX: with a website; reached by a checked email or a phone.",
+    "Find 50 personal trainers in Round Rock, TX: with a website; each with a checked email.",
   );
   assert.equal(textOf(byTestId(drawCard(st), "plan-changed")), "changed");
   assert.equal(sent.length, 0, "no model call: a picked word re-plans on the page");
@@ -356,7 +356,7 @@ test("a changed count re-plans without the model, and a changed area makes a new
 test("the contact standard is in the sentence and its picker switches it, and the sentence says so", () => {
   const st = { plan: PLAN, pick: null, refusal: null };
   const tok = byTestId(drawCard(st), "plan-contact");
-  assert.equal(textOf(tok), "reached by a checked email or a phone");
+  assert.equal(textOf(tok), "each with a checked email");
   assert.equal(tok.props["aria-haspopup"], "listbox");
   pickOption(st, "contact", "phone");
   assert.equal(textOf(byTestId(drawCard(st), "plan-contact")), "reached by phone or a checked email");

@@ -210,6 +210,27 @@ test("the permission `find` and the routes agree: the roles that may find are th
     );
 });
 
+test("REGRESSION (the live run of 14 Nov 2026): asked for more than the month has left, a search finds what is left now, and says how many were asked and when the rest can follow", async () => {
+  const seen = [];
+  const rpcs = {
+    lead_allowance: () => 500,
+    lead_month_used: () => ({ allowance: { used: 433, reserved: 0 }, budget: { used: 1, reserved: 0 } }),
+    lead_search_create: (a) => {
+      seen.push(a);
+      return { search_id: S1, round_id: R1 };
+    },
+  };
+  const many = { ...PLAN, count: 300 };
+  const out = await searches.POST.run(send(many), ctxFor("owner", rpcs));
+  assert.equal(seen[0].p_plan.count, 67, "the 67 left, never the door's question");
+  assert.equal(out.count, 67);
+  assert.equal(out.asked, 300);
+  assert.match(out.renews_on, /\w+ \d+/);
+  // Room for all of it: the plan's own count, and nothing about the rest.
+  const roomy = await searches.POST.run(send({ ...PLAN, count: 20 }), ctxFor("owner", rpcs));
+  assert.deepEqual(roomy, { search_id: S1, round_id: R1, count: 20 });
+});
+
 test("a search: the route computes the estimate from the card's prices and hands the plan and how it came to the door; the door's word comes back as a sentence", async () => {
   const seen = [];
   const rpcs = {
@@ -219,7 +240,7 @@ test("a search: the route computes the estimate from the card's prices and hands
     },
   };
   const out = await searches.POST.run(send(PLAN), ctxFor("owner", rpcs));
-  assert.deepEqual(out, { search_id: S1, round_id: R1 });
+  assert.deepEqual(out, { search_id: S1, round_id: R1, count: PLAN.count });
   const expected =
     Math.round(
       (estimateRoundUsd(PLAN, "probe", LEAD_PROBE_PLACES) +
@@ -319,6 +340,7 @@ test("a search from an Ask card names the thread it was planned in to the door, 
   assert.deepEqual(await searches.POST.run(send({ ...PLAN, thread_id: THREAD }), viaAsk()), {
     search_id: S1,
     round_id: R1,
+    count: PLAN.count,
   });
   assert.equal(seen[0].p_thread_id, THREAD, "the door is handed the thread; it keeps it only when it is the caller's");
   assert.deepEqual(seen[0].p_plan, PLAN, "the stored plan is the plan alone");
@@ -1280,9 +1302,9 @@ test("the checks read the judge's own keys: the kind and every criterion it answ
   assert.deepEqual(
     read.map((c) => [c.key, c.answer, c.source, c.reason]),
     [
-      ["kind", "yes", "Claude · the listing", "open Saturdays, per the listing"],
-      ["open_weekends", "unknown", "Claude · the listing", "open Saturdays, per the listing"],
-      ["chains", "no", "Claude · their website", "open Saturdays, per the listing"],
+      ["kind", "yes", "Ask · the listing", "open Saturdays, per the listing"],
+      ["open_weekends", "unknown", "Ask · the listing", "open Saturdays, per the listing"],
+      ["chains", "no", "Ask · their website", "open Saturdays, per the listing"],
     ],
     "every criterion the judge answered, under the plan's key: only LEAD_CHECK_KEYS were, and no plan's keys were those",
   );

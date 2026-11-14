@@ -19,6 +19,7 @@ import {
   leadSheetAboutOf,
   leadPickerRowsOf,
   newStartFirst,
+  newSheetEmailOf,
   leadPileEndOf,
   LEAD_SHEET_WORDS as W,
 } from "../../../apps/dashboard/src/surfaces/leads/sheet/model/view.ts";
@@ -981,4 +982,22 @@ test("the picker says when its emails are written in the owner's words, never th
   const W = LEAD_SHEET_WORDS.picker;
   for (const line of [W.none, W.newLine]) assert.doesNotMatch(line, /pile/i, line);
   assert.equal(W.newLine, "Name it now; write its emails when you're done here");
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): New says before its press that leads with no email won't be written to, and makes nothing where none has one", () => {
+  // 35 med spas, none with an email, were pressed into a new sequence; Ask's draft failed and nothing was made.
+  assert.deepEqual(newSheetEmailOf(35, 35), {
+    line: "None of these 35 has an email yet, so an email sequence can't reach them.",
+    blocks: true,
+  });
+  assert.deepEqual(newSheetEmailOf(35, 23), {
+    line: "23 of the 35 have no email yet, so they won't be written to.",
+    blocks: false,
+  });
+  assert.deepEqual(newSheetEmailOf(1, 1), {
+    line: "This lead has no email yet, so an email sequence can't reach it.",
+    blocks: true,
+  });
+  assert.equal(newSheetEmailOf(35, 0), null, "every one has an email: nothing to say");
+  assert.equal(newSheetEmailOf(0, 0), null);
 });

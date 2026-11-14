@@ -167,6 +167,9 @@ export const CARD_MOVED_WORDS = {
   teammateHas: "A teammate has this one. Nothing went out.",
   /** The thread could not be read just then, so whether it moved is not known: it waits for a look that can be made. */
   unchecked: "I couldn't check whether this conversation moved on since, so nothing went out. Try again in a moment.",
+  /** A batch decided on Campaigns since its card was made: `state` is where it stands now, in Sent's words, lowercase. */
+  runDecided: (state: string): string =>
+    `This batch was already decided on Campaigns (${state}), so there is nothing to do here.`,
 } as const;
 
 /** A door's refusal as one sentence: its own words, or, where it gave none, the plain one for its status. */

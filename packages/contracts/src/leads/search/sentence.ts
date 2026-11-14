@@ -126,7 +126,8 @@ export function planWords(plan: LeadSearchPlan): LeadPlanWord[] {
   });
   out.push({ text: plan.criteria.length ? "; " : ", ", pick: null });
   out.push({
-    text: plan.contact === "email" ? "reached by a checked email or a phone" : "reached by phone or a checked email",
+    // A search made for email counts a lead only with a checked email (decision 0132), and says so.
+    text: plan.contact === "email" ? "each with a checked email" : "reached by phone or a checked email",
     pick: "contact",
   });
   out.push({ text: ".", pick: null });

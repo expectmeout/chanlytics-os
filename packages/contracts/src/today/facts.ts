@@ -64,6 +64,8 @@ interface TodayWire {
   on: boolean;
   /** Where customers reach it, as a person reads it ("+1 (212) 555-0142", or the address); null with nothing to name it by. */
   where: string | null;
+  /** What its provider holds against it, in the row's word ("Payment needed"); null where nothing is held. */
+  held: string | null;
 }
 
 /**
@@ -122,14 +124,15 @@ export interface TodayFacts extends TodayInput {
 }
 
 /** One normalisation of the wires, for the five things Today says about them. */
-function todayWires(m: MetricsSummaryDto): TodayWire[] {
-  return m.channels.map((c) => ({
-    kind: c.kind,
-    label: channelKindWords(c.kind),
-    on: c.status === "active",
+function todayWires(metrics: MetricsSummaryDto): TodayWire[] {
+  return metrics.channels.map((channel) => ({
+    kind: channel.kind,
+    label: channelKindWords(channel.kind),
+    on: channel.status === "active",
     // A number as a person reads it, "+1 (212) 555-0142": the quiet day's proof
     // said the column's "+12125550142".
-    where: c.address ?? formatPhoneDisplay(c.number),
+    where: channel.address ?? formatPhoneDisplay(channel.number),
+    held: channel.held ?? null,
   }));
 }
 

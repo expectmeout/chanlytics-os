@@ -96,6 +96,12 @@ export interface MapsPlace {
   sitePhones: string[];
   website: string | null;
   emails: string[];
+  /**
+   * Whether the provider read its website for contacts: its item names the site's `domain`, or found something on it. A
+   * place with a website and neither was never read (Ruben, 14 Nov 2026: 233 med spa sites, none read, each "No email on
+   * their site"), so it says nothing about whether the site shows an address.
+   */
+  contactsRead: boolean;
   instagram: string | null;
   rating: number | null;
   reviews: number | null;
@@ -379,9 +385,13 @@ export const CARDS: { local_businesses: LeadCardRunner; people_at_companies: Peo
   local_businesses: {
     actor: "compass/crawler-google-places",
     // 0.14.757, the calibration's, was deleted by 23 Oct 2026 and every start was refused; 0.14.775 read the same
-    // fields in a probe that day (two Brooklyn plumbers).
-    build: "0.14.775",
-    buildId: "EH35UvIrsV0hnZG0Y",
+    // fields in a probe that day (two Brooklyn plumbers). From 13 Nov 2026, when the provider shipped 0.14.792, 0.14.775's
+    // calls to its own contacts service were refused ("User was not found or authentication token is not valid"): it read
+    // no business's website, and a run of more than a few places crashed when its contacts monitor set its concurrency to
+    // NaN (Ruben's med spa searches of 14 Nov: 233 sites, none read; 6 of 12 runs failed). 0.14.792 takes the same input.
+    // Probed on 14 Nov (three Brooklyn med spas, $0.015): every site read, its domain named, an email on one.
+    build: "0.14.792",
+    buildId: "laWvC2kq0M7jC95UN",
     fields: MAPS_FIELDS,
     buildInput(plan, term, places) {
       const center = plan.area.kind === "city" ? null : areaCenter(plan);
@@ -429,6 +439,12 @@ export const CARDS: { local_businesses: LeadCardRunner; people_at_companies: Peo
         sitePhones: strs(record.phones),
         website: trimmedOrNull(record.website),
         emails: strs(record.emails),
+        contactsRead:
+          !trimmedOrNull(record.website) ||
+          typeof record.domain === "string" ||
+          strs(record.emails).length > 0 ||
+          strs(record.instagrams).length > 0 ||
+          strs(record.facebooks).length > 0,
         // Only the first: the business's own account; later ones can be staff members' (Appendix B).
         instagram: strs(record.instagrams)[0] ?? null,
         rating: finiteOrNull(record.totalScore),

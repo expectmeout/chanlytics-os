@@ -47,6 +47,28 @@ export async function recordPageSourceRefused(
   );
 }
 
+/**
+ * A page of places with websites came back with none of them read for contacts: paged once per actor per pager window.
+ * 14 Nov 2026: from 13 Nov the Maps actor's pinned build had its contacts service refused ("User was not found or
+ * authentication token is not valid"), read no site, and crashed on longer runs; nothing said so for a day.
+ */
+export async function recordPageContactsUnread(
+  db: Db,
+  input: { actor: string; build: string; sites: number },
+  pager: Omit<PagePorts, "db"> = {},
+): Promise<void> {
+  await pageOperator(
+    { db, ...pager },
+    `lead_contacts_unread:${input.actor}`,
+    `A lead source read no websites: ${input.actor}`,
+    `${input.actor} at build ${input.build} returned ${input.sites} places with a website and read none of them for ` +
+      `contacts: no email, no social profile, no domain.\n\nEvery search finds no emails until this is fixed, and a ` +
+      `search made for email counts nothing. Read the run's log in the provider's console ("Failed to get contact ` +
+      `details" names why); a build the provider has moved past: probe its latest build with the card's own input (a few ` +
+      `places), check its items carry a domain and emails, then pin its number and id in ${CARDS_FILE}.\n`,
+  );
+}
+
 /** The provider's client for the watch, when this deployment holds the key; null checks nothing. */
 export function leadSourceClient(fetchImpl: typeof fetch = fetch): ApifyClient | null {
   const token = env.APIFY_TOKEN;

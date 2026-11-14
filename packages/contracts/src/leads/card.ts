@@ -532,7 +532,7 @@ const LEAD_CARD_REASON_WORDS = {
   unclaimed: "nobody has claimed its listing",
   both: (low: string) => `${low}, and nobody has claimed its listing.`,
   fromListing: "Seen on its listing: the spread of its reviews and its claim mark.",
-  fromJudge: "Claude's reading of its listing and its website. A reading, not a fact on the page.",
+  fromJudge: "Ask's reading of its listing and its website. A reading, not a fact on the page.",
   fromCompany: "What its source says of the company.",
 } as const;
 

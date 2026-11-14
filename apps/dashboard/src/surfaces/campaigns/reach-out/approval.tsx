@@ -551,10 +551,11 @@ export function roRunHead(d: BroadcastDetailDto, sheet: RunSheet | null, phone =
   const vm = reachOuts.run(d);
   if (!vm) return null;
   const [at = 0, of = 0] = sheet?.position ?? [];
-  const place = of > 1 ? `${at} of ${of}` : null;
-  const parts = (
-    phone ? [place, vm.who, vm.step] : [vm.labels.toLeads, vm.who, vm.step, place ? `${place} waiting` : null]
-  ).filter((x): x is string => !!x);
+  // Its place among the batches waiting, said as that on a phone too: a bare "2 of 3" read as nothing (Ruben, 14 Nov 2026).
+  const place = of > 1 ? `${at} of ${of} waiting` : null;
+  const parts = (phone ? [place, vm.who, vm.step] : [vm.labels.toLeads, vm.who, vm.step, place]).filter(
+    (x): x is string => !!x,
+  );
   return {
     title: vm.title,
     sub: (

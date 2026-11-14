@@ -1243,7 +1243,7 @@ test("the WhatsApp row draws what Meta holds: a number whose account has no paym
   const open = byTestId(opened, "connection-whatsapp");
   assert.equal(
     textOf(byTestId(open, "connection-whatsapp-says")),
-    "Meta needs a payment method on your WhatsApp account before it delivers reminders and campaigns.",
+    "WhatsApp needs a card on file before it delivers reminders and campaigns; they wait and go once one is added.",
   );
   assert.equal(
     byTestId(open, "connection-whatsapp-fix").props.variant,

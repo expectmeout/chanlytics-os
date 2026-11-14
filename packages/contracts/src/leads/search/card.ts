@@ -119,6 +119,36 @@ export function searchCardView(askProposal: AskProposal): SearchCardView | null 
   return null;
 }
 
+/**
+ * The plan a search card's press posts: its count bound to what the month had room for when the card was made, as its
+ * button says it (Ruben, 14 Nov 2026: the button said "Find 64 leads", the press sent the plan's 300, and the door came back
+ * with a question). The one reading, the Line's press and the server's: a card on a saved turn is pressed by the server,
+ * which reads the card again. A card of any other kind, or with no plan, is as it was.
+ */
+export function pressedSearchPlan(card: { kind: string; payload: AskProposal["payload"] }): unknown {
+  const kind = card.kind === "lead_search" || card.kind === "people_search" ? card.kind : null;
+  const asIs = rec(card.payload).plan;
+  if (!kind) return asIs;
+  try {
+    const view = searchCardView({ ...EMPTY_CARD, kind, payload: card.payload });
+    return view ? rec(view.commit.payload).plan : asIs;
+  } catch {
+    // A plan the card cannot draw is posted as it is, and the door judges it: binding its count is no reason to refuse it.
+    return asIs;
+  }
+}
+
+/** What searchCardView reads of a card beyond its kind and payload: nothing, so these never reach what it says. */
+const EMPTY_CARD: AskProposal = {
+  id: "",
+  kind: "lead_search",
+  needs: "partner",
+  title: "",
+  summary: "",
+  payload: {},
+  undo: null,
+};
+
 /** What a card a newer one replaced says it became (t.changedBelow on a card; this, on the turn). */
 export const SEARCH_CARD_REPLACED = "Changed below.";
 

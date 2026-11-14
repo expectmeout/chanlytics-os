@@ -760,7 +760,9 @@ test("connect, what Meta holds about the number: read once the line and its toke
     "the owner's bell says it now, not at the next six-hourly read",
   );
   assert.ok(
-    tables.notifications[0].body.includes("+1 (555) 123-4567: Meta needs a payment method on your WhatsApp account"),
+    tables.notifications[0].body.includes(
+      "+1 (555) 123-4567: WhatsApp needs a card on file before it delivers reminders and campaigns",
+    ),
   );
   assert.ok(!printed(body).includes("BLOCKED"), "and the connection's answer is the connection's, unchanged");
 

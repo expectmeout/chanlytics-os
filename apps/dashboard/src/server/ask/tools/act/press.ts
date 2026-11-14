@@ -2,15 +2,15 @@ import "server-only";
 /**
  * Your yes is the press (D18 of the answers canvas). When the person says yes to a card waiting in this thread, typed or spoken,
  * Ask presses it for them. The model only names the card; three things outside the model decide whether that stands: the card
- * must be one waiting on this very thread, a separate small check reads the person's own words and the card's title and nothing
- * else (so nothing a page, a message or a file says can reach it, in any language), and what is final (deleting, merging, ending)
- * still takes a finger.
+ * must be one waiting on this very thread and made in the last half hour (an older one is shown again first), a separate small
+ * check reads the person's own words and the card's own title and terms and nothing else (so nothing a page, a message or a
+ * file says can reach it, in any language), and what is final (deleting, merging, ending) still takes a finger.
  *
  * Stop everything goes the same way, with no check, since a stop is always free. Its Resume starts sending again, so it
  * passes the same check a card does: the person's own words are a clear yes to resuming, or nothing is resumed.
  */
 import { z } from "zod";
-import { askTraitsOf, type AskProposal, type AskProposalOutcome } from "@chanlytics/contracts";
+import { askTraitsOf, MIN_MS, type AskProposal, type AskProposalOutcome } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 import { askForJson } from "../../../shared/model-json";
 import { stopEverything, resumeEverything, type StopAnswer } from "../../act/stop";
@@ -20,6 +20,19 @@ import { refuse } from "../context/context";
 
 /** How long the yes check may take: past it, the card waits for a finger. */
 const YES_CHECK_MS = 8_000;
+
+/**
+ * How old a card a yes may press: past it, Ask shows the card again and the person presses what they can see (Ruben, 14 Nov
+ * 2026: "Yes, run the New York City search" pressed a card made an hour and forty minutes before, scrolled far out of view,
+ * and he asked "did you run it without providing me a card to approve?").
+ */
+const YES_FRESH_MS = 30 * MIN_MS;
+
+/** Whether the card was made long enough ago that a yes may not be about it: one with no time is never pressed by a yes. */
+const tooOldForAYes = (p: AskProposal, now: number): boolean => {
+  const madeAtMs = typeof p.made_at === "string" ? Date.parse(p.made_at) : Number.NaN;
+  return !Number.isFinite(madeAtMs) || now - madeAtMs > YES_FRESH_MS;
+};
 
 const YES_SYSTEM =
   "You decide one thing: did this person just tell us to go ahead with this action? Read only the two lines given. A yes in any language or wording counts (yes, do it, send it, go ahead, dale, hazlo, sounds good). A change, a question, a doubt, a maybe or a no does not count. Answer in JSON.";
@@ -63,10 +76,18 @@ const takesAFinger = (p: AskProposal): boolean => askTraitsOf(p.kind).reach === 
 async function pressCard(t: ToolContext, input: { card_id: string }): Promise<ProposalOutcome> {
   const on = t.waitingOn?.get(input.card_id);
   if (!on || !t.request || !t.member)
-    return refuse("that card is not waiting in this thread: say it is one press above");
+    return refuse(
+      "a yes presses only the cards of your latest answer: if they meant one further up, make it again with the same terms so they press the card they can see, or ask which they mean",
+    );
   const { card, messageId, cards } = on;
   if (takesAFinger(card)) return refuse("this one is final, so it takes a press: say so, in a few words");
-  if (!(await saidYes(t, card.plan?.head?.title ?? card.title)))
+  if (tooOldForAYes(card, Date.now()))
+    return refuse(
+      "that card was made a while ago and is out of view: make it again with the same terms, so they press the card they can see, and say it is ready to press",
+    );
+  // The check reads the card's own terms beside its title, so a yes to one place or number is not a yes to another.
+  const action = [card.plan?.head?.title ?? card.title, card.summary].filter(Boolean).join(": ");
+  if (!(await saidYes(t, action)))
     return refuse("what they said is not a clear yes to that card: ask which they mean, or say it is one press above");
   const run = await pressOnTurn(t.ctx, t.request, t.member, { messageId, card, cards }, "yes");
   for (const r of run.results)

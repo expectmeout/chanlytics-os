@@ -143,6 +143,16 @@ export const LEAD_SHEET_WORDS = {
     create: (name: string) => `Create and add ${name}`,
     createMany: (n: number) => `Create and add ${n}`,
     drafting: "Writing a draft…",
+    // Said before the press where the leads have no email (Ruben, 14 Nov 2026: 35 med spas, none with an email, were pressed
+    // into a new sequence by Ask's draft, which failed saying no search of med spas was ready).
+    noneEmail: (n: number) =>
+      n === 1
+        ? "This lead has no email yet, so an email sequence can't reach it."
+        : `None of these ${n} has an email yet, so an email sequence can't reach them.`,
+    someNoEmail: (k: number, n: number) =>
+      `${k} of the ${n} ${k === 1 ? "has" : "have"} no email yet, so ${k === 1 ? "it won't be" : "they won't be"} written to.`,
+    // What a draft Ask could not write left: nothing, and why, in Ask's words after it.
+    askFailed: "Nothing was made: Ask couldn't write a draft",
   },
   /** The pile's end. */
   end: {
@@ -371,6 +381,20 @@ export function leadPickerRowsOf(rows: readonly SequenceRowDto[], picked: string
  * leads came from a search, since New over a search with no pick is a new kind of lead (the walk of 30 Oct 2026: agency
  * owners opened on a copy of an auto shops sequence); else a copy of the newest; else blank.
  */
+/**
+ * What New says of the leads' emails before its press, and whether the press can make anything: none of them with an email
+ * and an email sequence could reach none of them, so nothing is made (Ruben, 14 Nov 2026: 35 med spas, none with an email,
+ * were pressed into a new sequence, and Ask's draft failed saying no search of med spas was ready); some without one and
+ * the sheet says they won't be written to. Null where every one has an email.
+ */
+export function newSheetEmailOf(count: number, noEmail: number): { line: string; blocks: boolean } | null {
+  const k = Math.min(Math.max(0, noEmail), count);
+  if (count < 1 || k === 0) return null;
+  return k >= count
+    ? { line: LEAD_SHEET_WORDS.make.noneEmail(count), blocks: true }
+    : { line: LEAD_SHEET_WORDS.make.someNoEmail(k, count), blocks: false };
+}
+
 export function newStartFirst(copies: readonly LeadPickerRowVM[], canAsk: boolean): "copy" | "ask" | "blank" {
   const first = copies[0];
   if (first && first.picked) return "copy";

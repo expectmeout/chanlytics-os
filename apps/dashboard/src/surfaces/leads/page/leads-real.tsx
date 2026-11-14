@@ -352,9 +352,12 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
   });
   // Add and Later for the leads chosen and shown (never all that match: an add is of leads, not of a view's filters); what
   // an add leaves out stays selected.
-  const chosen = controls.allMatching ? [] : rows.leadShown.filter((l) => controls.sel.has(l.id)).map((l) => l.id);
+  const chosenRows = controls.allMatching ? [] : rows.leadShown.filter((l) => controls.sel.has(l.id));
+  const chosen = chosenRows.map((l) => l.id);
   const bulkAdd = useBulkAdd({
     ids: chosen,
+    // Those no email can go to, as the selection bar counts them: New says so before anything is made.
+    noEmail: chosenRows.filter((l) => !l.email).length,
     aim,
     search: openSearch ? { id: openSearch.id, name: openSearch.name } : null,
     flash: plFlash,
@@ -401,7 +404,7 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     deckMove,
     closePeek,
     rail: leadRail(leads.counts, leads.searches, new Date(), openSearch ? openSearch.id : null),
-    standing: leadsStanding(leads.counts, leads.searches),
+    standing: leadsStanding(leads.counts, leads.searches, !!openSearch),
     openSearch,
     band,
     cellCtxLeads,

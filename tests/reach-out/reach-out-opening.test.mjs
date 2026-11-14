@@ -358,6 +358,8 @@ test("the writer and the reader are told the name the business is called by, and
   assert.match(write(RECORD), /^name: Austin Movers$/m);
   assert.doesNotMatch(write(RECORD), /listed_as/);
   assert.match(openingSystemPrompt(), /by its name/i);
+  // REGRESSION (the live run of 14 Nov 2026): an opening read "...The owner saw that you work across channels."
+  assert.match(openingSystemPrompt(), /never write about the owner, the sender or yourself in the third person/);
 });
 
 test("an opening may call the business by the name it is called by, dots and all", () => {
@@ -499,21 +501,21 @@ test("the reader names what a claim it refused is about, and a held email says i
   assert.deepEqual(heldClaimOf(v.detail), { kind: "calls", said: "does someone answer every one" });
   // What it guessed at, and that nothing found on them says so; a detail, or an older hold's words alone, quoted.
   const why = (detail) => holdWords("unbacked_fact", detail);
-  assert.equal(why(v.detail), "the opening guesses at their calls; we found nothing that says so");
+  assert.equal(why(v.detail), "the opening guesses at their calls; nothing we read of them says so");
   assert.equal(
     why("busy:clearly you're handling real volume"),
-    "the opening guesses how busy they are; we found nothing that says so",
+    "the opening guesses how busy they are; nothing we read of them says so",
   );
-  assert.equal(why("revenue:x"), "the opening guesses at their revenue; we found nothing that says so");
-  assert.equal(why("feelings:x"), "the opening guesses at how they feel; we found nothing that says so");
-  assert.equal(why("problems:x"), "the opening guesses at a problem they have; we found nothing that says so");
-  assert.equal(why("plans:x"), "the opening guesses at their plans; we found nothing that says so");
-  assert.equal(why("detail:award-winning"), "the opening says “award-winning”; we found nothing that says so");
-  assert.equal(why("loved by locals"), "the opening says “loved by locals”; we found nothing that says so");
+  assert.equal(why("revenue:x"), "the opening guesses at their revenue; nothing we read of them says so");
+  assert.equal(why("feelings:x"), "the opening guesses at how they feel; nothing we read of them says so");
+  assert.equal(why("problems:x"), "the opening guesses at a problem they have; nothing we read of them says so");
+  assert.equal(why("plans:x"), "the opening guesses at their plans; nothing we read of them says so");
+  assert.equal(why("detail:award-winning"), "the opening says “award-winning”; nothing we read of them says so");
+  assert.equal(why("loved by locals"), "the opening says “loved by locals”; nothing we read of them says so");
   // A colon in the words is no kind: "open until 8:30 PM" is all words.
   assert.deepEqual(heldClaimOf("open until 8:30 PM"), { kind: null, said: "open until 8:30 PM" });
-  assert.equal(why(null), "the opening says something we found nothing on");
-  assert.equal(why("calls:"), "the opening guesses at their calls; we found nothing that says so");
+  assert.equal(why(null), "the opening says something we couldn't find in what we read of them");
+  assert.equal(why("calls:"), "the opening guesses at their calls; nothing we read of them says so");
   // What a send stores beside the reason stays inside its column (sequence_sends.hold_detail, 120 at most).
   const long = openingVerdict(null, read({ unbacked: "w".repeat(300), kind: "problems" }), "en", SAID);
   assert.ok(long.detail.length <= 120, long.detail.length);

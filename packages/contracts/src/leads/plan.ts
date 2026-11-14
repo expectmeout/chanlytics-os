@@ -305,9 +305,12 @@ export function leadMonthPlanFacts(
 
 /** The same facts as one line, a phone's (§8.3): how long, what it skips, and what is left where that is known. */
 export function leadPlanFactLine(plan: LeadSearchPlan, facts: LeadPlanFacts | null): string {
+  // How long for the count its button finds, never the plan's (Ruben, 14 Nov 2026: "About 48 min" was for 300, the button
+  // said "Find 64 leads").
+  const finds = Math.max(1, leadPlanAsk(plan, facts).count);
   // In the people card's order and words (people-plan.ts peoplePlanFactLine; Ruben, 23 Oct 2026: one card for both).
   return [
-    `About ${planMinutes(plan)} min`,
+    `About ${planMinutes({ ...plan, count: finds })} min`,
     ...(facts
       ? [`uses ${Math.max(0, Math.min(plan.count, facts.leadsLeft))} of your ${facts.leadsLeft} leads this month`]
       : []),

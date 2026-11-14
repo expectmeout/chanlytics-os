@@ -3537,6 +3537,10 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
     );
     assert.match(textOf(byTestId(facts, "lead-rated")), /5\.0 · 16/, "how it is rated");
     assert.equal(textOf(byTestId(facts, "lead-found")), L().rows[0].foundLine, "and when it was found, in words");
+    // REGRESSION (the live run of 14 Nov 2026): one with no email address says so in words; one with an address says nothing.
+    assert.equal(byTestId(facts, "lead-no-email"), null, "an address on file: nothing said");
+    const noMail = find(cardOf("l4"), (n) => n.props?.className === "list-row-facts");
+    assert.equal(textOf(byTestId(noMail, "lead-no-email")), "No email");
     assert.equal(
       byTestId(tr, "lead-call"),
       null,
@@ -4828,4 +4832,25 @@ test("a lead in a sequence wears one status, its place there, with the step and 
   assert.equal(tagOf("l1", false)?.props.label, "Waits for your OK");
   assert.equal(tagOf("l2", false)?.props.label, "Taken out");
   assert.equal(tagOf("l1", true), null, "the Stage column says it");
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): while a selection is on, a phone's bar is Select's alone: no Sort, Import or Map beside its Cancel", () => {
+  const base = {
+    q: "",
+    onQ() {},
+    searchRef: null,
+    canMap: true,
+    sortItems: [{ id: "name", label: "Name", on: false }],
+  };
+  // Sort is a menu, found by its label; Import and Map are the bar's own words.
+  const sortOf = (tree) => find(tree, (n) => n.props?.label === "Sort");
+  const idle = LeadsPhoneBar({ ...base, select: { word: "Select", press() {} } });
+  assert.ok(sortOf(idle), "Sort: there with nothing selected");
+  for (const id of ["leads-phone-import", "leads-view-switch"])
+    assert.ok(byTestId(idle, id), `${id}: there with nothing selected`);
+  const picking = LeadsPhoneBar({ ...base, title: "35 selected", select: { word: "Cancel", press() {} } });
+  assert.equal(sortOf(picking), null, "Sort: gone while 35 are selected");
+  for (const id of ["leads-phone-import", "leads-view-switch"])
+    assert.equal(byTestId(picking, id), null, `${id}: gone while 35 are selected`);
+  assert.ok(byTestId(picking, "leads-phone-select"), "and its Cancel stays");
 });

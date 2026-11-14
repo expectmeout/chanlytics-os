@@ -21,10 +21,13 @@ import {
   type MetricsSummaryDto,
   recordOrNull,
   shaped,
+  standingFromConfig,
+  standingRow,
   valueAt,
   DbFailure,
 } from "@chanlytics/contracts";
 import { listFirstReplies, readMetricsSummary } from "@chanlytics/db/reports";
+import { listChannelsForPage } from "@chanlytics/db/workspace";
 import { readAnswer } from "@chanlytics/db/shared";
 import type { Database } from "@chanlytics/db/types";
 import { getEmailLine } from "../connections/email";
@@ -76,6 +79,21 @@ function repliesOf(answered: unknown): RecentReplies | null {
   });
 }
 
+/**
+ * What WhatsApp holds against the workspace's number, in the row's word ("Payment needed"), or null where it holds nothing or
+ * the row could not be read: Today's chip said "WhatsApp connected" while WhatsApp would deliver no reminder or campaign
+ * (Ruben, 14 Nov 2026). Read beside Today's other reads, never after them.
+ */
+async function whatsappHeld(supabase: SupabaseClient<Database>, tenantId: TenantId): Promise<string | null> {
+  const rows = await listChannelsForPage(supabase, tenantId).catch((e: unknown) => {
+    log.error("today_standing_read_failed", { error: e });
+    return null;
+  });
+  const wa = rows?.data?.find((r) => r.kind === "whatsapp");
+  const standing = standingFromConfig(recordOrNull(wa?.config)?.standing);
+  return standing ? (standingRow(standing)?.stateWords ?? null) : null;
+}
+
 /** The hold the window's own replies waited, by the one rule: those the window's midnight keeps. Undefined where none waited one. */
 function holdSummary(rows: RecentReplies, since: string): MetricsSummaryDto["reply_hold"] {
   const from = Date.parse(since);
@@ -91,7 +109,7 @@ export async function findMetricsSummary(
   // Together, not waterfalled: one indexed row must not sit behind three
   // plpgsql aggregates on Today's wall clock.
   const day = days === REPLIES_WINDOW_DAYS;
-  const [res, email, lately] = await Promise.all([
+  const [res, email, lately, waHeld] = await Promise.all([
     readMetricsSummary(supabase, tenantId, days),
     // A mailbox that cannot be read is a line that cannot be counted, which is
     // its own state (callsRead is the same shape), never a blank Today and
@@ -102,6 +120,7 @@ export async function findMetricsSummary(
     }),
     // What was booked today, which the day's figures lead with (bookings.ts): a longer window carries none.
     day ? findBookingsLately(supabase, tenantId) : Promise.resolve(undefined),
+    whatsappHeld(supabase, tenantId),
   ]);
   if (res.error) throw new DbFailure(res.error);
   // The function's answer, less the day's replies it carries for this server alone (00359): they are counted here and
@@ -124,7 +143,11 @@ export async function findMetricsSummary(
   ]);
   const hold = recent === null ? undefined : holdSummary(recent, answered.window.since);
   const held = hold === undefined ? answered : { ...answered, reply_hold: hold };
-  const dto = bookings === undefined ? held : { ...held, bookings };
+  const booked = bookings === undefined ? held : { ...held, bookings };
+  // The WhatsApp wire says what WhatsApp holds against it, where it holds something.
+  const dto = waHeld
+    ? { ...booked, channels: booked.channels.map((c) => (c.kind === "whatsapp" ? { ...c, held: waHeld } : c)) }
+    : booked;
   if (email === null) return { ...dto, linesRead: false };
   const wires = emailWires(email);
   // Untouched where there is no email line: a deployment without the channel

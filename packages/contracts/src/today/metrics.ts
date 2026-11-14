@@ -23,6 +23,8 @@ export interface MetricsChannelDto {
   number: string | null;
   /** Where customers reach a wire that is not a number: the workspace's email address. */
   address?: string | null;
+  /** What WhatsApp holds against its number, in the row's word ("Payment needed"); absent where it holds nothing. */
+  held?: string | null;
 }
 
 /**

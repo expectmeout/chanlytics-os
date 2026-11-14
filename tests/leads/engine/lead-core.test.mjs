@@ -16,6 +16,7 @@ import {
   radiusFromSpread,
   inArea,
   nearestAreas,
+  stateOfZip,
 } from "../../../packages/core/src/leads/geo.ts";
 import { judgeBatch, factsOf, fact, JUDGE_REFUSED_REASON } from "../../../packages/core/src/leads/judge.ts";
 import { probeAsk, mainAsk, runCaps, yieldOf } from "../../../packages/core/src/leads/sizing.ts";
@@ -58,7 +59,7 @@ test("the card's input comes from the validated plan: a city ask by location que
   assert.equal("locationQuery" in zip, false);
   assert.deepEqual(
     [card.actor, card.build, card.checker.actor, card.checker.build],
-    ["compass/crawler-google-places", "0.14.775", "bounceverify/bounceverify-email-verifier", "0.1.16"],
+    ["compass/crawler-google-places", "0.14.792", "bounceverify/bounceverify-email-verifier", "0.1.16"],
   );
 });
 
@@ -794,4 +795,57 @@ test("every mark a site declares, best first: the said logo, then its icons by h
   );
   assert.deepEqual(leadMarksFrom(head(`<meta charset="utf-8">`), O), [], "a page that declares none has none");
   assert.deepEqual(leadMarksFrom("", O), [], "and nothing read is nothing");
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): a nearby ZIP is searched and said in its own state, never the search's", () => {
+  assert.deepEqual(["07310", "11430", "78704", "10001", "99501", "00000", "7310"].map(stateOfZip), [
+    "NJ",
+    "NY",
+    "TX",
+    "NY",
+    "AK",
+    null,
+    null,
+  ]);
+  // Midtown Manhattan, a search in New York: the ZIPs across the river are New Jersey's.
+  const near = nearestAreas({ lat: 40.758, lng: -73.9855 }, { excludeWithinM: 2_000, take: 25, state: "NY" });
+  const jersey = near.filter((a) => a.zip.startsWith("07"));
+  assert.ok(jersey.length > 0, "some of the nearest are across the river");
+  for (const a of jersey)
+    assert.deepEqual([a.state, a.label, a.query], ["NJ", `near ${a.zip}, NJ`, `${a.zip}, NJ, USA`]);
+  for (const a of near.filter((x) => x.zip.startsWith("10")))
+    assert.deepEqual([a.state, a.label], ["NY", `near ${a.zip}`], "one in the search's own state says only its ZIP");
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): a search whose fetches failed partway stopped; it never searched everything", () => {
+  // Brooklyn's three first fetches succeeded and its three bigger ones failed after 33, 70 and 82 places: it said
+  // searched_everything and offered places nearby.
+  const r = (id, state, seen) => ({ id, state, items_seen: seen, purpose: "discover", term: id });
+  const runs = [
+    r("a", "succeeded", 9),
+    r("b", "succeeded", 8),
+    r("c", "succeeded", 8),
+    r("d", "failed", 33),
+    r("e", "failed", 70),
+    r("f", "failed", 82),
+  ];
+  assert.deepEqual(
+    termsShortOf(runs.slice(3), () => 120),
+    [false, false, false],
+    "a failed run is not a short term",
+  );
+  const round = { cost_reserved_usd: 5, cost_usd: 1, allowance_reserved: 300, allowance_used: 57 };
+  assert.equal(
+    discoveryEnding(round, runs, { counted: 57, target: 300, termsShort: [false, false, false], stopped: false }),
+    "source_failed",
+  );
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): a place whose website the provider never read says so, never that its site holds no email", () => {
+  // The provider's items carried no domain and no contacts for any of 233 med spa sites: each was filed "No email on their site".
+  assert.equal(card.mapItem(mapsItem(1)).contactsRead, true, "a site it named, read");
+  const unread = card.mapItem(mapsItem(2, { domain: undefined, emails: [], instagrams: [], facebooks: [] }));
+  assert.equal(unread.contactsRead, false, "a website, no domain, nothing found: never read");
+  const noSite = card.mapItem(mapsItem(3, { website: undefined, domain: undefined, emails: [] }));
+  assert.equal(noSite.contactsRead, true, "no website: nothing to read, and nothing unsaid");
 });

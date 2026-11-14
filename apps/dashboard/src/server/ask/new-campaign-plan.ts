@@ -264,6 +264,10 @@ function occasionLine(trigger: string, one: string, at: string): [does: string, 
     return [`Offers another time to anyone whose ${one} you mark missed`, "a few minutes after"];
   if (trigger === "asked_no_booking")
     return ["Follows up with anyone sent your booking link who has not booked", `the next day at ${at}`];
+  // A freed time goes when a cancellation frees it, never at the hour (decision 0082): it said "Fill a cancellation to 0
+  // people, daily at 10:00 AM" on Ruben's set-up card (14 Nov 2026).
+  if (trigger === "slot_opened")
+    return [`Offers each ${one} a cancellation frees to the people who asked and never booked`, "within the hour"];
   return null;
 }
 
@@ -311,8 +315,11 @@ export function campaignLine(context: {
         return will > 0
           ? `Follows up ${of} ${(will < context.pool ? context.pool : will) === 1 ? "proposal" : "proposals"} waiting on an answer`
           : "Follows up each proposal left waiting on an answer";
-      default:
-        return `${triggerOf(context.trigger)?.label ?? "Sends"} to ${people}`;
+      default: {
+        // Nobody counted ahead of time is said as what it does, never "to 0 people".
+        const label = triggerOf(context.trigger)?.label ?? "Sends";
+        return will > 0 ? `${label} to ${people}` : label;
+      }
     }
   })();
   const at = clockHour(context.run_hour);

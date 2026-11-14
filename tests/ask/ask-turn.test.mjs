@@ -640,7 +640,11 @@ test("words beside a card are the model thinking aloud, never the answer; an ans
   );
   const made = scripted([ROUND([prose("Adding Ada."), tool("propose_person", ADD_ADA)])]);
   const r2 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(made.round));
-  assert.equal(r2.answer.say.headline, "Here it is: Add Ada to People.", "the card made is the answer");
+  assert.equal(
+    r2.answer.say.headline,
+    "Add Ada to People. Nothing happens until you press it.",
+    "the card made is the answer",
+  );
 
   const claimed = answerJson("I proposed adding Ada.");
   const back = scripted([
@@ -677,7 +681,7 @@ test("an answer beside its cards that claims a write is said as the cards' own s
   );
   assert.deepEqual(
     [r.answer.say.headline, r.answer.say.detail, r.proposals.length, lines.length],
-    ["Here it is: Add Ada to People.", "She is in People now.", 1, 1],
+    ["Add Ada to People. Nothing happens until you press it.", "She is in People now.", 1, 1],
   );
   assert.deepEqual(JSON.parse(lines[0]), { cards: 1, tenant_id: A });
   const honest = scripted([ROUND([prose(answerJson("One card: Ada, for People.")), invite])]);
@@ -722,7 +726,7 @@ test("cards alone are the answer: every card made, no second round, the cards sa
   assert.equal(r.rounds, 1);
   assert.equal(r.proposals.length, 1);
   assert.deepEqual(r.answer, answerForCards(r.proposals, "en"));
-  assert.equal(r.text, "Here it is: Add Ada to People.");
+  assert.equal(r.text, "Add Ada to People. Nothing happens until you press it.");
   assert.ok(
     events.some((e) => e.t === "say" && e.headline === r.answer.say.headline),
     "the cards' sentence is said as the answer",
@@ -6965,11 +6969,13 @@ test("the workspace's pages are read once a turn, each tool as its page reads it
   const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
   assert.deepEqual(
     ["tenant_channels", "templates", "lead_searches_view"].map(selects),
-    [2, 1, 1],
+    [3, 1, 1],
     // 3 Oct 2026: the channels reader's one read serves workspace.settings and campaigns.audiences alike; the audience
     // pool's rows are judged against what the workspace can send on (readers/facts.ts channelsReady: the number's config
-    // and the texting line), once a turn, a read of its own.
-    "the channels once for workspace.settings and campaigns.audiences alike, and once for the pool's readiness; the templates once, the searches once",
+    // and the texting line), once a turn, a read of its own. 14 Nov 2026 (decision 0132): Today's read says what WhatsApp
+    // holds against the number, once a turn, beside its other reads, so its chip never says "connected" while WhatsApp
+    // delivers nothing.
+    "the channels once for workspace.settings and campaigns.audiences alike, once for the pool's readiness and once for Today's WhatsApp hold; the templates once, the searches once",
   );
   assert.equal(ctx.supabase.seen.filter((q) => q.rpc === "lead_list_counts").length, 1, "the rail's counts once");
   // Every tool result the model was handed, by its call's id, across both rounds.
@@ -8948,11 +8954,13 @@ test("a card waiting in this thread is pressed by their yes (the answers canvas,
   assert.equal(said.length, 1, "one rule says it");
   const [rule] = said;
   for (const words of [
-    "A card waiting in this thread is pressed by their yes",
+    "A card waiting in your latest answer is pressed by their yes",
     "call press_card with its id",
     "say what its result says",
     "With several waiting and no way to tell which, ask which",
-    "Propose it again only when it was dismissed or failed",
+    // REGRESSION (decision 0132): a yes reached a card an hour and forty minutes up the thread.
+    "A card further up the thread is out of their view: when they mean one, propose it again with the same terms",
+    "Propose a card of your latest answer again only when it was dismissed or failed",
   ])
     assert.ok(rule.includes(words), words);
   assert.ok(rules.includes(rule), "in the cached rules");
@@ -9887,7 +9895,10 @@ test("a broadcast or a playbook proposed on a workspace with no WhatsApp number 
     config: { ...WHATSAPP_NUMBER.config, standing: { can_send: "AVAILABLE", has_payment_method: false } },
   };
   const held2 = await buildProposal(toolContext([unpaid]), "propose_sequence", broadcast);
-  assert.match(JSON.parse(held2.result).error, /Meta needs a payment method on your WhatsApp account/);
+  assert.match(
+    JSON.parse(held2.result).error,
+    /WhatsApp needs a card on file before it delivers reminders and campaigns/,
+  );
   // A playbook is no longer proposed with no number (its runs would hold everyone): no campaign card, as for the broadcast,
   // but a card of the one thing to fix, in the route's words, with Connections for its door (the 30 Oct 2026 review, item 6).
   const playbook = { action: "moment", trigger: "everyone_monthly", template_id: TPL, params: [] };
@@ -10413,4 +10424,20 @@ test("an answer written beside a post drawn for a look is set aside: the model l
   assert.equal(besideActs("Here is your post", { ...r, looking: true }), "");
   assert.equal(unsaid, 1);
   assert.equal(besideActs("Here is your post", { ...r, looking: false }), "Here is your post");
+});
+
+test("REGRESSION (decision 0132): only the latest answer's cards wait for a yes; one further up is out of view, never pressed by a yes and never refused as already above", async () => {
+  // "Yes, run the New York City search" pressed a card made an hour and forty minutes up the thread.
+  const card = (id, title) => ({ id, kind: "note", needs: "operator", title, summary: "", payload: {}, undo: null });
+  const { ctx } = await seeded([
+    [{ text: "Find med spas in New York" }, storedAnswer(shaped("Here it is."), [card("p-old", "Find 300 med spas")])],
+    [{ text: "Rename the sequence" }, storedAnswer(shaped("Here it is."), [card("p-new", "Rename it")])],
+    [{ text: "What did the search find?" }, storedAnswer(shaped("57 so far."))],
+  ]);
+  const found = await threadNow(ctx, "Yes, run the New York City search");
+  assert.deepEqual(
+    found.waiting.map((p) => p.id),
+    ["p-new"],
+    "the latest answer that made cards, never one before it",
+  );
 });

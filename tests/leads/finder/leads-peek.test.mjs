@@ -295,14 +295,14 @@ const CHECKS = [
     key: "independent",
     how: "read",
     answer: "yes",
-    source: "Claude · the listing",
+    source: "Ask · the listing",
     reason: "one address, no brand in the name",
   },
   {
     key: "right_kind",
     how: "read",
     answer: "yes",
-    source: "Claude · the listing",
+    source: "Ask · the listing",
     reason: "listed as a personal trainer",
   },
   {

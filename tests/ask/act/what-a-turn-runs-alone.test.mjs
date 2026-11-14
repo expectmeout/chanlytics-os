@@ -18,6 +18,7 @@ const { runAlone } = await import(at("apps/dashboard/src/server/ask/act/world.ts
 const { runAct, actOf } = await import(at("apps/dashboard/src/server/ask/act/run.ts"));
 const { ASK_ALONE_DAY_MAX } = await import("@chanlytics/contracts");
 const { askAloneCounts } = await import("@chanlytics/db/ask");
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 
 const TENANT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -178,4 +179,35 @@ test("a caller of the act door cannot claim an act alone: it is recorded as a pr
 test("what a browser may honestly say of a press is kept as it said it", () => {
   for (const by of ["press", "yes", "lock_screen", "mail"])
     assert.equal(actOf({ message_id: MSG, proposal_id: "p-note-1", by }).by, by);
+});
+
+test("REGRESSION (decision 0132): a day's count that could not be read is no zero: nothing runs alone, and every card waits for a press", async () => {
+  // It read a failed count as nothing done today and no undos this week, so the day's limit of 50 and the undo brake held
+  // nothing back.
+  const cards = [1, 2].map(noteCard);
+  const { tables } = world(cards, 0);
+  const ctx = {
+    supabase: fakeDb(tables, { "ask_actions.select": { message: "statement timeout" } }),
+    userId: USER,
+    params: {},
+  };
+  const out = await runAlone(ctx, req(), member, MSG, cards, NOW, plenty());
+  assert.equal(out.filter((p) => p.outcome).length, 0, "nothing ran alone");
+  assert.equal(calls.length, 0, "no door was walked");
+});
+
+test("the business's facts that could not be read are no UTC: nothing runs alone, since its hours are not known", async () => {
+  const cards = [1].map(noteCard);
+  const { tables } = world(cards, 0);
+  // The facts are kept five minutes across requests, and a route's member carries them already: a member with none, and
+  // nothing kept, so the read this test fails is a fresh one.
+  readerCache.clear();
+  const ctx = {
+    supabase: fakeDb(tables, { "tenants.select": { message: "statement timeout" } }),
+    userId: USER,
+    params: {},
+  };
+  const out = await runAlone(ctx, req(), { tenantId: TENANT, role: "owner" }, MSG, cards, NOW, plenty());
+  assert.equal(out.filter((p) => p.outcome).length, 0, "nothing ran alone");
+  assert.equal(calls.length, 0, "no door was walked");
 });

@@ -477,12 +477,18 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
         ]
       : null,
     // How a phone and a mailbox reach it is the lead's own page's to say: two unlabelled circles here read as nothing to
-    // a first look (the phone pass, 3 Nov 2026). Its rating and when it was found stay.
+    // a first look (the phone pass, 3 Nov 2026). Its rating and when it was found stay, and one with no email address says
+    // so in words, since no email sequence can reach it (Ruben, 14 Nov 2026: 35 picked, none with an email).
     facts: [
       l.rated ? (
         <span key="rated" className="pl-card-rated" data-testid="lead-rated">
           <Icon name="star" size={11} />
           {l.rated.score} · {l.rated.count}
+        </span>
+      ) : null,
+      l.emailState === "none" ? (
+        <span key="email" className="pl-card-last" data-testid="lead-no-email">
+          {l.emailWord}
         </span>
       ) : null,
       <span key="found" className="pl-card-last" data-testid="lead-found">

@@ -168,7 +168,7 @@ test("a pause says the run that waits stays waiting; a resume says its sequence'
   assert.equal(quiet.proposal.summary, PLAYBOOK_PATCH_WORDS.paused);
   const resume = await change({ state: "running" }, tables({ playbooks: [playbookRow({ state: "paused" })] }));
   assert.equal(resume.isError, false, resume.result);
-  assert.deepEqual([resume.proposal.title, resume.proposal.undo], ["Resume: Win-back", "Pause it again"]);
+  assert.deepEqual([resume.proposal.title, resume.proposal.undo], ["Turn back on: Win-back", "Pause it again"]);
   // Under auto it sends on its own: one fact, one sentence, the drawer's Resume line, which the pause's undo says too.
   assert.equal(resume.proposal.summary, PLAYBOOK_PATCH_WORDS.resumed(LIFECYCLE_WORDS.ledger.resume.auto));
   assert.ok(pause.proposal.undo.endsWith(LIFECYCLE_WORDS.ledger.resume.auto));

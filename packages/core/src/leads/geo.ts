@@ -8,7 +8,7 @@
  * zcta-centroids.generated.ts is written by tooling/scripts/gen/zcta-centroids.mjs
  * from the Census 2020 gazetteer: one zip,lat,lng row a line, sorted by zip.
  */
-import type { LeadArea } from "@chanlytics/contracts";
+import { US_ZIP, type LeadArea } from "@chanlytics/contracts";
 import { ZCTA_ROWS } from "./zcta-centroids.generated";
 
 export interface LatLng {
@@ -91,6 +91,77 @@ export function inArea(center: LatLng | null, radiusM: number, point: LatLng | n
 }
 
 /**
+ * The state a US ZIP is in, by its first three digits (the Postal Service's prefixes), or null for one it does not place:
+ * a nearby ZIP is searched and said in its own state, never the search's (Ruben, 14 Nov 2026: Jersey City's 07310 was
+ * offered as "07310, NY, USA" beside a Brooklyn search). Inclusive ranges, in order.
+ */
+const ZIP3_STATES: ReadonlyArray<readonly [number, number, string]> = [
+  [5, 5, "NY"],
+  [6, 9, "PR"],
+  [10, 27, "MA"],
+  [28, 29, "RI"],
+  [30, 38, "NH"],
+  [39, 49, "ME"],
+  [50, 59, "VT"],
+  [60, 69, "CT"],
+  [70, 89, "NJ"],
+  [100, 149, "NY"],
+  [150, 196, "PA"],
+  [197, 199, "DE"],
+  [200, 200, "DC"],
+  [201, 201, "VA"],
+  [202, 205, "DC"],
+  [206, 219, "MD"],
+  [220, 246, "VA"],
+  [247, 268, "WV"],
+  [270, 289, "NC"],
+  [290, 299, "SC"],
+  [300, 319, "GA"],
+  [320, 349, "FL"],
+  [350, 369, "AL"],
+  [370, 385, "TN"],
+  [386, 397, "MS"],
+  [398, 399, "GA"],
+  [400, 427, "KY"],
+  [430, 459, "OH"],
+  [460, 479, "IN"],
+  [480, 499, "MI"],
+  [500, 528, "IA"],
+  [530, 549, "WI"],
+  [550, 567, "MN"],
+  [570, 577, "SD"],
+  [580, 588, "ND"],
+  [590, 599, "MT"],
+  [600, 629, "IL"],
+  [630, 658, "MO"],
+  [660, 679, "KS"],
+  [680, 693, "NE"],
+  [700, 714, "LA"],
+  [716, 729, "AR"],
+  [730, 749, "OK"],
+  [750, 799, "TX"],
+  [800, 816, "CO"],
+  [820, 831, "WY"],
+  [832, 838, "ID"],
+  [840, 847, "UT"],
+  [850, 865, "AZ"],
+  [870, 884, "NM"],
+  [885, 885, "TX"],
+  [889, 898, "NV"],
+  [900, 961, "CA"],
+  [967, 968, "HI"],
+  [970, 979, "OR"],
+  [980, 994, "WA"],
+  [995, 999, "AK"],
+];
+
+export function stateOfZip(zip: string): string | null {
+  if (!US_ZIP.test(zip)) return null;
+  const prefix = Number(zip.slice(0, 3));
+  return ZIP3_STATES.find(([from, to]) => prefix >= from && prefix <= to)?.[2] ?? null;
+}
+
+/**
  * Where to look when an area ran dry (D3): the nearest ZCTA centres past a ring around the centre, nearest first,
  * each as an area the plan can take -- a ZIP with its own centre and a radius that reads as "near 78660". The ring
  * keeps them out of the area just searched; the ceiling keeps them a drive away, not a flight.
@@ -106,13 +177,17 @@ export function nearestAreas(
     .filter((x) => x.d >= options.excludeWithinM && x.d <= max)
     .sort((a, b) => a.d - b.d || (a.zip < b.zip ? -1 : 1))
     .slice(0, Math.max(0, options.take))
-    .map((x) => ({
-      kind: "zip" as const,
-      label: `near ${x.zip}`,
-      state,
-      center: { lat: x.lat, lng: x.lng },
-      radius_m: 8_000,
-      zip: x.zip,
-      query: state ? `${x.zip}, ${state}, USA` : `${x.zip}, USA`,
-    }));
+    .map((near) => {
+      // Its own state, said where it is not the search's: "near 07310, NJ" beside a search in New York.
+      const own = stateOfZip(near.zip) ?? state;
+      return {
+        kind: "zip" as const,
+        label: own && own !== state ? `near ${near.zip}, ${own}` : `near ${near.zip}`,
+        state: own,
+        center: { lat: near.lat, lng: near.lng },
+        radius_m: 8_000,
+        zip: near.zip,
+        query: own ? `${near.zip}, ${own}, USA` : `${near.zip}, USA`,
+      };
+    });
 }

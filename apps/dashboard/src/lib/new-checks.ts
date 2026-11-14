@@ -170,14 +170,19 @@ function stepChecks(
   ready: readonly ConsentChannel[],
 ): NewCheck[] {
   const C = NEW_WORDS.checks;
+  // The steps whose message Ask wrote, said once together: they wait on WhatsApp's read only where one has a WhatsApp version.
+  const written = d.steps.flatMap((s, i) => (s.does === "message" && s.message?.written ? [i + 1] : []));
+  const byWhatsApp = d.steps.some((s) => s.does === "message" && !!s.message?.written?.versions.whatsapp);
+  const writtenRow: NewCheck = {
+    tone: byWhatsApp ? "warn" : "ok",
+    words: written.length === 1 ? C.newMessage(written[0] ?? 1) : C.newMessages(written),
+    detail: byWhatsApp ? C.newMessageDetail : null,
+  };
   return d.steps.flatMap((s, i): NewCheck[] => {
     const n = i + 1;
     if (s.does !== "message") return [{ tone: "ok", words: C.hand(n), detail: null }];
     const m = s.message;
-    if (m?.written)
-      return [
-        { tone: "warn", words: C.newMessage(n), detail: m.written.versions.whatsapp ? C.newMessageDetail : null },
-      ];
+    if (m?.written) return n === written[0] ? [writtenRow] : [];
     // A person's first step goes by the channels the draft ticks (what can carry it), those the workspace sends on now.
     const goes = d.channels.filter((c) => ready.includes(c));
     return d.audience === "people" && i === 0 && goes.length

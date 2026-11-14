@@ -197,10 +197,15 @@ function whatsappManagerLink(ownerBusinessId: string | null, wabaId: string | nu
     : "https://business.facebook.com/wa/manage/";
 }
 
+/**
+ * What the payment trouble does, in the owner's words: WhatsApp, never Meta, and that what waits goes by itself once it is
+ * mended (Ruben, 12 Nov 2026: what is happening, whether it mends itself, the one thing to do; the act beside it is that).
+ */
 const PAYMENT_SENTENCE: Record<PaymentTrouble, string> = {
-  missing: "Meta needs a payment method on your WhatsApp account before it delivers reminders and campaigns.",
+  missing:
+    "WhatsApp needs a card on file before it delivers reminders and campaigns; they wait and go once one is added.",
   failing:
-    "Meta reports a problem with the payment method on your WhatsApp account: reminders and campaigns are not delivered until it is fixed.",
+    "The card on your WhatsApp account has a problem, so reminders and campaigns wait; they go once it is fixed.",
 };
 /**
  * What still goes out without one, said only where Meta itself says the number may send: a BLOCKED number is Meta's word that
@@ -209,6 +214,8 @@ const PAYMENT_SENTENCE: Record<PaymentTrouble, string> = {
 const REPLIES_STILL_GO = "Replies to customers who write first still go out.";
 /** Where to add one when Meta's own page for it cannot be opened (the business or the account is not known). */
 const ADD_ONE_IN_SUITE = "Add one in Meta Business Suite › Billing.";
+/** The same, for a card on file that has a problem: it is fixed there, not added. */
+const FIX_IT_IN_SUITE = "Fix it in Meta Business Suite › Billing.";
 const PAYMENT_ACT: Record<PaymentTrouble, string> = { missing: "Add a card", failing: "Fix the card" };
 
 /**
@@ -242,7 +249,7 @@ export function standingRow(numberStanding: NumberStanding): StandingLine | null
     const words = [
       PAYMENT_SENTENCE[payment],
       ...(numberStanding.can_send === "BLOCKED" ? [] : [REPLIES_STILL_GO]),
-      ...(href ? [] : [ADD_ONE_IN_SUITE]),
+      ...(href ? [] : [payment === "missing" ? ADD_ONE_IN_SUITE : FIX_IT_IN_SUITE]),
     ];
     return {
       stateWords: PAYMENT_HOLD_WORD,
@@ -407,7 +414,7 @@ export function standingAlertWords(
   const which = formatPhoneDisplay(number) ?? "your number";
   const payment = paymentTrouble(numberStanding);
   if (payment) {
-    const where = payment === "missing" ? ADD_ONE_IN_SUITE : "Fix it in Meta Business Suite › Billing.";
+    const where = payment === "missing" ? ADD_ONE_IN_SUITE : FIX_IT_IN_SUITE;
     return {
       subject: "WhatsApp can't start conversations from your number",
       body: `WhatsApp can't start conversations from ${which}: ${PAYMENT_SENTENCE[payment]} ${where}`,

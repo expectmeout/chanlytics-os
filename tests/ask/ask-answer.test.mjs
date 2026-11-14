@@ -1163,21 +1163,27 @@ test("Copy takes the answer's words, then what it showed: the whole in its parts
 test("cards only: the cards are the Do, said in a sentence that counts nothing the card says, in English and Spanish (D1 of the answers canvas)", () => {
   const one = answerForCards([{ title: "Send Nora the Saturday times" }], "en", null);
   assert.equal(one.form, "structured");
-  assert.equal(one.say.headline, "Here it is: Send Nora the Saturday times.");
+  assert.equal(one.say.headline, "Send Nora the Saturday times. Nothing happens until you press it.");
   assert.equal(one.say.detail, "", "the card says what it does and that it waits");
   assert.deepEqual([one.show.items, one.show.figures, one.do.open, one.do.next], [[], [], null, []]);
   assert.equal(
     answerForCards([{ title: "Move Sam to Friday?" }], "en", null).say.headline,
-    "Here it is: Move Sam to Friday?",
+    "Move Sam to Friday? Nothing happens until you press it.",
   );
   // A title that ends leading into more ends as a sentence, never ",." (a video's card, 11 Nov 2026).
   assert.equal(
     answerForCards([{ title: "Video: Long layers," }], "en", null).say.headline,
-    "Here it is: Video: Long layers.",
+    "Video: Long layers. Nothing happens until you press it.",
   );
   const es = answerForCards([{ title: "a" }, { title: "b" }], "es", null);
-  assert.deepEqual([es.say.headline, es.say.detail, es.language], ["2 para mirar.", "", "es"]);
-  assert.equal(answerForCards([{ title: "a" }, { title: "b" }], "en", null).say.headline, "2 to look at.");
+  assert.deepEqual(
+    [es.say.headline, es.say.detail, es.language],
+    ["2 listos abajo. No pasa nada hasta que los pulses.", "", "es"],
+  );
+  assert.equal(
+    answerForCards([{ title: "a" }, { title: "b" }], "en", null).say.headline,
+    "2 ready below. Nothing happens until you press them.",
+  );
 });
 
 test("a plan is one card, so the sentence over it counts no steps and no sends: its own first sentence, or that here it is, in English and Spanish; cards of no one plan are counted as cards", () => {
@@ -1196,8 +1202,14 @@ test("a plan is one card, so the sentence over it counts no steps and no sends: 
     "It goes by email.",
   );
   // Not one plan's cards: a card of no plan beside it, or two plans, are cards.
-  assert.equal(answerForCards([...six, { title: "Reply to Nora" }], "en", null).say.headline, "7 to look at.");
-  assert.equal(answerForCards([stamp(1, true), stamp(2, false, "plan-2")], "en", null).say.headline, "2 to look at.");
+  assert.equal(
+    answerForCards([...six, { title: "Reply to Nora" }], "en", null).say.headline,
+    "7 ready below. Nothing happens until you press them.",
+  );
+  assert.equal(
+    answerForCards([stamp(1, true), stamp(2, false, "plan-2")], "en", null).say.headline,
+    "2 ready below. Nothing happens until you press them.",
+  );
 });
 
 test("REGRESSION: a sentence that counted a plan's sends could count them wrong -- a lead search and the follow-up that waits for it read 'A plan of 2 steps to review: 2 send' (the operator stress run, 15 Oct 2026): it counts nothing now", () => {
@@ -1248,7 +1260,10 @@ test("a round that made a plan answers with one sentence, and the card holds the
   assert.deepEqual([said.say.headline, said.say.detail], ["Pauses the month's offer so nobody gets two offers.", ""]);
   // A setup's campaigns, unstamped: counted as cards, the plan's words their detail.
   const setup = answerForCards([{ title: "a" }, { title: "b" }, { title: "c" }], "en", "Starts 3 campaigns.");
-  assert.deepEqual([setup.say.headline, setup.say.detail], ["3 to look at.", "Starts 3 campaigns."]);
+  assert.deepEqual(
+    [setup.say.headline, setup.say.detail],
+    ["3 ready below. Nothing happens until you press them.", "Starts 3 campaigns."],
+  );
   // Words past the detail's cap end on a whole word, with an ellipsis, within it.
   const long = Array.from({ length: 600 }, (_, i) => `word${i}`).join(" ");
   assert.ok(long.length > ASK_ANSWER_CAPS.detail, "longer than the detail holds");

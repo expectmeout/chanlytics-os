@@ -191,7 +191,10 @@ const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[]): StripVM 
     };
   const withRound: PlacesSearch = { ...s, plan, round: r };
   const counted = r.counted;
-  const progress = r.target > 0 ? Math.min(1, counted / r.target) : null;
+  // What the owner asked for, never the first 25 the probe sizes the round with (Ruben, 14 Nov 2026: asked for 300, the
+  // strip said "0 of 25"); a later round's own count is its target.
+  const goal = r.purpose === "probe" ? Math.max(r.target, plan.count) : r.target;
+  const progress = goal > 0 ? Math.min(1, counted / goal) : null;
   // Removing the untouched leads (POST lead-searches/[id]/undo) is the search menu's, named for what it removes and gives
   // back (contracts leadUndoable): an "Undo" here, beside "the 24 found are yours", read as deleting what was just paid for.
   if (r.state === "waiting_on_owner" && r.question) return questionStrip(plan, r.question, progress);
@@ -213,7 +216,7 @@ const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[]): StripVM 
   }
   if (r.state !== "ended") {
     const minutesLeft = Math.max(1, Math.round(planMinutes(plan) * (1 - (progress || 0))));
-    const parts = [`${counted} of ${r.target}`, `${r.emails_checked} emails checked`, `about ${minutesLeft} min left`];
+    const parts = [`${counted} of ${goal}`, `${r.emails_checked} emails checked`, `about ${minutesLeft} min left`];
     // The first 25 size the rest of the round (S6), so until they are in the estimate is an assumption and says so (P3).
     if (counted < LEAD_PROBE_SEEN) parts.push("estimates update after the first 25");
     return {
@@ -222,7 +225,7 @@ const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[]): StripVM 
       title: `Finding ${who} ${where}`,
       parts,
       progress,
-      count: { n: counted, of: r.target },
+      count: { n: counted, of: goal },
       actions: [{ id: "stop", label: "Stop" }],
     };
   }

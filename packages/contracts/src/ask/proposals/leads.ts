@@ -6,6 +6,7 @@
 import { leadQuestionRoute, leadsRoute } from "../../leads/leads";
 import type { LeadSearchPlan } from "../../leads/search/plan";
 import { planWho } from "../../leads/search/sentence";
+import { pressedSearchPlan } from "../../leads/search/card";
 import { SEQUENCES_ROUTE, sequenceRoute } from "../../campaigns/sequences/address";
 import { asText, idIn, rec, type ProposalSpec, type ProposalSpecAboveOperator, LEAD_OPERATION_UNDO } from "./spec";
 
@@ -19,7 +20,7 @@ export const leadSearchSpec: ProposalSpecAboveOperator = {
   needs: "partner",
   doing: "start a lead search",
   gate: "find",
-  commit: ({ payload: pl }) => {
+  commit: ({ kind, payload: pl }) => {
     const am = amendsOf(pl);
     // The card answers the search that asked (spec G4): the route sets the answer's version and count.
     if (am)
@@ -31,16 +32,27 @@ export const leadSearchSpec: ProposalSpecAboveOperator = {
     // The thread the card was planned in rides beside the plan (the Ask route set it on the card), so the search keeps
     // it and the answer to its question lands there (00172). A card from before has none.
     const threadId = typeof pl.thread_id === "string" && pl.thread_id ? pl.thread_id : null;
-    return { route: "POST lead-searches", body: threadId ? { ...(pl.plan as object), thread_id: threadId } : pl.plan };
+    // Its count as the card's button said it, bound to the month's room (pressedSearchPlan).
+    const plan = pressedSearchPlan({ kind, payload: pl });
+    return { route: "POST lead-searches", body: threadId ? { ...rec(plan), thread_id: threadId } : plan };
   },
-  receipt: ({ payload: pl }) => {
+  receipt: ({ kind, payload: pl }, data) => {
     const am = amendsOf(pl);
     if (am) return `Answered. ${asText(am.name) || "The search"} keeps going with it.`;
     const plan = (pl.plan ?? {}) as Partial<LeadSearchPlan>;
     // Who it finds as the card said them ("law firms"), not the first word it is searched with ("law firm").
     const personName =
       plan.name && plan.area && plan.terms && plan.criteria ? planWho(plan as LeadSearchPlan) : plan.terms?.[0];
-    return `Finding ${plan.count ?? ""} ${personName ?? "businesses"}. It keeps going if you leave.`.replace(
+    // The count it started with, as the door answered it (the month's room at the press), else as the press sent it.
+    const door = rec(data);
+    const started = Number(door.count) || Number(rec(pressedSearchPlan({ kind, payload: pl })).count) || plan.count;
+    const countAsked = Number(door.asked);
+    // The month cut it short: how many more were asked, and the day they can follow.
+    const rest =
+      started && countAsked > started && typeof door.renews_on === "string"
+        ? ` That is all your leads left this month; the other ${countAsked - started} can follow once they renew on ${door.renews_on}.`
+        : "";
+    return `Finding ${started ?? ""} ${personName ?? "businesses"}. It keeps going if you leave.${rest}`.replace(
       /\s+/g,
       " ",
     );
@@ -75,9 +87,10 @@ export const peopleSearchSpec: ProposalSpecAboveOperator = {
   needs: "partner",
   doing: "start a people search",
   gate: "find",
-  commit: ({ payload: pl }) => {
+  commit: ({ kind, payload: pl }) => {
     const threadId = typeof pl.thread_id === "string" && pl.thread_id ? pl.thread_id : null;
-    return { route: "POST lead-searches/people", body: { plan: pl.plan, via: "ask", thread_id: threadId } };
+    const plan = pressedSearchPlan({ kind, payload: pl });
+    return { route: "POST lead-searches/people", body: { plan, via: "ask", thread_id: threadId } };
   },
   receipt: ({ payload: pl }) => {
     const plan = (pl.plan ?? {}) as { count?: number; name?: string };
