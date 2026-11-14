@@ -2,9 +2,10 @@
 
 // Chanlytics — a lead's own receptionist, before they sign up (decision 0079, L2 and L3).
 //
-// The page a cold email's link opens: the business's own receptionist, set up from its listing and its website, in its
-// mark and its colour on the product's paper. They text it as a customer would and read, under each answer, what a
-// live chat would do with it (Try it's `then`), or call it in the browser (call.tsx); they see what it knows and where
+// The page a cold email's link opens: the business's own receptionist, set up from its listing and its website, under
+// its Google photo, its mark and its colour, light unless the visitor's device is dark (contracts pagePrefOf). They hear
+// it answer first (call.tsx), then text it as a customer would, the chat opening on its greeting, and read under each
+// answer what a live chat would do with it (Try it's `then`); they see what it knows and where
 // each fact came from, and say which is not right; and the foot, which stays, makes it theirs. Every word is
 // contracts' (previews/words.ts); the page is drawn from its view model (previewPageOf), which the server
 // builds from the row its token names.
@@ -34,16 +35,25 @@ import "./preview.css";
 /** How often a page whose receptionist is being set up reads itself again. */
 const BUILDING_EVERY_MS = 4_000;
 
-/** The business at the top: its mark, else nothing (its name is the heading under it), and who set it up. */
+/**
+ * The business on top, so it reads as theirs: its Google photo with its mark over it (or the mark alone), its name, what
+ * to do here, and where it was set up from.
+ */
 function PvHead({ vm }: { vm: PreviewPageVM }) {
+  const mark = vm.logo_url ? <img className="pv-logo" src={vm.logo_url} alt="" /> : null;
   return (
     <header className="pv-head">
-      <div className="pv-head-top">
-        {vm.logo_url ? <img className="pv-logo" src={vm.logo_url} alt="" /> : null}
-        <span className="chip">{W.chip}</span>
-      </div>
-      <h1 className="pv-title">{W.title(vm.business)}</h1>
-      <p className="pv-by">{W.setUp(vm.business)}</p>
+      {vm.photo_url ? (
+        <div className="pv-hero">
+          <img className="pv-photo" src={vm.photo_url} alt="" referrerPolicy="no-referrer" />
+          {mark}
+        </div>
+      ) : (
+        mark
+      )}
+      <h1 className="pv-title">{vm.business}</h1>
+      <p className="pv-by">{W.ready}</p>
+      <p className="pv-quiet">{W.madeFrom}</p>
     </header>
   );
 }
@@ -102,18 +112,23 @@ function PvChat({ vm, token, look }: { vm: PreviewPageVM; token: string; look: b
       <h2 className="pv-section-title" id="pv-text-title">
         {W.textTitle}
       </h2>
-      {turns.length ? (
-        <ol className="pv-chat" role="log" aria-live="polite">
-          {turns.map((t, i) => (
-            <PvTurn key={i} t={t} at={i} />
-          ))}
-          {busy ? (
-            <li className="pv-turn" data-testid="pv-writing">
-              <p className="pv-said">{W.writing}</p>
-            </li>
-          ) : null}
-        </ol>
-      ) : vm.starters.length && !look ? (
+      <ol className="pv-chat" role="log" aria-live="polite">
+        <li className="pv-turn" data-testid="pv-greeting">
+          <p className="pv-said">
+            <span className="rec-sr">{W.it}: </span>
+            {vm.greeting}
+          </p>
+        </li>
+        {turns.map((t, i) => (
+          <PvTurn key={i} t={t} at={i} />
+        ))}
+        {busy ? (
+          <li className="pv-turn" data-testid="pv-writing">
+            <p className="pv-said">{W.writing}</p>
+          </li>
+        ) : null}
+      </ol>
+      {!turns.length && vm.starters.length && !look ? (
         <div className="pv-starters" data-testid="pv-starters">
           {vm.starters.map((s) => (
             <Button key={s} size="sm" onClick={() => void say(s)} disabled={busy}>
@@ -300,8 +315,8 @@ export function PreviewPage({ vm, token, look = false }: { vm: PreviewPageVM; to
           {W.look}
         </p>
       ) : null}
-      <PvChat vm={vm} token={token} look={look} />
       {look ? null : <PvCall token={token} leftMs={vm.call_left_ms} />}
+      <PvChat vm={vm} token={token} look={look} />
       <PvKnows vm={vm} token={token} look={look} />
       {look ? null : <PvFoot token={token} />}
     </main>

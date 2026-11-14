@@ -10,10 +10,13 @@ import { PREVIEW_FACT_NAMES } from "./tried";
 export const LEAD_PREVIEW_WORDS = {
   /** The tab's title and the page's heading. */
   title: (business: string) => `${possessive(business.trim())} receptionist`,
+  /** The tab's title where the business has no name to give it. */
   chip: "Preview",
-  setUp: (business: string) => `Chanlytics set this up for ${business}.`,
+  /** Under their name: what this is and what to do. */
+  ready: "Your receptionist is ready. Call it or text it the way a customer would.",
+  madeFrom: "Set up by Chanlytics from your Google listing and website.",
 
-  textTitle: "Text it",
+  textTitle: "Or text it",
   /**
    * What it says first in the chat, as their business: shown, never stored or counted. Decision 0051's rule rides it:
    * a name is never said without "the automated assistant".
@@ -33,10 +36,10 @@ export const LEAD_PREVIEW_WORDS = {
   left: (n: number) => (n === 1 ? "1 message left" : `${n} messages left`),
   failed: "It couldn't answer just now. Try again in a moment.",
   spent: "That's all a preview answers. Make it yours to keep going.",
-  kept: "What you write here is kept for Chanlytics to follow up.",
+  kept: "Only you and Chanlytics can see this chat.",
 
-  callTitle: "Call it",
-  callSub: "Talk to it like a caller would, up to 3 minutes a call.",
+  callTitle: "Hear it answer",
+  callSub: "It picks up as your business. Your browser asks for the microphone first, so it can hear you.",
   callStart: "Call it",
   connecting: "Connecting…",
   live: "On the call",
@@ -56,7 +59,7 @@ export const LEAD_PREVIEW_WORDS = {
   },
 
   knowsTitle: "What it knows",
-  from: { google: "Google", site: "Your site" },
+  from: { google: "From Google", site: "From your site" },
   rows: PREVIEW_FACT_NAMES,
   notRight: "Not right",
   notRightLabel: "What's right? (optional)",

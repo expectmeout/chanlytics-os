@@ -166,7 +166,7 @@ test("the page's words say the business by its name", () => {
   assert.equal(W.title("Fixture Barbers"), "Fixture Barbers' receptionist");
   assert.equal(W.title("Luna"), "Luna's receptionist");
   assert.equal(W.building.title("Luna"), "Setting up Luna's receptionist");
-  assert.equal(W.setUp("Fixture Barbers"), "Chanlytics set this up for Fixture Barbers.");
+  assert.equal(W.madeFrom, "Set up by Chanlytics from your Google listing and website.");
   assert.equal(W.left(1), "1 message left");
   assert.equal(W.left(19), "19 messages left");
   assert.equal(W.taken.title("Fixture Barbers"), "Fixture Barbers is already set up.");
