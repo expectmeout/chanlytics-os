@@ -195,7 +195,8 @@ test("a later round whose terms have read all a term may asks the provider nothi
   const { w, p } = searching({ ...PLAN, terms: ["hair salon"], count: 10 }, 5, {});
   const first = w.round();
   Object.assign(first, { state: "ended", ending: "few_new_matches" });
-  for (let i = 0; i < 120; i++) {
+  // All a city's term may read: 600 (decision 0133).
+  for (let i = 0; i < 600; i++) {
     const id = randomUUID();
     w.T.leads.push({ id, tenant_id: TENANT, phone_e164: `+1512555${String(1000 + i)}`, email: null });
     w.T.lead_search_members.push({

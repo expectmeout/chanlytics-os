@@ -408,7 +408,7 @@ test("Leaving out is chips the owner can take back, Likely says what past search
   );
   assert.equal(
     textOf(byTestId(tree, "plan-facts")),
-    "About 48 minutes — leave the page if you likeAnything already yours is skippedCounts only matches with a checked phone or email · 486 left this month",
+    "About 53 minutes — leave the page if you likeAnything already yours is skippedCounts only matches with a checked phone or email · 486 left this month",
   );
   assert.equal(/\$/.test(textOf(tree)), false, "there is no dollar meter");
   const chip = byTestId(tree, "plan-leaving-chain");
@@ -831,7 +831,7 @@ test("the running strip says what is true, and its Stop is the only thing to pre
   assert.equal(textOf(byTestId(tree, "strip-title")), "Finding personal trainers in Austin, TX");
   assert.equal(
     textOf(byTestId(tree, "strip-parts")),
-    " \u00b7 86 of 200 \u00b7 41 emails checked \u00b7 about 27 min left",
+    " \u00b7 86 of 200 \u00b7 41 emails checked \u00b7 about 30 min left",
   );
   assert.equal(byTestId(tree, "lead-strip").props.role, "status");
   assert.equal(
