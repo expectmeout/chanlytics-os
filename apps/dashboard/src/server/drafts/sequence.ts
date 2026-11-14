@@ -26,6 +26,7 @@ import {
   NewDraftAnswerSchema,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
+  SEQUENCE_DRAFT_MAX_TOKENS,
   defaultSlotKinds,
   fenced,
   fencedInline,
@@ -331,7 +332,7 @@ export async function draftSequenceFrom(
         userId: personName.userId,
         purpose: "sequence_draft",
         request: {
-          max_tokens: 2400,
+          max_tokens: SEQUENCE_DRAFT_MAX_TOKENS,
           system: [draftRules(known.previews === true), ...(ask.stands ? [CHANGE_RULE] : [])].join("\n"),
           schema: NEW_DRAFT_JSON_SCHEMA,
           messages,

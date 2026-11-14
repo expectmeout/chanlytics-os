@@ -324,7 +324,10 @@ const ASKED = {
  * -- a one-off sent, or kept under Drafts. Every write is kept; any other address is a read that finds nothing.
  */
 const posted = [];
-/** What Ask answers a draft asked for: the one-off above, until a case says otherwise (none: Ask could not). */
+/**
+ * What Ask answers a draft asked for: the one-off above, until a case says otherwise (none: Ask could not; `refused`: the
+ * server's refusal, its code and its words).
+ */
 const asks = { draft: () => ASKED };
 globalThis.fetch = async (url, init) => {
   const at = new URL(String(url), "https://app.chanlytics.com").pathname;
@@ -338,6 +341,7 @@ globalThis.fetch = async (url, init) => {
           ? { made: "b-new", kind: "once", state: "on", scheduled_for: iso(10 * 60_000) }
           : { made: "s-kept", kind: "once", state: "draft" }
         : null;
+  if (data?.refused) return new Response(JSON.stringify({ ok: false, error: data.refused }), { status: 502 });
   return data
     ? new Response(JSON.stringify({ ok: true, data }), { status: 200 })
     : new Response(JSON.stringify({ ok: false, error: { code: "not_found", message: "Not here." } }), { status: 404 });
@@ -794,6 +798,24 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   tree = await landed(() => !!byTestId(redraw(page), "sq-nw-sentence"));
   assert.equal(changeBox().props.value, "", "REGRESSION: the next draft's line held the discarded draft's change");
   assert.ok(onTop().includes(ASKED.said) && onTop().includes(W.say.asked));
+});
+
+test("REGRESSION (the live run of 13 Nov 2026): a first draft Ask could not write says why in the server's words, never only to try again in a moment", async () => {
+  const ranLong = "The draft ran longer than Ask can write at once. Ask for less in one go.";
+  asks.draft = () => ({ refused: { code: "upstream_anthropic", message: ranLong } });
+  const tree = await openNew();
+  type(lineBox(tree), ASKED.said);
+  press(hostOf(redraw(page), "sq-nw-draft"));
+  const failed = await landed(() => !!byTestId(redraw(page), "sq-nw-failed"));
+  const card = textOf(byTestId(failed, "sq-nw-failed"));
+  assert.ok(card.includes(W.failed.title) && card.includes(ranLong), card);
+  assert.ok(!card.includes(W.failed.words), `REGRESSION: it said to try again in a moment: ${card}`);
+  assert.equal(lineBox(failed).props.value, ASKED.said, "the line is kept");
+  // Tried again and drafted, the card goes.
+  asks.draft = () => ASKED;
+  press(hostOf(failed, "sq-nw-retry"));
+  const drafted = await landed(() => !!byTestId(redraw(page), "sq-nw-sentence"));
+  assert.equal(byTestId(drafted, "sq-nw-failed"), null);
 });
 
 test("REGRESSION: a message its owner rewrote is no longer said to be Ask's, and what Ask said it left out of its own steps goes with the rewrite (the live run of 13 Nov 2026)", async () => {
