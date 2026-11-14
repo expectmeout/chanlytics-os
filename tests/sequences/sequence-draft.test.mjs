@@ -1059,6 +1059,21 @@ test("an email to leads is the same words for every business: the draft is told 
   assert.match(system, /how busy it is/);
 });
 
+test("REGRESSION (the live run of 13 Nov 2026): asked for more steps than a sequence holds, Ask is told to write only the steps that fit, none of them counting toward the rest", async () => {
+  answerWith(answer({ steps: [step({ message: "k1" })] }));
+  await draftSequenceFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
+  const system = String(calls[calls.length - 1].request.system);
+  // "Nine messages, one a week, each a different tip": Ask wrote past six, the draft kept six, and the sixth ended
+  // "Three more to go", a promise of tips that never come.
+  assert.match(system, /the first included, however many the owner asks for/);
+  assert.match(system, /write only the steps that fit/);
+  assert.match(
+    system,
+    /no message counts toward, numbers itself among, or promises a message past the last step you write/,
+  );
+  assert.match(system, /say in `cannot` that the rest are left out/);
+});
+
 test("the drafter is told what the business says about itself and how its owner writes, all as data, and the draft says the learned lines it wrote with (decision 0078)", async () => {
   answerWith(
     answer({ audience: "leads", who: "s1", steps: [step({ subject: "Hi", body: "{{opening}}\n\nWorth a look?" })] }),
