@@ -45,7 +45,7 @@ export async function cardMoved(
   p: AskProposal,
 ): Promise<CardMoved | typeof UNCHECKED | null> {
   if (p.kind === "run") {
-    const [decided] = await runsDecided(ctx, tenantId, [p]);
+    const [decided] = await findRunsDecided(ctx, tenantId, [p]);
     return decided ? { says: CARD_MOVED_WORDS.runDecided(decided.state), redraft: false } : null;
   }
   if (!ANSWERS_A_THREAD.has(p.kind)) return null;
@@ -80,7 +80,7 @@ export async function cardMoved(
  * and his yes to it failed). Each with the state its batch is in now, said in Sent's words; a batch gone is "Canceled". One
  * read for all of them; a read that fails names none, and the press's own door says what it finds.
  */
-export async function runsDecided(
+export async function findRunsDecided(
   ctx: RouteContext,
   tenantId: TenantId,
   cards: readonly AskProposal[],

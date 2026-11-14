@@ -327,11 +327,11 @@ export function planPressOf<P extends HeldCard>(
   const sendSteps = new Set(group.steps.filter((s) => !s.card.plan?.silent).map((s) => s.step));
   // A send not made before this press: what a later send that names it would build on is not there yet.
   const pendingSend = (n: number) => sendSteps.has(n) && !made[n];
-  const out = {
-    steps: [] as number[],
-    sends: [] as number[],
-    review: null as number | null,
-    undone: null as number | null,
+  const out: { steps: number[]; sends: number[]; review: number | null; undone: number | null } = {
+    steps: [],
+    sends: [],
+    review: null,
+    undone: null,
   };
   const said = () => ({ ...out, send: out.sends[0] ?? null });
   for (const s of group.steps) {

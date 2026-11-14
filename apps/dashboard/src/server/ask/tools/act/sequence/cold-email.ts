@@ -122,20 +122,9 @@ export async function proposeColdEmail(
       if (e instanceof AppError) return refuse(e.message);
       throw e;
     }
-    // Who it can write to now, as Leads counts it: none, and no card is made (decision 0132: a sequence of 35 med spas,
-    // none with an email, was pressed and failed). A count that could not be read is not said, and the card stands.
-    const reach = await getReach(toolContext.ctx, toolContext.tenantId, searchId).catch(
-      logAndGoOn("cold email reach", null),
-    );
-    if (reach) {
-      const can = input.include_unconfirmed ? reach.with_unconfirmed : reach.ready;
-      const kind = input.include_unconfirmed ? "an email" : "a checked email";
-      if (can === 0)
-        return refuse(
-          `none of the ${reach.of} leads in ${fedBy} has ${kind} a sequence can write to yet${reach.phone_only ? ` (${reach.phone_only} have only a phone)` : ""}: say so plainly, that nothing was made, and that a search made for email finds leads that have one`,
-        );
-      fedBy = `${fedBy}: ${can} of ${reach.of} with ${kind}`;
-    }
+    const reached = await reachWords(toolContext, searchId, fedBy, input.include_unconfirmed === true);
+    if ("refusal" in reached) return refuse(reached.refusal);
+    fedBy = reached.to;
   }
   const chain = {
     name: str(input.name, 80),
@@ -175,4 +164,28 @@ export async function proposeColdEmail(
     // A plan step's token stays the token, for the commit to fill with the list that step made.
     payload: { chain: { ...checked.data, search_id: searchId }, words_shown: true },
   });
+}
+
+/**
+ * Who the card can write to now, as Leads counts it (GET reach-outs/reach): its To with the count, or, where none of the
+ * search's leads has the email it needs, the refusal the model says (decision 0132: a sequence of 35 med spas, none with
+ * an email, was pressed and failed). A count that could not be read is not said, and the card stands as it was.
+ */
+async function reachWords(
+  toolContext: ToolContext,
+  searchId: string,
+  fedBy: string,
+  withUnconfirmed: boolean,
+): Promise<{ to: string } | { refusal: string }> {
+  const reach = await getReach(toolContext.ctx, toolContext.tenantId, searchId).catch(
+    logAndGoOn("cold email reach", null),
+  );
+  if (!reach) return { to: fedBy };
+  const can = withUnconfirmed ? reach.with_unconfirmed : reach.ready;
+  const kind = withUnconfirmed ? "an email" : "a checked email";
+  if (can > 0) return { to: `${fedBy}: ${can} of ${reach.of} with ${kind}` };
+  const phones = reach.phone_only ? ` (${reach.phone_only} have only a phone)` : "";
+  return {
+    refusal: `none of the ${reach.of} leads in ${fedBy} has ${kind} a sequence can write to yet${phones}: say so plainly, that nothing was made, and that a search made for email finds leads that have one`,
+  };
 }

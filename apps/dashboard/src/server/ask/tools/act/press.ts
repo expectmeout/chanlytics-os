@@ -30,8 +30,8 @@ const YES_FRESH_MS = 30 * MIN_MS;
 
 /** Whether the card was made long enough ago that a yes may not be about it: one with no time is never pressed by a yes. */
 const tooOldForAYes = (p: AskProposal, now: number): boolean => {
-  const made = typeof p.made_at === "string" ? Date.parse(p.made_at) : Number.NaN;
-  return !Number.isFinite(made) || now - made > YES_FRESH_MS;
+  const madeAtMs = typeof p.made_at === "string" ? Date.parse(p.made_at) : Number.NaN;
+  return !Number.isFinite(madeAtMs) || now - madeAtMs > YES_FRESH_MS;
 };
 
 const YES_SYSTEM =

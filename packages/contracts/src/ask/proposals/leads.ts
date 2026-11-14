@@ -44,13 +44,13 @@ export const leadSearchSpec: ProposalSpecAboveOperator = {
     const personName =
       plan.name && plan.area && plan.terms && plan.criteria ? planWho(plan as LeadSearchPlan) : plan.terms?.[0];
     // The count it started with, as the door answered it (the month's room at the press), else as the press sent it.
-    const d = rec(data);
-    const started = Number(d.count) || Number(rec(pressedSearchPlan({ kind, payload: pl })).count) || plan.count;
-    const asked = Number(d.asked);
+    const door = rec(data);
+    const started = Number(door.count) || Number(rec(pressedSearchPlan({ kind, payload: pl })).count) || plan.count;
+    const countAsked = Number(door.asked);
     // The month cut it short: how many more were asked, and the day they can follow.
     const rest =
-      started && asked > started && typeof d.renews_on === "string"
-        ? ` That is all your leads left this month; the other ${asked - started} can follow once they renew on ${d.renews_on}.`
+      started && countAsked > started && typeof door.renews_on === "string"
+        ? ` That is all your leads left this month; the other ${countAsked - started} can follow once they renew on ${door.renews_on}.`
         : "";
     return `Finding ${started ?? ""} ${personName ?? "businesses"}. It keeps going if you leave.${rest}`.replace(
       /\s+/g,

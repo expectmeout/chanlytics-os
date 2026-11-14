@@ -507,7 +507,7 @@ export function leadSearchEmptyWords(
  * The name each search is listed by: its own, and where two share one, its place after it ("med spas · Brooklyn, NY"):
  * Ruben's two searches were both "med spas" in one list (14 Nov 2026). A search with no place keeps its name.
  */
-export function leadSearchNamesOf(searches: readonly LeadSearchDto[]): Map<string, string> {
+function leadSearchNamesOf(searches: readonly LeadSearchDto[]): Map<string, string> {
   const seen = new Map<string, number>();
   for (const s of searches) seen.set(s.name, (seen.get(s.name) ?? 0) + 1);
   return new Map(
@@ -523,7 +523,7 @@ export function leadSearchNamesOf(searches: readonly LeadSearchDto[]): Map<strin
  * it ("Unique Clinique Aesthetics | Med Spa Brooklyn", Ruben's phone, 14 Nov 2026). The stored name is untouched, and a
  * name that is nothing but such a tail is said whole.
  */
-export function leadNameShown(name: string): string {
+function leadNameShown(name: string): string {
   const head = name.split(" | ")[0]?.trim() ?? "";
   return head.length >= 2 ? head : name;
 }

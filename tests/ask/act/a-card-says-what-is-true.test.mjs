@@ -17,7 +17,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runAct } = await import(at("apps/dashboard/src/server/ask/act/run.ts"));
-const { runsDecided } = await import(at("apps/dashboard/src/server/ask/act/recheck.ts"));
+const { findRunsDecided } = await import(at("apps/dashboard/src/server/ask/act/recheck.ts"));
 const { press_card } = await import(at("apps/dashboard/src/server/ask/tools/act/press.ts"));
 const { setModelStream } = await import(at("apps/dashboard/src/server/shared/model-json.ts"));
 
@@ -85,11 +85,11 @@ test("REGRESSION (the live run of 14 Nov 2026): a batch approved on Campaigns si
 
 test("a batch still waiting goes as before; one decided is named, one waiting is not, and a batch gone reads as canceled", async () => {
   const { ctx } = world(batchCard(), "pending_approval");
-  assert.deepEqual(await runsDecided(ctx, TENANT, [batchCard()]), []);
+  assert.deepEqual(await findRunsDecided(ctx, TENANT, [batchCard()]), []);
   const gone = world(batchCard(), null).ctx;
-  assert.deepEqual(await runsDecided(gone, TENANT, [batchCard()]), [{ id: "p-batch", state: "canceled" }]);
+  assert.deepEqual(await findRunsDecided(gone, TENANT, [batchCard()]), [{ id: "p-batch", state: "canceled" }]);
   const other = { ...batchCard(), id: "p-note", kind: "note", payload: {} };
-  assert.deepEqual(await runsDecided(gone, TENANT, [other]), [], "only a batch card is read");
+  assert.deepEqual(await findRunsDecided(gone, TENANT, [other]), [], "only a batch card is read");
 });
 
 /** A yes said in the thread to the card waiting there. */

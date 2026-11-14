@@ -177,17 +177,17 @@ export function nearestAreas(
     .filter((x) => x.d >= options.excludeWithinM && x.d <= max)
     .sort((a, b) => a.d - b.d || (a.zip < b.zip ? -1 : 1))
     .slice(0, Math.max(0, options.take))
-    .map((x) => {
+    .map((near) => {
       // Its own state, said where it is not the search's: "near 07310, NJ" beside a search in New York.
-      const own = stateOfZip(x.zip) ?? state;
+      const own = stateOfZip(near.zip) ?? state;
       return {
         kind: "zip" as const,
-        label: own && own !== state ? `near ${x.zip}, ${own}` : `near ${x.zip}`,
+        label: own && own !== state ? `near ${near.zip}, ${own}` : `near ${near.zip}`,
         state: own,
-        center: { lat: x.lat, lng: x.lng },
+        center: { lat: near.lat, lng: near.lng },
         radius_m: 8_000,
-        zip: x.zip,
-        query: own ? `${x.zip}, ${own}, USA` : `${x.zip}, USA`,
+        zip: near.zip,
+        query: own ? `${near.zip}, ${own}, USA` : `${near.zip}, USA`,
       };
     });
 }

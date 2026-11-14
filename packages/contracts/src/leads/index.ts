@@ -226,8 +226,6 @@ export {
   leadSourceWord,
   leadsRoute,
   leadsRouteUnchipped,
-  leadNameShown,
-  leadSearchNamesOf,
   leadsStanding,
   leadStatusGroupsOf,
   leadTileSrc,

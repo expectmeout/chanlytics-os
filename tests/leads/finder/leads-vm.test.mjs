@@ -1601,32 +1601,32 @@ test("REGRESSION (the live run of 14 Nov 2026): over one search, the count of ev
   assert.equal(leadsStanding(COUNTS, [SEARCH_DONE]).total, `${COUNTS.all} leads`, "over every search, as it was");
 });
 
-test("REGRESSION (the live run of 14 Nov 2026): a row says a business's name without the search words its listing strings after a bar", async () => {
-  const { leadNameShown } = await import("@chanlytics/contracts");
-  assert.equal(leadNameShown("Unique Clinique Aesthetics | Med Spa Brooklyn"), "Unique Clinique Aesthetics");
+test("REGRESSION (the live run of 14 Nov 2026): a row says a business's name without the search words its listing strings after a bar", () => {
+  const shown = (name) => toLeadRowVM(row({ business_name: name }), TZ, NOW).name;
+  assert.equal(shown("Unique Clinique Aesthetics | Med Spa Brooklyn"), "Unique Clinique Aesthetics");
   assert.equal(
-    leadNameShown("Next Level Aesthetics - Brooklyn Med Spa | Facials | Microneedling"),
+    shown("Next Level Aesthetics - Brooklyn Med Spa | Facials | Microneedling"),
     "Next Level Aesthetics - Brooklyn Med Spa",
   );
-  assert.equal(leadNameShown("SYLK MEDSPA"), "SYLK MEDSPA", "a name with no bar is as it is");
-  assert.equal(leadNameShown(" | Med Spa"), " | Med Spa", "a name that is only a tail is said whole");
+  assert.equal(shown("SYLK MEDSPA"), "SYLK MEDSPA", "a name with no bar is as it is");
+  assert.equal(shown(" | Med Spa"), " | Med Spa", "a name that is only a tail is said whole");
 });
 
-test("REGRESSION (the live run of 14 Nov 2026): two searches of one name are listed by their places, one of its own by its name", async () => {
-  const { leadSearchNamesOf } = await import("@chanlytics/contracts");
+test("REGRESSION (the live run of 14 Nov 2026): two searches of one name are listed by their places, one of its own by its name", () => {
   const at = (id, name, label) => ({
     ...SEARCH_DONE,
     id,
     name,
     plan: { ...SEARCH_DONE.plan, area: { ...SEARCH_DONE.plan.area, label } },
   });
-  const named = leadSearchNamesOf([
+  const searches = [
     at("s-bk", "med spas", "Brooklyn, NY"),
     at("s-ny", "med spas", "New York, NY"),
     at("s-pt", "Personal trainers", "Austin, TX"),
-  ]);
+  ];
+  const rail = leadRail(COUNTS, searches, NOW);
   assert.deepEqual(
-    [named.get("s-bk"), named.get("s-ny"), named.get("s-pt")],
+    ["s-bk", "s-ny", "s-pt"].map((id) => rail.searches.find((r) => r.id === id)?.name),
     ["med spas · Brooklyn, NY", "med spas · New York, NY", "Personal trainers"],
   );
 });
