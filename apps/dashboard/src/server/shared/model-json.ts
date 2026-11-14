@@ -148,7 +148,7 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, oth
           "upstream_anthropic",
           `The ${otherText} ran longer than Ask can write at once. Ask for less in one go.`,
         ),
-        new Error("cut off at the answer's ceiling (max_tokens)"),
+        causedBy(new Error("cut off at the answer's ceiling (max_tokens)"), unparsed),
       );
     throw causedBy(new AppError("upstream_anthropic", `The ${otherText} came back unreadable. Try again.`), unparsed);
   }
