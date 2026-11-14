@@ -14,6 +14,15 @@ export const LEAD_PREVIEW_WORDS = {
   setUp: (business: string) => `Chanlytics set this up for ${business}.`,
 
   textTitle: "Text it",
+  /**
+   * What it says first in the chat, as their business: shown, never stored or counted. Decision 0051's rule rides it:
+   * a name is never said without "the automated assistant".
+   */
+  textGreeting: (business: string, assistant: string | null) => {
+    const name = (assistant ?? "").replace(/\s+/g, " ").trim();
+    const iAm = name ? `I'm ${name}, the automated assistant` : "I'm the automated assistant";
+    return `Hi, this is ${business.trim()}. ${iAm}. What can I help you with?`;
+  },
   textLabel: "Write what a customer would ask",
   send: "Send",
   writing: "Writing…",

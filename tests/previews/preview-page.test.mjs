@@ -111,7 +111,7 @@ test("open, nothing said yet: the business by its name, three questions to start
   assert.ok(said.includes("Fixture Barbers' receptionist"));
   assert.ok(said.includes(W.chip));
   assert.ok(said.includes(W.setUp("Fixture Barbers")));
-  for (const s of ["Are you open on Sunday?", "Can I come in tomorrow at 2?", "How much is the fade?"])
+  for (const s of ["Can you tell me about the fade?", "Are you open on Sunday?", "Where are you located?"])
     assert.ok(said.includes(s), s);
   assert.ok(has(html, "pv-text") && has(html, "pv-send"));
   assert.ok(said.includes("20 messages left"));
