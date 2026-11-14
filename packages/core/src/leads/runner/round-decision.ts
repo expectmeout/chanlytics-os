@@ -5,12 +5,13 @@
  * the commit leaves nothing unwritten. `after` is only what is said once it is true (the question's mail).
  */
 
-import { discoveryEnding, FINAL_RUN_STATES, termsShortOf } from "../endings";
+import { discoveryEnding, FINAL_RUN_STATES, standingRuns, termsShortOf } from "../endings";
 import { runIdFor } from "../ids";
 import type { CollectPage, LeadMemberRow, LeadPorts, LeadRoundRow, LeadRunRow } from "../ports";
 import { afterProbe } from "../question";
 import { runsRoom } from "../sizing";
 import { nearbyFor } from "./places";
+import { LEAD_RUN_RETRY_SECONDS, retryOf } from "./retries";
 import { type Phase, outOfTime, targetOf, wasJudged } from "./rules";
 import { logAndGoOn } from "@chanlytics/log";
 
@@ -84,8 +85,18 @@ async function roundDecision(
       next: { kind: "lead_round_start", resume: true, run_after_seconds: 0 },
     };
   }
-  return phaseOver(leadPorts, round, runs, inPhase, members, counted);
+  // A term whose run failed partway is tried again before the round ends on the source (retries.ts), where the count is
+  // still short and the round has room for a run; every term failing at once is a fault, said to the platform now.
+  const retry = counted < targetOf(round) ? retryOf(inPhase, leadPorts.now().getTime()) : "none";
+  if (retry === "retry" && runsRoom(round.cost_reserved_usd - round.cost_usd - spentNow) > 0) return TRY_AGAIN;
+  return phaseOver(leadPorts, round, runs, inPhase, members, counted, retry === "down");
 }
+
+/** The main phase starts its failed terms again, twenty minutes on: the round runs on meanwhile, ending nothing. */
+const TRY_AGAIN: Decision = {
+  round: { state: "running", question: null, ending: null },
+  next: { kind: "lead_round_start", resume: true, run_after_seconds: LEAD_RUN_RETRY_SECONDS },
+};
 
 /**
  * The ladder's next rung for the search (decision 0133): measured from the area on its card and the places found there,
@@ -107,10 +118,13 @@ async function phaseOver(
   leadPorts: LeadPorts,
   round: LeadRoundRow,
   runs: LeadRunRow[],
-  inPhase: LeadRunRow[],
+  phaseRuns: LeadRunRow[],
   members: LeadMemberRow[],
   counted: number,
+  sourceDown = false,
 ): Promise<Decision> {
+  // A term tried again stands by its newest run: the tries that failed before it say nothing of the area.
+  const inPhase = standingRuns(phaseRuns);
   const byKey = new Map<string, number | null>();
   for (const r of inPhase) {
     if (outOfTime(leadPorts) || !r.apify_run_id) continue;
@@ -144,7 +158,17 @@ async function phaseOver(
       ...(nearby.length ? { nearby } : {}),
     },
     next: FIRST_CHECK,
+    ...(sourceDown ? { after: () => tellSourceDown(leadPorts, inPhase) } : {}),
   };
+}
+
+/** Every term's run failed within half a minute: the platform is paged now, in the provider's own names (retries.ts). */
+async function tellSourceDown(leadPorts: LeadPorts, runs: LeadRunRow[]): Promise<void> {
+  const run = runs[0];
+  if (!run) return;
+  await leadPorts
+    .tell?.({ kind: "source_down", actor: run.actor, build: run.build, runs: runs.length })
+    .catch(logAndGoOn("telling the platform a lead source fails every run"));
 }
 
 export { roundDecision };

@@ -93,7 +93,8 @@ const CHANNELS = { type: "array", items: { type: "string", enum: ["whatsapp", "s
  */
 const asPlacesThen = (schema) => {
   const out = structuredClone(schema);
-  for (const k of ["seniority", "industries", "keywords", "company_sizes"]) delete out.properties[k];
+  // What a field gained since: the people card's (00430), and how far a search looks (decision 0133).
+  for (const k of ["seniority", "industries", "keywords", "company_sizes", "reach_miles"]) delete out.properties[k];
   delete out.properties.criteria.items.properties.on_site;
   out.properties.looking_for.enum = out.properties.looking_for.enum.filter((v) => v !== "people_at_companies");
   out.required = [

@@ -7,7 +7,8 @@
 import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels/leads";
 import { peoplePlanOf } from "@chanlytics/contracts";
 import { CARDS, MAPS_RUN_TIMEOUT_SECS } from "../cards";
-import { runIdFor, hashSha256Hex } from "../ids";
+import { failedRun } from "../endings";
+import { retryRunIdFor, runIdFor, hashSha256Hex } from "../ids";
 import type { LeadMemberRow, LeadPorts, LeadRoundRow } from "../ports";
 import {
   finishedYield,
@@ -62,6 +63,7 @@ async function runsToStart(
   phase: Phase,
   ask: TermsAsk,
   caps: number[],
+  tries: ReadonlyMap<string, number>,
 ): Promise<{ wanted: WantedRun[]; untried: TermSaid[] }> {
   const wanted: WantedRun[] = [];
   const untried: TermSaid[] = [];
@@ -73,7 +75,11 @@ async function runsToStart(
       untried.push({ term, kind: "no_room" });
       continue;
     }
-    const id = await runIdFor(roundId, phase, term);
+    // A term whose main runs failed starts its next try under a row of its own (retries.ts); the first is the plain id.
+    const id =
+      phase === "main"
+        ? await retryRunIdFor(roundId, term, tries.get(term) ?? 0)
+        : await runIdFor(roundId, phase, term);
     wanted.push({ id, term, hash: await hashSha256Hex(await leadPorts.webhookToken(id)), places, cap });
   }
   for (const term of ask.waiting) untried.push({ term, kind: "no_room" });
@@ -118,23 +124,31 @@ async function runningYield(p: LeadPorts, round: LeadRoundRow): Promise<number> 
 /**
  * What a search has asked of its terms, for a start of its main phase: the provider answers a term from the top, so
  * what it read is what a new ask must go past. This round's probe says exactly, and the search's earlier rounds by the
- * places they kept of each term. A main run of this round is one this phase began.
+ * places they kept of each term. A main run of this round is one this phase began, unless it failed: a term whose main
+ * runs all failed is asked again, past the most any of its runs read, under its next try (retries.ts).
  */
-async function termsTried(leadPorts: LeadPorts, round: LeadRoundRow, own: LeadMemberRow[]): Promise<TermsTried> {
+async function termsTried(
+  leadPorts: LeadPorts,
+  round: LeadRoundRow,
+  own: LeadMemberRow[],
+): Promise<TermsTried & { tries: Map<string, number> }> {
   const read = new Map<string, number>();
   const begun = new Set<string>();
+  const tries = new Map<string, number>();
   for (const r of await leadPorts.db.runsOfRound(round.id)) {
     if (r.purpose !== "discover" || r.term === null) continue;
-    if ((await runIdFor(round.id, "probe", r.term)) === r.id) read.set(r.term, r.items_seen);
-    else begun.add(r.term);
+    const probe = (await runIdFor(round.id, "probe", r.term)) === r.id;
+    if (probe || failedRun(r)) read.set(r.term, Math.max(read.get(r.term) ?? 0, r.items_seen));
+    if (!probe && failedRun(r)) tries.set(r.term, (tries.get(r.term) ?? 0) + 1);
+    else if (!probe) begun.add(r.term);
   }
   // A leg reads an area of its own (decision 0133): what the search's terms read elsewhere says nothing of it, and
   // counting it asked a fresh ZIP for nothing past the 120 a term had read in the city.
-  if (round.purpose === "widen") return { read, begun };
+  if (round.purpose === "widen") return { read, begun, tries };
   const ours = new Set(own.map((m) => m.lead_id));
   for (const m of await leadPorts.db.membersOfSearch(round.search_id))
     if (!ours.has(m.lead_id) && m.term !== null) read.set(m.term, (read.get(m.term) ?? 0) + 1);
-  return { read, begun };
+  return { read, begun, tries };
 }
 
 export async function startRound(
@@ -170,6 +184,7 @@ export async function startRound(
   const room = runsRoom(leftUsd);
   let begun = false;
   let ask: TermsAsk;
+  let tries: ReadonlyMap<string, number> = new Map();
   if (phase === "probe") {
     ask = probeAsk(plan, room);
   } else {
@@ -186,9 +201,11 @@ export async function startRound(
     const dropTerm = round.answered === "keep" ? (round.question?.dropTerm ?? null) : null;
     const tried = await termsTried(leadPorts, round, members);
     begun = tried.begun.size > 0;
+    tries = tried.tries;
     ask = mainAsk(plan, targetOf(round) - counted, other, dropTerm, room, tried);
   }
-  const { wanted, untried } = await runsToStart(leadPorts, round.id, phase, ask, runCaps(plan, ask.perTerm, leftUsd));
+  const caps = runCaps(plan, ask.perTerm, leftUsd);
+  const { wanted, untried } = await runsToStart(leadPorts, round.id, phase, ask, caps, tries);
   if (!wanted.length) return nothingToStart(leadPorts, round.id, phase, untried, room, begun);
   const rows = await leadPorts.db.runsEnsure(
     wanted.map((item) => ({

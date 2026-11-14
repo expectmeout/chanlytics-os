@@ -48,6 +48,27 @@ export async function recordPageSourceRefused(
 }
 
 /**
+ * Every term's run of a round failed within half a minute of starting (decision 0133, core retries.ts): a key, a limit or
+ * a build that fails once the run begins, which no wait mends, so no try is spent on it and the platform is paged at
+ * once, one page per actor per pager window. A run that fails partway is tried again first, and pages nothing.
+ */
+export async function recordPageSourceDown(
+  db: Db,
+  input: { actor: string; build: string; runs: number },
+  pager: Omit<PagePorts, "db"> = {},
+): Promise<void> {
+  await pageOperator(
+    { db, ...pager },
+    `lead_source_down:${input.actor}`,
+    `A lead source fails every run at once: ${input.actor}`,
+    `${input.actor} at build ${input.build} failed all ${input.runs} of a round's runs within half a minute of starting ` +
+      `them.\n\nThe round ended on the source and was not tried again: a failure this quick is a key, a limit or a ` +
+      `build, not a bad minute. Read a failed run's log in the provider's console; a build it has moved past: probe its ` +
+      `latest build with the card's own input (a few places), then pin its number and id in ${CARDS_FILE}.\n`,
+  );
+}
+
+/**
  * A page of places with websites came back with none of them read for contacts: paged once per actor per pager window.
  * 14 Nov 2026: from 13 Nov the Maps actor's pinned build had its contacts service refused ("User was not found or
  * authentication token is not valid"), read no site, and crashed on longer runs; nothing said so for a day.

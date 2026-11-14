@@ -418,6 +418,7 @@ export interface LeadPorts {
     e:
       | { kind: "question"; roundId: string }
       | { kind: "source_refused"; actor: string; build: string; why: string }
+      | { kind: "source_down"; actor: string; build: string; runs: number }
       | { kind: "contacts_unread"; actor: string; build: string; sites: number },
   ): Promise<void>;
   /** Epoch ms: no provider or model call is started after this. */
