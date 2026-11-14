@@ -246,9 +246,9 @@ being read is dropped by a migration.
 | `lead_company_upsert` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | The people card's page of companies (00430), the service role's, before lead_collect_commit moves the run: |
 | `lead_convert_by` | the server's | its owner | SQL `lead_set_stage`, `leads_convert_on_deal` and 4 more | A lead's conversion, written once for every door that converts (Reach out Part 5, G19; |
 | `lead_counter_take` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 8 more | The counter row for a period, made if missing and locked for update. |
-| `lead_day` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 8 more | The workspace's calendar day of an instant, YYYY-MM-DD, in its zone; |
+| `lead_day` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 9 more | The workspace's calendar day of an instant, YYYY-MM-DD, in its zone; |
 | `lead_erase` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | Owner. Erases one lead for good: |
-| `lead_estimate_ceiling` | the server's | the server | SQL `lead_people_search_create`, `lead_search_create` and 2 more | The most a finder door takes as its estimate (00364, 00430, 00474, 00541). |
+| `lead_estimate_ceiling` | the server's | the server | SQL `lead_people_search_create`, `lead_round_end` and 3 more | The most a finder door takes as its estimate (00364, 00430, 00474, 00541). |
 | `lead_export_mark` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | Owner (permission export). |
 | `lead_in_list` | reader | a signed-in person, the server | SQL `lead_list_counts`, `lead_view_rows` | The rail's lists as one rule (§6.1): |
 | `lead_is_set_aside` | reader | a signed-in person, the server | trigger `leads_note_set_aside on leads` | A lead is set aside when it is archived and closed stale: |
@@ -260,7 +260,7 @@ being read is dropped by a migration.
 | `lead_member_of` | reader | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | The membership of one lead the Leads page would show (lead_member_shown, not blanked): |
 | `lead_member_put_back` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/search-acts.ts` | Owner (permission find). |
 | `lead_member_shown` | reader | a signed-in person, the server | SQL `lead_member_of`, `lead_pile_counts` and 1 more; in `CREATE VIEW public.lead_searches_view` | Whether the Leads page shows a membership of this class: |
-| `lead_month` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 10 more | The workspace's calendar month of an instant, YYYY-MM, in tenants.timezone: |
+| `lead_month` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 11 more | The workspace's calendar month of an instant, YYYY-MM, in tenants.timezone: |
 | `lead_month_used` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | What this workspace has used and reserved of the month's two ceilings, as {allowance: |
 | `lead_name_key` | the server's | the server | SQL `reach_out_record` |  |
 | `lead_niche_prior` | door | a signed-in person, the server | code `apps/dashboard/src/server/leads/plan-facts.ts`, `packages/db/src/repositories/leads/workbench.ts` | The platform-wide prior for a kind of business ({places, matched, with_email}), or null when the kind was never searched. |
@@ -273,10 +273,10 @@ being read is dropped by a migration.
 | `lead_previews_take_their_workspace` | trigger | the server | trigger `lead_previews_take_their_workspace on lead_previews` |  |
 | `lead_release` | the server's | the server | SQL `lead_round_end` | Gives back what a round reserved and did not use, to the four rows it took from -- the round's own month, day and platform_day -- in the same lock order as lead_reserve. |
 | `lead_renews_on` | the server's | the server | SQL `lead_member_move`, `lead_reserve` and 2 more | The first day of the workspace's next calendar month, as the sentence says it: |
-| `lead_reserve` | the server's | the server | SQL `lead_people_search_create`, `lead_search_create` and 2 more | Reserves p_leads from the workspace's allowance (lead_allowance: |
+| `lead_reserve` | the server's | the server | SQL `lead_people_search_create`, `lead_round_end` and 3 more | Reserves p_leads from the workspace's allowance (lead_allowance: |
 | `lead_round_adds_to_its_kind` | trigger | the server | trigger `lead_round_adds_to_its_kind on lead_rounds` | A round that ends adds what it judged to its kind's platform-wide counts (lead_niche_priors), by its plan's category_key (00398). |
 | `lead_round_answer` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/search-acts.ts` | Owner answers the question after 25 on a round waiting on them. |
-| `lead_round_end` | the server's | the server | code `apps/edge/lib/leads/db.ts`, `packages/db/src/repositories/leads/sweep.ts`; SQL `lead_check_commit`, `lead_collect_commit` and 4 more | Ends a round with one of the nine endings: |
+| `lead_round_end` | the server's | the server | code `apps/edge/lib/leads/db.ts`, `packages/db/src/repositories/leads/sweep.ts`; SQL `lead_check_commit`, `lead_collect_commit` and 4 more | Ends a round with one of the endings: |
 | `lead_round_end_stuck` | the server's | the server | code `packages/db/src/repositories/leads/sweep.ts` | The lead sweep's ending of a round nothing can carry on (00506, core nextStepOf): |
 | `lead_round_rejudge` | the server's | the server | code `apps/edge/lib/leads/db.ts` | The runner's. Commits the verdicts of an answer that changed the plan over the places the round's probe already judged: |
 | `lead_round_stop` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/search-acts.ts` | Operator. For every live round of the search: |
@@ -297,12 +297,12 @@ being read is dropped by a migration.
 | `lead_search_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | Owner. Removes a search: |
 | `lead_search_rename` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | Operator. Renames a search; |
 | `lead_search_undo` | door | a signed-in person, the server | code `apps/dashboard/src/surfaces/leads/surface.ts`, `packages/db/src/repositories/leads/workbench.ts` | Owner (permission find). |
-| `lead_searches_on` | the server's | the server | code `apps/dashboard/src/server/leads/plan-facts.ts`, `apps/edge/lib/leads/db.ts`; SQL `lead_addressee_choose`, `lead_check_again` and 5 more | Whether this workspace may search: |
+| `lead_searches_on` | the server's | the server | code `apps/dashboard/src/server/leads/plan-facts.ts`, `apps/edge/lib/leads/db.ts`; SQL `lead_addressee_choose`, `lead_check_again` and 6 more | Whether this workspace may search: |
 | `lead_set_stage` | door | a signed-in person, the server | code `packages/contracts/src/people/person-page/call.ts`, `packages/db/src/repositories/leads/workbench.ts`; SQL `person_call_logged`, `reach_out_send_decide` | Operator. The one door for a lead's stage, its six call outcomes, "Did you send it?" and Not a fit. |
 | `lead_settle_usage` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 2 more | A run's new usage, settled against the month's budget and both day counters -- the round's own day and the platform_day it reserved in: |
 | `lead_site_key` | the server's | the server | SQL `lead_company_upsert`, `reach_out_record` |  |
 | `lead_site_reads_spent` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | What reading businesses' own sites cost, spent when read (00541): |
-| `lead_spend_refusal` | the server's | the server | SQL `lead_addressee_choose`, `lead_check_again` and 5 more | Null when the workspace may spend (billing_may_spend), else {error: |
+| `lead_spend_refusal` | the server's | the server | SQL `lead_addressee_choose`, `lead_check_again` and 6 more | Null when the workspace may spend (billing_may_spend), else {error: |
 | `lead_spend_room` | the server's | the server | SQL `lead_check_again`, `lead_check_ask` | Whether this month's budget, the workspace's day and the platform's day each have room for p_usd (00506), in lead_reserve's lock order and with its caps (lead_cap), reserving nothing: |
 | `lead_status_groups` | reader | a signed-in person, the server | SQL `lead_view_rows` | Where each lead stands in the queue Leads works from (00552, 00554): |
 | `lead_suggest_history` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | What a workspace's finder searches of the last 180 days asked for and found, and what came of the leads each kept (contacted and when last, interested, booked, customers, said no, not a fit and why, r |

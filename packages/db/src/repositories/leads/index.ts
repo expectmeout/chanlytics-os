@@ -15,6 +15,7 @@ export {
   listLeadsSharing,
   listPeopleSharing,
   listPlacesSuppressed,
+  listRoundsOfSearch,
   listRunsOfRound,
   listSearchMembers,
 } from "./finder";

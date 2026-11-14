@@ -20,7 +20,7 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   files: "b1e4b198dc35097f",
   google: "9d24a2f4070976f8",
   inbox: "cdcf85cfbe3f1b03",
-  leads: "ac5f0e1b0bf879b4",
+  leads: "1c809e0c0e12baae",
   live: "2c7abb05e8a08f8b",
   partner: "03a3b5059117a7f1",
   people: "d9b0d950f68d1c2e",

@@ -11535,13 +11535,26 @@ CREATE FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) RETURNS bo
     SET search_path TO 'public'
     AS $$
 declare
-  r       public.lead_rounds;
-  v_judge numeric := 0;
-  v_out   numeric;
-  v_take  numeric;
+  r        public.lead_rounds;
+  s        public.lead_searches;
+  v_judge  numeric := 0;
+  v_out    numeric;
+  v_take   numeric;
+  v_ending text := p_ending;
+  v_area   jsonb;
+  v_left   integer;
+  v_legs   integer;
+  v_last   integer;
+  v_two    boolean;
+  v_month  text;
+  v_day    text;
+  v_pday   text;
+  v_usd    numeric;
+  v_err    jsonb;
+  v_next   uuid;
 begin
-  if p_ending not in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused') then
-    raise exception 'not one of the nine endings: %', p_ending using errcode = '22023';
+  if p_ending not in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused', 'no_more_within_reach', 'day_used') then
+    raise exception 'not one of the endings: %', p_ending using errcode = '22023';
   end if;
   select * into r from public.lead_rounds where id = p_round_id for update;
   if not found or r.state = 'ended' then
@@ -11555,14 +11568,60 @@ begin
    where u.purpose = 'lead_judge' and u.subject_id = p_round_id and u.tenant_id = r.tenant_id;
   v_out  := greatest(r.cost_reserved_usd - r.cost_usd, 0);
   v_take := least(v_judge, v_out);
-  update public.lead_rounds
-     set state = 'ended', ending = p_ending, ended_at = now(), waiting_since = null, judge_usd = v_judge
-   where id = p_round_id;
+  -- What the round spent is settled, and what it kept back given back, before anything is reserved: a leg opened below
+  -- reserves from the counters as they stand once this round is done with them (decision 0133).
   if v_judge > 0 then
     perform public.lead_settle_usage(r.tenant_id, r.month, r.day, r.platform_day, v_judge, v_take);
   end if;
   perform public.lead_release(r.tenant_id, r.month, r.day, r.platform_day,
     greatest(r.allowance_reserved - r.allowance_used, 0), v_out - v_take);
+  -- A count is delivered (decision 0133): a search short of its count when a round runs dry opens its next leg here, on
+  -- the first area its round named (nearby, the distance ladder's next rung inside the reach on its card), where the
+  -- platform widens for this workspace. Not for a list, a people search, a removed search or a round with a later one.
+  -- It stops on nothing more within reach: no rung left, eight legs, or the last two legs adding fewer than three leads
+  -- between them. A month with fewer leads left than the count still wants gives the leg what is left; the day's or the
+  -- month's searching used ends the search in its own words.
+  if p_ending in ('few_new_matches', 'searched_everything')
+     and exists (select 1 from public.lead_platform p where p.id and (p.widen_on or r.tenant_id = any (p.widen_tenants))) then
+    select * into s from public.lead_searches where id = r.search_id;
+    if s.removed_at is null and s.via in ('ask', 'people') and coalesce(s.plan->>'card', '') = 'local_businesses'
+       and not exists (select 1 from public.lead_rounds x where x.search_id = r.search_id and x.seq > r.seq) then
+      select (s.plan->>'count')::integer - count(*)::integer into v_left
+        from public.lead_search_members m where m.search_id = r.search_id and m.counted;
+      select count(*)::integer into v_legs from public.lead_rounds x where x.search_id = r.search_id and x.purpose = 'widen';
+      select count(*) = 2 and bool_and(x.purpose = 'widen'), coalesce(sum(x.allowance_used), 0)::integer into v_two, v_last
+        from (select y.purpose, y.allowance_used from public.lead_rounds y
+               where y.search_id = r.search_id order by y.seq desc limit 2) x;
+      v_area := r.nearby->0;
+      if v_left > 0 and (v_area is null or v_legs >= 8 or (v_two and v_last < 3)) then
+        v_ending := 'no_more_within_reach';
+      elsif v_left > 0 and public.lead_searches_on(r.tenant_id) and public.lead_spend_refusal(r.tenant_id) is null then
+        v_month := public.lead_month(r.tenant_id, now());
+        v_day   := public.lead_day(r.tenant_id, now());
+        v_pday  := to_char(now() at time zone 'UTC', 'YYYY-MM-DD');
+        v_usd   := public.lead_estimate_ceiling('search', v_left, jsonb_array_length(s.plan->'terms'));
+        v_err   := public.lead_reserve(r.tenant_id, v_month, v_day, v_pday, v_left, v_usd);
+        if v_err->>'error' = 'month_leads_used' and coalesce((v_err->>'left')::integer, 0) > 0 then
+          v_left := (v_err->>'left')::integer;
+          v_usd  := public.lead_estimate_ceiling('search', v_left, jsonb_array_length(s.plan->'terms'));
+          v_err  := public.lead_reserve(r.tenant_id, v_month, v_day, v_pday, v_left, v_usd);
+        end if;
+        if v_err is null then
+          v_next := gen_random_uuid();
+        else
+          v_ending := case v_err->>'error'
+                        when 'month_leads_used' then 'month_leads_used'
+                        when 'budget_used' then 'budget_used'
+                        when 'day_cap' then 'day_used'
+                        else p_ending end;
+        end if;
+      end if;
+    end if;
+  end if;
+  update public.lead_rounds
+     set state = 'ended', ending = v_ending, ended_at = now(), waiting_since = null, judge_usd = v_judge,
+         carries_on = v_next is not null
+   where id = p_round_id;
   -- No address of the round is left waiting for a check that will never come (00506): one still 'checking' when its
   -- round ends (a question unanswered, a stop, a round the sweep had to end) did not answer, so Check again can take
   -- it. One another live round of its is still checking is left to that round.
@@ -11575,8 +11634,21 @@ begin
                       where o.lead_id = l.id and x.id <> p_round_id and x.state <> 'ended');
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (r.tenant_id, 'lead.round', 'lead', 'lead_round', p_round_id,
-          jsonb_build_object('search_id', r.search_id, 'seq', r.seq, 'state', 'ended', 'ending', p_ending,
-                             'counted', r.allowance_used, 'cost_usd', r.cost_usd, 'judge_usd', v_judge));
+          jsonb_build_object('search_id', r.search_id, 'seq', r.seq, 'state', 'ended', 'ending', v_ending,
+                             'counted', r.allowance_used, 'cost_usd', r.cost_usd, 'judge_usd', v_judge,
+                             'carries_on', v_next is not null));
+  -- The next leg: the search's own plan on the rung's first area, for what its count still wants, started as any round.
+  if v_next is not null then
+    insert into public.lead_rounds (id, tenant_id, search_id, seq, purpose, plan, plan_version, target, state, allowance_reserved, cost_reserved_usd, month, day, platform_day)
+    values (v_next, r.tenant_id, r.search_id, r.seq + 1, 'widen', jsonb_set(s.plan, '{area}', v_area), (s.plan->>'version')::integer,
+            v_left, 'queued', v_left, v_usd, v_month, v_day, v_pday);
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (r.tenant_id, 'lead_round_start', now(), jsonb_build_object('round_id', v_next));
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (r.tenant_id, 'lead.round', 'lead', 'lead_round', v_next,
+            jsonb_build_object('search_id', r.search_id, 'seq', r.seq + 1, 'state', 'queued', 'purpose', 'widen',
+                               'target', v_left, 'area', v_area->>'label'));
+  end if;
   return true;
 end $$;
 
@@ -11585,7 +11657,7 @@ end $$;
 -- Name: FUNCTION lead_round_end(p_round_id uuid, p_ending text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) IS 'Ends a round with one of the nine endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. True once; false when already ended.';
+COMMENT ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) IS 'Ends a round with one of the endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. Where the platform widens for the workspace (decision 0133, 00627), a search short of its count whose round ran dry opens its next leg here (purpose widen, on the first area of nearby), or ends on no_more_within_reach, day_used, month_leads_used or budget_used. True once; false when already ended.';
 
 
 --
@@ -11860,8 +11932,10 @@ begin
     end if;
     -- Carry on, Try again, a top-up and Find new ones make a NEW round from an
     -- ended one, and only a signed-in person may: the edge and the sweep hold
-    -- the service key, and they never revive a search (§12.3).
-    if NEW.seq > 1 and auth.uid() is null then
+    -- the service key, and they never revive a search (§12.3). The one round
+    -- made without a person is a search's next leg (decision 0133), which only
+    -- lead_round_end opens, in the transaction that ends the round before it.
+    if NEW.seq > 1 and auth.uid() is null and NEW.purpose is distinct from 'widen' then
       raise exception 'only a signed-in person may start a round after an ended one';
     end if;
     return NEW;
@@ -11913,6 +11987,7 @@ declare
   v_via  text;
   v_n    integer;
   v_seen boolean;
+  v_wide boolean;
   v_id   uuid;
 begin
   -- A round that leaves waiting_on_owner has settled its question for good (a round waits on its owner once): its row
@@ -11931,9 +12006,13 @@ begin
      where not exists (select 1 from public.notifications n
                         where n.tenant_id = NEW.tenant_id and n.kind = 'leads_question' and n.subject_id = NEW.id::text)
     returning id into v_id;
-  elsif NEW.state = 'ended' and coalesce(OLD.state, '') <> 'ended' and coalesce(NEW.ending, '') <> 'stopped' then
+  elsif NEW.state = 'ended' and coalesce(OLD.state, '') <> 'ended' and coalesce(NEW.ending, '') <> 'stopped'
+        and not NEW.carries_on then
+    -- A round that opened the search's next leg says nothing yet; the leg that ends the search says what all of them
+    -- found (decision 0133).
+    select exists (select 1 from public.lead_rounds x where x.search_id = NEW.search_id and x.purpose = 'widen') into v_wide;
     select count(*)::integer into v_n from public.lead_search_members m
-     where m.round_id = NEW.id and m.class = 'qualified' and m.blanked_at is null;
+     where (m.round_id = NEW.id or (v_wide and m.search_id = NEW.search_id)) and m.class = 'qualified' and m.blanked_at is null;
     -- Whether the source returned anything at all, in any class: the strip's "seen" (00491).
     select exists (select 1 from public.lead_search_members m where m.round_id = NEW.id) into v_seen;
     insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id)
@@ -11947,6 +12026,8 @@ begin
                   left('Your search for ' || v_name || ' ended: it waited a day for your answer', 200)
                 when NEW.ending = 'source_failed' then
                   left('Your search for ' || v_name || ' stopped: the source stopped answering', 200)
+                when NEW.ending = 'day_used' then
+                  left('Your search for ' || v_name || ' stopped: today''s searching is used up', 200)
                 else left('Your search for ' || v_name || ' is done', 200) end,
            case when v_via <> 'import' then case when v_n > 0 then v_n || ' found.' else 'Nothing new was counted.' end
                 when NEW.ending not in ('target_reached', 'searched_everything') then 'Its addresses wait in Needs review.'
@@ -39015,6 +39096,8 @@ CREATE TABLE public.lead_platform (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     cards_on text[] DEFAULT ARRAY['local_businesses'::text] NOT NULL,
     prices jsonb DEFAULT '{}'::jsonb NOT NULL,
+    widen_on boolean DEFAULT false NOT NULL,
+    widen_tenants uuid[] DEFAULT '{}'::uuid[] NOT NULL,
     CONSTRAINT lead_platform_id_check CHECK (id),
     CONSTRAINT lead_platform_note_check CHECK ((char_length(note) <= 200))
 );
@@ -39039,6 +39122,20 @@ COMMENT ON COLUMN public.lead_platform.cards_on IS 'The cards that find leads no
 --
 
 COMMENT ON COLUMN public.lead_platform.prices IS 'Each lead source''s event prices by actor and event, as the price watch last read them (00506): the baseline the next daily read is compared with, a rise past a tenth or a new charge paged to the platform, since the cards'' prices (contracts LEAD_CARDS) and the SQL ceiling are written by hand.';
+
+
+--
+-- Name: COLUMN lead_platform.widen_on; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_platform.widen_on IS 'Whether every workspace''s search widens until its count (decision 0133, 00627): a round that runs dry opens the next leg on the nearest area left within the reach on its card. Off by default.';
+
+
+--
+-- Name: COLUMN lead_platform.widen_tenants; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_platform.widen_tenants IS 'The workspaces a search widens for while widen_on is off (decision 0133): the first real run, one workspace at a time. Switched by hand.';
 
 
 --
@@ -39154,6 +39251,7 @@ CREATE TABLE public.lead_rounds (
     state_since timestamp with time zone DEFAULT now() NOT NULL,
     judge_usd numeric(10,4) DEFAULT 0 NOT NULL,
     site_reads integer DEFAULT 0 NOT NULL,
+    carries_on boolean DEFAULT false NOT NULL,
     CONSTRAINT lead_rounds_allowance_reserved_check CHECK ((allowance_reserved >= 0)),
     CONSTRAINT lead_rounds_allowance_used_check CHECK ((allowance_used >= 0)),
     CONSTRAINT lead_rounds_answered_check CHECK ((answered = ANY (ARRAY['keep'::text, 'include'::text, 'stop'::text]))),
@@ -39161,12 +39259,12 @@ CREATE TABLE public.lead_rounds (
     CONSTRAINT lead_rounds_cost_reserved_usd_check CHECK ((cost_reserved_usd >= (0)::numeric)),
     CONSTRAINT lead_rounds_cost_usd_check CHECK ((cost_usd >= (0)::numeric)),
     CONSTRAINT lead_rounds_day_check CHECK ((day ~ '^\d{4}-\d{2}-\d{2}$'::text)),
-    CONSTRAINT lead_rounds_ending_check CHECK ((ending = ANY (ARRAY['target_reached'::text, 'searched_everything'::text, 'month_leads_used'::text, 'budget_used'::text, 'few_new_matches'::text, 'stopped'::text, 'source_failed'::text, 'question_unanswered'::text, 'paused'::text]))),
-    CONSTRAINT lead_rounds_ending_pending_check CHECK ((ending_pending = ANY (ARRAY['target_reached'::text, 'searched_everything'::text, 'month_leads_used'::text, 'budget_used'::text, 'few_new_matches'::text, 'stopped'::text, 'source_failed'::text, 'question_unanswered'::text, 'paused'::text]))),
+    CONSTRAINT lead_rounds_ending_check CHECK ((ending = ANY (ARRAY['target_reached'::text, 'searched_everything'::text, 'month_leads_used'::text, 'budget_used'::text, 'few_new_matches'::text, 'stopped'::text, 'source_failed'::text, 'question_unanswered'::text, 'paused'::text, 'no_more_within_reach'::text, 'day_used'::text]))),
+    CONSTRAINT lead_rounds_ending_pending_check CHECK ((ending_pending = ANY (ARRAY['target_reached'::text, 'searched_everything'::text, 'month_leads_used'::text, 'budget_used'::text, 'few_new_matches'::text, 'stopped'::text, 'source_failed'::text, 'question_unanswered'::text, 'paused'::text, 'no_more_within_reach'::text, 'day_used'::text]))),
     CONSTRAINT lead_rounds_month_check CHECK ((month ~ '^\d{4}-\d{2}$'::text)),
     CONSTRAINT lead_rounds_plan_version_check CHECK ((plan_version >= 1)),
     CONSTRAINT lead_rounds_platform_day_check CHECK ((platform_day ~ '^\d{4}-\d{2}-\d{2}$'::text)),
-    CONSTRAINT lead_rounds_purpose_check CHECK ((purpose = ANY (ARRAY['probe'::text, 'main'::text, 'topup'::text, 'renew'::text]))),
+    CONSTRAINT lead_rounds_purpose_check CHECK ((purpose = ANY (ARRAY['probe'::text, 'main'::text, 'topup'::text, 'renew'::text, 'widen'::text]))),
     CONSTRAINT lead_rounds_seq_check CHECK ((seq >= 1)),
     CONSTRAINT lead_rounds_state_check CHECK ((state = ANY (ARRAY['queued'::text, 'probing'::text, 'waiting_on_owner'::text, 'running'::text, 'checking'::text, 'ended'::text]))),
     CONSTRAINT lead_rounds_target_check CHECK ((target >= 0))
@@ -39220,6 +39318,13 @@ COMMENT ON COLUMN public.lead_rounds.judge_usd IS 'What judging the round cost (
 --
 
 COMMENT ON COLUMN public.lead_rounds.site_reads IS 'The businesses'' own sites this round read (00541), each one credit with the page''s reader: for the judge, where its plan asks what only a website shows, and for a mark. Its cost is in cost_usd.';
+
+
+--
+-- Name: COLUMN lead_rounds.carries_on; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_rounds.carries_on IS 'The round opened the search''s next leg when it ended (decision 0133): its end rings nothing, the leg''s does.';
 
 
 --

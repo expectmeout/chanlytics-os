@@ -9,7 +9,16 @@ import { peoplePlanOf } from "@chanlytics/contracts";
 import { CARDS, MAPS_RUN_TIMEOUT_SECS } from "../cards";
 import { runIdFor, hashSha256Hex } from "../ids";
 import type { LeadMemberRow, LeadPorts, LeadRoundRow } from "../ports";
-import { mainAsk, probeAsk, probeYield, runCaps, runsRoom, type TermsAsk, type TermsTried } from "../sizing";
+import {
+  finishedYield,
+  mainAsk,
+  probeAsk,
+  probeYield,
+  runCaps,
+  runsRoom,
+  type TermsAsk,
+  type TermsTried,
+} from "../sizing";
 import { claimOrRecover, startFailed } from "./claim";
 import { startPeople } from "./people";
 import { rejudgeProbe } from "./rejudge";
@@ -100,7 +109,10 @@ export const UNMEASURED_YIELD = 0.5;
  */
 async function runningYield(p: LeadPorts, round: LeadRoundRow): Promise<number> {
   const judged = (await p.db.membersOfSearch(round.search_id)).filter(wasWeighed);
-  return judged.length ? probeYield(judged) : UNMEASURED_YIELD;
+  if (!judged.length) return UNMEASURED_YIELD;
+  // A leg (decision 0133) sizes from what counted, every earlier round ended and checked: a candidate email is no lead
+  // until its check, so the share with a way to reach them asked a leg for too few places.
+  return round.purpose === "widen" ? finishedYield(judged) : probeYield(judged);
 }
 
 /**
@@ -116,6 +128,9 @@ async function termsTried(leadPorts: LeadPorts, round: LeadRoundRow, own: LeadMe
     if ((await runIdFor(round.id, "probe", r.term)) === r.id) read.set(r.term, r.items_seen);
     else begun.add(r.term);
   }
+  // A leg reads an area of its own (decision 0133): what the search's terms read elsewhere says nothing of it, and
+  // counting it asked a fresh ZIP for nothing past the 120 a term had read in the city.
+  if (round.purpose === "widen") return { read, begun };
   const ours = new Set(own.map((m) => m.lead_id));
   for (const m of await leadPorts.db.membersOfSearch(round.search_id))
     if (!ours.has(m.lead_id) && m.term !== null) read.set(m.term, (read.get(m.term) ?? 0) + 1);

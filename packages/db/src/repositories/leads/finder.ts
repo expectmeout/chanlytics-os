@@ -31,6 +31,10 @@ export const findLeadRun = async (db: Db, runId: string) =>
 export const findLeadRound = async (db: Db, roundId: string) =>
   db.from("lead_rounds").select("*").eq("id", roundId).maybeSingle();
 
+/** A search's rounds in order, each with its plan (decision 0133: where its legs read). */
+export const listRoundsOfSearch = async (db: Db, searchId: string) =>
+  db.from("lead_rounds").select("id, seq, purpose, plan").eq("search_id", searchId).order("seq", { ascending: true });
+
 /** The members of a round, or of a search, whole. */
 export const listSearchMembers = async (db: Db, by: "round_id" | "search_id", id: string) =>
   db.from("lead_search_members").select("*").eq(by, id);

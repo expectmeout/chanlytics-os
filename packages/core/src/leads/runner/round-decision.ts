@@ -87,6 +87,21 @@ async function roundDecision(
   return phaseOver(leadPorts, round, runs, inPhase, members, counted);
 }
 
+/**
+ * The ladder's next rung for the search (decision 0133): measured from the area on its card and the places found there,
+ * past the area of every leg it opened, this one's too. A leg's own plan names its leg's area, so the card's is the
+ * newest round that is no leg.
+ */
+async function nearbyOfSearch(leadPorts: LeadPorts, round: LeadRoundRow, members: LeadMemberRow[]) {
+  const rounds = await leadPorts.db.roundsOfSearch(round.search_id);
+  const card = rounds.filter((r) => r.purpose !== "widen").at(-1) ?? round;
+  const legs = rounds.filter((r) => r.purpose === "widen").map((r) => r.plan.area);
+  if (round.purpose !== "widen") return nearbyFor(card.plan, members, legs);
+  const cardRounds = new Set(rounds.filter((r) => r.purpose !== "widen").map((r) => r.id));
+  const found = (await leadPorts.db.membersOfSearch(round.search_id)).filter((m) => cardRounds.has(m.round_id ?? ""));
+  return nearbyFor(card.plan, found, legs);
+}
+
 /** The searching is over: the ending, pending the checks (a stopped round says so through stopRun). */
 async function phaseOver(
   leadPorts: LeadPorts,
@@ -114,8 +129,12 @@ async function phaseOver(
     termsShort: [...termsShortOf(inPhase, (r) => byKey.get(r.id) ?? null), ...(unasked ? [false] : [])],
     stopped: false,
   });
-  // A round that ran dry says where to look next (D3): written with its ending, before the round is final.
-  const nearby = ending === "searched_everything" || ending === "few_new_matches" ? nearbyFor(round.plan, members) : [];
+  // A round that ran dry says where to look next (D3): written with its ending, before the round is final. Where the
+  // search widens by itself (decision 0133), its first area is the next leg's, which the round's end opens.
+  const nearby =
+    ending === "searched_everything" || ending === "few_new_matches"
+      ? await nearbyOfSearch(leadPorts, round, members)
+      : [];
   return {
     round: {
       state: "checking",

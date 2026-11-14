@@ -11,11 +11,15 @@
 /** How a search was made: the finder on the page or through Ask, or a list of the owner's own (00242: a file, or leads chosen on Leads). */
 export const LEAD_SEARCH_VIAS = ["people", "ask", "import", "chosen"] as const;
 export type LeadSearchVia = (typeof LEAD_SEARCH_VIAS)[number];
-export const LEAD_ROUND_PURPOSES = ["probe", "main", "topup", "renew"] as const;
+/** `widen` (decision 0133): a leg the search opened by itself on the next nearby area, short of its count. */
+export const LEAD_ROUND_PURPOSES = ["probe", "main", "topup", "renew", "widen"] as const;
 export type LeadRoundPurpose = (typeof LEAD_ROUND_PURPOSES)[number];
 export const LEAD_ROUND_STATES = ["queued", "probing", "waiting_on_owner", "running", "checking", "ended"] as const;
 export type LeadRoundState = (typeof LEAD_ROUND_STATES)[number];
-/** The nine endings, one closed set (§0.5, S7). */
+/**
+ * The endings, one closed set (§0.5, S7). Decision 0133 adds two a search that widens by itself ends on: nothing more
+ * within the reach on its card, and the day's searching used before its next leg could start.
+ */
 export const LEAD_ROUND_ENDINGS = [
   "target_reached",
   "searched_everything",
@@ -26,6 +30,8 @@ export const LEAD_ROUND_ENDINGS = [
   "source_failed",
   "question_unanswered",
   "paused",
+  "no_more_within_reach",
+  "day_used",
 ] as const;
 export type LeadRoundEnding = (typeof LEAD_ROUND_ENDINGS)[number];
 export const LEAD_ROUND_ANSWERS = ["keep", "include", "stop"] as const;

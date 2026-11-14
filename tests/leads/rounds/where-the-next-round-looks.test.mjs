@@ -70,13 +70,13 @@ test("each rung skips every area read before, so the ladder walks outward and ne
   const read = [];
   const seen = new Set();
   let last = 0;
-  for (let i = 0; i < 4; i += 1) {
+  for (let i = 0; i < 3; i += 1) {
     const rung = nextRung({ plan: { area: city }, center: BROOKLYN, areaRadiusM: 12_000, read });
     assert.equal(rung.length, 3, `rung ${i + 1} has three areas`);
     for (const a of rung) {
       assert.ok(!seen.has(a.zip), `${a.zip} is new`);
       seen.add(a.zip);
-      read.push(a.zip);
+      read.push(a);
     }
     const nearest = Math.min(...rung.map((a) => haversineM(BROOKLYN, a.center)));
     assert.ok(nearest >= last, "each rung starts no nearer than the last one's nearest");
@@ -104,8 +104,20 @@ test("the ladder runs out: once every ZIP inside the reach is read, the next run
   for (let i = 0; i < 200; i += 1) {
     const rung = nextRung({ plan: { area: circle }, center: BROOKLYN, areaRadiusM: 5_000, read });
     if (!rung.length) break;
-    read.push(...rung.map((a) => a.zip));
+    read.push(...rung);
   }
   assert.ok(read.length > 0, "the circle's ring holds ZIPs");
   assert.deepEqual(nextRung({ plan: { area: circle }, center: BROOKLYN, areaRadiusM: 5_000, read }), []);
+});
+
+test("no area of a rung lies within its own radius of an area read before or of another in the rung: a leg reads new ground, since every place the source returns is paid for", () => {
+  const first = nextRung({ plan: { area: city }, center: BROOKLYN, areaRadiusM: 12_000, read: [] });
+  const second = nextRung({ plan: { area: city }, center: BROOKLYN, areaRadiusM: 12_000, read: first });
+  for (const rung of [first, second])
+    for (const [i, a] of rung.entries())
+      for (const b of rung.slice(i + 1))
+        assert.ok(haversineM(a.center, b.center) >= a.radius_m, `${a.zip} and ${b.zip} read apart`);
+  for (const a of second)
+    for (const b of first)
+      assert.ok(haversineM(a.center, b.center) >= a.radius_m, `${a.zip} reads no ground ${b.zip} read`);
 });

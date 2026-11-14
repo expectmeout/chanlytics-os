@@ -3612,6 +3612,8 @@ export type Database = {
           searches_on: boolean
           tenants_on: string[]
           updated_at: string
+          widen_on: boolean
+          widen_tenants: string[]
         }
         Insert: {
           cards_on?: string[]
@@ -3622,6 +3624,8 @@ export type Database = {
           searches_on?: boolean
           tenants_on?: string[]
           updated_at?: string
+          widen_on?: boolean
+          widen_tenants?: string[]
         }
         Update: {
           cards_on?: string[]
@@ -3632,6 +3636,8 @@ export type Database = {
           searches_on?: boolean
           tenants_on?: string[]
           updated_at?: string
+          widen_on?: boolean
+          widen_tenants?: string[]
         }
         Relationships: []
       }
@@ -3797,6 +3803,7 @@ export type Database = {
           allowance_reserved: number
           allowance_used: number
           answered: string | null
+          carries_on: boolean
           cost_reserved_usd: number
           cost_usd: number
           created_at: string
@@ -3829,6 +3836,7 @@ export type Database = {
           allowance_reserved?: number
           allowance_used?: number
           answered?: string | null
+          carries_on?: boolean
           cost_reserved_usd?: number
           cost_usd?: number
           created_at?: string
@@ -3861,6 +3869,7 @@ export type Database = {
           allowance_reserved?: number
           allowance_used?: number
           answered?: string | null
+          carries_on?: boolean
           cost_reserved_usd?: number
           cost_usd?: number
           created_at?: string
