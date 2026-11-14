@@ -1,10 +1,10 @@
 /**
  * What the Messages page draws around its list (moved from MessagesReal in legacy/pages/messages.jsx, decision 0015):
- * the head's line and act, the search, the notice about the WhatsApp number, and the list in its groups (Need you, Going
- * out, Not in use, Put away, Cold emails: Messages, the canvas of 10 Nov 2026). No starter banner and no sync line under
- * the list (its step 5): the starters file themselves as a number connects, and WhatsApp is asked quietly as the page
- * opens. Each is a function that returns its element, called by the page and not drawn as a component of its own, so the
- * page's tree is the tree it was.
+ * the head's line and act, the search, the notice about the WhatsApp number, and the list in its groups (Needs you,
+ * Sending, Ready, Ready-made, Cold emails, Put away: Messages, the canvas of 10 Nov 2026, and the clean list of 13 Nov
+ * 2026, whose names are Ruben's). No starter banner and no sync line under the list (its step 5): a starter is there to
+ * use and nothing about it is missing, and WhatsApp is asked quietly as the page opens. Each is a function that returns
+ * its element, called by the page and not drawn as a component of its own, so the page's tree is the tree it was.
  */
 import type { ReactNode, RefObject } from "react";
 import { LIBRARY_WORDS } from "@chanlytics/contracts";
@@ -19,7 +19,7 @@ import { ListFind, foldedLookup } from "../../kit/head/list-find";
 import { Icon } from "../../kit/icon/icon";
 import { CmDot } from "../parts/head";
 import { ListTop, ListViewPick, type ListView } from "../parts/list-top";
-import type { TemplateGroup, TplLang } from "./group";
+import { STARTER_MOMENTS, starterMoment, type TemplateGroup, type TplLang } from "./group";
 import { TplEmailRows, TplEmailsFailed } from "./emails";
 import type { tplEmails } from "./emails";
 import type { MessagePlace } from "./message-row-facts";
@@ -71,7 +71,7 @@ export function headRight({ onNew }: HeadRightProps) {
 export type MessagesView = "all" | MessagePlace | "emails";
 
 /** The groups a view can be, in the list's order. */
-const VIEW_GROUPS: readonly Exclude<MessagesView, "all">[] = ["need", "going", "emails", "idle", "away"];
+const VIEW_GROUPS: readonly Exclude<MessagesView, "all">[] = ["need", "going", "idle", "made", "emails", "away"];
 
 /** How many messages each group holds. */
 export type ViewCounts = Readonly<Record<Exclude<MessagesView, "all">, number>>;
@@ -212,8 +212,11 @@ export const matchesOf =
 /** The list's groups, in the order a person asks about them, each with the messages that stand in it. */
 export type ListGroups = Record<MessagePlace, readonly TemplateGroup[]>;
 
-/** A group folded under its name, or open; Not in use's null is its own: open where nothing needs you and nothing goes out. */
-export type ListFolds = { idle: boolean | null; away: boolean; emails: boolean };
+/**
+ * A group folded under its name, or open. Ready's null is its own: open where nothing needs you and nothing is sending.
+ * Ready-made's too: open where the business has nothing else to read, which is a new one's whole list.
+ */
+export type ListFolds = { idle: boolean | null; made: boolean | null; away: boolean; emails: boolean };
 
 interface ListProps {
   groups: ListGroups;
@@ -293,16 +296,35 @@ function listGroup({
 }
 
 /**
- * The list, in its groups: what needs you, what goes out, a cold email sequence's emails (which a sequence sends, so they
- * stand with what goes out), what nothing sends now and what was put away, each under its name. The first three stand
- * open; the last two fold, Not in use open where nothing needs you and nothing goes out. A search opens every group and
- * keeps the rows whose words have it.
+ * The ready-made starters under what each is for (group.ts starterMoment), the moments in their order and a moment
+ * with none drawing nothing: each name stands among the rows, so a row is the list's own child as every other is.
+ */
+function madeRows(starters: readonly TemplateGroup[], card: ListProps["card"]): ReactNode {
+  return STARTER_MOMENTS.flatMap((moment) => {
+    const of = starters.filter((g) => g.starter && starterMoment(g.starter) === moment);
+    if (!of.length) return [];
+    return [
+      <h4 className="msg-moment" key={moment} data-testid={`templates-moment-${moment}`}>
+        {TPL_LIST_WORDS.moments[moment]}
+      </h4>,
+      ...of.map(card),
+    ];
+  });
+}
+
+/**
+ * The list, in its groups: what needs you, what something sends, the business's own that nothing sends, the starters
+ * nothing sends under what each is for, a cold email sequence's emails, and what was put away, each under its name.
+ * The first two stand open; the rest fold, Ready open where nothing needs you and nothing is sending, and Ready-made
+ * where the business has nothing else to read. A search opens every group and keeps the rows whose words have it.
  */
 export function templateList(p: ListProps) {
   const { groups, listEmails, openKey, onOpenKey, card, folds, onFold, needle, q, view } = p;
   const searching = needle !== "";
-  const idleOpen = searching || (folds.idle ?? (groups.need.length === 0 && groups.going.length === 0));
-  const listed = groups.need.length + groups.going.length + groups.idle.length + groups.away.length + listEmails.length;
+  const busy = groups.need.length + groups.going.length;
+  const idleOpen = searching || (folds.idle ?? busy === 0);
+  const madeOpen = searching || (folds.made ?? busy + groups.idle.length === 0);
+  const listed = busy + groups.idle.length + groups.made.length + groups.away.length + listEmails.length;
   const of = (place: MessagePlace) => ({
     place,
     n: groups[place].length,
@@ -314,6 +336,8 @@ export function templateList(p: ListProps) {
     <section className="msg-section" data-testid="templates">
       {listGroup({ ...of("need"), fold: null, open: true })}
       {listGroup({ ...of("going"), fold: null, open: true })}
+      {listGroup({ ...of("idle"), fold: "idle", open: idleOpen })}
+      {listGroup({ ...of("made"), rows: () => madeRows(groups.made, card), fold: "made", open: madeOpen })}
       {listGroup({
         place: "emails",
         n: listEmails.length,
@@ -323,7 +347,6 @@ export function templateList(p: ListProps) {
         onFold,
         only: view,
       })}
-      {listGroup({ ...of("idle"), fold: "idle", open: idleOpen })}
       {listGroup({ ...of("away"), fold: "away", open: searching || folds.away })}
       {needle && listed === 0 && (
         <EmptyState kind="line" title={TPL_LIST_WORDS.noMatch(q.trim())} testid="templates-no-match" />

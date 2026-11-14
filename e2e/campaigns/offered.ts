@@ -41,13 +41,28 @@ export const messagesOf = (read: TemplatesRead): CampaignMessage[] =>
  * What the Library lists of the workspace's messages (templates/group.ts listingOf), every group open: a row to each starter
  * of the set offered here, whatever of it the workspace holds; a row to each name the workspace wrote or synced, whatever
  * languages and channels it holds; and Put away, the group that folds what it hid, where a name it holds is hidden in
- * every language (Messages, the canvas of 10 Nov 2026). Meta's sample is never one.
+ * every language (Messages, the canvas of 10 Nov 2026). Meta's sample is never one, and neither is a name made in
+ * WhatsApp's own tools that this product cannot send whole and that holds nothing else, on any channel, in any language
+ * (message-row-facts.ts onlyUnsendable; the clean list, 13 Nov 2026), unless something sends it (`sent`: by its name;
+ * nothing, where the caller does not know).
  */
 export function libraryRows(
   messages: readonly CampaignMessage[],
   starterNames: readonly string[],
+  sent: (name: string) => boolean = () => false,
 ): { starterRows: number; customRows: number; hidden: boolean } {
-  const listed = messages.filter((m) => !isLibrarySample(m.name));
+  const held = messages.filter((m) => !isLibrarySample(m.name));
+  // (One put away whole is a row of Put away, whatever it holds.)
+  const unsendable = (name: string) => {
+    const of = held.filter((m) => m.name === name);
+    return (
+      !starterNames.includes(name) &&
+      !sent(name) &&
+      !of.every((m) => m.hidden) &&
+      of.every((m) => !!m.versions.whatsapp?.blocked && !m.versions.email && !m.versions.sms)
+    );
+  };
+  const listed = held.filter((m) => !unsendable(m.name));
   const written = listed.filter((m) => !starterNames.includes(m.name));
   const names = new Set(listed.map((m) => m.name));
   return {

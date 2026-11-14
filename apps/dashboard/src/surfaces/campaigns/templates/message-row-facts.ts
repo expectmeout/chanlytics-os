@@ -6,6 +6,7 @@
  * `__TEMPLATE_SENT` and `__PLAYBOOKS` with no surface argument.
  */
 import {
+  CHANNEL_WORDS,
   channelChoices,
   messageHolds,
   messageStandingWords,
@@ -20,7 +21,7 @@ import { onFileOf } from "./group";
 import type { PresentRow, TemplateGroup, TemplateRow, TplLang } from "./group";
 import type { StarterLibrary } from "./verbs";
 import { channelsWords, messageName, purposeOfMessage, versionsOfMessage } from "./versions";
-import { TPL_LIST_WORDS, tplLangLabel, tplOneLine, tplOwn, tplSaid, tplSlotWord } from "./words";
+import { TPL_LIST_WORDS, tplLangLabel, tplOneLine, tplOwn, tplSaid, tplSampleWord } from "./words";
 
 /**
  * The first language a message has on file, else the set's first: where a row opens. The first WhatsApp holds, as it
@@ -127,8 +128,8 @@ function rowWords(p: {
 }
 
 /** What sends this message, how much of it went out, and what the running playbooks do with the language in view. */
-function usageOf(p: { g: TemplateGroup; onFile: TemplateRow[]; row: TemplateDto | null }) {
-  const { g, onFile, row } = p;
+function usageOf(p: { g: TemplateGroup; row: TemplateDto | null }) {
+  const { g, row } = p;
   const settings = surfaceValue("settings");
   const playbooks = surfaceValue("playbooks");
   // What sends this MESSAGE, in the words the bridge composed: the playbooks,
@@ -141,12 +142,10 @@ function usageOf(p: { g: TemplateGroup; onFile: TemplateRow[]; row: TemplateDto 
   // How many of it went out and when the latest did, in the words the bridge
   // composed: the people a run SENT to and what the Inbox sent on it, never the
   // audience a run was scheduled for. Keyed by name like the usage; null is not read.
-  // A starter with no version has no entry -- the map is one per message ON FILE -- and
-  // says it was never added, when the sends were read at all.
+  // A starter with no version has no entry -- the map is one per message ON FILE -- and says
+  // nothing: it is there to use, and nothing about it is missing (it said "Not added").
   const sentMap = settings ? settings.templateSent : null;
-  const notAdded: TemplateSentWords = { count: null, when: "Not added" };
-  const sent: TemplateSentWords | null =
-    gName && sentMap ? sentMap[gName] || (g.starter && !onFile.length ? notAdded : null) : null;
+  const sent: TemplateSentWords | null = gName && sentMap ? sentMap[gName] || null : null;
   // The playbooks that send the template in view, found the way a run finds it: by name and language. Null: not read.
   // Per ROW, not per message: this is what a delete of ONE language must refuse on.
   const pbRows = playbooks ? playbooks.rows || [] : null;
@@ -278,7 +277,7 @@ export function messageFacts({ g, langs, S, view, canAdd = false, addWhy = null,
   // What sends it is found by its name and language, which every version shares: a message with no WhatsApp version is
   // found by its email's or its text's.
   const named = row ?? [...has.email, ...has.sms].find((r) => r.language === lang.view) ?? null;
-  const usage = usageOf({ g, onFile, row: named });
+  const usage = usageOf({ g, row: named });
   const marks = marksOf({ g, message, usage });
   const own = [...has.email, ...has.sms];
   const line = lineWords({ g, S, row, starterText, fromRow, view: lang.view, own });
@@ -296,10 +295,11 @@ export function messageFacts({ g, langs, S, view, canAdd = false, addWhy = null,
 }
 
 /**
- * A line of the words with its slots NAMED -- "Hi {first name} -- it's been a
- * while" -- in quotes, so a row reads as the message it is and shows at a glance
- * what varies per person. The whole of it, filled with this business's own
- * name and link, is in the pane.
+ * A line of the words as one person would get them -- "Hi Dana, a reminder of your visit tomorrow at 2:00 PM" -- in
+ * quotes, so a row reads as the message it is: each value by its sample, the business's own name and link where it has
+ * given them, and plain words for one it has not (words.ts tplSampleWord). It named its slots in braces ("Hi {first
+ * name}"), which is our notation and nobody's message (the clean list, 13 Nov 2026). What varies per person is marked
+ * in the pane, where the whole of it is.
  */
 function lineWords(p: {
   g: TemplateGroup;
@@ -326,24 +326,30 @@ function lineWords(p: {
       : g.starter
         ? S.text(g.starter, "en_US").body
         : "";
-  const tplLike =
-    lineRow || (g.starter ? { name: g.starter.name, language: starterText ? view : "en_US", variables: [] } : null);
+  const from = starterText ? view : "en_US";
+  const tplLike = lineRow || (g.starter ? { name: g.starter.name, language: from, variables: [] } : null);
   const kinds = tplLike ? S.slotKinds(tplLike) : [];
-  const labels = tplLike ? S.slotLabels(tplLike) : [];
+  const business = tplOwn();
+  const values = lineRow
+    ? S.rowValues(lineRow, business)
+    : g.starter
+      ? S.starterValues(g.starter, from, business.business_name, business.booking_link)
+      : [];
   return tplOneLine(
-    String(lineText || "").replace(
-      NUMBERED_SLOT,
-      (_: string, n: string) => `{${tplSlotWord(kinds[Number(n) - 1], labels[Number(n) - 1], n)}}`,
+    String(lineText || "").replace(NUMBERED_SLOT, (_: string, n: string) =>
+      tplSampleWord(values[Number(n) - 1], kinds[Number(n) - 1]),
     ),
   );
 }
 
 /**
- * Where a message stands in the list (Messages, the canvas of 10 Nov 2026): it needs you (WhatsApp said no to it, paused it
- * or turned it off, or a running sequence sends a language it cannot send), it goes out (a step that runs sends it, or the
- * Inbox books with it), nothing sends it now, or it was put away. One reading, for its row and for its pane's head.
+ * Where a message stands in the list (Messages, the canvas of 10 Nov 2026; the clean list, 13 Nov 2026): it needs you
+ * (WhatsApp said no to it, paused it or turned it off, or a running sequence sends a language it cannot send: each with
+ * one press that mends it), something sends it (a step that runs, or the Inbox's booking), it is the business's own and
+ * nothing sends it now, it is a starter nothing sends (ready-made, there to use), or it was put away. One reading, for
+ * its row and for its pane's head.
  */
-export type MessagePlace = "need" | "going" | "idle" | "away";
+export type MessagePlace = "need" | "going" | "idle" | "made" | "away";
 
 /** A message as the list sets it: where it stands, the line under its name, and what stands at its right. */
 export interface MessageSetting {
@@ -352,10 +358,18 @@ export interface MessageSetting {
   said: string;
   /** That line says what sends it (the row's "what sends it", which a test finds by its id). */
   saysUse: boolean;
-  /** At its right: how many went out, when the last did, or that a starter is not added; null for nothing. */
+  /** At its right: how many went out, or when the last did; null for nothing. */
   aside: string | null;
-  /** It needs you because no channel can carry it here: each channel's tab says its own why, so the pane says it there. */
-  nowhere: boolean;
+  /**
+   * Something sends it and no channel can carry it here yet: it waits, with a quiet word, and is never "Needs you" (there
+   * is nothing on this page to press for it). Each channel's tab in its pane says its own why.
+   */
+  waiting: boolean;
+  /**
+   * Not a row of the list: made in WhatsApp's own tools in a shape this product cannot send whole, with nothing else
+   * written for it and nothing sending it (Ruben, 13 Nov 2026). Its address still opens it.
+   */
+  unlisted: boolean;
 }
 
 type Facts = ReturnType<typeof messageFacts>;
@@ -371,34 +385,41 @@ export const aboutOfMessage = (message: Pick<CampaignMessage, "purpose">): "ours
   message.purpose === "marketing" ? "ours" : "theirs";
 
 /**
- * Why no channel can carry a message here now, or null where one can, or where the business's channels were not read
- * (the sequences' read), which says nothing: every channel refused for it (contracts channelChoices over what the
+ * Whether no channel can carry a message here now: every channel refused for it (contracts channelChoices over what the
  * message holds on each, readyForMessage: Meta's pause on offers to US numbers, email not set up for offers, no texting
- * line, a version not written or not approved). The reason of a channel it has a version on is said first.
+ * line, a version not written or not approved). Never where the business's channels were not read (the sequences' read),
+ * nor where it has an email and email could not be asked about just now: a question nobody answered is not a no, and
+ * says nothing.
  */
-function nothingCarries(message: CampaignMessage | null): string | null {
+function nothingCarries(message: CampaignMessage | null): boolean {
   const ready = surfaceValue("playbooks")?.ready ?? null;
-  if (!ready || !message) return null;
-  // A WhatsApp version WhatsApp is reviewing is read as the approved one it will be: waiting is not needing you, and what
-  // would hold it after (Meta's pause on offers) still says so.
+  if (!ready || !message) return false;
+  // A WhatsApp version WhatsApp is reviewing is read as the approved one it will be: what would hold it after (Meta's
+  // pause on offers) still holds it.
   const whatsapp = message.versions.whatsapp;
   const judged =
     whatsapp && whatsapp.status === "pending"
       ? { ...message, versions: { ...message.versions, whatsapp: { ...whatsapp, status: "approved" as const } } }
       : message;
   const choices = channelChoices(readyForMessage(ready, judged), message.purpose, aboutOfMessage(message));
-  if (choices.some((c) => c.ok)) return null;
-  const reason = (choices.find((c) => c.why && message.versions[c.channel]) ?? choices.find((c) => c.why))?.why;
-  return reason ? TPL_LIST_WORDS.nothingCarries(reason) : null;
+  if (choices.some((c) => c.ok)) return false;
+  const unasked =
+    !!message.versions.email &&
+    (!!ready.email.unchecked || choices.some((c) => c.channel === "email" && c.why === CHANNEL_WORDS.unchecked));
+  return !unasked;
 }
 
-/**
- * Something sends it, and no channel can carry it here (nothingCarries), or null: it goes to nobody, so it is not "Going
- * out" (the live demo, 12 Nov 2026: an offer "going out" while Meta's pause held WhatsApp and email waited on a domain).
- */
-function nowhereWords(facts: Facts): string | null {
-  const use = facts.usage.use;
-  return use && (use.running || use.booking) ? nothingCarries(facts.lang.message) : null;
+/** It has only a WhatsApp version this product cannot send whole (made in WhatsApp's own tools), in every language on file. */
+function onlyUnsendable(group: TemplateGroup): boolean {
+  const onFile = onFileOf(group);
+  return (
+    !group.starter &&
+    onFile.length > 0 &&
+    onFile.every((r) => {
+      const has = r.message?.versions;
+      return !!has?.whatsapp?.blocked && !has.email && !has.sms;
+    })
+  );
 }
 
 /** WhatsApp stopped it, a running sequence sends a language it lacks, or a version it cannot send whole: why, or null. */
@@ -420,38 +441,47 @@ function stoppedWords(group: TemplateGroup, facts: Facts): string | null {
 export const sentByWords = (use: { words: string; note: string | null }): string =>
   use.note ? `${use.words} · ${use.note}` : use.words;
 
-/** What a message nothing sends now says under its name: what last sent it, why it cannot be sent, or what it is for. */
+/**
+ * What a message nothing sends now says under its name: what last sent it, what a starter is for, or its own first
+ * words. Never a channel's reason: why a version cannot go is its tab's to say, in its pane.
+ */
 function idleWords(g: TemplateGroup, facts: Facts): { said: string; saysUse: boolean } {
   const use = facts.usage.use;
   if (use && !use.unused) return { said: sentByWords(use), saysUse: true };
-  const blocked = g.rows.find((r) => r.message?.versions.whatsapp?.blocked)?.message;
-  if (blocked) return { said: messageWhyNot(blocked, "whatsapp") ?? g.purpose, saysUse: false };
   if (g.starter) return { said: g.purpose.charAt(0).toUpperCase() + g.purpose.slice(1), saysUse: false };
   return { said: facts.line ? `“${facts.line}”` : g.purpose, saysUse: false };
 }
 
-/** What stands at a row's right: how many went out, of one going out; when the last did, of one that is not. */
+/** What stands at a row's right: how many went out, of one something sends; when the last did, of one nothing does. */
 function asideOf(place: MessagePlace, sent: Facts["usage"]["sent"]): string | null {
   if (place === "need" || !sent) return null;
   if (place === "going") return sent.count ? TPL_LIST_WORDS.sentCount(sent.count) : TPL_LIST_WORDS.notSentYet;
   if (sent.count) return sent.when ? TPL_LIST_WORDS.sentWhen(sent.when) : TPL_LIST_WORDS.sentCount(sent.count);
-  // A starter never added says so; one on file that never went out says nothing more than its line.
-  return sent.when && !/never/i.test(sent.when) ? sent.when : null;
+  // One on file that never went out says nothing more than its line.
+  return null;
 }
 
 /** Where a message stands, and what its row says of it. */
 export function placeOfMessage(group: TemplateGroup, facts: Facts): MessageSetting {
   const onFile = onFileOf(group);
   const away = onFile.length > 0 && onFile.every(isAway);
-  const stopped = away ? null : stoppedWords(group, facts);
-  const need = away ? null : (stopped ?? nowhereWords(facts));
+  const need = away ? null : stoppedWords(group, facts);
   const use = facts.usage.use;
-  const place: MessagePlace = away ? "away" : need ? "need" : use && (use.running || use.booking) ? "going" : "idle";
+  const sends = !!(use && (use.running || use.booking));
+  // A starter nothing has ever named is ready-made; one a sequence of theirs names, running or not, is the business's own.
+  const readyMade = !!group.starter && (!use || use.unused);
+  const place: MessagePlace = away ? "away" : need ? "need" : sends ? "going" : readyMade ? "made" : "idle";
   const line =
     place === "need"
       ? { said: need ?? "", saysUse: false }
       : place === "going" && use
         ? { said: sentByWords(use), saysUse: true }
         : idleWords(group, facts);
-  return { place, ...line, aside: asideOf(place, facts.usage.sent), nowhere: place === "need" && !stopped };
+  return {
+    place,
+    ...line,
+    aside: asideOf(place, facts.usage.sent),
+    waiting: place === "going" && nothingCarries(facts.lang.message),
+    unlisted: place === "idle" && onlyUnsendable(group),
+  };
 }

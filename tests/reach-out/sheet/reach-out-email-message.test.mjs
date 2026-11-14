@@ -404,13 +404,14 @@ test("Messages: a chain's emails are messages in the list, in a group of their o
   const rows = rowsOf(tree);
   assert.equal(rows.length, 2);
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "custom-row").length, 1, "the WhatsApp row is unchanged");
-  // A group of their own (Messages, the canvas of 10 Nov 2026): a sequence sends them, so they stand open, after Going out.
+  // A group of their own (Messages, the canvas of 10 Nov 2026): a sequence sends them, so they stand open, after the
+  // business's own messages and the starters.
   const group = byTestId(tree, "templates-emails");
   assert.ok(group, "the cold emails' own group");
   assert.equal(all(group, (n) => n.props?.["data-testid"] === "reach-out-email").length, 2, "both its emails in it");
-  // The page's line is the frame's head's (CmHead says it to the standing): what needs you and what goes out.
+  // The page's line is the frame's head's (CmHead says it to the standing): what needs you and what something sends.
   const line = standingSaid()?.sentence ?? null;
-  assert.ok(textOf(line).includes("Nothing going out yet"), textOf(line));
+  assert.ok(textOf(line).includes("Nothing sending yet"), textOf(line));
   const nudge = rows[1];
   // Two lines: its name, and what sends it, the step and its wait in the chain's own words.
   assert.equal(byTestId(nudge, "template-channels"), null, "no channels line: its pane says it is an email");

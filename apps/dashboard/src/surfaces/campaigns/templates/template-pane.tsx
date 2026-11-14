@@ -530,8 +530,8 @@ export function TemplatePane(p: PaneProps) {
     >
       <div className="tpl-grow" ref={grow}>
         {openRow(c, bar, version, {
-          // Why it needs you, on WhatsApp's tab; where nothing can carry it, each tab's own line says its why instead.
-          need: channel === "whatsapp" && setting.place === "need" && !setting.nowhere ? setting.said : null,
+          // Why it needs you, on WhatsApp's tab; one that only waits for a way out says so on each tab's own line instead.
+          need: channel === "whatsapp" && setting.place === "need" ? setting.said : null,
           cannot: cannot[channel],
           onEdit: channel === "whatsapp" ? (versionActs?.onEdit ?? null) : null,
         })}

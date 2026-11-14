@@ -424,10 +424,10 @@ const library = async (record) => {
   return drawAgain(() => TemplatesPage());
 };
 
-/** The Library with every group that folds pressed open (Not in use, Put away), as the spec counts it. */
+/** The Library with every group that folds pressed open (Ready, Ready-made, Put away), as the spec counts it. */
 const unfolded = (tree) => {
   let now = tree;
-  for (const id of ["templates-fold-idle", "templates-hidden"]) {
+  for (const id of ["templates-fold-idle", "templates-fold-made", "templates-hidden"]) {
     const head = byTestId(now, id);
     if (head && head.props["aria-expanded"] === false) {
       press(head);
@@ -472,9 +472,13 @@ test("the Library draws the rows the spec counts, the quiet line only where ther
       !hasNumber(record),
       `${name}: the line says where the number is missing`,
     );
-    // The first starter opens in the pane on a bubble, whatever it holds and whether or not there is a number.
-    const first = find(tree, (n) => n.props?.["data-testid"] === "starter-row");
-    assert.ok(textOf(first).includes("Win-back"), `${name}: the set opens on its win-back`);
+    // The set's win-back opens in the pane on a bubble, whatever it holds and whether or not there is a number (the
+    // starters nothing sends are sorted by what each is for, so it is found by its name, as the spec finds it).
+    const first = find(tree, (n) => n.props?.["data-testid"] === "starter-row" && textOf(n).includes("Win-back"));
+    assert.ok(first, `${name}: the set's win-back is listed`);
+    // No starter is said to be missing, and nothing under the list asks about WhatsApp (the clean list, 13 Nov 2026).
+    for (const gone of ["Not added", "Not in use", "Checked with WhatsApp"])
+      assert.equal(textOf(tree).includes(gone), false, `${name}: "${gone}" is gone`);
     press(find(first, (n) => n.props?.["data-testid"] === "template-open"));
     const open = drawAgain(() => TemplatesPage());
     const pane = byTestId(open, "template-pane");
