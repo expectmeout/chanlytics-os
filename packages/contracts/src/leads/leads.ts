@@ -195,6 +195,8 @@ export {
   leadSourceWord,
   leadRail,
   leadSearchEmptyWords,
+  leadNameShown,
+  leadSearchNamesOf,
   leadsStanding,
 } from "./row";
 export type { LeadSlotState, LeadSlot, LeadRowCard, LeadBand, LeadRailRow, LeadRowVM } from "./row";

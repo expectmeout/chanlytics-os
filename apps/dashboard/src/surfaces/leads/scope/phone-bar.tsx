@@ -61,6 +61,9 @@ const NO_TOGGLE = (): void => undefined;
 
 function barWords(o: {
   select: { word: string; press: () => void } | null;
+  /** A selection is on: the bar is Select's alone, its Cancel in reach (Ruben, 14 Nov 2026: Sort, Import and Map stood beside
+   * "35 selected" and its Cancel, acts on the list while the selection waited on Add). */
+  selecting: boolean;
   sortItems: readonly PeopleMenuItem[];
   reach: readonly LeadReachFilter[];
   onReach: (filter: string) => void;
@@ -79,7 +82,7 @@ function barWords(o: {
           <BarWord word={o.select.word} words={SELECT_WORDS} />
         </Button>
       ) : null}
-      {o.sortItems.length ? (
+      {o.sortItems.length && !o.selecting ? (
         <Menu
           label="Sort"
           groups={[
@@ -104,16 +107,18 @@ function barWords(o: {
           }
         />
       ) : null}
-      <Button
-        variant="plain"
-        size="sm"
-        onClick={o.onImport}
-        data-testid="leads-phone-import"
-        {...gate("find", "import leads")}
-      >
-        Import
-      </Button>
-      {o.canMap ? (
+      {o.selecting ? null : (
+        <Button
+          variant="plain"
+          size="sm"
+          onClick={o.onImport}
+          data-testid="leads-phone-import"
+          {...gate("find", "import leads")}
+        >
+          Import
+        </Button>
+      )}
+      {o.canMap && !o.selecting ? (
         <Button
           variant="plain"
           size="sm"
@@ -170,6 +175,7 @@ export const LeadsPhoneBar = ({
         <>
           {barWords({
             select,
+            selecting: title !== null,
             sortItems,
             reach,
             onReach,

@@ -16,6 +16,7 @@ import {
   radiusFromSpread,
   inArea,
   nearestAreas,
+  stateOfZip,
 } from "../../../packages/core/src/leads/geo.ts";
 import { judgeBatch, factsOf, fact, JUDGE_REFUSED_REASON } from "../../../packages/core/src/leads/judge.ts";
 import { probeAsk, mainAsk, runCaps, yieldOf } from "../../../packages/core/src/leads/sizing.ts";
@@ -794,4 +795,24 @@ test("every mark a site declares, best first: the said logo, then its icons by h
   );
   assert.deepEqual(leadMarksFrom(head(`<meta charset="utf-8">`), O), [], "a page that declares none has none");
   assert.deepEqual(leadMarksFrom("", O), [], "and nothing read is nothing");
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): a nearby ZIP is searched and said in its own state, never the search's", () => {
+  assert.deepEqual(["07310", "11430", "78704", "10001", "99501", "00000", "7310"].map(stateOfZip), [
+    "NJ",
+    "NY",
+    "TX",
+    "NY",
+    "AK",
+    null,
+    null,
+  ]);
+  // Midtown Manhattan, a search in New York: the ZIPs across the river are New Jersey's.
+  const near = nearestAreas({ lat: 40.758, lng: -73.9855 }, { excludeWithinM: 2_000, take: 25, state: "NY" });
+  const jersey = near.filter((a) => a.zip.startsWith("07"));
+  assert.ok(jersey.length > 0, "some of the nearest are across the river");
+  for (const a of jersey)
+    assert.deepEqual([a.state, a.label, a.query], ["NJ", `near ${a.zip}, NJ`, `${a.zip}, NJ, USA`]);
+  for (const a of near.filter((x) => x.zip.startsWith("10")))
+    assert.deepEqual([a.state, a.label], ["NY", `near ${a.zip}`], "one in the search's own state says only its ZIP");
 });

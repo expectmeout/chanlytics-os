@@ -302,8 +302,8 @@ export function toLeadRowVM(lead: LeadRowDto, tz: string, now: Date, search: Lea
     id: lead.id,
     searchId: lead.search_id,
     searchName: lead.search_name ?? "",
-    mark: initialsOf(lead.business_name),
-    name: lead.business_name,
+    mark: initialsOf(leadNameShown(lead.business_name)),
+    name: leadNameShown(lead.business_name),
     places: lead.places,
     category: lead.category ?? "",
     area,
@@ -351,7 +351,7 @@ export function toLeadRowVM(lead: LeadRowDto, tz: string, now: Date, search: Lea
     rated,
     spread,
     tile: {
-      initials: initialsOf(lead.business_name),
+      initials: initialsOf(leadNameShown(lead.business_name)),
       image: leadTileSrc(lead.image_url),
       band: lead.image_url ?? null,
       logo: lead.mark_url ?? null,
@@ -457,9 +457,11 @@ export function leadRail(
     ...(counts.said_no > 0 ? (["said_no"] satisfies LeadList[]) : []),
     "not_a_fit",
   ];
+  // Among the searches listed: a sequence's own list, apart below, shares its search's name and is not confused with it.
+  const named = leadSearchNamesOf(searchesListed(searches));
   const rowOf = (leadSearch: LeadSearchDto): LeadRailRow => ({
     id: leadSearch.id,
-    name: leadSearch.name,
+    name: named.get(leadSearch.id) ?? leadSearch.name,
     count: leadSearch.round ? leadSearch.round.counted : null,
     undoable: leadUndoable(leadSearch, now),
     list: isLeadList(leadSearch),
@@ -492,26 +494,54 @@ export function leadSearchEmptyWords(
     return {
       title: `${plural(round.review, "lead needs", "leads need")} a look.`,
       body: roundIsLive(round.state)
-        ? "Claude is still checking them, and could not decide on these yet."
-        : "Claude could not decide on these by itself.",
+        ? "Ask is still checking them, and could not decide on these yet."
+        : "Ask could not decide on these by itself.",
       review: true,
     };
   if (roundIsLive(round.state))
-    return { title: "Still looking.", body: "Leads come in here as Claude checks them.", review: false };
+    return { title: "Still looking.", body: "Leads come in here as Ask checks them.", review: false };
   return null;
 }
 
 /**
+ * The name each search is listed by: its own, and where two share one, its place after it ("med spas · Brooklyn, NY"):
+ * Ruben's two searches were both "med spas" in one list (14 Nov 2026). A search with no place keeps its name.
+ */
+export function leadSearchNamesOf(searches: readonly LeadSearchDto[]): Map<string, string> {
+  const seen = new Map<string, number>();
+  for (const s of searches) seen.set(s.name, (seen.get(s.name) ?? 0) + 1);
+  return new Map(
+    searches.map((s) => {
+      const where = s.plan?.area?.label;
+      return [s.id, (seen.get(s.name) ?? 0) > 1 && where ? `${s.name} · ${where}` : s.name];
+    }),
+  );
+}
+
+/**
+ * A business's name as a row says it: its listing's name up to the first " | ", where a listing strings search words after
+ * it ("Unique Clinique Aesthetics | Med Spa Brooklyn", Ruben's phone, 14 Nov 2026). The stored name is untouched, and a
+ * name that is nothing but such a tail is said whole.
+ */
+export function leadNameShown(name: string): string {
+  const head = name.split(" | ")[0]?.trim() ?? "";
+  return head.length >= 2 ? head : name;
+}
+
+/**
  * "322 leads · 272 not contacted", and "1 search needs you" when one waits. How many searches there are is the Lists sheet's
- * to show, as every search is a row of it: said here too, "searches" stood twice in one line (Ruben, 12 Nov 2026).
+ * to show, as every search is a row of it: said here too, "searches" stood twice in one line (Ruben, 12 Nov 2026). Over
+ * one search (`inSearch`) the count is still the workspace's, and says so: "120 leads in all" stood over a search that had
+ * found 0, and "177" over one of 137 (Ruben, 14 Nov 2026).
  */
 export function leadsStanding(
   counts: LeadCounts,
   searches: LeadSearchDto[],
+  inSearch = false,
 ): { total: string; parts: string[]; needsYou: { count: number; searchId: string } | null } {
   const waiting = searches.filter((s) => s.round?.state === "waiting_on_owner");
   return {
-    total: `${counts.all} leads`,
+    total: `${counts.all} leads${inSearch ? " in all" : ""}`,
     parts: [`${counts.ready} ${LEAD_STAGE_WORDS.ready.toLowerCase()}`],
     needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0]?.id ?? "" } : null,
   };

@@ -1302,9 +1302,9 @@ test("the checks read the judge's own keys: the kind and every criterion it answ
   assert.deepEqual(
     read.map((c) => [c.key, c.answer, c.source, c.reason]),
     [
-      ["kind", "yes", "Claude · the listing", "open Saturdays, per the listing"],
-      ["open_weekends", "unknown", "Claude · the listing", "open Saturdays, per the listing"],
-      ["chains", "no", "Claude · their website", "open Saturdays, per the listing"],
+      ["kind", "yes", "Ask · the listing", "open Saturdays, per the listing"],
+      ["open_weekends", "unknown", "Ask · the listing", "open Saturdays, per the listing"],
+      ["chains", "no", "Ask · their website", "open Saturdays, per the listing"],
     ],
     "every criterion the judge answered, under the plan's key: only LEAD_CHECK_KEYS were, and no plan's keys were those",
   );

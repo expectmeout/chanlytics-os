@@ -163,7 +163,12 @@ export const leadsListProps = (p: LeadsPage) => {
   // What the phone's bar says it is showing: the search that is open, or the list, and its count apart, which the bar never
   // shortens (Task 18; PeoplePhoneBar's listCount).
   const openList = rail.lists.find((l) => l.id === leadView.list);
-  const railLabel = openSearch ? openSearch.name : openList ? openList.label : "All leads";
+  // The search by the name the rail lists it by, its place after it where two share a name (leadSearchNamesOf).
+  const railLabel = openSearch
+    ? (rail.searches.find((r) => r.id === openSearch.id)?.name ?? openSearch.name)
+    : openList
+      ? openList.label
+      : "All leads";
   const railCount = openSearch
     ? openSearch.round
       ? openSearch.round.counted

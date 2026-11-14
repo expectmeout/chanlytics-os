@@ -404,7 +404,7 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     deckMove,
     closePeek,
     rail: leadRail(leads.counts, leads.searches, new Date(), openSearch ? openSearch.id : null),
-    standing: leadsStanding(leads.counts, leads.searches),
+    standing: leadsStanding(leads.counts, leads.searches, !!openSearch),
     openSearch,
     band,
     cellCtxLeads,

@@ -1124,7 +1124,7 @@ test("a check Claude read is said in the plan's own words, under the key the jud
     exclusions: [{ key: "chain", text: "Chain gyms", origin: "claude" }],
   };
   const search = searchWith({ plan: weekends });
-  const read = (key, answer, reason = null) => ({ key, how: "read", answer, source: "Claude · the listing", reason });
+  const read = (key, answer, reason = null) => ({ key, how: "read", answer, source: "Ask · the listing", reason });
   const vm = toLeadPeekVM(
     row({
       member: {
@@ -1569,13 +1569,13 @@ test("the rail draws a sequence's own list with the sequences, apart from the se
 test("a search's empty view says what its round holds: leads to look at, or that it is still looking", () => {
   assert.deepEqual(leadSearchEmptyWords({ state: "running", review: 67 }), {
     title: "67 leads need a look.",
-    body: "Claude is still checking them, and could not decide on these yet.",
+    body: "Ask is still checking them, and could not decide on these yet.",
     review: true,
   });
   assert.equal(leadSearchEmptyWords({ state: "ended", review: 1 }).title, "1 lead needs a look.");
   assert.deepEqual(leadSearchEmptyWords({ state: "running", review: 0 }), {
     title: "Still looking.",
-    body: "Leads come in here as Claude checks them.",
+    body: "Leads come in here as Ask checks them.",
     review: false,
   });
   assert.equal(
@@ -1591,4 +1591,40 @@ test("a row reads its status group, and none where the read asked none", () => {
   assert.equal(groupOf({ status_group: "needs" }), "needs");
   assert.equal(groupOf({ status_group: null }), null);
   assert.equal(groupOf({}), null, "a server before 00552 says nothing of it");
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): over one search, the count of every lead says it is every lead", () => {
+  // "120 leads · 104 not contacted" stood over a search that had found none yet.
+  assert.equal(leadsStanding(COUNTS, [SEARCH_DONE], true).total, `${COUNTS.all} leads in all`);
+  assert.equal(leadsStanding(COUNTS, [SEARCH_DONE]).total, `${COUNTS.all} leads`, "over every search, as it was");
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): a row says a business's name without the search words its listing strings after a bar", async () => {
+  const { leadNameShown } = await import("@chanlytics/contracts");
+  assert.equal(leadNameShown("Unique Clinique Aesthetics | Med Spa Brooklyn"), "Unique Clinique Aesthetics");
+  assert.equal(
+    leadNameShown("Next Level Aesthetics - Brooklyn Med Spa | Facials | Microneedling"),
+    "Next Level Aesthetics - Brooklyn Med Spa",
+  );
+  assert.equal(leadNameShown("SYLK MEDSPA"), "SYLK MEDSPA", "a name with no bar is as it is");
+  assert.equal(leadNameShown(" | Med Spa"), " | Med Spa", "a name that is only a tail is said whole");
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): two searches of one name are listed by their places, one of its own by its name", async () => {
+  const { leadSearchNamesOf } = await import("@chanlytics/contracts");
+  const at = (id, name, label) => ({
+    ...SEARCH_DONE,
+    id,
+    name,
+    plan: { ...SEARCH_DONE.plan, area: { ...SEARCH_DONE.plan.area, label } },
+  });
+  const named = leadSearchNamesOf([
+    at("s-bk", "med spas", "Brooklyn, NY"),
+    at("s-ny", "med spas", "New York, NY"),
+    at("s-pt", "Personal trainers", "Austin, TX"),
+  ]);
+  assert.deepEqual(
+    [named.get("s-bk"), named.get("s-ny"), named.get("s-pt")],
+    ["med spas · Brooklyn, NY", "med spas · New York, NY", "Personal trainers"],
+  );
 });

@@ -64,6 +64,16 @@ The items below are each a place where that happened, and what it does now.
     Ask couldn't write a draft" before Ask's own words. New offers Ask's draft before a copy, since a copy is of another
     sequence's emails. (35 med spas, none with an email, went to "A draft by Ask", which failed: "No search of med spas is
     ready, so I can't choose who this goes to".)
+12. **Leads says what was asked and what it counts.** A running search's strip counts toward what the owner asked for,
+    never the first 25 the probe sizes it with ("0 of 25" for 300); a search card's "About N min" is for the count its
+    button finds, not the plan's; and over one search the count of every lead says "177 leads in all". (The estimate's
+    speed is kept: it was measured on searches that checked emails, and the morning's ran fast only because none did.)
+13. **Leads names things once and plainly.** Two searches of one name are listed by their places ("med spas · Brooklyn,
+    NY"); a row says a business's name without the search words its listing strings after a bar; the owner-facing words
+    name the assistant Ask, as every other page does; a phone's row with no email address says "No email" in words; and
+    while a selection is on, a phone's bar is Select's alone, with no Sort, Import or Map.
+14. **A nearby ZIP is in its own state.** The areas offered when a search runs dry are searched and said in their own state
+    by the ZIP's prefix ("near 07310, NJ" beside a search in New York), never the search's.
 
 ## Held by
 
@@ -80,3 +90,5 @@ The items below are each a place where that happened, and what it does now.
 - Item 10: `tests/playbooks/change/check-playbook-patch.test.mjs`.
 - Item 11: `tests/leads/workbench/lead-sheet.test.mjs` (what New says) and `tests/sequences/sequence-draft.test.mjs` (what Ask
   is told of the picked leads).
+- Items 12 and 13: `tests/leads/finder/leads-vm.test.mjs` and `tests/leads/finder/leads-honest.test.mjs`.
+- Item 14: `tests/leads/engine/lead-core.test.mjs`.
