@@ -1464,3 +1464,26 @@ test("an address that said stop is never offered again, free mail included", asy
   const lead = stopped.w.T.leads.find((l) => l.place_id === "ChIJfixture0001");
   assert.equal(lead.email, "hello@place0001.example", "the place itself is still found, with its other address");
 });
+
+test("REGRESSION (the live run of 14 Nov 2026): a page of places with websites, none read for contacts, pages the platform once; a page read as usual pages nobody", async () => {
+  // From 13 Nov the Maps actor's pinned build read no site and nothing said so for a day.
+  const unread = await probed();
+  const [r1] = unread.w.runs();
+  for (const it of unread.w.apify.state.datasets[r1.dataset_id])
+    Object.assign(it, { domain: undefined, emails: [], instagrams: [], facebooks: [] });
+  const told = [];
+  await collect(unread.p(OWNER, { tell: async (e) => void told.push(e) }), r1.id, "p0", "c1");
+  const paged = told.filter((e) => e.kind === "contacts_unread");
+  assert.equal(paged.length, 1);
+  assert.deepEqual([paged[0].actor, paged[0].build], [r1.actor, r1.build]);
+  assert.ok(paged[0].sites >= 5, `the page's places with a website: ${paged[0].sites}`);
+  const read = await probed();
+  const [q1] = read.w.runs();
+  const quiet = [];
+  await collect(read.p(OWNER, { tell: async (e) => void quiet.push(e) }), q1.id, "p0", "c1");
+  assert.deepEqual(
+    quiet.filter((e) => e.kind === "contacts_unread"),
+    [],
+    "sites read: nobody paged",
+  );
+});

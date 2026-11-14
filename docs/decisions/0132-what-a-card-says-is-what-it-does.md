@@ -102,9 +102,19 @@ The items below are each a place where that happened, and what it does now.
     spa sites was read: the runs took 16 seconds for 9 places, where 5 Nov's read 32 in 158, and left no record of the
     contact pages visited, with the same input and the same pinned build.)
 
+20. **The Maps actor is pinned to its build of 13 November, and a run that reads no site pages us.** The run logs (read in
+    Apify's console with Ruben signed in) said why: the pinned build 0.14.775 (image EH35UvIrsV0hnZG0Y, the same on 5 Nov
+    when it read sites) logged "Failed to get contact details: Cannot destructure property 'originalStartUrl' of
+    'response.data'" for every place, its calls to its own contacts service were refused ("User was not found or
+    authentication token is not valid"), and a longer run crashed when its contacts monitor set its concurrency to NaN.
+    The provider shipped 0.14.792 (laWvC2kq0M7jC95UN) at 09:15 UTC that day, taking the same input; the card is pinned to
+    it. A page of five or more places with a website, none read, pages the platform once a pager window ("A lead source
+    reading no websites"), with where to look and where the pin is.
+
 Not done, and why: the writer's openings are not rewritten more than once before a hold (F2 stands); a cold email from a
-search in one card is new work, not a fix. Why the provider stopped reading sites, and why its bigger runs failed, is
-Apify's: the runs' logs are in Apify's console, which this work could not open; the actor was changed on 13 Nov.
+search in one card is new work, not a fix. 0.14.792 is pinned on the provider's word and the log's: no probe of it was
+run (a few cents of Ruben's), as the 23 Oct move to 0.14.775 had one; the first search after the merge, or a probe on his
+word, shows its items carry a domain and emails.
 
 ## Held by
 
@@ -129,3 +139,5 @@ Apify's: the runs' logs are in Apify's console, which this work could not open; 
   "waiting" is drawn by `approval.tsx` roRunHead, held by no test.
 - Item 17: `tests/campaigns/new-send-checks.test.mjs` (the rows); the who line is new-draft.tsx whoWords, held by no test.
 - Items 18 and 19: `tests/leads/engine/lead-core.test.mjs` and `tests/leads/finder/leads-vm.test.mjs` (the pile).
+- Item 20: `tests/leads/engine/lead-sources.test.mjs` (the pin, the page) and `tests/leads/engine/lead-runner.test.mjs` (a page of
+  unread sites tells the platform once).

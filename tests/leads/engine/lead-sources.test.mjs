@@ -15,7 +15,7 @@ import { pageKeyWords } from "@chanlytics/contracts";
 import { leadPins } from "../../../packages/core/src/leads/cards.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { recordPageSourceRefused, watchLeadPins } = await import(
+const { recordPageContactsUnread, recordPageSourceRefused, watchLeadPins } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/leads/sources.ts")).href
 );
 
@@ -59,7 +59,7 @@ const CHECKER = "bounceverify/bounceverify-email-verifier";
 
 test("every actor a search starts is pinned once, at its build and that build's id", () => {
   assert.deepEqual(leadPins(), [
-    { actor: MAPS, build: "0.14.775", buildId: "EH35UvIrsV0hnZG0Y" },
+    { actor: MAPS, build: "0.14.792", buildId: "laWvC2kq0M7jC95UN" },
     { actor: PEOPLE, build: "0.0.259", buildId: "UJAtg4JwDdgEVD6iI" },
     { actor: CHECKER, build: "0.1.16", buildId: "uw7qJdrXWOwYh9MUK" },
   ]);
@@ -119,11 +119,25 @@ test("a refused start pages the platform once a window, naming the actor, the bu
   assert.match(m.sent[0].body, /packages\/core\/src\/leads\/cards\.ts/, "it says where the pin is");
 });
 
+test("REGRESSION (the live run of 14 Nov 2026): a run that read none of its places' websites pages the platform once a window, saying where to look", async () => {
+  const db = pagerMemory();
+  const m = mailbox();
+  const page = { actor: MAPS, build: "0.14.775", sites: 25 };
+  await recordPageContactsUnread(db, page, { send: m.send, now: () => FIVE_AM });
+  await recordPageContactsUnread(db, page, { send: m.send, now: () => FIVE_AM + 60_000 });
+  assert.equal(m.sent.length, 1, "the second is counted, not mailed again");
+  assert.equal(db.rows.get(`lead_contacts_unread:${MAPS}`).count, 2);
+  assert.match(m.sent[0].subject, /A lead source read no websites: compass\/crawler-google-places$/);
+  assert.ok(m.sent[0].body.startsWith(`${MAPS} at build 0.14.775 returned 25 places with a website and read none`));
+  assert.match(m.sent[0].body, /Failed to get contact details/, "it names the log line to look for");
+  assert.match(m.sent[0].body, /packages\/core\/src\/leads\/cards\.ts/, "it says where the pin is");
+});
+
 test("every pin still standing says nothing, however far behind the provider's latest it is", async () => {
   const db = pagerMemory();
   const m = mailbox();
   // The checker's 0.1.16 stood two builds behind its latest for weeks and was still there (23 Oct 2026).
-  const apify = provider(STANDING, { [CHECKER]: "0.1.18", [MAPS]: "0.14.790" });
+  const apify = provider(STANDING, { [CHECKER]: "0.1.18", [MAPS]: "0.14.799" });
   assert.equal(await watchLeadPins(db, apify, { send: m.send, now: () => FIVE_AM }), 0);
   assert.deepEqual(
     apify.asked,
@@ -136,7 +150,7 @@ test("every pin still standing says nothing, however far behind the provider's l
 test("a pin the provider deleted pages, naming its build and the latest to probe; once a window", async () => {
   const db = pagerMemory();
   const m = mailbox();
-  const apify = provider({ ...STANDING, EH35UvIrsV0hnZG0Y: null }, { [MAPS]: "0.14.790" });
+  const apify = provider({ ...STANDING, laWvC2kq0M7jC95UN: null }, { [MAPS]: "0.14.799" });
   assert.equal(await watchLeadPins(db, apify, { send: m.send, now: () => FIVE_AM }), 1);
   assert.equal(await watchLeadPins(db, apify, { send: m.send, now: () => FIVE_AM + 1800_000 }), 1);
   assert.equal(m.sent.length, 1, "the next sweep's firing is counted, not mailed again");
@@ -144,9 +158,9 @@ test("a pin the provider deleted pages, naming its build and the latest to probe
   assert.equal(m.sent[0].subject, `[Chanlytics] A lead source's pinned build is gone: ${MAPS}`);
   assert.match(
     m.sent[0].body,
-    /^compass\/crawler-google-places is pinned to build 0\.14\.775, and the provider no longer has it \(id EH35UvIrsV0hnZG0Y\)\./,
+    /^compass\/crawler-google-places is pinned to build 0\.14\.792, and the provider no longer has it \(id laWvC2kq0M7jC95UN\)\./,
   );
-  assert.match(m.sent[0].body, /Probe the latest build, 0\.14\.790, with the card's own input/);
+  assert.match(m.sent[0].body, /Probe the latest build, 0\.14\.799, with the card's own input/);
   assert.match(m.sent[0].body, /pin its number and id in packages\/core\/src\/leads\/cards\.ts/);
 });
 
@@ -166,7 +180,7 @@ test("a build it cannot read skips that pin alone, and a deployment without the 
   assert.equal(await watchLeadPins(db, null, { send: m.send }), 0, "no key on this deployment");
   const apify = provider({
     ...STANDING,
-    EH35UvIrsV0hnZG0Y: new Error("the provider did not answer"),
+    laWvC2kq0M7jC95UN: new Error("the provider did not answer"),
     uw7qJdrXWOwYh9MUK: null,
   });
   assert.equal(await watchLeadPins(db, apify, { send: m.send, now: () => FIVE_AM }), 1);
@@ -182,8 +196,8 @@ test("the pins are read together, and a pin in trouble asks its latest without w
   const db = pagerMemory();
   const m = mailbox();
   const apify = heldProvider(
-    { ...STANDING, EH35UvIrsV0hnZG0Y: null, uw7qJdrXWOwYh9MUK: null },
-    { [MAPS]: "0.14.790", [CHECKER]: "0.1.18" },
+    { ...STANDING, laWvC2kq0M7jC95UN: null, uw7qJdrXWOwYh9MUK: null },
+    { [MAPS]: "0.14.799", [CHECKER]: "0.1.18" },
   );
   const watching = watchLeadPins(db, apify, { send: m.send, now: () => FIVE_AM });
   await drain();
@@ -192,7 +206,7 @@ test("the pins are read together, and a pin in trouble asks its latest without w
     leadPins().map((p) => p.buildId),
     "every build is asked before any answers",
   );
-  apify.answer("EH35UvIrsV0hnZG0Y");
+  apify.answer("laWvC2kq0M7jC95UN");
   await drain();
   assert.equal(apify.asked.at(-1), MAPS, "the gone pin's latest is asked while the other builds are still out");
   for (const key of ["UJAtg4JwDdgEVD6iI", "uw7qJdrXWOwYh9MUK", MAPS, CHECKER]) {
@@ -208,12 +222,13 @@ test("the pins are read together, and a pin in trouble asks its latest without w
     ],
     "the pages go out in the pins' order, each naming its own latest",
   );
-  assert.match(m.sent[0].body, /Probe the latest build, 0\.14\.790,/);
+  assert.match(m.sent[0].body, /Probe the latest build, 0\.14\.799,/);
   assert.match(m.sent[1].body, /Probe the latest build, 0\.1\.18,/);
 });
 
 test("Health says both pages in words, the actor after the colon", () => {
   assert.equal(pageKeyWords(`lead_source_refused:${MAPS}`), `A lead source refusing to start: ${MAPS}`);
+  assert.equal(pageKeyWords(`lead_contacts_unread:${MAPS}`), `A lead source reading no websites: ${MAPS}`);
   assert.equal(
     pageKeyWords("lead_source_pin:bounceverify/bounceverify-email-verifier"),
     "A lead source's pinned build gone: bounceverify/bounceverify-email-verifier",
