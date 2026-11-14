@@ -131,6 +131,10 @@ Probed on Ruben's word ("Yes, run the check"), 14 Nov 2026 16:20 UTC: 0.14.792 (
 input, three Brooklyn med spas, $0.015 (run shERZ5EHJsGgfEFZf). Succeeded in 27 seconds with no contact or sign-in error in its
 log; each of the three items names its site's domain, all three carry Instagram, two Facebook, and ReVita Glow MedSpa
 carries info@revitaglowspa.com, where the morning's run on 0.14.775 had returned nothing for the same place.
+Probed again on Ruben's "Test Apify first", 16:59 UTC: 0.14.792, five Brooklyn med spas, contacts on, about $0.03 (run
+pPXVaaEe9uEeaty4i), the same five the morning's probe on 0.14.775 found with no site read. Succeeded in 61 seconds; all five
+name their site's domain (one a booking page), and SYLK MEDSPA (inquiries@sylkmedspa.com) and PBK Medspa
+(pbkmedspa@gmail.com) carry an email, where the morning's run had none for any.
 
 ## Held by
 
