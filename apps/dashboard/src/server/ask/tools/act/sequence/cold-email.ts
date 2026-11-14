@@ -21,6 +21,7 @@ import { logAndGoOn } from "@chanlytics/log";
 import { getStoredConfig } from "../../../../workspace/config-row";
 import { listMailboxConnections } from "../../../../connections/mailbox-connections";
 import { searchRow } from "../../../../leads/leads";
+import { getReach } from "../../../../campaigns/reach-outs/chain-acts";
 import { stepNamed, str } from "../../context/tool-reads";
 import { propose, refuse } from "../../context/context";
 import type { ProposalOutcome, ToolContext } from "../../context/tool-defs";
@@ -120,6 +121,20 @@ export async function proposeColdEmail(
     } catch (e) {
       if (e instanceof AppError) return refuse(e.message);
       throw e;
+    }
+    // Who it can write to now, as Leads counts it: none, and no card is made (decision 0132: a sequence of 35 med spas,
+    // none with an email, was pressed and failed). A count that could not be read is not said, and the card stands.
+    const reach = await getReach(toolContext.ctx, toolContext.tenantId, searchId).catch(
+      logAndGoOn("cold email reach", null),
+    );
+    if (reach) {
+      const can = input.include_unconfirmed ? reach.with_unconfirmed : reach.ready;
+      const kind = input.include_unconfirmed ? "an email" : "a checked email";
+      if (can === 0)
+        return refuse(
+          `none of the ${reach.of} leads in ${fedBy} has ${kind} a sequence can write to yet${reach.phone_only ? ` (${reach.phone_only} have only a phone)` : ""}: say so plainly, that nothing was made, and that a search made for email finds leads that have one`,
+        );
+      fedBy = `${fedBy}: ${can} of ${reach.of} with ${kind}`;
     }
   }
   const chain = {

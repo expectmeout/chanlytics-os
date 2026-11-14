@@ -49,7 +49,7 @@ const INPUT = {
 };
 
 /** The workspace: the Austin search, and its mailboxes as given (none, or one connected). */
-const worldOf = (mailboxes, faults = {}) =>
+const worldOf = (mailboxes, faults = {}, rpcs = {}) =>
   fakeDb(
     {
       memberships: [
@@ -62,13 +62,13 @@ const worldOf = (mailboxes, faults = {}) =>
       profiles: [],
     },
     faults,
-    {},
+    rpcs,
   );
 /** A mailbox connected and sending, every column as the table holds it. */
 const CONNECTED = rows.mailboxConnection({ tenant_id: A, state: "connected" });
-const contextOver = (mailboxes, faults) =>
+const contextOver = (mailboxes, faults, rpcs) =>
   newToolContext(
-    { supabase: worldOf(mailboxes, faults), userId: USER, email: "owner@example.com", params: {} },
+    { supabase: worldOf(mailboxes, faults, rpcs), userId: USER, email: "owner@example.com", params: {} },
     A,
     "operator",
     TZ,
@@ -242,4 +242,48 @@ test("the Line draws it as it draws a campaign's: the rows, with every email who
   );
   assert.doesNotMatch(words, /one every 20 minutes: /, "the summary is not drawn beside the sheet");
   assert.equal(testid(tree, "ask-card-details").length, 0, "no row is aside, so there is nothing more to open");
+});
+
+/** The search's reach as Leads counts it (reach_out_reach): who a sequence can write to now. */
+const reachOf = (over) => ({
+  reach_out_reach: () => ({ ready: 0, with_unconfirmed: 0, phone_only: 0, of: 0, chain: null, ...over }),
+});
+
+test("REGRESSION (the live run of 14 Nov 2026): a search none of whose leads has a checked email gets no card, and the model is told why", async () => {
+  // 35 med spas, each with a phone and none with an email, were pressed into a sequence that could write to nobody.
+  const out = await buildProposal(
+    contextOver([CONNECTED], {}, reachOf({ phone_only: 35, of: 35 })),
+    "propose_sequence",
+    {
+      action: "cold_email",
+      ...INPUT,
+    },
+  );
+  assert.equal(out.proposal, null);
+  assert.match(
+    out.result,
+    /none of the 35 leads in “Personal trainers · Austin” has a checked email a sequence can write to yet \(35 have only a phone\): say so plainly, that nothing was made/,
+  );
+});
+
+test("a search with some it can write to says how many on the card's To", async () => {
+  const out = await buildProposal(
+    contextOver([CONNECTED], {}, reachOf({ ready: 12, with_unconfirmed: 15, of: 57 })),
+    "propose_sequence",
+    {
+      action: "cold_email",
+      ...INPUT,
+    },
+  );
+  assert.ok(out.proposal, out.result);
+  assert.equal(
+    out.proposal.sheet.rows.find((r) => r.label === "To").value,
+    "“Personal trainers · Austin”: 12 of 57 with a checked email",
+  );
+  const unconfirmed = await buildProposal(
+    contextOver([CONNECTED], {}, reachOf({ ready: 0, with_unconfirmed: 3, of: 57 })),
+    "propose_sequence",
+    { action: "cold_email", ...INPUT, include_unconfirmed: true },
+  );
+  assert.ok(unconfirmed.proposal, "with those still being checked asked for, three can be written to");
 });

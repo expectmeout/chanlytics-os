@@ -111,6 +111,19 @@ The items below are each a place where that happened, and what it does now.
     it. A page of five or more places with a website, none read, pages the platform once a pager window ("A lead source
     reading no websites"), with where to look and where the pin is.
 
+21. **Ask acts on its own only on what it could read.** A day's count of what it did alone, or the week's undos, that could
+    not be read was taken as none, and the business's facts as UTC; now nothing runs alone and every card waits for a press
+    (Ruben, 14 Nov 2026: "Yes, add them", from an outside review). The atomic day's allowance across two turns at once
+    stays the 13 Nov plan's Part 1.
+22. **A yes presses only the cards of Ask's latest answer.** What a yes may press, and what Ask is told waits, are the cards
+    of the latest answer that made any; one further up is out of view, so Ask makes it again with the same terms and is
+    never told it is "already above". Ask's rules say so, and their plan rule now says one press starts everything it
+    names (item 1), where it still said a later send is the next press. The approval bound to one card, with its own row,
+    stays the 13 Nov plan's Part 4.
+23. **Ask's cold-email card says who it can reach.** It reads the search's reach as Leads counts it: none with a checked
+    email (or with an email, where those being checked are asked for) and no card is made, the model told to say why;
+    otherwise its To says "“Med spas”: 12 of 57 with a checked email". A count that could not be read is not said.
+
 Not done, and why: the writer's openings are not rewritten more than once before a hold (F2 stands); a cold email from a
 search in one card is new work, not a fix.
 
@@ -144,3 +157,5 @@ carries info@revitaglowspa.com, where the morning's run on 0.14.775 had returned
 - Items 18 and 19: `tests/leads/engine/lead-core.test.mjs` and `tests/leads/finder/leads-vm.test.mjs` (the pile).
 - Item 20: `tests/leads/engine/lead-sources.test.mjs` (the pin, the page) and `tests/leads/engine/lead-runner.test.mjs` (a page of
   unread sites tells the platform once).
+- Item 21: `tests/ask/act/what-a-turn-runs-alone.test.mjs`. Item 22: `tests/ask/ask-turn.test.mjs` (the thread's waiting cards,
+  and the rules). Item 23: `tests/ask/plan/cold-email-card.test.mjs`.

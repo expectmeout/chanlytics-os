@@ -2196,7 +2196,8 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   );
   // A plan is one card with one press (D2 of the answers canvas); a reminder or a check after an appointment only where a
   // calendar is connected.
-  assert.ok(setup.includes("A plan is one card with one press, which names what it does, the send included"), setup);
+  // Decision 0132: one press starts everything the plan's card names, where it took one send a press.
+  assert.ok(setup.includes("A plan is one card with one press, which starts everything it names"), setup);
   assert.ok(
     setup.includes("A reminder before an appointment, or a check after one, only where a calendar is connected"),
   );

@@ -76,7 +76,9 @@ const takesAFinger = (p: AskProposal): boolean => askTraitsOf(p.kind).reach === 
 async function pressCard(t: ToolContext, input: { card_id: string }): Promise<ProposalOutcome> {
   const on = t.waitingOn?.get(input.card_id);
   if (!on || !t.request || !t.member)
-    return refuse("that card is not waiting in this thread: say it is one press above");
+    return refuse(
+      "a yes presses only the cards of your latest answer: if they meant one further up, make it again with the same terms so they press the card they can see, or ask which they mean",
+    );
   const { card, messageId, cards } = on;
   if (takesAFinger(card)) return refuse("this one is final, so it takes a press: say so, in a few words");
   if (tooOldForAYes(card, Date.now()))

@@ -8954,11 +8954,13 @@ test("a card waiting in this thread is pressed by their yes (the answers canvas,
   assert.equal(said.length, 1, "one rule says it");
   const [rule] = said;
   for (const words of [
-    "A card waiting in this thread is pressed by their yes",
+    "A card waiting in your latest answer is pressed by their yes",
     "call press_card with its id",
     "say what its result says",
     "With several waiting and no way to tell which, ask which",
-    "Propose it again only when it was dismissed or failed",
+    // REGRESSION (decision 0132): a yes reached a card an hour and forty minutes up the thread.
+    "A card further up the thread is out of their view: when they mean one, propose it again with the same terms",
+    "Propose a card of your latest answer again only when it was dismissed or failed",
   ])
     assert.ok(rule.includes(words), words);
   assert.ok(rules.includes(rule), "in the cached rules");
@@ -10422,4 +10424,20 @@ test("an answer written beside a post drawn for a look is set aside: the model l
   assert.equal(besideActs("Here is your post", { ...r, looking: true }), "");
   assert.equal(unsaid, 1);
   assert.equal(besideActs("Here is your post", { ...r, looking: false }), "Here is your post");
+});
+
+test("REGRESSION (decision 0132): only the latest answer's cards wait for a yes; one further up is out of view, never pressed by a yes and never refused as already above", async () => {
+  // "Yes, run the New York City search" pressed a card made an hour and forty minutes up the thread.
+  const card = (id, title) => ({ id, kind: "note", needs: "operator", title, summary: "", payload: {}, undo: null });
+  const { ctx } = await seeded([
+    [{ text: "Find med spas in New York" }, storedAnswer(shaped("Here it is."), [card("p-old", "Find 300 med spas")])],
+    [{ text: "Rename the sequence" }, storedAnswer(shaped("Here it is."), [card("p-new", "Rename it")])],
+    [{ text: "What did the search find?" }, storedAnswer(shaped("57 so far."))],
+  ]);
+  const found = await threadNow(ctx, "Yes, run the New York City search");
+  assert.deepEqual(
+    found.waiting.map((p) => p.id),
+    ["p-new"],
+    "the latest answer that made cards, never one before it",
+  );
 });

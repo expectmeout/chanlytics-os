@@ -39,10 +39,11 @@ export async function turnWorld(ctx: RouteContext, member: Member, now: Date): P
     load(rc, configReader, undefined).then((r) => r.data, logAndGoOn("alone config", null)),
     load(rc, policiesReader, undefined).then((r) => r.data, logAndGoOn("alone policies", null)),
     load(rc, factsReader, undefined).then((r) => r.data, logAndGoOn("alone facts", null)),
-    askAloneCounts(ctx.supabase, member.tenantId as TenantId, now).catch(
-      logAndGoOn("alone counts", { today: 0, undos: 0 }),
-    ),
+    askAloneCounts(ctx.supabase, member.tenantId as TenantId, now).catch(logAndGoOn("alone counts", null)),
   ]);
+  // Acting alone rests on today's count, the week's undos and the business's own hours: one that could not be read is no
+  // zero and no UTC, so nothing runs alone and each card waits for a press (decision 0132; it read 0 and UTC).
+  const known = counts !== null && facts !== null;
   const parsed = parseTenantConfigResult(row?.config ?? null);
   const cfg = parsed.ok ? parsed.config : null;
   const ask = cfg?.ask as { alone?: boolean; stopped?: AskStopped | null } | undefined;
@@ -51,11 +52,11 @@ export async function turnWorld(ctx: RouteContext, member: Member, now: Date): P
   const open = openHere(profile, tz, now);
   return {
     rows: Object.fromEntries((policies ?? []).map((p) => [p.class, p.mode])),
-    alone: ask?.alone === true,
+    alone: ask?.alone === true && known,
     stopped: !!ask?.stopped,
     open,
-    aloneToday: counts.today,
-    undosThisWeek: counts.undos,
+    aloneToday: counts?.today ?? 0,
+    undosThisWeek: counts?.undos ?? 0,
   };
 }
 
