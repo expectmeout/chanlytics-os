@@ -11,7 +11,13 @@
         "calendar": [
           "memberships"
         ],
+        "content": [
+          "memberships"
+        ],
         "conversations": [
+          "memberships"
+        ],
+        "files": [
           "memberships"
         ],
         "inbox": [

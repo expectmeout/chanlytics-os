@@ -144,7 +144,22 @@ const NOTHING = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0, library
 /** With nothing kept, no idea has what it is made from: none is offered (contracts contentIdeasReady). */
 const IDEAS_NONE = ["before_after", "review", "video", "photo_post"].map((key) => ({ key, files: [], ready: false }));
 
-test("a workspace that made nothing reads an empty page, and says so in numbers", async () => {
+/** Where Ask looked, with nothing known anywhere (contracts content/sources.ts): each place unnamed and never read. */
+const NOWHERE = {
+  places: ["website", "google_listing", "instagram"].map((place) => ({
+    place,
+    address: null,
+    reading: false,
+    read_at: null,
+    photos: 0,
+    videos: 0,
+    seen: null,
+    unread: null,
+  })),
+  film: [],
+};
+
+test("a workspace that made nothing reads an empty page, says so in numbers, and where Ask looked", async () => {
   const { body } = await read({});
   assert.deepEqual(body, {
     view: "all",
@@ -155,6 +170,7 @@ test("a workspace that made nothing reads an empty page, and says so in numbers"
     ideas: IDEAS_NONE,
     about: null,
     tally: NOTHING,
+    sources: NOWHERE,
   });
 });
 

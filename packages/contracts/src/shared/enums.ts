@@ -175,6 +175,12 @@ export const JOB_KINDS = [
    * { source, batch, items }, each kept once ever by its fingerprint, so a second run keeps nothing twice.
    */
   "file_fetch",
+  /**
+   * An Instagram account's posts and reels brought in (00626, Content's empty state): payload { handle, step, try,
+   * run_id?, dataset_id? }, one step a run: start asks the scraping platform for the account's newest posts, collect asks
+   * after the run until its posts are read, then hands them to file_fetch, since their addresses expire within hours.
+   */
+  "instagram_read",
   /** A removed file's bytes and Anthropic's copy of it let go (00551): payload { file_id }. */
   "file_purge",
   // A video made ready one step a run, each run again safely (00556, decision 0099 B): payload { file_id, step, edition }.

@@ -266,6 +266,7 @@ const OPERATOR_ACTS = [
  */
 const PARTNER_ACTS = [
   ...OPERATOR_ACTS,
+  "propose_bring_in",
   "propose_lead_search",
   "propose_piece",
   "propose_post",
@@ -303,8 +304,8 @@ test("each role is offered its tools, sorted by name, the tool search last, the 
   for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 40, `${role}: at most the gateway's forty`);
   assert.deepEqual(
     ROLES.map((role) => toApiTools(role, true).length),
-    [14, 29, 33, 33],
-    "a viewer thirteen reads and the search, an operator fifteen acts more, a partner and an owner the lead search, a post, a video and putting a post up too",
+    [14, 29, 34, 34],
+    "a viewer thirteen reads and the search, an operator fifteen acts more, a partner and an owner the lead search, a post, a video, putting a post up and bringing in what a link holds too",
   );
   assert.deepEqual(
     [...ACT_TOOL_NAMES].sort(),

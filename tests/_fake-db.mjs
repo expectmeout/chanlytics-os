@@ -1007,6 +1007,7 @@ export const FAKE_JOB_KINDS = {
   erasure_finish: [1, ["contact_id"], false],
   file_look: [2, ["file_id", "edition"], false],
   file_fetch: [2, ["@tenant", "source", "batch"], false],
+  instagram_read: [2, ["@tenant", "handle", "step", "try"], false],
   file_purge: [2, ["file_id", "why"], false],
   video_digest: [2, ["file_id", "step"], false],
   post_prepare: [2, ["post_id", "attempt"], false],

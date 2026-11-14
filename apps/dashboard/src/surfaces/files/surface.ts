@@ -134,7 +134,18 @@ export const filesOverride: SurfaceOverride = {
   events: ["surface:files"],
   debounceMs: FILES_QUIET_MS,
   maxWaitMs: DEAR_READ_LONGEST_WAIT_MS,
-  ...declareReads("files", { reads: ["file"], fresh: "its-page" }),
+  // Its files; and, while it holds none, where Ask looked for photos and videos (readers/content-sources.ts): the website's
+  // read and the ledger's run (brought), the website its settings name (facts) and the linked listing (review).
+  ...declareReads("files", {
+    reads: ["file", "review", "brought", "facts"],
+    fresh: "its-page",
+    omit: [
+      {
+        tables: ["google_reviews", "google_connections"],
+        why: "the library reads the listing only to say whether one is linked: its reviews and the profile's connection are Settings' own",
+      },
+    ],
+  }),
   apply: async () => {
     const ask = onScreen;
     try {

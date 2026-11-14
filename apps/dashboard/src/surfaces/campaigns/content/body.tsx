@@ -38,6 +38,7 @@ import {
 } from "@chanlytics/contracts";
 import { ContentLinesTable } from "./lines-table";
 import { IdeaRows, type OnIdea } from "./sheets/make";
+import { FoundCard } from "./found-card";
 import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
@@ -310,9 +311,18 @@ function FirstDay(props: {
   videos: boolean;
   picks: ContentPageDto["ideas"];
   libraryEmpty: boolean;
+  sources?: ContentPageDto["sources"];
 }) {
-  const { acts, videos, libraryEmpty } = props;
+  const { acts, videos, libraryEmpty, sources } = props;
   const ideas = contentIdeasReady(contentIdeasFor(videos), props.picks);
+  // Nothing in the Library and where Ask looked is known: what it looked at leads, and what it can make from words follows.
+  if (libraryEmpty && sources)
+    return (
+      <section className="cnv-first" data-testid="cnv-empty">
+        <FoundCard sources={sources} videos={videos} onAdd={acts.onLibrary} onLibrary={acts.onLibrary} />
+        {ideas.length > 0 ? <IdeaRows ideas={ideas} picks={props.picks} onIdea={acts.onIdea} /> : null}
+      </section>
+    );
   return (
     <section className="cnv-first" aria-labelledby="cnv-first-title" data-testid="cnv-empty">
       <Panel className="cnv-first-head">
@@ -365,7 +375,15 @@ function ContentRead(props: ContentReadProps) {
   // Found by words and nothing there: said, as the Library says it, never the first day's ideas.
   if (dto.about && dto.made.length === 0) return none(FILE_WORDS.foundNone(dto.about));
   if (dto.making.length === 0 && dto.made.length === 0)
-    return <FirstDay acts={acts} videos={shows.videos} picks={dto.ideas} libraryEmpty={dto.tally.library === 0} />;
+    return (
+      <FirstDay
+        acts={acts}
+        videos={shows.videos}
+        picks={dto.ideas}
+        libraryEmpty={dto.tally.library === 0}
+        sources={dto.sources}
+      />
+    );
   // All of it, where nothing is searched for: under its headings, what needs the owner first.
   if (dto.view === "all" && !dto.about) {
     const aside = dto.next ? 0 : dto.tally.aside;

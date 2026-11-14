@@ -26,6 +26,8 @@ import {
   type FileMemberRow,
 } from "@chanlytics/db/files";
 import { load, readerStamp, type Reader } from "../shared/reader";
+import { logAndGoOn } from "@chanlytics/log";
+import { readContentSources } from "../files/found";
 
 /** Who the look counted, as the row keeps it; null until it has, or where it could not say. */
 function filePeopleOf(raw: unknown): FilePeople | null {
@@ -200,6 +202,13 @@ export const files: Reader<FilesAsked, FilesPageDto> = {
     );
     const page = rows.slice(0, limit).map(fileDtoOf);
     const last = page.at(-1);
+    // Nothing here at all: where Ask looked for photos and videos, for the empty Library's card (as Made's read says it).
+    const sources =
+      tally.total === 0
+        ? await readContentSources(rc.ctx.supabase, rc.tenantId, rc.now.getTime()).catch(
+            logAndGoOn("files: where Ask looked", null),
+          )
+        : null;
     return {
       data: {
         files: page,
@@ -208,6 +217,7 @@ export const files: Reader<FilesAsked, FilesPageDto> = {
         about: null,
         next: rows.length > limit && last ? fileCursorOf(last) : null,
         tally,
+        ...(sources ? { sources } : {}),
       },
       rows: [],
       stamp: readerStamp(),

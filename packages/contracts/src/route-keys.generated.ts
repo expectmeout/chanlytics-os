@@ -217,6 +217,7 @@ export const ROUTE_KEYS = [
   "POST contacts/[id]/signup-confirm",
   "POST contacts/erase",
   "POST contacts/import",
+  "POST content/bring-in",
   "POST conversations/[id]/archive",
   "POST conversations/[id]/booking-request",
   "POST conversations/[id]/draft",

@@ -1,5 +1,6 @@
 /** Files: views. */
 
+import type { ContentSourcesDto } from "../content/sources";
 import type { FileKind, FileMediaStatus } from "./kinds";
 import type { PostPlan, PostShapeName } from "./post";
 import type { FileSound } from "./sound";
@@ -135,6 +136,11 @@ export interface FilesPageDto {
   about: string | null;
   next: string | null;
   tally: FilesTally;
+  /**
+   * Where Ask looked for photos and videos and what came of it (content/sources.ts), read while the library holds nothing: the
+   * empty Library's card, from its own read, since the Library reads nothing of Made. Absent where it holds something.
+   */
+  sources?: ContentSourcesDto | null;
 }
 
 /** How a post was made (00553): the photo it came from, while that is still here, and what it was asked to be. */

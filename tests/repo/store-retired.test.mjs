@@ -118,6 +118,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "reply_draft",
       "file_look",
       "file_fetch",
+      "instagram_read",
       "file_purge",
       "video_digest",
       "post_prepare",

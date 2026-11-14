@@ -7071,6 +7071,67 @@ COMMENT ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media
 
 
 --
+-- Name: file_video_found(uuid, uuid, text, text, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_twin uuid;
+  v_used numeric;
+begin
+  if p_source not in ('website', 'google_profile', 'google_listing', 'instagram') then
+    raise exception 'file_video_found: % is not a road', p_source using errcode = '22023';
+  end if;
+  -- One at a time, as every door that names or files takes it (00551).
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  -- Asked again after a lost answer: the same answer.
+  if exists (select 1 from public.files f where f.tenant_id = p_tenant_id and f.id = p_id) then
+    return jsonb_build_object('fate', 'kept', 'file_id', p_id);
+  end if;
+  -- The same video found again is one file: the one here, filed now if its owner's profile says so.
+  select f.id into v_twin from public.files f
+   where f.tenant_id = p_tenant_id and f.fingerprint = p_fingerprint and f.removed_at is null;
+  if found then
+    update public.files f set status = 'filed', updated_at = now()
+     where f.id = v_twin and p_status = 'filed' and f.status = 'inbox';
+    return jsonb_build_object('fate', 'here', 'file_id', v_twin);
+  end if;
+  -- What a person removed is not brought back by the next read of the same place.
+  if exists (select 1 from public.files_let_go g where g.tenant_id = p_tenant_id and g.fingerprint = p_fingerprint) then
+    return jsonb_build_object('fate', 'here', 'file_id', null);
+  end if;
+  -- contracts FILES_MAX.
+  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+    return jsonb_build_object('fate', 'full', 'file_id', null);
+  end if;
+  -- contracts FILE_VIDEO_MINUTES_MAX: a found video's length is the platform's to say, so what is known is counted.
+  select coalesce(sum(f.seconds), 0) into v_used from public.files f
+   where f.tenant_id = p_tenant_id and f.kind = 'video' and f.removed_at is null and f.media_status <> 'failed';
+  if v_used >= 60 * 60 then
+    return jsonb_build_object('fate', 'minutes', 'file_id', null);
+  end if;
+  insert into public.files (id, tenant_id, status, source, source_ref, name, mime, bytes, fingerprint, kind, media_ref,
+                            media_status)
+  values (p_id, p_tenant_id, p_status, p_source, p_source_ref, public.file_free_name(p_tenant_id, p_name), p_mime, 0,
+          p_fingerprint, 'video', p_media_ref, 'uploading');
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file.added', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('file_id', p_id, 'source', p_source, 'kind', 'video'));
+  return jsonb_build_object('fate', 'kept', 'file_id', p_id);
+end $$;
+
+
+--
+-- Name: FUNCTION file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text) IS 'A found video on its way (00626), once the video platform is fetching it from its address: the row, uploading, at its road''s status, so the platform''s word alone can finish it. Its twin is by fingerprint (the road''s name for it, hashed). Answers {fate: kept, here, full or minutes, file_id}. The service role''s.';
+
+
+--
 -- Name: files_found(uuid, text, integer, integer, boolean, text[], boolean, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -38423,7 +38484,7 @@ CREATE TABLE public.files (
     CONSTRAINT files_name_shape CHECK (((char_length(name) >= 1) AND (char_length(name) <= 60) AND (name = lower(name)) AND (name !~ '[[:space:][:cntrl:]/\\.<>"''&]'::text) AND (name !~ '^-|-$|--'::text))),
     CONSTRAINT files_shows_check CHECK ((shows = ANY (ARRAY['storefront'::text, 'interior'::text, 'work'::text, 'team'::text, 'product'::text, 'menu'::text, 'logo'::text, 'graphic'::text, 'other'::text]))),
     CONSTRAINT files_sound_said_shape CHECK (((sound_said IS NULL) OR ((char_length(sound_said) >= 1) AND (char_length(sound_said) <= 120)))),
-    CONSTRAINT files_source_check CHECK ((source = ANY (ARRAY['upload'::text, 'google_profile'::text, 'google_listing'::text, 'website'::text, 'made'::text]))),
+    CONSTRAINT files_source_check CHECK ((source = ANY (ARRAY['upload'::text, 'google_profile'::text, 'google_listing'::text, 'website'::text, 'instagram'::text, 'made'::text]))),
     CONSTRAINT files_status_check CHECK ((status = ANY (ARRAY['inbox'::text, 'filed'::text, 'set_aside'::text]))),
     CONSTRAINT files_who_in_it_check CHECK ((who_in_it = ANY (ARRAY['not_asked'::text, 'no_one'::text, 'agreed'::text])))
 );
@@ -38821,7 +38882,7 @@ CREATE TABLE public.imports (
     CONSTRAINT imports_parts_done_check CHECK ((parts_done >= 0)),
     CONSTRAINT imports_parts_total_check CHECK (((parts_total IS NULL) OR (parts_total >= 1))),
     CONSTRAINT imports_run_check CHECK (((run IS NULL) OR ((char_length(run) >= 1) AND (char_length(run) <= 40)))),
-    CONSTRAINT imports_source_check CHECK ((source = ANY (ARRAY['google_reviews'::text, 'calendar'::text, 'clients_file'::text, 'mailbox'::text, 'contacts'::text, 'whatsapp_contacts'::text, 'whatsapp_history'::text, 'google_photos'::text]))),
+    CONSTRAINT imports_source_check CHECK ((source = ANY (ARRAY['google_reviews'::text, 'calendar'::text, 'clients_file'::text, 'mailbox'::text, 'contacts'::text, 'whatsapp_contacts'::text, 'whatsapp_history'::text, 'google_photos'::text, 'website_media'::text, 'instagram'::text]))),
     CONSTRAINT imports_state_check CHECK ((state = ANY (ARRAY['queued'::text, 'running'::text, 'done'::text, 'failed'::text]))),
     CONSTRAINT imports_via_check CHECK (((via IS NULL) OR ((char_length(via) >= 1) AND (char_length(via) <= 40))))
 );
@@ -53384,6 +53445,14 @@ GRANT ALL ON FUNCTION public.file_upload_lapsed(p_tenant_id uuid, p_id uuid) TO 
 
 REVOKE ALL ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text) TO service_role;
 
 
 --

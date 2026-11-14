@@ -10,6 +10,7 @@ import type { FrameFlash } from "../../frame-verbs";
 import { LibraryInContent } from "../../files/pane";
 import { useSurface } from "../../use-surface";
 import { FileLines } from "./lines";
+import { FoundCard } from "./found-card";
 import type { ContentLayout } from "./views";
 
 export default function ContentLibrary({
@@ -30,6 +31,8 @@ export default function ContentLibrary({
 }) {
   const held = useSurface("files");
   const files = held ? held.dto.files : null;
+  // Where Ask looked for photos and videos, read with the library's own read while it holds nothing: its empty page's card.
+  const sources = held?.dto.sources ?? null;
   useEffect(() => {
     onPieces(files ? files.map((file) => ({ file, posts: [] })) : null);
   }, [files, onPieces]);
@@ -39,6 +42,11 @@ export default function ContentLibrary({
       onOpen={onOpen}
       onAdder={onAdder}
       rows={layout === "list" ? (shown, open) => <FileLines files={shown} onOpen={open} /> : null}
+      empty={
+        sources
+          ? ({ add, videos }) => <FoundCard sources={sources} videos={videos} onAdd={add} onLibrary={null} />
+          : null
+      }
     />
   );
 }

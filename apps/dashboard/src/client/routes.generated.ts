@@ -214,6 +214,7 @@ export const ROUTES = {
   "POST contacts/[id]/signup-confirm": { method: "POST", path: "/api/v1/contacts/[id]/signup-confirm" },
   "POST contacts/erase": { method: "POST", path: "/api/v1/contacts/erase" },
   "POST contacts/import": { method: "POST", path: "/api/v1/contacts/import" },
+  "POST content/bring-in": { method: "POST", path: "/api/v1/content/bring-in" },
   "POST conversations/[id]/archive": { method: "POST", path: "/api/v1/conversations/[id]/archive" },
   "POST conversations/[id]/booking-request": { method: "POST", path: "/api/v1/conversations/[id]/booking-request" },
   "POST conversations/[id]/draft": { method: "POST", path: "/api/v1/conversations/[id]/draft" },
@@ -617,6 +618,7 @@ export type Routes = {
   "POST contacts/[id]/signup-confirm": typeof import("../../app/api/v1/contacts/[id]/signup-confirm/route").POST;
   "POST contacts/erase": typeof import("../../app/api/v1/contacts/erase/route").POST;
   "POST contacts/import": typeof import("../../app/api/v1/contacts/import/route").POST;
+  "POST content/bring-in": typeof import("../../app/api/v1/content/bring-in/route").POST;
   "POST conversations/[id]/archive": typeof import("../../app/api/v1/conversations/[id]/archive/route").POST;
   "POST conversations/[id]/booking-request": typeof import("../../app/api/v1/conversations/[id]/booking-request/route").POST;
   "POST conversations/[id]/draft": typeof import("../../app/api/v1/conversations/[id]/draft/route").POST;

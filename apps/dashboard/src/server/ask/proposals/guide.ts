@@ -196,6 +196,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
       "post",
       "piece",
       "publish",
+      "bring_in",
     ],
     pageOnly: [
       { what: "Connect WhatsApp, Google, a mailbox or a phone line", why: WHY.signIn },

@@ -45,6 +45,9 @@ export const JOB_WRITERS = {
     why: "keepFilesMoving finds a file not moving",
   },
   "apps/edge/lib/imports/history-import.ts|history_import": { ledger: "the next part, from inside this one" },
+  "apps/edge/lib/imports/instagram-read.ts|instagram_read": {
+    lost: "an Instagram read asked for and never run: the page stops saying Looking after half an hour, and a link pasted again asks again",
+  },
   "apps/edge/lib/imports/website-read.ts|website_read": {
     lost: "a website read asked for and never run: the business's site is not read until it is next asked or saved",
   },
