@@ -29,5 +29,9 @@ export const stopSearchRound = async (db: Db, args: Args<"lead_round_stop">) => 
 /** A search asked for another round, at its estimate (lead_search_more). */
 export const askSearchForMore = async (db: Db, args: Args<"lead_search_more">) => db.rpc("lead_search_more", args);
 
+/** A search the month's leads stopped, carried on when they renew (lead_search_on_renewal, decision 0133). */
+export const askSearchOnRenewal = async (db: Db, args: Args<"lead_search_on_renewal">) =>
+  db.rpc("lead_search_on_renewal", args);
+
 /** A member's act on a search undone, at the version they read (lead_undo). */
 export const undoLeadOperation = async (db: Db, args: Args<"lead_undo">) => db.rpc("lead_undo", args);

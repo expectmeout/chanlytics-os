@@ -1162,6 +1162,13 @@
       "rate": "lead_search",
       "spend": true
     },
+    "POST lead-searches/[id]/renewal": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "lead_search",
+      "spend": true
+    },
     "PATCH lead-searches/[id]": {
       "kind": "write",
       "scope": "row",

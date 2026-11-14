@@ -251,6 +251,7 @@ export const ROUTES = {
   "POST lead-searches/[id]/aim": { method: "POST", path: "/api/v1/lead-searches/[id]/aim" },
   "POST lead-searches/[id]/answer": { method: "POST", path: "/api/v1/lead-searches/[id]/answer" },
   "POST lead-searches/[id]/more": { method: "POST", path: "/api/v1/lead-searches/[id]/more" },
+  "POST lead-searches/[id]/renewal": { method: "POST", path: "/api/v1/lead-searches/[id]/renewal" },
   "POST lead-searches/[id]/stop": { method: "POST", path: "/api/v1/lead-searches/[id]/stop" },
   "POST lead-searches/[id]/undo": { method: "POST", path: "/api/v1/lead-searches/[id]/undo" },
   "POST lead-searches/chosen": { method: "POST", path: "/api/v1/lead-searches/chosen" },
@@ -654,6 +655,7 @@ export type Routes = {
   "POST lead-searches/[id]/aim": typeof import("../../app/api/v1/lead-searches/[id]/aim/route").POST;
   "POST lead-searches/[id]/answer": typeof import("../../app/api/v1/lead-searches/[id]/answer/route").POST;
   "POST lead-searches/[id]/more": typeof import("../../app/api/v1/lead-searches/[id]/more/route").POST;
+  "POST lead-searches/[id]/renewal": typeof import("../../app/api/v1/lead-searches/[id]/renewal/route").POST;
   "POST lead-searches/[id]/stop": typeof import("../../app/api/v1/lead-searches/[id]/stop/route").POST;
   "POST lead-searches/[id]/undo": typeof import("../../app/api/v1/lead-searches/[id]/undo/route").POST;
   "POST lead-searches/chosen": typeof import("../../app/api/v1/lead-searches/chosen/route").POST;

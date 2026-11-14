@@ -329,3 +329,40 @@ test(
     assert.equal(leg.plan.reach_m, 80_450);
   },
 );
+
+test(
+  "a search the month's leads stopped carries on when they renew: reserved from that month now, started on its first day",
+  { skip },
+  async () => {
+    const s = await search(10);
+    await ended(s.round_id, "month_leads_used");
+    const at = ok(
+      await owner.rpc("lead_search_on_renewal", { p_search_id: s.search_id, p_estimate_usd: 1 }),
+      "renewal",
+    );
+    const [, next] = await roundsOf(s.search_id);
+    assert.deepEqual([next.purpose, next.state, next.target], ["topup", "queued", 10]);
+    assert.equal(next.starts_at && Date.parse(next.starts_at), Date.parse(at.starts_at));
+    const tz = "America/Chicago";
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
+    assert.equal(day.format(new Date(next.starts_at)).slice(8), "01", "the first of the workspace's next month");
+    assert.notEqual(next.month, (await round(s.round_id)).month, "its leads are that month's");
+    const job = ok(
+      await db
+        .from("jobs")
+        .select("kind, due_at")
+        .eq("tenant_id", A)
+        .eq("kind", "lead_round_start")
+        .contains("payload", { round_id: next.id })
+        .single(),
+      "start job",
+    );
+    assert.equal(Date.parse(job.due_at), Date.parse(next.starts_at), "its start is due then");
+    const other = await search(10);
+    await ended(other.round_id, "few_new_matches");
+    assert.deepEqual(
+      ok(await owner.rpc("lead_search_on_renewal", { p_search_id: other.search_id, p_estimate_usd: 1 }), "refused"),
+      { error: "not_month_used" },
+    );
+  },
+);

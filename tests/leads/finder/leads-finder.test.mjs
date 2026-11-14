@@ -1296,9 +1296,33 @@ test("a search's ending names no pile of ours, and its band is its finished lead
   );
 });
 
-test("a search stopped by the month's leads says the day they renew", () => {
+test("a search stopped by the month's leads says the day they renew, and offers the rest then; put off, it says when", () => {
   const vm = leadStrip(ended("month_leads_used"), NOW, { month: { renewsOn: "Oct 1" } });
   assert.deepEqual(vm.parts, ["this month's leads are used", "the 61 found are yours", "your leads renew on Oct 1"]);
+  assert.deepEqual(
+    vm.actions.map((a) => [a.id, a.label]),
+    [["on_renewal", "Find the other 139 on Oct 1"]],
+    "the rest, carried on when they renew: one press with the day on it",
+  );
+  const waiting = leadStrip(
+    withRound({
+      seq: 2,
+      purpose: "topup",
+      state: "queued",
+      target: 139,
+      counted: 61,
+      starts_at: "2026-10-01T05:00:00Z",
+    }),
+    NOW,
+    { month: { renewsOn: "Oct 1" } },
+  );
+  assert.equal(waiting.title, "Finds the other 139 personal trainers on Oct 1");
+  assert.deepEqual(waiting.parts, ["when your leads renew", "nothing is searched or counted before then"]);
+  assert.deepEqual(
+    waiting.actions.map((a) => a.id),
+    ["not_on_renewal"],
+    "and Don't, which ends it and gives back what it held",
+  );
 });
 
 test("Ask's search card says how far a search looks only where it widens", () => {

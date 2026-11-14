@@ -157,6 +157,11 @@ export interface LeadSearchRoundDto {
    * strip names while it runs. Null for any other round, and absent from a server before it.
    */
   area?: LeadArea | null;
+  /**
+   * When a round the owner put off starts (decision 0133, lead_search_on_renewal): a search the month's leads stopped,
+   * carried on when they renew. Null for a round that starts at once, and absent from a server before it.
+   */
+  starts_at?: string | null;
 }
 
 export interface LeadSearchDto {

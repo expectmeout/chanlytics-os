@@ -14,7 +14,7 @@ import {
 import { railToggle } from "../../people/rail/rail-kit";
 import { LEAD_ROUND_MAKERS, leadStrip } from "../finder/strip";
 import type { FinderState } from "../finder/types";
-import { answerSearch, leadsTakeOffered, stopSearch } from "../surface";
+import { answerSearch, findOnRenewal, leadsTakeOffered, stopSearch } from "../surface";
 import type { LeadAnswer } from "./acts";
 import type { LeadsNav } from "./peek-hooks";
 import type { LeadView } from "./state";
@@ -88,6 +88,11 @@ export const leadStripActs = (a: {
     if (id === "stop")
       return leadAct(() => stopSearch(s.id), <>Stopping. The emails of what was found are still being checked.</>);
     if (id === "keep") return leadAct(() => answerSearch(s.id, "keep"), <>Carrying on.</>);
+    // The rest of the count when the month's leads renew (decision 0133): the plan the owner approved, the count it asked,
+    // and the day said on the press, so it goes at once; Don't ends the round put off, and gives back what it held.
+    if (id === "on_renewal") return leadAct(() => findOnRenewal(s.id), <>The rest start when your leads renew.</>);
+    if (id === "not_on_renewal")
+      return leadAct(() => stopSearch(s.id), <>It won&apos;t carry on. The leads it held are yours again.</>);
     if (id === "stop_here")
       return leadAct(() => answerSearch(s.id, "stop"), <>Stopped. The ones already found are yours.</>);
     // The no that changes the search: the plan panel opens its answer row under the question, empty; what comes back from

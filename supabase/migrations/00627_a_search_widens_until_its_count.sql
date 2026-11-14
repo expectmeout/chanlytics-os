@@ -17,6 +17,8 @@
 --   lead_rounds_guard    a leg is the one later round made without a signed-in person
 --   lead_search_more     a top-up of a search that read everything within its reach, with a wider reach, carries on
 --                        from the first area its last round found past it, as a leg
+--   lead_search_on_renewal  a search the month's leads stopped carries on when they renew, reserved from that month
+--                        now (lead_rounds.starts_at says when)
 --   lead_rounds_notify   a round that carries on rings nothing; the one that ends a widened search counts every leg's
 --                        finished leads, and an ending short of its count says why in its title
 --
@@ -425,3 +427,90 @@ begin
 end $$;
 comment on function public.lead_search_more(uuid, text, jsonb, numeric) is
   'Owner. A new round on an ended search: topup reserves the count minus what already counted, renew the whole count, through the same reservation as create; the plan is the current version or the next (stored on the search); the estimate at most lead_estimate_ceiling for the plan''s count and terms (00364). {error: live} while a round is open; {error: nothing_to_add} when the count is already met; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00364). A top-up of a search that ended reach_searched, with a reach as far as an area its last round found past its own (nearby, marked beyond_m), opens a widen round on that area instead (decision 0133).';
+
+-- Find them when the leads renew (decision 0133, step 4): a search the month's leads stopped carries on from the
+-- next month, reserved now and started at midnight on its first day.
+alter table public.lead_rounds add column if not exists starts_at timestamptz;
+comment on column public.lead_rounds.starts_at is
+  'When a round the owner put off starts (decision 0133): a search its month''s leads stopped, carried on when they renew (lead_search_on_renewal). Null for a round that starts at once.';
+
+create or replace function public.lead_search_on_renewal(p_search_id uuid, p_estimate_usd numeric)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user   uuid := auth.uid();
+  s        public.lead_searches;
+  last     public.lead_rounds;
+  v_tz     text;
+  v_at     timestamptz;
+  v_target integer;
+  v_month  text;
+  v_day    text;
+  v_pday   text;
+  v_err    jsonb;
+  v_round  uuid;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_estimate_usd is null or p_estimate_usd < 0 or p_estimate_usd > public.lead_cap('month_usd') then
+    raise exception 'estimate: 0 to % usd', public.lead_cap('month_usd') using errcode = '22023';
+  end if;
+  select * into s from public.lead_searches where id = p_search_id for update;
+  if not found or not public.has_permission(v_user, s.tenant_id, 'find') then
+    raise exception 'Search not found.' using errcode = 'P0002';
+  end if;
+  if s.removed_at is not null then
+    return jsonb_build_object('error', 'removed');
+  end if;
+  select * into last from public.lead_rounds where search_id = p_search_id order by seq desc limit 1;
+  if last.state <> 'ended' then
+    return jsonb_build_object('error', 'live', 'state', last.state);
+  end if;
+  if last.ending is distinct from 'month_leads_used' then
+    return jsonb_build_object('error', 'not_month_used');
+  end if;
+  select (s.plan->>'count')::integer - count(*)::integer into v_target
+    from public.lead_search_members m where m.search_id = p_search_id and m.counted;
+  if v_target <= 0 then
+    return jsonb_build_object('error', 'nothing_to_add');
+  end if;
+  if p_estimate_usd > public.lead_estimate_ceiling('search', v_target, jsonb_array_length(s.plan->'terms')) then
+    raise exception 'estimate: 0 to % usd for this plan', public.lead_estimate_ceiling('search', v_target, jsonb_array_length(s.plan->'terms'))
+      using errcode = '22023';
+  end if;
+  if not public.lead_searches_on(s.tenant_id) then
+    return jsonb_build_object('error', 'paused', 'sentence', 'Lead searches are paused for now. Your leads are all here, and nothing is being counted.');
+  end if;
+  v_err := public.lead_spend_refusal(s.tenant_id);
+  if v_err is not null then
+    return v_err;
+  end if;
+  -- The workspace's next month begins at midnight on its first day, in the workspace's own zone (lead_month's months):
+  -- the leads are reserved from that month now, and the round starts then.
+  select coalesce(t.timezone, 'UTC') into v_tz from public.tenants t where t.id = s.tenant_id;
+  v_at    := (date_trunc('month', now() at time zone v_tz) + interval '1 month') at time zone v_tz;
+  v_month := public.lead_month(s.tenant_id, v_at);
+  v_day   := public.lead_day(s.tenant_id, v_at);
+  v_pday  := to_char(v_at at time zone 'UTC', 'YYYY-MM-DD');
+  v_err   := public.lead_reserve(s.tenant_id, v_month, v_day, v_pday, v_target, p_estimate_usd);
+  if v_err is not null then
+    return v_err;
+  end if;
+  insert into public.lead_rounds (tenant_id, search_id, seq, purpose, plan, plan_version, target, state, allowance_reserved, cost_reserved_usd, month, day, platform_day, starts_at)
+  values (s.tenant_id, p_search_id, last.seq + 1, 'topup', s.plan, (s.plan->>'version')::integer, v_target, 'queued', v_target, p_estimate_usd, v_month, v_day, v_pday, v_at)
+  returning id into v_round;
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (s.tenant_id, 'lead_round_start', v_at, jsonb_build_object('round_id', v_round));
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (s.tenant_id, 'lead.round', 'lead', 'lead_round', v_round,
+          jsonb_build_object('search_id', p_search_id, 'seq', last.seq + 1, 'state', 'queued', 'purpose', 'topup', 'target', v_target, 'starts_at', v_at, 'by', v_user));
+  return jsonb_build_object('search_id', p_search_id, 'round_id', v_round, 'seq', last.seq + 1, 'target', v_target, 'starts_at', v_at);
+end $$;
+revoke execute on function public.lead_search_on_renewal(uuid, numeric) from public, anon;
+grant execute on function public.lead_search_on_renewal(uuid, numeric) to authenticated, service_role;
+comment on function public.lead_search_on_renewal(uuid, numeric) is
+  'Owner (permission find). Find them when the leads renew (decision 0133): a search its month''s leads stopped (its last round ended month_leads_used) is topped up for the rest of its count from the workspace''s next month, reserved now through lead_reserve against that month and its first day, as a topup round that waits queued until midnight on that day in the workspace''s zone (starts_at), with its lead_round_start due then. {error: live | not_month_used | nothing_to_add | removed | paused} and lead_reserve''s and lead_spend_refusal''s refusals as they are.';

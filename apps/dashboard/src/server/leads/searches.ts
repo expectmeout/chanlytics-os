@@ -320,22 +320,23 @@ export function toSearchDto(searchView: SearchViewRow): LeadSearchDto {
 }
 
 /**
- * The area each search's latest round reads where that round is a leg (decision 0133), by round: the view carries the
- * search's own plan, and a leg's is the next area out. Read only where a search has one.
+ * What the view does not carry of each search's latest round (decision 0133), by round: the area a leg reads (the view
+ * carries the search's own plan, and a leg's is the next area out), and when a round put off until the month's leads
+ * renew starts. Read only where a search's latest round is one of those.
  */
-async function legAreasOf(
+async function roundExtrasOf(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: TenantId,
   rows: readonly SearchViewRow[],
-): Promise<Map<string, LeadArea>> {
-  const ids = rows.flatMap((r) => (r.purpose === "widen" && r.round_id ? [r.round_id] : []));
+): Promise<Map<string, { area?: LeadArea; starts_at?: string }>> {
+  const ids = rows.flatMap((r) => ((r.purpose === "widen" || r.state === "queued") && r.round_id ? [r.round_id] : []));
   if (!ids.length) return new Map();
   const { data, error } = await listRoundAreas(ctx.supabase, tenantId, ids);
-  if (error) throw new DbFailure(error, "cannot read the areas a search's legs read");
+  if (error) throw new DbFailure(error, "cannot read what a search's latest round reads and when it starts");
   return new Map(
-    data.flatMap((x) => {
+    data.map((x) => {
       const area = nearbyOf([x.area])[0];
-      return area ? [[x.id, area] as const] : [];
+      return [x.id, { ...(area ? { area } : {}), ...(x.starts_at ? { starts_at: x.starts_at } : {}) }] as const;
     }),
   );
 }
@@ -351,11 +352,11 @@ export async function getSearches(
     // Which cards find leads now (00430): what the rail, the first day and Ask may offer. Unread, the Maps card alone.
     listLeadCardsLive(ctx.supabase).catch(() => ["local_businesses"]),
   ]);
-  const legs = await legAreasOf(ctx, tenantId, rows);
+  const extras = await roundExtrasOf(ctx, tenantId, rows);
   const searches = rows.map((row) => {
     const dto = toSearchDto(row);
-    const area = legs.get(row.round_id ?? "");
-    return area && dto.round ? { ...dto, round: { ...dto.round, area } } : dto;
+    const extra = extras.get(row.round_id ?? "");
+    return extra && dto.round ? { ...dto, round: { ...dto.round, ...extra } } : dto;
   });
   return { searches, counts, cards_live: live };
 }

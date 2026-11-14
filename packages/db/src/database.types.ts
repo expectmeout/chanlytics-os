@@ -3826,6 +3826,7 @@ export type Database = {
           seq: number
           site_reads: number
           started_at: string | null
+          starts_at: string | null
           state: string
           state_since: string
           target: number
@@ -3859,6 +3860,7 @@ export type Database = {
           seq: number
           site_reads?: number
           started_at?: string | null
+          starts_at?: string | null
           state?: string
           state_since?: string
           target: number
@@ -3892,6 +3894,7 @@ export type Database = {
           seq?: number
           site_reads?: number
           started_at?: string | null
+          starts_at?: string | null
           state?: string
           state_since?: string
           target?: number
@@ -9545,6 +9548,10 @@ export type Database = {
           p_purpose: string
           p_search_id: string
         }
+        Returns: Json
+      }
+      lead_search_on_renewal: {
+        Args: { p_estimate_usd: number; p_search_id: string }
         Returns: Json
       }
       lead_search_remove: { Args: { p_search_id: string }; Returns: Json }

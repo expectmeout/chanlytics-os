@@ -49,6 +49,8 @@ export interface DoorAnswer {
   counted?: number;
   search_id?: string;
   round_id?: string;
+  /** lead_search_on_renewal: when the round it put off starts, the workspace's next month (decision 0133). */
+  starts_at?: string;
   op_id?: string;
   version?: number;
   /** lead_undo of an add (00426): leads taken back off the list, and those whose email is on its way or gone. */
@@ -137,6 +139,12 @@ export function refusalOf(doorAnswer: DoorAnswer): AppError | null {
         doorAnswer.counted
           ? `This search already found the ${doorAnswer.counted} you asked for. Ask for more than that to add any.`
           : "This search already found what you asked for.",
+        409,
+      );
+    case "not_month_used":
+      return new AppError(
+        "conflict",
+        "This search did not stop at the month's leads, so there is nothing to carry on when they renew.",
         409,
       );
     case "undone":

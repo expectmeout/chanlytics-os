@@ -39,6 +39,7 @@ const searches = await import(at("apps/dashboard/app/api/v1/lead-searches/route.
 const search = await import(at("apps/dashboard/app/api/v1/lead-searches/[id]/route.ts"));
 const answerRoute = await import(at("apps/dashboard/app/api/v1/lead-searches/[id]/answer/route.ts"));
 const more = await import(at("apps/dashboard/app/api/v1/lead-searches/[id]/more/route.ts"));
+const renewal = await import(at("apps/dashboard/app/api/v1/lead-searches/[id]/renewal/route.ts"));
 const stop = await import(at("apps/dashboard/app/api/v1/lead-searches/[id]/stop/route.ts"));
 const leads = await import(at("apps/dashboard/app/api/v1/leads/route.ts"));
 const keep = await import(at("apps/dashboard/app/api/v1/leads/[id]/keep/route.ts"));
@@ -2184,4 +2185,21 @@ test("a row's mark is the copy we keep, on our own storage; the site's own addre
   assert.equal((await run({ mark_path: null })).mark_url, null, "no copy yet: the photo or the initials");
   assert.equal((await run({})).mark_url, null, "a database from before 00161, which answers no name at all");
   assert.equal((await run({ mark_path: "../media/x.png" })).mark_url, null, "a name we did not write is no address");
+});
+
+test("Find the rest when the leads renew asks the door for this search at its own plan's price, and says the door's refusals in words (decision 0133)", async () => {
+  const seen = [];
+  const answers = [{ round_id: "r2", starts_at: "2026-10-01T05:00:00Z" }, { error: "not_month_used" }];
+  const rpcs = { lead_search_on_renewal: (a) => (seen.push(a), answers.shift()) };
+  const ctx = ctxOf(world({ role: "owner" }), { id: SEARCH }, rpcs);
+  const out = await renewal.POST.run(req("POST", {}), ctx);
+  assert.deepEqual(out, { search_id: SEARCH, round_id: "r2", starts_at: "2026-10-01T05:00:00Z" });
+  assert.equal(seen[0].p_search_id, SEARCH);
+  assert.ok(seen[0].p_estimate_usd > 0, "priced as a top-up of the plan the owner approved");
+  await refused(renewal.POST.run(req("POST", {}), ctx), "conflict", 409);
+  await refused(
+    renewal.POST.run(req("POST", {}), ctxOf(world({ role: "viewer" }), { id: SEARCH }, rpcs)),
+    "forbidden",
+    403,
+  );
 });

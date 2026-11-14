@@ -254,6 +254,7 @@ export const ROUTE_KEYS = [
   "POST lead-searches/[id]/aim",
   "POST lead-searches/[id]/answer",
   "POST lead-searches/[id]/more",
+  "POST lead-searches/[id]/renewal",
   "POST lead-searches/[id]/stop",
   "POST lead-searches/[id]/undo",
   "POST lead-searches/chosen",

@@ -48,6 +48,7 @@ export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember, LeadPrice
 export {
   answerSearchRound,
   askSearchForMore,
+  askSearchOnRenewal,
   excludeSearchMember,
   keepSearchMember,
   putBackSearchMember,

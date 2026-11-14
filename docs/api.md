@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-399 handlers in 58 domains.
+400 handlers in 58 domains.
 
 ## activity
 
@@ -1418,6 +1418,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `asked` | string | yes |  |
 | `terms` | array of string | yes | at least 1; at most 5 |
 | `area` | object | yes |  |
+| `reach_m` | integer | no | ≥ 0; ≤ 80450 |
 | `count` | integer | yes | ≥ 1; ≤ 1000 |
 | `contact` | one of `"phone"`, `"email"` | yes |  |
 | `criteria` | array of object | yes | at most 8 |
@@ -1463,6 +1464,12 @@ Writes; for a member of the workspace the request names, partner or above; count
 | --- | --- | --- | --- |
 | `purpose` | one of `"topup"`, `"renew"` | yes |  |
 | `plan` | object | yes |  |
+
+### `POST /api/v1/lead-searches/[id]/renewal`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `lead_search` rate; may spend the workspace's money.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lead-searches/[id]/renewal/route.ts`).
 
 ### `POST /api/v1/lead-searches/[id]/stop`
 

@@ -228,7 +228,14 @@ export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEnd
         mark,
         title: `Stopped at ${leadEndingFacts.counted}`,
         parts: ["this month's leads are used", yours, ...renewalPart(leadEndingFacts)],
-        step: null,
+        // The rest of the count, carried on when the leads renew (decision 0133): one press, the day said on it.
+        step:
+          leadEndingFacts.renewsOn && leadEndingFacts.target > leadEndingFacts.counted
+            ? {
+                id: "on_renewal",
+                label: `Find the other ${leadEndingFacts.target - leadEndingFacts.counted} on ${leadEndingFacts.renewsOn}`,
+              }
+            : null,
       };
     case "budget_used":
       return {

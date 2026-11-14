@@ -8,7 +8,17 @@ import type { ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import type { StripVM } from "./types";
 
-const QUIET = ["undo", "excluded", "review", "stop", "stop_here", "sort_fit", "take_offered", "not_now"];
+const QUIET = [
+  "undo",
+  "excluded",
+  "review",
+  "stop",
+  "stop_here",
+  "sort_fit",
+  "take_offered",
+  "not_now",
+  "not_on_renewal",
+];
 
 export const LeadStrip = ({
   vm,

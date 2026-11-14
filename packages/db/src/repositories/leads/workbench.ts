@@ -26,9 +26,12 @@ export const listSearchCards = async (db: Db, tenantId: TenantId, limit: number)
     .order("created_at", { ascending: false })
     .limit(limit);
 
-/** The areas these rounds of the workspace read (decision 0133): a leg's own, which the strip names while it runs. */
+/**
+ * What the view does not carry of these rounds of the workspace (decision 0133): the area a leg reads, which the strip
+ * names while it runs, and when a round put off until the month's leads renew starts.
+ */
 export const listRoundAreas = async (db: Db, tenantId: TenantId, roundIds: string[]) =>
-  db.from("lead_rounds").select("id, area:plan->area").eq("tenant_id", tenantId).in("id", roundIds);
+  db.from("lead_rounds").select("id, area:plan->area, starts_at").eq("tenant_id", tenantId).in("id", roundIds);
 
 /** Whether the workspace's searches look further out by themselves, short of their count (decision 0133). */
 export async function findSearchWidens(db: Db, tenantId: TenantId): Promise<boolean> {

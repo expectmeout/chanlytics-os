@@ -105,6 +105,19 @@ const ldEndingFacts = (s: PlacesSearch, nearby: readonly string[], renewsOn: str
   };
 };
 
+/**
+ * A round put off until the month's leads renew (decision 0133): what it will find and when, and Don't, which ends it
+ * and gives back what it held. Nothing is searched or counted before.
+ */
+const waitingStrip = (r: Round, who: string, renewsOn: string | null): StripVM => ({
+  state: "ended",
+  alert: false,
+  title: `Finds the other ${r.target} ${who} on ${renewsOn ?? "the day your leads renew"}`,
+  parts: ["when your leads renew", "nothing is searched or counted before then"],
+  progress: null,
+  actions: [{ id: "not_on_renewal", label: "Don't" }],
+});
+
 /** A round that stopped to ask: the question in the accent, and the four answers to it. */
 function questionStrip(
   plan: LeadSearchPlan,
@@ -204,7 +217,12 @@ const peopleStripOf = (s: LeadSearchDto, plan: LeadPeoplePlan): StripVM => {
   };
 };
 
-const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[], renewsOn: string | null): StripVM | null => {
+const ldStripOf = (
+  s: LeadSearchDto | null,
+  now: Date,
+  nearby: readonly string[],
+  renewsOn: string | null,
+): StripVM | null => {
   if (!s) return null;
   if (s.people) return peopleStripOf(s, s.people);
   if (!s.plan) return null;
@@ -228,6 +246,8 @@ const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[], renewsOn:
   // Removing the untouched leads (POST lead-searches/[id]/undo) is the search menu's, named for what it removes and gives
   // back (contracts leadUndoable): an "Undo" here, beside "the 24 found are yours", read as deleting what was just paid for.
   if (r.state === "waiting_on_owner" && r.question) return questionStrip(plan, r.question, progress);
+  if (r.state === "queued" && r.starts_at && Date.parse(r.starts_at) > now.getTime())
+    return waitingStrip(r, who, renewsOn);
   if (r.state === "checking") {
     // After Stop the emails of what was already found are still checked, and the strip says so in the ending's own words,
     // with `checking` true (S12, 17).
@@ -275,10 +295,10 @@ const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[], renewsOn:
  */
 export const leadStrip = (
   s: LeadSearchDto | null,
-  _now: Date,
+  now: Date,
   extra?: { nearby?: string[]; offered?: number; month?: { renewsOn: string } | null } | null,
 ) => {
-  const vm = ldStripOf(s, (extra && extra.nearby) || [], (extra && extra.month && extra.month.renewsOn) || null);
+  const vm = ldStripOf(s, now, (extra && extra.nearby) || [], (extra && extra.month && extra.month.renewsOn) || null);
   if (!vm) return null;
   const n = (extra && extra.offered) || 0;
   if (n <= 0) return vm;
