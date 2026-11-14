@@ -635,7 +635,7 @@ const ENDING_FACTS = {
 };
 
 test("every ending is one line: what happened, what was kept, what was counted, and at most one next step", () => {
-  assert.equal(LEAD_ROUND_ENDINGS.length, 9);
+  assert.equal(LEAD_ROUND_ENDINGS.length, 11);
   for (const ending of LEAD_ROUND_ENDINGS) {
     const line = leadEndingLine(ending, ENDING_FACTS);
     assert.equal(line.mark, LEAD_ENDING_WORDS[ending], `${ending}: the ending's own word is the strip's name`);
@@ -821,10 +821,10 @@ const PLAN_FACTS = {
 
 test("the plan card's facts are the PRD's three, in leads, with no dollar meter", () => {
   assert.deepEqual(leadPlanFacts(CARD_PLAN, PLAN_FACTS), [
-    "About 53 minutes — leave the page if you like",
+    "About 40 to 80 minutes — leave the page if you like",
     // No number: the card cannot know how many of THIS search's places are already here until it has looked.
     "Anything already yours is skipped",
-    "Counts only matches with a checked phone or email · 486 left this month",
+    "Counts only matches with a checked email · 486 left this month",
   ]);
   assert.equal(/\$/.test(leadPlanFacts(CARD_PLAN, PLAN_FACTS).join(" ")), false);
 });

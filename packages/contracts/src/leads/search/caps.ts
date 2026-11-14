@@ -22,12 +22,14 @@ export function leadAllowanceFor(billingStatus: string | null | undefined): numb
 }
 /**
  * §16.32: what searching may cost a workspace a month: scraping, judging, checks, retries. Each cap is a count it must
- * carry at a dear niche's 8¢ a checked-email lead (decision 0133, 00626; Ruben's D1, 14 Nov 2026): the month's 500 leads,
- * a search of 300 in a day, and every workspace's day together.
+ * carry at a dear niche's 8¢ a checked-email lead (decision 0133, 00626; Ruben's D1, 14 Nov 2026): the month's 500 leads
+ * and a search of 300 in a day. The platform's day, every workspace's together, rises less (an outside review of the
+ * plan, taken 14 Nov): $150 until real searches measure what a lead costs, with a page at 80% of it
+ * (apps/edge/lib/leads/sources.ts recordPagePlatformDay).
  */
 export const LEAD_MONTHLY_BUDGET_USD = 40;
 export const LEAD_DAY_CAP_USD = 25;
-export const LEAD_PLATFORM_DAY_CAP_USD = 400;
+export const LEAD_PLATFORM_DAY_CAP_USD = 150;
 /** §16.5: under this share of Qualified among the first places, the round stops and asks. */
 export const LEAD_QUESTION_THRESHOLD = 0.6;
 /** Below this many judged places the question is not asked: too little to go on. */

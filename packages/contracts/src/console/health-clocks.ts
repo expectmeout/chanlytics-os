@@ -217,6 +217,7 @@ const PAGE_KEY_WORDS: Record<string, string> = {
   lead_source_refused: "A lead source refusing to start",
   lead_source_pin: "A lead source's pinned build gone",
   lead_contacts_unread: "A lead source reading no websites",
+  lead_platform_day: "Lead searching near the platform's day cap",
   outside: "A check outside the product",
 };
 

@@ -3,6 +3,7 @@
  * receipt, an Ask card and a log say. Derived here once, from the plan (plan.ts) alone; `lowerFirst` is the
  * question's too (question.ts).
  */
+import { planMinutes } from "./cards";
 import { type LeadArea, type LeadSearchPlan, US_STATES } from "./plan";
 
 const isLowerLetter = (ch: string) => ch !== undefined && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
@@ -154,4 +155,16 @@ export function planLeavingOut(plan: LeadSearchPlan): string {
  */
 export function planSentence(plan: LeadSearchPlan): string {
   return `${planSaid(plan)}${planLeavingOut(plan)}`;
+}
+
+/**
+ * How long a search may take, as a range a card says ("40 to 80 minutes"): three quarters of planMinutes to half again as
+ * long, until real searches measure the spread (decision 0133, an outside review taken 14 Nov 2026: a time a search may
+ * miss by an hour said one number). One number where the two meet.
+ */
+export function planMinutesSaid(plan: LeadSearchPlan, unit: "minutes" | "min"): string {
+  const m = planMinutes(plan);
+  const low = Math.max(2, Math.round(m * 0.75));
+  const high = Math.max(low, Math.round(m * 1.5));
+  return low === high ? `${low} ${unit}` : `${low} to ${high} ${unit}`;
 }

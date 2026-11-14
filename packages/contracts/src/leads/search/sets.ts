@@ -30,7 +30,7 @@ export const LEAD_ROUND_ENDINGS = [
   "source_failed",
   "question_unanswered",
   "paused",
-  "no_more_within_reach",
+  "reach_searched",
   "day_used",
 ] as const;
 export type LeadRoundEnding = (typeof LEAD_ROUND_ENDINGS)[number];

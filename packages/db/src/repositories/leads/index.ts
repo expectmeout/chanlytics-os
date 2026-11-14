@@ -6,6 +6,7 @@ export {
   findLeadRound,
   findLeadRun,
   findLeadSearchName,
+  findPlatformDayCounter,
   findRoundToTell,
   findRunForDelivery,
   insertLeadRuns,

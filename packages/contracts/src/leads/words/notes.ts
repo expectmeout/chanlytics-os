@@ -145,7 +145,7 @@ export function leadAnd(items: readonly string[]): string {
 export function leadEndingFound(ending: LeadRoundEnding, leadEndingFacts: Pick<LeadEndingFacts, "counted">): boolean {
   if (ending === "target_reached") return true;
   return (
-    (ending === "searched_everything" || ending === "few_new_matches" || ending === "no_more_within_reach") &&
+    (ending === "searched_everything" || ending === "few_new_matches" || ending === "reach_searched") &&
     leadEndingFacts.counted > 0
   );
 }
@@ -273,11 +273,14 @@ export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEnd
         step: null,
       };
     // Decision 0133: a search that widened by itself until nothing was left within the reach on its card.
-    case "no_more_within_reach":
+    case "reach_searched":
       return {
         mark,
         title: `Found ${leadEndingFacts.counted} of ${leadEndingFacts.target} ${leadEndingFacts.name}`,
-        parts: ["there are no more within reach", ...(leadEndingFacts.counted > 0 ? [yours] : [])],
+        parts: [
+          "every area within reach was searched, and no more that fit were found",
+          ...(leadEndingFacts.counted > 0 ? [yours] : []),
+        ],
         step: null,
       };
     // Decision 0133: its next leg would have passed the day's searching, which renews tomorrow.

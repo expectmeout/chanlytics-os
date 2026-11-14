@@ -31,6 +31,16 @@ export const findLeadRun = async (db: Db, runId: string) =>
 export const findLeadRound = async (db: Db, roundId: string) =>
   db.from("lead_rounds").select("*").eq("id", roundId).maybeSingle();
 
+/** The platform's day counter for a UTC day, every workspace's searching together; none until a search reserves in it. */
+export const findPlatformDayCounter = async (db: Db, day: string) =>
+  db
+    .from("lead_counters")
+    .select("used, reserved")
+    .is("tenant_id", null)
+    .eq("kind", "day")
+    .eq("period", day)
+    .maybeSingle();
+
 /** A search's rounds in order, each with its plan (decision 0133: where its legs read). */
 export const listRoundsOfSearch = async (db: Db, searchId: string) =>
   db.from("lead_rounds").select("id, seq, purpose, plan").eq("search_id", searchId).order("seq", { ascending: true });

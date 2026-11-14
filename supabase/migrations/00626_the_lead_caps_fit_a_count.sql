@@ -6,7 +6,8 @@
 --
 --   month_usd         25 -> 40    the month's 500 leads at 8¢
 --   day_usd           10 -> 25    a search of 300 in a day at 8¢
---   platform_day_usd  50 -> 400   every workspace's day together; a search past it waits for the next day
+--   platform_day_usd  50 -> 150   every workspace's day together, until real searches measure what a lead costs;
+--                                 the platform is paged at 80% of it
 --
 -- The leads a month, a trial's leads and a list's rows are as they were. lead_cap is re-created whole from 00512's body
 -- with only those three values changed; create or replace keeps its grants and its comment. contracts' caps.ts says
@@ -29,7 +30,7 @@ begin
     when 'trial_leads'      then 50    -- ... while its billing says trialing (LEAD_TRIAL_ALLOWANCE, decision 0090)
     when 'month_usd'        then 40    -- what searching may cost a workspace in its month (LEAD_MONTHLY_BUDGET_USD)
     when 'day_usd'          then 25    -- ... in its day (LEAD_DAY_CAP_USD)
-    when 'platform_day_usd' then 400   -- ... what it may cost the platform in a UTC day (LEAD_PLATFORM_DAY_CAP_USD)
+    when 'platform_day_usd' then 150   -- ... what it may cost the platform in a UTC day (LEAD_PLATFORM_DAY_CAP_USD)
     when 'list_rows'        then 500   -- rows a file brings, leads one press chooses (LEAD_LIST_MAX)
   end;
   -- A name it does not know is a mistake in the caller, never "no cap": a comparison with null would let anything by.

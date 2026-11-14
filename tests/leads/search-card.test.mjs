@@ -77,7 +77,7 @@ test("a places card is rows to read, the line under them and one press, which po
   assert.equal(v.press.label, "Find 20 leads");
   assert.equal(v.press.disabled, false);
   assert.equal(v.commit.payload.plan.version, 1, "a new search is never a second version");
-  assert.match(v.foot, /^About \d+ min · uses 20 of your 500 leads this month · skips leads you have$/);
+  assert.match(v.foot, /^About \d+( to \d+)? min · uses 20 of your 500 leads this month · skips leads you have$/);
   assert.equal(v.source, null);
   // A ZIP is said as it is searched.
   const zip = searchCardView(

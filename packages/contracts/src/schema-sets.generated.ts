@@ -131,11 +131,11 @@ export const SCHEMA_SETS = {
   "lead_rounds.answered": ["keep", "include", "stop"],
   "lead_rounds.ending": [
     "target_reached", "searched_everything", "month_leads_used", "budget_used", "few_new_matches",
-    "stopped", "source_failed", "question_unanswered", "paused", "no_more_within_reach", "day_used",
+    "stopped", "source_failed", "question_unanswered", "paused", "reach_searched", "day_used",
   ],
   "lead_rounds.ending_pending": [
     "target_reached", "searched_everything", "month_leads_used", "budget_used", "few_new_matches",
-    "stopped", "source_failed", "question_unanswered", "paused", "no_more_within_reach", "day_used",
+    "stopped", "source_failed", "question_unanswered", "paused", "reach_searched", "day_used",
   ],
   "lead_rounds.purpose": ["probe", "main", "topup", "renew", "widen"],
   "lead_rounds.state": ["queued", "probing", "waiting_on_owner", "running", "checking", "ended"],

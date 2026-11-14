@@ -1984,7 +1984,7 @@ test(
       "the workspace's own day",
     );
 
-    r = await atTheEdge((q) => q.is("tenant_id", null).eq("kind", "day").eq("period", platformDay), 399.9, 0.2);
+    r = await atTheEdge((q) => q.is("tenant_id", null).eq("kind", "day").eq("period", platformDay), 149.9, 0.2);
     assert.deepEqual(
       [r.error, r.sentence],
       ["day_cap", "Searching is busy today. Try again tomorrow."],

@@ -16,7 +16,7 @@ export const LEAD_ENDING_WORDS: Record<LeadRoundEnding, string> = {
   source_failed: "The source failed",
   question_unanswered: "Question unanswered",
   paused: "Paused for everyone",
-  no_more_within_reach: "Nothing more within reach",
+  reach_searched: "Searched everywhere within reach",
   day_used: "Today's searching is used",
 };
 

@@ -16,6 +16,7 @@ import { json, refuse } from "../shared/http.js";
 import { errField } from "../shared/log.js";
 import { leadWires, type LeadWires } from "./wires.js";
 import { markLeadsAgain } from "./marks.js";
+import { recordPagePlatformDay } from "./sources.js";
 import {
   planLeadSweep,
   type CarryAction,
@@ -397,6 +398,14 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
   }
   const later = await secondTries({ db, L }, wires, now + SWEEP_DEADLINE_MS);
   Object.assign(counts, { ...later, failed: counts.failed + later.failed });
-  L.info("leads_sweep_done", { ...counts, actions: actions.length });
+  // Every workspace's searching near the platform's day cap pages us once that day (decision 0133).
+  let platformPaged = false;
+  try {
+    platformPaged = await recordPagePlatformDay(db, now);
+  } catch (e) {
+    counts.failed += 1;
+    L.error("leads_sweep_platform_day_failed", { error: errField(e) });
+  }
+  L.info("leads_sweep_done", { ...counts, platform_day_paged: platformPaged, actions: actions.length });
   return json(200, { ok: true, ...counts });
 }

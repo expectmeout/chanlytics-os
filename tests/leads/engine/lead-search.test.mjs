@@ -130,7 +130,7 @@ const answer = (criteria, over = {}) => ({
   ...over,
 });
 
-test("the decisions are the constants the PRD names, and the nine endings are one closed set with words", () => {
+test("the decisions are the constants the PRD names, and the endings are one closed set with words", () => {
   assert.deepEqual(
     [
       LEAD_MONTHLY_ALLOWANCE,
@@ -142,7 +142,7 @@ test("the decisions are the constants the PRD names, and the nine endings are on
       LEAD_JUDGE_BATCH,
       LEAD_MAX_PLACES,
     ],
-    [500, 40, 25, 400, 0.6, 25, 25, 1000],
+    [500, 40, 25, 150, 0.6, 25, 25, 1000],
   );
   assert.deepEqual(
     [...LEAD_ROUND_ENDINGS],
@@ -156,6 +156,9 @@ test("the decisions are the constants the PRD names, and the nine endings are on
       "source_failed",
       "question_unanswered",
       "paused",
+      // Decision 0133: a search that widened until everything within its reach was searched, or past the day's cap.
+      "reach_searched",
+      "day_used",
     ],
   );
   assert.deepEqual(

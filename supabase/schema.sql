@@ -9377,7 +9377,7 @@ begin
     when 'trial_leads'      then 50    -- ... while its billing says trialing (LEAD_TRIAL_ALLOWANCE, decision 0090)
     when 'month_usd'        then 40    -- what searching may cost a workspace in its month (LEAD_MONTHLY_BUDGET_USD)
     when 'day_usd'          then 25    -- ... in its day (LEAD_DAY_CAP_USD)
-    when 'platform_day_usd' then 400   -- ... what it may cost the platform in a UTC day (LEAD_PLATFORM_DAY_CAP_USD)
+    when 'platform_day_usd' then 150   -- ... what it may cost the platform in a UTC day (LEAD_PLATFORM_DAY_CAP_USD)
     when 'list_rows'        then 500   -- rows a file brings, leads one press chooses (LEAD_LIST_MAX)
   end;
   -- A name it does not know is a mistake in the caller, never "no cap": a comparison with null would let anything by.
@@ -11553,7 +11553,7 @@ declare
   v_err    jsonb;
   v_next   uuid;
 begin
-  if p_ending not in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused', 'no_more_within_reach', 'day_used') then
+  if p_ending not in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused', 'reach_searched', 'day_used') then
     raise exception 'not one of the endings: %', p_ending using errcode = '22023';
   end if;
   select * into r from public.lead_rounds where id = p_round_id for update;
@@ -11578,7 +11578,7 @@ begin
   -- A count is delivered (decision 0133): a search short of its count when a round runs dry opens its next leg here, on
   -- the first area its round named (nearby, the distance ladder's next rung inside the reach on its card), where the
   -- platform widens for this workspace. Not for a list, a people search, a removed search or a round with a later one.
-  -- It stops on nothing more within reach: no rung left, eight legs, or the last two legs adding fewer than three leads
+  -- It stops once everything within reach is searched: no rung left, eight legs, or the last two legs adding fewer than three leads
   -- between them. A month with fewer leads left than the count still wants gives the leg what is left; the day's or the
   -- month's searching used ends the search in its own words.
   if p_ending in ('few_new_matches', 'searched_everything')
@@ -11594,7 +11594,7 @@ begin
                where y.search_id = r.search_id order by y.seq desc limit 2) x;
       v_area := r.nearby->0;
       if v_left > 0 and (v_area is null or v_legs >= 8 or (v_two and v_last < 3)) then
-        v_ending := 'no_more_within_reach';
+        v_ending := 'reach_searched';
       elsif v_left > 0 and public.lead_searches_on(r.tenant_id) and public.lead_spend_refusal(r.tenant_id) is null then
         v_month := public.lead_month(r.tenant_id, now());
         v_day   := public.lead_day(r.tenant_id, now());
@@ -11657,7 +11657,7 @@ end $$;
 -- Name: FUNCTION lead_round_end(p_round_id uuid, p_ending text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) IS 'Ends a round with one of the endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. Where the platform widens for the workspace (decision 0133, 00627), a search short of its count whose round ran dry opens its next leg here (purpose widen, on the first area of nearby), or ends on no_more_within_reach, day_used, month_leads_used or budget_used. True once; false when already ended.';
+COMMENT ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) IS 'Ends a round with one of the endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. Where the platform widens for the workspace (decision 0133, 00627), a search short of its count whose round ran dry opens its next leg here (purpose widen, on the first area of nearby), or ends on reach_searched, day_used, month_leads_used or budget_used. True once; false when already ended.';
 
 
 --
@@ -39259,8 +39259,8 @@ CREATE TABLE public.lead_rounds (
     CONSTRAINT lead_rounds_cost_reserved_usd_check CHECK ((cost_reserved_usd >= (0)::numeric)),
     CONSTRAINT lead_rounds_cost_usd_check CHECK ((cost_usd >= (0)::numeric)),
     CONSTRAINT lead_rounds_day_check CHECK ((day ~ '^\d{4}-\d{2}-\d{2}$'::text)),
-    CONSTRAINT lead_rounds_ending_check CHECK ((ending = ANY (ARRAY['target_reached'::text, 'searched_everything'::text, 'month_leads_used'::text, 'budget_used'::text, 'few_new_matches'::text, 'stopped'::text, 'source_failed'::text, 'question_unanswered'::text, 'paused'::text, 'no_more_within_reach'::text, 'day_used'::text]))),
-    CONSTRAINT lead_rounds_ending_pending_check CHECK ((ending_pending = ANY (ARRAY['target_reached'::text, 'searched_everything'::text, 'month_leads_used'::text, 'budget_used'::text, 'few_new_matches'::text, 'stopped'::text, 'source_failed'::text, 'question_unanswered'::text, 'paused'::text, 'no_more_within_reach'::text, 'day_used'::text]))),
+    CONSTRAINT lead_rounds_ending_check CHECK ((ending = ANY (ARRAY['target_reached'::text, 'searched_everything'::text, 'month_leads_used'::text, 'budget_used'::text, 'few_new_matches'::text, 'stopped'::text, 'source_failed'::text, 'question_unanswered'::text, 'paused'::text, 'reach_searched'::text, 'day_used'::text]))),
+    CONSTRAINT lead_rounds_ending_pending_check CHECK ((ending_pending = ANY (ARRAY['target_reached'::text, 'searched_everything'::text, 'month_leads_used'::text, 'budget_used'::text, 'few_new_matches'::text, 'stopped'::text, 'source_failed'::text, 'question_unanswered'::text, 'paused'::text, 'reach_searched'::text, 'day_used'::text]))),
     CONSTRAINT lead_rounds_month_check CHECK ((month ~ '^\d{4}-\d{2}$'::text)),
     CONSTRAINT lead_rounds_plan_version_check CHECK ((plan_version >= 1)),
     CONSTRAINT lead_rounds_platform_day_check CHECK ((platform_day ~ '^\d{4}-\d{2}-\d{2}$'::text)),

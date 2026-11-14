@@ -5,10 +5,11 @@
 -- purpose 'widen' on the first area the round named (lead_rounds.nearby, which the runner now fills from the distance
 -- ladder: the nearest ZIP areas past every area read, inside the reach on the card), for what the count still wants,
 -- reserved through lead_reserve as any round, and started by lead_round_start. It stops on nothing more within reach
--- (no rung left, eight legs, or the last two legs adding fewer than three leads), the month's leads, the month's
+-- (no rung left, eight legs, or the last two legs adding fewer than three leads: reach_searched, never a claim that no
+-- more exist), the month's leads, the month's
 -- searching, or the day's (a new ending, day_used, with Carry on).
 --
---   lead_rounds          purpose takes 'widen'; ending and ending_pending take 'no_more_within_reach' and 'day_used';
+--   lead_rounds          purpose takes 'widen'; ending and ending_pending take 'reach_searched' and 'day_used';
 --                        carries_on: the round opened the next leg, so its end rings nothing
 --   lead_platform        widen_on, the switch for everyone, and widen_tenants, the workspaces it is on for while off
 --   lead_round_end       settles and releases first, then opens the next leg or names why the search stops
@@ -31,10 +32,10 @@ alter table public.lead_rounds add constraint lead_rounds_purpose_check
   check (purpose in ('probe', 'main', 'topup', 'renew', 'widen'));
 alter table public.lead_rounds drop constraint if exists lead_rounds_ending_check;
 alter table public.lead_rounds add constraint lead_rounds_ending_check
-  check (ending in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused', 'no_more_within_reach', 'day_used'));
+  check (ending in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused', 'reach_searched', 'day_used'));
 alter table public.lead_rounds drop constraint if exists lead_rounds_ending_pending_check;
 alter table public.lead_rounds add constraint lead_rounds_ending_pending_check
-  check (ending_pending in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused', 'no_more_within_reach', 'day_used'));
+  check (ending_pending in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused', 'reach_searched', 'day_used'));
 
 alter table public.lead_platform add column if not exists widen_on boolean not null default false;
 alter table public.lead_platform add column if not exists widen_tenants uuid[] not null default '{}'::uuid[];
@@ -68,7 +69,7 @@ declare
   v_err    jsonb;
   v_next   uuid;
 begin
-  if p_ending not in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused', 'no_more_within_reach', 'day_used') then
+  if p_ending not in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused', 'reach_searched', 'day_used') then
     raise exception 'not one of the endings: %', p_ending using errcode = '22023';
   end if;
   select * into r from public.lead_rounds where id = p_round_id for update;
@@ -93,7 +94,7 @@ begin
   -- A count is delivered (decision 0133): a search short of its count when a round runs dry opens its next leg here, on
   -- the first area its round named (nearby, the distance ladder's next rung inside the reach on its card), where the
   -- platform widens for this workspace. Not for a list, a people search, a removed search or a round with a later one.
-  -- It stops on nothing more within reach: no rung left, eight legs, or the last two legs adding fewer than three leads
+  -- It stops once everything within reach is searched: no rung left, eight legs, or the last two legs adding fewer than three leads
   -- between them. A month with fewer leads left than the count still wants gives the leg what is left; the day's or the
   -- month's searching used ends the search in its own words.
   if p_ending in ('few_new_matches', 'searched_everything')
@@ -109,7 +110,7 @@ begin
                where y.search_id = r.search_id order by y.seq desc limit 2) x;
       v_area := r.nearby->0;
       if v_left > 0 and (v_area is null or v_legs >= 8 or (v_two and v_last < 3)) then
-        v_ending := 'no_more_within_reach';
+        v_ending := 'reach_searched';
       elsif v_left > 0 and public.lead_searches_on(r.tenant_id) and public.lead_spend_refusal(r.tenant_id) is null then
         v_month := public.lead_month(r.tenant_id, now());
         v_day   := public.lead_day(r.tenant_id, now());
@@ -168,7 +169,7 @@ begin
 end $$;
 
 comment on function public.lead_round_end(uuid, text) is
-  'Ends a round with one of the endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. Where the platform widens for the workspace (decision 0133, 00627), a search short of its count whose round ran dry opens its next leg here (purpose widen, on the first area of nearby), or ends on no_more_within_reach, day_used, month_leads_used or budget_used. True once; false when already ended.';
+  'Ends a round with one of the endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. Where the platform widens for the workspace (decision 0133, 00627), a search short of its count whose round ran dry opens its next leg here (purpose widen, on the first area of nearby), or ends on reach_searched, day_used, month_leads_used or budget_used. True once; false when already ended.';
 
 create or replace function public.lead_rounds_guard()
 returns trigger

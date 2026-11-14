@@ -628,7 +628,7 @@
     "00623_a_recheck_wakes_its_clock_and_no_workspace_holds_another.sql": "f5078f2802c231da9a5b4e70b7c5aeeeb82c83de6e20ec8cfbc803f1019c542a",
     "00624_a_policy_changes_in_one_write.sql": "8f687746321cb05b2988cd298dc1a4b4d072915eb64fd765108497d4ff891c46",
     "00625_a_day_is_one_sum_and_a_page_reads_its_own_modes.sql": "81539de9f6b698294c5e3781c5a0d330e553ccbfd2e1089b695ff8a7d998b7f5",
-    "00626_the_lead_caps_fit_a_count.sql": "804f81c15d75b3faa987f6029864a3e076459a0f11b1b35246b4c401d5a1c6dc",
-    "00627_a_search_widens_until_its_count.sql": "cc3c66a5350bd6a2376a39480d9d917a025dc2415f2cdca5ea2c50b79f46b3f0"
+    "00626_the_lead_caps_fit_a_count.sql": "5f78b08d088d1a2984d6341748a3c6485fcca2c0701079f110baa211103fba32",
+    "00627_a_search_widens_until_its_count.sql": "75a211fc8386229af808149aae3ad5b9f16984b9a5d922f245f22d7d5008ecbd"
   }
 }

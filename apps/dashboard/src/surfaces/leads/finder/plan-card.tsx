@@ -10,7 +10,7 @@ import {
   leadPlanFacts,
   leadPlanLikely,
   planCeiling,
-  planMinutes,
+  planMinutesSaid,
   planVersionOf,
   planWhere,
   planWords,
@@ -53,7 +53,7 @@ function planOptions(
       note:
         planCeiling && n > planCeiling(plan)
           ? "more than this area likely holds"
-          : `about ${planMinutes({ ...plan, count: n })} min`,
+          : `about ${planMinutesSaid({ ...plan, count: n }, "min")}`,
       on: n === plan.count,
       apply: () => change({ count: n }),
     }));

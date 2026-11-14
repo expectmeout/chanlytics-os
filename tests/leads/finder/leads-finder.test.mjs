@@ -339,8 +339,8 @@ test("a changed count re-plans without the model, and a changed area makes a new
   const counts = byTestId((click(byTestId(drawCard(st), "plan-count")), drawCard(st)), "plan-count-50");
   assert.match(
     textOf(counts),
-    /about 16 min/,
-    "every count says about how long it takes, at the rate five real searches measured",
+    /about 12 to 24 min/,
+    "every count says about how long it takes, at the rate five real searches measured, as a range until real searches measure the spread (decision 0133)",
   );
   st.pick = null;
   pickOption(st, "area", "Round Rock, TX");
@@ -408,7 +408,7 @@ test("Leaving out is chips the owner can take back, Likely says what past search
   );
   assert.equal(
     textOf(byTestId(tree, "plan-facts")),
-    "About 53 minutes — leave the page if you likeAnything already yours is skippedCounts only matches with a checked phone or email · 486 left this month",
+    "About 40 to 80 minutes — leave the page if you likeAnything already yours is skippedCounts only matches with a checked email · 486 left this month",
   );
   assert.equal(/\$/.test(textOf(tree)), false, "there is no dollar meter");
   const chip = byTestId(tree, "plan-leaving-chain");
@@ -1072,6 +1072,16 @@ test("each ending says contracts' own sentence, with this round's numbers in it,
         "paused",
         "Lead searches are paused for now \u00b7 your leads are all here \u00b7 nothing is being counted",
         ["excluded"],
+      ],
+      [
+        "reach_searched",
+        "Found 61 of 200 personal trainers \u00b7 every area within reach was searched, and no more that fit were found \u00b7 the 61 found are yours",
+        ["excluded"],
+      ],
+      [
+        "day_used",
+        "Stopped at 61 \u00b7 today's searching is used up \u00b7 the 61 found are yours",
+        ["carry_on", "excluded"],
       ],
     ],
   );
