@@ -17,7 +17,8 @@ import { routeDoor } from "../../frame-verbs";
 import { useNeedsYou } from "../../needs-you";
 import { surfaceValue } from "../../surface-values";
 import { useSurface, useSurfaceFailed } from "../../use-surface";
-import { TODAY_HELPERS } from "../helpers";
+import { TODAY_HELPERS, peopleForToday } from "../helpers";
+import { TODAY_PEOPLE_HEARD } from "../people-read";
 import { borrowed, useMoved } from "../shell";
 import { TodayFigures } from "./figures";
 
@@ -84,16 +85,17 @@ function WeekLine() {
 
 /**
  * The desk's foot: the week and the pinned lists, one strip under the zones; a week whose read failed says so there.
- * Nothing where neither has anything, and nothing before People's book is in or has failed: the strip stands under Ask
- * found, which draws with the book (found.tsx), and drawn with the week alone it was pushed down as Ask found came, 333 px
- * on a quiet desk (the load review of 10 Nov 2026).
+ * Nothing where neither has anything, and nothing before People is in (its book, or Today's first read of it) or has
+ * failed: the strip stands under Ask found, which draws from it (found.tsx), and drawn with the week alone it was pushed
+ * down as Ask found came, 333 px on a quiet desk (the load review of 10 Nov 2026).
  */
 export function DeskFoot() {
+  useMoved([TODAY_PEOPLE_HEARD]);
   const pins = usePins();
   const headline = useSurface("reports_headline");
   const failed = useSurfaceFailed("reports_headline");
   const bookFailed = useSurfaceFailed("people");
-  if (!borrowed<PeopleListsLike>("__PEOPLE") && !bookFailed) return null;
+  if (!peopleForToday() && !bookFailed) return null;
   if (!headline && !failed && !pins.length) return null;
   return (
     <section className="tz-pane tz-strip" data-testid="today-foot" aria-label={LIST_GROUP_WORDS.pinned}>

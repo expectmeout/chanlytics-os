@@ -38,7 +38,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { setModelStream } = await import("../../apps/dashboard/src/server/shared/model-json.ts");
 const { draftRules, draftSequenceFrom, examplesOf } =
   await import("../../apps/dashboard/src/server/drafts/sequence.ts");
-const { draftKept } = await import("../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
+const { draftKept, stepsJudged } = await import("../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
 const M = await import("../../apps/dashboard/src/surfaces/campaigns/sequences/new/new-model.ts");
 const { onceChannelsOf, leadFirstOf } = await import("../../apps/dashboard/src/server/drafts/sequence-new.ts");
 const { NEW_MAKE_BODY, LEAD_FIRST_BODY, REWRITE_BODY, VOICE_BODY } =
@@ -47,7 +47,10 @@ const { learnVoice } = await import("../../apps/dashboard/src/server/campaigns/s
 const { rewriteFrom } = await import("../../apps/dashboard/src/server/drafts/sequence-rewrite.ts");
 const {
   LEAD_BUILD_WORDS,
+  HAND_WORDS_MAX,
   LEAD_REWRITE_CHANGE_MAX,
+  NEW_DRAFT_JSON_SCHEMA,
+  SEQUENCE_DRAFT_MAX_TOKENS,
   NEW_WORDS,
   NEW_WORDS_MAX,
   VOICE_WORDS,
@@ -284,7 +287,13 @@ test("Ask writes a message where none fits: kept as the message door files it, u
   const offer = draftKept(
     answer({
       steps: [
-        step({ write: { ...write, offer: true, whatsapp: "Hi {{first name}}, book this week: {{booking link}}" } }),
+        step({
+          write: {
+            ...write,
+            offer: true,
+            whatsapp: "Hi {{first name}}, book this week: {{booking link}} See you soon.",
+          },
+        }),
       ],
     }),
     KNOWN,
@@ -307,7 +316,7 @@ test("Ask writes a message where none fits: kept as the message door files it, u
           write: {
             ...write,
             title: "Invite back",
-            whatsapp: "Hi {{first name}}, book your next visit: {{booking link}}",
+            whatsapp: "Hi {{first name}}, book your next visit: {{booking link}} See you soon.",
             text: "Book again: {{booking link}}",
           },
         }),
@@ -613,6 +622,49 @@ test("asked once, as its own purpose, with only what the workspace offers and ho
   assert.equal(kept.kind, "once");
 });
 
+/* ------------- a customer offer carries the owner's own discount (Ruben, 13 Nov 2026), never one Ask made up ------------- */
+
+const OFFER_LINE = { words: "Send everyone 20% off any service this week" };
+const offerWritten = (whatsapp) => ({
+  title: "This week's offer",
+  offer: true,
+  whatsapp,
+  email_subject: "",
+  email_body: "",
+  text: "",
+});
+const onceWith = (s) =>
+  answer({ kind: "once", who: "everyone", name: "This week's offer", when: "now", steps: [step(s)] });
+
+test("REGRESSION (13 Nov 2026): a customer offer carries the discount its owner asked for, in a message Ask writes or a value it types, and Ask is told so", () => {
+  const ours = "Hi {{first name}}, 20% off any service this week. Book here: {{booking link}} See you soon.";
+  const written = draftKept(onceWith({ write: offerWritten(ours) }), KNOWN, OFFER_LINE);
+  assert.match(written.steps[0].message.written.versions.whatsapp.body, /20% off any service this week/);
+  const typed = draftKept(onceWith({ message: "k2", texts: ["20% off any service this week"] }), KNOWN, OFFER_LINE);
+  assert.deepEqual(typed.steps[0].message.params[1], { kind: "text", value: "20% off any service this week" });
+  const rules = draftRules(false);
+  assert.match(rules, /A message to people carries an offer in the owner's own words and figures/);
+  assert.match(rules, /Never a price, a discount or a date in any words you write to leads\./);
+});
+
+test("REGRESSION (13 Nov 2026): a price or a discount the owner never gave stays out of a customer's message: written, it is refused with why; typed, it is left blank", () => {
+  const madeUp = "Hi {{first name}}, 30% off any service this week. Book here: {{booking link}} See you soon.";
+  assert.deepEqual(
+    stepsJudged(onceWith({ write: offerWritten(madeUp) }), KNOWN, OFFER_LINE).refused,
+    [{ place: 1, reason: NEW_WORDS.cannot.why.unsaidPrice }],
+    "a figure the owner did not give",
+  );
+  const halfPrice = "Hi {{first name}}, half price on any service this week. Book here: {{booking link}} See you soon.";
+  assert.deepEqual(
+    stepsJudged(onceWith({ write: offerWritten(halfPrice) }), KNOWN, { words: "Send everyone an offer this week" })
+      .refused,
+    [{ place: 1, reason: NEW_WORDS.cannot.why.unsaidPrice }],
+    "a discount where the owner named none",
+  );
+  const typed = draftKept(onceWith({ message: "k2", texts: ["30% off any service this week"] }), KNOWN, OFFER_LINE);
+  assert.deepEqual(typed.steps[0].message.params[1], { kind: "text", value: "" });
+});
+
 /* ------------------------------ the draft as the page holds it ------------------------------ */
 
 const held = {
@@ -911,6 +963,10 @@ test("the make sends a one-off by what carries it then: a message Ask wrote goes
   assert.deepEqual(onceChannelsOf(written, ["whatsapp", "email"]), ["email"]);
   assert.deepEqual(onceChannelsOf(written, ["whatsapp"]), [], "nothing else carries it: the make refuses in words");
   assert.deepEqual(onceChannelsOf({ message: { written: null } }, ["whatsapp", "email"]), ["whatsapp", "email"]);
+  // A ready-made starter is filed as it is made too, its WhatsApp version sent for review then (the clean list, 14 Nov 2026).
+  assert.deepEqual(onceChannelsOf({ message: { written: null, starter: "quick_note" } }, ["whatsapp", "email"]), [
+    "email",
+  ]);
   // A lead's step as a sequence to leads holds it: the first its subject, a later one in its thread, a call last.
   const email = (subject, body) => ({ does: "message", email: { subject, body }, after_days: 7, hand: "" });
   assert.deepEqual(leadChainStepOf(email("Hi", "Words"), 0), { subject: "Hi", body: "Words", after_days: null });
@@ -1338,4 +1394,124 @@ test("what the owner wants changed is asked for, within its bound; the door take
   assert.equal(REWRITE_BODY.safeParse({ ...good, change: "   " }).success, false);
   assert.equal(REWRITE_BODY.safeParse({ ...good, change: "x".repeat(LEAD_REWRITE_CHANGE_MAX + 1) }).success, false);
   assert.equal(REWRITE_BODY.safeParse({ ...good, place: 2 }).success, false);
+});
+
+/* ------------------ words that run long never lose the draft (the live run of 13 Nov 2026) ------------------ */
+
+// The note the live app drew, word for word (271 characters), and the same a clause longer: past the 300 Ask's answer was
+// held to, where the whole draft was refused as unreadable.
+const LEFT_OUT =
+  "Left out: “20% off any service this week”, and “everyone who visited in the last 90 days”. Messages never carry a price, a discount or a date, and no list matches the last 90 days of visitors, so the draft sends a general offer to everyone who can hear a message instead.";
+const LEFT_OUT_LONGER = `${LEFT_OUT} Ask again with a list if you want fewer people.`;
+const drafted = async (a) => {
+  answerWith(answer({ steps: [step({ message: "k1" })], ...a }));
+  return draftSequenceFrom(KNOWN, LINE, WHO);
+};
+
+test("REGRESSION (13 Nov 2026): what Ask says it left out never loses the draft, however long it runs: it is kept in whole sentences, and Ask is told its room", async () => {
+  assert.ok(LEFT_OUT.length < 300 && LEFT_OUT_LONGER.length > 300);
+  const out = await drafted({ cannot: LEFT_OUT_LONGER });
+  assert.equal(out.steps.length, 1, "the draft is drawn");
+  assert.equal(out.cannot, LEFT_OUT_LONGER, "and its note is whole");
+  // One that runs on is kept to the whole sentences that fit, never cut inside one.
+  const runOn = `${LEFT_OUT} ${"The draft keeps every other part as you asked for it. ".repeat(12)}`.trim();
+  const cut = (await drafted({ cannot: runOn })).cannot;
+  assert.ok(cut.length > 500 && cut.length <= 600, String(cut.length));
+  assert.ok(runOn.startsWith(cut) && cut.endsWith("as you asked for it."), cut.slice(-40));
+  // One with no sentence to end on is cut after a whole word, and says it was.
+  const endless = (await drafted({ cannot: "and another thing ".repeat(60) })).cannot;
+  assert.ok(endless.length <= 600 && endless.endsWith("…"), endless.slice(-30));
+  assert.match(draftRules(false), /in two short sentences, 300 characters at most:/);
+});
+
+test("REGRESSION (13 Nov 2026): a rewrite's note of what it left out never loses the rewrite, and Ask is told its room", async () => {
+  answerWith({ ...REWRITTEN, cannot: LEFT_OUT_LONGER });
+  const out = await rewriteFrom(KNOWN, { ...FIRST, change: "Offer 20% off to last quarter's visitors" }, WHO);
+  assert.deepEqual([out.body, out.cannot], [REWRITTEN.body, LEFT_OUT_LONGER]);
+  assert.match(
+    String(calls[0].request.system),
+    /in two short sentences in the language they wrote in, 300 characters at most:/,
+  );
+});
+
+test("REGRESSION (13 Nov 2026): a name or a written message's title that runs long is cut after a whole word, and the draft stays", async () => {
+  const long = "The offer for everyone who came in this autumn ".repeat(4).trim();
+  const write = { ...WRITE_NONE, title: long, whatsapp: "Hi {{first name}}, thanks for coming in today!" };
+  const out = await drafted({ name: long, steps: [step({ write })] });
+  for (const kept of [out.name, out.steps[0].message.title]) {
+    assert.ok(kept.length <= 80 && kept.endsWith("…"), kept);
+    assert.ok(long.startsWith(kept.slice(0, -1)) && long[kept.length - 1] === " ", "cut where a word ends");
+  }
+});
+
+test("an answer out of shape is still refused in words, and the refusal keeps which fields broke it for the log, never what they held", async () => {
+  await assert.rejects(drafted({ hour: "ten", when: 5 }), (e) => {
+    assert.deepEqual([e.code, e.message], ["upstream_anthropic", "The draft came back unreadable. Try again."]);
+    assert.equal(e.cause?.message, "out of shape at hour, when");
+    return true;
+  });
+});
+
+const long = (words, n) => `${words} `.repeat(n).trim();
+
+test("REGRESSION (13 Nov 2026): words that run long anywhere in Ask's answer never lose the draft: each part is held where it is used, and steps past the most a draft holds are said", async () => {
+  // Who and when said in words, not by a key or a time: the draft is drawn, and the owner picks who.
+  const named = await drafted({
+    who: long("everyone who visited in the last ninety days", 2),
+    when: long("next Tuesday", 5),
+  });
+  assert.deepEqual([named.steps.length, named.who], [1, null]);
+  // More steps than a sequence holds, each with a typed value that runs on: the first six are kept, the rest said.
+  const later = step({
+    message: "k2",
+    after_days: 28,
+    only_if: Array(9).fill("no_booking"),
+    texts: [long("A chair is free", 30)],
+  });
+  const many = await drafted({ steps: [step({ message: "k1" }), ...Array(8).fill(later)] });
+  assert.equal(many.steps.length, 6);
+  assert.ok(many.steps[1].message.params[1].value.length <= 200);
+  assert.deepEqual(many.steps[1].only_if, ["no_booking"], "a condition is said once");
+  assert.ok(many.cannot?.includes(NEW_WORDS.cannot.stepsPast(6)), String(many.cannot));
+  // A call's words that run long are kept to what a call's words hold.
+  const call = await drafted({
+    steps: [
+      step({ message: "k1" }),
+      step({ does: "call", after_days: 28, words: long("Ring them to ask how it went", 30) }),
+    ],
+  });
+  assert.ok(call.steps[1].hand.length > 0 && call.steps[1].hand.length <= HAND_WORDS_MAX);
+  // A lead's email past what an email holds is its owner's to write, its draft kept, and nothing it keeps runs long.
+  answerWith(
+    answer({
+      audience: "leads",
+      who: "s1",
+      steps: [
+        step({
+          subject: long("A week of answered calls", 12),
+          body: `{{opening}}\n\n${long("We answer every call.", 150)}`,
+        }),
+      ],
+    }),
+  );
+  const lead = await draftSequenceFrom(KNOWN, { words: "Email the trainers we found" }, WHO);
+  assert.deepEqual([lead.steps.length, lead.steps[0].email.body, lead.steps[0].email.subject], [1, "", null]);
+  // What Ask is asked for and what its answer is read as agree: nothing in the shape read back holds a length.
+  assert.doesNotMatch(JSON.stringify(NEW_DRAFT_JSON_SCHEMA), /maxLength|maxItems/);
+});
+
+test("REGRESSION: an answer cut off at its ceiling says so, and the log says why, never that trying again will help", async () => {
+  setModelStream(async function* (call) {
+    calls.push(call);
+    yield { type: "text", index: 0, text: JSON.stringify(answer({ steps: [step({ message: "k1" })] })).slice(0, 120) };
+    yield { type: "stop", stopReason: "max_tokens" };
+  });
+  await assert.rejects(draftSequenceFrom(KNOWN, LINE, WHO), (e) => {
+    assert.equal(calls[0].request.max_tokens, SEQUENCE_DRAFT_MAX_TOKENS, "asked for room for a whole draft");
+    assert.equal(e.code, "upstream_anthropic");
+    assert.equal(e.message, "The draft ran longer than Ask can write at once. Ask for less in one go.");
+    assert.doesNotMatch(e.message, /Try again/);
+    assert.match(String(e.cause?.message), /cut off at the answer's ceiling/);
+    return true;
+  });
 });

@@ -170,8 +170,11 @@ async function inboundOn(
   for (let index = 0; index < convIds.length; index += IN_CHUNK) {
     const chunk = convIds.slice(index, index + IN_CHUNK);
     // A select chosen at run time is past the client's typed parser: the rows are the columns named above.
-    const inbound = (await readAllRows("inbound messages", (from, to) =>
-      pageInboundOn(ctx.supabase, tenantId, { conversationIds: chunk, since, withWords, from, to }),
+    // Whole: each reply is counted, and who answered a run is said of them.
+    const inbound = (await readAllRows(
+      "inbound messages",
+      (from, to) => pageInboundOn(ctx.supabase, tenantId, { conversationIds: chunk, since, withWords, from, to }),
+      "whole",
     )) as unknown as Inbound[];
     for (const m of inbound) {
       if (!isPersonsWords(m.meta)) continue;
@@ -341,8 +344,11 @@ async function peopleOnRuns(ctx: RouteContext, tenantId: TenantId, ids: string[]
   const out: RecipientRow[] = [];
   for (let index = 0; index < ids.length; index += IN_CHUNK) {
     const chunk = ids.slice(index, index + IN_CHUNK);
-    const people = (await readAllRows("run recipients", (from, to) =>
-      pagePeopleOnRuns(ctx.supabase, tenantId, chunk, from, to),
+    // Whole: every person on a run is counted.
+    const people = (await readAllRows(
+      "run recipients",
+      (from, to) => pagePeopleOnRuns(ctx.supabase, tenantId, chunk, from, to),
+      "whole",
     )) as RecipientRow[];
     // Pushed one at a time: spread into one push, a long history throws past about 120,000 rows.
     for (const person of people) out.push(person);

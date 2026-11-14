@@ -17,7 +17,6 @@ export const POST = write({
   scope: platform,
   role: null,
   rate: "platform_partner_payout",
-  fresh: true,
   act: "partner_payout",
   input: PartnerPayoutSchema,
   handle: async ({ office, input }) => ({

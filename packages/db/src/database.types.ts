@@ -9756,6 +9756,10 @@ export type Database = {
         Args: { p_line_id: string; p_tenant_id: string }
         Returns: Json
       }
+      llm_tokens_since: {
+        Args: { p_since: string; p_tenant: string }
+        Returns: number
+      }
       lookup_user_for_invite: {
         Args: { p_email: string; p_tenant_id: string }
         Returns: string
@@ -10368,6 +10372,21 @@ export type Database = {
           wa_profile_name: string
         }[]
       }
+      people_reply_modes: {
+        Args: {
+          p_after_added?: string
+          p_after_at?: string
+          p_after_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_query?: string
+          p_tenant_id: string
+        }
+        Returns: {
+          id: string
+          mode: string
+        }[]
+      }
       people_series: {
         Args: { p_days?: number; p_end?: string; p_tenant_id: string }
         Returns: Json
@@ -10771,6 +10790,31 @@ export type Database = {
       playbook_totals: {
         Args: { p_history?: number; p_tenant_id: string }
         Returns: Json
+      }
+      policy_change: {
+        Args: {
+          p_class: string
+          p_limits?: Json
+          p_mode?: string
+          p_tenant_id: string
+          p_via?: string
+        }
+        Returns: {
+          class: string
+          id: string
+          limits: Json
+          mode: string
+          subject_id: string | null
+          subject_type: string | null
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "policies"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       post_again: {
         Args: { p_from: string; p_post_id: string }

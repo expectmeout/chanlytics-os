@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installStubReact, fresh, again, find, byTestId, classes, textOf, press } from "../_stub-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, classes, textOf, press } from "../_stub-react.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -261,6 +261,37 @@ test("a message naming a visit or a proposal is picked only where its run fills 
   s = messageSheet(DEAL_MOMENT, 1);
   assert.equal(whyNot(s.tree, "tpl-proposal"), W.sheets.proposalFirstOnly);
   assert.deepEqual(s.picked, [], "nothing off is picked");
+});
+
+test("the starters nothing has filed are offered under Ready-made, by what each is for; one picked is its key, filed as the draft is kept or started (the clean list, 14 Nov 2026)", () => {
+  const s = messageSheet(ON_A_LIST, 0);
+  const keys = all(
+    s.tree,
+    (n) => typeof n.type === "string" && /^sq-nw-starter-/.test(n.props?.["data-testid"] ?? ""),
+  ).map((n) => n.props["data-testid"].slice("sq-nw-starter-".length));
+  const caps = all(s.tree, (n) => typeof n.type === "string" && classes(n).includes("sq-nw-cap")).map(textOf);
+  assert.ok(caps.includes("Ready-made"), `under the list's own name for them: ${caps.join(", ")}`);
+  // The workspace's own are its messages above, never offered twice.
+  for (const held of ["winback_offer", "visit_reminder", "proposal_follow_up"])
+    assert.equal(keys.includes(held), false, `${held} is the workspace's own`);
+  // In the list's order: an appointment's before an offer, a call's last.
+  assert.ok(keys.indexOf("two_hour_reminder") < keys.indexOf("quick_note"), keys.join());
+  assert.equal(keys.at(-1), "call_text");
+  // A visit's starter is off where the run knows no visit, said by why, as a held one is.
+  const visit = hostOf(s.tree, "sq-nw-starter-two_hour_reminder");
+  assert.ok(classes(visit).includes("is-off"));
+  assert.ok(textOf(visit).includes(W.sheets.visitOnly));
+  // One that names nobody's visit goes anywhere: pressed, it is the starter by its key, with nothing on file yet.
+  press(hostOf(s.tree, "sq-nw-starter-quick_note"));
+  const [m] = s.picked;
+  const note = contracts.starterByKey("quick_note");
+  assert.deepEqual(
+    [m.template_id, m.starter, m.title, m.written, m.offer],
+    [null, "quick_note", note.title, null, true],
+  );
+  assert.ok(m.channels.includes("whatsapp"), "WhatsApp's version goes for review as it is filed");
+  // Kept or started, its key rides to the server, which files it there (drafts/sequence-new.ts templateOf).
+  assert.equal(M.makeBodyOf(M.setMessage(ONCE, 0, m), false, null).steps[0].message.starter, "quick_note");
 });
 
 /* ---------------------------------- How it goes ---------------------------------- */

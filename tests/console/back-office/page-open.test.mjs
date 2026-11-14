@@ -64,8 +64,10 @@ test("the pages that open through one read are the pages that say what they draw
   assert.deepEqual(own, ["workspaces", ...PREFETCH_READS.today], "who is looking and the page's own first");
   assert.deepEqual(beside, [...PREFETCH_BESIDE.today], "then what it draws beside them");
   assert.equal(new Set([...own, ...beside]).size, own.length + beside.length, "no read twice");
-  assert.ok(beside.includes("reports/headline?period=30d"), "the period line over the default period");
-  assert.ok(openReads("today", "7d")[1].includes("reports/headline?period=7d"), "or the one this device last picked");
+  // Ask found's checks read the headline, so it is Today's own first read since 13 Nov 2026 (Today knows its shape at its
+  // first draw), over the period this device last picked.
+  assert.ok(own.includes("reports/headline?period=30d"), "the period line over the default period");
+  assert.ok(openReads("today", "7d")[0].includes("reports/headline?period=7d"), "or the one this device last picked");
   assert.deepEqual(openReads("inbox")[1], [], "a page that draws nothing beside its own has no second tier");
 });
 

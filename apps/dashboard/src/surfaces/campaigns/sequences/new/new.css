@@ -216,9 +216,25 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  align-self: flex-start;
   gap: var(--space-2);
   font-size: var(--text-sm);
   color: var(--ink-dim);
+}
+/* A step's box is one press that opens it: the rail lays that press over the whole box (place.css, .sq-stepbox-open's
+   cover). A step's own controls stand over the cover, each pressed where it is touched: the message's pick and its words'
+   edit, a value typed in, Take away. Under it, Take away opened the step and took nothing away, and a press in a value's
+   field opened the message picker (13 Nov 2026). The row of them is as wide as what it holds, so the box beside it still
+   opens the step. */
+.sq-nw-stepacts,
+.sq-nw-value,
+.sq-nw-remove {
+  position: relative;
+}
+/* A message's words are read in its box, never pressed, so a press on them is the box's. The bubble stands over the box's
+   press by its own layout (its tail's), and a press on the words, the most of the box, opened nothing. */
+.sq-nw-step > .mp {
+  pointer-events: none;
 }
 .sq-nw-k {
   color: var(--ink-dim);

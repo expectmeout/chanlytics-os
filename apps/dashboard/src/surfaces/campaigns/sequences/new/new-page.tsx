@@ -45,7 +45,7 @@ import { mailboxConnectOutcome } from "../../../settings/connections/mailbox-con
 import { broadcasts } from "../../broadcasts/verbs";
 import { useCampaignsToast } from "../../home/route-toast";
 import { reachOuts } from "../../reach-out/surface";
-import { CHANGE_WORDS, changedFrom, changesOf, draftedAfter, standsOf } from "./change";
+import { CHANGE_WORDS, changedFrom, changesOf, draftedAfter, leftNothing, placesByAsk, standsOf } from "./change";
 import { DraftView, type DraftReads } from "./new-draft";
 import type { KeptSend } from "./kept-send";
 import * as M from "./new-model";
@@ -202,24 +202,26 @@ function useOpenedOn(who: NewWho | null, keptId: string | null, reads: Reads | n
  */
 function useAsk(door: Fixed, flash: Flash) {
   const [drafting, setDrafting] = useState<"fresh" | "again" | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
   // Each ask counted, so an answer that arrives after Stop, or after a later ask, is let go.
   const asked = useRef(0);
   const ask = async (words: string, fixed: Fixed, again: boolean): Promise<NewDraftDto | null> => {
     const id = ++asked.current;
     setDrafting(again ? "again" : "fresh");
-    setFailed(false);
+    setFailed(null);
     setRefused(null);
-    const r = await commitVerb("sequence_draft", { words, ...door, ...fixed });
+    // A change is asked of the draft as it stands: the door's choices opened New, and the owner may have changed them since.
+    const r = await commitVerb("sequence_draft", { words, ...(fixed.stands ? {} : door), ...fixed });
     if (id !== asked.current) return null;
     setDrafting(null);
     if (r.ok) return r.data as Output<"POST sequences/draft">;
     // Drafting it again, or changing it, the draft stays as it was and what Ask said is a toast over it, whatever it was.
     if (again) flash(refusalToast(r));
-    // A draft nothing here can hold is said in Ask's words; anything else is Ask that could not answer just now.
+    // A draft nothing here can hold is said in Ask's words; anything else is Ask that could not answer, in the server's
+    // words where it said why (a day's budget spent, a paused workspace, an answer that ran long), as a change's toast is.
     else if (r.code === "validation") setRefused(r.message);
-    else setFailed(true);
+    else setFailed(r.message || W.failed.words);
     return null;
   };
   const stop = () => {
@@ -227,7 +229,7 @@ function useAsk(door: Fixed, flash: Flash) {
     setDrafting(null);
   };
   const clear = () => {
-    setFailed(false);
+    setFailed(null);
     setRefused(null);
   };
   return { drafting, failed, refused, ask, stop, clear };
@@ -284,8 +286,11 @@ interface Changed {
 /**
  * The line under a draft (decision 0129 step 2; change.ts): what is typed in it, the line Ask is changing the draft by
  * while it does, and what each change left, newest last, with the draft before it: Undo steps back through them one at
- * a time. Ask's answer is taken as the draft that stood, changed, and counted again; a change that changed nothing is
- * said in passing and leaves nothing to undo; a change by hand, or a new draft, lets them all go.
+ * a time. Ask's answer is taken as the draft that stood, changed, and counted again. A line that changed nothing and
+ * says why (the draft's card) stands on top over that card as any change does, and Undo puts the card away: left on the
+ * change before it, the card read as that change's. One that changed nothing and says nothing new is said in passing
+ * and leaves nothing to undo. A change by hand, or a new draft, lets them all go; a draft discarded lets the line's
+ * words go too, which a change still out when it went had left for the next draft's line.
  */
 function useChange(on: {
   draft: NewDraftDto | null;
@@ -310,8 +315,7 @@ function useChange(on: {
         const changed = changesOf(before, next);
         on.put(next, draftedAfter(on.drafted, before, next));
         setWords("");
-        // Nothing changed: said in passing (what Ask left out is the draft's card's to say), with nothing to undo.
-        if (changed.said === CHANGE_WORDS.same) on.flash({ msg: CHANGE_WORDS.same });
+        if (leftNothing(before, next, changed.said)) on.flash({ msg: CHANGE_WORDS.same });
         else setLeft((all) => [...all, { before, drafted: on.drafted, line, ...changed }].slice(-CHANGES_KEPT));
       })
       .finally(() => setBy(null));
@@ -542,12 +546,15 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     built(door.who && whoSuits(door.who, d.audience, d.kind) ? M.setWho(d, door.who) : d);
     asking.clear();
   };
-  // A kept one-off let go goes from Drafts too; any other draft was never made, so it is only let go here.
+  // A kept one-off let go goes from Drafts too; any other draft was never made, so it is only let go here. Ask at work
+  // on it is stopped first: its answer, landing after, drew the draft again.
   const discard = () => {
+    undo();
     letGo();
     setDraft(null);
     setDrafted(null);
     change.forget();
+    change.setWords("");
     work.done();
     work.stay();
     if (!kept) return;
@@ -575,6 +582,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
         }
         line={{ words: change.words, onWords: change.setWords }}
         note={change.note}
+        byAsk={placesByAsk(draft, drafted)}
         acts={{
           // A change by hand is the owner's: what the line last changed stays changed, and its Undo goes.
           change: (d) => {

@@ -3,7 +3,7 @@
  * in a claim on Cold email, or in the business's name. What a slot fills in is the slot's ({{opening}}'s numbers
  * are its record's, read by the opening's own reader), and a time claims nothing about anyone.
  */
-import { REACH_OUT_SLOT_SET, slotsOut } from "@chanlytics/contracts";
+import { REACH_OUT_SLOT_SET, slotsOut, violatesNoPrices, type NewDraftAsk } from "@chanlytics/contracts";
 
 const NUMBER = /\d[\d,]*(?:\.\d+)?/g;
 
@@ -56,4 +56,32 @@ export function unbackedNumbers(body: string, backing: readonly string[]): strin
     out.push(n.written);
   }
   return out;
+}
+
+/**
+ * The owner's own words a price in a customer's message may come from (Ruben, 13 Nov 2026: a customer offer carries the
+ * discount its owner asked for, and never one Ask made up): the line, and where the line changes a draft that stands, the
+ * line it was drafted from and what its messages say as they stand, a held one's words and the values typed into it too.
+ */
+export function ownerPriceWords(
+  ask: Pick<NewDraftAsk, "words" | "stands">,
+  messages: ReadonlyArray<{ templateId: string; body: string }>,
+): string[] {
+  const stood = (ask.stands?.steps ?? []).flatMap((step) => [
+    messages.find((m) => m.templateId === step.template_id)?.body ?? "",
+    ...step.texts,
+    step.write.whatsapp,
+    step.write.text,
+    step.write.email_subject,
+    step.write.email_body,
+  ]);
+  return [ask.words, ask.stands?.said ?? "", ...stood].filter((text) => text.trim() !== "");
+}
+
+/**
+ * Whether words to a customer name a price or a discount the owner did not give: none of their words names one, or a
+ * figure in it is none of theirs. A cold email names none at all, whoever gave it (draft-judge.ts leadEmailRefusal).
+ */
+export function unsaidPrice(words: string, owner: readonly string[]): boolean {
+  return violatesNoPrices(words) && (!owner.some(violatesNoPrices) || unbackedNumbers(words, owner).length > 0);
 }

@@ -608,6 +608,7 @@ const THROUGH_THE_HUNDRED = new Set(["get_today", "list_threads"]);
 
 /** An old name as a refusal now says it: the tool, and its action in words. */
 const inWords = (to) => (to.includes(".") ? to.replace(".", " with action ") : to);
+const pageModesOf = (old) => (r) => (old === "search_people" && r === "policies.select" ? "rpc:people_reply_modes" : r);
 
 /** What the registry at 7405e34b answered for each call, frozen from the old names before they went. */
 const FIXTURE = JSON.parse(fs.readFileSync(path.join(ROOT, "tests/fixtures/ask-tool-results-7405e34b.json"), "utf8"));
@@ -1513,10 +1514,10 @@ test("every old tool's call, made by its new name and action, answers the bytes 
         : withDoubts;
     // 7 Oct 2026 (00349): the Inbox's read and a page of People say what the member asking has seen of each person they
     // hold (server/people/person-seen.ts), for the rows that say who is new to them: one call to the door more, where
-    // the read holds anyone. The old tools that read through the Inbox's hundred make it, and a search of People with
-    // no list (a list is counted over the pool, which is not a page). Their bytes are unchanged: no tool says it.
+    // the read holds anyone; the Inbox's hundred make it, and a search of People with no list (a list is counted over
+    // the pool), which since 00625 reads its own people's reply modes, not every policy. Bytes unchanged: none says it.
     const readsSeen = THROUGH_THE_HUNDRED.has(old) || (old === "search_people" && !input.list);
-    const withSeen = readsSeen ? [...withCalendar, "rpc:contact_seen"] : withCalendar;
+    const withSeen = readsSeen ? [...withCalendar.map(pageModesOf(old)), "rpc:contact_seen"] : withCalendar;
     // 7 Oct 2026 (Reports phase C, lens 1, T4): the report reads the Reviews lens too: six reads more (withReviewReads).
     // 8 Oct 2026 (a conversation begins from the Inbox): a thread nothing has come to from the person's side is answered
     // where our own written words last went (server/shared/verbs.ts replyChannelOf, db findOurLastWire), never on WhatsApp by default:

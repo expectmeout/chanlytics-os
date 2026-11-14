@@ -15,8 +15,12 @@
  *   the channels could not be read, a message picked goes by WhatsApp, as every send did before a channel was read.
  * - A draft keeps a line under it (decision 0129 step 2): what is said there is asked of Ask with the draft as it
  *   stands, its answer is that draft changed with what changed said on top, Undo steps back through every change it
- *   made, a change that changed nothing is said in passing, and a change Ask could not make leaves the draft and the
- *   line as they were.
+ *   made, a change that changed nothing is said in passing (or, where Ask says why, stands on top over the card that says
+ *   it), and a change Ask could not make leaves the draft and the line as they were. A change is asked of the draft as it
+ *   stands, never under the door's own choices; while Ask works the name is held; and Discard stops Ask, so its answer
+ *   never draws the draft again, and lets the line's words go, so the next draft's line starts empty.
+ * - What the draft says of Ask holds to the draft as it now stands (13 Nov 2026): a message its owner rewrote is no longer
+ *   said to be Ask's, and what Ask said it left out of its own steps goes when one of them is swapped or rewritten.
  * Run against the pages and the composers on a stub React, with the tab's memory installed as the app installs it, and
  * New's two doors (POST sequences/draft and sequences/new) answered as their routes answer.
  */
@@ -25,6 +29,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { until } from "../shared/_until.mjs";
 import * as contracts from "@chanlytics/contracts";
 import {
   installStubReact,
@@ -102,6 +107,7 @@ const { Segmented } = await import(`${SRC}/surfaces/kit/segmented/segmented.tsx`
 const { Switch } = await import(`${SRC}/surfaces/kit/switch/switch.tsx`);
 const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);
 const { CHANGE_WORDS } = await import(`${SRC}/surfaces/campaigns/sequences/new/change.ts`);
+const { WordsSheet } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-message-sheets.tsx`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
 const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.ts`);
@@ -318,7 +324,10 @@ const ASKED = {
  * -- a one-off sent, or kept under Drafts. Every write is kept; any other address is a read that finds nothing.
  */
 const posted = [];
-/** What Ask answers a draft asked for: the one-off above, until a case says otherwise (none: Ask could not). */
+/**
+ * What Ask answers a draft asked for: the one-off above, until a case says otherwise (none: Ask could not; `refused`: the
+ * server's refusal, its code and its words).
+ */
 const asks = { draft: () => ASKED };
 globalThis.fetch = async (url, init) => {
   const at = new URL(String(url), "https://app.chanlytics.com").pathname;
@@ -326,12 +335,13 @@ globalThis.fetch = async (url, init) => {
   if (init?.method === "POST") posted.push({ at, body });
   const data =
     at === "/api/v1/sequences/draft"
-      ? asks.draft(body)
+      ? await asks.draft(body)
       : at === "/api/v1/sequences/new"
         ? body.start
           ? { made: "b-new", kind: "once", state: "on", scheduled_for: iso(10 * 60_000) }
           : { made: "s-kept", kind: "once", state: "draft" }
         : null;
+  if (data?.refused) return new Response(JSON.stringify({ ok: false, error: data.refused }), { status: 502 });
   return data
     ? new Response(JSON.stringify({ ok: true, data }), { status: 200 })
     : new Response(JSON.stringify({ ok: false, error: { code: "not_found", message: "Not here." } }), { status: 404 });
@@ -624,6 +634,10 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   asks.draft = renamed;
   await say("Call it Autumn colour for VIPs");
   assert.ok(onTop().includes("Call it Autumn colour for VIPs") && onTop().includes(CHANGE_WORDS.changing));
+  // One status on top stays while Ask works and after, so what the change did is read out as it lands.
+  const readOut = () =>
+    textOf(find(byTestId(tree, "sq-nw-said"), (n) => typeof n.type === "string" && n.props?.role === "status"));
+  assert.ok(readOut().includes(CHANGE_WORDS.changing), readOut());
   assert.equal(textOf(hostOf(tree, "sq-nw-again")), W.say.stop);
   assert.ok(
     byTestId(tree, "sq-nw-steps"),
@@ -643,11 +657,20 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
     [ASKED.said, "Autumn colour", "now", "tpl-own", ["20% off colour"]],
     "the draft as it stands, the value typed in it",
   );
-  assert.deepEqual(asked.who, ASKED.who, "and the list the door named, kept");
+  assert.deepEqual(asked.stands.who, ASKED.who, "who it is for, as the draft says");
+  assert.deepEqual(
+    [asked.kind, asked.audience, asked.who],
+    [undefined, undefined, undefined],
+    "REGRESSION: a change is asked of the draft as it stands, never under the door's own choices",
+  );
   // Its answer is the draft changed: the name, with the value typed still in its step, and what changed said on top.
   assert.equal(nameBox().props.value, "Autumn colour for VIPs");
   assert.equal(valueBox(tree).props.value, "20% off colour");
   assert.ok(onTop().includes("Call it Autumn colour for VIPs") && onTop().includes("Ask changed its name"), onTop());
+  assert.ok(
+    readOut().includes("Ask changed its name"),
+    `REGRESSION: what a change did was never read out: ${readOut()}`,
+  );
   assert.equal(changeBox().props.value, "", "the line is ready for the next change");
   assert.equal(TM.draft("new", HERE).draft.name, "Autumn colour for VIPs", "kept in the tab as any change is");
 
@@ -692,27 +715,59 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   assert.equal(hostOf(tree, "sq-nw-again"), null, "a hand's change is the owner's: nothing to undo over it");
   assert.equal(nameBox().props.value, "Autumn colour for VIPs");
 
-  // A change that changed nothing is said in passing, with nothing to undo, and what Ask left out is in its card.
-  asks.draft = () => ({
-    ...renamed({ stands: { steps: [{ texts: ["15% off colour"] }] } }),
-    cannot: "Left out: “by pigeon”. Nothing here flies.",
-  });
+  // A line that changed nothing and says why stands on top, over the card that says why, and Undo puts the card away:
+  // left on the change before it, the card read as that change's (the live run of 13 Nov 2026).
+  const unchanged = () => renamed({ stands: { steps: [{ texts: ["15% off colour"] }] } });
+  asks.draft = () => ({ ...unchanged(), cannot: "Left out: “by pigeon”. Nothing here flies." });
   toasts.length = 0;
   await say("Send it by pigeon");
   tree = await landed(() => askedFor().length === 6 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  assert.deepEqual(toasts, [], "its card says why, so nothing is said in passing over it");
+  assert.ok(
+    onTop().includes("Send it by pigeon") && onTop().includes(CHANGE_WORDS.same),
+    `REGRESSION: the card stood under another line: ${onTop()}`,
+  );
+  assert.equal(
+    byTestId(tree, "sq-nw-cannot")?.props.role,
+    "status",
+    "what Ask left out is said in its card, and read out",
+  );
+  assert.equal(nameBox().props.value, "Autumn colour for VIPs", "and the draft is as it was");
+  press(hostOf(tree, "sq-nw-again"));
+  tree = redraw(page);
+  assert.equal(byTestId(tree, "sq-nw-cannot"), null, "Undo puts the card away");
+  assert.ok(onTop().includes(ASKED.said) && onTop().includes(W.say.asked), "and the line before it is on top again");
+  assert.equal(hostOf(tree, "sq-nw-again"), null);
+
+  // One that changed nothing and says nothing of why is said in passing, with nothing to undo.
+  asks.draft = unchanged;
+  toasts.length = 0;
+  await say("Make it nicer");
+  tree = await landed(() => askedFor().length === 7 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
   assert.deepEqual(
     toasts.map((t) => t.msg),
     [CHANGE_WORDS.same],
     "said once, in passing",
   );
   assert.equal(hostOf(tree, "sq-nw-again"), null, "nothing changed, nothing to undo");
-  assert.ok(byTestId(tree, "sq-nw-cannot"), "what Ask left out is said in its card");
+  assert.equal(byTestId(tree, "sq-nw-cannot"), null);
+
+  // While Ask works, the name is held: one typed then was written over by its answer.
+  let answerNow;
+  asks.draft = (body) => new Promise((resolve) => (answerNow = () => resolve(renamed(body))));
+  await say("Call it Autumn colour for VIPs");
+  await until(() => !!answerNow, "Ask asked");
+  tree = redraw(page);
+  assert.equal(nameBox().props.readOnly, true, "REGRESSION: the name could be typed while Ask worked");
+  answerNow();
+  tree = await landed(() => askedFor().length === 8 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  assert.equal(nameBox().props.readOnly, false);
 
   // A change Ask could not make: said as a toast over the draft, which stays, and the line keeps its words to say again.
   asks.draft = () => null;
   toasts.length = 0;
   await say("Send it from the moon");
-  tree = await landed(() => askedFor().length === 7 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
+  tree = await landed(() => askedFor().length === 9 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
   assert.equal(toasts.length, 1, "said once");
   assert.equal(nameBox().props.value, "Autumn colour for VIPs");
   assert.equal(changeBox().props.value, "Send it from the moon");
@@ -721,6 +776,94 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
     [],
     "nothing was made by any of it",
   );
+
+  // Discard while Ask works stops it: its answer, landing after, never draws the draft again.
+  answerNow = null;
+  asks.draft = (body) => new Promise((resolve) => (answerNow = () => resolve(renamed(body))));
+  await say("Call it something else");
+  await until(() => !!answerNow, "Ask asked");
+  tree = redraw(page);
+  press(hostOf(tree, "sq-nw-discard"));
+  tree = redraw(page);
+  assert.equal(byTestId(tree, "sq-nw-sentence"), null, "discarded");
+  answerNow();
+  tree = await landed();
+  assert.equal(byTestId(tree, "sq-nw-sentence"), null, "REGRESSION: Ask's answer drew the discarded draft again");
+  assert.equal(TM.draft("new", HERE), null, "and nothing is kept in the tab");
+
+  // The change still out when it was discarded goes with the draft: the next draft's line starts empty.
+  asks.draft = () => ASKED;
+  type(lineBox(tree), ASKED.said);
+  press(hostOf(redraw(page), "sq-nw-draft"));
+  tree = await landed(() => !!byTestId(redraw(page), "sq-nw-sentence"));
+  assert.equal(changeBox().props.value, "", "REGRESSION: the next draft's line held the discarded draft's change");
+  assert.ok(onTop().includes(ASKED.said) && onTop().includes(W.say.asked));
+});
+
+test("REGRESSION (the live run of 13 Nov 2026): a first draft Ask could not write says why in the server's words, never only to try again in a moment", async () => {
+  const ranLong = "The draft ran longer than Ask can write at once. Ask for less in one go.";
+  asks.draft = () => ({ refused: { code: "upstream_anthropic", message: ranLong } });
+  const tree = await openNew();
+  type(lineBox(tree), ASKED.said);
+  press(hostOf(redraw(page), "sq-nw-draft"));
+  const failed = await landed(() => !!byTestId(redraw(page), "sq-nw-failed"));
+  const card = textOf(byTestId(failed, "sq-nw-failed"));
+  assert.ok(card.includes(W.failed.title) && card.includes(ranLong), card);
+  assert.ok(!card.includes(W.failed.words), `REGRESSION: it said to try again in a moment: ${card}`);
+  assert.equal(lineBox(failed).props.value, ASKED.said, "the line is kept");
+  // Tried again and drafted, the card goes.
+  asks.draft = () => ASKED;
+  press(hostOf(failed, "sq-nw-retry"));
+  const drafted = await landed(() => !!byTestId(redraw(page), "sq-nw-sentence"));
+  assert.equal(byTestId(drafted, "sq-nw-failed"), null);
+});
+
+test("REGRESSION: a message its owner rewrote is no longer said to be Ask's, and what Ask said it left out of its own steps goes with the rewrite (the live run of 13 Nov 2026)", async () => {
+  // Ask writes the one-off's message itself, and says what it left out of it.
+  const written = {
+    template_id: null,
+    title: "Autumn colour",
+    body: "Hi {{1}}, autumn colour is here.",
+    channels: ["whatsapp"],
+    params: [{ kind: "first_name" }],
+    offer: true,
+    written: {
+      name: "autumn_colour",
+      category: "marketing",
+      versions: { whatsapp: { body: "Hi {{1}}, autumn colour is here." } },
+      slots: [{ position: 1, label: "First name", example: "Dani", kind: "first_name" }],
+    },
+  };
+  asks.draft = () => ({
+    ...ASKED,
+    steps: [{ ...ASKED.steps[0], message: written }],
+    cannot: "Left out: “half price”. Ask never writes a price.",
+  });
+  let tree = await askDrafts();
+  assert.ok(textOf(tree).includes(W.draft.newByAsk), "as Ask answered it, the message is said to be Ask's");
+  assert.ok(byTestId(tree, "sq-nw-cannot"), "and what it left out is in its card");
+  // The name typed leaves both: the words are still Ask's.
+  type(
+    find(tree, (n) => n.type === Field && n.props["data-testid"] === "sq-nw-name"),
+    "Autumn",
+  );
+  tree = redraw(page);
+  assert.ok(textOf(tree).includes(W.draft.newByAsk) && byTestId(tree, "sq-nw-cannot"));
+  // The owner rewrites its words (the words sheet's Save): theirs now, and the card about Ask's own goes.
+  const mine = "Hi {{1}}, half price on colour this week.";
+  find(tree, (n) => n.type === WordsSheet).props.onMessage({
+    ...written,
+    body: mine,
+    written: { ...written.written, versions: { whatsapp: { body: mine } } },
+  });
+  tree = redraw(page);
+  assert.ok(textOf(tree).includes("half price on colour this week"), "the owner's words are the draft's");
+  assert.equal(
+    textOf(tree).includes(W.draft.newByAsk),
+    false,
+    "REGRESSION: the owner's own words were said to be Ask's",
+  );
+  assert.equal(byTestId(tree, "sq-nw-cannot"), null, "REGRESSION: the card spoke of words since rewritten");
 });
 
 test("REGRESSION: a draft the tab kept is counted again as it comes back, against the playbooks read as it is now: a count from before never stands", async () => {

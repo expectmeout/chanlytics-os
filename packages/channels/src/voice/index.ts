@@ -12,6 +12,7 @@ export {
 } from "./elevenlabs";
 export type { ConversationMint, ElevenLabsConfig, SpeechStream } from "./elevenlabs";
 export {
+  isRetellAgentId,
   planVoiceProvision,
   stripKey,
   VOICE_AGENT_DEFAULTS,

@@ -8,11 +8,33 @@
  * with a WhatsApp version is. A row of a language keeps the WhatsApp version where there is one (`row`) and the message
  * it is a version of (`message`).
  */
-import { isLibrarySample } from "@chanlytics/contracts";
+import { isLibrarySample, triggerOf } from "@chanlytics/contracts";
 import type { CampaignMessage, StarterTemplate } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { tplAnd, tplLangLabel } from "./words";
 import type { StarterLibrary } from "./verbs";
+
+/** The language a ready-made starter is filed in the first time a sequence or a send uses it: English, as Ask's card files one. */
+export const STARTER_LANGUAGE = "en_US";
+
+/**
+ * What a starter is for, as the list sorts the ready-made ones (the clean list, 13 Nov 2026), in the order it lists them:
+ * an appointment's, a follow-up's, an offer or news, a call's.
+ */
+export const STARTER_MOMENTS = ["appointments", "follow_ups", "offers", "calls"] as const;
+type StarterMoment = (typeof STARTER_MOMENTS)[number];
+
+/**
+ * Which of them a starter is: by the class its moment is filed under (contracts triggers/kinds.ts `cls`: a booking's is an
+ * appointment's, a follow-up's is a follow-up's, and a moment that re-engages or campaigns sends an offer or news); a
+ * starter no moment sends is an offer or news where it is one (A quick note), and the call's text where it is not.
+ */
+export function starterMoment(starterTemplate: Pick<StarterTemplate, "category" | "trigger">): StarterMoment {
+  const momentClass = starterTemplate.trigger ? (triggerOf(starterTemplate.trigger)?.cls ?? null) : null;
+  if (momentClass === "booking") return "appointments";
+  if (momentClass === "follow_up") return "follow_ups";
+  return momentClass || starterTemplate.category === "marketing" ? "offers" : "calls";
+}
 
 /** A language by the words the list gives it ("Portuguese (Brazil)"), or the set's own ("English", "Spanish"). */
 export interface TplLang {

@@ -11,6 +11,7 @@
 import type { TemplateGroup } from "./group";
 import type { MessageSetting, messageFacts } from "./message-row-facts";
 import { closedLine } from "./message-row-parts";
+import { TPL_LIST_WORDS } from "./words";
 
 interface MessageRowProps {
   g: TemplateGroup;
@@ -36,7 +37,8 @@ export function MessageRow({ g, facts, setting, open = false, onOpen }: MessageR
       {/* A press anywhere on the line that is not one of its controls opens it (cmRowPress), as a person's row does. */}
       {closedLine({
         g,
-        tag: marks.tag,
+        // Where a version stands, else the one quiet word of a message that waits for a way out (nothing to press here).
+        tag: marks.tag ?? (setting.waiting ? { words: TPL_LIST_WORDS.waiting, tone: "plain" } : null),
         said: setting.said,
         saysUse: setting.saysUse,
         warn: setting.place === "need",

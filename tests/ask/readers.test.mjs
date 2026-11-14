@@ -1673,23 +1673,19 @@ test("a person's page holds their newest 2,000 messages, as it asks: PostgREST a
   assert.equal(selects(live, "messages").length, 2);
   assert.deepEqual(held(r2.data.person), before, "each of the 1,500 once");
 
-  // 2,500: the newest 2,000, the oldest 500 left out, and one line that says the read stopped at its cap.
+  // 2,500: the newest 2,000, the oldest 500 left out, and one line that says the read stopped at its cap: a part, which
+  // the page is content with. One row past the 2,000 is asked for, which is how the read knows there were more.
   const many = heavy(2500);
   const capped = personCtx(many, P1, {}, { maxRows: 1000 });
   const { result, lines } = await logged("paged_read_capped", () => kernel.load(turnIn(capped), onePerson, { id: P1 }));
-  assert.deepEqual(
-    held(result.data.person),
-    many.messages
-      .slice(500)
-      .map((m) => m.id)
-      .sort(),
-    "the newest 2,000",
-  );
+  const newest = many.messages.slice(500).map((m) => m.id);
+  assert.deepEqual(held(result.data.person), newest.sort(), "the newest 2,000");
   assert.deepEqual(pages(capped), [
     [[0, 999], NEWEST_FIRST],
     [[1000, 1999], NEWEST_FIRST],
+    [[2000, 2000], NEWEST_FIRST],
   ]);
-  assert.deepEqual(lines, [{ what: "person messages", cap: 2000 }]);
+  assert.deepEqual(lines, [{ what: "person messages", cap: 2000, needs: "part" }]);
 
   // A person with a thread's worth: one page, as before.
   const few = personCtx(heavy(40), P1, {}, { maxRows: 1000 });
@@ -4206,7 +4202,7 @@ const MESSAGE_ROWS_ASKED =
   "id, channel, name, language, meta_status, category, variables, hidden_at, title, source, components, body_preview, rejected_reason";
 /**
  * Every query GET contacts asked at origin/main (e3184cff) for peopleWorld's first page, in order, with the columns it
- * selected (and, since 3 Oct 2026, the two reads of what the workspace can send on). The workspace's door. The first stage at once: the page and how many match, then the page's reply modes.
+ * selected (and, since 3 Oct 2026, the two reads of what the workspace can send on). The workspace's door. The first stage at once: the page and how many match, then the page's reply modes (its own people's alone since 00625, 13 Nov 2026, where every reply policy was read).
  * The second at once: whether a deal is on file and the workspace's word (18 Oct 2026, where how its customers buy was
  * read), the calendar's zone and settings (the feed itself is fetched, never read from the database), who each step is
  * for, the pace; then, once a deal is on file, the proposal
@@ -4217,7 +4213,7 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
   ["rpc:people_list", null],
   ["contacts.select", "id"],
-  ["policies.select", "subject_type, subject_id, mode"],
+  ["rpc:people_reply_modes", null],
   ["deals.select", "id"],
   ["tenants.select", "appointment_word"],
   ["tenants.select", "name, timezone"],
@@ -4271,6 +4267,7 @@ const PEOPLE_ASKED_AT_MAIN = [
 const PEOPLE_ASKED_NOW = [
   ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
   ["rpc:people_list", null],
+  ["rpc:people_reply_modes", null],
   ["tenants.select", "appointment_word"],
   ["tenant_channels.select", "config, number_e164"],
   ["lines.select", "sms_state, reg_mock"],
@@ -4279,7 +4276,6 @@ const PEOPLE_ASKED_NOW = [
   // Whether a deal is on file, asked with the word and answered after the settings.
   ["deals.select", "id"],
   ["deals.select", "id, stage, proposed_at, decided_at"],
-  ["policies.select", "subject_type, subject_id, mode"],
   ["contacts.select", "id"],
   [
     "sequence_steps.select",
@@ -6590,17 +6586,19 @@ test("campaigns.messages reads the whole library, a WhatsApp version still in re
     [
       {
         name: "spring_offer",
+        title: "Spring offer",
         language: "en_US",
         category: "marketing",
+        away: false,
         versions: [
-          { channel: "whatsapp", id: TP1, state: "pending" },
-          { channel: "email", id: EM1, state: "approved" },
+          { channel: "whatsapp", id: TP1, state: "pending", words: { subject: null, body: "See you at {{1}}" } },
+          { channel: "email", id: EM1, state: "approved", words: { subject: null, body: "See you at {{1}}" } },
         ],
         slots: [{ position: 1, label: "First name", kind: "first_name" }],
         used_by: [{ id: PB1, name: "Spring" }],
       },
     ],
-    "one message, both versions with their states; this workspace's campaign alone",
+    "one message, both versions with their states and words; this workspace's campaign alone",
   );
   assert.deepEqual([...tc.read.template.keys()].sort(), [TP1, EM1].sort(), "each version a template a citation names");
   // The composers' list is as it was: the message, by the email a broadcast may go by now, and not the version in review.

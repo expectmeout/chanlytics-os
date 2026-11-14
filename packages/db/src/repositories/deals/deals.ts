@@ -22,17 +22,20 @@ export interface YesRow {
   decided_at: string | null;
 }
 
-/** Every yes decided since `since`, under whatever row security the client carries. */
+/** Every yes decided since `since`, under whatever row security the client carries: whole, since they are counted. */
 export async function listYesesSince(db: Db, tenantId: TenantId, since: Date): Promise<YesRow[]> {
-  const rows = await readAllRows<YesRow & { id: string }>("deals", (from, to) =>
-    db
-      .from("deals")
-      .select("id, stage, proposed_at, decided_at")
-      .eq("tenant_id", tenantId)
-      .in("stage", ["won", "ended"])
-      .gte("decided_at", since.toISOString())
-      .order("id")
-      .range(from, to),
+  const rows = await readAllRows<YesRow & { id: string }>(
+    "deals",
+    (from, to) =>
+      db
+        .from("deals")
+        .select("id, stage, proposed_at, decided_at")
+        .eq("tenant_id", tenantId)
+        .in("stage", ["won", "ended"])
+        .gte("decided_at", since.toISOString())
+        .order("id")
+        .range(from, to),
+    "whole",
   );
   return rows.map((r) => ({ stage: r.stage, proposed_at: r.proposed_at, decided_at: r.decided_at }));
 }

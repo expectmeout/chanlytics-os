@@ -2,19 +2,22 @@ import { z } from "zod";
 import { PARAM_SOURCES, TEMPLATE_CATEGORIES } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { writeMessage, type WriteMessageAnswer, type WriteMessageBody } from "@/server/campaigns/write-message";
+import { reviewWords } from "@/server/drafts/template/review";
 
 /**
  * POST /api/v1/templates/message — a message written whole, every version at once, filed as a starter is filed (Ask's
  * message card commits through it). Owner or operator, at the rate a template submitted to Meta is.
  *
- * { name, language, category: "marketing" | "utility", versions: { whatsapp?: { body, footer? }, email?: { subject,
+ * { name, title?, language, category: "marketing" | "utility", versions: { whatsapp?: { body, footer? }, email?: { subject,
  * body }, sms?: { body } }, slots: [{ position, label, example?, kind }] }, as WriteMessageBody says it, which the schema
  * below is held to. Everything that could refuse it is said first and nothing is filed: a text of an offer (texts carry
  * no offers), a `utility` message with no WhatsApp version for Meta to review (contracts
  * MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp), words a channel refuses, a twin (the same name and language on file, 409), a
  * language of a message held in another said as another kind or with other values (409). Then the email and text
  * versions are filed at once, approved, and WhatsApp's last, sent to Meta for review, so a refusal there leaves the
- * others filed. The answer is WriteMessageAnswer, { name, language, versions: [{ channel, id, state }], refused?: {
+ * others filed, and a WhatsApp version is asked of WhatsApp only where its number's account is on file (409 before
+ * anything is filed). A message nothing of was filed is refused in the words of what refused it, never answered as one
+ * saved. The answer is WriteMessageAnswer, { name, language, versions: [{ channel, id, state }], refused?: {
  * channel, words } }: each version filed, its state a TemplateStatus (an email or a text approved, WhatsApp's what Meta
  * answered its filing, read by contracts metaStatusOf: rejected where Meta refused it at once, pending where it named no
  * status), and the first that could not be.
@@ -31,6 +34,7 @@ const Slot = z.object({
 
 const Body: z.ZodType<WriteMessageBody> = z.object({
   name: z.string({ message: "Say which message." }),
+  title: z.string().max(200).optional(),
   language: z.string({ message: "Pick a language from the list." }),
   category: z.enum(TEMPLATE_CATEGORIES, { message: "A template is marketing or utility." }),
   versions: z.object({
@@ -46,7 +50,8 @@ export const POST = write({
   role: "operator",
   rate: "settings",
   input: Body,
-  handle: ({ ctx, member, input }): Promise<WriteMessageAnswer> => writeMessage(ctx, member, input),
+  // WhatsApp's words are read once more before anything is filed: only words its review takes are sent to it.
+  handle: ({ ctx, member, input }): Promise<WriteMessageAnswer> => writeMessage(ctx, member, input, reviewWords),
 });
 
 /** Its WhatsApp version is a round trip to Meta after the others are filed: room for it, so the answer saying what was filed is never lost to the platform's ceiling. */

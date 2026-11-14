@@ -441,6 +441,40 @@ Read again the day it landed, two things in it were wrong, and both are put righ
   any language's words (`fileNameOf`: año-nuevo), so Ask could not read, open, zoom or post a file an owner had named with an
   accent. It asks for the name as it stands. No file on production had such a name yet.
 
+## The look says what kind of picture it is (edition 2)
+
+Edition 1's rules were tried on seventeen real pictures on 12 Nov 2026 (a salon's photos, a review card, a flyer, a
+dentist's post, a plumber's logo, an app's screenshot, and one photo darkened and blurred for the test), each answer read
+against what a person had said of the picture. The sentence was right on sixteen, and the words in a picture were read every
+time, two small signs the person had missed among them. Four things were thin, and edition 2 says each:
+
+- **What kind of picture it is.** `looks_like_stock` was the one word for a stock photo, a rendered mockup and an AI-made
+  image; it was said of four pictures, and arguably right of one. `looks_like` is a closed set (photo, stock, rendered,
+  design, screenshot: contracts `FILE_LOOKS_LIKE`), right on all seventeen on the small model. The Inbox's one press
+  (`inboxCleanOf`) takes a camera's photo alone where the look said which, and Ask's line says "looks rendered or AI-made"
+  or "a screenshot". `looks_like_stock` is still kept, true for stock, so an earlier edition's row and a video's read as
+  they did.
+- **What an issue is.** "Anything that hurts its use" took remarks on the subject for faults of the picture, about ten of
+  twenty-two ("seen from behind, face not visible", "shows a haircut result rather than a named service"). An issue is a
+  fault of the picture itself, at most four, and a person seen from behind is named as not one: no such remark after, on
+  either model tried.
+- **The box.** It was the whole picture on rooms, so a post's crop (`postCrop`) had nothing to centre on. The ask now says
+  it is the whole picture only where nothing could be cut. The small model still answers the whole picture for a room;
+  Sonnet 5.5 boxed two rooms of four tightly on both of its runs and the other two on one. The look stays on the small
+  model: twenty times the cost was not worth that alone on every picture, and Ask looks at a post it drew before it
+  offers it.
+- **What a post could use it for** (`use`), in a few words, for Ask: "a before picture", and nothing at all for a
+  screenshot.
+
+Tried and left out: which of the business's services a picture shows (three runs named three services for one photo, since
+a result does not show what was sold), a separate point to centre a crop on (the box's middle is that point), and the
+small model's thinking (the same answers at the same cost). Sonnet 5.5 read rooms and shelves better and missed two things
+the small model caught on every run: the interior that looks AI-made, and an unstyled "before" it took for a finished
+result.
+
+Raising the edition reads every picture kept again, fifty a pass (the sweep, `upkeep.ts`). A first look alone names a
+file, so no name an owner knows changes.
+
 ## Not here
 
 Making pictures with a model (step 4): Claude Video/docs/2026-11-06-ask-eyes-fundamentals.md says the order.

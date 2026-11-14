@@ -401,28 +401,34 @@ export interface IdeaCustomerRows {
  * The rows the lead ideas fold into who the workspace's customers are (contracts ideaCustomersOf): every person, every
  * lead and every won deal, read whole (readAllRows) under the member's own session, so RLS decides what comes back. The
  * ideas are written rarely (a month, a round, a press), so a whole read is affordable; a read that fails THROWS, and the
- * ideas are written without it.
+ * ideas are written without it. Each read is whole (they are counted), so one past the cap throws too.
  */
 export async function getIdeaCustomerRows(db: Db, tenantId: TenantId): Promise<IdeaCustomerRows> {
   const [contacts, leads, deals] = await Promise.all([
-    readAllRows<{ id: string; acquired_via: string | null; lead_id: string | null }>("contacts", (from, to) =>
-      db
-        .from("contacts")
-        .select("id, acquired_via, lead_id")
-        .eq("tenant_id", tenantId)
-        .is("erased_at", null)
-        .is("merged_into_contact_id", null)
-        .order("id")
-        .range(from, to),
+    readAllRows<{ id: string; acquired_via: string | null; lead_id: string | null }>(
+      "contacts",
+      (from, to) =>
+        db
+          .from("contacts")
+          .select("id, acquired_via, lead_id")
+          .eq("tenant_id", tenantId)
+          .is("erased_at", null)
+          .is("merged_into_contact_id", null)
+          .order("id")
+          .range(from, to),
+      "whole",
     ),
-    readAllRows<{ id: string; category: string | null; stage: string }>("leads", (from, to) =>
-      db
-        .from("leads")
-        .select("id, category, stage")
-        .eq("tenant_id", tenantId)
-        .is("erased_at", null)
-        .order("id")
-        .range(from, to),
+    readAllRows<{ id: string; category: string | null; stage: string }>(
+      "leads",
+      (from, to) =>
+        db
+          .from("leads")
+          .select("id, category, stage")
+          .eq("tenant_id", tenantId)
+          .is("erased_at", null)
+          .order("id")
+          .range(from, to),
+      "whole",
     ),
     readAllRows<{ id: string; service: string | null; lead_id: string | null; contact_id: ContactId | null }>(
       "deals",
@@ -434,6 +440,7 @@ export async function getIdeaCustomerRows(db: Db, tenantId: TenantId): Promise<I
           .in("stage", ["won", "ended"])
           .order("id")
           .range(from, to),
+      "whole",
     ),
   ]);
   return {

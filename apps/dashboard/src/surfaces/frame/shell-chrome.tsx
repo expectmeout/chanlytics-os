@@ -17,6 +17,7 @@ import { reportDoor } from "../kit/empty/report-door";
 import { useHeadUnder } from "../kit/head/standing";
 import { headSlotDrawn } from "../kit/head/frame-head";
 import type { viewDeck } from "../kit/motion/view-deck";
+import { LeaveHost } from "../kit/record/leave-ask";
 import type { SurfaceViews } from "../routes";
 import { frameGlyph, fromGlobal, fromWindow } from "./frame-window";
 import { BriefPlaying, LiveCallBar, NextVisitBar, ShellStatusBar, UnmarkedVisitsBar } from "./topbar/status-bars";
@@ -442,6 +443,8 @@ export const appChrome = (s: ChromeAt) => {
       {sideWrap(s)}
       <div className="main">
         {frameTop(s, glass)}
+        {/* Asked before the page, and a change not saved on it, are left: a band over the page (kit/record/leave-ask.tsx). */}
+        <LeaveHost />
         {routeMain(s, glass)}
         {phoneTabs(s)}
         {phoneAsk(s)}

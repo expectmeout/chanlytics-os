@@ -77,8 +77,8 @@ interface StartProps {
   onDraft: (words: string, fixed?: Omit<NewDraftAsk, "words">) => void;
   drafting: boolean;
   onStop: () => void;
-  /** Ask could not draft it just now. */
-  failed: boolean;
+  /** Ask could not draft it just now, and why, in the server's words (else the card's own). */
+  failed: string | null;
   /** What Ask said nothing here can do, in a sentence (its refusal), where it said one. */
   refused: string | null;
   /** A draft built by hand: the door's kind, or the one a closest way names (a one-off, D3). */
@@ -129,7 +129,7 @@ export function StartView(p: StartProps) {
             <CaseNote
               tone="bad"
               title={W.failed.title}
-              words={W.failed.words}
+              words={p.failed}
               acts={
                 <>
                   <Button size="sm" onClick={draftIt} data-testid="sq-nw-retry">

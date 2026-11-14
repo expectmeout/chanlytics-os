@@ -399,13 +399,24 @@ export const NEW_WORDS = {
       onlyFirst:
         "a booking’s time or service, a proposal’s link or a freed time is only known on the first step of its own moment",
       noMessage: "it names none of the business’s messages and writes none",
+      price: "it names a price or a discount, which Ask never writes",
+      unsaidPrice: "it names a price or a discount that isn’t in what was asked",
+      firstLink: "a first email carries no link",
+      unbackedNumber: "it names a number about the business that none of its claims backs",
     },
+    /** A lead's email Ask wrote that does not hold, on a first draft: the step is kept, its words the owner's to write. */
+    emailLeftBlank: (place: number, reason: string) => `Step ${place}’s email is left for you to write: ${reason}.`,
     /** A step left out, with why. */
     stepLeftOut: (place: number, reason: string) => `Step ${place} was left out: ${reason}.`,
     /** A change that rewrote a step in words that cannot be kept: the step stands as it did, with why. */
     stepStays: (place: number, reason: string) =>
       `Step ${place} stays as it was. Ask’s new words for it couldn’t be kept: ${reason}.`,
     handNotLast: "A call or a note ends a sequence, so it is the last step.",
+    /** Ask answered with more steps than a draft holds: the first are kept, and the rest said. */
+    stepsPast: (most: number) =>
+      most === 1
+        ? "A message sent once is one step, so the rest are left out."
+        : `A sequence holds up to ${most} steps, so the rest are left out.`,
     leftOut: (text: string) => `Left out: “${text}”`,
   },
   /** Nothing here can start on what the line asks (D3): the closest ways, then the line again. */

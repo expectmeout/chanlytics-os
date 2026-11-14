@@ -15,7 +15,6 @@
  * place it is drawn -- the send screen's, a translation -- has no such choice and is the WhatsApp composer alone.
  */
 import { useEffect, useRef } from "react";
-import { LIBRARY_STARTER_WORDS } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import { canDo } from "../../frame-verbs";
 import { useUnsavedWork } from "../../kit/record/work";
@@ -48,55 +47,6 @@ interface TemplateComposerProps {
    */
   reviewLink?: boolean;
 }
-
-/**
- * What happened to the starter set, as the answer of adding it says: each count, what a failure was, how many email and
- * text versions were written or could not be and why, and how many starters' WhatsApp version was skipped (no number).
- */
-interface StarterOutcome {
-  submitted: number;
-  synced: number;
-  existing: number;
-  failed: number;
-  skipped?: number;
-  versions_saved?: number;
-  versions_failed?: number;
-  results?: readonly {
-    status: string;
-    title: string;
-    detail?: string;
-    versions?: readonly { status: string; detail?: string }[];
-  }[];
-}
-
-// What happened to the starter set, in one line.
-export const starterWords = (d: StarterOutcome): string => {
-  const parts: string[] = [];
-  if (d.submitted) parts.push(`${d.submitted} submitted to WhatsApp for review — usually approved within minutes`);
-  if (d.synced) parts.push(`${d.synced} already on your number's account, now here`);
-  if (d.existing) parts.push(`${d.existing} already on file`);
-  if (d.failed)
-    parts.push(
-      `${d.failed} could not be added${
-        d.results
-          ? ": " +
-            d.results
-              .filter((r) => r.status === "failed")
-              .map((r) => `${r.title} (${r.detail || "no reason given"})`)
-              .join("; ")
-          : ""
-      }`,
-    );
-  if (d.versions_saved) parts.push(LIBRARY_STARTER_WORDS.versionsWritten(d.versions_saved));
-  if (d.versions_failed) {
-    // The door's own words for why, once: they are the same for every version a database refuses alike.
-    const why = d.results?.flatMap((r) => r.versions ?? []).find((v) => v.status === "failed")?.detail ?? null;
-    parts.push(LIBRARY_STARTER_WORDS.versionsFailed(d.versions_failed, why));
-  }
-  if (parts.length === 0 && !d.skipped) return "Nothing to add";
-  if (d.skipped) parts.push(LIBRARY_STARTER_WORDS.waitsForNumber);
-  return parts.join(" · ");
-};
 
 export function TemplateComposer({
   onDone,

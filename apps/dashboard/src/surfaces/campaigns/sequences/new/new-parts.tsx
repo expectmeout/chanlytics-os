@@ -16,11 +16,14 @@ import {
   type NewStep,
 } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
+import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { cx } from "../../../kit/variants";
 import { MessagePreview } from "../../parts/message-preview";
+import { Choice } from "./choice";
+import { setName } from "./new-model";
 
 /**
  * The owner's line, kept on top: the one the draft was drafted from, or the one that last changed it, with what Ask is
@@ -40,13 +43,15 @@ export function SaidLine(p: {
       <Icon name="sparkle" size={14} />
       <p className="sq-nw-said-words">{p.said}</p>
       <span className="sq-nw-said-by">
-        {p.doing ? (
-          <span className="sq-nw-busy" role="status">
-            {p.doing}
-          </span>
-        ) : (
-          <span data-testid="sq-nw-said-by">{p.by ?? W.say.asked}</span>
-        )}
+        {/* One status that stays while Ask works and after: what a change did is read out as it lands, as what Ask was
+            doing was (it was a status that went with the work, so its answer was never said). */}
+        <span role="status">
+          {p.doing ? (
+            <span className="sq-nw-busy">{p.doing}</span>
+          ) : (
+            <span data-testid="sq-nw-said-by">{p.by ?? W.say.asked}</span>
+          )}
+        </span>
         {p.onAgain && p.button ? (
           <Button size="sm" onClick={p.onAgain} data-testid="sq-nw-again">
             {p.again ?? W.say.undo}
@@ -58,6 +63,28 @@ export function SaidLine(p: {
         ) : null}
       </span>
     </div>
+  );
+}
+
+/**
+ * The draft's head: its name, said in place and changed there (out of new-draft.tsx, 12 Nov 2026). Held while Ask works
+ * on the draft: a name typed then was written over by Ask's answer.
+ */
+export function DraftName(props: { draft: NewDraftDto; change: (next: NewDraftDto) => void; held: boolean }) {
+  return (
+    <span className="sq-nw-name">
+      <Field
+        shape="title"
+        aria-label={W.sheets.title}
+        value={props.draft.name}
+        readOnly={props.held}
+        onValueChange={(typed) => props.change(setName(props.draft, typed))}
+        maxLength={80}
+        spellCheck={false}
+        data-testid="sq-nw-name"
+      />
+      <Icon name="pencil" size={13} />
+    </span>
   );
 }
 
@@ -150,6 +177,20 @@ export function ChecksList({ checks }: { checks: readonly NewCheck[] }) {
   );
 }
 
+/** How a sequence runs: Your OK, as its sheet names the way picked (out of new-draft.tsx, 13 Nov 2026). */
+export function HowItRuns({ draft, onOk }: { draft: NewDraftDto; onOk: () => void }) {
+  if (draft.kind === "once") return null;
+  const ok = draft.mode ? W.okSaid[draft.mode] : W.okSaid.ask;
+  return (
+    <>
+      <p className="sq-nw-cap">{W.draft.runs}</p>
+      <div className="sq-nw-rows">
+        <Choice glyph="check" name={W.draft.yourOk} said={ok} onPick={onOk} testid="sq-nw-yourok" />
+      </div>
+    </>
+  );
+}
+
 /** What To leads changes, said while Ask drafts it again for businesses (F1). */
 export function ToLeadsNote() {
   return (
@@ -179,9 +220,12 @@ export function CaseNote(p: {
   acts?: ReactNode;
   glyph?: string;
   testid: string;
+  /** Read out when it comes or changes (what a draft leaves out, which a change can say anew); a bad one always is. */
+  live?: boolean;
 }) {
+  const role = p.tone === "bad" ? "alert" : p.live ? "status" : undefined;
   return (
-    <div className="sq-nw-case" data-tone={p.tone} role={p.tone === "bad" ? "alert" : undefined} data-testid={p.testid}>
+    <div className="sq-nw-case" data-tone={p.tone} role={role} data-testid={p.testid}>
       <p className="sq-nw-case-head">
         <Icon name={p.glyph ?? (p.tone === "plain" ? "info" : "alert")} size={15} />
         {p.title}

@@ -328,6 +328,14 @@ const withStep = (d: NewDraftDto, i: number, change: (s: NewStep) => NewStep): N
   steps: d.steps.map((s, j) => (j === i ? change(s) : s)),
 });
 
+/**
+ * What Ask said it left out (`cannot`, the draft's card) was said of the steps as Ask drafted them, by their places and
+ * their words. A step the owner swaps, rewrites, adds or takes away is no longer those steps, so the card goes with the
+ * change: left up, it spoke of a message since swapped, and Undo brought it back over a draft it no longer described
+ * (13 Nov 2026). A wait, a value typed in, who, when and the name leave it be.
+ */
+const stepsNowTheOwners = (d: NewDraftDto): NewDraftDto => (d.cannot ? { ...d, cannot: null } : d);
+
 /** A step's wait, held to its audience's bounds. */
 export const setWait = (d: NewDraftDto, i: number, days: number): NewDraftDto =>
   withStep(d, i, (s) => (s.after_days === null ? s : { ...s, after_days: newWaitOf(d.audience, days) }));
@@ -382,7 +390,7 @@ export const setMessage = (
   message: NewMessage,
   ready: readonly ConsentChannel[] | null = null,
 ): NewDraftDto => {
-  const next = withStep(d, i, (s) => ({ ...s, does: "message", message, hand: "" }));
+  const next = stepsNowTheOwners(withStep(d, i, (s) => ({ ...s, does: "message", message, hand: "" })));
   if (i !== 0 || d.audience !== "people") return next;
   const channels = carriersOf(message).filter((c) => !ready || ready.includes(c));
   return { ...next, channels, who: d.who?.kind === "everyone" ? everyoneOf(message.offer) : d.who };
@@ -404,7 +412,9 @@ export const setTyped = (d: NewDraftDto, i: number, at: number, value: string): 
 
 /** A lead's step's email, as the owner writes it. */
 export const setEmail = (d: NewDraftDto, i: number, email: { subject: string | null; body: string }): NewDraftDto =>
-  withStep(d, i, (s) => ({ ...s, email: { subject: i === 0 ? email.subject : null, body: email.body } }));
+  stepsNowTheOwners(
+    withStep(d, i, (s) => ({ ...s, email: { subject: i === 0 ? email.subject : null, body: email.body } })),
+  );
 
 /** A call's or a note's words. */
 export const setHand = (d: NewDraftDto, i: number, words: string): NewDraftDto =>
@@ -424,15 +434,16 @@ export function addStep(d: NewDraftDto, does: NewStepDoes): NewDraftDto {
       ? blankStep(d.audience, false)
       : { ...blankStep(d.audience, false), does, message: null, email: null, hand: "" };
   const last = d.steps[d.steps.length - 1];
+  const held = stepsNowTheOwners(d);
   if (does === "message" && last && last.does !== "message")
-    return { ...d, steps: [...d.steps.slice(0, -1), step, last] };
-  if (does !== "message" && last && last.does !== "message") return { ...d, steps: [...d.steps.slice(0, -1), step] };
-  return { ...d, steps: [...d.steps, step] };
+    return { ...held, steps: [...d.steps.slice(0, -1), step, last] };
+  if (does !== "message" && last && last.does !== "message") return { ...held, steps: [...d.steps.slice(0, -1), step] };
+  return { ...held, steps: [...d.steps, step] };
 }
 
 /** A step after the first taken away; the first is the sequence's. */
 export const removeStep = (d: NewDraftDto, i: number): NewDraftDto =>
-  i === 0 ? d : { ...d, steps: d.steps.filter((_, j) => j !== i) };
+  i === 0 ? d : { ...stepsNowTheOwners(d), steps: d.steps.filter((_, j) => j !== i) };
 
 /** Who and when, changed in place. */
 export const setWho = (d: NewDraftDto, who: DraftWho): NewDraftDto => ({ ...d, who, twin: null });
@@ -462,7 +473,8 @@ export const setName = (d: NewDraftDto, name: string): NewDraftDto => {
 export function reviewOf(d: NewDraftDto): { others: string; only: number; can: number } | null {
   const first = d.steps[0]?.message;
   if (d.kind !== "once" || d.audience !== "people") return null;
-  if (!first?.written?.versions.whatsapp || !d.channels.includes("whatsapp")) return null;
+  // One Ask wrote with a WhatsApp version, or a ready-made starter (every starter has one): each filed as it is made.
+  if (!(first?.written?.versions.whatsapp || first?.starter) || !d.channels.includes("whatsapp")) return null;
   const others = d.channels.filter((c) => c !== "whatsapp");
   // Counted for the channels Ask drafted it with; with WhatsApp the only one left on, everyone hears only WhatsApp.
   const only = others.length ? (d.reach?.only_whatsapp ?? 0) : (d.reach?.can ?? 0);
@@ -644,7 +656,12 @@ export function makeBodyOf(d: NewDraftDto, start: boolean, draftId: string | nul
       only_if: s.only_if,
       does: s.does,
       message: s.message
-        ? { template_id: s.message.template_id, params: s.message.params, written: s.message.written }
+        ? {
+            template_id: s.message.template_id,
+            params: s.message.params,
+            written: s.message.written,
+            ...(s.message.starter ? { starter: s.message.starter } : {}),
+          }
         : null,
       email: s.email,
       hand: s.hand,

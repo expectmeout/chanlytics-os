@@ -290,13 +290,16 @@ function SheetBody(p: {
         onCancel={p.onCancel}
       />
     );
+  // Each editor is its step's, by its key: its fields are made from the step it is drawn for, and it saves to that step.
   if (face?.kind === "message")
     return (
       <StepEditor
+        key={step?.id ?? "new-message"}
         sequenceId={rec.sequence.id}
         step={step}
         policyClass={rec.sequence.first?.policy_class ?? ""}
         batchId={waitingFor(rec, step)}
+        channels={rec.sequence.channels}
         flash={flash}
         onDone={p.onDone}
         onCancel={p.onCancel}

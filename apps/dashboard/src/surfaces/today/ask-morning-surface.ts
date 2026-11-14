@@ -18,7 +18,12 @@ import { setSurfaceValue, surfaceValue } from "../surface-values";
 export interface AskMorningSurface {
   dto: AskMorningDto;
   fetchedAt: number;
+  /** Ask has been asked to write it (POST ask/morning) and has not answered yet: Ask found holds its ideas' place. */
+  asking?: boolean;
 }
+
+/** The ask for today's morning while it is out: one at a time, so a read again meanwhile asks for nothing. */
+let askingNow: Promise<void> | null = null;
 
 /** The language the morning is answered in, from the browser's own: Spanish where it says Spanish, else English. */
 const pageLanguage = (): AskLanguage => (/^es\b/i.test(navigator.language || "") ? "es" : "en");
@@ -35,13 +40,23 @@ export const askMorningOverride: SurfaceOverride = {
   ...declareReads("ask_morning", { reads: ["send", "campaign"], fresh: "its-page" }),
   apply: async () => {
     const got = await read("GET ask/morning");
-    let dto = got.morning;
+    const dto = got.morning;
     // None yet today, for a member who may have one: asked for now. A refusal (a member who acts no more, mornings off
-    // meanwhile) is the read's answer, and the next arrival asks again.
-    if (dto.offered && dto.state === "none") {
-      const asked = await api()("POST ask/morning", { body: { language: pageLanguage(), locale: navigator.language } });
-      if (asked.ok) dto = asked.data.morning;
-    }
-    setSurfaceValue("ask_morning", { dto, fetchedAt: Date.now() });
+    // meanwhile) is the read's answer, and the next arrival asks again. The morning as read is Today's at once, and the ask
+    // goes on behind it: Today's first draw waits for this read (ROUTE_WAITS), and never for the ask (13 Nov 2026), whose
+    // answer is the morning it starts writing.
+    const asks = dto.offered && dto.state === "none";
+    setSurfaceValue("ask_morning", { dto, fetchedAt: Date.now(), asking: asks || !!askingNow });
+    if (asks && !askingNow) askingNow = askForMorning(dto).finally(() => (askingNow = null));
   },
 };
+
+/** Ask's morning, asked to be written; the morning it answers is the surface's, else the morning as read, asked no more. */
+async function askForMorning(read: AskMorningDto): Promise<void> {
+  const asked = await api()("POST ask/morning", {
+    body: { language: pageLanguage(), locale: navigator.language },
+  }).catch(() => null);
+  setSurfaceValue("ask_morning", { dto: asked?.ok ? asked.data.morning : read, fetchedAt: Date.now(), asking: false });
+  // Past the read, so said as the read says it: what draws the morning hears it (surface-status hearSurfaces).
+  window.dispatchEvent(new CustomEvent("surface:ask_morning"));
+}

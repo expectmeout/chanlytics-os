@@ -21,233 +21,71 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as contracts from "@chanlytics/contracts";
-import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../_stub-react.mjs";
-import { lineBox } from "../shared/_line.mjs";
-import { toSlotParts } from "../../apps/dashboard/src/surfaces/campaigns/templates/message-version-slots.ts";
-
-installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
-const W = globalThis;
-const toasts = [];
-Object.assign(W, {
-  CHANLY: { nav() {}, R: {} },
-  appNavigate() {},
-  // The role store's gate is the frame's own (window.gate, canDo, gateTitle), over this role and contracts' table.
-  ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
-  __roleGate: contracts.roleGate,
-  __surfaceState: () => "live",
-  useHotkey: () => {},
-});
-const SRC = "../../apps/dashboard/src";
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-// The toast is the shell's (the frame's usePPToast): what the page flashes is recorded in its place.
-W.usePPToast = () => [null, (t) => toasts.push(t)];
-const S = "../../apps/dashboard/src/surfaces";
-const { TemplatesPage } = await import(`${S}/campaigns/templates/templates-page.tsx`);
-const { templates: verbs } = await import(`${S}/campaigns/templates/verbs.ts`);
-const { setSurfaceValue, surfaceValue } = await import(`${S}/surface-values.ts`);
-const { listingOf } = await import(`${S}/campaigns/templates/group.ts`);
-const { messageFacts, firstView } = await import(`${S}/campaigns/templates/message-row-facts.ts`);
-const { starters: library } = await import(`${S}/campaigns/templates/verbs.ts`);
-const { starterWords } = await import(`${S}/campaigns/templates/composer.tsx`);
-const { Picker } = await import(`${S}/kit/picker/picker.tsx`);
-const { standingSaid } = await import(`${S}/kit/head/standing.ts`);
-const { SubTabs } = await import(`${S}/kit/sub-tabs/sub-tabs.tsx`);
-const { Field } = await import(`${S}/kit/field/field.tsx`);
-const { Menu } = await import(`${S}/kit/menu/menu.tsx`);
-const { Popover } = await import(`${S}/kit/popover/popover.tsx`);
-const { Confirm } = await import(`${S}/kit/confirm/confirm.tsx`);
-const { FieldError } = await import(`${S}/kit/field-error/field-error.tsx`);
-const { SlotBox } = await import(`${S}/campaigns/templates/slots/slot-box.tsx`);
-const composerActsModule = await import(`${S}/campaigns/templates/composer-acts.ts`);
-const { SlotName } = await import(`${S}/campaigns/parts/slot.tsx`);
-
-const BIZ = "Harbor";
-const { starterByKey, fillSlots, smsStopLine } = contracts;
-
-/* ---------------------------------- the rows ---------------------------------- */
-
-/** A template as GET templates hands it down: the WhatsApp row of a starter carries its own words and slots. */
-const baseRow = (over = {}) => ({
-  id: "t1",
-  channel: "whatsapp",
-  name: "x",
-  language: "en_US",
-  meta_status: "approved",
-  category: "utility",
-  source: "chanlytics",
-  hidden_at: null,
-  title: null,
-  quality: null,
-  rejected_reason: null,
-  synced_at: null,
-  body_preview: "",
-  variables: [],
-  header: null,
-  footer: null,
-  buttons: [],
-  blocked: null,
-  ...over,
-});
-const starterRow = (key, language = "en_US") => {
-  const s = starterByKey(key);
-  const t = s.texts[language];
-  return baseRow({
-    id: `w-${key}-${language}`,
-    name: s.name,
-    language,
-    category: s.category,
-    body_preview: t.body,
-    variables: t.slots.map((x, i) => ({ position: i + 1, label: x.label, example: x.example })),
-  });
-};
-const emailRow = (key, language = "en_US") => {
-  const e = starterByKey(key).email[language];
-  return baseRow({
-    id: `e-${key}-${language}`,
-    channel: "email",
-    name: key,
-    language,
-    header: e.subject,
-    body_preview: e.body,
-  });
-};
-const smsRow = (key, language = "en_US") =>
-  baseRow({
-    id: `s-${key}-${language}`,
-    channel: "sms",
-    name: key,
-    language,
-    body_preview: starterByKey(key).sms[language].body,
-  });
-/** What fills a starter's slots in a preview: its examples, and this business's name where the slot names it. */
-const valuesOf = (key, language = "en_US") =>
-  starterByKey(key).texts[language].slots.map((x) => (x.kind === "business_name" ? BIZ : x.example));
-
-/** A message the workspace wrote, with two values: no starter, so its email and text start from its WhatsApp words. */
-const custom = (name, over = {}) =>
-  baseRow({
-    id: `w-${name}`,
-    name,
-    body_preview: "Hi {{1}}, our hours start {{2}}.",
-    variables: [
-      { position: 1, label: "First name", example: "Dani" },
-      { position: 2, label: "Date", example: "Oct 1" },
-    ],
-    ...over,
-  });
-
-/* ---------------------------------- the page ---------------------------------- */
-
-const draw = () => W.React.createElement(TemplatesPage, {});
-/**
- * Templates over what the settings surface holds: the WhatsApp rows, the email and text rows, who is acting, the
- * channels the workspace has (a WhatsApp number, unless the test says none), and whether its Google listing keeps a
- * review link (none, unless the test says one).
- */
-const page = ({
-  rows = [],
-  versions = [],
-  role = "owner",
-  channels = [{ kind: "whatsapp" }],
-  reviewLink = false,
-} = {}) => {
-  W.ST_STORE.can = (a) => !!contracts.ROLE_PERMS[role][a];
-  W.ST_STORE.myRole = () => role;
-  setSurfaceValue("settings", {
-    settings: { config: { brain: { business_name: BIZ } }, reviewLink },
-    facts: null,
-    templatesAll: rows,
-    templateVersions: versions,
-    // The messages the surface holds, made of those rows as the bridge makes them where the read carries none.
-    messages: contracts.campaignMessagesOf([...rows, ...(versions ?? [])]),
-    templateUse: null,
-    templateSent: null,
-  });
-  // The numbers are the channels read's (surfaces/channels/surface.ts), which the Library's number notice is drawn from.
-  setSurfaceValue("channels", { rows: channels });
-  setSurfaceValue("reach_outs", []);
-  setSurfaceValue("playbooks", undefined);
-  fresh();
-  toasts.length = 0;
-  return again(draw);
-};
-const redraw = () => again(draw);
-/** What the page last said to the frame's head (kit/head/standing.ts): its line and its act, which the frame draws, not the page. */
-const headSaid = () => {
-  const said = standingSaid();
-  return { props: { children: [said?.sentence ?? null, said?.act ?? null] } };
-};
-/** A part of the page, or of its head where the page says it to the frame. */
-const headed = (tree, id) => byTestId(tree, id) ?? byTestId(headSaid(), id);
-const rowOf = (tree, name) => find(tree, (n) => n.props?.["data-template"] === name);
-const paneOf = (tree) => byTestId(tree, "template-pane");
-/** A message opened beside the list, as a press on its row opens it. */
-const opened = (tree, name) => {
-  press(find(rowOf(tree, name), (n) => n.props?.["data-testid"] === "template-open"));
-  return redraw();
-};
-/** The open message's channels, as the kit's sub-tabs (Messages, the canvas of 10 Nov 2026: they were a switch). */
-const tabsOf = (tree) => find(paneOf(tree), (n) => n.type === SubTabs);
-/** One channel's tab of the open message. */
-const tabOf = (tree, id) => tabsOf(tree).props.tabs.find((t) => t.id === id);
-/** Where the language in view stands on each channel: its tabs' words, in order (the line that said it went). */
-const standingOf = (tree) => Array.from(tabsOf(tree).props.tabs, (t) => t.hint).join(", ");
-/** A channel's tab picked, as the tabs say it. */
-const switched = (tree, channel) => {
-  tabsOf(tree).props.onSelect(channel);
-  return redraw();
-};
-/** A message opened, and its channel picked. */
-const viewing = (tree, name, channel) => switched(opened(tree, name), channel);
-const bodyOf = (tree) => textOf(byTestId(tree, "template-version-body"));
-/** The menu that puts a value into the words: the editor's "Add a value". */
-const menuOf = (tree) =>
-  find(paneOf(tree), (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "template-version-values");
-/** The pane's one menu, on its name (the message sheet's canvas, 12 Nov 2026: the caret beside the name's words). */
-const nameMenuOf = (tree) =>
-  find(paneOf(tree), (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "template-menu");
-/** An item of the name's menu by its first word: an email's "Remove the email version" is its Remove. */
-const itemsOf = (tree) => nameMenuOf(tree).props.groups.flatMap((g) => g.items);
-/** Where the open message stands, as its head says it: the word on the pill its meaning opens from (sheet-head.tsx). */
-const standingWord = (tree) => {
-  const tap = find(paneOf(tree), (n) => n.type === Popover && String(n.props.label).startsWith("Where "));
-  return tap ? (find(tap.props.trigger, (n) => n.props?.testid === "template-pane-status")?.props.label ?? null) : null;
-};
-const itemOf = (tree, words) => itemsOf(tree).find((i) => i.label === words || i.label.split(" ")[0] === words);
-/**
- * One of the editor's fields, by its label: the kit's Field, which holds the label, the hint and the box. In a message's
- * sheet the words' box has no label drawn over it, and names itself: the field is found by its box's label.
- */
-const fieldOf = (tree, label) =>
-  find(paneOf(tree), (n) => n.type === Field && (n.props.label ?? n.props.control?.props.label) === label);
-/** The box of words in a field, by its label: where the words are typed, and what the editor reads them from. */
-const boxOf = (tree, label) => find(paneOf(tree), (n) => n.type === SlotBox && n.props.label === label);
-/** The slots a box draws, as chips: [name, number] in order (a campaign message's slots are numbered; a chip carries its key). */
-const chipsOf = (box) =>
-  (box ? [...new Set(all(box, (n) => n.type === SlotName))] : []).map((c) => [c.props.label, Number(c.props.slot)]);
-const problemOf = (tree) => find(paneOf(tree), (n) => n.type === FieldError)?.props.message ?? null;
-const saveOf = (tree) => byTestId(tree, "template-version-save");
-
-/** The verbs, stubbed: each call recorded, each answer the test's. */
-const REAL = { ...verbs };
-const stubbed = (over = {}) => {
-  const calls = [];
-  Object.assign(verbs, REAL, {
-    saveVersion: async (body) => (calls.push(["save", body]), { ok: true, data: { template: {}, warnings: [] } }),
-    removeVersion: async (id) => (calls.push(["remove", id]), { ok: true, data: {} }),
-    ...over,
-  });
-  return calls;
-};
-
-const NEW_WORDS = contracts.NEW_MESSAGE_WORDS;
-
-const AFTER_VISIT = "after_visit_check";
-const VISIT = "visit_reminder";
-const WINBACK = "winback_reply";
-
-/* ---------------------------------- the row ---------------------------------- */
+import {
+  AFTER_VISIT,
+  BIZ,
+  Confirm,
+  HOURS,
+  NEW_WORDS,
+  Picker,
+  SlotName,
+  SubTabs,
+  VISIT,
+  W,
+  WINBACK,
+  all,
+  baseRow,
+  bodyOf,
+  boxOf,
+  byTestId,
+  chipsOf,
+  composerActsModule,
+  contracts,
+  custom,
+  emailRow,
+  fieldOf,
+  fillSlots,
+  find,
+  firstView,
+  headSaid,
+  headed,
+  itemOf,
+  itemsOf,
+  library,
+  lineBox,
+  listingOf,
+  menuOf,
+  messageFacts,
+  messagesOf,
+  opened,
+  ownRow,
+  page,
+  paneOf,
+  press,
+  problemOf,
+  redraw,
+  rowOf,
+  saveOf,
+  setSurfaceValue,
+  settle,
+  smsRow,
+  smsStopLine,
+  standingOf,
+  standingWord,
+  starterByKey,
+  starterRow,
+  stubbed,
+  surfaceValue,
+  switched,
+  tabOf,
+  tabsOf,
+  textOf,
+  toSlotParts,
+  toasts,
+  valuesOf,
+  viewing,
+  writing,
+} from "./_message-page.mjs";
 
 test("a row says its name and one line; the channels a message has are its tabs' words, from contracts', where it is open", () => {
   const tree = page({
@@ -483,13 +321,6 @@ test("a text being written shows what it comes to as it is typed, warns past two
   assert.equal(problemOf(tree), "With the STOP line this text takes 5 parts; keep it to 4.");
   assert.equal(saveOf(tree).props.disabled, true);
 });
-
-/** A message the workspace wrote, its email being written: the editor open on the starting words. */
-const writing = (name = "fall_hours", channel = "email", over = {}) => {
-  const tree = viewing(page({ rows: [custom(name, over)] }), name, channel);
-  press(byTestId(paneOf(tree), "template-version-write"));
-  return redraw();
-};
 
 test("a value goes in by its name: the menu offers each of the message's with its example beside it, and no braces", () => {
   const tree = writing();
@@ -948,21 +779,32 @@ test("another language is another version: the pane's language decides which one
   );
 });
 
-/* ---------------------------------- a starter not added ---------------------------------- */
+/* ---------------------------------- a ready-made starter ---------------------------------- */
 
-test("a starter nobody added shows the version the set wrote, says it comes with the set, and offers nothing to write", () => {
-  const tree = page({ rows: [], versions: [] });
-  const email = viewing(tree, AFTER_VISIT, "email");
-  const pane = paneOf(email);
+test("a ready-made starter nothing has filed shows the version the set wrote and its Edit, and Save sends the owner's words under the starter's name", async () => {
+  const calls = stubbed();
+  let tree = viewing(page({ rows: [], versions: [] }), AFTER_VISIT, "email");
+  const pane = paneOf(tree);
   assert.ok(byTestId(pane, "template-version-starter"), "the set's own email, as it reads");
-  assert.equal(
-    textOf(byTestId(pane, "template-version-subject")),
-    starterByKey(AFTER_VISIT).email.en_US.subject,
-    "its subject as the library wrote it",
+  const mail = starterByKey(AFTER_VISIT).email.en_US;
+  assert.equal(textOf(byTestId(pane, "template-version-subject")), mail.subject, "its subject as the library wrote it");
+  // Nothing says it comes with a set or waits to be added: it is there to use (the clean list, 14 Nov 2026).
+  assert.equal(textOf(pane).includes("starter set"), false, textOf(pane));
+  assert.equal(byTestId(pane, "starter-add"), null, "no Add");
+  assert.equal(byTestId(pane, "template-version-write"), null, "nothing to write: its words are there");
+  // Its words change before its first use as a filed one's do: the pencil opens them, and Save sends them under its name
+  // (the server files the starter's own first, template-versions.ts beginVersion).
+  press(byTestId(pane, "template-version-edit"));
+  tree = redraw();
+  assert.equal(boxOf(tree, "Subject").props.value, mail.subject, "the editor opens on the set's own words");
+  boxOf(tree, "Subject").props.onValueChange("See you soon");
+  press(saveOf(redraw()));
+  await settle();
+  const name = starterByKey(AFTER_VISIT).name;
+  assert.deepEqual(
+    calls.map(([verb, body]) => [verb, body.name, body.channel, body.subject]),
+    [["save", name, "email", "See you soon"]],
   );
-  assert.ok(textOf(pane).includes("This version comes with the starter set: adding the message adds it too."));
-  assert.equal(byTestId(pane, "template-version-write"), null, "nothing on file to write a version of");
-  assert.equal(byTestId(pane, "template-version-menu"), null, "and nothing to edit or remove");
   // An offer the set wrote no text of: texts carry no offers, said as on a message on file.
   const offer = viewing(page({ rows: [], versions: [] }), WINBACK, "sms");
   assert.ok(textOf(paneOf(offer)).includes("Texts carry no offers."));
@@ -972,26 +814,6 @@ test("a starter nobody added shows the version the set wrote, says it comes with
   assert.ok(textOf(paneOf(call)).includes("The starter set has no email version of this message."));
   assert.equal(byTestId(paneOf(call), "template-version-write"), null);
 });
-
-/* ---------------------------------- the Library lists every message ---------------------------------- */
-
-/** An email or a text of a message the workspace wrote, with no WhatsApp row of its name: approved the moment it was saved. */
-const ownRow = (channel, name, over = {}) =>
-  baseRow({
-    id: `${channel}-${name}-${over.language ?? "en_US"}`,
-    channel,
-    name,
-    category: "marketing",
-    header: channel === "email" ? "Our hours" : null,
-    body_preview: "Hi {{1}}, our hours start {{2}}.",
-    variables: [
-      { position: 1, label: "First name", example: "Dani" },
-      { position: 2, label: "Date", example: "Oct 1" },
-    ],
-    ...over,
-  });
-const HOURS = "fall_hours";
-const messagesOf = (rows, versions) => contracts.campaignMessagesOf([...rows, ...versions]);
 
 test("listingOf lists messages, not WhatsApp rows: an own-only message is a group with its languages, a starter whose Spanish is an email counts Spanish as on file, a hidden own-only message is in the fold", () => {
   const langs = library.languages;
@@ -1105,13 +927,21 @@ test("a message's marks: the offer mark is its purpose, whichever channel it has
   const en = w({ id: "w-en" });
   const es = w({ id: "w-es", language: "es", meta_status: "pending" });
   assert.deepEqual(factsOf([en, es], [ownRow("email", HOURS)], HOURS).marks.tag, {
-    words: "Spanish in review",
+    words: "Spanish: being checked",
     tone: "info",
   });
   assert.deepEqual(factsOf([en, w({ id: "w-es", language: "es", meta_status: "rejected" })], [], HOURS).marks.tag, {
-    words: "Spanish refused",
-    tone: "danger",
+    words: "Spanish: needs a change",
+    tone: "warn",
   });
+  // One language on file says its state alone, in words an owner can act on, never WhatsApp's own word for it.
+  for (const [status, words] of [
+    ["pending", "Being checked"],
+    ["rejected", "Needs a change"],
+    ["paused", "On hold"],
+    ["disabled", "Turned off"],
+  ])
+    assert.equal(factsOf([w({ meta_status: status })], [], HOURS).marks.tag.words, words);
   // A message with no WhatsApp version has no tag, and no attention asked of a language it holds on another channel.
   assert.equal(factsOf([], [ownRow("email", HOURS)], HOURS).marks.tag, null);
   const sends = (language) =>
@@ -1192,18 +1022,18 @@ test("the language control lists a language the message holds on any channel und
   const groups = find(paneOf(tree), (n) => n.type === Picker && n.props["data-testid"] === "template-lang").props
     .groups;
   assert.deepEqual(
-    groups.map((g) => [g.label, g.options.map((o) => [o.value, o.meta])]),
+    groups[0] && [groups[0].label, groups[0].options.map((o) => [o.value, o.meta])],
     [
+      contracts.LANGUAGE_GROUP_WORDS.on,
       [
-        contracts.LANGUAGE_GROUP_WORDS.on,
-        [
-          ["en_US", "Approved"],
-          ["es", "Approved"],
-        ],
+        ["en_US", "Approved"],
+        ["es", "Approved"],
       ],
     ],
-    "both languages are on file, an email's as much as a WhatsApp version; a number to add more is not there",
+    "both languages are on file, an email's as much as a WhatsApp version",
   );
+  // A message with no WhatsApp version adds a language by its email and text, which need no number (12 Nov 2026).
+  assert.equal(groups[1]?.label, contracts.LANGUAGE_GROUP_WORDS.add);
   assert.equal(contracts.LANGUAGE_GROUP_WORDS.on, "On file");
   // The face: the language in view as a quiet word, no code, glyph or count (the message sheet's canvas, 12 Nov 2026).
   const face = find(paneOf(tree), (n) => n.type === Picker && n.props["data-testid"] === "template-lang").props.face;
@@ -1222,7 +1052,8 @@ test("an own-only message is a row the Library draws whole: its words quoted, it
   const row = rowOf(tree, HOURS);
   assert.ok(row, "the row is there, found by the name it is filed under");
   assert.equal(row.props["data-testid"], "custom-row");
-  assert.ok(textOf(row).includes("“Hi {first name}, our hours start {date}.”"), "its email's words: nothing sends it");
+  // Its email's words as one person would get them, each value by its sample (the clean list, 13 Nov 2026: no braces).
+  assert.ok(textOf(row).includes("“Hi Dani, our hours start Oct 1.”"), "its email's words: nothing sends it");
   // The search finds it by the words of an email's subject and body, as it finds a WhatsApp message by its own.
   lineBox().props.onChange({
     target: { value: "our hours start" },
@@ -1236,7 +1067,9 @@ test("an own-only message is a row the Library draws whole: its words quoted, it
   assert.equal(rowOf(tree, HOURS), null);
   lineBox().props.onChange({ target: { value: "" } });
 
-  // Opened, its email reads as any message's does, with its pencil and a Remove that need no number.
+  // Opened, its email reads as any message's does, with its pencil, and its name's menu is a message's whole: Rename, Put
+  // away and Delete, which need no number (the live demo, 12 Nov 2026: a message with no WhatsApp version had none of
+  // them). Its email is its only version, so no Remove: its Delete is the message's.
   tree = opened(redraw(), HOURS);
   assert.equal(
     byTestId(paneOf(tree), "template-version").props["data-channel"],
@@ -1245,16 +1078,19 @@ test("an own-only message is a row the Library draws whole: its words quoted, it
   );
   assert.deepEqual(
     itemsOf(tree).map((i) => i.label),
-    ["Remove the email version"],
+    ["Rename", "Put away", "Add a language", "Delete"],
     "its Edit is the pencil on its words",
   );
   assert.ok(byTestId(paneOf(tree), "template-version-edit"), "the pencil");
   // Its head says where it stands in the list, never a WhatsApp status it does not have (Messages, the canvas of 10 Nov 2026).
-  assert.equal(standingWord(tree), "Not in use", "nothing sends it");
+  assert.equal(standingWord(tree), "Ready", "nothing sends it, and it is theirs");
   assert.equal(tabOf(tree, "whatsapp").need, undefined, "and no WhatsApp dot: no WhatsApp version to wait on");
-  // WhatsApp's own verbs are the WhatsApp version's alone (and need a number): its tab has none to rename, hide or delete.
+  // The menu is the message's whichever tab is in view: on WhatsApp's, which it has no version on, the same three.
   tree = switched(tree, "whatsapp");
-  assert.equal(nameMenuOf(tree), null);
+  assert.deepEqual(
+    itemsOf(tree).map((i) => i.label),
+    ["Rename", "Put away", "Add a language", "Delete"],
+  );
   assert.equal(byTestId(paneOf(tree), "template-new-refused") !== null, true);
   // Its text is written, from the email's words, under the message's own name.
   tree = switched(tree, "sms");
@@ -1267,12 +1103,32 @@ test("an own-only message is a row the Library draws whole: its words quoted, it
   assert.deepEqual(calls, [
     ["save", { name: HOURS, language: "en_US", channel: "sms", body: "Hi {{1}}, our hours start {{2}}." }],
   ]);
-  // Removing the email asks first, and calls the verb with the version's own id.
-  tree = switched(redraw(), "email");
+  // With a text beside it, the email has its own Remove again, which asks first and removes that version alone.
+  const both = [...own, ownRow("sms", HOURS, { category: "utility" })];
+  tree = switched(opened(page({ rows: [], versions: both, channels: [] }), HOURS), "email");
+  assert.deepEqual(
+    itemsOf(tree).map((i) => i.label),
+    ["Rename", "Put away", "Add a language", "Remove the email version", "Delete"],
+  );
   itemOf(tree, "Remove").onSelect();
   find(redraw(), (n) => n.type === Confirm).props.onYes();
   await settle();
   assert.deepEqual(calls.at(-1), ["remove", `email-${HOURS}-en_US`]);
+  // Delete is the message's whole: its question says every version goes, and each goes through its own door.
+  tree = redraw();
+  itemOf(tree, "Delete").onSelect();
+  const ask = find(redraw(), (n) => n.type === Confirm);
+  assert.match(ask.props.question, /^Delete “.+”\?$/, "one language: no language named");
+  assert.ok(
+    ask.props.detail.startsWith("Its email and text versions go, and sends that use it fail from now on."),
+    ask.props.detail,
+  );
+  ask.props.onYes();
+  await settle();
+  assert.deepEqual(calls.slice(-2), [
+    ["remove", `email-${HOURS}-en_US`],
+    ["remove", `sms-${HOURS}-en_US`],
+  ]);
 });
 
 test("with no number the page still lists the starter set and says WhatsApp waits; no banner asks for the set, which files itself as a number connects", () => {
@@ -1316,7 +1172,11 @@ test("New is one line to Ask: no form, no channel first, no kind; the owner's wo
   tree = redraw();
   press(byTestId(tree, "template-new-send"));
   assert.deepEqual(asked, [
-    { prompt: "New message, for every channel it can go by: 20% off colour this week", fresh: true },
+    {
+      prompt:
+        "New message, with a version for WhatsApp, email and text wherever its kind may go (an offer never by text): 20% off colour this week",
+      fresh: true,
+    },
   ]);
   assert.equal(byTestId(redraw(), "template-new-words"), null, "the pane goes as Ask comes");
   delete W.askAbout;
@@ -1349,34 +1209,6 @@ test("what a text says for a message written here is channelNeverCarries' senten
     `${contracts.CHANNEL_WORDS.noOffersByText} ${NEW_WORDS.textGoesByEmail}`,
   );
   assert.equal(NEW_WORDS.textGoesByEmail, "This one can go by email.");
-});
-
-test("what the starter set says it did: what went to WhatsApp, what was written as email and text, what could not be and why, and that WhatsApp waits for a number", () => {
-  const none = { submitted: 0, synced: 0, existing: 0, failed: 0 };
-  assert.equal(starterWords(none), "Nothing to add");
-  assert.equal(starterWords({ ...none, skipped: 7 }), "WhatsApp versions wait for a number");
-  assert.equal(
-    starterWords({ ...none, existing: 7, versions_saved: 1, skipped: 7 }),
-    "7 already on file · 1 email and text version written · WhatsApp versions wait for a number",
-  );
-  assert.equal(
-    starterWords({
-      ...none,
-      submitted: 2,
-      versions_saved: 3,
-      versions_failed: 2,
-      results: [
-        { status: "submitted", title: "Win-back", versions: [{ status: "saved" }] },
-        { status: "submitted", title: "Reminder", versions: [{ status: "failed", detail: "Not switched on." }] },
-      ],
-    }),
-    "2 submitted to WhatsApp for review — usually approved within minutes · 3 email and text versions written · 2 email and text versions could not be written: Not switched on.",
-  );
-  assert.equal(
-    starterWords({ ...none, failed: 1, results: [{ status: "failed", title: "Win-back", detail: "Meta said no" }] }),
-    "1 could not be added: Win-back (Meta said no)",
-    "a WhatsApp failure reads as it did",
-  );
 });
 
 test("the Library's count says what it holds on hover in contracts' words, whether or not the workspace has a WhatsApp number: every message, by each channel it goes by", () => {

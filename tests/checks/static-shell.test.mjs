@@ -84,6 +84,16 @@ test("the version door prerendered fails: it must name the deploy that answers",
   assert.match(faults[0], /^\/api\/version: prerendered/);
 });
 
+test("a warm-up prerendered fails: the clock would be answered by a file, and no route's code loaded", () => {
+  for (const door of ["/api/warm", "/api/warm/long"]) {
+    const faults = staticShellFaults(
+      build({ edit: ({ prerender }) => (prerender.routes[door] = { compute: "static" }) }),
+    );
+    assert.equal(faults.length, 1);
+    assert.ok(faults[0].startsWith(door + ": prerendered"), faults[0]);
+  }
+});
+
 test("a public page that blocks is not the OS's, and is left alone", () => {
   // /b/[slug] renders at each request on purpose (instant = false): it reads its workspace before it draws.
   assert.ok(!staticShellFaults(build()).some((f) => f.startsWith("/b/")));

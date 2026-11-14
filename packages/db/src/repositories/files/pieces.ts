@@ -159,8 +159,14 @@ export async function endPiece(db: Db, id: string, reason: PieceFail): Promise<b
   return data === true;
 }
 
-/** The machine image on record for an edition of the template, or null where none was built yet. */
-export async function findPieceImage(db: Db, edition: number): Promise<{ snapshot_id: string; hash: string } | null> {
+/**
+ * The machine image on record for an edition of the template, or null where none was built yet. It takes the table read
+ * alone, so the health door's judgement can be handed a fake that answers it (the edge's lib/ops/platform-health.ts).
+ */
+export async function findPieceImage(
+  db: Pick<Db, "from">,
+  edition: number,
+): Promise<{ snapshot_id: string; hash: string } | null> {
   const { data, error } = await db
     .from("piece_images")
     .select("snapshot_id, hash")
@@ -189,6 +195,23 @@ export type PieceStandingRow = Pick<
   PieceRow,
   "id" | "status" | "stage" | "failed_why" | "plan" | "file_id" | "created_at"
 >;
+
+/**
+ * When the workspace's newest video that is being made, or was made, was asked for; null before its first. A video that
+ * could not be made stops waiting on the owner once a newer one was begun (the dashboard's readers/content.ts).
+ */
+export async function findNewestPieceBegun(db: Db, tenantId: TenantId): Promise<string | null> {
+  const { data, error } = await db
+    .from("pieces")
+    .select("created_at")
+    .eq("tenant_id", tenantId)
+    .in("status", ["making", "made"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "newest piece begun");
+  return data?.created_at ?? null;
+}
 
 /**
  * The videos being made, and the ones not made since `failedSince`, newest first, under the caller's RLS: Content's "Being

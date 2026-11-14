@@ -322,7 +322,7 @@
   },
   "apps/dashboard/src/surfaces/leads/sheet/fill-ins/preview-read.ts GET leads/[id]/preview": {
     "kind": "on-open",
-    "fresh": "Read as a lead's sheet opens, painted first from this tab's last answer for that lead (read-cache.ts) and read again behind it, and again after Make it now; then, only while one is being made, every 4 seconds for two minutes at most, so it says ready without a press (preview-read.ts lookAgainSoon). The card's mark for the link reads the same answer, and only where its email names the link (decision 0127).",
+    "fresh": "Read as a lead's sheet opens, painted first from this tab's last answer for that lead (read-cache.ts) and read again behind it, and again after Make it now; then, only while one is being made, every 4 seconds for two minutes and then every half minute for ten more at most, so it says ready without a press and a slow one says it is slow (preview-read.ts lookAgainSoon). The card's mark for the link reads the same answer, and only where its email names the link (decision 0127).",
     "why": "A lead's preview moves by Make it now, which reads it again after, or by the edge building it, sending it with an email or the business trying it: each is minutes apart and none is a fact the sender acts on in the second, and closing and opening the sheet reads it afresh (decision 0079)."
   },
   "apps/dashboard/src/surfaces/inbox/pages/calls-saying.ts GET conversations": {
@@ -375,6 +375,11 @@
     "kind": "on-open",
     "fresh": "Read with Today's own first reads where the tab opens on Today (its first draw waits for it), as Today draws Content's card, and again as Today's own read lands, at most once a minute; kept in the tab by workspace (read-cache.ts `tab`), so a return draws it at once and reads it again behind it.",
     "why": "It is a card under Need you that shows what Content holds this week (the week's pieces at their shape, what is being made, how many are ready to post, the newest post that did not go out), and each of its presses opens the piece in Content, whose own surface hears the feed and reads again at every press. A card a minute old shows what was true a minute ago; a count the read could not finish is not said, and a read that fails takes the card away rather than guess."
+  },
+  "apps/dashboard/src/surfaces/today/people-read.ts GET today/people": {
+    "kind": "on-open",
+    "fresh": "Read with Today's own first reads where the tab opens on Today (its first draw waits for it), once a load; kept in the tab by workspace (read-cache.ts `tab`). Ask found and To do's steps read it only until People's book is in, which the page reads beside it in the same opening and which hears the feed from then on.",
+    "why": "It is what Ask found's checks and To do's steps due read of People, the same rows and lists People's book holds, so the page's first draw stands where it stays; the book replaces it within the load, and every change after that moves the book, never this. Where People holds more than one page it carries no rows, and the page waits for the book as it did."
   },
   "apps/dashboard/src/surfaces/today/need-you/drafts.ts GET conversations/drafts": {
     "kind": "on-open",

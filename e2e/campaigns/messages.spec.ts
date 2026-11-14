@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { CAMPAIGN_ROOMS, startersOffered } from "../../packages/contracts/src/index";
-import { apiGet } from "../workspace";
+import { activeWorkspace, apiGet, scoped } from "../workspace";
 import { libraryRows, messagesOf, type TemplatesRead } from "./offered";
 
 /** The room's name: the frame's head's title (the top bar's crumbs are empty and hidden in Glass, the one look). */
@@ -13,8 +13,9 @@ async function expectRoomNamed(page: Page, name: string) {
  * Campaigns › Messages (the Templates page; decision 0060, D4: it was the Library), on a real workspace: one row per message,
  * whatever channels it has a version on, opening beside the list on the bubble the customer sees with its languages, in
  * Campaigns' strip beside Sequences, and never Meta's sample. A message needs no WhatsApp row and the page needs no WhatsApp number: the starter
- * set is offered, a new message is written, and a quiet line says where the number is missing. Read-only except for
- * opening the composer and a message's menu; nothing here submits, hides or deletes a message.
+ * set is offered, a new message is written, and a quiet line says where the number is missing. The first test reads only
+ * (it opens the composer and a message's menu); the second writes a message of its own, an email alone, renames it, puts
+ * it away and back and deletes it, and leaves nothing behind.
  */
 test.describe("Messages on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -58,11 +59,16 @@ test.describe("Messages on a real workspace", () => {
     // each name it wrote or synced, whatever languages and channels it holds, with Put away folding what it hid.
     const rows = libraryRows(messages, starterNames);
     await expect(real.getByTestId("templates-hidden")).toHaveCount(rows.hidden ? 1 : 0);
-    // The groups that fold (Not in use, Put away: Messages, the canvas of 10 Nov 2026) opened, so every row is there to count.
-    for (const fold of ["templates-fold-idle", "templates-hidden"]) {
+    // The groups that fold (Ready, Ready-made, Put away: Messages, the canvas of 10 Nov 2026, and the clean list of 13 Nov
+    // 2026) opened, so every row is there to count.
+    for (const fold of ["templates-fold-idle", "templates-fold-made", "templates-hidden"]) {
       const head = real.getByTestId(fold);
       if ((await head.count()) > 0 && (await head.getAttribute("aria-expanded")) === "false") await head.click();
     }
+    // No starter is said to be missing, and nothing under the list asks about WhatsApp (the clean list).
+    await expect(real).not.toContainText("Not added");
+    await expect(real).not.toContainText("Not in use");
+    await expect(real).not.toContainText("Checked with WhatsApp");
     // A message's languages are what it opens into: no closed row carries a language
     // control (they were a column of every row, "● EN ⌄" sixteen times), and the open
     // message carries ONE, however many languages it has.
@@ -70,8 +76,10 @@ test.describe("Messages on a real workspace", () => {
     expect(starterNames.length).toBeGreaterThanOrEqual(5);
     await expect(real.getByTestId("starter-row")).toHaveCount(rows.starterRows);
     await expect(real.getByTestId("custom-row")).toHaveCount(rows.customRows);
-    const first = real.getByTestId("starter-row").first();
-    await expect(first).toContainText("Win-back");
+    // The set's win-back, wherever it stands: the starters nothing sends are sorted by what each is for, an
+    // appointment's first, so the list no longer opens on it.
+    const first = real.getByTestId("starter-row").filter({ hasText: "Win-back" }).first();
+    await expect(first).toBeVisible();
     // Opened, the message is in the pane beside the list (the Inbox's list + pane, docs/2026-10-02-campaigns-on-the-kit.md
     // §3.1), not under its row, and carries words, never a bare {{1}} for a template WhatsApp holds.
     await first.getByTestId("template-open").click();
@@ -92,12 +100,19 @@ test.describe("Messages on a real workspace", () => {
     }
     const bubble = (await pane.getByTestId("message-preview").innerText()).trim();
     expect(bubble.length).toBeGreaterThan(20);
-    // The pane's menu, on its name (the kit's, drawn on the page's body), offers the verbs and closes without touching anything.
+    // The pane's menu, on its name (the kit's, drawn on the page's body), offers what can be done and closes without touching
+    // anything. Delete is the message's own act, so it is among them where the workspace holds the message and not for a
+    // starter it has not added, whose menu may still offer a language (the message sheet's canvas, 12 Nov 2026: until
+    // then a menu was drawn only for a message on file, and this read "a menu, so Delete").
     if ((await pane.getByTestId("template-menu").count()) > 0) {
+      const winBack = startersOffered({ reviewLink }).find((s) => s.title === "Win-back");
+      const onFile = messages.some((m) => m.name === winBack?.name);
       await pane.getByTestId("template-menu").click();
-      await expect(page.getByTestId("template-delete")).toBeVisible();
+      const menu = page.getByRole("menu");
+      await expect(menu.getByRole("menuitem").first()).toBeVisible();
+      await expect(page.getByTestId("template-delete")).toHaveCount(onFile ? 1 : 0);
       await page.keyboard.press("Escape");
-      await expect(page.getByTestId("template-delete")).toHaveCount(0);
+      await expect(menu).toHaveCount(0);
     }
     // New is one line to Ask (the Messages redesign's step 4), number or none: no form asks where it is sent first. The
     // page's one act, New, is drawn whenever a person may write, in the frame's head, outside the page's own element.
@@ -107,5 +122,77 @@ test.describe("Messages on a real workspace", () => {
     await expect(real.getByTestId("messages-composer")).toHaveCount(0);
     await real.getByTestId("cm-pane-close").click();
     await expect(real.getByTestId("template-new-words")).toHaveCount(0);
+  });
+
+  /**
+   * A message the spec writes itself, and takes away again (the message sheet's review, 12 Nov 2026): an email-only offer,
+   * which needs no number and asks nothing of WhatsApp or Ask. Its name's menu is the message's whole (Rename, Put away,
+   * Delete, with no WhatsApp version); a rename names every version; putting it away and back moves it between the groups;
+   * Delete takes it, every version, and asks first. Whatever is left is deleted by its own door, so the seed's workspace
+   * holds nothing new by morning.
+   */
+  test("a message of its own: renamed, put away and back, and deleted whole from its sheet", async ({ page }) => {
+    await page.goto("/#/messages");
+    await page.waitForLoadState("networkidle");
+    const ws = await activeWorkspace(page);
+    const fromTheApp = { headers: { origin: new URL(page.url()).origin } };
+    const name = `e2e_note_${Date.now()}`;
+    const made = await page.request.post(scoped("/api/v1/templates/versions", ws), {
+      ...fromTheApp,
+      data: {
+        name,
+        language: "en_US",
+        channel: "email",
+        subject: "This week at the studio",
+        body: "Hi {{1}}, everything is 10% off this week.",
+        message: {
+          category: "marketing",
+          variables: [{ position: 1, label: "First name", example: "Dani" }],
+          title: "E2E note",
+        },
+      },
+    });
+    expect(made.status()).toBe(200);
+    try {
+      await page.reload();
+      await page.waitForLoadState("networkidle");
+      const real = page.getByTestId("messages-real");
+      for (const fold of ["templates-fold-idle", "templates-hidden"]) {
+        const head = real.getByTestId(fold);
+        if ((await head.count()) > 0 && (await head.getAttribute("aria-expanded")) === "false") await head.click();
+      }
+      const row = real.locator(`[data-template="${name}"]`);
+      await expect(row).toBeVisible();
+      await row.getByTestId("template-open").click();
+      const pane = real.getByTestId("template-pane");
+      await expect(pane).toBeVisible();
+
+      // Rename: the field opens where the name is read, and the row says the new name.
+      await pane.getByTestId("template-menu").click();
+      await page.getByTestId("template-rename").click();
+      await pane.getByTestId("template-title").fill("E2E note renamed");
+      await page.getByTestId("template-title-save").click();
+      await expect(row).toContainText("E2E note renamed");
+
+      // Put away, then back: the group it stands in follows.
+      await pane.getByTestId("template-menu").click();
+      await page.getByTestId("template-hide").click();
+      await expect(pane.getByTestId("template-pane-status")).toContainText("Put away");
+      await pane.getByTestId("template-menu").click();
+      await page.getByTestId("template-hide").click();
+      await expect(pane.getByTestId("template-pane-status")).not.toContainText("Put away");
+
+      // Delete asks first, then takes the message whole: its row is gone.
+      await pane.getByTestId("template-menu").click();
+      await page.getByTestId("template-delete").click();
+      await expect(page.getByTestId("template-delete-confirm")).toContainText("Its email version goes");
+      await page.getByTestId("template-delete-yes").click();
+      await expect(real.locator(`[data-template="${name}"]`)).toHaveCount(0);
+    } finally {
+      // Whatever of it is left, by its own door: nothing new stays on the seed's workspace.
+      const read = (await (await apiGet(page, "/api/v1/templates?all=1")).json()).data as TemplatesRead;
+      for (const t of read.templates.filter((r) => r.name === name))
+        await page.request.delete(scoped(`/api/v1/templates/versions/${t.id}`, ws), fromTheApp);
+    }
   });
 });

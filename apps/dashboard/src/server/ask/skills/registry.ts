@@ -3,9 +3,19 @@
  * can be put into the turn before the model asks for it (the way server/ask/cross-page.ts reads another page ahead).
  */
 import { CUSTOMER_MESSAGE_SKILL } from "./customer-message/skill";
+import { VIDEO_SKILL } from "./video/skill";
 import { guideBlock, type AskSkill, keysOf } from "@chanlytics/contracts";
 
-const ASK_SKILLS = { customer_message: CUSTOMER_MESSAGE_SKILL } as const satisfies Record<string, AskSkill>;
+/**
+ * What the registry reads of a skill: its guide, and the words that ask for it. A skill with a craft call holds more
+ * (customer-message/skill.ts); one Ask does itself is only this (video/skill.ts).
+ */
+type GuidedSkill = Pick<AskSkill, "id" | "title" | "when" | "guide">;
+
+const ASK_SKILLS = {
+  customer_message: CUSTOMER_MESSAGE_SKILL,
+  video: VIDEO_SKILL,
+} as const satisfies Record<string, GuidedSkill>;
 export type AskSkillId = keyof typeof ASK_SKILLS;
 export const ASK_SKILL_IDS = keysOf(ASK_SKILLS);
 

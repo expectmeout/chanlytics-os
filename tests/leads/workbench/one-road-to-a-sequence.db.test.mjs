@@ -631,7 +631,8 @@ test(
     const [standing] = ok(await onList());
     assert.ok(standing, "the lead stands on its list");
     assert.equal((await listed(as.operator.c)).stuck, null, "its batch takes it: nothing is stuck");
-    ok(await db.from("leads").update({ email_state: "unknown" }).eq("id", W.a));
+    // Its address could not be checked and the leads clock has spent its two tries (00618, 00623).
+    ok(await db.from("leads").update({ email_state: "unknown", email_rechecks: 2 }).eq("id", W.a));
     try {
       assert.equal(
         (await listed(as.operator.c)).stuck,
@@ -642,6 +643,15 @@ test(
       ok(await db.from("lead_search_members").update({ created_at: since }).eq("id", standing.id).select("id"));
       const stuck = (await listed(as.operator.c)).stuck;
       assert.deepEqual([stuck?.leads, stuck?.reason], [1, "unchecked"], "past a day, and nothing checks it again");
+      // With a try left (00623) the clock will still ask: it is being checked again, and asks nothing of its owner.
+      ok(await db.from("leads").update({ email_rechecks: 1 }).eq("id", W.a));
+      const again = await listed(as.operator.c);
+      assert.deepEqual(
+        [again.stuck, again.rechecking],
+        [null, 1],
+        "the clock still asks: not stuck, being checked again",
+      );
+      ok(await db.from("leads").update({ email_rechecks: 2 }).eq("id", W.a));
       assert.equal(Date.parse(stuck.since), Date.parse(since), "since it has stood on the list");
       assert.equal((await listed(as.viewer.c)).stuck?.leads, 1, "a member who only reads is told");
       assert.equal((await listed(db)).stuck, null, "asked by no member, the door says nothing, and nothing is said");
@@ -649,7 +659,7 @@ test(
       ok(await db.from("leads").update({ email_state: "ok" }).eq("id", W.a));
       assert.equal((await listed(as.operator.c)).stuck, null, "an email that checked is not stuck");
     } finally {
-      ok(await db.from("leads").update({ email_state: "ok" }).eq("id", W.a));
+      ok(await db.from("leads").update({ email_state: "ok", email_rechecks: 0 }).eq("id", W.a));
       ok(
         await db
           .from("lead_search_members")

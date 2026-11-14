@@ -100,7 +100,7 @@ test("an act's key is the log's column: lower case, under forty characters, as t
 
 test("a person on the team is named by their address, and someone with none is someone", () => {
   assert.equal(staffName("alex.m@chanlytics.com"), "Alex");
-  assert.equal(staffName("ruben@rjcapital.io"), "Ruben");
+  assert.equal(staffName("ruben@rjcapital.example"), "Ruben");
   assert.equal(staffName(null), "Someone");
 });
 

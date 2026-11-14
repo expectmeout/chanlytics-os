@@ -1245,6 +1245,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     (tables[table] ??= []).push(fresh);
     return fresh;
   };
+  // Each page people_list answered, by its arguments: what people_reply_modes reads its page from, as people_page is.
+  const peoplePages = new Map();
   const derived = {
     // The one door a person is resolved by (00342, 00344): the sweeps, the booking link and the email intake call it.
     resolve_person: (args) => resolvePersonIn(tables, args, insertRow),
@@ -1295,6 +1297,31 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         return { used: n(c?.used), reserved: n(c?.reserved) };
       };
       return { allowance: of("allowance"), budget: of("budget") };
+    },
+    // A page of People's reply modes (00625): the people the suite's people_list answers for the same page, each with
+    // their own reply policy, else the workspace's (the first by id), else none, as the SQL joins them.
+    people_reply_modes: (a) => {
+      if (!rpcs.people_list) throw new Error("fakeDb: people_reply_modes reads the page people_list answers; model it");
+      const reply = (tables.policies ?? []).filter((p) => p.tenant_id === a.p_tenant_id && p.class === "reply");
+      const workspace = reply.filter((p) => p.subject_type == null).sort((x, y) => (x.id < y.id ? -1 : 1))[0];
+      const page = peoplePages.get(JSON.stringify(a)) ?? rpcs.people_list({ p_contact_id: null, ...a });
+      return page.map(({ id }) => ({
+        id,
+        mode: reply.find((p) => p.subject_type === "contact" && p.subject_id === id)?.mode ?? workspace?.mode ?? null,
+      }));
+    },
+    // The receptionist's day (00625): input and output of the workspace's usage.llm_tokens events from p_since on, a
+    // value that is not a number counting nothing, as the SQL sums them.
+    llm_tokens_since: ({ p_tenant, p_since }) => {
+      const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+      return (tables.events ?? [])
+        .filter(
+          (e) =>
+            e.tenant_id === p_tenant &&
+            e.kind === "usage.llm_tokens" &&
+            Date.parse(e.created_at) >= Date.parse(p_since),
+        )
+        .reduce((sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.output_tokens), 0);
     },
     // Ask's day (00240, 00368): input, cache writes and output of the workspace's usage.ask_tokens events of the last
     // 24 hours, a value that is not a number counting nothing and a cache read never counted, as the SQL sums them.
@@ -1367,6 +1394,37 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       if (row.version !== p_version) return { outcome: "stale", version: null, updated_at: null, updated_by: null };
       Object.assign(row, { config: p_config, version: p_version + 1, updated_at: stampOf(tables), updated_by: null });
       return { outcome: "saved", version: row.version, updated_at: row.updated_at, updated_by: null };
+    },
+    // A policy's change, as one write (00624): the workspace's own row for the class takes the mode when one is given
+    // and the dials merged into its limits, and the change is on the ledger in the same write, the dials' names in
+    // the door's order. Who may call it, the money lock and what two callers at once leave are SQL's, proved on a stack
+    // in receptionist/policies/a-policy-save-is-one-step.db.test.mjs.
+    policy_change: ({ p_tenant_id, p_class, p_mode, p_limits, p_via }) => {
+      const row = (tables.policies ?? []).find(
+        (r) => r.tenant_id === p_tenant_id && r.class === p_class && r.subject_type == null,
+      );
+      if (!row) return null;
+      const dials = p_limits ?? {};
+      Object.assign(row, {
+        mode: p_mode ?? row.mode,
+        limits: { ...row.limits, ...dials },
+        updated_at: stampOf(tables),
+      });
+      insertRow("events", {
+        tenant_id: p_tenant_id,
+        kind: "policy.changed",
+        category: "system",
+        subject_type: "workspace",
+        subject_id: p_tenant_id,
+        data: {
+          class: row.class,
+          mode: row.mode,
+          fields: Object.keys(dials).sort(),
+          by: opts.userId ?? null,
+          ...(p_via ? { via: p_via } : {}),
+        },
+      });
+      return { ...row };
     },
     // A broadcast assembled whole (00282): the run, its people and its send job as one write, the way the database
     // makes them. Who may call it, and whose templates, playbooks and people it accepts, are SQL's, proved on a stack
@@ -2354,7 +2412,9 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       const run = () => {
         if (missing) return { data: null, error: missing };
         try {
-          return { data: fn(args, derived[name]), error: null };
+          const data = fn(args, derived[name]);
+          if (name === "people_list") peoplePages.set(JSON.stringify(args), data);
+          return { data, error: null };
         } catch (e) {
           const code = e && typeof e === "object" && "code" in e ? String(e.code) : undefined;
           const hint = e && typeof e === "object" && "hint" in e ? String(e.hint) : undefined;

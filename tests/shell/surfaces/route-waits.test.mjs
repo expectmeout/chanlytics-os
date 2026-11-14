@@ -45,8 +45,20 @@ test("Today waits beside its own surface for everything that stands above its qu
   // The strip over the page, Going today and a run's seat, a reply's row, a review to answer and each row's words (the Today
   // load review, 27 Oct 2026): each landed after the queue on a cold load and moved it. And the bell (10 Nov 2026): what
   // cannot wait is one line under the head, drawn from the bell's warnings, and read in the stream's second tier it landed
-  // 100 to 190 ms after the page and pushed all of it 54 px down on a desk, 64 on a phone.
-  const above = ["setup", "calendar", "broadcasts", "reach_out_replies", "google", "reply_drafts", "notifications"];
+  // 100 to 190 ms after the page and pushed all of it 54 px down on a desk, 64 on a phone. And what Ask found's checks read
+  // beside People, Reports' headline and Ask's morning (13 Nov 2026): in the second tier Ask found landed 0.3 to 1.3 s after
+  // the page, and on a quiet desk the day stood alone and split in two as it came.
+  const above = [
+    "setup",
+    "calendar",
+    "broadcasts",
+    "reach_out_replies",
+    "google",
+    "reply_drafts",
+    "notifications",
+    "reports_headline",
+    "ask_morning",
+  ];
   assert.deepEqual(reg.ROUTE_WAITS.today, above);
   assert.equal(gate("today"), false, "nothing in yet");
   status.setStatus("today", "live");

@@ -92,14 +92,111 @@ the message door refuses a message whose versions name different values, and the
     says: only a yes to offers hears it, never by text, and WhatsApp reviews it as marketing. Ask is told the same rule.
     A message the business already holds keeps the kind it was approved as.
 
+**What a review of the code found** (12 November 2026, after the live runs: six holes, five proven by running the real
+judge over a stand-in model). The live runs had tried one kind of draft, a sequence to people with nothing typed into
+it; and the page's test answered the draft's door with a canned draft, so nothing an owner typed ever went through the
+judge. The holes shared a cause: on a change, the judge judged again what Ask had not touched.
+
+16. **What Ask left word for word as it stood is taken as it stands,** never judged again
+    (`campaigns/sequences/draft-stands.ts`): a discount the owner typed into their own message, which the rule that Ask
+    types no price had emptied on any change; an email to leads they wrote themselves, which any change had emptied
+    where it broke a cold email's rule. In a step Ask did change, words the owner typed into the message that stands
+    there are still theirs.
+17. **A lead's email whose rewrite does not hold stays as it stood,** said with why, and Ask is asked once more, as a
+    person's message is. It came back empty, with nothing said. On a first draft its step is still kept with its words
+    left to write, and the draft now says why.
+18. **A step added after the draft's own moves none of them:** the step that stood at a place is still what a refused
+    rewrite there falls back to. An answer with fewer steps took one away, and nothing falls back.
+19. **A second answer is kept only where it mends:** more steps kept, or as many with fewer refused and none taken
+    away. One that only left the refused step out had won, and the step was gone with nothing said.
+20. **A change is asked of the draft as it stands,** never under the choices of the door New was opened by: a draft
+    switched to leads since was refused on every change.
+21. **Discard stops Ask at work,** whose answer had drawn the discarded draft again; and the name is held while Ask
+    works, where one typed then was written over.
+
+A change is now tried on every kind of draft before it is called done: a sequence to people, a message sent once with a
+value typed into it, and a sequence to leads.
+
 Items 7 to 14 were run again live on the demo workspace on 12 November 2026, the day they shipped: no step was lost in
 four asks that had lost one before, a change that named no step left an approved message as it was and said so, a
 signature stood on its own line, Undo stepped back through four changes, and a change took about five seconds.
+
+**What pressing the live page found** (13 November 2026, the run that tried items 16 to 21 with the real Ask: all six
+held). Five things on the page itself, the first there since 20 October and found only because a pointer pressed it:
+every test of the draft pressed its controls through their props, on a page with no stylesheet.
+
+22. **A step is pressed where it is touched.** A step's box is one press laid over the whole of it (`place.css`), and
+    the step's own controls sat under that press: a pointer on Take away opened the step and took nothing away, one in
+    a value's field opened the message picker, and Edit the words opened the picker too. The controls stand over the
+    press (`new.css`). A message's words, which stood over it by the bubble's own layout and opened nothing, are the
+    box's press again. A browser spec presses each with a pointer.
+23. **A draft discarded lets the line's words go.** A change still out when the draft went had left them in the next
+    draft's line.
+24. **"By Ask" is said only of words still as Ask wrote them** (`change.ts` `placesByAsk`, read against what Ask last
+    drafted): an email the owner rewrote, a message whose words they edited, and a step they added and wrote said it
+    too, since it was said of any step in a draft Ask had drafted.
+25. **A line that changed nothing and says why stands on top, over the card that says why,** with Undo, which puts the
+    card away. It was said in passing and the card stood under the change before it, reading as that change's. One
+    that changed nothing and says nothing new is still said in passing.
+26. **What Ask said it left out goes with the steps it was said of:** a step swapped, rewritten, added or taken away by
+    hand lets the card go. It stayed up over a message since swapped, and Undo brought it back. A wait, a value typed,
+    who, when and the name leave it.
+
+### What the same day's second run found (13 November 2026, the five above pressed on the live app)
+
+27. **Words that run long never lose the draft.** One draft in six came back "unreadable" (502): Ask's answer was read
+    whole and refused by its shape, where what it left out (`cannot`) was held to 300 characters it was never told of.
+    The route's line carried no cause, which a cut-off or broken answer keeps, and the notes drawn that run were 213,
+    271 and 274 characters: a line that leaves out two things quotes both, and a clause more loses everything. Ask is
+    told its room now (300), and a note past it is kept: whole to twice that, then in the whole sentences that fit
+    (`left-out.ts`), in a draft and in an email's rewrite, which held the same 300. A draft's name and a written
+    message's title, refused the same way past 120 and 80, are cut after a whole word at 80. An answer still out of
+    shape is refused as it was, and its refusal keeps which fields broke it as its cause, never what they held, so the
+    route's line says which.
+28. **A customer offer carries the discount its owner asked for, and never one Ask made up** (Ruben, 13 November
+    2026, asked after the same run: one draft in five wrote “20% off … valid until Sunday” into a customer's message
+    where the other four left it out, by a rule written for cold email that every draft was told and nothing held for a
+    customer). A message to people may name a price, a discount or a date only as the owner gave it, in their line or
+    in what stands of the draft they are changing (`numbers.ts` ownerPriceWords): Ask is told so, the rule for leads
+    says leads, and the judge holds it. A message Ask writes that names one the owner never gave is refused with why
+    (`unsaidPrice`, then asked once more), and a value Ask types with one is left blank, as before. A cold email still
+    names none, whoever gave it. This reverses the rule of 12 November that a first draft's typed price was always Ask's.
+29. **A change never says the owner's own change is left out** (Ruben, 13 November 2026, after the live run of item
+    28: “A one-off offer to everyone who visited in the last 90 days: 20% off any service this week”, then “Make it
+    30% off everything”, then “Make it warmer”, whose note said “Left out: “20% off any service this week””). A change
+    was told the owner's first line and the draft as it stands, and nothing of what the draft already said it left
+    out, so a part the owner had changed since read as one Ask could not do. The page now sends that note with the
+    draft (`stands.cannot`, optional, so a page opened before it still changes a draft), Ask is told it as data, and
+    the rule for a change says to say again what is still left out and never the owner's own change since.
+30. **No part of Ask's answer that runs long loses the draft, and what a change did is read out** (Ruben, 13 November
+    2026: "continue fixing gaps", the gaps left after item 27). Item 27 let a note, a name and a title run long; the
+    answer's other parts still refused the whole draft by a length the model is never held to (who said in words past
+    60 characters, a when past 40, a typed value past 300, a call's words past 600, an email past 2,000, more than eight
+    steps). The answer's shape now holds its types and closed sets alone, and each part is held where it is used: a key
+    that names nothing is none, a time it cannot read is none, a typed value and a call's words are cut to what they
+    hold, each message's words are the message door's to judge (a step that does not hold says why, as any does), a
+    lead's subject past what a subject holds is left to write with its email, a condition is said once, and steps past
+    the most a draft holds are said (`NEW_WORDS.cannot.stepsPast`). An answer cut off at its ceiling says it ran long
+    and to ask for less, never to try again, and the log says it was cut (no draft has come near the ceiling: the
+    longest of 125 answers in the 30 days to 13 November used 698 of its 2,000 tokens). The line on top is one status
+    while Ask works and after, so what a change did is read out as it lands, and the note of what a draft leaves out is
+    read out too. A step's press on the rail draws one keyboard ring, the box's: every button's ring drew a second
+    round its title, under the box's, on every sequence's steps (seen live on the demo, 13 November).
+31. **A whole draft fits what Ask may write, and a first draft that fails says why** (Ruben, 13 November 2026: "Yes,
+    fix both", after the live run of item 30). "The day after every visit: nine messages, one a week, each a different
+    tip" came back cut off: six steps Ask writes, each in three versions, ran past the 2,000 tokens the edge held every
+    small draft to, where the drafter asked for 2,400. A sequence's draft now has a ceiling of its own,
+    `SEQUENCE_DRAFT_MAX_TOKENS` (4,000), the one number the edge's gateway holds it to and the drafter asks for; the
+    other small drafts keep 2,000, and an answer spends what it writes, never the ceiling. A first draft Ask could not
+    write says why in the server's words (an answer that ran long, a day's budget spent, a paused workspace), as a
+    change's toast already did, where it said "try again in a moment" whatever the reason.
 
 ## Deploy order
 
 Either. The dashboard alone changes; no route, no table, nothing the two apps share.
 
+Item 31 changes both apps, in either order: the edge writes the lesser of its ceiling and what the dashboard asks for, so an edge first holds the old ask to 2,400, and a dashboard first is held to the old edge's 2,000, as before.
+
 ## Held by
 
-`tests/campaigns/new-ready.test.mjs` (the rules), `tests/campaigns/new-ready-page.test.mjs` (the first screen drawn), `tests/playbooks/campaigns-drafts.test.mjs` (the line still drafts, and a line alone is not work), and `e2e/campaigns/campaigns-loads.spec.ts` (nothing drawn while loading is taken back). Step 2: `tests/campaigns/draft-changed-by-saying.test.mjs` (what the drafter is told of a draft that stands, how its answer is judged and taken, what changed said, a step that stays, the second ask, why a step cannot be kept) and `tests/playbooks/campaigns-drafts.test.mjs` (the line under a draft, on the page: asked, changed, Undo, a change Ask could not make).
+`tests/campaigns/new-ready.test.mjs` (the rules), `tests/campaigns/new-ready-page.test.mjs` (the first screen drawn), `tests/playbooks/campaigns-drafts.test.mjs` (the line still drafts, and a line alone is not work), and `e2e/campaigns/campaigns-loads.spec.ts` (nothing drawn while loading is taken back). Step 2: `tests/campaigns/draft-changed-by-saying.test.mjs` (what the drafter is told of a draft that stands, how its answer is judged and taken, what changed said, a step that stays, the second ask, why a step cannot be kept) and `tests/playbooks/campaigns-drafts.test.mjs` (the line under a draft, on the page: asked, changed, Undo, a change Ask could not make, a line that says why, a draft discarded, a message its owner rewrote). A step pressed with a pointer: `e2e/campaigns/sequences.spec.ts`. The second run's (27): `tests/sequences/sequence-draft.test.mjs` (a note, a name and a title that run long, in a draft and in a rewrite, and the fields an answer out of shape names). Item 28: `tests/sequences/sequence-draft.test.mjs` (a customer offer keeps the owner's figure and refuses another) and `tests/campaigns/draft-changed-by-saying.test.mjs` (a change that names a new figure gives it). Item 29: `tests/campaigns/draft-changed-by-saying.test.mjs` (a change is told what the draft leaves out as it stands, and the door takes a change without it). Item 30: `tests/sequences/sequence-draft.test.mjs` (every part of an answer that runs long, and one cut off at its ceiling) and `tests/playbooks/campaigns-drafts.test.mjs` (what a change did, read out). Item 31: `tests/leads/engine/lead-gateway.test.mjs` (a sequence's draft's own ceiling), `tests/sequences/sequence-draft.test.mjs` (what the drafter asks for) and `tests/playbooks/campaigns-drafts.test.mjs` (a first draft that failed, in the server's words).

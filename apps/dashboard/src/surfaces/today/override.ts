@@ -14,6 +14,7 @@ import { declareSurfaceValue } from "../surface-values";
 import "./setup-card-code";
 import { holdTodayForNote } from "./cold-email-note-read";
 import { holdTodayForContent } from "./content-note-read";
+import { holdTodayForPeople } from "./people-read";
 
 // The pages that have not moved (Ask, the phone app's bridge, the bell) still read the day under its old name.
 declareSurfaceValue("today", "TODAY_DATA");
@@ -23,6 +24,8 @@ declareSurfaceValue("today", "TODAY_DATA");
 holdTodayForNote();
 // And Content's card, the same way (content-note-read.ts).
 holdTodayForContent();
+// And what Ask found and To do's steps due read of People, the same way (people-read.ts): they stand in the first draw.
+holdTodayForPeople();
 
 /** Today's read and the day's making: fetched once, at once where Today is the page opened (bridge/surfaces/code.ts). */
 const todayCode = surfaceCode("today", () => import("./surface"));

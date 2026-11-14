@@ -1,7 +1,7 @@
 /**
  * The rule that only one fold is open (moved whole from legacy/components/record-fold.jsx, decision 0015).
  *
- * `recFolds` is what the pages import (`window.__recordFolds` it was, until nothing read that name: O4b), and it is what the Settings rail asks before it replaces a pane. A page asks it to open a fold with
+ * `recFolds` is what the pages import (`window.__recordFolds` it was, until nothing read that name: O4b), and it is what a move off the page asks first (held-move.ts: the sidebar, a menu, a link, Settings' rail, Back). A page asks it to open a fold with
  * request(id), or request(id, { dirty }), where `dirty` says whether that fold holds unsaved changes once it is open.
  * Without one, the fold's own is used: useRecordFold binds each fold's dirty test to its id as the fold mounts, so a fold
  * opened from anywhere by its id alone (the Business tab's gap line opens a row it names) is guarded exactly as its own
@@ -14,8 +14,10 @@
  * dirty one stays open and the registry records { holding, wants } until one of three answers: discard() (throw its
  * changes away and open the one asked for), stay() (keep editing it), or close(id) from the holding fold itself (saved
  * or cancelled; the one asked for then opens). If the fold asked for leaves the page first, the ask goes with it, and
- * the holding fold stays open with its changes. close(id) from a fold that is not the open one does nothing.
- * subscribe(fn) hears every change. A page reaches all of this through useRecordFold rather than by hand.
+ * the holding fold stays open with its changes. close(id) from a fold that is not the open one does nothing but
+ * forget the change the tab kept of it (kept.ts: a save taken after its page was left), as close() and discard() forget
+ * the change of the fold they let go; a fold leaving the page keeps it. subscribe(fn) hears every change. A page
+ * reaches all of this through useRecordFold rather than by hand.
  *
  * A save in progress is not an open, unsaved editor. While the open fold's save is out (`saving`, the second test its
  * hook binds), its fields are read-only (the page hands each of the kit's controls `readOnly`), what is asked of it
@@ -24,9 +26,9 @@
  * changes?" still asked, its yes stopping nothing. So a fold that is saving never gives way at once, whatever its
  * dirty test says (a fold judged against the saver's base reads clean the moment its save goes out); the ask is
  * recorded, the fold draws no question while it saves, and the save's answer is the answer: taken, the fold closes and
- * the one asked for opens; refused, the question is drawn, and is true again. saving() says so to the Settings rail,
- * which asks in other words (`__settingsSaving`), and the browser is asked to ask while a save is out too, since a tab
- * closed over it may take the request with it.
+ * the one asked for opens; refused, the question is drawn, and is true again. saving() says so to a move off the page,
+ * which waits for the save's answer the same way (held-move.ts), and the browser is asked to ask while a save is out too,
+ * since a tab closed over it may take the request with it.
  *
  * Three are not for pages: drawn(id) is RecordFold's own (it counts the folds with each id on the page, and when the
  * last one with the open id goes, the registry lets go); bind(id, check, saves) is useRecordFold's (a fold's dirty test
@@ -34,6 +36,7 @@
  * hook binds one of each for its life, so the test it binds is the test it hands its requests); and reset() is for tests
  * (it forgets what is open and asked).
  */
+import { dropChange } from "./kept";
 import { listen, logError, unlisten } from "./shell-verbs";
 
 /** A fold's id: the page's word for it (a number or an empty string is one too). */
@@ -56,16 +59,26 @@ const holding = (check: Check) => {
 };
 
 /**
+ * What the tab kept of a fold the person let go (kept.ts): closed by its page, saved or cancelled, whether or not it is
+ * the open one (a save taken after its page was left closes it too), or its change thrown away. A fold that leaves the
+ * page is not let go of by anyone: what it kept waits for the page to come back.
+ */
+const forgetChange = (id: FoldId | null | undefined) => {
+  if (id != null) dropChange(id);
+};
+
+/**
  * What it keeps. "Nothing open" is null, never merely falsy: a fold may be called 0 or "". `live` counts the folds with each id on the page, by id and not held by each fold, because the fold a
  * person sees can be a new instance of the one that opened: StrictMode's check in development, a key change or a new parent
  * unmounts one and mounts the next in the same commit. `bound` is each fold's own dirty test, by its id, from the moment
  * its hook mounts until it goes (bind); a request that brings none uses it, since without it a fold opened by its id alone
- * held no test, and the rail, another fold's act and the browser would each have thrown its changes away without asking
+ * held no test, and a move off the page, another fold's act and the browser would each have thrown its changes away without asking
  * (one test per id, the last hook's to mount: the header says why a fold id belongs to one hook). `busy` is each fold's
  * "my save is out" test, bound and let go of with its dirty test. `holds` are a composer's unsaved tests, each held while
- * it is drawn, so the tab asks before closing over it and the rail before replacing it; a hold never stands between two
+ * it is drawn, so the tab asks before closing over it (a move off the page does not: the words come back with it); a hold never stands between two
  * folds: request() asks the open fold alone. The open fold's test is the one its request brought, else the one its hook
- * bound. The browser asks before the tab closes over a dirty fold, over one whose save is out (the tab may take the request
+ * bound; foldDirty() is it alone, which a move off the page asks (held-move.ts): a fold's changes go with its page, where
+ * the tab keeps a composer's words and they come back with it. The browser asks before the tab closes over a dirty fold, over one whose save is out (the tab may take the request
  * with it), or over a composer's words: the listener is on only while a fold is open or a composer holds -- the form the
  * record replaced hung its own on only while it held changes -- and it asks at the moment the tab closes.
  *
@@ -139,6 +152,7 @@ function createRecFolds() {
   return {
     open: (): FoldId | null => openId,
     dirty,
+    foldDirty,
     saving,
     asking: (): { holding: FoldId; wants: FoldId } | null =>
       asked ? { holding: asked.holding, wants: asked.wants } : null,
@@ -173,8 +187,8 @@ function createRecFolds() {
       };
     },
     discard() {
-      if (asked) become(asked.wants, asked.check);
-      else become(null);
+      forgetChange(openId);
+      become(asked ? asked.wants : null, asked?.check);
     },
     stay() {
       if (!asked) return;
@@ -182,9 +196,9 @@ function createRecFolds() {
       tell();
     },
     close(id?: FoldId | null) {
+      forgetChange(id ?? openId);
       if (id != null && id !== openId) return;
-      if (asked) become(asked.wants, asked.check);
-      else become(null);
+      become(asked ? asked.wants : null, asked?.check);
     },
     // For tests (see above).
     reset() {

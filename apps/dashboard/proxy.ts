@@ -51,6 +51,11 @@ const PUBLIC_PATHS = new Set([
   // The platform's clock, with its own secret (app/api/ask/morning-sweep/route.ts): no cookie, so no gate here; the route
   // answers 401 to anything but the CRON_SECRET's bearer, and with no secret set it answers nothing at all.
   "/api/ask/morning-sweep",
+  // The warm-ups, asked for by the platform's clock with no cookie (app/api/warm/route.ts): each loads the routes every
+  // page opens on and answers the names of the routes it holds. Nothing of the request is read, no workspace is named
+  // and no row is read, so they answer anyone. Two exact paths, one for each function that holds a page's first reads.
+  "/api/warm",
+  "/api/warm/long",
   "/manifest.webmanifest",
   "/signup",
   "/api/v1/signup",

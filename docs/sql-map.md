@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 183 | 183 |
-| reader | 76 | 0 |
-| the server's | 337 | 293 |
+| door | 184 | 184 |
+| reader | 77 | 0 |
+| the server's | 338 | 293 |
 | computed column | 3 | 0 |
 | trigger | 101 | 71 |
-| all | 700 | 547 |
+| all | 703 | 548 |
 
 ## Called by nothing
 
@@ -212,7 +212,7 @@ being read is dropped by a migration.
 | `ingest_before` | the server's | the server | code `packages/db/src/repositories/imports/before.ts` | A message from before Chanlytics (decision 0073, R19 and R21): |
 | `ingest_call` | the server's | its owner | code `packages/db/src/repositories/voice/calls.ts`; script `tooling/scripts/ops/filler.mjs` |  |
 | `ingest_inbound` | the server's | the server | code `packages/channels/src/whatsapp/whatsapp.ts`, `packages/core/src/inbound/order.ts` and 1 more |  |
-| `is_acting_member` | reader | a signed-in person, the server | SQL `add_person`, `approve_broadcast` and 70 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 17 more | True when the caller may COMMIT changes in this tenant: |
+| `is_acting_member` | reader | a signed-in person, the server | SQL `add_person`, `approve_broadcast` and 71 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 17 more | True when the caller may COMMIT changes in this tenant: |
 | `is_platform_admin` | door | a signed-in person, the server | SQL `partner_payout_mark`, `partner_second_factor_reset` and 6 more | Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: |
 | `is_workspace_owner` | reader | a signed-in person, the server | SQL `partner_invite`, `partner_invite_accept` and 3 more; in `rule partner_invitations_read on partner_invitations`, `rule partner_tenants_owner_or_partner_select on partner_tenants` | True when the caller owns this tenant. |
 | `job_dedupe_key_of` | the server's | the server | SQL `jobs_take_their_kind` | The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00526), or null when it carries none. |
@@ -241,7 +241,7 @@ being read is dropped by a migration.
 | `lead_check_ask` | the server's | the server | SQL `lead_addressee_choose`, `lead_check_again` and 1 more | The mailbox check of the named leads under one of their rounds (00430): |
 | `lead_check_commit` | the server's | the server | code `apps/edge/lib/leads/db.ts`; SQL `lead_search_import` | A batch of mailbox answers ([{lead_id, email_state, checked_at}]) from the check run p_run_id: |
 | `lead_check_estimate` | the server's | the server | SQL `lead_check_again`, `lead_check_ask` | What checking p_addresses addresses may cost (00506): |
-| `lead_check_retry` | the server's | the server | code `packages/db/src/repositories/leads/workbench.ts` | The leads clock (00618, decision 0131). |
+| `lead_check_retry` | the server's | the server | code `packages/db/src/repositories/leads/workbench.ts` | The leads clock (00618, decision 0131; |
 | `lead_collect_commit` | the server's | the server | code `apps/edge/lib/leads/db.ts` | One page of one run, in one transaction (E4). |
 | `lead_company_upsert` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | The people card's page of companies (00430), the service role's, before lead_collect_commit moves the run: |
 | `lead_convert_by` | the server's | its owner | SQL `lead_set_stage`, `leads_convert_on_deal` and 4 more | A lead's conversion, written once for every door that converts (Reach out Part 5, G19; |
@@ -323,6 +323,7 @@ being read is dropped by a migration.
 | `line_forwarding_test` | door | a signed-in person, the server | code `packages/db/src/repositories/lines/forwarding.ts` | Keep my number: open a 30-minute test window. |
 | `lines_sms_guard` | trigger | a signed-in person, the server | trigger `lines_sms_guard on lines` | sms_state moves as the hourly sync and the refile doors move it, in both directions among needs_record, registering, approved, active, rejected and failed. |
 | `lines_voice_guard` | trigger | a signed-in person, the server | trigger `lines_voice_guard on lines` | Forward moves only on voice_state: |
+| `llm_tokens_since` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspace's receptionist tokens (input and output of every usage.llm_tokens event; |
 | `lookup_user_for_invite` | the server's | the server | code `packages/db/src/repositories/workspace/team.ts` | The user id behind an email, or null. |
 | `mailbox_capacity` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/email-day.ts`; SQL `outreach_mailbox_facts`, `sequence_claim_from` | A connected mailbox's day (00424): |
 | `mailbox_connection_connect` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | Service-role only (the edge's connect, once the provider's grant is in hand): |
@@ -409,7 +410,8 @@ being read is dropped by a migration.
 | `pause_email_offers` | the server's | the server | code `packages/db/src/repositories/campaigns/email-offers.ts` | Pauses a workspace's offers by email (the gates, contracts' OFFER_GATES): |
 | `people_erase_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/erasure/legs.ts` | People's Delete… for a selection of any size (00547, decision 0036): |
 | `people_list` | reader | a signed-in person, the server | code `apps/dashboard/app/api/v1/contacts/route.ts`, `apps/dashboard/src/server/people/people.ts` and 4 more | Everyone this workspace has ever heard from, with both consent answers: |
-| `people_page` | reader | a signed-in person, the server | SQL `people_list` | The people on one page of People (0021), for people_list, which reads everything else for them alone: |
+| `people_page` | reader | a signed-in person, the server | SQL `people_list`, `people_reply_modes` | The people on one page of People (0021), for people_list, which reads everything else for them alone: |
+| `people_reply_modes` | reader | a signed-in person, the server | code `packages/db/src/repositories/people/pages.ts` | The reply mode in force for each person on one page of People: |
 | `people_series` | reader | a signed-in person, the server | code `apps/dashboard/src/surfaces/reports/people-surface.ts`, `packages/db/src/repositories/reports/series.ts` | Reports › People: who reached the business over p_days and the same number of days before them, as people and never as messages (distinct live people with an inbound message in their own words on What |
 | `person_before_note` | door | a signed-in person, the server | code `apps/dashboard/src/server/people/import-people.ts`, `packages/db/src/repositories/imports/before.ts` | One line of a client file, beyond who the person is (decision 0073, R22): |
 | `person_call_logged` | door | a signed-in person, the server | code `apps/dashboard/src/server/people/person-notes.ts`, `packages/contracts/src/people/person-page/call.ts` and 1 more | A call a member made, logged on the person (0052, canvas A M4): |
@@ -469,6 +471,7 @@ being read is dropped by a migration.
 | `platform_role` | door | a signed-in person, the server | nothing at run time | The calling session's role in the Console (00467), on a session that showed its second factor; |
 | `platform_staff_state` | door | a signed-in person, the server | code `packages/db/src/repositories/console/staff.ts` | The calling session in the Console (00467): |
 | `playbook_totals` | reader | a signed-in person, the server | code `packages/db/src/repositories/reports/series.ts` | Each moment playbook's runs, sent, delivered, replied and held (its people skipped or failed), its newest run (last_run), the run waiting for a person (waiting, else null) and its newest p_history run |
+| `policy_change` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/control-plane/config.ts` | A member's change to their workspace's own policy row for a class, as one write (00624): |
 | `post_again` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post's first attempt never landed (00611): |
 | `post_attempt_close` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A send's answer and outcome kept (00611), the answer cut to 4 KB, and its container and post ids copied to the placement. |
 | `post_attempt_open` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | One send of a post opened (00611), with the request as sent and never a token. |

@@ -269,10 +269,8 @@ export async function scrubErasedJobs(
       if (after) q = q.gt("id", after);
       return q.order("id").limit(size);
     },
+    "whole",
     SCRUB_READ_CAP,
-    (subject, cap) => {
-      throw new Error(`${subject}: more than ${cap} jobs; none scrubbed`);
-    },
   );
   const isAddress = (s: string) => s.includes("@");
   const digits = new Set(

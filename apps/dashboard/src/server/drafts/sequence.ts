@@ -26,6 +26,7 @@ import {
   NewDraftAnswerSchema,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
+  SEQUENCE_DRAFT_MAX_TOKENS,
   defaultSlotKinds,
   fenced,
   fencedInline,
@@ -67,7 +68,7 @@ import { templates } from "../readers/templates";
 import { getStoredConfig } from "../workspace/config-row";
 import {
   draftKept,
-  refusedSteps,
+  stepsJudged,
   type RefusedStep,
   type DraftExample,
   type DraftKnown,
@@ -76,6 +77,7 @@ import {
 } from "../campaigns/sequences/draft-judge";
 import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
+import { LEFT_OUT_ASKED_MAX } from "../campaigns/sequences/left-out";
 import { CHANGE_RULE, standsAsked } from "./sequence-change";
 
 /** How much of a message's words the model is handed. */
@@ -91,7 +93,7 @@ const SERVICES_SAID = 12;
 export const LEAD_RULES = [
   `A step to leads is an email in the business's own words, the same words for every business it goes to: \`subject\` on the first only; \`body\` at most ${ASK_FIRST_WORDS_MAX} words on the first, starting with {{opening}} on a line of its own (one line about them, written for each business later from its record), and at most ${ASK_LATER_WORDS_MAX} on a later one, which answers in the same thread. The words themselves claim and suppose nothing about the business they go to, not how busy it is, its calls, what it has or what it wants: only the opening says anything about them. Use only {{opening}}, {{business}}, {{first name}}, {{city}}, {{your name}}, {{your business}}, and {{booking link}} after the first only. No link, price or exclamation mark in the first.`,
   "Write a step to leads in the owner's own voice: the first emails they started before (their length, greeting, how they open, ask and sign off) and the lines Ask remembers about how they write come first: where one shows what Ask drafted beside what they sent, what they changed is how they want it, and what wrote back is what worked, where it went to enough businesses to tell (a few sends say nothing either way); you never copy a sentence of them; where there is neither, plain and short. Say what the business offers as it says it itself, from what it does and its services, never more. You may say who the email goes to as the owner's own act (\"I'm writing to a few auto shops in {{city}}\"), never as a fact about the business.",
-  "Never a price, a discount or a date in any words you write.",
+  "Never a price, a discount or a date in any words you write to leads.",
   "A number about the owner's own business (how many customers, how long, a result) stands in the words only inside one of the claims it can prove, word for word, or as the owner said it in what they asked for; where there is neither, write no such number.",
 ];
 
@@ -100,14 +102,15 @@ const RULES = [
   "Choose `kind`: sequence (steps over days, each a wait after the one before) or once (one message, now or on a day).",
   "Choose `audience`: people (the business's own customers, in People) or leads (other businesses a search found, which never said yes to it: you only email them).",
   "Choose `who` by its key from the lists below: a moment or a list for a sequence to people; everyone or a list for a message sent once to people; a search for leads. Leave it empty when none fits, and say why in `cannot`.",
-  "A step to people sends one of the business's messages by its key, with `texts` for its typed-words values in order; or, only where none of them fits, a new one in `write`: a short `title`, `offer` true for an offer, and its words for each channel it should go by: `whatsapp` and `text` short and plain, `email_subject` and `email_body`. Name only these values, in double braces: {{first name}}, {{business name}}, {{booking link}}, {{review link}}, and on a first step after a booking {{booked time}} and {{booked service}}. Every version of one message names the same values: a value the email or the text names, the `whatsapp` words name too, or the message cannot be kept. A text never carries an offer: leave `text` empty for one. On a moment about a booking, only its first step is about the booking itself; a later step (inviting them back, a nudge to book) is an offer: `offer` true and no `text`. A name the owner asks a message be signed with stands on a line of its own, last. Leave `message` empty when you write one, and every `write` field empty when you don't.",
+  "A step to people sends one of the business's messages by its key, with `texts` for its typed-words values in order; or, only where none of them fits, a new one in `write`: a short `title`, `offer` true for an offer, and its words for each channel it should go by: `whatsapp` and `text` short and plain, `email_subject` and `email_body`. WhatsApp refuses words that start or end with a value: put a few words after the last one (after a link too), and keep a few words of their own around each. Name only these values, in double braces: {{first name}}, {{business name}}, {{booking link}}, {{review link}}, and on a first step after a booking {{booked time}} and {{booked service}}. Every version of one message names the same values: a value the email or the text names, the `whatsapp` words name too, or the message cannot be kept. A text never carries an offer: leave `text` empty for one. On a moment about a booking, only its first step is about the booking itself; a later step (inviting them back, a nudge to book) is an offer: `offer` true and no `text`. A name the owner asks a message be signed with stands on a line of its own, last. Leave `message` empty when you write one, and every `write` field empty when you don't.",
+  "A message to people carries an offer in the owner's own words and figures: a price, a discount or a date only as they gave it in what they asked for, never one they did not give.",
   ...LEAD_RULES,
   `A step after the first waits \`after_days\` after the one before: ${NEW_WAIT_DAYS.people.min} to ${NEW_WAIT_DAYS.people.max} for people, ${NEW_WAIT_DAYS.leads.min} to ${NEW_WAIT_DAYS.leads.max} for leads. To people it may go only if they have not booked since (no_booking) or not written back (no_reply); a lead stops on a reply on its own, so leave \`only_if\` empty for leads and on a first step.`,
   "A step may instead hand each person to the team: `does` call or note, with `words` saying what to do when they come up. Only when the owner asks for it, and only as the last step, never the first. A message step leaves `words` empty.",
   `Up to ${NEW_STEPS_MAX.people} steps to people and ${NEW_STEPS_MAX.leads} to leads, the first included. A message sent once is one step.`,
   "`name`: what it is, in two to four words, as the owner would call it.",
   `\`hour\`: the hour a sequence sends, ${PLAYBOOK_HOURS.min} to ${PLAYBOOK_HOURS.max}; ${PLAYBOOK_DEFAULTS.runHour} unless the owner says otherwise. \`when\`: for a message sent once, "now", or "YYYY-MM-DD HH:MM" in the business's time, within ${NEW_ONCE_AHEAD_DAYS} days; empty for a sequence.`,
-  "If the owner asks for something nothing here can do, build the closest part you can and say in `cannot` what is left out, in two short sentences: “Left out: “<their words>”.”, then why, and what the draft does instead. Leave `cannot` empty when everything fit.",
+  `If the owner asks for something nothing here can do, build the closest part you can and say in \`cannot\` what is left out, in two short sentences, ${LEFT_OUT_ASKED_MAX} characters at most: “Left out: “<their words>”.”, then why, and what the draft does instead. Leave \`cannot\` empty when everything fit.`,
   DATA_NOT_INSTRUCTIONS,
 ];
 
@@ -298,6 +301,11 @@ function draftAsked(known: DraftKnown, ask: NewDraftAsk): string {
 /** The drafter's own rules, as its system prompt says them: every workspace's, and a previewing one's one more. */
 export const draftRules = (previews: boolean): string => [...RULES, ...(previews ? [PREVIEW_RULE] : [])].join("\n");
 
+/** Whether a second answer mends the first: more steps kept, or as many with fewer refused and none taken away. */
+const mends = (now: ReturnType<typeof stepsJudged>, was: ReturnType<typeof stepsJudged>): boolean =>
+  now.kept > was.kept ||
+  (now.kept === was.kept && now.answered >= was.answered && now.refused.length < was.refused.length);
+
 /** What Ask is told where it is asked once more: the steps whose words could not be kept, each with why. */
 const againAsked = (refused: readonly RefusedStep[]): string =>
   `These steps could not be kept as you wrote them: ${refused
@@ -306,8 +314,10 @@ const againAsked = (refused: readonly RefusedStep[]): string =>
 
 /**
  * The draft from what is known: one model call, and what is kept of its answer; and one call more where the judge cannot
- * keep a step's words, told which and why, its answer kept where it leaves fewer such steps. A second call that fails
- * leaves the first answer standing.
+ * keep a step's words, told which and why. Its answer is kept where it mends (`mends`): it keeps more steps, or as many
+ * with fewer refused and none taken away. One that only leaves the refused step out mends nothing: the first answer says
+ * which step and why, and on a change the step stays (the review of 12 Nov 2026). A second call that fails leaves the
+ * first answer standing.
  */
 export async function draftSequenceFrom(
   known: DraftKnown,
@@ -322,7 +332,7 @@ export async function draftSequenceFrom(
         userId: personName.userId,
         purpose: "sequence_draft",
         request: {
-          max_tokens: 2400,
+          max_tokens: SEQUENCE_DRAFT_MAX_TOKENS,
           system: [draftRules(known.previews === true), ...(ask.stands ? [CHANGE_RULE] : [])].join("\n"),
           schema: NEW_DRAFT_JSON_SCHEMA,
           messages,
@@ -332,14 +342,14 @@ export async function draftSequenceFrom(
       "draft",
     );
   let answer = await answerTo([{ role: "user", content: prompt }]);
-  const refused = refusedSteps(answer, known, ask);
-  if (refused.length > 0) {
+  const first = stepsJudged(answer, known, ask);
+  if (first.refused.length > 0) {
     const second = await answerTo([
       { role: "user", content: prompt },
       { role: "assistant", content: JSON.stringify(answer) },
-      { role: "user", content: againAsked(refused) },
+      { role: "user", content: againAsked(first.refused) },
     ]).catch(logAndGoOn("sequence draft asked again", null));
-    if (second && refusedSteps(second, known, ask).length < refused.length) answer = second;
+    if (second && mends(stepsJudged(second, known, ask), first)) answer = second;
   }
   // The lines learned from how the owner writes, which the page says it wrote with (decision 0078).
   const voice = (known.memory ?? []).filter((m) => m.source === "learned").map((m) => m.text);

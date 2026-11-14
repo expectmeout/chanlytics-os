@@ -5,16 +5,24 @@
  * drawn the state. What each says when it is done is the toast's.
  */
 import type { RefObject, ReactNode } from "react";
-import { VERSION_CHANNEL_WORDS, reachOutEditedWords } from "@chanlytics/contracts";
+import {
+  MESSAGE_CHANGE_WORDS,
+  OWN_VERSION_CHANNELS,
+  VERSION_CHANNELS,
+  VERSION_CHANNEL_WORDS,
+  isOneOf,
+  reachOutEditedWords,
+  versionWord,
+  versionWords,
+} from "@chanlytics/contracts";
 import type { OwnVersionChannel } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { useFrameToast } from "../../frame-verbs";
-import { starterWords } from "./composer";
-import type { TemplateGroup, TplLang } from "./group";
+import type { StarterGroup, TemplateGroup, TplLang } from "./group";
 import { syncTemplates, templates as templateVerbs } from "./verbs";
 import type { VersionDraft } from "./verbs";
-import { TPL_VERSION_WORDS, tplLangLabel, tplTitle } from "./words";
+import { TPL_SHEET_WORDS, TPL_VERSION_WORDS, tplLangLabel, tplTitle } from "./words";
 
 interface ActsProps {
   doingRef: RefObject<string | null>;
@@ -22,12 +30,53 @@ interface ActsProps {
   flash: ReturnType<typeof useFrameToast>[1];
 }
 
-export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
-  const run = async <T,>(
-    what: string,
-    fn: () => Promise<ApiResult<T>>,
-    said: (r: { ok: true; data: T }) => ReactNode,
-  ) => {
+/**
+ * A message deleted whole in a language (the message sheet's Delete): its WhatsApp version first, which a send using it
+ * refuses before anything goes, then its email's and its text's, each through its own door. The first refusal stops it,
+ * and says what already went.
+ */
+async function deleteWhole(rows: readonly TemplateDto[]): Promise<ApiResult<null>> {
+  const order = [...rows].sort((a, b) => Number(b.channel === "whatsapp") - Number(a.channel === "whatsapp"));
+  const gone: string[] = [];
+  for (const r of order) {
+    const res = r.channel === "whatsapp" ? await templateVerbs.remove(r.id) : await templateVerbs.removeVersion(r.id);
+    if (!res.ok) return gone.length ? { ...res, message: TPL_SHEET_WORDS.deletedPart(gone, res.message) } : res;
+    gone.push(isOneOf(VERSION_CHANNELS, r.channel) ? versionWord(r.channel) : r.channel);
+  }
+  return { ok: true, data: null };
+}
+
+/**
+ * A message's email and text versions written again in a language being added (Add a language, for every version the
+ * message has): each written by Ask from the words it has, every value kept, then saved beside the message. The first
+ * refusal stops it, and says what was saved.
+ */
+async function writeOwnIn(rows: readonly TemplateDto[], to: TplLang): Promise<ApiResult<{ saved: string[] }>> {
+  const saved: string[] = [];
+  for (const version of rows) {
+    if (!isOneOf(OWN_VERSION_CHANNELS, version.channel)) continue;
+    const { subject, body } = versionWords(version);
+    const ask = TPL_VERSION_WORDS.translateAsk(to.label);
+    const wrote = await templateVerbs.rewrite({ channel: version.channel, language: to.id, subject, body, ask });
+    const kept = wrote.ok
+      ? await templateVerbs.saveVersion({
+          name: version.name,
+          language: to.id,
+          channel: version.channel,
+          ...(wrote.data.subject ? { subject: wrote.data.subject } : {}),
+          body: wrote.data.body,
+        })
+      : wrote;
+    if (!kept.ok)
+      return saved.length ? { ...kept, message: TPL_VERSION_WORDS.translatedPart(saved, kept.message) } : kept;
+    saved.push(versionWord(version.channel));
+  }
+  return { ok: true, data: { saved } };
+}
+
+/** One act at a time: every control waits for it, only the one pressed says it is working, and the toast says what it did. */
+function actRunner({ doingRef, setDoing, flash }: ActsProps) {
+  return async <T,>(what: string, fn: () => Promise<ApiResult<T>>, said: (r: { ok: true; data: T }) => ReactNode) => {
     if (doingRef.current) return;
     doingRef.current = what;
     setDoing(what);
@@ -36,48 +85,91 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
     setDoing(null);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? said(r) : <>{r.message}</> });
   };
-  const rename = (t: TemplateDto, draft: string) => {
+}
+
+/** Each version given the name, one call each, the first refusal stopping it. */
+async function renameAll(rows: readonly TemplateDto[], title: string | null): Promise<ApiResult<null>> {
+  for (const r of rows) {
+    const res = await templateVerbs.rename(r.id, title);
+    if (!res.ok) return res;
+  }
+  return { ok: true, data: null };
+}
+
+/** The rename's toast: the new name, and where WhatsApp holds a version, the name WhatsApp keeps for it. */
+function renamedSays(title: string | null, name: string, atWhatsApp: boolean): ReactNode {
+  if (!title)
+    return (
+      <>
+        <b>{tplTitle({ name })}</b> goes by its name again
+      </>
+    );
+  return (
+    <>
+      Now called <b>{title}</b>
+      {atWhatsApp ? ` — WhatsApp still knows it as ${name}` : null}
+    </>
+  );
+}
+
+/** Put away or brought back; put away while something still sends it, it says it stops nothing, naming what. */
+function hiddenSays(row: TemplateDto, stillSentBy: string | null): ReactNode {
+  if (row.hidden_at) return MESSAGE_CHANGE_WORDS.back(tplTitle(row));
+  return (
+    <>
+      {MESSAGE_CHANGE_WORDS.away(tplTitle(row))}
+      {stillSentBy ? `. ${MESSAGE_CHANGE_WORDS.awayStill(stillSentBy)}` : null}
+    </>
+  );
+}
+
+export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
+  const run = actRunner({ doingRef, setDoing, flash });
+  // Renamed: every version of the message in the language takes the name, so none keeps an old one another could show
+  // again (the message sheet's review, 12 Nov 2026); the first is the one that names it.
+  const rename = (rows: readonly TemplateDto[], draft: string) => {
+    const first = rows[0];
+    if (!first) return;
     const title = draft.replace(/\s+/g, " ").trim() || null;
+    const atWhatsApp = rows.some((r) => r.channel === "whatsapp");
     void run(
-      `rename:${t.id}`,
-      () => templateVerbs.rename(t.id, title),
-      () =>
-        title ? (
-          <>
-            Now called <b>{title}</b> — WhatsApp still knows it as {t.name}
-          </>
-        ) : (
-          <>
-            <b>{t.name}</b> goes by its name again
-          </>
-        ),
+      `rename:${first.id}`,
+      () => renameAll(rows, title),
+      () => renamedSays(title, first.name, atWhatsApp),
     );
   };
-  const toggleHidden = (t: TemplateDto) =>
+  // Put away (or brought back); where something still sends it, putting it away says it stops nothing, naming what.
+  const toggleHidden = (row: TemplateDto, stillSentBy: string | null = null) =>
     run(
-      `hide:${t.id}`,
-      () => (t.hidden_at ? templateVerbs.show(t.id) : templateVerbs.hide(t.id)),
+      `hide:${row.id}`,
+      () => (row.hidden_at ? templateVerbs.show(row.id) : templateVerbs.hide(row.id)),
+      () => hiddenSays(row, stillSentBy),
+    );
+  // A language added: the message's email and text written in it too, each saved beside the message.
+  const translateOwn = (title: string, rows: readonly TemplateDto[], to: TplLang) =>
+    run(
+      `translate:${to.id}:${rows.map((r) => r.id).join(",")}`,
+      () => writeOwnIn(rows, to),
+      (r) => <>{TPL_VERSION_WORDS.translated(title, to.label, r.data.saved)}</>,
+    );
+  const removeMessage = (title: string, rows: readonly TemplateDto[]) =>
+    run(
+      `delete:${rows.map((r) => r.id).join(",")}`,
+      () => deleteWhole(rows),
+      () => <>{MESSAGE_CHANGE_WORDS.deleted(title)}</>,
+    );
+  // A language the set wrote, added to a starter the workspace already uses: filed as it is (POST templates/starter), its
+  // WhatsApp version sent for review. A ready-made starter nothing has filed is never added this way: its first use files
+  // it (the clean list, 14 Nov 2026).
+  const addLanguage = (g: StarterGroup, lang: TplLang) =>
+    run(
+      `add:${g.starter.key}:${lang.id}`,
+      () => templateVerbs.fileStarters({ keys: [g.starter.key], languages: [lang.id] }),
       () => (
         <>
-          <b>{tplTitle(t)}</b> {t.hidden_at ? "is back in the list and the composers" : "is put away — still on file"}
+          <b>{g.title}</b> in {lang.label} is added — WhatsApp reads its words, usually within minutes
         </>
       ),
-    );
-  const remove = (t: TemplateDto) =>
-    run(
-      `delete:${t.id}`,
-      () => templateVerbs.remove(t.id),
-      () => (
-        <>
-          <b>{tplTitle(t)}</b> deleted — sends that named it fail from now on
-        </>
-      ),
-    );
-  const addStarters = (keys: string[] | null, languages: string[]) =>
-    run(
-      `add:${keys ? keys.join(",") : "all"}:${languages.join(",")}`,
-      () => templateVerbs.addStarters({ ...(keys ? { keys } : {}), languages }),
-      (r) => <>{starterWords(r.data)}</>,
     );
   const sync = () =>
     run(
@@ -156,8 +248,9 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
   return {
     rename,
     toggleHidden,
-    remove,
-    addStarters,
+    removeMessage,
+    translateOwn,
+    addLanguage,
     sync,
     written,
     saveVersion,

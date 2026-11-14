@@ -357,7 +357,7 @@ test("a starter whose WhatsApp version is on file says what it is, never that it
   assert.deepEqual(pending.proposal.payload.channels, ["whatsapp", "email"]);
   assert.ok(
     pending.proposal.summary.includes(
-      ` · WhatsApp waits: WhatsApp is still reviewing this message's WhatsApp version. ${WAITS_WORDS}`,
+      ` · WhatsApp waits: WhatsApp is checking this message. It sends by itself once approved, usually within minutes. ${WAITS_WORDS}`,
     ),
     pending.proposal.summary,
   );
@@ -375,7 +375,7 @@ test("a starter whose WhatsApp version is on file says what it is, never that it
     [
       "fix",
       "Fix the message's WhatsApp version first",
-      "WhatsApp refused this message's WhatsApp version. Until then the “Win-back” campaign would reach no one.",
+      "WhatsApp asked for a change to this message's words. Until then the “Win-back” campaign would reach no one.",
       "campaigns/messages",
     ],
   );
@@ -384,7 +384,7 @@ test("a starter whose WhatsApp version is on file says what it is, never that it
   assert.deepEqual(named.proposal.payload.channels, ["whatsapp", "email"]);
   assert.ok(
     named.proposal.summary.includes(
-      ` · WhatsApp waits: WhatsApp refused this message's WhatsApp version. ${WAITS_WORDS}`,
+      ` · WhatsApp waits: WhatsApp asked for a change to this message's words. Ask writes new words for you to send back. ${WAITS_WORDS}`,
     ),
     named.proposal.summary,
   );

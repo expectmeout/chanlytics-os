@@ -113,6 +113,11 @@ export interface NewDraftAsk {
     | {
         /** The line it was first drafted from; "" for one built by hand. */
         said: string;
+        /**
+         * What the draft says it leaves out as it stands (its `cannot`); "" where it says nothing. A change is told it, so
+         * what its owner changed since is never said to be left out. Absent from a page opened before it.
+         */
+        cannot?: string | undefined;
         kind: NewKind;
         audience: NewAudience;
         name: string;
@@ -188,6 +193,15 @@ export function numberedValues(
     text.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_, say: string) => `{{${order.indexOf(say.toLowerCase()) + 1}}}`);
   return { rewrite, slots };
 }
+
+/**
+ * The most a sequence's draft may write: the edge's ceiling for its purpose (lib/ai/ask-gateway.ts) and what the drafter
+ * asks for (server/drafts/sequence.ts). Room for a whole draft, each of its six steps a message Ask writes in three
+ * versions: the small drafts' 2,000 cut one off (the live run of 13 Nov 2026, "the day after every visit: nine messages,
+ * one a week", 2,000 written in 11.8 s), where the dashboard asked for 2,400 and the edge held it to 2,000. The answer
+ * spends what it writes, never the ceiling.
+ */
+export const SEQUENCE_DRAFT_MAX_TOKENS = 4_000;
 
 /**
  * The shape the model fills, in the house's convention (people/lists/schemas.ts LIST_DRAFT_JSON_SCHEMA): every

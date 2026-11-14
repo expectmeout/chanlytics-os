@@ -1277,17 +1277,17 @@ test("your name is a row on Profile, never in the Team card", () => {
 
 /* ------------------------------ the rail's question ------------------------------ */
 
-test("the rail asks before a pane holding changes goes, and in words that are true of a save that is out", () => {
-  // Task 3.2's review: with a row's save out the rail still asked "Leave without saving?", of a change that was being
-  // saved, and its yes stopped nothing. The record kit says when a save is out (kit/record/registry.ts saving()), and the
-  // page asks the registry itself (it imports recFolds), so an open fold with a dirty test and a save-is-out test is the question.
+test("the rail hands a pane change to the move, which asks: no second question inside the pane, unsaved or saving", () => {
+  // Until 13 Nov 2026 the rail asked inside its pane ("Leave without saving?", "Leave while this saves?"), and the rest
+  // of the app asked nothing. Now every move off a page asks one question at the top of the page and waits for a save
+  // that is out (kit/record/held-move.ts; the S22 test in tests/receptionist/business-tab/settings-editor.test.mjs runs the
+  // rail's move through the address), so the rail moves at once and draws none of its own.
   const folds = globalThis.window.__recordFolds;
-  let unsaved = false;
-  let saving = false;
+  const said = { unsaved: true, saving: false };
   const unbind = folds.bind(
     "hours",
-    () => unsaved,
-    () => saving,
+    () => said.unsaved,
+    () => said.saving,
   );
   const went = [];
   const drawRail = () => {
@@ -1305,30 +1305,12 @@ test("the rail asks before a pane holding changes goes, and in words that are tr
     workspace("owner");
     fresh();
     folds.reset();
-    unsaved = true;
-    saving = false;
     folds.request("hours");
     press(railTab(drawRail(), "Team"));
-    let ask = byTestId(drawRail(), "set-leave-confirm");
-    assert.match(textOf(ask), /Leave without saving\?/);
-    assert.match(textOf(ask), /Nothing you changed on this tab has been saved\./);
-    assert.deepEqual(went, [], "nothing goes until it is answered");
-    press(byTestId(drawRail(), "set-leave-no"));
-    assert.equal(byTestId(drawRail(), "set-leave-confirm"), null);
-
-    // A save is out: the change is on its way, so nothing is "unsaved", and the words say what leaving does.
-    unsaved = false;
-    saving = true;
-    press(railTab(drawRail(), "Team"));
-    // The words are kept from the moment it asked: the save landing while the question is up does not turn it into
-    // "have not been saved", which by then is the opposite of true.
-    saving = false;
-    ask = byTestId(drawRail(), "set-leave-confirm");
-    assert.match(textOf(ask), /Leave while this saves\?/);
-    assert.match(textOf(ask), /on its way and carries on without this page/);
-    assert.doesNotMatch(textOf(ask), /has been saved/);
-    press(byTestId(drawRail(), "set-leave-yes"));
-    assert.deepEqual(went, ["team"]);
+    Object.assign(said, { unsaved: false, saving: true });
+    press(railTab(drawRail(), "Billing"));
+    assert.deepEqual(went, ["team", "billing"], "the rail hands each move on, and the move asks");
+    assert.equal(byTestId(drawRail(), "set-leave-confirm"), null, "no question of the rail's own");
   } finally {
     unbind();
     folds.reset();

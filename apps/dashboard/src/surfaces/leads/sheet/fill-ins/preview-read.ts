@@ -4,8 +4,10 @@
  * 0127). A press that moved it (Make it now, ../preview.tsx) tells every reader of that lead, and each reads again.
  *
  * While one is being made (about half a minute) its readers look again every few seconds, so "ready" and Open it come
- * without a press or the sheet opened again. One wait a lead, whoever reads it, and two minutes of looks at most: a
- * build that never ends is not asked about for ever. The count starts over once it is seen made.
+ * without a press or the sheet opened again. One wait a lead, whoever reads it. A build slower than two minutes (its
+ * first try failed and it waits for its second) is looked at every half minute for ten more, so its line can say it is
+ * slower and still find it made; then no more: a build that never ends is not asked about for ever. The count starts
+ * over once it is seen made.
  */
 import { useEffect, useSyncExternalStore } from "react";
 import { SECOND_MS } from "@chanlytics/contracts";
@@ -38,23 +40,27 @@ export function tellPreviewMoved(leadId: string): void {
 
 /** How often a receptionist being made is looked at again, as its own page does (preview-page.tsx). */
 const BUILDING_EVERY_MS = 4 * SECOND_MS;
-/** How many looks one being made gets: two minutes of them. */
+/** How many quick looks one being made gets: two minutes of them. */
 const BUILDING_LOOKS_MAX = 30;
+/** How often one slower than that is looked at, and how many times: ten more minutes. */
+const SLOW_EVERY_MS = 30 * SECOND_MS;
+const SLOW_LOOKS_MAX = 20;
 
 // Each lead's looks while its receptionist is being made: how many so far, and whether one is on its way.
 const buildingLooks = new Map<string, { count: number; waiting: boolean }>();
 
-/** One more look at a lead's preview in a few seconds, unless one is on its way or it has had its share. */
+/** One more look at a lead's preview, soon or (past its quick looks) later, unless one is on its way or it has had its share. */
 function lookAgainSoon(leadId: string): void {
   const looks = buildingLooks.get(leadId) ?? { count: 0, waiting: false };
   buildingLooks.set(leadId, looks);
-  if (looks.waiting || looks.count >= BUILDING_LOOKS_MAX) return;
+  if (looks.waiting || looks.count >= BUILDING_LOOKS_MAX + SLOW_LOOKS_MAX) return;
+  const wait = looks.count < BUILDING_LOOKS_MAX ? BUILDING_EVERY_MS : SLOW_EVERY_MS;
   looks.waiting = true;
   looks.count += 1;
   setTimeout(() => {
     looks.waiting = false;
     tellPreviewMoved(leadId);
-  }, BUILDING_EVERY_MS);
+  }, wait);
 }
 
 /**

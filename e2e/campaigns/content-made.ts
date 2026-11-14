@@ -46,6 +46,7 @@ export function madePost(n: number, name: string, posts: PostDto[] = []): Conten
     line: "A post made from a photo.",
     issues: [],
     looks_like_stock: false,
+    looks_like: "design",
     created_at: new Date(Date.now() - n * 60_000).toISOString(),
   };
   return { file, posts };
@@ -124,9 +125,9 @@ function pageOf(pieces: readonly ContentMadeDto[], query: URLSearchParams): Cont
       scheduled: all.filter((l) => waits(l.post)).length,
       library: 0,
       aside: 0,
+      waiting: 0,
     },
     ideas: [],
-    needsOne: null,
     about: null,
   };
 }

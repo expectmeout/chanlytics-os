@@ -52,14 +52,29 @@ export const keepTemplateWords = async (
     .select("id")
     .maybeSingle();
 
-/** A WhatsApp template as a change of its words reads it: what stays (its name, language, category, footer and button). */
+/**
+ * A WhatsApp template as a change of its words reads it: what stays (its name, language, category, footer and button),
+ * whether WhatsApp holds it at all (its `meta_id`), and the words it says now, which an approved one's change replaces.
+ */
 export const findTemplateWords = async (db: Db, tenantId: TenantId, templateId: string) =>
   db
     .from("templates")
-    .select("id, channel, name, language, category, meta_status, components, variables")
+    .select("id, channel, name, language, category, meta_status, meta_id, body_preview, components, variables")
     .eq("id", templateId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
+
+/**
+ * The workspace's WhatsApp templates whose words are exactly `body`, each with whether WhatsApp holds it (`meta_id`) and
+ * its footer's home (`components`): what its review refuses a second message for, a duplicate.
+ */
+export const listWhatsAppTwins = async (db: Db, tenantId: TenantId, body: string) =>
+  db
+    .from("templates")
+    .select("id, name, title, meta_id, components")
+    .eq("tenant_id", tenantId)
+    .eq("channel", "whatsapp")
+    .eq("body_preview", body);
 
 /** One of the workspace's templates deleted. */
 export const deleteTemplateRow = async (db: Db, tenantId: TenantId, templateId: string) =>

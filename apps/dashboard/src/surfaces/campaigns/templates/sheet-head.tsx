@@ -5,6 +5,7 @@
  * who said yes to offers"), and two rows under the words, one of which said "None yet". The words' own pencil is here
  * too, which WhatsApp's words and an email's or a text's version wear alike.
  */
+import { MESSAGE_CHANGE_WORDS } from "@chanlytics/contracts";
 import { SEQUENCES_ROUTE, sequenceRoute } from "@chanlytics/contracts";
 import { navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -21,7 +22,13 @@ type Facts = ReturnType<typeof messageFacts>;
 type Setting = ReturnType<typeof placeOfMessage>;
 
 /** Where it stands, as its head says it: the list's group, in the tone of what it asks of you. */
-const PLACE_TONES: Record<MessagePlace, string> = { need: "warn", going: "ok", idle: "plain", away: "plain" };
+const PLACE_TONES: Record<MessagePlace, string> = {
+  need: "warn",
+  going: "ok",
+  idle: "plain",
+  made: "plain",
+  away: "plain",
+};
 
 /** What went out, in a few words: how many and when the last did, that none has yet, or nothing where it was not read. */
 function sentWords(sent: Facts["usage"]["sent"]): string | null {
@@ -81,24 +88,33 @@ export function factsLine(g: TemplateGroup, facts: Facts) {
   );
 }
 
+/** What the tap says of a message that is not being checked: why it needs you, what sends it, or what it waits for. */
+function placeSays(facts: Facts, setting: Setting): string {
+  const use = facts.usage.use;
+  if (setting.place === "need") return setting.said;
+  if (setting.place === "going" && use)
+    return setting.waiting ? WORDS.waitingSays(sentByWords(use)) : WORDS.goingSays(sentByWords(use));
+  if (setting.place === "away")
+    return use && use.running
+      ? `${WORDS.awaySays} ${MESSAGE_CHANGE_WORDS.awayStill(sentByWords(use))}`
+      : WORDS.awaySays;
+  return setting.place === "made" ? WORDS.madeSays : WORDS.idleSays;
+}
+
 /**
  * Where it stands: one word and its dot (the kit's StatePill), and on a tap what that means, with the rule its kind keeps.
- * While WhatsApp looks at words sent back to it, the word is Checking, whatever group the list keeps it in.
+ * While WhatsApp looks at words sent back to it, the word is Checking, whatever group the list keeps it in; one that waits
+ * for a way out says Waiting, quietly, as its row does.
  */
 export function standingTap(g: TemplateGroup, facts: Facts, setting: Setting) {
   const checking = facts.lang.row?.meta_status === "pending" && setting.place !== "away";
-  const word = checking ? WORDS.checking : TPL_LIST_WORDS.placeWord[setting.place];
-  const tone = checking ? "warn" : PLACE_TONES[setting.place];
-  const use = facts.usage.use;
-  const says = checking
-    ? WORDS.checkingSays
-    : setting.place === "need"
-      ? setting.said
-      : setting.place === "going" && use
-        ? WORDS.goingSays(sentByWords(use))
-        : setting.place === "away"
-          ? WORDS.awaySays
-          : WORDS.idleSays;
+  const word = checking
+    ? WORDS.checking
+    : setting.waiting
+      ? TPL_LIST_WORDS.waiting
+      : TPL_LIST_WORDS.placeWord[setting.place];
+  const tone = checking ? "warn" : setting.waiting ? "plain" : PLACE_TONES[setting.place];
+  const says = checking ? WORDS.checkingSays : placeSays(facts, setting);
   return (
     <Popover
       label={WORDS.standing(g.title)}

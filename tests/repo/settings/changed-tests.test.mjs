@@ -338,6 +338,16 @@ test("the runner, a shared helper at the tests' root or a stand-in runs the rule
   assert.ok(run("tests/shared/_stand-in-base-ui.mjs").includes("tests/shared"));
 });
 
+test("REGRESSION: a change to the day's sending hours runs every test that reaches it, before the merge (13 Nov 2026)", () => {
+  // PLAYBOOK_HOURS holds the 20:00 behind #2285's red playbooks test. Some 1,200 tests reach it, and under the limit of
+  // 800 three in four of them waited for the night; a pull request's slowest part of four takes about a fifth of a second
+  // a file, so all of them are under six minutes.
+  const { targets, left } = picked("packages/contracts/src/campaigns/playbooks/triggers/kinds.ts");
+  const runs = REACH.tests.filter((t) => targets.some((x) => t === x || t.startsWith(`${x}/`)));
+  assert.deepEqual(left, { count: 0, from: null }, `${runs.length} run; the rest waited for the night`);
+  assert.ok(runs.length > 800 && runs.length <= BUDGET, `${runs.length} of ${REACH.tests.length}`);
+});
+
 test("a test the change deleted is no target to run", () => {
   const gone = `${T}/calendar/a-test-renamed-away.test.mjs`;
   assert.ok(run(gone).includes(gone), "its path names it");
@@ -349,6 +359,14 @@ test("a migration runs the database folder, the phone app its own tests, a doc t
   assert.ok(run("apps/mobile/src/shell/Surface.tsx").includes("apps/mobile/test"));
   assert.deepEqual(run("pnpm-lock.yaml", "package.json"), ALWAYS);
   assert.deepEqual(run("docs/decisions/README.md"), [...ALWAYS, "tests/history"]);
+});
+
+test("REGRESSION: a migration runs the test that reads every migration for the tables a workspace's delete must back up (5 Nov 2026)", () => {
+  // It reads supabase/migrations as a folder, so no import names it: #2099's migration made sequence_lead_words with a
+  // tenant_id and left the delete script's list alone, and main's nightly of 5 Nov was the first to run the test.
+  const backsUp = `${T}/console/back-office/delete-tenant.test.mjs`;
+  assert.ok(run("supabase/migrations/00300_x.sql").includes(backsUp));
+  assert.ok(!run("supabase/seed.sql").includes(backsUp), "the seed makes no table");
 });
 
 test("--db runs the database suites that lie where the change names, and nothing for a change that names none", () => {

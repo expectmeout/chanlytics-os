@@ -87,13 +87,23 @@ export const listUnrepliedProfileReviews = async (db: Db, tenantId: TenantId, li
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(limit);
 
-/** What the workspace's newest reviews say, `limit` of them: their own words and nothing else, for a quote held to them. */
+/**
+ * The fewest stars of a review whose words are shown as one: four or five. A sentence lifted from one of fewer would say
+ * what its writer did not ("the cut was lovely, but I waited an hour").
+ */
+const SHOWN_STARS_MIN = 4;
+
+/**
+ * What the workspace's newest reviews of four or five stars say, `limit` of them: their own words and nothing else, for
+ * a quote held to them. One with no stars read is none of them.
+ */
 export const listReviewWords = async (db: Db, tenantId: TenantId, limit: number) =>
   db
     .from("google_reviews")
     .select("body")
     .eq("tenant_id", tenantId)
     .not("body", "is", null)
+    .gte("rating", SHOWN_STARS_MIN)
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(limit);
 

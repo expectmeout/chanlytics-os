@@ -1266,10 +1266,10 @@ test("the page says what needs you and what goes out, and calls a message a mess
   });
   const line = textOf(headSaid());
   assert.ok(line.includes("1 needs you"), `the one WhatsApp refused needs you -- ${line}`);
-  assert.ok(line.includes("1 going out"), `and the one a running sequence sends goes out -- ${line}`);
+  assert.ok(line.includes("1 sending"), `and the one a running sequence sends is sending -- ${line}`);
   assert.ok(!/\btemplates?\b/i.test(line), `no "template" on the line -- ${line}`);
   messages({ templatesAll: [templateRow()] });
-  assert.ok(textOf(headSaid()).includes("Nothing going out yet"), "nothing sends it: said so, not a count of zero");
+  assert.ok(textOf(headSaid()).includes("Nothing sending yet"), "nothing sends it: said so, not a count of zero");
   assert.equal(textOf(headed(messagesAgain(), "template-new")).trim(), "New message", "and its act says so");
 });
 
@@ -1305,8 +1305,8 @@ test("A message needs you when a language a running sequence sends is missing --
   // It sends the approved English, and Spanish is in review: it goes out, and the pill says Spanish is in review.
   tree = messages({ templatesAll: [en, es], playbooks: sends("en_US"), templateUse: use });
   assert.equal(row(tree).props["data-place"], "going", "REGRESSION: a language nobody sends asked for attention");
-  assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish in review");
-  assert.ok(textOf(headSaid()).includes("1 going out"), textOf(headSaid()));
+  assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish: being checked");
+  assert.ok(textOf(headSaid()).includes("1 sending"), textOf(headSaid()));
   // Without the playbooks read, a language WhatsApp is still reading is no work of the owner's.
   tree = messages({ templatesAll: [en, es], playbooks: undefined, templateUse: use });
   assert.equal(row(tree).props["data-place"], "going", "the playbooks unread: in review is not needing you");
@@ -1319,6 +1319,13 @@ test("A message needs you when a language a running sequence sends is missing --
  */
 const openedRow = (rowOf) => {
   let tree = messagesAgain();
+  // Ready and Ready-made fold (the clean list, 13 Nov 2026): a folded one is pressed open first, as a person would.
+  for (const id of ["templates-fold-idle", "templates-fold-made"]) {
+    const head = rowOf(tree) ? null : byTestId(tree, id);
+    if (head?.props["aria-expanded"] !== false) continue;
+    press(head);
+    tree = messagesAgain();
+  }
   // The row stands selected while its message is open in the pane beside the list (the layout is the Inbox's list +
   // pane, Claude Video/docs/2026-10-02-campaigns-on-the-kit.md §3.1): the words are not under it any more.
   if (!String(rowOf(tree).props.className).split(" ").includes("is-open")) {
@@ -1348,9 +1355,9 @@ test("A message is a row you scan, and the words open under it: what it is, what
   // Two lines (Messages, the canvas of 10 Nov 2026): its name, and what sends it; a message nothing sends quotes its words.
   let tree = messages({ templatesAll: [en] });
   let row = byTestId(tree, "custom-row");
-  // A line of the words, on one line whatever its newlines and tabs, in quotes, its slots NAMED: what varies per person.
-  // A slot nothing names on file is "value 1": never Meta's "{{1}}".
-  assert.ok(textOf(row).includes("“Hi {value 1}, 20% off this week.”"), textOf(row));
+  // A line of the words, on one line whatever its newlines and tabs, in quotes, as one person would get it: a value with
+  // no sample on file is a gap, never Meta's "{{1}}" or a name of ours in braces (the clean list, 13 Nov 2026).
+  assert.ok(textOf(row).includes("“Hi …, 20% off this week.”"), textOf(row));
   tree = messages({ templatesAll: [en], templateUse: sentBy("Win-back") });
   row = byTestId(tree, "custom-row");
   assert.ok(textOf(byTestId(row, "template-users")).includes("Win-back"), "what sends it, closed");
@@ -1395,7 +1402,8 @@ test("A message is a row you scan, and the words open under it: what it is, what
   messages({
     templatesAll: [en, templateRow({ id: "t-w", name: "winback_reply", language: "en_US", meta_status: "approved" })],
   });
-  tree = openedRow((t) => all(t, (n) => n.props?.["data-testid"] === "starter-row")[0]);
+  const winBack = (t) => find(t, (n) => n.props?.["data-template"] === "winback_reply");
+  tree = openedRow(winBack);
   const chip = chipIn(paneOf(tree));
   assert.equal(chipSays(chip), "English", "the language in view, as a word");
   // The list the chip opens is the Picker's groups, each under its heading.
@@ -1425,11 +1433,7 @@ test("A message is a row you scan, and the words open under it: what it is, what
   press(find(byTestId(tree, "custom-row"), (n) => n.props?.["data-testid"] === "template-open"));
   tree = messagesAgain();
   const isOpen = (r) => String(r.props.className).split(" ").includes("is-open");
-  assert.equal(
-    isOpen(all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0]),
-    false,
-    "the one that was open is closed",
-  );
+  assert.equal(isOpen(winBack(tree)), false, "the one that was open is closed");
   assert.ok(isOpen(byTestId(tree, "custom-row")), "and the one that was pressed is open");
   assert.equal(
     all(tree, (n) => n.type === "section" && n.props?.["data-testid"] === "template-pane").length,
@@ -1608,7 +1612,7 @@ test("A language nobody has written is picked from the one chip and written in t
     assert.equal(chipSays(pickerOf(row, "template-lang")), "Portuguese (Brazil)");
     assert.equal(waState(row), "none", "a language WhatsApp has never seen");
     assert.ok(
-      textOf(customRow(tree)).includes("“Hi {first name}, 20% off any service this week.”"),
+      textOf(customRow(tree)).includes("“Hi Dani, 20% off any service this week.”"),
       "the row still quotes the message while its new language is written",
     );
 
@@ -1660,7 +1664,7 @@ test("A language nobody has written is picked from the one chip and written in t
     });
     tree = messagesAgain();
     assert.equal(waState(paneOf(tree)), "info");
-    assert.equal(textOf(byTestId(customRow(tree), "template-status")).trim(), "Portuguese (Brazil) in review");
+    assert.equal(textOf(byTestId(customRow(tree), "template-status")).trim(), "Portuguese (Brazil): being checked");
   } finally {
     Object.assign(templates, keep);
   }
@@ -1975,11 +1979,6 @@ test("Messages says how many of each went out and when the last one did -- and a
   // A roll-up that was not read makes no claim.
   tree = messages({ templatesAll: offer, templateSent: null });
   assert.equal(byTestId(byTestId(tree, "custom-row"), "template-sent"), null, "not read is not never sent");
-  // A starter not on file has nothing to count, and says why: it was never added.
-  tree = messages({ templatesAll: offer, templateSent: { offer: { count: "3", when: "just now" } } });
-  const starter = all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0];
-  assert.ok(starter, "the fixture draws a starter the workspace has not added");
-  assert.equal(textOf(byTestId(starter, "template-sent")).trim(), "Not added");
 });
 
 test("The template a composer opens on does not depend on the order the rows arrived in", () => {
@@ -2042,7 +2041,7 @@ test("A message says its state once, and a refusal is a line rather than a hover
   // view, so a message half in review read as fine until Spanish was pressed.
   assert.equal(
     textOf(byTestId(tree, "template-status")).trim(),
-    "Spanish in review",
+    "Spanish: being checked",
     "the language that is not approved, in words, beside the title",
   );
   pickLanguage(paneOf(tree), held[1].value);
@@ -2052,7 +2051,7 @@ test("A message says its state once, and a refusal is a line rather than a hover
   assert.equal(waState(paneOf(tree)), "info", "its tab waiting on WhatsApp");
   assert.equal(
     textOf(byTestId(tree, "template-status")).trim(),
-    "Spanish in review",
+    "Spanish: being checked",
     "and the same words with the other language in view",
   );
   // A message whose every language is approved has nothing to say: a green
@@ -2075,8 +2074,8 @@ test("A message says its state once, and a refusal is a line rather than a hover
   const line = rowLine(tree);
   assert.equal(line.props["data-tone"], "warn");
   const said = textOf(line);
-  assert.ok(said.includes("abusive content"), said);
-  assert.ok(said.includes("send it back"), "and what to do about it");
+  assert.ok(said.includes("it reads as abusive or threatening"), said);
+  assert.ok(said.includes("Ask writes new words for you to send back"), "and what to do about it");
 
   // A reason Meta wrote as a sentence keeps its capital and its one full stop (contracts refusedWords).
   tree = messages({
@@ -2091,7 +2090,7 @@ test("A message says its state once, and a refusal is a line rather than a hover
   });
   assert.equal(
     textOf(rowLine(tree)),
-    "WhatsApp refused this one: Variables can't be at the start or end of the template. Change the words and send it back.",
+    "WhatsApp asked for a change: Variables can't be at the start or end of the template. Ask writes new words for you to send back.",
     "REGRESSION: 'variables can't be at the start or end of the template.. Change the words'",
   );
 });
@@ -2191,8 +2190,9 @@ test("A template this product cannot send is not offered, and its card says why"
     ],
   );
 
-  // And the library says why rather than leaving it looking available: its row's line.
-  const card = messages({ templatesAll: [picture] });
+  // The library lists it only where a sequence sends it (the clean list, 13 Nov 2026), and its row's line says why.
+  const sends = { words: "Spring", note: null, unused: false, sequence: null, running: true, booking: false };
+  const card = messages({ templatesAll: [picture], templateUse: { spring_poster: sends } });
   const why = textOf(rowLine(card));
   assert.ok(why.includes("a picture for a heading"), why);
 
@@ -2347,7 +2347,7 @@ test("A message written here can carry a Book now button, and it is the one kind
         name: "spring_offer",
         language: "en_US",
         category: "marketing",
-        body: "Hi {{1}}.",
+        body: "Hi {{1}}, come by this week.",
         examples: ["Dani"],
         button: made[0].button,
       });
@@ -2366,7 +2366,7 @@ test("A message written here can carry a Book now button, and it is the one kind
 });
 
 test("A button cannot take a value, and needs somewhere to go", () => {
-  const base = { name: "offer", language: "en_US", category: "marketing", body: "Hi {{1}}.", examples: ["Dani"] };
+  const base = { name: "offer", language: "en_US", category: "marketing", body: "Hi {{1}} there.", examples: ["Dani"] };
   const err = (button) => contracts.validateTemplateDraft({ ...base, button }).error;
   // The whole point: a button whose URL takes a value needs a parameter that
   // `sendTemplate` never sends, so Meta refuses every recipient.

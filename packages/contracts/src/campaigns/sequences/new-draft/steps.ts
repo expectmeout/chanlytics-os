@@ -114,9 +114,14 @@ export interface NewWrittenMessage {
   slots: Array<{ position: number; label: string; example: string; kind: ParamSourceKind }>;
 }
 
-/** A person's step's message: one the workspace holds (`template_id`), or one Ask wrote (`written`). */
+/**
+ * A person's step's message: one the workspace holds (`template_id`), one Ask wrote (`written`), or a starter of the set
+ * nothing has filed yet (`starter`, its key: filed as the draft is kept or started, the clean list of 14 Nov 2026).
+ */
 export interface NewMessage {
   template_id: string | null;
+  /** A ready-made starter by its key, where the workspace holds no message of its name yet. */
+  starter?: string | null;
   title: string;
   /** Its words as the page shows them: WhatsApp's or a text's, else the email's. */
   body: string;
@@ -150,9 +155,12 @@ export interface NewStep {
   hand: string;
 }
 
-/** A step as Keep and Start send it (POST sequences/new), and as a kept one-off holds it: its message by id or as written. */
+/**
+ * A step as Keep and Start send it (POST sequences/new), and as a kept one-off holds it: its message by id, as written, or
+ * as the starter to file.
+ */
 export interface NewKeptStep extends Omit<NewStep, "message"> {
-  message: Pick<NewMessage, "template_id" | "params" | "written"> | null;
+  message: Pick<NewMessage, "template_id" | "params" | "written" | "starter"> | null;
 }
 
 /** A message sent once, kept as a draft (00465 `sequences.once`): who it goes to, when (null: now), how, and its step. */

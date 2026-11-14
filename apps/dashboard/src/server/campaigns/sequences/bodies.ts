@@ -279,6 +279,8 @@ const NEW_STEP = z.strictObject({
       template_id: anId("Which message?").nullable(),
       params: PARAMS,
       written: WRITTEN.nullable(),
+      // A ready-made starter by its key, filed as the draft is kept or started (drafts/sequence-new.ts templateOf).
+      starter: z.string().trim().min(1).max(60).nullable().optional(),
     })
     .nullable(),
   email: z.strictObject({ subject: z.string().max(200).nullable(), body: z.string().max(4000) }).nullable(),
@@ -336,6 +338,7 @@ export const DRAFT_BODY = z
     stands: z
       .strictObject({
         said: z.string().max(NEW_WORDS_MAX),
+        cannot: z.string().max(2000).optional(),
         kind: z.enum(NEW_KINDS),
         audience: z.enum(NEW_AUDIENCES),
         name: z.string().max(80),

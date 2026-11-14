@@ -12,7 +12,7 @@
 import { firstRowsStand } from "@chanlytics/contracts";
 import { headStarted } from "@/bridge/api";
 import { readCache } from "@/bridge/read-cache";
-import { firstDrawWaitsFor, isSurfaceReady } from "@/bridge/surface-status";
+import { firstDrawWaitsFor, isSurfaceReady, surfaceMoved } from "@/bridge/surface-status";
 import { getActiveWorkspace } from "@/bridge/workspace";
 import { todayOnScreen } from "./setup-card-code";
 
@@ -53,14 +53,26 @@ const drawsAtOnce = (): Promise<void> =>
     });
   });
 
-/** A card's read: kept under `key`, started by the document's head at `path`, asked by `ask`. */
-export function firstDrawRead<T>(key: string, path: string, ask: () => Promise<T | null>): FirstDrawRead<T> {
+/**
+ * A card's read: kept under `key`, started by the document's head at `path`, asked by `ask`. Where the parts it is drawn into
+ * read it in their own render (Today's arrangement reads what Today draws from People: people-read.ts), `heard` is the
+ * signal they redraw on as an answer is kept (surface-status surfaceMoved): one that lands past the first draw's wait.
+ */
+export function firstDrawRead<T>(
+  key: string,
+  path: string,
+  ask: () => Promise<T | null>,
+  heard: string | null = null,
+): FirstDrawRead<T> {
   const held = readCache<Held<T>>(key, () => true, { tab: true });
   const askFor = (): Promise<T | null> =>
     held
       .through(getActiveWorkspace() ?? "", async () => ({ value: await ask() }))
       .then(
-        (kept) => kept.value,
+        (kept) => {
+          if (heard) surfaceMoved(heard);
+          return kept.value;
+        },
         () => null,
       );
   const kept = (): Held<T> | null => held.peek(getActiveWorkspace() ?? "");

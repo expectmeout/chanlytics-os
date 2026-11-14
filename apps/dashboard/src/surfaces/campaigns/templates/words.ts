@@ -82,22 +82,19 @@ export const tplOneLine = (s: string | null | undefined): string =>
     .replace(/\s+/g, " ")
     .trim();
 
-// A slot by name inside a one-line quote -- "{first name}", "{business}", "{link}" --
-// by what fills it where the library knows, else by the label it was given.
-const TPL_SLOT_WORDS: Record<string, string> = {
-  first_name: "first name",
-  business_name: "business",
-  booking_link: "link",
-  visit_when: "time",
-  visit_service: "service",
-  proposal_link: "proposal link",
-  freed_when: "time",
+/**
+ * A row's one line reads as one person would get it (the clean list, 13 Nov 2026: never our notation; it named each slot
+ * in braces, "Hi {first name}"): each value by its sample, and where the business has not given its own name or link
+ * yet, by plain words for it. `[Booking link]` is the preview's blank, which the pane marks; a list's line says "your
+ * booking link". A value with no sample on file is a gap in the words, never a name for it.
+ */
+const TPL_OWN_BLANKS: Record<string, string> = {
+  business_name: "your business",
+  booking_link: "your booking link",
+  review_link: "your review link",
 };
-export const tplSlotWord = (kind: string | undefined, label: string | undefined, n: string): string =>
-  (kind && TPL_SLOT_WORDS[kind]) ||
-  String(label || `value ${n}`)
-    .toLowerCase()
-    .replace(/^(the|la|el|los|las) /, "");
+export const tplSampleWord = (value: string | undefined, kind: string | undefined): string =>
+  value && !/^\[.*\]$/.test(value) ? value : ((kind && TPL_OWN_BLANKS[kind]) ?? "…");
 
 /**
  * What the page says of a message's email and text versions (One message, every channel, step 1): the switch, the quiet
@@ -114,8 +111,12 @@ export const TPL_NEW_WORDS = {
   hint: "What should it say, and to whom?",
   send: "Ask",
   note: "You read it before anything is saved. WhatsApp looks at its version first, usually within minutes.",
-  /** What Ask is asked, the owner's words inside it: a new message for Messages, every channel it can go by. */
-  asked: (words: string): string => `New message, for every channel it can go by: ${words}`,
+  /**
+   * What Ask is asked, the owner's words inside it: a new message for Messages with a version on every channel its kind
+   * may go by (an offer never by text), the email kept even where email is not set up yet (the door keeps it).
+   */
+  asked: (words: string): string =>
+    `New message, with a version for WhatsApp, email and text wherever its kind may go (an offer never by text): ${words}`,
 } as const;
 
 export const TPL_VERSION_WORDS = {
@@ -124,9 +125,7 @@ export const TPL_VERSION_WORDS = {
   /** The message has no version on this channel in the language in view. */
   none: (channel: string, language: string): string => `No ${lower(channel)} version in ${language} yet.`,
   write: (channel: string): string => `Write the ${lower(channel)} version`,
-  /** A starter not added yet: its version is shown as written, and comes with the set. */
-  withStarters: "This version comes with the starter set: adding the message adds it too.",
-  /** A starter not added yet that the library wrote no version of on this channel. */
+  /** A ready-made starter that the library wrote no version of on this channel. */
   noneInSet: (channel: string): string => `The starter set has no ${lower(channel)} version of this message.`,
   edit: "Edit",
   remove: "Remove",
@@ -160,12 +159,27 @@ export const TPL_VERSION_WORDS = {
   /** What a refused message's words are written again for, with WhatsApp's own reason. */
   fixAsk: (reason: string): string =>
     `WhatsApp refused these words (${reason}). Write them again so WhatsApp approves them, saying the same thing.`,
+  /** Words refused before they were sent (their shape, or what a reader saw), which Ask writes again from the reason. */
+  fixBefore: (reason: string): string =>
+    `${reason} Write the words again so WhatsApp takes them, saying the same thing.`,
   fixing: "Ask is writing words WhatsApp can take…",
   /** WhatsApp's own words, under its editor: what sending them back does. */
   whatsappNote:
     "WhatsApp looks at new words before they go out, usually within minutes. It takes a change to an approved message once a day.",
   sendBack: "Send to WhatsApp",
   sendingBack: "Sending…",
+  /**
+   * A language added, for every version the message has (the message sheet's review, 12 Nov 2026): what Ask is asked of
+   * each email and text, and what is said once they are saved, or part-way where one could not be.
+   */
+  translateAsk: (language: string): string =>
+    `Write this same message in ${language}: the same meaning and the same values, in the words people there use. Add nothing.`,
+  translated: (title: string, language: string, saved: readonly string[]): string =>
+    `${title} in ${language}: its ${saved.join(" and ")} ${saved.length === 1 ? "version is" : "versions are"} saved`,
+  translatedPart: (saved: readonly string[], reason: string): string =>
+    `Its ${saved.join(" and ")} ${saved.length === 1 ? "version is" : "versions are"} saved; the rest is not: ${reason}`,
+  /** A refused change's way back: the words WhatsApp had approved, put in the box to send again. */
+  goBack: "Go back to the words WhatsApp approved",
   whatsappEmpty: "Write the message.",
   whatsappLong: "WhatsApp takes 1,024 characters at most.",
   sentBack: (title: string): string =>
@@ -202,13 +216,27 @@ export const TPL_SHEET_WORDS = {
   checking: "Checking",
   checkingSays:
     "WhatsApp is checking the new words, usually within minutes. If it says no, this comes back to Needs you with new words ready.",
-  goingSays: (by: string): string => `Going out: ${by}.`,
+  goingSays: (by: string): string => `Sent by ${by}.`,
+  /** Something sends it and nothing can carry it here yet: nothing is lost, and it goes by itself. */
+  waitingSays: (by: string): string =>
+    `Set to go out with ${by}. It goes by itself as soon as there is a way to send it.`,
   idleSays: "Nothing sends it now. It goes out once a sequence uses it.",
-  awaySays: "Put away: on file, out of the list and the composers. Its name brings it back.",
+  /** A starter nothing sends: it is there to use as it is, and nothing is filed until it is used. */
+  madeSays: "Written for you and ready to use. It goes out once a sequence uses it.",
+  awaySays: "On file, out of the list and the composers. Its name brings it back.",
   offerSays: "An offer reaches only people who said yes to offers, and never goes by text.",
   noteSays: "A note about their own booking or proposal reaches anyone a send may.",
   changeWords: "Change the words",
   addLanguage: "Add a language",
+  /**
+   * A delete's question and what it says goes (the message sheet's Delete, 12 Nov 2026): every version of the message in
+   * the language in view, its other languages kept, said where it has any.
+   */
+  deleteAsk: (title: string, language: string | null): string =>
+    `Delete “${title}”${language ? ` in ${language}` : ""}?`,
+  /** A delete that stopped part-way: what already went, and why the rest did not. */
+  deletedPart: (gone: readonly string[], reason: string): string =>
+    `Its ${gone.join(" and ")} ${gone.length === 1 ? "version is" : "versions are"} deleted; the rest is not: ${reason}`,
   done: "Done",
   undo: "Undo",
   write: (channel: string): string => `Write the ${channel.toLowerCase()}`,
@@ -216,40 +244,59 @@ export const TPL_SHEET_WORDS = {
 
 /**
  * What the list says (Messages, the canvas of 10 Nov 2026, steps 1 and 2): its groups, in the order a person asks about
- * them, the line under a message's name where the list works it out, what stands at the right of a row, the head's line,
- * and the list's foot. A message is called a message, as the tab is: "template" was a third word for one thing.
+ * them, the line under a message's name where the list works it out, what stands at the right of a row, and the head's
+ * line. A message is called a message, as the tab is: "template" was a third word for one thing.
  */
+/**
+ * Where a WhatsApp version stands, beside its message's name: what an owner can act on, never WhatsApp's own word for it
+ * (Ruben, 12 Nov 2026: "English paused" read as a system error). Its language is said only where there are several.
+ */
+const STANDING_WORDS: Record<string, string> = {
+  pending: "Being checked",
+  rejected: "Needs a change",
+  paused: "On hold",
+  disabled: "Turned off",
+};
+
 export const TPL_LIST_WORDS = {
-  /** The groups: what needs you, what goes out now, what nothing sends now, and what was put away. */
-  need: "Need you",
-  going: "Going out",
-  idle: "Not in use",
+  /**
+   * The groups (the clean list, 13 Nov 2026; Ruben's names): what has one press that fixes it, what something sends, the
+   * business's own that nothing sends, the starters nothing sends, and what was put away.
+   */
+  need: "Needs you",
+  going: "Sending",
+  idle: "Ready",
+  made: "Ready-made",
   away: "Put away",
   /** A cold email sequence's emails, which are a step's own words and are written with their sequence. */
   emails: "Cold emails",
+  /** What the ready-made ones are for, each a small head over its starters (contracts starterMoment). */
+  moments: { appointments: "Appointments", follow_ups: "Follow-ups", offers: "Offers and news", calls: "Calls" },
+  /** The search over the list on a phone: its glyph's name and its box's. */
+  search: "Search messages",
+  /** The view over the list on a phone (parts/list-top.tsx): every message, or one group. */
+  views: { label: "Which messages", all: "All messages" },
   /** How many a folded group holds, to a screen reader, and what its head does. */
   fold: (name: string, n: number): string => `${name}, ${n}`,
+  /** Something sends the message and nothing can carry it for this business yet: it waits, and goes by itself. */
+  waiting: "Waiting",
+  standing: STANDING_WORDS,
   /** A running sequence sends a language the message has no version of that it can send. */
   sendsMissing: (language: string): string => `A sequence sends it in ${language}, which it has no version to send in.`,
   /** At a row's right: how many went out, of a message that goes out; when the last did, of one that does not now. */
   sentCount: (count: string): string => `${count} sent`,
   notSentYet: "Not sent yet",
   sentWhen: (when: string): string => `Sent ${when}`,
-  /** The head's line: how many need you and how many go out. */
+  /** The head's line: how many need you and how many something sends. */
   needYou: (n: number): string => `${n} need${n === 1 ? "s" : ""} you`,
-  goingOut: (n: number): string => (n === 0 ? "Nothing going out yet" : `${n} going out`),
-  /** The list's foot: when WhatsApp was last asked about the workspace's messages, and the press that asks again. */
-  checked: (ago: string): string => `Checked with WhatsApp ${ago}`,
-  neverChecked: "Not checked with WhatsApp yet",
-  checking: "Checking WhatsApp…",
-  checkAgain: "Check WhatsApp for changes",
+  goingOut: (n: number): string => (n === 0 ? "Nothing sending yet" : `${n} sending`),
   /** A search with nothing in it. */
   noMatch: (q: string): string => `No message’s words have “${q}” in them.`,
   /** What a message written here is, under its name in its pane (a starter says its own line). */
   anOffer: "An offer, for people who said yes to offers",
   aNote: "About their own booking or proposal",
   /** The open message's head: where it stands, in the words of its group. */
-  placeWord: { need: "Needs you", going: "Going out", idle: "Not in use", away: "Put away" },
+  placeWord: { need: "Needs you", going: "Sending", idle: "Ready", made: "Ready-made", away: "Put away" },
   /** The open message's facts: what sends it, and what went out. */
   sentBy: "Sent by",
   sent: "Sent",

@@ -15,6 +15,7 @@ export {
 export type { AnthropicProfileClaim, AnthropicProfileHeld, AnthropicProfileRow } from "./anthropic-profiles";
 export {
   findAskTokensToday,
+  findLlmTokensSince,
   keepModelTurn,
   listAiFailuresHour,
   mayWorkspaceUseModels,

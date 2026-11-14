@@ -291,11 +291,19 @@ function ledger({ faults = {}, claim, relay } = {}) {
       wrote = [],
     } = {}) => {
       const id = `${i}-${++n}`;
+      // An email goes to the address on file, and is canceled as sent somewhere else when it is not that one.
+      const address = channel === "email" ? (to ?? `person-${id}@customer.test`) : null;
       const conversation = {
         id: `conv-${id}`,
         tenant_id: ws.T,
         paused_until: null,
-        contacts: { consent: "opted_in", dnc: false, marketing_consent: null, erased_at: null },
+        contacts: {
+          consent: "opted_in",
+          dnc: false,
+          marketing_consent: null,
+          erased_at: null,
+          ...(address ? { email: address, consent_channels: ["email"] } : {}),
+        },
         tenants: { status: "active" },
       };
       const message = {
@@ -316,7 +324,7 @@ function ledger({ faults = {}, claim, relay } = {}) {
         payload: {
           message_id: message.id,
           conversation_id: conversation.id,
-          to_phone: to ?? `+1347555${pad(i * 10 + n, 4)}`,
+          ...(address ? { to_email: address } : { to_phone: to ?? `+1347555${pad(i * 10 + n, 4)}` }),
           body,
         },
         due_at: iso(Date.now() - lateMs + due++),
@@ -794,24 +802,26 @@ test("a texting line the vault did not answer for is not a workspace with no lin
   assert.ok(Date.parse(fresh[0].due_at) >= before + 60_000, "a while on, not this second");
 });
 
-test("a mailbox that could not be read unbinds email's wire and nothing else: a WhatsApp reply in the same workspace leaves on the same heartbeat", async () => {
+test("a mailbox that could not be read unbinds email's wire and nothing else: a WhatsApp reply in the same workspace leaves on the same heartbeat, and the email waits", async () => {
   // The re-score's probe (case B): email on, the mailbox read fails once, and the tick used to throw building the
   // job's wires -- so a WhatsApp reply that needs no email was failed for good as "may have sent", its thread flagged.
+  // Since a wire is bound on first use, the WhatsApp reply never reads the mailbox at all; the email beside it does.
   const L = ledger({ faults: { "mailboxes.select": { message: "connection reset" } } });
   const ws = L.workspace({ whatsapp: "own" });
   const reply = ws.queue({ to: "+13475550108", body: "See you at 3" });
+  const email = ws.queue({ channel: "email", to: "person@customer.test", body: "Your visit is on Friday" });
   const before = process.env.EMAIL_DOMAIN;
   process.env.EMAIL_DOMAIN = "mail.platform.test";
   try {
     await listening(async (log) => {
       assert.deepEqual(await answer(await knock()), [
         200,
-        { ok: true, claimed: 1, done: 1, failed: 0, gaveUp: 0, deferred: 0 },
+        { ok: true, claimed: 2, done: 2, failed: 0, gaveUp: 0, deferred: 0 },
       ]);
       assert.deepEqual(
         log.said("email_wire_unavailable").map((l) => [l.stream, l.tenant_id, l.error]),
         [["error", ws.T, "DbFailure: mailbox: connection reset"]],
-        "said once, under its own name",
+        "said once, under its own name, by the email's send",
       );
     });
   } finally {
@@ -820,7 +830,108 @@ test("a mailbox that could not be read unbinds email's wire and nothing else: a 
   }
   assert.equal(reply.message.status, "sent", "the WhatsApp reply left");
   assert.equal(L.left().graph.length, 1, "on Meta's wire, once");
+  assert.equal(email.message.status, "queued", "the email waits: a read that failed is no refusal");
+  assert.deepEqual(
+    L.tables.jobs.filter((j) => j.id !== email.job.id && j.payload.message_id === email.message.id).length,
+    1,
+    "handed to a fresh job, for a heartbeat that can read the mailbox",
+  );
   assert.deepEqual(L.tables.escalations, [], "nobody flagged");
+});
+
+/**
+ * What a heartbeat read of each sending channel's credentials: its WhatsApp numbers and Instagram accounts (their rows,
+ * then the vault, by channel id), its texting line (the row, then the vault), and its mailboxes.
+ */
+const credentialReads = (db) =>
+  db.seen.flatMap((s) => {
+    if (s.rpc === "get_channel_credentials") return [`vault ${s.args.p_channel_id}`];
+    if (s.rpc === "get_line_credentials") return [`vault ${s.args.p_line_id}`];
+    if (s.table === "tenant_channels" && s.op === "select") {
+      const kind = s.filters.find((f) => f[1] === "kind")?.[2];
+      return kind === "whatsapp" || kind === "instagram" ? [`${kind} numbers`] : [];
+    }
+    if (s.table === "lines" && s.op === "select") return ["texting line"];
+    if (s.table === "mailboxes" && s.op === "select") return ["mailbox"];
+    return [];
+  });
+
+/** An Instagram account connected to `ws`, its credentials in the vault: what a DM would leave on. */
+function instagramOf(L, ws) {
+  const id = `ig-ch-${ws.T.slice(-4)}`;
+  L.tables.tenant_channels.push({
+    id,
+    tenant_id: ws.T,
+    kind: "instagram",
+    external_id: `1784${ws.T.slice(-6)}`,
+    number_e164: null,
+    status: "active",
+    credentials_ref: `vault-ig-${id}`,
+    config: {},
+    created_at: iso(Date.now() - 30 * 86_400_000),
+  });
+  return id;
+}
+
+test("an email reply reads no WhatsApp, Instagram or texting credential: a job binds the channel it sends on, and only when it sends", async () => {
+  const L = ledger();
+  const ws = L.workspace({ whatsapp: "own", texting: true });
+  instagramOf(L, ws);
+  L.tables.mailboxes.push({ id: `mb-${ws.T.slice(-4)}`, tenant_id: ws.T, local_part: "studio" });
+  const email = ws.queue({ channel: "email", to: "person@customer.test", body: "Your visit is on Friday" });
+  const before = process.env.EMAIL_DOMAIN;
+  process.env.EMAIL_DOMAIN = "mail.platform.test";
+  try {
+    await listening(async () => {
+      assert.deepEqual(await answer(await knock()), [
+        200,
+        { ok: true, claimed: 1, done: 1, failed: 0, gaveUp: 0, deferred: 0 },
+      ]);
+    });
+  } finally {
+    if (before === undefined) delete process.env.EMAIL_DOMAIN;
+    else process.env.EMAIL_DOMAIN = before;
+  }
+  // Email's own wire answered it: here for want of the request a reply freezes on its row (email-wire.test.mjs), which
+  // this world does not write. What is proved is which wire was bound and asked, and which were not.
+  assert.deepEqual(email.message.error, { http_status: 0, body: "no_frozen_request" }, "email's own wire answered it");
+  assert.deepEqual(
+    credentialReads(L.db),
+    ["mailbox"],
+    "its own mailbox, once: no WhatsApp number, Instagram account or texting line, nor anything of theirs in the vault",
+  );
+  assert.deepEqual([L.left().graph, L.left().twilio], [[], []], "and nothing went to Meta or the carrier");
+});
+
+test("a WhatsApp reply binds WhatsApp's wire alone: the texting line, the Instagram account and the mailbox beside it are never read", async () => {
+  const L = ledger();
+  const ws = L.workspace({ whatsapp: "own", texting: true });
+  instagramOf(L, ws);
+  const reply = ws.queue({ to: "+13475550109", body: "See you at 3" });
+  const before = process.env.EMAIL_DOMAIN;
+  process.env.EMAIL_DOMAIN = "mail.platform.test";
+  try {
+    await listening(async () => {
+      assert.deepEqual(await answer(await knock()), [
+        200,
+        { ok: true, claimed: 1, done: 1, failed: 0, gaveUp: 0, deferred: 0 },
+      ]);
+    });
+  } finally {
+    if (before === undefined) delete process.env.EMAIL_DOMAIN;
+    else process.env.EMAIL_DOMAIN = before;
+  }
+  assert.equal(reply.message.status, "sent", "it left");
+  assert.deepEqual(
+    L.left().graph.map((g) => [g.url, g.authorization]),
+    [[`${GRAPH}/${ws.phoneId}/messages`, `Bearer ${ws.token}`]],
+    "on its own workspace's number and token",
+  );
+  assert.deepEqual(
+    credentialReads(L.db),
+    ["whatsapp numbers", `vault ${ws.channelId}`],
+    "its numbers and their credentials, once, and nothing of any other channel",
+  );
 });
 
 /* ------------------------------------------------------------ tried again */

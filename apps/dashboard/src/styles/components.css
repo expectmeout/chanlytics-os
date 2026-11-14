@@ -378,6 +378,18 @@
 .live-bar-text { font-weight: 500; }
 .live-bar-clock { color: var(--accent-ink); font-variant-numeric: tabular-nums; }
 .live-bar-checking { color: var(--ink-muted); }
+/* The question asked before the page, and a change not saved on it, are left (kit/record/leave-ask.tsx LeaveHost): a band
+   across the top of the page, between the frame's top and the page, in view wherever the page was scrolled to. On a desk
+   the column holds it over the page's scroller; on a phone, where the window scrolls, it sticks under the frame's top. */
+.leave-ask {
+  flex: none;
+  padding: 10px var(--gutter-page);
+  border-bottom: 1px solid var(--surface-inset-edge);
+  background: var(--bg-raised);
+}
+@media (max-width: 720px) {
+  .leave-ask { position: sticky; top: calc(var(--frame-top-at) + var(--frame-top, 0px)); z-index: 2; }
+}
 
 /* ---------- Ask Chanlytics — unified topbar affordance ---------- */
 .tb-ask {
@@ -3106,6 +3118,31 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot > span > a:first-child:has(> .pg-act-fit)::after {
     inset: -8px;
   }
+  /* ---- The room under the strip of views on a phone: every page's, here and nowhere else (Ruben, 12 Nov 2026) ----
+     The slot keeps 16px under it (above). A page whose first row is a list's own top starts right under the strip: the
+     row is a thumb's 44px with its words on its middle, and that is the room (People's bar, clients.css .pp-bar; a
+     Campaigns list's row, campaigns.css .cm-list-bar). A page that opens on its own tabs or cards keeps 4px: the Inbox's
+     buckets, Conversations' channels, Live and Reports. Each page said its own in its own stylesheet, six rules in six
+     files, so a new page could not see the others: Sequences' row stood 16px under People's and the Inbox's until its
+     rule was written. The Calendar's 14px is another matter, its own head under the strip (calendar.css).
+
+     People's and Campaigns' are named by the strip the slot holds (shell-chrome.tsx `data-strip`), which stands from the
+     first draw, while the page is read: named by the page's root, People's slot stood 16px taller over Reading… and the
+     list came in 16px higher (the People load review, 28 Oct 2026); and a person's page carried back to its list shows
+     the list's slot under it (data-carrying, kit motion/held-list.ts), so it stands as the list's. The Inbox's three
+     views and Reports are named by their roots, the frame not naming the Inbox's strip: not while a thread has the
+     screen (data-takeover; the slot is away then, mobile.css), and again while it is carried back. What differs between
+     two views of one strip goes with the page, never on the frame: the three keep the same 4, so a view arriving from
+     another is not drawn 4px high until the copy of the one leaving is taken away (view-deck.ts keeps it in .main;
+     Ruben, 8 Oct 2026), and Live's page adds 4 of its own (live.css). */
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) {
+    padding-bottom: 0;
+  }
+  .main:has(> .main-scroll > :is(.inbox, .conversations):not([data-takeover])) .pg-slot,
+  :root[data-carrying] .main:has(> .main-scroll > :is(.inbox, .conversations)) .pg-slot,
+  .main:has(> .main-scroll > :is(.live-monitor, .rpt)) .pg-slot {
+    padding-bottom: 4px;
+  }
   /* A coral act beside the strip is as tall as the view picked in it and on its line, with the strip's 4px over and under
      it: at the strip's 36 the coral read bigger than the tabs beside it (Ruben, 6 Nov 2026). It is 44 to a finger by a
      margin no one sees. The empty capsules beside a strip, the Calendar's Settings and Reports' period, keep the strip's 36. */
@@ -3418,3 +3455,81 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
 .visit-ask { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
 .visit-ask-question, .visit-said { font-size: var(--text-xs); color: var(--ink-muted); }
 .visit-refused { flex-basis: 100%; color: var(--ink-muted); font-size: var(--text-xs); }
+
+/* ---- A group's heading (kit/head/group-head.tsx): the one every list draws ----
+   As the Pipeline's stages stand in their table (kit.css .dtable[data-groups="stages"]): the name at the rows' size in the
+   semibold, how many it holds dim beside it, a hairline under it across the list, and 18px over it parting one group from
+   the next. A group that needs the owner says its figure in amber. On a phone the list stands at the page's 12px edge: the
+   name is 16px in, under the words of the row over it, and the hairline runs 8px past the rows at either side. These are
+   the only copy of those numbers (Ruben, 12 Nov 2026): a list that is a desk's pane dresses its heading as the pane's
+   label in its own stylesheet, for the desk alone. A heading that folds is the press itself, so the room round its words
+   is the press's. */
+.group-head {
+  --group-head-pad: 18px 0 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  padding: var(--group-head-pad);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  line-height: 18px;
+  color: var(--ink-dim);
+}
+.group-head-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.group-head-count {
+  font-variant-numeric: tabular-nums;
+}
+.group-head[data-needs] .group-head-count {
+  font-weight: var(--weight-medium);
+  color: var(--warn-ink);
+}
+.group-head-end {
+  margin-left: auto;
+}
+.group-head[data-fold] {
+  padding: 0;
+}
+.group-head > .group-head-fold {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding: var(--group-head-pad);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.group-head-fold > .icon {
+  align-self: center;
+  color: var(--ink-dim);
+}
+@media (max-width: 900px) {
+  .group-head {
+    --group-head-pad: 18px 16px 8px 12px;
+    margin-inline: -8px;
+  }
+}
+
+/* ---- A list's search at rest (kit/head/list-find.tsx): the one glyph and the one fold ----
+   The glyph stands on its row's middle and keeps its size. The field under the row stays drawn while it rests, so the glyph's
+   press or / can put the caret in it, and takes no room until it holds the caret or words. The fold is a state, and the only
+   copy of these numbers: it wins over whatever room a page gives its own field, however deep that page's rule stands (the
+   Inbox's is four deep), which is what its `!important` is for. */
+.list-find {
+  flex: none;
+  align-self: center;
+}
+.lookup-folded:not(:focus-within) {
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-width: 0 !important;
+  overflow: hidden !important;
+}

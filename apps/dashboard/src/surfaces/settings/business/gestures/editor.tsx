@@ -367,7 +367,18 @@ export function useBtEditor<D>(args: BtEditorArgs<D>) {
     const l = live.current;
     return !!(l.open && l.draft != null && !S.same(l.draft, btOpenedOn(l)));
   };
-  const fold = useRecordFold(id, { dirty: holds, saving: out });
+  // What is typed is kept in the tab with what it was typed over, and both come back with the page however the page was
+  // left (kit/record/kept.ts): its save is judged against what it opened with, so a colleague's save read back meanwhile
+  // is refused as moved, never put back as it was.
+  const keep = {
+    value: draft == null ? null : { draft, opened: live.current.opened },
+    restore: (kept: { draft: D; opened: D | null }) => {
+      live.current.opened = kept.opened;
+      live.current.draft = kept.draft;
+      setDraft(kept.draft);
+    },
+  };
+  const fold = useRecordFold(id, { dirty: holds, saving: out, keep });
   // A role that may not change the business never has an editor, whatever asked for one; nor does a page with nothing
   // read to save onto, nor a part of the record its draft cannot be worked out of (btOpening).
   const open = fold.open && canEdit && can;

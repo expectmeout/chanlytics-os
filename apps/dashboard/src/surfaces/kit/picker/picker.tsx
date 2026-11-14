@@ -91,6 +91,11 @@ export type PickerProps<V extends string> = {
   "data-testid"?: string;
   className?: string;
   ref?: Ref<HTMLButtonElement>;
+  /**
+   * Told as the list closes, whatever closed it (a pick, Escape, a press outside): a token drawn only to be opened (a
+   * message's language, asked for from its menu) goes as its list does.
+   */
+  onClosed?: () => void;
 };
 
 /** What an option holds, in the order the gallery draws it: its glyph, its words and the line under them, its word at the end. */
@@ -119,7 +124,7 @@ function tokenFace<V extends string>(props: PickerProps<V>, one: PickerOption<V>
 /** A short list: Base UI's Select, its token the trigger. */
 function PickerList<V extends string>(props: PickerProps<V> & { one: PickerOption<V> | null }) {
   const { label, value, onValueChange, groups, chevron, note, readOnly, className, ref, one } = props;
-  const list = usePhoneList();
+  const list = usePhoneList(props.onClosed);
   const items = groups.flatMap((group) =>
     group.options.map((option) => ({ value: option.value, label: option.label })),
   );
@@ -188,7 +193,7 @@ function PickerList<V extends string>(props: PickerProps<V> & { one: PickerOptio
 /** A list to search: Base UI's Combobox, its input inside the popup and its token the trigger. */
 function PickerFind<V extends string>(props: PickerProps<V> & { one: PickerOption<V> | null; search: PickerSearch }) {
   const { label, onValueChange, groups, chevron, note, readOnly, className, ref, one, search } = props;
-  const list = usePhoneList();
+  const list = usePhoneList(props.onClosed);
   // Base UI's groups: each an `items` array under its heading, the options as the values it hands back.
   const items = useMemo(() => groups.map((group) => ({ value: group.label ?? "", items: group.options })), [groups]);
   return (

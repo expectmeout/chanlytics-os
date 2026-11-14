@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { linesOf } from "../../_log-lines.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -47,7 +48,7 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-const world = (proposals, more = {}) => {
+const world = (proposals, more = {}, faults = {}) => {
   const tables = {
     ask_messages: [{ id: MSG, thread_id: "t", tenant_id: TENANT, role: "assistant", content: { proposals } }],
     ask_actions: [],
@@ -55,7 +56,7 @@ const world = (proposals, more = {}) => {
     messages: [],
     ...more,
   };
-  return { tables, ctx: { supabase: fakeDb(tables), userId: USER, params: {} } };
+  return { tables, ctx: { supabase: fakeDb(tables, faults), userId: USER, params: {} } };
 };
 const noteCard = (over = {}) => ({
   id: "p-note",
@@ -163,6 +164,70 @@ test("D35: a teammate has the thread: nothing goes out", async () => {
   assert.equal(a.ok, false);
   assert.match(a.message, /teammate has this/);
   assert.equal(calls.length, 0);
+});
+
+/** A read that fails the way PostgREST fails. */
+const UNREAD = { message: "canceling statement due to statement timeout", code: "57014" };
+
+test("D35: the thread cannot be read: a card that answers it waits, nothing goes out, and it says to try again", async () => {
+  const { tables, ctx } = world([replyCard()], {}, { "conversations.select": UNREAD });
+  const { result: a } = await linesOf(() =>
+    runAct(ctx, req(), member, { messageId: MSG, proposalId: "p-reply", by: "press" }),
+  );
+  assert.equal(a.ok, false);
+  assert.match(a.message, /couldn't check whether this conversation moved on/);
+  assert.match(a.message, /so nothing went out\. Try again in a moment\./);
+  assert.equal(a.forward, null, "the card's own Try again is the way");
+  assert.equal(calls.length, 0, "no reply was sent");
+  assert.equal(tables.ask_messages[0].content.proposals[0].outcome.state, "failed");
+});
+
+test("D35: what was said since cannot be read: the same, nothing goes out", async () => {
+  const { ctx } = world(
+    [replyCard()],
+    { conversations: [{ id: CONV, tenant_id: TENANT, state: "open", assignee_user_id: null, snooze_until: null }] },
+    { "messages.select": UNREAD },
+  );
+  const { result: a } = await linesOf(() =>
+    runAct(ctx, req(), member, { messageId: MSG, proposalId: "p-reply", by: "press" }),
+  );
+  assert.equal(a.ok, false);
+  assert.match(a.message, /couldn't check/);
+  assert.equal(calls.length, 0);
+});
+
+test("a card that answers no thread is not held by a thread it never reads", async () => {
+  const { ctx } = world([noteCard()], {}, { "conversations.select": UNREAD, "messages.select": UNREAD });
+  const a = await runAct(ctx, req(), member, { messageId: MSG, proposalId: "p-note", by: "press" });
+  assert.equal(a.ok, true);
+  assert.equal(calls.length, 1);
+});
+
+test("an act Ask would run alone has its record first: no record, no act, said plainly, and it can be pressed", async () => {
+  const { tables, ctx } = world([noteCard()], {}, { "ask_actions.insert": UNREAD });
+  const { result: a } = await linesOf(() =>
+    runAct(ctx, req(), member, { messageId: MSG, proposalId: "p-note", by: "row", why: "keep" }),
+  );
+  assert.equal(a.ok, false);
+  assert.equal(calls.length, 0, "nothing ran");
+  assert.match(a.message, /didn't do this on my own/);
+  assert.match(a.message, /Try again/);
+  const kept = tables.ask_messages[0].content.proposals[0].outcome;
+  assert.equal(kept.state, "failed", "the card says so, and offers Try again");
+});
+
+test("a person's own press whose record cannot be written still goes, and the missing record is logged", async () => {
+  const { ctx } = world([noteCard()], {}, { "ask_actions.insert": UNREAD });
+  answers.push({ status: 200, json: { ok: true, data: { id: "note-1", decision_id: "d1" } } });
+  const { result: a, lines } = await linesOf(() =>
+    runAct(ctx, req(), member, { messageId: MSG, proposalId: "p-note", by: "press" }),
+  );
+  assert.equal(a.ok, true);
+  assert.equal(calls.length, 1, "the press went: its route's own key makes it act once");
+  const said = lines.find((l) => l.event === "ask_act_unrecorded");
+  assert.ok(said, "the missing record is logged");
+  assert.equal(said.level, "error");
+  assert.equal(said.by, "press");
 });
 
 test("a plan's send fills its tokens from what its steps made, under the step's own key, and waits for a step not made", async () => {

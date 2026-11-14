@@ -49,9 +49,9 @@ const modules = () =>
   );
 
 /** A statement's module, and whether the import carries a value at run time. */
-function importsOfModule(file) {
+function importsIn(sf) {
   const out = [];
-  for (const st of parse(file).statements) {
+  for (const st of sf.statements) {
     if (
       !(ts.isImportDeclaration(st) || ts.isExportDeclaration(st)) ||
       !st.moduleSpecifier ||
@@ -75,6 +75,7 @@ function importsOfModule(file) {
   }
   return out;
 }
+const importsOfModule = (file) => importsIn(parse(file));
 
 /** The module a relative or `@/` specifier names, or null for a package. */
 function resolver(known) {
@@ -361,6 +362,48 @@ export function oneTreeContracts() {
   });
 }
 
+const BRIDGE = "apps/dashboard/src/bridge/";
+const SURFACES = "apps/dashboard/src/surfaces/";
+
+/**
+ * The surfaces' modules one module loads at run time, each once: what it imports or re-exports as a value, and what it
+ * loads later by `import()`. A type crosses freely, and is not counted.
+ */
+export function surfacesReachedIn(sf, from, known) {
+  const resolve = resolver(known);
+  const reached = new Set();
+  const take = (spec) => {
+    const to = resolve(spec, from);
+    if (to?.startsWith(SURFACES)) reached.add(to);
+  };
+  for (const { specifier, typeOnly } of importsIn(sf)) if (!typeOnly) take(specifier);
+  const visit = (node) => {
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      const [spec] = node.arguments;
+      if (spec && ts.isStringLiteral(spec)) take(spec.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return reached;
+}
+
+/**
+ * Each module of the bridge that loads a surface's module, with how many it loads. The bridge is the frame the surfaces
+ * stand on and a surface imports it; one that imports a surface back leans the other way (decision 0110). The frame's own
+ * modules count too: the number has only to stop rising.
+ */
+export function bridgeIntoSurfaces(files = modules()) {
+  const known = new Set(files);
+  const out = {};
+  for (const f of files) {
+    if (!f.startsWith(BRIDGE)) continue;
+    const n = surfacesReachedIn(parse(f), f, known).size;
+    if (n > 0) out[f] = n;
+  }
+  return out;
+}
+
 /** Whoever reaches past a package's `exports` to its files: an app's or a package's source, by a path or by the package's name. */
 export function reachesPastExports() {
   const out = [];
@@ -421,6 +464,13 @@ export const BOUNDARY_RATCHETS = [
     measure: () => Object.fromEntries(oneTreeContracts().map((m) => [m, 1])),
     advice:
       "A module only one tree reaches is that tree's own code: move it there. A schema stays, since the parser is the contract.",
+  },
+  {
+    name: "modules of the surfaces the bridge loads",
+    file: "bridge-into-surfaces.json",
+    measure: () => bridgeIntoSurfaces(),
+    advice:
+      "The bridge is the frame the surfaces stand on: a surface imports it, never the other way. Move what the bridge needs down into it, or have the page hand it over; a type crosses freely (decision 0110).",
   },
   {
     name: "names a package's root barrel offers",

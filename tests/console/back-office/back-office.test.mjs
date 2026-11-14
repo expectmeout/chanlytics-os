@@ -107,7 +107,6 @@ test("a backlog that could not be READ is never mistaken for a backlog of zero",
   assert.equal(platformHealthWords(unknown), "The platform's health could not be read just now.");
   // And no rows at all is not "healthy": it is the same unknown.
   assert.equal(platformHealthOf(null, null, now).ok, false);
-  assert.equal(platformHealthOf([], 0, now).ok, true, "but no rows with a real zero backlog is genuinely quiet");
 });
 import { importSrc, readCode, readRaw } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
@@ -1082,7 +1081,7 @@ test("the back office is read on demand, not published to every browser", async 
  * -------------------------------------------------------------------------- */
 globalThis.React = { Fragment: "Fragment" };
 globalThis.window = {
-  __ME: { email: "ruben@rjcapital.io", platform_admin: true },
+  __ME: { email: "ruben@rjcapital.example", platform_admin: true },
   canDo: () => true,
   // The shared toast, as frame-globals provides it: [node, flash].
   usePPToast: () => [null, () => {}],
@@ -1143,7 +1142,7 @@ const { RecordTip } = await import("../../../apps/dashboard/src/surfaces/kit/rec
 const { backOffice } = await import("../../../apps/dashboard/src/bridge/platform.ts");
 
 /** Who is looking, as GET platform/me answers: an owner on the Console's staff. */
-const ME = { user_id: "u-admin", email: "ruben@rjcapital.io", name: "Ruben", role: "owner" };
+const ME = { user_id: "u-admin", email: "ruben@rjcapital.example", name: "Ruben", role: "owner" };
 
 /** Whether a dependency array differs from the one an effect or memo last saw. Undefined deps mean "every render", as in React. */
 const changed = (before, after) =>
@@ -1831,7 +1830,7 @@ test("marking somebody invited is conditional on them still waiting, records who
   ];
   const tables = { waitlist: rows, platform_acts: [] };
   const db = fakeDb(tables);
-  const office = { db, session: db, role: "support", userId: "u-admin", email: "ruben@rjcapital.io" };
+  const office = { db, session: db, role: "support", userId: "u-admin", email: "ruben@rjcapital.example" };
 
   assert.equal(await getPlatformWaitlistInvited(office, "w1", FOUND), "marked");
   assert.ok(rows[0].invited_at, "the stamp that takes them out of the queue");

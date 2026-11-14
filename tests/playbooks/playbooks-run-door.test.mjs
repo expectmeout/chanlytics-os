@@ -17,8 +17,9 @@
  * named workspace only; a person's run under `ask` sending now, with every
  * row it leaves -- the broadcast, its people, the send job, the person's
  * decision, the event, the day remembered; what makes a run off -- already
- * ran today, a template Meta has not approved, a flagged number, nobody
- * eligible; and the paths that name a fault.
+ * ran today, a template Meta refused, a flagged number, nobody eligible --
+ * and what makes it wait with the day left open: a template WhatsApp is
+ * still looking at, or holding; and the paths that name a fault.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -63,6 +64,12 @@ const iso = (msAgo) => new Date(Date.now() - msAgo).toISOString();
  * Date here, or it fails every night CI runs after eight in New York.
  */
 const IN_HOURS = Date.parse("2026-09-11T15:00:00Z");
+/**
+ * Half past eight in the evening on New York's clock, the same day: the day's last sending hour, from which a run no
+ * longer waits for WhatsApp's answer (contracts inLastSendingHour). A test of a template WhatsApp has not yet said
+ * yes to freezes Date at one of the two, or its answer depends on the hour CI runs at.
+ */
+const LAST_HOUR = Date.parse("2026-09-12T00:30:00Z");
 
 /* ------------------------------- the knock -------------------------------- */
 
@@ -507,7 +514,8 @@ test("a person's press sends now whatever its sequence's mode, and lets its step
   assert.equal(w.tables.decisions.length, 1, "their decision, on the ledger");
 });
 
-test("what else makes a person's run off, each recorded with its reason: a template Meta has not approved, a number WhatsApp flagged, nobody eligible; a paused workspace is a 402 in its own words, and a database that refuses is a 500 that names itself", async () => {
+test("what else makes a person's run off, each recorded with its reason: a template Meta refused or turned off, a number WhatsApp flagged, nobody eligible; a template WhatsApp is still looking at, or holding, makes it wait instead, recording nothing so the day stays open, until the day's last hour; a paused workspace is a 402 in its own words, and a database that refuses is a 500 that names itself", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: IN_HOURS });
   const today = localDate(TZ, new Date());
   const off = (w, skipped) => {
     nothingMade(w.tables, skipped);
@@ -517,17 +525,54 @@ test("what else makes a person's run off, each recorded with its reason: a templ
     );
     assert.equal(w.tables.playbooks[0].last_run_for, today);
   };
+  /** A's Win-back, its one WhatsApp template at `status` on Meta's side, and one person it would reach. */
+  const templateAt = (status) => {
+    const made = world({ people: { [A]: [person("c1")] } });
+    workspace(made.tables, A, "auto");
+    made.tables.templates[0].meta_status = status;
+    made.tables.playbooks.push(playbook(A, P));
+    return made;
+  };
 
-  let w = world({ people: { [A]: [person("c1")] } });
-  workspace(w.tables, A, "auto");
-  w.tables.templates[0].meta_status = "pending";
-  w.tables.playbooks.push(playbook(A, P));
+  // Meta refused it, or turned it off: no WhatsApp version this run can send, and WhatsApp is all it goes by.
+  let w;
+  for (const status of ["rejected", "disabled"]) {
+    w = templateAt(status);
+    assert.deepEqual(
+      await answer(await knock(press)),
+      [200, { ok: true, outcome: "off", mode: "auto", skipped: "template_not_approved" }],
+      `a template Meta has ${status}: the run is off for the day`,
+    );
+    off(w, "template_not_approved");
+  }
+
+  // WhatsApp is still looking at the words, or holding the message for a few hours: the run waits for its answer
+  // (core paced.ts waitsOnWhatsApp), and the hourly sweep sends it the moment WhatsApp says yes.
+  for (const [status, skipped] of [
+    ["pending", "template_in_review"],
+    ["paused", "template_on_hold"],
+  ]) {
+    w = templateAt(status);
+    assert.deepEqual(
+      await answer(await knock(press)),
+      [200, { ok: true, outcome: "off", mode: "auto", skipped }],
+      `a ${status} template: the run waits, and says why`,
+    );
+    nothingMade(w.tables, skipped);
+    assert.deepEqual(w.tables.events, [], `${skipped}: nothing is recorded of a run that waits`);
+    assert.equal(w.tables.playbooks[0].last_run_for, null, `${skipped}: the day stays open for the next sweep`);
+  }
+
+  // In the day's last hour the answer did not come in time: the run stops on it as on a refused one, for the day.
+  t.mock.timers.setTime(LAST_HOUR);
+  w = templateAt("pending");
   assert.deepEqual(
     await answer(await knock(press)),
     [200, { ok: true, outcome: "off", mode: "auto", skipped: "template_not_approved" }],
-    "the template must still be what Meta approved",
+    "the day's last hour: no more waiting for WhatsApp",
   );
   off(w, "template_not_approved");
+  t.mock.timers.setTime(IN_HOURS);
 
   w = world({ people: { [A]: [person("c1")] } });
   workspace(w.tables, A, "auto");
