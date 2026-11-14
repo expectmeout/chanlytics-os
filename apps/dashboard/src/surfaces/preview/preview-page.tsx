@@ -3,7 +3,7 @@
 // Chanlytics — a lead's own receptionist, before they sign up (decision 0079, L2 and L3).
 //
 // The page a cold email's link opens: the business's own receptionist, set up from its listing and its website, under
-// its Google photo, its mark and its colour, light unless the visitor's device is dark (contracts pagePrefOf). They hear
+// its Google photo, its mark and its colour, light unless the visitor's device is dark (contracts themeBootScript). They hear
 // it answer first (call.tsx), then text it as a customer would, the chat opening on its greeting, and read under each
 // answer what a live chat would do with it (Try it's `then`); they see what it knows and where
 // each fact came from, and say which is not right; and the foot, which stays, makes it theirs. Every word is

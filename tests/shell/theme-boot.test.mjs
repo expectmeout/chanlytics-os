@@ -24,8 +24,6 @@ import assert from "node:assert/strict";
 import {
   themeBootScript,
   themePrefOf,
-  pagePrefOf,
-  STRANGER_PAGE_PREFIXES,
   resolveTheme,
   lookPrefOf,
   DEVICE_PREFS_STORAGE,
@@ -564,18 +562,19 @@ test("it says the place the address lights and whether its page searches in Ask'
 });
 
 test("a page a stranger opens from an email follows their device, whatever this device keeps", () => {
-  const page = `${STRANGER_PAGE_PREFIXES[0]}TokenTokenTokenToken01`;
-  for (const kept of [null, "dark", "light", "system"])
-    for (const systemDark of [true, false]) {
-      const stored = kept ? JSON.stringify({ theme: kept }) : null;
-      const { theme, bars } = boot({ stored, systemDark, path: page });
-      assert.equal(theme, systemDark ? "dark" : "light", `kept ${kept}, device dark ${systemDark}`);
-      assert.equal(theme, resolveTheme(pagePrefOf(kept, page), systemDark));
-      assert.equal(bars, THEME_COLORS[theme]);
-    }
+  for (const page of ["/preview/TokenTokenTokenToken01", "/preview/TokenTokenTokenToken01/mine"])
+    for (const kept of [null, "dark", "light", "system"])
+      for (const systemDark of [true, false]) {
+        const stored = kept ? JSON.stringify({ theme: kept }) : null;
+        const { theme, bars } = boot({ stored, systemDark, path: page });
+        assert.equal(theme, resolveTheme("system", systemDark), `${page}, kept ${kept}, device dark ${systemDark}`);
+        assert.equal(bars, THEME_COLORS[theme]);
+      }
   // A browser that cannot say which it prefers gets the light page.
-  assert.equal(boot({ stored: null, systemDark: true, noMatchMedia: true, path: page }).theme, "light");
-  // Every other page keeps the app's own rule.
-  assert.equal(boot({ stored: null, systemDark: false, path: "/today" }).theme, resolveTheme(themePrefOf(null), false));
-  assert.equal(pagePrefOf("light", "/today"), "light");
+  assert.equal(boot({ stored: null, systemDark: true, noMatchMedia: true, path: "/preview/x" }).theme, "light");
+  // Every other page keeps the app's own rule, the device's choice among them.
+  for (const path of ["/today", "/w/fixture/preview/x", "/"]) {
+    assert.equal(boot({ stored: null, systemDark: false, path }).theme, resolveTheme(themePrefOf(null), false), path);
+    assert.equal(boot({ stored: JSON.stringify({ theme: "light" }), systemDark: true, path }).theme, "light", path);
+  }
 });
