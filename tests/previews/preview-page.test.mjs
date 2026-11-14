@@ -89,7 +89,9 @@ const FACTS = {
   },
   phone_display: "+1 (512) 555-0142",
   call_seconds: 0,
+  photo_url: null,
 };
+const PHOTO = "https://lh3.googleusercontent.com/p/made-up";
 const draw = (over = {}, look = false) =>
   page.renderToStaticMarkup(
     page.createElement(page.PreviewPage, { vm: previewPageOf({ ...FACTS, ...over }, NOW), token: TOKEN, look }),
@@ -108,10 +110,10 @@ test("open, nothing said yet: the business by its name, three questions to start
   const html = draw();
   const said = words(html);
   assert.ok(html.includes('data-state="ready"'));
-  assert.ok(said.includes("Fixture Barbers' receptionist"));
-  assert.ok(said.includes(W.chip));
-  assert.ok(said.includes(W.setUp("Fixture Barbers")));
-  for (const s of ["Are you open on Sunday?", "Can I come in tomorrow at 2?", "How much is the fade?"])
+  assert.match(html, /<h1 class="pv-title">Fixture Barbers<\/h1>/, "the heading is their name alone");
+  assert.ok(said.includes(W.ready) && said.includes(W.madeFrom));
+  assert.ok(!said.includes(W.chip), "no Preview chip on top");
+  for (const s of ["Can you tell me about the fade?", "Are you open on Sunday?", "Where are you located?"])
     assert.ok(said.includes(s), s);
   assert.ok(has(html, "pv-text") && has(html, "pv-send"));
   assert.ok(said.includes("20 messages left"));
@@ -121,6 +123,32 @@ test("open, nothing said yet: the business by its name, three questions to start
   assert.ok(said.includes(W.mine) && said.includes(W.mineSub));
   assert.ok(said.includes(W.kept), "it says what is kept");
   assert.ok(!html.includes("<img"), "no mark to show, no image");
+});
+
+test("they see their business, then its call, then its chat", () => {
+  const html = draw({ photo_url: PHOTO });
+  assert.match(html, /<img class="pv-photo"[^>]*src="https:\/\/lh3\.googleusercontent\.com\/p\/made-up"/);
+  assert.ok(html.indexOf('data-testid="pv-call"') < html.indexOf('data-testid="pv-chat"'), "Call comes before Text");
+  assert.ok(html.indexOf("pv-photo") < html.indexOf('class="pv-title"'), "the photo over the name");
+});
+
+test("their mark sits on their photo, where both are known", () => {
+  const html = draw({ photo_url: PHOTO, logo_url: "https://storage.example.com/logos/fixture.png" });
+  assert.match(html, /class="pv-hero"><img class="pv-photo"[^>]*><img class="pv-logo"/);
+});
+
+test("the chat opens on its greeting, before the questions to start from, and stays first", () => {
+  const html = draw();
+  const greeting = W.textGreeting("Fixture Barbers", null);
+  assert.ok(has(html, "pv-greeting") && words(html).includes(greeting));
+  assert.ok(html.indexOf('data-testid="pv-greeting"') < html.indexOf('data-testid="pv-starters"'));
+  const talked = draw({ asked_count: 1, turns: [{ role: "user", content: "Hi" }] });
+  assert.ok(talked.indexOf('data-testid="pv-greeting"') < talked.indexOf('data-testid="pv-turn-0"'), "still first");
+});
+
+test("no photo, no strip", () => {
+  assert.ok(!draw().includes("pv-photo") && !draw().includes("pv-hero"));
+  assert.ok(!draw({ photo_url: "http://evil.example/x.jpg" }).includes("<img"), "only Google's own host");
 });
 
 test("a conversation: each turn, the answer with what a live chat would do, no questions to start from, the count left", () => {
