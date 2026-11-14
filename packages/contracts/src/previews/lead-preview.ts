@@ -68,6 +68,8 @@ export interface PreviewPageVM {
   state: PreviewPageState;
   business: string;
   logo_url: string | null;
+  /** Their Google photo, only from Google's own host. */
+  photo_url: string | null;
   turns: PreviewTurnVM[];
   /** Messages it will still answer. */
   left: number;
@@ -86,11 +88,17 @@ export interface PreviewPageFacts {
   turns: unknown;
   business: string;
   logo_url: string | null;
-  profile: Pick<BusinessProfile, "hours" | "address" | "website" | "services"> | null;
+  profile: Pick<BusinessProfile, "hours" | "address" | "website" | "services" | "assistant_name"> | null;
   phone_display: string | null;
   /** The seconds its ended calls spoke (lead_previews.call_seconds). */
   call_seconds: number;
+  /** The lead's Google photo (leads.image_url), or none. */
+  photo_url: string | null;
 }
+
+/** Their photo as the page may draw it: Google's own host, over https, else none (the CSP allows that host alone). */
+const GOOGLE_PHOTO = /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\//;
+const photoOf = (url: string | null): string | null => (url && GOOGLE_PHOTO.test(url) ? url : null);
 
 const TURN_TONES: ReadonlySet<string> = new Set(["sends", "waits", "yours"]);
 type Tone = NonNullable<PreviewTurnVM["then"]>["tone"];
@@ -216,6 +224,7 @@ export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): Pr
     state,
     business: previewPageFacts.business,
     logo_url: previewPageFacts.logo_url,
+    photo_url: state === "ended" || state === "taken" ? null : photoOf(previewPageFacts.photo_url),
     turns,
     left: Math.max(0, PREVIEW_LIMITS.messages - previewPageFacts.asked_count),
     call_left_ms: Math.max(0, PREVIEW_LIMITS.callMs - previewPageFacts.call_seconds * SECOND_MS),

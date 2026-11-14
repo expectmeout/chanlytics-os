@@ -42,6 +42,7 @@ const FACTS = {
   profile: PROFILE,
   phone_display: "+1 (512) 555-0142",
   call_seconds: 0,
+  photo_url: null,
 };
 
 test("which page: open, its twenty said, being set up, ended by its state or its clock, someone's own now", () => {
@@ -154,4 +155,15 @@ test("the page's words say the business by its name", () => {
   assert.equal(W.left(1), "1 message left");
   assert.equal(W.left(19), "19 messages left");
   assert.equal(W.taken.title("Fixture Barbers"), "Fixture Barbers is already set up.");
+});
+
+test("the page carries their Google photo, and nothing where the lead has none", () => {
+  const photo = "https://lh3.googleusercontent.com/p/made-up";
+  assert.equal(previewPageOf({ ...FACTS, photo_url: photo }, NOW).photo_url, photo);
+  assert.equal(previewPageOf(FACTS, NOW).photo_url, null);
+  // Only Google's own photos, over https: anything else is no photo (the page's CSP allows that host alone).
+  assert.equal(previewPageOf({ ...FACTS, photo_url: "http://evil.example/x.jpg" }, NOW).photo_url, null);
+  assert.equal(previewPageOf({ ...FACTS, photo_url: "http://lh3.googleusercontent.com/p/x" }, NOW).photo_url, null);
+  // A page with nothing to try shows no photo.
+  assert.equal(previewPageOf({ ...FACTS, photo_url: photo, state: "claimed" }, NOW).photo_url, null);
 });

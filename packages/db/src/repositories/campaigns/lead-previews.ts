@@ -200,6 +200,8 @@ export interface LeadForPreview {
   email: string | null;
   website_host: string | null;
   hours: Json;
+  /** Its Google photo, as the finder kept it: its preview's page shows it. */
+  image_url: string | null;
 }
 
 /** The lead a preview is built from, or null where it is gone. */
@@ -207,7 +209,7 @@ export async function findLeadForPreview(db: Db, tenantId: TenantId, leadId: str
   const { data, error } = await tenantDb(db, tenantId)
     .from("leads")
     .select(
-      "id, kind, stage, erased_at, blanked_at, business_name, category, street, city, region, postal_code, phone_e164, email, website_host, hours",
+      "id, kind, stage, erased_at, blanked_at, business_name, category, street, city, region, postal_code, phone_e164, email, website_host, hours, image_url",
     )
     .eq("id", leadId)
     .maybeSingle();
