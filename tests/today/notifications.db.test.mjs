@@ -116,7 +116,7 @@ test(
 );
 
 test(
-  "the seen mark: refused signed out, refused to a stranger, written once for this person and refreshed on the next look",
+  "the seen mark: refused signed out, refused to a stranger, written on the one row the seat was given and refreshed on the next look",
   { skip },
   async () => {
     const anon = createClient(URL_, ANON, { auth: { persistSession: false } });
@@ -130,14 +130,18 @@ test(
     assert.notEqual(notMine.error, null);
     assert.match(notMine.error.message, /Workspace not found/);
     const member = await memberClient("operator");
+    // A seat is given its row as it is made (00622): a look moves that row, and never makes a second.
+    const rowsOf = () =>
+      db.from("notification_reads").select("user_id, seen_at").eq("tenant_id", tenantId).eq("user_id", member.userId);
+    const joined = await rowsOf();
+    assert.equal(joined.error, null, joined.error?.message);
+    assert.equal(joined.data.length, 1, "one row per person per workspace, from the moment they join");
     const first = await member.client.rpc("notifications_seen", { p_tenant_id: tenantId });
     assert.equal(first.error, null, first.error?.message);
     assert.equal(first.data.tenant_id, tenantId);
-    const reads = await db.from("notification_reads").select("user_id, seen_at").eq("tenant_id", tenantId);
-    assert.deepEqual(
-      reads.data.map((r) => r.user_id),
-      [member.userId],
-      "one row per person per workspace",
+    assert.ok(
+      Date.parse(first.data.seen_at) >= Date.parse(joined.data[0].seen_at),
+      "a look moves the mark on from where the seat started",
     );
     const second = await member.client.rpc("notifications_seen", { p_tenant_id: tenantId });
     assert.equal(second.error, null);
@@ -145,7 +149,7 @@ test(
       Date.parse(second.data.seen_at) >= Date.parse(first.data.seen_at),
       "the next look moves the mark forward, never a second row",
     );
-    const again = await db.from("notification_reads").select("user_id").eq("tenant_id", tenantId);
+    const again = await rowsOf();
     assert.equal(again.data.length, 1);
     // The mark is the person's own: their session reads it, another member's does not.
     const own = await member.client.from("notification_reads").select("user_id").eq("tenant_id", tenantId);
@@ -154,8 +158,12 @@ test(
       [member.userId],
     );
     const other = await memberClient("viewer");
-    const notTheirs = await other.client.from("notification_reads").select("user_id").eq("tenant_id", tenantId);
-    assert.deepEqual(notTheirs.data, [], "RLS: a mark is read by its owner alone");
+    const theirs = await other.client.from("notification_reads").select("user_id").eq("tenant_id", tenantId);
+    assert.deepEqual(
+      theirs.data.map((r) => r.user_id),
+      [other.userId],
+      "RLS: a mark is read by its owner alone, so another member reads their own and no one else's",
+    );
   },
 );
 
@@ -322,7 +330,7 @@ test(
 );
 
 test(
-  "read through (00614): Mark all read moves how far the member has read and their look together, a look moves the look alone, and Undo goes back, never forward",
+  "read through (00614, 00622): a bell starts where its seat joined, again for a member who comes back; a read goes up to the moment asked, never past now and never back, and is a look; a look moves the look alone; Undo goes back to the moment the read answered, never forward",
   { skip },
   async () => {
     const anon = createClient(URL_, ANON, { auth: { persistSession: false } });
@@ -344,45 +352,129 @@ test(
       assert.equal(r.error, null, r.error?.message);
       return r.data;
     };
-    // An Undo before anything was read through moves nothing, and makes no row.
-    const early = await member.client.rpc("notifications_read_through", {
-      p_tenant_id: tenantId,
-      p_through: "2026-01-01T00:00:00Z",
-    });
-    assert.equal(early.error, null, early.error?.message);
-    assert.equal(early.data.unchanged, true);
-    assert.equal(await mine(), null);
+    const stand = async (at) => {
+      const r = await db
+        .from("notification_reads")
+        .update({ seen_at: at, read_through_at: at })
+        .eq("tenant_id", tenantId)
+        .eq("user_id", member.userId);
+      assert.equal(r.error, null, r.error?.message);
+    };
+    /** The door: no moment is a read up to now; a moment is its Undo, or with `read` a read up to it. */
+    const through = (p_through, read) =>
+      member.client.rpc("notifications_read_through", {
+        p_tenant_id: tenantId,
+        ...(p_through === undefined ? {} : { p_through }),
+        ...(read ? { p_read: true } : {}),
+      });
+    const ms = (iso) => Date.parse(iso);
 
-    const all = await member.client.rpc("notifications_read_through", { p_tenant_id: tenantId });
-    assert.equal(all.error, null, all.error?.message);
-    assert.equal(Date.parse(all.data.was), 0, "never read through before: the moment it stood at is the beginning");
-    const read = await mine();
-    assert.equal(read.read_through_at, read.seen_at, "reading everything is also a look: both at one moment");
+    // A seat's bell starts when it joins (memberships_start_the_bell): nothing from before is new or unread to them.
+    const seat = await db
+      .from("memberships")
+      .select("created_at")
+      .eq("tenant_id", tenantId)
+      .eq("user_id", member.userId)
+      .single();
+    assert.equal(seat.error, null, seat.error?.message);
+    const start = await mine();
+    assert.deepEqual(
+      [ms(start.seen_at), ms(start.read_through_at)],
+      [ms(seat.data.created_at), ms(seat.data.created_at)],
+      "both moments at the seat's own",
+    );
+
+    // As a member who joined an hour ago, the bell open on notes up to half an hour ago.
+    const hourAgo = new Date(Date.now() - 3_600_000).toISOString();
+    const listed = new Date(Date.now() - 1_800_000).toISOString();
+    await stand(hourAgo);
+
+    // A read up to what the bell listed: no further, and it is a look.
+    const read = await through(listed, true);
+    assert.equal(read.error, null, read.error?.message);
+    assert.equal(ms(read.data.read_through_at), ms(listed), "read up to the moment asked, not up to now");
+    assert.equal(ms(read.data.was), ms(hourAgo), "it answers where they stood, which an Undo hands back");
+    const held = await mine();
+    assert.equal(ms(held.read_through_at), ms(listed));
+    assert.ok(ms(held.seen_at) > ms(listed), "a read is also a look: seen_at is now");
+    // A tab that listed less than another device has read: nothing moves back, and its Undo would move nothing.
+    const stale = await through(new Date(Date.now() - 2_700_000).toISOString(), true);
+    assert.equal(stale.error, null, stale.error?.message);
+    assert.equal(ms(stale.data.read_through_at), ms(listed), "a read never moves back");
+    assert.equal(ms(stale.data.was), ms(listed));
+    assert.equal(ms((await mine()).read_through_at), ms(listed));
 
     // A look moves the look alone.
     const look = await member.client.rpc("notifications_seen", { p_tenant_id: tenantId });
     assert.equal(look.error, null, look.error?.message);
     const looked = await mine();
-    assert.equal(looked.read_through_at, read.read_through_at, "a look reads nothing");
-    assert.ok(Date.parse(looked.seen_at) >= Date.parse(read.seen_at));
+    assert.equal(looked.read_through_at, held.read_through_at, "a look reads nothing");
+    assert.ok(ms(looked.seen_at) >= ms(held.seen_at));
 
-    // Never forward: a moment later than the one held changes nothing.
-    const forward = await member.client.rpc("notifications_read_through", {
-      p_tenant_id: tenantId,
-      p_through: new Date(Date.now() + 3_600_000).toISOString(),
-    });
-    assert.equal(forward.error, null, forward.error?.message);
-    assert.equal(forward.data.unchanged, true);
-    assert.equal((await mine()).read_through_at, read.read_through_at);
-
-    // Undo: back to where it stood, and the look stays where it is.
-    const undo = await member.client.rpc("notifications_read_through", {
-      p_tenant_id: tenantId,
-      p_through: all.data.was,
-    });
+    // Undo: back to the moment the read answered, and the look stays where it is.
+    const undo = await through(read.data.was);
     assert.equal(undo.error, null, undo.error?.message);
     const undone = await mine();
-    assert.equal(Date.parse(undone.read_through_at), Date.parse(all.data.was));
+    assert.equal(ms(undone.read_through_at), ms(hourAgo));
     assert.equal(undone.seen_at, looked.seen_at, "an Undo leaves the look where it was");
+
+    // An Undo never goes forward: a later moment that is not said to be a read moves nothing.
+    const forward = await through(listed);
+    assert.equal(forward.error, null, forward.error?.message);
+    assert.equal(forward.data.unchanged, true);
+    assert.equal(ms((await mine()).read_through_at), ms(hourAgo));
+
+    // No moment is a read up to now, as the build before 00622 sends it: both moments together.
+    const all = await through();
+    assert.equal(all.error, null, all.error?.message);
+    assert.equal(ms(all.data.was), ms(hourAgo));
+    const everything = await mine();
+    assert.equal(
+      everything.read_through_at,
+      everything.seen_at,
+      "reading everything is also a look: both at one moment",
+    );
+
+    // Never past now: a browser whose clock runs an hour ahead reads nothing that has not happened yet.
+    const ahead = await through(new Date(Date.now() + 3_600_000).toISOString(), true);
+    assert.equal(ahead.error, null, ahead.error?.message);
+    const capped = await mine();
+    assert.equal(capped.read_through_at, capped.seen_at, "a moment past now is read as now");
+    assert.ok(ms(capped.read_through_at) < Date.now() + 60_000);
+
+    // A seat from before 00622 that never looked has no row: it stands where it joined.
+    const gone = await db.from("notification_reads").delete().eq("tenant_id", tenantId).eq("user_id", member.userId);
+    assert.equal(gone.error, null, gone.error?.message);
+    const first = await through();
+    assert.equal(first.error, null, first.error?.message);
+    assert.equal(ms(first.data.was), ms(seat.data.created_at), "its first read answers the moment it joined");
+
+    // A member who leaves and comes back starts again from the new seat: what happened while they were away is not
+    // theirs to read.
+    const comeBack = async () => {
+      const left = await db.from("memberships").delete().eq("tenant_id", tenantId).eq("user_id", member.userId);
+      assert.equal(left.error, null, left.error?.message);
+      const back = await db
+        .from("memberships")
+        .insert({ tenant_id: tenantId, user_id: member.userId, role: "viewer" })
+        .select("created_at")
+        .single();
+      assert.equal(back.error, null, back.error?.message);
+      return back.data.created_at;
+    };
+    await stand(hourAgo);
+    const seatAgain = await comeBack();
+    const again = await mine();
+    assert.deepEqual(
+      [ms(again.seen_at), ms(again.read_through_at)],
+      [ms(seatAgain), ms(seatAgain)],
+      "a row from before the new seat is moved up to it",
+    );
+    // And what they had read past the new seat is kept: a seat never moves a bell back.
+    const later = new Date(Date.now() + 3_600_000).toISOString();
+    await stand(later);
+    await comeBack();
+    const kept = await mine();
+    assert.deepEqual([ms(kept.seen_at), ms(kept.read_through_at)], [ms(later), ms(later)]);
   },
 );

@@ -623,6 +623,7 @@
     "00618_couldnt_check_is_checked_again.sql": "abc285393e7fa17e13f766d72a6745d956ce4e6109b1826951521ef00a51976e",
     "00619_a_stopped_post_is_let_go_and_found_photos_are_not_mine.sql": "ccdc8813cf86d75cfbf25dd95a6faf66a7b58f86edc1fa5b3674f23c423436be",
     "00620_a_story_waits_apart_and_a_post_by_hand_is_kept.sql": "45c5f7aa4f3cb24fc8f0dd563ae34160eabb2d55394400c982a080df5c3fbe9a",
-    "00621_a_post_moves_to_another_time.sql": "f4047f1d444513299399e669c025726a7672803b7a8fbb97b4f2fae0ece7f4e7"
+    "00621_a_post_moves_to_another_time.sql": "f4047f1d444513299399e669c025726a7672803b7a8fbb97b4f2fae0ece7f4e7",
+    "00622_the_bell_reads_what_was_seen.sql": "20176b0aef56997aeb038b6f3ea4f292c4ce729ad8401290efbbe416c164e924"
   }
 }

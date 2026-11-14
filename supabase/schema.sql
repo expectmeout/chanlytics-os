@@ -15259,6 +15259,36 @@ COMMENT ON FUNCTION public.memberships_keep_an_owner() IS 'A workspace keeps an 
 
 
 --
+-- Name: memberships_start_the_bell(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.memberships_start_the_bell() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  begin
+    insert into notification_reads (tenant_id, user_id, seen_at, read_through_at)
+    values (new.tenant_id, new.user_id, new.created_at, new.created_at)
+    on conflict (tenant_id, user_id) do update
+      set seen_at = greatest(notification_reads.seen_at, excluded.seen_at),
+          read_through_at = greatest(notification_reads.read_through_at, excluded.read_through_at);
+  exception when others then
+    -- The seat is made whatever becomes of its bell: without the row the member's first look finds every note unread.
+    raise warning 'memberships_start_the_bell: % (%)', sqlerrm, sqlstate;
+  end;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION memberships_start_the_bell(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.memberships_start_the_bell() IS 'A member''s bell starts when they join (00622, decision 0124): their row in notification_reads, both moments at the seat''s created_at, so nothing from before is new or unread to them. A member who comes back starts again from the new seat, and keeps what they read past it. It never stops a seat from being made.';
+
+
+--
 -- Name: merge_people(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -16771,10 +16801,10 @@ COMMENT ON FUNCTION public.notifications_close_about(p_tenant_id uuid, p_kinds t
 
 
 --
--- Name: notifications_read_through(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+-- Name: notifications_read_through(uuid, timestamp with time zone, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS jsonb
+CREATE FUNCTION public.notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone DEFAULT NULL::timestamp with time zone, p_read boolean DEFAULT false) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -16782,6 +16812,7 @@ declare
   v_user uuid := auth.uid();
   v_now  timestamptz := now();
   v_was  timestamptz;
+  v_to   timestamptz;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -16791,31 +16822,39 @@ begin
   end if;
   select r.read_through_at into v_was from notification_reads r
    where r.tenant_id = p_tenant_id and r.user_id = v_user for update;
-  if p_through is null then
-    -- Mark all read: everything up to now is read, and looked at.
+  if not found then
+    -- A seat from before this migration that never looked: it stands where it joined.
+    select m.created_at into v_was from memberships m where m.user_id = v_user and m.tenant_id = p_tenant_id;
     insert into notification_reads (tenant_id, user_id, seen_at, read_through_at)
-    values (p_tenant_id, v_user, v_now, v_now)
-    on conflict (tenant_id, user_id) do update set seen_at = v_now, read_through_at = v_now;
-    return jsonb_build_object('tenant_id', p_tenant_id, 'seen_at', v_now, 'read_through_at', v_now,
-                              'was', coalesce(v_was, '1970-01-01 00:00:00+00'::timestamptz));
+    values (p_tenant_id, v_user, v_was, v_was)
+    on conflict (tenant_id, user_id) do nothing;
   end if;
-  -- Undo: back to the moment it stood at. Never forward, and nothing to move for a member who never read through.
-  if v_was is null or p_through >= v_was then
-    return jsonb_build_object('tenant_id', p_tenant_id,
-                              'read_through_at', coalesce(v_was, '1970-01-01 00:00:00+00'::timestamptz),
-                              'unchanged', true);
+  -- Never past now: a browser whose clock runs ahead reads nothing that has not happened yet.
+  v_to := least(coalesce(p_through, v_now), v_now);
+  if p_through is null or coalesce(p_read, false) then
+    -- A read: everything up to the moment is read, and looked at. Never back: a tab that listed less than another
+    -- device has read leaves what that device read as it is.
+    v_to := greatest(v_to, v_was);
+    update notification_reads set read_through_at = v_to, seen_at = v_now
+     where tenant_id = p_tenant_id and user_id = v_user;
+    return jsonb_build_object('tenant_id', p_tenant_id, 'seen_at', v_now, 'read_through_at', v_to, 'was', v_was);
   end if;
-  update notification_reads set read_through_at = p_through
-   where tenant_id = p_tenant_id and user_id = v_user;
-  return jsonb_build_object('tenant_id', p_tenant_id, 'read_through_at', p_through);
+  if v_to < v_was then
+    -- Its Undo: back to the moment it stood at. The look stays.
+    update notification_reads set read_through_at = v_to
+     where tenant_id = p_tenant_id and user_id = v_user;
+    return jsonb_build_object('tenant_id', p_tenant_id, 'read_through_at', v_to);
+  end if;
+  -- An Undo never goes forward.
+  return jsonb_build_object('tenant_id', p_tenant_id, 'read_through_at', v_was, 'unchanged', true);
 end $$;
 
 
 --
--- Name: FUNCTION notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone, p_read boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone) IS 'A member reads their bell through (00614, decision 0124). With no moment: Mark all read, read_through_at and seen_at both now, and the moment it stood at before answered as was. With a moment: its Undo, read_through_at back to it, never forward. The caller''s own row alone; any member of the workspace.';
+COMMENT ON FUNCTION public.notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone, p_read boolean) IS 'A member reads their bell through (00614, 00622, decision 0124). No moment: Mark all read up to now. A moment with p_read: a read up to it, never past now and never back, with seen_at now and the moment they stood at answered as was. A moment without p_read: its Undo, read_through_at back to it and never forward, the look left. The caller''s own row alone; any member of the workspace.';
 
 
 --
@@ -46800,6 +46839,13 @@ CREATE CONSTRAINT TRIGGER memberships_keep_an_owner AFTER DELETE OR UPDATE OF ro
 
 
 --
+-- Name: memberships memberships_start_the_bell; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER memberships_start_the_bell AFTER INSERT ON public.memberships FOR EACH ROW EXECUTE FUNCTION public.memberships_start_the_bell();
+
+
+--
 -- Name: messages messages_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -54512,6 +54558,14 @@ GRANT ALL ON FUNCTION public.memberships_keep_an_owner() TO service_role;
 
 
 --
+-- Name: FUNCTION memberships_start_the_bell(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.memberships_start_the_bell() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.memberships_start_the_bell() TO service_role;
+
+
+--
 -- Name: FUNCTION merge_people(p_keep uuid, p_merge uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -54746,12 +54800,12 @@ GRANT ALL ON FUNCTION public.notifications_close_about(p_tenant_id uuid, p_kinds
 
 
 --
--- Name: FUNCTION notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone, p_read boolean); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone) TO authenticated;
-GRANT ALL ON FUNCTION public.notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone) TO service_role;
+REVOKE ALL ON FUNCTION public.notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone, p_read boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone, p_read boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.notifications_read_through(p_tenant_id uuid, p_through timestamp with time zone, p_read boolean) TO service_role;
 
 
 --

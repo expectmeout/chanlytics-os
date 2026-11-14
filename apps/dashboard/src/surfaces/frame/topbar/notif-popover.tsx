@@ -3,11 +3,14 @@
  * does what it says, two lines and a time, the way the Inbox's rows read. Notes of one kind are said once ("9 calls",
  * contracts bellSections through the bell's own `sections`) and open with a press. On a phone the notes are a sheet from
  * the bottom, as every other sheet there is (components.css, the bell's sheet), and a thumb slides a note away or marks
- * it read. The frame's JSX and bell-rows.test draw it by its old name (`NotifPopover`, frame-globals.ts) until the frame
- * itself is TypeScript (step 7e). Drawn as the JSX drew it, raw buttons and all, until the frame's kit step.
+ * it read. An unread note, and a group with one in it, carries a check that reads it where it stands (decision 0124:
+ * a dot goes only by a press, so a desk needs one that does not open the note). The frame's JSX and bell-rows.test
+ * draw it by its old name (`NotifPopover`, frame-globals.ts) until the frame itself is TypeScript (step 7e). Drawn as
+ * the JSX drew it, raw buttons and all, until the frame's kit step.
  */
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { MouseEvent, RefObject } from "react";
+import { BELL_READ_WORDS } from "@chanlytics/contracts";
 import type { BellRow } from "@/bridge/notifications";
 import { frameBell, frameGlyph, frameRecordSwitch } from "../frame-window";
 
@@ -49,8 +52,8 @@ const tbnSections = (items: BellNote[]): Array<{ label: string; lines: BellLine[
   // The mockup's own bell has no grouping: its notes stand one to a line, new above earlier.
   const one = (n: BellNote): BellLine => ({ key: n.id, row: n, count: 1, title: null, members: [n] });
   return [
-    { label: "New", lines: items.filter((n) => n.unread).map(one) },
-    { label: "Earlier", lines: items.filter((n) => !n.unread).map(one) },
+    { label: BELL_READ_WORDS.unread, lines: items.filter((n) => n.unread).map(one) },
+    { label: BELL_READ_WORDS.earlier, lines: items.filter((n) => !n.unread).map(one) },
   ].filter((s) => s.lines.length > 0);
 };
 
@@ -119,10 +122,33 @@ interface BellDraw {
   slotEls: RefObject<Map<string, HTMLElement>>;
   fold: (id: string) => void;
   read: (id: string) => void;
+  readMany: (ids: readonly string[]) => void;
   onRead: ((id: string) => void) | null;
   onAction: (id: string, to: string | null) => void;
   openGroup: string | null;
   setOpenGroup: (key: string | null) => void;
+}
+
+/**
+ * The check that reads a note, or a group's notes, where it stands. It shows with the × on a desk (hover or the
+ * keyboard's focus); on a phone a note is slid instead, and a group, which cannot be slid, shows its own.
+ */
+function bellCheck(title: string, onPress: () => void) {
+  const Glyph = frameGlyph();
+  return (
+    <button
+      className="tbn-read"
+      title={BELL_READ_WORDS.readOne}
+      aria-label={BELL_READ_WORDS.readOneOf(title)}
+      onClick={(e) => {
+        // The check goes with the dot: the keyboard's focus is handed to the line it stood on, not dropped.
+        e?.currentTarget?.parentElement?.querySelector<HTMLElement>(".tbn-open")?.focus();
+        onPress();
+      }}
+    >
+      <Glyph name="check" size={11} />
+    </button>
+  );
 }
 
 function bellNote(d: BellDraw, n0: BellNote, inGroup: boolean) {
@@ -182,6 +208,7 @@ function bellNote(d: BellDraw, n0: BellNote, inGroup: boolean) {
               {n.message && <span className="tbn-msg">{n.message}</span>}
             </span>
           </button>
+          {n.unread && d.onRead && bellCheck(n.title, () => d.read(n.id))}
           <button className="tbn-x" title="Dismiss" aria-label={`Dismiss “${n.title}”`} onClick={() => d.fold(n.id)}>
             <Glyph name="x" size={10} />
           </button>
@@ -199,7 +226,8 @@ function bellLine(d: BellDraw, l: BellLine) {
   if (l.count < 2) return bellNote(d, l.row, false);
   const Glyph = frameGlyph();
   const open = d.openGroup === l.key;
-  const unread = l.members.some((m) => (d.asIs.get(m.id) || m).unread);
+  const unreadIds = l.members.flatMap((m) => ((d.asIs.get(m.id) || m).unread ? [m.id] : []));
+  const unread = unreadIds.length > 0;
   return (
     <div key={l.key} className={`tbn-group${open ? " open" : ""}`} data-testid="bell-group">
       <div className={`tbn-item tbn-item-group${unread ? " unread" : ""}`} data-tone={l.row.tone}>
@@ -225,6 +253,7 @@ function bellLine(d: BellDraw, l: BellLine) {
             <Glyph name="chevron-down" size={12} />
           </span>
         </button>
+        {unread && d.onRead && bellCheck(l.title ?? l.row.title, () => d.readMany(unreadIds))}
       </div>
       {open && l.members.map((m) => bellNote(d, m, true))}
     </div>
@@ -280,6 +309,8 @@ interface NotifPopoverProps {
   onReadAll: () => void;
   onDismiss: (id: string) => void;
   onRead?: ((id: string) => void) | null;
+  /** A group's notes read by one press; where none is given, each is read by `onRead`. */
+  onReadMany?: ((ids: readonly string[]) => void) | null;
   onClose: () => void;
   alerts?: BellAlerts | null;
   onAlerts?: (on: boolean) => void;
@@ -291,6 +322,7 @@ export function NotifPopover({
   onReadAll,
   onDismiss,
   onRead = null,
+  onReadMany = null,
   onClose,
   alerts = null,
   onAlerts = () => {},
@@ -298,16 +330,21 @@ export function NotifPopover({
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   useTbnEscape(onClose);
   const { slotEls, going, fold } = useFold(onDismiss);
-  // A note marked read under the thumb (slid right) keeps its place while the sheet is open, rather than jumping down to
-  // Earlier: the sections are worked out as if it were still unread, and it is drawn as it is. The sheet is drawn anew
-  // each time it opens, and regroups then.
+  // A note marked read where it stands (slid right, or by its check) keeps its place while the sheet is open, rather
+  // than jumping down to Earlier: the sections are worked out as if it were still unread, and it is drawn as it is.
+  // The sheet is drawn anew each time it opens, and regroups then.
   const readHere = useRef(new Set<string>());
   const read = (id: string) => {
     readHere.current.add(id);
     if (onRead) onRead(id);
   };
+  const readMany = (ids: readonly string[]) => {
+    for (const id of ids) readHere.current.add(id);
+    if (onReadMany) onReadMany(ids);
+    else if (onRead) ids.forEach(onRead);
+  };
   const asIs = new Map(items.map((n) => [n.id, n]));
-  const d: BellDraw = { asIs, going, slotEls, fold, read, onRead, onAction, openGroup, setOpenGroup };
+  const d: BellDraw = { asIs, going, slotEls, fold, read, readMany, onRead, onAction, openGroup, setOpenGroup };
   return (
     <>
       <div className="tbn-backdrop" role="presentation" onClick={onClose} />

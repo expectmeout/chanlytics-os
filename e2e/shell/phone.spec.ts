@@ -1068,7 +1068,8 @@ test.describe("Phone shell on a real workspace", () => {
     const shape = await pop.evaluate((el) =>
       [...el.querySelectorAll(".tbn-item")].map((n) => ({
         h: Math.round(n.getBoundingClientRect().height),
-        presses: n.querySelectorAll("button:not(.tbn-x)").length,
+        // Its × and its check (read where it stands, decision 0124) are marks on the row, not the row's press.
+        presses: n.querySelectorAll("button:not(.tbn-x):not(.tbn-read)").length,
       })),
     );
     for (const n of shape) {

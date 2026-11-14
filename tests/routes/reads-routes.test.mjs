@@ -281,11 +281,16 @@ test("marking notifications: every member may, the workspace must be named, and 
       calls.push(["mark", args]);
       return null;
     },
+    // The door (00622): a moment that is not said to be a read is the Undo; a read answers where the member stood.
     notifications_read_through: (args) => {
       calls.push(["through", args]);
-      return args.p_through
+      return args.p_through && !args.p_read
         ? { read_through_at: args.p_through }
-        : { seen_at: "2026-09-11T12:00:00Z", read_through_at: "2026-09-11T12:00:00Z", was: "2026-09-10T12:00:00Z" };
+        : {
+            seen_at: "2026-09-11T12:00:00Z",
+            read_through_at: args.p_through ?? "2026-09-11T12:00:00Z",
+            was: "2026-09-10T12:00:00Z",
+          };
     },
   };
   const tables = { memberships: both("viewer", "viewer") };
@@ -299,7 +304,22 @@ test("marking notifications: every member may, the workspace must be named, and 
   assert.deepEqual(calls[1], ["mark", { p_id: id, p_read: true }]);
   await refused(notifications.PUT.run(put(`?workspace=${A}`, { id }), ctxFor(tables, { rpcs })), "validation", 400);
   await refused(notifications.PUT.run(put(`?workspace=${A}`, {}), ctxFor(tables, { rpcs })), "validation", 400);
-  // Mark all read: no moment is sent, the database's own now is the moment; the answer carries where it stood.
+  // Mark all read up to the newest note the bell had listed: the moment rides to the door as a read, never as an Undo.
+  const upTo = await notifications.PUT.run(
+    put(`?workspace=${B}`, { read_all: true, read_through: "2026-09-11T11:59:00.001Z" }),
+    ctxFor(tables, { rpcs }),
+  );
+  assert.deepEqual(upTo, {
+    seen_at: "2026-09-11T12:00:00Z",
+    read_through_at: "2026-09-11T11:59:00.001Z",
+    was: "2026-09-10T12:00:00Z",
+  });
+  assert.deepEqual(
+    calls.at(-1),
+    ["through", { p_tenant_id: B, p_through: "2026-09-11T11:59:00.001Z", p_read: true }],
+    "REGRESSION: the press carried no moment, and the door read every note up to its own now",
+  );
+  // With no moment, as a tab that loaded before this sends it: the database's own now, and where it stood.
   const all = await notifications.PUT.run(put(`?workspace=${B}`, { read_all: true }), ctxFor(tables, { rpcs }));
   assert.deepEqual(all, {
     seen_at: "2026-09-11T12:00:00Z",
@@ -318,6 +338,41 @@ test("marking notifications: every member may, the workspace must be named, and 
     notifications.PUT.run(put(`?workspace=${B}`, { read_through: "yesterday" }), ctxFor(tables, { rpcs })),
     "validation",
     400,
+  );
+  // A group's notes read by one press: each through the member's own door, and how many it read.
+  const other = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  const before = calls.length;
+  const group = await notifications.PUT.run(
+    put(`?workspace=${A}`, { ids: [id, other], read: true }),
+    ctxFor(tables, { rpcs }),
+  );
+  assert.deepEqual(group, { read: 2 });
+  assert.deepEqual(calls.slice(before), [
+    ["mark", { p_id: id, p_read: true }],
+    ["mark", { p_id: other, p_read: true }],
+  ]);
+  for (const bad of [{ ids: [id] }, { ids: [], read: true }])
+    await refused(notifications.PUT.run(put(`?workspace=${A}`, bad), ctxFor(tables, { rpcs })), "validation", 400);
+  // A name that is no note's is not there, as it is for one note.
+  await refused(
+    notifications.PUT.run(put(`?workspace=${A}`, { ids: ["not-an-id"], read: true }), ctxFor(tables, { rpcs })),
+    "not_found",
+    404,
+  );
+  // A note that left since the bell listed it is passed over; any other refusal is the door's.
+  const gone = {
+    ...rpcs,
+    notification_mark: (args) => {
+      if (args.p_id === other) throw Object.assign(new Error("Notification not found."), { code: "P0002" });
+      return null;
+    },
+  };
+  assert.deepEqual(
+    await notifications.PUT.run(
+      put(`?workspace=${A}`, { ids: [id, other], read: true }),
+      ctxFor(tables, { rpcs: gone }),
+    ),
+    { read: 1 },
   );
 });
 

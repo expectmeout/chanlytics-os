@@ -42,14 +42,16 @@ export const markBellSeen = (ctx: Ctx, args: Parameters<typeof markNotifications
 const ReadThrough = z.object({ seen_at: z.string(), read_through_at: z.string(), was: z.string() }).partial();
 
 /**
- * Mark all read, or its Undo with the moment to go back to (00614, decision 0124): the member's look and how far they
- * have read as the door left them, and where read-through stood before (`was`, which a Mark all read alone answers).
- * The door's refusal is raised in its own words.
+ * Mark all read, or its Undo with the moment to go back to (00614, 00622, decision 0124): the member's look and how
+ * far they have read as the door left them, and where read-through stood before (`was`, which a read alone answers).
+ * A read (`read`) with a moment goes up to it, the newest note the bell had listed, never past now and never back;
+ * with none it goes up to now. A moment that is no read is the Undo. The door's refusal is raised in its own words.
  */
-export async function markBellReadThrough(ctx: Ctx, tenantId: TenantId, through: string | undefined) {
+export async function markBellReadThrough(ctx: Ctx, tenantId: TenantId, through: string | undefined, read: boolean) {
   const { data, error } = await markNotificationsReadThrough(ctx.supabase, {
     p_tenant_id: tenantId,
     ...(through !== undefined ? { p_through: through } : {}),
+    ...(read && through !== undefined ? { p_read: true } : {}),
   });
   if (error) throw dbRefusal(error);
   const moments = readAnswer("notifications_read_through", ReadThrough, data ?? {});
@@ -59,5 +61,21 @@ export async function markBellReadThrough(ctx: Ctx, tenantId: TenantId, through:
     was: moments.was ?? null,
   };
 }
+
+/** What the database says of a note that is not there for this member: purged, or another workspace's. */
+const NOT_THERE = "P0002";
+
+/**
+ * Several notes read by one press (a group's check in the bell), each through the member's own door, so a note of
+ * another workspace is not there, as it is for one. A note that has left since the bell listed it is passed over; any
+ * other refusal is raised in the door's words. Answers how many the door read.
+ */
+export async function markManyRead(ctx: Ctx, ids: readonly string[]) {
+  const answers = await Promise.all(ids.map((id) => markNotification(ctx.supabase, { p_id: id, p_read: true })));
+  const refused = answers.find((a) => a.error && a.error.code !== NOT_THERE);
+  if (refused?.error) throw dbRefusal(refused.error);
+  return { read: answers.filter((a) => !a.error).length };
+}
+
 export const saveMemberView = (ctx: Ctx, args: Parameters<typeof keepMemberView>[1]) =>
   keepMemberView(ctx.supabase, args);

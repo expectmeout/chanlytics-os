@@ -7,7 +7,13 @@
  * when nothing is wrong.
  */
 import { useEffect, useState, type MouseEvent } from "react";
-import { CHANNELS_DOOR, TODAY_PHONE_WORDS as P, bellSections, type BellLineVM } from "@chanlytics/contracts";
+import {
+  BELL_READ_WORDS,
+  CHANNELS_DOOR,
+  TODAY_PHONE_WORDS as P,
+  bellSections,
+  type BellLineVM,
+} from "@chanlytics/contracts";
 import type { BellApi, BellRow } from "@/bridge/notifications";
 import { Icon } from "../../kit/icon/icon";
 import { useSurface } from "../../use-surface";
@@ -30,7 +36,9 @@ function useWarnings(): { api: BellApi | null; lines: BellLineVM<BellRow>[] } {
     refresh();
     return api.onChange(refresh);
   }, [api]);
-  const fresh = bellSections(rows.filter((r) => r.unread)).find((s) => s.label === "New")?.lines ?? [];
+  // The bell's unread section, by the name contracts gives it: it was sought as "New", which the section is no longer called.
+  const unread = bellSections(rows.filter((r) => r.unread)).find((s) => s.label === BELL_READ_WORDS.unread);
+  const fresh = unread?.lines ?? [];
   return {
     api,
     lines: fresh.filter((l) => l.row.tone === "warn" && STOPS_ANSWERS.has(l.row.kind ?? "")).slice(0, WARNINGS_MAX),

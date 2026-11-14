@@ -22,8 +22,8 @@ nothing calls is neither named below with why nor dropped.
 | reader | 76 | 0 |
 | the server's | 337 | 293 |
 | computed column | 3 | 0 |
-| trigger | 100 | 70 |
-| all | 699 | 546 |
+| trigger | 101 | 71 |
+| all | 700 | 547 |
 
 ## Called by nothing
 
@@ -344,6 +344,7 @@ being read is dropped by a migration.
 | `member_withdraw_drafts` | door | a signed-in person, the server | code `packages/db/src/repositories/conversations/control.ts` | A member withdraws the receptionist's queued drafts on a thread, on their own session (00387): |
 | `member_withdraw_message` | door | a signed-in person, the server | code `packages/db/src/repositories/conversations/control.ts` | A member withdraws one queued message of the workspace, on their own session (00387), through withdraw_queued: |
 | `memberships_keep_an_owner` | trigger | the server | trigger `memberships_keep_an_owner on memberships` | A workspace keeps an owner while anyone is in it (00271): |
+| `memberships_start_the_bell` | trigger | the server | trigger `memberships_start_the_bell on memberships` | A member's bell starts when they join (00622, decision 0124): |
 | `merge_people` | door | a signed-in person, the server | code `apps/dashboard/src/server/people/merge-people.ts`, `packages/contracts/src/people/person-merge.ts` and 1 more | An owner merges two records of one person (decision 0028): |
 | `message_call_back` | door | a signed-in person, the server | code `packages/db/src/repositories/conversations/control.ts` | A member calls back a send in its grace (00387): |
 | `message_carries_link` | reader | a signed-in person, the server | SQL `messages_note_booking_link` | Whether these words carry this link (K7): |
@@ -372,7 +373,7 @@ being read is dropped by a migration.
 | `note_yes_on_channel` | the server's | the server | SQL `ingest_inbound` | Called by ingest_inbound for a START, in the transaction that keeps the message (00592; |
 | `notification_mark` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `notifications_close_about` | the server's | the server | SQL `batch_closes_its_notices`, `escalation_closes_its_notices` and 4 more | Closes a workspace's open bell rows of the given kinds about one subject (and of one title, where given) within the bell's window (contracts BELL_WINDOW_DAYS), each once, and answers how many it close |
-| `notifications_read_through` | door | a signed-in person, the server | code `apps/dashboard/src/server/notices/bell.ts`, `packages/db/src/repositories/notices/devices.ts` | A member reads their bell through (00614, decision 0124). |
+| `notifications_read_through` | door | a signed-in person, the server | code `apps/dashboard/src/server/notices/bell.ts`, `packages/db/src/repositories/notices/devices.ts` | A member reads their bell through (00614, 00622, decision 0124). |
 | `notifications_seen` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `number_drift` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | Where lines and tenant_channels disagree in a way that is actually wrong: |
 | `offers_email_reach` | reader | a signed-in person, the server | code `packages/db/src/repositories/campaigns/email-offers.ts` | How many people an offer by email would reach in this workspace (Setup): |

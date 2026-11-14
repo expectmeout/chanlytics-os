@@ -10010,7 +10010,7 @@ export type Database = {
         Returns: number
       }
       notifications_read_through: {
-        Args: { p_tenant_id: string; p_through?: string }
+        Args: { p_read?: boolean; p_tenant_id: string; p_through?: string }
         Returns: Json
       }
       notifications_seen: { Args: { p_tenant_id: string }; Returns: Json }

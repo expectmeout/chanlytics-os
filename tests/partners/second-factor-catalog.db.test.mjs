@@ -124,7 +124,7 @@ const NOT_A_SEATS_DOOR = {
   "preview_claim(text)":
     "counts the workspaces the caller owns against the ten, as create_workspace_for does, and seats them on a preview by its link: no seat is read for access",
   "notification_mark(uuid,boolean,boolean)": "writes the caller's own read marks; answers no workspace content",
-  "notifications_read_through(uuid,timestamp with time zone)":
+  "notifications_read_through(uuid,timestamp with time zone,boolean)":
     "writes the caller's own read-through moment; answers no workspace content",
   "notifications_seen(uuid)": "writes the caller's own seen mark; answers no workspace content",
   "partner_invite(uuid,text)": "an owner of the workspace only (is_workspace_owner): a partner's seat is not one",

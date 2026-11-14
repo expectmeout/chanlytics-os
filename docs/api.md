@@ -2046,6 +2046,7 @@ Writes; for a member of the workspace the request names, viewer or above; counts
 | `read_all` | boolean | no |  |
 | `read_through` | string (date-time) | no |  |
 | `id` | string | no |  |
+| `ids` | array of string | no | at least 1; at most 60 |
 | `read` | boolean | no |  |
 | `dismissed` | boolean | no |  |
 
