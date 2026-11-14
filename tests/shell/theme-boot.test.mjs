@@ -88,7 +88,15 @@ const fakeDoc = ({ markupMetas = [THEME_COLORS.dark], noHead = false } = {}) => 
 };
 
 /** The script run in a window: the theme and the look it stamped, what the bars ended up, or what it threw. */
-const boot = ({ stored, systemDark, storageThrows = false, noMatchMedia = false, markupMetas, noHead = false }) => {
+const boot = ({
+  stored,
+  systemDark,
+  storageThrows = false,
+  noMatchMedia = false,
+  markupMetas,
+  noHead = false,
+  path = "/",
+}) => {
   const { doc, bars, contents } = fakeDoc({ ...(markupMetas === undefined ? {} : { markupMetas }), noHead });
   const localStorage = {
     getItem: () => {
@@ -102,7 +110,7 @@ const boot = ({ stored, systemDark, storageThrows = false, noMatchMedia = false,
   const fn = new Function("window", "document", "localStorage", themeBootScript());
   let threw = null;
   try {
-    fn({ matchMedia, localStorage }, doc, localStorage);
+    fn({ matchMedia, localStorage, location: { pathname: path } }, doc, localStorage);
   } catch (e) {
     threw = e;
   }
@@ -551,4 +559,22 @@ test("it says the place the address lights and whether its page searches in Ask'
   const bare = outlineBoot({ pathname: "/w/acme/inbox" });
   assert.equal(bare.lit, null);
   assert.equal(bare.search, false);
+});
+
+test("a page a stranger opens from an email follows their device, whatever this device keeps", () => {
+  for (const page of ["/preview/TokenTokenTokenToken01", "/preview/TokenTokenTokenToken01/mine"])
+    for (const kept of [null, "dark", "light", "system"])
+      for (const systemDark of [true, false]) {
+        const stored = kept ? JSON.stringify({ theme: kept }) : null;
+        const { theme, bars } = boot({ stored, systemDark, path: page });
+        assert.equal(theme, resolveTheme("system", systemDark), `${page}, kept ${kept}, device dark ${systemDark}`);
+        assert.equal(bars, THEME_COLORS[theme]);
+      }
+  // A browser that cannot say which it prefers gets the light page.
+  assert.equal(boot({ stored: null, systemDark: true, noMatchMedia: true, path: "/preview/x" }).theme, "light");
+  // Every other page keeps the app's own rule, the device's choice among them.
+  for (const path of ["/today", "/w/fixture/preview/x", "/"]) {
+    assert.equal(boot({ stored: null, systemDark: false, path }).theme, resolveTheme(themePrefOf(null), false), path);
+    assert.equal(boot({ stored: JSON.stringify({ theme: "light" }), systemDark: true, path }).theme, "light", path);
+  }
 });
