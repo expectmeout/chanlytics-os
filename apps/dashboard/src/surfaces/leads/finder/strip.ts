@@ -23,8 +23,16 @@ import {
 } from "@chanlytics/contracts";
 import type { StripAction, StripVM } from "./types";
 
-/** The six next steps that make a new round: a strip offers one of them, never two. */
-export const LEAD_ROUND_MAKERS = ["more", "nearby", "look_further", "carry_on", "try_again", "answer_now"];
+/** The next steps that make a new round: a strip offers one of them, never two. */
+export const LEAD_ROUND_MAKERS = [
+  "more",
+  "nearby",
+  "look_further",
+  "reach_further",
+  "carry_on",
+  "try_again",
+  "answer_now",
+];
 /** The first 25 size the rest of a round (S6): contracts' LEAD_PROBE_PLACES. */
 const LEAD_PROBE_SEEN = 25;
 
@@ -41,6 +49,17 @@ const ldLeftOut = (plan: LeadSearchPlan, key: string) => {
 /** A step that points somewhere else: the plan opens on the nearest area the round wrote (00145). */
 const ldLookStep = (id: string) => id === "nearby" || id === "look_further";
 
+/** The first area a round found past the search's reach (decision 0133), which Look up to 50 miles carries on from. */
+const ldBeyond = (r: Round) => (r.nearby || []).find((a) => typeof a.beyond_m === "number") ?? null;
+
+/** What a step's press opens: the left-out view, the plan on the nearest area, the plan with the reach past it, or the plan. */
+const ldStepArg = (id: string, s: PlacesSearch, look: boolean): unknown => {
+  const beyond = id === "reach_further" ? ldBeyond(s.round) : null;
+  if (id === "excluded") return "excluded";
+  if (look) return { ...s.plan, area: s.round.nearby[0] };
+  return beyond ? { ...s.plan, reach_m: beyond.beyond_m } : s.plan;
+};
+
 type Round = NonNullable<LeadSearchDto["round"]>;
 /** A places search with its round: what every reader below the people branch is handed. */
 type PlacesSearch = LeadSearchDto & { round: Round; plan: LeadSearchPlan };
@@ -52,6 +71,12 @@ type PlacesSearch = LeadSearchDto & { round: Round; plan: LeadSearchPlan };
  */
 const ldGoal = (r: Round, plan: LeadSearchPlan): number =>
   r.purpose === "probe" ? Math.max(r.target, plan.count) : r.purpose === "widen" ? plan.count : r.target;
+
+/** How far past the reach the round found an area, in miles, where it found one (decision 0133). */
+const ldFurther = (s: PlacesSearch): { further?: number } => {
+  const beyond = ldBeyond(s.round);
+  return beyond ? { further: planReachMiles({ area: s.plan.area, reach_m: beyond.beyond_m }) } : {};
+};
 
 /** What leadEndingLine needs, read off the search's latest round and its plan. */
 const ldEndingFacts = (s: PlacesSearch, nearby: readonly string[], renewsOn: string | null) => {
@@ -69,6 +94,7 @@ const ldEndingFacts = (s: PlacesSearch, nearby: readonly string[], renewsOn: str
     excluded: 0,
     reachMiles: planReachMiles(s.plan),
     ...(renewsOn ? { renewsOn } : {}),
+    ...ldFurther(s),
     checking: r.state === "checking",
     foundBefore: r.counted,
     // Where to look next: what the caller knows, else what the round itself wrote when it ran dry (00145).
@@ -109,7 +135,6 @@ function questionStrip(
 /** A round that ended: the sentence's own next step, then Sort by fit where the table is worth re-ordering. */
 function endedStrip(s: PlacesSearch, nearby: readonly string[], renewsOn: string | null): StripVM {
   const r = s.round;
-  const plan = s.plan;
   const counted = r.counted;
   const line = leadEndingLine(r.ending || "paused", ldEndingFacts(s, nearby, renewsOn));
   const look = !!line.step && ldLookStep(line.step.id) && !!r.nearby && r.nearby.length > 0;
@@ -119,7 +144,7 @@ function endedStrip(s: PlacesSearch, nearby: readonly string[], renewsOn: string
           id: line.step.id,
           label: line.step.label,
           primary: line.step.id !== "excluded" && line.step.id !== "sort_fit",
-          arg: line.step.id === "excluded" ? "excluded" : look ? { ...plan, area: r.nearby[0] } : plan,
+          arg: ldStepArg(line.step.id, s, look),
           where: look ? `Look ${leadNearWhere(r.nearby.map((a) => a.label))}` : null,
         },
       ]

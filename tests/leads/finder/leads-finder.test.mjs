@@ -1310,3 +1310,27 @@ test("Ask's search card says how far a search looks only where it widens", () =>
     [{ label: "How far", value: "Looks in Austin, TX first, then nearby, up to 25 miles away" }],
   );
 });
+
+test("a search that read everything within its reach offers to look further only where its round found an area past it", () => {
+  const past = { ...NEARBY, beyond_m: 50 * 1_609 };
+  const vm = leadStrip(ended("reach_searched", { purpose: "widen", target: 139, nearby: [past] }), NOW);
+  assert.deepEqual(
+    vm.actions.map((a) => [a.id, a.label]),
+    [
+      ["reach_further", "Look up to 50 miles"],
+      ["sort_fit", "Sort by fit"],
+    ],
+  );
+  assert.equal(
+    vm.actions[0].arg.reach_m,
+    50 * 1_609,
+    "the plan card opens with the wider reach, for the owner to approve",
+  );
+  assert.equal(vm.actions[0].arg.area.label, "Austin, TX", "measured from the card's own area");
+  assert.ok(LEAD_ROUND_MAKERS.includes("reach_further"), "a press that makes a round opens the plan first");
+  assert.deepEqual(
+    leadStrip(ended("reach_searched", { purpose: "widen", target: 139, nearby: [] }), NOW).actions.map((a) => a.id),
+    ["sort_fit"],
+    "nothing found past the reach: no press that would find nothing",
+  );
+});

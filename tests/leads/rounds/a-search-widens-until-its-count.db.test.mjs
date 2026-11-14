@@ -289,3 +289,43 @@ test("a round that failed, or that met its count, never opens a leg", { skip }, 
     "its count met, nothing more is wanted",
   );
 });
+
+test(
+  "an area past the reach is never opened by a round's end; the owner's Find more with that reach carries on from it as a leg",
+  { skip },
+  async () => {
+    await widening(true);
+    const s = await search(10);
+    const past = { ...ROUND_ROCK, beyond_m: 80_450 };
+    await named(s.round_id, [past]);
+    await ended(s.round_id, "few_new_matches");
+    assert.equal((await round(s.round_id)).ending, "reach_searched", "an area past the reach is the owner's to ask");
+    assert.equal((await roundsOf(s.search_id)).length, 1, "no leg opened by itself");
+    const narrow = await owner.rpc("lead_search_more", {
+      p_search_id: s.search_id,
+      p_purpose: "topup",
+      p_plan: { ...plan(10), version: 2, reach_m: 40_000 },
+      p_estimate_usd: 1,
+    });
+    ok(narrow, "a top-up with a reach short of the area");
+    const [, plain] = await roundsOf(s.search_id);
+    assert.equal(plain.purpose, "topup", "a reach that does not take it in is an ordinary top-up");
+    await named(plain.id, [past]);
+    await ended(plain.id, "few_new_matches");
+    assert.equal((await round(plain.id)).ending, "reach_searched");
+    ok(
+      await owner.rpc("lead_search_more", {
+        p_search_id: s.search_id,
+        p_purpose: "topup",
+        p_plan: { ...plan(10), version: 3, reach_m: 80_450 },
+        p_estimate_usd: 1,
+      }),
+      "Look up to 50 miles",
+    );
+    const [, , leg] = await roundsOf(s.search_id);
+    assert.equal(leg.purpose, "widen", "it carries on as a leg");
+    assert.equal(leg.plan.area.zip, "78664", "from the area past the reach");
+    assert.equal("beyond_m" in leg.plan.area, false, "its plan's area is an area, unmarked");
+    assert.equal(leg.plan.reach_m, 80_450);
+  },
+);

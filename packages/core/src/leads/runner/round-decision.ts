@@ -14,6 +14,7 @@ import { nearbyFor } from "./places";
 import { LEAD_RUN_RETRY_SECONDS, retryOf } from "./retries";
 import { type Phase, outOfTime, targetOf, wasJudged } from "./rules";
 import { logAndGoOn } from "@chanlytics/log";
+import { reachOf } from "@chanlytics/contracts";
 
 /** The round's first batch of mailbox checks, written with the page that sends the round to them. */
 const FIRST_CHECK = { kind: "lead_check", batch: 0, run_after_seconds: 0 } as const;
@@ -107,10 +108,21 @@ async function nearbyOfSearch(leadPorts: LeadPorts, round: LeadRoundRow, members
   const rounds = await leadPorts.db.roundsOfSearch(round.search_id);
   const card = rounds.filter((r) => r.purpose !== "widen").at(-1) ?? round;
   const legs = rounds.filter((r) => r.purpose === "widen").map((r) => r.plan.area);
-  if (round.purpose !== "widen") return nearbyFor(card.plan, members, legs);
+  // A leg's plan is the search's own with its area swapped, so it carries the reach the owner asked last ("Look up to
+  // 50 miles"); the card's round may carry the reach before it.
+  const plan = { ...card.plan, ...(round.plan.reach_m === undefined ? {} : { reach_m: round.plan.reach_m }) };
   const cardRounds = new Set(rounds.filter((r) => r.purpose !== "widen").map((r) => r.id));
-  const found = (await leadPorts.db.membersOfSearch(round.search_id)).filter((m) => cardRounds.has(m.round_id ?? ""));
-  return nearbyFor(card.plan, found, legs);
+  const found =
+    round.purpose === "widen"
+      ? (await leadPorts.db.membersOfSearch(round.search_id)).filter((m) => cardRounds.has(m.round_id ?? ""))
+      : members;
+  const within = nearbyFor(plan, found, legs);
+  // Nothing left within the reach on its card: the areas past it, up to the farthest an owner may ask (reachOf holds
+  // every reach to it), each marked with that reach, so the round's end never opens one by itself and the owner's Look up
+  // to 50 miles can.
+  const farthest = reachOf(plan.area, Number.POSITIVE_INFINITY);
+  if (within.length || reachOf(plan.area, plan.reach_m) >= farthest) return within;
+  return nearbyFor({ ...plan, reach_m: farthest }, found, legs).map((a) => ({ ...a, beyond_m: farthest }));
 }
 
 /** The searching is over: the ending, pending the checks (a stopped round says so through stopRun). */

@@ -113,6 +113,8 @@ export interface LeadEndingFacts {
   reachMiles?: number;
   /** month_leads_used: the day the month's leads renew, in the workspace's zone ("Dec 1"); absent says nothing of it. */
   renewsOn?: string;
+  /** reach_searched: how far, in miles, the round found areas past the reach (decision 0133); absent, none was found. */
+  further?: number;
 }
 
 export interface LeadEndingLine {
@@ -299,7 +301,10 @@ export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEnd
         mark,
         title: `Found ${leadEndingFacts.counted} of ${leadEndingFacts.target} ${leadEndingFacts.name}`,
         parts: reachParts(leadEndingFacts),
-        step: null,
+        // Only where the round found an area past the reach: never a press that would find nothing.
+        step: leadEndingFacts.further
+          ? { id: "reach_further", label: `Look up to ${leadEndingFacts.further} miles` }
+          : null,
       };
     // Decision 0133: its next leg would have passed the day's searching, which renews tomorrow.
     case "day_used":

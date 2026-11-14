@@ -143,3 +143,25 @@ test("a leg that runs dry names the next area past every area read, its own too,
     assert.ok(haversineM(area.center, AUSTIN) <= 20_000, `${area.zip} stays within the card's reach`);
   }
 });
+
+test("a leg with nothing left within its reach names the areas past it, each marked, so its end opens none by itself (decision 0133)", async () => {
+  const fitting = Array.from({ length: 3 }, (_, i) => {
+    const item = mapsItem(40 + i);
+    LABELS.set(item.title, "fit");
+    return item;
+  });
+  const { w, p } = searching({ "hair salon": fitting });
+  const card = cardRoundRead(w, 50, 10);
+  const leg = legOpened(w, card, 90);
+  leg.plan = { ...leg.plan, reach_m: 0 };
+  await startRound(p(), leg.id, OWNER);
+  w.finishRuns();
+  for (const r of w.runs().filter((x) => x.round_id === leg.id && !x.finished_at))
+    await collect(p(`c-${r.id}`), r.id, "p0", `c-${r.id}`);
+  const after = w.T.lead_rounds.find((r) => r.id === leg.id);
+  assert.ok(after.nearby.length > 0, "the areas past its reach are named");
+  for (const area of after.nearby) {
+    assert.equal(area.beyond_m, 50 * 1_609, `${area.zip} is marked with the reach it was found at`);
+    assert.ok(haversineM(area.center, AUSTIN) <= 50 * 1_609, `${area.zip} stays within the farthest an owner may ask`);
+  }
+});

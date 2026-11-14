@@ -55,6 +55,11 @@ export interface LeadArea {
   zip?: string;
   /** The card's own location query, built from the validated plan. */
   query: string;
+  /**
+   * A round's nearby area found past the search's own reach (decision 0133): the reach, in metres, it was found at. Offered
+   * to the owner as "Look up to 50 miles"; the round's end never opens one by itself. Absent on every other area.
+   */
+  beyond_m?: number;
 }
 export interface LeadSearchPlan {
   version: number;
