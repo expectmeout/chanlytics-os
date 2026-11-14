@@ -63,7 +63,7 @@ what the script writes.
 | [`invitations`](#invitations) | `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts` | on, 1 policy |
 | [`job_kinds`](#job_kinds) | `packages/db/src/repositories/jobs/jobs.ts` | on, no policy, so only the service role reaches it |
 | [`jobs`](#jobs) | `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/jobs/jobs.ts`, `packages/db/src/repositories/jobs/ledger.ts`, `packages/db/src/repositories/leads/sweep.ts` | on, no policy, so only the service role reaches it |
-| [`lead_counters`](#lead_counters) | none | on, no policy, so only the service role reaches it |
+| [`lead_counters`](#lead_counters) | `packages/db/src/repositories/leads/finder.ts` | on, no policy, so only the service role reaches it |
 | [`lead_judgments`](#lead_judgments) | none | on, no policy, so only the service role reaches it |
 | [`lead_niche_priors`](#lead_niche_priors) | none | on, no policy, so only the service role reaches it |
 | [`lead_operations`](#lead_operations) | none | on, 1 policy |
@@ -1617,7 +1617,7 @@ Foreign keys:
 
 The month's allowance (Qualified leads) and searching budget (usd) per workspace, and the day's spend per workspace and for the platform (tenant_id null). Locked for update in one fixed order, allowance, budget, day, platform, inside one door, never across a provider or model call (E2).
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/leads/finder.ts`
 - Primary key: `id`
 - Row-level security: on, no policy, so only the service role reaches it
 
