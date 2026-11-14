@@ -19,8 +19,19 @@
  * with it). Both are bound to the fold's id as the hook mounts and let go of as it goes, so the registry asks it however
  * the fold was opened, by `request` here or by its id from anywhere else on the page; a page drawn again as a new
  * instance (a key change, a new parent) hands the registry its own, and a pending ask stands.
+ *
+ * `keep` keeps the fold's change in the tab (kept.ts), as a composer keeps its words: `value` is the change as the page
+ * holds it, null for nothing typed, and `restore(value)` puts a kept one back into the page's draft. While the fold is
+ * open, `value` is kept as it changes, for as long as `dirty` says it is a change, and forgotten once it is not. A fold
+ * whose page comes back with a change kept for it opens again on it, unless another fold is open, so the person finds
+ * what they typed where they left it, with Save and Cancel beside it, however the page was left; the registry forgets it
+ * as the person closes the fold or throws the change away. A fold opened by anything else with a change kept for it
+ * opens on that change too. `value` is kept as JSON: a page keeps there what it needs to judge and save the change (the
+ * Business tab's folds keep what they opened with beside the draft, so a colleague's save read back meanwhile is still
+ * refused as moved).
  */
 import { useEffect, useRef, useState } from "react";
+import { dropChange, keepChange, keptChange } from "./kept";
 import { recFolds } from "./registry";
 import type { FoldId } from "./registry";
 
@@ -30,18 +41,61 @@ interface Seen {
   open: boolean;
   asking: { holding: FoldId; wants: FoldId } | null;
 }
-/** The hook's one pair of tests, for its life, reading the page's latest `dirty` and `saving`. */
-interface Mine {
+/** What a fold keeps in the tab while it holds a change: the change as the page holds it, and how to put it back. */
+interface Keep<D> {
+  value: D | null;
+  restore: (value: D) => void;
+}
+/** The hook's one pair of tests, for its life, reading the page's latest `dirty`, `saving` and `keep`. */
+interface Mine<D> {
   dirty: Flag;
   saving: Flag;
+  keep: Keep<D> | null;
   holds: () => boolean;
   saves: () => boolean;
+}
+/** One opening of a kept fold: whether it has looked for a change kept for it yet, and the change it kept last (JSON). */
+interface Opening {
+  looked: boolean;
+  wrote: string | null;
 }
 
 const recSameAsk = (a: Seen["asking"], b: Seen["asking"]) =>
   (a ? a.holding : null) === (b ? b.holding : null) && (a ? a.wants : null) === (b ? b.wants : null);
 
-export function useRecordFold(id: FoldId, { dirty = false, saving = false }: { dirty?: Flag; saving?: Flag } = {}) {
+/**
+ * A kept fold's change, after each draw: only while it is open (closed, the registry forgets it as the person closes it,
+ * and a fold whose page goes keeps it). As it opens, it opens on a change kept for it, if there is one; from then on,
+ * what the page holds is kept as it changes, never on a timer, while it is a change, and forgotten once it is not.
+ */
+function keepWhatIsTyped<D>(id: FoldId, open: boolean, box: Mine<D>, opening: Opening): void {
+  const keep = box.keep;
+  if (!keep) return;
+  if (!open) {
+    opening.looked = false;
+    opening.wrote = null;
+    return;
+  }
+  if (!opening.looked) {
+    opening.looked = true;
+    const was = keptChange<D>(id);
+    if (was != null) {
+      opening.wrote = JSON.stringify(was);
+      keep.restore(was);
+      return;
+    }
+  }
+  const now = box.holds() ? JSON.stringify(keep.value ?? null) : null;
+  if (now === opening.wrote) return;
+  opening.wrote = now;
+  if (now == null) dropChange(id);
+  else keepChange(id, keep.value);
+}
+
+export function useRecordFold<D = unknown>(
+  id: FoldId,
+  { dirty = false, saving = false, keep = null }: { dirty?: Flag; saving?: Flag; keep?: Keep<D> | null } = {},
+) {
   const read = (): Seen => {
     const ask = recFolds.asking();
     return { open: recFolds.open() === id, asking: ask && ask.holding === id ? ask : null };
@@ -51,11 +105,12 @@ export function useRecordFold(id: FoldId, { dirty = false, saving = false }: { d
   // are the same function, because the registry lets go of a test by its identity (bind's unbind). A new one each
   // render was a test the registry never let go of: a request made after a redraw held one the unbind did not know,
   // and a page gone from the screen still answered the Settings rail with its last "holds changes".
-  const mine = useRef<Mine | null>(null);
+  const mine = useRef<Mine<D> | null>(null);
   if (!mine.current) {
-    const box: Mine = {
+    const box: Mine<D> = {
       dirty,
       saving,
+      keep,
       holds: () => {
         const d = box.dirty;
         return typeof d === "function" ? !!d() : !!d;
@@ -69,6 +124,8 @@ export function useRecordFold(id: FoldId, { dirty = false, saving = false }: { d
   }
   mine.current.dirty = dirty;
   mine.current.saving = saving;
+  mine.current.keep = keep;
+  const ours = mine.current;
   const holds = mine.current.holds;
   const saves = mine.current.saves;
   useEffect(() => {
@@ -80,6 +137,8 @@ export function useRecordFold(id: FoldId, { dirty = false, saving = false }: { d
       });
     hear();
     const unhear = recFolds.subscribe(hear);
+    // Its page come back with a change kept for it: the fold opens again on it, unless another is open.
+    if (mine.current?.keep && recFolds.open() == null && keptChange(id) != null) recFolds.request(id, { dirty: holds });
     return () => {
       unhear();
       unbind();
@@ -87,6 +146,9 @@ export function useRecordFold(id: FoldId, { dirty = false, saving = false }: { d
     // bound to the fold's id: the tests are the hook's own for its life (`mine`), and `read` reads the registry
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+  const opening = useRef<Opening>({ looked: false, wrote: null });
+  // After every draw: what is typed is read where the page holds it, and kept only when it moved (keepWhatIsTyped).
+  useEffect(() => keepWhatIsTyped(id, seen.open, ours, opening.current));
   return {
     open: seen.open,
     asking: seen.asking,

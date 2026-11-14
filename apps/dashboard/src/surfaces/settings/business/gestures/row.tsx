@@ -148,7 +148,15 @@ function useBtRowEditor<D>(r: BtRowR<D>) {
   // config current then. The registry asks whether it is out as it asks whether the row holds changes: when it needs to.
   const out = () => (door ? !!door.pending() : !!(saver && saver.pending(id)));
   const busy = out();
-  const fold = useRecordFold(id, { dirty: holds, saving: out });
+  // What is typed is kept in the tab, and comes back with the page however the page was left (kit/record/kept.ts).
+  const keep = {
+    value: draft,
+    restore: (kept: D) => {
+      live.current.draft = kept;
+      setDraft(kept);
+    },
+  };
+  const fold = useRecordFold(id, { dirty: holds, saving: out, keep });
   // A role that may not change the business never has an editor, whatever asked for one.
   const open = fold.open && canEdit;
   live.current.initial = initial;
