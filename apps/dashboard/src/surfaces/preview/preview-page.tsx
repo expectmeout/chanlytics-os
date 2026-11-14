@@ -43,9 +43,9 @@ function PvHead({ vm }: { vm: PreviewPageVM }) {
   const mark = vm.logo_url ? <img className="pv-logo" src={vm.logo_url} alt="" /> : null;
   return (
     <header className="pv-head">
-      {vm.photo_url ? (
+      {vm.photo ? (
         <div className="pv-hero">
-          <img className="pv-photo" src={vm.photo_url} alt="" referrerPolicy="no-referrer" />
+          <img className="pv-photo" src={vm.photo} alt="" referrerPolicy="no-referrer" />
           {mark}
         </div>
       ) : (

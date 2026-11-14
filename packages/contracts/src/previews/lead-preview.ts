@@ -69,7 +69,7 @@ export interface PreviewPageVM {
   business: string;
   logo_url: string | null;
   /** Their Google photo, only from Google's own host. */
-  photo_url: string | null;
+  photo: string | null;
   turns: PreviewTurnVM[];
   /** Messages it will still answer. */
   left: number;
@@ -228,7 +228,7 @@ export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): Pr
     state,
     business: previewPageFacts.business,
     logo_url: previewPageFacts.logo_url,
-    photo_url: state === "ended" || state === "taken" ? null : photoOf(previewPageFacts.photo_url),
+    photo: state === "ended" || state === "taken" ? null : photoOf(previewPageFacts.photo_url),
     turns,
     left: Math.max(0, PREVIEW_LIMITS.messages - previewPageFacts.asked_count),
     call_left_ms: Math.max(0, PREVIEW_LIMITS.callMs - previewPageFacts.call_seconds * SECOND_MS),

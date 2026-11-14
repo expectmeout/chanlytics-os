@@ -174,11 +174,11 @@ test("the page's words say the business by its name", () => {
 
 test("the page carries their Google photo, and nothing where the lead has none", () => {
   const photo = "https://lh3.googleusercontent.com/p/made-up";
-  assert.equal(previewPageOf({ ...FACTS, photo_url: photo }, NOW).photo_url, photo);
-  assert.equal(previewPageOf(FACTS, NOW).photo_url, null);
+  assert.equal(previewPageOf({ ...FACTS, photo_url: photo }, NOW).photo, photo);
+  assert.equal(previewPageOf(FACTS, NOW).photo, null);
   // Only Google's own photos, over https: anything else is no photo (the page's CSP allows that host alone).
-  assert.equal(previewPageOf({ ...FACTS, photo_url: "http://evil.example/x.jpg" }, NOW).photo_url, null);
-  assert.equal(previewPageOf({ ...FACTS, photo_url: "http://lh3.googleusercontent.com/p/x" }, NOW).photo_url, null);
+  assert.equal(previewPageOf({ ...FACTS, photo_url: "http://evil.example/x.jpg" }, NOW).photo, null);
+  assert.equal(previewPageOf({ ...FACTS, photo_url: "http://lh3.googleusercontent.com/p/x" }, NOW).photo, null);
   // A page with nothing to try shows no photo.
-  assert.equal(previewPageOf({ ...FACTS, photo_url: photo, state: "claimed" }, NOW).photo_url, null);
+  assert.equal(previewPageOf({ ...FACTS, photo_url: photo, state: "claimed" }, NOW).photo, null);
 });
