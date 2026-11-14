@@ -20,6 +20,7 @@
 /* ------------------------------------------------------------ the plan -- */
 
 import { CONTROL_CHARS } from "../../shared/words";
+import { LEAD_REACH_DEFAULT_MILES, LEAD_REACH_MAX_M, LEAD_REACH_MILE_M } from "./caps";
 
 export type LeadContactStandard = "phone" | "email";
 /** likely: Claude's read is enough. seen: a fact the card can show, cited by key (§0.1, 26). */
@@ -138,6 +139,16 @@ export const US_STATES: Record<string, string> = {
   wyoming: "WY",
 };
 export const US_CODES = new Set(Object.values(US_STATES));
+
+/**
+ * How far a search looks, in metres from its centre (decision 0133): the owner's own reach where the plan holds one (0 is
+ * only the area on the card), else its area's default.
+ */
+export function reachOf(area: Pick<LeadArea, "kind" | "radius_m">, reachM: number | null | undefined): number {
+  if (typeof reachM === "number") return Math.max(0, Math.min(LEAD_REACH_MAX_M, reachM));
+  if (area.kind === "radius") return 2 * area.radius_m;
+  return LEAD_REACH_DEFAULT_MILES[area.kind] * LEAD_REACH_MILE_M;
+}
 
 /** Whether a search reads each place's own website before its judge asks: a criterion only a website can show. */
 export const planReadsSites = (plan: Pick<LeadSearchPlan, "criteria">): boolean =>

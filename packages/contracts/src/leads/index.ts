@@ -353,7 +353,6 @@ export {
   LEAD_TRIAL_ALLOWANCE,
   leadAllowanceFor,
   leadMonth,
-  reachOf,
   US_ZIP,
 } from "./search/caps";
 // A search's card in Ask: its rows, its press, the card a newer one replaces, and the waiting card as a turn is told it.
@@ -448,7 +447,7 @@ export {
   usStatesTyped,
 } from "./search/people-plan/plan";
 export type { LeadPeoplePlan, PeopleMonth, PeoplePlanInput } from "./search/people-plan/plan";
-export { planNeedsASite, planReadsSites, planVersionOf } from "./search/plan";
+export { planNeedsASite, planReadsSites, planVersionOf, reachOf } from "./search/plan";
 export type {
   LeadArea,
   LeadContactStandard,
