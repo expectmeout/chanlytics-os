@@ -17,6 +17,7 @@ import {
   SEARCH_CARD_REPLACED,
   searchCardView,
   leadBand,
+  leadSearchEmptyWords,
   LEAD_QUESTION_WAIT_LINE,
   LEAD_ROUND_ENDINGS,
   LeadSearchPlanSchema,
@@ -77,6 +78,8 @@ const { LeadStrip } = await import("../../../apps/dashboard/src/surfaces/leads/f
 const { leadStrip, LEAD_ROUND_MAKERS } = await import("../../../apps/dashboard/src/surfaces/leads/finder/strip.ts");
 const { leadAnswerPlan, leadFinderApprove } =
   await import("../../../apps/dashboard/src/surfaces/leads/finder/amend.ts");
+// The page's band props, where the list's empty state is decided (surfaces/leads/page/props.tsx).
+const { leadsBandProps } = await import("../../../apps/dashboard/src/surfaces/leads/page/props.tsx");
 // The real glyphs, the kit's (surfaces/kit/icon): the page imports it, so a page's icon draws as it does there.
 const { Icon } = await import("../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx");
 
@@ -1299,6 +1302,73 @@ test("a search's ending names no pile of ours, and its band is its finished lead
     leadBand({ ...done, via: "import" }).classes.map((c) => c.id),
     ["qualified", "review", "excluded"],
   );
+});
+
+// An email search whose places all came back catch-all or unknown ends with none counted and the rest set aside: its
+// empty table counted that pile and opened it ("4 leads need a look" · Show them), the one way in #2324 left.
+test("a search's empty view counts no pile of ours and opens none; a list of the owner's own still does (D4)", () => {
+  const list = (over) => ({ ...withRound(over), via: "import" });
+  const none = ended("few_new_matches", { counted: 0, review: 4 });
+  assert.deepEqual(leadSearchEmptyWords(none), {
+    title: "No leads from this search.",
+    body: "Only matches with a checked email show here.",
+    review: false,
+  });
+  assert.deepEqual(leadSearchEmptyWords({ ...none, round: { ...none.round, review: 0 } }), leadSearchEmptyWords(none));
+  assert.equal(
+    leadSearchEmptyWords({ ...none, plan: { ...PLAN, contact: "phone" } }).body,
+    "Only matches with a valid phone number or a checked email show here.",
+  );
+  assert.deepEqual(leadSearchEmptyWords(withRound({ counted: 0, review: 67 })), {
+    title: "Still looking.",
+    body: "Leads come in here as AI checks them.",
+    review: false,
+  });
+  assert.deepEqual(
+    leadSearchEmptyWords(withRound({ counted: 0, review: 0 })),
+    leadSearchEmptyWords(withRound({ counted: 0, review: 67 })),
+    "while it runs, too: the same words whatever it set aside",
+  );
+  assert.equal(leadSearchEmptyWords(ended("stopped")), null, "one that counted some: the page's own words");
+  assert.deepEqual(leadSearchEmptyWords(list({ counted: 0, review: 67 })), {
+    title: "67 leads need a look.",
+    body: "AI is still checking them, and could not decide on these yet.",
+    review: true,
+  });
+  const listEnded = list({ state: "ended", ending: "target_reached", counted: 0, review: 1 });
+  assert.equal(leadSearchEmptyWords(listEnded).title, "1 lead needs a look.");
+  assert.equal(leadSearchEmptyWords(listEnded).body, "AI could not decide on these by itself.");
+  assert.equal(leadSearchEmptyWords(list({ state: "ended", counted: 0, review: 0 })), null);
+  assert.equal(leadSearchEmptyWords(null), null);
+  assert.equal(leadSearchEmptyWords({ ...SEARCH, round: null }), null);
+});
+
+test("the page's empty table under a search offers no Show them; under a list of the owner's own it opens Needs review", () => {
+  const went = [];
+  const page = (openSearch) => ({
+    leadView: { cls: null, searchId: openSearch.id },
+    openSearch,
+    leadShown: [],
+    leads: { rows: [], viewCounts: null, month: null },
+    asked: false,
+    waitsOn: () => false,
+    canFind: true,
+    openFind: () => went.push("find"),
+    lists: { emptyOf: () => null },
+    goto: (v) => went.push(v),
+    reach: [],
+    statusGroups: [],
+  });
+  const search = leadsBandProps(page(ended("few_new_matches", { counted: 0, review: 4 }))).empty;
+  assert.deepEqual(search, {
+    title: "No leads from this search.",
+    body: "Only matches with a checked email show here.",
+    action: null,
+  });
+  const list = leadsBandProps(page({ ...ended("target_reached", { counted: 0, review: 4 }), via: "import" })).empty;
+  assert.equal(list.title, "4 leads need a look.");
+  list.action.onClick();
+  assert.deepEqual(went, [{ cls: "review" }], "Show them opens the list's Needs review");
 });
 
 test("a search stopped by the month's leads says the day they renew, and offers the rest then; put off, it says when", () => {

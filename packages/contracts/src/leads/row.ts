@@ -485,15 +485,19 @@ export function leadRail(
 }
 
 /**
- * What a search's own view says while it shows nobody: the leads Claude could not decide on, with the way to them, or that
- * it is still looking. Never "describe the businesses you want" over a search that has leads (the walk of 30 Oct 2026: 67
- * waited under Needs review beneath that line). Null where neither holds, for the page's own words.
+ * What a search's own view says while it shows nobody. A list of the owner's own (D4) says the leads AI could not decide
+ * on, with the way to them: its own data to sort. A search the finder ran shows its finished leads alone (decision 0133),
+ * so it reads nothing of what it set aside: still looking, or, ended with none counted, what it counts, as its card
+ * said. An email search whose places all came back catch-all ended with 0 counted, and its empty view counted the pile
+ * and opened it (15 Nov 2026). Null where none of these holds, for the page's own words.
  */
 export function leadSearchEmptyWords(
-  round: { state: string; review: number } | null | undefined,
+  search: Pick<LeadSearchDto, "via" | "round" | "plan"> | null | undefined,
 ): { title: string; body: string; review: boolean } | null {
+  const round = search?.round;
   if (!round) return null;
-  if (round.review > 0)
+  const list = isLeadList(search);
+  if (list && round.review > 0)
     return {
       title: `${plural(round.review, "lead needs", "leads need")} a look.`,
       body: roundIsLive(round.state)
@@ -503,7 +507,10 @@ export function leadSearchEmptyWords(
     };
   if (roundIsLive(round.state))
     return { title: "Still looking.", body: "Leads come in here as AI checks them.", review: false };
-  return null;
+  if (list || round.state !== "ended" || round.counted > 0) return null;
+  // What counts, as the card's facts said it (leadPlanFacts): a people search counts a checked address alone.
+  const reach = search.plan?.contact === "phone" ? "a valid phone number or a checked email" : "a checked email";
+  return { title: "No leads from this search.", body: `Only matches with ${reach} show here.`, review: false };
 }
 
 /**
