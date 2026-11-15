@@ -379,20 +379,20 @@ test("REGRESSION (one gate): Billing's doors to Stripe stay on the page for a ro
   assert.ok(!textOf(tree).includes("Only an owner can"));
 });
 
-test("REGRESSION (S20): Billing says what a state means for the receptionist, and an invoice's status in words -- it showed Stripe's 'trialing' and 'paid'", async () => {
+test("REGRESSION (S20): Billing says what a state means for AI, and an invoice's status in words -- it showed Stripe's 'trialing' and 'paid'", async () => {
   asRole("owner");
   stripe();
   const headline = () => textOf(byTestId(render(Billing, { flash() {} }), "billing-headline"));
   billing({ status: "trialing", trial_end: "2026-09-25T15:00:00Z", card_brand: "visa", card_last4: "4242" });
   let said = headline();
   assert.ok(!said.includes("trialing"), `REGRESSION: ${said}`);
-  assert.ok(said.includes("Receptionist answering"), said);
+  assert.ok(said.includes("AI answering"), said);
   billing({ status: "past_due", card_brand: "visa", card_last4: "4242" });
   said = headline();
   assert.ok(!said.includes("past due"), `REGRESSION: ${said}`);
-  assert.ok(said.includes("Receptionist answering"), "a failed payment still answers while Stripe retries");
+  assert.ok(said.includes("AI answering"), "a failed payment still answers while Stripe retries");
   billing({ status: "paused" });
-  assert.ok(headline().includes("Receptionist paused"));
+  assert.ok(headline().includes("AI paused"));
 
   billing({ status: "active", current_period_end: "2026-10-15T15:00:00Z", card_brand: "visa", card_last4: "4242" });
   let tree = render(Billing, { flash() {} });
@@ -1546,7 +1546,7 @@ test("a person deletes their own account from Settings, in two steps, and the do
     // the public pages and QR, which go offline; the records, kept until someone asks for the workspace to be deleted.
     for (const said of [
       // Calls are still picked up to take a message (the review's C1): the paused line's own words.
-      "its receptionist stops replying to messages and calls are answered only to take a message",
+      "AI stops replying to its messages and calls are answered only to take a message",
       "its plan is cancelled",
       "its public pages go offline",
       "Its records are kept until hi@chanlytics.com is asked to delete it",

@@ -75,7 +75,7 @@ export const RESULTS = {
     columns: ["Step", "People"],
     /** The middle step is the receptionist's first reply, which is counted over the last 30 days. */
     replyWindow: "Replies are counted for the last 30 days only.",
-    replyOf: "Your receptionist's first reply, to the people who wrote. A form leaves a number to call back instead.",
+    replyOf: "AI's first reply, to the people who wrote. A form leaves a number to call back instead.",
   },
 
   /** What came of the appointments: the page's own rows, when they are of the same people. */

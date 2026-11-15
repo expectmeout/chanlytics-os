@@ -3,7 +3,9 @@
  * receipt, an Ask card and a log say. Derived here once, from the plan (plan.ts) alone; `lowerFirst` is the
  * question's too (question.ts).
  */
-import { type LeadArea, type LeadSearchPlan, US_STATES } from "./plan";
+import { planMinutes } from "./cards";
+import { LEAD_REACH_CHOICE_MILES, LEAD_REACH_MILE_M } from "./caps";
+import { type LeadArea, type LeadSearchPlan, US_STATES, reachOf } from "./plan";
 
 const isLowerLetter = (ch: string) => ch !== undefined && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
 /** Lowercases the first letter only when the second is itself lowercase, so an acronym ("CVS") keeps its own case. */
@@ -154,4 +156,48 @@ export function planLeavingOut(plan: LeadSearchPlan): string {
  */
 export function planSentence(plan: LeadSearchPlan): string {
   return `${planSaid(plan)}${planLeavingOut(plan)}`;
+}
+
+/**
+ * How long a search may take, as a range a card says ("40 to 80 minutes"): three quarters of planMinutes to half again as
+ * long, until real searches measure the spread (decision 0133, an outside review taken 14 Nov 2026: a time a search may
+ * miss by an hour said one number). One number where the two meet.
+ */
+export function planMinutesSaid(plan: LeadSearchPlan, unit: "minutes" | "min"): string {
+  const m = planMinutes(plan);
+  const low = Math.max(2, Math.round(m * 0.75));
+  const high = Math.max(low, Math.round(m * 1.5));
+  return low === high ? `${low} ${unit}` : `${low} to ${high} ${unit}`;
+}
+
+/** How far a search looks, in whole miles (decision 0133): what the card, the strip and the endings say, never metres. */
+export function planReachMiles(plan: Pick<LeadSearchPlan, "area" | "reach_m">): number {
+  return Math.round(reachOf(plan.area, plan.reach_m) / LEAD_REACH_MILE_M);
+}
+
+/**
+ * How far a search that widens by itself looks (decision 0133), said once on its card: "Looks in Brooklyn first, then
+ * nearby, up to 25 miles away", or "Looks only in Brooklyn" where the owner kept it to the card's area.
+ */
+export function planReachSaid(plan: Pick<LeadSearchPlan, "area" | "reach_m">): string {
+  const miles = planReachMiles(plan);
+  const area = planArea(plan.area);
+  return miles < 1 ? `Looks only in ${area}` : `Looks in ${area} first, then nearby, up to ${miles} miles away`;
+}
+
+/**
+ * What the card's "how far" offers (decision 0133): only the card's area, 10, 25 or 50 miles, and the plan's own reach
+ * where it is none of those (a ZIP's 15, a circle's twice its radius), nearest first. Each carries the plan's `reach_m`.
+ */
+export function planReachChoices(
+  plan: Pick<LeadSearchPlan, "area" | "reach_m">,
+): { miles: number; label: string; reachM: number; on: boolean }[] {
+  const now = planReachMiles(plan);
+  const miles = [...new Set<number>([...LEAD_REACH_CHOICE_MILES, now])].sort((a, b) => a - b);
+  return miles.map((n) => ({
+    miles: n,
+    label: n < 1 ? `Only ${planArea(plan.area)}` : `${n} miles`,
+    reachM: n * LEAD_REACH_MILE_M,
+    on: n === now,
+  }));
 }

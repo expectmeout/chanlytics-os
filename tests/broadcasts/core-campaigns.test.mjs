@@ -721,7 +721,7 @@ test("a broadcast is the business's own news, whatever its template's category: 
   );
 });
 
-test("a broadcast is refused while the workspace is paused, in the words the composers say it in, before the people are read, and Ask's card is refused with it", async () => {
+test("a broadcast is refused while the workspace is paused, in the words the composers say it in, before the people are read, and AI's card is refused with it", async () => {
   const { readCampaignHowOf } = await importSrc("packages/core/src/campaigns/create-broadcast.ts");
   const { CAMPAIGNS_PAUSED_WORDS } = await import("@chanlytics/contracts");
   const f = fakes({ channels: workspace({ paused: true }), people: new Error("the people must not be read") });
@@ -1422,7 +1422,7 @@ test("the playbook's check: the trigger first, then the template through the one
     }),
     "conflict",
     409,
-    "WhatsApp asked for a change to this message's words. Ask writes new words for you to send back.",
+    "WhatsApp asked for a change to this message's words. AI writes new words for you to send back.",
   );
   await refused(
     checkPlaybook(

@@ -65,7 +65,7 @@ test("Go live, pay (canvas 5A): what starts and what it asks after, the plan at 
   setSetup(atLive(phoneReady()));
   const tree = open();
   assert.equal(byTestId(tree, "first-run").props["data-step"], "live");
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Your receptionist is ready to go live");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "AI is ready to go live");
   assert.equal(
     textOf(byTestId(tree, "first-run")).includes(
       "Everything you chose starts at once. One thing needs you for a minute after.",
@@ -150,7 +150,7 @@ test("Go live: back from Stripe before the plan lands is confirming with the ban
   assert.equal(byTestId(buying, "fr-number").props["data-stage"], "buying");
   assert.equal(
     textOf(byTestId(buying, "fr-phone-status")),
-    "Waiting on usGetting your receptionist's number in 305…Usually a minute or two; this page updates by itself",
+    "Waiting on usGetting AI's number in 305…Usually a minute or two; this page updates by itself",
   );
   assert.deepEqual(asked.search, ["305"]);
   assert.deepEqual(asked.buy, [["+13055550142", "305"]], "the first number offered: customers never see it");
@@ -541,7 +541,7 @@ test("a number kept is the member's own choice, on any tab: Go live asks its for
   );
   assert.equal(
     textOf(flashes.at(-1).msg),
-    "Put off for a week, then it's back on Today. Until it is set up, only calls to your receptionist's own number are answered.",
+    "Put off for a week, then it's back on Today. Until it is set up, only calls to AI's own number are answered.",
   );
   assert.equal(replaced.at(-1), "start/live", "Go live still: the owner's own call is next");
   const after = mount();
@@ -642,7 +642,7 @@ test("Check my line (canvas R6): calls answered and none yet, it listens for the
   );
   byTestId(tree, "fr-check-line").props.onClick();
   tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-try-heading")), "Call your receptionist from your cell.");
+  assert.equal(textOf(byTestId(tree, "fr-try-heading")), "Call AI from your cell.");
   assert.equal(byTestId(tree, "fr-try").props["data-stage"], "listen");
   assert.equal(textOf(byTestId(tree, "fr-try-number")), "+1 (305) 555-0123");
   // The number is a press that dials it (a phone's foot draws it; a desk has nothing to dial with).
@@ -676,14 +676,14 @@ test("Check my line (canvas R7, R8): it picked up with the words, then the call 
   let tree = open();
   // A call on screen: the row opens on it, whatever was pressed.
   assert.equal(textOf(byTestId(tree, "fr-try-heading")), "It picked up.");
-  assert.match(textOf(byTestId(tree, "fr-try-proof")), /^Your receptionist answered · on the call now · 0:[12]\d$/);
+  assert.match(textOf(byTestId(tree, "fr-try-proof")), /^AI answered · on the call now · 0:[12]\d$/);
   assert.equal(
     textOf(byTestId(tree, "fr-try-turns")),
-    "ReceptionistThank you for calling Harbor Moving!YouAre you open on Sunday?",
+    "AIThank you for calling Harbor Moving!YouAre you open on Sunday?",
   );
   setLive({ now: [], recent: [liveCall({ live: false, status: "ended", duration: "0:48" })] });
   tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-try-heading")), "That's your receptionist.");
+  assert.equal(textOf(byTestId(tree, "fr-try-heading")), "That's AI.");
   assert.equal(textOf(byTestId(tree, "fr-try-meta")), "0:48 · from +1 (786) 555-0199 · 2:59 PM");
   // Where a caller goes is the kit's choice of a few: the phone they called from first, a message last. Arrow keys move
   // the choice: shown at once, saved once they settle, the last one only.
@@ -726,7 +726,7 @@ test("Check my line stays on screen when Setup hears of the call mid-call: the w
   setSetup(atLive(heard, { want: OWN }));
   setLive({ now: [], recent: [liveCall({ live: false, status: "ended", duration: "0:48" })] });
   const after = mount();
-  assert.equal(textOf(byTestId(after, "fr-try-heading")), "That's your receptionist.", "not jumped on to You're live");
+  assert.equal(textOf(byTestId(after, "fr-try-heading")), "That's AI.", "not jumped on to You're live");
   assert.ok(byTestId(after, "fr-try-transfer"), "where transfers go is asked");
   byTestId(after, "fr-try-go").props.onClick();
   assert.equal(replaced.at(-1), "start/live");
@@ -817,7 +817,7 @@ test("Switch it on: WhatsApp on its own number opens Meta's window at once; a wi
   assert.equal(textOf(flashes.at(-1).msg), "Meta refused the number.");
 });
 
-test("Switch it on (canvas 5B·i): what came in, a line a source, the kept app's chats in Meta's three parts; Ask's count beside, and Open Today keeps it going", (t) => {
+test("Switch it on (canvas 5B·i): what came in, a line a source, the kept app's chats in Meta's three parts; AI's count beside, and Open Today keeps it going", (t) => {
   t.after(restoreSetupVerbs);
   phoneWorld();
   const history = {
@@ -855,7 +855,7 @@ test("Switch it on (canvas 5B·i): what came in, a line a source, the kept app's
   });
   assert.equal(shown.length, 3, "a line a part");
   const ask = byTestId(tree, "fr-on-ask");
-  assert.match(textOf(ask), /^Getting your receptionist ready\d+ of \d+ done/);
+  assert.match(textOf(ask), /^Getting AI ready\d+ of \d+ done/);
   assert.match(textOf(ask), /EmailWaits for you in the Inbox/);
   assert.match(textOf(ask), /WhatsAppOn/, "connected: on");
   assert.match(textOf(ask), /CallsOnce your line is proved/, "the code saved, not yet proved by a call");
@@ -890,7 +890,7 @@ test("You're live never waited on WhatsApp: chosen and not connected, its steps 
   assert.equal(went.at(-1), "start/channels", "Where it answers, where WhatsApp is chosen");
 });
 
-test("You're live (canvas 5C): what answers now, Ask's three moves each waiting for a yes, what was set up, and Open Today switches calls on", async (t) => {
+test("You're live (canvas 5C): what answers now, AI's three moves each waiting for a yes, what was set up, and Open Today switches calls on", async (t) => {
   t.after(restoreSetupVerbs);
   const activated = [];
   setupVerbs.activate = async (kind) => {
@@ -962,7 +962,7 @@ test("You're live: a refused Open Today stays and says why, and again goes on; a
   }
 });
 
-test("the first run's last step has a way on to Cold email, beside Ask's three moves", async () => {
+test("the first run's last step has a way on to Cold email, beside AI's three moves", async () => {
   const { readFile } = await import("node:fs/promises");
   const live = await readFile("apps/dashboard/src/surfaces/setup/first-run/golive/live.tsx", "utf8");
   assert.match(live, /fr-live-cold-email/);

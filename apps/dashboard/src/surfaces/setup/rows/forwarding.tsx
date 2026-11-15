@@ -197,9 +197,7 @@ export const ForwardingCard = ({ S, flash, onDone }: ForwardingProps) => {
   const testing = !!(f && W.testOpen(f));
   return (
     <section className="setup-chooser setup-fw" data-testid="setup-forwarding">
-      {!dest && (
-        <p className="setup-fw-note">Your receptionist needs a line first — get a new number from the row above.</p>
-      )}
+      {!dest && <p className="setup-fw-note">AI needs a line first — get a new number from the row above.</p>}
       <div className="setup-fw-form">
         <div className="rec-field">
           <label>

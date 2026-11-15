@@ -160,7 +160,7 @@ test("a pause the owner made for them is on their page, with the thread's decisi
   assert.deepEqual(
     items.map((i) => [i.who, i.text]),
     [
-      ["Paused the receptionist", "You paused automatic replies"],
+      ["Paused AI", "You paused automatic replies"],
       ["Snoozed", "You snoozed the thread"],
     ],
     "the timeline's own labels, now fed: the pause reads in their history",
@@ -184,6 +184,6 @@ test("resuming reads the same way, and the page of a person with no thread still
   );
   assert.deepEqual(
     timelineOf(after).map((i) => i.who),
-    ["Resumed the receptionist", "Paused the receptionist"],
+    ["Resumed AI", "Paused AI"],
   );
 });

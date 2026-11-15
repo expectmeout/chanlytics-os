@@ -151,7 +151,7 @@ const detail = (over = {}) => ({
 
 /* ------------------------------- the words, in contracts ------------------------------- */
 
-test("REGRESSION (B15): the receptionist's mode has one set of words, a word for following the workspace among them", () => {
+test("REGRESSION (B15): AI's mode has one set of words, a word for following the workspace among them", () => {
   assert.deepEqual(contracts.PERSON_MODE_WORDS, {
     auto: "Answer",
     ask: "Ask me first",
@@ -177,7 +177,7 @@ test("REGRESSION (B15): the receptionist's mode has one set of words, a word for
     ZONE,
     new Date(NOW),
   );
-  const tile = held.facts.find((f) => f.label === "Receptionist");
+  const tile = held.facts.find((f) => f.label === "AI");
   assert.deepEqual(
     [tile.value, tile.meta],
     ["Held for you", "set to Never"],
@@ -672,7 +672,7 @@ test("REGRESSION (B15): the bulk bar's receptionist menu uses the one set of wor
   byTestId(tree, "select-all").props.onChange();
   tree = draw();
   const menu = menuByWords(tree, "Messages");
-  const modes = menu.props.groups.find((g) => /^Receptionist/.test(g.header ?? ""));
+  const modes = menu.props.groups.find((g) => /^AI for/.test(g.header ?? ""));
   assert.deepEqual(
     modes.items.map((i) => i.label),
     ["Answer", "Ask me first", "Never", "Follow the workspace"],
@@ -1126,7 +1126,7 @@ test("a long record folds past twenty rows, and a fold of three is not worth a p
   assert.equal(byTestId(tree2, "timeline-older"), null, "a fold of three rows is not worth a press");
 });
 
-test("Right now says the state once: the pill wears the standing's word, the sentence gives the reason, and the receptionist is named once", async () => {
+test("Right now says the state once: the pill wears the standing's word, the sentence gives the reason, and AI is named once", async () => {
   const vm = toPersonVM(detail(), ZONE, new Date(NOW));
   assert.equal(vm.rightNow.tone, "escalated");
   // The operator's first sentence for the reason (contracts ESCALATION_SUMMARIES), after when it began: "Paused until
@@ -1139,7 +1139,7 @@ test("Right now says the state once: the pill wears the standing's word, the sen
   const draw = await profile(vm);
   const tree = draw();
   // The head says the person's one state, as People's row does (canvas A): Needs you, never the receptionist's standing,
-  // which Messages and receptionist says.
+  // which Messages and AI says.
   const card = byTestId(tree, "person-now");
   assert.equal(card.props["data-state"], vm.state, "the line says the state People's row says");
   assert.equal(vm.state, "needs_you", "an escalation is someone who needs you");
@@ -1158,7 +1158,7 @@ test("Right now says the state once: the pill wears the standing's word, the sen
   const why = byTestId(tree, "person-now-why");
   assert.equal(textOf(why), vm.rightNow.detail, "the sentence gives the reason");
   const words = `${textOf(card)} ${textOf(why)}`;
-  assert.ok((words.match(/eceptionist/g) || []).length <= 1, `the receptionist is named once at most: ${words}`);
+  assert.ok((words.match(/eceptionist/g) || []).length <= 1, `AI is named once at most: ${words}`);
   assert.ok(!words.includes("Escalated"), `the state is the pill's word, not said again in the sentence: ${words}`);
 });
 
@@ -2494,7 +2494,7 @@ test("the Deal section stands on the Overview above Coming up for someone a deal
       all(byTestId(tree, "person-settings"), (n) => cls(n).split(" ").includes("rec-row")).map((r) =>
         textOf(find(r, (n) => cls(n) === "rec-row-key")),
       ),
-      ["Messages", "Offers & news", "Receptionist"],
+      ["Messages", "Offers & news", "AI"],
       "REGRESSION: the deal was a row of the card and a fold under it (canvas A's order: the answers, then who answers)",
     );
     assert.equal(byTestId(tree, "rec-row-person-deal"), null);
@@ -2753,7 +2753,7 @@ test("the card's settings are one line each, and Change opens the editor under i
   const rows = all(settings, (n) => cls(n).split(" ").includes("rec-row"));
   assert.deepEqual(
     rows.map((r) => textOf(find(r, (n) => cls(n) === "rec-row-key"))),
-    ["Messages", "Offers & news", "Receptionist"],
+    ["Messages", "Offers & news", "AI"],
     "REGRESSION: three stacked controls with a paragraph under each were 1,249px of rail (canvas A: the key over its answer)",
   );
   assert.ok(
@@ -3148,12 +3148,12 @@ const withNotes = () =>
     note_team: NOTE_TEAM,
   });
 
-test("a person's notes are a log (0007): the receptionist's suggestion first, then newest first, each signed and dated, who it is for and whether the receptionist reads it", () => {
+test("a person's notes are a log (0007): AI's suggestion first, then newest first, each signed and dated, who it is for and whether AI reads it", () => {
   const vm = toPersonVM(withNotes(), ZONE, new Date(NOW));
   assert.deepEqual(
     vm.noteList.map((n) => [n.body, n.who, n.forWho, n.teamOnly, n.suggested, n.from]),
     [
-      ["Prefers early mornings.", "The receptionist", null, false, true, "After a call"],
+      ["Prefers early mornings.", "AI", null, false, true, "After a call"],
       ["Allergic to ammonia.", "You", null, false, false, null],
       ["Call her back about the bridal party.", "Maria", "For you", true, false, null],
       ["Sees Sofia.", "A former teammate", null, false, false, null],
@@ -3198,7 +3198,7 @@ const recordingNotes = (sent, id = "p1") => {
     };
 };
 
-test("REGRESSION: the notes card was one box the receptionist read whole, overwritten by every save -- now a note is added, kept or dismissed, and said with who wrote it and when", async () => {
+test("REGRESSION: the notes card was one box AI read whole, overwritten by every save -- now a note is added, kept or dismissed, and said with who wrote it and when", async () => {
   const vm = toPersonVM(withNotes(), ZONE, new Date(NOW));
   const sent = [];
   recordingNotes(sent);
@@ -3209,7 +3209,7 @@ test("REGRESSION: the notes card was one box the receptionist read whole, overwr
   const suggested = byTestId(card, "person-note-suggested");
   // Who suggested it, where it was heard and when, said on its eyebrow on every screen (a phone has no hover); the date
   // with its year is its hover.
-  assert.match(textOf(suggested), /^Suggested by the receptionist · after a call · /);
+  assert.match(textOf(suggested), /^Suggested by AI · after a call · /);
   assert.match(String(find(suggested, (n) => typeof n.props?.title === "string")?.props.title), /, 20\d\d · /);
   const rows = all(card, (n) => n.props?.["data-testid"] === "person-note");
   assert.ok(

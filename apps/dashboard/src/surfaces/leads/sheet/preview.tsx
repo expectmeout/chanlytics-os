@@ -47,7 +47,7 @@ export function PreviewLine({ leadId, line }: { leadId: string; line: LeadPrevie
             disabled={busy}
             onClick={() => void make()}
             data-testid="lead-sheet-preview-make"
-            {...gate("approve", "make their receptionist")}
+            {...gate("approve", "make their preview")}
           >
             {W.make}
           </Button>

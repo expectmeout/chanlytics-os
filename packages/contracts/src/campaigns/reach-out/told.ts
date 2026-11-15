@@ -43,7 +43,7 @@ const PART = {
   writes: { label: "How you sound", note: "Your tone, and the lines learned from you", row: "sound", door: null },
   examples: {
     label: "Emails you sent before",
-    note: "What Ask drafted, what you changed, what wrote back",
+    note: "What AI drafted, what you changed, what wrote back",
     row: null,
     door: null,
   },
@@ -62,7 +62,7 @@ const PART = {
   searched: { label: "What you searched for", note: "Told, never said about them", row: null, door: null },
   answers: {
     label: "How it answers",
-    note: "The receptionist's own instructions, as for any email",
+    note: "AI's own instructions, as for any email",
     row: null,
     door: "admin/receptionist",
   },

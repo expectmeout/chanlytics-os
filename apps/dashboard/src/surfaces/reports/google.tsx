@@ -130,7 +130,7 @@ function ReviewReply({
     <div className="rp2-review-reply">
       {r.heldReply && !open && (
         <p className="rp2-review-drafted" data-testid="google-review-held-reply">
-          <b>The receptionist wrote:</b> {r.heldReply.text} {posts ? r.heldReply.words : HELD_REPLY_WAITS}
+          <b>AI wrote:</b> {r.heldReply.text} {posts ? r.heldReply.words : HELD_REPLY_WAITS}
           {posts && (
             <>
               {" "}
@@ -164,14 +164,14 @@ function ReviewReply({
             }}
             placeholder={
               drafting
-                ? "The receptionist is writing a draft…"
+                ? "AI is writing a draft…"
                 : "Thank them, or answer them — it appears on Google under the review, in the business's name."
             }
             data-testid="google-reply-text"
           />
           {drafted === "yes" && (
             <span className="rp2-review-drafted" data-testid="google-reply-drafted">
-              Drafted by the receptionist — change anything, then send.
+              Drafted by AI — change anything, then send.
             </span>
           )}
           {drafted && drafted !== "yes" && (

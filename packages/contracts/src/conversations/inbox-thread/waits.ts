@@ -162,7 +162,7 @@ export function replyFacts(
  * second dash.
  */
 export function snoozedThreadWords(openRequest: string | null): string {
-  const hidden = "Hidden from your queue. The receptionist still answers, and a new message brings it back.";
+  const hidden = "Hidden from your queue. AI still answers, and a new message brings it back.";
   return openRequest ? `${hidden} ${openRequest}. That's still waiting for you.` : hidden;
 }
 
@@ -190,12 +190,12 @@ export const THREAD_PANE_WORDS = {
   noReplyNeeded: "No reply needed",
   /** Asked in the dock before a hand back leaves what they wrote with nothing sent. */
   handBackAsk: (first: string) => `${first}'s message has no answer yet.`,
-  handBackWhy: "Handing back sends nothing, and the receptionist won't come back to it.",
+  handBackWhy: "Handing back sends nothing, and AI won't come back to it.",
   answerFirst: "Answer first",
   handBackAnyway: "Hand back anyway",
   /** A thread you have, as the dock says it, with the one act it takes. */
   yours: "You have it.",
-  yoursFact: "The receptionist is quiet",
+  yoursFact: "AI is quiet",
   /** The reply box on a thread a teammate has: what a reply does. */
   takeFrom: (name: string) => `Reply to take it from ${name}…`,
   /** Our words that did not send: send them again as they were, or put them in the box. */
@@ -256,7 +256,7 @@ export const THREAD_PANE_WORDS = {
   rewrite: "Rewrite",
   rewriting: "Rewriting…",
   rewriteAsk: "Tell it what to change…",
-  rewriteLabel: "Tell the receptionist what to change",
+  rewriteLabel: "Tell AI what to change",
   rewritten: "Rewritten — check it before you send",
   /** The reply box's send, said for its wire: an email's words, a chat's arrow alone. */
   sendEmail: "Send email",
@@ -284,7 +284,7 @@ export const THREAD_PANE_WORDS = {
    * More's acts on the person, under Contact: their receptionist, and the one that says they are no customer (decision
    * 0080), whose line says what it does in the words Today's Not a person says it (need-you/words.ts NOT_A_PERSON_WORDS).
    */
-  receptionist: "Receptionist",
+  receptionist: "AI",
   notACustomerAct: "Not a customer…",
   notACustomerMeta: "Moves them out of People. Their mail stays.",
   /** The group of acts on who the conversation is with: "Contact", never their name again under the head that says it. */
@@ -296,7 +296,7 @@ export const THREAD_PANE_WORDS = {
   archive: "Archive",
   archiveMeta: "Closes it. A new message brings it back.",
   /** Over the reply box's words while they are Ask's draft, unchanged. Only words that send themselves are the receptionist's. */
-  drafted: "Ask's draft",
+  drafted: "AI's draft",
   /** The handle on a phone's reply box, a button that opens it or folds it away, named by where it goes. */
   replyOpen: "Open the reply",
   replyFold: "Fold the reply away",

@@ -238,7 +238,7 @@ test("a sequence to people: who by its key, each held message by its key, a wait
   assert.equal(out.said, LINE.words.trim());
 });
 
-test("a key it was not offered is never kept: who left for the owner, a first step's message refused in Ask's words", () => {
+test("a key it was not offered is never kept: who left for the owner, a first step's message refused in AI's words", () => {
   const out = draftKept(answer({ who: "m9", steps: [step({ message: "k1" })] }), KNOWN, LINE);
   assert.equal(out.who, null, "the owner picks who");
   assert.throws(
@@ -275,7 +275,7 @@ test("a wait is the audience's, a value its run cannot fill leaves a later step 
   );
 });
 
-test("Ask writes a message where none fits: kept as the message door files it, utility about a visit, a text never an offer", () => {
+test("AI writes a message where none fits: kept as the message door files it, utility about a visit, a text never an offer", () => {
   const write = {
     title: "Come back",
     offer: false,
@@ -349,7 +349,7 @@ test("Ask writes a message where none fits: kept as the message door files it, u
   assert.match(
     draftRules(false),
     /a later step \(inviting them back, a nudge to book\) is an offer: `offer` true and no `text`/,
-    "and Ask is told so",
+    "and AI is told so",
   );
   // A value New does not know is no message: the first step is refused.
   assert.throws(
@@ -384,7 +384,7 @@ test("a call or a note is the last step and never the first; one before a messag
   );
 });
 
-test("a sequence already on the moment is its twin, said in the checks; Ask is told what runs", () => {
+test("a sequence already on the moment is its twin, said in the checks; AI is told what runs", () => {
   const twin = draftKept(
     answer({ who: "", steps: [step({ message: "k1" })] }),
     {
@@ -440,7 +440,7 @@ test("once to people: one step, now or a time within thirty days, everyone named
   assert.equal(once("2027-01-01 09:00").at, null, "past thirty days: now, the owner picks");
 });
 
-test("news Ask writes for everyone is an offer's kind: a yes to offers hears it, never by text; sent now, WhatsApp's waits", () => {
+test("news AI writes for everyone is an offer's kind: a yes to offers hears it, never by text; sent now, WhatsApp's waits", () => {
   const holiday = draftKept(
     answer({
       kind: "once",
@@ -479,7 +479,7 @@ test("news Ask writes for everyone is an offer's kind: a yes to offers hears it,
   assert.match(M.notReady(waOnly, FOOT).lead, /No one to send to/);
 });
 
-test("REGRESSION: an offer Ask picks that holds a text version goes by what carries it -- its text version is never ticked", () => {
+test("REGRESSION: an offer AI picks that holds a text version goes by what carries it -- its text version is never ticked", () => {
   // The workspace's offer with a WhatsApp, an email and a text version, every channel connected.
   const known = {
     ...KNOWN,
@@ -555,7 +555,7 @@ test("who it reaches is the count's: of how many it names, and who it leaves out
   assert.deepEqual([off.channels, off.reach.can], [[], 0]);
 });
 
-test("to leads: emails in Ask's words where they hold, a search its who, the mailbox, never on its own", () => {
+test("to leads: emails in AI's words where they hold, a search its who, the mailbox, never on its own", () => {
   const out = draftKept(
     answer({
       audience: "leads",
@@ -632,7 +632,7 @@ test("asked once, as its own purpose, with only what the workspace offers and ho
   assert.equal(kept.kind, "once");
 });
 
-test("REGRESSION (the live run of 14 Nov 2026): leads picked on Leads are who a draft goes to, so Ask never says no search is ready", async () => {
+test("REGRESSION (the live run of 14 Nov 2026): leads picked on Leads are who a draft goes to, so AI never says no search is ready", async () => {
   // 35 med spas picked, their search holding no checked email: Ask said "No search of med spas is ready, so I can't choose
   // who this goes to" and drafted nothing.
   answerWith(answer({ audience: "leads", steps: [step({ subject: "Hi", body: "{{opening}}\n\nA week on us?" })] }));
@@ -668,7 +668,7 @@ const offerWritten = (whatsapp) => ({
 const onceWith = (s) =>
   answer({ kind: "once", who: "everyone", name: "This week's offer", when: "now", steps: [step(s)] });
 
-test("REGRESSION (13 Nov 2026): a customer offer carries the discount its owner asked for, in a message Ask writes or a value it types, and Ask is told so", () => {
+test("REGRESSION (13 Nov 2026): a customer offer carries the discount its owner asked for, in a message AI writes or a value it types, and AI is told so", () => {
   const ours = "Hi {{first name}}, 20% off any service this week. Book here: {{booking link}} See you soon.";
   const written = draftKept(onceWith({ write: offerWritten(ours) }), KNOWN, OFFER_LINE);
   assert.match(written.steps[0].message.written.versions.whatsapp.body, /20% off any service this week/);
@@ -804,7 +804,7 @@ test("a call or a note is always the last step: a message added after one goes b
   assert.ok(M.notReady(M.setHand(d, 2, "  "), FOOT), "a note with nothing to do cannot start");
 });
 
-test("while Ask drafts it again, the draft stands in its new shape: its line, its name, who where that suits, the rest to come", () => {
+test("while AI drafts it again, the draft stands in its new shape: its line, its name, who where that suits, the rest to come", () => {
   const d = { ...M.setMessage(sequence(), 0, held), said: "Thank them after a visit" };
   const toLeads = M.redraftShapeOf(d, { kind: "sequence", audience: "leads" });
   assert.deepEqual(
@@ -899,7 +899,7 @@ test("Keep and Start to leads pass the leads door's own check: the search and ho
   assert.deepEqual([one.steps.length, "mode" in one], [1, false]);
 });
 
-test("a draft to leads Ask wrote is made with what Ask drafted beside the steps as the owner left them; one by hand, or to people, carries none (decision 0078 step 2)", () => {
+test("a draft to leads AI wrote is made with what AI drafted beside the steps as the owner left them; one by hand, or to people, carries none (decision 0078 step 2)", () => {
   const toLeads = M.redraftShapeOf(M.draftByHand("sequence", "people", "Harbor Studio"), {
     kind: "sequence",
     audience: "leads",
@@ -940,7 +940,7 @@ test("a draft to leads Ask wrote is made with what Ask drafted beside the steps 
   assert.equal(NEW_MAKE_BODY.safeParse({ ...body.data, as_drafted: long }).success, false);
 });
 
-test("what Ask drafted is kept as it came, read back whatever the ledger holds, and an email sent as drafted is told from one the owner changed (decision 0078 step 2)", () => {
+test("what AI drafted is kept as it came, read back whatever the ledger holds, and an email sent as drafted is told from one the owner changed (decision 0078 step 2)", () => {
   const email = { subject: "Phones", body: "{{opening}}\n\nWorth a look?" };
   const kept = asDraftedOf("  Write to auto shops in Brooklyn  ", [email, null]);
   assert.deepEqual(kept, { asked: "Write to auto shops in Brooklyn", steps: [email, null] });
@@ -1012,7 +1012,7 @@ test("a one-off kept as a draft opens as the draft it was; one whose message is 
   assert.equal(M.onceKeptOf({ name: "x", once: null }, library, "x"), null);
 });
 
-test("the make sends a one-off by what carries it then: a message Ask wrote goes without its WhatsApp version until Meta approves it", () => {
+test("the make sends a one-off by what carries it then: a message AI wrote goes without its WhatsApp version until Meta approves it", () => {
   const written = {
     message: { written: { versions: { whatsapp: { body: "Hi" }, email: { subject: "S", body: "B" } } } },
   };
@@ -1115,7 +1115,7 @@ test("an email to leads is the same words for every business: the draft is told 
   assert.match(system, /how busy it is/);
 });
 
-test("REGRESSION (the live run of 13 Nov 2026): asked for more steps than a sequence holds, Ask is told to write only the steps that fit, none of them counting toward the rest", async () => {
+test("REGRESSION (the live run of 13 Nov 2026): asked for more steps than a sequence holds, AI is told to write only the steps that fit, none of them counting toward the rest", async () => {
   answerWith(answer({ steps: [step({ message: "k1" })] }));
   await draftSequenceFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
   const system = String(calls[calls.length - 1].request.system);
@@ -1173,7 +1173,7 @@ test("the drafter is told what the business says about itself and how its owner 
   answerWith(answer({ steps: [step({ message: "k1" })] }));
   const bare = await draftSequenceFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
   const toldBare = JSON.stringify(calls[1].request.messages);
-  assert.doesNotMatch(toldBare, /in its own words|Ask remembers|started before/);
+  assert.doesNotMatch(toldBare, /in its own words|AI remembers|started before/);
   assert.deepEqual(bare.voice, []);
 });
 
@@ -1235,7 +1235,7 @@ test("the drafter is told each started first email's pair, what it was for and h
   assert.match(system, /never copy a sentence/);
 });
 
-test("the examples are the started chains' first emails in the order read, each with what Ask drafted, its search and its first step's counts; a call first or an empty email is none (decision 0078 step 2)", () => {
+test("the examples are the started chains' first emails in the order read, each with what AI drafted, its search and its first step's counts; a call first or an empty email is none (decision 0078 step 2)", () => {
   const chain = (id, steps, search = null) => ({ root_id: id, search, steps });
   const email = (subject, body) => ({ subject, body, hand: null });
   const out = examplesOf(
@@ -1479,7 +1479,7 @@ const drafted = async (a) => {
   return draftSequenceFrom(KNOWN, LINE, WHO);
 };
 
-test("REGRESSION (13 Nov 2026): what Ask says it left out never loses the draft, however long it runs: it is kept in whole sentences, and Ask is told its room", async () => {
+test("REGRESSION (13 Nov 2026): what AI says it left out never loses the draft, however long it runs: it is kept in whole sentences, and AI is told its room", async () => {
   assert.ok(LEFT_OUT.length < 300 && LEFT_OUT_LONGER.length > 300);
   const out = await drafted({ cannot: LEFT_OUT_LONGER });
   assert.equal(out.steps.length, 1, "the draft is drawn");
@@ -1495,7 +1495,7 @@ test("REGRESSION (13 Nov 2026): what Ask says it left out never loses the draft,
   assert.match(draftRules(false), /in two short sentences, 300 characters at most:/);
 });
 
-test("REGRESSION (13 Nov 2026): a rewrite's note of what it left out never loses the rewrite, and Ask is told its room", async () => {
+test("REGRESSION (13 Nov 2026): a rewrite's note of what it left out never loses the rewrite, and AI is told its room", async () => {
   answerWith({ ...REWRITTEN, cannot: LEFT_OUT_LONGER });
   const out = await rewriteFrom(KNOWN, { ...FIRST, change: "Offer 20% off to last quarter's visitors" }, WHO);
   assert.deepEqual([out.body, out.cannot], [REWRITTEN.body, LEFT_OUT_LONGER]);
@@ -1525,7 +1525,7 @@ test("an answer out of shape is still refused in words, and the refusal keeps wh
 
 const long = (words, n) => `${words} `.repeat(n).trim();
 
-test("REGRESSION (13 Nov 2026): words that run long anywhere in Ask's answer never lose the draft: each part is held where it is used, and steps past the most a draft holds are said", async () => {
+test("REGRESSION (13 Nov 2026): words that run long anywhere in AI's answer never lose the draft: each part is held where it is used, and steps past the most a draft holds are said", async () => {
   // Who and when said in words, not by a key or a time: the draft is drawn, and the owner picks who.
   const named = await drafted({
     who: long("everyone who visited in the last ninety days", 2),
@@ -1580,7 +1580,7 @@ test("REGRESSION: an answer cut off at its ceiling says so, and the log says why
   await assert.rejects(draftSequenceFrom(KNOWN, LINE, WHO), (e) => {
     assert.equal(calls[0].request.max_tokens, SEQUENCE_DRAFT_MAX_TOKENS, "asked for room for a whole draft");
     assert.equal(e.code, "upstream_anthropic");
-    assert.equal(e.message, "The draft ran longer than Ask can write at once. Ask for less in one go.");
+    assert.equal(e.message, "The draft ran longer than AI can write at once. Ask for less in one go.");
     assert.doesNotMatch(e.message, /Try again/);
     assert.match(String(e.cause?.message), /cut off at the answer's ceiling/);
     return true;

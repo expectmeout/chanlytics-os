@@ -33,6 +33,7 @@ import {
   offersAfterStart,
   optInConfirmation,
   dmBackOnConfirmation,
+  ESCALATION_SUMMARIES,
   SECOND_MS,
   tokenBudgetSpent,
   tokenCapOf,
@@ -242,7 +243,7 @@ async function heldWhileTheirs(at: Answering, bodyText: string): Promise<void> {
   await handToAPerson(at, {
     reason: "wrote_while_held",
     details:
-      "They wrote again while your team had this thread, so the receptionist stayed out. Answer them, or hand the thread back.",
+      "They wrote again while your team had this thread, so AI stayed out. Answer them, or hand the thread back.",
     said: bodyText,
     answered: "(no reply sent — a person on your team has this thread)",
   });
@@ -308,7 +309,7 @@ export async function holdForThePerson(at: Answering, bodyText: string): Promise
     // fires on a busy thread, not only when someone lowers the limit.
     return handToAPerson(at, {
       reason: "rate_cap",
-      details: `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`,
+      details: `Thread hit ${maxRepliesDay} automatic replies today — AI stopped and is waiting for a human.`,
       said: bodyText,
       answered: "(no reply sent — daily automatic-reply limit reached)",
     });
@@ -325,8 +326,8 @@ export async function holdForThePerson(at: Answering, bodyText: string): Promise
     L.info("wa_skip_workspace_paused");
     return handToAPerson(at, {
       reason: "paused",
-      details:
-        "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
+      // The Inbox's own sentence for this hold, said once (contracts ESCALATION_SUMMARIES).
+      details: ESCALATION_SUMMARIES.paused,
       said: bodyText,
       answered: "(no reply sent — the workspace is paused until billing resumes)",
     });
@@ -349,9 +350,9 @@ export async function holdForThePerson(at: Answering, bodyText: string): Promise
       L.info("wa_skip_budget", { cap: tokenCap, used });
       return handToAPerson(at, {
         reason: "budget",
-        details: `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`,
+        details: `The daily AI limit is reached (${used.toLocaleString("en-US")} of ${tokenCap.toLocaleString("en-US")} tokens in the last 24 hours) — AI stopped and is waiting for a human.`,
         said: bodyText,
-        answered: "(no reply sent — the day's model budget is used up)",
+        answered: "(no reply sent — the daily AI limit is reached)",
       });
     }
   }

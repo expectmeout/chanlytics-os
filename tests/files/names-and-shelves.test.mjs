@@ -118,14 +118,11 @@ test("a file stands on one shelf: where it waits first, then what it shows", () 
   assert.equal(shelfOf({ status: "filed", shows: null }), "other");
 });
 
-test("the page counts what is kept, says what waits, and what Ask has still to look at", () => {
+test("the page counts what is kept, says what waits, and what AI has still to look at", () => {
   assert.equal(filesSayOf({ kept: 0, waiting: 0, looking: 0 }), "0 photos");
   assert.equal(filesSayOf({ kept: 1, waiting: 0, looking: 0 }), "1 photo");
   assert.equal(filesSayOf({ kept: 2, waiting: 1, looking: 0 }), "2 photos, 1 waiting for you");
-  assert.equal(
-    filesSayOf({ kept: 1, waiting: 1, looking: 1 }),
-    "1 photo, 1 waiting for you, Ask is still looking at 1",
-  );
+  assert.equal(filesSayOf({ kept: 1, waiting: 1, looking: 1 }), "1 photo, 1 waiting for you, AI is still looking at 1");
 });
 
 const file = (over) => ({ who_in_it: "not_asked", look_status: "done", people: null, ...over });

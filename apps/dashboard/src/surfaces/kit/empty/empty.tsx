@@ -222,7 +222,7 @@ export function FailedRead({
               {body}
             </>
           ) : (
-            <>{reason}Everything else here is current, and the receptionist keeps working.</>
+            <>{reason}Everything else here is current, and AI keeps working.</>
           )}
         </div>
         {children}

@@ -43,7 +43,7 @@ const testidOf = (n) => n.props.testid;
 /* ------------------------------------------------- the head's sentence ------------------------------------------------ */
 
 const CALM = { tone: "calm", headline: "", detail: null };
-const LISTENING = { headline: "Nothing needs you.", sub: "The receptionist is on. Last message Friday 4:12 PM." };
+const LISTENING = { headline: "Nothing needs you.", sub: "AI is on. Last message Friday 4:12 PM." };
 
 test("with nobody waiting the head says what is listening, on any day; that's everyone only once the member has cleared someone", () => {
   assert.deepEqual(todayHeadLine(CALM, 0, null, LISTENING), {
@@ -62,7 +62,7 @@ test("with nobody waiting the head says what is listening, on any day; that's ev
 test("what is listening is on every day's read, a day with something in it too, where the quiet day's card is not", () => {
   const busy = toTodayVM(metrics(), [], [], [], NOW);
   assert.equal(busy.quiet, null, "messages came in today: no quiet day");
-  assert.match(busy.calm.sub, /^The receptionist is on\./, "REGRESSION: only a quiet day could say it");
+  assert.match(busy.calm.sub, /^AI is on\./, "REGRESSION: only a quiet day could say it");
 });
 
 test("how today went says nothing of a day nothing happened", () => {
@@ -79,7 +79,7 @@ test("how today went says nothing of a day nothing happened", () => {
       { id: "booked", value: 0 },
       { id: "answered", value: 3, of: 4 },
     ]),
-    "Today: 0 booked, 3 of 4 answered by the receptionist.",
+    "Today: 0 booked, 3 of 4 answered by AI.",
   );
 });
 
@@ -99,7 +99,7 @@ test("one person past a week is their own row: who, Mark done, and a press on it
     [null, null],
     "REGRESSION: it took the coral from Finish setting up",
   );
-  assert.equal(model.draws, false, "REGRESSION: it kept Ask found from leading the page");
+  assert.equal(model.draws, false, "REGRESSION: it kept AI found from leading the page");
   setSurfaceValue("today", undefined);
   unmount();
 });
@@ -172,7 +172,7 @@ test("Mark done refused says why and the row stays to be pressed again", async (
   unmount();
 });
 
-test("Ask is asked for an old row's draft only as it is opened: most are let go unread, and a draft is a model's turn", async () => {
+test("AI is asked for an old row's draft only as it is opened: most are let go unread, and a draft is a model's turn", async () => {
   atWidth(true);
   setSurfaceValue("reply_drafts", undefined);
   // One who waits now beside the old one: the ask this waits on names them alone.
@@ -284,7 +284,7 @@ test("Not today's Undo lets one rest go and keeps the others; those run out go w
   assert.deepEqual(restedWithout({ a: "2026-09-01", b: "2026-09-25" }, "c", today), { b: "2026-09-25" });
 });
 
-test("a review at rest is not offered, by the one rule Ask found's rows rest by", () => {
+test("a review at rest is not offered, by the one rule AI found's rows rest by", () => {
   const google = {
     dto: {
       connection: { id: "g" },

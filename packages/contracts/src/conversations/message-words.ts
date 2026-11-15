@@ -47,7 +47,7 @@ export function messageStatusLabel(status: string | undefined, channel?: string 
 /**
  * What a WhatsApp error code means, in the owner's words. Each is the meaning Meta documents for the code (WhatsApp Cloud
  * API, "Error codes", read 5 Oct 2026), or one this repository already says of it (channels whatsapp.ts: 130429, 131048
- * and 131056). A code that is not here is never given a meaning: it is said by its number (sendFailureWords).
+ * and 131056). A code that is not here is never given a meaning: the owner is told it was not delivered, and no more (sendFailureWords).
  */
 const WHATSAPP_FAILURES: Readonly<Record<number, string>> = {
   130429: "Your number has reached WhatsApp's message limit for now",
@@ -148,9 +148,10 @@ export function providerCodeOf(error: Record<string, unknown>): number | null {
 /**
  * ONE sentence on why a message did not arrive, from what its row's `error` says (the provider's code and words, kept
  * by the receipt or the send that failed), for the owner and never for a customer: the thread draws it under "Didn't
- * send", and the hold a late failure raises says it. A code whose meaning is documented (above) is said in plain words
- * with its number after it; any other code is said by the provider and the number, never a guess ("WhatsApp didn't
- * deliver it (error 131000)."). Null when the row says nothing it can be read by, which is the honest answer.
+ * send", and the hold a late failure raises says it. A code whose meaning is documented (above) is said in plain words;
+ * any other is said as not delivered, never a guess. No number and no provider the owner never met is said
+ * (docs/words.md): the code stays on the row's `error`, where Health and support read it. Null when the row says
+ * nothing it can be read by, which is the honest answer.
  */
 export function sendFailureWords(error: unknown, channel: string | null | undefined): string | null {
   const result = recordOrNull(error);
@@ -164,8 +165,8 @@ export function sendFailureWords(error: unknown, channel: string | null | undefi
   const sms = wire === "sms";
   if (code !== null) {
     const meaning = tableWord(sms ? SMS_FAILURES : WHATSAPP_FAILURES, code);
-    if (meaning) return `${meaning} (${sms ? "Twilio" : "WhatsApp"} error ${code}).`;
-    return sms ? `Twilio didn't deliver it (error ${code}).` : `WhatsApp didn't deliver it (error ${code}).`;
+    if (meaning) return `${meaning}.`;
+    return sms ? "The text wasn't delivered." : "WhatsApp didn't deliver it.";
   }
   const carrier = typeof result.carrier === "string" ? tableWord(SMS_STATUS_WORDS, result.carrier) : undefined;
   return carrier ?? settledWords(result);

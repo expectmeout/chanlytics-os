@@ -74,7 +74,7 @@ function whisperNote({ last, explain, toggle }: NoteProps) {
       >
         <Icon name="lock" size={11} />
         <span className="lm-whisper-note-text">
-          {last ? <>Whispered: &ldquo;{last}&rdquo;</> : "Only the receptionist hears this"}
+          {last ? <>Whispered: &ldquo;{last}&rdquo;</> : "Only AI hears this"}
         </span>
         <Icon name="info" size={11} />
       </button>
@@ -173,8 +173,8 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
           className="set-input"
           value={text}
           maxLength={500}
-          placeholder={listening ? "Listening…" : "Whisper to the receptionist…"}
-          aria-label="Whisper to the receptionist"
+          placeholder={listening ? "Listening…" : "Whisper to AI…"}
+          aria-label="Whisper to AI"
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {

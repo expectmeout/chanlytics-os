@@ -17,7 +17,7 @@ test.describe("Settings → Memory on a real workspace", () => {
     await signIn(page);
   });
 
-  test("memory keeps the nav and says what Ask keeps, or that it keeps nothing yet", async ({ page }) => {
+  test("memory keeps the nav and says what AI keeps, or that it keeps nothing yet", async ({ page }) => {
     await page.goto("/#/admin/memory");
     await page.waitForLoadState("networkidle");
     const card = page.getByTestId("rec-card-memory");

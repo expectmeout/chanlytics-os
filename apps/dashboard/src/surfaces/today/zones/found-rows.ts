@@ -58,22 +58,22 @@ export interface AskFoundVM {
 
 /** The words of Ask found. */
 export const ASK_FOUND_WORDS = {
-  title: "Ask found",
+  title: "AI found",
   more: (n: number) => `${n} more`,
   fewer: "Fewer",
   came: "What came of it.",
   notToday: "Not today",
-  idea: "Ask's idea",
-  noticed: "Ask noticed",
+  idea: "AI's idea",
+  noticed: "AI noticed",
   call: "Worth a listen",
-  tried: "Tried their receptionist",
+  tried: "Tried their preview",
   approve: "Approve",
-  openInAsk: "Open in Ask",
+  openInAsk: "Continue with AI",
   askWhy: "Ask why",
   /** Where Ask's ideas will come while it writes the member's morning (Ruben's "hold its place", 13 Nov 2026). */
-  reading: "Ask is reading your morning…",
+  reading: "AI is reading your morning…",
   /** The same place, the morning written with no idea in it: said, so the place it held does not close. */
-  readNothing: "Nothing more from Ask this morning.",
+  readNothing: "Nothing more from AI this morning.",
 } as const;
 
 /** A row that names nobody and is not asked about: every row but a rule's. */

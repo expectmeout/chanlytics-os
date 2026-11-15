@@ -78,7 +78,7 @@ const LrRow = ({ c, active, elapsed, onSelect, order = [] }: LrRowProps) => {
           <span className="lm-row-clock tabular">{lrClock(elapsed)}</span>
         </span>
         <span className={`lm-row-said ${said ? "" : "is-waiting"}`}>
-          {said ? <>&ldquo;{said}&rdquo;</> : "The receptionist has picked up"}
+          {said ? <>&ldquo;{said}&rdquo;</> : "AI has picked up"}
         </span>
         <span className="lm-row-foot">
           <LrPill c={c} />

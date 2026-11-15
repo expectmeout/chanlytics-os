@@ -76,12 +76,12 @@ export function holdNotice(holdFacts: HoldFacts): Omit<JobNews, "sourceEvent"> {
     ? []
     : [
         ...(holdFacts.customerWords ? [`They wrote: “${clipped(holdFacts.customerWords, 600)}”`] : []),
-        ...(holdFacts.replyWords ? [`The receptionist: “${clipped(holdFacts.replyWords, 600)}”`] : []),
+        ...(holdFacts.replyWords ? [`AI: “${clipped(holdFacts.replyWords, 600)}”`] : []),
         ...(holdFacts.details ? [clipped(holdFacts.details, 600)] : []),
       ];
   // What to do, by the reason's act: reply, call back, or nothing that may be sent; the pause rides after it when there is one.
   const pause = holdFacts.pausedHours
-    ? `${act.replace(/\.$/, "")} — the receptionist is paused on this thread for ${holdFacts.pausedHours}h.`
+    ? `${act.replace(/\.$/, "")} — AI is paused on this thread for ${holdFacts.pausedHours}h.`
     : act;
   return {
     kind: "handoff",

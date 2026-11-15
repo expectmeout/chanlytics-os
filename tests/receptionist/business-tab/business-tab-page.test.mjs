@@ -291,7 +291,7 @@ test("a conflict sits on the row it is about, and there is no banner", () => {
     used: "+1 (212) 555-0142",
     known: "+1 (305) 555-0123",
     knownSource: "provisioned",
-    sentence: "Your receptionist tells customers to call +1 (212) 555-0142, but it answers on +1 (305) 555-0123.",
+    sentence: "AI tells customers to call +1 (212) 555-0142, but it answers on +1 (305) 555-0123.",
     to: "admin/workspace",
   };
   const tree = drawTab({ profile: marisa, conflicts: [conflict] });
@@ -442,7 +442,7 @@ test("an inline save sends the stored config with its one key changed, and every
     ...stored,
     brain: { ...stored.brain, profile: { ...stored.brain.profile, address: "10 Pier St, Brooklyn, NY 11201" } },
   });
-  assert.equal(textOf(flashes.at(-1).msg), "Saved — the receptionist picks it up within a minute");
+  assert.equal(textOf(flashes.at(-1).msg), "Saved — AI picks it up within a minute");
   assert.deepEqual(openRows(redrawTab(flash)), [], "accepted, the editor closes");
 
   // A key of the brain itself, beside the profile.
@@ -487,7 +487,7 @@ test("an emptied field deletes its key rather than storing an empty string", () 
     ...stored,
     brain: { ...stored.brain, profile: without(stored.brain.profile, "handoff_number") },
   });
-  assert.equal(textOf(flashes.at(-1).msg), "The receptionist takes a message instead of transferring.");
+  assert.equal(textOf(flashes.at(-1).msg), "AI takes a message instead of transferring.");
 });
 
 test("what stops a save is said under the box, before any round trip, and nothing is sent", () => {
@@ -524,7 +524,7 @@ test("what stops a save is said under the box, before any round trip, and nothin
   tree = redrawTab(flash);
   saveRow(tree, "name");
   tree = redrawTab(flash);
-  assert.match(textOf(inline(tree, "name")), /The receptionist needs a business name before it can answer anyone\./);
+  assert.match(textOf(inline(tree, "name")), /AI needs a business name before it can answer anyone\./);
   // And so is the booking link, a full web address.
   tree = drawTab({ flash });
   openFold(tree, "booking_link");
@@ -589,7 +589,7 @@ test("F2: the transfer number cannot be the number the business keeps and forwar
   assert.equal(sent[0].config.brain.profile.handoff_number, "+19175550100");
 });
 
-test("F1: the number the business keeps, given out, says its missed calls reach the receptionist -- not that they never do", () => {
+test("F1: the number the business keeps, given out, says its missed calls reach AI -- not that they never do", () => {
   const flash = () => {};
   // The salon keeps (718) 555-0142 and forwards the calls nobody picks up to its receptionist's line.
   let tree = drawTab({ flash, facts: { kept_line: { value: "+17185550142", source: "provisioned" } } });
@@ -601,13 +601,13 @@ test("F1: the number the business keeps, given out, says its missed calls reach 
   tree = redrawTab(flash);
   assert.match(
     textOf(byTestId(tree, "rec-inline-phone_display-note")),
-    /^Your own number\. The calls nobody picks up there go to your receptionist on \+1 \(305\) 555-0123\.$/,
+    /^Your own number\. The calls nobody picks up there go to AI on \+1 \(305\) 555-0123\.$/,
   );
   typeInto(tree, "phone_display", "+1 (646) 555-0100");
   tree = redrawTab(flash);
   assert.match(
     textOf(byTestId(tree, "rec-inline-phone_display-note")),
-    /will not reach your receptionist/,
+    /will not reach AI/,
     "any other number still does not reach it",
   );
 });
@@ -687,11 +687,7 @@ test("It will say: the lines of the prompt the draft changes, resolved as the ed
 
   typeInto(tree, "website", "marisas");
   tree = redrawTab();
-  assert.equal(
-    byTestId(tree, "rec-inline-says-website"),
-    null,
-    "a draft the save refuses is never told to the receptionist",
-  );
+  assert.equal(byTestId(tree, "rec-inline-says-website"), null, "a draft the save refuses is never told to AI");
 
   typeInto(tree, "website", "");
   tree = redrawTab();
@@ -1705,7 +1701,7 @@ test("a save of the name says what the sign-up page and sign say now, and where 
 
   // A save that renamed nothing says what every row says.
   answering(null);
-  assert.equal(textOf(rename("Marisa's Salon").msg), "Saved — the receptionist picks it up within a minute");
+  assert.equal(textOf(rename("Marisa's Salon").msg), "Saved — AI picks it up within a minute");
 });
 
 test("a save the server refuses is said in its words, and the editor stays open with what was typed", async () => {
@@ -1775,10 +1771,7 @@ test("the number it gives out: your line stores nothing, and a different number 
       ["A different number", false],
     ],
   );
-  assert.match(
-    textOf(byTestId(tree, "rec-inline-phone_display-note")),
-    /\+1 \(305\) 555-0123 — the line your receptionist answers/,
-  );
+  assert.match(textOf(byTestId(tree, "rec-inline-phone_display-note")), /\+1 \(305\) 555-0123 — the line AI answers/);
   press(radios(tree)[1]);
   tree = redrawTab(flash);
   assert.equal(
@@ -1808,10 +1801,7 @@ test("the number it gives out: your line stores nothing, and a different number 
   assert.equal(byTestId(tree, "rec-inline-phone_display-choice"), null, "no line, no choice");
   saveRow(tree, "phone_display");
   tree = redrawTab(flash);
-  assert.match(
-    textOf(inline(tree, "phone_display")),
-    /There is no line yet, so the receptionist needs a number to give out\./,
-  );
+  assert.match(textOf(inline(tree, "phone_display")), /There is no line yet, so AI needs a number to give out\./);
   typeInto(tree, "phone_display", "(646) 555-0100");
   tree = redrawTab(flash);
   saveRow(tree, "phone_display");
@@ -1871,7 +1861,7 @@ test("the transfer number starts from the number as it is shown, is checked unde
   tree = redrawTab(flash);
   saveRow(tree, "handoff_number");
   tree = redrawTab(flash);
-  assert.match(textOf(inline(tree, "handoff_number")), /the receptionist's own line/, "never the line it answers on");
+  assert.match(textOf(inline(tree, "handoff_number")), /AI's own line/, "never the line it answers on");
   assert.equal(sent.length, 0);
   typeInto(tree, "handoff_number", "+1 (646) 555-0199");
   tree = redrawTab(flash);
@@ -1912,7 +1902,7 @@ test("every act of the record is a PUT the settings door refuses, and none asks 
     const empty = drawCreateCard();
     const act = byTestId(empty, "rec-create-open");
     assert.equal(act.props["aria-disabled"], true, "REGRESSION: the act asked a door this role may open");
-    assert.equal(act.props["aria-description"], roleGate("operator", "settings", "set up the receptionist").reason);
+    assert.equal(act.props["aria-description"], roleGate("operator", "settings", "set up AI").reason);
 
     // And an operator who may change the business and nothing else is offered all of it, refused nowhere: every act
     // asks "settings", so widening that one permission widens exactly these controls.
@@ -2099,7 +2089,7 @@ test("nothing a fold works out as it draws can take the page down: a draft its h
     press(byTestId(tree, "rec-row-act-guardrails"));
     tree = again(draw);
     assert.equal(handed.open, true);
-    assert.ok(byTestId(tree, "rec-fold-says-guardrails"), "a whole draft says what it will tell the receptionist");
+    assert.ok(byTestId(tree, "rec-fold-says-guardrails"), "a whole draft says what it will tell AI");
     // A body's slip: it writes the one switch it changed and drops the rest.
     handed.update(() => ({ never_quote_prices: false }));
     assert.doesNotThrow(() => {
@@ -2818,11 +2808,11 @@ test("any business may empty its booking link, and the key goes rather than an e
   assert.equal(
     Object.prototype.hasOwnProperty.call(sent[0].config.brain, "booking_link"),
     false,
-    "an empty one would fail the read's web-address check, and the receptionist would go quiet",
+    "an empty one would fail the read's web-address check, and AI would go quiet",
   );
 });
 
-test("with no booking link, the row says what the receptionist does instead, for every business", () => {
+test("with no booking link, the row says what AI does instead, for every business", () => {
   const without = { booking_link: undefined };
   assert.match(
     textOf(byTestId(drawTab({ brain: without }), "rec-row-booking_link")),

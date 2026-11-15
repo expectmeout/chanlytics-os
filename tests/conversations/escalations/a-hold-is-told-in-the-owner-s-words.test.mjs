@@ -85,12 +85,12 @@ test("the reason carries its act: a reply to write, a call to return, or nothing
   // The pause rides after the verb, whichever it is.
   assert.ok(
     holdNotice(facts({ reason: "callback", pausedHours: 2 })).body.endsWith(
-      "Call them back — the receptionist is paused on this thread for 2h.",
+      "Call them back — AI is paused on this thread for 2h.",
     ),
   );
 });
 
-test("the notice: who, their words, the receptionist's, the hold's own, where to answer, the pause", () => {
+test("the notice: who, their words, AI's, the hold's own, where to answer, the pause", () => {
   const n = holdNotice(facts({ replyWords: "We open at 10 on Sunday.", pausedHours: 24 }));
   assert.deepEqual(
     [n.kind, n.route, n.about],
@@ -105,11 +105,11 @@ test("the notice: who, their words, the receptionist's, the hold's own, where to
     n.body,
     [
       "They wrote: “Are you open Sunday?”",
-      "The receptionist: “We open at 10 on Sunday.”",
+      "AI: “We open at 10 on Sunday.”",
       "Message arrived 42 minutes late — too old to answer automatically.",
       "",
       "Text conversation · +1 (305) 555-0142",
-      "Reply from the Inbox — the receptionist is paused on this thread for 24h.",
+      "Reply from the Inbox — AI is paused on this thread for 24h.",
     ].join("\n"),
   );
   assert.equal(
@@ -167,7 +167,7 @@ test("the notice a hold that could not be written is told by (the handler's own,
   assert.equal(said("something new").subject, "Rosa Diaz needs a person — something new");
   assert.ok(
     said("passed to a human", { pausedHours: 24 }).body.endsWith(
-      "Reply from the Inbox — the receptionist is paused on this thread for 24h.",
+      "Reply from the Inbox — AI is paused on this thread for 24h.",
     ),
   );
 });

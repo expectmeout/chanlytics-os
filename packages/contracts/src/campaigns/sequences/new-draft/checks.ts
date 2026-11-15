@@ -297,7 +297,7 @@ export function voiceLineOf(lines: readonly string[] | undefined): string | null
 
 /** The words New says around the owner's voice. */
 export const VOICE_WORDS = {
-  paste: "Paste an email you've sent, and Ask writes the way you do.",
+  paste: "Paste an email you've sent, and AI writes the way you do.",
   placeholder: "An email you wrote to someone new",
   use: "Use it",
   reading: "Reading how you write…",
@@ -306,10 +306,10 @@ export const VOICE_WORDS = {
   tooLong: `That is more than one email: ${VOICE_PASTE_MAX} characters at most.`,
   kept: (n: number) =>
     n === 0
-      ? "Ask found nothing in it about how you write."
+      ? "AI found nothing in it about how you write."
       : n === 1
-        ? "Ask kept a line on how you write, and is drafting again."
-        : `Ask kept ${n} lines on how you write, and is drafting again.`,
+        ? "AI kept a line on how you write, and is drafting again."
+        : `AI kept ${n} lines on how you write, and is drafting again.`,
   full: ASK_MEMORY_WORDS.full,
 } as const;
 

@@ -65,16 +65,16 @@ export const NEW_CONVERSATION_WORDS = {
   firstText: (line: string) => `Their first text from you also carries: “${line}”`,
   then: {
     label: "When they answer",
-    receptionist: "The receptionist answers",
+    receptionist: "AI answers",
     receptionistHint: "Knows your plan",
     me: "I answer",
     meHint: "It stays quiet until you hand it back",
     comesToYou: "Their answer comes to you, in Needs you.",
   },
   note: {
-    label: "Note for the receptionist",
+    label: "Note for AI",
     leaveOut: "Leave it out",
-    putBack: "Add a note for the receptionist",
+    putBack: "Add a note for AI",
     empty: "What it should know",
   },
   send: "Send",
@@ -100,9 +100,8 @@ export const NEW_CONVERSATION_WORDS = {
   sendTo: (address: string) => `Send to ${address}`,
   /** What gets a message to someone with no yes on record: their page is where a yes is recorded, in their words. */
   recordYes: "Record their yes on their page",
-  noteLost: "It was sent. The note for the receptionist was not kept: add it on their page.",
-  stillYours:
-    "It was sent. The thread is still yours: hand it back from the thread when you want the receptionist to answer.",
+  noteLost: "It was sent. The note for AI was not kept: add it on their page.",
+  stillYours: "It was sent. The thread is still yours: hand it back from the thread when you want AI to answer.",
   noWay: (personName: string) => `No message can go to ${personName} yet.`,
   call: {
     from: "Call from your phone",
@@ -112,7 +111,7 @@ export const NEW_CONVERSATION_WORDS = {
     doNotContact: "They are on your do-not-contact list.",
     after: "How did it go?",
     keep: "Keep as a note",
-    tell: "The receptionist should know",
+    tell: "AI should know",
     kept: "Kept on their page.",
     /** How a call went, as the note keeps it: dated in its own words, since a note has no end. */
     noteOf: (day: string, after: string) => `${day}: the team called them. ${after.trim()}`,

@@ -78,7 +78,7 @@ export async function raiseLateFailure(ports: LateFailurePorts, cmd: LateFailure
   if (message.status === "failed" || message.status === "canceled") return "already_over";
 
   const reason = sendFailureWords(cmd.error, cmd.channel) ?? "The provider reported it as not delivered.";
-  const person = message.sender === "ai" ? "The receptionist's reply" : "A reply from your team";
+  const person = message.sender === "ai" ? "AI's reply" : "A reply from your team";
   // The hold is the one thing that must not be lost: written, its event tells the owner, once, after the commit and out
   // of the provider's request (decision 0043); a flag that could not be written throws, and the receipt's redelivery
   // says it again.

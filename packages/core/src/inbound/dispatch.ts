@@ -139,7 +139,7 @@ export async function holdOrKeep(
     post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
     const escalate = sink.escalate(
       "policy_block",
-      `the receptionist was not sure enough to answer on its own (confidence ${brainMeta?.confidence ?? "unknown"}, floor ${plan.minConfidence}) and the hold for a person could not be written, so nothing was sent — "${bodyText}"`,
+      `AI was not sure enough to answer on its own (confidence ${brainMeta?.confidence ?? "unknown"}, floor ${plan.minConfidence}) and the hold for a person could not be written, so nothing was sent — "${bodyText}"`,
     );
     post.push(escalate);
     post.push(

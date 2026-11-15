@@ -60,7 +60,7 @@ export const PAUSED_CALL = "calls are answered only to take a message";
  * and a call to its number is still picked up to take a message, since its line goes back only by the lines sweep. Said
  * from PAUSED_CALL, never "stops answering" (the wiring's second audit review, C1).
  */
-export const WORKSPACE_ENDED_WORDS = `its receptionist stops replying to messages and ${PAUSED_CALL}, its plan is cancelled, and its public pages go offline`;
+export const WORKSPACE_ENDED_WORDS = `AI stops replying to its messages and ${PAUSED_CALL}, its plan is cancelled, and its public pages go offline`;
 
 /** A paused workspace: a call is answered only to take a message, and every other message waits for a person. */
 export const WORKSPACE_PAUSED: CallerGets = {

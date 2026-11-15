@@ -1,7 +1,7 @@
 /**
  * The controls around the thread: its … menu, the line under its name, and the line that says what it needs from you.
  *
- * On 21 September the menu was 194px of 12.5px under an eyebrow in capitals, with "Receptionist for this person…"
+ * On 21 September the menu was 194px of 12.5px under an eyebrow in capitals, with "AI for this person…"
  * broken onto two lines and a boxed … opening it. The line under the name spent itself on "+1 (917) 555-0114" and "no
  * name saved". The status line was a dot and a bold title here, an icon and a bold name inside a sentence there, a white
  * slab of a button beside a link with an arrow. Now: one menu, grouped by what it acts on; the wires the conversation is
@@ -200,7 +200,7 @@ test("the thread's menu: the conversation, then Contact, then the file, each und
     "|",
     // Theirs already, under the head that names them: their name again was a business's whole name over two lines.
     "[Contact]",
-    "Receptionist",
+    "AI",
     "|",
     "[Deal and file]",
     "Export transcript",
@@ -1013,7 +1013,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
       "Mark as unread",
       "|",
       "[Contact]",
-      "Receptionist",
+      "AI",
       "|",
       "[Deal and file]",
       "Start a proposal",
@@ -1183,7 +1183,7 @@ test("an owner's first email from someone asks under the conversation whether it
   }
 });
 
-test("the reply box says whose its words are while they are Ask's draft, unchanged -- once changed, they are the member's", () => {
+test("the reply box says whose its words are while they are AI's draft, unchanged -- once changed, they are the member's", () => {
   // The draft sat in the box unlabelled and read as the member's own typing (the thread canvas, 1 Nov 2026).
   setSurfaceValue("reply_drafts", {
     drafts: [
@@ -1207,7 +1207,7 @@ test("the reply box says whose its words are while they are Ask's draft, unchang
     const box = find(tree, (n) => n.type === "textarea" && hasClass("ix-composer-text")(n));
     assert.equal(box.props.value, "Hi Rosa, Friday at 3 works.", "the box holds the draft");
     const drafted = find(tree, byTestId("ix-composer-drafted"));
-    assert.equal(textOf(find(drafted, hasClass("ix-composer-drafted-words"))).trim(), "Ask's draft");
+    assert.equal(textOf(find(drafted, hasClass("ix-composer-drafted-words"))).trim(), "AI's draft");
     box.props.onChange({ target: { value: "Hi Rosa, Friday at 3 works for us." } });
     const changed = redraw();
     assert.equal(find(changed, byTestId("ix-composer-drafted")), undefined, "changed, the words are the member's");
@@ -1254,7 +1254,7 @@ test("beside a real thread on a desk, who they are in People's words: their busi
     assert.equal(textOf(find(drawn, byTestId("ix-context-works"))).trim(), "Works at Fixture Studio");
     assert.ok(textOf(drawn).includes("rosa@example.com"));
     const said = (key) => textOf(find(drawn, byTestId(`ix-context-${key}`)));
-    assert.equal(said("receptionist"), "ReceptionistWaiting for a person");
+    assert.equal(said("receptionist"), "AIWaiting for a person");
     assert.equal(said("first"), "First contactSep 2 · WhatsApp");
     assert.equal(said("last"), "Last contactThey wrote · 40m ago");
     assert.equal(said("history"), "History1 conversation · 0 calls");

@@ -67,7 +67,7 @@ export function personFactsOf({
       : lc.who === "team"
         ? "your team replied"
         : lc.who === "receptionist"
-          ? "receptionist replied"
+          ? "AI replied"
           : lc.who === "system"
             ? "we sent"
             : "";
@@ -91,7 +91,7 @@ export function personFactsOf({
     // Consent is the two asks on the rail, each with how it was given. A fact, an About row and a pill said it
     // again, five times on one profile.
     {
-      label: "Receptionist",
+      label: "AI",
       value: TONE_WORD[base.receptionist.tone],
       meta:
         base.receptionist.tone === "escalated"

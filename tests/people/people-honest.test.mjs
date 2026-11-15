@@ -1030,10 +1030,7 @@ test("REGRESSION: People opens on the people -- one line, then the table; a titl
     "REGRESSION: a page title under a top bar that says People",
   );
   const said = textOf(tree);
-  assert.ok(
-    !said.includes("The receptionist handles the routine"),
-    "REGRESSION: the page explained itself on every visit",
-  );
+  assert.ok(!said.includes("AI handles the routine"), "REGRESSION: the page explained itself on every visit");
   assert.ok(!said.includes("the strip above"), "REGRESSION: the page explained its own furniture");
 
   // The two who need a person are in the table, once, with their state on the row.
@@ -1640,20 +1637,20 @@ test("REGRESSION: on a phone a selection is one row in the tab bar's shape -- �
     assert.match(textOf(byTestId(sheet, "bulk-list-s1")), /Regulars/);
   }));
 
-test("on a phone More opens the selection's sheet -- Messages and receptionist ›, Export, Delete… -- Note is the dock's own, and a step asks, acts, then shuts", () =>
+test("on a phone More opens the selection's sheet -- Messages and AI ›, Export, Delete… -- Note is the dock's own, and a step asks, acts, then shuts", () =>
   onPhone(async () => {
     const seen = await freshPage({ people: [person(1), person(2), person(3)] });
     let tree = bulkSheetOpen();
     let sheet = openSheet(tree, "bulk-sheet");
     assert.equal(sheet.props.title, "2 selected");
-    // A yes on record and the receptionist's mode are one step, the person page's own group (Messages and receptionist):
+    // A yes on record and the receptionist's mode are one step, the person page's own group (Messages and AI):
     // the owner's modes are in it. Select all is the bar's at the top, the note up front in the dock; the deletes last.
     assert.deepEqual(sheetRows(sheet), ["bulk-messages", "bulk-export", "bulk-not-a-person", "bulk-delete"]);
     // A yes on a sign-up form: the step asks which forms, then records, then the sheet shuts.
     click(byTestId(sheet, "bulk-messages"));
     tree = draw();
     sheet = openSheet(tree, "bulk-sheet");
-    assert.equal(sheet.props.title, "Messages and receptionist");
+    assert.equal(sheet.props.title, "Messages and AI");
     // The yes to offers has its row too (in writing only, a sign-up form), and the receptionist's four modes after it.
     assert.deepEqual(sheetRows(sheet), [
       "bulk-yes-conversational-in_person",
@@ -2417,10 +2414,10 @@ test("a selection's yes on a sign-up form is recorded with the note that says wh
       "Sign-up form",
       "Yes to offers and news…",
       "Sign-up form",
-      "Receptionist for these people…",
+      "AI for these people…",
       ...["auto", "ask", "never", "inherit"].map((m) => stateOf("mode", m).label),
     ],
-    "their own message names one message, so a selection is not offered it; the receptionist's mode is the same menu's",
+    "their own message names one message, so a selection is not offered it; AI's mode is the same menu's",
   );
   await itemOf(menu(), "Sign-up form").onClick();
   tree = draw();
@@ -2523,13 +2520,13 @@ test("the table's columns: Person, State, Next step and Last contact, and with a
     views: { people: { sortBy: "last", sortDir: "desc", columns: { reach: true, receptionist: true, offers: true } } },
   });
   tree = draw();
-  assert.deepEqual(headings(tree), ["Person", "State", "Next step", "Reach", "Last contact", "Receptionist", "Offers"]);
+  assert.deepEqual(headings(tree), ["Person", "State", "Next step", "Reach", "Last contact", "AI", "Offers"]);
   assert.deepEqual(
     sorting(tree),
     ["Person", "State", "Next step", "Last contact", "Offers"],
-    "the receptionist and Reach never sort",
+    "AI and Reach never sort",
   );
-  oneCellPerHeading(tree, "with Reach, the receptionist and Offers shown");
+  oneCellPerHeading(tree, "with Reach, AI and Offers shown");
   await freshPage({ people: [person(1), person(2)], calendar: "ok" });
   tree = draw();
   assert.deepEqual(
@@ -2575,7 +2572,7 @@ test("a row with a thread offers the booking link on file; with none on file, on
   assert.equal(byTestId(tree, "row-booking-link"), null, "and there is no link to offer");
 });
 
-test("the receptionist's word is beside the state whether or not its column shows, marked when it does, so a card never loses it", async () => {
+test("AI's word is beside the state whether or not its column shows, marked when it does, so a card never loses it", async () => {
   // A reply is queued, so the receptionist is not simply answering: it has a word to say. Person 2's is simply answering.
   const queued = person(1, { queued_reply_at: iso(H) });
   const stateCell = (tree, id) =>
@@ -2603,7 +2600,7 @@ test("the receptionist's word is beside the state whether or not its column show
   assert.equal(
     textOf(byTestId(rowOf(tree, "p1"), "row-receptionist")).trim(),
     "Reply queued",
-    "the column says the receptionist's standing as the one pill, in its own words",
+    "the column says AI's standing as the one pill, in its own words",
   );
   assert.ok(
     stateCell(tree, "p2") && !find(stateCell(tree, "p2"), isMark),
@@ -2798,7 +2795,7 @@ test("REGRESSION: Esc clears the selection with focus on a bulk-bar button -- af
   assert.equal(byTestId(draw(), "bulk-bar"), null, "the selection is cleared");
 });
 
-test("a key with a modifier is not the page's: Ctrl-K is Ask's, and Ctrl-J, Ctrl-X, ⌘J and Alt-X move and select nothing", async () => {
+test("a key with a modifier is not the page's: Ctrl-K is AI's, and Ctrl-J, Ctrl-X, ⌘J and Alt-X move and select nothing", async () => {
   await freshPage({ people: [person(1), person(2), person(3)] });
   draw();
   press("j");
@@ -3186,7 +3183,7 @@ test("a view keeps its columns with its sort, and every save sends every key -- 
   );
 });
 
-test("with a calendar the receptionist's word sits beside the state until its own column is shown -- then a desktop says it there, once, and a card keeps it beside the state", async () => {
+test("with a calendar AI's word sits beside the state until its own column is shown -- then a desktop says it there, once, and a card keeps it beside the state", async () => {
   await freshPage({ people: [person(1, { queued_reply_at: iso(H) })], calendar: "ok" });
   const stateCell = (t) => find(t, (n) => n.type === "td" && /\bcl-state-cell\b/.test(n.props?.className || ""));
   let tree = draw();
@@ -3194,7 +3191,7 @@ test("with a calendar the receptionist's word sits beside the state until its ow
   tree = draw();
   flipColumn(tree, "receptionist");
   tree = draw();
-  assert.ok(headings(tree).includes("Receptionist"), "in a column of its own");
+  assert.ok(headings(tree).includes("AI"), "in a column of its own");
   // Controller: after Task 3's review the mark always renders; a class hides it at 901px and up, where the column shows it,
   // so a phone card (which hides the Receptionist cell beside Visits) still says it.
   const mark = find(stateCell(tree), (n) => /cl-row-recept-mark/.test(n.props?.className || ""));
@@ -3364,7 +3361,7 @@ test("a phone draws no Columns menu: its cards are not columns, and the kit's me
   });
 });
 
-test("a column put back the way its default has it is no choice any more -- the receptionist, turned on and off again, leaves nothing to keep, and Visits shows once a calendar connects", async () => {
+test("a column put back the way its default has it is no choice any more -- AI, turned on and off again, leaves nothing to keep, and Visits shows once a calendar connects", async () => {
   const seen = await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc" } } });
   const saves = () => savedViews(seen).map(([, view]) => view);
   flipColumn(draw(), "receptionist");
@@ -3384,7 +3381,7 @@ test("a column put back the way its default has it is no choice any more -- the 
   );
 });
 
-test("with a calendar the menu offers Visits, shown, and the receptionist, hidden; a Visits hidden stays hidden through a calendar outage and rides in every save", async () => {
+test("with a calendar the menu offers Visits, shown, and AI, hidden; a Visits hidden stays hidden through a calendar outage and rides in every save", async () => {
   let seen = await freshPage({
     people: [person(1)],
     calendar: "ok",
@@ -3411,7 +3408,7 @@ test("with a calendar the menu offers Visits, shown, and the receptionist, hidde
       ["lists", false],
       ["deal", false],
     ],
-    "the visit shows; the receptionist waits in the menu",
+    "the visit shows; AI waits in the menu",
   );
   flipColumn(tree, "visits");
   draw();

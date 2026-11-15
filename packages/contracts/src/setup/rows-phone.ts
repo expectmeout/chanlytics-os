@@ -72,7 +72,7 @@ export function lineRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRo
       title: "A line for calls and texts",
       state: "ready",
       required: false,
-      sentence: "Not by phone: your receptionist answers where your customers write.",
+      sentence: "Not by phone: AI answers where your customers write.",
       details: ["Add a number any time, and calls are answered too"],
       verb: { label: "Get a number", to: "start/channels" },
     };
@@ -156,7 +156,7 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
   if (line.voice_state === "answering") {
     return {
       kind: "connecting",
-      sentence: `${number ?? "Your number"} is set up — connecting it to the receptionist.`,
+      sentence: `${number ?? "Your number"} is set up — connecting it to AI.`,
       details: [],
       retry: null,
     };
@@ -239,7 +239,7 @@ function lineToGetRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowD
           // Checkout bills one price and nothing bills a number fee, so no row quotes one. The DTO still carries what a
           // number costs Chanlytics (lines.costs); nothing an owner reads says it.
           details: [
-            "A local number, included in your plan · your receptionist answers it · texting arrives when the carriers register it",
+            "A local number, included in your plan · AI answers it · texting arrives when the carriers register it",
           ],
           verb: { label: "Get a line", to: "verb:choose-line" },
         }
@@ -292,7 +292,7 @@ function lineToGetRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowD
               required: !answering,
               sentence: "We set up your phone line with you.",
               details: [
-                "A number, the receptionist answering it, and forwarding from the number you have",
+                "A number, AI answering it, and forwarding from the number you have",
                 "Billing is not open on this deployment yet, so there is nothing to add a card to",
               ],
               verb: { label: "Ask for a line", to: "verb:request-line" },
@@ -306,7 +306,7 @@ function lineToGetRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowD
     state: "waiting_you",
     required: !answering,
     sentence: "We set up your phone line with you.",
-    details: ["A number, the receptionist answering it, and forwarding from the number you have"],
+    details: ["A number, AI answering it, and forwarding from the number you have"],
     verb: { label: "Ask for a line", to: "verb:request-line" },
   };
 }
@@ -328,7 +328,7 @@ export function receptionistRow(setupInputs: SetupInputs, ctx: SetupRowContext):
       return {
         id: "receptionist",
         icon: "headphones",
-        title: "Phone receptionist",
+        title: "AI on the phone",
         state: "waiting_you",
         required: !answering,
         sentence: `Picking up on ${voiceNum}, but it has no facts to answer with yet.`,
@@ -344,7 +344,7 @@ export function receptionistRow(setupInputs: SetupInputs, ctx: SetupRowContext):
       return {
         id: "receptionist",
         icon: "headphones",
-        title: "Phone receptionist",
+        title: "AI on the phone",
         state: "ready",
         required: !answering,
         sentence: `Answering on ${voiceNum}.`,
@@ -369,7 +369,7 @@ export function receptionistRow(setupInputs: SetupInputs, ctx: SetupRowContext):
     return {
       id: "receptionist",
       icon: "headphones",
-      title: "Phone receptionist",
+      title: "AI on the phone",
       state: "waiting_you",
       required: !answering,
       sentence: "Switched off with the line.",
@@ -381,7 +381,7 @@ export function receptionistRow(setupInputs: SetupInputs, ctx: SetupRowContext):
     return {
       id: "receptionist",
       icon: "headphones",
-      title: "Phone receptionist",
+      title: "AI on the phone",
       state: "waiting_them",
       required: !answering,
       sentence: "Being created with your line — it answers the moment the line does.",
@@ -392,10 +392,10 @@ export function receptionistRow(setupInputs: SetupInputs, ctx: SetupRowContext):
   return {
     id: "receptionist",
     icon: "headphones",
-    title: "Phone receptionist",
+    title: "AI on the phone",
     state: "waiting_them",
     required: !answering,
-    sentence: "The phone receptionist arrives with your line.",
+    sentence: "AI answers the phone once your line arrives.",
     details: [],
     verb: null,
   };
@@ -417,7 +417,7 @@ export function tryRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | n
     state: voice.lastInboundAt ? "ready" : "waiting_you",
     required: false,
     sentence: voice.lastInboundAt
-      ? `A call reached your receptionist ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}.`
+      ? `A call reached AI ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}.`
       : fwTry
         ? // A phone cannot call itself: only an office phone system's owner is sure to hold another phone, their cell.
           `Call ${through} from ${keptPhoneKind(fwTry) === "office" ? "your cell" : "another phone"} and don't pick up.`
@@ -449,7 +449,7 @@ export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
       title,
       state: "ready",
       required: false,
-      sentence: `Calls to ${kept} reach your receptionist.`,
+      sentence: `Calls to ${kept} reach AI.`,
       details: [
         forwarding.verified_at ? `Verified ${agoWords(Date.parse(forwarding.verified_at), nowMs)}` : "Verified",
         how,
@@ -478,7 +478,7 @@ export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
       required: false,
       sentence:
         forwarding.carrier === "office"
-          ? `Forward ${kept} to your receptionist in your phone system's settings, then test it.`
+          ? `Forward ${kept} to AI in your phone system's settings, then test it.`
           : `Dial the code on the phone with ${kept}, then test it.`,
       details: [how],
       verb: { label: "Test it", to: `verb:forwarding-test:${fw.id}` },
@@ -491,7 +491,7 @@ export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
       title,
       state: "not_started",
       required: false,
-      sentence: "Once your receptionist has a line, keep the number customers know by forwarding its calls to it.",
+      sentence: "Once AI has a line, keep the number customers know by forwarding its calls to it.",
       details: [],
       verb: null,
     };

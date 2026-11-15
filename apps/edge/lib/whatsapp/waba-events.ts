@@ -207,7 +207,7 @@ function templateStatusWords(record: Record<string, unknown>): WabaWords | null 
       ...BLOCKED,
       ...door,
       subject: `WhatsApp asked for a change to “${title}”`,
-      body: `${reason ?? "WhatsApp asked for a change to its words. Ask writes new words for you to send back."} Open “${title}” in Messages to send them.`,
+      body: `${reason ?? "WhatsApp asked for a change to its words. AI writes new words for you to send back."} Open “${title}” in Messages to send them.`,
       alert: true,
     };
   }
@@ -294,7 +294,7 @@ export function describeWabaChange(wabaChange: WabaChange, number: string | null
         return {
           ...NUM,
           subject: "WhatsApp connection removed",
-          body: `The business removed Chanlytics from the account behind ${line.toLowerCase()}. The receptionist can no longer answer on it until it is connected again.`,
+          body: `The business removed Chanlytics from the account behind ${line.toLowerCase()}. AI can no longer answer on it until it is connected again.`,
           alert: true,
         };
       return null;

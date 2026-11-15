@@ -67,7 +67,7 @@ async function proposeThreadVerb(
   }
   const TITLES: Record<(typeof THREAD_VERBS)[number], string> = {
     take_over: `Take over ${contactName}'s thread`,
-    hand_back: `Hand ${contactName}'s thread back to the receptionist`,
+    hand_back: `Hand ${contactName}'s thread back to AI`,
     snooze: `Snooze ${contactName}'s thread`,
     wake: `Wake ${contactName}'s thread`,
     archive: `Archive ${contactName}'s thread`,
@@ -84,9 +84,9 @@ async function proposeThreadVerb(
         : verb === "resolve"
           ? "Closes the open escalation; the thread stays"
           : verb === "take_over"
-            ? "The receptionist goes quiet on it until you hand it back"
+            ? "AI goes quiet on it until you hand it back"
             : verb === "hand_back"
-              ? "The receptionist answers again"
+              ? "AI answers again"
               : verb === "archive"
                 ? "Out of the Inbox; it comes back if they write"
                 : "Back in the Inbox now",

@@ -113,6 +113,7 @@ export const ROUTES = {
   "GET platform/support": { method: "GET", path: "/api/v1/platform/support" },
   "GET platform/support/bugs": { method: "GET", path: "/api/v1/platform/support/bugs" },
   "GET platform/tenants/[id]": { method: "GET", path: "/api/v1/platform/tenants/[id]" },
+  "GET platform/tenants/[id]/set-aside": { method: "GET", path: "/api/v1/platform/tenants/[id]/set-aside" },
   "GET platform/workspaces/[slug]": { method: "GET", path: "/api/v1/platform/workspaces/[slug]" },
   "GET playbooks": { method: "GET", path: "/api/v1/playbooks" },
   "GET policies": { method: "GET", path: "/api/v1/policies" },
@@ -517,6 +518,7 @@ export type Routes = {
   "GET platform/support": typeof import("../../app/api/v1/platform/support/route").GET;
   "GET platform/support/bugs": typeof import("../../app/api/v1/platform/support/bugs/route").GET;
   "GET platform/tenants/[id]": typeof import("../../app/api/v1/platform/tenants/[id]/route").GET;
+  "GET platform/tenants/[id]/set-aside": typeof import("../../app/api/v1/platform/tenants/[id]/set-aside/route").GET;
   "GET platform/workspaces/[slug]": typeof import("../../app/api/v1/platform/workspaces/[slug]/route").GET;
   "GET playbooks": typeof import("../../app/api/v1/playbooks/route").GET;
   "GET policies": typeof import("../../app/api/v1/policies/route").GET;

@@ -132,14 +132,14 @@ test.describe("Today on a real workspace", () => {
     await expect(page).toHaveURL(atRoute(/^calendar/));
   });
 
-  test("Ask found: every row what it is, its sentence and its one act, its why behind the sentence beside Not today; three at most", async ({
+  test("AI found: every row what it is, its sentence and its one act, its why behind the sentence beside Not today; three at most", async ({
     page,
   }) => {
     const rows = await expectFoundWellFormed(page);
     if (rows.length === 0) return;
     for (const r of rows)
       expect(r.tag).toMatch(
-        /^(Booking gap|No reply|Next step|Waiting|Reach|Gone quiet|Replies fell|Ask noticed|Ask's idea|Worth a listen|Tried their receptionist)$/,
+        /^(Booking gap|No reply|Next step|Waiting|Reach|Gone quiet|Replies fell|AI noticed|AI's idea|Worth a listen|Tried their preview)$/,
       );
     // Not today stands beside the why, and is not pressed here: it would rest the row a week for the suite's member.
     const zone = page.getByTestId("today-ask-found");
@@ -239,7 +239,7 @@ test.describe("Today on a real workspace", () => {
     expect(attempts, "opening a waiting search answers nothing").toEqual([]);
   });
 
-  test("nobody in Need you is said again in Ask found, and Since you looked opens in place", async ({ page }) => {
+  test("nobody in Need you is said again in AI found, and Since you looked opens in place", async ({ page }) => {
     await expect(page.getByTestId("today-zones")).toBeVisible();
     // While you were away went (Today in three zones): what happened is the head's one line, and its rows open under it.
     await expect(page.getByTestId("today-away")).toHaveCount(0);
@@ -280,7 +280,7 @@ test.describe("Today on a phone", () => {
     expect(position).toBe("static");
   });
 
-  test("the ✦ opens Ask over the whole screen; no band stands above the queue; a swipe down closes it", async ({
+  test("the ✦ opens AI over the whole screen; no band stands above the queue; a swipe down closes it", async ({
     page,
   }) => {
     await signIn(page);

@@ -145,13 +145,13 @@ test("a read that failed says so, apart from nothing made", () => {
   assert.equal(count(html, "cnv-empty"), 0);
 });
 
-test("nothing made says what Ask makes and offers what it can make now, each in one press", () => {
+test("nothing made says what AI makes and offers what it can make now, each in one press", () => {
   const html = draw(page());
   assert.equal(count(html, "cnv-empty"), 1);
   assert.match(html, /Nothing made yet/);
-  assert.match(html, /Ask makes posts from your photos\./, "a workspace that takes no videos is promised none");
+  assert.match(html, /AI makes posts from your photos\./, "a workspace that takes no videos is promised none");
   assert.doesNotMatch(html, /videos from your clips/);
-  assert.equal(count(html, "cnv-idea-photo_post"), 1, "an idea of Ask's, asked for in one press");
+  assert.equal(count(html, "cnv-idea-photo_post"), 1, "an idea of AI's, asked for in one press");
   assert.equal(count(html, "cnv-idea-video"), 0, "and no video where the workspace takes none");
   const videos = S.renderToStaticMarkup(S.createElement(S.ContentBody, { held: page(), acts, videos: true }));
   assert.match(videos, /posts from your photos and videos from your clips/);
@@ -164,7 +164,7 @@ test("an idea is offered only where what it is made from is there, and an empty 
   const none = ["before_after", "video", "photo_post"].map((key) => ({ key, files: [], ready: false }));
   const html = draw(page({ ideas: none }));
   assert.equal(count(html, "cnv-idea-photo_post"), 0, "never your newest photo with no photo");
-  assert.match(html, /Ask makes posts from your photos\. Add a few to start\./);
+  assert.match(html, /AI makes posts from your photos\. Add a few to start\./);
   assert.equal(count(html, "cnv-first-add"), 1, "the Library is empty: its door leads");
   const kept = draw(page({ ideas: none.map((i) => ({ ...i, ready: i.key === "photo_post" })), tally: { library: 1 } }));
   assert.equal(count(kept, "cnv-idea-photo_post"), 1);

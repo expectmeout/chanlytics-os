@@ -47,25 +47,25 @@ import {
   withFacts,
 } from "./_first-run-world.mjs";
 
-test("a new workspace opens on its business: the rail says where it is, the step is Check, whose one press sets the receptionist up, and nothing answers yet", () => {
+test("a new workspace opens on its business: the rail says where it is, the step is Check, whose one press sets AI up, and nothing answers yet", () => {
   setSetup(surface(blank));
   const tree = open();
   assert.equal(
     textOf(byTestId(tree, "fr-heading")),
-    "Build your receptionist",
+    "Set up AI",
     "nothing on Google here: the heading says what its one press does",
   );
   assert.ok(byTestId(tree, "fr-rail-business"), "the step on screen is a button on the rail");
   assert.equal(byTestId(tree, "fr-rail-receptionist"), null, "a step not reached is only its name");
   assert.deepEqual(
     FIRST_RUN_STEPS.map((s) => s.name),
-    ["Your business", "Your receptionist", "Rehearse", "Where it answers", "Go live"],
+    ["Your business", "AI", "Rehearse", "Where it answers", "Go live"],
     "five steps (decision 0073)",
   );
   assert.equal(byTestId(tree, "fr-rows"), null, "Check, not Setup's rows");
   assert.equal(
     saidOf(byTestId(tree, "fr-check-make")),
-    "It starts with the name Harbor Moving, and you add the rest next.Build my receptionist",
+    "It starts with the name Harbor Moving, and you add the rest next.Set up AI",
     "the name typed at sign-up, and the step's one coral button",
   );
   assert.equal(textOf(byTestId(tree, "fr-phone-line")), "1 of 5 · Your business");
@@ -96,11 +96,11 @@ test("a step already reached opens in place from the rail, and its onward goes o
   assert.equal(went.length, 2, "each a pushed entry, so Back walks the steps taken");
   assert.equal(byTestId(tree, "fr-rail-rehearse"), null, "a step not reached yet");
   const meet = open();
-  assert.equal(textOf(byTestId(meet, "fr-heading")), "Meet Harbor Moving's receptionist");
-  assert.equal(textOf(byTestId(meet, "fr-phone-line")), "2 of 5 · Your receptionist");
+  assert.equal(textOf(byTestId(meet, "fr-heading")), "Meet AI for Harbor Moving");
+  assert.equal(textOf(byTestId(meet, "fr-phone-line")), "2 of 5 · AI");
   assert.equal(
     textOf(byTestId(meet, "fr-check-reading")),
-    "Reading your receptionist…",
+    "Loading AI…",
     "set up, and the settings read not landed: its rows wait for it",
   );
   byTestId(meet, "fr-back").props.onClick();
@@ -112,7 +112,7 @@ test("answering already: Go live says what answers, and Open Today goes to Today
   setSetup(surface(answering));
   const tree = open();
   assert.equal(byTestId(tree, "first-run").props["data-step"], "live", "calls answering count as met and rehearsed");
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Your receptionist is answering for Harbor Moving");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "AI is answering for Harbor Moving");
   assert.ok(byTestId(tree, "fr-youre-live"));
   const onward = byTestId(tree, "fr-onward");
   assert.equal(textOf(onward), "Open Today");
@@ -235,7 +235,7 @@ test("Find: another one checked, Yes links it, and the page says so, since Find 
   assert.equal(textOf(flashes.at(-1).msg), "Harbor Moving Warehouse is your listing on Google — read just now.");
 });
 
-test("Find: Yes links it, then asks for the receptionist to be set up from what Google says", async () => {
+test("Find: Yes links it, then asks for AI to be set up from what Google says", async () => {
   const asked = googleSays([found([HARBOR])]);
   const { tree } = await findOn();
   const before = asks.receptionist.length;
@@ -273,8 +273,8 @@ test("Check with no receptionist: the owner's press asks for it, once while it i
   press.props.onClick();
   const busy = byTestId(mount(), "fr-check-make-press");
   assert.equal(busy.props["aria-busy"], true);
-  assert.equal(saidOf(busy), "Building…");
-  assert.equal(textOf(busy), "Build my receptionistBuilding…", "both words stay drawn, so the press keeps its width");
+  assert.equal(saidOf(busy), "Setting up…");
+  assert.equal(textOf(busy), "Set up AISetting up…", "both words stay drawn, so the press keeps its width");
   busy.props.onClick();
   assert.equal(asks.receptionist.length, before + 1, "a second press while it is out asks for nothing");
   answer({ ok: false, wrote: false, message: "Only an owner can do this." });
@@ -282,14 +282,10 @@ test("Check with no receptionist: the owner's press asks for it, once while it i
   await tick();
   asks.receptionistSays = null;
   assert.equal(textOf(flashes.at(-1).msg), "Not set up — Only an owner can do this.");
-  assert.equal(
-    saidOf(byTestId(mount(), "fr-check-make-press")),
-    "Build my receptionist",
-    "and it can be pressed again",
-  );
+  assert.equal(saidOf(byTestId(mount(), "fr-check-make-press")), "Set up AI", "and it can be pressed again");
 });
 
-test("Check's rows, on Your receptionist, wait for the settings read, and a read that failed offers its retry", () => {
+test("Check's rows, on AI, wait for the settings read, and a read that failed offers its retry", () => {
   setSetup(surface(withFacts));
   page.param = "receptionist";
   const again = [];
@@ -362,13 +358,13 @@ test("Find: not on Google puts Google's row off, the member's own choice", async
     await byTestId(tree, "fr-find-not").props.onClick();
     assert.deepEqual(said, [["google", { on: true, why: "answer" }]], "an answer: for good at once");
     await tick();
-    assert.equal(asks.receptionist.length, before + 1, "and the receptionist is set up with the name typed at sign-up");
+    assert.equal(asks.receptionist.length, before + 1, "and AI is set up with the name typed at sign-up");
   } finally {
     globalThis.window.__setup.later = was;
   }
 });
 
-test("Find is for whoever may set the workspace up (an owner, or the partner who brought it: 0012), by the role gate (View-as included): anyone else sees Check, which says an owner sets the receptionist up", async () => {
+test("Find is for whoever may set the workspace up (an owner, or the partner who brought it: 0012), by the role gate (View-as included): anyone else sees Check, which says an owner sets AI up", async () => {
   const asked = googleSays([found([HARBOR])]);
   const was = globalThis.window.canDo;
   globalThis.window.canDo = (a) => a === "approve" || a === "autonomy"; // an operator, exactly (contracts ROLE_PERMS)
@@ -378,9 +374,9 @@ test("Find is for whoever may set the workspace up (an owner, or the partner who
     fresh();
     const tree = mount();
     assert.equal(byTestId(tree, "fr-find"), null);
-    assert.equal(textOf(byTestId(tree, "fr-check-waiting")), "An owner sets up the receptionist here.");
+    assert.equal(textOf(byTestId(tree, "fr-check-waiting")), "An owner sets up AI here.");
     assert.equal(byTestId(tree, "fr-check-make"), null, "no press to offer");
-    assert.equal(textOf(byTestId(tree, "fr-heading")), "Build your receptionist");
+    assert.equal(textOf(byTestId(tree, "fr-heading")), "Set up AI");
     assert.deepEqual(asked.find, [], "and nothing is searched");
   } finally {
     globalThis.window.canDo = was;
@@ -472,7 +468,7 @@ test("Connect it to Google (canvas 1B·g): what one sign-in brings, said before 
   for (const brings of FIRST_RUN_HELPERS.words.google.brings) assert.ok(ask.includes(brings), brings);
   assert.match(
     ask,
-    /Your receptionist drafts the replies, and nothing is posted until you say so\. Disconnect it any time in Settings\./,
+    /AI drafts the replies, and nothing is posted until you say so\. Disconnect it any time in Settings\./,
   );
   assert.equal(byTestId(tree, "fr-onward"), null, "its own three ways on, so no page foot");
   // Beside it, the workspace building: each line a fact the page holds.
@@ -483,7 +479,7 @@ test("Connect it to Google (canvas 1B·g): what one sign-in brings, said before 
   assert.deepEqual(lines("made"), ["Workspace made · Harbor Moving", "done"]);
   assert.deepEqual(lines("confirm"), ["Your listing, confirmed", "done"]);
   assert.deepEqual(lines("connect"), ["Connect your Business Profile", "ahead"]);
-  assert.deepEqual(lines("write"), ["Your receptionist, written", "done"]);
+  assert.deepEqual(lines("write"), ["AI, set up", "done"]);
   assert.equal(byTestId(tree, "fr-building-found"), null, "linked: nothing left to search");
   assert.match(textOf(byTestId(tree, "fr-building")), /Until you connect it, it reads only what's public/);
   byTestId(tree, "fr-google-connect-press").props.onClick();
@@ -500,7 +496,7 @@ test("Connect it to Google: Not now keeps the public listing watched, the member
   await byTestId(tree, "fr-google-not-now").props.onClick();
   assert.deepEqual(said, [[GOOGLE_CONNECT_LATER, { on: true, why: "answer" }]]);
   assert.equal(replaced.at(-1), "start/business", "the bare address being left is named for its step");
-  assert.equal(went.at(-1), "start/receptionist", "and on to Your receptionist, a new entry");
+  assert.equal(went.at(-1), "start/receptionist", "and on to AI, a new entry");
   setupVerbs.later = async () => ({ ok: false, message: "Your settings could not be saved." });
   setSetup(surface(dto));
   flashes.length = 0;
@@ -525,7 +521,7 @@ test("Connect it to Google: Someone else manages it says who can add the owner, 
   assert.match(textOf(who), /^Someone else manages it on Google/);
   assert.match(textOf(who), /That account doesn't manage Harbor Moving\. Whoever does can add you in a minute:/);
   assert.match(textOf(who), /In People and access, they add owner@example\.com as an owner or manager\./);
-  assert.match(textOf(who), /Until then your receptionist reads your public listing/);
+  assert.match(textOf(who), /Until then AI reads your public listing/);
   byTestId(tree, "fr-google-try-another").props.onClick();
   assert.deepEqual(asked, [{ back: "start" }]);
   await byTestId(tree, "fr-google-go-on").props.onClick();
@@ -624,7 +620,7 @@ test("Your workspace, building, beside Find: searching while Google is asked, th
   const tree = mount();
   assert.deepEqual(
     ["found", "confirm", "write"].map((id) => textOf(byTestId(tree, `fr-building-${id}`))),
-    ["Found on Google · 2 matches", "Waiting for you to confirm it", "Write your receptionist"],
+    ["Found on Google · 2 matches", "Waiting for you to confirm it", "Set up AI"],
   );
   assert.equal(byTestId(tree, "fr-building-connect"), null, "nothing to connect before a listing is linked");
 });
@@ -653,7 +649,7 @@ const audioWorld = (t) => {
   return played;
 };
 
-test("Your receptionist (canvas 2): the greeting every caller hears in the voice chosen, walk-ins kept as a booking rule, and how it sounds one line away", (t) => {
+test("AI (canvas 2): the greeting every caller hears in the voice chosen, walk-ins kept as a booking rule, and how it sounds one line away", (t) => {
   const saves = saverWorld(t);
   const played = audioWorld(t);
   setSetup(surface(withFacts));

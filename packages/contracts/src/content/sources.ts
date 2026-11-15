@@ -77,20 +77,20 @@ export const CONTENT_SOURCE_WORDS = {
   body: {
     unknown: (videos: boolean) =>
       videos
-        ? "Paste a link and Ask brings them in. It looks at each photo, and watches and listens to each video."
-        : "Paste a link and Ask brings them in, and looks at each one.",
-    looking: "What Ask finds waits in the Library for your OK.",
+        ? "Paste a link and AI brings them in. It looks at each photo, and watches and listens to each video."
+        : "Paste a link and AI brings them in, and looks at each one.",
+    looking: "What AI finds waits in the Library for your OK.",
     found: "Keep the ones that are yours in the Library.",
     tooSmall: "The photos there are too small to post.",
-    embeddedOnly: "Its videos play from YouTube or Vimeo, which Ask can't bring in.",
+    embeddedOnly: "Its videos play from YouTube or Vimeo, which AI can't bring in.",
     nothingThere: "There was nothing there to bring in.",
-    couldNotRead: "Ask couldn't read it.",
+    couldNotRead: "AI couldn't read it.",
   },
   found: (photos: number, videos: number) =>
-    `Ask found ${[photos ? groupedPlural(photos, "photo") : null, videos ? groupedPlural(videos, "video") : null]
+    `AI found ${[photos ? groupedPlural(photos, "photo") : null, videos ? groupedPlural(videos, "video") : null]
       .filter(Boolean)
       .join(" and ")}`,
-  lookedAt: (names: readonly string[]) => `Ask looked at ${names.join(" and ")}.`,
+  lookedAt: (names: readonly string[]) => `AI looked at ${names.join(" and ")}.`,
   sub: {
     website: "Your website",
     google_listing: "Photos you posted there",

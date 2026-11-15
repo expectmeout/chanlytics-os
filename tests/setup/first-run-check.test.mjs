@@ -168,7 +168,7 @@ const courier = () => {
 
 test("Check draws the Business tab's own rows over the settings read's brain, and asks nothing of how customers buy", () => {
   const tree = draw();
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Meet Harbor Moving's receptionist");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Meet AI for Harbor Moving");
   for (const id of ["hours", "timezone", "address", "website", "booking_link", "guardrails", "services"]) {
     assert.ok(byTestId(tree, `rec-row-${id}`), `the tab's ${id} row`);
   }
@@ -221,7 +221,7 @@ test("Check stays on screen once its last fact lands, and Rehearse it now goes o
     // A service saved in the sheet: Setup reads again, and the facts are in.
     setSurfaceValue("setup", surface(dto({ services: 1 })));
     tree = redraw();
-    assert.equal(textOf(byTestId(tree, "fr-heading")), "Meet Harbor Moving's receptionist", "still Check");
+    assert.equal(textOf(byTestId(tree, "fr-heading")), "Meet AI for Harbor Moving", "still Check");
     assert.equal(byTestId(tree, "fr-held"), null, "and its onward is not held");
     byTestId(tree, "fr-onward").props.onClick();
     await settle();
@@ -297,7 +297,7 @@ test("(D) the heading takes focus when the step changes under ONE address: Rehea
     tree = redraw();
     assert.equal(
       textOf(byTestId(tree, "fr-heading")),
-      "Meet Harbor Moving's receptionist",
+      "Meet AI for Harbor Moving",
       "Check stays while the owner is on it",
     );
     assert.deepEqual(focused, [], "nothing on screen moved");
@@ -571,11 +571,11 @@ test("the services row opens the Business tab's own sheet over the first run", (
 
 test("not on Google, said, where Google can be searched: Check says the basics' lead, and Find is one press away", () => {
   const tree = draw({ setup: dto({}, { listing: null }), later: ["google"] });
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Meet Harbor Moving's receptionist");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Meet AI for Harbor Moving");
   const lead = all(tree, (n) => n.props?.className === "fr-lead")[0];
   assert.equal(
     textOf(lead),
-    "Your receptionist answers from this. You can add more later in Settings.",
+    "AI answers from this. You can add more later in Settings.",
     "nothing from Google: the basics' lead",
   );
   const find = byTestId(tree, "fr-check-find");

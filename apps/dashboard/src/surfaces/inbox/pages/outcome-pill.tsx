@@ -88,7 +88,7 @@ function outcomeSaid({
   const chat = move ? moveSaid(move, holderId) : null;
   if (chat) return chat;
   // Who has the person's thread is the Inbox's rule, said in the Inbox's words, and a call stands as its thread does
-  // (cv-rules.ts cvCallsStandAsTheirThread). "Needs you" here read "Receptionist replied" over an open escalation, and
+  // (cv-rules.ts cvCallsStandAsTheirThread). "Needs you" here read "AI replied" over an open escalation, and
   // "Needs you" over a thread you had taken over (the 2 Oct 2026 audit); a call after it read "Hung up early".
   if (standing === "needs_you") return { kind: "thread", value: "escalated" };
   if (standing === "yours") return { kind: "thread", value: "yours" };
@@ -108,14 +108,14 @@ function outcomeSaid({
     return {
       kind: "thread",
       value: "handled",
-      label: (answeredBy && CV_ANSWERED[answeredBy]) || "Receptionist replied",
+      label: (answeredBy && CV_ANSWERED[answeredBy]) || "AI replied",
     };
   // The customer had the last word — it is your turn, not theirs; this read "Customer's turn" for a year.
   return { kind: "thread", value: "open" };
 }
 
 // On a desk the pill gives way to the name in the row's first line (kit .pill-fit): "Robin Exa…" stood beside a whole
-// "Receptionist replied", where the name is what the row is for.
+// "AI replied", where the name is what the row is for.
 export const OutcomePill = (p: OutcomeOf) => {
   const said = outcomeSaid(p);
   return <StatePill kind={said.kind} value={said.value} label={said.label} fit className="cv-row-state" />;

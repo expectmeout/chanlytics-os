@@ -249,7 +249,7 @@ test("D1-member-name: a decision says You for the member looking, a teammate by 
   assert.equal(said("d2"), "Ruben snoozed the thread", "a teammate the roster names");
   assert.equal(said("d3"), "Your team snoozed the thread", "a member the roster does not know is not You");
   assert.equal(said("d4"), "The system brought the thread back");
-  assert.equal(said("d5"), "The receptionist snoozed the thread");
+  assert.equal(said("d5"), "AI snoozed the thread");
   // Where nobody is looking (no viewer), no decision is anyone's You.
   const nobody = personFor({ decisions: [decision("d1", "snooze", 60)] }, null, null);
   assert.equal(nobody.timeline.find((i) => i.id === "d-d1").text, "Your team snoozed the thread");
@@ -330,7 +330,9 @@ test("D1-list-names: the two groups of lists are Ready-made and Your lists where
 const SEARCH = (round) => ({ id: "s1", name: "Trainers", round });
 
 test("D1-lead-class-words: the band's tabs say the pills' three words, with the count in front, in the pills' tones", () => {
-  const band = leadBand(SEARCH({ qualified: 12, review: 3, excluded: 2, fits: { strong: 5, look: 4, long: 3 } }));
+  // A list of the owner's own draws all three (D4); a search the finder ran, Qualified alone (decision 0133).
+  const list = (counts) => ({ ...SEARCH(counts), via: "import" });
+  const band = leadBand(list({ qualified: 12, review: 3, excluded: 2, fits: { strong: 5, look: 4, long: 3 } }));
   assert.deepEqual(
     band.classes.map((c) => [c.id, c.label]),
     [
@@ -341,7 +343,7 @@ test("D1-lead-class-words: the band's tabs say the pills' three words, with the 
   );
   for (const c of band.classes) assert.equal(c.label, `${c.count} ${stateLabel("lead_class", c.id)}`, c.id);
   assert.equal(
-    leadBand(SEARCH({ qualified: 0, review: 1, excluded: 0 })).classes[1].label,
+    leadBand(list({ qualified: 0, review: 1, excluded: 0 })).classes[1].label,
     "1 Needs review",
     "no plural to get wrong",
   );

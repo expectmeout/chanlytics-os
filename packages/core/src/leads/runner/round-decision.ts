@@ -5,14 +5,17 @@
  * the commit leaves nothing unwritten. `after` is only what is said once it is true (the question's mail).
  */
 
-import { discoveryEnding, FINAL_RUN_STATES, termsShortOf } from "../endings";
+import { discoveryEnding, FINAL_RUN_STATES, standingRuns, termsShortOf } from "../endings";
 import { runIdFor } from "../ids";
 import type { CollectPage, LeadMemberRow, LeadPorts, LeadRoundRow, LeadRunRow } from "../ports";
 import { afterProbe } from "../question";
 import { runsRoom } from "../sizing";
+import { areaKey } from "../ladder";
 import { nearbyFor } from "./places";
+import { LEAD_RUN_RETRY_SECONDS, retryOf } from "./retries";
 import { type Phase, outOfTime, targetOf, wasJudged } from "./rules";
 import { logAndGoOn } from "@chanlytics/log";
+import { reachOf, type LeadArea } from "@chanlytics/contracts";
 
 /** The round's first batch of mailbox checks, written with the page that sends the round to them. */
 const FIRST_CHECK = { kind: "lead_check", batch: 0, run_after_seconds: 0 } as const;
@@ -84,7 +87,41 @@ async function roundDecision(
       next: { kind: "lead_round_start", resume: true, run_after_seconds: 0 },
     };
   }
-  return phaseOver(leadPorts, round, runs, inPhase, members, counted);
+  // A term whose run failed partway is tried again before the round ends on the source (retries.ts), where the count is
+  // still short and the round has room for a run; every term failing at once is a fault, said to the platform now.
+  const retry = counted < targetOf(round) ? retryOf(inPhase, leadPorts.now().getTime()) : "none";
+  if (retry === "retry" && runsRoom(round.cost_reserved_usd - round.cost_usd - spentNow) > 0) return TRY_AGAIN;
+  return phaseOver(leadPorts, round, runs, inPhase, members, counted, retry === "down");
+}
+
+/** The main phase starts its failed terms again, twenty minutes on: the round runs on meanwhile, ending nothing. */
+const TRY_AGAIN: Decision = {
+  round: { state: "running", question: null, ending: null },
+  next: { kind: "lead_round_start", resume: true, run_after_seconds: LEAD_RUN_RETRY_SECONDS },
+};
+
+/**
+ * The ladder's next rung for the search (decision 0133): measured from the area on its card and the places found there,
+ * past the area of every leg it opened, this one's too. A leg's own plan names its leg's area, so the card's is the
+ * newest round that is no leg.
+ */
+export async function findNextAreas(leadPorts: LeadPorts, round: LeadRoundRow): Promise<LeadArea[]> {
+  const rounds = await leadPorts.db.roundsOfSearch(round.search_id);
+  const card = rounds.filter((r) => r.purpose !== "widen").at(-1) ?? round;
+  // A leg's plan is the search's own with its area swapped, so it carries the reach the owner asked last ("Look up to
+  // 50 miles"); the card's round may carry the reach before it.
+  const plan = { ...card.plan, ...(round.plan.reach_m === undefined ? {} : { reach_m: round.plan.reach_m }) };
+  // The ladder measures from the card's area and what its rounds found there, and passes every other area read.
+  const onCard = new Set(rounds.filter((r) => areaKey(r.plan.area) === areaKey(card.plan.area)).map((r) => r.id));
+  const read = rounds.filter((r) => !onCard.has(r.id)).map((r) => r.plan.area);
+  const found = (await leadPorts.db.membersOfSearch(round.search_id)).filter((m) => onCard.has(m.round_id ?? ""));
+  const within = nearbyFor(plan, found, read);
+  // Nothing left within the reach on its card: the areas past it, up to the farthest an owner may ask (reachOf holds
+  // every reach to it), each marked with that reach, so the round's end never opens one by itself and the owner's Look up
+  // to 50 miles can.
+  const farthest = reachOf(plan.area, Number.POSITIVE_INFINITY);
+  if (within.length || reachOf(plan.area, plan.reach_m) >= farthest) return within;
+  return nearbyFor({ ...plan, reach_m: farthest }, found, read).map((a) => ({ ...a, beyond_m: farthest }));
 }
 
 /** The searching is over: the ending, pending the checks (a stopped round says so through stopRun). */
@@ -92,10 +129,13 @@ async function phaseOver(
   leadPorts: LeadPorts,
   round: LeadRoundRow,
   runs: LeadRunRow[],
-  inPhase: LeadRunRow[],
+  phaseRuns: LeadRunRow[],
   members: LeadMemberRow[],
   counted: number,
+  sourceDown = false,
 ): Promise<Decision> {
+  // A term tried again stands by its newest run: the tries that failed before it say nothing of the area.
+  const inPhase = standingRuns(phaseRuns);
   const byKey = new Map<string, number | null>();
   for (const r of inPhase) {
     if (outOfTime(leadPorts) || !r.apify_run_id) continue;
@@ -114,8 +154,10 @@ async function phaseOver(
     termsShort: [...termsShortOf(inPhase, (r) => byKey.get(r.id) ?? null), ...(unasked ? [false] : [])],
     stopped: false,
   });
-  // A round that ran dry says where to look next (D3): written with its ending, before the round is final.
-  const nearby = ending === "searched_everything" || ending === "few_new_matches" ? nearbyFor(round.plan, members) : [];
+  // A round that ran dry says where to look next (D3): written with its ending, before the round is final. Where the
+  // search widens by itself (decision 0133), its first area is the next leg's, which the round's end opens.
+  const nearby =
+    ending === "searched_everything" || ending === "few_new_matches" ? await findNextAreas(leadPorts, round) : [];
   return {
     round: {
       state: "checking",
@@ -125,7 +167,17 @@ async function phaseOver(
       ...(nearby.length ? { nearby } : {}),
     },
     next: FIRST_CHECK,
+    ...(sourceDown ? { after: () => tellSourceDown(leadPorts, inPhase) } : {}),
   };
+}
+
+/** Every term's run failed within half a minute: the platform is paged now, in the provider's own names (retries.ts). */
+async function tellSourceDown(leadPorts: LeadPorts, runs: LeadRunRow[]): Promise<void> {
+  const run = runs[0];
+  if (!run) return;
+  await leadPorts
+    .tell?.({ kind: "source_down", actor: run.actor, build: run.build, runs: runs.length })
+    .catch(logAndGoOn("telling the platform a lead source fails every run"));
 }
 
 export { roundDecision };

@@ -273,7 +273,7 @@ export type {
 } from "./workspace-config/policy-classes";
 export { PolicyLimitsSchema } from "./workspace-config/policy-limits-schema";
 export type { PolicyLimits } from "./workspace-config/policy-limits-schema";
-export { allowedPrices, priceAllowance } from "./workspace-config/price-allowance";
+export { allowedPrices, ownersSayings, priceAllowance } from "./workspace-config/price-allowance";
 export type { AllowedPrice } from "./workspace-config/price-allowance";
 export { hoursRuns } from "./workspace-config/prompt-hours";
 export type { HoursRun } from "./workspace-config/prompt-hours";

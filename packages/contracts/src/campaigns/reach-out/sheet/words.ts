@@ -14,8 +14,7 @@ import { pct } from "../../../shared/numbers";
 export const REACH_OUT_SHEET_WORDS = {
   sub: "Your email, opened for each business, from your own mailbox. Replies come back to it, and to your Inbox.",
   who: "Ready, with a checked address, never written to. Keeps itself current.",
-  opening:
-    "The receptionist opens each email from the finder's record. It never invents a fact: anything it can't back is held.",
+  opening: "AI opens each email from the finder's record. It never invents a fact: anything it can't back is held.",
   stops: "Stops when they reply, book, unsubscribe, bounce or say no.",
   stopOne: "To stop one business, press Stop writing to them on its lead.",
   first: `Starts today. You approve the first run; after that you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop each one.`,
@@ -92,7 +91,7 @@ export const REACH_OUT_REFUSALS = {
   /** The preview on a deployment that runs nothing. */
   preview: "Previews only work on the production dashboard.",
   previewDown: "The preview could not be written just now. Try again in a moment.",
-  budget: "Today's assistant budget is spent, so the preview waits until tomorrow.",
+  budget: "Today's AI limit is reached, so the preview waits until tomorrow.",
 } as const;
 
 const REFUSAL_SET = new Set<string>(Object.values(REACH_OUT_REFUSALS));

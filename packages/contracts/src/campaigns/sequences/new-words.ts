@@ -18,14 +18,14 @@ export const NEW_WORDS = {
   say: {
     label: "What should it do?",
     placeholder: "What should it do? Say it in a line, as you’d tell a person.",
-    hint: "Ask drafts it",
-    writes: "Ask writes the messages too",
+    hint: "AI drafts it",
+    writes: "AI writes the messages too",
     draft: "Draft it",
-    drafting: "Ask is drafting it",
+    drafting: "AI is drafting it",
     again: "Drafting it again",
     stop: "Stop",
     reading: "Reading your messages, your lists, and who can hear it",
-    asked: "Ask’s draft",
+    asked: "AI’s draft",
     /** Said where the line stays while Ask could not draft it. */
     kept: "Your line is kept",
     undo: "Undo",
@@ -35,7 +35,7 @@ export const NEW_WORDS = {
     >,
   },
   starts: {
-    noMessages: "No messages yet. Ask writes the first with your sequence.",
+    noMessages: "No messages yet. AI writes the first with your sequence.",
     kind: { sequence: "Sequence", once: "Once" } satisfies Record<NewKind, string>,
     thank: "Thank people after they come in",
     thankSaid: (n: number) => `${n} this week, none thanked yet`,
@@ -86,13 +86,13 @@ export const NEW_WORDS = {
     theMessage: "The message",
     theEmail: "The email",
     editWords: "Edit the words",
-    byAsk: "By Ask",
-    newByAsk: "New · by Ask",
+    byAsk: "By AI",
+    newByAsk: "New · by AI",
     fromLine: "From your line",
     youDo: "You do",
     addStep: "Add a step",
     stopsReply: "stops if they reply",
-    checked: "Ask checked",
+    checked: "AI checked",
     runs: "How it runs",
     yourOk: "Your OK",
     keep: "Keep as a draft",
@@ -164,7 +164,7 @@ export const NEW_WORDS = {
   leadsNone: {
     title: "No search has found any yet",
     head: "Find them on Leads first",
-    words: "Say what kind of business and where. Ask finds them and checks each address.",
+    words: "Say what kind of business and where. AI finds them and checks each address.",
     find: "Find businesses",
   },
   /** A one-off sent, back on Sequences (E2). */
@@ -195,7 +195,7 @@ export const NEW_WORDS = {
     title: "WhatsApp needs Meta’s review first",
     /** What can go now (its other versions, "email and text"), and who hears it only by WhatsApp. */
     words: (others: string, only: number) =>
-      `Ask wrote this message new, and Meta reviews its WhatsApp version first, in about a day. ${others ? `Sent before then, it goes by ${others}${only > 0 ? `, and the ${only} who ${only === 1 ? "hears" : "hear"} only WhatsApp ${only === 1 ? "is" : "are"} left out` : ""}` : "Nothing else carries it yet"}. Keep it, and it waits for you under Drafts.`,
+      `AI wrote this message new, and Meta reviews its WhatsApp version first, in about a day. ${others ? `Sent before then, it goes by ${others}${only > 0 ? `, and the ${only} who ${only === 1 ? "hears" : "hear"} only WhatsApp ${only === 1 ? "is" : "are"} left out` : ""}` : "Nothing else carries it yet"}. Keep it, and it waits for you under Drafts.`,
     /** None of its other channels can carry it: nothing goes until Meta approves WhatsApp's. */
     noneYet: "WhatsApp’s version is with Meta, and no other way carries this message yet. Keep it until it’s approved.",
     keep: "Keep it until it’s approved",
@@ -259,7 +259,7 @@ export const NEW_WORDS = {
     cancel: "Cancel",
     save: "Save",
     kind: "What kind",
-    kindSub: "Ask drafts it again as that kind, from your line",
+    kindSub: "AI drafts it again as that kind, from your line",
     sequenceSaid: "Steps over days, each one yours to change",
     onceSaid: "One message, now or on a day you pick",
     kindNote: "Both go to people or to leads: the toggle beside Who and when.",
@@ -312,7 +312,7 @@ export const NEW_WORDS = {
     peopleTiming: "Anyone who books, or says stop, leaves it.",
     leadsTiming: "To leads: 2 to 30 days, and a reply always stops it.",
     addSub: (n: number) => `After step ${n}, for people and leads alike`,
-    addMessage: "One of yours, or one Ask writes",
+    addMessage: "One of yours, or one AI writes",
     addCall: "A call for you",
     okSub: "The first batch always waits for it",
     okNote: "New words wait for your OK again. To leads, “on its own” isn’t offered.",
@@ -324,9 +324,9 @@ export const NEW_WORDS = {
     connect: "Connect your mailbox",
     coldEmail: "What your emails say, and how they send: Cold email",
     message: (n: number) => `Step ${n}’s message`,
-    messageSub: "Yours, or one Ask writes for this step",
+    messageSub: "Yours, or one AI writes for this step",
     writeOne: "Write one yourself",
-    byAskNamed: (title: string) => `${title} · by Ask`,
+    byAskNamed: (title: string) => `${title} · by AI`,
     yourMessages: "Your messages",
     anOffer: "an offer, never a text",
     firstStepOnly: "Names their booking, so step 1 only",
@@ -339,7 +339,7 @@ export const NEW_WORDS = {
     freedOnly: "Names the freed time, so only where filling a cancellation starts it",
     freedFirstOnly: "Names the freed time, so step 1 only",
     newMessage: "A new message",
-    askWrote: "Ask wrote it · yours once you save",
+    askWrote: "AI wrote it · yours once you save",
     youWrite: "Yours · filed when you start it",
     title: "Its name",
     version: "Version",
@@ -389,9 +389,9 @@ export const NEW_WORDS = {
     oneEmailDetail: "Add one any time: it becomes a sequence",
   },
   cannot: {
-    nothingFits: "Ask couldn’t find who and what for this. Say it another way.",
-    noMessage: "Ask couldn’t write a message that holds here. Pick one of yours, or write it.",
-    stepDropped: "A step couldn’t be kept as Ask wrote it, so it is left out.",
+    nothingFits: "AI couldn’t find who and what for this. Say it another way.",
+    noMessage: "AI couldn’t write a message that holds here. Pick one of yours, or write it.",
+    stepDropped: "A step couldn’t be kept as AI wrote it, so it is left out.",
     /**
      * Why a step Ask wrote cannot be kept, each a clause: said in the draft's card, and to Ask where it is asked once
      * more (decision 0129 step 2). What the message door refuses is said in the door's own words.
@@ -403,7 +403,7 @@ export const NEW_WORDS = {
       onlyFirst:
         "a booking’s time or service, a proposal’s link or a freed time is only known on the first step of its own moment",
       noMessage: "it names none of the business’s messages and writes none",
-      price: "it names a price or a discount, which Ask never writes",
+      price: "it names a price or a discount, which AI never writes",
       unsaidPrice: "it names a price or a discount that isn’t in what was asked",
       firstLink: "a first email carries no link",
       unbackedNumber: "it names a number about the business that none of its claims backs",
@@ -414,7 +414,7 @@ export const NEW_WORDS = {
     stepLeftOut: (place: number, reason: string) => `Step ${place} was left out: ${reason}.`,
     /** A change that rewrote a step in words that cannot be kept: the step stands as it did, with why. */
     stepStays: (place: number, reason: string) =>
-      `Step ${place} stays as it was. Ask’s new words for it couldn’t be kept: ${reason}.`,
+      `Step ${place} stays as it was. AI’s new words for it couldn’t be kept: ${reason}.`,
     handNotLast: "A call or a note ends a sequence, so it is the last step.",
     /** Ask answered with more steps than a draft holds: the first are kept, and the rest said. */
     stepsPast: (most: number) =>
@@ -425,13 +425,13 @@ export const NEW_WORDS = {
   },
   /** Nothing here can start on what the line asks (D3): the closest ways, then the line again. */
   noFit: {
-    closest: "The closest Ask can do:",
+    closest: "The closest AI can do:",
     list: { lead: "When someone joins a list", sub: "Keep a list for it in People, and start a sequence on it" },
     once: { lead: "Once, to people you pick", sub: "One message, sent when it comes up" },
     again: "Or change the line and draft it again.",
   },
   failed: {
-    title: "Ask couldn’t draft it just now",
+    title: "AI couldn’t draft it just now",
     words: "Try again in a moment, or build it yourself: the same draft, picked by hand.",
     again: "Try again",
     byHand: "Build it yourself",

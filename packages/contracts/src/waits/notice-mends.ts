@@ -90,14 +90,15 @@ export const NOTICE_MENDS: readonly NoticeMend[] = [
     by: { change: "mailbox_connection.removed" },
     sameSubject: true,
   },
+  // Either name: a notice kept before 15 Nov 2026 says "Your receptionist", one kept since says "AI" (docs/words.md).
   {
-    warns: { kind: "billing", title: /^Your receptionist is paused$/u },
-    by: { kind: "billing", title: /^Your receptionist is back$/u },
+    warns: { kind: "billing", title: /^(?:AI|Your receptionist) is paused$/u },
+    by: { kind: "billing", title: /^(?:AI|Your receptionist) is back$/u },
     sameSubject: false,
   },
   {
     warns: { kind: "billing", title: /^A payment did not go through$/u },
-    by: { kind: "billing", title: /^Your receptionist is back$/u },
+    by: { kind: "billing", title: /^(?:AI|Your receptionist) is back$/u },
     sameSubject: false,
   },
   {

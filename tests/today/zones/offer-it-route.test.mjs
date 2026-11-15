@@ -94,8 +94,8 @@ test("not offered: every reason in the owner's words, the time's and the run's o
     return r.why;
   };
   assert.equal(await said("gone"), "That cancellation is no longer on the calendar.");
-  assert.equal(await said("too_soon"), "It starts too soon for the notice the receptionist gives.");
-  assert.equal(await said("past_window"), "It is further ahead than the receptionist books.");
+  assert.equal(await said("too_soon"), "It starts too soon for the notice AI gives.");
+  assert.equal(await said("past_window"), "It is further ahead than AI books.");
   assert.equal(await said("not_free"), "That time is no longer open.");
   assert.equal(await said("no_person"), "This one can't be offered.");
   assert.equal(await said("nobody"), TODAY_PHONE_WORDS.offer.nobody);

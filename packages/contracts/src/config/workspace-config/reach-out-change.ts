@@ -120,9 +120,7 @@ export function describeReachOutChange(change: AskReachOutChange): string {
     case "remove_claim":
       return `No longer a fact: ${quoted(change.claim)}`;
     case "set_cold_tone":
-      return change.tone.trim()
-        ? `Cold emails sound: ${quoted(change.tone)}`
-        : "Cold emails sound as the receptionist does";
+      return change.tone.trim() ? `Cold emails sound: ${quoted(change.tone)}` : "Cold emails sound as AI does";
     case "set_signed_by":
       return change.name.trim()
         ? `Cold emails sign as ${change.name.trim()}`

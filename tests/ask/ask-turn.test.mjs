@@ -749,15 +749,15 @@ test("every refusal of the gateway ends the turn in its sentence, in the person'
   const cases = [
     [
       { kind: "preview" },
-      "Ask only answers on the production dashboard.",
-      "Ask solo responde en el panel de producción.",
+      "AI only answers on the production dashboard.",
+      "AI solo responde en el panel de producción.",
     ],
     [
       { kind: "budget", used: 5, cap: 5 },
-      "Ask has used its daily budget. Try again tomorrow; the pages still work.",
-      "Ask usó su presupuesto diario. Vuelve mañana; las páginas siguen funcionando.",
+      "AI has reached its daily limit. Try again tomorrow; the pages still work.",
+      "AI llegó a su límite diario. Vuelve mañana; las páginas siguen funcionando.",
     ],
-    [{ kind: "no_key" }, "Ask is not connected to a model yet.", "Ask no está conectado a un modelo todavía."],
+    [{ kind: "no_key" }, "AI is not connected yet.", "AI no está conectado todavía."],
     [
       { kind: "unreachable", message: "ECONNREFUSED" },
       "I could not reach the model. Try again in a moment.",
@@ -1291,7 +1291,7 @@ test("report says the Campaigns lens as the page does (C4): the sentence, the fi
     },
     failed_sends: {
       rows: [
-        "WhatsApp held it back: Meta limits marketing messages to each person, and isn't delivering marketing messages to US numbers at all for now (WhatsApp error 131049): 4",
+        "WhatsApp held it back: Meta limits marketing messages to each person, and isn't delivering marketing messages to US numbers at all for now: 4",
         "The email bounced: their address didn't accept it: 2",
       ],
       line: "6 messages failed after they were sent, for the provider's own reason.",
@@ -1514,7 +1514,7 @@ test("report says by_channel only where more than one channel sent: a lone chann
   assert.equal((await salonReport(lone)).campaigns.by_channel, null);
 });
 
-test("report says the strip's shares only of five or more: of four sends the page greys Delivered and Wrote back, and Ask says no percentage -- the value is null and the meta carries the count -- while of five it says them", async () => {
+test("report says the strip's shares only of five or more: of four sends the page greys Delivered and Wrote back, and AI says no percentage -- the value is null and the meta carries the count -- while of five it says them", async () => {
   /** `sent` messages to `sent` people on the last day, all but one delivered and all but two answered, and nothing before. */
   const world = (sent) =>
     salonRpcs({
@@ -1775,7 +1775,7 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
       { label: "Rating on Google", value: "4.8", meta: "4 reviews · checked 2h ago", change: null },
       { label: "Reviews on Google", value: "4", meta: "as Google counts them, with or without words", change: null },
       { label: "New in 7 days", value: "2", meta: "with words or without", change: "up from 1" },
-      { label: "Answered", value: "1 of 2", meta: "1 by the receptionist", change: null },
+      { label: "Answered", value: "1 of 2", meta: "1 by AI", change: null },
       { label: "Time to reply", value: "—", meta: "1 reply so far; the middle needs 3", change: null },
     ],
     stars: {
@@ -1786,9 +1786,7 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
       count: 1,
       held: 1,
       // The oldest waiting as the page lists them, each with its id and the reply the receptionist held (15 Oct 2026).
-      rows: [
-        { ...said(2, "★★☆☆☆", "2d ago", false), held: "The receptionist wrote a reply and held it: it named a price." },
-      ],
+      rows: [{ ...said(2, "★★☆☆☆", "2d ago", false), held: "AI wrote a reply and held it: it named a price." }],
     },
     // The newest besides, as the page lists them: the one waiting is above, and the one public review is among them.
     latest: [
@@ -2049,7 +2047,7 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
         line: "33 of 41 text and WhatsApp messages had a topic.",
       },
       languages: ["English: 30", "Spanish: 8"],
-      call_endings: ["Customer hung up: 11", "Receptionist ended the call: 5", "Not recorded: 2"],
+      call_endings: ["Customer hung up: 11", "AI ended the call: 5", "Not recorded: 2"],
       link: "7 people were sent the booking link; 1 has booked since.",
       handover: [
         {
@@ -2071,7 +2069,7 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
         meta: "1 under an hour old, not counted yet · 1 with no caller on record not counted",
         change: "was 3 of 4 the 7 days before",
       },
-      closed: { value: "3 of 5", meta: "5 messages came while you were closed; the receptionist answered 3." },
+      closed: { value: "3 of 5", meta: "5 messages came while you were closed; AI answered 3." },
       stuck: [
         { label: "Needs you", value: "2", meta: "the oldest has waited 6h" },
         { label: "Call-backs", value: "1", meta: "people to ring, counted in Needs you" },
@@ -3148,7 +3146,7 @@ test("every read, each an action of the read tools, runs against the database in
         ["quiet", false, "Off", []],
       ],
     ],
-    "no calendar, no campaign: 1 of 4, as the page counts it -- the receptionist covers first contact, the appointment moments need a calendar, and quiet is off",
+    "no calendar, no campaign: 1 of 4, as the page counts it -- AI covers first contact, the appointment moments need a calendar, and quiet is off",
   );
   assert.deepEqual(
     journey.guide.map((r) => r.stage),
@@ -3220,7 +3218,7 @@ test("the caller who hung up in seconds: calls.list finds them under their own w
   assert.deepEqual(
     (await listed("missed")).calls,
     [],
-    "REGRESSION: reaching the receptionist and leaving is not a dial that never connected",
+    "REGRESSION: reaching AI and leaving is not a dial that never connected",
   );
   const today = (await listed("today")).calls;
   assert.deepEqual(today.map((c) => c.call_id).sort(), [K1, K2].sort());
@@ -3476,7 +3474,7 @@ test("the proposal builders run against the database in memory: each kind is a c
   assert.equal((await p("propose_thread_verb", { conversation_id: C2, verb: "wake" })).isError, false);
   assert.equal(
     (await p("propose_thread_verb", { conversation_id: C2, verb: "hand_back" })).proposal.title,
-    "Hand Rosa's thread back to the receptionist",
+    "Hand Rosa's thread back to AI",
   );
   assert.match((await p("propose_thread_verb", { conversation_id: C1, verb: "hand_back" })).result, /nobody has taken/);
   const resolve = await p("propose_thread_verb", { conversation_id: C1, verb: "resolve" });
@@ -3491,7 +3489,7 @@ test("the proposal builders run against the database in memory: each kind is a c
   const mode = await p("propose_person", { action: "mode", contact_id: P1, mode: "never" });
   assert.deepEqual(
     [mode.proposal.kind, mode.proposal.needs, mode.proposal.payload.previous, mode.proposal.summary],
-    ["person_mode", "owner", "inherit", "The receptionist stays silent with them"],
+    ["person_mode", "owner", "inherit", "AI stays silent with them"],
   );
   assert.match((await p("propose_person", { action: "mode", contact_id: C2, mode: "never" })).result, /no such person/);
 
@@ -3506,7 +3504,7 @@ test("the proposal builders run against the database in memory: each kind is a c
   );
   assert.match(
     (await p("propose_settings", { action: "autonomy", class: "faq", mode: "never" })).result,
-    /Bookings and service questions are answered by the receptionist or by you/,
+    /Bookings and service questions are answered by AI or by you/,
   );
   const holds = await p("propose_settings", { action: "autonomy", class: "reengage", mode: "veto" });
   assert.equal(holds.isError, false, holds.result);
@@ -3542,11 +3540,7 @@ test("the proposal builders run against the database in memory: each kind is a c
   assert.equal(noted.isError, false, noted.result);
   assert.deepEqual(
     [noted.proposal.title, noted.proposal.summary, noted.proposal.payload.change],
-    [
-      "Holiday hours note",
-      "Note for the receptionist: “Holiday hours”, until 2026-12-31 — “Open 10 to 2 this week.”",
-      ending,
-    ],
+    ["Holiday hours note", "Note for AI: “Holiday hours”, until 2026-12-31 — “Open 10 to 2 this week.”", ending],
   );
   assert.match(
     (await p("propose_settings", { action: "change", change: { ...ending, until: "New Year's Eve" } })).result,
@@ -3707,7 +3701,7 @@ test("a card above an operator is refused to a member below it in its route's wo
     [
       "propose_person",
       { action: "mode", contact_id: P1, mode: "never" },
-      "only an owner can change how the receptionist treats one person; say so, and that an owner can ask",
+      "only an owner can change how AI treats one person; say so, and that an owner can ask",
       "propose_person: action mode is an owner's",
     ],
     [
@@ -3793,7 +3787,7 @@ test("every card's role and undo words are its spec's: a wake's card offers no u
   );
 });
 
-test("REGRESSION: a broadcast to nobody is refused with the cause it has -- Ask called a yes with no number to send to 'nobody has said yes', and pointed at a QR 'on this page'", async () => {
+test("REGRESSION: a broadcast to nobody is refused with the cause it has -- AI called a yes with no number to send to 'nobody has said yes', and pointed at a QR 'on this page'", async () => {
   const S_REG = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
   const S_WALK = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2";
   const ANA = "cccccccc-cccc-4ccc-8ccc-cccccccccca1";
@@ -4186,7 +4180,7 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
   assert.match(JSON.parse(toCal.result).error, /can't be counted here: This list reads a calendar link/);
 });
 
-test("REGRESSION: a quiet rule says who it leaves out for want of a date -- asked to turn the receptionist off for everyone who had not written in six months, Ask said nobody, of 76 people never heard from (the operator stress run, 15 Oct 2026)", async () => {
+test("REGRESSION: a quiet rule says who it leaves out for want of a date -- asked to turn AI off for everyone who had not written in six months, AI said nobody, of 76 people never heard from (the operator stress run, 15 Oct 2026)", async () => {
   const DAY = 86_400_000;
   // Imported, or met at the desk: in People, with no message or call on record.
   const neverHeard = (id, name) =>
@@ -4487,7 +4481,7 @@ test("calendar.week reads the board as its page reads it (ledger #11): with no d
       "the record, everyone to match the appointments to, and nothing the turn already read: no tenants, no tenant_config",
     );
     assert.equal(weekAsked.at(-1), "appointments.select", "the taken time last, once the feed has read");
-    assert.deepEqual(made, [], "nobody put in People: Ask never writes");
+    assert.deepEqual(made, [], "nobody put in People: AI never writes");
     assert.ok(
       !ctx.supabase.seen.some(
         (q) => q.rpc === "create_person" || ["insert", "update", "upsert", "delete"].includes(q.op),
@@ -4925,7 +4919,7 @@ const usNumberWorld = () => {
   return newToolContext(ctxFor(t, { ...RPCS, people_list: () => people }), A, "owner", TZ, NOW);
 };
 
-test("REGRESSION: on a US WhatsApp number the lists read says 26 said yes to offers and none can be sent one, and what is missing -- it read 'said_yes_to_offers: 0', and Ask told the owner nobody had said yes", async () => {
+test("REGRESSION: on a US WhatsApp number the lists read says 26 said yes to offers and none can be sent one, and what is missing -- it read 'said_yes_to_offers: 0', and AI told the owner nobody had said yes", async () => {
   const tc = usNumberWorld();
   const out = await runTool(tc, { name: "sequences", input: { action: "lists" } });
   assert.equal(out.isError, false, out.result);
@@ -5410,7 +5404,7 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
   );
 });
 
-test("inbox.thread says nothing of reasoning beside a customer's words, though their message carries an intent since 00305: a reply of the receptionist's keeps its why", async () => {
+test("inbox.thread says nothing of reasoning beside a customer's words, though their message carries an intent since 00305: a reply of AI's keeps its why", async () => {
   const brain = {
     intent: "pricing",
     confidence: 0.62,
@@ -5447,7 +5441,7 @@ test("inbox.thread says nothing of reasoning beside a customer's words, though t
       ["customer", "How much is a refill?", null],
       ["receptionist", "Refills are $40.", "Pricing question · 62% sure"],
     ],
-    "the customer's stamped message carries no why; the receptionist's reply does",
+    "the customer's stamped message carries no why; AI's reply does",
   );
 });
 
@@ -5649,7 +5643,7 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
   );
 });
 
-test("the rules Ask says the receptionist follows are the ones the composer gave it: the price rule on until switched off, two always, the health rule only once switched on", async () => {
+test("the rules AI says AI follows are the ones the composer gave it: the price rule on until switched off, two always, the health rule only once switched on", async () => {
   const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
   const { composeSystemPrompt, guardrailsInForce } = await import("@chanlytics/contracts");
   const brain = {
@@ -5676,11 +5670,11 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     [PRICE, BOOKING, AI],
     "the three that default on, and not the one that is opt-in",
   );
-  assert.doesNotMatch(factsBlock(absent), /health/, "Ask's context never claims a rule the receptionist was not given");
+  assert.doesNotMatch(factsBlock(absent), /health/, "AI's context never claims a rule AI was not given");
 
   const on = workspaceFacts("Harbor", TZ, config({ no_health_advice: true }), NOW);
   assert.deepEqual(on.guardrails, [PRICE, BOOKING, AI, HEALTH]);
-  assert.match(factsBlock(on), /The receptionist .*gives no health advice\./);
+  assert.match(factsBlock(on), /AI .*gives no health advice\./);
 
   const off = workspaceFacts(
     "Harbor",
@@ -5729,7 +5723,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
   assert.equal(guardrailsInForce({ disclose_ai: false }).disclose_ai, true, "always on, whatever a row stores");
 });
 
-test("the notes Ask says the receptionist follows are the ones the composer tells it today: an ended note is not listed, a lasting one says its end in the prompt's words, and one with no end reads as before", async () => {
+test("the notes AI says AI follows are the ones the composer tells it today: an ended note is not listed, a lasting one says its end in the prompt's words, and one with no end reads as before", async () => {
   const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
   const { composeSystemPrompt } = await import("@chanlytics/contracts");
   const brain = {
@@ -5742,16 +5736,16 @@ test("the notes Ask says the receptionist follows are the ones the composer tell
   const said = (facts) =>
     factsBlock(facts)
       .split("\n")
-      .find((l) => l.startsWith("Notes the receptionist follows:"));
+      .find((l) => l.startsWith("Notes AI follows:"));
   const parking = { title: "Parking", text: "Behind the building" };
   // NOW is 10:00 on Monday 14 September in New York: a note whose last day is the 14th lasts, the 13th's has ended.
   const lasting = { title: "Holiday hours", text: "Open 10 to 2", until: "2026-09-14" };
   const ended = { title: "Summer offer", text: "Colour at 20% off", until: "2026-09-13" };
   const facts = workspaceFacts("Harbor", TZ, withNotes([parking, lasting, ended]), NOW, []);
-  assert.deepEqual(facts.notes, [parking, lasting], "the ended note is not among Ask's facts");
+  assert.deepEqual(facts.notes, [parking, lasting], "the ended note is not among AI's facts");
   assert.equal(
     said(facts),
-    "Notes the receptionist follows: Parking: Behind the building | Holiday hours (until Monday, September 14, 2026): Open 10 to 2.",
+    "Notes AI follows: Parking: Behind the building | Holiday hours (until Monday, September 14, 2026): Open 10 to 2.",
   );
   // The receptionist's prompt, at the same clock in the same zone, says the same notes in the same words.
   const composed = composeSystemPrompt(
@@ -5770,7 +5764,7 @@ test("the notes Ask says the receptionist follows are the ones the composer tell
   // A note with no end, byte for byte as Ask said it before a note could end.
   assert.equal(
     said(workspaceFacts("Harbor", TZ, withNotes([parking]), NOW, [])),
-    "Notes the receptionist follows: Parking: Behind the building.",
+    "Notes AI follows: Parking: Behind the building.",
   );
   // Every note ended: no line at all, as with none.
   assert.equal(said(workspaceFacts("Harbor", TZ, withNotes([ended]), NOW, [])), undefined);
@@ -6175,7 +6169,7 @@ test("propose_deal carries a next step with its day: the card says it, the body 
   }
 });
 
-test("the proposal follow-up in Ask (0006): listed in every workspace and counted as the page counts it; proposed once, with its link", async () => {
+test("the proposal follow-up in AI (0006): listed in every workspace and counted as the page counts it; proposed once, with its link", async () => {
   const DAY = 86_400_000;
   const luis = peopleListRow({
     id: LUIS,
@@ -7178,7 +7172,7 @@ test("a list of the workspace's own is read once a turn: campaigns.audiences rea
   );
 });
 
-test("a read the page tolerates, Ask tolerates as the page does and says so: a failed channels read is workspace.settings' channels and campaigns.audiences' number null, a failed templates read campaigns.audiences' templates null -- each with its sentence, never none and never a failed tool, said once in the log; everything else still answers; the turn keeps no failure, so the next tool reads again", async () => {
+test("a read the page tolerates, AI tolerates as the page does and says so: a failed channels read is workspace.settings' channels and campaigns.audiences' number null, a failed templates read campaigns.audiences' templates null -- each with its sentence, never none and never a failed tool, said once in the log; everything else still answers; the turn keeps no failure, so the next tool reads again", async () => {
   const world = () => tables({ tenant_channels: CHANNELS, templates: [OFFER] });
   const answers = async (faults, names) => {
     const ctx = ctxFor(world(), RPCS, faults);
@@ -7664,7 +7658,7 @@ test("a rule that described one tool is that tool's description now, and out of 
     "Answer from it when it is enough, in one round.",
     "Read only for what it does not hold: a whole conversation or transcript, a person's profile",
     "a one-off send reaches only the people whose yes covers its message",
-    "leads are businesses Claude found for the owner to reach",
+    "leads are businesses and people the finder found for the owner to reach",
     "Leads are found only in the US",
   ])
     assert.ok(rules.includes(kept), `kept, about answering in general: ${kept}`);
@@ -7775,7 +7769,7 @@ test("only a refusal that names the data blocks drops them: the format's refusal
   assert.equal(dropFor("500 search_result upstream", all), null, "a 400 only");
 });
 
-test("a page counts as a read only when something on it was read: not one whose read failed, nor the address alone of a page Ask does not draw", async () => {
+test("a page counts as a read only when something on it was read: not one whose read failed, nor the address alone of a page AI does not draw", async () => {
   const ask = async (context, built) =>
     await runAskTurn(
       turn(ctxFor(), { context }).input,
@@ -8971,7 +8965,7 @@ test("a card waiting in this thread is pressed by their yes (the answers canvas,
   );
 });
 
-test("Ask answers the question asked (the end-to-end review, 15 Oct: today's recap rode into every Today answer and its next questions): one rule, in system's cached rules after the page's data rule -- something unasked only when urgent and not said before in the thread, once, in a short clause; do.next never from what was not asked", async () => {
+test("AI answers the question asked (the end-to-end review, 15 Oct: today's recap rode into every Today answer and its next questions): one rule, in system's cached rules after the page's data rule -- something unasked only when urgent and not said before in the thread, once, in a short clause; do.next never from what was not asked", async () => {
   const s = scripted([ROUND([answer("Fine.")])]);
   await runAskTurn(turn(ctxFor()).input, ports(s.round));
   const rules = s.requests[0].system[0].text;
@@ -9817,7 +9811,7 @@ test("a reply card that names a refund, a discount or a payment term carries the
   assert.equal(await warned("See you Saturday at ten."), false);
 });
 
-test("a thread a teammate holds is said as theirs, never as the receptionist answering; the order is who it waits on, then a teammate, then snoozed, then opted out (defect 16)", async () => {
+test("a thread a teammate holds is said as theirs, never as AI answering; the order is who it waits on, then a teammate, then snoozed, then opted out (defect 16)", async () => {
   const { threadState } = await import(at("apps/dashboard/src/server/ask/thread-state.ts"));
   const row = (over) => ({
     move: { move: "answered", list: "done" },
@@ -10013,7 +10007,7 @@ test("how they like answers (the answer canvas, D): their own note rides fenced 
   assert.ok(!JSON.stringify(s.requests[0].system ?? "").includes(note), "not in the system, which every member shares");
 });
 
-test("Ask keeps how they like answers by a card (propose_settings answer_style): their own note and the one it replaces, read from their views; the note they keep already, or none to clear, is refused", async () => {
+test("AI keeps how they like answers by a card (propose_settings answer_style): their own note and the one it replaces, read from their views; the note they keep already, or none to clear, is refused", async () => {
   const views = (words) =>
     tables({
       memberships: [
@@ -10044,7 +10038,7 @@ test("Ask keeps how they like answers by a card (propose_settings answer_style):
   assert.deepEqual(changed.proposal.payload, { words: "Short answers", previous: "Bullets" }, "the undo's note");
 
   const cleared = await build(views("Bullets"), "");
-  assert.equal(cleared.proposal.summary, "Your note cleared: answers as Ask writes them");
+  assert.equal(cleared.proposal.summary, "Your note cleared: answers as AI writes them");
   assert.deepEqual(cleared.proposal.payload, { words: "", previous: "Bullets" });
 
   const long = await build(views(null), "x".repeat(ASK_STYLE_MAX + 50));

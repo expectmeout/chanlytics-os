@@ -119,7 +119,7 @@ test("the owner's words: the number, the day, the office phone to switch off, wh
   assert.deepEqual(lineReleaseWarning({ number: "+13055550100", on, forwardedFrom: null, billingUrl: null }), {
     subject: "Your number +1 (305) 555-0100 goes back on Oct 27",
     body:
-      "Your subscription ended, so your receptionist's number, +1 (305) 555-0100, goes back to the phone company on Oct 27. After that it can't be got back, and callers to it reach nobody.\n\n" +
+      "Your subscription ended, so AI's number, +1 (305) 555-0100, goes back to the phone company on Oct 27. After that it can't be got back, and callers to it reach nobody.\n\n" +
       "To keep the number, resume from Billing.\n",
   });
   assert.match(
@@ -134,7 +134,7 @@ test("the owner's words: the number, the day, the office phone to switch off, wh
   assert.deepEqual(lineReleasedWords({ number: "+13055550100", forwardedFrom: null, billingUrl: null }), {
     subject: "Your number +1 (305) 555-0100 was released",
     body:
-      "+1 (305) 555-0100 went back to the phone company, as we wrote a week ago. Your receptionist no longer answers on it.\n\n" +
+      "+1 (305) 555-0100 went back to the phone company, as we wrote a week ago. AI no longer answers on it.\n\n" +
       "If you resume, Setup picks a new number with you.\n",
   });
 });

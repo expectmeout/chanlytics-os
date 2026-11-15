@@ -11,7 +11,7 @@ import {
   type EdgeAnswer,
   type EdgeBody,
 } from "@/server/shared/edge";
-import { DOOR, refusalOf, SPEECH_TIMEOUT_MS } from "@/server/ask/doors/speech-request";
+import { DOOR, refusalOf, SPEECH_TIMEOUT_MS, SPEECH_UNREACHED } from "@/server/ask/doors/speech-request";
 
 /**
  * POST /api/v1/ask/speech — words read aloud in Ask's one voice, as the signed-in member
@@ -68,10 +68,7 @@ export const POST = write({
     } catch (e) {
       const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
       log.warn("ask_speech_refused", { tenant_id: tenantId, reason: timedOut ? "edge_timeout" : "edge_unreachable" });
-      throw causedBy(
-        new AppError("upstream_voice", "Ask's voice could not be reached just now. Try again in a moment.", 503),
-        e,
-      );
+      throw causedBy(new AppError("upstream_voice", SPEECH_UNREACHED, 503), e);
     }
     if (!response.ok || !response.body) {
       // An answer that is not JSON is none: its status says the rest.

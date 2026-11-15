@@ -348,7 +348,7 @@ const CANNOT_ROWS: readonly CannotRowVM[] = [
     title: "Ring a customer",
     // Not "never dials out": a transfer rings the owner's number, two rows up the same card.
     detail:
-      "It answers your line and never calls a customer. The only number it rings is yours, to put a caller through. A call back is a person's, and the receptionist tells you when one is wanted.",
+      "It answers your line and never calls a customer. The only number it rings is yours, to put a caller through. A call back is a person's, and AI tells you when one is wanted.",
   },
   {
     id: "sms",

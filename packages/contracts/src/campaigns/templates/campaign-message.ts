@@ -227,7 +227,7 @@ export function messageHolds(campaignMessage: Pick<CampaignMessage, "versions">)
  */
 const NOT_APPROVED_WORDS: Record<Exclude<TemplateStatus, "approved">, string> = {
   pending: "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
-  rejected: "WhatsApp asked for a change to this message's words. Ask writes new words for you to send back.",
+  rejected: "WhatsApp asked for a change to this message's words. AI writes new words for you to send back.",
   paused:
     "WhatsApp is holding this message for a few hours, because some people marked it as unwanted. It comes back by itself.",
   disabled:

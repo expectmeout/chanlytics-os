@@ -400,7 +400,7 @@ export function describeSettingsChange(change: AskSettingsChange): string {
       // told, quoted on one line and cut on a whole word, as the closure quotes its note: what is approved is what it
       // reads, an offer's price among it.
       const text = clipAtWord(change.text.replace(/\s+/g, " "), NOTE_TEXT_SAID_MAX);
-      return `Note for the receptionist: “${change.title}”${change.until ? `, until ${change.until}` : ""}${text ? ` — “${text}”` : ""}`;
+      return `Note for AI: “${change.title}”${change.until ? `, until ${change.until}` : ""}${text ? ` — “${text}”` : ""}`;
     }
     case "add_service":
       return `New service: ${change.name}${serviceTail(change)}`;

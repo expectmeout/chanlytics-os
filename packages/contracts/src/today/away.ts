@@ -122,9 +122,9 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   member_joined: ["teammate joined", "teammates joined"],
   member_left: ["teammate left", "teammates left"],
   // A morning's corrections can suggest several notes: one pile, each kept or dismissed on the Autonomy pane.
-  note_to_keep: ["note to keep for the receptionist", "notes to keep for the receptionist"],
+  note_to_keep: ["note to keep for AI", "notes to keep for AI"],
   // One a morning, the member's own: a second is another day's.
-  ask_cards: ["morning from Ask", "mornings from Ask"],
+  ask_cards: ["morning from AI", "mornings from AI"],
   // A morning's sign-ups on the website are one pile, each person on their own page.
   website_form: ["form sent on your website", "forms sent on your website"],
   // One batch of found photos is one line; a morning's several are still one page to open.
@@ -625,7 +625,7 @@ export function todaySince(input: {
     rows.push({
       key: "answered",
       glyph: "check",
-      title: `The receptionist answered ${answered.count}`,
+      title: `AI answered ${answered.count}`,
       sub: last ? `Last, to ${last.who}: “${last.text}”` : "",
       at: Number.isFinite(lastMs) ? at(lastMs) : "",
       to: threadDoorOf(last?.conversation_id),

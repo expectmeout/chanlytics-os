@@ -16,6 +16,7 @@ import {
   POST_LIMITS,
   POST_SHAPES,
   POST_VOICES,
+  fileFolderOf,
   postMomentWont,
   postNameOf,
   postPathOf,
@@ -116,17 +117,34 @@ export async function previewPost(
   });
 }
 
-/** A made file's shapes, stored. What did not arrive is taken back, and the press is told. */
-async function storeShapes(tenantId: TenantId, id: string, shapes: Record<PostShapeName, Buffer>): Promise<void> {
-  const stored = await Promise.all(
-    POST_SHAPES.map((shape) =>
-      bucket().upload(postPathOf(tenantId, id, shape), shapes[shape], {
-        contentType: "image/jpeg",
-        cacheControl: String(FILE_CACHE_S),
-        upsert: false,
-      }),
-    ),
-  );
+/**
+ * Where a made post's wide picture is kept, the one Google is sent to fetch (posts/google.ts; the edge signs the same name
+ * at a post's time, google/post-later.ts): in the post's own folder, so what empties the folder empties it.
+ */
+export const googlePicturePathOf = (tenantId: string, fileId: string): string =>
+  `${fileFolderOf(tenantId, fileId)}/google.jpg`;
+
+/** Everything a made post keeps in its folder: its shapes, and the wide picture Google is sent. */
+const madePathsOf = (tenantId: TenantId, id: string): string[] => [
+  ...POST_SHAPES.map((shape) => postPathOf(tenantId, id, shape)),
+  googlePicturePathOf(tenantId, id),
+];
+
+/**
+ * A made file's shapes, stored, and the wide picture with them: each once, never written over, so what goes to a place is
+ * what was drawn at its making. What did not arrive is taken back, and the press is told.
+ */
+async function storeShapes(
+  tenantId: TenantId,
+  id: string,
+  shapes: Record<PostShapeName, Buffer>,
+  wide: Buffer,
+): Promise<void> {
+  const kept = { contentType: "image/jpeg", cacheControl: String(FILE_CACHE_S), upsert: false };
+  const stored = await Promise.all([
+    ...POST_SHAPES.map((shape) => bucket().upload(postPathOf(tenantId, id, shape), shapes[shape], kept)),
+    bucket().upload(googlePicturePathOf(tenantId, id), wide, kept),
+  ]);
   const failed = stored.find((s) => s.error);
   if (!failed) return;
   log.error("file_post_store_failed", { tenant_id: tenantId, error: failed.error?.message ?? "" });
@@ -135,7 +153,7 @@ async function storeShapes(tenantId: TenantId, id: string, shapes: Record<PostSh
 }
 
 const letShapesGo = async (tenantId: TenantId, id: string): Promise<void> => {
-  const gone = await bucket().remove(POST_SHAPES.map((shape) => postPathOf(tenantId, id, shape)));
+  const gone = await bucket().remove(madePathsOf(tenantId, id));
   if (gone.error) log.warn("file_post_let_go_failed", { tenant_id: tenantId, error: gone.error.message });
 };
 
@@ -159,16 +177,13 @@ export async function makePost(
     if (error) throw fileDoorRefusal(error);
   }
   const material = await getMaterial(ctx, member, { file, at: plan.at });
-  const [portrait, square, story] = await Promise.all([
+  const [portrait, square, story, wide] = await Promise.all([
     postDrawn(plan, material, "portrait", false),
     postDrawn(plan, material, "square", false),
     postDrawn(plan, material, "story", false),
+    postDrawn(plan, material, "wide", false),
   ]);
-  await storeShapes(member.tenantId, id, {
-    portrait: portrait,
-    square: square,
-    story: story,
-  });
+  await storeShapes(member.tenantId, id, { portrait: portrait, square: square, story: story }, wide);
   const look = recordOrNull(file.look);
   // No row names these bytes until the door answers: let them go now, and not a day on.
   const answered = await recordFileMade(serviceDb(), {

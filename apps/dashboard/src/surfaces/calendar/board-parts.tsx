@@ -396,7 +396,7 @@ function unreadNotice(p: NoticeProps): NoticeVM {
   const { vm } = p;
   const why = vm.feed.problem || CR_FEED_WORDS.unavailable;
   const until = vm.feed.problem
-    ? ` Until it reads, the receptionist ${vm.bookingLink ? "sends the booking link but " : ""}never names an open time.`
+    ? ` Until it reads, AI ${vm.bookingLink ? "sends the booking link but " : ""}never names an open time.`
     : "";
   return {
     id: "feed",
@@ -462,7 +462,7 @@ function noticesOf(p: NoticeProps): NoticeVM[] {
       id: "stale",
       fact: (
         <>
-          <b>Showing the last good read.</b> {vm.feed.problem || CR_FEED_WORDS.stale} The receptionist is using it too.
+          <b>Showing the last good read.</b> {vm.feed.problem || CR_FEED_WORDS.stale} AI is using it too.
         </>
       ),
       act: (
@@ -478,7 +478,7 @@ function noticesOf(p: NoticeProps): NoticeVM[] {
       id: "hours",
       fact: (
         <>
-          <b>Your hours aren't set.</b> No day shows as closed, and the receptionist offers no time until they are.
+          <b>Your hours aren't set.</b> No day shows as closed, and AI offers no time until they are.
         </>
       ),
       act: (
@@ -525,7 +525,7 @@ export function noticeSlot(p: NoticeProps) {
       <FailedRead
         kind="line"
         what="those days"
-        body="What was already on screen is still current, and the receptionist reads your calendar on its own."
+        body="What was already on screen is still current, and AI reads your calendar on its own."
         onRetry={p.read}
         busy={p.pending}
         className="cal-failed"

@@ -83,7 +83,7 @@ test("a quiet morning is proven, not left implied", () => {
   assert.equal(vm.calls, null);
   // Today in three zones (2 Nov 2026): the head says what is listening, after "Nothing needs you."
   assert.equal(vm.quiet.headline, "Nothing needs you.");
-  assert.match(vm.quiet.sub, /^The receptionist is on\./);
+  assert.match(vm.quiet.sub, /^AI is on\./);
   // the hero strip still renders — a zero is a real measurement
   assert.equal(vm.recap.facts.length, 4);
   assert.equal(vm.recap.facts[0].value, "0");
@@ -249,10 +249,7 @@ test("the day's numbers are one sentence: they were six stat cards over two sent
     [],
     NOW,
   );
-  assert.equal(
-    busy.recap.line,
-    "14 messages in, 11 answered by the receptionist, typically in 38s. 3 calls, 7 minutes.",
-  );
+  assert.equal(busy.recap.line, "14 messages in, 11 answered by AI, typically in 38s. 3 calls, 7 minutes.");
   // Ask reads every sentence; the page prints the line and skips the two the line already says.
   assert.ok(
     busy.recap.sentences.every((s) => !s.traffic || /receptionist answered|reached the phone line/.test(s.text)),
@@ -591,7 +588,7 @@ test("REGRESSION: the day's recap never calls the count a WhatsApp count -- answ
   const emailed = conv({ messages: [{ ...conv().messages[0], channel: "email" }] });
   const vm = toTodayVM(m, [emailed], esc, [], NOW);
   const line = vm.recap.sentences.find((s) => /answered/.test(s.text));
-  assert.equal(line.text, "The receptionist answered 2 messages from 1 person.");
+  assert.equal(line.text, "AI answered 2 messages from 1 person.");
   assert.ok(
     vm.recap.sentences.every((s) => !/WhatsApp/.test(s.text)),
     vm.recap.sentences.map((s) => s.text).join(" | "),
@@ -845,7 +842,7 @@ test("the day's four figures, each with the clause under it and the why behind i
     vm.figures.map((f) => [f.id, f.label, f.value, f.of]),
     [
       ["booked", "booked", vm.figures[0].value, undefined],
-      ["answered", "answered by the receptionist", 7, 9],
+      ["answered", "answered by AI", 7, 9],
       ["calls", "calls", 3, undefined],
       ["new", "new people", 2, undefined],
     ],
@@ -872,7 +869,7 @@ test("the day's four figures, each with the clause under it and the why behind i
     text: "Renata Solís and Marco Ibáñez wrote for the first time today.",
     door: { label: "Open People", to: "clients/seg:new_week" },
   });
-  assert.equal(vm.proof, "The last message arrived 10:38 AM, and the receptionist answered 41s later.");
+  assert.equal(vm.proof, "The last message arrived 10:38 AM, and AI answered 41s later.");
 });
 
 test("a receipt adds to its figure: it never says the figure's own number again", () => {
@@ -997,7 +994,7 @@ test("the answered receipt is a sentence at every count: both times, each time, 
     ]);
   assert.equal(
     once("budget"),
-    "Handed over once, because the day's model budget ran out. The rest it answered itself.",
+    "Handed over once, because the daily AI limit was reached. The rest it answered itself.",
   );
   assert.equal(
     once("stale"),
@@ -1211,7 +1208,7 @@ test("a figure with nothing to add has no receipt; a day with nothing at all has
     "the four always stand (Today in three zones), zeros where nothing was counted",
   );
   assert.equal(none.proof, "No messages have arrived yet.");
-  assert.match(none.quiet.sub, /^The receptionist is on\./, `the quiet day's line: ${none.quiet.sub}`);
+  assert.match(none.quiet.sub, /^AI is on\./, `the quiet day's line: ${none.quiet.sub}`);
   const quietLater = toTodayVM(
     metrics({ now: { last_inbound_at: "2026-08-26T21:39:00Z", last_outbound_at: "2026-08-26T21:40:18Z" } }),
     [],
@@ -1219,25 +1216,18 @@ test("a figure with nothing to add has no receipt; a day with nothing at all has
     [],
     NOW,
   );
-  assert.equal(
-    quietLater.proof,
-    "The last message arrived yesterday at 5:39 PM, and the receptionist answered 1m 18s later.",
-  );
+  assert.equal(quietLater.proof, "The last message arrived yesterday at 5:39 PM, and AI answered 1m 18s later.");
   assert.equal(
     quietLater.quiet.sub,
-    "The receptionist is on. Last message yesterday 5:39 PM, answered in 1m 18s.",
+    "AI is on. Last message yesterday 5:39 PM, answered in 1m 18s.",
     "the quiet day says the last message and how fast it was answered (todayLastLine)",
   );
   // Each day's form, clipped as the canvas writes it ("Last message Tuesday 4:12 PM"), where the proof's sentence says "at".
   const lastSaid = (iso) =>
     toTodayVM(metrics({ now: { last_inbound_at: iso, last_outbound_at: null } }), [], [], [], NOW).quiet.sub;
-  assert.equal(lastSaid("2026-08-24T20:12:00Z"), "The receptionist is on. Last message Monday 4:12 PM.");
-  assert.equal(lastSaid("2026-08-14T20:12:00Z"), "The receptionist is on. Last message August 14, 4:12 PM.");
-  assert.equal(
-    lastSaid("2026-08-27T13:05:00Z"),
-    "The receptionist is on. Last message 9:05 AM.",
-    "today: its time alone",
-  );
+  assert.equal(lastSaid("2026-08-24T20:12:00Z"), "AI is on. Last message Monday 4:12 PM.");
+  assert.equal(lastSaid("2026-08-14T20:12:00Z"), "AI is on. Last message August 14, 4:12 PM.");
+  assert.equal(lastSaid("2026-08-27T13:05:00Z"), "AI is on. Last message 9:05 AM.", "today: its time alone");
   for (const vm of [thin, none])
     for (const gone of ["pulse", "launchpad", "updatedAt"]) assert.ok(!(gone in vm), `${gone} has no reader`);
   assert.ok(!("greeting" in none.standing), "no greeting above the work");
@@ -1380,7 +1370,7 @@ test("a reply from a lead read as a wrong person is not someone waiting with not
   assert.deepEqual(names([reading("cv-a", "wrong_person")]), ["Dulce Amaro"]);
 });
 
-test("one reading of each escalation: Ask's row and the queue's row agree, and a call-back carries the to-do it left", () => {
+test("one reading of each escalation: AI's row and the queue's row agree, and a call-back carries the to-do it left", () => {
   const cb = [
     {
       id: "e2",
@@ -1405,7 +1395,7 @@ test("one reading of each escalation: Ask's row and the queue's row agree, and a
   assert.equal(
     ask.quote,
     "Call back to confirm Saturday 10:00.",
-    "the to-do the phone receptionist left, which Ask never saw",
+    "the to-do the phone receptionist left, which AI never saw",
   );
   assert.equal(ask.meta, "Phone · +1 (305) 555-0100");
   assert.deepEqual(
@@ -1508,7 +1498,7 @@ test("an out-of-office, a list's mail or a form's notification is nobody waiting
   );
 });
 
-test("the receipts quote the receptionist's replies: a person's reply, a campaign's send and a system note are not its tone to spot-check", () => {
+test("the receipts quote AI's replies: a person's reply, a campaign's send and a system note are not its tone to spot-check", () => {
   const out = (iso, over) => at(iso, { direction: "outbound", status: "delivered", ...over });
   const c = thread("cv-p", "Priya", [
     at("2026-08-27T13:00:00Z"),
@@ -1525,7 +1515,7 @@ test("the receipts quote the receptionist's replies: a person's reply, a campaig
   assert.deepEqual(
     vm.recap.receipts.map((r) => r.text),
     ["replied to Priya: “Yes, Tuesdays from 10.”"],
-    "REGRESSION: the receipts, newest first, quoted a person's reply and a broadcast as the receptionist's",
+    "REGRESSION: the receipts, newest first, quoted a person's reply and a broadcast as AI's",
   );
 });
 

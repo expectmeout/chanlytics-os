@@ -140,7 +140,7 @@ export const CLOSED_UNSET = "set your opening hours to see this";
 export const CLOSED_NONE = "no message came while you were closed";
 
 export const closedMeta = (arrived: number, answered: number): string =>
-  `${plural(arrived, "message")} came while you were closed; the receptionist answered ${answered}.`;
+  `${plural(arrived, "message")} came while you were closed; AI answered ${answered}.`;
 
 /* ------------------------------------------------------------------------ stuck */
 

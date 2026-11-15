@@ -45,11 +45,11 @@ export type Standing = "needs_you" | "yours" | "theirs" | "snoozed" | "quiet";
 export const HELD_WORDS = {
   yours: {
     pill: "You have it",
-    sentence: "You're answering this one. The receptionist stays quiet until you hand it back.",
+    sentence: "You're answering this one. AI stays quiet until you hand it back.",
   },
   theirs: {
     pill: "A teammate has it",
-    sentence: "A teammate is answering this. The receptionist stays quiet until they hand it back.",
+    sentence: "A teammate is answering this. AI stays quiet until they hand it back.",
   },
 } as const satisfies Record<"yours" | "theirs", { pill: string; sentence: string }>;
 

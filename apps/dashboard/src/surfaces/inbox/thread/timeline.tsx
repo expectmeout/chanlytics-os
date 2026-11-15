@@ -123,7 +123,7 @@ const TlWhyButton = ({ why, open, onToggle }: { why: ReplyWhyVM; open: boolean; 
     type="button"
     className="tl-msg-why"
     aria-expanded={open}
-    aria-label={`Why the receptionist said this — ${why.summary}`}
+    aria-label={`Why AI said this — ${why.summary}`}
     onClick={onToggle}
     data-testid="tl-msg-why"
   >

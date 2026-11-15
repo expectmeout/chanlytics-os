@@ -131,7 +131,7 @@ export function heldReplyNotice(input: { who: string; reply: string; at: string;
   subject: string;
   body: string;
 } {
-  const reason = input.unsure ? "The receptionist was not sure of its reply" : "Your hold for replies is on";
+  const reason = input.unsure ? "AI was not sure of its reply" : "Your hold for replies is on";
   return {
     subject: `Reply to ${input.who} goes ${input.at}`,
     body: `${reason}: “${clipAtWord(input.reply, HELD_REPLY_QUOTE)}”. ${waitEndsWords("reply", input.at)}, from the Inbox.`,

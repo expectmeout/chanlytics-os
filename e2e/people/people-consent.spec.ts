@@ -79,7 +79,7 @@ test.describe("Consent for one person", () => {
     await expect(page.locator(".cl-rail-row", { hasText: "Can receive offers" })).toBeVisible();
   });
 
-  test("a name the owner gives is a workspace-scoped PUT, and a note the receptionist reads a workspace-scoped POST to the notes log — intercepted", async ({
+  test("a name the owner gives is a workspace-scoped PUT, and a note AI reads a workspace-scoped POST to the notes log — intercepted", async ({
     page,
   }) => {
     await page.goto("/#/clients");

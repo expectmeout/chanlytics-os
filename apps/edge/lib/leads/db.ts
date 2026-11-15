@@ -20,12 +20,14 @@ import {
   listLeadsSharing,
   listPeopleSharing,
   listPlacesSuppressed,
+  listRoundsOfSearch,
   listRunsOfRound,
   listSearchMembers,
+  recordRoundNearby,
   recordLeadSiteReadsSpent,
   upsertLeadCompany,
 } from "@chanlytics/db/leads";
-import { readColumn } from "@chanlytics/db/shared";
+import { asJson, readColumn } from "@chanlytics/db/shared";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import {
@@ -132,6 +134,7 @@ export function leadDb(db: Db): LeadDb {
       const json = recordOrNull(member.judgment);
       return {
         lead_id: member.lead_id,
+        round_id: member.round_id,
         class: member.class,
         excluded_by: member.excluded_by,
         fit: member.fit,
@@ -279,6 +282,21 @@ export function leadDb(db: Db): LeadDb {
     },
     membersOfRound: (roundId) => membersWhere("round_id", roundId),
     membersOfSearch: (searchId) => membersWhere("search_id", searchId),
+    async roundsOfSearch(searchId) {
+      const rows = must<
+        Pick<Database["public"]["Tables"]["lead_rounds"]["Row"], "id" | "seq" | "purpose" | "plan" | "ending">[]
+      >("lead_rounds of search", await listRoundsOfSearch(db, searchId));
+      return rows.map((row) => ({
+        id: row.id,
+        seq: row.seq,
+        purpose: row.purpose,
+        plan: readColumn("lead_rounds.plan", shaped<LeadSearchPlan>(), row.plan),
+        ending: row.ending,
+      }));
+    },
+    async roundNearby(roundId, nearby) {
+      must("lead_rounds nearby", await recordRoundNearby(db, roundId, asJson(nearby)));
+    },
     async placeIdsHeld(tenantId, placeIds) {
       const out = new Map<string, string>();
       if (!placeIds.length) return out;

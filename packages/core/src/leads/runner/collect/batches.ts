@@ -247,7 +247,7 @@ export async function collectHeld(
           run,
           phase,
           { state: remoteState, items_seen: seen + end },
-          [...members, ...memberRows(newMembers, run.term)],
+          [...members, ...memberRows(newMembers, run.term, run.round_id)],
           Math.max(0, usage - run.usage_usd) + sites.count() * LEAD_SITE_READ_USD,
         )
       : null;
@@ -389,8 +389,9 @@ async function judgedBatch(
 }
 
 /** The rows just committed, as members of the round, for a decision made in the same invocation. */
-function memberRows(places: CollectPlace[], term: string | null): LeadMemberRow[] {
+function memberRows(places: CollectPlace[], term: string | null, roundId: string): LeadMemberRow[] {
   return places.map((place) => ({
+    round_id: roundId,
     place_id: place.place.place_id,
     decided: false,
     lead_id: place.place.place_id,

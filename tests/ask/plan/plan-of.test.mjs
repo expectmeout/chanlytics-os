@@ -246,7 +246,7 @@ const atApprove = (step) => {
 const REUSED = "Sends “this_months_offer”, already in your messages, with the offer in its words.";
 const WRITES = (on) =>
   `Writes a message for offers, “offer”, for ${on}: this offer goes in its words, and the next offer can send it too.`;
-const NOTE = "Tells the receptionist about the offer, until Nov 30.";
+const NOTE = "Tells AI about the offer, until Nov 30.";
 /** The pause is a silent step: it applies at the plan's Approve (Task 15, carry-forward b). */
 const PAUSES =
   "Pauses the month's offer, “This month's offer”, from when you approve it, so nobody gets two offers; resume it after Nov 30.";
@@ -294,7 +294,7 @@ const pacedStep = (n, after, over = {}) => ({
 const ROOM_TIGHT =
   "The calendar has 15 open slots in the next 14 days for 40 people, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on Nov 1.";
 const TODAY_NOTE = noteStep(0, "Oct 11", "Nov 15", "2026-11-15");
-const TODAY_SAYS = "Tells the receptionist about the offer, until Nov 15.";
+const TODAY_SAYS = "Tells AI about the offer, until Nov 15.";
 const REMINDS_OCT_30 = EN.reminderAsk("Oct 30", "Can receive offers");
 /**
  * A month's offer named near its 80 characters: in the operator's world below, the reminder would end past the answer's
@@ -687,7 +687,7 @@ const ROWS = [
     words: [WITHOUT_EMAIL, PACED, REVIEW_FIRST, WRITES("WhatsApp"), TODAY_SAYS],
   },
   {
-    name: "the receptionist already has the offer's note with the same end: no note step",
+    name: "AI already has the offer's note with the same end: no note step",
     intent: offer(),
     world: world({
       messages: [monthsOfferMessage()],
@@ -704,7 +704,7 @@ const ROWS = [
     words: [REUSED, NOTE, GOES],
   },
   {
-    name: "asked by a member who may not approve a note for the receptionist: no note step, the steps renumbered, and the words say the receptionist is not told until an owner or a partner adds it (pre-review ruling 1)",
+    name: "asked by a member who may not approve a note for AI: no note step, the steps renumbered, and the words say AI is not told until an owner or a partner adds it (pre-review ruling 1)",
     intent: offer(),
     world: world({ messages: [monthsOfferMessage()], playbooks: [monthsOffer()], canNote: false }),
     steps: [pauseStep(1), firstSend(2, [1])],
@@ -722,19 +722,14 @@ const ROWS = [
     intent: offer({ until: "2026-11-07" }),
     world: world({ messages: [monthsOfferMessage()] }),
     steps: [noteStep(1, "Nov 1", "Nov 7", "2026-11-07"), firstSend(2, [1])],
-    words: [
-      EN.reminderAsk("Nov 7", "Can receive offers"),
-      REUSED,
-      "Tells the receptionist about the offer, until Nov 7.",
-      GOES,
-    ],
+    words: [EN.reminderAsk("Nov 7", "Can receive offers"), REUSED, "Tells AI about the offer, until Nov 7.", GOES],
   },
   {
     name: "a one-day offer has no day left to ask for a reminder (ruling 1)",
     intent: offer({ until: "2026-11-01" }),
     world: world({ messages: [monthsOfferMessage()] }),
     steps: [noteStep(1, "Nov 1", "Nov 1", "2026-11-01"), firstSend(2, [1])],
-    words: [REUSED, "Tells the receptionist about the offer, until Nov 1.", GOES],
+    words: [REUSED, "Tells AI about the offer, until Nov 1.", GOES],
   },
   {
     name: "with no calendar, who has booked cannot be told: no reminder is said (ruling 1)",
@@ -1206,7 +1201,7 @@ const ES_ROWS = [
     ],
   },
   {
-    name: "the receptionist already has the offer's note: no note step, and the words say so",
+    name: "AI already has the offer's note: no note step, and the words say so",
     intent: offer(),
     world: esWorld({
       messages: [monthsOfferMessage()],
@@ -1636,7 +1631,7 @@ test("the message one plan writes is the message the next plan sends, with that 
       "It goes without WhatsApp: WhatsApp is still reviewing the WhatsApp version of “offer”.",
       EN.reminderAsk("Oct 18", "Can receive offers"),
       "Sends “offer”, already in your messages, with the offer in its words.",
-      "Tells the receptionist about the offer, until Oct 18.",
+      "Tells AI about the offer, until Oct 18.",
       "The offer goes to “Can receive offers” on Oct 17 at 10:00 AM.",
     ].join(" "),
   );

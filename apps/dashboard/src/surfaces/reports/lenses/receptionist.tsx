@@ -57,13 +57,13 @@ function answeredCard(vm: ReportVM, days: number) {
           ariaLabel="Customer messages per day, split by who answered. The arrow keys read each day."
           tipNote={(d) => plural(d.in, "customer message")}
           describe={(d) =>
-            `${d.label}: ${plural(d.in, "customer message")}, ${d.ai} answered by the receptionist, ${d.you} by you, ${d.none} unanswered`
+            `${d.label}: ${plural(d.in, "customer message")}, ${d.ai} answered by AI, ${d.you} by you, ${d.none} unanswered`
           }
         />
       ) : (
         <EmptyState
           kind="line"
-          title="No customer messages in this period, so the receptionist had nothing to answer by text. Calls are below."
+          title="No customer messages in this period, so AI had nothing to answer by text. Calls are below."
         />
       )}
     </ChartCard>
@@ -158,7 +158,7 @@ function ownRow(fold: ReceptionistReportVM | null, failed: boolean) {
         <FailedRead
           className="rpt-span-12"
           kind="card"
-          what="the receptionist's other numbers"
+          what="AI's other numbers"
           surface="reports_receptionist"
           testid="receptionist-failed"
         />
@@ -187,7 +187,7 @@ function receptionistSection(
   const more = fold !== null && fold.available ? fold : null;
   return (
     <>
-      <RptSection title="The receptionist" bare>
+      <RptSection title="AI" bare>
         <RptStrip tiles={stripTiles(vm)} className="quad" testid="receptionist-strip" />
         <div className="rpt-grid">
           {answeredCard(vm, days)}

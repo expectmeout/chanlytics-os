@@ -70,8 +70,8 @@ export function postDrawProblem(words: string, limit: number): string | null {
 
 /**
  * What is wrong with some words a post would say, in a sentence for the model, or null. `owner` is what the owner has said: their
- * questions in this thread and what they wrote in Settings. Nothing is a stranger's word here: not what a customer wrote, a
- * page shows or a read returned.
+ * questions in this thread and what they wrote in Settings as theirs to say (contracts ownersSayings). Nothing is a stranger's
+ * word here: not what a customer wrote, a page shows or a read returned.
  */
 export function postWordsProblem(words: string, owner: string, limit: number): string | null {
   const text = words.trim();
@@ -112,7 +112,7 @@ export function postPlanProblem(plan: Pick<PostPlan, "line" | "over" | "under">,
 }
 
 const PHOTO_WONT_TO_MODEL: Readonly<Record<PostPhotoWont, string>> = {
-  made: "that is a post or a video Ask already made, with its words on it. Use the photo or the clip it came from",
+  made: "that is a post or a video AI already made, with its words on it. Use the photo or the clip it came from",
   unkept: "it waits in the Inbox or was set aside: it is the owner's to keep first",
   design: "it already has words or a design on it, so more would clash",
   video:

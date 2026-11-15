@@ -582,7 +582,7 @@ function emptyWords(isReal: boolean): Record<string, EmptyWords> {
       ? {
           icon: "clock",
           title: "Nothing snoozed",
-          body: "Snooze hides a thread from your queue. The receptionist keeps answering it.",
+          body: "Snooze hides a thread from your queue. AI keeps answering it.",
         }
       : {
           icon: "clock",
@@ -592,15 +592,15 @@ function emptyWords(isReal: boolean): Record<string, EmptyWords> {
     needs: {
       icon: "check",
       title: "Nothing needs you",
-      body: "Threads the receptionist pauses for a human land here first.",
+      body: "Threads AI pauses for a human land here first.",
     },
-    watching: { icon: "eye", title: "Nothing in flight", body: "Threads your agents are actively working show here." },
-    drafts: { icon: "edit", title: "No drafts waiting", body: "Agent-written replies queue here for your review." },
+    watching: { icon: "eye", title: "Nothing in flight", body: "Threads AI is working on show here." },
+    drafts: { icon: "edit", title: "No drafts waiting", body: "Replies AI wrote wait here for your review." },
     escalated: isReal
       ? {
           icon: "check",
           title: "Nobody's waiting on you",
-          body: "The receptionist is answering on its own. Anything left for you lands here.",
+          body: "AI is answering on its own. Anything left for you lands here.",
         }
       : { icon: "flag", title: "No escalations", body: "Sensitive threads that need a human land here." },
   };
@@ -633,7 +633,7 @@ function emptyThreads(L: ListCtx) {
       body={
         query
           ? "Try a different term — search spans every bucket."
-          : meta.body || "The receptionist surfaces anything that needs you."
+          : meta.body || "AI surfaces anything that needs you."
       }
       action={
         query

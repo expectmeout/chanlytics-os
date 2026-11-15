@@ -28,10 +28,10 @@ export const LIBRARY_WORDS = {
   reading: "Reading your messages…",
   failed: "Your messages couldn’t be loaded right now",
   failedWhat: "your messages",
-  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
+  failedBody: "AI keeps sending; this page just can't show what it holds at the moment.",
   /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
   headTip:
-    "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
+    "What AI and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
   noNumber:
     "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
   /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
@@ -127,7 +127,7 @@ export const LIBRARY_STARTER_WORDS = {
 
 /** What a broadcast is, said where a page defines it (the Sent room's standing line, on hover): one message, and where it goes. */
 export const BROADCAST_WORDS = {
-  tip: "One message, on the channels it holds, to the people who said yes. Replies land in the Inbox, where the receptionist answers them.",
+  tip: "One message, on the channels it holds, to the people who said yes. Replies land in the Inbox, where AI answers them.",
 } as const;
 
 /**

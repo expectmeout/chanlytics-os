@@ -477,10 +477,10 @@ test("every route under /api/v1/platform asks the database who is calling", () =
     // Every helper the route imports from the platform module has to come after
     // the handle it needs.
     // The Console's modules behind the door (decisions 0066, 0067, 0068): platform, its acts, its reads, its requests,
-    // Support, Health.
+    // Support, Health, and what the finder set aside (decision 0133).
     const imported = [
       ...src.matchAll(
-        /import\s*\{([^}]+)\}\s*from\s*"@\/server\/console\/(?:platform|acts|console|requests|support|health)"/g,
+        /import\s*\{([^}]+)\}\s*from\s*"@\/server\/console\/(?:platform|acts|console|requests|support|health|set-aside)"/g,
       ),
     ];
     assert.ok(imported.length, `${path.basename(path.dirname(file))}: nothing imported from @/server/console`);

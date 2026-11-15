@@ -544,7 +544,7 @@ export const inboxVerdict = (ix: InboxState & InboxMoves) => {
         value: verdict.est || 0,
         inStage: "now",
         agent: { glyph: "Q", name: "Qualifier" },
-        next: "Yours — agents do admin only",
+        next: "Yours — AI does admin only",
         threadId: t.id,
         source: "IG reel · verdict",
       });
@@ -696,14 +696,14 @@ export const useInboxAutoSend = (ix: InboxSoFar) => {
               type: "event",
               kind: "decision",
               at: IX_NOW,
-              body: `Auto-sent after the ${veto.window || 30}s veto window — no action taken · logged`,
+              body: `Sent after ${veto.window || 30}s · nobody stopped it`,
             },
           ],
         }));
         ppFlash({
           msg: (
             <>
-              Auto-sent to <b>{t.who}</b> — veto window passed
+              Sent to <b>{t.who}</b> · nobody stopped it
             </>
           ),
           undo: () => {

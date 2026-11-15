@@ -611,7 +611,7 @@ const inWords = (to) => (to.includes(".") ? to.replace(".", " with action ") : t
 const pageModesOf = (old) => (r) => (old === "search_people" && r === "policies.select" ? "rpc:people_reply_modes" : r);
 
 /** What the registry at 7405e34b answered for each call, frozen from the old names before they went. */
-const FIXTURE = JSON.parse(fs.readFileSync(path.join(ROOT, "tests/fixtures/ask-tool-results-7405e34b.json"), "utf8"));
+const FIXTURE = (await import("./tools/_ai-named.mjs")).frozenAnswers(ROOT);
 
 /**
  * The report's reply_time says the hold the owner set since the Reports fix wave (spec D14): null where the report

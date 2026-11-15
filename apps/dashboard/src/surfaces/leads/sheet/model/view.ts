@@ -136,7 +136,7 @@ export const LEAD_SHEET_WORDS = {
     copy: (name: string) => `Copy ${name}`,
     copyLine: "Same emails and waits, on a new list",
     change: "Change",
-    ask: "A draft by Ask",
+    ask: "A draft by AI",
     askLine: "From your goal in Settings and this search",
     blank: "Blank",
     blankLine: "You write every email",
@@ -152,7 +152,7 @@ export const LEAD_SHEET_WORDS = {
     someNoEmail: (k: number, n: number) =>
       `${k} of the ${n} ${k === 1 ? "has" : "have"} no email yet, so ${k === 1 ? "it won't be" : "they won't be"} written to.`,
     // What a draft Ask could not write left: nothing, and why, in Ask's words after it.
-    askFailed: "Nothing was made: Ask couldn't write a draft",
+    askFailed: "Nothing was made: AI couldn't write a draft",
   },
   /** The pile's end. */
   end: {

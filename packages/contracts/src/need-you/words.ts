@@ -38,10 +38,10 @@ export const NOT_A_PERSON_WORDS = {
  */
 export const NEED_YOU_WORDS = {
   door: "Inbox",
-  drafted: "Ask's draft",
-  drafting: "Ask is drafting…",
-  couldNot: "Ask couldn't draft this one.",
-  asks: (question: string) => `Ask needs to know: ${question}`,
+  drafted: "AI's draft",
+  drafting: "AI is drafting…",
+  couldNot: "AI couldn't draft this one.",
+  asks: (question: string) => `AI needs to know: ${question}`,
   /**
    * What they wrote was not a customer's, so Ask wrote no reply: what it is, in Ask's one sentence. The verdict is said
    * here once; the sentence says only what it is (3 Nov 2026: "Not a customer, by the look of it: … not a customer or
@@ -51,7 +51,7 @@ export const NEED_YOU_WORDS = {
   editDraft: (personName: string) => `Change the reply to ${personName}`,
   done: "Done",
   /** Once the member's words differ from what Ask drafted: Ask's words back in their place. */
-  useAsks: "Back to Ask's",
+  useAsks: "Back to AI's",
   /** The signature an email reply leaves with (00487), under the draft: what is sent is what is seen. */
   changeSignature: "Change",
   changeSignatureTip: "Change what this mailbox signs with, in Settings › Connections",
@@ -83,7 +83,7 @@ export const NEED_YOU_WORDS = {
   openThread: "Open thread",
   /** A lead who tried their own receptionist (decision 0079): Today's row. */
   tried: {
-    status: "Tried their receptionist",
+    status: "Tried their preview",
     claimed: "made it theirs",
     sentence: "Opened it and tried it",
     someone: "A lead",
@@ -159,7 +159,7 @@ export const NEED_YOU_WORDS = {
     reviews: (n: number) => (n === 1 ? "1 review to answer" : `${n} reviews to answer`),
   },
   found: {
-    title: "Ask found",
+    title: "AI found",
     ideas: (n: number, first: string) => (n === 1 ? first : `${n} ideas`),
     calls: (n: number) => (n === 1 ? "a call worth a listen" : `${n} calls worth a listen`),
     /** Over what came of the ideas approved lately, under the ideas still open. */
@@ -167,13 +167,13 @@ export const NEED_YOU_WORDS = {
   },
   /** Ask's line: what it asks for, and what it says of a mic and of a change on its way. */
   say: {
-    tell: "Tell Ask what to change",
-    tellMore: "Tell Ask what else",
+    tell: "Tell AI what to change",
+    tellMore: "Tell AI what else",
     tellHeld: "Tell it what to change",
-    changing: "Ask is changing it",
+    changing: "AI is changing it",
     letGo: "Let go to send",
     hold: "Hold to talk",
-    send: "Send to Ask",
+    send: "Send to AI",
     micBlocked: "Your browser has the microphone turned off for this site. Allow it there, or type it.",
     micFailed: "Couldn't hear you. Try again, or type it.",
   },
@@ -222,13 +222,13 @@ export const NEED_YOU_WORDS = {
     stopped: "Stopped. The ones already found are yours.",
   },
   held: {
-    title: "Your receptionist's reply",
+    title: "AI's reply",
     goesAlone: "Sends on its own",
     sendsIn: (seconds: number) => `Sends in ${leftWords(seconds)}`,
-    by: (wire: string) => `Your receptionist · ${wire}`,
+    by: (wire: string) => `AI · ${wire}`,
     stopIt: "Stop it",
     held: "Held for you",
-    heldReply: "Written by your receptionist",
+    heldReply: "Written by AI",
     goesIn: (seconds: number) => `Going by itself in ${leftWords(seconds)}`,
     rewritten: "Rewritten. The new draft waits its turn.",
     gone: "It went before it could be stopped.",
@@ -243,7 +243,7 @@ export const NEED_YOU_WORDS = {
     calendar: "Calendar",
     back: "Back",
     theyGet: "What they'll get",
-    noneOpen: "Nothing open to offer on your calendar right now. Pick a day there, or say it to Ask.",
+    noneOpen: "Nothing open to offer on your calendar right now. Pick a day there, or say it to AI.",
     telling: (who: string, seconds: number) => `Booked. Telling ${shortName(who)} in ${leftWords(seconds)}`,
     done: (when: string) => `Booked for ${when}`,
     offered: (who: string) => `Offered to ${shortName(who)}`,
@@ -309,11 +309,11 @@ export const NEED_YOU_WORDS = {
   },
   /** An idea of Ask's morning: its tag, its presses, and Details, which a new campaign's rules fold behind. */
   idea: {
-    tag: "Ask's idea",
+    tag: "AI's idea",
     /** What Ask noticed from the workspace's own facts (decision 0087): no idea of a model's, so it says so. */
-    noticed: "Ask noticed",
+    noticed: "AI noticed",
     notToday: "Not today",
-    openInAsk: "Open in Ask",
+    openInAsk: "Continue with AI",
     approve: "Approve",
     gone: "Not today",
     /** A press refused because what the idea was about has moved on: nothing more to do here. */
@@ -482,12 +482,12 @@ export function needYouSay(needYouSayFacts: NeedYouSayFacts): string | null {
   // a time that is tomorrow's says so before it.
   const when = (at: string) => (/^tomorrow /i.test(at) ? at.replace(/^tomorrow /i, "tomorrow at ") : `at ${at}`);
   const held = needYouSayFacts.held
-    ? `Your receptionist answers ${shortName(needYouSayFacts.held.who)} on its own unless you stop it.`
+    ? `AI answers ${shortName(needYouSayFacts.held.who)} on its own unless you stop it.`
     : "";
   const drafted = needYouSayFacts.replies
-    ? `Ask has ${needYouSayFacts.replies === 1 ? "a reply" : `${needYouSayFacts.replies} replies`} ready`
+    ? `AI has ${needYouSayFacts.replies === 1 ? "a reply" : `${needYouSayFacts.replies} replies`} ready`
     : needYouSayFacts.writing
-      ? "Ask is drafting your replies"
+      ? "AI is drafting your replies"
       : "";
   const window = needYouSayFacts.firstWindow
     ? `${shortName(needYouSayFacts.firstWindow.who)}'s window closes ${when(needYouSayFacts.firstWindow.at)}`

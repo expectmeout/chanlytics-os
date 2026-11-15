@@ -80,10 +80,7 @@ test("interested: what it was read as, their words, what it did, and Use the dra
   const { tree } = strip();
   assert.equal(textOf(byTestId(tree, "ix-th-reply-title")), "Wrote back · interested");
   assert.equal(textOf(byTestId(tree, "ix-th-reply-said")), "“Wants more details”");
-  assert.equal(
-    textOf(byTestId(tree, "ix-th-reply-did")),
-    "Talking now. The receptionist drafted an answer: it's in the reply box.",
-  );
+  assert.equal(textOf(byTestId(tree, "ix-th-reply-did")), "Talking now. AI drafted an answer: it's in the reply box.");
   assert.ok(byTestId(tree, "ix-th-reply-use-draft"));
   assert.equal(byTestId(tree, "ix-th-reply-undo"), null, "only a no is undone");
   assert.equal(textOf(byTestId(tree, "ix-th-reply-from")), "Goes from sam@owndomain.example.com.");

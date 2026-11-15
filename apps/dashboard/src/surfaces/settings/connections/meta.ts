@@ -17,7 +17,7 @@ export type MetaDoor = Awaited<ReturnType<typeof metaDoorOf>>;
 /** The words the row says for what came back from Meta, by the outcome or its reason. */
 const OUTCOME_WORDS: Readonly<Record<string, string>> = {
   ...CONNECT_WORDS,
-  connected: "Meta is connected — the receptionist answers the account's DMs through it now.",
+  connected: "Meta is connected — AI answers the account's DMs through it now.",
   declined: "Meta did not connect: the sign-in was declined.",
   state_expired: "The way back from Meta took too long. Start the connection again.",
   state_signature: "The way back from Meta could not be verified. Start the connection again.",

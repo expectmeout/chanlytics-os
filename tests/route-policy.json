@@ -2006,6 +2006,13 @@
       "rate": null,
       "spend": false
     },
+    "GET platform/tenants/[id]/set-aside": {
+      "kind": "read",
+      "scope": "platform",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST platform/waitlist/invited": {
       "kind": "write",
       "fresh": true,

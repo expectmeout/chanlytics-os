@@ -43,7 +43,7 @@ export interface PartnerInvitationDto {
 export const PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
   title: "Your partner",
-  intro: `Someone who sets up and runs your receptionist with you, never billing or the team. Ask one by their code; they have ${PARTNER_INVITE_DAYS} days to accept.`,
+  intro: `Someone who sets up and runs AI with you, never billing or the team. Ask one by their code; they have ${PARTNER_INVITE_DAYS} days to accept.`,
   codeLabel: "Their code or link",
   codePlaceholder: "their-code",
   invite: "Ask them",
@@ -147,7 +147,7 @@ export function partnerInviteEmail(input: { workspace: string; expiresAt: string
   return {
     subject: `${workspace} asks you to be its partner on Chanlytics`,
     body: [
-      `${workspace} asked you to join its team as its partner: you'd set up and run its receptionist with its owner, and never touch its billing or its team.`,
+      `${workspace} asked you to join its team as its partner: you'd set up and run AI with its owner, and never touch its billing or its team.`,
       "",
       "A workspace that has not paid for a plan yet earns you your share once it does, as one you brought. One that was already paying earns you none.",
       "",

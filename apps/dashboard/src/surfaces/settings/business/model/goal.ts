@@ -9,10 +9,10 @@ import { describeSettingsChange, ASK_GOAL_MAX } from "@chanlytics/contracts";
 export const ASK_GOAL_WORDS = {
   title: "Your goal",
   // What it is for is the hint, since a phone draws no card's sub; the sub says who reads it.
-  sub: "Only Ask reads it",
+  sub: "Never shown to customers",
   label: "Goal",
   empty: "Not set",
-  hint: "What Ask works toward, like twenty new clients a month.",
+  hint: "What AI works toward, like twenty new clients a month.",
   placeholder: "Twenty new clients a month",
   gate: "change your goal",
 } as const;

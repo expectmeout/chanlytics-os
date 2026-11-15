@@ -64,7 +64,7 @@ test("the blanks: a step's own words with every blank named, the line among them
         { at: 11, kind: "words", text: "\n\nHi " },
         { at: 16, kind: "blank", text: "Their business", slot: "business" },
         { at: 28, kind: "words", text: ": " },
-        { at: 30, kind: "blank", text: "Their receptionist", slot: "their preview" },
+        { at: 30, kind: "blank", text: "Their preview", slot: "their preview" },
       ],
     },
   );
@@ -111,7 +111,7 @@ const row = (over = {}) => ({
   ...over,
 });
 
-test("the receptionist's mark says what will happen to the email, as the send would do it", () => {
+test("AI's mark says what will happen to the email, as the send would do it", () => {
   const words = F.mark;
   assert.equal(previewMarkOf(null, NOW), null, "not read yet: it says its name alone");
   assert.deepEqual(previewMarkOf({ preview: null, makes: true }, NOW), { say: words.none, tone: "quiet" });

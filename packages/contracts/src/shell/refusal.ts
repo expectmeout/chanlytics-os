@@ -89,7 +89,7 @@ const TITLES: ReadonlyMap<string, string> = new Map([
   ["window_closed", "WhatsApp's 24 hours have passed"],
   ["upstream_meta", "WhatsApp didn't accept it"],
   ["upstream_retell", "The phone line didn't answer"],
-  ["upstream_anthropic", "The assistant didn't answer"],
+  ["upstream_anthropic", "AI didn't answer"],
   ["upstream_email", "The email didn't go"],
   ["upstream_auth", "Couldn't check your sign-in"],
   ["internal", "Something went wrong"],
@@ -112,7 +112,7 @@ const REASON_WORDS: ReadonlyMap<string, string> = new Map([
   ["window_closed", "WhatsApp's 24 hours have passed — send an approved message instead."],
   ["upstream_meta", "WhatsApp didn't accept it — try again in a moment."],
   ["upstream_retell", "The phone line didn't answer — try again in a moment."],
-  ["upstream_anthropic", "The assistant didn't answer — try again in a moment."],
+  ["upstream_anthropic", "AI didn't answer — try again in a moment."],
   ["upstream_email", "The email didn't go — try again in a moment."],
   ["upstream_auth", "Couldn't check your sign-in just now — try again."],
   ["client", "Not sent."],
@@ -290,7 +290,7 @@ export type RolePerm = keyof (typeof ROLE_PERMS)[Role];
  */
 export const PERM_DOING: Readonly<Record<RolePerm, string>> = {
   approve: "approve or send",
-  autonomy: "change what the receptionist may do on its own",
+  autonomy: "change what AI may do on its own",
   disconnect: "disconnect a channel",
   billing: "change billing",
   team: "manage the team",

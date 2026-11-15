@@ -19,7 +19,7 @@ export const LEAD_SHEET_CARD_WORDS = {
   failed: (n: number) => `${n} failed`,
   /** The legend under Fit's checks: a mark seen, and a mark read, by Claude or by Chanlytics AI (LEAD_READ_SOURCES). */
   seen: "seen on the map or in the mailbox",
-  read: "read by Claude from the listing and their site",
+  read: "read by AI from the listing and their site",
   readByAi: "read by Chanlytics AI",
 } as const;
 

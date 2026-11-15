@@ -77,7 +77,7 @@ export const LEAD_OUTSIDE_US_LINE =
 
 /** The second: what the workspace sells, in the owner's own words, or "what you do". */
 export function leadNotBusinessesLine(want: string | null): string {
-  return `I find businesses, not people at home. People who want ${want && want.trim() ? want.trim() : "what you do"} find you, and your receptionist answers them. Businesses whose clients need you next are a good start:`;
+  return `I find businesses, not people at home. People who want ${want && want.trim() ? want.trim() : "what you do"} find you, and AI answers them. Businesses whose clients need you next are a good start:`;
 }
 
 /** The third: what was asked for, named, and what the one card can do. The ask is logged as demand (§0.3). */
@@ -109,6 +109,12 @@ export interface LeadEndingFacts {
   /** How many places the source returned at all, and what left them all out. */
   seen: number;
   leftOutBy: string | null;
+  /** reach_searched: how far the search looked, in miles (decision 0133, planReachMiles); absent says "within reach". */
+  reachMiles?: number;
+  /** month_leads_used: the day the month's leads renew, in the workspace's zone ("Dec 1"); absent says nothing of it. */
+  renewsOn?: string;
+  /** reach_searched: how far, in miles, the round found areas past the reach (decision 0133); absent, none was found. */
+  further?: number;
 }
 
 export interface LeadEndingLine {
@@ -144,8 +150,36 @@ export function leadAnd(items: readonly string[]): string {
  */
 export function leadEndingFound(ending: LeadRoundEnding, leadEndingFacts: Pick<LeadEndingFacts, "counted">): boolean {
   if (ending === "target_reached") return true;
-  return (ending === "searched_everything" || ending === "few_new_matches") && leadEndingFacts.counted > 0;
+  return (
+    (ending === "searched_everything" || ending === "few_new_matches" || ending === "reach_searched") &&
+    leadEndingFacts.counted > 0
+  );
 }
+
+/** What was left out, said only where the search shows it (a list of the owner's own): a search passes none (0133). */
+const leftOutPart = (f: LeadEndingFacts): string[] => (f.excluded > 0 ? [`${f.excluded} left out`] : []);
+
+/** The day the month's leads renew, where the caller knows it. */
+const renewalPart = (f: LeadEndingFacts): string[] => (f.renewsOn ? [`your leads renew on ${f.renewsOn}`] : []);
+
+/**
+ * What a search that widened says it read (decision 0133): the areas within its reach, never that no more exist (an
+ * outside review taken 14 Nov 2026), and that what it did not find is not counted and stays the owner's this month.
+ */
+const reachParts = (f: LeadEndingFacts): string[] => [
+  `every area within ${f.reachMiles ? `${f.reachMiles} miles` : "reach"} was searched, and no more that fit were found`,
+  ...(f.target > f.counted ? [`the other ${f.target - f.counted} stay yours this month`] : []),
+];
+
+/** reach_searched's step: look further, only where the round found an area past the reach (decision 0133). */
+const furtherStep = (f: LeadEndingFacts): LeadEndingLine["step"] =>
+  f.further ? { id: "reach_further", label: `Look up to ${f.further} miles` } : null;
+
+/** month_leads_used's step: the rest of the count when the leads renew, the day on the press (decision 0133). */
+const renewalStep = (f: LeadEndingFacts): LeadEndingLine["step"] =>
+  f.renewsOn && f.target > f.counted
+    ? { id: "on_renewal", label: `Find the other ${f.target - f.counted} on ${f.renewsOn}` }
+    : null;
 
 /**
  * Every ending, said once (§8.8, the States artboard): what happened, what was
@@ -167,10 +201,12 @@ export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEnd
       return {
         mark,
         title: `Found ${leadEndingFacts.counted} ${leadEndingFacts.name}`,
+        // What was left out is said only where the search shows it (a list of the owner's own): a search the finder ran
+        // passes none, and says its finished leads alone (decision 0133).
         parts: [
           `${leadEndingFacts.emails} you can email`,
           `${leadEndingFacts.phones} by phone`,
-          `${leadEndingFacts.excluded} left out`,
+          ...leftOutPart(leadEndingFacts),
         ],
         step:
           leadEndingFacts.excluded > 0
@@ -201,8 +237,8 @@ export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEnd
       return {
         mark,
         title: `Stopped at ${leadEndingFacts.counted}`,
-        parts: ["this month's leads are used", yours],
-        step: null,
+        parts: ["this month's leads are used", yours, ...renewalPart(leadEndingFacts)],
+        step: renewalStep(leadEndingFacts),
       };
     case "budget_used":
       return {
@@ -268,6 +304,22 @@ export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEnd
         title: LEAD_PAUSED_TITLE,
         parts: ["your leads are all here", "nothing is being counted"],
         step: null,
+      };
+    // Decision 0133: a search that widened by itself until nothing was left within the reach on its card.
+    case "reach_searched":
+      return {
+        mark,
+        title: `Found ${leadEndingFacts.counted} of ${leadEndingFacts.target} ${leadEndingFacts.name}`,
+        parts: reachParts(leadEndingFacts),
+        step: furtherStep(leadEndingFacts),
+      };
+    // Decision 0133: its next leg would have passed the day's searching, which renews tomorrow.
+    case "day_used":
+      return {
+        mark,
+        title: `Stopped at ${leadEndingFacts.counted}`,
+        parts: ["today's searching is used up", yours],
+        step: { id: "carry_on", label: "Carry on" },
       };
   }
 }

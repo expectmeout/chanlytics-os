@@ -78,19 +78,15 @@ async function readGuide(toolContext: ToolContext, input: { skill?: string | und
   const missing: string[] = [];
   if (setup) {
     const business = setup.business;
-    if (!business.hours)
-      missing.push("Opening hours: the receptionist cannot say when you are open (Settings › Hours & booking).");
-    if (!business.services) missing.push("Services: the receptionist cannot say what you offer (Settings › Details).");
+    if (!business.hours) missing.push("Opening hours: AI cannot say when you are open (Settings › Hours & booking).");
+    if (!business.services) missing.push("Services: AI cannot say what you offer (Settings › Details).");
     if (!business.bookingLink && setup.calendar.state === "none")
-      missing.push(
-        "A booking link or a calendar: nobody can be booked by the receptionist (Settings › Hours & booking).",
-      );
+      missing.push("A booking link or a calendar: nobody can be booked by AI (Settings › Hours & booking).");
     if (!setup.channels.whatsapp.active)
       missing.push(
         "WhatsApp: no customer can write to you there, and no WhatsApp sequence can send (Settings › Connections).",
       );
-    if (!setup.channels.voice.active)
-      missing.push("A phone line: no call reaches the receptionist (Setup › Your phone).");
+    if (!setup.channels.voice.active) missing.push("A phone line: no call reaches AI (Setup › Your phone).");
     if (setup.email && !setup.email.sending?.mailboxes?.length)
       missing.push("A mailbox to send from: no cold email can go from your own address (Settings › Cold email).");
     if (setup.calendar.state === "unavailable")

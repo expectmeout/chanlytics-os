@@ -125,6 +125,11 @@
     "fresh": "Read as Health opens, and again after a bug report is moved back to Support.",
     "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0067)."
   },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/tenants/[id]/set-aside": {
+    "kind": "on-open",
+    "fresh": "Read as a workspace's Leads set aside tab opens in the Console, and again as another search is picked in it.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0133: what the finder set aside is the team's to read)."
+  },
   "apps/dashboard/src/surfaces/console/verbs.ts GET platform/tenants/[id]": {
     "kind": "on-open",
     "fresh": "Read as a workspace's Setup and lines tab opens in the Console, and again after a line's act; and as a row opens in Support, for its Setup's progress.",

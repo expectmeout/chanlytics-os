@@ -213,7 +213,7 @@ async function proposeModes(
   return propose(
     {
       kind: "person_mode_many",
-      title: `Receptionist for ${plural(acts.ids.length, "person", "people")}`,
+      title: `AI for ${plural(acts.ids.length, "person", "people")}`,
       summary: `${words} · ${otherSelected.said}`,
       payload: { ids: acts.ids, mode: input.mode, count: acts.ids.length },
     },
@@ -285,7 +285,7 @@ const modesAction = actAction({
       .describe("auto (answers them), ask (asks a person first), never (silent), inherit (the workspace's rule)."),
   }),
   examples: [{ list: "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b", mode: "ask" }],
-  label: "Preparing a receptionist change",
+  label: "Preparing a change to AI",
   words: `Action mode sets how the receptionist treats everyone in a selection. ${approvalWords("person_mode_many")}.`,
   build: proposeModes,
 });

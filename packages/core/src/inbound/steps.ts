@@ -180,13 +180,13 @@ export function holdCopy(input: {
   const personHold = !!input.brainCfg && !!input.personMode;
   const details = input.brainCfg
     ? personHold
-      ? `You set the receptionist to ${modeSaid(input.replyMode)} for this person — it stays out of the thread; answer them yourself.`
-      : `Replies are set to ${modeSaid(input.replyMode)} — the receptionist holds every message for a person.`
+      ? `You set AI to ${modeSaid(input.replyMode)} for this person — it stays out of the thread; answer them yourself.`
+      : `Replies are set to ${modeSaid(input.replyMode)} — AI holds every message for a person.`
     : input.configBroken
-      ? "This workspace's settings could not be read, so the receptionist stayed silent. The saved configuration has an invalid field."
+      ? "This workspace's settings could not be read, so AI stayed silent. The saved configuration has an invalid field."
       : input.loadFailed
-        ? "This workspace's settings could not be reached just now, so the receptionist stayed silent rather than answer in a voice that might not be yours. Nothing is wrong with your configuration and nothing needs changing; the next message tries again."
-        : "No brain profile configured — the receptionist stays silent until Settings fills one in.";
+        ? "This workspace's settings could not be reached just now, so AI stayed silent rather than answer in a voice that might not be yours. Nothing is wrong with your configuration and nothing needs changing; the next message tries again."
+        : "AI isn't set up yet — it stays silent until Settings fills it in.";
   const botText = personHold ? "(held — you handle this person yourself)" : "(held — no auto-reply for this workspace)";
   const reason = input.brainCfg
     ? personHold
@@ -211,7 +211,7 @@ export function holdCopy(input: {
  */
 export const NO_MODEL_PAGE = {
   key: "brain_unavailable",
-  subject: "The receptionist has no model key",
+  subject: "AI has no model key",
   body: "ANTHROPIC_API_KEY is not set on the edge. Every reply is the workspace's generic greeting, labelled a fallback, and every thread is handed to a person until the key is back.",
 } as const;
 
@@ -228,7 +228,7 @@ export function noModelPlan(fallbacks: { greeting: string }): {
     meta: { ack: true, fallback: "no_model" },
     escalate: true,
     escalationReason: "brain_error",
-    escalationDetails: (customerText) => `the receptionist has no model key — "${customerText}"`,
+    escalationDetails: (customerText) => `AI has no model key — "${customerText}"`,
     alertReason: "no model",
   };
 }

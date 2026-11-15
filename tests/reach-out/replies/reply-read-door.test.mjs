@@ -399,7 +399,7 @@ test("a person's reply: the intake schedules one reading and tells nobody; the r
     assert.match(w.drafts[0].ask.note, /wrote back by email to a reach-out/);
     assert.equal(w.tables.reach_out_replies[0].draft_state, "written");
     assert.match(w.tables.reach_out_replies[0].draft, /^Thank you for writing back\./);
-    assert.match(w.told[0].notice.body, /The receptionist drafted an answer: “Thank you for writing back\./);
+    assert.match(w.told[0].notice.body, /AI drafted an answer: “Thank you for writing back\./);
 
     // A second run of the same job: no model, no second draft, no second notice.
     assert.equal(await dispatchJob(w.ctx(email), w.job("reply_read", jobs[0].payload)), "done");

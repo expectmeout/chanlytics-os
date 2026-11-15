@@ -125,9 +125,7 @@ export const bookingEmailsHeldWords = (count: number): string =>
 
 /** What the receptionist does about open times with no link to read them from. */
 const noTimesWords = (bookingLink: boolean) =>
-  bookingLink
-    ? "The receptionist sends your booking link instead of naming open times."
-    : "The receptionist does not name open times.";
+  bookingLink ? "AI sends your booking link instead of naming open times." : "AI does not name open times.";
 
 /** The link could not be read: the owner's to check, whatever else arrives. */
 function unreadLink(
@@ -217,7 +215,7 @@ function readLink(sourceFacts: CalendarSourceFacts, step: BookingEmailsStep | nu
     state: "ready",
     tone: "ok",
     words: CALENDAR_FEED_WORDS.ok,
-    ...leadAndRest("The receptionist offers open times from it.", emails),
+    ...leadAndRest("AI offers open times from it.", emails),
     times: true,
     next: TO_THE_BOARD,
   };
@@ -286,7 +284,7 @@ export function calendarSourceOf(sourceFacts: CalendarSourceFacts): CalendarSour
     words: CALENDAR_FEED_WORDS.none,
     ...leadAndRest(
       "No calendar connected.",
-      "Say what you book with, so your calendar fills and the receptionist knows what is taken.",
+      "Say what you book with, so your calendar fills and AI knows what is taken.",
     ),
     times: false,
     next: TO_THE_ROW("Connect your calendar"),
@@ -370,7 +368,7 @@ export const BOOKING_TOOL_WORDS = {
   placeholder: "What do you book with?",
   link: {
     title: "Calendar link",
-    why: "So the receptionist can offer open times.",
+    why: "So AI can offer open times.",
     anyway: "I have a calendar link",
     /** Under "I book by hand", where a link is kept: that answer has none, so saving it takes the link away. */
     goes: "Saving this removes your calendar link.",

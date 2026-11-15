@@ -11,6 +11,7 @@ them without checking the code.
 | [architecture.md](architecture.md)           | How it is wired, and where to look for each concern                                                                |
 | [glossary.md](glossary.md)                   | The words, and the one list of domain names every tree's folders use                                               |
 | [naming.md](naming.md)                       | The grammar every name follows                                                                                     |
+| [words.md](words.md)                         | Every word a screen says: AI's name, one word for each thing, the shape of each badge, notice and problem          |
 | [runbook.md](runbook.md)                     | Run it, test it, deploy it, roll it back                                                                           |
 | [system-prd.md](system-prd.md)               | The as-built reference, sheet by sheet                                                                             |
 | [conversation-flow.md](conversation-flow.md) | What happens to a message, step by step                                                                            |

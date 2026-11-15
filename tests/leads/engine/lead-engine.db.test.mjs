@@ -1969,22 +1969,22 @@ test(
       return r;
     };
 
-    let r = await atTheEdge((q) => q.eq("tenant_id", A).eq("kind", "budget").eq("period", month), 24.9, 0.2);
+    let r = await atTheEdge((q) => q.eq("tenant_id", A).eq("kind", "budget").eq("period", month), 39.9, 0.2);
     assert.equal(r.error, "budget_used", JSON.stringify(r));
-    assert.equal(Number(r.left_usd), 0.1, "what is left of the month's $25");
+    assert.equal(Number(r.left_usd), 0.1, "what is left of the month's $40 (00627)");
     assert.match(
       r.sentence,
       /^This month's searching is nearly used up\. Try a smaller search, or a phone standard; it renews on [A-Z][a-z]{2} 1\.$/,
     );
 
-    r = await atTheEdge((q) => q.eq("tenant_id", A).eq("kind", "day").eq("period", day), 9.95, 0.1);
+    r = await atTheEdge((q) => q.eq("tenant_id", A).eq("kind", "day").eq("period", day), 24.95, 0.1);
     assert.deepEqual(
       [r.error, r.sentence],
       ["day_cap", "Today's searching is used up. Try again tomorrow."],
       "the workspace's own day",
     );
 
-    r = await atTheEdge((q) => q.is("tenant_id", null).eq("kind", "day").eq("period", platformDay), 49.9, 0.2);
+    r = await atTheEdge((q) => q.is("tenant_id", null).eq("kind", "day").eq("period", platformDay), 149.9, 0.2);
     assert.deepEqual(
       [r.error, r.sentence],
       ["day_cap", "Searching is busy today. Try again tomorrow."],

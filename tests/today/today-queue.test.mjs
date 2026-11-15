@@ -350,14 +350,14 @@ test("a lead who tried their own receptionist is a row (decision 0079), after ev
   const row = rows.at(-1);
   assert.deepEqual([row.who, row.channel, row.person_id, row.conversationId], ["Fixture Barbers", "Leads", null, null]);
   assert.equal(row.sentence, "4 messages · a call of a minute · Says the hours aren't right: “Saturday we close at 1”");
-  assert.deepEqual(row.status, ["Tried their receptionist"]);
+  assert.deepEqual(row.status, ["Tried their preview"]);
   assert.deepEqual(row.cta.label, "Open the lead");
   assert.match(row.cta.to, /l1/);
   assert.ok(vm.queue.parts.includes("1 lead tried their preview"), vm.queue.parts.join(" · "));
   const claimed = toTodayVM(metrics(), conversations, escalations, calls, NOW, null, {
     previewsTried: [{ ...tried, state: "claimed" }],
   });
-  assert.deepEqual(claimed.queue.rows.at(-1).status, ["Tried their receptionist", "made it theirs"]);
+  assert.deepEqual(claimed.queue.rows.at(-1).status, ["Tried their preview", "made it theirs"]);
   // Not read, or none: the queue is what it was.
   for (const beside of [{}, { previewsTried: null }, { previewsTried: [] }])
     assert.ok(
@@ -770,7 +770,7 @@ test("the queue counts the people past Up next and the five apart from the calls
   // Every row is handed over (Today in three zones): the page caps by group, Up next and five waiting.
   assert.equal(vm.queue.rows.length, 14, "nine people, the search and four calls");
   assert.equal(vm.queue.more_people, 3, "the people past Up next and the five, nothing else");
-  assert.equal(vm.queue.calls, 4, "every call worth a listen: Ask found's");
+  assert.equal(vm.queue.calls, 4, "every call worth a listen: AI found's");
   assert.equal(vm.queue.searches, 1, "and the search, To decide's");
   const words = todayBriefWords(vm, null, []).text;
   assert.match(words, /Person 0, Person 1, Person 2 and 6 more need you\./, `${words}: nine people, three named`);

@@ -193,9 +193,7 @@ export const leadsListProps = (p: LeadsPage) => {
     standing: p.standing,
     view: leadView,
     search: openSearch,
-    strip:
-      lists.stripOf(openSearch) ||
-      (!isOwnList(openSearch) ? p.ldStrip(openSearch, new Date(), { offered: leads.offered }) : null),
+    strip: lists.stripOf(openSearch) || (!isOwnList(openSearch) ? p.ldStrip(openSearch, new Date(), leads) : null),
     // Where this search's Add goes (the canvas's "Adds go to ▾"): the pick, kept on the search, changed here or in the picker.
     addsGoTo: openSearch ? <AddsGoTo aim={p.aim} flash={p.plFlash} onNew={newSequenceFor(p)} /> : null,
     pileSheet: p.pileSheet,
@@ -262,7 +260,7 @@ const emptyOf = (p: LeadsPage): TableEmpty => {
   return (
     p.lists.emptyOf(openSearch) || {
       title: "No leads in this view yet.",
-      body: "Describe the businesses you want and Claude finds them.",
+      body: "Describe the businesses you want and AI finds them.",
       action: canFind ? { label: "Find leads", onClick: openFind } : null,
     }
   );

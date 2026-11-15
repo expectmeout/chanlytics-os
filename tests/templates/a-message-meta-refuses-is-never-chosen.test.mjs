@@ -26,7 +26,7 @@ const PICTURE = [
 ];
 const PLAIN = [{ type: "BODY", text: "Book here: {{1}}" }];
 
-test("the receptionist's booking template is never one WhatsApp refuses: judged by the components the edge reads, or by the answer the reader gives", () => {
+test("AI's booking template is never one WhatsApp refuses: judged by the components the edge reads, or by the answer the reader gives", () => {
   const { bookingTemplate } = contracts;
   const promo = row("promo_with_a_picture", { ...OWN, components: PICTURE });
   assert.equal(
@@ -129,7 +129,7 @@ test("the Inbox picker leaves out a message WhatsApp refuses, and says why in th
 
 test("WhatsApp's refusal keeps Meta's own sentence whole: its capital stays, its full stop is not doubled, and a code is said as words", () => {
   const { refusedWords } = contracts;
-  const tail = "Ask writes new words for you to send back.";
+  const tail = "AI writes new words for you to send back.";
   assert.equal(
     refusedWords("ABUSIVE_CONTENT"),
     `WhatsApp asked for a change: it reads as abusive or threatening. ${tail}`,

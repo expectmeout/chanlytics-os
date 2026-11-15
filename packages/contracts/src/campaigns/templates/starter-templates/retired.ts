@@ -48,7 +48,7 @@ export const RETIRED_STARTERS: readonly StarterTemplate[] = [
     trigger: "new_week",
     retired: {
       by: null,
-      why: "The receptionist answers a first contact itself; as an offer, a welcome reached nobody new.",
+      why: "AI answers a first contact itself; as an offer, a welcome reached nobody new.",
     },
     texts: {
       en_US: {

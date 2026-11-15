@@ -150,7 +150,7 @@ export function instagramRow(connectionInputs: ConnectionInputs, { ig }: { ig: C
       detail,
       state: "connected",
       stateWords: "Connected",
-      sentence: `${ig.healthLabel}. The receptionist answers its DMs within a day of each one, as Instagram allows.`,
+      sentence: `${ig.healthLabel}. AI answers its DMs within a day of each one, as Instagram allows.`,
       verb: { label: "Disconnect", to: "verb:instagram-disconnect", who: "owner" },
       // The same account, moved to Meta's one connection: its DMs keep flowing (the Meta link takes the row over).
       ...(metaReady ? { also: META_CONNECT_VERB, notes: [{ text: MOVE_TO_META, live: true as const }] } : {}),
@@ -161,8 +161,7 @@ export function instagramRow(connectionInputs: ConnectionInputs, { ig }: { ig: C
       detail,
       state: "none",
       stateWords: "Not connected",
-      sentence:
-        "Sign in with your Instagram professional account; the receptionist answers its DMs as it answers WhatsApp.",
+      sentence: "Sign in with your Instagram professional account; AI answers its DMs as it answers WhatsApp.",
       verb: ig ? { ...connect, label: "Connect again" } : connect,
     };
   return {
@@ -170,7 +169,7 @@ export function instagramRow(connectionInputs: ConnectionInputs, { ig }: { ig: C
     detail: null,
     state: "later",
     stateWords: "Later",
-    sentence: "Direct messages, answered by the receptionist like WhatsApp.",
+    sentence: "Direct messages, answered by AI like WhatsApp.",
     verb: null,
   };
 }
@@ -217,7 +216,7 @@ function metaRow(ig: ChannelVM | null, metaReady: boolean): ConnectionDraft {
       detail,
       state: "connected",
       stateWords: "Connected",
-      sentence: `${ig.healthLabel}. The receptionist answers its DMs within a day of each one, as Instagram allows.`,
+      sentence: `${ig.healthLabel}. AI answers its DMs within a day of each one, as Instagram allows.`,
       verb: { label: "Disconnect", to: "verb:meta-disconnect", who: "owner" },
       notes: metaLinesNotes(lines),
     };

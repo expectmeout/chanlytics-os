@@ -165,14 +165,14 @@ test("the token budget: a policy limit, a check before the brain, a labelled rea
   assert.ok(PolicyLimitsSchema.safeParse({ max_llm_tokens_day: 200000 }).success);
   assert.ok(!PolicyLimitsSchema.safeParse({ max_llm_tokens_day: 10 }).success, "below a sensible floor");
   assert.ok(ESCALATION_REASONS.includes("budget"));
-  assert.ok(ESCALATION_REASON_LABELS.budget.includes("budget"));
+  assert.ok(ESCALATION_REASON_LABELS.budget.includes("daily AI limit"));
   const wa = readCode("packages/core/src/inbound/reply-gates.ts");
   assert.ok(
     wa.includes("const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);"),
     "the cap is handed to the read, which stops at it",
   );
   assert.ok(/handToAPerson\(at, \{\s*reason: "budget",/.test(wa));
-  assert.ok(wa.includes('"(no reply sent — the day\'s model budget is used up)"'));
+  assert.ok(wa.includes('"(no reply sent — the daily AI limit is reached)"'));
   const sql = readRaw("supabase/migrations/00039_budget_reason.sql");
   assert.ok(sql.includes("'budget'"), "the CHECK admits the reason");
   const route = readCode(

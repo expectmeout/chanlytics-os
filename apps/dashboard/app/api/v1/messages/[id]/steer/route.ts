@@ -44,7 +44,7 @@ export const POST = write({
               ? "That reply went out while it was being rewritten, so nothing was changed."
               : result.reason === "no_channel"
                 ? "This workspace has no connected channel to send a rewrite on."
-                : `The receptionist could not rewrite it (${result.reason}).`,
+                : `AI could not rewrite it (${result.reason}).`,
         502,
       );
     }

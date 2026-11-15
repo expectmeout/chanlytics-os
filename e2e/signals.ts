@@ -98,7 +98,7 @@ export async function readFound(page: Page): Promise<FoundRow[]> {
  */
 export async function expectFoundWellFormed(page: Page): Promise<FoundRow[]> {
   const rows = await readFound(page);
-  expect(rows.length, "Ask found draws three at most").toBeLessThanOrEqual(3);
+  expect(rows.length, "AI found draws three at most").toBeLessThanOrEqual(3);
   for (const r of rows) {
     expect(r.tag.length, `${r.key}: what it is`).toBeGreaterThan(0);
     expect(r.text.length, `${r.key}: a sentence`).toBeGreaterThan(0);
@@ -123,7 +123,7 @@ export async function expectNoQueueRepeat(page: Page): Promise<void> {
   for (const who of queued) {
     expect(
       found.filter((t) => t.startsWith(`${who}:`)),
-      `${who} is in Need you and again in Ask found`,
+      `${who} is in Need you and again in AI found`,
     ).toEqual([]);
   }
 }

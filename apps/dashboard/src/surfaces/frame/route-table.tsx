@@ -120,18 +120,18 @@ function ComingSoon({ surface, onNavigate }: { surface: string; onNavigate: (to:
 }
 
 // ---- Not-found states -----------------------------------------------------
-function NotFound({ raw, onNavigate }: { raw: string; onNavigate: (to: string) => void }) {
+function NotFound({ onNavigate }: { raw: string; onNavigate: (to: string) => void }) {
   const Glyph = frameGlyph();
   return (
     <div className="soon">
       <div className="soon-glyph">
         <Glyph name="search" size={22} />
       </div>
-      <div className="soon-title">No surface at &quot;{raw}&quot;</div>
-      <div className="soon-blurb">That route doesn&apos;t exist in this workspace.</div>
+      <div className="soon-title">Page not found</div>
+      <div className="soon-blurb">This link doesn&apos;t open anything here.</div>
       <div className="soon-actions">
         <button className="btn btn-sm" onClick={() => onNavigate("today")}>
-          <Glyph name="home" size={12} /> Back to Today
+          <Glyph name="home" size={12} /> Go to Today
         </button>
       </div>
     </div>

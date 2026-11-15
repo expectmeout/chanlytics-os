@@ -15,7 +15,7 @@ import { pageKeyWords } from "@chanlytics/contracts";
 import { leadPins } from "../../../packages/core/src/leads/cards.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { recordPageContactsUnread, recordPageSourceRefused, watchLeadPins } = await import(
+const { recordPageContactsUnread, recordPagePlatformDay, recordPageSourceRefused, watchLeadPins } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/leads/sources.ts")).href
 );
 
@@ -232,5 +232,52 @@ test("Health says both pages in words, the actor after the colon", () => {
   assert.equal(
     pageKeyWords("lead_source_pin:bounceverify/bounceverify-email-verifier"),
     "A lead source's pinned build gone: bounceverify/bounceverify-email-verifier",
+  );
+});
+
+/** The pager's memory beside the platform's day counter for one UTC day, as the read asks for it. */
+function platformDay(day, counter) {
+  const pager = pagerMemory();
+  return {
+    rows: pager.rows,
+    from(table) {
+      if (table !== "lead_counters") return pager.from(table);
+      const asked = {};
+      const q = {
+        select: () => q,
+        is: (c, v) => ((asked[c] = v), q),
+        eq: (c, v) => ((asked[c] = v), q),
+        maybeSingle: async () => {
+          assert.deepEqual(asked, { tenant_id: null, kind: "day", period: day }, "the platform's own day row");
+          return { data: counter, error: null };
+        },
+      };
+      return q;
+    },
+  };
+}
+
+test("every workspace's searching at 80% of the platform's day pages once that day, and under it says nothing (decision 0133)", async () => {
+  const day = "2026-10-24";
+  const quiet = platformDay(day, { used: "60.0000", reserved: "59.9900" });
+  const m = mailbox();
+  assert.equal(
+    await recordPagePlatformDay(quiet, FIVE_AM, { send: m.send, now: () => FIVE_AM }),
+    false,
+    "119.99 of 150",
+  );
+  assert.equal(m.sent.length, 0);
+  const near = platformDay(day, { used: "100.0000", reserved: "20.0000" });
+  assert.equal(await recordPagePlatformDay(near, FIVE_AM, { send: m.send, now: () => FIVE_AM }), true, "120 of 150");
+  await recordPagePlatformDay(near, FIVE_AM + 60_000, { send: m.send, now: () => FIVE_AM + 60_000 });
+  assert.equal(m.sent.length, 1, "once that day: the second is counted, not mailed again");
+  assert.equal(near.rows.get(`lead_platform_day:${day}`).count, 2);
+  assert.match(m.sent[0].subject, /Lead searching is near today's cap: \$120\.00 of \$150$/);
+  assert.match(m.sent[0].body, /raise platform_day_usd in lead_cap and LEAD_PLATFORM_DAY_CAP_USD together/);
+  const none = platformDay(day, null);
+  assert.equal(
+    await recordPagePlatformDay(none, FIVE_AM, { send: m.send, now: () => FIVE_AM }),
+    false,
+    "no search reserved today",
   );
 });

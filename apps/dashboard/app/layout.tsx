@@ -48,7 +48,7 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: "Chanlytics",
-  description: "The business workspace where AI agents do the work and you make the calls.",
+  description: "The business workspace where AI does the work and you make the calls.",
   // The installable shell: a manifest, the icons a phone wants, and the
   // full-screen mode Safari reads from here rather than from the manifest.
   //

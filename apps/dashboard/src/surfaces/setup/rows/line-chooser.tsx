@@ -74,8 +74,8 @@ function newNumber(o: {
       {chosen && (
         <div className="setup-confirm" data-testid="setup-confirm">
           <span className="setup-confirm-text">
-            <b className="tabular">{chosen.friendly}</b> · included in your plan · your receptionist answers it; texting
-            arrives when the carriers register it
+            <b className="tabular">{chosen.friendly}</b> · included in your plan · AI answers it; texting arrives when
+            the carriers register it
           </span>
           <button
             className="btn btn-primary btn-sm"
@@ -102,10 +102,7 @@ function paths(path: string, setPath: (p: string) => void) {
         data-testid="setup-path-new"
       >
         <b>Get a new number</b>
-        <span>
-          A local number in your area code, included in your plan. Your receptionist answers it within a minute of
-          choosing.
-        </span>
+        <span>A local number in your area code, included in your plan. AI answers it within a minute of choosing.</span>
       </button>
       <button
         className={`setup-path ${path === "keep" ? "active" : ""}`}
@@ -114,8 +111,8 @@ function paths(path: string, setPath: (p: string) => void) {
       >
         <b>Keep my number</b>
         <span>
-          Keep the number your customers know: forward the calls you don&rsquo;t answer to the receptionist. You keep
-          your phone, your carrier and your texts.
+          Keep the number your customers know: forward the calls you don&rsquo;t answer to AI. You keep your phone, your
+          carrier and your texts.
         </span>
       </button>
       <button
@@ -175,7 +172,7 @@ export const LineChooser = ({ S, flash, onDone, onKeep }: ChooserProps) => {
         r.queued ? (
           <>{chosen.friendly} is yours — setting it up now, usually a minute or two. This page updates by itself.</>
         ) : (
-          <>{chosen.friendly} is yours — the receptionist answers it. Call it from your phone.</>
+          <>{chosen.friendly} is yours — AI answers it. Call it from your phone.</>
         )
       ) : (
         <>Setting up {chosen.friendly} stopped part-way — a person at Chanlytics has it, and Retry is on the row.</>
@@ -210,8 +207,8 @@ export const LineChooser = ({ S, flash, onDone, onKeep }: ChooserProps) => {
         <div className="setup-ask">
           <span className="setup-ask-text">
             {voice.active
-              ? `Your receptionist answers on ${S.vm.tryIt && S.vm.tryIt.voiceLabel ? S.vm.tryIt.voiceLabel : "its line"}. Forward the number you have to it from the row "The number you already have" below.`
-              : "First, a line for the receptionist to answer on — get a new number here. Then forward the number you have to it from the row below."}
+              ? `AI answers on ${S.vm.tryIt && S.vm.tryIt.voiceLabel ? S.vm.tryIt.voiceLabel : "its line"}. Forward the number you have to it from the row "The number you already have" below.`
+              : "First, a line for AI to answer on — get a new number here. Then forward the number you have to it from the row below."}
           </span>
           {voice.active && (
             <button

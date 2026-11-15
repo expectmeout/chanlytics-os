@@ -84,7 +84,7 @@ export interface ConversationVM {
   /**
    * Who has the thread, by the one rule (standingOf) the Inbox, People and Today read: needs_you, yours, theirs,
    * snoozed or quiet. The pill reads this first. The row used to decide "escalated" from the state column and a
-   * pause alone, so a thread with an open escalation read "Receptionist replied" here and "Needs you" in the Inbox,
+   * pause alone, so a thread with an open escalation read "AI replied" here and "Needs you" in the Inbox,
    * and one you had taken over read the reverse (the 2 Oct 2026 audit).
    */
   standing: Standing;

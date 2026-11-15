@@ -110,7 +110,7 @@ export const BtPromptTold = ({ prompt }: { prompt: BtPromptHold | null }) => {
     <section className="rec-card bt-told" data-testid="rec-card-told" aria-labelledby="bt-told-title">
       <div className="rec-card-head">
         <h2 className="rec-card-title" id="bt-told-title">
-          What your receptionist is told
+          What AI is told
         </h2>
         <span className="rec-card-sub">{tab.PROMPT_READERS[prompt.channel]}</span>
         <button
@@ -254,12 +254,12 @@ export const BtPromptSheet = ({
   return (
     <RecordSheet
       id="prompt"
-      title="What your receptionist is told"
+      title="What AI is told"
       className="bt-prompt-sheet"
       onClose={prompt.close}
       tools={
         <RecordToggleGroup
-          label="Which receptionist"
+          label="Chat or phone"
           value={channel}
           options={BTP_CHANNELS}
           onChange={prompt.setChannel}

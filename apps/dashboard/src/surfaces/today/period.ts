@@ -21,7 +21,7 @@ export function todayPeriodLine(reportHeadline: ReportHeadlineVM | null): { text
   const { total, compare } = reportHeadline.messages;
   const parts = total || compare ? [`${total} message${total === 1 ? "" : "s"}${compare ? ` (${compare})` : ""}`] : [];
   if (reportHeadline.answered.share !== null)
-    parts.push(`${Math.round(reportHeadline.answered.share * 100)}% answered by the receptionist`);
+    parts.push(`${Math.round(reportHeadline.answered.share * 100)}% answered by AI`);
   if (reportHeadline.calls) parts.push(`${reportHeadline.calls} call${reportHeadline.calls === 1 ? "" : "s"}`);
   return { text: `${reportHeadline.lead}: ${parts.join(", ")}.`, to: "reports" };
 }

@@ -69,7 +69,7 @@ const save = (tree) => press(byTestId(tree, "rec-fold-save-receptionist"));
 test("a workspace with no receptionist is told so, and offered the one act that changes it", () => {
   const tree = drawCreate();
   const empty = find(tree, (n) => classes(n).includes("empty"));
-  assert.match(textOf(empty), /This workspace has no receptionist yet/);
+  assert.match(textOf(empty), /AI isn't set up for this workspace yet/);
   assert.match(textOf(empty), /no business name, no phone line, no booking link/);
   assert.equal(foldOpen(tree), false, "and the fold is closed until it is asked for");
   // The act carries the fold's id, where the kit gives focus back as the fold closes (record-fold.jsx data-rec-act).
@@ -129,7 +129,7 @@ test("the line it answers on is named the way people write it, and choosing it i
   const choice = byTestId(tree, "rec-create-number-choice");
   assert.deepEqual(all(choice, (n) => n.props?.role === "radio").map(textOf), ["Your line", "A different number"]);
   const note = textOf(byTestId(tree, "rec-create-number-note"));
-  assert.ok(note.startsWith("+1 (305) 555-0100 — the line your receptionist answers"), note);
+  assert.ok(note.startsWith("+1 (305) 555-0100 — the line AI answers"), note);
   assert.ok(!note.includes("+13055550100"), "REGRESSION: the stored form, in front of the owner");
 });
 
@@ -139,7 +139,7 @@ test("with nothing read to save onto, the act is not offered at all", () => {
   const tree = drawCreate({ read: false });
   assert.match(
     textOf(find(tree, (n) => classes(n).includes("empty"))),
-    /This workspace has no receptionist yet/,
+    /AI isn't set up for this workspace yet/,
     "the state is still said",
   );
   assert.equal(byTestId(tree, "rec-create-open"), null, "and nothing is offered that would do nothing");
@@ -157,11 +157,8 @@ test("every empty field says so under itself, nothing is sent, and the fold stay
   save(tree);
   tree = redrawCreate(flash);
   assert.equal(sent.length, 0, "nothing goes to the server while a field is empty");
-  assert.equal(wrongIn(tree, "rec-create-name"), "The receptionist needs a business name before it can answer anyone.");
-  assert.equal(
-    wrongIn(tree, "rec-create-number"),
-    "There is no line yet, so the receptionist needs a number to give out.",
-  );
+  assert.equal(wrongIn(tree, "rec-create-name"), "AI needs a business name before it can answer anyone.");
+  assert.equal(wrongIn(tree, "rec-create-number"), "There is no line yet, so AI needs a number to give out.");
   assert.equal(wrongIn(tree, "rec-create-link"), null, "the booking link is optional for every business");
   assert.equal(foldOpen(tree), true, "and it stays open over what was typed");
 });
@@ -174,7 +171,7 @@ test("with a line to answer on, the number is not asked for — and a number tha
   save(tree);
   tree = redrawCreate();
   assert.equal(wrongIn(tree, "rec-create-number"), null, "the line it answers on is a number to give out");
-  assert.equal(wrongIn(tree, "rec-create-name"), "The receptionist needs a business name before it can answer anyone.");
+  assert.equal(wrongIn(tree, "rec-create-name"), "AI needs a business name before it can answer anyone.");
   // Chosen "A different number" and typed something that is not one: the row's own check, said under the box.
   press(
     find(
@@ -250,7 +247,7 @@ test("one request carries the three facts and the product's own prompt and messa
     FALLBACK_DEFAULTS,
     "the product's wording, which names the details rather than copying them in",
   );
-  assert.equal(textOf(flashes.at(-1).msg), "Saved — the receptionist picks these up within a minute");
+  assert.equal(textOf(flashes.at(-1).msg), "Saved — AI picks these up within a minute");
   assert.equal(foldOpen(redrawCreate(flash)), false, "accepted, the fold closes");
 });
 
@@ -330,7 +327,7 @@ const courier = () => {
   return sent;
 };
 const toasts = (flashes) => flashes.map((f) => [f.tone ?? "ok", textOf(f.msg)]);
-const RECEPTIONIST_SAVED = "Saved — the receptionist picks these up within a minute";
+const RECEPTIONIST_SAVED = "Saved — AI picks these up within a minute";
 
 test("the fold asks nothing of how customers buy, and its save sends nothing to the workspace's courier: one act, one toast", async () => {
   const sent = saving();
@@ -346,7 +343,7 @@ test("the fold asks nothing of how customers buy, and its save sends nothing to 
     typeIn(redrawCreate(flash), "rec-create-link", "https://bella.example/book");
     save(redrawCreate(flash));
     await settle();
-    assert.equal(sent.length, 1, "one request sets the receptionist up");
+    assert.equal(sent.length, 1, "one request sets AI up");
     assert.equal(JSON.stringify(sent[0].config).includes("sells_by"), false);
     assert.deepEqual(patched, [], "nothing goes to the workspace's courier");
     assert.deepEqual(toasts(flashes), [["ok", RECEPTIONIST_SAVED]]);
@@ -379,7 +376,7 @@ test("a role that may not change the business is told why, and nothing opens for
     let tree = drawCreate();
     const act = byTestId(tree, "rec-create-open");
     assert.equal(act.props["aria-disabled"], true, "the act is there, refused, and says why at the press");
-    assert.equal(act.props["aria-description"], roleGate("viewer", "settings", "set up the receptionist").reason);
+    assert.equal(act.props["aria-description"], roleGate("viewer", "settings", "set up AI").reason);
     setUp(tree);
     tree = redrawCreate();
     assert.equal(foldOpen(tree), false, "and the fold never opens");

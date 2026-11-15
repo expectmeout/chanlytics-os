@@ -49,9 +49,9 @@ export async function runFirstGates(at: Answering): Promise<typeof GO | undefine
     L.error("wa_state_unavailable");
     return handToAPerson(at, {
       reason: "state_unavailable",
-      details: "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
+      details: "AI could not read this thread's history, so it did not reply. Please answer this one.",
       said: n.body ?? `[${n.rawType}]`,
-      answered: "(no reply sent — the receptionist could not read the thread state)",
+      answered: "(no reply sent — AI could not read the thread state)",
     });
   }
 

@@ -119,7 +119,7 @@ test("a thread whose question was held and handed back with nothing sent is Unan
   assert.deepEqual(
     vm.unanswered,
     { line: "Asked for $150.", closed: "Closed Sep 21 without a reply" },
-    "REGRESSION: 'Answered by the receptionist' over a price question nobody answered, 26 days on",
+    "REGRESSION: 'Answered by AI' over a price question nobody answered, 26 days on",
   );
   assert.equal(vm.move.sinceMs, Date.parse(asked[2].created_at), "her wait runs from her question");
 
@@ -354,12 +354,12 @@ test("the pane: a hand back that would leave her message with no answer asks fir
     let tree = again(draw);
     // Hand back stands beside the reply box's Send, the box that answers the hold (the thread canvas, 1 Nov 2026).
     find(tree, byTestId("ix-hand-back")).props.onClick();
-    assert.deepEqual(decided, [], "REGRESSION: handed back at once, and the receptionist never came back to her");
+    assert.deepEqual(decided, [], "REGRESSION: handed back at once, and AI never came back to her");
     tree = again(draw);
     const ask = find(tree, byTestId("ix-hand-back-ask"));
     assert.equal(
       textOf(find(ask, hasClass("notice-fact"))),
-      "Daniela's message has no answer yet. · Handing back sends nothing, and the receptionist won't come back to it.",
+      "Daniela's message has no answer yet. · Handing back sends nothing, and AI won't come back to it.",
     );
     assert.equal(find(tree, byTestId("ix-needs-you")), null, "the ask stands in the dock's place");
     assert.equal(find(tree, byTestId("ix-hand-back")), null, "and the box's Hand back waits on its answer");

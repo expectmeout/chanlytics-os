@@ -266,7 +266,7 @@ async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void>
       if (!replied && r.conversation_id) {
         const waitedMin = Math.max(1, Math.round((now - new Date(r.created_at).getTime()) / MIN_MS));
         const words = short(r.body);
-        const detail = `The receptionist never answered this: the message arrived ${waitedMin} minutes ago and its handling did not finish (a crash or a timeout after it was accepted). No reply has been sent — ${words ? `"${words}"` : "no text"}`;
+        const detail = `AI never answered this: the message arrived ${waitedMin} minutes ago and its handling did not finish (a crash or a timeout after it was accepted). No reply has been sent — ${words ? `"${words}"` : "no text"}`;
         const flagged = await p.upsertEscalation(
           p.db,
           r.tenant_id,
@@ -284,7 +284,7 @@ async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void>
             about: { type: "conversation", id: r.conversation_id },
             subject: "A customer wrote and nothing answered",
             body:
-              `A message arrived ${waitedMin} minutes ago and the receptionist never finished with it, so the customer has had no reply.\n\n` +
+              `A message arrived ${waitedMin} minutes ago and AI never finished with it, so the customer has had no reply.\n\n` +
               `${words ? `They wrote: "${words}"\n\n` : ""}` +
               `The thread is flagged for you in the Inbox. Reply there; nothing will be sent on its own.`,
             redactedBody: `A customer in this workspace wrote ${waitedMin} minutes ago and nothing answered; the thread is flagged.`,
@@ -342,7 +342,7 @@ async function failOrphans({ p, now, out, tell, late }: Tick): Promise<void> {
       // A campaign's email (a reach-out's) is its run's to count: the clock plans it again (orphaned never left), and
       // no thread nobody wrote on is flagged, nor its owner told (Reach out D4, contracts isCampaignEmail).
       if (s.conversation_id && !isCampaignEmail(s.meta?.email?.request)) {
-        const person = s.sender === "ai" ? "The receptionist's reply" : "A reply";
+        const person = s.sender === "ai" ? "AI's reply" : "A reply";
         const flagged = await p.upsertEscalation(
           p.db,
           s.tenant_id,

@@ -22,7 +22,7 @@ export function filesSayOf(tally: Pick<FilesTally, "kept" | "waiting" | "looking
   return [
     keptSaidOf(kept, tally.videos ?? 0),
     ...(waiting ? [`${waiting} waiting for you`] : []),
-    ...(looking ? [`Ask is still looking at ${looking}`] : []),
+    ...(looking ? [`AI is still looking at ${looking}`] : []),
   ].join(", ");
 }
 
@@ -60,14 +60,14 @@ export const FILE_WORDS = {
     heldNoConnection: "It waits until Google is connected again.",
   },
   madeFrom: "Made from",
-  madeFromGone: "Made with Ask, from a photo since deleted",
+  madeFromGone: "Made with AI, from a photo since deleted",
   title: "Files",
   add: "Add photos",
   dropToAdd: "Drop to add",
   orDrop: "or drop them here",
   adding: (done: number, of: number) => `Adding ${done} of ${of}`,
   emptyTitle: "No photos yet",
-  emptyBody: "Add the ones that show your place and your work. Ask looks at each one and names it for what it shows.",
+  emptyBody: "Add the ones that show your place and your work. AI looks at each one and names it for what it shows.",
   retry: "Try again",
   reading: "Reading your files…",
   failedRead: "Your files could not be read.",
@@ -131,7 +131,7 @@ export const FILE_WORDS = {
     team: "Team",
     products: "Products & menus",
     brand: "Logos & graphics",
-    made: "Made by Ask",
+    made: "Made by AI",
     other: "Other",
     set_aside: "Set aside",
     made_aside: "Set aside",
@@ -156,7 +156,7 @@ export const FILE_WORDS = {
   whoAsk: (seen: number | null) =>
     seen === null
       ? "Did everyone in this photo agree to be shown?"
-      : `Ask saw ${seen} ${seen === 1 ? "person" : "people"}. Did they agree to be shown?`,
+      : `AI saw ${seen} ${seen === 1 ? "person" : "people"}. Did they agree to be shown?`,
   whoChange: "Change",
   sources: {
     upload: "Added by you",
@@ -164,11 +164,11 @@ export const FILE_WORDS = {
     google_listing: "From your Google listing",
     website: "From your website",
     instagram: "From your Instagram",
-    made: "Made with Ask",
+    made: "Made with AI",
   } satisfies Record<FileSource, string>,
-  looking: "Ask is looking at it",
-  notRead: "Ask couldn't read this one yet. It's still yours to use.",
-  refused: "Ask wouldn't read this one, so it's waiting for you.",
+  looking: "AI is looking at it",
+  notRead: "AI couldn't read this one yet. It's still yours to use.",
+  refused: "AI wouldn't read this one, so it's waiting for you.",
   stock: "This may be a stock photo.",
   name: "Name",
   save: "Save",
@@ -190,7 +190,7 @@ export const FILE_WORDS = {
   close: "Close",
   nameEmpty: "Give it a name.",
   /** A caption changed where it stands (Content's Details): only what Ask made has one. */
-  captionNotMade: "Only a piece Ask made has a caption.",
+  captionNotMade: "Only a piece AI made has a caption.",
   captionLong: (most: number) => `A caption takes up to ${most.toLocaleString("en-US")} characters.`,
   /**
    * A caption changed while a post waits to go up with it (server posts/caption.ts): the waiting post takes the new words, so
@@ -220,7 +220,7 @@ export const FILE_WORDS = {
     add: "Add photos or videos",
     emptyTitle: "No photos or videos yet",
     emptyBody:
-      "Add the ones that show your place and your work. Ask looks at each one, and listens to each video, and names it for what it shows.",
+      "Add the ones that show your place and your work. AI looks at each one, and listens to each video, and names it for what it shows.",
     added: (n: number) =>
       n === 1 ? "Video added. It's being prepared." : `${n} videos added. They're being prepared.`,
     gettingReady: "Getting it ready",
@@ -243,7 +243,7 @@ export const FILE_WORDS = {
     full: `Your videos are full: ${FILE_VIDEO_MINUTES_MAX} minutes at most. Delete one to add another.`,
     off: "Videos can't be added just now.",
     notSaved: "That video could not be sent. Try again.",
-    noDownload: "A video is kept here to play and to show Ask. Its own file stays with you.",
+    noDownload: "A video is kept here to play and to show AI. Its own file stays with you.",
     notAVideo: "That file is a photo, not a video.",
     sending: (sent: number) => `Sending ${Math.round(sent * 100)}%`,
   },

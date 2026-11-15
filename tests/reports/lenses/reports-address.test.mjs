@@ -166,7 +166,7 @@ test("the strip is the frame's: the lens registry's tabs as links to each lens's
     picked: "overview",
     tabs: [
       { id: "overview", label: "Overview", to: "reports", testid: "lens-overview" },
-      { id: "receptionist", label: "Receptionist", to: "reports/receptionist", testid: "lens-receptionist" },
+      { id: "receptionist", label: "AI", to: "reports/receptionist", testid: "lens-receptionist" },
       { id: "people", label: "People", to: "reports/people", testid: "lens-people" },
       { id: "pipeline", label: "Pipeline", to: "reports/pipeline", testid: "lens-pipeline" },
       { id: "campaigns", label: "Campaigns", to: "reports/campaigns", testid: "lens-campaigns" },

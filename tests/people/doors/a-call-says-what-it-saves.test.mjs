@@ -89,7 +89,7 @@ test("the note, Save and the line beside it say what will be kept, and where", (
   const listed = personCallOf({ phone: null, standIn: true, business: at(true) });
   const nobody = personCallOf({ phone: "+15125550199", standIn: false, business: null });
   assert.equal(personCallFoot(nobody, "spoke", false), "Logged as a team-only note");
-  assert.equal(personCallFoot(nobody, "spoke", true), "Logged as a note the receptionist reads");
+  assert.equal(personCallFoot(nobody, "spoke", true), "Logged as a note AI reads");
   assert.equal(personCallFoot(own, "interested", false), "Moves the lead to Talking");
   assert.equal(personCallFoot(own, "not_interested", false), "Closes the lead: Said no");
   assert.equal(personCallFoot(own, "no_answer", false), "Logged on the lead");

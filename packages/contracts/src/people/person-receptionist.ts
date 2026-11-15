@@ -145,7 +145,7 @@ export function heldThreadOf(
     ...held,
     label: sentence,
     title: sentence,
-    detail: `${personName} is answering this. The receptionist stays quiet until they hand it back.`,
+    detail: `${personName} is answering this. AI stays quiet until they hand it back.`,
   };
 }
 

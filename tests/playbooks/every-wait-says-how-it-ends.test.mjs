@@ -211,7 +211,7 @@ test("a reply waiting to go in the owner's name is told once, on the bell and th
     "Your hold for replies is on: “Yes, 11 works. See you Saturday!”. Goes at 2:05 PM unless you stop it, from the Inbox.",
   );
   const unsure = heldReplyNotice({ who: "Ana Reyes", reply: "x ".repeat(200), at: "at 2:05 PM", unsure: true });
-  assert.match(unsure.body, /^The receptionist was not sure of its reply: “/);
+  assert.match(unsure.body, /^AI was not sure of its reply: “/);
   assert.ok(unsure.body.length < 260, "the reply is quoted short enough for a lock screen");
 });
 

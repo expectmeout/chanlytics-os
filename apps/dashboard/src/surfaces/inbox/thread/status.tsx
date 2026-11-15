@@ -429,7 +429,7 @@ function handBackButton(p: DockProps, go: () => void) {
       size="sm"
       className="ix-composer-handback"
       onClick={guardedHandBack(p, go)}
-      aria-label="Nothing needed — hand it back to the receptionist"
+      aria-label="Nothing needed — hand it back to AI"
       data-testid="ix-hand-back"
       {...gate("approve", "hand a conversation back")}
     >
@@ -551,7 +551,7 @@ function needsYouState(p: DockProps, thread: Thread) {
           variant="quiet"
           size="sm"
           onClick={guardedHandBack(p, handBack)}
-          aria-label="Nothing needed — hand it back to the receptionist"
+          aria-label="Nothing needed — hand it back to AI"
           data-testid="ix-hand-back"
           {...gate("approve", "hand a conversation back")}
         >
@@ -710,7 +710,7 @@ function yoursBar(p: DockProps) {
     <div className="ix-resolved ix-owned">
       <Icon name="users" size={13} />
       <div className="ix-take-body">
-        <span>You own this thread — agents are standing down. Reply below in your own voice.</span>
+        <span>You own this thread — AI is paused here. Reply below in your own voice.</span>
       </div>
       <LinkButton onClick={() => onHandBack(thread.id)} {...gate("approve", "hand a conversation back")}>
         Hand back to {thread.agent.name} <Icon name="arrow-right" size={10} />

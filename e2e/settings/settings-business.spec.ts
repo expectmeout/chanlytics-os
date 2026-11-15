@@ -1048,7 +1048,7 @@ test.describe("Settings › Business on a real workspace", () => {
     await expectRecordUnchanged(page, before);
   });
 
-  test("what the receptionist is told opens as a sheet from its door, opens a block, opens a row, and closes back to the door", async ({
+  test("what AI is told opens as a sheet from its door, opens a block, opens a row, and closes back to the door", async ({
     page,
   }) => {
     const before = await readConfig(page);

@@ -43,7 +43,7 @@ async function askWebsiteRead(ctx: RouteContext, tenantId: TenantId): Promise<vo
  */
 export const SETTINGS_REFUSED = {
   missing:
-    "This workspace has no settings record yet, so there was nothing to update. It needs provisioning before settings can be saved.",
+    "Settings aren't ready for this workspace yet, so nothing was saved. Use Get help and Chanlytics finishes setting it up.",
   stale: "Someone else saved settings after you loaded them — reload and reapply.",
 } as const;
 

@@ -183,7 +183,7 @@ export function refusedWords(reason: string | null | undefined): string | null {
       ? REFUSAL_CODES[sentence]
       : sentence.toLowerCase().replace(/_/g, " ");
   // What to do is one thing, and Ask does most of it: its editor opens on new words written from this reason.
-  return words ? `WhatsApp asked for a change: ${words}. Ask writes new words for you to send back.` : null;
+  return words ? `WhatsApp asked for a change: ${words}. AI writes new words for you to send back.` : null;
 }
 
 /** Meta's codes for a refusal, as an owner reads them; NONE is no reason at all. A code not here is said as its words. */

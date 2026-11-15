@@ -34,11 +34,10 @@ export const TB_NOTIFS: readonly DemoNote[] = [
     unread: true,
     time: "9m",
     title: "Email Agent is earning more autonomy",
-    message:
-      "7 clean approvals in a row on Re-engage — 3 more unlocks the veto window (drafts send unless you stop them).",
+    message: "7 clean approvals in a row on Re-engage — 3 more and its drafts can send unless you stop them.",
     actions: [
       { label: "Review agent", to: "fleet/email-agent", primary: true },
-      { label: "Policy matrix", to: "admin/autonomy" },
+      { label: "Autonomy", to: "admin/autonomy" },
     ],
   },
   {

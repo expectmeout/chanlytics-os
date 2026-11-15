@@ -232,7 +232,7 @@ test("every state of a real thread is named in the bar under the header, and wha
     lastWord: [
       chat({ state: "open", messages: [wrote("m1", "Open Sunday?", 30), ours("m2", "Closed Sundays.", 29)] }),
       null,
-      /^Handledby the receptionist$/,
+      /^Handledby AI$/,
       /^$/,
     ],
   };
@@ -332,7 +332,7 @@ test("REGRESSION: a real bubble says its time and what became of it in its own c
   assert.ok(!stamps.some((st) => textOf(st).includes("WhatsApp")), "one channel: the time alone");
   assert.ok(
     find(stamps[1], (n) => n.type === Icon && n.props?.name === "spark"),
-    "the receptionist's words wear its spark, where 'by WhatsApp Receptionist' was",
+    "AI's words wear its spark, where 'by WhatsApp Receptionist' was",
   );
   assert.equal(
     find(stamps[0], (n) => n.type === Icon && n.props?.name === "spark"),
@@ -664,7 +664,7 @@ test("a snoozed thread's band names the request still standing in its own words,
   // A reason whose label says two things says them once, not under a second dash: the band read "The receptionist hit
   // an error — a holding message went out — that's still waiting for you."
   const errored = textOf(find(paneOf(vmOf(snoozed, { ...failed, reason: "brain_error" })), byTestId("ix-snoozed")));
-  assert.match(errored, /The receptionist hit an error — a holding message went out\. That's still waiting for you\./);
+  assert.match(errored, /AI hit an error — a holding message went out\. That's still waiting for you\./);
   assert.equal(errored.split("—").length - 1, 1, "REGRESSION: one dash, the label's own");
 });
 
@@ -761,7 +761,7 @@ test("on a phone the reply box opens folded and opens as it is tapped or typed i
   }
 });
 
-test("folded, the box is one line: a draft ready for an empty box, greyed, which the tap puts in; its words once it holds them, Ask's spark while they are Ask's; and an empty box's invitation (decision 0093)", async () => {
+test("folded, the box is one line: a draft ready for an empty box, greyed, which the tap puts in; its words once it holds them, AI's spark while they are AI's; and an empty box's invitation (decision 0093)", async () => {
   const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
   const mail = (m) => ({ ...m, channel: "email" });
   const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Can you move a sofa on Friday?", 40))] });

@@ -39,8 +39,8 @@ test("with a calendar, six rows in the journey's order, the day before and the d
   const said = (stage) => guide.find((r) => r.stage === stage).sends;
   assert.equal(
     said("first_contact"),
-    "your receptionist's answers, which ask once on WhatsApp for the yes to offers, the yes an offer on WhatsApp needs",
-    "the receptionist asks once, on WhatsApp alone (contracts offers-ask.ts), never in a first reply of its own; its yes is the one an offer on WhatsApp needs",
+    "AI's answers, which ask once on WhatsApp for the yes to offers, the yes an offer on WhatsApp needs",
+    "AI asks once, on WhatsApp alone (contracts offers-ask.ts), never in a first reply of its own; its yes is the one an offer on WhatsApp needs",
   );
   assert.equal(said("before"), "the day before an appointment on the calendar: a reminder");
   assert.equal(
@@ -135,7 +135,7 @@ test("every row's moment is a trigger a campaign starts from, offered here, and 
   for (const shape of SHAPES)
     for (const r of journeyGuide(shape)) {
       if (r.moment === null) {
-        assert.equal(r.stage, "first_contact", "the receptionist's alone has no moment");
+        assert.equal(r.stage, "first_contact", "AI's alone has no moment");
         continue;
       }
       const t = C.triggerOf(r.moment);

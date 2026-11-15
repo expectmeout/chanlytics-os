@@ -61,7 +61,7 @@ test("the live workspace: the published number is the transfer number, and that 
   // It knows the published number IS the transfer number, so it says the thing
   // that is actually true rather than a generic mismatch warning.
   assert.match(worst.sentence, /the number it transfers to/);
-  assert.match(worst.sentence, /never the receptionist answering on \+1 \(305\) 555-0123/);
+  assert.match(worst.sentence, /never AI answering on \+1 \(305\) 555-0123/);
   assert.equal(worst.to, "admin/workspace");
 });
 
@@ -124,7 +124,7 @@ test("F1: forwarding that points at a line the workspace no longer answers on ke
   assert.match(c.sentence, /Anyone who calls the published number does not reach it/);
 });
 
-test("F1: a transfer number that forwards back to the receptionist is a loop, said on the transfer row", () => {
+test("F1: a transfer number that forwards back to AI is a loop, said on the transfer row", () => {
   // Stored before the transfer row refused it (phone.ts whyNotAHandoff): the kept number as the transfer number too.
   const f = resolveFacts(
     { ...HARBOR.typed, profile: { handoff_number: KEPT } },
@@ -291,7 +291,7 @@ test("the field that caused this says what it is", () => {
   );
   assert.ok(
     pane.includes('id="phone_display"') && pane.includes('id="handoff_number"'),
-    "and the two the receptionist decides are rows of their own",
+    "and the two AI decides are rows of their own",
   );
   // One key, on top of what is stored -- PUT /settings is a whole-config CAS,
   // and a fragment would delete the rest. The save itself moved to
@@ -359,7 +359,7 @@ test("Setup stops saying ready while a customer-facing fact is wrong", async () 
   );
   assert.equal(factsRow.verb.label, "Fix it in Business");
   // "Answering" and "answering correctly" are different claims.
-  assert.match(flagged.readiness.sentence, /never the receptionist answering on \+1 \(305\) 555-0123/);
+  assert.match(flagged.readiness.sentence, /never AI answering on \+1 \(305\) 555-0123/);
   assert.ok(flagged.done < clean.done, "and the count of what is ready goes down, which is the point");
 });
 

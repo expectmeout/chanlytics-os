@@ -99,7 +99,7 @@ test("journeyOf: the moments in the journey's order for each shape, Proposal wai
   );
   assert.deepEqual(
     session.map((s) => s.name),
-    ["Your receptionist", "Session reminder", "How did it go", "Proposal follow-up", "Win-back"],
+    ["AI", "Session reminder", "How did it go", "Proposal follow-up", "Win-back"],
   );
   assert.deepEqual(
     session.map((s) => s.one),
@@ -107,7 +107,7 @@ test("journeyOf: the moments in the journey's order for each shape, Proposal wai
     "the follow-up is the one moment that holds at most one campaign (00167)",
   );
   const off = Object.fromEntries(session.map((s) => [s.id, s.off]));
-  assert.equal(off.first_contact, null, "the receptionist is nobody's to turn on");
+  assert.equal(off.first_contact, null, "AI is nobody's to turn on");
   assert.deepEqual(
     [off.before.hint, off.before.when, off.before.why(3)],
     ["tomorrow", { day: "Every", at: "day" }, "Off · 3 people have a session tomorrow"],

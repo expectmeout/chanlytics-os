@@ -623,8 +623,7 @@ test("the answer carries the window it is of, and each half stands alone", () =>
 
 /**
  * The codes a wire documents, found by asking the public function the thread asks (sendFailureWords) about every code in a
- * range: a code with a sentence of its own is one whose sentence does not begin with the generic "didn't deliver it (error
- * N)". A code added to a table is therefore held here at once, with no source read.
+ * range: a code with a sentence of its own is one whose sentence is not the generic one for a code nobody documents. A code added to a table is therefore held here at once, with no source read.
  */
 function documentedCodes(channel, from, to, generic) {
   const found = [];
@@ -636,8 +635,8 @@ function documentedCodes(channel, from, to, generic) {
 }
 
 test("failureWordsOf says what the Inbox's thread says", () => {
-  const whatsapp = documentedCodes("whatsapp", 100000, 140000, "WhatsApp didn't deliver it (error");
-  const text = documentedCodes("sms", 20000, 40000, "Twilio didn't deliver it (error");
+  const whatsapp = documentedCodes("whatsapp", 100000, 140000, "WhatsApp didn't deliver it.");
+  const text = documentedCodes("sms", 20000, 40000, "The text wasn't delivered.");
   assert.ok(whatsapp.length >= 15 && text.length >= 11, `the tables were found (${whatsapp.length}, ${text.length})`);
   assert.ok(whatsapp.includes(131049) && text.includes(30003), "and they hold the codes the lens is built on");
   for (const [channel, documented] of [
@@ -652,15 +651,12 @@ test("failureWordsOf says what the Inbox's thread says", () => {
     }
     assert.match(
       failureWordsOf(channel, { code: 99999, kind: null }),
-      /\(error 99999\)\.$/,
-      `${channel}: a code in no table is said by its number`,
+      /^(WhatsApp didn't deliver it|The text wasn't delivered)\.$/,
+      `${channel}: a code in no table is said as not delivered, with no number`,
     );
   }
-  assert.match(
-    failureWordsOf("whatsapp", { code: 131049, kind: null }),
-    /^WhatsApp held it back.*\(WhatsApp error 131049\)\.$/,
-  );
-  assert.match(failureWordsOf("sms", { code: 30003, kind: null }), /\(Twilio error 30003\)\.$/);
+  assert.match(failureWordsOf("whatsapp", { code: 131049, kind: null }), /^WhatsApp held it back.* at all for now\.$/);
+  assert.match(failureWordsOf("sms", { code: 30003, kind: null }), /^Their phone couldn't be reached/);
   assert.equal(
     failureWordsOf(null, { code: 131049, kind: null }),
     failureWordsOf("whatsapp", { code: 131049, kind: null }),
@@ -769,7 +765,7 @@ test("sendFailureWords finds a word only in its own tables, not on the prototype
   assert.match(sendFailureWords({ provider: "bounced" }, "email"), /^The email bounced/);
   assert.equal(sendFailureWords({ carrier: "undelivered" }, "sms"), "The carrier didn't deliver it.");
   assert.match(sendFailureWords({ reason: "orphaned" }, "whatsapp"), /^It was never sent/);
-  assert.match(sendFailureWords({ code: 131049 }, "whatsapp"), /\(WhatsApp error 131049\)\.$/);
+  assert.match(sendFailureWords({ code: 131049 }, "whatsapp"), /^WhatsApp held it back/);
 });
 
 /* ------------------------------------------------------------------ numberHealthOfConfig */

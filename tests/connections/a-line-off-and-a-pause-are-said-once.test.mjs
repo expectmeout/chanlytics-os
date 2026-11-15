@@ -199,7 +199,7 @@ test("Live: the line note says what a caller gets, and the page draws the view m
     again(() => LrList({ live: [], line: vm.line, lineRead: true, activeId: null, elapsedOf: () => 0, onSelect() {} })),
   );
   assert.ok(drawn.includes(vm.line.offWords), `the page draws the sentence the view model holds: ${drawn}`);
-  assert.deepEqual(contradicting([drawn]), [], "and says nothing of its own about the receptionist not picking up");
+  assert.deepEqual(contradicting([drawn]), [], "and says nothing of its own about AI not picking up");
   // On, it says the line is on and nothing about what an off line does.
   const on = C.toLiveVM([], [channelDto("voice", { status: "active" })], ZONE, NOW);
   assert.ok(
@@ -236,7 +236,7 @@ const startInputs = (over = {}) => ({
 });
 const stepOf = (vm, id) => vm.rows.find((r) => r.id === id);
 
-test("Start: the line row says what a caller gets, and no Start sentence says the receptionist is not answering", () => {
+test("Start: the line row says what a caller gets, and no Start sentence says AI is not answering", () => {
   const vm = C.setupSteps(startInputs(), NOW_MS);
   assert.equal(
     stepOf(vm, "line").sentence,
@@ -347,7 +347,7 @@ test("Start: the billing row of a paused receptionist says what a caller gets", 
     }),
     NOW_MS,
   );
-  assert.equal(stepOf(vm, "billing").sentence, `Your receptionist is paused. ${C.PAUSED_WORDS}`);
+  assert.equal(stepOf(vm, "billing").sentence, `AI is paused. ${C.PAUSED_WORDS}`);
   assert.deepEqual(contradicting(words(vm)), []);
 });
 
@@ -431,11 +431,11 @@ test("the shell's status line, the bell and the back office say the same sentenc
 test("the sweep fails the sentences the pages used to say", () => {
   // These are the literals the four pages carried before this file; the sweep above must flag each of them.
   for (const old of [
-    "The line is switched off — the receptionist is not picking up.",
-    "Your line +1 (305) 555-0123 is switched off — the receptionist is not answering it.",
-    "This workspace is paused — the receptionist is not answering anything.",
+    "The line is switched off — AI is not picking up.",
+    "Your line +1 (305) 555-0123 is switched off — AI is not answering it.",
+    "This workspace is paused — AI is not answering anything.",
     "Nothing in the queue — the workspace is paused, so nothing is being answered.",
-    "Your receptionist is paused: messages land in the Inbox, nothing is answered.",
+    "AI is paused: messages land in the Inbox, nothing is answered.",
     "Phone line is disconnected — messages coming in are not being answered.",
   ]) {
     assert.deepEqual(contradicting([old]), [old]);
@@ -445,7 +445,7 @@ test("the sweep fails the sentences the pages used to say", () => {
     C.lineOffGets("sms", "message").gets,
     `Switched off — ${C.PHONE_LINE_OFF.gets}`,
     C.PAUSED_WORDS,
-    "Your receptionist is not answering yet.",
+    "AI is not answering yet.",
   ]) {
     assert.deepEqual(contradicting([fine]), [], fine);
   }

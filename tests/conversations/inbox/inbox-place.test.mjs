@@ -236,7 +236,7 @@ test("what changed on the open thread while you had it open, in one line -- and 
   );
   assert.equal(
     say(was, { ...was, lastAtMs: 2000, timeline: [...was.timeline, { type: "msg", from: "agent" }] }),
-    "The receptionist replied",
+    "AI replied",
   );
   assert.equal(say(was, { ...was, state: "done", move: { move: "answered", list: "done" } }), "Moved to Handled");
   assert.equal(
@@ -750,7 +750,7 @@ test("a reply half-written is kept for its thread in this tab: another thread, o
     assert.equal(
       globalThis.window.__tabMemory.draft("reply", "th-nina"),
       null,
-      "the receptionist's words, untouched, are not a draft of yours",
+      "AI's words, untouched, are not a draft of yours",
     );
     // Sent, and the server took it: the words go.
     let accept = () => {};
@@ -934,7 +934,7 @@ test("REGRESSION: Cmd or Ctrl with Enter pressed inside a dialog over the thread
   assert.deepEqual(sent, ["Friday at 3 works for us"], "on the page it still sends");
 });
 
-test("REGRESSION: Ask's Edit in the composer names its thread: the box open on that thread takes the words, and a box on another thread keeps its own", () => {
+test("REGRESSION: AI's Edit in the composer names its thread: the box open on that thread takes the words, and a box on another thread keeps its own", () => {
   fresh();
   const rosa = threadOf({
     id: "th-rosa",

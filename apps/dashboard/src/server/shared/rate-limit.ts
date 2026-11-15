@@ -108,7 +108,7 @@ export const RATE = {
    */
   invitation_accept: { limit: 120, windowMs: HOUR_MS, noun: "invitation checks" },
   /** A person's receptionist mode. */
-  person_mode: { limit: 60, windowMs: MIN_MS, noun: "receptionist changes" },
+  person_mode: { limit: 60, windowMs: MIN_MS, noun: "changes to how AI treats a person" },
   consent: { limit: 60, windowMs: MIN_MS, noun: "consent changes" },
   lists: { limit: 60, windowMs: MIN_MS, noun: "list changes" },
   broadcast: { limit: 10, windowMs: 60_000, noun: "broadcasts" },

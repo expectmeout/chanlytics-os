@@ -251,7 +251,7 @@ export const PLAN_WORDS = {
   libraryUnread: unreadWords("The message library"),
   playbooksUnread: unreadWords("The campaigns, and so whether the month's offer runs,"),
   listsUnread: unreadWords("The lists an offer goes to"),
-  notesUnread: unreadWords("The receptionist's notes"),
+  notesUnread: unreadWords("AI's notes"),
   nothingToCover: JOURNEY_PLAN_WORDS.nothingToCover,
   /** What an offer is called: the receptionist's note, the send and the campaign. */
   offerTitle: (words: string): string => `Offer: ${words}`,
@@ -275,7 +275,7 @@ export const PLAN_WORDS = {
     message: "None of your messages carries an offer on every channel this one goes by.",
     // What the note does, never what the receptionist will say of it: a discount in a reply is a person's whatever the
     // price switch says (decision 0051, price-allowance.ts), so the reply that names it may be held for one.
-    note: "So the receptionist knows the offer and when it runs.",
+    note: "So AI knows the offer and when it runs.",
     pause: "So nobody gets the month's offer and this one.",
     first: "The offer, on its first day.",
     paced: "The offer, as fast as the calendar can take it.",

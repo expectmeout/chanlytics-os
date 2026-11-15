@@ -43,7 +43,7 @@ const UNDO_LABEL: Partial<Record<AskThreadVerb, string>> = {
   snooze: "Wake",
 };
 const RECEIPT: Partial<Record<AskThreadVerb, string>> = {
-  hand_back: "The receptionist has it again",
+  hand_back: "AI has it again",
   snooze: "Snoozed",
   wake: "Back in the Inbox",
   archive: "Archived",

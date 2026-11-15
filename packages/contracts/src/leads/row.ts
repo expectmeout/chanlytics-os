@@ -77,10 +77,13 @@ export function leadBand(search: LeadSearchDto | null): LeadBand | null {
     label: LEAD_FIT_WORDS[id],
     count: result[id],
   }));
+  // A search the finder ran shows its finished leads alone (decision 0133): its band is the one count, Qualified. A list
+  // of the owner's own keeps Needs review and Left out (D4): its own data to sort.
+  const order = isLeadList(search) ? LEAD_BAND_ORDER : (["qualified"] as const);
   return {
     // The tabs say the pills' words (LEAD_CLASS_WORDS: Qualified, Needs review, Left out) with the count in front, and the
     // page draws them in the pills' tones (stateOf("lead_class")): a tab and a pill for one state read one map.
-    classes: LEAD_BAND_ORDER.map((id) => ({ id, label: `${round[id]} ${LEAD_CLASS_WORDS[id]}`, count: round[id] })),
+    classes: order.map((id) => ({ id, label: `${round[id]} ${LEAD_CLASS_WORDS[id]}`, count: round[id] })),
     fits,
     mixed: fits.filter((x) => x.count > 0).length > 1,
   };
@@ -494,12 +497,12 @@ export function leadSearchEmptyWords(
     return {
       title: `${plural(round.review, "lead needs", "leads need")} a look.`,
       body: roundIsLive(round.state)
-        ? "Ask is still checking them, and could not decide on these yet."
-        : "Ask could not decide on these by itself.",
+        ? "AI is still checking them, and could not decide on these yet."
+        : "AI could not decide on these by itself.",
       review: true,
     };
   if (roundIsLive(round.state))
-    return { title: "Still looking.", body: "Leads come in here as Ask checks them.", review: false };
+    return { title: "Still looking.", body: "Leads come in here as AI checks them.", review: false };
   return null;
 }
 

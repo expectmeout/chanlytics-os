@@ -267,9 +267,9 @@ export function lineRetryRefusal(
 export const LINE_STEP_WORDS: Record<string, string> = {
   subaccount: "opening your account with the carrier",
   number: "buying the number",
-  trunk: "connecting the number to the receptionist",
-  agent: "creating the receptionist",
-  import: "handing the number to the receptionist",
+  trunk: "connecting the number to AI",
+  agent: "setting up AI",
+  import: "handing the number to AI",
   messaging: "setting up texting",
   channel: "recording the line",
 };
@@ -400,9 +400,9 @@ export const TEXTING_NEEDS_RECORD_CLAUSE =
  */
 export const BROKEN_CONFIG_WORDS = {
   title: "This workspace's settings can't be read",
-  body: "Something saved in this workspace's configuration no longer passes the checks the receptionist runs before it answers, so the receptionist is silent and this form is closed — saving from here would replace what is still there. Chanlytics has to repair it.",
+  body: "Something saved in this workspace's configuration no longer passes the checks AI runs before it answers, so AI is silent and this form is closed — saving from here would replace what is still there. Chanlytics has to repair it.",
   clause:
-    "Your business settings could not be read, so the receptionist is silent until Chanlytics repairs them. Business lists what is wrong.",
+    "Your business settings could not be read, so AI is silent until Chanlytics repairs them. Business lists what is wrong.",
   /** The owner's one move on a configuration only Chanlytics can repair (S8): it said so, with no way to ask. */
   ask: "Ask for a repair",
   /** Once asked: when, and what happens next, on Setup's row and on the pane's card alike. */

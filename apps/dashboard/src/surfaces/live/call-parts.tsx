@@ -21,7 +21,7 @@ export const LrPill = ({ c }: { c: LiveCallVM }) => {
       value={value}
       title={
         c.stale
-          ? "Marked live by the phone provider, but silent past the heartbeat. Checked within five minutes."
+          ? "Shown as live, but nothing has been heard from this call for a while. Checked within five minutes."
           : null
       }
     />

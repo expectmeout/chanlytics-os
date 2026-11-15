@@ -227,13 +227,16 @@ const CARD_REMIND = {
  */
 const CARD_BILLING = { title: "Your plan", left: "Needs you" } as const;
 
+/** A step's name inside a sentence: lower case, but AI keeps its capitals (docs/words.md). */
+const inSentence = (name: string): string => (/^AI\b/.test(name) ? name : name.toLowerCase());
+
 export const SETUP_CARD_WORDS = {
   startCta: "Continue setting up",
   startShort: "Continue",
   notAnswering: "Not answering yet",
   answering: "Answering",
   callsNotAnswered: "Calls aren't answered yet",
-  next: (name: string) => `Next: ${name.toLowerCase()}`,
+  next: (name: string) => `Next: ${inSentence(name)}`,
   then: (names: readonly string[]) =>
     names.length
       ? `Then ${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]}.`
@@ -261,7 +264,7 @@ export const SETUP_CARD_WORDS = {
   /** What is kept, in the order the steps made it. */
   kept: {
     business: (name: string, listed: boolean) => (listed ? `${name}, read from Google` : name),
-    sounds: (sounds: string) => `Your receptionist: ${sounds}`,
+    sounds: (sounds: string) => `AI: ${sounds}`,
     taught: (n: number) => `${n} ${n === 1 ? "thing" : "things"} you taught it`,
     rehearsed: "Your rehearsal, reviewed",
     keeping: (n: string) => `Keeping ${n}, when you go live`,
@@ -310,7 +313,7 @@ const GOING_LIVE_ROWS = ["keep", "try", "whatsapp"] as const;
 const stepsAfter = (fr: ReturnType<typeof firstRunOf>): string[] =>
   fr.steps
     .filter((s) => s.state !== "done" && s.key !== fr.current)
-    .map((s) => firstRunStepDefOf(s.key).name.toLowerCase());
+    .map((s) => inSentence(firstRunStepDefOf(s.key).name));
 
 /** Today's card: what is left to set up, or null when nothing is. */
 export function setupCardOf(vm: SetupVM, setupCardWho?: SetupCardWho): SetupCardVM | null {

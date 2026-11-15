@@ -104,13 +104,13 @@ export const NOTE_WORDS = {
   /** The composer's button once a day is chosen: it says what pressing it makes (the motion grammar's label). */
   addStepFor: (day: string) => `Add step for ${day}`,
   teamOnly: "Team only",
-  teamOnlyHint: "The receptionist won't read it",
-  readsHint: "The receptionist uses notes as facts and never reads them aloud.",
+  teamOnlyHint: "Never used in replies to customers",
+  readsHint: "AI uses notes as facts and never reads them aloud.",
   none: "No notes yet.",
-  suggested: "Suggested by the receptionist",
+  suggested: "Suggested by AI",
   /** A suggestion's eyebrow, said on every screen: who, where it was heard, and when ("… · after a call · 2:10 PM"). */
   suggestedLine: (from: string | null, when: string) =>
-    ["Suggested by the receptionist", from ? `${from.charAt(0).toLowerCase()}${from.slice(1)}` : null, when]
+    ["Suggested by AI", from ? `${from.charAt(0).toLowerCase()}${from.slice(1)}` : null, when]
       .filter(Boolean)
       .join(" · "),
   keep: "Keep",
@@ -118,7 +118,7 @@ export const NOTE_WORDS = {
   added: "Note added",
   saved: "Note saved",
   removed: "Note deleted",
-  kept: "Kept: the receptionist uses it from now on",
+  kept: "Kept: AI uses it from now on",
   dismissed: "Dismissed",
   showAll: (n: number) => `Show all ${n}`,
   showFewer: "Show fewer",
@@ -231,7 +231,7 @@ export function personNotesVM(
         body: row.body,
         who:
           row.author_kind === "receptionist"
-            ? "The receptionist"
+            ? "AI"
             : row.mine
               ? "You"
               : (row.author_name ?? "").trim() || "A former teammate",

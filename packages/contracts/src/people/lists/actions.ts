@@ -48,7 +48,7 @@ const LIST_STEPS: Record<
   waiting_on_you: {
     cta: "Open the Inbox",
     to: "inbox",
-    text: "You have these threads: the receptionist stays quiet on them until you hand them back.",
+    text: "You have these threads: AI stays quiet on them until you hand them back.",
   },
   new_week: {
     cta: "Get their yes",

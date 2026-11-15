@@ -6,6 +6,7 @@ export {
   findLeadRound,
   findLeadRun,
   findLeadSearchName,
+  findPlatformDayCounter,
   findRoundToTell,
   findRunForDelivery,
   insertLeadRuns,
@@ -15,8 +16,10 @@ export {
   listLeadsSharing,
   listPeopleSharing,
   listPlacesSuppressed,
+  listRoundsOfSearch,
   listRunsOfRound,
   listSearchMembers,
+  recordRoundNearby,
 } from "./finder";
 export {
   askForIdeasAgain,
@@ -46,6 +49,7 @@ export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember, LeadPrice
 export {
   answerSearchRound,
   askSearchForMore,
+  askSearchOnRenewal,
   excludeSearchMember,
   keepSearchMember,
   putBackSearchMember,
@@ -78,7 +82,9 @@ export {
   findNewestSearchName,
   findSearchCard,
   findSearchScope,
+  findSearchWidens,
   importLeadList,
+  listRoundExtras,
   listSearchCards,
   listSearchNames,
   markLeadsExported,

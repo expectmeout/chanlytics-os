@@ -126,7 +126,7 @@ test("the transcript says who spoke: the owner's whisper as the owner's, the pla
   assert.equal(whisper.length, 1);
   assert.equal(platform.length, 1);
   assert.ok(textOf(whisper[0]).includes("offer the 3pm slot"));
-  assert.ok(textOf(platform[0]).includes("Chanlytics told the receptionist"));
+  assert.ok(textOf(platform[0]).includes("Chanlytics told AI"));
   assert.ok(textOf(platform[0]).includes("The business owner is picking up this call themselves."));
   assert.ok(
     !textOf(platform[0]).includes("transfer_to_staff"),

@@ -288,7 +288,7 @@ async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, faile
   const receptionist = msg.sender === "ai";
   const flagged = await raiseSendFailed(ports, {
     conversationId: payload.conversation_id,
-    details: `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`,
+    details: `${receptionist ? "AI's reply" : "Dashboard reply"} could not be delivered (${cause}).`,
   });
   // A flag written is told from its event (decision 0043). One that could not be is told here: the job completes, and
   // nothing will say it again.
@@ -298,7 +298,7 @@ async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, faile
     route: `inbox/th-${payload.conversation_id}`,
     about: { type: "conversation", id: payload.conversation_id },
     subject: `Reply delivery failed: ${to}`,
-    body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`,
+    body: `${receptionist ? "A reply AI queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`,
   });
 }
 

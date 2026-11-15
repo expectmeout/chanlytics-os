@@ -1177,7 +1177,7 @@ test("with no number the page still lists the starter set and says WhatsApp wait
 
 /* ---------------------------------- New: one line to Ask ---------------------------------- */
 
-test("New is one line to Ask: no form, no channel first, no kind; the owner's words go to Ask, which writes every channel", () => {
+test("New is one line to AI: no form, no channel first, no kind; the owner's words go to AI, which writes every channel", () => {
   const asked = [];
   W.askAbout = (about) => void asked.push(about);
   let tree = page({ rows: [custom("fall_hours")] });
@@ -1201,7 +1201,7 @@ test("New is one line to Ask: no form, no channel first, no kind; the owner's wo
       fresh: true,
     },
   ]);
-  assert.equal(byTestId(redraw(), "template-new-words"), null, "the pane goes as Ask comes");
+  assert.equal(byTestId(redraw(), "template-new-words"), null, "the pane goes as AI comes");
   delete W.askAbout;
 });
 
@@ -1243,11 +1243,7 @@ test("the Library's count says what it holds on hover in contracts' words, wheth
   // A workspace with no number and a message of an email alone: the same words, true of it too.
   page({ rows: [], versions: [emailRow(key)], channels: [] });
   assert.equal(tip(), contracts.LIBRARY_WORDS.headTip);
-  assert.ok(
-    contracts.LIBRARY_WORDS.headTip.startsWith(
-      "What the receptionist and your campaigns send, as the customer sees it.",
-    ),
-  );
+  assert.ok(contracts.LIBRARY_WORDS.headTip.startsWith("What AI and your campaigns send, as the customer sees it."));
   assert.ok(contracts.LIBRARY_WORDS.headTip.includes("an email or a text is ready the moment it is saved"));
   assert.ok(!/template/i.test(contracts.LIBRARY_WORDS.headTip));
 });

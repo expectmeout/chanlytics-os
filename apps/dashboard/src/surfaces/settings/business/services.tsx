@@ -60,7 +60,7 @@ interface Search {
 const btsFolded = (s: string | null | undefined) => BUSINESS_TAB.foldName(String(s == null ? "" : s).trim());
 
 // What the sheet says when a list is full: the cap the save's schema keeps (LIMITS.services), said where Add was.
-const btsFull = (max: number) => `That is the most services the receptionist keeps (${max}). Remove one first.`;
+const btsFull = (max: number) => `That is the most services AI keeps (${max}). Remove one first.`;
 
 // The search comes with a list long enough to search: under this many, every service is in sight at once, and a
 // search box over three rows was a box with nothing to do. A search with words in it stays, whatever the count.

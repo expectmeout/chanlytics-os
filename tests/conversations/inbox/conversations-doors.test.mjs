@@ -4,7 +4,7 @@
  * - A WhatsApp transcript had no way into its Inbox thread: the view model carried no thread id, so
  *   "View thread in Inbox" never drew (the wiring audit's A7).
  * - "Answered by the receptionist" sat on threads a person or a broadcast answered, and on ones where
- *   the customer spoke last; the pill said "Receptionist replied" over all of them (A9).
+ *   the customer spoke last; the pill said "AI replied" over all of them (A9).
  * - The bubbles did not say who wrote them, where the Inbox did -- and the Inbox said "by you" for
  *   every teammate's reply (A23).
  * - One failed recording read disabled Play for good, and the read was a bare fetch that named no
@@ -106,16 +106,16 @@ test("REGRESSION (A7, A9, A23): a chat row opens its Inbox thread, each of our m
   assert.equal(ai.threadId, "th-c1", "REGRESSION: the row carried no thread id, so 'View thread in Inbox' never drew");
   assert.deepEqual(
     ai.messages.map((m) => m.by ?? null),
-    [null, "the receptionist"],
+    [null, "AI"],
     "the customer's own words are signed by nobody",
   );
-  assert.deepEqual([ai.answeredBy, ai.summary.bullets[1]], ["receptionist", "Answered by the receptionist"]);
+  assert.deepEqual([ai.answeredBy, ai.summary.bullets[1]], ["receptionist", "Answered by AI"]);
 
   const team = row(msg({ id: "m1" }), ours({ sender: "human", body: "See you Friday!" }));
   assert.deepEqual(
     [team.messages[1].by, team.answeredBy, team.summary.bullets[1]],
     ["your team", "team", "Answered by your team"],
-    "REGRESSION: a person's reply read 'Answered by the receptionist'",
+    "REGRESSION: a person's reply read 'Answered by AI'",
   );
 
   const broadcast = row(
@@ -150,13 +150,13 @@ test("REGRESSION (A7, A9, A23): a chat row opens its Inbox thread, each of our m
   assert.deepEqual(
     [theirs.answeredBy, theirs.summary.bullets[1]],
     [null, "They wrote last — no reply yet"],
-    "REGRESSION: a customer waiting on a reply read 'Answered by the receptionist'",
+    "REGRESSION: a customer waiting on a reply read 'Answered by AI'",
   );
 
   const paused = toConversationVM(conv([msg({ id: "m1" }), ours()], { state: "needs_human" }), null, ZONE, NOW);
   assert.equal(
     paused.summary.bullets[1],
-    "Receptionist paused — a human has this thread",
+    "AI paused — a person has this thread",
     "a thread a person has keeps its sentence",
   );
 });
@@ -253,11 +253,11 @@ test("REGRESSION (A7, A9, A23): Conversations says who answered, signs our messa
   assert.equal(
     textOf(OutcomePill({ outcome: team.outcome, channel: team.channel, answeredBy: team.answeredBy })),
     "Your team replied",
-    "REGRESSION: 'Receptionist replied' over a person's reply",
+    "REGRESSION: 'AI replied' over a person's reply",
   );
   assert.equal(
     textOf(OutcomePill({ outcome: "handled", channel: "whatsapp", answeredBy: "receptionist" })),
-    "Receptionist replied",
+    "AI replied",
   );
   assert.equal(
     textOf(OutcomePill({ outcome: "handled", channel: "whatsapp", answeredBy: "playbook" })),

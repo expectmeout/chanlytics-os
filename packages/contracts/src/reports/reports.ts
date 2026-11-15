@@ -430,7 +430,7 @@ export function toReportVM(dto: ReportDto, opts: { profile: ReportProfile | null
       columns: [
         "Day",
         "Customer messages",
-        "Answered by receptionist",
+        "Answered by AI",
         "Answered by you",
         "Unanswered",
         "Calls",

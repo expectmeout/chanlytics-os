@@ -383,7 +383,7 @@ export const PaneBillingReal = ({ flash }: { flash: (f: FrameFlash) => void }) =
     setBusy("resume");
     const r = await api.resume();
     setBusy(null);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Resumed — the receptionist is back.</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Resumed — AI is back.</> : <>{r.message}</> });
   };
   const sync = async () => {
     if (!operator) return;

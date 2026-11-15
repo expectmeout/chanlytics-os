@@ -93,7 +93,8 @@ const CHANNELS = { type: "array", items: { type: "string", enum: ["whatsapp", "s
  */
 const asPlacesThen = (schema) => {
   const out = structuredClone(schema);
-  for (const k of ["seniority", "industries", "keywords", "company_sizes"]) delete out.properties[k];
+  // What a field gained since: the people card's (00430), and how far a search looks (decision 0133).
+  for (const k of ["seniority", "industries", "keywords", "company_sizes", "reach_miles"]) delete out.properties[k];
   delete out.properties.criteria.items.properties.on_site;
   out.properties.looking_for.enum = out.properties.looking_for.enum.filter((v) => v !== "people_at_companies");
   out.required = [
@@ -788,7 +789,7 @@ test("an action the caller's role may not use is refused in words, under the too
   // route's words.
   const { t } = contextFor("operator");
   const mode = await DEFS.get("propose_person").actions.mode.build(t, { contact_id: C1, mode: "never" });
-  assert.match(JSON.parse(mode.result).error, /^only an owner can change how the receptionist treats one person/);
+  assert.match(JSON.parse(mode.result).error, /^only an owner can change how AI treats one person/);
 });
 
 test("a null on an optional key is absent, in an action's fields too; a null on a required key is refused; an unknown key is stripped, not refused; a field only another action takes is refused, so a card never quietly becomes another", async () => {
@@ -894,7 +895,7 @@ test("an unknown tool is refused as it always was, for a read and for an act, an
     draft_reply: "Drafting a reply",
     propose_steer: "Preparing a rewrite",
     propose_thread_verb: "Preparing an Inbox action",
-    propose_person_mode: "Preparing a receptionist change",
+    propose_person_mode: "Preparing a change to AI",
     propose_deal: "Preparing a deal",
     propose_policy: "Preparing an autonomy change",
     propose_settings: "Preparing a settings change",

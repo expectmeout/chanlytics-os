@@ -1525,7 +1525,7 @@ test("Messages is the Inbox's shape: the search is the bar's line, no WhatsApp c
     tree = messages({ templatesAll: [templateRow()] });
     press(headed(tree, "template-new"));
     tree = messagesAgain();
-    assert.ok(byTestId(tree, "template-new-words"), "one line to Ask");
+    assert.ok(byTestId(tree, "template-new-words"), "one line to AI");
     assert.equal(textOf(find(tree, (n) => n.props?.className === "cm-pane-title")).trim(), "New message");
     assert.ok(byTestId(tree, "custom-row"), "the list stays beside it");
     press(byTestId(customRow(tree), "template-open"));
@@ -2075,7 +2075,7 @@ test("A message says its state once, and a refusal is a line rather than a hover
   assert.equal(line.props["data-tone"], "warn");
   const said = textOf(line);
   assert.ok(said.includes("it reads as abusive or threatening"), said);
-  assert.ok(said.includes("Ask writes new words for you to send back"), "and what to do about it");
+  assert.ok(said.includes("AI writes new words for you to send back"), "and what to do about it");
 
   // A reason Meta wrote as a sentence keeps its capital and its one full stop (contracts refusedWords).
   tree = messages({
@@ -2090,7 +2090,7 @@ test("A message says its state once, and a refusal is a line rather than a hover
   });
   assert.equal(
     textOf(rowLine(tree)),
-    "WhatsApp asked for a change: Variables can't be at the start or end of the template. Ask writes new words for you to send back.",
+    "WhatsApp asked for a change: Variables can't be at the start or end of the template. AI writes new words for you to send back.",
     "REGRESSION: 'variables can't be at the start or end of the template.. Change the words'",
   );
 });

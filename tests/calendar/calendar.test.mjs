@@ -328,7 +328,7 @@ test("the doors and the page: read-only, the feed's address never in the browser
   assert.ok(
     svc.includes("freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy, rules, now })") &&
       svc.includes("const busy = parsed ? [...parsed.busy, ...taken] : [];"),
-    "the windows are the receptionist's own",
+    "the windows are AI's own",
   );
   assert.ok(
     svc.includes("person: matchPerson(it, people, own),") &&
@@ -440,7 +440,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   // calendar.week is the registry's, and runs in ask-turn.test.mjs ("calendar.week reads the people it names"), where
   // its result says that nothing is booked from here.
   assert.ok(
-    /"?calendar"?:\s*"The owner's calendar as the receptionist reads it/.test(
+    /"?calendar"?:\s*"The owner's calendar as AI reads it/.test(
       ["apps/dashboard/src/server/ask/prompt/stable-system.ts", "apps/dashboard/src/server/ask/prompt/prompt.ts"]
         .map((p) => readCode(p))
         .join("\n"),
