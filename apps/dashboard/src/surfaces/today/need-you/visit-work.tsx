@@ -266,16 +266,18 @@ function keptWords(answer: Awaited<ReturnType<typeof markVisitsKept>>): string {
 }
 
 /**
- * The press and its question, where two or more of yesterday's visits wait to be marked and the member may say so; nothing
- * otherwise (one is its own row's Kept). `ids` are every one of them (contracts todayVisitsAsked `markIds`), the ones past
- * To do's three among them.
+ * The press and its question, where two or more of the past week's visits wait to be marked and the member may say so;
+ * nothing otherwise (one is its own row's Kept). `ids` are every one of them (contracts todayVisitsAsked `markIds`), the
+ * ones past To do's three among them; `older` whether one is older than yesterday, whose Kept thanks nobody.
  */
 export function KeptAll({
   ids,
+  older,
   word,
   ctx,
 }: {
   ids: readonly string[];
+  older: boolean;
   word: AppointmentWord;
   ctx: Pick<WorkProps, "may" | "flash">;
 }) {
@@ -297,8 +299,8 @@ export function KeptAll({
       {asking ? (
         <Confirm
           block
-          question={W.visit.allKept.ask(count, appointmentWords(word).many)}
-          detail={W.visit.allKept.detail}
+          question={W.visit.allKept.ask(count, appointmentWords(word).many, older)}
+          detail={W.visit.allKept.detail(older)}
           yes={W.visit.allKept.yes}
           no={W.visit.allKept.no}
           busy={busy}

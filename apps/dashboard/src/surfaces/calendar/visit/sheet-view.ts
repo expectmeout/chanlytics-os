@@ -88,6 +88,8 @@ export const CALENDAR_VISIT_SHEET_WORDS = {
   walk: (at: number, of: number) => `${at} of ${of}`,
   previous: "Previous",
   following: "Next",
+  /** The next visit to mark, once a word is said (next.tsx): "Next", and who and when to a screen reader. */
+  next: "Next",
   close: "Close",
 } as const;
 
@@ -401,7 +403,11 @@ function primaryOf(
   return message;
 }
 
-/** What More holds for them: their step, a note, the number, their deal, a correction, a cancel, their page (their lists are there). */
+/**
+ * What More holds for them: their step, a note, the number, their deal, a correction, their page (their lists are there),
+ * and last the cancel, which cannot be taken back (the foot draws it apart, under a line): it stood between Open the deal
+ * and Open the full page, a slip from either.
+ */
 function visitMoreOf(visitSheetInput: VisitSheetInput, line: VisitLineVM, phone: string | null): VisitSheetVM["more"] {
   const block = visitSheetInput.block;
   const moreActs = SHEET_WORDS.moreActs;
@@ -418,6 +424,7 @@ function visitMoreOf(visitSheetInput: VisitSheetInput, line: VisitLineVM, phone:
   const corrects = !outcomeNow(visitSheetInput);
   if (corrects && block.visit?.status === "kept" && line.acts.includes("missed")) add("missed", moreActs.missed);
   if (corrects && block.visit?.status === "missed" && line.acts.includes("kept")) add("kept", moreActs.kept);
+  if (block.person) add("page", moreActs.page);
   // A time a customer picked by text is cancelled by its answer, Can't, which leaves their thread waiting on a reply.
   if (block.request?.open) add("cant", BOOKING_REQUEST_WORDS.cant_it, true);
   else if (line.acts.includes("cancelled"))
@@ -426,7 +433,6 @@ function visitMoreOf(visitSheetInput: VisitSheetInput, line: VisitLineVM, phone:
       block.visit?.status === "proposed" ? moreActs.cancelRequest : appointmentWords(visitSheetInput.word).cancelAct,
       true,
     );
-  if (block.person) add("page", moreActs.page);
   return out;
 }
 
