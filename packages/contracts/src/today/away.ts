@@ -100,8 +100,10 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   playbook: ["campaign is ready", "campaigns are ready"],
   // One sync can approve several at once, and several rejections read as one
   // problem with the wording, not as five separate pieces of news.
-  template_ready: ["template is ready to send", "templates are ready to send"],
-  template_blocked: ["template cannot be sent", "templates cannot be sent"],
+  // Every row of the kind is about a message WhatsApp has approved: just approved, or approved and now filed as an offer.
+  template_ready: ["message approved by WhatsApp", "messages approved by WhatsApp"],
+  // WhatsApp asked for a change, holds it for a few hours, or turned it off: the message says which, and what to do.
+  template_blocked: ["message needs a look", "messages need a look"],
   // "A run finished" is this repo's word for the event (activity.ts, kind
   // broadcast.sent), so the bell and the Activity log say the same thing about
   // the same fact.

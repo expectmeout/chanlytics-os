@@ -354,7 +354,7 @@ test("a starter whose WhatsApp version is on file says what it is, never that it
   assert.deepEqual(pending.proposal.payload.channels, ["whatsapp", "email"]);
   assert.ok(
     pending.proposal.summary.includes(
-      ` · WhatsApp waits: WhatsApp is checking this message. It sends by itself once approved, usually within minutes. ${WAITS_WORDS}`,
+      ` · WhatsApp waits: WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day). ${WAITS_WORDS}`,
     ),
     pending.proposal.summary,
   );

@@ -2798,7 +2798,7 @@ test("a message whose only row is a WhatsApp one that cannot be sent, with every
   };
   assert.equal(
     await stopped(versionsOf([], { whatsapp: { ...visitRows.whatsapp, meta_status: "pending" } })),
-    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes. Everyone on this run goes by WhatsApp, so nothing was sent.",
+    "WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day). Everyone on this run goes by WhatsApp, so nothing was sent.",
   );
   assert.equal(
     await stopped(versionsOf([], { whatsapp: { ...visitRows.whatsapp, meta_status: "rejected" } })),

@@ -26,6 +26,7 @@ import {
   type NewStepDoes,
   type SequenceRecordDto,
   type SequenceStepDto,
+  type StepOffer,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -38,7 +39,7 @@ import { cmOfferedFrom } from "../parts/channels";
 import { AddStepChoices } from "./new/add-step";
 import { HandEditor, StepEditor } from "./step-editor";
 import type { StepsCtx } from "./steps";
-import { HandTask, StepMessageDoor, StepWords, useStepMessageRead } from "./step-words";
+import { HandTask, StepMessageDoor, StepWords, stepOfferOf, useStepMessageRead } from "./step-words";
 import { RecordFootContext } from "./record-foot";
 import { pressed } from "./verbs";
 import type { CmOffered } from "../parts/channels";
@@ -111,11 +112,17 @@ function StepBody(p: {
 }
 
 /** What the step is, row by row: contracts scheduleStepFacts. */
-function StepFacts(p: { rec: SequenceRecordDto; step: SequenceStepDto; ctx: StepsCtx; gone: boolean }) {
+function StepFacts(p: {
+  rec: SequenceRecordDto;
+  step: SequenceStepDto;
+  ctx: StepsCtx;
+  gone: boolean;
+  offer: StepOffer | null;
+}) {
   const { rec, step } = p;
   return (
     <dl className="sq-facts" data-testid={`sq-step-facts-${step.place}`}>
-      {scheduleStepFacts(rec.sequence, step, rec.word, { ...p.ctx, gone: p.gone }).map((f) => (
+      {scheduleStepFacts(rec.sequence, step, rec.word, { ...p.ctx, gone: p.gone, offer: p.offer }).map((f) => (
         <div key={f.label} className="sq-fact">
           <dt>{f.label}</dt>
           <dd className={f.tone === "warn" ? "sq-needs" : undefined}>{f.value}</dd>
@@ -314,6 +321,7 @@ function SheetBody(p: {
         step={face.step}
         ctx={p.ctx}
         gone={sendsMessage(face.step) && p.message.read && !p.message.message}
+        offer={sendsMessage(face.step) ? stepOfferOf(rec, face.step, p.message.message) : null}
       />
     </div>
   );

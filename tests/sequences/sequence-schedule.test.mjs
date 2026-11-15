@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   SEQUENCE_PEOPLE_WORDS,
+  stepAsOffer,
   scheduleChannels,
   scheduleDays,
   scheduleEnd,
@@ -301,5 +302,75 @@ test("a step's sheet: its place, day and hour; when it goes, who it keeps going,
     call.find((f) => f.label === "Last 30 days"),
     undefined,
     "a call sends nothing to count",
+  );
+});
+
+/* ------------------------- a step whose message is an offer, though its moment is not (15 Nov 2026) ------------------------- */
+
+// The ready-made booking follow-up was filed with WhatsApp as a notice and approved as an offer (14-15 Nov 2026). Its run
+// then enrols by the yes to offers and never goes by text (contracts enrolPurpose, channelNeverCarries), and its step went
+// on saying "WhatsApp, else text, else email" with nothing under it.
+const FOLLOW_UP = { kind: "moment", trigger: "asked_no_booking", policy_class: "follow_up", hand: null };
+const version = { id: "v", status: "approved", hidden: false, blocked: null, reason: null };
+const message = (category, whatsapp = version) => ({ category, versions: { whatsapp, email: null, sms: null } });
+
+test("a step's message that is an offer though its moment is not: whose word it is, and no step that is what its moment is", () => {
+  assert.equal(stepAsOffer(FOLLOW_UP, message("marketing")), "whatsapp", "WhatsApp's filing of its WhatsApp version");
+  assert.equal(stepAsOffer(FOLLOW_UP, message("marketing", null)), "own", "an email or a text written as an offer");
+  assert.equal(
+    stepAsOffer(FOLLOW_UP, message(null, null)),
+    "own",
+    "a message nobody filed reads as an offer: it fails closed",
+  );
+  assert.equal(stepAsOffer(FOLLOW_UP, message("utility")), null, "a follow-up filed as one");
+  assert.equal(
+    stepAsOffer({ ...FOLLOW_UP, policy_class: "reengage" }, message("marketing")),
+    null,
+    "an offer's own moment",
+  );
+  assert.equal(stepAsOffer(FOLLOW_UP, null), null, "no message in view says nothing");
+  assert.equal(stepAsOffer({ ...FOLLOW_UP, hand: { kind: "call", words: "Call" } }, message("marketing")), null);
+  assert.equal(
+    stepAsOffer({ ...FOLLOW_UP, kind: "reach_out" }, message("marketing")),
+    null,
+    "a lead's step has no moment",
+  );
+});
+
+test("an offer's step never names text, and says why fewer people get it: on its box where nothing else is said, and in its sheet", () => {
+  const ticks = ["whatsapp", "sms", "email"];
+  assert.equal(scheduleChannels(ticks), "WhatsApp, else text, else email");
+  assert.equal(
+    scheduleChannels(ticks, "whatsapp"),
+    "WhatsApp, else email",
+    "REGRESSION (15 Nov 2026): the step named text for a message no text carries",
+  );
+  assert.equal(
+    scheduleChannels(["sms"], "own"),
+    "",
+    "a step that ticks text alone goes by nothing, and its line says why",
+  );
+  const one = step(1, { channels: ticks, policy_class: "follow_up", trigger: "asked_no_booking" });
+  const moment = row({ starts: "moment", first: { ...FIRST, trigger: "asked_no_booking", policy_class: "follow_up" } });
+  assert.deepEqual(scheduleStepState(moment, one, ctx({ offer: "whatsapp" })), {
+    tone: "next",
+    words: "WhatsApp treats this message as an offer · only people who said yes to offers get it",
+  });
+  assert.equal(
+    scheduleStepState(moment, one, ctx({ offer: "own" })).words,
+    "This message is an offer · only people who said yes to offers get it",
+  );
+  // What needs you is said first: the offer's line waits under it, and the sheet's By row says it either way.
+  assert.equal(scheduleStepState(moment, one, ctx({ offer: "whatsapp", gone: true })).words, "Pick a message for it");
+  const by = (c) => scheduleStepFacts(moment, one, "visit", c).find((f) => f.label === "By").value;
+  assert.equal(by(ctx()), "WhatsApp, text or email, one each");
+  assert.equal(
+    by(ctx({ offer: "whatsapp" })),
+    "WhatsApp or email, one each. WhatsApp treats this message as an offer, so only people who said yes to offers get it, and never by text.",
+  );
+  assert.equal(
+    scheduleStepFacts(moment, one, "visit", ctx({ offer: "whatsapp" })).find((f) => f.label === "Now"),
+    undefined,
+    "said once: the sheet says it under By, and not again under Now",
   );
 });

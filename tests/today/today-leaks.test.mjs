@@ -598,9 +598,9 @@ test("several templates at once are one row each way -- a sync can approve a bat
     t("2", "template_ready", "b"),
     t("3", "template_ready", "c"),
   ]);
-  assert.equal(ready.groups[0].title, "3 templates are ready to send");
+  assert.equal(ready.groups[0].title, "3 messages approved by WhatsApp");
   const blocked = todayAwayGrouped([t("4", "template_blocked", "a"), t("5", "template_blocked", "b")]);
-  assert.equal(blocked.groups[0].title, "2 templates cannot be sent");
+  assert.equal(blocked.groups[0].title, "2 messages need a look");
   assert.equal(
     todayAwayGrouped([t("6", "template_ready", "only one")]).groups[0].title,
     null,

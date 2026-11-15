@@ -496,7 +496,8 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
         title: job ? job.title : otherRow.title,
         message: job ? job.message : firstLine(otherRow.body),
         to: noticeRoute(otherRow.kind, route),
-        icon: tone === "ok" ? "check" : look.icon,
+        // Plain news under a kind whose look is good news wears the plain alert's bell, never good news's tick.
+        icon: tone === "ok" ? "check" : tone === "" ? ALERT_LOOK.icon : look.icon,
         tone: tone ?? look.tone,
         action: look.own ? look.action : (verbForRoute(route) ?? look.action),
         unread: at > readMs && !otherRow.read,
