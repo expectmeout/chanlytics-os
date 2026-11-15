@@ -5128,7 +5128,7 @@ test("REGRESSION: Today's reply-window rows are the opposite of drafts -- the cu
     [[C2, `inbox/th-${C2}`]],
     "the row names the thread and where it opens",
   );
-  assert.match(today.reply_window_closing.rows[0].text, /window closes/);
+  assert.match(today.reply_window_closing.rows[0].text, /reply by \d/);
   assert.ok(tc.read.thread.has(C2), "a row this read returned may be cited and navigated to");
 
   // inbox.list: the count is of everything that matched, not of what the cap kept, and every row names its wire.

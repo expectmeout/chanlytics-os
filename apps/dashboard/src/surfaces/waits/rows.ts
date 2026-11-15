@@ -133,7 +133,7 @@ export const WAIT_ROW_WORDS = {
    */
   review: "Review",
   /** A batch waiting for an OK that holds emails an OK does not send: each is decided on the sequence's People. */
-  decide: (n: number) => `Decide ${n}`,
+  decide: (n: number) => `Review ${n}`,
   approvals: {
     name: (n: number) => `${plural(n, "run waits", "runs wait")} for your OK`,
     meta: "Campaigns · ready",

@@ -122,7 +122,7 @@ after(() => {
 test("yesterday's unmarked visits are To do's rows: the person, 'Did they come?', Kept and Missed as the verbs, the visit on the Calendar as the door; three at most, then the rest at the foot", () => {
   clear();
   const tree = draw();
-  assert.match(textOf(todoOf(tree)), /To do\s*4/, "how many To do holds, by its name");
+  assert.match(textOf(todoOf(tree)), /Do\s*4/, "how many To do holds, by its name");
   assert.equal(
     all(queueOf(tree), (n) => n.props?.["data-testid"] === "queue-handoff").length,
     1,
@@ -182,7 +182,7 @@ test("a day with only visits to mark is not an empty queue; none to mark, an unr
     all(queueOf(tree), (n) => String(n.props?.["data-testid"] ?? "").startsWith("today-queue-empty-")).length,
     0,
   );
-  assert.match(textOf(queueOf(tree)), /To do\s*1/);
+  assert.match(textOf(queueOf(tree)), /To-dos\s*1/);
   clear([block("a", 14, "kept")]);
   assert.equal(rowsOf(draw()).length, 0, "marked: nothing to ask");
   clear();

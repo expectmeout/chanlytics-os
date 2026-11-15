@@ -155,8 +155,9 @@ function OlderSummary({
 }
 
 /**
- * Older's group: one person drawn as themself, several as one row that opens into each. `bare` where nothing else is drawn
- * above it: the row says what the group's name would, on a day whose head says nothing needs you.
+ * Older's group, at Reply's foot: one person drawn as themself, under the group's name, several as one row that opens into
+ * each, which says what they are ("14 waiting over a week") and so takes no head over it. `bare` where nothing else is
+ * drawn above it: the row says what the group's name would, on a day whose head says nothing needs you.
  */
 export function OlderGroup({
   rows,
@@ -174,7 +175,7 @@ export function OlderGroup({
   const [open, setOpen] = useRowState("today-older", "open", false);
   const [only] = rows;
   return (
-    <NeedYouGroup title={W.group.old} count={null} bare={bare} testid="today-group-old">
+    <NeedYouGroup title={W.group.old} count={null} bare={bare || rows.length > 1} testid="today-group-old">
       {only && rows.length === 1 && !handed ? (
         <OlderPerson row={only} ctx={ctx} />
       ) : (

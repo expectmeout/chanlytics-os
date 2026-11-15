@@ -106,17 +106,17 @@ test("a draft counting down waits on you, and the sentence says it is on its way
 test("the head says the badge's other parts: a hold whose thread was not read needs you, and a run waiting is said after (S7-2)", () => {
   assert.equal(
     inboxStanding([], NOW, ZONE, { runs: 1, unreadHolds: 0 }),
-    "No customer needs you · 1 run waiting",
+    "No customer needs you · 1 to approve",
     "REGRESSION: the head said 'Nothing needs you' under a badge of one, a campaign run waiting for a yes",
   );
   assert.equal(inboxStanding([], NOW, ZONE, { runs: 0, unreadHolds: 2 }), "2 need you");
   assert.equal(
     inboxStanding([waiting("a", 96)], NOW, ZONE, { runs: 2, unreadHolds: 1 }),
-    "2 need you · the oldest since 2:26 PM · 2 runs waiting",
+    "2 need you · the oldest since 2:26 PM · 2 to approve",
   );
   assert.equal(
     inboxStanding([sending("c")], NOW, ZONE, { runs: 1, unreadHolds: 0 }),
-    "1 need you · 1 draft on its way · 1 run waiting",
+    "1 need you · 1 draft on its way · 1 to approve",
   );
   assert.equal(inboxStanding([], NOW, ZONE, { runs: 0, unreadHolds: 0 }), "Nothing needs you");
 });

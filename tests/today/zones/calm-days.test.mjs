@@ -305,10 +305,34 @@ test("a review at rest is not offered, by the one rule AI found's rows rest by",
   );
 });
 
+test("grouped by what the owner does (docs/words.md): one Reply head over everyone waiting on a word, who waited past a week at its foot, then Approve", () => {
+  setSurfaceValue(
+    "today",
+    dayWith([
+      row("f1", "Ana Reyes"),
+      row("f2", "Bea Lind"),
+      old("o1", "Dana Ruiz"),
+      old("o2", "Kai Moreno"),
+      row("s1", "Pilates studios", { kind: "search", act: "answer" }),
+    ]),
+  );
+  const tree = draw(NeedYou);
+  const groups = all(tree, (n) => /^today-group-[a-z]+$/.test(String(n.props?.["data-testid"] ?? "")));
+  assert.deepEqual(
+    groups.map((n) => n.props["data-testid"]),
+    ["today-group-next", "today-group-waiting", "today-group-old", "today-group-ok"],
+    "the week-old row folds under Reply, before Approve",
+  );
+  const heads = all(tree, (n) => String(n.props?.className ?? "").includes("ny-group-head")).map(textOf);
+  assert.deepEqual(heads, ["Reply2", "Approve1"], "one Reply head counting both people; the rest under no head");
+  setSurfaceValue("today", undefined);
+  unmount();
+});
+
 test("the drawn row's words reach a reader", () => {
   setSurfaceValue("today", dayWith([old("o1", "Dana Ruiz")]));
   const group = all(draw(NeedYou), (n) => n.props?.["data-testid"] === "today-group-old")[0];
-  assert.equal(group.props["aria-label"], "Older", "no head drawn over it, its name for a reader alone");
+  assert.equal(group.props["aria-label"], "Waiting over a week", "no head drawn over it, its name for a reader alone");
   assert.match(textOf(group), /Dana Ruiz/);
   setSurfaceValue("today", undefined);
   unmount();
