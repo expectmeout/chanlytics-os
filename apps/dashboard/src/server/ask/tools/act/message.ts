@@ -22,6 +22,8 @@ import {
   findHeldValues,
   getMessageOnFile,
   getWhatsAppFilingRefusal,
+  getWhatsAppOffers,
+  versionsWrittenHere,
   type WriteMessageBody,
 } from "../../../campaigns/write-message";
 import { log } from "@/server/shared/log";
@@ -122,7 +124,7 @@ async function proposeMessage(toolContext: ToolContext, input: MessageAsked): Pr
   // given already as Meta takes one ("thanks_for_coming") is no title: it is read as its name made words.
   const name = slugTemplateName(input.name);
   const ownName = input.name.replace(/\s+/g, " ").trim();
-  const body: WriteMessageBody = {
+  const draft: WriteMessageBody = {
     name,
     ...(ownName && ownName !== name ? { title: ownName } : {}),
     // The language as the product files it (English under en_US, beside the starters), never as Ask named it.
@@ -131,10 +133,25 @@ async function proposeMessage(toolContext: ToolContext, input: MessageAsked): Pr
     versions: input.versions,
     slots,
   };
-  const refused = wordsRefusal(body) ?? (await workspaceRefusal(toolContext, body));
+  // The words first, which read nothing.
+  const wordsWrong = wordsRefusal(draft);
+  if (wordsWrong) return refuse(wordsWrong);
+  // An offer's WhatsApp version where no offer reaches anyone by WhatsApp (a US number) is never written: the card is
+  // made, quoted and filed without it (write-message.ts versionsWrittenHere), and refused only where it was all there was.
+  const offers =
+    draft.versions.whatsapp && draft.category === "marketing"
+      ? await getWhatsAppOffers(toolContext.ctx, toolContext.tenantId)
+      : null;
+  const body: WriteMessageBody = { ...draft, versions: versionsWrittenHere(draft.versions, draft.category, offers) };
+  if (!body.versions.whatsapp && !body.versions.email && !body.versions.sms && offers?.why) return refuse(offers.why);
+  const refused = await workspaceRefusal(toolContext, body);
   if (refused) return refuse(refused);
   // The words the card quotes and files: the skill's, else the draft's, on the same channels, values and name.
-  const written = await writtenBody(toolContext, input.language, body);
+  const crafted = await writtenBody(toolContext, input.language, body);
+  const written: WriteMessageBody = {
+    ...crafted,
+    versions: versionsWrittenHere(crafted.versions, crafted.category, offers),
+  };
   const writtenWords = writtenSays(written, SAID_ROOM);
   const channels = CONSENT_CHANNELS.filter((c) => body.versions[c]);
   const purpose = purposeOfTemplate(body.category);

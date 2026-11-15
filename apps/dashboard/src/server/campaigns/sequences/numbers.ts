@@ -80,7 +80,7 @@ export function ownerPriceWords(
 
 /**
  * Whether words to a customer name a price or a discount the owner did not give: none of their words names one, or a
- * figure in it is none of theirs. A cold email names none at all, whoever gave it (draft-judge.ts leadEmailRefusal).
+ * figure in it is none of theirs. A cold email names none at all, whoever gave it (lead-email.ts leadEmailRefusal).
  */
 export function unsaidPrice(words: string, owner: readonly string[]): boolean {
   return violatesNoPrices(words) && (!owner.some(violatesNoPrices) || unbackedNumbers(words, owner).length > 0);
