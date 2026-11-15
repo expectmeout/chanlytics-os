@@ -126,7 +126,7 @@ async function runningYield(p: LeadPorts, round: LeadRoundRow): Promise<number> 
   if (!judged.length) return UNMEASURED_YIELD;
   // A leg (decision 0133) sizes from what counted, every earlier round ended and checked: a candidate email is no lead
   // until its check, so the share with a way to reach them asked a leg for too few places.
-  return round.purpose === "widen" ? finishedYield(judged) : probeYield(judged);
+  return round.purpose === "widen" ? finishedYield(judged) : probeYield(judged, round.plan.contact);
 }
 
 /**
@@ -223,7 +223,7 @@ export async function startRound(
     const judged = members.filter(wasWeighed);
     const counted = members.filter((m) => m.counted).length;
     // Round 1 sizes from its probe; a top-up or a renewal from what the search found in every round before it.
-    const other = round.purpose === "probe" ? probeYield(judged) : await runningYield(leadPorts, round);
+    const other = round.purpose === "probe" ? probeYield(judged, plan.contact) : await runningYield(leadPorts, round);
     // The question said "I'm dropping X: it mostly returned those", and a yes accepted it. An answer that changed the
     // plan is a new plan, and its terms are the owner's: the dropped one finds the very kind they just included.
     const dropTerm = round.answered === "keep" ? (round.question?.dropTerm ?? null) : null;

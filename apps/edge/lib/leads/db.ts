@@ -22,13 +22,14 @@ import {
   listPlacesSuppressed,
   listRoundsOfSearch,
   listRunsOfRound,
-  listSearchMembers,
+  pageSearchMembers,
   recordRoundNearby,
   recordLeadSiteReadsSpent,
   upsertLeadCompany,
 } from "@chanlytics/db/leads";
 import { asJson, readColumn } from "@chanlytics/db/shared";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
+import { readAllRows } from "../shared/paged.js";
 import type { Database } from "@chanlytics/db/types";
 import {
   DEFAULT_TIMEZONE,
@@ -100,70 +101,75 @@ function callsOn(db: Db) {
   return { bool, json };
 }
 
+/**
+ * A round's members, or a search's, with the facts of each lead the runner reads back. Every one of them: the count, the
+ * addresses to check and where the search looks next are all worked out from this, and an answer holds a thousand rows
+ * at most, which a city's round or a search of several legs passes (decision 0133).
+ */
+async function membersWhere(db: Db, col: "round_id" | "search_id", id: string): Promise<LeadMemberRow[]> {
+  const members = await readAllRows<Database["public"]["Tables"]["lead_search_members"]["Row"]>(
+    "lead_search_members read",
+    (from, to) => pageSearchMembers(db, col, id, from, to),
+    "whole",
+  );
+  if (!members.length) return [];
+  type LeadFacts = Pick<
+    Database["public"]["Tables"]["leads"]["Row"],
+    | "id"
+    | "lat"
+    | "lng"
+    | "phone_e164"
+    | "email"
+    | "email_state"
+    | "place_id"
+    | "stage"
+    | "contact_id"
+    | "contacted_at"
+    | "last_outcome"
+    | "phone_wrong"
+  >;
+  const leads = await inParts(
+    members.map((m) => m.lead_id),
+    async (part) => must<LeadFacts[]>("leads read", await listLeadFacts(db, part)),
+  );
+  const byId = new Map(leads.map((l) => [l.id, l]));
+  return members.map((member): LeadMemberRow => {
+    const found = byId.get(member.lead_id);
+    const json = recordOrNull(member.judgment);
+    return {
+      lead_id: member.lead_id,
+      round_id: member.round_id,
+      class: member.class,
+      excluded_by: member.excluded_by,
+      fit: member.fit,
+      reason: member.reason,
+      distance_m: member.distance_m,
+      counted: member.counted,
+      judgment: member.judgment,
+      lat: found?.lat ?? null,
+      lng: found?.lng ?? null,
+      phone: found?.phone_e164 ?? null,
+      email: found?.email ?? null,
+      email_state: found?.email_state ?? "none",
+      term: typeof json?.term === "string" ? json.term : null,
+      place_id: found?.place_id ?? null,
+      // The owner's own decision (00140's member doors) or a lead worked in any way lead_search_undo reads as
+      // touched (00142): lead_round_rejudge skips the same.
+      decided:
+        member.kept_at !== null ||
+        member.excluded_by === "owner" ||
+        (!!found &&
+          (found.stage !== "ready" ||
+            found.contact_id !== null ||
+            found.contacted_at !== null ||
+            found.last_outcome !== null ||
+            found.phone_wrong)),
+    };
+  });
+}
+
 export function leadDb(db: Db): LeadDb {
   const { bool, json } = callsOn(db);
-  /** A round's members, or a search's, with the facts of each lead the runner reads back. */
-  async function membersWhere(col: "round_id" | "search_id", id: string): Promise<LeadMemberRow[]> {
-    const members = must<Database["public"]["Tables"]["lead_search_members"]["Row"][]>(
-      "lead_search_members read",
-      await listSearchMembers(db, col, id),
-    );
-    if (!members.length) return [];
-    type LeadFacts = Pick<
-      Database["public"]["Tables"]["leads"]["Row"],
-      | "id"
-      | "lat"
-      | "lng"
-      | "phone_e164"
-      | "email"
-      | "email_state"
-      | "place_id"
-      | "stage"
-      | "contact_id"
-      | "contacted_at"
-      | "last_outcome"
-      | "phone_wrong"
-    >;
-    const leads = await inParts(
-      members.map((m) => m.lead_id),
-      async (part) => must<LeadFacts[]>("leads read", await listLeadFacts(db, part)),
-    );
-    const byId = new Map(leads.map((l) => [l.id, l]));
-    return members.map((member): LeadMemberRow => {
-      const found = byId.get(member.lead_id);
-      const json = recordOrNull(member.judgment);
-      return {
-        lead_id: member.lead_id,
-        round_id: member.round_id,
-        class: member.class,
-        excluded_by: member.excluded_by,
-        fit: member.fit,
-        reason: member.reason,
-        distance_m: member.distance_m,
-        counted: member.counted,
-        judgment: member.judgment,
-        lat: found?.lat ?? null,
-        lng: found?.lng ?? null,
-        phone: found?.phone_e164 ?? null,
-        email: found?.email ?? null,
-        email_state: found?.email_state ?? "none",
-        term: typeof json?.term === "string" ? json.term : null,
-        place_id: found?.place_id ?? null,
-        // The owner's own decision (00140's member doors) or a lead worked in any way lead_search_undo reads as
-        // touched (00142): lead_round_rejudge skips the same.
-        decided:
-          member.kept_at !== null ||
-          member.excluded_by === "owner" ||
-          (!!found &&
-            (found.stage !== "ready" ||
-              found.contact_id !== null ||
-              found.contacted_at !== null ||
-              found.last_outcome !== null ||
-              found.phone_wrong)),
-      };
-    });
-  }
-
   return {
     runClaim: (runId, owner) => bool("lead_run_claim", { p_run_id: runId, p_owner: owner }),
     runRecordStart: (runId, owner, apifyRunId, datasetId, capUsd) =>
@@ -280,8 +286,8 @@ export function leadDb(db: Db): LeadDb {
     async runsOfRound(roundId) {
       return must<RunRow[]>("lead_runs of round", await listRunsOfRound(db, roundId)).map(runOf);
     },
-    membersOfRound: (roundId) => membersWhere("round_id", roundId),
-    membersOfSearch: (searchId) => membersWhere("search_id", searchId),
+    membersOfRound: (roundId) => membersWhere(db, "round_id", roundId),
+    membersOfSearch: (searchId) => membersWhere(db, "search_id", searchId),
     async roundsOfSearch(searchId) {
       const rows = must<
         Pick<Database["public"]["Tables"]["lead_rounds"]["Row"], "id" | "seq" | "purpose" | "plan" | "ending">[]

@@ -94,6 +94,13 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
 
 - **A leg's start:** it reads only its own runs as read (`termsTried`), and sizes from what the search's earlier rounds
   delivered, every one ended and checked (`sizing.ts` `finishedYield`), never a candidate email.
+- **The first round's size:** the probe's yield counts what the search's standard counts (`sizing.ts` `hasContact`). A
+  search made for email counts a checked email alone (decision 0132), so it sizes from the places with a candidate
+  email, never from a phone: counted by phones, it asked the card's area for about half the places its count needed
+  and moved on to the next area early.
+- **Every member is read:** the runner reads a round's and a search's members a page at a time (`pageSearchMembers`,
+  read whole). One answer carries a thousand rows, which a city's round or a search of several legs passes, and the
+  count, the addresses to check and the next area are all worked out from them.
 - **The notice:** a round that carries on rings nothing; the round that ends a widened search counts every leg's leads.
 - **The platform's page:** `apps/edge/lib/leads/sources.ts` `recordPagePlatformDay`, from the leads sweep, once a day
   at 80% of `platform_day_usd`.
@@ -119,7 +126,8 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
      area, 10, 25 or 50 miles, and the plan's own) writes `plan.reach_m`. Ask's card says the same as a row. Where it
      does not widen, no reach is said, and a count past one area is said as before;
    - **the strip across legs:** a leg counts the whole search ("86 of 200", never of what the leg still wants), names
-     the area it reads, and says the card's area is done (`round.area`, read for a leg's round alone);
+     the area it reads, and says it comes after the card's area, never that the card's area is searched: a round
+     also moves on from a term it asked no deeper (`round.area`, read for a leg's round alone);
    - **the endings:** `reach_searched` says the miles and that the leads not found stay the owner's this month;
      `month_leads_used` says the day the leads renew;
    - **the card before the press:** its count binds to the leads left, as before (`leadPlanAsk`); its email choice says

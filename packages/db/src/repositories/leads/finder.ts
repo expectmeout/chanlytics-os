@@ -53,9 +53,13 @@ export const listRoundsOfSearch = async (db: Db, searchId: string) =>
 export const recordRoundNearby = async (db: Db, roundId: string, nearby: Json) =>
   db.from("lead_rounds").update({ nearby }).eq("id", roundId).neq("state", "ended");
 
-/** The members of a round, or of a search, whole. */
-export const listSearchMembers = async (db: Db, by: "round_id" | "search_id", id: string) =>
-  db.from("lead_search_members").select("*").eq(by, id);
+/**
+ * One page (`from` to `to`) of the members of a round, or of a search, by the lead's id, which is one member in a search
+ * and so in a round of it. A search that widens to its count (decision 0133) holds more members than one answer carries,
+ * and a city's round can too, so the runner reads them a page at a time (readAllRows).
+ */
+export const pageSearchMembers = async (db: Db, by: "round_id" | "search_id", id: string, from: number, to: number) =>
+  db.from("lead_search_members").select("*").eq(by, id).order("lead_id").range(from, to);
 
 /** These leads' facts, as the runner reads them back. */
 export const listLeadFacts = async (db: Db, leadIds: string[]) => db.from("leads").select(LEAD_FACTS).in("id", leadIds);
