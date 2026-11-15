@@ -27,12 +27,17 @@ export const LEAD_ENDING_WORDS: Record<LeadRoundEnding, string> = {
  * "Searched everything" only when every term returned fewer places than it
  * was asked for; otherwise the round ended at its limit with few new matches,
  * and the next step is another round in the same area.
+ *
+ * What a round reserved running out is not among them: that is the round's own estimate, never the month's searching.
+ * "This month's searching budget is used" is said by the door that reserves the next step and is refused (SQL
+ * lead_reserve, through lead_round_end's next leg or an owner's Carry on), where it is true. A round that ended on it
+ * for its own estimate stopped a search at 41 of 267 with $24 of the month's $40 unspent, and opened no nearby area
+ * (15 Nov 2026, decision 0133).
  */
 export function endingOfRound(input: {
   counted: number;
   target: number;
   termsShort: boolean[];
-  budgetLeftUsd: number;
   allowanceLeft: number;
   stopped: boolean;
   sourceFailed: boolean;
@@ -45,7 +50,6 @@ export function endingOfRound(input: {
   if (input.sourceFailed) return "source_failed";
   if (input.unanswered) return "question_unanswered";
   if (input.allowanceLeft <= 0) return "month_leads_used";
-  if (input.budgetLeftUsd <= 0) return "budget_used";
   if (input.termsShort.length > 0 && input.termsShort.every(Boolean)) return "searched_everything";
   return "few_new_matches";
 }

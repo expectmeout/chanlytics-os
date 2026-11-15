@@ -80,6 +80,8 @@ export interface LeadRunRow {
   lease_until: string | null;
   read_offset: number;
   items_seen: number;
+  /** Of the places it read, those the workspace already held: paid for and skipped (00506). */
+  already_yours?: number;
   cap_usd: number | null;
   usage_usd: number;
   created_at: string;

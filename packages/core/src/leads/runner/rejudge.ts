@@ -28,8 +28,8 @@ import {
   markUntil,
   outOfTime,
   wasJudged,
-  wasWeighed,
 } from "./rules";
+import { wasWeighed } from "./weighed";
 import { readSitesBeforeJudge, settleSiteReads, findSiteFact, siteReadsOf, type SiteReads } from "./site-reads";
 
 /* ------------------------------------------------- an answer re-judges -- */
