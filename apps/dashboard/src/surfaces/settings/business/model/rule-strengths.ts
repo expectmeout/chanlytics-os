@@ -158,6 +158,7 @@ export const ALWAYS_ON: ReadonlySet<GuardrailKey> = new Set<GuardrailKey>(["neve
 export const RULES_AT_REST_WORDS: Record<GuardrailKey, string> = {
   never_quote_prices: "Never quotes a price",
   never_confirm_booking: "Never confirms a booking",
+  // screen-word: "assistant" is the disclosure customers hear, said in its own word (decision 0051).
   disclose_ai: "Says it's an assistant",
   no_health_advice: "No health advice",
 };
@@ -234,6 +235,7 @@ export function rulesKept(rulesKeptInputs: RulesKeptInputs): string[] {
  *
  * Built inside a call marked pure, as STRENGTHS is: a template literal with a substitution in it is an
  * expression the bundler must keep at the top level, and this sentence belongs to one tab of the dashboard.
+ * screen-word: "automated assistant" is the disclosure customers hear, said in its own words (decision 0051).
  */
 export const RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() =>
   `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules, only that it is an automated assistant.`)();

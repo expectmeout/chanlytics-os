@@ -329,17 +329,33 @@ Four styles for any words beside or under the main text, and nothing else on a p
 
 ## How it is held
 
-A measure in `check:debt`, the house's ratchet (`tests/_measures.mjs`, read from the syntax tree by `tests/_ast.mjs`,
-never from the text). It takes only what a person reads: the words in the markup, the labels a screen reader says, the
-words files and view models. It counts them by who reads them (the table at the top), and counts, for each page, the
-words that never reach a screen. Each count may only fall; a change that raises one fails unless the pull request
-argues it, and a line that must keep a word says why beside it. `tests/repo/trade-neutral.test.mjs` stays as it is.
-Where a word decides what the product does (an offer, a consent), a test runs that behaviour; the count does not stand
-in for it.
+Six measures in `check:debt`, the house's ratchet (`tests/repo/words/_words.mjs`, read from the syntax tree, never from
+the text), each a row of [debt.md](debt.md). They take only what a person reads: the words in the markup, the labels,
+the words files and view models. An id, a key, a class, a thrown Error's text and a log line are not words, and
+neither is what is said to a model. Who reads a file is said once, by where it lives (`AUDIENCES`, the table at the
+top of this page):
 
-The measure reads the server's words too (a refusal, an alert, an email's subject): a person reads them on the same
-screen. What AI says back is held another way: its instructions and its tools' words carry this page, and a nightly
-eval reads sample answers for the words that never reach a screen.
+| Measure          | Reads                                     | Counts                                                                                               |
+| ---------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `screen-words`   | The pages and contracts' words            | The words that never reach a screen, by family: AI's name, the code's, a provider's, retired, failed |
+| `screen-voice`   | The same                                  | "we", an apology, "click", an em dash, a semicolon, a "Your" label, a long line, three sentences     |
+| `server-words`   | A refusal's sentence, an answer's message | The same families                                                                                    |
+| `taught-words`   | AI's instructions and its tools' words    | AI's name, the code's, a provider's, retired                                                         |
+| `customer-words` | The pages Chanlytics hosts for a business | The code's and a provider's                                                                          |
+| `title-tooltips` | The markup                                | Each `title=` on an element                                                                          |
+
+The list itself is `tests/repo/words/_screen-words.mjs`, and holds only the words that mean one thing: row, record,
+run, job, policy, line and their kind are English too, so a person reads them in each page's pass. Each count may only
+fall; a change that raises one fails unless the pull request argues it (`Debt: <why>`), and a line that must keep a
+word says why beside it, `screen-word: <why>`, on the line, over it, or over the declaration it stands in. One count
+is at zero and held outright (`tests/repo/words/words.test.mjs`): outside the demo's sample screens, no page calls AI
+by another name. `tests/repo/trade-neutral.test.mjs` stays as it is. Where a word decides what the product does (an
+offer, a consent), a test runs that behaviour; the count does not stand in for it.
+
+What AI says back is held another way: its instructions and its tools' words carry this page, and the weekly real
+turns (`tooling/scripts/eval-ask.mjs`, `.github/workflows/ask-weekly.yml`) read every answer for the same list. Another
+name for AI in an answer fails the turn; the other families are noted and counted until its tools are reworded, since
+it says today what its tools still teach it.
 
 ## Where the app stood on 14 November 2026
 
@@ -368,7 +384,8 @@ The cleanup:
 1. **The words that make the app look broken** (the crash and not-found pages, error codes, database, tokens, policy
    matrix, veto, heartbeat), **and AI's name everywhere**: the pages, the bell's alerts, and AI's own instructions and
    tools, so its answers change with the screens.
-2. **The measure above,** holding every count in the table, by who reads it, with the nightly eval of AI's answers.
+2. **The measures above,** holding the words by who reads them, with the weekly turns reading AI's answers. Built on
+   15 November: on the first week after step 1, no answer of 22 called AI by another name, where 10 had the week before.
 3. **Then page by page, each finished whole before the next:** its words (the server's refusals and alerts of its
    domain among them), its states said exactly, its pieces from the kit with their names kept for screen readers, its
    small words on the four styles, its numbers agreeing with every other page's, read on a phone first, proved not to

@@ -96,14 +96,14 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
   const modelPurpose = modelPurposeOf(purpose);
   if (!(await mayUseModelFor(modelPurpose, tenantId))) {
     log.warn("ask_gateway_may_not_spend", { tenant_id: tenantId, purpose });
-    return refuse(402, "payment_required", "Ask is off while this workspace is paused or its plan has ended.");
+    return refuse(402, "payment_required", "AI is off while this workspace is paused or its plan has ended.");
   }
   const seen = budgetSeen.get(tenantId);
   let used: number;
   if (seen && Date.now() - seen.at < BUDGET_TTL_MS) used = seen.used;
   else {
     const read = await askTokensLast24h(db, tenantId);
-    if (read === null) return refuse(503, "read_failed", "Ask's day could not be counted just now.");
+    if (read === null) return refuse(503, "read_failed", "Couldn't check today's AI limit just now.");
     used = read;
     budgetSeen.set(tenantId, { at: Date.now(), used });
   }

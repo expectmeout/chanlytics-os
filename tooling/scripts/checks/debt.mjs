@@ -356,6 +356,7 @@ export function totalsOf(record, { ceiling = {}, trees = [], wide = [] } = {}) {
     ],
     ["inline style props", total(by["inline-styles"]), `in ${keys(by["inline-styles"])} files`],
     ["appointment words written in", total(by["appointment-words"]), `in ${keys(by["appointment-words"])} files`],
+    ...wordRows(by),
     ["wire names not in snake_case", wire.names, `in ${wire.routes} routes`],
     ["dead exports, types and modules", total(record.parts.knip), ""],
     ["source-text reads in tests", total(by["source-scan"]), ""],
@@ -366,6 +367,31 @@ export function totalsOf(record, { ceiling = {}, trees = [], wide = [] } = {}) {
     ["each page's own JS ceiling, KB", Math.round((ceiling.page ?? 0) / 1024), "gzipped, beyond the route"],
     // Not a debt: the trees the complexity measure has emptied, which the lint's limits hold (eslint.config.mjs).
     ["trees the lint's limits hold", trees.length, `${wide.length} of them with max-params waiting`],
+  ];
+}
+
+/** What docs/words.md holds, as the register's rows: each count of the words measures (tests/repo/words/_words.mjs) by its family. */
+function wordRows(by) {
+  const families = (o) =>
+    ["ai", "code", "provider", "retired", "failure"]
+      .map((f) => [f, fieldTotal(o, f)])
+      .filter(([, n]) => n > 0)
+      .map(([f, n]) => `${f} ${n}`)
+      .join(", ");
+  const voice = by["screen-voice"];
+  return [
+    ["words never on a screen, on the pages", fieldsTotal(by["screen-words"]), families(by["screen-words"])],
+    ["words never on a screen, server refusals", fieldsTotal(by["server-words"]), families(by["server-words"])],
+    ["words never on a screen, taught to AI", fieldsTotal(by["taught-words"]), families(by["taught-words"])],
+    ["code and provider words, customer pages", fieldsTotal(by["customer-words"]), families(by["customer-words"])],
+    [
+      "marks of a system's voice, on the pages",
+      fieldsTotal(voice),
+      ["we", "sorry", "click", "emDash", "semicolon", "your", "long", "sentences"]
+        .map((m) => `${m} ${fieldTotal(voice, m)}`)
+        .join(", "),
+    ],
+    ["browser tooltips, title= on an element", total(by["title-tooltips"]), `in ${keys(by["title-tooltips"])} files`],
   ];
 }
 

@@ -25,6 +25,7 @@ export type GreetingSource = "standard" | "owner" | "owner_disclosed" | "paused"
 const GREETING_NAME_SLOT = "{business}";
 
 /** The product's clause, added to an owner's line that never says it is automated, in the line's language. */
+// screen-word: what callers hear (decision 0051).
 const AI_CLAUSE = { en: "I'm the automated assistant.", es: "Soy el asistente automático." } as const;
 
 /** The standard greeting as the owner's box shows it: the slot in place of the name, so a rename follows it. */
@@ -215,8 +216,9 @@ export function greetingNotes(input: {
   if (deniesAutomated(raw, name)) {
     notes.push({
       key: "denies_ai",
+      // screen-word: "automated assistant" is what callers hear, said in its own words (decision 0051).
       words:
-        "This says it isn't automated, so callers hear the standard greeting instead: your receptionist always says it's an automated assistant.",
+        "This says it isn't automated, so callers hear the standard greeting instead: AI always says it's an automated assistant.",
     });
     return notes;
   }
@@ -229,7 +231,7 @@ export function greetingNotes(input: {
   if (any(DENIES_RECORDING, result)) {
     notes.push({
       key: "denies_recording",
-      words: "This tells callers they aren't recorded. Calls to your receptionist are recorded, so that isn't so.",
+      words: "This tells callers they aren't recorded. Calls AI answers are recorded, so that isn't so.",
     });
   } else if (!any(SAYS_RECORDING, result)) {
     notes.push({
@@ -257,7 +259,7 @@ export function greetingNotes(input: {
   if (input.namesMoney(result)) {
     notes.push({
       key: "money",
-      words: "It mentions a discount, deposit or refund. If a caller asks about it, your receptionist hands it to you.",
+      words: "It mentions a discount, deposit or refund. If a caller asks about it, AI hands it to you.",
     });
   }
   if (input.neverQuotePrices && input.namesPrice(result)) {

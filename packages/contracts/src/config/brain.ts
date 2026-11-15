@@ -40,6 +40,7 @@ export const BRAIN_LANGUAGES = ["en", "es", "other"] as const;
  * The JSON Schema the API constrains decoding to. Only what the API supports:
  * no numeric ranges, no length limits, no nullable unions — those are checked
  * by the zod schema below after the fact, and clamped rather than refused.
+ * screen-word: its descriptions are said to the model, never shown on a page.
  */
 export const BRAIN_OUTPUT_JSON_SCHEMA = {
   type: "object",

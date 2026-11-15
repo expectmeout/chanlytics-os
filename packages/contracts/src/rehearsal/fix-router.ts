@@ -617,7 +617,7 @@ export const FIX_WORDS = {
   reword: "Say it another way",
   cancel: "Not now",
   kept: (field: string) => `Kept in ${field}`,
-  notRouted: "That doesn't say what to change. Say it the way you'd tell a new receptionist.",
+  notRouted: "That doesn't say what to change. Say it the way you'd tell a new hire.",
   /** The switch a Rule verdict holds, offered as it is: its own words, and what changes. */
   switchOff: (rule: GuardrailRule) => `Turn off: ${GUARDRAIL_RULE_WORDS[rule].on.toLowerCase()}`,
   nowReads: "It now reads",

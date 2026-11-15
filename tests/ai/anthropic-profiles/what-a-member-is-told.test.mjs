@@ -24,7 +24,7 @@ const { findWorkspaceModelStanding } = await import(at("packages/db/src/reposito
 const T = "aaaaaaaa-0000-4000-8000-000000000001";
 const said = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-const PAUSED = { ok: false, error: "model_paused", detail: "The model is paused for this account." };
+const PAUSED = { ok: false, error: "model_paused", detail: "AI is paused for this account." };
 
 async function refusalOf(answer) {
   const was = globalThis.fetch;
@@ -80,7 +80,7 @@ test("a draft waits in its own words, and is no billing pause's", async () => {
           { safeParse: (v) => ({ success: true, data: v }) },
           "draft",
         ),
-      (e) => e.code === "payment_required" && e.message === "The draft waits while Ask is paused on your account.",
+      (e) => e.code === "payment_required" && e.message === "The draft waits while AI is paused on your account.",
     );
   } finally {
     globalThis.fetch = was;

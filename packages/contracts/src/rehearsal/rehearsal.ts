@@ -159,8 +159,8 @@ export const REHEARSAL_TOOL_WORDS = {
 /** What a refusal to spend says a rehearsal's call was for (the route wrapper's requireSpend). */
 export const SPEND_REHEARSE: SpendWords = {
   kind: "rehearse",
-  before: "rehearsing your receptionist",
-  can: "rehearse your receptionist",
+  before: "rehearsing AI",
+  can: "rehearse AI",
 };
 /** And a review, or a fix routed by the model. */
 export const SPEND_REVIEW: SpendWords = {
@@ -183,7 +183,7 @@ export const REHEARSE_WORDS = {
     mute: "Mute",
     unmute: "Unmute",
     you: "You",
-    it: (name: string | null) => name || "Your receptionist",
+    it: (name: string | null) => name || "AI",
     mic: "Allow the microphone when your browser asks: it's how it hears you.",
     micBlocked: "Your browser blocked the microphone. Allow it in the address bar, or type instead.",
     dropped: "The call dropped. What was said is kept: see how it did, or call again.",
