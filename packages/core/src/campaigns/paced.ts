@@ -1,4 +1,4 @@
-import { campaignEnded, inLastSendingHour, type CampaignMessage } from "@chanlytics/contracts";
+import { campaignEnded, inLastSendingHour, whatsappWaits, type CampaignMessage } from "@chanlytics/contracts";
 
 /**
  * The pace a paced offer keeps today: an offer on a list with a last day, as Ask's plan makes one, at no more than its cap and no
@@ -38,7 +38,8 @@ export const notToday = (
  * takes minutes and a hold hours, so the run asks again with the next hourly sweep rather than closing the day as one
  * that did nothing, which lost that day's sends for a wait that ended five minutes later. Not in the day's last hour,
  * when it goes on as it would without (whoever is on email or text; else off, and said), nor for a run that has no day
- * to wait in (a freed time, a late booking, an occasion). Null where it does not wait.
+ * to wait in (a freed time, a late booking, an occasion), which is made and waits at the send instead (waitsAtTheSend).
+ * Null where it does not wait.
  */
 export function waitsOnWhatsApp(
   run: {
@@ -54,4 +55,19 @@ export function waitsOnWhatsApp(
   const hasDay = !run.freed && !run.late && !run.occasion && !inLastSendingHour(run.ctx.tz, run.ctx.now);
   if (!hasDay || !run.channels.includes("whatsapp")) return null;
   return status === "pending" ? "template_in_review" : status === "paused" ? "template_on_hold" : null;
+}
+
+/**
+ * Whether a run with no day to wait in (a freed time, a late booking, an occasion) is made though WhatsApp is still to
+ * say yes to its message (contracts whatsappWaits): it ticks WhatsApp, and the people only WhatsApp reaches are placed
+ * on it and wait at the send until what the run is about has passed (messages/broadcast/whatsapp-wait.ts), while
+ * whoever is on email or text goes at once. It was stopped, and that freed time's offer or that booking's reminder
+ * never went (the review of 15 Nov 2026). The day's own run waits as a whole instead (waitsOnWhatsApp).
+ */
+export function waitsAtTheSend(
+  run: { channels: readonly string[]; freed: unknown; late: unknown; occasion: unknown },
+  message: CampaignMessage | null,
+): boolean {
+  const noDay = !!run.freed || !!run.late || !!run.occasion;
+  return noDay && run.channels.includes("whatsapp") && whatsappWaits(message);
 }

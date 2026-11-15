@@ -272,14 +272,15 @@ test("a broadcast is refused in the person's words, in order, before anything is
     404,
     "Template not found.",
   );
+  // One WhatsApp is still checking is no refusal: the send is made and waits for it (the test of that, below).
   await refused(
-    make(fakes({ message: messageOf({ whatsapp: template({ meta_status: "pending" }) }) }), {
+    make(fakes({ message: messageOf({ whatsapp: template({ meta_status: "rejected" }) }) }), {
       template_id: T1,
       audience: everyone,
     }),
     "conflict",
     409,
-    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+    "WhatsApp asked for a change to this message's words. AI writes new words for you to send back.",
   );
   await refused(
     make(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }) }), {
@@ -1989,21 +1990,26 @@ test("a broadcast by email on a message with no WhatsApp row, on a workspace wit
   }
 });
 
-test("ticks WhatsApp's version of a message WhatsApp is still reviewing: refused at create in its standing, alone and beside the email that would go; the email tick alone is made on the anchor", async () => {
-  for (const channels of [["whatsapp"], ["whatsapp", "email"], undefined]) {
-    const f = fakes({ message: IN_REVIEW(), channels: EVERY_CHANNEL });
-    await refused(
-      make(f, { template_id: T1, audience: everyone, ...(channels ? { channels } : {}) }),
-      "conflict",
-      409,
-      STILL_REVIEWING,
-    );
-    assert.deepEqual(f.ops(), [], "nothing enrolled, nothing scheduled, nothing on the ledger");
+test("ticks WhatsApp's version of a message WhatsApp is still checking, or holding: the send is made and waits for it, whoever an email reaches placed there and whoever only WhatsApp reaches placed on WhatsApp; one WhatsApp refused is refused at create in its standing; the email tick alone is made on the anchor", async () => {
+  // Someone with a number and an address, and someone with a number alone. It dropped nobody's tick and left nobody
+  // out for a review that ends by itself (the review of 15 Nov 2026): the send waits (core whatsapp-wait.ts).
+  const people = [reachable("a"), reachable("b", { email: null })];
+  const HELD = () => messageOf({ whatsapp: template({ meta_status: "paused", category: "utility" }), own: ["email"] });
+  for (const [channels, placed, message] of [
+    [["whatsapp", "email"], { a: "email", b: "whatsapp" }, IN_REVIEW()],
+    [["whatsapp"], { a: "whatsapp", b: "whatsapp" }, IN_REVIEW()],
+    [undefined, { a: "whatsapp", b: "whatsapp" }, IN_REVIEW()],
+    [["whatsapp", "email"], { a: "email", b: "whatsapp" }, HELD()],
+  ]) {
+    const f = fakes({ message, channels: EVERY_CHANNEL, people });
+    await make(f, { template_id: T1, audience: everyone, ...(channels ? { channels } : {}) });
+    const [, row, recipients] = f.of("assemble")[0];
+    assert.deepEqual(row.channels, channels ?? ["whatsapp"], "its ticks are kept");
+    assert.deepEqual(Object.fromEntries(recipients.map((r) => [r.contact_id, r.channel])), placed);
   }
-  // Meta's other verdicts say themselves, by the same sentence a page greys the tick with.
+  // WhatsApp's refusals say themselves, by the same sentence a page greys the tick with: they do not end by themselves.
   for (const [meta_status, said] of [
     ["rejected", "WhatsApp asked for a change to this message's words."],
-    ["paused", "WhatsApp is holding this message for a few hours, because some people marked it as unwanted."],
     ["disabled", "WhatsApp turned this message off, because people kept marking it as unwanted."],
   ])
     await refused(

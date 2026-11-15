@@ -7,18 +7,14 @@ import {
   BROADCAST_THROTTLE_WAITS_MS,
   OUTCOME_UNKNOWN,
   audienceTrigger,
-  campaignMessageOf,
   firstNameOf,
   isOfferByEmail,
   isReachOutRun,
   jittered,
   messageAboutOfTrigger,
-  messageHolds,
   momentNamesVisit,
   nextOpenMoment,
   resolveParams,
-  versionsOf,
-  whatsappStoppedRunWords,
   wireFailure,
 } from "@chanlytics/contracts";
 import { errField, logAndGoOn } from "@chanlytics/log";
@@ -58,6 +54,7 @@ import {
   wireIsDown,
   wireIsUnbound,
 } from "./stops";
+import { stoppedForWhatsApp, waitsForWhatsApp, whatsappStandOf } from "./whatsapp-wait";
 import type { ContactId } from "@chanlytics/contracts";
 
 /**
@@ -94,9 +91,10 @@ async function sendOne(work: Work, recipient: RecipientRow): Promise<Verdict> {
   // for the next batch, never sent on a guess (broadcast-feed.ts).
   const rowHeld = rowHold(recipient, () => visitStands(work, recipient));
   if (rowHeld) return skip(rowHeld);
-  // Meta no longer approves WhatsApp's template: that holds the people who go by WhatsApp, and by no other channel, who
-  // stay as they were and go on their own versions (the run fails only when nobody else is on it, below).
-  if (channel === "whatsapp" && !work.whatsappApproved) return skip("template_not_approved");
+  // WhatsApp does not approve the message's WhatsApp version, and its people wait for nothing more (whatsapp-wait.ts: while
+  // they wait, a batch does not read them): that holds the people who go by WhatsApp, and by no other channel, who stay
+  // as they were and go on their own versions (the run fails only when nobody else is on it, below).
+  if (channel === "whatsapp" && work.whatsappHeld) return skip(work.whatsappHeld);
   // The campaigns domain an offer by email leaves from cannot be used, on a run that also goes another way (the head,
   // offersAtTheHead): each person who goes by email is held for it, the door's own reason; the run goes on for the others.
   if (channel === "email" && work.offersClosed) return skip("email_marketing_disabled");
@@ -205,8 +203,9 @@ async function sendOne(work: Work, recipient: RecipientRow): Promise<Verdict> {
  * BROADCAST_CHUNK of them, each on their own channel -- WhatsApp's template, a text's version, an email's version from
  * the hosted mailbox -- re-checking each person at the wire, the one place a miss is unrecoverable, and records why
  * anyone was held back. Then it schedules itself again for the rest, or closes the broadcast and tells the workspace.
- * A canceled broadcast stops at the next batch; a WhatsApp version that is no longer approved fails a run that goes by
- * WhatsApp alone before a single send; a wire that is down fails it at the first person it cannot reach.
+ * A canceled broadcast stops at the next batch; a WhatsApp version WhatsApp is still to say yes to keeps its people
+ * queued while the others go (whatsapp-wait.ts); one that is no longer approved fails a run that goes by WhatsApp alone
+ * before a single send; a wire that is down fails it at the first person it cannot reach.
  */
 export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: BroadcastBatchCommand): Promise<void> {
   const broadcast = await ports.broadcast(cmd.broadcastId);
@@ -224,37 +223,26 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   if (await outsideTheHours(ports, broadcast, cmd, facts.timezone)) return;
   const slots = await batchSlots(ports, broadcast.params);
   // Who is next, before the wires are asked about: the channels this batch goes by are its people's.
-  const batch = await ports.batch(broadcast.id, BROADCAST_CHUNK);
+  const queued = await ports.batch(broadcast.id, BROADCAST_CHUNK);
   const held = [
-    () => wireIsUnbound(ports, broadcast, cmd, batch),
+    () => wireIsUnbound(ports, broadcast, cmd, queued),
     () => isTakenBeforeItWent(ports, broadcast, facts.timezone),
   ];
   if (await holdBeforeAnyClaim(held)) return;
+  // The message, read once: its rows on every channel, and how its WhatsApp version stands (whatsapp-wait.ts
+  // whatsappStandOf). It must be what WhatsApp approved (and whole, contracts messageHolds). While WhatsApp is still to
+  // say yes to it, the run's WhatsApp people wait, queued, and the batch is those who go another way: with none of them
+  // left, the run stays as it is and asks again (one nobody has heard from yet is not marked sending). When it is
+  // neither, that holds the run's WhatsApp people alone (sendOne skips them, with which it was) and the run goes on for
+  // whoever is on email or text, on their own versions; only a run with nobody else on it fails, before a single send.
+  // A message with no row at all holds nobody's WhatsApp, as a missing row did.
+  const stand = await whatsappStandOf(ports, broadcast, queued, facts.timezone);
+  const { rows, message, batch } = stand;
+  if (await waitsForWhatsApp(ports, broadcast, stand)) return;
   // Only while still scheduled: a cancel that landed between the read above
   // and this write is the row's answer, and the batch sends nothing.
   if (broadcast.state === "scheduled" && !(await ports.startSending(broadcast.id))) return;
-
-  // The message, read once: its rows on every channel. Its WhatsApp version must still be what Meta approved (and whole,
-  // contracts messageHolds). When it is not, that holds the run's WhatsApp people alone (sendOne skips them,
-  // template_not_approved) and the run goes on for whoever is on email or text, on their own versions; only a run with
-  // nobody else on it fails, before a single send. A message with no row at all holds nobody's WhatsApp, as a missing row did.
-  const rows = await ports.message(broadcast.template_name, broadcast.template_language);
-  const message = campaignMessageOf(rows, broadcast.template_name, broadcast.template_language);
-  const {
-    whatsapp: [whatsappRow = null],
-  } = versionsOf(rows, broadcast.template_name);
-  const whatsappApproved = message !== null && messageHolds(message).whatsapp;
-  if (!whatsappApproved && !(await ports.byOtherChannels(broadcast.id, "whatsapp"))) {
-    await ports.fail(broadcast.id, "template_not_approved");
-    await ports.alert({
-      kind: "broadcast_stopped",
-      route: addressOf({ kind: "send", id: broadcast.id }),
-      about: { type: "broadcast", id: broadcast.id },
-      subject: `Campaign “${broadcast.name}” stopped`,
-      body: whatsappStoppedRunWords(message),
-    });
-    return;
-  }
+  if (await stoppedForWhatsApp(ports, broadcast, stand)) return;
 
   // WHICH yes this send needs. The message's own purpose (contracts campaignMessageOf): Meta's category is the authority
   // where it has a WhatsApp row, in any status — it can recategorise a live template — and else the category its email's
@@ -277,8 +265,8 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     b: broadcast,
     // The message's own purpose, kept when Meta no longer approves its WhatsApp row (a message that is gone reads as marketing).
     purpose,
-    tpl: whatsappRow ?? { body_preview: null },
-    whatsappApproved,
+    tpl: stand.tpl,
+    whatsappHeld: stand.held,
     rows,
     ...slots,
     facts,

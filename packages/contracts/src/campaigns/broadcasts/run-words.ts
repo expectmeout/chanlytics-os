@@ -259,6 +259,8 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   heard_this_week: "not sent: they hear from you within a week of it",
   // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
   template_not_approved: "its WhatsApp version is no longer approved",
+  // They waited for WhatsApp to say yes to the message, and the wait ended first (core whatsapp-wait.ts).
+  whatsapp_wait_ended: "WhatsApp had not approved the message in time",
   // The number is on file but no thread answers to it on this line: a stored
   // number that does not normalise, or one no contact row matches.
   no_thread: "no thread for that number",
@@ -331,6 +333,8 @@ export const HELD_WHEN_COUNTED = [
   RECIPIENT_REASON_HEARD,
   // The workspace's month of emails or texts used up (CAMPAIGN_MONTH_ALLOWANCE).
   "month_allowance",
+  // Who waited for WhatsApp's yes to the message until the run's wait for it ended (core whatsapp-wait.ts).
+  "whatsapp_wait_ended",
 ] as const;
 
 /**

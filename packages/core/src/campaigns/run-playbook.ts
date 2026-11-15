@@ -1,4 +1,4 @@
-import { notToday, pacedRun, waitsOnWhatsApp } from "./paced";
+import { notToday, pacedRun, waitsAtTheSend, waitsOnWhatsApp } from "./paced";
 import { heldContactId } from "@chanlytics/contracts";
 import {
   batchModeOf,
@@ -162,7 +162,8 @@ async function allowed(
   if (waits) return { ended: await run.off(waits, { record: false }) };
   const stop = playbookStopBy({
     channels: run.channels,
-    templateStatus: message.m?.versions.whatsapp?.status ?? null,
+    // A version the send waits for (waitsAtTheSend) stops nothing here: the run is made, and its WhatsApp people wait.
+    templateStatus: waitsAtTheSend(run, message.m) ? "approved" : (message.m?.versions.whatsapp?.status ?? null),
     numberCanSend: ctx.health.canSend,
   });
   if (stop) return { ended: await run.off(stop) };
@@ -637,13 +638,15 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     ready: readyForMessage(ctx.ready, message.m),
     // A visit's or a follow-up's message is theirs; any other moment's, the business's news (decision D1).
     about: messageAboutOfTrigger(p.trigger),
+    // A run with no day of its own places the people only WhatsApp reaches on it, to wait at the send for its yes.
+    ...(waitsAtTheSend(run, message.m) ? { wait: true } : {}),
   };
   const drawn = await drawOf(run, message.m, how, gate.listIds);
   if ("error" in drawn) return { outcome: "failed", error: drawn.error };
   const { eligible, reach, channelOf, dropped } = drawn;
   // A WhatsApp version Meta does not approve holds WhatsApp's people alone: none is drawn on it, and the purpose stays
   // the message's own category. A run that ticks WhatsApp and has nobody on email or text stops on it, as it always did.
-  if (templateHolds(run, message, eligible.length)) return off("template_not_approved");
+  if (!how.wait && templateHolds(run, message, eligible.length)) return off("template_not_approved");
   if (eligible.length === 0) {
     await record({ mode, eligible: 0, reach, ...(dropped ? { dropped } : {}) });
     return { outcome: "empty", eligible: 0, mode };

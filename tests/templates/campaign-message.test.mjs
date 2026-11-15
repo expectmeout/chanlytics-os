@@ -444,9 +444,11 @@ test("a channel the message does not hold has one sentence, and the words an ema
 test("a run that stops for a WhatsApp version it cannot send says why in the words a channel not held has, then what that left; a message with no row at all has no WhatsApp version", () => {
   const stopped = (...rows) => whatsappStoppedRunWords(campaignMessageOf(rows, NAME, LANGUAGE));
   const LEFT = "Everyone on this run goes by WhatsApp, so nothing was sent.";
+  // One WhatsApp was still checking, or holding, stops only once the run's wait for it has ended (core whatsapp-wait.ts):
+  // said as what happened, never as a message that still "sends by itself".
   assert.equal(
     stopped(W({ meta_status: "pending" })),
-    `WhatsApp is checking this message. It sends by itself once approved, usually within minutes. ${LEFT}`,
+    `WhatsApp was still checking the words when this run's time to send ended. ${LEFT}`,
   );
   assert.equal(
     stopped(W({ meta_status: "rejected" }), E()),
@@ -454,7 +456,7 @@ test("a run that stops for a WhatsApp version it cannot send says why in the wor
   );
   assert.equal(
     stopped(W({ meta_status: "paused" })),
-    `WhatsApp is holding this message for a few hours, because some people marked it as unwanted. It comes back by itself. ${LEFT}`,
+    `WhatsApp was still holding this message when this run's time to send ended. ${LEFT}`,
   );
   assert.equal(
     stopped(W({ meta_status: "disabled" })),

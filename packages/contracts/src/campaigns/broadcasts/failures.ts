@@ -97,7 +97,11 @@ export function playbookRunNext(
 }
 
 /** The failures that may outlast tomorrow and are not the owner's to end, as a run's page knows them (playbookRunNext). */
-const OUTLASTS_TOMORROW: ReadonlySet<BroadcastFailure> = new Set(["provider_limit", "template_not_approved"]);
+const OUTLASTS_TOMORROW: ReadonlySet<BroadcastFailure> = new Set([
+  "provider_limit",
+  "template_not_approved",
+  "whatsapp_wait_ended",
+]);
 
 /**
  * What a run's `failure` holds for a failure that names its wire: the code, and for any channel but WhatsApp the channel
@@ -124,6 +128,7 @@ const WHATSAPP_VERSION_FIX_WORDS =
 export const BROADCAST_FAILURE_FIX: Record<BroadcastFailure, Words> = {
   paused: "Unpause it under Settings, then send it again.",
   template_not_approved: WHATSAPP_VERSION_FIX_WORDS,
+  whatsapp_wait_ended: "Nobody got it. Send it again once WhatsApp has approved the message.",
   wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
   run_interrupted: "Nobody got it, so sending it again reaches nobody twice.",
   throttled: {
@@ -187,6 +192,7 @@ const BROADCAST_FAILURE_FIX_AFTER: Partial<Record<BroadcastFailure, (n: number, 
  */
 const PLAYBOOK_RUN_REMEDY: Record<Exclude<BroadcastFailure, RunStop>, Words | null> = {
   template_not_approved: WHATSAPP_VERSION_FIX_WORDS,
+  whatsapp_wait_ended: null,
   wire_unavailable: null,
   run_interrupted: null,
   throttled: {
