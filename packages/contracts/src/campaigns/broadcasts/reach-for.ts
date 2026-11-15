@@ -306,10 +306,16 @@ export type ReachRow = ReceiveRow & { lastChannel?: WrittenChannel | null; waInb
  * message WhatsApp approved as an offer. `purpose` is the moment's own, the yes the open chat asks, where the message's
  * is the offer's; `atMs` is the moment the send is for, which the person's 24 hours are counted to.
  */
-interface InChat {
+export interface InChat {
   purpose: AskedPurpose;
   atMs: number;
 }
+
+/**
+ * The fact a run keeps on the row of a person it reaches in their open WhatsApp chat (decision 0135): the send goes by
+ * it, asks their chat again, and replies in it with the message's words, naming no saved message.
+ */
+export const IN_CHAT_FACT = "in_chat";
 
 /**
  * How far each reason is from being the owner's to fix: first the one that ends everything, then the person's own no to
@@ -346,17 +352,6 @@ export function usableChannels(
   );
 }
 
-/** What a campaign's pick is asked with: its ticks, the workspace's channels now, what its message is about. */
-interface ReachOptions {
-  channels: readonly string[];
-  ready: ChannelsReady;
-  about: MessageAbout;
-  /** The send waits for a channel that opens by itself (ChannelReady `waits`): see reachFor. */
-  wait?: boolean;
-  /** Said by a step whose reply may go in an open chat (InChat, decision 0135); unsaid, nobody is picked that way. */
-  inChat?: InChat | null;
-}
-
 /**
  * Whether a step's reply goes in this person's open WhatsApp chat (decision 0135): null where it does. "closed" where
  * there is no chat to reply in, which holds nobody, and they are picked as they always were: the step does not go by
@@ -364,7 +359,11 @@ interface ReachOptions {
  * (replyWindow, the one reading of it). Else the person's own reason under the moment's yes: a stop, no yes to messages,
  * no number. Meta's pause on offers to US numbers is not asked: words in an open chat are no saved message of Meta's.
  */
-function inChatFor(reach: ReachRow, chat: InChat, options: ReachOptions): NotReceived | "closed" | null {
+function inChatFor(
+  reach: ReachRow,
+  chat: InChat,
+  options: Parameters<typeof usableChannels>[1],
+): NotReceived | "closed" | null {
   if (!options.channels.includes("whatsapp") || !options.ready.whatsapp.ready) return "closed";
   if (!replyWindow("whatsapp", reach.waInboundAt, new Date(chat.atMs)).open) return "closed";
   return whyNotReceive(reach, chat.purpose, "whatsapp", options.about);
@@ -382,12 +381,18 @@ function inChatFor(reach: ReachRow, chat: InChat, options: ReachOptions): NotRec
  *
  * `inChat`: where the step says its reply may go in an open chat (decision 0135), that is asked first, and a person
  * picked so is marked (`inChat`): the send leaves the saved message's name off for them. Someone their own answers hold
- * there is held by the strictest reason of both askings.
+ * there is held by the strictest reason of both askings. Unsaid, nobody is picked that way.
  */
 export function reachFor(
   reach: ReachRow,
   purpose: AskedPurpose,
-  options: ReachOptions,
+  options: {
+    channels: readonly string[];
+    ready: ChannelsReady;
+    about: MessageAbout;
+    wait?: boolean;
+    inChat?: InChat | null;
+  },
 ): { channel: ConsentChannel; held: null; inChat?: true } | { channel: null; held: HeldOn } {
   const chat = options.inChat ? inChatFor(reach, options.inChat, options) : "closed";
   if (chat === null) return { channel: "whatsapp", held: null, inChat: true };

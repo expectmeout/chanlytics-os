@@ -1,4 +1,19 @@
-import { campaignEnded, inLastSendingHour, whatsappWaits, type CampaignMessage } from "@chanlytics/contracts";
+import {
+  campaignEnded,
+  IN_CHAT_FACT,
+  inChatPurposeOf,
+  inLastSendingHour,
+  messageHolds,
+  triggerOf,
+  whatsappWaits,
+  type AskedPurpose,
+  type CampaignMessage,
+  type ConsentChannel,
+  type InChat,
+  type NumberHealth,
+  type PersonRowVM,
+  type RunReach,
+} from "@chanlytics/contracts";
 
 /**
  * The pace a paced offer keeps today: an offer on a list with a last day, as Ask's plan makes one, at no more than its cap and no
@@ -71,6 +86,72 @@ export function waitsAtTheSend(
   const noDay = !!run.freed || !!run.late || !!run.occasion;
   return noDay && run.channels.includes("whatsapp") && whatsappWaits(message);
 }
+
+/**
+ * The reply in the open WhatsApp chat a run's step asks for (decision 0135), with the moment its batch goes, which a
+ * person's 24 hours are counted to: only in a workspace whose switch is on (RunContext `repliesInChat`), for a step
+ * about the person's own request whose message WhatsApp approved as an offer (contracts inChatPurposeOf). Null else.
+ */
+export function inChatOf(
+  run: { ctx: { repliesInChat?: boolean }; p: { trigger: string } },
+  message: CampaignMessage | null,
+  goesAt: Date,
+): InChat | null {
+  if (run.ctx.repliesInChat !== true) return null;
+  const purpose = inChatPurposeAt(run.p.trigger, message);
+  return purpose ? { purpose, atMs: goesAt.getTime() } : null;
+}
+
+/**
+ * The yes a moment's message goes under as a reply in a person's open WhatsApp chat (contracts inChatPurposeOf), from the
+ * message as it stands: asked by the run that marks the people for it (inChatOf) and again at their send (messages
+ * broadcast/batch.ts), so a message WhatsApp no longer approves as an offer goes as every send does. Null for no message,
+ * and for a broadcast, which has no moment.
+ */
+export function inChatPurposeAt(trigger: string | null, message: CampaignMessage | null): AskedPurpose | null {
+  if (!message || trigger === null) return null;
+  return inChatPurposeOf(triggerOf(trigger)?.cls ?? null, {
+    category: message.category,
+    whatsappApproved: messageHolds(message).whatsapp,
+  });
+}
+
+/** Who a run draws, each on their channel, and who of them it reaches in their open chat (contracts playbookRunReach). */
+export interface Drawn {
+  eligible: PersonRowVM[];
+  reach: RunReach;
+  channelOf: Record<string, ConsentChannel>;
+  inChat?: readonly string[];
+}
+
+/**
+ * The number's daily limit as a ceiling on WhatsApp's people (Meta's: an email or a text is never held for it), the
+ * people past it named in the run's record, never dropped in silence. A moment's run and a step after the first both.
+ */
+export function withinTheNumbersDay(health: NumberHealth, drawn: Drawn): Drawn & { dropped: number } {
+  const reach: RunReach = { ...drawn.reach };
+  const room = health.limitPerDay === null ? Number.POSITIVE_INFINITY : Math.max(0, Math.floor(health.limitPerDay));
+  let onWhatsApp = 0;
+  const eligible = drawn.eligible.filter((person) => {
+    if (drawn.channelOf[person.id] !== "whatsapp") return true;
+    onWhatsApp += 1;
+    return onWhatsApp <= room;
+  });
+  const dropped = drawn.eligible.length - eligible.length;
+  if (dropped > 0) {
+    reach.overLimit = dropped;
+    reach.will = eligible.length;
+    if (reach.by_channel) reach.by_channel = { ...reach.by_channel, whatsapp: reach.by_channel.whatsapp - dropped };
+  }
+  return { ...drawn, eligible, reach, dropped };
+}
+
+/** A person's facts on their row, marked where the run reaches them in their open chat: the send goes by the mark. */
+export const inChatFacts = (
+  facts: Record<string, string> | null,
+  inChat: readonly string[] | undefined,
+  id: string,
+): Record<string, string> | null => (inChat?.includes(id) ? { ...(facts ?? {}), [IN_CHAT_FACT]: "yes" } : facts);
 
 /**
  * Where WhatsApp has the message's version, as the run's own stop reads it (contracts playbookStopBy): its status, null

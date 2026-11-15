@@ -1,6 +1,7 @@
 # 0135 · A follow-up WhatsApp files as an offer goes in the open chat
 
-**Status:** Decided by Ruben, 15 November 2026 ("Accept the note", after "Approve the design" on its outline), not built.
+**Status:** Decided by Ruben, 15 November 2026 ("Accept the note", after "Approve the design" on its outline). Step 1
+built (the pick and the send, behind `features.reply_in_chat`, off for everyone); steps 2 to 4 not.
 Written against main at `b2f058d8e2`. It amends [0006](0006-a-proposal-follow-up.md) for one case, said under Decision.
 Corrected against the code the same day, before any of it was built: the row a run reads already carries the chat's
 clock, so the note's first step (putting it there, perhaps by a migration) went, and four remain.

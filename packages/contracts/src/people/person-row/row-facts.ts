@@ -223,6 +223,11 @@ export interface PersonRowVM {
   lastVisitLine: VisitLineVM | null;
   /** WhatsApp's 24-hour window for a free reply: open, and how long is left. Null without a chat. */
   replyWindow: { open: boolean; hoursLeft: number } | null;
+  /**
+   * When they last wrote on WhatsApp (`latest_wa_inbound_at`), which `replyWindow` is read from at the row's own moment:
+   * a campaign's pick reads it at the moment its send is for (reach-for.ts InChat, decision 0135). Null if never.
+   */
+  waInboundAt: string | null;
   /** The wire a reply goes out on, in words ("Email", "WhatsApp", "Text"); null for a person who has only phoned. */
   replyVia: ReplyVia | null;
   /** Their channels in words, in the order the page shows them: "WhatsApp · Phone", "Email". */
@@ -501,11 +506,12 @@ export function rowReplyOf(
   now: Date,
   emailStopped: boolean,
   personName: string,
-): Pick<PersonRowVM, "replyWindow" | "replyVia" | "bookingLinkAction"> {
-  return replyReachOf(
+): Pick<PersonRowVM, "replyWindow" | "replyVia" | "bookingLinkAction" | "waInboundAt"> {
+  const waInboundAt = person.latest_wa_inbound_at;
+  const reply = replyReachOf(
     {
       wire: replyChannelOfRow(person),
-      waInboundAt: person.latest_wa_inbound_at,
+      waInboundAt,
       igInboundAt: igClockOfRow(person),
       emailStopped,
       optedOut: isOptedOutContact({ consent: person.consent, dnc: person.dnc }),
@@ -513,4 +519,5 @@ export function rowReplyOf(
     },
     now,
   );
+  return { ...reply, waInboundAt };
 }

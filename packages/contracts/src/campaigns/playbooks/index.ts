@@ -195,10 +195,12 @@ export type {
 } from "./playbooks";
 export {
   enrolPurpose,
+  inChatPurposeOf,
   MESSAGE_MOMENT_WORDS,
   messageAboutOfTrigger,
   messageFitsMoment,
   passesHandoverPause,
+  replyInChatOf,
 } from "./purpose";
 export type { RunMessage } from "./purpose";
 export { heldBackOfOneRun, runReadingOf } from "./run-split";

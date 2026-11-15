@@ -21,6 +21,7 @@ import { errField, logAndGoOn } from "@chanlytics/log";
 import type { Delivered, Delivery } from "../../deliver/deliver";
 import type { BroadcastChannel as Channel } from "../broadcast-channels";
 import { isNotTakenError, isWireUnavailableError } from "../../deliver/wire-senders";
+import { inChatPurposeAt } from "../../campaigns/paced";
 import {
   batchSlots,
   channelOf,
@@ -127,6 +128,7 @@ async function sendOne(work: Work, recipient: RecipientRow): Promise<Verdict> {
     channel,
     to: where.to,
     conversationId: target.conversationId,
+    waInboundAt: target.waInboundAt,
     params,
   });
   if ("held" in created) return skip(created.held);
@@ -265,6 +267,8 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     b: broadcast,
     // The message's own purpose, kept when Meta no longer approves its WhatsApp row (a message that is gone reads as marketing).
     purpose,
+    // The yes a reply in the open chat goes under, asked of the moment and the message as they are now (decision 0135).
+    inChat: inChatPurposeAt(trigger, message),
     tpl: stand.tpl,
     whatsappHeld: stand.held,
     rows,
