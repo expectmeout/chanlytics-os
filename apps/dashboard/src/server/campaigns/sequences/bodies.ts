@@ -296,6 +296,7 @@ const STANDS_STEP = z.strictObject({
   after_days: z.number().int().min(0).max(90),
   only_if: ONLY_IF,
   template_id: anId("Which message?").nullable(),
+  starter: z.string().trim().min(1).max(60).nullable().optional(),
   texts: z.array(z.string().max(300)).max(10),
   write: z.strictObject({
     title: z.string().max(80),

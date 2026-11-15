@@ -12,16 +12,19 @@ type Stands = NonNullable<NewDraftAsk["stands"]>;
 
 /**
  * The steps of a draft that stands, in the shape Ask answers one in: each held message by the key the request lists it
- * under ("" where it lists none). What the drafter is told of them (drafts/sequence-change.ts), and what the judge sets
- * an answered step beside.
+ * under, a ready-made starter the owner picked by its own (drafts/known-starters.ts: the review of 15 Nov 2026, where
+ * a change dropped it, told the step sent nothing), and "" where it lists none. What the drafter is told of them
+ * (drafts/sequence-change.ts), and what the judge sets an answered step beside.
  */
 export function stoodStepsOf(
   stands: Stands,
-  known: { messages: ReadonlyArray<{ key: string; templateId: string }> },
+  known: { messages: ReadonlyArray<{ key: string; templateId: string | null; starter?: string }> },
 ): NewDraftAnswerStep[] {
-  return stands.steps.map(({ template_id: held, ...step }) => ({
+  return stands.steps.map(({ template_id: held, starter, ...step }) => ({
     ...step,
-    message: known.messages.find((message) => message.templateId === held)?.key ?? "",
+    message:
+      known.messages.find((message) => (held ? message.templateId === held : !!starter && message.starter === starter))
+        ?.key ?? "",
   }));
 }
 

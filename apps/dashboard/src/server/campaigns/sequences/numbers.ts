@@ -65,10 +65,15 @@ export function unbackedNumbers(body: string, backing: readonly string[]): strin
  */
 export function ownerPriceWords(
   ask: Pick<NewDraftAsk, "words" | "stands">,
-  messages: ReadonlyArray<{ templateId: string; body: string }>,
+  messages: ReadonlyArray<{ templateId: string | null; starter?: string; body: string }>,
 ): string[] {
+  // A held message by its id, a ready-made starter by its key: a written step names neither, and matches none.
+  const heldBy = (step: NonNullable<NewDraftAsk["stands"]>["steps"][number]) =>
+    messages.find((m) =>
+      step.template_id ? m.templateId === step.template_id : !!step.starter && m.starter === step.starter,
+    );
   const stood = (ask.stands?.steps ?? []).flatMap((step) => [
-    messages.find((m) => m.templateId === step.template_id)?.body ?? "",
+    heldBy(step)?.body ?? "",
     ...step.texts,
     step.write.whatsapp,
     step.write.text,

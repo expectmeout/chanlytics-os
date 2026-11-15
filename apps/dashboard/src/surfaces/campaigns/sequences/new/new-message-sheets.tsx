@@ -12,14 +12,9 @@ import {
   NEW_VALUES,
   NEW_WORDS as W,
   REACH_OUT_SLOTS,
-  defaultParamSpecs,
   numberedValues,
-  slotLabels,
   slugTemplateName,
   momentNamesVisit,
-  starterEmailText,
-  starterSmsText,
-  starterText,
   triggerOf,
   type CampaignMessage,
   type DraftWho,
@@ -35,7 +30,9 @@ import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { routeDoor } from "../../../frame-verbs";
-import { STARTER_LANGUAGE, STARTER_MOMENTS, starterMoment } from "../../templates/group";
+import { profileLanguagesOf, starterLanguageOf, starterMessageOf } from "@/lib/starter-message";
+import { useSurface } from "../../../use-surface";
+import { STARTER_MOMENTS, starterMoment } from "../../templates/group";
 import { starters } from "../../templates/verbs";
 import { TPL_LIST_WORDS, tplOwn } from "../../templates/words";
 import { valuesByName } from "./change";
@@ -72,31 +69,6 @@ function notHereOf(m: NewMessage, first: boolean, who: DraftWho | null): string 
 const channelsSaid = (m: NewMessage): string => channelsSaidOf(m.channels, " · ");
 
 /**
- * A ready-made starter as a step's message (the clean list, 14 Nov 2026): its words and values as the set writes them, the
- * channels it is written for (WhatsApp's goes to WhatsApp for review as it is filed), and its key, by which Keep or Start
- * files it (drafts/sequence-new.ts templateOf).
- */
-function starterMessageOf(starter: StarterTemplate): NewMessage {
-  const named = { name: starter.name, variables: [] };
-  const writes = {
-    whatsapp: true,
-    email: !!starterEmailText(starter, STARTER_LANGUAGE),
-    sms: !!starterSmsText(starter, STARTER_LANGUAGE),
-  };
-  return {
-    template_id: null,
-    starter: starter.key,
-    title: starter.title,
-    body: starterText(starter, STARTER_LANGUAGE).body,
-    channels: (["whatsapp", "email", "sms"] as const).filter((c) => writes[c]),
-    params: defaultParamSpecs(named),
-    offer: starter.category === "marketing",
-    written: null,
-    labels: slotLabels(named),
-  };
-}
-
-/**
  * The ready-made starters a step may take: those offered here that the workspace holds no message of yet, by what each is
  * for (templates/group.ts starterMoment). None until the Library is read, so a starter on file is never offered twice.
  */
@@ -128,6 +100,8 @@ export function MessageSheet(p: {
     .map((m) => heldMessageOf(m, p.library?.rows ?? []))
     .filter((m): m is NewMessage => m !== null);
   const readyMade = readyMadeOf(p.library);
+  // The languages the business's profile says it answers customers in: a ready-made starter goes in the first it can.
+  const languages = profileLanguagesOf(useSurface("settings")?.settings?.config);
   return (
     <PickSheet
       open={p.open}
@@ -177,7 +151,7 @@ export function MessageSheet(p: {
           <p className="sq-nw-cap">{TPL_LIST_WORDS.made}</p>
           <div className="sq-nw-rows">
             {readyMade.map((starter) => {
-              const message = starterMessageOf(starter);
+              const message = starterMessageOf(starter, starterLanguageOf(starter, languages));
               const notHere = notHereOf(message, p.i === 0, p.draft.kind === "sequence" ? p.draft.who : null);
               return (
                 <Choice

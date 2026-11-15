@@ -85,6 +85,8 @@ import {
   valuesOf,
   viewing,
   writing,
+  TemplateComposer,
+  TPL_VERSION_WORDS,
 } from "./_message-page.mjs";
 
 test("a row says its name and one line; the channels a message has are its tabs' words, from contracts', where it is open", () => {
@@ -1034,6 +1036,55 @@ test("a channel's tab asks for you only where there is something to do: what nob
   tree = stands(channels("+447700900123", { mailbox: false, domain: true, offers: OPEN }));
   assert.equal(tabOf(tree, "email").need, contracts.CHANNEL_WORDS.noMailbox);
   assert.equal(tabOf(tree, "whatsapp").need, undefined, "WhatsApp, which can send it, asks for nothing");
+});
+
+test("an offer from a number WhatsApp delivers no offers from adds a language by its email and text alone, never by a WhatsApp version the send would refuse (the review of 15 Nov 2026)", async () => {
+  const calls = stubbed({
+    rewrite: async (body) => (calls.push(["rewrite", body]), { ok: true, data: { subject: "Horario", body: "Hola" } }),
+  });
+  const offer = [custom(HOURS, { category: "marketing" })];
+  const own = [ownRow("email", HOURS, { category: "marketing" })];
+  const readyFrom = (number) =>
+    contracts.channelsReady({
+      whatsapp: { canSend: true, refusal: null, number },
+      textLine: null,
+      email: { mailbox: true, domain: true, offers: { campaigns: true, address: true, paused: null } },
+    });
+  const pickFrench = (number) => {
+    page({ rows: offer, versions: own });
+    setSurfaceValue("playbooks", { rows: [], ready: readyFrom(number) });
+    itemOf(opened(redraw(), HOURS), "Add").onSelect();
+    const picker = find(paneOf(redraw()), (n) => n.type === Picker && n.props["data-testid"] === "template-lang");
+    picker.props.onValueChange("fr");
+    return redraw();
+  };
+  // A US number: French is written by the email, at once, and WhatsApp's composer never opens.
+  let tree = pickFrench("+12025550123");
+  await settle();
+  assert.equal(
+    find(paneOf(tree), (n) => n.type === TemplateComposer),
+    null,
+    "no WhatsApp version to write",
+  );
+  assert.deepEqual(
+    calls.filter(([what]) => what === "rewrite").map(([, body]) => [body.channel, body.language]),
+    [["email", "fr"]],
+  );
+  // Elsewhere, the WhatsApp version is written as it always was: in the composer, for WhatsApp's review.
+  calls.length = 0;
+  tree = pickFrench("+447700900123");
+  assert.ok(
+    find(paneOf(tree), (n) => n.type === TemplateComposer),
+    "WhatsApp's composer, as before",
+  );
+});
+
+test("a language added to a starter in use says WhatsApp checks it only where its WhatsApp version went there (the review of 15 Nov 2026)", () => {
+  assert.equal(
+    TPL_VERSION_WORDS.languageAdded("Win-back", "Spanish", true),
+    "Win-back in Spanish is added. WhatsApp checks its words, usually within minutes.",
+  );
+  assert.equal(TPL_VERSION_WORDS.languageAdded("Win-back", "Spanish", false), "Win-back in Spanish is added.");
 });
 
 test("the language control lists a language the message holds on any channel under one heading, with where it stands, and a language on no channel is the library's to add", () => {

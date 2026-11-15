@@ -52,7 +52,10 @@ export function valuesByName(text: string, slots: NewWrittenMessage["slots"]): s
   });
 }
 
-/** One step as Ask is told it stands: a held message by its id with what was typed into it, or the words as written. */
+/**
+ * One step as Ask is told it stands: a held message by its id, or a ready-made starter by its key, with what was typed
+ * into it; or the words as written.
+ */
 function standingStep(step: NewStep): Stands["steps"][number] {
   const message = step.message;
   const written = message?.written ?? null;
@@ -62,6 +65,7 @@ function standingStep(step: NewStep): Stands["steps"][number] {
     after_days: step.after_days ?? 0,
     only_if: step.only_if,
     template_id: written ? null : (message?.template_id ?? null),
+    starter: written ? null : (message?.starter ?? null),
     texts: (message?.params ?? []).flatMap((param) => (param.kind === "text" ? [param.value] : [])),
     write: {
       title: written ? (message?.title ?? "") : "",
