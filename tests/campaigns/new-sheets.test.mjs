@@ -355,6 +355,31 @@ test("How it goes: a way the message holds that isn't connected says so, with th
   assert.equal(hostOf(email, "sq-nw-connect-email"), null);
 });
 
+test("an offer's email where offers by email cannot go here is closed with its own reason, as a text of an offer is, and no door is offered; news by email is not held (the clean list, G4)", () => {
+  const why = contracts.OFFERS_BY_EMAIL_WORDS.noCampaignsDomain;
+  assert.equal(why, "Emails carry no offers for now.", "a rule's words, asking nothing of the owner");
+  const mailOffer = { ...NEWS, template_id: "tpl-mail-offer", channels: ["whatsapp", "email"], offer: true };
+  const sheetOf = (message) => {
+    const draft = M.setMessage(ONCE, 0, message, ["whatsapp", "email"]);
+    return sheet(ChannelsSheet, () => ({
+      open: true,
+      draft,
+      ready: ["whatsapp", "email"],
+      offersByEmail: why,
+      onChannels() {},
+      onClose() {},
+    }))();
+  };
+  const email = rowOf(sheetOf(mailOffer), W.channels.email);
+  assert.ok(textOf(email).includes(why), textOf(email));
+  assert.equal(hostOf(email, "sq-nw-connect-email"), null, "nothing of the owner's to connect");
+  assert.deepEqual([switchOf(email).props.checked, switchOf(email).props.readOnly], [false, true]);
+  assert.doesNotMatch(textOf(email), /campaigns domain|set up/);
+  // News that is no offer goes by email as it did.
+  const news = rowOf(sheetOf({ ...NEWS, channels: ["whatsapp", "email"] }), W.channels.email);
+  assert.equal(switchOf(news).props.readOnly, false);
+});
+
 test("Where a sequence to leads sends from says the pace it starts at, the one its make writes (0077, D7)", () => {
   const draft = M.setWho(M.draftByHand("sequence", "leads", "x"), { kind: "search", id: "s-1", label: "Plumbers" });
   const tree = sheet(FromSheet, () => ({ open: true, draft, onConnect() {}, onClose() {} }))();

@@ -699,6 +699,11 @@ test("from a US number, an offer Ask writes is kept without its WhatsApp version
     [{ place: 1, reason: US.whatsappOffers.why.replace(/[.!]+$/, "") }],
     "WhatsApp's alone: nothing to keep",
   );
+  // Where offers by email cannot go here (G4: Chanlytics' offers domain off), an offer's draft is not ticked by email,
+  // as a text of an offer is not; news that is no offer is.
+  const noMail = { ...KNOWN, emailOffers: { ok: false } };
+  const mailOnly = draftKept(onceWith({ write: both }), noMail, OFFER_LINE);
+  assert.equal(mailOnly.channels.includes("email"), false, mailOnly.channels.join());
   // Elsewhere, the same offer keeps its WhatsApp version.
   const there = draftKept(onceWith({ write: both }), KNOWN, OFFER_LINE).steps[0].message;
   assert.deepEqual(there.channels, ["whatsapp", "email"]);

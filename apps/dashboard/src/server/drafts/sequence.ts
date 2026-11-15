@@ -564,6 +564,7 @@ export async function readDraftKnown(rc: ReaderContext): Promise<DraftKnown> {
       ? (["whatsapp", "sms", "email"] as const).filter((c): c is ConsentChannel => ready[c]?.ready === true)
       : [],
     whatsappOffers: ready?.whatsapp.offers ?? null,
+    emailOffers: ready?.email.offers ?? null,
     classModes: Object.fromEntries((policies ?? []).map((p) => [p.class, p.mode])),
     // None named is every connected mailbox (00424): the draft names none, and says the first.
     mailbox: live.length ? { ids: [], label: live[0]?.address ?? "" } : null,
