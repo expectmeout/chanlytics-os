@@ -125,8 +125,13 @@ export interface NewMessage {
   title: string;
   /** Its words as the page shows them: WhatsApp's or a text's, else the email's. */
   body: string;
-  /** The channels it can go by now (WhatsApp's while Meta approves it), or, for one Ask wrote, the ones it is written for. */
+  /** The channels it can go by now (WhatsApp's while WhatsApp checks its words), or, for one AI wrote, the ones it is written for. */
   channels: ConsentChannel[];
+  /**
+   * One the workspace holds whose WhatsApp words WhatsApp is still checking (the one picker rule, contracts
+   * pickableMessages): it is picked all the same, what sends it waits for that, and the draft says so.
+   */
+  checking?: boolean;
   params: ParamSpec[];
   /** An offer, which only people who said yes to offers hear, and never by text. */
   offer: boolean;

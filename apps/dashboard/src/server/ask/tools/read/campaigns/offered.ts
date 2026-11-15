@@ -42,6 +42,7 @@ import {
   lifecycleStateOf,
   SEQUENCES_ROUTE,
 } from "@chanlytics/contracts";
+import { pickableMessages } from "@/lib/pickable-messages";
 import { load } from "../../../../shared/reader";
 import { audiencePool } from "../../../../readers/audience-pool";
 import { listLastDaysBySource, lastDaysOf } from "../../../../readers/campaign-report";
@@ -54,36 +55,23 @@ import { noteRow, findTouchesThisWeek, unread, whatsappHowOf } from "../../conte
 import type { ToolContext } from "../../context/tool-defs";
 
 /**
- * The messages a broadcast may be made on, as the composers' read gave them (its `messages`: one a name and language, with
- * or without a WhatsApp row, a version in review among their versions, and the ones the composers offer), in the library's
- * order, each as the model reads it: the id a proposal takes (the id of the version whose words it lists, which names the
- * message as any version's does, and which the read's rows cite), the channels it can be sent by now (contracts
- * messageHolds), its values and its words, which are the WhatsApp version's where the composers' rows have it, else the
- * email's, else the text's.
+ * The messages a broadcast may be made on, as the one picker rule lists them (lib/pickable-messages.ts pickableMessages over the
+ * composers' read: its `messages`, one a name and language, with or without a WhatsApp row, and its rows), in the
+ * library's order, each as the model reads it: the id a proposal takes (the id of the version whose words it lists, which
+ * names the message as any version's does, and which the read's rows cite), the channels it can be sent by now (contracts
+ * messageHolds), that WhatsApp is still checking its words where it is (it is offered all the same: the send waits for
+ * that), its values and its words, which are those of the first channel it goes by.
  */
 function offeredMessages(messages: readonly CampaignMessage[], tpls: TemplatesRead["templates"]) {
-  const byId = new Map(tpls.map((r) => [r.id, r]));
-  // The row a message is listed by: the first of its versions the composers' rows hold (not one still in review).
-  const rowOf = (m: CampaignMessage) => {
-    for (const v of [m.versions.whatsapp, m.versions.email, m.versions.sms]) {
-      const row = v ? byId.get(v.id) : undefined;
-      if (row) return row;
-    }
-    return null;
-  };
-  return messages
-    .filter((m) => m.offered)
-    .flatMap((m) => {
-      const row = rowOf(m);
-      return row ? [{ m, row }] : [];
-    })
+  return pickableMessages(tpls, messages)
     .sort((a, b) => compareTemplates(a.row, b.row))
-    .map(({ m, row }) => ({
+    .map(({ message: m, row, checking }) => ({
       template_id: row.id,
       name: m.name,
       language: m.language,
       category: m.category,
       channels: messageHolds(m),
+      ...(checking ? { whatsapp: "being checked: it goes by WhatsApp once WhatsApp approves the words" } : {}),
       values: Array.isArray(row.variables)
         ? (row.variables as { position?: number; label?: string; example?: string | null }[]).map((v) => ({
             position: v.position,

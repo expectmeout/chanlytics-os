@@ -867,7 +867,8 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   );
   // What the surface offers is made of the settings read by one function (parts/channels.ts cmOfferedFrom), run here: the purpose is
   // stamped there, from the message's own category (contracts), never decided in the page, and a message is offered by the channels
-  // it holds -- an email version alone is a message, a version WhatsApp has not approved is not one.
+  // it goes by -- an email version alone is a message; one WhatsApp is still checking is one too, since what sends it
+  // waits for that (the one picker rule); one WhatsApp refused, alone, is not.
   const { cmOfferedFrom } = await importSrc("apps/dashboard/src/surfaces/campaigns/parts/channels.ts");
   const version = (channel, over = {}) => ({
     id: `t-${channel}`,
@@ -897,9 +898,15 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
     "a message with an email version and no WhatsApp row is offered",
   );
   assert.deepEqual(
-    offeredOf(version("whatsapp", { meta_status: "pending" })),
+    offeredOf(version("whatsapp", { meta_status: "pending" })).map((t) => [t.id, t.channels, t.checking]),
+    [["t-whatsapp", ["whatsapp"], true]],
+    "one WhatsApp is still checking is offered, and says so",
+  );
+  assert.deepEqual(offeredOf(version("whatsapp", { meta_status: "rejected" })), [], "one WhatsApp refused is not");
+  assert.deepEqual(
+    offeredOf(version("whatsapp", { blocked: "a picture for a heading" })),
     [],
-    "one WhatsApp has not approved is not",
+    "nor one it approved in a shape this product cannot send whole, which the Messages list does not show",
   );
   assert.ok(readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installBroadcasts();"));
   // The shell mounts the page on its route (surfaces/routes.ts): it once imported the script.

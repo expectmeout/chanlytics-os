@@ -1947,7 +1947,6 @@ const EMAIL_VISIT = () => messageOf({ whatsapp: null, own: ["email"], ownCategor
 /** A message WhatsApp is still reviewing, with an email version beside it. */
 const IN_REVIEW = (own = ["email"]) =>
   messageOf({ whatsapp: template({ meta_status: "pending", category: "utility" }), own });
-const STILL_REVIEWING = "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.";
 const NO_WHATSAPP = "This message has no WhatsApp version.";
 
 test("a broadcast by email on a message with no WhatsApp row, on a workspace with no WhatsApp number, is made: for the people who said yes to messages and have an address, on the email version", async () => {
@@ -2115,8 +2114,9 @@ test("a playbook on a message with no WhatsApp row keeps the ticks that cannot s
   assert.deepEqual([both.template_id, both.channels], [EMAIL_V, ["whatsapp", "email"]]);
   // No tick held says each one's reason, one after another.
   await refused(check(["whatsapp", "sms"]), "conflict", 409, `${NO_WHATSAPP} This message has no text version yet.`);
-  // A WhatsApp version still in review is WhatsApp's standing, alone; beside the email version that is held it is kept.
-  await refused(check(["whatsapp"], IN_REVIEW([]), T1), "conflict", 409, STILL_REVIEWING);
+  assert.deepEqual((await check(["whatsapp"], IN_REVIEW([]), T1)).channels, ["whatsapp"]); // being checked: kept, alone too
+  const refusedWords = messageOf({ whatsapp: template({ meta_status: "rejected", category: "utility" }) });
+  await refused(check(["whatsapp"], refusedWords, T1), "conflict", 409, "WhatsApp asked for a change"); // a refusal is not
   const waiting = await check(["whatsapp", "email"], IN_REVIEW(), T1);
   assert.deepEqual([waiting.template_id, waiting.channels], [T1, ["whatsapp", "email"]]);
   // What a purpose never carries is a request that is wrong, and is said first: an offer by text.

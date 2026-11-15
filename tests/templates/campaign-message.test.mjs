@@ -23,6 +23,7 @@ import {
   broadcastFailureFix,
   campaignMessageOf,
   campaignMessagesOf,
+  messageGoesBy,
   messageHolds,
   messageStandingWords,
   messageWhyNot,
@@ -106,11 +107,10 @@ for (const set of SETS) {
       });
       const holds = { whatsapp: has.whatsapp && standing === "approved", email: has.email, sms: has.sms };
       assert.deepEqual(messageHolds(m), holds);
-      assert.equal(
-        m.offered,
-        holds.whatsapp || holds.email || holds.sms,
-        "a picker lists a message that holds a channel",
-      );
+      // The one picker rule: it goes by what it holds, and by WhatsApp while WhatsApp is still checking its words.
+      const goes = ["whatsapp", "sms", "email"].filter((c) => holds[c] || (c === "whatsapp" && standing === "pending"));
+      assert.deepEqual(messageGoesBy(m), goes);
+      assert.equal(m.offered, goes.length > 0, "a picker lists a message that goes by a channel, now or once checked");
       assert.equal(m.hidden, false);
       assert.equal(m.slots, 1);
       assert.equal(m.category, "utility");
@@ -122,15 +122,32 @@ for (const set of SETS) {
   }
 }
 
-test("a message whose only version is an unapproved WhatsApp one is not offered, and one with an email beside it is", () => {
+test("the one picker rule: a message whose only version WhatsApp is still checking is offered, since what sends it waits for that; one it holds, refused or turned off is not, and one with an email beside it is", () => {
   for (const meta_status of ["pending", "rejected", "paused", "disabled"]) {
     const alone = campaignMessageOf([W({ meta_status })], NAME, LANGUAGE);
-    assert.equal(alone.offered, false, `${meta_status} alone`);
-    assert.deepEqual(messageHolds(alone), { whatsapp: false, email: false, sms: false });
+    const checking = meta_status === "pending";
+    assert.equal(alone.offered, checking, `${meta_status} alone`);
+    assert.deepEqual(messageGoesBy(alone), checking ? ["whatsapp"] : [], `${meta_status} alone`);
+    assert.deepEqual(messageHolds(alone), { whatsapp: false, email: false, sms: false }, "none can be sent on now");
     const beside = campaignMessageOf([W({ meta_status }), E()], NAME, LANGUAGE);
     assert.equal(beside.offered, true, `${meta_status} beside an email`);
+    assert.deepEqual(messageGoesBy(beside), checking ? ["whatsapp", "email"] : ["email"], `${meta_status} beside it`);
     assert.equal(beside.anchor.channel, "whatsapp", "the anchor is still WhatsApp's, held or not");
   }
+  // Being checked in a shape this product cannot send whole goes nowhere once approved either: not picked.
+  const picture = campaignMessageOf(
+    [W({ meta_status: "pending", blocked: "a picture for a heading" })],
+    NAME,
+    LANGUAGE,
+  );
+  assert.deepEqual([picture.offered, messageGoesBy(picture)], [false, []]);
+  // One the workspace put away is listed by no picker, whatever it goes by.
+  const away = campaignMessageOf(
+    [W({ meta_status: "approved", hidden_at: "2026-10-01T00:00:00.000Z" })],
+    NAME,
+    LANGUAGE,
+  );
+  assert.deepEqual([away.offered, messageGoesBy(away)], [false, ["whatsapp"]]);
 });
 
 /* ---------------------------------- the category and what it is for ---------------------------------- */

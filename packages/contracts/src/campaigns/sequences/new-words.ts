@@ -9,6 +9,9 @@ import type { NewAudience, NewKind, NewStepDoes } from "./new-draft/steps";
 import type { NewNobody } from "./new-draft/checks";
 import type { SequenceMode } from "./sequence";
 
+/** What WhatsApp is doing with words it has not said yes to yet, as docs/words.md says it: one sentence, said by a check, a pick and the question before a send. */
+const CHECKING_WORDS = "WhatsApp is checking the words";
+
 export const NEW_WORDS = {
   title: CAMPAIGN_ROOMS.new,
   /** The head's act on Sequences, its noun said where the row has room for it. */
@@ -192,8 +195,8 @@ export const NEW_WORDS = {
      */
     checking: (others: boolean) =>
       others
-        ? "WhatsApp is checking the words, so anyone it reaches only by WhatsApp gets it once approved"
-        : "WhatsApp is checking the words, so it goes once approved",
+        ? `${CHECKING_WORDS}, so anyone it reaches only by WhatsApp gets it once approved`
+        : `${CHECKING_WORDS}, so it goes once approved`,
     after: "Once delivered, it can’t be taken back",
     no: "Not yet",
     yes: "Yes, send it",
@@ -369,6 +372,9 @@ export const NEW_WORDS = {
     // Several said once: "Steps 1 and 2 are new messages" (Ruben, 14 Nov 2026: the same amber row stood once a step).
     newMessages: (ns: readonly number[]) => `Steps ${joinWords(ns.map(String))} are new messages`,
     newMessageDetail: "Email now, WhatsApp once it approves the words",
+    /** One of the workspace's own messages whose WhatsApp words WhatsApp is still checking: picked all the same. */
+    checking: CHECKING_WORDS,
+    checkingStep: (n: number) => `WhatsApp is checking step ${n}’s words`,
     canGo: (n: number, by: string) => `Step ${n} can go by ${by} today`,
     stops: "Stops when they book",
     stopsDetail: "Never to anyone who said stop",

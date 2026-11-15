@@ -27,6 +27,7 @@ import {
   starterByKey,
   startersForTrigger,
   messageAboutOfTrigger,
+  messageHolds,
   type CampaignMessage,
   type ConsentChannel,
   type ListRef,
@@ -174,8 +175,11 @@ export async function heldStarter(
   if (named && !own.some((s) => s.key === named.key && !s.retired)) return { starter: named };
   const written = named ? [named] : own;
   const { messages } = (await load(toolContext.rc, templatesReader, { all: false })).data;
+  // Held is a version that can go now. One on file whose only version WhatsApp is still checking is offered to the
+  // pickers (the one picker rule), and is not held here: the card adds what its own channels need at its Approve, which
+  // an email card of a starter on file by WhatsApp alone depends on.
   const offered = messages
-    .filter((m) => m.offered)
+    .filter((m) => m.offered && Object.values(messageHolds(m)).some(Boolean))
     .sort((a, b) => (a.language < b.language ? -1 : a.language > b.language ? 1 : 0));
   const starter = written.map((x) => offered.find((m) => m.name === x.name)).find(Boolean);
   if (starter) return { id: starter.anchor.id };

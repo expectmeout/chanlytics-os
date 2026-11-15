@@ -84,7 +84,11 @@ export interface CampaignMessage {
   purpose: AskedPurpose;
   /** The workspace hid it (the anchor's `hidden_at`). */
   hidden: boolean;
-  /** A picker may list it: not hidden, and at least one channel held. */
+  /**
+   * A picker may list it (the one picker rule, 15 Nov 2026): not hidden, and it goes by at least one channel, now or once
+   * WhatsApp has checked its words (messageGoesBy). What the Messages list shows as Ready, Sending or Being checked,
+   * and nothing it hides.
+   */
   offered: boolean;
   versions: {
     /** WhatsApp's row with its standing: `blocked` is why this product cannot send it whole, `reason` why Meta refused it. */
@@ -152,7 +156,6 @@ function messageFrom(name: string, language: string, rows: readonly CampaignMess
     email: e ? { id: e.id } : null,
     sms: s ? { id: s.id } : null,
   };
-  const held = messageHolds({ versions });
   const hidden = Boolean(anchorRow.hidden_at);
   // The title is the message's, not the anchor's: one written with the first email version stays once a WhatsApp row of
   // no title comes, and a row's blank title says none.
@@ -166,7 +169,7 @@ function messageFrom(name: string, language: string, rows: readonly CampaignMess
     category,
     purpose: purposeOfTemplate(category),
     hidden,
-    offered: !hidden && CONSENT_CHANNELS.some((c) => held[c]),
+    offered: !hidden && messageGoesBy({ versions }).length > 0,
     versions,
   };
 }
@@ -217,6 +220,21 @@ export function messageHolds(campaignMessage: Pick<CampaignMessage, "versions">)
     email: campaignMessage.versions.email !== null,
     sms: campaignMessage.versions.sms !== null,
   };
+}
+
+/**
+ * The channels a message goes by, as a picker reads it (THE one picker rule, 15 Nov 2026): those it can be sent on now
+ * (messageHolds), and WhatsApp while WhatsApp is still checking its WhatsApp version, which is whole. A send and a
+ * sequence's run wait for that check and go by themselves after (core messages/broadcast/whatsapp-wait.ts,
+ * campaigns/paced.ts), so a message being checked is one to pick. One WhatsApp is holding, asked a change to or turned
+ * off is not picked by WhatsApp: it goes by what else it has. A message that goes by none is one no picker lists
+ * (`offered`), as the Messages list shows none of them as Ready, Sending or Being checked.
+ */
+export function messageGoesBy(campaignMessage: Pick<CampaignMessage, "versions">): ConsentChannel[] {
+  const held = messageHolds(campaignMessage);
+  const w = campaignMessage.versions.whatsapp;
+  const checking = w !== null && w.status === "pending" && w.blocked === null;
+  return CONSENT_CHANNELS.filter((c) => held[c] || (c === "whatsapp" && checking));
 }
 
 /**

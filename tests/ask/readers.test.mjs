@@ -6233,7 +6233,7 @@ const TEMPLATES_ALL_ASKED = [
 test("the templates, for the composers, Settings and Ask: GET templates answers its reader's payload over outbound-routes' fixtures, `all` as the route parses it -- the composers' read the approved and unhidden alone, each row the message as the customer receives it and why this product cannot send it, and nothing more read; Settings' every template, with what sends each and how many went out -- and each template a row a citation names, with no address of its own: it opens the page it came from", async () => {
   for (const [q, all, names, keys, reads] of [
     // `held`: what the composers' read left out, counted by why, so an empty picker can say it (contracts noTemplateWords).
-    ["", false, ["visit_reminder"], ["templates", "held", "messages", "booking"], ["templates.select"]],
+    ["", false, ["visit_reminder", "offer"], ["templates", "held", "messages", "booking"], ["templates.select"]],
     [
       "&all=1",
       true,
@@ -6241,7 +6241,7 @@ test("the templates, for the composers, Settings and Ask: GET templates answers 
       ["templates", "held", "messages", "booking", "usedBy", "sends"],
       TEMPLATES_ALL_ASKED,
     ],
-    ["&all=0", false, ["visit_reminder"], ["templates", "held", "messages", "booking"], ["templates.select"]],
+    ["&all=0", false, ["visit_reminder", "offer"], ["templates", "held", "messages", "booking"], ["templates.select"]],
   ]) {
     const routed = dayCtx(templatesWorld());
     const page = await templatesRoute.GET.run(req(`?workspace=${B}${q}`), routed);
@@ -6252,7 +6252,7 @@ test("the templates, for the composers, Settings and Ask: GET templates answers 
     assert.deepEqual(
       [Object.keys(r.data), r.data.templates.map((t) => t.name)],
       [keys, names],
-      "the composers see the approved and unhidden; Settings sees everything, by name",
+      "the composers see the approved and unhidden, and what WhatsApp is still checking; Settings sees everything, by name",
     );
     assert.deepEqual(
       r.rows,
@@ -6351,7 +6351,7 @@ const ownRow = (id, channel, over = {}) =>
 const messagesOfRead = async (rows, all = false) =>
   (await kernel.load(turnIn(dayCtx(messagesWorld(rows)), B), templatesReader, { all })).data;
 
-test("the read answers one message for a WhatsApp version in review and the approved email of its name and language, its standing kept inside it, while the list still leaves the version out", async () => {
+test("the read answers one message for a WhatsApp version in review and the approved email of its name and language, its standing kept inside it, and hands the composers the version being checked beside the email", async () => {
   const rows = [
     tplRow(TP1, B, {
       name: "winback_offer",
@@ -6376,10 +6376,10 @@ test("the read answers one message for a WhatsApp version in review and the appr
       [{ id: TP1, channel: "whatsapp" }, "marketing", 1],
       "Meta's row anchors it and gives it its category, whatever its status",
     );
-    // Today's list is as it was: the composers' omits the version in review, Settings' holds every row.
+    // The composers' rows hold the version WhatsApp is still checking too (the one picker rule); Settings' every row.
     assert.deepEqual(
       data.templates.map((t) => t.id),
-      all ? [TP1, EM1] : [EM1],
+      all ? [TP1, EM1] : [EM1, TP1],
     );
     assert.deepEqual(
       data.held,
@@ -6387,11 +6387,11 @@ test("the read answers one message for a WhatsApp version in review and the appr
       "what the list left out",
     );
   }
-  // A WhatsApp version in review alone is a message the composers do not offer, and it is still one.
+  // A WhatsApp version in review alone is a message, and one the composers offer now (the one picker rule).
   const alone = (await messagesOfRead([rows[0]])).messages;
   assert.deepEqual(
     alone.map((m) => [m.name, m.offered, m.versions.whatsapp?.status, m.versions.email]),
-    [["winback_offer", false, "pending", null]],
+    [["winback_offer", true, "pending", null]],
   );
 });
 
@@ -6601,12 +6601,12 @@ test("campaigns.messages reads the whole library, a WhatsApp version still in re
     "one message, both versions with their states and words; this workspace's campaign alone",
   );
   assert.deepEqual([...tc.read.template.keys()].sort(), [TP1, EM1].sort(), "each version a template a citation names");
-  // The composers' list is as it was: the message, by the email a broadcast may go by now, and not the version in review.
+  // The composers' list: the message under the WhatsApp row its words are read from, by the email it can go by now.
   const aud = await runTool(tc, { name: "sequences", input: { action: "lists" } });
   assert.equal(aud.isError, false, aud.result);
   assert.deepEqual(
     JSON.parse(aud.result).templates.map((m) => [m.template_id, m.name, m.channels]),
-    [[EM1, "spring_offer", { whatsapp: false, email: true, sms: false }]],
+    [[TP1, "spring_offer", { whatsapp: false, email: true, sms: false }]],
   );
 });
 

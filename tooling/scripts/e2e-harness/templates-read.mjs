@@ -14,6 +14,8 @@
 import {
   bookingTemplate,
   campaignMessagesOf,
+  messageGoesBy,
+  messageHolds,
   templateBlocked,
   templateHolds,
   templateParts,
@@ -37,9 +39,17 @@ export function templatesRead(rows, { all }) {
       ...templateParts(components),
       blocked: t.channel === "whatsapp" ? templateBlocked({ components }) : null,
     }));
-  const templates = all ? every : every.filter(offered);
-  const held = templateHolds(every.filter((t) => !offered(t)));
   const messages = campaignMessagesOf(every);
+  // The composers' rows, and the WhatsApp rows WhatsApp is still checking of the messages a picker lists (the one picker
+  // rule, contracts messageGoesBy: what sends one waits for that check), as the reader hands them (its `checked`).
+  const byId = new Map(every.map((t) => [t.id, t]));
+  const checked = messages.flatMap((m) => {
+    const checking = m.offered && messageGoesBy(m).includes("whatsapp") && !messageHolds(m).whatsapp;
+    const row = checking ? byId.get(m.versions.whatsapp?.id) : undefined;
+    return row ? [row] : [];
+  });
+  const templates = all ? every : [...every.filter(offered), ...checked];
+  const held = templateHolds(every.filter((t) => !offered(t)));
   // The call's text, found among every WhatsApp row (a hidden one too), as the reader names it; null where there is none.
   const booking = bookingTemplate(every.filter((t) => t.channel === "whatsapp")) ?? null;
   if (!all) return { templates, held, messages, booking };
