@@ -582,15 +582,11 @@ export async function answerSearch(id: string, answer: "keep" | "include" | "sto
 export async function ideaCard(words: string) {
   return api()("POST ask/idea", { body: { words }, once: true });
 }
-export async function moreForSearch(id: string, purpose: "topup" | "renew", plan: LeadSearchPlan) {
+export async function moreForSearch(id: string, purpose: "topup" | "renew" | "defer", plan: LeadSearchPlan) {
   return api()("POST lead-searches/[id]/more", { params: { id }, body: { purpose, plan }, once: true });
 }
 export async function stopSearch(id: string) {
   return api()("POST lead-searches/[id]/stop", { params: { id } });
-}
-/** Find the rest when the month's leads renew (decision 0133): reserved from that month now, started on its first day. */
-export async function findOnRenewal(id: string) {
-  return api()("POST lead-searches/[id]/renewal", { params: { id }, once: true });
 }
 /** The Done strip's Undo (§8.6, Task 4.2's `lead_search_undo`): the untouched leads of the ended round leave and the month is credited. */
 export async function removeRoundLeads(id: string) {

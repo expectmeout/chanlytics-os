@@ -10,14 +10,14 @@ import { failedRun, standingRuns } from "../endings";
 import type { LeadRunRow } from "../ports";
 
 /** How many times a term's run that failed is started again before the round ends on the source. */
-export const LEAD_RUN_RETRIES = 3;
+const LEAD_RUN_RETRIES = 3;
 /** How long a round waits before it tries a failed term again: a provider's bad minute passes. */
 export const LEAD_RUN_RETRY_SECONDS = (20 * MIN_MS) / SECOND_MS;
 /** A run that failed sooner than this after it was made failed at its start: a fault, not a bad minute. */
-export const LEAD_RUN_QUICK_FAIL_MS = 30 * SECOND_MS;
+const LEAD_RUN_QUICK_FAIL_MS = 30 * SECOND_MS;
 
 /** How many of a term's runs failed in this phase: its tries so far. */
-export const triesFailed = (inPhase: readonly LeadRunRow[], term: string | null): number =>
+const triesFailed = (inPhase: readonly LeadRunRow[], term: string | null): number =>
   inPhase.filter((r) => r.term === term && failedRun(r)).length;
 
 /**

@@ -12865,7 +12865,7 @@ begin
     return jsonb_build_object('error', 'live', 'state', last.state);
   end if;
   if last.ending is distinct from 'month_leads_used' then
-    return jsonb_build_object('error', 'not_month_used');
+    return jsonb_build_object('error', 'not_month_used', 'sentence', 'This search did not stop at the month''s leads, so there is nothing to carry on when they renew.');
   end if;
   select (s.plan->>'count')::integer - count(*)::integer into v_target
     from public.lead_search_members m where m.search_id = p_search_id and m.counted;

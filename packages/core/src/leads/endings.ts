@@ -35,9 +35,10 @@ export const failedRun = (r: LeadRunRow): boolean => r.state === "failed" || r.s
  * ends its round as one that never failed.
  */
 export function standingRuns(runs: readonly LeadRunRow[]): LeadRunRow[] {
-  const later = (a: LeadRunRow, b: LeadRunRow) => Date.parse(b.created_at) > Date.parse(a.created_at);
+  const later = (first: LeadRunRow, next: LeadRunRow) => Date.parse(next.created_at) > Date.parse(first.created_at);
   return runs.filter(
-    (r) => !(failedRun(r) && runs.some((o) => o.purpose === r.purpose && o.term === r.term && later(r, o))),
+    (r) =>
+      !(failedRun(r) && runs.some((other) => other.purpose === r.purpose && other.term === r.term && later(r, other))),
   );
 }
 

@@ -109,10 +109,10 @@ const ldEndingFacts = (s: PlacesSearch, nearby: readonly string[], renewsOn: str
  * A round put off until the month's leads renew (decision 0133): what it will find and when, and Don't, which ends it
  * and gives back what it held. Nothing is searched or counted before.
  */
-const waitingStrip = (r: Round, who: string, renewsOn: string | null): StripVM => ({
+const waitingStrip = (r: Round, audience: string, renewsOn: string | null): StripVM => ({
   state: "ended",
   alert: false,
-  title: `Finds the other ${r.target} ${who} on ${renewsOn ?? "the day your leads renew"}`,
+  title: `Finds the other ${r.target} ${audience} on ${renewsOn ?? "the day your leads renew"}`,
   parts: ["when your leads renew", "nothing is searched or counted before then"],
   progress: null,
   actions: [{ id: "not_on_renewal", label: "Don't" }],

@@ -1462,14 +1462,8 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `purpose` | one of `"topup"`, `"renew"` | yes |  |
+| `purpose` | one of `"topup"`, `"renew"`, `"defer"` | yes |  |
 | `plan` | object | yes |  |
-
-### `POST /api/v1/lead-searches/[id]/renewal`
-
-Writes; for a member of the workspace the request names, partner or above; counts against the `lead_search` rate; may spend the workspace's money.
-
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lead-searches/[id]/renewal/route.ts`).
 
 ### `POST /api/v1/lead-searches/[id]/stop`
 
@@ -2489,6 +2483,14 @@ Writes; for platform staff; counts against the `platform_support_resend` rate; s
 Reads; for platform staff; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/platform/tenants/[id]/route.ts`).
+
+### `GET /api/v1/platform/tenants/[id]/set-aside`
+
+Reads; for platform staff; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `search` | string (uuid) | no |  |
 
 ### `POST /api/v1/platform/waitlist/invited`
 

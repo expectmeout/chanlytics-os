@@ -141,12 +141,6 @@ export function refusalOf(doorAnswer: DoorAnswer): AppError | null {
           : "This search already found what you asked for.",
         409,
       );
-    case "not_month_used":
-      return new AppError(
-        "conflict",
-        "This search did not stop at the month's leads, so there is nothing to carry on when they renew.",
-        409,
-      );
     case "undone":
       return new AppError("conflict", "That change was already undone.", 409);
     case "kind":

@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 185 | 185 |
+| door | 186 | 186 |
 | reader | 77 | 0 |
 | the server's | 338 | 293 |
 | computed column | 3 | 0 |
 | trigger | 101 | 71 |
-| all | 704 | 549 |
+| all | 705 | 550 |
 
 ## Called by nothing
 
@@ -202,7 +202,7 @@ being read is dropped by a migration.
 | `handover_accept` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The caller, by the confirmed address a workspace was handed to (0016), becomes its owner: |
 | `handover_decline` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The addressee of a handover (0016) says no. |
 | `handovers_mine` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The open handovers (0016) addressed to the caller's confirmed email: |
-| `has_permission` | the server's | the server | code `packages/db/src/repositories/files/posts.ts`; SQL `caller_has_permission`, `capability_activate` and 26 more | Whether this user may do this in this workspace, by role: |
+| `has_permission` | the server's | the server | code `packages/db/src/repositories/files/posts.ts`; SQL `caller_has_permission`, `capability_activate` and 27 more | Whether this user may do this in this workspace, by role: |
 | `has_relationship` | computed column | a signed-in person, the server | code `packages/contracts/src/consent/asks.ts`, `packages/contracts/src/consent/consent.ts` and 9 more; SQL `offers_email_reach` | Whether a person has a relationship with the business on record (spec 4.1): |
 | `held_draft_outcome` | reader | a signed-in person, the server | SQL `held_drafts_by_intent` | What became of one of the receptionist's held drafts (decision 0063), from its status and its error: |
 | `held_drafts_by_intent` | reader | a signed-in person, the server | code `packages/db/src/repositories/facts/held-drafts.ts` | The Autonomy pane's evidence (decision 0063): |
@@ -233,7 +233,7 @@ being read is dropped by a migration.
 | `lead_allowance` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts`; SQL `lead_check_commit`, `lead_member_move` and 2 more | The leads a workspace may count this month (00512, decision 0090): |
 | `lead_blank` | the server's | the server | SQL `lead_erase`, `leads_erase_on_contact` and 1 more | Removes everything that names or reaches a place, and its memberships' judgments, a reach-out's opening, angle and note written from it, and a preference's example copied from it (00391), a reach-out' |
 | `lead_bulk` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/lead-searches/chosen/route.ts`, `apps/dashboard/app/api/v1/leads/bulk/route.ts` and 2 more | Operator for contacted and not_a_fit; |
-| `lead_cap` | the server's | the server | SQL `lead_allowance`, `lead_member_move` and 8 more | The lead finder's caps, the one place SQL writes them (00272): |
+| `lead_cap` | the server's | the server | SQL `lead_allowance`, `lead_member_move` and 9 more | The lead finder's caps, the one place SQL writes them (00272): |
 | `lead_card_live` | door | a signed-in person, the server | SQL `lead_people_search_create` | Whether a card finds leads now (00430): |
 | `lead_cards_live` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts`; SQL `lead_card_live` | The cards that find leads now (lead_platform.cards_on, 00430): |
 | `lead_chain_of` | reader | a signed-in person, the server | SQL `lead_pile_counts`, `leads_page` | The reach-out a lead goes with (00426): |
@@ -246,9 +246,9 @@ being read is dropped by a migration.
 | `lead_company_upsert` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | The people card's page of companies (00430), the service role's, before lead_collect_commit moves the run: |
 | `lead_convert_by` | the server's | its owner | SQL `lead_set_stage`, `leads_convert_on_deal` and 4 more | A lead's conversion, written once for every door that converts (Reach out Part 5, G19; |
 | `lead_counter_take` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 8 more | The counter row for a period, made if missing and locked for update. |
-| `lead_day` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 9 more | The workspace's calendar day of an instant, YYYY-MM-DD, in its zone; |
+| `lead_day` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 10 more | The workspace's calendar day of an instant, YYYY-MM-DD, in its zone; |
 | `lead_erase` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | Owner. Erases one lead for good: |
-| `lead_estimate_ceiling` | the server's | the server | SQL `lead_people_search_create`, `lead_round_end` and 3 more | The most a finder door takes as its estimate (00364, 00430, 00474, 00541). |
+| `lead_estimate_ceiling` | the server's | the server | SQL `lead_people_search_create`, `lead_round_end` and 4 more | The most a finder door takes as its estimate (00364, 00430, 00474, 00541). |
 | `lead_export_mark` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | Owner (permission export). |
 | `lead_in_list` | reader | a signed-in person, the server | SQL `lead_list_counts`, `lead_view_rows` | The rail's lists as one rule (§6.1): |
 | `lead_is_set_aside` | reader | a signed-in person, the server | trigger `leads_note_set_aside on leads` | A lead is set aside when it is archived and closed stale: |
@@ -260,7 +260,7 @@ being read is dropped by a migration.
 | `lead_member_of` | reader | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | The membership of one lead the Leads page would show (lead_member_shown, not blanked): |
 | `lead_member_put_back` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/search-acts.ts` | Owner (permission find). |
 | `lead_member_shown` | reader | a signed-in person, the server | SQL `lead_member_of`, `lead_pile_counts` and 2 more; in `CREATE VIEW public.lead_searches_view` | Whether the Leads page shows a membership of this class: |
-| `lead_month` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 11 more | The workspace's calendar month of an instant, YYYY-MM, in tenants.timezone: |
+| `lead_month` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 12 more | The workspace's calendar month of an instant, YYYY-MM, in tenants.timezone: |
 | `lead_month_used` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | What this workspace has used and reserved of the month's two ceilings, as {allowance: |
 | `lead_name_key` | the server's | the server | SQL `reach_out_record` |  |
 | `lead_niche_prior` | door | a signed-in person, the server | code `apps/dashboard/src/server/leads/plan-facts.ts`, `packages/db/src/repositories/leads/workbench.ts` | The platform-wide prior for a kind of business ({places, matched, with_email}), or null when the kind was never searched. |
@@ -273,7 +273,7 @@ being read is dropped by a migration.
 | `lead_previews_take_their_workspace` | trigger | the server | trigger `lead_previews_take_their_workspace on lead_previews` |  |
 | `lead_release` | the server's | the server | SQL `lead_round_end` | Gives back what a round reserved and did not use, to the four rows it took from -- the round's own month, day and platform_day -- in the same lock order as lead_reserve. |
 | `lead_renews_on` | the server's | the server | SQL `lead_member_move`, `lead_reserve` and 2 more | The first day of the workspace's next calendar month, as the sentence says it: |
-| `lead_reserve` | the server's | the server | SQL `lead_people_search_create`, `lead_round_end` and 3 more | Reserves p_leads from the workspace's allowance (lead_allowance: |
+| `lead_reserve` | the server's | the server | SQL `lead_people_search_create`, `lead_round_end` and 4 more | Reserves p_leads from the workspace's allowance (lead_allowance: |
 | `lead_round_adds_to_its_kind` | trigger | the server | trigger `lead_round_adds_to_its_kind on lead_rounds` | A round that ends adds what it judged to its kind's platform-wide counts (lead_niche_priors), by its plan's category_key (00398). |
 | `lead_round_answer` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/search-acts.ts` | Owner answers the question after 25 on a round waiting on them. |
 | `lead_round_end` | the server's | the server | code `apps/edge/lib/leads/db.ts`, `packages/db/src/repositories/leads/sweep.ts`; SQL `lead_check_commit`, `lead_collect_commit` and 4 more | Ends a round with one of the endings: |
@@ -294,16 +294,17 @@ being read is dropped by a migration.
 | `lead_search_create` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | Owner. Checks the plan (version 1, the shape) and the estimate (at most lead_estimate_ceiling for its count and terms, 00364), the switch ({error: |
 | `lead_search_import` | door | a signed-in person, the server | code `apps/dashboard/src/server/leads/lists.ts`, `packages/db/src/repositories/leads/workbench.ts` | An owner's or a partner's file of leads (1 to lead_cap('list_rows') rows of {name, email, phone?, website_host?, city?, region?, category?}) as a search of its own, via import (00242, J2-J6). |
 | `lead_search_more` | door | a signed-in person, the server | code `apps/dashboard/src/server/ask/proposals/guide.ts`, `apps/dashboard/src/server/ask/tools/act/leads/search.ts` and 3 more | Owner. A new round on an ended search: |
+| `lead_search_on_renewal` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/search-acts.ts` | Owner (permission find). |
 | `lead_search_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | Owner. Removes a search: |
 | `lead_search_rename` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | Operator. Renames a search; |
 | `lead_search_undo` | door | a signed-in person, the server | code `apps/dashboard/src/surfaces/leads/surface.ts`, `packages/db/src/repositories/leads/workbench.ts` | Owner (permission find). |
 | `lead_search_widens` | door | a signed-in person, the server | code `apps/dashboard/src/server/leads/page-read.ts`, `apps/dashboard/src/server/leads/plan-facts.ts` and 1 more; SQL `lead_round_end` | Whether this workspace's searches widen until their count (decision 0133): |
-| `lead_searches_on` | the server's | the server | code `apps/dashboard/src/server/leads/plan-facts.ts`, `apps/edge/lib/leads/db.ts`; SQL `lead_addressee_choose`, `lead_check_again` and 6 more | Whether this workspace may search: |
+| `lead_searches_on` | the server's | the server | code `apps/dashboard/src/server/leads/plan-facts.ts`, `apps/edge/lib/leads/db.ts`; SQL `lead_addressee_choose`, `lead_check_again` and 7 more | Whether this workspace may search: |
 | `lead_set_stage` | door | a signed-in person, the server | code `packages/contracts/src/people/person-page/call.ts`, `packages/db/src/repositories/leads/workbench.ts`; SQL `person_call_logged`, `reach_out_send_decide` | Operator. The one door for a lead's stage, its six call outcomes, "Did you send it?" and Not a fit. |
 | `lead_settle_usage` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 2 more | A run's new usage, settled against the month's budget and both day counters -- the round's own day and the platform_day it reserved in: |
 | `lead_site_key` | the server's | the server | SQL `lead_company_upsert`, `reach_out_record` |  |
 | `lead_site_reads_spent` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | What reading businesses' own sites cost, spent when read (00541): |
-| `lead_spend_refusal` | the server's | the server | SQL `lead_addressee_choose`, `lead_check_again` and 6 more | Null when the workspace may spend (billing_may_spend), else {error: |
+| `lead_spend_refusal` | the server's | the server | SQL `lead_addressee_choose`, `lead_check_again` and 7 more | Null when the workspace may spend (billing_may_spend), else {error: |
 | `lead_spend_room` | the server's | the server | SQL `lead_check_again`, `lead_check_ask` | Whether this month's budget, the workspace's day and the platform's day each have room for p_usd (00506), in lead_reserve's lock order and with its caps (lead_cap), reserving nothing: |
 | `lead_status_groups` | reader | a signed-in person, the server | SQL `lead_view_rows` | Where each lead stands in the queue Leads works from (00552, 00554): |
 | `lead_suggest_history` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | What a workspace's finder searches of the last 180 days asked for and found, and what came of the leads each kept (contacted and when last, interested, booked, customers, said no, not a fit and why, r |

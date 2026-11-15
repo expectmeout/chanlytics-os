@@ -362,7 +362,10 @@ test(
     await ended(other.round_id, "few_new_matches");
     assert.deepEqual(
       ok(await owner.rpc("lead_search_on_renewal", { p_search_id: other.search_id, p_estimate_usd: 1 }), "refused"),
-      { error: "not_month_used" },
+      {
+        error: "not_month_used",
+        sentence: "This search did not stop at the month's leads, so there is nothing to carry on when they renew.",
+      },
     );
   },
 );

@@ -154,7 +154,7 @@ export function morePlanOf(search: Pick<SearchViewRow, "plan">, plan: LeadSearch
   return typeof at === "number" ? { ...plan, version: Math.min(plan.version, at + 1) } : plan;
 }
 
-async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<SearchViewRow[]> {
+export async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<SearchViewRow[]> {
   const { data, error } = await listSearchCards(ctx.supabase, tenantId, 200);
   if (error) throw new DbFailure(error);
   return (data ?? []) as SearchViewRow[];

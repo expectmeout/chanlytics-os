@@ -14,7 +14,7 @@ import {
 import { railToggle } from "../../people/rail/rail-kit";
 import { LEAD_ROUND_MAKERS, leadStrip } from "../finder/strip";
 import type { FinderState } from "../finder/types";
-import { answerSearch, findOnRenewal, leadsTakeOffered, stopSearch } from "../surface";
+import { answerSearch, leadsTakeOffered, moreForSearch, stopSearch } from "../surface";
 import type { LeadAnswer } from "./acts";
 import type { LeadsNav } from "./peek-hooks";
 import type { LeadView } from "./state";
@@ -62,6 +62,22 @@ const searchIdOf = (arg: unknown): string | null =>
   arg && typeof arg === "object" && "searchId" in arg && typeof arg.searchId === "string" ? arg.searchId : null;
 
 /**
+ * The strip's presses that go straight to their door, each with what the page says once it went: the rest found when
+ * the month's leads renew among them (decision 0133), whose plan is the one the owner approved and whose day is on
+ * the press, and its Don't. Null where the search has no plan to defer.
+ */
+const DIRECT_ACTS: Record<string, (s: LeadSearchDto) => [() => Promise<LeadAnswer>, ReactNode] | null> = {
+  stop: (s) => [() => stopSearch(s.id), <>Stopping. The emails of what was found are still being checked.</>],
+  keep: (s) => [() => answerSearch(s.id, "keep"), <>Carrying on.</>],
+  stop_here: (s) => [() => answerSearch(s.id, "stop"), <>Stopped. The ones already found are yours.</>],
+  on_renewal: (s) => {
+    const plan = s.plan;
+    return plan ? [() => moreForSearch(s.id, "defer", plan), <>The rest start when your leads renew.</>] : null;
+  },
+  not_on_renewal: (s) => [() => stopSearch(s.id), <>It won&apos;t carry on. The leads it held are yours again.</>],
+};
+
+/**
  * What each strip control does (Task 10 step 6). Every act goes out through its route; the six that would make a new
  * round open the plan card instead, because nothing that counts against the month may start without the owner approving
  * what runs.
@@ -85,16 +101,8 @@ export const leadStripActs = (a: {
   const onStripAction = (id: string, arg?: unknown) => {
     const s = openSearch;
     if (!s) return undefined;
-    if (id === "stop")
-      return leadAct(() => stopSearch(s.id), <>Stopping. The emails of what was found are still being checked.</>);
-    if (id === "keep") return leadAct(() => answerSearch(s.id, "keep"), <>Carrying on.</>);
-    // The rest of the count when the month's leads renew (decision 0133): the plan the owner approved, the count it asked,
-    // and the day said on the press, so it goes at once; Don't ends the round put off, and gives back what it held.
-    if (id === "on_renewal") return leadAct(() => findOnRenewal(s.id), <>The rest start when your leads renew.</>);
-    if (id === "not_on_renewal")
-      return leadAct(() => stopSearch(s.id), <>It won&apos;t carry on. The leads it held are yours again.</>);
-    if (id === "stop_here")
-      return leadAct(() => answerSearch(s.id, "stop"), <>Stopped. The ones already found are yours.</>);
+    const direct = DIRECT_ACTS[id]?.(s);
+    if (direct) return leadAct(...direct);
     // The no that changes the search: the plan panel opens its answer row under the question, empty; what comes back from
     // Ask is a card that amends this search, and approving it commits through Ask's door, which answers the round; it
     // never starts a second search.

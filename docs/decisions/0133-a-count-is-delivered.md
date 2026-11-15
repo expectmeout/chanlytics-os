@@ -1,8 +1,7 @@
 # 0133 · A count is delivered
 
 **Status:** Decided by Ruben, 14 November 2026 ("Yes, all five", to D1-D5 of the plan below, and "Yes, take them", to an
-outside review's six changes); steps 1 to 3 built (00626, 00627; widening ships off), step 4 built but for the four
-parts its section names, step 5 not yet. Written against main at `e40c45927f`; built in one lane, `cm-count-delivered`.
+outside review's six changes); steps 1 to 4 built (00626, 00627; widening ships off), step 5 not yet. Written against main at `e40c45927f`; built in one lane, `cm-count-delivered`.
 
 ## Context
 
@@ -128,14 +127,24 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
    - **the bell and Today** (one notice, both read it): a widened search's notice counts its finished leads, and an
      ending short of its count says why in its title (the reach searched, the month's leads, the month's searching).
 
-   Not yet, each its own piece before the switch is on for everyone:
-   - **a source's failure tried again before `source_failed`.** The kinds are told apart already (a refused key or
-     build tells the platform at once, a lost answer is reconciled, a busy source is retried by the ledger); a run that
-     failed or timed out partway is not tried again, since a run's id is its round, phase and term, and a second try
-     needs an attempt in it;
-   - **Ask setting the reach from words** ("only in Brooklyn"): the tool's schema is pinned by its fixtures;
-   - **"Look up to 50 miles"** on a short ending, and **"Find them on Dec 1"** on the month's;
-   - **the Console's view** of what the finder set aside, per search.
+   And, asked for as step 4's leftovers ("Build the leftovers first"):
+   - **a source's failure tried again** (core `runner/retries.ts`): a term whose run failed or timed out partway starts
+     again twenty minutes on, under a run id of its own (`retryRunIdFor`), asked past what it read, up to three times; a
+     term read whole stands by its newest run (`standingRuns`), so its round ends as one that never failed. Every term
+     failing within half a minute spends no try: the round ends `source_failed` and the platform is paged
+     (`lead_source_down`, beside `lead_source_refused` for a start refused);
+   - **Ask setting the reach from words**: `propose_lead_search` takes `reach_miles`, which the planner writes as
+     `plan.reach_m`;
+   - **"Look up to 50 miles"**: a round with no area left within the reach names the areas past it, each marked with
+     the reach it was found at (`LeadArea.beyond_m`), which `lead_round_end` never opens. A `reach_searched` ending
+     offers the press only where one was found; the plan card opens with the wider reach, and `lead_search_more` opens
+     the approved top-up as a leg on the first marked area within it, reading none of the search's own areas again;
+   - **"Find the other 50 on Dec 1"** on `month_leads_used`: Find more with the purpose `defer` calls
+     `lead_search_on_renewal`, which reserves the rest from the workspace's next month now and queues a top-up that
+     starts at midnight on its first day (`lead_rounds.starts_at`, its start job due then). The strip says when, with
+     Don't, which stops it and gives back what it held;
+   - **the Console's Leads set aside tab** on a workspace (`GET platform/tenants/[id]/set-aside`): its searches with
+     what each counted, set aside and spent, and the places one set aside, worded by `leadExclusionWord`.
 
 5. **Real searches before everyone:** a dense city, a sparse town, a rare niche and two searches at once, on Ruben's
    own workspace (`widen_tenants`), each timed and costed; the switch on for everyone only once the cost and the time
@@ -152,8 +161,15 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
 - `tests/leads/rounds/a-search-widens-until-its-count.db.test.mjs`: a round's end opens a leg only where widening is
   on, carries on silently, stops on its guards and on a day's cap, and the leg that ends rings with every leg's count.
 - `tests/leads/finder/leads-finder.test.mjs` (step 4): the card's reach and its picker, only where the search widens;
-  a leg's strip; the reach's ending; no pile of ours on a search's strip or band, all three on a list's; the month's
-  renewal; Ask's card's row.
+  a leg's strip; the reach's ending and Look up to 50 miles; no pile of ours on a search's strip or band, all three on a
+  list's; the month's renewal, its press and its waiting line; Ask's card's row.
+- `tests/leads/rounds/a-failed-run-is-tried-again.test.mjs`: a partway failure tried again under its own run, asked past
+  what it read; three tries and no more; every term failing at once pages and spends no try.
+- `tests/leads/rounds/a-leg-reads-its-own-area.test.mjs`: a leg with nothing within its reach names the areas past it,
+  marked. `tests/leads/finder/lead-ask.test.mjs`: Ask's `reach_miles`. `tests/leads/lead-routes.test.mjs`: Find more,
+  deferred. `tests/console/back-office/what-the-finder-set-aside.test.mjs`: the Console's tab.
+- The database cases (CI): a marked area never opened by a round's end, and opened by Find more with its reach; the
+  deferred round reserved from next month and started on its first day.
 
 ## Risks
 

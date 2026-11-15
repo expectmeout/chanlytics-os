@@ -27,6 +27,7 @@ import { PageHead } from "../kit/head/page-head";
 import { SubTabs } from "../kit/sub-tabs/sub-tabs";
 import { backOffice } from "@/bridge/platform";
 import { PlatformEvents, SetupAndLines } from "./lines";
+import { SetAsideTab } from "./set-aside";
 import { ActRow } from "./log";
 import { NoneRow, ScreenFailed, ScreenReading, ScreenSection, useConsoleRead, type Flash, type Go } from "./parts";
 import { consoleVerbs, type ConsoleMe, type ConsoleWorkspace } from "./verbs";
@@ -148,6 +149,7 @@ function Workspace({
       </div>
       {tab === "overview" && <Overview ws={ws} sentence={row?.sentence ?? null} facts={row?.facts ?? null} go={go} />}
       {tab === "lines" && <SetupTab tenantId={ws.tenant.id} me={me} flash={flash} onChanged={again} />}
+      {tab === "leads" && <SetAsideTab tenantId={ws.tenant.id} />}
       {tab === "activity" && (
         <>
           <ScreenSection title="What the team did" sub="Newest first, each with why" testid="console-workspace-acts">

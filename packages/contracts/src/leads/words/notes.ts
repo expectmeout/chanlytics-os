@@ -171,6 +171,16 @@ const reachParts = (f: LeadEndingFacts): string[] => [
   ...(f.target > f.counted ? [`the other ${f.target - f.counted} stay yours this month`] : []),
 ];
 
+/** reach_searched's step: look further, only where the round found an area past the reach (decision 0133). */
+const furtherStep = (f: LeadEndingFacts): LeadEndingLine["step"] =>
+  f.further ? { id: "reach_further", label: `Look up to ${f.further} miles` } : null;
+
+/** month_leads_used's step: the rest of the count when the leads renew, the day on the press (decision 0133). */
+const renewalStep = (f: LeadEndingFacts): LeadEndingLine["step"] =>
+  f.renewsOn && f.target > f.counted
+    ? { id: "on_renewal", label: `Find the other ${f.target - f.counted} on ${f.renewsOn}` }
+    : null;
+
 /**
  * Every ending, said once (§8.8, the States artboard): what happened, what was
  * kept, what was counted, and one next step. Two shapes only -- "Found N ..."
@@ -228,14 +238,7 @@ export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEnd
         mark,
         title: `Stopped at ${leadEndingFacts.counted}`,
         parts: ["this month's leads are used", yours, ...renewalPart(leadEndingFacts)],
-        // The rest of the count, carried on when the leads renew (decision 0133): one press, the day said on it.
-        step:
-          leadEndingFacts.renewsOn && leadEndingFacts.target > leadEndingFacts.counted
-            ? {
-                id: "on_renewal",
-                label: `Find the other ${leadEndingFacts.target - leadEndingFacts.counted} on ${leadEndingFacts.renewsOn}`,
-              }
-            : null,
+        step: renewalStep(leadEndingFacts),
       };
     case "budget_used":
       return {
@@ -308,10 +311,7 @@ export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEnd
         mark,
         title: `Found ${leadEndingFacts.counted} of ${leadEndingFacts.target} ${leadEndingFacts.name}`,
         parts: reachParts(leadEndingFacts),
-        // Only where the round found an area past the reach: never a press that would find nothing.
-        step: leadEndingFacts.further
-          ? { id: "reach_further", label: `Look up to ${leadEndingFacts.further} miles` }
-          : null,
+        step: furtherStep(leadEndingFacts),
       };
     // Decision 0133: its next leg would have passed the day's searching, which renews tomorrow.
     case "day_used":

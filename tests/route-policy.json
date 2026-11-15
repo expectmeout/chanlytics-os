@@ -1162,13 +1162,6 @@
       "rate": "lead_search",
       "spend": true
     },
-    "POST lead-searches/[id]/renewal": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "partner",
-      "rate": "lead_search",
-      "spend": true
-    },
     "PATCH lead-searches/[id]": {
       "kind": "write",
       "scope": "row",
@@ -2000,6 +1993,13 @@
       "spend": false
     },
     "GET platform/tenants/[id]": {
+      "kind": "read",
+      "scope": "platform",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET platform/tenants/[id]/set-aside": {
       "kind": "read",
       "scope": "platform",
       "role": null,
