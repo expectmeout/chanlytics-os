@@ -219,6 +219,22 @@ test("a WhatsApp version on a workspace with no connected number is refused in t
   assert.equal(email.proposal.kind, "message");
 });
 
+test("from a US number an offer's WhatsApp version is never written: the card holds and says its email alone; one that was WhatsApp's alone is refused in the pause's words (the clean list, G1)", async () => {
+  const us = { tenant_channels: [{ ...world().tenant_channels[0], number_e164: "+12025550123" }] };
+  const r = await propose(OFFER, us);
+  assert.equal(r.isError, false, r.result);
+  assert.deepEqual(Object.keys(r.proposal.payload.versions), ["email"], "no WhatsApp version in the card");
+  assert.doesNotMatch(`${r.proposal.summary} ${r.proposal.payload.follows}`, /WhatsApp/, "nor a word of it");
+  wroteNothing(r);
+  const only = await propose(without(OFFER, "email"), us);
+  assert.equal(only.isError, true);
+  assert.equal(said(only), C.whatsappOffersOpen("+12025550123").why);
+  // A message about their own appointment is no offer: its WhatsApp version stays in the card.
+  const thanks = await propose(THANKS, us);
+  assert.equal(thanks.isError, false, thanks.result);
+  assert.ok("whatsapp" in thanks.proposal.payload.versions);
+});
+
 test("an email version where email is not set up is kept, as the page keeps one: the card says it goes once email can send, with channelsReady's reason", async () => {
   // Ask refused the email the page would file (the live demo, 12 Nov 2026), so a New made WhatsApp alone. Now the card
   // keeps it, and says when it goes.

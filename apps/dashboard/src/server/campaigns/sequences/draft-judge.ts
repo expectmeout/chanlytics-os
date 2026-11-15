@@ -40,7 +40,7 @@ import {
 } from "@chanlytics/contracts";
 import type { PoolRead } from "@/lib/campaign-channels";
 import { carriersOf, newChecksOf, newReachOf, twinOf, type NewCounts, type NewRunning } from "@/lib/new-checks";
-import { checkMessage } from "../write-message";
+import { checkMessage, versionsWrittenHere } from "../write-message";
 import { NOTHING_STOOD, standingAt, stoodStepsOf, type Standing } from "./draft-stands";
 import { leftOutKept } from "./left-out";
 import { numberBacking, ownerPriceWords, unbackedNumbers, unsaidPrice } from "./numbers";
@@ -161,6 +161,12 @@ export interface DraftKnown {
   running: KnownRunning[];
   /** The channels the workspace can send on now. */
   ready: ConsentChannel[];
+  /**
+   * Whether offers can go by WhatsApp from the workspace's number (contracts whatsappOffersOpen, as its channels read
+   * carries it): where they cannot (a US number), an offer Ask writes is kept without its WhatsApp version
+   * (write-message.ts versionsWrittenHere). Absent, nothing is held.
+   */
+  whatsappOffers?: { ok: boolean; why: string | null } | null;
   /** Each class's Autonomy row's mode, which a new sequence of it starts as. */
   classModes: Record<string, string | null>;
   mailbox: { ids: string[]; label: string } | null;
@@ -232,7 +238,12 @@ const cleanWords = (s: string) => s.replace(/\r\n?/g, "\n").trim();
 function askWrittenOf(
   write: NewDraftAnswerStep["write"],
   first: boolean,
-  on: { moment: KnownMoment | null; asStands: boolean; owner: readonly string[] },
+  on: {
+    moment: KnownMoment | null;
+    asStands: boolean;
+    owner: readonly string[];
+    whatsappOffers: DraftKnown["whatsappOffers"];
+  },
 ): NewMessage | string {
   const { moment, asStands } = on;
   // A message about the person's own visit is utility where WhatsApp reviews it: the first step of a visit's moment,
@@ -243,8 +254,11 @@ function askWrittenOf(
   const utility = first && !write.offer && !!moment?.visits && !!cleanWords(write.whatsapp);
   const parts = writtenParts(write, utility || asStands);
   if (typeof parts === "string") return parts;
-  const { title, versions, slots } = parts;
+  const { title, slots } = parts;
   const category = utility ? "utility" : "marketing";
+  // An offer's WhatsApp version where no offer reaches anyone by WhatsApp (a US number) is never written: kept without it.
+  const versions: NewWrittenMessage["versions"] = versionsWrittenHere(parts.versions, category, on.whatsappOffers);
+  if (!versions.whatsapp && !versions.email && !versions.sms) return clause(on.whatsappOffers?.why ?? "");
   const written: NewWrittenMessage = { name: slugTemplateName(title), category, versions, slots };
   // A price or a discount the owner never gave is none of theirs to send (Ruben, 13 Nov 2026); one they gave is the offer.
   const words = [write.whatsapp, write.text, write.email_subject, write.email_body].join("\n");
@@ -334,7 +348,12 @@ function peopleMessage(
     } satisfies NewMessage;
   }
   if (!newDraftAnswerStep.write.title) return NEW_WORDS.cannot.why.noMessage;
-  return askWrittenOf(newDraftAnswerStep.write, first, { moment, asStands: standing.untouched, owner });
+  return askWrittenOf(newDraftAnswerStep.write, first, {
+    moment,
+    asStands: standing.untouched,
+    owner,
+    whatsappOffers: known.whatsappOffers,
+  });
 }
 
 /**

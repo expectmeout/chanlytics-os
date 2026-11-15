@@ -49,6 +49,7 @@ import {
   starterText,
   templateComponents,
   momentNamesVisit,
+  whatsappOffersOpen,
   triggerWords,
   validateTemplateDraft,
   type AskedPurpose,
@@ -76,6 +77,7 @@ import {
   findWhatsappChannelFacts,
 } from "@chanlytics/db/campaigns";
 import { templateValuePorts } from "@/server/campaigns/ports";
+import { whatsappWrittenHere } from "@/server/campaigns/write-message";
 import { readJsonBody } from "@/server/shared/request-guards";
 import { createTemplate, syncTemplates } from "@/server/campaigns/meta-templates";
 import { checkPlaybookMomentInput } from "@/server/campaigns/playbooks";
@@ -122,8 +124,9 @@ async function starterChannelsOf(ctx: RouteContext, tenantId: TenantId, value: u
   if (named && named.length === 0) throw new AppError("validation", LIBRARY_STARTER_WORDS.pickAChannel);
   const whatsapp = named ? named.includes("whatsapp") : true;
   const own: OwnVersionChannel[] = OWN_VERSION_CHANNELS.filter((c) => (named ? named.includes(c) : true));
-  const number = whatsapp && (await findWhatsappChannelFacts(ctx.supabase, tenantId)) !== null;
-  return { whatsapp, number, own };
+  const line = whatsapp ? await findWhatsappChannelFacts(ctx.supabase, tenantId) : null;
+  // Whether offers can go by WhatsApp from that number: an offer starter is never written there where they cannot.
+  return { whatsapp, number: line !== null, own, offers: line ? whatsappOffersOpen(line.number) : null };
 }
 
 /** What the starter set is asked for: the starters by key, their languages, and the channels to write them on. */
@@ -192,7 +195,7 @@ async function fileStarters(ctx: RouteContext, tenantId: TenantId, body: Starter
     .filter((s) => keys.includes(s.key))
     .flatMap((s) => languages.filter((l) => !!s.texts[l]).map((l) => ({ s, l })));
   if (wanted.length === 0) throw new AppError("validation", PICK_A_STARTER);
-  const { whatsapp, number, own } = await starterChannelsOf(ctx, tenantId, body.channels);
+  const { whatsapp, number, own, offers } = await starterChannelsOf(ctx, tenantId, body.channels);
 
   const rows = await listTemplatesNamed(ctx.supabase, tenantId, [...new Set(wanted.map((w) => w.s.name))]);
   const onFile = (name: string, language: string) =>
@@ -212,14 +215,15 @@ async function fileStarters(ctx: RouteContext, tenantId: TenantId, body: Starter
       results.push({ ...base, status: "exists", meta_status: have.meta_status, versions: await versionsOf(s, l) });
       continue;
     }
-    if (!whatsapp || !number) {
-      // No WhatsApp version is made: it was not asked for, or there is no number to make it for. Said where it was asked
-      // for, never thrown: the email and text versions are written all the same.
+    if (!whatsapp || !number || !whatsappWrittenHere(s.category, offers)) {
+      // No WhatsApp version is made: it was not asked for, there is no number to make it for (said, where it was asked
+      // for), or it is an offer and no offer reaches anyone by WhatsApp from this number (a US one: not said, since nothing
+      // of it is the owner's to do, write-message.ts whatsappWrittenHere). Never thrown: the email and text are written.
       results.push({
         ...base,
         status: "skipped",
         meta_status: null,
-        ...(whatsapp ? { detail: SAID.no_channel } : {}),
+        ...(whatsapp && !number ? { detail: SAID.no_channel } : {}),
         versions: await versionsOf(s, l),
       });
       continue;
@@ -370,7 +374,17 @@ async function heldAtOnce(ctx: RouteContext, tenantId: TenantId, starter: Starte
   const atOnce = CONSENT_CHANNELS.filter((c) => channelNeverCarries(c, purpose) === null && (held?.[c] || writes(c)));
   const wa = onFile?.versions.whatsapp ?? null;
   const whatsappMaySend = !wa || (wa.blocked === null && (wa.status === "approved" || wa.status === "pending"));
-  return { atOnce, number: line !== null, whatsappMaySend, whatsapp: wa };
+  // An offer starter is never written for WhatsApp where no offer reaches anyone by it (a US number).
+  const offers = line ? whatsappOffersOpen(line.number) : null;
+  const written = whatsappWrittenHere(starter.category, offers);
+  return {
+    atOnce,
+    number: line !== null,
+    whatsappMaySend,
+    whatsapp: wa,
+    whatsappWritten: written,
+    whatsappOffers: offers,
+  };
 }
 
 /**
@@ -410,9 +424,12 @@ function starterChannels(
   named: ConsentChannel[] | null,
   held: Awaited<ReturnType<typeof heldAtOnce>>,
 ): ConsentChannel[] {
-  const { atOnce, number, whatsappMaySend } = held;
+  const { atOnce, number, whatsappMaySend, whatsappWritten } = held;
   const channels =
-    named ?? CONSENT_CHANNELS.filter((c) => atOnce.includes(c) || (c === "whatsapp" && number && whatsappMaySend));
+    named ??
+    CONSENT_CHANNELS.filter(
+      (c) => atOnce.includes(c) || (c === "whatsapp" && number && whatsappMaySend && whatsappWritten),
+    );
   if (channels.length === 0) throw new AppError("validation", LIBRARY_STARTER_WORDS.pickAChannel);
   if (channels.some((c) => atOnce.includes(c))) return channels;
   if (channels.includes("whatsapp") && !number) throw new AppError("validation", LIBRARY_WORDS.writeNeedsNumber);
@@ -467,6 +484,9 @@ export async function checkStarterPlaybook(
   const never = (named ?? []).map((c) => channelNeverCarries(c, purpose)).find((w) => w !== null);
   if (never) throw new AppError("validation", never);
   const held = await heldAtOnce(ctx, tenantId, starter, purpose);
+  // WhatsApp named for an offer no one here can be sent by it (a US number): refused in the pause's own words.
+  if (named?.includes("whatsapp") && !held.whatsappWritten && held.whatsappOffers?.why)
+    throw new AppError("validation", held.whatsappOffers.why);
   const channels = starterChannels(starter.title, named, held);
   return {
     starter,

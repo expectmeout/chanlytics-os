@@ -41,12 +41,18 @@ import {
   templateTitle,
   validateOwnVersion,
   validateTemplateDraft,
+  whatsappOffersOpen,
   type ConsentChannel,
   type OwnVersionChannel,
   type ParamSpec,
   type TemplateStatus,
 } from "@chanlytics/contracts";
-import { findHeldMessage, listMessageVersionRows, setTemplateTitle } from "@chanlytics/db/campaigns";
+import {
+  findHeldMessage,
+  findWhatsappChannelFacts,
+  listMessageVersionRows,
+  setTemplateTitle,
+} from "@chanlytics/db/campaigns";
 import { findWhatsAppAccount } from "@chanlytics/db/channels";
 import { submitDraft } from "@/server/campaigns/template-submit";
 import { WHATSAPP_ACCOUNT_MISSING, refuseTwinWords, type ReviewWords } from "@/server/campaigns/whatsapp-refusals";
@@ -91,6 +97,39 @@ export interface WriteMessageAnswer {
   language: string;
   versions: VersionFiled[];
   refused?: { channel: ConsentChannel; words: string };
+}
+
+/**
+ * Whether a message of this kind is written for WhatsApp in this workspace at all (G1 of the clean-list plan, 14 Nov
+ * 2026: nothing is made that cannot be sent here): never where it is an offer and the workspace's number is one Meta's pause holds
+ * (`whatsappOffers`, contracts whatsappOffersOpen: marketing messages to US numbers), since no offer reaches anyone there
+ * by WhatsApp. Nothing of such a version is written, filed or said: the card, the draft and the door each take the message
+ * without it. A text of an offer stays the door's own refusal (checkMessage), which tells its writer. Absent, nothing is
+ * held, as a read that did not know the number holds nothing.
+ */
+export const whatsappWrittenHere = (
+  category: WriteMessageBody["category"],
+  whatsappOffers: { ok: boolean } | null | undefined,
+): boolean => purposeOfTemplate(category) !== "marketing" || whatsappOffers?.ok !== false;
+
+/** A message's versions without the one this workspace never writes it on (whatsappWrittenHere, above). */
+export function versionsWrittenHere<V extends WriteMessageBody["versions"]>(
+  versions: V,
+  category: WriteMessageBody["category"],
+  whatsappOffers: { ok: boolean } | null | undefined,
+): V | Omit<V, "whatsapp"> {
+  if (!versions.whatsapp || whatsappWrittenHere(category, whatsappOffers)) return versions;
+  const { whatsapp: _held, ...rest } = versions;
+  return rest;
+}
+
+/**
+ * Whether offers can go by WhatsApp from this workspace's number (contracts whatsappOffersOpen), read where a writer holds
+ * no channels read: null where it has no number, which holds nothing.
+ */
+export async function getWhatsAppOffers(ctx: RouteContext, tenantId: TenantId) {
+  const line = await findWhatsappChannelFacts(ctx.supabase, tenantId);
+  return line ? whatsappOffersOpen(line.number) : null;
 }
 
 /** A version that could not be filed for a reason no one meant a person to read (a fault, not a refusal). */
@@ -266,10 +305,18 @@ async function refuseBeforeFiling(
 export async function writeMessage(
   ctx: RouteContext,
   member: Member,
-  body: WriteMessageBody,
+  asked: WriteMessageBody,
   /** A reader's look at WhatsApp's words before they are sent (whatsapp-refusals.ts), the route's to hand in. */
   review?: ReviewWords,
 ): Promise<WriteMessageAnswer> {
+  // A version no one here can be sent is never written (versionsWrittenHere); an offer that was WhatsApp's alone is refused.
+  const offers =
+    asked.versions.whatsapp && purposeOfTemplate(asked.category) === "marketing"
+      ? await getWhatsAppOffers(ctx, member.tenantId)
+      : null;
+  const body: WriteMessageBody = { ...asked, versions: versionsWrittenHere(asked.versions, asked.category, offers) };
+  if (!body.versions.whatsapp && !body.versions.email && !body.versions.sms)
+    throw new AppError("validation", offers?.why ?? NOT_FILED);
   const { name, language, category } = body;
   const slots = slotsOf(body);
   checkMessage(body);
