@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { DECISION_SUBJECTS, DECISION_VERBS, toChannelVM } from "@chanlytics/contracts";
+import { DECISION_SUBJECTS, DECISION_VERBS, templateTitle, toChannelVM } from "@chanlytics/contracts";
 import { connectionRows } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 import { readCode, readRaw } from "../_source.mjs";
 
@@ -276,12 +276,13 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
   );
   assert.equal(
     kindOf("template_category_update", { message_template_name: "x", new_category: "MARKETING" }),
-    "template_blocked@campaigns/messages/x",
-    "it can still be sent, but only to a recorded yes",
+    "template_ready@campaigns/messages/x",
+    "a message filed as an offer is news about that message, never a warning: it still goes, to people who said yes",
   );
   assert.equal(
     kindOf("template_category_update", { message_template_name: "x", new_category: "UTILITY" }),
-    "template_ready@campaigns/messages/x",
+    null,
+    "filed back as a notice: not worth a word",
   );
   for (const [field, value] of [
     ["phone_number_quality_update", { event: "FLAGGED" }],
@@ -294,32 +295,20 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
       "number@admin/integrations",
       `${field} ${JSON.stringify(value)} is the NUMBER's own health`,
     );
-  // A template moved to another category: to marketing it is a restriction, to anything else news kept quietly, and a notice
-  // that names nothing still says something. Held by value: these words are a function of their own (categoryWords).
+  // A message WhatsApp files as an offer from now on is news in the owner's words, the message named as the Library names
+  // it; filed as anything else, or naming no kind, it is not worth a word (categoryWords). What it says of a US number,
+  // and that a message still being checked tells nobody, are held in a-template-s-verdict-reaches-its-row.test.mjs.
   const category = (value) => mod.describeWabaChange({ field: "template_category_update", value }, null);
   assert.deepEqual(category({ message_template_name: "save_our_number", new_category: "MARKETING" }), {
-    kind: "template_blocked",
+    kind: "template_ready",
     route: "campaigns/messages/save_our_number",
     about: { type: "template", id: "save_our_number" },
-    subject: "Template “save_our_number” is now marketing",
-    body: "Meta moved the template “save_our_number” to marketing. Sends that use it now need the customer's recorded yes.",
+    subject: `WhatsApp now treats “${templateTitle("save_our_number")}” as an offer`,
+    body: "From now on it goes to people who said yes to offers.",
     alert: true,
   });
-  assert.deepEqual(category({ message_template_name: "save_our_number", new_category: "UTILITY" }), {
-    kind: "template_ready",
-    route: "campaigns/messages/save_our_number",
-    about: { type: "template", id: "save_our_number" },
-    subject: "Template “save_our_number” is now utility",
-    body: "Meta moved the template “save_our_number” to utility.",
-    alert: false,
-  });
-  assert.deepEqual(category({}), {
-    kind: "template_ready",
-    route: "campaigns/messages",
-    subject: "Template “a template” is now another category",
-    body: "Meta moved the template “a template” to another category.",
-    alert: false,
-  });
+  assert.equal(category({ message_template_name: "save_our_number", new_category: "UTILITY" }), null);
+  assert.equal(category({}), null);
 
   // A refused version is "refused" on the bell as it is on the Library's pill (D1-template-marks), and the notice is about
   // that message: it opens it in its own drawer (campaigns/messages/<name>) and says what it is about.

@@ -661,7 +661,7 @@ test("a WhatsApp version still in review with an email beside it is an offered m
   assert.deepEqual(by.ticked, ["email"]);
   assert.equal(
     by.ticks.whatsapp.why,
-    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+    "WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day).",
   );
   assert.equal(by.ticks.whatsapp.on, false);
   // Refused, paused and disabled each say their own; a message whose only version is one not approved is not offered at all.

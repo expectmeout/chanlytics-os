@@ -1947,7 +1947,8 @@ const EMAIL_VISIT = () => messageOf({ whatsapp: null, own: ["email"], ownCategor
 /** A message WhatsApp is still reviewing, with an email version beside it. */
 const IN_REVIEW = (own = ["email"]) =>
   messageOf({ whatsapp: template({ meta_status: "pending", category: "utility" }), own });
-const STILL_REVIEWING = "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.";
+const STILL_REVIEWING =
+  "WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day).";
 const NO_WHATSAPP = "This message has no WhatsApp version.";
 
 test("a broadcast by email on a message with no WhatsApp row, on a workspace with no WhatsApp number, is made: for the people who said yes to messages and have an address, on the email version", async () => {

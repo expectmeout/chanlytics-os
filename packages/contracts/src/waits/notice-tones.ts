@@ -14,10 +14,10 @@
  * listed nowhere keeps its kind's look, and a row already kept takes its tone the next time the bell is drawn.
  */
 import type { ServerNotificationKind } from "../today/notifications/feed-input";
-import { NOTICE_MENDS } from "./notice-mends";
+import { NOTICE_MENDS, messageNewsTitle } from "./notice-mends";
 
-/** A row's tone where its kind's look does not say it: good news, or a warning. */
-export type NoticeTone = "ok" | "warn";
+/** A row's tone where its kind's look does not say it: good news, a warning, or plain news (""), which is neither. */
+export type NoticeTone = "ok" | "warn" | "";
 
 interface ToneOf {
   kind: ServerNotificationKind;
@@ -44,6 +44,12 @@ const LISTED: readonly ToneOf[] = [
     title: /^Your search for .+ (?:stopped: the source stopped answering|didn't run: the source couldn't start it)$/u,
     tone: "warn",
   },
+  // WhatsApp approves a message as an offer, or files one it had approved as an offer (waba-events.ts): kept under the kind
+  // of a message's good news, and neither good news nor a warning, since an offer goes to fewer people, and from a US
+  // number not by WhatsApp at all. On 14 Nov 2026 the second was told as "Needs you", with nothing to do, and on the
+  // 15th the first as good news that it "can be sent now".
+  { kind: "template_ready", title: messageNewsTitle("approvedOffer"), tone: "" },
+  { kind: "template_ready", title: messageNewsTitle("offer"), tone: "" },
 ];
 
 /** Every row that mends a warning (NOTICE_MENDS): good news by that fact. */
@@ -53,6 +59,7 @@ const MENDS: readonly ToneOf[] = NOTICE_MENDS.flatMap((m) =>
 
 /** The tone a kept row is drawn in where its kind's look does not say it, or null where the look's own tone stands. */
 export function noticeTone(kind: string, title: string): NoticeTone | null {
-  const hit = [...MENDS, ...LISTED].find((t) => t.kind === kind && t.title.test(title));
+  // What is listed is said first: an approval as an offer mends a refusal, and is plain news all the same.
+  const hit = [...LISTED, ...MENDS].find((t) => t.kind === kind && t.title.test(title));
   return hit ? hit.tone : null;
 }

@@ -1082,7 +1082,7 @@ test("an offer from a number WhatsApp delivers no offers from adds a language by
 test("a language added to a starter in use says WhatsApp checks it only where its WhatsApp version went there (the review of 15 Nov 2026)", () => {
   assert.equal(
     TPL_VERSION_WORDS.languageAdded("Win-back", "Spanish", true),
-    "Win-back in Spanish is added. WhatsApp checks its words, usually within minutes.",
+    "Win-back in Spanish is added. WhatsApp checks its words (usually minutes, sometimes a day).",
   );
   assert.equal(TPL_VERSION_WORDS.languageAdded("Win-back", "Spanish", false), "Win-back in Spanish is added.");
 });

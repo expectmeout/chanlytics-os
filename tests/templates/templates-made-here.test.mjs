@@ -315,12 +315,8 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
   // The composer is a module of the Templates page and the verbs it presses are imported, not published: the page draws
   // it (the Templates page test), and `templates` is the verbs' export (surfaces/campaigns/templates/verbs.ts).
   assert.ok(readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts").includes("export const templates"));
-  assert.ok(
-    /can be sent now, from Campaigns, or from the Inbox outside the 24-hour window\.`,\s*alert: true,?\s*\}/.test(
-      readCode("apps/edge/lib/whatsapp/waba-events.ts"),
-    ),
-    "an approval is news the owner waits for",
-  );
+  // An approval is news the owner waits for, told with what it was approved as: run, by value, in
+  // whatsapp/a-template-s-verdict-reaches-its-row.test.mjs.
 });
 
 test("a template draft asks the registry's model with its thinking off, and what it writes is the draft", async () => {
