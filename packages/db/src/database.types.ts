@@ -2762,6 +2762,7 @@ export type Database = {
           name: string
           owner_named: boolean
           owner_shelved: boolean
+          picture_print: string | null
           ready_at: string | null
           removed_at: string | null
           seconds: number | null
@@ -2797,6 +2798,7 @@ export type Database = {
           name: string
           owner_named?: boolean
           owner_shelved?: boolean
+          picture_print?: string | null
           ready_at?: string | null
           removed_at?: string | null
           seconds?: number | null
@@ -2832,6 +2834,7 @@ export type Database = {
           name?: string
           owner_named?: boolean
           owner_shelved?: boolean
+          picture_print?: string | null
           ready_at?: string | null
           removed_at?: string | null
           seconds?: number | null
@@ -8915,6 +8918,7 @@ export type Database = {
           p_id: string
           p_mime: string
           p_name: string
+          p_print?: string
           p_shows: string
           p_source: string
           p_source_ref: string
@@ -8980,6 +8984,10 @@ export type Database = {
         }
         Returns: Json
       }
+      file_printed: {
+        Args: { p_id: string; p_print: string; p_tenant_id: string }
+        Returns: Json
+      }
       file_purged: {
         Args: { p_id: string; p_tenant_id: string }
         Returns: undefined
@@ -9015,6 +9023,29 @@ export type Database = {
       file_start: {
         Args: { p_id: string; p_tenant_id: string }
         Returns: undefined
+      }
+      file_twin_fate: {
+        Args: {
+          p_pixels: number
+          p_source: string
+          p_status: string
+          p_twin_id: string
+        }
+        Returns: string
+      }
+      file_twin_goes: {
+        Args: { p_id: string; p_stays: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      file_twin_of: {
+        Args: {
+          p_id: string
+          p_kind: string
+          p_print: string
+          p_seconds: number
+          p_tenant_id: string
+        }
+        Returns: string
       }
       file_upload_lapsed: {
         Args: { p_id: string; p_tenant_id: string }

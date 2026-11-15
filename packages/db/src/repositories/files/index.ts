@@ -13,6 +13,7 @@ export {
   markFileMediaReady,
   recordFileFound,
   recordFileMade,
+  recordFilePrint,
   recordFilePurged,
   recordVideoFound,
   removeLapsedUpload,
@@ -21,7 +22,7 @@ export {
   startFile,
   updateFileRow,
 } from "./doors";
-export type { FileFate, MediaFate, VideoFate } from "./doors";
+export type { FileFate, MediaFate, PrintFate, VideoFate } from "./doors";
 export {
   countFilesKept,
   countFilesMade,
@@ -98,4 +99,5 @@ export type {
   PostPatch,
   PostRow,
 } from "./posts";
+export { listFilesUnprinted } from "./prints";
 export { followPostCaption, movePostTime } from "./waiting-posts";

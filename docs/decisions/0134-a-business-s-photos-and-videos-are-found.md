@@ -50,3 +50,28 @@ was only ever handed a browser's own upload.
 - A Google Drive or Google Photos folder (D2): it needs Drive's own access. Ask says so.
 - A post of the business's prices with no photo (D5).
 - Reading the two real workspaces' websites again on production (D6): after the merge, on Ruben's word.
+
+## Amended, 15 Nov 2026: one picture is one file, whichever road brought it
+
+Written against main `b2f058d8e2`, after the first real reads (one salon's site: 19 photos and 5 videos; our own site: 1 photo).
+A business's website often shows what its Instagram posts, so once both roads are read the same picture comes twice: the site's
+copy smaller and recompressed, Instagram's at full size. A file's fingerprint is its bytes (00551), so the two were two files.
+
+1. **Every picture has a picture print**, `files.picture_print`: a 128-bit difference hash of its pixels (9×9 grey, each row
+   compared left to right and each column top to bottom), as 32 hex characters (core `look/picture-print.ts`). A video's is its
+   poster's, the frame the digest already draws. Measured on one real site: the same picture shrunk to 320 pixels and saved at
+   JPEG quality 60 differs by at most 20 bits; two different pictures of the same salon by at least 40. **Twins are within 24
+   bits**, and a video's twins also run within half a second of each other. A print of a nearly flat picture (fewer than 16 or
+   more than 112 ones) is no print: it would twin every plain picture.
+2. **Where it is taken.** A found photo is printed from the bytes the found road already read, and judged before it is stored
+   (`file_found` takes `p_print`), so a twin never shows. Any other photo (an upload, a file from before) is printed when its look
+   starts, from a small copy Storage resizes, before the model is paid (`file_printed`). A video is printed at the digest's first
+   step, from its poster, before its sheet, its sound and its look are paid.
+3. **Which one stays** (SQL, one rule for both doors). An upload is a person's word, so it always stays, and a twin that only
+   waited goes. A road's newcomer goes where its twin was kept or set aside, or waits and is at least as big; where the twin only
+   waited and the newcomer is bigger, or the newcomer's road files what it brings (a connected profile), the waiting twin goes. A
+   waiting file a post already uses never goes. Two kept files both stay: a person kept them.
+4. **Going** is removal as the file_video_begin twin's is: `removed_at`, the purge due now (Stream's copy and the folder let go),
+   and nothing added to `files_let_go`, so a person may still add it. The page hears it as any file's change.
+5. Files that came before carry no print: `tooling/scripts/ops/files/file-prints-backfill.mjs` prints them (dry run by default, a
+   backup first, `--apply`), the same door judging each.
