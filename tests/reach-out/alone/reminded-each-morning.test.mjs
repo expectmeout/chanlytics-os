@@ -29,10 +29,10 @@ test("the wait's own sentence says it is reminded of each morning, and what it h
   assert.equal(waitRuleOf("leads_batch").reminds, true);
   assert.equal(
     waitEndsWords("leads_batch"),
-    "Waits for your OK, and you are reminded each morning; no new business is written to until you give it",
+    "Waits for you to approve. Nothing new goes out until you do, and you're reminded each morning",
   );
   // Every other wait an OK answers says what it said.
-  assert.equal(waitEndsWords("review_ask"), "Waits for your OK; nothing goes until you give it");
+  assert.equal(waitEndsWords("review_ask"), "Waits for you to approve. Nothing goes until you do");
 });
 
 test("a reminder is due in the business's morning, for what has waited since before it", () => {
@@ -67,7 +67,7 @@ test("one run that waits is named by its sequence, with how many emails and sinc
   assert.equal(
     told.body,
     "8 emails to businesses your search found have waited since Nov 8. Approve them, or skip the run. " +
-      "Waits for your OK, and you are reminded each morning; no new business is written to until you give it.",
+      "Waits for you to approve. Nothing new goes out until you do, and you're reminded each morning.",
   );
   assert.equal(told.runId, "r1", "the bell's row opens the run");
   const one = coldWaitsNotice([{ ...MOVERS, emails: 1 }], TZ, MORNING);

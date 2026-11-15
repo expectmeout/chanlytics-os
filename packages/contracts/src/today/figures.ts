@@ -280,10 +280,10 @@ export function figuresOf(
   const moodOf = ([mood, n]: [string, number]) =>
     n === period.calls
       ? period.calls === 1
-        ? `it as ${mood.toLowerCase()}`
-        : `all of them as ${mood.toLowerCase()}`
-      : `${n} as ${mood.toLowerCase()}`;
-  const moodWords = moods.length ? `The voice provider read ${andList(moods.map(moodOf))}.` : "";
+        ? `It sounded ${mood.toLowerCase()}`
+        : `All of them sounded ${mood.toLowerCase()}`
+      : `${n} sounded ${mood.toLowerCase()}`;
+  const moodWords = moods.length ? `${andList(moods.map(moodOf))}.` : "";
   const voicemail = [
     ...new Map(
       callsInWindow
@@ -355,7 +355,7 @@ export function figuresOf(
         }
       : period.new_contacts > 0
         ? {
-            text: `Counted however they reached you — a message or a call${newThreads.length < period.new_contacts ? ", so not everyone here has a thread to open yet" : ""}.`,
+            text: `Counted however they reached you, by message or call${newThreads.length < period.new_contacts ? ", so not everyone here has a conversation to open yet" : ""}.`,
             door: { label: "Open People", to: "clients/seg:new_week" },
           }
         : null,
@@ -385,7 +385,7 @@ const nothingCounted = (m: MetricsSummaryDto): boolean =>
 function bookedOf(bookings: TodayBookingsDto | null | undefined, now: Date): TodayFigureVM {
   return bookings
     ? bookedFigure(bookings, now)
-    : { id: "booked", label: "booked", value: null, meta: "couldn't be read", receipt: null };
+    : { id: "booked", label: "booked", value: null, meta: "couldn't load", receipt: null };
 }
 
 /**

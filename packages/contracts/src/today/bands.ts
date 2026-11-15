@@ -86,17 +86,13 @@ export function todayStanding(
   const lines = {
     text:
       metrics.linesRead === false
-        ? "the email line could not be counted"
+        ? "couldn't count email"
         : wires.length
           ? `${up} of ${wires.length} ${noun} connected`
-          : "no lines connected yet",
+          : "nothing connected yet",
     // The same count in the sidebar's two words (the canvases' "3 lines on"), where the sentence would wrap.
     short:
-      metrics.linesRead === false
-        ? "lines uncounted"
-        : wires.length
-          ? `${up} of ${wires.length} ${noun} on`
-          : "no lines yet",
+      metrics.linesRead === false ? "not counted" : wires.length ? `${up} of ${wires.length} ${noun} on` : "none yet",
     down: down.length > 0,
   };
   const paused = metrics.workspace.status === "paused";
@@ -118,8 +114,8 @@ export function todayQueueEmpty(todayFacts: TodayFacts): TodayQueueEmptyVM {
   const answered = on.filter((w) => CHANNEL_ANSWERED.has(w.kind));
   if (metrics.workspace.status === "paused") {
     return {
-      title: `Nothing in the queue — the workspace is paused. ${PAUSED_WORDS}`,
-      sub: "nothing in the queue",
+      title: `Nothing waiting. The workspace is paused. ${PAUSED_WORDS}`,
+      sub: "nothing waiting",
       glyph: "alert",
       tone: "warn",
       testid: "today-queue-empty-paused",
@@ -127,8 +123,8 @@ export function todayQueueEmpty(todayFacts: TodayFacts): TodayQueueEmptyVM {
   }
   if (down.length) {
     return {
-      title: `Nothing in the queue. ${darkWires(down)}`,
-      sub: "nothing in the queue",
+      title: `Nothing waiting. ${darkWires(down)}`,
+      sub: "nothing waiting",
       glyph: "alert",
       tone: "warn",
       testid: "today-queue-empty-down",
@@ -136,8 +132,8 @@ export function todayQueueEmpty(todayFacts: TodayFacts): TodayQueueEmptyVM {
   }
   if (wires.length === 0) {
     return {
-      title: "Nothing in the queue — nothing can come in until a line is connected.",
-      sub: "nothing in the queue",
+      title: "Nothing can come in until a number is connected.",
+      sub: "nothing waiting",
       glyph: "phone",
       tone: "",
       testid: "today-queue-empty-unconnected",
@@ -146,22 +142,22 @@ export function todayQueueEmpty(todayFacts: TodayFacts): TodayQueueEmptyVM {
   if (answered.length === 0) {
     return on.every((w) => w.kind === "email")
       ? {
-          title: `Nothing in the queue. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
-          sub: "nothing in the queue",
+          title: `Nothing waiting. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
+          sub: "nothing waiting",
           glyph: "mail",
           tone: "",
           testid: "today-queue-empty-unanswered",
         }
       : {
-          title: "Nothing in the queue — no line AI answers is connected.",
-          sub: "nothing in the queue",
+          title: "Nothing waiting. AI isn't answering on any number yet.",
+          sub: "nothing waiting",
           glyph: "phone",
           tone: "",
           testid: "today-queue-empty-unanswered",
         };
   }
   return {
-    title: "All caught up — AI is answering on its own.",
+    title: "All caught up. AI is answering on its own.",
     sub: "nothing needs you",
     glyph: "check",
     tone: "ok",
@@ -213,16 +209,16 @@ export function todayTrafficLine(todayFacts: TodayFacts): string {
  */
 function quietHead(wires: TodayFacts["wires"], last: string): { headline: string; sub: string } {
   if (wires.length === 0)
-    return { headline: "Nothing can come in yet.", sub: "Connect a line and AI starts answering." };
+    return { headline: "Nothing can come in yet.", sub: "Connect a number and AI starts answering." };
   const on = wires.filter((w) => w.on);
   if (on.some((w) => CHANNEL_ANSWERED.has(w.kind)))
     return { headline: "Nothing needs you.", sub: ["AI is on.", last].filter(Boolean).join(" ") };
   return {
-    headline: "Nothing in the queue.",
+    headline: "Nothing waiting.",
     sub:
       on.length && on.every((w) => w.kind === "email")
         ? EMAIL_NOT_ANSWERED_SENTENCE
-        : "No line AI answers is connected.",
+        : "AI isn't answering on any number yet.",
   };
 }
 
@@ -246,7 +242,7 @@ export function todayQuietDay(
   return {
     ...quietHead(wires, last),
     proof: [
-      ...(wires.length === 0 ? [{ label: "Lines", value: "none connected yet" }] : []),
+      ...(wires.length === 0 ? [{ label: "Connected", value: "nothing yet" }] : []),
       ...wires.map((w) => ({
         label: w.label,
         // "on" / "off" in the owner's words, never the column's value. A
@@ -362,7 +358,7 @@ function calmStanding(todayCalm: TodayCalmVM, runs: number): TodayHeadline {
     ? [...also, ...(todayCalm.traffic ? [`${todayCalm.traffic} today.`] : [])].join(" ")
     : todayCalm.traffic
       ? todayCalm.handled_all
-        ? `AI handled everything — ${todayCalm.traffic} today. Nothing needs you.`
+        ? `AI handled everything today: ${todayCalm.traffic}. Nothing needs you.`
         : `${todayCalm.traffic} today. Nothing needs you right now.`
       : "Nothing needs you.";
   // "It" only after a headline that named the receptionist ("The receptionist handled everything"); after any other
@@ -604,7 +600,7 @@ export function todaySendFailure(todayFacts: TodayFacts): TodaySentenceVM | null
     )
     .sort((a, b) => b.at.localeCompare(a.at))[0];
   return {
-    text: `${period.send_failures} repl${period.send_failures === 1 ? "y" : "ies"} failed to deliver — the customer got no answer.`,
+    text: `${period.send_failures} repl${period.send_failures === 1 ? "y" : "ies"} didn't reach them, so they got no answer.`,
     warn: true,
     ...(lastFailed ? { to: addressOf({ kind: "conversation", id: lastFailed.conv.id }) } : {}),
   };

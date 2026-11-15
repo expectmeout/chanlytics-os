@@ -129,6 +129,6 @@ export interface EmailSetupDto {
  * or send from your mailbox. One sentence, so the two pages cannot drift apart.
  */
 export const EMAIL_NOT_ANSWERED_SENTENCE =
-  "Nothing is sent by email without you: each email waits in Need you with a reply drafted for you to change or send.";
+  "Nothing is sent by email without you. Each email waits in Needs you with a reply drafted for you to change or send.";
 /** The one thing the product cannot see, said where the owner sets email up (the plan's §9). */
 export const EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not show here.";

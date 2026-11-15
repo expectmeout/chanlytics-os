@@ -250,7 +250,7 @@ export interface TodayQueueRowVM {
 export interface TodayQueueEmptyVM {
   title: string;
   /** The queue heading's own words when nothing is waiting: "nothing needs you" only where the receptionist is holding the floor. */
-  sub: "nothing in the queue" | "nothing needs you";
+  sub: "nothing waiting" | "nothing needs you";
   glyph: "alert" | "phone" | "mail" | "check";
   tone: "warn" | "ok" | "";
   testid: string;

@@ -170,9 +170,9 @@ test("Today: a workspace with no channel says so, and statuses are words", () =>
   // A new owner's first Today, in the canvas's words (2 Nov 2026): what cannot happen yet, and what changes that.
   assert.deepEqual(
     [vm.quiet.headline, vm.quiet.sub],
-    ["Nothing can come in yet.", "Connect a line and AI starts answering."],
+    ["Nothing can come in yet.", "Connect a number and AI starts answering."],
   );
-  assert.ok(vm.quiet.proof.some((p) => p.value === "none connected yet"));
+  assert.ok(vm.quiet.proof.some((p) => p.value === "nothing yet"));
   const on = toTodayVM(metrics(), [], [], [], NOW);
   assert.ok(
     on.quiet.proof.some((p) => /· on$/.test(p.value)),

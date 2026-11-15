@@ -39,7 +39,7 @@ test("control: a person who may be written to, closing, is a row of the queue, a
     vm.windowClosing.rows.map((r) => r.to),
     ["inbox/th-cv-ok"],
   );
-  assert.ok(vm.queue.parts.some((p) => /reply window/.test(p)));
+  assert.ok(vm.queue.parts.some((p) => /to reply soon/.test(p)));
   // A payload read without consent fails open, as the predicate does: nobody is hidden for what the read left out.
   assert.equal(windowRows(day([closing("cv-bare", "Bea Lind")])).length, 1);
 });

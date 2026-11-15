@@ -236,7 +236,7 @@ test("one queue, by what each is worth: the call-back, the handoff, the closing 
     ["Daniela R.", "WhatsApp", "waited 2h", true, true],
   );
   assert.equal(handoff.sentence, "Can I move Saturday to 11? My sister is coming too");
-  assert.deepEqual(handoff.status.slice(0, 2), ["Escalated", "asked for a person"]);
+  assert.deepEqual(handoff.status.slice(0, 2), ["Needs you", "asked for a person"]);
   assert.match(handoff.status[2], /^since 8:00 AM$/, "the salon's clock, whatever clock the reader holds");
   assert.deepEqual(handoff.cta, { label: "Open and reply", to: "inbox/th-cv1" });
   assert.deepEqual(handoff.also, { label: "Snooze", verb: "snooze", conversationId: "cv1", escalationId: "e1" });
@@ -261,7 +261,7 @@ test("one queue, by what each is worth: the call-back, the handoff, the closing 
     ["+1 (347) 555-0100", "WhatsApp", "warn", true],
   );
   assert.match(window.when, /^closes 3:30 PM · in \dh$/);
-  assert.deepEqual(window.cta, { label: "Open thread", to: "inbox/th-cv3" });
+  assert.deepEqual(window.cta, { label: "Open conversation", to: "inbox/th-cv3" });
   assert.equal(window.also, null);
 
   const ear = rows[3];
@@ -276,7 +276,7 @@ test("each row names the person it is about by their People id, so the page can 
   const vm = toTodayVM(metrics(), conversations, escalations, calls, NOW, [waitingSearch]);
   const of = (kind) => vm.queue.rows.find((r) => r.kind === kind);
   assert.equal(of("handoff").person_id, "c1", "the thread's person");
-  assert.equal(of("callback").person_id, "c2", "the call-back's thread's person");
+  assert.equal(of("callback").person_id, "c2", "the call-back's conversation's person");
   assert.equal(of("window").person_id, "c3", "the closing window's person, named or not");
   assert.equal(of("call").person_id, "c9", "the caller People holds");
   assert.equal(of("search").person_id, null, "a search is a business nobody has met");
@@ -547,7 +547,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
   ])
     assert.ok(queue.includes(s), s);
   assert.ok(
-    queue.includes("Need you") && !queue.includes("Agent Command"),
+    queue.includes("W.title") && !queue.includes("Agent Command"),
     "the queue, not a command bar; the seed is gone",
   );
   assert.ok(!queue.includes("tq-count"), "no count over rows that say it");
@@ -703,7 +703,7 @@ test("REGRESSION: the queue names the wire the thread is actually on", () => {
     ],
     "the wire each thread's words last travelled, longest wait first",
   );
-  assert.deepEqual(rows[1].status.slice(0, 2), ["Escalated", "wrote by email"]);
+  assert.deepEqual(rows[1].status.slice(0, 2), ["Needs you", "wrote by email"]);
   // A thread with no messages at all still reads as WhatsApp, which is what
   // every row was before the column existed to say otherwise.
   const bare = toTodayVM(metrics(), conversations, escalations, calls, NOW).queue.rows;

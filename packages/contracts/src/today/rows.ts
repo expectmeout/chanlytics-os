@@ -72,14 +72,14 @@ export function todayNeedsYou(todayFacts: TodayFacts): NonNullable<TodayVM["need
     count: todayFacts.needsYouCount,
     holds: todayFacts.waits.holds,
     sends: todayFacts.waits.sends,
-    hint: "AI stopped and asked for a human.",
+    hint: "AI handed these to you.",
     rows,
     // Said only when nothing waits: a reply counting down to send is counted (threadsWaitingOnYou) and has no row here.
     empty: todayFacts.needsYouCount
       ? null
       : period.unanswered_in_window === 0 && period.messages_out_you === 0
         ? "Nothing needs you. AI answered every message that came in, and nobody asked for a person."
-        : "Nothing needs you right now — nobody asked for a person.",
+        : "Nothing needs you right now. Nobody asked for a person.",
   };
 }
 
@@ -93,14 +93,14 @@ export function todayWindowClosing(todayFacts: TodayFacts): TodayVM["windowClosi
       : 0;
     return {
       id: `wc-${closingConv.id}`,
-      text: `${contactName(closingConv)} — window closes ${tzClock(result.closesAtIso, tz, now) ?? "soon"} (in ${formatWaited(mins * MIN_MS)})`,
+      text: `${contactName(closingConv)} · reply by ${tzClock(result.closesAtIso, tz, now) ?? "soon"} · ${formatWaited(mins * MIN_MS)} left`,
       to: addressOf({ kind: "conversation", id: closingConv.id }),
     };
   });
   return rows.length
     ? {
-        label: "Reply window closing",
-        hint: "WhatsApp only lets you write freely for 24 hours after someone messages you. After that it's an approved template.",
+        label: "Reply soon",
+        hint: "On WhatsApp you can write freely for 24 hours after they last wrote. After that, only an approved message reaches them.",
         rows,
       }
     : null;
@@ -174,10 +174,10 @@ function callNote(call: CallDto, live: boolean | undefined, analysisDue: boolean
   // seconds has no summary and never will have much of one, so the
   // chain below would have said "summary on its way" and buried the
   // only fact worth acting on.
-  if (abandonedCall(call)) return `Hung up after ${spokenDuration(call.duration_ms)} — they left with nothing`;
-  if (call.sentiment === "Negative") return "Caller sentiment: Negative — the voice provider's own read";
-  if (analysisDue) return "Summary on its way from the voice provider";
-  if (!call.summary) return "No summary from the voice provider";
+  if (abandonedCall(call)) return `Hung up after ${spokenDuration(call.duration_ms)}, with nothing done`;
+  if (call.sentiment === "Negative") return "Sounded unhappy";
+  if (analysisDue) return "Summary on its way";
+  if (!call.summary) return "No summary";
   return endedHowOf(call) ?? "Ended early";
 }
 

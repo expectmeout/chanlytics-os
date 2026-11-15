@@ -212,8 +212,8 @@ export function durationLabel(minutes: number): string {
 
 /** The person's standing on a visit, in the words People and the Inbox say it (standing.ts), and where it is answered. */
 const FLAG_WORDS: Record<string, string> = {
-  needs_you: `${NEEDS_YOU_WORD} — in Inbox`,
-  waiting_on_you: `${HELD_WORDS.yours.pill} — in Inbox`,
+  needs_you: `${NEEDS_YOU_WORD} · in Inbox`,
+  waiting_on_you: `${HELD_WORDS.yours.pill} · in Inbox`,
 };
 
 export interface TodayDayVM {
@@ -249,14 +249,14 @@ function markedOf(b: DayBlockLike): TodayDayItemVM["said"] {
 
 /**
  * The one fact the day says of who is coming (Today in three zones, 2 Nov 2026): when they were last in, on the business's
- * calendar ("Last here Aug 12"), or that this is their first visit where the record holds none before it, in the season
+ * calendar ("Last here Aug 12"), or "First time here" where the record holds none before it, in the season
  * or before (calendar-person-facts.ts last_visit_at). Nothing where nobody is matched, it is not known whether they were in
  * before, or the board's zone is unknown.
  */
-function visitFactOf(b: DayBlockLike, tz: string | undefined, word: AppointmentWord): string | null {
+function visitFactOf(b: DayBlockLike, tz: string | undefined): string | null {
   const last = b.person?.facts?.last_visit_at;
   if (last === undefined || !tz) return null;
-  if (last === null) return `First ${appointmentWords(word).one}`;
+  if (last === null) return "First time here";
   const at = Date.parse(last);
   if (!Number.isFinite(at)) return null;
   return `Last here ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at)}`;
@@ -322,7 +322,7 @@ export function todayDay(
     said: markedOf(dayBlock),
     to: visitDoor(dayKey, dayBlock.visit?.id),
     at: allDay ? null : { from: dayBlock.t, to: dayBlock.t + dayBlock.dur / 60 },
-    fact: visitFactOf(dayBlock, cal.timezone, word),
+    fact: visitFactOf(dayBlock, cal.timezone),
   });
   const frames: TodayDayFrameVM[] = picked.map((otherItem) => {
     // A cancelled visit is none: not listed, not counted, never the next.
@@ -383,7 +383,7 @@ export function todayDay(
         ? {
             // "Write", not "text": a campaign goes by WhatsApp, text or email, whichever each person is reached on. A
             // person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026).
-            text: `No ${words.one} reminders yet — a campaign can write the day before ${words.a} and the day after.`,
+            text: `No ${words.one} reminders yet. A campaign can write the day before ${words.a} and the day after.`,
             to: SEQUENCES_ROUTE,
           }
         : {
@@ -393,7 +393,7 @@ export function todayDay(
                 // triggerWords), never spelled again here. A count that could not be read is left out, never said as
                 // "null people".
                 const t = triggerOf(p.trigger);
-                return `${t ? triggerWords(t, word).label : p.trigger}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} · `}next run ${p.next}`;
+                return `${t ? triggerWords(t, word).label : p.trigger}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} · `}next send ${p.next}`;
               })
               .join(" · "),
             to: SEQUENCES_ROUTE,

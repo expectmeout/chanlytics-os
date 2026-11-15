@@ -146,7 +146,7 @@ test("Today draws the row, and its note beats the summary branches that used to 
   assert.ok(row, "REGRESSION: the day's one lost customer was invisible");
   // The chain below this branch would have said "No summary from the voice
   // provider": true, useless, and it hides the only fact worth acting on.
-  assert.equal(row.note, "Hung up after 6 sec — they left with nothing");
+  assert.equal(row.note, "Hung up after 6 sec, with nothing done");
   assert.equal(row.to, "conversations/cv-c-quick", "and it opens where the number is");
   assert.equal(spokenDuration(6_000), "6 sec", "the note says a length the way the rest of the product says it");
 
@@ -156,15 +156,15 @@ test("Today draws the row, and its note beats the summary branches that used to 
   const summarised = todayFor(call({ summary: "The user called and ended the call." }));
   const kept = summarised.calls.rows.find((r) => r.id === "c-quick");
   assert.ok(kept, "REGRESSION: a summarised six-second call was not on the page at all");
-  assert.equal(kept.note, "Hung up after 6 sec — they left with nothing");
+  assert.equal(kept.note, "Hung up after 6 sec, with nothing done");
 
   // Two: no summary and it ended moments ago, so the row said the provider
   // was still working on it. It was not; there is nothing to work on.
   const fresh = todayFor(call({ started_at: ago(36_000), ended_at: ago(30_000) }));
   assert.equal(
     fresh.calls.rows[0].note,
-    "Hung up after 6 sec — they left with nothing",
-    "REGRESSION: read as 'Summary on its way from the voice provider'",
+    "Hung up after 6 sec, with nothing done",
+    "REGRESSION: read as 'Summary on its way'",
   );
 
   const vmLong = todayFor(call({ duration_ms: 200_000, summary: "Asked about Saturday." }));
@@ -179,7 +179,7 @@ test("it reaches the queue as something to do, not just something to read", () =
   assert.match(row.who, /Daniela/);
   assert.equal(
     row.sentence,
-    "Hung up after 6 sec — they left with nothing",
+    "Hung up after 6 sec, with nothing done",
     "they asked for nothing, so the note is the sentence",
   );
   assert.deepEqual(row.cta, { label: "Open the call", to: "conversations/cv-c-quick" });
