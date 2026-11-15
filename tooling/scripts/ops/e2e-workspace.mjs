@@ -140,7 +140,12 @@ export const PEOPLE = [
 
 /**
  * One finished search and six leads, in every class and stage e2e/leads.spec.ts
- * reads. Nothing here is a real business: `.example` hosts, 555-01xx numbers,
+ * reads: three Qualified the page shows, and three the finder set aside (Needs
+ * review, Left out), which since decision 0133 the database keeps and the search's
+ * page never shows; the spec reads them through the API to prove the page leaves
+ * them out, and on the list of the owner's own the nightly's copy holds, where a
+ * list still shows them (D4; e2e-harness/copy-states.mjs, OWN_LIST). Nothing
+ * here is a real business: `.example` hosts, 555-01xx numbers,
  * ChIJfixture place ids. The search's phones sit in a different exchange from
  * the people above, so 00140's contacts_link_lead trigger never links one to a
  * seeded person.
@@ -1216,6 +1221,28 @@ export async function converge(
 }
 
 /**
+ * What the judge answered for one of the six, as a membership keeps it: each criterion of `member.judged` read from the
+ * listing's name and category. The copy's list of the owner's own (e2e-harness/copy-states.mjs) holds three of them as
+ * the search judged them, so the peek reads the same checks there.
+ */
+export function memberJudgment(lead) {
+  return {
+    answer: {
+      ref: lead.place_id,
+      criteria: Object.entries(lead.member.judged).map(([key, answer]) => ({
+        key,
+        answer,
+        facts: ["name", "category"],
+      })),
+      email_index: lead.email ? 0 : null,
+      reason: lead.member.reason,
+    },
+    reasons: [],
+    shares: [],
+  };
+}
+
+/**
  * The lead finder's seed: one finished search, six leads, their memberships and
  * the month's counters, deleted and written again every run so the specs read
  * one state. The workspace is listed in `lead_platform.tenants_on` (decision
@@ -1387,20 +1414,7 @@ async function convergeLeads(db, T, ownerId, now) {
         lead_id: row.id,
         round_id: round.id,
         tenant_id: T,
-        judgment: {
-          answer: {
-            ref: lead.place_id,
-            criteria: Object.entries(lead.member.judged).map(([key, answer]) => ({
-              key,
-              answer,
-              facts: ["name", "category"],
-            })),
-            email_index: lead.email ? 0 : null,
-            reason: lead.member.reason,
-          },
-          reasons: [],
-          shares: [],
-        },
+        judgment: memberJudgment(lead),
         class: lead.member.class,
         excluded_by: lead.member.excluded_by ?? null,
         fit: lead.member.fit,

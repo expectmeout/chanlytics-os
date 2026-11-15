@@ -18,6 +18,7 @@ import { isOneOf } from "../../shared/unknown";
 export const BROADCAST_FAILURES = [
   "paused",
   "template_not_approved",
+  "whatsapp_wait_ended",
   "wire_unavailable",
   "run_interrupted",
   "throttled",
@@ -60,6 +61,8 @@ export const wordsFor = (words: Words, channel: ConsentChannel): string =>
 export const BROADCAST_FAILURE_WORDS: Record<BroadcastFailure, Words> = {
   paused: "the workspace was paused",
   template_not_approved: "its WhatsApp version is no longer approved",
+  // WhatsApp was still checking the message, or holding it, when the run's wait for it ended (core whatsapp-wait.ts).
+  whatsapp_wait_ended: "WhatsApp had not approved its message in time",
   wire_unavailable: {
     whatsapp: "WhatsApp could not be reached",
     sms: "the texting provider could not be reached",

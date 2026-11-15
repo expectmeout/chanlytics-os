@@ -13,6 +13,7 @@ export {
   STARTER_LINE_WORDS,
   variablesSlotCount,
   whatsappStoppedRunWords,
+  whatsappWaits,
 } from "./campaign-message";
 export type { CampaignMessage, CampaignMessageRow } from "./campaign-message";
 export {

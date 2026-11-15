@@ -100,13 +100,13 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   playbook: ["campaign is ready", "campaigns are ready"],
   // One sync can approve several at once, and several rejections read as one
   // problem with the wording, not as five separate pieces of news.
-  template_ready: ["template is ready to send", "templates are ready to send"],
-  template_blocked: ["template cannot be sent", "templates cannot be sent"],
+  template_ready: ["message approved by WhatsApp", "messages approved by WhatsApp"],
+  template_blocked: ["message needs a change", "messages need a change"],
   // "A run finished" is this repo's word for the event (activity.ts, kind
   // broadcast.sent), so the bell and the Activity log say the same thing about
   // the same fact.
-  broadcast_sent: ["run finished", "runs finished"],
-  broadcast_stopped: ["run did not go out", "runs did not go out"],
+  broadcast_sent: ["campaign send finished", "campaign sends finished"],
+  broadcast_stopped: ["campaign send didn't go out", "campaign sends didn't go out"],
   note_for_you: ["note left for you", "notes left for you"],
   // A search that stopped to ask: it waits a day for the answer, then stops and keeps what it found.
   leads_question: ["search is waiting for your answer", "searches are waiting for your answer"],
@@ -655,5 +655,5 @@ export function todaySince(input: {
     });
   }
   if (!bits.length) return null;
-  return { when: `Since ${at(seen)}`, bits, rows };
+  return { when: "Since you last looked", bits, rows };
 }

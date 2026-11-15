@@ -1103,7 +1103,8 @@
 .cal-visit-who-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
 .cal-visit-who-lines { display: flex; grid-column: 2 / -1; flex-direction: column; gap: 2px; min-width: 0; }
 .cal-visit-reach { display: flex; gap: var(--space-2); }
-.cal-visit-name { font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
+/* Their name is a door, a button's words: a long one wraps from the line's start, as the words round it do, not centred. */
+.cal-visit-name { font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); text-align: start; }
 .cal-visit-quiet { font-size: var(--text-xs); color: var(--ink-dim); }
 .cal-visit-deal { align-self: flex-start; font-size: var(--text-xs); }
 /* The question an ended visit asks stands in the foot, over its two answers, as Today's sheet asks it (11 Nov 2026): on
@@ -1132,16 +1133,19 @@
 .cal-visit-more { flex: none; min-height: 44px; }
 .cal-visit-lead,
 .cal-visit-answer { flex: 1 1 0; justify-content: center; min-width: 0; min-height: 44px; }
+/* Next, once a word is said: as wide as "Next" and its chevron, so the visit's own act beside it keeps its words. */
+.cal-visit-next { flex: none; min-height: 44px; }
 .cal-visit-circle { flex: none; width: 44px; height: 44px; border-radius: var(--radius-circle); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); }
 /* A phone's sheet stands the visit between its head and its foot with nothing of its own round it: the first line stood
    on the head and the footnote on the foot. Its head runs into it (the kit's solid sheet), so less stands over it than
    under. The foot's presses stand a step outside the words' column there (the kit's flat foot), so its words (the
    question, what a word said here sets going, and the line under its presses) keep that step, and start where the rows
-   do. The desk's peek keeps its own (.cal-side-body). */
+   do; the cancel's question keeps it whole, its two answers with it. The desk's peek keeps its own (.cal-side-body). */
 @media (max-width: 900px) {
   .cal-visit { padding-block: var(--space-2) var(--space-4); }
   .cal-visit-ask-question,
   .cal-visit-outcome-words,
+  .cal-visit-asking,
   .cal-visit-foot > .cal-visit-quiet { padding-inline: var(--space-1); }
 }
 /* Their name and their deal are words that press: under a finger each keeps its line's height and reaches a thumb by a

@@ -18,7 +18,7 @@ export const WAITING_PLACES = [
   "Mile High Reformer Co. LoDo",
   "Summit Pilates Cherry Creek",
   "Peak Core Pilates Highlands",
-];
+] as const;
 
 /** The waiting search as the page's own read answers it; fails on a seed that is not the committed one. */
 export async function waitingSearch(page: Page): Promise<{ id: string; route: string }> {

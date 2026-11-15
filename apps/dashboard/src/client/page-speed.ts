@@ -215,6 +215,7 @@ function watchLanded(): Landed[] {
       name: r.name,
       end: r.responseEnd,
       duration: r.duration,
+      ...(r.requestStart > 0 && r.responseStart >= r.requestStart ? { head: r.responseStart - r.requestStart } : {}),
       server: (r.serverTiming ?? []).map((s) => ({ name: s.name, duration: s.duration, description: s.description })),
     });
     if (landed.length > LANDED_HELD) landed.splice(0, landed.length - LANDED_HELD);

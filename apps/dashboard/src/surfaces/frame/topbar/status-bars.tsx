@@ -177,7 +177,7 @@ const useCalendarRead = () => {
 };
 
 /**
- * Yesterday's visits nobody has marked, in the header (Ruben, 20 Oct 2026: off the Calendar's page, into the header, as
+ * The past week's visits nobody has marked (yesterday's alone until 15 Nov 2026), in the header (Ruben, 20 Oct 2026: off the Calendar's page, into the header, as
  * the live call is): the island's place, on every page but Today, whose queue asks each one by name with Kept and Missed. A
  * call going on outranks it and has the place while it lasts (components.css), and where the date's place holds a way back,
  * or a thread has taken the screen, it stands down rather than push the page. Counted by Today's own rule (contracts
@@ -190,8 +190,7 @@ export function UnmarkedVisitsBar({ page }: { page: string }) {
   if (page === "today") return null;
   const cal = surfaceValue("calendar");
   const word = visitWordHere();
-  const asked =
-    cal && cal.vm && cal.vm.feed.state === "ok" ? todayVisitsAsked(cal.vm as CalendarLike, Date.now(), word) : null;
+  const asked = cal && cal.vm && cal.vm.feed.state === "ok" ? todayVisitsAsked(cal.vm, Date.now(), word) : null;
   const first = asked?.items.at(0);
   if (!asked || !first) return null;
   const lead = todayVisitsSub(asked.count, word);
