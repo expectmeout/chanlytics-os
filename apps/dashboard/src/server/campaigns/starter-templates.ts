@@ -619,7 +619,7 @@ export async function fileStarterForUse(
  * review cannot be taken back, so nothing is filed for a sequence that would be refused (the review of 15 Nov 2026, C6).
  * Null where the key is no starter of the set, which the filing refuses in its own words.
  */
-export async function starterStandIn(
+export async function findStarterStandIn(
   ctx: RouteContext,
   tenantId: TenantId,
   key: string,

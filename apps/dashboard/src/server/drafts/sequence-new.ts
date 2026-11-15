@@ -22,7 +22,7 @@ import {
 import { createBroadcast } from "@chanlytics/core";
 import { keepOnceDraft, type MessageVersionRow } from "@chanlytics/db/campaigns";
 import { getMessageOnFile, writeMessage } from "@/server/campaigns/write-message";
-import { fileStarterForUse, starterStandIn } from "@/server/campaigns/starter-templates";
+import { fileStarterForUse, findStarterStandIn } from "@/server/campaigns/starter-templates";
 import { load, readerContext } from "@/server/shared/reader";
 import * as facts from "@/server/readers/facts";
 import { createBroadcastPorts } from "@/server/campaigns/ports";
@@ -204,7 +204,7 @@ async function standInsOf(ctx: RouteContext, member: Member, newMake: NewMakeBod
     const stood = message.written
       ? writtenStandIn(message.written)
       : message.starter
-        ? await starterStandIn(ctx, member.tenantId, message.starter, newMake.channels)
+        ? await findStarterStandIn(ctx, member.tenantId, message.starter, newMake.channels)
         : null;
     const id = stood?.[0]?.id;
     if (!stood || !id) continue;
