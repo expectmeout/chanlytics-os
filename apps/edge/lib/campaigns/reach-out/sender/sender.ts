@@ -28,6 +28,7 @@ import {
   DUE_MAILBOXES_PAGE,
   DUE_PAGES,
   HOLD_MS,
+  PREVIEW_HOLD_MS,
   REWRITE_AFTER_MS,
   REWRITE_PAGE,
   adopt,
@@ -295,6 +296,7 @@ export async function claimAndWrite(params: ClaimParams): Promise<SenderCounts> 
     reads: tickReads(params.db),
     replan: [],
     later: [],
+    soon: [],
     said: new Set(),
   };
   const late = () => Date.now() - params.started > CLAIM_YIELD_AT_MS;
@@ -333,10 +335,11 @@ export async function claimAndWrite(params: ClaimParams): Promise<SenderCounts> 
   const lanes = draftsGoFirst(params.now) ? [writeDraftsDue, writeMailboxesDue] : [writeMailboxesDue, writeDraftsDue];
   for (const lane of lanes) await lane(run);
 
-  // Planned again: from now on another mailbox, and an hour on in their leads' hours.
+  // Planned again: from now on another mailbox, an hour on in their leads' hours, and minutes on for a receptionist being made.
   const replans: Array<[Replan[], Date]> = [
     [tick.replan, params.now],
     [tick.later, new Date(params.now.getTime() + HOLD_MS)],
+    [tick.soon, new Date(params.now.getTime() + PREVIEW_HOLD_MS)],
   ];
   for (const [items, from] of replans) {
     if (items.length === 0) continue;

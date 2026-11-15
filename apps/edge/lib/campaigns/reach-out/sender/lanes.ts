@@ -29,6 +29,7 @@ import type { Database, Json } from "@chanlytics/db/types";
 import { logAndGoOn } from "@chanlytics/log";
 import { scheduleJob } from "@chanlytics/jobs";
 import {
+  MIN_MS,
   draftRefusalOf,
   hasFootAddress,
   mailboxSendsNow,
@@ -69,6 +70,13 @@ export const REWRITE_AFTER_MS = 5 * 60_000;
 
 /** How far on a held send, or one waiting for the email before it to be stamped, is planned again (in its lead's hours). */
 export const HOLD_MS = 3_600_000;
+
+/**
+ * How far on a send held for its lead's own receptionist is planned again while one is being made (decision 0079): a
+ * build takes about half a minute, and one that throws is tried once more, so a few minutes and never the hour a hold
+ * its owner must mend waits. The review of 12 November 2026 found every email that carries the link going an hour late.
+ */
+export const PREVIEW_HOLD_MS = 3 * MIN_MS;
 
 export const REWRITE_PAGE = 100;
 
@@ -183,6 +191,8 @@ export interface Tick {
   replan: Replan[];
   /** Planned again an hour on, in their lead's hours, at the tick's end: held, or waiting for the email before. */
   later: Replan[];
+  /** Planned again a few minutes on (PREVIEW_HOLD_MS), in their lead's hours: held for a receptionist being made. */
+  soon: Replan[];
   /** The holds said this tick, once each per workspace and reason. */
   said: Set<string>;
 }
@@ -263,7 +273,9 @@ export function claimedTurns(tick: Tick, reachOutSend: ReachOutSendRow) {
         ? "rechecked"
         : "lost",
     hold: (reason: string): Outcome => {
-      tick.later.push({ send: reachOutSend, wrote: false });
+      // One being made is minutes away; with the switch off none is, and it waits the hour as any hold does.
+      const made = reason === "preview_building" && env.LEAD_PREVIEWS === "on";
+      (made ? tick.soon : tick.later).push({ send: reachOutSend, wrote: false });
       const key = `${reachOutSend.tenant_id}:${reason}`;
       if (!tick.said.has(key)) {
         tick.said.add(key);
