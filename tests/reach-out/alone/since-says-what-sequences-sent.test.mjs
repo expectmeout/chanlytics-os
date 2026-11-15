@@ -34,7 +34,7 @@ test("with nothing sent and nothing else new, there is no line", () => {
 
 test("what the sequences sent is one bit, and a row each, the latest first, opening its sequence", () => {
   const vm = since({ sent: sent() });
-  assert.equal(vm.when, "Since 5:00 PM");
+  assert.equal(vm.when, "Since you last looked");
   assert.deepEqual(vm.bits, ["12 sent"]);
   assert.deepEqual(vm.rows, [
     {

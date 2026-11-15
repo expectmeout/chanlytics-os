@@ -286,7 +286,7 @@ test("a batch whose words are new waits for an OK, and its notice says it ends w
   assert.equal(f.of("assemble")[0][1].state, "pending_approval");
   const [, subject, body] = f.of("notify")[0];
   assert.equal(subject, "Campaign “Fill a cancellation” is ready: 1 person");
-  assert.match(body, /Goes only if you approve it before Tue, Sep 8, 3:00 PM; after that it is skipped\.$/);
+  assert.match(body, /Goes only if you approve it before Tue, Sep 8, 3:00 PM. After that it's skipped\.$/);
   // Made the evening before, its name and its notice still say the date: kept words, read the next morning too.
   const eve = runPorts();
   const evening = new Date("2026-09-08T00:30:00Z"); // Monday 8:30 PM in New York

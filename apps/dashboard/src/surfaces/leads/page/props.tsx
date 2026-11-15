@@ -250,7 +250,9 @@ const emptyOf = (p: LeadsPage): TableEmpty => {
     return { title: "Nothing needs a look.", body: "Every lead here has been checked or decided.", action: null };
   if (!leadView.cls && p.waitsOn(leadView.searchId))
     return { title: "Nothing is counted yet.", body: "It is waiting for your answer above.", action: null };
-  const searching = !leadView.cls && openSearch ? leadSearchEmptyWords(openSearch.round) : null;
+  // Only a list of the owner's own counts Needs review and opens it here (D4): a search shows its finished leads alone
+  // (decision 0133), and its strip above holds the one next step.
+  const searching = !leadView.cls && openSearch ? leadSearchEmptyWords(openSearch) : null;
   if (searching)
     return {
       title: searching.title,

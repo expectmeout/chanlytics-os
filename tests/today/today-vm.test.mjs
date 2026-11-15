@@ -277,7 +277,7 @@ test("the reply-window region appears when the window is nearly up", () => {
   const vm = toTodayVM(m, [c], [], [], NOW);
   assert.ok(vm.windowClosing);
   assert.equal(vm.windowClosing.rows.length, 1);
-  assert.match(vm.windowClosing.rows[0].text, /window closes/);
+  assert.match(vm.windowClosing.rows[0].text, /reply by \d/);
 });
 
 test("calls: aggregate always, rows only for the ones needing an ear", () => {
@@ -335,10 +335,10 @@ test("calls: aggregate always, rows only for the ones needing an ear", () => {
   const vm = toTodayVM(m, [], [], calls, NOW);
   assert.match(vm.calls.line, /2 calls today/);
   assert.equal(vm.calls.rows.length, 1, "only the negative-sentiment call needs an ear");
-  assert.match(vm.calls.rows[0].note, /the voice provider's own read/);
+  assert.equal(vm.calls.rows[0].note, "Sounded unhappy");
 });
 
-test("sentiment is always attributed to the provider, never asserted as fact", () => {
+test("sentiment is said as how the call sounded, never as a fact about the caller, and names no provider", () => {
   const m = metrics({ period: { calls: 1, call_seconds: 100 } });
   const calls = [
     {
@@ -367,7 +367,8 @@ test("sentiment is always attributed to the provider, never asserted as fact", (
     },
   ];
   const vm = toTodayVM(m, [], [], calls, NOW);
-  assert.match(vm.calls.rows[0].note, /voice provider/);
+  assert.match(vm.calls.rows[0].note, /^Sounded /);
+  assert.doesNotMatch(vm.calls.rows[0].note, /provider|Retell|sentiment/i);
 });
 
 test("receipts quote the outbound message verbatim, not a summary of it", () => {
@@ -496,7 +497,7 @@ test("a failed delivery is a warn sentence — never silent", () => {
   const vm = toTodayVM(m, [conv({ state: "open" })], [], [], NOW);
   const warn = vm.recap.sentences.find((x) => x.warn);
   assert.ok(warn, "the send-failure line must carry warn");
-  assert.match(warn.text, /failed to deliver — the customer got no answer/);
+  assert.match(warn.text, /didn't reach them, so they got no answer/);
 });
 
 test("a failed delivery is said on a quiet day too, with its door to the thread", () => {
@@ -519,7 +520,7 @@ test("a failed delivery is said on a quiet day too, with its door to the thread"
   assert.ok(vm.quiet, "nothing came in and nobody waits: the day is quiet");
   const warn = vm.recap.sentences.find((x) => x.warn);
   assert.ok(warn, "REGRESSION: a quiet day dropped the failed delivery's line");
-  assert.match(warn.text, /failed to deliver — the customer got no answer/);
+  assert.match(warn.text, /didn't reach them, so they got no answer/);
   assert.equal(warn.to, "inbox/th-c1", "its door is the thread whose reply failed");
 });
 
@@ -676,29 +677,29 @@ test("the count above the work sees every wire, and calls each one what the owne
   assert.deepEqual(
     [only.quiet.headline, only.quiet.sub],
     [
-      "Nothing in the queue.",
-      "Nothing is sent by email without you: each email waits in Need you with a reply drafted for you to change or send.",
+      "Nothing waiting.",
+      "Nothing is sent by email without you. Each email waits in Needs you with a reply drafted for you to change or send.",
     ],
   );
   assert.ok(only.quiet.proof.some((p) => p.label === "Email" && p.value === "bestmovers@mail.chanlytics.com · on"));
   // and it is not congratulated: the receptionist does not answer email.
   assert.equal(only.queue.empty.testid, "today-queue-empty-unanswered");
-  assert.match(only.queue.empty.title, /each email waits in Need you/);
+  assert.match(only.queue.empty.title, /Each email waits in Needs you/);
   assert.equal(
     only.queue.empty.sub,
-    "nothing in the queue",
+    "nothing waiting",
     "the heading does not say 'nothing needs you' over a line nobody answers",
   );
 
   const none = toTodayVM(metrics({ channels: [] }), [], [], [], NOW);
-  assert.deepEqual(none.standing.lines, { text: "no lines connected yet", short: "no lines yet", down: false });
+  assert.deepEqual(none.standing.lines, { text: "nothing connected yet", short: "none yet", down: false });
   assert.equal(none.queue.empty.testid, "today-queue-empty-unconnected");
 
   // A mailbox that could not be read is a line that could not be counted: its own state, never a shorter count.
   const short = toTodayVM({ ...metrics(), linesRead: false }, [], [], [], NOW);
   assert.deepEqual(short.standing.lines, {
-    text: "the email line could not be counted",
-    short: "lines uncounted",
+    text: "couldn't count email",
+    short: "not counted",
     down: false,
   });
   assert.deepEqual(
@@ -857,7 +858,7 @@ test("the day's four figures, each with the clause under it and the why behind i
   assert.deepEqual(by.answered.receipt.door, { label: "See the handovers", to: "inbox" });
   assert.equal(by.calls.meta, "7 min on the phone, 1 to voicemail");
   assert.deepEqual(by.calls.receipt, {
-    text: "The voice provider read 2 as positive and 1 as neutral. Kenia Duarte reached voicemail.",
+    text: "2 sounded positive and 1 sounded neutral. Kenia Duarte reached voicemail.",
     door: { label: "Open the calls", to: "conversations/phone" },
   });
   assert.equal(
@@ -919,7 +920,7 @@ test("a receipt adds to its figure: it never says the figure's own number again"
   const all = fixtures[1].figures.find((f) => f.id === "calls");
   assert.equal(
     all.receipt.text,
-    "The voice provider read all of them as positive.",
+    "All of them sounded positive.",
     "two of two: not '2 as positive' beside the figure 2",
   );
   const held = toTodayVM(
@@ -1035,7 +1036,7 @@ test("the sentences stay true where the SQL's counts and the page's rows disagre
     [callRow("k1")],
     NOW,
   ).figures.find((f) => f.id === "calls");
-  assert.equal(single.receipt.text, "The voice provider read it as positive.");
+  assert.equal(single.receipt.text, "It sounded positive.");
   // Every call to voicemail, nobody on the phone; the same number twice is one caller; a withheld caller is counted, never named.
   const vmail = [
     callRow("v1", { in_voicemail: true, sentiment: null, duration_ms: 0 }),
@@ -1085,7 +1086,7 @@ test("the sentences stay true where the SQL's counts and the page's rows disagre
   assert.equal(partial.meta, "first contact today");
   assert.equal(
     partial.receipt.text,
-    "Counted however they reached you — a message or a call, so not everyone here has a thread to open yet.",
+    "Counted however they reached you, by message or call, so not everyone here has a conversation to open yet.",
   );
   assert.equal(partial.receipt.door.to, "clients/seg:new_week", "and the door that answers it");
   for (const n of ["Renata", "Solís", "Marco", "Ibáñez"])
@@ -1099,7 +1100,7 @@ test("the sentences stay true where the SQL's counts and the page's rows disagre
     [],
     NOW,
   ).figures.find((f) => f.id === "new");
-  assert.equal(over.receipt.text, "Counted however they reached you — a message or a call.");
+  assert.equal(over.receipt.text, "Counted however they reached you, by message or call.");
   // Four new people, all held: three named, the fourth counted.
   const four = busyThreads()
     .slice(0, 2)

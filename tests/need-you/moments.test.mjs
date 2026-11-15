@@ -95,9 +95,9 @@ test("a reach-out's reply says what was done and offers only what is left", () =
   });
   const moment = (over) => readingMomentOf(read(over));
   assert.equal(moment({ intent: "interested" }).reply, "send");
-  assert.equal(moment({ intent: "question" }).did, "Your sequence has stopped for them.");
+  assert.equal(moment({ intent: "question" }).did, "Cold email has stopped for them.");
   const later = moment({ intent: "not_now", step_day: "2027-01-05" });
-  assert.equal(later.did, "Your sequence has stopped. A to-do to write again is set for Jan 5.");
+  assert.equal(later.did, "Cold email has stopped. A to-do to write again is set for Jan 5.");
   assert.equal(later.reply, "door", "Reply now, quiet: letting it go leads");
   assert.equal(moment({ intent: "no" }).reply, "none", "REGRESSION: Send under someone who said no");
   assert.match(moment({ intent: "wrong_person", refer_to: "Dana" }).did, /write to Dana/);
