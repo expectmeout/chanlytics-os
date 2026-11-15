@@ -54,7 +54,7 @@ import { listRuns } from "@/server/campaigns/broadcasts/broadcasts";
 import { findCalendar } from "@/server/calendar/settings";
 import type { ZoneAndSettings } from "@/server/calendar/people-visits";
 import { archivedListWords } from "@/server/campaigns/audience";
-import { templateValuePorts } from "@/server/campaigns/ports";
+import { templateValuePorts, withStandIns, type StandIns } from "@/server/campaigns/ports";
 import { findWhatsappHealth } from "@/server/campaigns/channels-ready";
 import { getAppointmentWord } from "@/server/people/deals";
 import { loadLazily } from "@/server/shared/lazy";
@@ -513,6 +513,20 @@ export async function checkPlaybookInput(
   known?: ZoneAndSettings,
 ): Promise<PlaybookInput> {
   return checkPlaybook(playbookCheckPorts(ctx, tenantId, known), body, existing);
+}
+
+/**
+ * A new playbook judged the same way (checkPlaybookInput) before its message is filed: its `template_id` a stand-in's,
+ * read as its filing will leave it (ports.ts StandIns). New judges a sequence whole so before it files a starter or the
+ * AI's words (sequences/doors.ts judgeSequenceNow): what it files cannot be taken back.
+ */
+export async function checkPlaybookBeforeFiling(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  body: Record<string, unknown>,
+  standIns: StandIns,
+): Promise<PlaybookInput> {
+  return checkPlaybook(withStandIns(playbookCheckPorts(ctx, tenantId), standIns), body, null);
 }
 
 /**

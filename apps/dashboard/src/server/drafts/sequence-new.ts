@@ -9,6 +9,7 @@
  * showed: the body is a draft the browser held.
  */
 import "server-only";
+import { randomUUID } from "node:crypto";
 import {
   AppError,
   NEW_WORDS,
@@ -19,17 +20,17 @@ import {
   type NewWrittenMessage,
 } from "@chanlytics/contracts";
 import { createBroadcast } from "@chanlytics/core";
-import { keepOnceDraft } from "@chanlytics/db/campaigns";
+import { keepOnceDraft, type MessageVersionRow } from "@chanlytics/db/campaigns";
 import { getMessageOnFile, writeMessage } from "@/server/campaigns/write-message";
-import { fileStarterForUse } from "@/server/campaigns/starter-templates";
+import { fileStarterForUse, starterStandIn } from "@/server/campaigns/starter-templates";
 import { load, readerContext } from "@/server/shared/reader";
 import * as facts from "@/server/readers/facts";
 import { createBroadcastPorts } from "@/server/campaigns/ports";
 import { log } from "@/server/shared/log";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
-import type { NewMakeBody } from "../campaigns/sequences/bodies";
-import { discardBySequenceDoor, makeSequenceNow } from "../campaigns/sequences/doors";
+import type { NewMakeBody, NewSequenceBody } from "../campaigns/sequences/bodies";
+import { discardBySequenceDoor, judgeSequenceNow, makeSequenceNow } from "../campaigns/sequences/doors";
 import { jsonCopyOf } from "@chanlytics/db/shared";
 
 type Step = NewMakeBody["steps"][number];
@@ -115,31 +116,37 @@ function peopleStartOf(draftWho: DraftWho): Record<string, string> {
   throw new AppError("validation", NEW_WORDS.cannot.nothingFits);
 }
 
-/** A sequence to people: each message filed or named, then the one door, its first step judged as every campaign's. */
-async function makePeopleSequence(ctx: RouteContext, member: Member, newMake: NewMakeBody): Promise<NewMade> {
+/**
+ * A sequence to people as the one door takes it, each message step's version named by `versionOf`, in the steps' order
+ * (a message filed as it is made is filed one step at a time).
+ */
+async function peopleSequenceOf(
+  newMake: NewMakeBody,
+  versionOf: (step: Step) => Promise<string>,
+): Promise<NewSequenceBody> {
   const [first, ...rest] = newMake.steps;
   if (!first || first.does !== "message") throw new AppError("validation", NEW_WORDS.cannot.noMessage);
-  const firstTemplate = await templateOf(ctx, member, first, newMake.channels);
+  const firstTemplate = await versionOf(first);
   const then = [];
-  for (const error of rest) {
+  for (const step of rest) {
     then.push(
-      error.does === "message"
+      step.does === "message"
         ? {
-            after_days: error.after_days ?? 1,
-            template_id: await templateOf(ctx, member, error, newMake.channels),
-            params: error.message?.params ?? [],
-            only_if: error.only_if,
-            ...(error.name ? { name: error.name } : {}),
+            after_days: step.after_days ?? 1,
+            template_id: await versionOf(step),
+            params: step.message?.params ?? [],
+            only_if: step.only_if,
+            ...(step.name ? { name: step.name } : {}),
           }
         : {
-            after_days: error.after_days ?? 1,
-            hand: { kind: error.does, words: error.hand },
-            only_if: error.only_if,
-            ...(error.name ? { name: error.name } : {}),
+            after_days: step.after_days ?? 1,
+            hand: { kind: step.does, words: step.hand },
+            only_if: step.only_if,
+            ...(step.name ? { name: step.name } : {}),
           },
     );
   }
-  const item = await makeSequenceNow(ctx, member.tenantId, {
+  return {
     first: {
       name: newMake.name,
       ...peopleStartOf(newMake.who),
@@ -151,7 +158,76 @@ async function makePeopleSequence(ctx: RouteContext, member: Member, newMake: Ne
     },
     then,
     start: newMake.start,
+  };
+}
+
+/**
+ * A message the AI wrote as its filing will leave it (fileWritten, write-message.ts writeMessage): a row for each version
+ * written, its WhatsApp one with WhatsApp to check, under a stand-in id each.
+ */
+function writtenStandIn(written: NewWrittenMessage): MessageVersionRow[] {
+  const variables = written.slots.map((slot) => ({ position: slot.position, label: slot.label }));
+  const row = (channel: ConsentChannel, body: string): MessageVersionRow => ({
+    id: randomUUID(),
+    channel,
+    name: written.name,
+    language: "en",
+    meta_status: channel === "whatsapp" ? "pending" : "approved",
+    category: written.category,
+    variables,
+    hidden_at: null,
+    title: null,
+    source: "chanlytics",
+    components: null,
+    body_preview: body,
+    rejected_reason: null,
   });
+  const { whatsapp, email, sms } = written.versions;
+  return [
+    ...(whatsapp ? [row("whatsapp", whatsapp.body)] : []),
+    ...(email ? [row("email", email.body)] : []),
+    ...(sms ? [row("sms", sms.body)] : []),
+  ];
+}
+
+/**
+ * The messages a draft files as it is made (one the AI wrote, a ready-made starter), each read as its filing will leave
+ * it, under a stand-in id: what a sequence is judged against before anything of it is filed. A starter the set does not
+ * hold stands in for nothing; its filing refuses it in its own words.
+ */
+async function standInsOf(ctx: RouteContext, member: Member, newMake: NewMakeBody) {
+  const ids = new Map<Step, string>();
+  const rows = new Map<string, MessageVersionRow[]>();
+  for (const step of newMake.steps) {
+    const message = step.does === "message" ? step.message : null;
+    if (!message || message.template_id) continue;
+    const stood = message.written
+      ? writtenStandIn(message.written)
+      : message.starter
+        ? await starterStandIn(ctx, member.tenantId, message.starter, newMake.channels)
+        : null;
+    const id = stood?.[0]?.id;
+    if (!stood || !id) continue;
+    ids.set(step, id);
+    rows.set(id, stood);
+  }
+  return { ids, rows };
+}
+
+/**
+ * A sequence to people: judged whole first, each message filed as it is made (a starter, the AI's words) read as its
+ * filing will leave it, so a sequence that would be refused files nothing (the review of 15 Nov 2026, C6: a WhatsApp
+ * version sent for review cannot be taken back, and a refused Start left a starter filed); then each message filed or
+ * named, then the one door, which judges it again over what was filed.
+ */
+async function makePeopleSequence(ctx: RouteContext, member: Member, newMake: NewMakeBody): Promise<NewMade> {
+  const stood = await standInsOf(ctx, member, newMake);
+  if (stood.rows.size > 0) {
+    const named = (step: Step) => Promise.resolve(stood.ids.get(step) ?? step.message?.template_id ?? "");
+    await judgeSequenceNow(ctx, member.tenantId, await peopleSequenceOf(newMake, named), stood.rows);
+  }
+  const input = await peopleSequenceOf(newMake, (step) => templateOf(ctx, member, step, newMake.channels));
+  const item = await makeSequenceNow(ctx, member.tenantId, input);
   const created = madeOf(item, "sequence", newMake.start);
   await letKeptGo(ctx, member, newMake.draft_id);
   return created;
