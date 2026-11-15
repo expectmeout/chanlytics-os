@@ -80,6 +80,7 @@ import { logAndGoOn } from "@chanlytics/log";
 import { LEFT_OUT_ASKED_MAX } from "../campaigns/sequences/left-out";
 import { CHANGE_RULE, standsAsked } from "./sequence-change";
 import { knownStartersOf } from "./known-starters";
+import { profileLanguagesOf } from "@/lib/starter-message";
 
 /** How much of a message's words the model is handed. */
 const BODY_CHARS = 280;
@@ -161,7 +162,7 @@ function messagesKnownOf(
   here: { reviewLink: boolean; config: { brain?: { profile?: { languages?: string[] } } } | null },
 ): KnownMessage[] {
   const onFile = offeredOf(read);
-  const languages = here.config?.brain?.profile?.languages;
+  const languages = profileLanguagesOf(here.config);
   return [
     ...onFile,
     ...knownStartersOf(read.messages, { reviewLink: here.reviewLink, languages, from: onFile.length }),

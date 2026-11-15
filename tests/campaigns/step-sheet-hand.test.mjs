@@ -213,7 +213,11 @@ beforeEach(() => {
 
 test("a step's ready-made starters are those no message on file is named for, in the business's customers' language; Save files the one picked first, in that language on the sequence's channels, and the step sends the message it left (the review of 15 Nov 2026)", async () => {
   // Read from the messages, every channel's: a starter on file by email alone is the workspace's, never offered again.
-  const made = readyMadeOf([{ name: "quick_note" }], ["Spanish"]);
+  const read = (names, languages) => ({
+    messages: names.map((name) => ({ name })),
+    settings: { config: { brain: { profile: { languages } } } },
+  });
+  const made = readyMadeOf(read(["quick_note"], ["Spanish"]));
   assert.equal(
     made.some((o) => o.name === "quick_note"),
     false,
@@ -222,8 +226,8 @@ test("a step's ready-made starters are those no message on file is named for, in
   const reminder = made.find((o) => o.name === "visit_reminder");
   assert.equal(reminder.language, "es", "a business that answers in Spanish is offered it in Spanish");
   assert.equal(reminder.body_preview, contracts.starterText(contracts.starterByKey("visit_reminder"), "es").body);
-  assert.equal(readyMadeOf([], ["English"]).find((o) => o.name === "visit_reminder").language, "en_US");
-  assert.deepEqual(readyMadeOf(null, ["Spanish"]), [], "none until the messages are read");
+  assert.equal(readyMadeOf(read([], ["English"])).find((o) => o.name === "visit_reminder").language, "en_US");
+  assert.deepEqual(readyMadeOf({ ...read([], ["Spanish"]), messages: null }), [], "none until the messages are read");
   // Save, as a new step at the end.
   const real = W.fetch;
   const asked = [];

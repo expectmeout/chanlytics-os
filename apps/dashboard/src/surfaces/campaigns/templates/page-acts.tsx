@@ -171,7 +171,7 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
         TPL_VERSION_WORDS.languageAdded(
           g.title,
           lang.label,
-          r.data.results.some((x) => x.status === "submitted" || x.status === "synced"),
+          r.data.results.some((result) => result.status === "submitted" || result.status === "synced"),
         ),
     );
   const sync = () =>

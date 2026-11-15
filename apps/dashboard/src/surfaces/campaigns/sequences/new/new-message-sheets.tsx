@@ -14,7 +14,6 @@ import {
   REACH_OUT_SLOTS,
   numberedValues,
   slugTemplateName,
-  starterLanguageOf,
   momentNamesVisit,
   triggerOf,
   type CampaignMessage,
@@ -31,7 +30,8 @@ import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { routeDoor } from "../../../frame-verbs";
-import { starterMessageOf } from "@/lib/starter-message";
+import { profileLanguagesOf, starterLanguageOf, starterMessageOf } from "@/lib/starter-message";
+import { useSurface } from "../../../use-surface";
 import { STARTER_MOMENTS, starterMoment } from "../../templates/group";
 import { starters } from "../../templates/verbs";
 import { TPL_LIST_WORDS, tplOwn } from "../../templates/words";
@@ -44,11 +44,6 @@ import { PickSheet } from "./new-sheets";
 export interface LibraryReads {
   messages: readonly CampaignMessage[];
   rows: readonly { id: string; name: string; variables: unknown; body_preview?: string | null }[];
-  /**
-   * The languages the business's profile says it answers customers in, which a ready-made starter is shown and filed in
-   * (contracts starterLanguageOf); none read is English. Absent where nothing read them.
-   */
-  languages?: readonly string[];
 }
 
 /**
@@ -105,6 +100,8 @@ export function MessageSheet(p: {
     .map((m) => heldMessageOf(m, p.library?.rows ?? []))
     .filter((m): m is NewMessage => m !== null);
   const readyMade = readyMadeOf(p.library);
+  // The languages the business's profile says it answers customers in: a ready-made starter goes in the first it can.
+  const languages = profileLanguagesOf(useSurface("settings")?.settings?.config);
   return (
     <PickSheet
       open={p.open}
@@ -154,7 +151,7 @@ export function MessageSheet(p: {
           <p className="sq-nw-cap">{TPL_LIST_WORDS.made}</p>
           <div className="sq-nw-rows">
             {readyMade.map((starter) => {
-              const message = starterMessageOf(starter, starterLanguageOf(starter, p.library?.languages));
+              const message = starterMessageOf(starter, starterLanguageOf(starter, languages));
               const notHere = notHereOf(message, p.i === 0, p.draft.kind === "sequence" ? p.draft.who : null);
               return (
                 <Choice

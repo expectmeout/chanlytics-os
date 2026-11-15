@@ -1,15 +1,15 @@
 /**
  * The AI's drafter knows the ready-made starters, and a starter picked in New survives the AI changing the draft (the
  * review of 15 Nov 2026, C1 and B2): the drafter is offered each starter no message on file is named for, keyed after
- * the business's own (drafts/known-starters.ts), in the language the business's customers are written to in (contracts
- * starterLanguageOf), made the one way New makes it (lib/starter-message.ts); a step that names one is kept with its key
+ * the business's own (drafts/known-starters.ts), in the language the business's customers are written to in
+ * (lib/starter-message.ts starterLanguageOf), made the one way New makes it (lib/starter-message.ts); a step that names one is kept with its key
  * and no id (draft-judge.ts peopleMessage), which Keep or Start files; and a draft that stands tells the AI the starter a
  * step sends (new/change.ts standsOf), which the judge finds again by its key (draft-stands.ts stoodStepsOf) and the
  * owner's price words never mistake for a written step's (numbers.ts ownerPriceWords).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelsReady, starterByKey, starterLanguageOf, starterText } from "@chanlytics/contracts";
+import { channelsReady, starterByKey, starterText } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -17,7 +17,8 @@ const { knownStartersOf } = await import("../../apps/dashboard/src/server/drafts
 const { draftKept } = await import("../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
 const { stoodStepsOf } = await import("../../apps/dashboard/src/server/campaigns/sequences/draft-stands.ts");
 const { ownerPriceWords } = await import("../../apps/dashboard/src/server/campaigns/sequences/numbers.ts");
-const { starterMessageOf } = await import("../../apps/dashboard/src/lib/starter-message.ts");
+const { profileLanguagesOf, starterLanguageOf, starterMessageOf } =
+  await import("../../apps/dashboard/src/lib/starter-message.ts");
 const { standsOf } = await import("../../apps/dashboard/src/surfaces/campaigns/sequences/new/change.ts");
 
 const ID = (n) => `00000000-0000-4000-8000-00000000000${n}`;
@@ -98,7 +99,8 @@ test("a starter goes in the first language the business answers its customers in
   assert.equal(starterLanguageOf(note, ["español", "English"]), "es", "its own word for Spanish, first");
   assert.equal(starterLanguageOf(note, ["English", "Spanish"]), "en_US");
   assert.equal(starterLanguageOf(note, []), "en_US", "a profile that names none");
-  assert.equal(starterLanguageOf(note, null), "en_US", "a profile that could not be read");
+  assert.equal(starterLanguageOf(note, profileLanguagesOf(null)), "en_US", "a profile that could not be read");
+  assert.deepEqual(profileLanguagesOf({ brain: { profile: { languages: ["Spanish"] } } }), ["Spanish"]);
   assert.equal(starterLanguageOf(note, ["French"]), "en_US", "a language Chanlytics does not write its messages in");
   assert.equal(
     starterLanguageOf({ texts: { en_US: {} } }, ["Spanish"]),

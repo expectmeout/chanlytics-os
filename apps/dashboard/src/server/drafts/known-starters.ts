@@ -7,8 +7,8 @@
  * Start files it (drafts/sequence-new.ts templateOf).
  */
 import "server-only";
-import { startersOffered, starterLanguageOf, type CampaignMessage } from "@chanlytics/contracts";
-import { starterMessageOf } from "@/lib/starter-message";
+import { startersOffered, type CampaignMessage } from "@chanlytics/contracts";
+import { starterLanguageOf, starterMessageOf } from "@/lib/starter-message";
 import type { KnownMessage } from "../campaigns/sequences/draft-judge";
 
 /**
@@ -17,7 +17,7 @@ import type { KnownMessage } from "../campaigns/sequences/draft-judge";
  */
 export function knownStartersOf(
   onFile: readonly Pick<CampaignMessage, "name">[],
-  here: { reviewLink: boolean; languages: readonly string[] | null | undefined; from: number },
+  here: { reviewLink: boolean; languages: readonly string[]; from: number },
 ): KnownMessage[] {
   const held = new Set(onFile.map((message) => message.name));
   return startersOffered({ reviewLink: here.reviewLink })

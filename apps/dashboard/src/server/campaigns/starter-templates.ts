@@ -45,7 +45,6 @@ import {
   startersOffered,
   parseTenantConfig,
   starterDraft,
-  starterLanguageOf,
   starterText,
   templateComponents,
   momentNamesVisit,
@@ -79,6 +78,7 @@ import {
 import { logAndGoOn } from "@chanlytics/log";
 import { templateValuePorts } from "@/server/campaigns/ports";
 import { getStoredConfig } from "@/server/workspace/config-row";
+import { profileLanguagesOf, starterLanguageOf } from "@/lib/starter-message";
 import { whatsappWrittenHere } from "@/server/campaigns/write-message";
 import { readJsonBody } from "@/server/shared/request-guards";
 import { createTemplate, syncTemplates } from "@/server/campaigns/meta-templates";
@@ -155,14 +155,14 @@ async function startersHere(ctx: RouteContext, tenantId: TenantId, keys: unknown
 }
 
 /**
- * The language a starter is filed in here (contracts starterLanguageOf): its customers', by the languages the business's
+ * The language a starter is filed in here (lib/starter-message.ts starterLanguageOf): its customers', by the languages the business's
  * profile says it answers in, as New and the step editor show it. A profile that could not be read names none: English.
  */
 async function starterLanguageHere(ctx: RouteContext, tenantId: TenantId, starter: StarterTemplate): Promise<string> {
   const config = await getStoredConfig(ctx.supabase, tenantId)
     .then(parseTenantConfig)
     .catch(logAndGoOn("starter language", null));
-  return starterLanguageOf(starter, config?.brain?.profile?.languages);
+  return starterLanguageOf(starter, profileLanguagesOf(config));
 }
 
 /**

@@ -6,7 +6,6 @@
  * speaks (messageLanguagesNext).
  */
 import { findLanguages, languageBase } from "../campaigns/templates/languages";
-import { messageLanguageCode } from "../campaigns/templates/starter-templates/shapes";
 
 /* ------------------------------------------------------------- language */
 
@@ -64,21 +63,6 @@ export function messageLanguageOf(business: readonly MessageLanguage[], turn: As
   const found = MESSAGE_LANGUAGES.find((l) => l === turn);
   if (found && (business.length === 0 || business.includes(found))) return found;
   return business[0] ?? found ?? "en";
-}
-
-/**
- * The language a ready-made starter goes in for this business, the code it is filed under: the first its profile says it
- * answers customers in that Chanlytics writes (messageLanguagesOf of the profile's `names`), where the set writes the
- * starter in it; else English (the review of 15 Nov 2026: a starter was filed in English for a Spanish-speaking business
- * too). The one reading: what New and the step editor show, what Keep, Start and Save file, and what the AI's drafter is
- * offered, so a starter is never shown in one language and filed in another.
- */
-export function starterLanguageOf(
-  starter: { texts: Readonly<Record<string, unknown>> },
-  names: readonly string[] | null | undefined,
-): string {
-  const wanted = messageLanguageCode(messageLanguagesOf(names ?? [])[0] ?? "en");
-  return starter.texts[wanted] ? wanted : "en_US";
 }
 
 /** "Can you write it in Spanish too?", in the turn's language: the person's own next words, a tap away. */
