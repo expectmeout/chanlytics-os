@@ -155,9 +155,32 @@ function recordLines(opening: OpeningRecord): OpeningLine[] {
     ),
     ...partLines("reason", fenceLine("why_it_fits", opening.why_it_fits)),
     ...partLines("website", fenceLine("website_says", opening.website_says)),
-    ...partLines("listing", "</record>"),
+    ...partLines(
+      "listing",
+      fenceLine("preview_knows", opening.preview_knows),
+      fenceLine("preview_tried", opening.preview_tried),
+      fenceLine("preview_said", opening.preview_said),
+      "</record>",
+    ),
   ];
 }
+
+/** Whether a record holds anything of the business's own preview: an email that carries its link, once one is open. */
+const hasPreview = (opening: OpeningRecord): boolean =>
+  [opening.preview_knows, opening.preview_tried, opening.preview_said].some((line) => !!line?.trim());
+
+/**
+ * What the writer is told where the email carries the business's own preview (decision 0079): the sentence is about it,
+ * from what the record says it knows and what they did with it. An open is never said: a mail scanner opens a link too,
+ * and being watched is no way to be written to.
+ */
+const PREVIEW_RULES: readonly string[] = [
+  "This email carries the link to the business's own preview: AI set up for them from their listing and website, free to try. Your sentence is about that preview, in the owner's voice; it is not a first hello.",
+  "preview_knows is what it already knows about them: you may name two or three of those things.",
+  "preview_tried is what they did with it. With no preview_tried line they have not tried it yet: you may say how little trying it takes. Never say that they have not tried it.",
+  "preview_said is what they told it is not right: you may say they can put that right once it is theirs. Never say it has been put right.",
+  "Never say or imply that you know whether they opened the email, the link or the page.",
+];
 
 /**
  * What an owner asked when they pressed Rewrite the opening (00505 sequence_sends.rewrite_asked): the opening they turned
@@ -203,7 +226,7 @@ export function openingUserLines(params: OpeningInput): OpeningLine[] {
   return [
     ...partLines("listing", "The business's record:"),
     ...recordLines(record),
-    ...partLines("listing", ""),
+    ...partLines("listing", ...(hasPreview(record) ? PREVIEW_RULES : []), ""),
     ...partLines("searched", fenceLine("What the owner searched for (not about this business)", record.what_you_asked)),
     ...partLines(
       "business",

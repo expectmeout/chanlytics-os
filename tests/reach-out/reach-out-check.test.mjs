@@ -518,6 +518,7 @@ function world({
   spentToday = 0,
   body = WORDS,
   own = [],
+  previews = [],
 } = {}) {
   const tables = {
     tenants: [
@@ -541,6 +542,8 @@ function world({
     ],
     reach_out_sends: sends,
     sequence_lead_words: own,
+    // A lead's own preview (decision 0079), read for the line of an email that carries its link.
+    lead_previews: previews,
     // What the workspace's model attempts spent this UTC day (00197), counted against its ceiling.
     reach_out_check_spend: [{ tenant_id: T, day: new Date().toISOString().slice(0, 10), attempts: spentToday }],
   };
@@ -1190,4 +1193,50 @@ test("the pressed check's door acts for the workspace its token names, on one to
     else process.env.ANTHROPIC_API_KEY = key;
     setPg(null);
   }
+});
+
+test("an email that carries their preview: its line is written from what they did with it, and stamped with the preview's mark", async () => {
+  const words = { subject: "Quick one", body: "{{opening}}\n\nIt is still here: {{their preview}}" };
+  const tried = send({ lead_id: "tried" });
+  const none = send({ lead_id: "none" });
+  const w = world({
+    sends: [tried, none],
+    records: { tried: record("Tried Movers"), none: record("None Movers") },
+    body: words,
+    // One lead has an open preview and used it; the other has none yet (it is made when this email goes).
+    previews: [
+      {
+        id: "pv-1",
+        tenant_id: T,
+        lead_id: "tried",
+        preview_tenant_id: null,
+        state: "ready",
+        token: "TokenTokenTokenToken01",
+        ends_at: ahead(20 * DAY),
+        asked_count: 4,
+        call_count: 1,
+        call_seconds: 130,
+        not_right: [],
+      },
+    ],
+  });
+  const line = "You asked it 4 questions and called it for 2 minutes.";
+  const m = byBusiness({
+    "Tried Movers": [WROTE(line, { angle: "their preview", facts_used: ["preview_tried"] }), READ()],
+    // No preview to write from: its line is written from its listing, as in any email.
+    "None Movers": [WROTE("A 4.9 says people find you."), READ()],
+  });
+  const out = await tick(w, m.ask);
+  assert.deepEqual([out.checked, out.held, out.calls_failed], [2, 0, 0]);
+  const toldTried = m.calls.find((user) => user.includes("name: Tried Movers"));
+  assert.match(toldTried, /preview_tried: 4 messages · a call of 2 minutes/);
+  assert.match(toldTried, /Your sentence is about that preview/);
+  assert.ok(
+    m.calls.filter((user) => user.includes("name: None Movers")).every((user) => !/preview_/.test(user)),
+    "a lead with no preview yet is written to as any other",
+  );
+  assert.equal(w.row(tried.id).opening, line);
+  // The sender compares this mark with the preview as it stands: a line written before they used it is written again.
+  assert.equal(w.row(tried.id).checked_words, checkedWordsOf(words, "Sam", false, "pv-1:4:1:0"));
+  assert.equal(w.row(none.id).checked_words, checkedWordsOf(words, "Sam", false), "no preview: the mark it always was");
 });

@@ -55,6 +55,7 @@ import { siteWordsOf } from "@chanlytics/core";
 import { findHomePage, PAGE_READS } from "../../shared/public-page.js";
 import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
+import type { PreviewForOpening } from "../../previews/for-opening.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -378,9 +379,18 @@ export function checkInputOf(
   language: string,
   included: string[] = [],
   country: string | null = null,
+  preview: PreviewForOpening | null = null,
 ): CheckInput {
   return {
-    record: openingRecordOf(reachOut),
+    // In an email that carries their preview, once one is open, the record holds what it knows and what they did with it.
+    record: preview
+      ? {
+          ...openingRecordOf(reachOut),
+          preview_knows: preview.knows,
+          preview_tried: preview.tried,
+          preview_said: preview.said,
+        }
+      : openingRecordOf(reachOut),
     workspace,
     words,
     language,
@@ -393,13 +403,16 @@ export function checkInputOf(
     customerDomain: customerDomainOf(reachOut.email, reachOut.email_domain_shared),
     abroad: reachOutCountryOf(country) === "held" ? (country ?? "").trim().toUpperCase() : null,
     included,
-    fact: leadFactOf({
-      business_name: reachOut.business_name,
-      city: reachOut.city,
-      hours: reachOut.hours,
-      rating: reachOut.rating,
-      reviews: reachOut.reviews,
-    }),
+    // A line about their preview is the writer's: the listing's own sentence (its hours, its rating) says nothing of it.
+    fact: preview
+      ? null
+      : leadFactOf({
+          business_name: reachOut.business_name,
+          city: reachOut.city,
+          hours: reachOut.hours,
+          rating: reachOut.rating,
+          reviews: reachOut.reviews,
+        }),
   };
 }
 

@@ -17,7 +17,14 @@ import {
 } from "@chanlytics/db/campaigns";
 import { findMailboxConnection } from "@chanlytics/db/email";
 import { sendMessageId } from "@chanlytics/core";
-import { MIN_MS, REACH_OUT_MONTH_EMAILS, mailboxDailyCap, mailboxSendsNow, slotCount } from "@chanlytics/contracts";
+import {
+  MIN_MS,
+  REACH_OUT_MONTH_EMAILS,
+  mailboxDailyCap,
+  mailboxSendsNow,
+  slotCount,
+  wordsNeedOpening,
+} from "@chanlytics/contracts";
 import { checkedWordsOf } from "@chanlytics/channels/email";
 import { replanSends, type Replan } from "../replan.js";
 import type { LogEvent, Logger } from "../../../shared/log.js";
@@ -90,10 +97,6 @@ async function writeOne(tick: Tick, reachOutSend: ReachOutSendRow): Promise<Outc
   if (workspace.missing) return hold(workspace.missing);
   const words = ownWords ?? stepWords;
   if (!words) return hold("no_template");
-  // Checked against other words than these (its step's, the name it signs with, whether a booking link exists): the
-  // check reads it again before it goes (R5). Never a skip: nothing about the lead changed.
-  if (reachOutSend.checked_words !== checkedWordsOf(words, standing.signedBy, workspace.bookingLink !== null))
-    return recheck();
 
   // 3. A step after the first answers the lead's email on the step before (D19).
   const after = standing.step.after_step_id;
@@ -111,6 +114,13 @@ async function writeOne(tick: Tick, reachOutSend: ReachOutSendRow): Promise<Outc
     slotCount(`${words.subject ?? ""}\n${words.body}`, "their preview") > 0
       ? await previewForWords(tick, reachOutSend)
       : null;
+  // Checked against other words than these (its step's, the name it signs with, whether a booking link exists), or its
+  // line written before their preview stood or before they last used it: the check reads it again before it goes (R5),
+  // and writes that line from what the preview says now. Never a skip: nothing about the lead changed. Read after
+  // their preview is, since its mark is part of what the line was checked against.
+  const did = wordsNeedOpening(words) ? (preview?.did ?? null) : null;
+  if (reachOutSend.checked_words !== checkedWordsOf(words, standing.signedBy, workspace.bookingLink !== null, did))
+    return recheck();
   const created: Made = {
     afterStep: after,
     lead,

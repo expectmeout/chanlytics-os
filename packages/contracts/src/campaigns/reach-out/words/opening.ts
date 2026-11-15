@@ -135,6 +135,10 @@ export const OPENING_FACT_KEYS = [
   "about",
   "why_it_fits",
   "website_says",
+  // Their own preview's, in an email that carries its link (decision 0079): what it knows, and what they did with it.
+  "preview_knows",
+  "preview_tried",
+  "preview_said",
 ] as const;
 
 export type OpeningFactKey = (typeof OPENING_FACT_KEYS)[number];
@@ -168,6 +172,15 @@ export interface OpeningRecord {
    * about this business. The writer is told it; no opening leans on it, and its numbers back nothing.
    */
   what_you_asked: string | null;
+  /**
+   * Their own preview, in an email that carries its link and once one is open (decision 0079; the edge's
+   * previews/for-opening.ts): what it knows about them, as its page lists it. Absent in every other email.
+   */
+  preview_knows?: string | null;
+  /** What they did with it: its messages and its calls, as one line; none until they text or call it. */
+  preview_tried?: string | null;
+  /** What they told it is not right, in their words. */
+  preview_said?: string | null;
 }
 
 export interface WrittenOpening {
@@ -211,6 +224,9 @@ function recordNumbers(opening: OpeningRecord): Set<string> {
     opening.about,
     opening.why_it_fits,
     opening.website_says,
+    opening.preview_knows,
+    opening.preview_tried,
+    opening.preview_said,
   ])
     for (const m of defang(text ?? "").matchAll(NUMBER)) out.add(m[0].replace(/,$/, ""));
   return out;

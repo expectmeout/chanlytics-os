@@ -41,6 +41,7 @@ import {
 } from "@chanlytics/contracts";
 import { dashboardOrigin, unsubscribeOrigin } from "../../../shared/dashboard-origin.js";
 import { env } from "../../../shared/env.js";
+import { previewDidMarkOf } from "../../../previews/for-opening.js";
 import { askPreview } from "../../../previews/make.js";
 import { reachOutDraft, reachOutRequest, reachOutWords } from "@chanlytics/channels/email";
 import { REPLAN_GIVE_UP_MS, type Replan } from "../replan.js";
@@ -323,13 +324,16 @@ export interface Made {
 export async function previewForWords(
   t: Tick,
   s: ReachOutSendRow,
-): Promise<{ slot: LeadPreviewSlot; id: string | null }> {
+): Promise<{ slot: LeadPreviewSlot; id: string | null; did: string | null }> {
   const row = await findLeadPreview(t.db, s.tenant_id, s.lead_id);
   const slot = previewSlotOf(row, t.now, dashboardOrigin());
-  if (slot.state !== "building" || row?.state === "building" || env.LEAD_PREVIEWS !== "on")
-    return { slot, id: slot.state === "open" ? (row?.id ?? null) : null };
+  if (slot.state !== "building" || row?.state === "building" || env.LEAD_PREVIEWS !== "on") {
+    // An open one says how far they have used it (previews/for-opening.ts): the mark a line written from it was stamped with.
+    const open = slot.state === "open" && row ? row : null;
+    return { slot, id: open ? open.id : null, did: open ? previewDidMarkOf(open) : null };
+  }
   const otherAskPreview = await askPreview(t.db, { tenantId: s.tenant_id, leadId: s.lead_id, by: null });
-  return { slot: otherAskPreview.ok ? slot : { state: "gone" }, id: null };
+  return { slot: otherAskPreview.ok ? slot : { state: "gone" }, id: null, did: null };
 }
 
 /**
