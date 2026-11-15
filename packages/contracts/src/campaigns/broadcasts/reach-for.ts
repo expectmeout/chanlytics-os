@@ -15,6 +15,7 @@
  * is an offer at the door (decision D2, consent.ts isOfferByEmail), so it waits for the same. Over a channel's limit a person is
  * held on that channel, never moved to another: nobody gets an email because WhatsApp ran out for the day (decision 9).
  */
+import { replyWindow } from "../../config/policy/prices";
 import { isOfferByEmail, type AskedPurpose, type MessageAbout } from "../../consent/consent";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import type { WrittenChannel } from "../../conversations/thread-channel";
@@ -288,10 +289,21 @@ export function channelChoices(ready: ChannelsReady, purpose: AskedPurpose, abou
 export type HeldOn = NotReceived | "no_channel";
 
 /**
- * A person as the pick reads them: their answers, where to send, and the channel they last wrote on (an Instagram DM among
- * them, which no campaign goes by: the pick then keeps its own order).
+ * A person as the pick reads them: their answers, where to send, the channel they last wrote on (an Instagram DM among
+ * them, which no campaign goes by: the pick then keeps its own order), and when they last wrote on WhatsApp, where the
+ * read carries it (People's row does: `latest_wa_inbound_at`), which a reply in their open chat is judged by (InChat).
  */
-export type ReachRow = ReceiveRow & { lastChannel?: WrittenChannel | null };
+export type ReachRow = ReceiveRow & { lastChannel?: WrittenChannel | null; waInboundAt?: string | null };
+
+/**
+ * A step whose reply may go in a person's open WhatsApp chat (decision 0135): a follow-up about their own request whose
+ * message WhatsApp approved as an offer. `purpose` is the moment's own, the yes the open chat asks, where the message's
+ * is the offer's; `atMs` is the moment the send is for, which the person's 24 hours are counted to.
+ */
+interface InChat {
+  purpose: AskedPurpose;
+  atMs: number;
+}
 
 /**
  * How far each reason is from being the owner's to fix: first the one that ends everything, then the person's own no to
@@ -328,27 +340,54 @@ export function usableChannels(
   );
 }
 
+/** What a campaign's pick is asked with: its ticks, the workspace's channels now, what its message is about. */
+interface ReachOptions {
+  channels: readonly string[];
+  ready: ChannelsReady;
+  about: MessageAbout;
+  /** Said by a step whose reply may go in an open chat (InChat, decision 0135); unsaid, nobody is picked that way. */
+  inChat?: InChat | null;
+}
+
+/**
+ * Whether a step's reply goes in this person's open WhatsApp chat (decision 0135): null where it does. "closed" where
+ * there is no chat to reply in, which holds nobody, and they are picked as they always were: the step does not go by
+ * WhatsApp, the number cannot send, or their 24 hours since they last wrote there are over at the moment the send is for
+ * (replyWindow, the one reading of it). Else the person's own reason under the moment's yes: a stop, no yes to messages,
+ * no number. Meta's pause on offers to US numbers is not asked: words in an open chat are no saved message of Meta's.
+ */
+function inChatFor(reach: ReachRow, chat: InChat, options: ReachOptions): NotReceived | "closed" | null {
+  if (!options.channels.includes("whatsapp") || !options.ready.whatsapp.ready) return "closed";
+  if (!replyWindow("whatsapp", reach.waInboundAt, new Date(chat.atMs)).open) return "closed";
+  return whyNotReceive(reach, chat.purpose, "whatsapp", options.about);
+}
+
 /**
  * The channel a campaign reaches this person on, or why it reaches them on none (the rules at the head of this file).
  * `channels` are the campaign's ticks; `ready` the workspace's channels now; `about` what its message is about, which
- * by email decides whether a yes is asked (consent.ts MessageAbout).
+ * by email decides whether a yes is asked (consent.ts MessageAbout). Where the step says its reply may go in an open
+ * chat (`inChat`), that is asked first, and a person picked so is marked (`inChat`): the send leaves the saved message's
+ * name off for them. Someone their own answers hold there is held by the strictest reason of both askings.
  */
 export function reachFor(
   reach: ReachRow,
   purpose: AskedPurpose,
-  options: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
-): { channel: ConsentChannel; held: null } | { channel: null; held: HeldOn } {
+  options: ReachOptions,
+): { channel: ConsentChannel; held: null; inChat?: true } | { channel: null; held: HeldOn } {
+  const chat = options.inChat ? inChatFor(reach, options.inChat, options) : "closed";
+  if (chat === null) return { channel: "whatsapp", held: null, inChat: true };
+  const heldOn: HeldOn[] = chat === "closed" ? [] : [chat];
+  const strictest = (): HeldOn => HELD_ON.find((w) => heldOn.includes(w)) ?? "no_channel";
   const usable = usableChannels(purpose, options);
-  if (usable.length === 0) return { channel: null, held: "no_channel" };
+  if (usable.length === 0) return { channel: null, held: strictest() };
   const last = usable.find((c) => c === reach.lastChannel) ?? null;
   const order = last ? [last, ...usable.filter((c) => c !== last)] : usable;
-  const heldOn: HeldOn[] = [];
   for (const c of order) {
     const w = whyNotReceive(reach, purpose, c, options.about);
     if (w === null) return { channel: c, held: null };
     heldOn.push(w);
   }
-  return { channel: null, held: HELD_ON.find((w) => heldOn.includes(w)) ?? "no_channel" };
+  return { channel: null, held: strictest() };
 }
 
 /** How a campaign's people split: how many on each channel, and how many held, by why. */
