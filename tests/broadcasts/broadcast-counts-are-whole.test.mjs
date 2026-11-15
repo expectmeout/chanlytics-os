@@ -731,12 +731,12 @@ test("the surface offers the messages of the templates read by the channels each
   const rows = [
     // An email alone, a utility message.
     version("hours_note", "email"),
-    // A WhatsApp version in review with an email beside it: the read returns the email, and the message holds the standing.
+    // A WhatsApp version in review with an email beside it: it goes by both, drawn from the WhatsApp words being checked.
     version("fall_offer", "whatsapp", { meta_status: "pending", category: "marketing" }),
     version("fall_offer", "email", { category: "marketing" }),
     // A WhatsApp version alone, approved.
     version("quick_note", "whatsapp"),
-    // A WhatsApp version alone, still in review: not offered.
+    // A WhatsApp version alone, still in review: offered too (the one picker rule: what sends it waits for the check).
     version("later_note", "whatsapp", { meta_status: "pending" }),
   ];
   // The messages are the settings read's, the one read of the templates (offered-templates.ts): the surface asks for no GET templates
@@ -761,10 +761,11 @@ test("the surface offers the messages of the templates read by the channels each
     offered.map((t) => [t.name, t.id, t.channel, t.channels, t.purpose]),
     [
       ["hours_note", "t-hours_note-email", "email", ["email"], "conversational"],
-      ["fall_offer", "t-fall_offer-whatsapp", "email", ["email"], "marketing"],
+      ["fall_offer", "t-fall_offer-whatsapp", "whatsapp", ["whatsapp", "email"], "marketing"],
       ["quick_note", "t-quick_note-whatsapp", "whatsapp", ["whatsapp"], "conversational"],
+      ["later_note", "t-later_note-whatsapp", "whatsapp", ["whatsapp"], "conversational"],
     ],
-    "by name, under each message's anchor's id, the words on the row the read holds, the channels it can be sent on",
+    "by name, under each message's anchor's id, the words on the row of the first channel it goes by, the channels it goes by",
   );
   assert.equal(
     offered[1].message.versions.whatsapp.status,
@@ -774,15 +775,16 @@ test("the surface offers the messages of the templates read by the channels each
   assert.deepEqual(offered[0].versions, {
     email: { subject: "Subject of hours_note", body: "Words of hours_note on email" },
   });
-  // A read from before messages were kept: the same, made of the rows it holds (which leave the version in review out), in
-  // the order the settings read holds them: WhatsApp's rows, then the email and text rows (offered-templates.ts offeredRows).
+  // A read from before messages were kept: the same messages, made of the rows a picker is handed, in their order: the
+  // approved WhatsApp rows, the email and text rows, then the WhatsApp rows being checked (offered-templates.ts offeredRows).
   setSurfaceValue("settings", settings({ messages: null }));
   assert.deepEqual(
     surfaceValue("broadcasts").templates.map((t) => [t.name, t.id, t.channels]),
     [
       ["quick_note", "t-quick_note-whatsapp", ["whatsapp"]],
       ["hours_note", "t-hours_note-email", ["email"]],
-      ["fall_offer", "t-fall_offer-email", ["email"]],
+      ["fall_offer", "t-fall_offer-whatsapp", ["whatsapp", "email"]],
+      ["later_note", "t-later_note-whatsapp", ["whatsapp"]],
     ],
   );
   // A read of Settings that failed on its templates is 'could not read' here too, and the surface's own read keeps what it holds.

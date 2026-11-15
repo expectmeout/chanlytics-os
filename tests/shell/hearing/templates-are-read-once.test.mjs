@@ -105,17 +105,22 @@ test("the rows a picker may offer are judged by the one rule, and every answer i
   assert.deepEqual(names(offered.offeredWhatsApp(settings)), ["welcome"], "WhatsApp's approved, shown messages");
   assert.deepEqual(
     names(offered.offeredRows(settings)),
-    ["welcome", "hours_note"],
-    "and the versions on the other channels",
+    ["welcome", "hours_note", "in_review"],
+    "a campaign's pickers: those, the versions on the other channels, and the one WhatsApp is still checking",
   );
   assert.deepEqual(
     offered.heldBackOf(settings),
     { pending: 1, rejected: 1, paused: 0, disabled: 0, hidden: 1 },
     "the rest are counted by why, for an empty picker to say it",
   );
-  // The rule is contracts', the same one the templates reader keeps its composers' rows by.
+  // The rule is the one the templates reader keeps its composers' rows by (lib/pickable-messages.ts pickerRows):
+  // contracts' approved and shown, and what WhatsApp is still checking; never one it refused or the workspace put away.
   for (const r of rows)
-    assert.equal(offered.offeredRows(settings).includes(r), templateOffered(r), `${r.name}: ${r.meta_status}`);
+    assert.equal(
+      offered.offeredRows(settings).includes(r),
+      templateOffered(r) || r.name === "in_review",
+      `${r.name}: ${r.meta_status}`,
+    );
   // Still reading (Settings has not landed), or could not read (its templates read failed): never 'none approved'.
   for (const read of [offered.offeredWhatsApp, offered.offeredRows, offered.heldBackOf, offered.callTextOf]) {
     assert.equal(read(undefined), undefined);
@@ -166,11 +171,11 @@ test("a settings read that lands makes the Inbox's picker, Sent's composer and P
     });
     assert.deepEqual(
       names(surfaceValue("broadcasts").templates),
-      ["welcome", "call_text"],
-      "Sent's composer the same messages",
+      ["welcome", "call_text", "later"],
+      "Sent's composer those, and the one WhatsApp is still checking, which what sends it waits for",
     );
     const pb = surfaceValue("playbooks");
-    assert.deepEqual(names(pb.templates), ["welcome", "call_text"], "and Playbooks'");
+    assert.deepEqual(names(pb.templates), ["welcome", "call_text", "later"], "and Playbooks'");
     assert.deepEqual(names(pb.library), ["call_text"], "Campaigns' home has the call's text");
     assert.equal(
       pb.messages.length,
@@ -343,8 +348,9 @@ test("the settings read is the one read of them: it lands every template with it
     "the reply box only the ones that may go",
   );
   assert.deepEqual(surfaceValue("inbox").templatesHeld, { pending: 1, rejected: 0, paused: 0, disabled: 0, hidden: 0 });
-  assert.deepEqual(names(surfaceValue("broadcasts").templates), ["welcome", "hours_note", "call_text"]);
-  assert.deepEqual(names(surfaceValue("playbooks").templates), ["welcome", "hours_note", "call_text"]);
+  // A campaign's pickers list the one WhatsApp is still checking too (the one picker rule); the Inbox's do not.
+  assert.deepEqual(names(surfaceValue("broadcasts").templates), ["welcome", "in_review", "hours_note", "call_text"]);
+  assert.deepEqual(names(surfaceValue("playbooks").templates), ["welcome", "in_review", "hours_note", "call_text"]);
   assert.deepEqual(names(surfaceValue("playbooks").library), ["call_text"]);
 });
 

@@ -6717,7 +6717,7 @@ test("campaigns.audiences offers the templates the composer offers (ledger #9): 
   });
   assert.equal(out.isError, false, out.result);
   const offered = JSON.parse(out.result).templates.map((x) => x.template_id);
-  assert.deepEqual(offered, [TPL], "REGRESSION: the hidden summer_offer was offered to the model");
+  assert.deepEqual(offered, [TPL, T3], "the approved one and the one WhatsApp is still checking; never the hidden one");
   const composer = await templatesRoute.GET.run(new Request(`http://localhost/api/v1/templates?workspace=${A}`), {
     ...ctxFor(t),
     params: {},

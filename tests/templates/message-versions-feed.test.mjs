@@ -226,7 +226,8 @@ test("a read without messages (an older server) is handed messages made of the W
       // A version in review keeps its standing in the message it is made into.
       row("w2", "whatsapp", "quick_note", { meta_status: "pending" }),
       row("e2", "email", "quick_note"),
-      // A message with no WhatsApp row at all, and one WhatsApp has not approved with nothing beside it.
+      // A message with no WhatsApp row at all, and one WhatsApp is still checking with nothing beside it: a picker
+      // lists that one too (the one picker rule, the last column: what sends it waits for the check).
       row("e3", "email", "harbor_note"),
       row("w3", "whatsapp", "autumn_offer", { meta_status: "pending" }),
       // A reach-out's email is no message's.
@@ -240,7 +241,7 @@ test("a read without messages (an older server) is handed messages made of the W
   assert.deepEqual(held.messages.map(shape), [
     ["visit_reminder", "en_US", { id: "w1", channel: "whatsapp" }, "approved", "e1", "s1", true],
     ["quick_note", "en_US", { id: "w2", channel: "whatsapp" }, "pending", "e2", null, true],
-    ["autumn_offer", "en_US", { id: "w3", channel: "whatsapp" }, "pending", null, null, false],
+    ["autumn_offer", "en_US", { id: "w3", channel: "whatsapp" }, "pending", null, null, true],
     ["harbor_note", "en_US", { id: "e3", channel: "email" }, null, "e3", null, true],
   ]);
   // The same messages contracts makes of those rows, whichever way a page asks.

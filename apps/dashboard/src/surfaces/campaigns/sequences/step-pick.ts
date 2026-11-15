@@ -86,11 +86,15 @@ export function readyMadeOf(
     .map((s) => starterOffered(s, starterLanguageOf(s, languages)));
 }
 
-/** What a pick says beside its name: the channels a message holds, or that a starter is ready-made. */
-export const pickMetaOf = (offered: CmOffered): string =>
-  offered.id.startsWith(STARTER_PICK)
-    ? TPL_LIST_WORDS.made
-    : offered.channels.map((c) => PREVIEW_CHANNEL_WORDS[c]).join(", ");
+/**
+ * What a pick says beside its name: the channels a message goes by, with the list's own word where WhatsApp is still
+ *  checking it ("On WhatsApp, By email · Being checked"), or that a starter is ready-made.
+ */
+export function pickMetaOf(offered: CmOffered): string {
+  if (offered.id.startsWith(STARTER_PICK)) return TPL_LIST_WORDS.made;
+  const by = offered.channels.map((c) => PREVIEW_CHANNEL_WORDS[c]).join(", ");
+  return offered.checking ? `${by} · ${TPL_LIST_WORDS.standing.pending}` : by;
+}
 
 /**
  * The version a step takes for its pick: a message's own id, or, for a ready-made starter, the version filing it leaves.

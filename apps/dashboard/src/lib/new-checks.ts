@@ -277,6 +277,9 @@ function stepChecks(
     if (s.does !== "message") return [{ tone: "ok", words: C.hand(n), detail: null }];
     const m = s.message;
     if (m?.written) return n === written[0] ? [writtenRow] : [];
+    // One of the workspace's own WhatsApp is still checking: it goes by its other channels now, by WhatsApp once approved.
+    if (m?.checking && d.channels.includes("whatsapp"))
+      return [{ tone: "warn", words: C.checkingStep(n), detail: C.newMessageDetail }];
     // A person's first step goes by the channels the draft ticks (what can carry it), those the workspace sends on now.
     const goes = d.channels.filter((c) => ready.includes(c));
     return d.audience === "people" && i === 0 && goes.length

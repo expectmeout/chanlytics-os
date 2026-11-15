@@ -4,6 +4,7 @@ export {
   campaignMessagesOf,
   MESSAGE_BEGIN_WORDS,
   MESSAGE_GONE_WORDS,
+  messageGoesBy,
   messageHolds,
   messageStandingWords,
   messageWhyNot,
