@@ -790,7 +790,7 @@ const InboxEmpty = ({ quiet = false }: { quiet?: boolean }) => {
       className="ix-zero"
       glyph="inbox"
       title="Inbox zero"
-      body="The receptionist is handling everything. Anything that needs your call appears here."
+      body="AI is handling everything. Anything that needs your call appears here."
       also={{ label: "See what it handled", to: "conversations" }}
       testid="inbox-empty"
     />

@@ -259,7 +259,7 @@ async function readActivity(
       const personName = row.actor_user_id
         ? (page.actors[row.actor_user_id] ?? memberWords({ email: null }).name)
         : row.actor_type === "ai"
-          ? "Receptionist"
+          ? "AI"
           : row.source === "event"
             ? ""
             : "System";

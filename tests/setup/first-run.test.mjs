@@ -114,7 +114,7 @@ const empty = (over = {}) => ({
   ...over,
 });
 /** What a kept number's forwarding waiting costs, said with every put-off of it (first-run-phone.ts). */
-const WAITING = "Until it is set up, only calls to your receptionist's own number are answered.";
+const WAITING = "Until it is set up, only calls to AI's own number are answered.";
 /** A moment a week put off ends: before NOW, so the row is back; or after, so it still rests. */
 const ENDED = new Date(NOW - 1).toISOString();
 const RESTING = new Date(NOW + SETUP_REST_MS).toISOString();
@@ -164,7 +164,7 @@ test("a new workspace starts on its business: one step current, the rest ahead, 
   assert.equal(fr.shown.key, "business");
   assert.deepEqual(ids(fr.shown.rows), ["facts"], "Setup's facts row; no Google row on a deployment without it");
   assert.equal(fr.primaryRow, null, "the step draws its own press, not Setup's");
-  assert.equal(fr.heading, "Build your receptionist", "nothing on Google: the heading says what its one press does");
+  assert.equal(fr.heading, "Set up AI", "nothing on Google: the heading says what its one press does");
   assert.equal(fr.phoneLine, "1 of 5 · Your business");
   assert.equal(fr.progress, 20);
   assert.equal(fr.back, null);
@@ -189,7 +189,7 @@ test("a new workspace starts on its business: one step current, the rest ahead, 
   );
 });
 
-test("set up: the receptionist is current, the business can be looked at again, and a step ahead cannot", () => {
+test("set up: AI is current, the business can be looked at again, and a step ahead cannot", () => {
   const vm = setupSteps(empty({ business: facts }), NOW);
   const fr = firstRunOf(vm);
   assert.deepEqual(
@@ -197,7 +197,7 @@ test("set up: the receptionist is current, the business can be looked at again, 
     ["done", "current", "ahead", "ahead", "ahead"],
   );
   assert.equal(fr.shown.key, "receptionist");
-  assert.equal(fr.heading, "Meet your receptionist");
+  assert.equal(fr.heading, "Meet AI");
   assert.deepEqual(
     fr.onward,
     { label: "Rehearse it now", to: "start", leaves: false, held: null },
@@ -258,7 +258,7 @@ test("answering: Go live is current and done, with what is left after, and Open 
     fr.steps.map((s) => s.state),
     ["done", "done", "done", "done", "done"],
   );
-  assert.equal(fr.heading, "Your receptionist is answering");
+  assert.equal(fr.heading, "AI is answering");
   assert.equal(fr.lead, "", "what answers where is Go live's own summary, said once");
   assert.equal(fr.primaryRow, null, "the one action is Open Today");
   assert.deepEqual(fr.onward, { label: "Open Today", to: "today", leaves: true, held: null }, "a way out");
@@ -283,7 +283,7 @@ test("Find is the business step for an owner while Google can be searched and no
   );
   assert.equal(firstRunOf(setupSteps(g(), NOW)).find, false, "and nobody is an owner unless the page says so");
   const named = firstRunOf(setupSteps(g(), NOW), null, { ...owner, receptionistName: "Harbor Moving & Storage" });
-  assert.equal(named.heading, "Is this Harbor Moving & Storage?", "the receptionist's own name first");
+  assert.equal(named.heading, "Is this Harbor Moving & Storage?", "AI's own name first");
   assert.equal(named.lead, "We looked you up on Google with the name and address on record.", "as the search asks it");
   const putOff = setupSteps(g({ later: ["google"] }), NOW);
   assert.equal(firstRunOf(putOff, null, owner).find, false, "said: not on Google");
@@ -314,7 +314,7 @@ test("Find is the business step for an owner while Google can be searched and no
   assert.equal(again.onward, null, "one coral button a step: Find's, not Continue beside it");
 });
 
-test("what the business goes by is one rule: the receptionist's name, else the one typed at sign-up", () => {
+test("what the business goes by is one rule: AI's name, else the one typed at sign-up", () => {
   assert.equal(businessNameOf("  Harbor Moving ", "harbor"), "Harbor Moving");
   assert.equal(businessNameOf("", "Harbor Moving"), "Harbor Moving");
   assert.equal(businessNameOf(null, "  "), null);
@@ -358,7 +358,7 @@ test("Today's card: while a step is open, one row back to where the owner left o
   assert.equal(before.left, "5 steps left");
   assert.deepEqual(before.start, {
     name: "Your business",
-    sentence: "Then your receptionist, rehearse, where it answers and go live.",
+    sentence: "Then AI, rehearse, where it answers and go live.",
     status: "Not answering yet",
     cta: "Continue setting up",
     ctaShort: "Continue",
@@ -716,7 +716,7 @@ test("Today's reminder door stands only where Campaigns can make the reminder: a
   );
 });
 
-test("the receptionist card: every value is Setup's or the settings read's, the greeting is the phone's word for word, and a blank is a dash", () => {
+test("AI card: every value is Setup's or the settings read's, the greeting is the phone's word for word, and a blank is a dash", () => {
   const hours = { mon: { open: "09:00", close: "17:00" }, tue: { open: "09:00", close: "17:00" } };
   const services = [
     { name: "Local move", duration_min: 120 },
@@ -736,7 +736,7 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
     workspaceName: "Northside",
     tz: "America/New_York",
   });
-  assert.equal(card.caption, "Your receptionist, so far");
+  assert.equal(card.caption, "AI, so far");
   assert.equal(card.initials, "NM");
   assert.equal(card.name, "Northside Movers");
   assert.deepEqual(
@@ -744,7 +744,7 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
     { state: "ready", words: "Answering" },
     "Setup's own state, which the page's pill tones",
   );
-  assert.equal(card.strip, "Your receptionist · Answering");
+  assert.equal(card.strip, "AI · Answering");
   assert.equal(card.greeting, greetingFor("Northside Movers"));
   const sv = servicesWords(services);
   assert.deepEqual(
@@ -768,10 +768,10 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
     workspaceName: "Luna Studio",
     tz: "America/New_York",
   });
-  assert.equal(bare.name, "Luna Studio", "the workspace's name until the receptionist has one");
+  assert.equal(bare.name, "Luna Studio", "the workspace's name until AI has one");
   assert.equal(bare.initials, "LS");
   assert.deepEqual(bare.status, { state: "not_started", words: "Not answering yet" });
-  assert.equal(bare.greeting, GREETING_DEFAULT, "the phone greets with the receptionist's name, never the workspace's");
+  assert.equal(bare.greeting, GREETING_DEFAULT, "the phone greets with AI's name, never the workspace's");
   assert.deepEqual(
     bare.rows.map((r) => r.value),
     [null, null, null, null, null, null],
@@ -1007,7 +1007,7 @@ const harbor = (business = {}, google = {}) =>
 const OWNER = { owner: true, receptionistName: "Harbor Moving", workspaceName: "Harbor Moving" };
 const W = FIRST_RUN_WORDS.check;
 
-test("Check is Your receptionist's once the business is set up: what Google found, in the Business tab's rows, and its onward held until the facts are in", () => {
+test("Check is AI's once the business is set up: what Google found, in the Business tab's rows, and its onward held until the facts are in", () => {
   const fr = firstRunOf(setupSteps(harbor(), NOW), null, OWNER);
   assert.equal(fr.find, false, "the listing is linked");
   assert.equal(fr.shown.key, "receptionist", "set up from the listing, the business step is done");
@@ -1033,7 +1033,7 @@ test("Check is Your receptionist's once the business is set up: what Google foun
     found,
     "the booking page the website names, carried to Check to offer",
   );
-  assert.equal(fr.heading, "Meet Harbor Moving's receptionist");
+  assert.equal(fr.heading, "Meet AI for Harbor Moving");
   assert.equal(fr.lead, "Built from your Google listing. Fix anything that's off.");
   assert.equal(fr.primaryRow, null, "the rows are the Business tab's; the onward is the step's button");
   assert.deepEqual(
@@ -1051,7 +1051,7 @@ test("Check with nothing on Google says the basics' lead, and offers Find again 
   const basics = firstRunOf(putOff, null, OWNER);
   assert.equal(basics.find, false, "not on Google, said");
   assert.equal(basics.shown.key, "receptionist");
-  assert.equal(basics.lead, "Your receptionist answers from this. You can add more later in Settings.");
+  assert.equal(basics.lead, "AI answers from this. You can add more later in Settings.");
   assert.deepEqual(basics.check.find, { label: "On Google after all? Find it", to: "start/find" });
   assert.equal(
     firstRunOf(putOff, null, { ...OWNER, owner: false }).check.find,
@@ -1070,8 +1070,8 @@ test("no receptionist yet: an owner is offered the one press on Your business, f
     made: false,
     make: {
       sentence: "It starts from your Google listing, and you check every detail next.",
-      cta: "Build my receptionist",
-      busy: "Building…",
+      cta: "Set up AI",
+      busy: "Setting up…",
     },
     waiting: null,
     unsure: null,
@@ -1080,18 +1080,14 @@ test("no receptionist yet: an owner is offered the one press on Your business, f
     bookingPage: null,
   });
   assert.equal(listed.onward, null, "the press is the step's one button");
-  assert.equal(FIRST_RUN_WORDS.check.found("Harbor Moving"), "Meet Harbor Moving's receptionist");
-  assert.equal(
-    FIRST_RUN_WORDS.check.found("Lantern Barbers"),
-    "Meet Lantern Barbers' receptionist",
-    "a name ending in s",
-  );
+  assert.equal(FIRST_RUN_WORDS.check.found("Harbor Moving"), "Meet AI for Harbor Moving");
+  assert.equal(FIRST_RUN_WORDS.check.found("Lantern Barbers"), "Meet AI for Lantern Barbers", "a name ending in s");
   const noGoogle = { ready: false, places: false, listing: null };
   const named = firstRunOf(setupSteps(harbor(none, noGoogle), NOW), null, { ...OWNER, receptionistName: null });
   assert.equal(named.check.make.sentence, "It starts with the name Harbor Moving, and you add the rest next.");
   const viewer = firstRunOf(setupSteps(harbor(none), NOW), null, { ...OWNER, owner: false, receptionistName: null });
   assert.equal(viewer.check.make, null);
-  assert.equal(viewer.check.waiting, "An owner sets up the receptionist here.");
+  assert.equal(viewer.check.waiting, "An owner sets up AI here.");
 });
 
 test("a config that cannot be read is no Check: Setup's facts row asks for the repair, as it does on Setup", () => {
@@ -1114,10 +1110,10 @@ test("the days Google gives hours for that the week cannot hold are named under 
     "Google's hours for every day could not be copied: add yours.",
   );
   assert.equal(unsureHoursWords([]), null);
-  assert.equal(W.found("Harbor Moving"), "Meet Harbor Moving's receptionist");
+  assert.equal(W.found("Harbor Moving"), "Meet AI for Harbor Moving");
 });
 
-test("the receptionist card says how a receptionist with no link is reached, for every business (0008, amended 18 Oct 2026)", () => {
+test("AI card says how a receptionist with no link is reached, for every business (0008, amended 18 Oct 2026)", () => {
   const card = (brain) =>
     receptionistCardOf({
       setup: empty(),

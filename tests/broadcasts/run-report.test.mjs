@@ -706,7 +706,7 @@ test('everyone it touched, each in the words of what happened to them -- and a g
   assert.deepEqual(
     vm.replies.map((x) => [x.contact_id, x.quote, x.outcome.words, x.outcome.tone]),
     [
-      ["replied", "“Saturday at 2 works”", "The receptionist answered · t6", "ok"],
+      ["replied", "“Saturday at 2 works”", "AI answered · t6", "ok"],
       ["stop", "“STOP”", "Not answered yet", "plain"],
       ["waits", null, "Needs you", "warn"],
     ],
@@ -876,7 +876,7 @@ test("each part of a run's report says its own words: the span its bars cover, w
   assert.deepEqual(outcomes, [
     ["a", "Your team answered · t120", "ok"],
     ["b", "Your team answered", "ok"],
-    ["c", "The receptionist answered", "ok"],
+    ["c", "AI answered", "ok"],
   ]);
   // Each figure when nothing came back, and when everything reached the handset.
   const subs = (vm) => vm.figures.map((f) => [f.id, f.sub, f.tone]);

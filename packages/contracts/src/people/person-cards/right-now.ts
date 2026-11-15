@@ -58,7 +58,7 @@ export interface PersonAboutFact {
 /** The customer's last line and the last reply, verbatim. */
 export interface PersonLastExchange {
   customer: { text: string; at: string } | null;
-  reply: { text: string; at: string; who: "Receptionist" | "Your team" } | null;
+  reply: { text: string; at: string; who: "AI" | "Your team" } | null;
 }
 
 /** The wire a reply goes out on, exactly, and WhatsApp's window on it as the row says it. */
@@ -297,7 +297,7 @@ export function lastExchangeOf({ profile, stamp }: PersonCardContext): PersonLas
           text: messageText(message),
           at: `${stamp(result).time} ${stamp(result).day}`,
           // A person's reply is the team's (message-author.ts): the row does not say which member sent it.
-          who: message.sender === "ai" ? "Receptionist" : "Your team",
+          who: message.sender === "ai" ? "AI" : "Your team",
         };
       }
       if (customer && reply) break;

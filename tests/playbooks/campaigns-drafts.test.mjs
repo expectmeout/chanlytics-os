@@ -431,7 +431,7 @@ test("New keeps a one-off once it says who it is for, opens again on it, and Clo
 
   // Ask's draft says who it is for (the door's list, which Ask was told to keep): it is work, kept as it changes.
   tree = await askDrafts();
-  assert.deepEqual(posted.at(-1).body.who, ASKED.who, "Ask is told the list the door named");
+  assert.deepEqual(posted.at(-1).body.who, ASKED.who, "AI is told the list the door named");
   assert.ok(byTestId(tree, "sq-nw-sentence"), "New on the draft");
   type(valueBox(tree), "20% off colour");
   tree = redraw(page);
@@ -588,7 +588,7 @@ test("Send now's question goes with any change -- a time picked or a channel unt
   assert.equal(asks(), false, "drafted again, it is put away");
   const askedFor = () => posted.filter((p) => p.at === "/api/v1/sequences/draft");
   tree = await landed(() => askedFor().length === 2 && !textOf(redraw(page)).includes(W.say.againFor.leads));
-  assert.equal(askedFor()[1].body.audience, "leads", "Ask was asked again, for leads");
+  assert.equal(askedFor()[1].body.audience, "leads", "AI was asked again, for leads");
   assert.equal(asks(), false);
   assert.deepEqual(
     posted.filter((p) => p.at === "/api/v1/sequences/new"),
@@ -597,7 +597,7 @@ test("Send now's question goes with any change -- a time picked or a channel unt
   );
 });
 
-test("the line under a draft changes it: Ask is asked with the draft as it stands, its answer is that draft changed with what changed said on top, Undo puts back what stood, and a change Ask could not make leaves the draft and the line as they were (decision 0129 step 2)", async () => {
+test("the line under a draft changes it: AI is asked with the draft as it stands, its answer is that draft changed with what changed said on top, Undo puts back what stood, and a change AI could not make leaves the draft and the line as they were (decision 0129 step 2)", async () => {
   let tree = await askDrafts();
   type(valueBox(tree), "20% off colour");
   tree = redraw(page);
@@ -641,7 +641,7 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   assert.equal(textOf(hostOf(tree, "sq-nw-again")), W.say.stop);
   assert.ok(
     byTestId(tree, "sq-nw-steps"),
-    "the draft stands whole while Ask changes it: its steps stay, and the page its length",
+    "the draft stands whole while AI changes it: its steps stay, and the page its length",
   );
   tree = await landed(() => askedFor().length === 2 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
   const asked = askedFor()[1].body;
@@ -666,9 +666,9 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   // Its answer is the draft changed: the name, with the value typed still in its step, and what changed said on top.
   assert.equal(nameBox().props.value, "Autumn colour for VIPs");
   assert.equal(valueBox(tree).props.value, "20% off colour");
-  assert.ok(onTop().includes("Call it Autumn colour for VIPs") && onTop().includes("Ask changed its name"), onTop());
+  assert.ok(onTop().includes("Call it Autumn colour for VIPs") && onTop().includes("AI changed its name"), onTop());
   assert.ok(
-    readOut().includes("Ask changed its name"),
+    readOut().includes("AI changed its name"),
     `REGRESSION: what a change did was never read out: ${readOut()}`,
   );
   assert.equal(changeBox().props.value, "", "the line is ready for the next change");
@@ -699,7 +699,7 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   press(hostOf(tree, "sq-nw-again"));
   tree = redraw(page);
   assert.equal(nameBox().props.value, "Autumn colour for VIPs", "one Undo, one change back");
-  assert.ok(onTop().includes("Call it Autumn colour for VIPs") && onTop().includes("Ask changed its name"), onTop());
+  assert.ok(onTop().includes("Call it Autumn colour for VIPs") && onTop().includes("AI changed its name"), onTop());
   press(hostOf(tree, "sq-nw-again"));
   tree = redraw(page);
   assert.equal(nameBox().props.value, "Autumn colour", "and the one before it");
@@ -730,7 +730,7 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   assert.equal(
     byTestId(tree, "sq-nw-cannot")?.props.role,
     "status",
-    "what Ask left out is said in its card, and read out",
+    "what AI left out is said in its card, and read out",
   );
   assert.equal(nameBox().props.value, "Autumn colour for VIPs", "and the draft is as it was");
   press(hostOf(tree, "sq-nw-again"));
@@ -756,9 +756,9 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   let answerNow;
   asks.draft = (body) => new Promise((resolve) => (answerNow = () => resolve(renamed(body))));
   await say("Call it Autumn colour for VIPs");
-  await until(() => !!answerNow, "Ask asked");
+  await until(() => !!answerNow, "AI asked");
   tree = redraw(page);
-  assert.equal(nameBox().props.readOnly, true, "REGRESSION: the name could be typed while Ask worked");
+  assert.equal(nameBox().props.readOnly, true, "REGRESSION: the name could be typed while AI worked");
   answerNow();
   tree = await landed(() => askedFor().length === 8 && !textOf(redraw(page)).includes(CHANGE_WORDS.changing));
   assert.equal(nameBox().props.readOnly, false);
@@ -781,14 +781,14 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   answerNow = null;
   asks.draft = (body) => new Promise((resolve) => (answerNow = () => resolve(renamed(body))));
   await say("Call it something else");
-  await until(() => !!answerNow, "Ask asked");
+  await until(() => !!answerNow, "AI asked");
   tree = redraw(page);
   press(hostOf(tree, "sq-nw-discard"));
   tree = redraw(page);
   assert.equal(byTestId(tree, "sq-nw-sentence"), null, "discarded");
   answerNow();
   tree = await landed();
-  assert.equal(byTestId(tree, "sq-nw-sentence"), null, "REGRESSION: Ask's answer drew the discarded draft again");
+  assert.equal(byTestId(tree, "sq-nw-sentence"), null, "REGRESSION: AI's answer drew the discarded draft again");
   assert.equal(TM.draft("new", HERE), null, "and nothing is kept in the tab");
 
   // The change still out when it was discarded goes with the draft: the next draft's line starts empty.
@@ -800,8 +800,8 @@ test("the line under a draft changes it: Ask is asked with the draft as it stand
   assert.ok(onTop().includes(ASKED.said) && onTop().includes(W.say.asked));
 });
 
-test("REGRESSION (the live run of 13 Nov 2026): a first draft Ask could not write says why in the server's words, never only to try again in a moment", async () => {
-  const ranLong = "The draft ran longer than Ask can write at once. Ask for less in one go.";
+test("REGRESSION (the live run of 13 Nov 2026): a first draft AI could not write says why in the server's words, never only to try again in a moment", async () => {
+  const ranLong = "The draft ran longer than AI can write at once. Ask for less in one go.";
   asks.draft = () => ({ refused: { code: "upstream_anthropic", message: ranLong } });
   const tree = await openNew();
   type(lineBox(tree), ASKED.said);
@@ -818,7 +818,7 @@ test("REGRESSION (the live run of 13 Nov 2026): a first draft Ask could not writ
   assert.equal(byTestId(drafted, "sq-nw-failed"), null);
 });
 
-test("REGRESSION: a message its owner rewrote is no longer said to be Ask's, and what Ask said it left out of its own steps goes with the rewrite (the live run of 13 Nov 2026)", async () => {
+test("REGRESSION: a message its owner rewrote is no longer said to be AI's, and what AI said it left out of its own steps goes with the rewrite (the live run of 13 Nov 2026)", async () => {
   // Ask writes the one-off's message itself, and says what it left out of it.
   const written = {
     template_id: null,
@@ -837,10 +837,10 @@ test("REGRESSION: a message its owner rewrote is no longer said to be Ask's, and
   asks.draft = () => ({
     ...ASKED,
     steps: [{ ...ASKED.steps[0], message: written }],
-    cannot: "Left out: “half price”. Ask never writes a price.",
+    cannot: "Left out: “half price”. AI never writes a price.",
   });
   let tree = await askDrafts();
-  assert.ok(textOf(tree).includes(W.draft.newByAsk), "as Ask answered it, the message is said to be Ask's");
+  assert.ok(textOf(tree).includes(W.draft.newByAsk), "as AI answered it, the message is said to be AI's");
   assert.ok(byTestId(tree, "sq-nw-cannot"), "and what it left out is in its card");
   // The name typed leaves both: the words are still Ask's.
   type(
@@ -861,7 +861,7 @@ test("REGRESSION: a message its owner rewrote is no longer said to be Ask's, and
   assert.equal(
     textOf(tree).includes(W.draft.newByAsk),
     false,
-    "REGRESSION: the owner's own words were said to be Ask's",
+    "REGRESSION: the owner's own words were said to be AI's",
   );
   assert.equal(byTestId(tree, "sq-nw-cannot"), null, "REGRESSION: the card spoke of words since rewritten");
 });

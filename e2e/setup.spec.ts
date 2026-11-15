@@ -146,7 +146,7 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     await expect(rows.first().locator('[data-testid^="setup-later-"]')).toHaveText("Skip");
   });
 
-  test("the first run asks: ⌘K opens Ask over the step, on the first run's own questions, no key drawn, and what is left to set up goes with the page it is asked on", async ({
+  test("the first run asks: ⌘K opens AI over the step, on the first run's own questions, no key drawn, and what is left to set up goes with the page it is asked on", async ({
     page,
   }) => {
     test.setTimeout(PAID ? 150_000 : 60_000);

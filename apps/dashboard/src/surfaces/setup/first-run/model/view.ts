@@ -17,7 +17,6 @@
  */
 import {
   DAY_NAMES,
-  possessive,
   dateFormat,
   WALK_IN_WORDS,
   ASSISTANT_NAME_WORDS,
@@ -50,11 +49,11 @@ interface FirstRunStepDef {
 const STEP_DEFS: Record<FirstRunStepKey, Omit<FirstRunStepDef, "key">> = {
   business: {
     name: "Your business",
-    lead: "We find you on Google and build a receptionist that answers as you.",
+    lead: "Chanlytics finds you on Google and sets up AI that answers as you.",
     rows: ["facts", "google"],
   },
   receptionist: {
-    name: "Your receptionist",
+    name: "AI",
     lead: "What it knows, the two things only you know, and how it sounds.",
     rows: ["facts"],
   },
@@ -193,7 +192,7 @@ export const FIRST_RUN_WORDS = {
       "New reviews within the hour, on your bell",
     ],
     note: (assistant: string | null) =>
-      `${assistant ?? "Your receptionist"} drafts the replies, and nothing is posted until you say so. Disconnect it any time in Settings.`,
+      `${assistant ?? "AI"} drafts the replies, and nothing is posted until you say so. Disconnect it any time in Settings.`,
     connect: "Connect Google",
     someoneElse: "Someone else manages it",
     notNow: "Not now",
@@ -224,7 +223,7 @@ export const FIRST_RUN_WORDS = {
       "You press Connect Google again: Today keeps it as a row until then.",
     ],
     notManagerUntil: (assistant: string | null) =>
-      `Until then ${assistant ?? "your receptionist"} reads your public listing: the rating, the count, and the five reviews Google shows.`,
+      `Until then ${assistant ?? "AI"} reads your public listing: the rating, the count, and the five reviews Google shows.`,
     goOn: "Go on without it",
     tryAnother: "Try another account",
     /** A refusal from Google that Connections has no words for. */
@@ -247,31 +246,31 @@ export const FIRST_RUN_WORDS = {
     connected: "Your Business Profile, connected",
     website: "Read your website",
     websiteRead: "Your website, read",
-    write: "Write your receptionist",
-    written: "Your receptionist, written",
+    write: "Set up AI",
+    written: "AI, set up",
     note: "Until you connect it, it reads only what's public: your Google listing and your website.",
   },
   /** Check, Your receptionist (canvas 2): what the receptionist answers from. */
   check: {
     /** A listing on record: what was found there. */
-    found: (name: string | null) => (name ? `Meet ${possessive(name)} receptionist` : "Meet your receptionist"),
+    found: (name: string | null) => (name ? `Meet AI for ${name}` : "Meet AI"),
     foundLead: "Built from your Google listing. Fix anything that's off.",
     /** Your receptionist with nothing found on Google: what it answers from is the rows under this. */
-    basicsLead: "Your receptionist answers from this. You can add more later in Settings.",
+    basicsLead: "AI answers from this. You can add more later in Settings.",
     /** No receptionist yet, on Your business: the step is the owner's one press, said as what it does. */
-    makeHeading: "Build your receptionist",
+    makeHeading: "Set up AI",
     makeLead: "One press writes it from what we know. Nothing answers anyone until you go live.",
     /** Where the press starts it from: the listing, or the name typed at sign-up. */
     makeListed: "It starts from your Google listing, and you check every detail next.",
     makeNamed: (name: string | null) =>
       `It starts with ${name ? `the name ${name}` : "your business's name"}, and you add the rest next.`,
-    make: "Build my receptionist",
-    making: "Building…",
+    make: "Set up AI",
+    making: "Setting up…",
     notMade: "Not set up",
-    ownerSetsUp: "An owner sets up the receptionist here.",
+    ownerSetsUp: "An owner sets up AI here.",
     /** Made, but the settings read has not brought it yet; and a read that failed, by what it could not read. */
-    reading: "Reading your receptionist…",
-    failedWhat: "your receptionist",
+    reading: "Loading AI…",
+    failedWhat: "AI",
     /** The onward, once what it answers from is checked: on to the rehearsal (decision 0073). */
     looksRight: "Rehearse it now",
     rehearseNote: "Next: talk to it as a customer would, then fix what it gets wrong. Free. Nothing to buy yet.",
@@ -357,9 +356,9 @@ export const FIRST_RUN_WORDS = {
   },
   /** Go live (canvas 5A–5C): its stages are first-run-golive.ts; these are the step's own head and its last onward. */
   live: {
-    heading: (name: string | null) => (name ? `${name} is ready to go live` : "Your receptionist is ready to go live"),
+    heading: (name: string | null) => (name ? `${name} is ready to go live` : "AI is ready to go live"),
     answering: (assistant: string | null, business: string | null) =>
-      `${assistant ?? "Your receptionist"} is answering${business ? ` for ${business}` : ""}`,
+      `${assistant ?? "AI"} is answering${business ? ` for ${business}` : ""}`,
   },
 } as const;
 

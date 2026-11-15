@@ -107,13 +107,13 @@ export const EXPORT_OF = {
   },
   draft: {
     not_exported: {
-      what: "The replies Ask drafted and you did not send",
+      what: "The replies AI drafted and you did not send",
       why: "They are suggestions, never sent and written again when someone writes; what you sent is in the file's conversations.",
     },
   },
   rehearsal: {
     not_exported: {
-      what: "Your rehearsals with the receptionist",
+      what: "Your rehearsals with AI",
       why: "They are you playing a customer, not a customer's record; what you kept from them is in the file's business section.",
     },
   },
@@ -136,7 +136,7 @@ const LEFT_OUT_BESIDE_THE_KINDS: readonly ExportLeftOut[] = [
  * kind of record EXPORT_OF exports, in the file's order.
  */
 export const EXPORT_HOLDS_WORDS =
-  "People, conversations with their messages and a link to each file a customer sent, which opens for a day, calls with their transcripts, every consent change with who recorded it, notes and steps, deals, your business details, the team, bookings, lists, campaigns and what each sent, templates, holds, the receptionist's rules, Google reviews, leads, and how each reply from a lead was read.";
+  "People, conversations with their messages and a link to each file a customer sent, which opens for a day, calls with their transcripts, every consent change with who recorded it, notes and steps, deals, your business details, the team, bookings, lists, campaigns and what each sent, templates, holds, AI's rules, Google reviews, leads, and how each reply from a lead was read.";
 
 /** What the owner's copy leaves out, as the card says it: each `what` of exportLeftOut, the why at the file's end. */
 export function exportLeftOutWords(): string {

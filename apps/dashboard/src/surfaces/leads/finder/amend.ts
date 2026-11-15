@@ -48,7 +48,7 @@ export const leadAnswerPlan = async (words: string, set: FinderSet): Promise<Ask
   set.trace("Reading what you asked");
   if (!A || typeof A.send !== "function") {
     set.stage("compose");
-    set.refusal("Claude isn't available here yet — try again in a moment.");
+    set.refusal("AI isn't available here yet — try again in a moment.");
     return null;
   }
   let card: AskProposal | null = null;
@@ -106,7 +106,7 @@ async function startPlan(proposal: FinderProposal | null, plan: LeadSearchPlan, 
     const A = askCalls();
     return A && typeof A.commit === "function"
       ? await A.commit({ ...proposal, payload: { ...(proposal.payload || {}), plan } })
-      : { ok: false, message: "Claude isn't available here yet — try again in a moment." };
+      : { ok: false, message: "AI isn't available here yet — try again in a moment." };
   }
   // The plan is sent as the owner saw it; the route sets the version and the count the round reserved (G1). If the round
   // stopped waiting meanwhile the route says so, and that is what is shown (section 7.2).

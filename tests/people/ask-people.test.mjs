@@ -349,7 +349,7 @@ test("the board is the page's: contracts pipelineOf over everyone in People, eac
   assert.ok(!r.rows.some((x) => x.id === P4 || x.id === PB), "nobody off the board, and nobody of another workspace");
 });
 
-test("a person with two open deals is two rows of the board, each the person and its own deal (0029): Ask's contact_id and every citation are theirs, never a row's id, and each row names the deal it stands for", async () => {
+test("a person with two open deals is two rows of the board, each the person and its own deal (0029): AI's contact_id and every citation are theirs, never a row's id, and each row names the deal it stands for", async () => {
   const D6 = "dededede-dede-4ede-8ede-dededededed6";
   const open = (id, stage, service, days, o = {}) => ({
     id,
@@ -648,13 +648,13 @@ const PERSON_CALLS = [
     [],
   ],
   [
-    "a note the receptionist reads, trimmed",
+    "a note AI reads, trimmed",
     { action: "note", contact_id: ROSA, body: "  Prefers mornings.  ", for: "receptionist" },
     {
       kind: "note",
       needs: "operator",
       title: "Note on Rosa",
-      summary: "“Prefers mornings.” · The receptionist reads it before it answers Rosa",
+      summary: "“Prefers mornings.” · AI reads it before it answers Rosa",
       payload: { contact_id: ROSA, body: "Prefers mornings.", team_only: false, who: "Rosa" },
       undo: "Delete it",
     },
@@ -667,7 +667,7 @@ const PERSON_CALLS = [
       kind: "note",
       needs: "operator",
       title: "Note on Quinn W",
-      summary: "“Owes us a callback.” · Team only: the receptionist won't read it",
+      summary: "“Owes us a callback.” · Team only: never used in replies to customers",
       payload: { contact_id: QUINN, body: "Owes us a callback.", team_only: true, who: "Quinn W" },
       undo: "Delete it",
     },
@@ -833,7 +833,7 @@ async function stepCall(input, deals = []) {
     : JSON.parse(out.result);
 }
 
-test("propose_person's step: Ask sets a next step on its own, the team's note with a day, on their one open deal or the one named, for anyone or for the member asking", async () => {
+test("propose_person's step: AI sets a next step on its own, the team's note with a day, on their one open deal or the one named, for anyone or for the member asking", async () => {
   // Refused in the model's words, before a read: no words, a day gone by, no day.
   assert.deepEqual(await stepCall({ contact_id: ROSA, what: "  ", due_on: "2026-09-18" }), {
     error: "what must be the step's words",
@@ -1076,7 +1076,7 @@ test("a note card, walked end to end: the model's call makes it, Approve writes 
   assert.deepEqual(
     [written.contact_id, written.body, written.team_only, written.due_on, written.deal_id],
     [ROSA, "Prefers mornings.", false, null, null],
-    "for the receptionist: not team-only, no day and no deal",
+    "for AI: not team-only, no day and no deal",
   );
   assert.deepEqual(tab.sent, [
     {
@@ -1316,7 +1316,7 @@ test("the table is the seven states and a teammate's thread: the People row give
 test("REGRESSION (defect 16): people.get says where a person stands as their People row does, for every state and a teammate's thread; it said none, and an answer read a held thread's stored needs_human as Needs you", async () => {
   for (const { who, label, row } of STANDING) {
     const said = await askAbout({ action: "get", contact_id: row.id });
-    assert.equal(said.state, label, `${who}: Ask's profile says the People row's state`);
+    assert.equal(said.state, label, `${who}: AI's profile says the People row's state`);
     assert.equal(said.state_detail, toPersonRowVM(row, ROW_TZ, STATE_NOW, ME).stateDetail || null, `${who}: its line`);
   }
 });
@@ -1326,7 +1326,7 @@ test("people.search says the People row's state, for every state and a teammate'
     const said = await askAbout({ action: "search", query: row.display_name });
     const line = said.people.find((p) => p.contact_id === row.id);
     assert.ok(line, `${who} is found`);
-    assert.equal(line.state, label, `${who}: Ask's search says the People row's state`);
+    assert.equal(line.state, label, `${who}: AI's search says the People row's state`);
   }
 });
 

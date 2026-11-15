@@ -39,9 +39,9 @@ const SHELF_SAID: Readonly<Record<Exclude<FileShelf, "all" | "inbox" | "set_asid
   team: "team",
   products: "products",
   brand: "logos and graphics",
-  made: "made by Ask",
+  made: "made by AI",
   other: "other",
-  made_aside: "made by Ask, set aside",
+  made_aside: "made by AI, set aside",
 };
 
 /** A shelf as a line says it. A file in the Inbox or set aside says that first. */

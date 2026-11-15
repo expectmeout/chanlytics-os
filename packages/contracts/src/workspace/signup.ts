@@ -65,7 +65,7 @@ export const SIGNUP_WORDS = {
   nameTitle: "What's your business called?",
   nameLead: "We'll look it up on Google next.",
   nameCta: "Find it",
-  lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
+  lead: "Your business gets its own workspace: AI, the inbox, the numbers. You become its owner.",
   sent: (email: string) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below to finish.`,
   codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
   /*

@@ -200,7 +200,7 @@ const heldThread = () => ({
       tenant_id: T,
       conversation_id: CONV,
       reason: "rate_cap",
-      details: "Thread hit 20 automatic replies today — the receptionist stopped and is waiting for a human.",
+      details: "Thread hit 20 automatic replies today — AI stopped and is waiting for a human.",
       state: "open",
       created_at: "2026-10-06T00:00:00Z",
     },
@@ -604,7 +604,7 @@ test("owner_notice tells a hold as it stands: an opened event whose hold took an
   assert.equal(w.delivery().state, "done");
 });
 
-test("owner_notice quotes the receptionist only in words that reached them: a failed or held reply was never said", async () => {
+test("owner_notice quotes AI only in words that reached them: a failed or held reply was never said", async () => {
   for (const status of ["failed", "queued", "canceled"]) {
     const w = world({ subscriber: "owner_notice" });
     w.tables.messages.push(
@@ -621,7 +621,7 @@ test("owner_notice quotes the receptionist only in words that reached them: a fa
       }),
     );
     assert.equal(await dispatchJob(w.ctx, w.job), "done", status);
-    assert.doesNotMatch(w.told[0].body, /The receptionist|Friday at 3/, status);
+    assert.doesNotMatch(w.told[0].body, /AI: “|Friday at 3/, status);
   }
   const said = world({ subscriber: "owner_notice" });
   said.tables.messages.push(
@@ -638,7 +638,7 @@ test("owner_notice quotes the receptionist only in words that reached them: a fa
     }),
   );
   assert.equal(await dispatchJob(said.ctx, said.job), "done");
-  assert.match(said.told[0].body, /The receptionist: “Friday at 3 is yours\.”/);
+  assert.match(said.told[0].body, /AI: “Friday at 3 is yours\.”/);
 });
 
 test("owner_notice leaves an email's hold to where it is taken in: opened, changed to it, or holding it now", async () => {

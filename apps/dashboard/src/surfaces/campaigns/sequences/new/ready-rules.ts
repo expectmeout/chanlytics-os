@@ -53,7 +53,7 @@ export const NEW_READY_WORDS = {
   cap: "Ready to start",
   order: "most people waiting first",
   open: "Open the draft",
-  askWrites: "Ask writes it",
+  askWrites: "AI writes it",
   yours: (title: string) => `Your message: ${title}`,
   firstWaits: "Its first batch waits for your OK.",
   reach: (n: number) => `${plural(n, "person", "people")} it would reach today`,

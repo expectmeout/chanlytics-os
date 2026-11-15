@@ -408,7 +408,7 @@ export function registrationPreflight(preflightFacts: PreflightFacts): Preflight
   if (sentence && answers && sentence !== answers) {
     out.push({
       id: "names_differ",
-      what: `Your receptionist introduces the business as “${(preflightFacts.receptionistName ?? "").trim()}”, but your sign-up page and this filing call it “${preflightFacts.workspaceName}”.`,
+      what: `AI introduces the business as “${(preflightFacts.receptionistName ?? "").trim()}”, but your sign-up page and this filing call it “${preflightFacts.workspaceName}”.`,
       fix: "Save the name customers know you by under Settings › Details: an owner's save renames your sign-up page and your sign too, so customers read one name.",
     });
   }

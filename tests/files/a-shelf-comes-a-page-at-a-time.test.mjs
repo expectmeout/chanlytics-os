@@ -109,7 +109,7 @@ test("every kind of thing a file can show stands on a shelf a person can press",
 
 /* ------------------------------------------------------------------------- how the library stands */
 
-test("the tally counts every file by what it says of itself, and the page says what is kept (not what Ask made), what waits and what is being looked at", () => {
+test("the tally counts every file by what it says of itself, and the page says what is kept (not what AI made), what waits and what is being looked at", () => {
   const tally = filesTallyOf([
     { status: "filed", shows: "storefront", source: "upload", look_status: "done" },
     { status: "filed", shows: "work", source: "upload", look_status: "waiting" },
@@ -125,7 +125,7 @@ test("the tally counts every file by what it says of itself, and the page says w
     looking: 1,
     shelves: { place: 1, work: 1, made: 1, inbox: 1, set_aside: 1 },
   });
-  assert.equal(filesSayOf(tally), "2 photos, 1 waiting for you, Ask is still looking at 1");
+  assert.equal(filesSayOf(tally), "2 photos, 1 waiting for you, AI is still looking at 1");
   assert.equal(filesSayOf({ kept: 1, waiting: 0, looking: 0 }), "1 photo");
 });
 
@@ -196,7 +196,7 @@ test("a shelf holds what stands on it, and only that", async () => {
   assert.deepEqual(
     await on("all"),
     [idOf(1), idOf(2), idOf(3), idOf(4)],
-    "Kept is what the business brought, not what Ask made",
+    "Kept is what the business brought, not what AI made",
   );
   const { tally } = await read(rows);
   assert.equal(tally.total, 7, "neither a removed file nor another workspace's");

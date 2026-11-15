@@ -166,13 +166,13 @@ export const CHANNEL_ANSWERED: ReadonlySet<string> = new Set(["whatsapp", "voice
 const KIND_META: Record<string, { name: string; what: string; icon: ChannelVM["icon"]; noun: string }> = {
   whatsapp: {
     name: `${CHANNEL_KIND_WORDS.whatsapp} Business`,
-    what: "Customers text this number; the receptionist answers",
+    what: "Customers text this number; AI answers",
     icon: "chat",
     noun: "message",
   },
   voice: {
     name: CHANNEL_KIND_WORDS.voice,
-    what: "Customers call this number; the receptionist picks up",
+    what: "Customers call this number; AI picks up",
     icon: "phone",
     noun: "call",
   },

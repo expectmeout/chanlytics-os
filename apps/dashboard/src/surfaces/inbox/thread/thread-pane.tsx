@@ -62,7 +62,7 @@ export const ixRepaintNotice = (
   if (now > was && (after.lastAtMs || 0) > (before.lastAtMs || 0)) {
     const last = after.timeline[now - 1];
     if (last && last.type === "msg" && last.from === "client") return `${after.who} wrote again`;
-    return last && last.type === "msg" && last.byYou ? "Someone on the team replied" : "The receptionist replied";
+    return last && last.type === "msg" && last.byYou ? "Someone on the team replied" : "AI replied";
   }
   return null;
 };
@@ -202,8 +202,7 @@ function realThread(
         // The role first, for every verb: a real thread's hand-back used to skip the check and reach the server.
         onDecide={(_id, action) => {
           if (!can()) return;
-          if (action === "__HANDBACK__")
-            void verb(t, "hand-back", undefined, "cleared — the receptionist is answering again");
+          if (action === "__HANDBACK__") void verb(t, "hand-back", undefined, "cleared — AI is answering again");
           else if (action === "__BOOKED__" || action === "__CANT__") void answerHere(t, action === "__BOOKED__", say);
         }}
         onSnooze={() => {
@@ -213,10 +212,10 @@ function realThread(
           if (can() && t.state === "snoozed") void verb(t, "wake", {}, "awake — back in the queue");
         }}
         onTakeOver={() => {
-          if (can()) void verb(t, "take-over", undefined, "you have it — the receptionist is paused");
+          if (can()) void verb(t, "take-over", undefined, "you have it — AI is paused");
         }}
         onHandBack={() => {
-          if (can() && t.takenOver) void verb(t, "hand-back", undefined, "handed back — the receptionist resumes");
+          if (can() && t.takenOver) void verb(t, "hand-back", undefined, "handed back — AI resumes");
         }}
         onArchive={() => {
           if (can()) void verb(t, "archive", {}, "archived");

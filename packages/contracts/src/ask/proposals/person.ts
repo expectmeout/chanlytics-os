@@ -60,7 +60,7 @@ function detailsCall(contactId: unknown, from: Record<string, unknown>, none: st
 
 export const personModeSpec: ProposalSpecAboveOperator = {
   needs: "owner",
-  doing: "change how the receptionist treats one person",
+  doing: "change how AI treats one person",
   gate: "settings",
   commit: (p) => ({
     route: "PUT contacts/[id]/receptionist",
@@ -69,7 +69,7 @@ export const personModeSpec: ProposalSpecAboveOperator = {
     events: [PEOPLE_CHANGED],
   }),
   receipt: (p) =>
-    `Receptionist for ${asText(p.payload.who)}: ${PERSON_MODE_WORDS[asText(p.payload.mode) as keyof typeof PERSON_MODE_WORDS] ?? asText(p.payload.mode)}`,
+    `AI for ${asText(p.payload.who)}: ${PERSON_MODE_WORDS[asText(p.payload.mode) as keyof typeof PERSON_MODE_WORDS] ?? asText(p.payload.mode)}`,
   undo: {
     label: () => "Set it back",
     window: "ten_minutes",

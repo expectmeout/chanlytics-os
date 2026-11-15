@@ -117,15 +117,12 @@ test("listening (canvas R6): a kept number is called and not picked up, with its
   assert.deepEqual(vm.listening, {
     sentence: "Listening for your call",
     detail: "This page changes the moment it picks up. Open for 24 more minutes.",
-    route: "Another phone calls +1 (305) 555-0100 → nobody picks up → your receptionist answers",
+    route: "Another phone calls +1 (305) 555-0100 → nobody picks up → AI answers",
   });
   // An office phone system is never the owner's cell: "from your cell" is right, and the number is a press.
   const office = tryOf(forwarded("instructed", { carrier: "office" }));
   assert.equal(office.heading, "Call your number from your cell. Don't pick up.");
-  assert.equal(
-    office.listening.route,
-    "Your cell calls +1 (305) 555-0100 → nobody picks up → your receptionist answers",
-  );
+  assert.equal(office.listening.route, "Your cell calls +1 (305) 555-0100 → nobody picks up → AI answers");
   assert.deepEqual(office.dial, { label: "Call +1 (305) 555-0100", tel: "tel:+13055550100" });
   // A landline, or a mobile with another company (the saved codes cannot tell): another phone, and the press stays.
   const other = tryOf(forwarded("instructed", { carrier: "other" }));
@@ -138,13 +135,7 @@ test("listening (canvas R6): a kept number is called and not picked up, with its
   const own = tryOf(dtoOf());
   assert.deepEqual(
     [own.heading, own.number, own.listening.route, own.listening.detail, own.help],
-    [
-      "Call your receptionist from your cell.",
-      "+1 (305) 555-0142",
-      null,
-      "This page changes the moment it picks up.",
-      null,
-    ],
+    ["Call AI from your cell.", "+1 (305) 555-0142", null, "This page changes the moment it picks up.", null],
   );
   assert.deepEqual(own.dial, { label: "Call +1 (305) 555-0142", tel: "tel:+13055550142" }, "its own number, a press");
 });
@@ -153,13 +144,13 @@ test("nothing came through (canvas V7): after three minutes, the causes of a mis
   const late = SINCE + TRY_QUIET_AFTER_MS;
   const vm = tryOf(forwarded("instructed"), [], SINCE, late);
   assert.equal(vm.stage, "quiet");
-  assert.equal(vm.heading, "No call has reached your receptionist yet");
+  assert.equal(vm.heading, "No call has reached AI yet");
   assert.equal(vm.listening.sentence, "Still listening");
   assert.equal(vm.causes.length, 3);
   assert.match(vm.causes[1].question, /answering machine or voicemail/);
   const own = tryOf(dtoOf(), [], SINCE, late);
   assert.deepEqual(own.causes, [
-    { question: "Did you call +1 (305) 555-0142?", answer: "That's the number your receptionist answers." },
+    { question: "Did you call +1 (305) 555-0142?", answer: "That's the number AI answers." },
   ]);
 });
 
@@ -179,16 +170,16 @@ test("it picked up (canvas R7, P6): forwarding works, on the call now, the turns
   assert.deepEqual(
     vm.call.turns.map((t) => [t.who, t.text]),
     [
-      ["Receptionist", "Thank you for calling Harbor Moving!"],
+      ["AI", "Thank you for calling Harbor Moving!"],
       ["You", "Are you open on Sunday?"],
     ],
     "the two voices only: what Chanlytics told the agent is not the call",
   );
-  assert.equal(tryOf(dtoOf(), [callOf()]).call.line, "Your receptionist answered · on the call now · 0:20");
+  assert.equal(tryOf(dtoOf(), [callOf()]).call.line, "AI answered · on the call now · 0:20");
   assert.match(
     tryOf(forwarded("instructed"), [callOf()]).call.line,
-    /^Your receptionist answered/,
-    "forwarding is said to work only once a call proved it: this one may have dialed the receptionist itself",
+    /^AI answered/,
+    "forwarding is said to work only once a call proved it: this one may have dialed AI itself",
   );
   assert.equal(
     tryOf(dtoOf(), [callOf({ startedAtMs: SINCE - 5 * 60_000 })]).stage,
@@ -202,7 +193,7 @@ test("after the call (canvas R8, P7): the call said, and the phone it came from 
   const ended = callOf({ live: false, status: "ended", duration: "0:48" });
   const vm = tryOf(forwarded("verified"), [ended]);
   assert.equal(vm.stage, "done");
-  assert.equal(vm.heading, "That's your receptionist.");
+  assert.equal(vm.heading, "That's AI.");
   assert.equal(vm.call.line, "0:48 · from +1 (786) 555-0199 · through +1 (305) 555-0100 · 2:59 PM");
   assert.equal(
     tryOf(forwarded("instructed"), [ended]).call.line,
@@ -240,7 +231,7 @@ test("after the call (canvas R8, P7): the call said, and the phone it came from 
   assert.equal(same.transfer.note, null, "a number it answers itself forwards nothing");
 });
 
-test("a call that came in before: shown again, once one has reached the receptionist", () => {
+test("a call that came in before: shown again, once one has reached AI", () => {
   const before = callOf({ live: false, startedAtMs: SINCE - 3_600_000 });
   const tried = dtoOf({
     channels: { ...dtoOf().channels, voice: { ...dtoOf().channels.voice, lastInboundAt: "2026-09-24T14:00:00Z" } },
@@ -250,7 +241,7 @@ test("a call that came in before: shown again, once one has reached the receptio
   assert.equal(shown.call.test, false, "it may be a customer's");
   assert.deepEqual(
     shown.call.turns.map((t) => t.who),
-    ["Receptionist", "Caller", "Receptionist"].slice(0, shown.call.turns.length),
+    ["AI", "Caller", "AI"].slice(0, shown.call.turns.length),
     "never called You",
   );
   assert.deepEqual(

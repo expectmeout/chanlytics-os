@@ -705,7 +705,7 @@ test("the log is narrowed to who did it and to a span of days; one day asks for 
   assert.deepEqual(optionsOf(listOf(tree, "act-who")), [
     ["", "Anyone"],
     ["u-lee", "Lee"],
-    ["receptionist", "Receptionist"],
+    ["receptionist", "AI"],
     ["system", "System"],
   ]);
   pick(tree, "act-who", "u-lee");
@@ -908,7 +908,7 @@ test("on a phone the matrix is one line per class: its mode is a word that opens
     );
     // Money, which nothing can change, is no line of the matrix: Limits says it (18 Oct 2026: it was said twice).
     assert.equal(byTestId(tree, "pol-phone-money"), null);
-    assert.match(textOf(byTestId(tree, "rec-row-aut-hard-money")), /Always go to you — locked in the database/);
+    assert.match(textOf(byTestId(tree, "rec-row-aut-hard-money")), /Always go to you(?! —)/);
   } finally {
     W.matchMedia = was;
   }
@@ -943,12 +943,12 @@ test("on a phone the reply dials are a word that opens their steps, and a deskto
   );
 });
 
-test("the matrix's headings say what the receptionist does, not how the mode is filed", () => {
+test("the matrix's headings say what AI does, not how the mode is filed", () => {
   const tree = autonomy([{ class: "reply", mode: "veto", limits: {} }]);
   assert.deepEqual(
     headCells(tree).map((c) => c.head),
     ["Sends it", "Holds it", "Asks you", "Stays quiet"],
-    "REGRESSION: the columns read Auto · Veto · Ask · Never, and a salon owner does not say veto",
+    "REGRESSION: the columns read Auto · Veto · AI · Never, and a salon owner does not say veto",
   );
   assert.deepEqual(
     headCells(tree).map((c) => c.sub),
@@ -1002,7 +1002,7 @@ test("money, which the charter fixes, is said once, on Limits, and the matrix ti
   );
   const limit = byTestId(tree, "rec-row-aut-hard-money");
   assert.match(textOf(limit), /Refunds, rates, negotiation/);
-  assert.match(textOf(limit), /Always go to you — locked in the database/);
+  assert.match(textOf(limit), /Always go to you(?! —)/);
   // "Stays quiet · nothing happens" is the one thing money is not: it comes to you.
   assert.ok(!/Stays quiet/.test(textOf(limit)));
   assert.equal(all(limit, (n) => n.type === "button").length, 0, "nothing to press");
@@ -1053,7 +1053,7 @@ test("the day's budget is said in the replies it buys at this workspace's size o
   let tree = drawn({ max_llm_tokens_day: 250000 }, { replies: 120, tokens: 300000 });
   assert.match(textOf(budgetRow(tree)), new RegExp(`^${BUDGET_WORDS.inReplies}`));
   assert.equal(note(tree), `${BUDGET_WORDS.sized(2500)} ${BUDGET_WORDS.stops}`);
-  assert.match(note(tree), /about 2,500 model tokens, over the last week/);
+  assert.match(note(tree), /over the last week \(about 2,500 tokens\)/);
   assert.deepEqual(words(tree), ["No limit", "~40", "~100", "~200", "~400"]);
   assert.equal(byTestId(tree, "aut-budget").props.value, "~100", "the cap in force");
   // Too few replies to say a reply's size: tokens, and a label that says so.
@@ -1075,7 +1075,7 @@ test("the day's budget is said in the replies it buys at this workspace's size o
   // A reply so large that two caps buy the same few is said in tokens: a dial of two equal words cannot be read.
   tree = drawn({}, { replies: 10, tokens: 3000000 });
   assert.match(textOf(budgetRow(tree)), new RegExp(`^${BUDGET_WORDS.inTokens}`));
-  assert.match(note(tree), /about 300,000 model tokens/);
+  assert.match(note(tree), /about 300,000 tokens/);
   // A press saves the cap in tokens, the dial alone, and says it in the dial's words.
   const sent = [];
   tree = drawn({}, { replies: 120, tokens: 300000 });
@@ -1107,7 +1107,7 @@ test("Replies says how many people are set differently, by mode, and each of the
   assert.ok(line, "a line of Replies");
   assert.match(textOf(line), /People set differently/);
   assert.match(textOf(line), /3 people/);
-  assert.match(textOf(line), /2 Never · 1 Ask me first/, "never first: what holds the receptionist back");
+  assert.match(textOf(line), /2 Never · 1 Ask me first/, "never first: what holds AI back");
   // Its menu names the newest, each in the person page's own word for their mode, and a press opens their page.
   const W = globalThis.window;
   const nav = W.CHANLY;

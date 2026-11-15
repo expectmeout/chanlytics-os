@@ -110,10 +110,10 @@ function replyAnswersOf(r: Pick<ReachOutReplyDto, "chain" | "step">): string | n
 function draftLine(r: ReachOutReplyDto): string | null {
   if (r.draft_state === "written" && r.draft) {
     return r.intent === "not_now"
-      ? "The receptionist drafted a line of thanks: it's in the reply box."
-      : "The receptionist drafted an answer: it's in the reply box.";
+      ? "AI drafted a line of thanks: it's in the reply box."
+      : "AI drafted an answer: it's in the reply box.";
   }
-  return r.draft_state === "waiting" ? "The receptionist is drafting an answer." : null;
+  return r.draft_state === "waiting" ? "AI is drafting an answer." : null;
 }
 
 /** What a no stopped, in a sentence. */

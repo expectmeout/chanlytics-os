@@ -119,7 +119,7 @@ const personFor = (thread, viewer) =>
 /** What the Inbox itself says of the same thread, for the same member. */
 const inboxFor = (thread, viewer) => toInboxThreadVM(conversation(thread, viewer ?? "nobody"), null, TZ, NOW);
 
-const receptionistFact = (p) => p.facts.find((f) => f.label === "Receptionist");
+const receptionistFact = (p) => p.facts.find((f) => f.label === "AI");
 
 test("a thread a teammate has reads, on the person's page, as the Inbox says it: A teammate has it", () => {
   const p = personFor(FLAGGED, ME);
@@ -172,7 +172,7 @@ test("with no member looking the page cannot say whose, and says only that a per
   }
 });
 
-test("a name left on a thread nobody is working is not a claim: the receptionist is answering, as the Inbox says", () => {
+test("a name left on a thread nobody is working is not a claim: AI is answering, as the Inbox says", () => {
   for (const viewer of [ME, null]) {
     for (const assignee of [ME, TEAMMATE]) {
       const quiet = { state: "open", assignee, paused_until: null };
@@ -223,7 +223,7 @@ test("a teammate's thread says whose it is where the roster is read, as the Inbo
   });
   const named = detail(ME, names);
   assert.equal(named.rightNow.title, "Ruben has it");
-  assert.equal(named.rightNow.detail, "Ruben is answering this. The receptionist stays quiet until they hand it back.");
+  assert.equal(named.rightNow.detail, "Ruben is answering this. AI stays quiet until they hand it back.");
   assert.equal(named.receptionist.label, "Ruben has it");
   assert.equal(receptionistFact(named).meta, "Ruben has it", "a name keeps its capital");
   // A roster that does not know them, or none: the words the Inbox falls back to. A name is never invented.

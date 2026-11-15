@@ -204,7 +204,7 @@ test("a workspace whose settings could not be READ is not told it has no persona
   await w.run(text("hi"));
   assert.equal(w.seen.escalations.length, 1);
   assert.match(w.seen.escalations[0].details, /could not be reached/);
-  assert.doesNotMatch(w.seen.escalations[0].details, /No brain profile configured/);
+  assert.doesNotMatch(w.seen.escalations[0].details, /No brain profile configured|AI isn't set up yet/);
   assert.deepEqual(w.seen.alerts, [], FROM_ITS_EVENT);
   // An outage that refuses the hold as well is told here, in the same words.
   const unwritten = world({ escalateAnswer: "failed", rt: runtime({ brain: null, policy: {}, loadFailed: true }) });

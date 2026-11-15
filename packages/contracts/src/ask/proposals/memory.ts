@@ -49,7 +49,7 @@ export const memorySpec: ProposalSpec = {
 
 export const memoryChangeSpec: ProposalSpecAboveOperator = {
   needs: "partner",
-  doing: "change a line of what Ask remembers",
+  doing: "change a line of what AI remembers",
   gate: "settings",
   commit: ({ payload: pl }) => ({
     route: "PATCH ask/memory/[id]",

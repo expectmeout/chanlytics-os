@@ -377,7 +377,7 @@ export const journalDbOf = (db: Parameters<typeof askJournalDue>[0]): JournalDb 
 /** Who a line's row says did it: a member by the name they gave, the receptionist, the system, or nobody named. */
 function journalWho(r: ActivityRowDto, names: Record<string, string>): string {
   if (r.actor_user_id) return names[r.actor_user_id] ?? "A teammate";
-  if (r.actor_type === "ai") return "Receptionist";
+  if (r.actor_type === "ai") return "AI";
   if (r.actor_type === "system") return "System";
   return "";
 }

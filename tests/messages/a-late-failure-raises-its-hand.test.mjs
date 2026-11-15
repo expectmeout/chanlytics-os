@@ -49,7 +49,7 @@ function ports({ message = facts(), flag = "opened" } = {}) {
 const late = (p, over = {}) =>
   core.raiseLateFailure(p.ports, { externalId: "wamid.1", channel: "whatsapp", error: REENGAGE, ...over });
 
-test("a reply a person or the receptionist wrote, reported failed after it was taken, flags the thread and writes the ledger, in that order; the flag's event tells the owner", async () => {
+test("a reply a person or AI wrote, reported failed after it was taken, flags the thread and writes the ledger, in that order; the flag's event tells the owner", async () => {
   const p = ports();
   assert.equal(await late(p), "raised");
   assert.deepEqual(p.ops(), ["message", "escalate", "noteFailed"], "nobody told inside the provider's request");
@@ -57,7 +57,7 @@ test("a reply a person or the receptionist wrote, reported failed after it was t
   assert.deepEqual([conversation, reason], ["c1", "send_failed"]);
   assert.equal(
     details,
-    "A reply from your team was accepted for sending but did not reach them. WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now (WhatsApp error 131047).",
+    "A reply from your team was accepted for sending but did not reach them. WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now.",
   );
   assert.deepEqual(p.log[2], [
     "noteFailed",
@@ -106,10 +106,10 @@ test("a late failure flags its thread as a send that fails at the wire does: one
   );
 });
 
-test("the receptionist's reply is said as the receptionist's", async () => {
+test("AI's reply is said as AI's", async () => {
   const p = ports({ message: facts({ sender: "ai" }) });
   assert.equal(await late(p), "raised");
-  assert.match(p.log[1][3], /^The receptionist's reply was accepted for sending but did not reach them\. /);
+  assert.match(p.log[1][3], /^AI's reply was accepted for sending but did not reach them\. /);
 });
 
 test("a failure whose row says nothing readable is still raised, in the provider's words that it did not deliver it", async () => {
@@ -118,7 +118,7 @@ test("a failure whose row says nothing readable is still raised, in the provider
   assert.match(p.log[1][3], /The provider reported it as not delivered\.$/);
 });
 
-test("only a message a person or the receptionist wrote to a customer is news: a campaign's send, a customer's row and a system note are not, and nothing is written for them", async () => {
+test("only a message a person or AI wrote to a customer is news: a campaign's send, a customer's row and a system note are not, and nothing is written for them", async () => {
   for (const [name, over, outcome] of [
     ["a broadcast's send", { meta: { source: "broadcast", broadcast_name: "Spring" } }, "not_a_reply"],
     [
@@ -188,7 +188,7 @@ test("a message that cannot be read is the receipt's to say again: the read's ow
 test("a text's receipt is read as Twilio's: the code in its own words, and a status with no code in the carrier's", async () => {
   const p = ports();
   await late(p, { channel: "sms", error: { carrier: "undelivered", code: "30007" } });
-  assert.match(p.log[1][3], /The text was filtered as a possible policy violation \(Twilio error 30007\)\.$/);
+  assert.match(p.log[1][3], /The text was filtered as a possible policy violation\.$/);
   const q = ports();
   await late(q, { channel: "sms", error: { carrier: "undelivered" } });
   assert.match(q.log[1][3], /The carrier didn't deliver it\.$/);

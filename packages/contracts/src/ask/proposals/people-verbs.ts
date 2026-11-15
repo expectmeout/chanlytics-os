@@ -143,14 +143,14 @@ export const answerManySpec: ProposalSpec = {
 /** The receptionist's mode for a selection: owners, one request, the same policy row and ledger verb per person. */
 export const personModeManySpec: ProposalSpecAboveOperator = {
   needs: "owner",
-  doing: "change how the receptionist treats these people",
+  doing: "change how AI treats these people",
   gate: "settings",
   commit: ({ payload: pl }) => manyCalls("PUT contacts/receptionist", pl, ["mode"]),
   gather: gatherCounts,
   receipt: ({ payload: pl }, data) => {
     const m = manySaid(data, "changed");
     const mode = asText(pl.mode) as keyof typeof PERSON_MODE_WORDS;
-    const head = `Receptionist for ${m.done}: ${PERSON_MODE_WORDS[mode] ?? asText(pl.mode)}`;
+    const head = `AI for ${m.done}: ${PERSON_MODE_WORDS[mode] ?? asText(pl.mode)}`;
     return m.said ? `${head} · ${m.said}` : head;
   },
   open: () => "clients",

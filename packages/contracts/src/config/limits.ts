@@ -48,12 +48,12 @@ function repliesFor(cap: number, perReply: number): number {
  */
 export const BUDGET_WORDS = {
   inReplies: "Replies in a day, in all",
-  inTokens: "Model tokens in a day",
+  inTokens: "Daily AI limit",
   /** A cap of 0: none, so it never stops for the day. */
   none: "No limit",
   stops: "Over it, it stops for the day and every new message lands in Needs you.",
   sized: (perReply: number) =>
-    `A reply here is about ${perReply.toLocaleString("en-US")} model tokens, over the last week.`,
+    `Counted from the size of a reply here over the last week (about ${perReply.toLocaleString("en-US")} tokens).`,
   unsized: "Said in replies once it has answered a few.",
 } as const;
 

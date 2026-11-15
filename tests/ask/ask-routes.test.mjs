@@ -652,7 +652,7 @@ test("a question asked while the thread's last is still being answered, and no a
     await new Promise((r) => setImmediate(r));
     t.mock.timers.tick(250);
   }
-  await refused(refusal, "conflict", 409, "Ask is still answering your last question here. Ask again in a moment.");
+  await refused(refusal, "conflict", 409, "AI is still answering your last question here. Ask again in a moment.");
   assert.equal(tables.ask_messages.length, 1, "the question is not saved");
 });
 

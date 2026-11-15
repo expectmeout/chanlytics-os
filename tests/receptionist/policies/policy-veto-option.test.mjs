@@ -99,7 +99,7 @@ test("the refusals say why, in the owner's words: nothing to hold, no never for 
   assert.equal(policyModeRefusal("reviews", "veto"), null);
   assert.equal(
     policyModeRefusal("faq", "never"),
-    'Bookings and service questions are answered by the receptionist or by you — there is no "never".',
+    'Bookings and service questions are answered by AI or by you — there is no "never".',
   );
   assert.equal(policyModeRefusal("money", "auto"), "The money row cannot be set to auto.");
   assert.equal(policyModeRefusal("outreach", "auto"), "The outreach row cannot be set to auto.");

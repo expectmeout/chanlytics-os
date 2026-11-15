@@ -85,7 +85,7 @@ export const NEW_AD = {
       none: "Nothing is kept in your Library yet.",
       door: "Open Library",
       // The two groups the tiles stand in (the content canvas, board Doors: made first).
-      made: "Made by Ask",
+      made: "Made by AI",
       library: "From your Library",
     },
     postUse: "How the post is used",
@@ -324,7 +324,7 @@ export const CHECKS = {
   words: "Your words say what you offer, not something about the reader",
   promises: "No promises like guaranteed or in 3 days",
   price: "Price and hours match your Services and Hours",
-  priceQuote: "The ad quotes a price and your receptionist is set to never quote prices",
+  priceQuote: "The ad quotes a price and AI is set to never quote prices",
   rating: (line: string) => `Rating line: ${line}`,
   post: "The caption of the post was checked as ad words",
   special: "Not a job, loan or home ad",

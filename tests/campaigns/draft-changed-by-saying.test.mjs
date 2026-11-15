@@ -163,7 +163,7 @@ const STANDS = {
 };
 const WHO_ASKS = { tenantId: "t1", userId: "u1" };
 
-test("a line said under a draft changes the draft that stands: Ask is told it in the shape it answers in, by the request's keys, with the one rule a change adds, and the line it was drafted from stays on top (decision 0129 step 2)", async () => {
+test("a line said under a draft changes the draft that stands: AI is told it in the shape it answers in, by the request's keys, with the one rule a change adds, and the line it was drafted from stays on top (decision 0129 step 2)", async () => {
   const shorter = { ...COME_BACK, whatsapp: "Hi {{first name}}, come back and see us: {{booking link}} See you soon." };
   answerWith(
     answer({
@@ -282,7 +282,7 @@ const answerInTurn = (...answers) => {
   });
 };
 
-test("where a step's words cannot be kept, Ask is asked once more, told which step and why, and the better of its two answers is kept; a second call that fails leaves the first standing (decision 0129 step 2)", async () => {
+test("where a step's words cannot be kept, AI is asked once more, told which step and why, and the better of its two answers is kept; a second call that fails leaves the first standing (decision 0129 step 2)", async () => {
   const broken = {
     ...COME_BACK,
     whatsapp: "Hi {{first name}}, come back and see us.",
@@ -409,7 +409,7 @@ const twoSteps = () => {
   return { ...M.setWait(second, 1, 28), said: LINE.words };
 };
 
-test("the page tells Ask the draft as it stands: each step in the shape Ask answers one in, a held message by its id with what was typed, written words with their values by name (decision 0129 step 2)", () => {
+test("the page tells Ask the draft as it stands: each step in the shape AI answers one in, a held message by its id with what was typed, written words with their values by name (decision 0129 step 2)", () => {
   const stands = C.standsOf(twoSteps());
   assert.deepEqual(
     [stands.said, stands.kind, stands.audience, stands.name, stands.who.trigger, stands.hour, stands.when],
@@ -435,7 +435,7 @@ test("the page tells Ask the draft as it stands: each step in the shape Ask answ
   );
 });
 
-test("Ask's answer is taken as the draft changed: a step that says what it said is the step it was, what the owner set by hand stays, what changed is said by its place, and what Ask drafted keeps Ask's words where the change left a step alone (decision 0129 step 2)", () => {
+test("AI's answer is taken as the draft changed: a step that says what it said is the step it was, what the owner set by hand stays, what changed is said by its place, and what AI drafted keeps AI's words where the change left a step alone (decision 0129 step 2)", () => {
   const before = { ...twoSteps(), mode: "veto" };
   // Ask answers the whole draft: the first step as it stood (a second writing of it), the second shorter, the hour moved.
   const answered = {
@@ -451,7 +451,7 @@ test("Ask's answer is taken as the draft changed: a step that says what it said 
   assert.equal(after.steps[0], before.steps[0], "the step it was, never a second writing of it");
   assert.equal(after.steps[1].message.written.versions.whatsapp.body, "Hi {{1}}, come back.");
   assert.equal(after.mode, "veto", "how each batch is decided stays as the owner set it");
-  assert.deepEqual(C.changesOf(before, after), { steps: [2], said: "Ask changed when it goes and step 2" });
+  assert.deepEqual(C.changesOf(before, after), { steps: [2], said: "AI changed when it goes and step 2" });
   // Renamed, the first step is still the step it was, under the sequence's new name, which it carries.
   const named = { ...before, steps: [{ ...before.steps[0], name: before.name }, before.steps[1]] };
   const renamed = C.changedFrom(named, {
@@ -461,17 +461,17 @@ test("Ask's answer is taken as the draft changed: a step that says what it said 
   });
   assert.deepEqual(
     [renamed.steps[0].name, renamed.steps[0].message === named.steps[0].message, C.changesOf(named, renamed).said],
-    ["Welcome back", true, "Ask changed its name"],
+    ["Welcome back", true, "AI changed its name"],
   );
   assert.equal(M.setName(named, "By hand").steps[0].name, "By hand", "a name typed is its first step's too");
   assert.equal(M.setName(before, "By hand").steps[0].name, before.steps[0].name, "a step under another name keeps it");
   // Nothing changed is said so; a one-off's one step is its message, and fewer steps is said once.
-  assert.deepEqual(C.changesOf(before, C.changedFrom(before, before)), { steps: [], said: "Ask changed nothing" });
+  assert.deepEqual(C.changesOf(before, C.changedFrom(before, before)), { steps: [], said: "AI changed nothing" });
   const fewer = C.changedFrom(before, { ...before, name: "Thank you", steps: [before.steps[0]] });
-  assert.equal(C.changesOf(before, fewer).said, "Ask changed its name and how many steps it has");
+  assert.equal(C.changesOf(before, fewer).said, "AI changed its name and how many steps it has");
   const once = M.setMessage({ ...M.draftByHand("once", "people", "x"), who: M.everyoneOf(true) }, 0, askWrote("Hi"));
   const onceAfter = C.changedFrom(once, { ...once, steps: [{ ...once.steps[0], message: askWrote("Hello") }] });
-  assert.equal(C.changesOf(once, onceAfter).said, "Ask changed the message");
+  assert.equal(C.changesOf(once, onceAfter).said, "AI changed the message");
   // To another list, how its batches are decided is the new draft's own; a one-off's channels stay with its message.
   const moved = C.changedFrom(before, { ...answered, who: { kind: "list", token: "seg:vip", label: "VIP clients" } });
   assert.equal(moved.mode, "ask");
@@ -484,8 +484,8 @@ test("Ask's answer is taken as the draft changed: a step that says what it said 
   const drafted = { ...before, steps: [before.steps[0], { ...before.steps[1], hand: "as Ask first drafted it" }] };
   const kept = C.draftedAfter(drafted, before, after);
   assert.equal(kept.steps[0], drafted.steps[0]);
-  assert.equal(kept.steps[1], after.steps[1], "the step the change wrote is Ask's as it came");
-  assert.equal(C.draftedAfter(null, before, after), null, "a draft Ask never drafted keeps none");
+  assert.equal(kept.steps[1], after.steps[1], "the step the change wrote is AI's as it came");
+  assert.equal(C.draftedAfter(null, before, after), null, "a draft AI never drafted keeps none");
 });
 
 /* ------------------------------ what Ask did not touch (the review of 12 Nov 2026) ------------------------------ */
@@ -509,7 +509,7 @@ test("REGRESSION: a discount the owner typed into their own message is theirs: a
   answerWith(once({ name: "Autumn for all", steps: [step({ message: "k2", texts: ["20% off colour"] })] }));
   const renamed = await draftSequenceFrom(KNOWN, { words: "Call it Autumn for all", stands }, WHO_ASKS);
   assert.deepEqual([renamed.name, typed(renamed)], ["Autumn for all", { kind: "text", value: "20% off colour" }]);
-  assert.equal(calls.length, 1, "and nothing was refused, so Ask was asked once");
+  assert.equal(calls.length, 1, "and nothing was refused, so AI was asked once");
   // The owner's own discount, as the first line said it, is the offer (Ruben, 13 Nov 2026: a customer offer carries it).
   const first = draftKept(once({ steps: [step({ message: "k2", texts: ["20% off colour"] })] }), KNOWN, {
     words: "Tell everyone about 20% off colour",
@@ -567,7 +567,7 @@ test("REGRESSION: an email to leads its owner wrote is theirs: a change about an
   assert.deepEqual([out.cannot, calls.length], [null, 1]);
 });
 
-test("REGRESSION: an email to leads Ask rewrites in words that do not hold stays as it stood, said with why, and Ask is asked once more; mended, the mended one is the draft's", async () => {
+test("REGRESSION: an email to leads Ask rewrites in words that do not hold stays as it stood, said with why, and AI is asked once more; mended, the mended one is the draft's", async () => {
   const first = { subject: "A week of answered calls", body: `${OPENING}We answer every call for you. Try a week?` };
   const stands = {
     ...STANDS,
@@ -661,7 +661,7 @@ test("a message its owner wrote, on a later step and with a text version, comes 
   assert.deepEqual(
     [out.run_hour, out.steps[1].message.written.versions.sms, out.cannot],
     [14, { body: "Hi {{1}}!" }, null],
-    "its text version stays: only what Ask writes anew is held to the rule for a later step",
+    "its text version stays: only what AI writes anew is held to the rule for a later step",
   );
   // Rewritten by Ask, it is judged as any later step is: an offer, with no text version.
   answerWith(
@@ -687,12 +687,12 @@ const toLeads = (bodies) => {
   }, first);
 };
 
-test("REGRESSION: By Ask is said only of words still as Ask wrote them: an email the owner rewrote, or a step they added and wrote, is theirs, and a step moved up by one taken away is still Ask's", () => {
+test("REGRESSION: By AI is said only of words still as AI wrote them: an email the owner rewrote, or a step they added and wrote, is theirs, and a step moved up by one taken away is still AI's", () => {
   const asked = toLeads(["First words.", "Second words.", "Third words."]);
-  assert.deepEqual(C.placesByAsk(asked, asked), [1, 2, 3], "as Ask answered it, every email is Ask's");
+  assert.deepEqual(C.placesByAsk(asked, asked), [1, 2, 3], "as AI answered it, every email is AI's");
   // The live run: the second email rewritten by hand, with a price in it, still said By Ask.
   const mine = M.setEmail(asked, 1, { subject: null, body: "My own second email, $99 a month." });
-  assert.deepEqual(C.placesByAsk(mine, asked), [1, 3], "the one its owner rewrote says nothing of Ask");
+  assert.deepEqual(C.placesByAsk(mine, asked), [1, 3], "the one its owner rewrote says nothing of AI");
   assert.deepEqual(
     C.placesByAsk(M.setEmail(asked, 1, asked.steps[1].email), asked),
     [1, 2, 3],
@@ -700,7 +700,7 @@ test("REGRESSION: By Ask is said only of words still as Ask wrote them: an email
   );
   const retitled = M.setEmail(asked, 0, { subject: "Mine", body: asked.steps[0].email.body });
   assert.deepEqual(C.placesByAsk(retitled, asked), [2, 3], "a subject of the owner's is the owner's email");
-  assert.deepEqual(C.placesByAsk(M.removeStep(asked, 1), asked), [1, 2], "moved up a place, the third is still Ask's");
+  assert.deepEqual(C.placesByAsk(M.removeStep(asked, 1), asked), [1, 2], "moved up a place, the third is still AI's");
   const added = M.setEmail(M.addStep(asked, "message"), 3, { subject: null, body: "One more, from me." });
   assert.deepEqual(C.placesByAsk(added, asked), [1, 2, 3], "a step added and written by hand is its owner's");
   assert.deepEqual(C.placesByAsk(M.addStep(asked, "message"), asked), [1, 2, 3], "one still to write says nothing");
@@ -724,7 +724,7 @@ test("REGRESSION: By Ask is said only of words still as Ask wrote them: an email
     [2, 3],
     "turned a note, its words are the line's still",
   );
-  assert.deepEqual(C.placesByAsk(two, null), [], "a draft built by hand has no step of Ask's");
+  assert.deepEqual(C.placesByAsk(two, null), [], "a draft built by hand has no step of AI's");
 });
 
 test("REGRESSION: a line that changed nothing and says why is never said in passing: it stands over the card that says why, where the change before it stood", () => {
@@ -741,7 +741,7 @@ test("REGRESSION: a line that changed nothing and says why is never said in pass
   assert.equal(C.leftNothing(before, renamed, C.changesOf(before, renamed).said), false, "a change is a change");
 });
 
-test("REGRESSION: what Ask said it left out goes with the steps it was said of: a step swapped, rewritten, added or taken away lets the card go, and a wait, a value typed, who, when and the name leave it", () => {
+test("REGRESSION: what AI said it left out goes with the steps it was said of: a step swapped, rewritten, added or taken away lets the card go, and a wait, a value typed, who, when and the name leave it", () => {
   const said = NEW_WORDS.cannot.stepStays(2, NEW_WORDS.cannot.why.price);
   const draft = { ...twoSteps(), cannot: said };
   const gone = {

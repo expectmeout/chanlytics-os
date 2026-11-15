@@ -60,7 +60,7 @@ test("the phone receptionist's whole prompt while paused: a message and a call b
 
 test("the shell's one line: a pause outranks a newer build, and points at Billing", () => {
   const paused = shellStatusLine({ stale: true, degraded: ["Inbox"], paused: true });
-  assert.equal(paused.text, "Your receptionist is paused");
+  assert.equal(paused.text, "AI is paused");
   assert.equal(paused.action, "billing");
   assert.equal(
     paused.detail,

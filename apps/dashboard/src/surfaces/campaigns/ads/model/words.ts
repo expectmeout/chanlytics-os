@@ -115,7 +115,7 @@ interface DoorWords {
 export const DOOR: Record<AdDoor, DoorWords> = {
   whatsapp: {
     label: "Message you on WhatsApp",
-    line: "They tap the ad and a chat opens with your receptionist.",
+    line: "They tap the ad and a chat opens with AI.",
     runsOn: "Runs on Facebook and Instagram.",
     glyph: "chat",
     unit: "wrote",
@@ -125,7 +125,7 @@ export const DOOR: Record<AdDoor, DoorWords> = {
   },
   call: {
     label: "Call you",
-    line: "They tap Call and your phone rings. Your receptionist answers.",
+    line: "They tap Call and your phone rings. AI answers.",
     runsOn: "Runs on Google.",
     glyph: "phone",
     unit: "calls · Google's count",

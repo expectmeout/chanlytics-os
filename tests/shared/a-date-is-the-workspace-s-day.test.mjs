@@ -74,7 +74,7 @@ test("a trial's end on the bell, in Billing and its words: the day it ends where
   };
   const vm = toBillingVM({ ready: true, account, price: null, trial_days: 14, role: "owner" }, now, NY);
   assert.ok(
-    vm.detail.startsWith("Cancelled: the receptionist answers until Nov 2, then stops"),
+    vm.detail.startsWith("Cancelled: AI answers until Nov 2, then stops"),
     `REGRESSION: Billing said the machine's day: ${vm.detail}`,
   );
 });

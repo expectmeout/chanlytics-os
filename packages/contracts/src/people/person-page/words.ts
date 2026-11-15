@@ -145,7 +145,7 @@ export const PERSON_ABOUT_WORDS = {
   cameFrom: "Where they came from",
   /** Where they came from as a lead: the door to it, beside the day. */
   openLead: "Open the lead",
-  messages: "Messages and receptionist",
+  messages: "Messages and AI",
   lists: "Lists",
   waName: (name: string) => `WhatsApp name · ${name}`,
   /** The number's press: its sheet on a phone, its menu on a desk. */
@@ -170,7 +170,7 @@ export const PERSON_ABOUT_WORDS = {
   /** The top bar's Ask on their page (canvas A): about them by their first name, or a stand-in's business whole. */
   askAbout: (personName: string) => `Ask about ${personName}`,
   /** What the receptionist knows of them, under the rows while the group is open. */
-  knowsTitle: "What the receptionist knows",
+  knowsTitle: "What AI knows",
   knowsFoot: "It uses kept notes as facts and never reads them aloud.",
 } as const;
 

@@ -4,8 +4,9 @@
  * `messages.error` (the provider's code and words) was written by the send, by the WhatsApp receipt, by the text's status
  * callback and by the ledger, and read by nothing: the thread said "Didn't send" and never why. It now travels in the
  * message DTO (a failed message's, and only that), and contracts' sendFailureWords says it as one sentence: a code whose
- * meaning the provider documents (or this repository already says) in plain words with its number, any other code by the
- * provider and the number, never a guess.
+ * meaning the provider documents (or this repository already says) in plain words, any other as not delivered and no
+ * more, never a guess. No number and no provider the owner never met reaches the sentence (docs/words.md): the code stays
+ * on the row, for Health.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -28,11 +29,11 @@ const ZONE = "America/New_York";
 
 /* ------------------------------------------------------------------ the words */
 
-test("a code whose meaning is documented is said in plain words, with its number after it", () => {
+test("a code whose meaning is documented is said in plain words, and its number is never said", () => {
   const wa = (code) => sendFailureWords({ errors: [{ code, title: "x" }] }, "whatsapp");
   assert.equal(
     wa(131047),
-    "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now (WhatsApp error 131047).",
+    "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now.",
   );
   assert.match(wa(131026), /^WhatsApp couldn't deliver it: their number may not be on WhatsApp/);
   assert.match(
@@ -41,49 +42,53 @@ test("a code whose meaning is documented is said in plain words, with its number
   );
 
   const sms = (code) => sendFailureWords({ carrier: "undelivered", code: String(code) }, "sms");
-  assert.equal(sms(21610), "They've opted out of texts from your number (Twilio error 21610).");
-  assert.equal(sms(30007), "The text was filtered as a possible policy violation (Twilio error 30007).");
+  assert.equal(sms(21610), "They've opted out of texts from your number.");
+  assert.equal(sms(30007), "The text was filtered as a possible policy violation.");
   assert.match(sms(30003), /^Their phone couldn't be reached/);
   assert.match(sms(30005), /^The carrier says this number is unknown/);
   assert.match(sms(30006), /^This number can't receive texts/);
   assert.match(sms(30034), /^Your texting line isn't registered with the carriers yet/);
 });
 
-test("a code nobody here can explain is said by the provider and the number, and never given a meaning", () => {
-  assert.equal(
-    sendFailureWords({ errors: [{ code: 131000 }] }, "whatsapp"),
-    "WhatsApp didn't deliver it (error 131000).",
-  );
-  assert.equal(
-    sendFailureWords({ carrier: "undelivered", code: "30099" }, "sms"),
-    "Twilio didn't deliver it (error 30099).",
-  );
+test("a code nobody here can explain is said as not delivered, and never given a meaning, a number or a provider's name", () => {
+  assert.equal(sendFailureWords({ errors: [{ code: 131000 }] }, "whatsapp"), "WhatsApp didn't deliver it.");
+  assert.equal(sendFailureWords({ carrier: "undelivered", code: "30099" }, "sms"), "The text wasn't delivered.");
   // The same number on the other wire is not the other wire's meaning: 30007 is a text's, not WhatsApp's.
-  assert.equal(
-    sendFailureWords({ errors: [{ code: 30007 }] }, "whatsapp"),
-    "WhatsApp didn't deliver it (error 30007).",
-  );
-  assert.equal(
-    sendFailureWords({ carrier: "undelivered", code: "131047" }, "sms"),
-    "Twilio didn't deliver it (error 131047).",
-  );
+  assert.equal(sendFailureWords({ errors: [{ code: 30007 }] }, "whatsapp"), "WhatsApp didn't deliver it.");
+  assert.equal(sendFailureWords({ carrier: "undelivered", code: "131047" }, "sms"), "The text wasn't delivered.");
+});
+
+test("no sentence says an error's number or names the texting provider", () => {
+  const said = [
+    sendFailureWords({ errors: [{ code: 131047 }] }, "whatsapp"),
+    sendFailureWords({ errors: [{ code: 131000 }] }, "whatsapp"),
+    sendFailureWords({ carrier: "undelivered", code: "21610" }, "sms"),
+    sendFailureWords({ carrier: "undelivered", code: "30099" }, "sms"),
+  ];
+  for (const words of said) assert.doesNotMatch(words, /\d{4,}|\berror\b|Twilio/i, words);
 });
 
 test("the code is found wherever the writer put it: a receipt, a status callback, or the answer to the send itself", () => {
   // The send's own answer is Graph's JSON cut at two hundred characters, so it is read for its code, not parsed.
   const cut =
     '{"error":{"message":"(#131047) Re-engagement message","type":"OAuthException","code":131047,"error_data":{"messaging_product":"whatsapp","details":"Message failed to send because more than 24 hours have passed s';
-  assert.match(sendFailureWords({ http_status: 400, body: cut }, "whatsapp"), /\(WhatsApp error 131047\)\.$/);
+  assert.match(
+    sendFailureWords({ http_status: 400, body: cut }, "whatsapp"),
+    /^WhatsApp wouldn't send it: more than 24 hours/,
+  );
   assert.match(
     sendFailureWords(
       { http_status: 400, body: { error: { code: 131026, message: "Message Undeliverable." } } },
       undefined,
     ),
-    /\(WhatsApp error 131026\)\.$/,
+    /^WhatsApp couldn't deliver it: their number may not be on WhatsApp/,
     "a row that names no wire is WhatsApp's, as every thread draws it",
   );
   // A text's send names Twilio's code in its body.
-  assert.match(sendFailureWords({ http_status: 400, body: "Twilio 30034" }, "sms"), /\(Twilio error 30034\)\.$/);
+  assert.match(
+    sendFailureWords({ http_status: 400, body: "Twilio 30034" }, "sms"),
+    /^Your texting line isn't registered/,
+  );
   assert.equal(sendFailureWords({ http_status: 400, body: "Twilio 400" }, "sms"), null, "a status is not a code");
 });
 
@@ -184,7 +189,7 @@ test("a text's failure is read as Twilio's, an email's as the mail provider's, o
     msg("failed", { id: "e", channel: "email", error: { provider: "bounced", kind: "Permanent" } }),
   ]);
   const [t, e] = toInboxThreadVM(dto, null, ZONE).timeline.filter((x) => x.type === "msg");
-  assert.equal(t.failedWhy, "The text was filtered as a possible policy violation (Twilio error 30007).");
+  assert.equal(t.failedWhy, "The text was filtered as a possible policy violation.");
   assert.equal(e.failedWhy, "The email bounced: their address didn't accept it.");
 });
 

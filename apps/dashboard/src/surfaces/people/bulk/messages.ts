@@ -45,7 +45,7 @@ export function messagesChoices(
   }
   if (b.isOwner && b.keeps("receptionist"))
     groups.push({
-      header: "Receptionist for these people",
+      header: "AI for these people",
       items: PL_MODES.map((m) => ({
         key: `mode-${m.id}`,
         label: plModeWord(m.id),

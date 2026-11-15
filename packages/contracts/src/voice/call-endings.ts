@@ -28,7 +28,7 @@ const OURS = { owner: "The phone service had a problem on our side", needsEar: t
 /** Every ending the provider names, as of its call-object reference (October 2026), and the two Live's controls make. */
 export const CALL_ENDINGS_FOR_OWNERS = {
   user_hangup: { owner: "Customer hung up", needsEar: false },
-  agent_hangup: { owner: "Receptionist ended the call", needsEar: false },
+  agent_hangup: { owner: "AI ended the call", needsEar: false },
   call_transfer: { owner: "Transferred to a person", needsEar: false },
   transfer_bridged: { owner: "Transferred to a person", needsEar: false },
   transfer_cancelled: { owner: "Transfer did not go through", needsEar: true },
@@ -47,7 +47,7 @@ export const CALL_ENDINGS_FOR_OWNERS = {
   max_duration_reached: { owner: "Hit the call length limit", needsEar: false },
   manual_stopped: { owner: "Ended from the dashboard", needsEar: false },
   call_take_over: { owner: "A person took over the call", needsEar: false },
-  concurrency_limit_reached: { owner: "Line was busy — all agents in use", needsEar: true },
+  concurrency_limit_reached: { owner: "The line was busy", needsEar: true },
   credit_exhausted: OURS,
   no_valid_payment: OURS,
   error_inbound_webhook: OURS,

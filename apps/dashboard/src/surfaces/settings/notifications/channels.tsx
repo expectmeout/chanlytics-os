@@ -69,7 +69,7 @@ function addressChips(addresses: AlertAddress[]): ReactNode {
 
 /** One address in the editor: whose it is, and its Remove for a role that may. The last one cannot go, and says why. */
 function addressLine(a: AlertAddress, o: EmailRowProps, last: boolean): ReactNode {
-  const why = last ? "At least one address must stay — the receptionist has to be able to reach someone" : o.locked;
+  const why = last ? "At least one address must stay — AI has to be able to reach someone" : o.locked;
   return (
     <li key={a.email} className="ntf-addr" data-testid="ntf-address">
       <Face initials={a.teammate ? a.initials : "@"} size="sm" />

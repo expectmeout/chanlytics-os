@@ -1660,7 +1660,7 @@ test("a WhatsApp message Meta then reports failed flags its thread, whose event 
   const [hold] = holds(w);
   assert.deepEqual([hold.conversation_id, hold.reason], [`cv-${w.i}`, "send_failed"]);
   assert.match(hold.details, /^A reply from your team was accepted for sending but did not reach them\. /);
-  assert.match(hold.details, /more than 24 hours have passed since they last replied.*\(WhatsApp error 131047\)\.$/);
+  assert.match(hold.details, /more than 24 hours have passed since they last replied.* can reach them now\.$/);
   assert.deepEqual(
     told(w).map((e) => [e.kind, e.subject_type, e.subject_id]),
     [["escalation.opened", "conversation", `cv-${w.i}`]],

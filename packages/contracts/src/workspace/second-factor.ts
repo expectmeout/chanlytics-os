@@ -52,7 +52,7 @@ export const SECOND_FACTOR_WORDS = {
   /** Settings › Partner. */
   title: "Protect your partner account",
   intro:
-    "Your partner account can change the receptionist of every business you brought, so it asks for a second step when you sign in: a six-digit code from an authenticator app on your phone.",
+    "Your partner account can change AI for every business you brought, so it asks for a second step when you sign in: a six-digit code from an authenticator app on your phone.",
   on: "Two-step sign-in is on. You'll be asked for a code from your authenticator app each time you sign in.",
   off: "Two-step sign-in is off.",
   start: "Set it up",
@@ -87,7 +87,7 @@ export const SECOND_FACTOR_WORDS = {
   /** The second step's page, for a partner account with no authenticator yet. */
   enrolTitle: "Set up two-step sign-in",
   enrolBody:
-    "Your partner account can change the receptionist of every business you brought, so it asks for a code from an authenticator app each time you sign in. Set it up once to continue.",
+    "Your partner account can change AI for every business you brought, so it asks for a code from an authenticator app each time you sign in. Set it up once to continue.",
   /** Settings › Partner, before becoming one. */
   becomeFirst: "First, protect your account: a partner signs in with a code from an authenticator app.",
   /** The Console (decision 0066): staff show a code every session, no grace. */

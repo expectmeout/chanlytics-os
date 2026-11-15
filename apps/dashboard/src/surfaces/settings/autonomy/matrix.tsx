@@ -183,11 +183,7 @@ function modeCell(r: UiRow, m: UiMode, put: PutMode, busy: string | null) {
       {r.modes && !r.modes.includes(m) ? (
         <span
           className="pol-dash"
-          title={
-            m === "Veto"
-              ? "Nothing to hold for review here"
-              : "Answered by the receptionist or by you — there is no never"
-          }
+          title={m === "Veto" ? "Nothing to hold for review here" : "Answered by AI or by you — there is no never"}
         >
           —
         </span>
@@ -224,7 +220,7 @@ export function PolicyTable({
     <table className="pol-table">
       <thead>
         <tr>
-          <th>Action class</th>
+          <th>What</th>
           {UI_MODES.map((m) => (
             <th key={m} className="pol-mode">
               <PolModeHead m={m} />

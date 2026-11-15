@@ -288,7 +288,7 @@ async function askDraft(d: SheetDraw, name: string) {
   if (!d.vm) return null;
   const r = await reachOuts.draftLeads({ name, lead_ids: [d.vm.id], search_name: d.p.row?.searchName ?? null });
   if (!r.ok) {
-    d.p.flash(refusalToast(r, "Ask could not write a draft"));
+    d.p.flash(refusalToast(r, "AI could not write a draft"));
     return null;
   }
   return r.data;

@@ -106,7 +106,7 @@ test("no hour, no gap and no cadence: the people each freed time goes to, 2, 4, 
   );
   assert.equal(
     textOf(byTestId(tree, "sq-settings-ahead")),
-    "Up to 21 days ahead. The days ahead your receptionist offers times: change it in Settings, under Booking rules.",
+    "Up to 21 days ahead. The days ahead AI offers times: change it in Settings, under Booking rules.",
   );
   // The mode and the last day are every sequence's.
   assert.ok(byTestId(tree, "sq-settings-mode") && byTestId(tree, "sq-settings-until"));

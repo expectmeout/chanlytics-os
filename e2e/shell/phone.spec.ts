@@ -85,7 +85,7 @@ test.describe("Phone shell on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the ✦ in the tab bar opens Ask as the takeover and hides while the takeover is open, and the top bar says neither Ask nor the theme again", async ({
+  test("the ✦ in the tab bar opens AI as the takeover and hides while the takeover is open, and the top bar says neither Ask nor the theme again", async ({
     page,
   }) => {
     await page.goto("/#/today");
@@ -1326,7 +1326,7 @@ test.describe("Phone shell on a real workspace", () => {
     // body stands.
     const whileAcross = await drift([300, 420], [96, 560], scrolled);
     expect(whileAcross, "a swipe that drifts down scrolls nothing while the finger is down").toBe(0);
-    await expect(lit, "and still walks the strip").toHaveText(/^Receptionist/);
+    await expect(lit, "and still walks the strip").toHaveText(/^AI/);
     await page.goto("/#/reports");
     await page.waitForLoadState("networkidle");
     await expect(lit).toHaveText(/^Overview/);

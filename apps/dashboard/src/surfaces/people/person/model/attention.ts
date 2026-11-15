@@ -81,7 +81,7 @@ export function attentionRow(person: PersonRowVM, tz: string, nowMs: number, wor
     const turn = theirTurnWords(person.lastContact);
     status = turn ? [HELD_WORDS.yours.pill, turn] : [HELD_WORDS.yours.pill];
   } else if (receptionist.tone === "answering")
-    status = person.hasChat ? ["Receptionist", "answering on WhatsApp"] : ["Receptionist", "takes their calls"];
+    status = person.hasChat ? ["AI", "answering on WhatsApp"] : ["AI", "takes their calls"];
   else status = receptionist.label.split(", ");
   if (person.state === "needs_you" && person.needsYouSinceMs !== null)
     status = [...status, `since ${clock(person.needsYouSinceMs, tz, nowMs)}`];

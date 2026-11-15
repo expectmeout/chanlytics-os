@@ -198,7 +198,7 @@ export function templateUseNote(use: TemplateUse | null | undefined): string | n
       : url.playbooks.every((p) => p.paused || p.ended)
         ? "none runs — nothing goes out"
         : null;
-  if (url.booking && url.broadcasts === 0) return "what the receptionist sends to book";
+  if (url.booking && url.broadcasts === 0) return "what AI sends to book";
   return null;
 }
 

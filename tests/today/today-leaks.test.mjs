@@ -138,7 +138,7 @@ test("the leak that costs a customer comes first, and it carries the arithmetic 
   assert.deepEqual(first.cta, { label: "See who", to: "clients/seg:asked_never_booked" });
   assert.deepEqual(first.also, { label: "Text the booking link", to: "broadcasts/asked_never_booked" });
   assert.equal(out[1].text, "4 customer messages never got an answer at all.");
-  assert.equal(out[1].math, "of 21 in the last 30 days · the receptionist answered 16, you answered 1");
+  assert.equal(out[1].math, "of 21 in the last 30 days · AI answered 16, you answered 1");
   assert.equal(out[1].also, null, "a message nobody answered has no button; the messages are past");
 });
 
@@ -731,11 +731,11 @@ test("each row wears a word and an icon for its tone, and offers Ask its own fac
   assert.equal(
     rows[0].ask,
     "18 people wrote or called in the last 30 days. Not one of them is on the calendar. 0 of 18 booked · 17 on Asked, never booked. Why is that?",
-    "the sentence and the arithmetic under it, so Ask grounds the answer in the same numbers",
+    "the sentence and the arithmetic under it, so AI grounds the answer in the same numbers",
   );
   assert.equal(
     rows[1].ask,
-    "4 customer messages never got an answer at all. Of 21 in the last 30 days · the receptionist answered 16, you answered 1. Why is that?",
+    "4 customer messages never got an answer at all. Of 21 in the last 30 days · AI answered 16, you answered 1. Why is that?",
     "the arithmetic takes a capital once it is a sentence of its own",
   );
   const { rows: reach } = todayLeaksV2(
@@ -850,7 +850,7 @@ test("the dedupe covers all four queue kinds: a closing window's thread, a call 
 test("the last seven days in one sentence, in Reports' own numbers and words, each read from the headline Reports' series makes", () => {
   const r = headline({ days: 7, in: 23, ai: 21, you: 1, none: 1, calls: 4, before: 19 });
   assert.deepEqual(todayPeriodLine(r), {
-    text: "Last 7 days: 23 messages (up from 19), 91% answered by the receptionist, 4 calls.",
+    text: "Last 7 days: 23 messages (up from 19), 91% answered by AI, 4 calls.",
     to: "reports",
   });
   const quiet = headline({ days: 30 });
@@ -858,7 +858,7 @@ test("the last seven days in one sentence, in Reports' own numbers and words, ea
   const noReplies = headline({ days: 7, in: 1, ai: 0, you: 1, calls: 1 });
   assert.equal(
     todayPeriodLine(noReplies).text,
-    "Last 7 days: 1 message, 0% answered by the receptionist, 1 call.",
+    "Last 7 days: 1 message, 0% answered by AI, 1 call.",
     "no comparison without one; the singulars; the lead from the period's own words",
   );
   assert.equal(todayPeriodLine(null), null);

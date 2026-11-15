@@ -381,7 +381,7 @@ test("a starter whose WhatsApp version is on file says what it is, never that it
   assert.deepEqual(named.proposal.payload.channels, ["whatsapp", "email"]);
   assert.ok(
     named.proposal.summary.includes(
-      ` · WhatsApp waits: WhatsApp asked for a change to this message's words. Ask writes new words for you to send back. ${WAITS_WORDS}`,
+      ` · WhatsApp waits: WhatsApp asked for a change to this message's words. AI writes new words for you to send back. ${WAITS_WORDS}`,
     ),
     named.proposal.summary,
   );

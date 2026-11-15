@@ -68,7 +68,7 @@ test("found: what came in, counted across the places, and each line says its own
     true,
   );
   assert.equal(said.state, "found");
-  assert.equal(said.title, "Ask found 14 photos and 4 videos");
+  assert.equal(said.title, "AI found 14 photos and 4 videos");
   assert.equal(said.lines[0].status, "9 photos · 4 videos");
   assert.equal(said.lines[1].status, "5 photos");
   assert.equal(
@@ -89,7 +89,7 @@ test("looked and nothing came: what was looked at, and why", () => {
   assert.equal(small.state, "none");
   assert.equal(
     small.body,
-    "Ask looked at your website and your Google listing. The photos there are too small to post.",
+    "AI looked at your website and your Google listing. The photos there are too small to post.",
   );
   assert.deepEqual(
     small.lines.map((l) => l.status),

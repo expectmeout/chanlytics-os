@@ -433,7 +433,7 @@ function replyOutcomeOf(
   if (reportRecipient.waiting_on_you) return { words: NEEDS_YOU_WORD, tone: "warn" };
   if (reportRecipient.answered_by === "receptionist")
     return {
-      words: `The receptionist answered${clock(reportRecipient.answered_at) ? ` · ${clock(reportRecipient.answered_at)}` : ""}`,
+      words: `AI answered${clock(reportRecipient.answered_at) ? ` · ${clock(reportRecipient.answered_at)}` : ""}`,
       tone: "ok",
     };
   if (reportRecipient.answered_by === "team")

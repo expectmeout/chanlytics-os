@@ -25,17 +25,17 @@ export function refusalSaid(
   else log.error("ask_gateway_refused", refusal);
   switch (gatewayRefusal.kind) {
     case "preview":
-      return es ? "Ask solo responde en el panel de producción." : "Ask only answers on the production dashboard.";
+      return es ? "AI solo responde en el panel de producción." : "AI only answers on the production dashboard.";
     case "budget":
       return es
-        ? "Ask usó su presupuesto diario. Vuelve mañana; las páginas siguen funcionando."
-        : "Ask has used its daily budget. Try again tomorrow; the pages still work.";
+        ? "AI llegó a su límite diario. Vuelve mañana; las páginas siguen funcionando."
+        : "AI has reached its daily limit. Try again tomorrow; the pages still work.";
     case "no_key":
-      return es ? "Ask no está conectado a un modelo todavía." : "Ask is not connected to a model yet.";
+      return es ? "AI no está conectado todavía." : "AI is not connected yet.";
     case "paused":
       return es
-        ? "Ask está apagado mientras este espacio de trabajo está en pausa. Reactívalo en Ajustes › Facturación."
-        : "Ask is off while this workspace is paused. Resume it from Settings › Billing.";
+        ? "AI está apagado mientras este espacio de trabajo está en pausa. Reactívalo en Ajustes › Facturación."
+        : "AI is off while this workspace is paused. Resume it from Settings › Billing.";
     case "model_paused":
       return es ? MODEL_PAUSED_WORDS.ask.es : MODEL_PAUSED_WORDS.ask.en;
     case "unreachable":

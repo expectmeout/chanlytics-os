@@ -153,7 +153,7 @@ test("five moments in order, each with its caps, name, people, state and the yes
   assert.deepEqual(
     h.rail.stages.map((s) => [s.id, s.caps, s.name]),
     [
-      ["first_contact", "First contact", "Your receptionist"],
+      ["first_contact", "First contact", "AI"],
       ["before", "Visit tomorrow", "Visit reminder"],
       ["after", "After the visit", "How did it go"],
       ["proposal", "Proposal waiting", "Proposal follow-up"],
@@ -188,7 +188,7 @@ test("five moments in order, each with its caps, name, people, state and the yes
   );
 });
 
-test("the receptionist is always on; a running playbook is on with its clock; the rest are off with Turn on", () => {
+test("AI is always on; a running playbook is on with its clock; the rest are off with Turn on", () => {
   const h = home();
   assert.deepEqual(
     h.rail.stages.map((s) => [s.state, s.stateWords, s.covered]),
@@ -201,7 +201,7 @@ test("the receptionist is always on; a running playbook is on with its clock; th
     ],
   );
   assert.equal(h.rail.coveredWords, "2 of 5 moments covered", "the board's two of five");
-  assert.equal(stage(h, "first_contact").act, null, "the receptionist is nobody's to turn on");
+  assert.equal(stage(h, "first_contact").act, null, "AI is nobody's to turn on");
   assert.deepEqual(stage(h, "quiet").act, { kind: "open", label: "Open", playbookId: "pb-1" });
   assert.deepEqual(stage(h, "after").act, { kind: "turn_on", label: "Turn on", moment: "visited" });
 });
@@ -214,7 +214,7 @@ const ready = (over = {}) => ({
   ...over,
 });
 
-test("first contact is covered only where there is a line for the receptionist to answer on; with none it is off, in words", () => {
+test("first contact is covered only where there is a line for AI to answer on; with none it is off, in words", () => {
   // A WhatsApp number is a line, whatever the channels' readiness says.
   assert.equal(stage(home(), "first_contact").covered, true);
   assert.equal(stage(home({ broadcasts: broadcasts({ ready: ready() }) }), "first_contact").state, "always");
@@ -225,11 +225,7 @@ test("first contact is covered only where there is a line for the receptionist t
     [none.state, none.covered, none.tone, none.stateWords, none.phoneWords, none.needsWords, none.act],
     ["off", false, "plain", "No line to answer on yet", "Off", "Connect a number or email to answer on", null],
   );
-  assert.equal(
-    bare.rail.coveredWords,
-    "1 of 5 moments covered",
-    "only the win-back covers: the receptionist has no line",
-  );
+  assert.equal(bare.rail.coveredWords, "1 of 5 moments covered", "only the win-back covers: AI has no line");
   assert.deepEqual(bare.head.sentence.slice(0, 2), [{ b: "1 of 5" }, " moments are covered"]);
   // Any one channel that can send is a line: a texting line, or a mailbox.
   for (const channel of ["sms", "email"]) {
@@ -616,11 +612,11 @@ test("who can hear you: In People, can get your messages, said yes to offers, ea
   assert.deepEqual(some.phone.offers, { words: "3 to offers", tone: "plain" });
 });
 
-test("the receptionist's note and the doors to the yes are drawn only where there is a number to ask on", () => {
+test("AI's note and the doors to the yes are drawn only where there is a number to ask on", () => {
   const t = home().reach;
   assert.equal(
     t.yes.note,
-    "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
+    "AI now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
   );
   assert.deepEqual(
     t.yes.code,

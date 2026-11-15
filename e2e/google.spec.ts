@@ -69,7 +69,7 @@ test.describe("Google on a real workspace", () => {
     expect(ledger?.waiting_total).toBe(SEEDED.waiting);
     expect(
       ledger?.waiting.map((w) => w.held),
-      "the oldest first; the second has the reply the receptionist held back",
+      "the oldest first; the second has the reply AI held back",
     ).toEqual([null, "price"]);
   });
 

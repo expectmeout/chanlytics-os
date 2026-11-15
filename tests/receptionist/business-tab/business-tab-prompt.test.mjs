@@ -233,7 +233,7 @@ test("the head says what it is, alone, and counts nothing; which receptionist is
   for (const channel of ["whatsapp", "voice"]) {
     const tree = drawPrompt(channel);
     const kit = find(tree, (n) => n.type === W.RecordSheet);
-    assert.equal(kit.props.title, "What your receptionist is told");
+    assert.equal(kit.props.title, "What AI is told");
     assert.equal(kit.props.sub, undefined, `${channel}: no line under the title (Ruben, 10 Oct 2026)`);
     const sheet = sheetOf(tree);
     const head = find(sheet, (n) => classes(n).includes("rec-sheet-head"));
@@ -429,12 +429,12 @@ test("a role that may not change the business reads the whole prompt, and is off
 
 /* ------------------------------------ the told section at rest ------------------------------------ */
 
-test("what the receptionist is told says who reads it at rest, with one door, and counts nothing", () => {
+test("what AI is told says who reads it at rest, with one door, and counts nothing", () => {
   // Task 4.0's guarantee, carried from PromptPreview's head: one phrase and the door at rest, no count anywhere on the
   // glass, and the phrase follows the channel last chosen.
   let tree = drawTab({ profile: marisa });
   const told = byTestId(tree, "rec-card-told");
-  assert.equal(textOf(find(told, (n) => classes(n).includes("rec-card-title"))), "What your receptionist is told");
+  assert.equal(textOf(find(told, (n) => classes(n).includes("rec-card-title"))), "What AI is told");
   assert.equal(textOf(find(told, (n) => classes(n).includes("rec-card-sub"))), PROMPT_READERS.whatsapp);
   assert.deepEqual(
     all(told, (n) => n.type === "button").map((b) => b.props["data-testid"]),

@@ -120,11 +120,11 @@ export const FIRST_RUN_GOLIVE_WORDS = {
       "Paste the code in Meta's window. Done.",
     ],
     keepAppAfter:
-      "You keep using the app. Your receptionist answers what you don't; your replies from the app show in Inbox too, and your WhatsApp contacts come into People.",
+      "You keep using the app. AI answers what you don't; your replies from the app show in Inbox too, and your WhatsApp contacts come into People.",
     ifNot: "If you'd rather not share your chats",
     ifNotSays: [
       "WhatsApp still connects, and you keep the app.",
-      "Every chat from now on comes into Inbox, and your receptionist answers what you don't.",
+      "Every chat from now on comes into Inbox, and AI answers what you don't.",
       "Your older chats stay only in the app. Meta offers the history once, while the number connects; to bring it later, WhatsApp has to be connected again from Settings.",
     ],
     openMeta: "Open Meta's window",
@@ -133,7 +133,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
     templateOk: "Your booking-link message · approved",
     needsYou: "Needs you",
     open: "Open Today, it keeps going",
-    askTitle: (name: string | null) => `Getting ${name ?? "your receptionist"} ready`,
+    askTitle: (name: string | null) => `Getting ${name ?? "AI"} ready`,
     askDone: (done: number, of: number) => `${done} of ${of} done`,
     answersTitle: (name: string | null) => `${name ?? "It"} answers`,
     answers: {
@@ -153,7 +153,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
     whatsappSame: "WhatsApp on the same number",
     whatsappOn: (n: string) => `WhatsApp on ${n}`,
     email: "your emails in the Inbox",
-    movesTitle: "Ask's first three moves",
+    movesTitle: "AI's first three moves",
     /** The way on to writing to businesses: Settings' Cold email, where a business that wants it starts. */
     coldEmail: "Write to businesses too: Cold email",
     coldEmailTo: "admin/outreach",
@@ -175,7 +175,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
       act: "See the draft",
     },
     brief: "Hear your first brief",
-    briefSays: "Ask, in its own voice · 15 seconds",
+    briefSays: "AI, in its own voice · 15 seconds",
     team: "Invite your team",
     /** Where the two quiet presses go: Team, and Today, where Ask's brief is heard. */
     teamTo: "admin/team",

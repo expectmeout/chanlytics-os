@@ -205,7 +205,7 @@ test("interested and a question draft an answer, not now a line of thanks, and t
     assert.match(ask.note, /from the business's own facts/, intent);
     assert.equal(w.state.kept.draftState, "written");
     assert.equal(w.state.kept.draftText, "Thanks for writing.\n\nSam");
-    assert.match(w.calls("tell")[0][2].body, /The receptionist drafted an answer: “Thanks for writing\. Sam”/);
+    assert.match(w.calls("tell")[0][2].body, /AI drafted an answer: “Thanks for writing\. Sam”/);
   }
   const later = world({ answers: { ask: { ...reading("not_now"), day: "2027-01-12" } } });
   await run(later);
@@ -304,7 +304,7 @@ test("a draft already written is never drafted again, and a retried notice still
   };
   assert.equal(await run(w), "told");
   assert.equal(w.calls("draft").length, 1, "the retry drafts nothing");
-  assert.match(w.retold[1].body, /The receptionist drafted an answer: “Thanks for writing\. Sam”/);
+  assert.match(w.retold[1].body, /AI drafted an answer: “Thanks for writing\. Sam”/);
 });
 
 /* ------------------------------------------------------------------ the edge's port -- */
@@ -450,7 +450,7 @@ test("the edge's port asks G14's gates from the workspace's own rows, and a hand
     assert.ok("text" in (await under.draft(under.tenant, ask)), "under the cap it drafts");
     // A workspace that sends from a mailbox of its own, with no hosted one, drafts too (the plan of 0060, S0).
     const own = edge({ mailbox: false, connected: true });
-    assert.ok("text" in (await own.draft(own.tenant, ask)), "a connected mailbox is the receptionist's way in");
+    assert.ok("text" in (await own.draft(own.tenant, ask)), "a connected mailbox is AI's way in");
 
     // A hand-off with words is words for the person it would hand them to (decision 0093); with none, nothing is drafted.
     edge.answer = {

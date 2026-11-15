@@ -44,7 +44,7 @@ export const MESSAGE_CHANGE_WORDS = {
       sequences.length
         ? `${sequences.map((n) => `“${n}”`).join(", ")} ${one ? "waits and sends" : "wait and send"} by ${one ? "itself" : "themselves"} once it says yes`
         : null,
-      booking ? "the receptionist won't text it to someone who asks to book" : null,
+      booking ? "AI won't text it to someone who asks to book" : null,
     ].filter(Boolean);
     return waits.length
       ? `While WhatsApp looks at the new words, usually a few minutes, ${waits.join(", and ")}.`

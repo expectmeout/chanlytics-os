@@ -66,7 +66,7 @@ export const REPORT_LENSES = [
   },
   {
     id: "receptionist",
-    label: "Receptionist",
+    label: "AI",
     sub: "who answered, how fast, and why it stopped",
     shownWhen: "always",
     role: "viewer",

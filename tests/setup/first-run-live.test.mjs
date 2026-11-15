@@ -63,12 +63,12 @@ test("published for the page", () => {
 
 test("Live (canvas R9): the four lines, the greeting word for word, and Finish's email said before the first activation", () => {
   const vm = firstRunLiveOf({ dto: dtoOf(), emails: ["owner@example.com"], business: "Harbor Moving", owner: true });
-  assert.equal(vm.heading, "Harbor Moving's receptionist is answering");
+  assert.equal(vm.heading, "AI is answering for Harbor Moving");
   const plural = firstRunLiveOf({ dto: dtoOf(), emails: [], business: "Lantern Barbers", owner: true });
   assert.equal(
     plural.heading,
-    "Lantern Barbers' receptionist is answering",
-    "a name ending in s takes the apostrophe alone",
+    "AI is answering for Lantern Barbers",
+    "any name is said after it, so none takes a possessive",
   );
   assert.equal(vm.lead, "Every call shows up on Today and in your Inbox.");
   assert.deepEqual(
@@ -131,7 +131,7 @@ test("Live says what is not there: its own number, a message instead of a transf
     ],
   });
   const vm = firstRunLiveOf({ dto: bare, emails: [], business: null, owner: true });
-  assert.equal(vm.heading, "Your receptionist is answering");
+  assert.equal(vm.heading, "AI is answering");
   assert.deepEqual(
     vm.summary.map((r) => r.value),
     ["+1 (305) 555-0142", "Nobody: it takes a message", "Nobody yet", "Only your name so far"],
@@ -150,11 +150,11 @@ test("the you're-live email (canvas C2): the test call, what happens from now on
     test: { from: "+17865550199", length: "48 sec" },
     todayUrl: null,
   });
-  assert.equal(m.subject, "Your receptionist is answering Harbor Moving's calls");
+  assert.equal(m.subject, "AI is answering Harbor Moving's calls");
   assert.equal(
     m.body,
     "It answered your test call (48 sec) from +1 (786) 555-0199 through +1 (305) 555-0100.\n\n" +
-      "From now on, calls to +1 (305) 555-0100 that nobody picks up reach your receptionist.\n\n" +
+      "From now on, calls to +1 (305) 555-0100 that nobody picks up reach AI.\n\n" +
       "A caller who asks for a person leaves a message.\n\n" +
       "We'll email you here when someone needs you.\n",
   );
@@ -168,7 +168,7 @@ test("the you're-live email (canvas C2): the test call, what happens from now on
       test: null,
       todayUrl: null,
     }).body,
-    /^From now on, every call to \+1 \(305\) 555-0100 reaches your receptionist\./,
+    /^From now on, every call to \+1 \(305\) 555-0100 reaches AI\./,
     "the mode saved: every call",
   );
   const skipped = youAreLiveEmail({
@@ -180,10 +180,6 @@ test("the you're-live email (canvas C2): the test call, what happens from now on
     test: null,
     todayUrl: null,
   });
-  assert.equal(skipped.subject, "Your receptionist is answering your calls");
-  assert.match(
-    skipped.body,
-    /^From now on, calls to \+1 \(305\) 555-0142 reach your receptionist\./,
-    "no test call, none said",
-  );
+  assert.equal(skipped.subject, "AI is answering your calls");
+  assert.match(skipped.body, /^From now on, calls to \+1 \(305\) 555-0142 reach AI\./, "no test call, none said");
 });

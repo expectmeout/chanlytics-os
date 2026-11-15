@@ -343,7 +343,7 @@ test("certain changes the words, never the condition; a throw that said why it n
   assert.deepEqual(said[0].error, { reason: "never_delivered", note: why });
   assert.deepEqual(
     escalations.map((e) => [e.conversation_id, e.reason, e.details]),
-    [["c2", "send_failed", `The receptionist's reply never left: ${why}.`]],
+    [["c2", "send_failed", `AI's reply never left: ${why}.`]],
   );
 });
 

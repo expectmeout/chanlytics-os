@@ -301,7 +301,7 @@ test("thread verbs: each to its Inbox route; the snooze carries its until; the r
     await commitProposal(t.win, card("thread_verb", { verb: "hand_back", conversation_id: C1 }), t.client),
     {
       ok: true,
-      receipt: "The receptionist has it again",
+      receipt: "AI has it again",
       undo: { verb: "take_over", conversation_id: C1, until: null, decision_id: D(3) },
       made: null,
     },
@@ -356,7 +356,7 @@ test("a person's mode: the owner's route, the people surface told, the previous 
   );
   assert.deepEqual(r, {
     ok: true,
-    receipt: "Receptionist for Rosa: Never",
+    receipt: "AI for Rosa: Never",
     undo: { contact_id: P1, mode: "auto", decision_id: D(8) },
     made: null,
   });

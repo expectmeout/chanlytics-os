@@ -666,7 +666,7 @@ test("a WhatsApp version still in review with an email beside it is an offered m
   assert.equal(by.ticks.whatsapp.on, false);
   // Refused, paused and disabled each say their own; a message whose only version is one not approved is not offered at all.
   for (const [status, words] of [
-    ["rejected", "WhatsApp asked for a change to this message's words. Ask writes new words for you to send back."],
+    ["rejected", "WhatsApp asked for a change to this message's words. AI writes new words for you to send back."],
     [
       "paused",
       "WhatsApp is holding this message for a few hours, because some people marked it as unwanted. It comes back by itself.",

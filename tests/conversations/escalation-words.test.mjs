@@ -28,7 +28,7 @@ test("every stored reason has a label, a clause and a summary, and nothing else 
 
 test("the clause is the label's own words, not a second vocabulary", () => {
   assert.equal(reasonShort("manual"), "flagged by hand");
-  assert.equal(reasonShort("state_unavailable"), "the receptionist could not read this thread");
+  assert.equal(reasonShort("state_unavailable"), "AI could not read this thread");
   assert.equal(reasonShort("person_hold"), "you handle this person");
   assert.equal(reasonShort("deadman"), "nobody picked this up");
   assert.equal(reasonShort("human_token"), "asked for a person");
@@ -39,7 +39,8 @@ test("the clause is the label's own words, not a second vocabulary", () => {
 
 test("no clause starts with a capital or ends with a stop: it sits after 'Escalated ·' and inside a sentence", () => {
   for (const [reason, clause] of Object.entries(ESCALATION_REASON_SHORT)) {
-    assert.match(clause, /^[a-z]/, `${reason}: "${clause}"`);
+    // AI is the product's name for its AI (docs/words.md), and keeps its capitals wherever it stands.
+    assert.match(clause, /^(?:[a-z]|AI )/, `${reason}: "${clause}"`);
     assert.doesNotMatch(clause, /[.!]$/, `${reason}: "${clause}"`);
   }
 });

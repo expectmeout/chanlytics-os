@@ -230,7 +230,7 @@ function personActs(b: BulkCtx) {
       tone: r.ok ? "ok" : "danger",
       msg: r.ok ? (
         <>
-          Receptionist: <b>{m.label}</b> for {r.done} {r.done === 1 ? "person" : "people"}
+          AI: <b>{m.label}</b> for {r.done} {r.done === 1 ? "person" : "people"}
           {restWords}
         </>
       ) : (

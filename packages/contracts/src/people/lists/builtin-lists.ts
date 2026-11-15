@@ -61,7 +61,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "waiting_on_you",
     label: HELD_WORDS.yours.pill,
-    tip: "Threads you have: you took them over, or your reply paused the receptionist. A teammate's waits on them",
+    tip: "Threads you have: you took them over, or your reply paused AI. A teammate's waits on them",
     group: "attention",
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "waiting_on_you" }),
@@ -194,7 +194,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "opted_out",
     label: STOP_WORDS.pill,
-    tip: "Asked to stop; the receptionist stays silent, offers included",
+    tip: "Asked to stop; AI stays silent, offers included",
     group: "reach",
     onProfile: false,
     rule: r({ field: "stopped", op: "is", yes: true }),

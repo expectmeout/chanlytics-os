@@ -118,7 +118,7 @@ export const FEED_CHECK_WORDS = {
   reading: "Reading it…",
   read: (events: number, next: string | null) =>
     events === 0
-      ? "Read it: it's empty so far. Your receptionist will see new bookings as they land."
+      ? "Read it: it's empty so far. AI will see new bookings as they land."
       : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`,
 } as const;
 

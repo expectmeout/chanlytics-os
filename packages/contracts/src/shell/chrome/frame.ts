@@ -126,7 +126,7 @@ export function shellStatusLine(shellStatus: ShellStatus | null | undefined): Sh
     return {
       kind: "paused",
       tone: WORKSPACE_PAUSED.tone,
-      text: "Your receptionist is paused",
+      text: "AI is paused",
       detail: PAUSED_WORDS,
       action: "billing",
       cta: "Billing",
@@ -136,7 +136,7 @@ export function shellStatusLine(shellStatus: ShellStatus | null | undefined): Sh
     return {
       kind: "paused",
       tone: WORKSPACE_PAUSED.tone,
-      text: "Your receptionist is paused",
+      text: "AI is paused",
       detail:
         "It sends a holding reply and hands each new message to you in the Inbox. Write to support and we'll sort it out.",
       action: null,
@@ -147,7 +147,7 @@ export function shellStatusLine(shellStatus: ShellStatus | null | undefined): Sh
     return {
       kind: "degraded",
       tone: "warn",
-      text: "Your receptionist is limited",
+      text: "AI is limited",
       detail:
         "It may send a holding reply and hand some messages to you in the Inbox. Write to support and we'll sort it out.",
       action: null,

@@ -163,7 +163,7 @@ test("the settings read: the workspace the tab named, with its version and the r
   await refused(settings.GET.run(get(inA), ctxFor({ ...tables, tenant_config: [] })), "not_found", 404);
 });
 
-test("the settings read composes what the receptionist is told, with the inputs the browser could not see -- the autonomy rows, the platform's facts -- and the clock beside it; nothing when no receptionist is configured", async () => {
+test("the settings read composes what AI is told, with the inputs the browser could not see -- the autonomy rows, the platform's facts -- and the clock beside it; nothing when no receptionist is configured", async () => {
   const BRAIN = {
     business_name: "Harbor Moving",
     booking_link: "https://book.example/harbor",
@@ -256,7 +256,7 @@ test("F1: the settings read knows the number the business keeps -- publishing it
   const forwarded = await settings.GET.run(get(inA), ctxFor(tables("+19295550100")));
   assert.deepEqual(forwarded.facts.kept_line, { value: "+17185550142", source: "provisioned" });
   assert.deepEqual(forwarded.facts.phone_display, { value: "(718) 555-0142", source: "typed" });
-  assert.deepEqual(forwarded.conflicts, [], "customers call the number they know and reach the receptionist");
+  assert.deepEqual(forwarded.conflicts, [], "customers call the number they know and reach AI");
   const stale = await settings.GET.run(get(inA), ctxFor(tables("+13055550199")));
   assert.deepEqual(
     stale.conflicts.map((c) => [c.fact, c.severity]),
@@ -391,7 +391,7 @@ test("the settings write: the owner's, the workspace named, the body { config, v
   const brain = {
     business_name: "Bayside Salon",
     booking_link: "https://book.example/bayside",
-    system_prompt: "You are the receptionist for Bayside Salon, answering customers on WhatsApp in a warm, short way.",
+    system_prompt: "You are AI for Bayside Salon, answering customers on WhatsApp in a warm, short way.",
     fallbacks: {
       greeting: "Hi! A person will be with you shortly.",
       error: "Sorry, something went wrong. A person will reply soon.",
@@ -431,7 +431,7 @@ test("the settings write: the owner's, the workspace named, the body { config, v
     settings.PUT.run(send("PUT", { config: {}, version: 1 }, inB), ctxFor({ ...tables, tenant_config: [] })),
     "conflict",
     409,
-    "no settings record yet",
+    "Settings aren't ready for this workspace yet",
   );
 });
 
@@ -439,7 +439,7 @@ test("REGRESSION (defect 19): a save from a dashboard older than the row keeps w
   const brain = {
     business_name: "Bayside Salon",
     booking_link: "https://book.example/bayside",
-    system_prompt: "You are the receptionist for Bayside Salon, answering customers on WhatsApp in a warm, short way.",
+    system_prompt: "You are AI for Bayside Salon, answering customers on WhatsApp in a warm, short way.",
     fallbacks: {
       greeting: "Hi! A person will be with you shortly.",
       error: "Sorry, something went wrong. A person will reply soon.",
@@ -480,7 +480,7 @@ test("one name: a save that changes the business's name renames the workspace, t
   const brain = {
     business_name: "Bayside",
     booking_link: "https://book.example/bayside",
-    system_prompt: "You are the receptionist for Bayside, answering customers on WhatsApp in a warm, short way.",
+    system_prompt: "You are AI for Bayside, answering customers on WhatsApp in a warm, short way.",
     fallbacks: { greeting: "g", error: "e", non_text: "n" },
   };
   const world = (lines = []) => ({
@@ -546,7 +546,7 @@ test("one name: a save that changes the business's name renames the workspace, t
 test("a receptionist with no booking link (one that quotes each job) is read as one, prompt and all, so the Business tab can say so; and saved as one", async () => {
   const brain = {
     business_name: "Harbor Moving",
-    system_prompt: "You are the receptionist for Harbor Moving, which quotes each move before it is booked.",
+    system_prompt: "You are AI for Harbor Moving, which quotes each move before it is booked.",
     fallbacks: { greeting: "g", error: "e", non_text: "n" },
     profile: { address: "12 Pier Rd, Brooklyn" },
   };
@@ -566,7 +566,7 @@ test("a receptionist with no booking link (one that quotes each job) is read as 
   );
   assert.ok(
     read.prompt.voice.includes("Booking: there is no booking link, so never use send_booking_link."),
-    "what the receptionist is told, as the tab shows it",
+    "what AI is told, as the tab shows it",
   );
   // Decision 2's writing half: who is asked for a link is the pages' question, by how customers buy, since the
   // config cannot say; a receptionist without one is read and answered either way (the first run's 3b).
@@ -900,10 +900,7 @@ test("the business record: read by every member, nothing on file is null not a b
 test("the calendar: a read of the workspace's week, counted with the aggregates; a preview is refused for a blank or a private address before anything is fetched", async () => {
   const tables = { memberships: both("viewer", "operator"), tenants: [], tenant_config: [] };
   const week = await calendar.GET.run(get(`?days=3&workspace=${A}&workspace=${A}`), ctxFor(tables));
-  assert.ok(
-    week.calendar && typeof week.calendar === "object",
-    "the week as the receptionist reads it, even with no feed",
-  );
+  assert.ok(week.calendar && typeof week.calendar === "object", "the week as AI reads it, even with no feed");
   await refused(
     preview.POST.run(send("POST", { url: "https://calendar.example.com/x.ics" }, inA), ctxFor(tables)),
     "forbidden",

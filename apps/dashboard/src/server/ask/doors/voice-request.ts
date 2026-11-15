@@ -78,7 +78,7 @@ export function refusalOf(edgeAnswer: EdgeAnswer): AppError {
     "upstream_voice",
     reason === "no_provider_key"
       ? "Voice is not set up yet."
-      : "The voice agent could not be reached just now. Try again in a moment.",
+      : "A call with AI could not be started just now. Try again in a moment.",
     503,
     { reason },
   );

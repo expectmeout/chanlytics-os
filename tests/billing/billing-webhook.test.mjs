@@ -199,7 +199,7 @@ test("a subscription event is kept once and applied: the row follows Stripe's re
   );
   assert.equal(writes(db, "events").length, 1);
   assert.equal(first(writes(db, "events")[0]).kind, "billing.updated");
-  assert.equal(writes(db, "tenants").length, 0, "trialing to active: the receptionist was on and stays on");
+  assert.equal(writes(db, "tenants").length, 0, "trialing to active: AI was on and stays on");
 });
 
 test("a replay changes nothing: the id hits the primary key, the answer is 200, and the row is not written", async () => {
@@ -250,7 +250,7 @@ test("an apply that fails gives the claim back, so Stripe's retry is not answere
     { ok: true, status: "paused", switched: "paused" },
     "the retry APPLIES the change, rather than reporting a duplicate",
   );
-  assert.equal(first(writes(healthy, "tenants").at(-1)).status, "paused", "the receptionist is actually stopped");
+  assert.equal(first(writes(healthy, "tenants").at(-1)).status, "paused", "AI is actually stopped");
   assert.equal(state.billing_events.length, 1, "and now the event is on record once");
 });
 
@@ -268,7 +268,7 @@ test("a late word about a subscription the workspace has already left does not o
   assert.equal(stale.status, 200);
   assert.deepEqual(await stale.json(), { ok: true, superseded: true });
   assert.equal(writes(db, "billing_accounts").length, 0, "the live subscription is left alone");
-  assert.equal(writes(db, "tenants").length, 0, "the receptionist keeps answering");
+  assert.equal(writes(db, "tenants").length, 0, "AI keeps answering");
   assert.equal(writes(db, "notifications").length, 0, "and nobody is told a subscription ended");
   assert.equal(claims(db).length, 1, "the delivery is still kept once, so it is not reconsidered");
 
@@ -303,7 +303,7 @@ test("a late word whose own copy still says active is judged by what Stripe says
     [state.billing_accounts[0].stripe_subscription_id, state.billing_accounts[0].status],
     ["sub_2", "active"],
   );
-  assert.equal(writes(db, "tenants").length, 0, "the receptionist keeps answering");
+  assert.equal(writes(db, "tenants").length, 0, "AI keeps answering");
   assert.equal(writes(db, "notifications").length, 0, "and nobody is told a subscription ended");
   assert.equal(state.billing_events[0].state, "applied", "the delivery is kept once, so it is not reconsidered");
   assert.deepEqual(
@@ -326,7 +326,7 @@ test("a late word about a subscription Stripe no longer holds, while the workspa
   assert.equal(late.status, 200);
   assert.deepEqual(await late.json(), { ok: true, superseded: true });
   assert.equal(writes(db, "billing_accounts").length, 0, "the row keeps the subscription the workspace is on");
-  assert.equal(writes(db, "tenants").length, 0, "the receptionist keeps answering");
+  assert.equal(writes(db, "tenants").length, 0, "AI keeps answering");
   assert.equal(state.billing_events[0].state, "applied", "the delivery is kept once, so it is not reconsidered");
 });
 
@@ -355,7 +355,7 @@ test("a paused subscription pauses the workspace and rings once; resuming turns 
         .at(-1),
     ).status,
     "active",
-    "the receptionist answers again",
+    "AI answers again",
   );
   assert.equal(
     writes(db, "notifications").filter((w) => w.op === "insert").length,
@@ -396,7 +396,7 @@ test("a trial's bells say the day it ends where the business is: an end at 03:00
   assert.notEqual(eve, said(end.getTime()), "and that day is not the server's");
 });
 
-test("a failed payment marks the row and rings, and the receptionist keeps answering", async () => {
+test("a failed payment marks the row and rings, and AI keeps answering", async () => {
   const db = fakeDb(tables({ billing_accounts: [row({ status: "past_due" })] }));
   setPg(db);
   const res = await deliver("invoice.payment_failed", {
@@ -410,11 +410,11 @@ test("a failed payment marks the row and rings, and the receptionist keeps answe
   assert.ok(first(up).last_payment_failed_at, "the row keeps when it failed");
   assert.equal(writes(db, "notifications").length, 1);
   assert.equal(first(writes(db, "notifications")[0]).title, "A payment did not go through");
-  assert.equal(writes(db, "tenants").length, 0, "a failed card never silences the receptionist");
+  assert.equal(writes(db, "tenants").length, 0, "a failed card never silences AI");
   assert.deepEqual(
     writes(db, "events").map((s) => [first(s).kind, first(s).category, first(s).data]),
     [["billing.payment_failed", "billing", {}]],
-    "REGRESSION: the bell said it and the ledger did not; filed under billing, so Ask leaves it out, and never an amount",
+    "REGRESSION: the bell said it and the ledger did not; filed under billing, so AI leaves it out, and never an amount",
   );
 });
 
@@ -439,7 +439,7 @@ test("REGRESSION (S6-12): a pause whose bell could not be kept is not written: S
   assert.equal(state.tenants[0].status, "paused", "applied");
   assert.deepEqual(
     state.notifications.map((n) => [n.kind, n.title]),
-    [["billing", "Your receptionist is paused"]],
+    [["billing", "AI is paused"]],
     "told once",
   );
   // Another event for the same change, as Stripe sends several: no second bell.
@@ -521,12 +521,12 @@ test("S6-11: a paused receptionist is mailed as well as rung, once; a mail that 
     assert.deepEqual(await res.json(), { ok: true, status: "paused", switched: "paused" });
     assert.deepEqual(
       p.mails.map((m) => [m.to, m.subject]),
-      [[["owner@harbor.example"], "Your receptionist is paused"]],
+      [[["owner@harbor.example"], "AI is paused"]],
       "REGRESSION: told on the bell and a paused phone app alone",
     );
     assert.deepEqual(
       state.notifications.map((n) => [n.kind, n.title, n.mail_due_at ?? null]),
-      [["billing", "Your receptionist is paused", null]],
+      [["billing", "AI is paused", null]],
       "one row, its mail sent",
     );
     await deliver("customer.subscription.updated", sub({ status: "paused" }), "evt_paused_twin");
@@ -917,7 +917,7 @@ test("a Stripe read that fails is not the subscription being gone: nothing is wr
     assert.equal(res.status, 503, refusal.message);
     assert.deepEqual(await res.json(), { ok: false, error: "stripe_unreadable" });
     assert.equal(writes(db, "billing_accounts").length, 0, "the live subscription is left alone");
-    assert.equal(writes(db, "tenants").length, 0, "the receptionist keeps answering");
+    assert.equal(writes(db, "tenants").length, 0, "AI keeps answering");
     assert.equal(writes(db, "notifications").length, 0, "and nobody is told anything");
     assert.deepEqual(state.billing_events, [], "the claim is given back, so the retry is not a duplicate");
     const why = lines.find((l) => l.event === "stripe_read_failed");
@@ -973,7 +973,7 @@ test("Stripe answering that the subscription the row names does not exist is sti
   assert.equal(
     first(writes(db, "tenants").at(-1)).status,
     "paused",
-    "and the receptionist is stopped, since nothing live is billing it",
+    "and AI is stopped, since nothing live is billing it",
   );
 });
 
@@ -1119,7 +1119,7 @@ test("a finished Checkout that arrives late, about a subscription long since end
   assert.equal(late.status, 200);
   assert.deepEqual(await late.json(), { ok: true, superseded: true });
   assert.equal(writes(db, "billing_accounts").length, 0, "the row keeps the subscription the workspace is on");
-  assert.equal(writes(db, "tenants").length, 0, "the receptionist keeps answering");
+  assert.equal(writes(db, "tenants").length, 0, "AI keeps answering");
   assert.equal(writes(db, "notifications").length, 0, "and nobody is told a subscription ended");
   assert.equal(state.billing_events[0].state, "applied", "the delivery is kept once");
 
@@ -1140,7 +1140,7 @@ test("a finished Checkout that arrives late, about a subscription long since end
     ["sub_3", "active"],
     "the row follows the new plan",
   );
-  assert.equal(state2.tenants[0].status, "active", "and the receptionist answers again");
+  assert.equal(state2.tenants[0].status, "active", "and AI answers again");
 });
 
 test("the kinds are a table: a kind named like a property every object has is a kind nobody acts on, kept once and ignored", async () => {

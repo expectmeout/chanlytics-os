@@ -35,7 +35,7 @@ export const CALENDAR_UNREADABLE_TOLD_AFTER_MS = DAY_MS;
 export const CALENDAR_UNREADABLE_WORDS = {
   title: "Your calendar link stopped answering",
   body: (f: { sinceMs: number; nowMs: number }): string =>
-    `Your calendar link stopped answering ${agoWords(f.sinceMs, f.nowMs)}. Until it answers again, the receptionist ` +
+    `Your calendar link stopped answering ${agoWords(f.sinceMs, f.nowMs)}. Until it answers again, AI ` +
     "does not say which times are open, and new bookings do not reach the Calendar. Check the link in Settings, under " +
     "Business.",
 } as const;

@@ -654,7 +654,7 @@ test(
     const yesTold = await noticesOn(replyOf.yes.conversation_id);
     assert.equal(yesTold.length, 1);
     assert.match(yesTold[0].title, /Austin Movers wrote back/);
-    assert.ok(yesTold[0].body.includes("The receptionist drafted an answer"), yesTold[0].body);
+    assert.ok(yesTold[0].body.includes("AI drafted an answer"), yesTold[0].body);
     assert.ok(yesTold[0].body.includes("Happy to send the details."), yesTold[0].body);
 
     // No: Said no, the address and the business's own domain on the list, one notice.

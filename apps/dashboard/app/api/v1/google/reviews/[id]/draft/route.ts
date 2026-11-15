@@ -16,11 +16,11 @@ import { callEdgeGoogle } from "@/server/connections/google";
  */
 const REASON_WORDS: Record<string, string> = {
   policy_never:
-    "Review replies are set to Never on Autonomy. Set them to Ask for a draft, or Auto to have new reviews answered.",
+    "Review replies are set to Stays quiet on Autonomy. Set them to Asks you for a draft, or Sends it to have new reviews answered.",
   no_review: "That review is not on record.",
   no_model_key: "Drafting is not available here yet.",
-  model_failed: "The receptionist could not write a draft just now. Write the reply yourself, or try again.",
-  empty_draft: "The receptionist could not write a draft just now. Write the reply yourself, or try again.",
+  model_failed: "AI could not write a draft just now. Write the reply yourself, or try again.",
+  empty_draft: "AI could not write a draft just now. Write the reply yourself, or try again.",
 };
 
 export const POST = write({

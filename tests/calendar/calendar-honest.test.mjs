@@ -1422,7 +1422,7 @@ const runsRead = (url) => {
   });
 };
 
-test("REGRESSION (C1): Next opening is the receptionist's first open time from now, wherever the board is looking, and names its day past this week -- it came from the loaded weeks and said only a weekday", () => {
+test("REGRESSION (C1): Next opening is AI's first open time from now, wherever the board is looking, and names its day past this week -- it came from the loaded weeks and said only a weekday", () => {
   const next = (start, over = {}) => toCalendarVM(dto({ ...opening(start), ...over }), NOW).stats.next;
   assert.equal(next("2026-09-08T19:30:00.000Z"), "today 3:30 PM");
   assert.equal(next("2026-09-09T14:00:00.000Z"), "tomorrow 10 AM");
@@ -1447,7 +1447,7 @@ test("REGRESSION (C1): Next opening is the receptionist's first open time from n
   );
 });
 
-test("(C1) the last day the receptionist offers is named, and every day past it knows it is", () => {
+test("(C1) the last day AI offers is named, and every day past it knows it is", () => {
   const vm = toCalendarVM(span("2026-09-07", 28), NOW);
   assert.deepEqual(vm.offer, { days: 14, until: "2026-09-21", label: "Sep 21", slot: 30 }, "14 days out, from today");
   const beyond = (key) => vm.days.find((d) => d.key === key).beyondOffer;
@@ -1466,7 +1466,7 @@ test("(C1) the last day the receptionist offers is named, and every day past it 
   assert.equal(toCalendarVM(span("2026-09-07", 7, { rules: { max_days_ahead: 3 } }), NOW).offer.until, "2026-09-10");
 });
 
-test("REGRESSION (C1): the booking rules the receptionist follows are all on the page -- the party size and the services that need a consultation first were never said, and closures past the sixth vanished", () => {
+test("REGRESSION (C1): the booking rules AI follows are all on the page -- the party size and the services that need a consultation first were never said, and closures past the sixth vanished", () => {
   const rules = {
     lead_hours: 2,
     buffer_min: 15,
@@ -1550,7 +1550,7 @@ test("REGRESSION (C1): the page says only what it read -- an unreadable calendar
   );
 });
 
-test("REGRESSION (C1): a day past what the receptionist offers says so, and the legend names the last day it offers -- the agenda said 'nothing the receptionist would offer', as if the day were booked solid", () => {
+test("REGRESSION (C1): a day past what AI offers says so, and the legend names the last day it offers -- the agenda said 'nothing AI would offer', as if the day were booked solid", () => {
   fresh(span("2026-09-07", 42, { rules: { lead_hours: 2, buffer_min: 15, max_days_ahead: 7 } }));
   let tree = page();
   pickView(tree, "agenda");
@@ -2227,7 +2227,7 @@ test("the view the member chose is the one the board opens on again in this tab;
 const withNext = (over = {}) =>
   dto({ next_opening: { start: "2026-09-08T19:30:00.000Z", end: "2026-09-08T22:00:00.000Z" }, ...over });
 
-test("REGRESSION (C3): the times the receptionist would offer are open times wherever they are named -- the strip said 'Open windows' and 'Next opening', the service picker 'Windows', and Today 'next opening', while Business and Ask say open times", () => {
+test("REGRESSION (C3): the times AI would offer are open times wherever they are named -- the strip said 'Open windows' and 'Next opening', the service picker 'Windows', and Today 'next opening', while Business and AI say open times", () => {
   fresh(withNext({ services: [{ name: "Balayage", duration_min: 90, consult_first: false }] }));
   const tree = page();
   assert.match(legend(tree), /^Open times through /);
@@ -2354,7 +2354,7 @@ test("REGRESSION (C3): the feed's state is the pill Connections and Setup use, i
   assert.equal(
     down.line,
     "Your calendar could not be read · tried 3m ago · last read 4h ago",
-    "the whole sentence stays, for Ask",
+    "the whole sentence stays, for AI",
   );
   const none = feed({ present: false, state: "none", read_at: null, events: 0 });
   assert.deepEqual([none.health, none.detail], ["none", ""]);
@@ -2478,7 +2478,7 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
   );
 });
 
-test("REGRESSION (C3): a service that needs a consultation is spoken of as the receptionist handles it -- the agenda said the receptionist 'books a consultation', and it never books; the picker said 'consult first'", () => {
+test("REGRESSION (C3): a service that needs a consultation is spoken of as AI handles it -- the agenda said AI 'books a consultation', and it never books; the picker said 'consult first'", () => {
   const services = [{ name: "Color correction", duration_min: 180, consult_first: true }];
   assert.equal(
     toCalendarVM(dto({ services }), NOW).services[0].label,
@@ -2496,7 +2496,7 @@ test("REGRESSION (C3): a service that needs a consultation is spoken of as the r
   );
   assert.match(
     day,
-    /the receptionist offers a consultation for this, not the service/,
+    /AI offers a consultation for this, not the service/,
     "REGRESSION: 'books a consultation' -- it never books",
   );
   assert.ok(!day.includes("books"), day);

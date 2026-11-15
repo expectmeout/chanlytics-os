@@ -64,15 +64,14 @@ export const BRING_IN_WORDS = {
     b.place === "website" ? `Bring in what ${siteHostOf(b.url)} shows` : `Bring in @${b.handle}'s posts and reels`,
   summary: (b: Exclude<BringIn, { place: "none" }>, videos: boolean) =>
     b.place === "website"
-      ? `Ask reads ${siteHostOf(b.url)} for its photos${videos ? " and videos" : ""}. They wait in the Library for your OK.`
-      : `Ask brings in the newest posts${videos ? " and reels" : ""} of @${b.handle}. Only your own account: they wait in the Library for your OK.`,
-  receipt: "Ask is bringing them in. They wait in the Library for your OK.",
+      ? `AI reads ${siteHostOf(b.url)} for its photos${videos ? " and videos" : ""}. They wait in the Library for your OK.`
+      : `AI brings in the newest posts${videos ? " and reels" : ""} of @${b.handle}. Only your own account: they wait in the Library for your OK.`,
+  receipt: "AI is bringing them in. They wait in the Library for your OK.",
   /** Why a link is not brought in, for Ask to say in its own words. */
   refused: {
     player:
       "A YouTube or Vimeo video can't be brought in from its link. The owner can add the video file from their phone.",
-    drive:
-      "Ask can't read a Google Drive or Google Photos folder yet. The owner can add those photos from their phone.",
+    drive: "AI can't read a Google Drive or Google Photos folder yet. The owner can add those photos from their phone.",
     post: "That is one post, not an account. Ask for the account's own link, like instagram.com/theirname.",
     social: "Only a website or an Instagram account can be brought in so far, not that page.",
     not_a_link: "That isn't a link to a website or an Instagram account.",

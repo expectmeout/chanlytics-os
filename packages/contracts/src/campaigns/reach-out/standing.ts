@@ -383,7 +383,7 @@ const readyAnswer: Rule = (f) =>
         headline: f.hadSequence ? "No sequence is running" : "Ready for your first sequence",
         detail: f.hadSequence
           ? "Start one, or turn one back on in Campaigns."
-          : "Pick who to write to, and Ask writes the emails from your pitch. You approve the first run before anything goes out.",
+          : "Pick who to write to, and AI writes the emails from your pitch. You approve the first run before anything goes out.",
         act: "Start a sequence",
         to: newForLeadsRoute(),
         needs_you: false,

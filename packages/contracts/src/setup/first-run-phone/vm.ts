@@ -111,25 +111,24 @@ export interface FirstRunPhoneVM {
 }
 
 export const FIRST_RUN_PHONE_WORDS = {
-  chooseHeading: "How should calls reach your receptionist?",
+  chooseHeading: "How should calls reach AI?",
   /** Where it answers' tile (canvas 4). */
   calls: "Calls",
   mode: { unanswered: "When nobody picks up", always: "Every call" },
   orNew: "get a new number",
   orMove: "move it to Chanlytics",
   /** Under the calls choice: when the receptionist's line is bought, kept or moved (it answers what is forwarded) or new. */
-  ownLater: "Your receptionist answers on a line of its own, bought when you go live.",
+  ownLater: "AI answers on a line of its own, bought when you go live.",
   newLater: "The number is bought when you go live, not before.",
   chooseLead:
-    "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
-  readyHeading: "Getting your receptionist's number ready",
+    "Most businesses keep the number customers already know. Your team still answers first, and AI gets the rest.",
+  readyHeading: "Getting AI's number ready",
   readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
   readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
   recommended: "Recommended",
   keepTitle: (display: string | null) => (display ? `Keep ${display}` : "Keep the number you have"),
-  keepListed:
-    "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  keepListed: "The number on your Google listing. Calls nobody picks up go to AI. Same phone, same phone company.",
+  keepTyped: "Calls nobody picks up go to AI. Same phone, same phone company.",
   newTitle: "Get a new number",
   newSentence: "For a business that doesn't have one yet. Customers call it directly.",
   moveTitle: "Move my number to Chanlytics",
@@ -140,7 +139,7 @@ export const FIRST_RUN_PHONE_WORDS = {
   areaPlaceholder: "305",
   find: "Find numbers",
   finding: "Looking…",
-  pickLabel: "Pick your receptionist's number",
+  pickLabel: "Pick AI's number",
   noneFree: (area: string) => `Nothing free in ${area} right now. Try a nearby area code.`,
   threeDigits: "Three digits, like 305.",
   local: "Local",
@@ -170,8 +169,7 @@ export const FIRST_RUN_PHONE_WORDS = {
       : "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
   starting: "Starting your plan…",
   startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
-  buyingIn: (area: string | null) =>
-    area ? `Getting your receptionist's number in ${area}…` : "Getting your receptionist's number…",
+  buyingIn: (area: string | null) => (area ? `Getting AI's number in ${area}…` : "Getting AI's number…"),
   buyingNew: (number: string) => `Getting ${number}…`,
   usually: "Usually a minute or two; this page updates by itself",
   /** What the page says when a buy or a search is refused, over the door's own sentence. */
@@ -196,12 +194,11 @@ export const FIRST_RUN_PHONE_WORDS = {
   readySoon: "Ready in a moment",
   answerFirst: "Answer the questions first.",
   askHeading: "One more thing",
-  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
+  askLead: "How the calls are sent to AI depends on the phone that rings.",
   /** The code (canvas R5, P5). */
   codeHeading: "Dial this on the phone customers call",
-  codeLead:
-    "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
-  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
+  codeLead: "It tells your phone company to send the calls nobody picks up to AI. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to AI. You only do this once.",
   codeLabel: (company: string | null, rings: PhoneRings) =>
     rings === "landline" ? "A landline" : company ? `${company} · a mobile` : "A mobile",
   stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
@@ -210,11 +207,10 @@ export const FIRST_RUN_PHONE_WORDS = {
   stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
   // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
   warnMobile:
-    "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
-  warnLandline:
-    "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+    "Voicemail on this phone? If it still picks up after you dial the code, calls never reach AI: see The code didn't work.",
+  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before AI can.",
   warnAny:
-    "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
+    "Voicemail or an answering machine on that phone? If it picks up first, calls never reach AI: see The code didn't work.",
   off: (code: string) => `To switch it off later, dial ${code}.`,
   tap: "Tap to dial",
   done: "Done, let's try it",
@@ -235,9 +231,9 @@ export const FIRST_RUN_PHONE_WORDS = {
   officeSteps: [
     "Open your phone system's settings.",
     "Find forwarding, or what happens when no one answers.",
-    "Forward the calls to the number above: your receptionist's number. Customers never see it.",
+    "Forward the calls to the number above: AI's number. Customers never see it.",
   ],
-  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
+  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach AI.",
   officeOff: "To switch it off later, take the forwarding out in the same settings.",
   withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
   withMeLabel: "Do it with me",

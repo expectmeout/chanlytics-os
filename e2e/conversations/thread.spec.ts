@@ -206,7 +206,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
     let messageId = "";
     let escalationId = "";
 
-    await test.step("the seeded thread is quiet: the receptionist answered and nobody asked for a person", async () => {
+    await test.step("the seeded thread is quiet: AI answered and nobody asked for a person", async () => {
       await freshLoad(page, "#/inbox");
       const pane = await openRobin(page, "Handled");
       // The receptionist's reply wears its spark, the head says Handled because it answered (waits/thread-move.ts), and nobody
@@ -368,12 +368,12 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(pane.getByTestId("ix-needs-you")).toBeVisible();
     });
 
-    await test.step("taken over from the thread: the receptionist is paused and the thread is yours", async () => {
+    await test.step("taken over from the thread: AI is paused and the thread is yours", async () => {
       let pane = await openRobin(page, "Needs you");
       // Taking it before a word is written is More's (the dock's Send already answers and takes it).
       await pane.getByRole("button", { name: /^More for the conversation with/ }).click();
       await page.getByRole("menuitem", { name: /^I'll answer this/ }).click();
-      await expect(page.getByText(/the receptionist is paused/)).toBeVisible();
+      await expect(page.getByText(/AI is paused/)).toBeVisible();
       // Taken over, it is yours, and a reply of yours never left: still yours to do (thread-move.ts).
       pane = await openRobin(page, "Needs you");
       await expect(pane.getByTestId("ix-yours")).toBeVisible();
@@ -410,7 +410,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(pane.getByTestId("ix-yours")).toBeVisible();
     });
 
-    await test.step("handed back from the thread: the receptionist answers again, and the words that never left still say so", async () => {
+    await test.step("handed back from the thread: AI answers again, and the words that never left still say so", async () => {
       let pane = await openRobin(page, "Needs you");
       await pane.getByRole("button", { name: /^Hand back to/ }).click();
       await expect(page.getByText(/handed back/)).toBeVisible();

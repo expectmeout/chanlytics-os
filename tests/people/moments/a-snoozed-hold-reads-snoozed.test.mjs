@@ -104,7 +104,7 @@ const personFor = (row, escalations = [ASKED]) =>
     ME,
   );
 
-const receptionistFact = (p) => p.facts.find((f) => f.label === "Receptionist");
+const receptionistFact = (p) => p.facts.find((f) => f.label === "AI");
 
 test("the Inbox files a snoozed hold as Snoozed, and the open request stays open", () => {
   const inbox = toInboxThreadVM(conversation("snoozed"), ASKED, TZ, NOW);

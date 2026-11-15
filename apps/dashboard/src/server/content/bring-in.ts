@@ -12,7 +12,7 @@ const BRING_IN_MS = 5 * SECOND_MS;
 export const bringInInput = z.object({ link: z.string().trim().min(1).max(500) });
 
 /** Said where the read could not be target for: nothing the owner can change but to try again later. */
-const BRING_IN_NOT_STARTED = "Ask couldn't start bringing them in just now. Try again in a minute.";
+const BRING_IN_NOT_STARTED = "AI couldn't start bringing them in just now. Try again in a minute.";
 
 /**
  * A link brought in (content/bring-in.ts; Ask's card's press): what it is, said in code, and the edge target to read it, its

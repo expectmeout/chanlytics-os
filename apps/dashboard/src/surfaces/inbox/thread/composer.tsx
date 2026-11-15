@@ -294,7 +294,7 @@ function signedLine(c: ComposerDraw) {
           aria-expanded={rewriting}
           onClick={() => setRewriting(!rewriting)}
           data-testid="ix-composer-rewrite"
-          {...gate("approve", "have the receptionist write the draft again")}
+          {...gate("approve", "have AI write the draft again")}
         >
           <Icon name="spark" size={11} />
           {W.rewrite}

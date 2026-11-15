@@ -33,7 +33,7 @@ const PARTNER_STATE_WORDS: Record<WorkspacePartnerState, string> = {
 const partnerWords = (vm: WorkspacePartnerVM): string =>
   vm.state === "partner" && !vm.seated ? "Former partner" : PARTNER_STATE_WORDS[vm.state];
 /** What a partner is, under "No partner yet": the field's own intro says the rest once it is opened. */
-const PARTNER_NONE_LINE = "Someone who sets up and runs your receptionist with you.";
+const PARTNER_NONE_LINE = "Someone who sets up and runs AI with you.";
 
 interface PartnerState {
   vm: WorkspacePartnerVM | null;

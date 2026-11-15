@@ -22,7 +22,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Chanlytics",
     short_name: "Chanlytics",
-    description: "Your receptionist's inbox, calls and people, on your phone.",
+    description: "Your inbox, calls and people, on your phone.",
     start_url: "/",
     scope: "/",
     display: "standalone",

@@ -339,9 +339,7 @@ export function replyNoticeWords(params: {
     doneWords(intent),
     intent === "no" ? "If that's a misreading, undo it on the thread within seven days." : null,
     params.unread ? `It could not be read (${UNREAD_WORDS[params.unread]}), so it is read again later.` : null,
-    params.draft
-      ? `The receptionist drafted an answer: “${draftExcerpt(params.draft)}” Nothing is sent without you.`
-      : null,
+    params.draft ? `AI drafted an answer: “${draftExcerpt(params.draft)}” Nothing is sent without you.` : null,
     params.signer ? `Signed ${params.signer} · Use this name on the thread.` : null,
   ].filter((l): l is string => l !== null);
   return {

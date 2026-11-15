@@ -49,7 +49,7 @@ test("WhatsApp: a person's hold is its own reason, alerted once per open hold", 
   assert.ok(steps.includes("const personHold = !!input.brainCfg && !!input.personMode;"));
 });
 
-test("the gate: Veto sends a caller's link, Never and Ask hold it", () => {
+test("the gate: Veto sends a caller's link, Never and AI hold it", () => {
   const facts = {
     contact: { consent: "unknown", dnc: false, marketing_consent: "unknown" },
     purpose: "conversational",
@@ -67,7 +67,7 @@ test("the gate: Veto sends a caller's link, Never and Ask hold it", () => {
 
 test("the reason exists everywhere a reason is read", () => {
   assert.ok(ESCALATION_REASONS.includes("person_hold"));
-  assert.equal(ESCALATION_REASON_LABELS.person_hold, "You handle this person — the receptionist stays out");
+  assert.equal(ESCALATION_REASON_LABELS.person_hold, "You handle this person — AI stays out");
   assert.equal(reasonShort("person_hold"), "you handle this person");
   // The workspace hold no longer masquerades as a pricing question either.
   assert.equal(ESCALATION_REASON_LABELS.policy_block, "Held by your reply setting — nothing was sent");

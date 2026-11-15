@@ -102,7 +102,7 @@ export const PARTNER_WORDS = {
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
   offer:
-    "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
+    "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set AI up for it and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It ends your link, for good.`,
   terms:
@@ -132,7 +132,7 @@ export const PARTNER_WORDS = {
    * owner's yes. Their price does not change; the share is Chanlytics'.
    */
   joinAsk: (code: string) =>
-    `Add ${code}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
+    `Add ${code}, who sent you here, to your team as your partner? They set AI up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
   spend:
     "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",

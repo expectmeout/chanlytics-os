@@ -82,7 +82,7 @@ const MODE = () =>
   propose({
     kind: "person_mode",
     title: "Receptionist off for Robin",
-    summary: "The receptionist stays silent with them",
+    summary: "AI stays silent with them",
     payload: { contact_id: ROBIN, mode: "never", previous: "inherit", who: "Robin" },
   });
 const NOTE = () =>
@@ -130,7 +130,7 @@ function turnFor(over = {}) {
       scope: null,
       surface: "today",
       history: [],
-      text: "for Robin: turn the receptionist off, add a note that she prefers morning appointments, and put her on a new list called Mornings",
+      text: "for Robin: turn AI off, add a note that she prefers morning appointments, and put her on a new list called Mornings",
       emit: (ev) => events.push(ev),
       now: NOW,
       ...over,
@@ -163,9 +163,7 @@ test("REGRESSION (the stress run's Robin, 4 of 4): a plan refused, then two card
       calling("propose_person", { action: "note", contact_id: ROBIN, body: "Prefers morning appointments." }),
     ]),
     roundOf([
-      saying(
-        "Two cards: the receptionist off for Robin and her note; the Mornings list was not made, since it named nobody.",
-      ),
+      saying("Two cards: AI off for Robin and her note; the Mornings list was not made, since it named nobody."),
     ]),
   ]);
   const made = {
@@ -180,7 +178,7 @@ test("REGRESSION (the stress run's Robin, 4 of 4): a plan refused, then two card
   assert.equal(model.requests.length, 4, "the plan's round asked twice, once more for the words");
   assert.equal(
     r.text,
-    "Two cards: the receptionist off for Robin and her note; the Mornings list was not made, since it named nobody.",
+    "Two cards: AI off for Robin and her note; the Mornings list was not made, since it named nobody.",
   );
   assert.notEqual(r.answer.say.headline, answerForCards(r.proposals, "en", null, null).say.headline);
   assert.equal(r.proposals.length, 2);
@@ -301,8 +299,8 @@ test("a member below an owner hears who can do what their tools leave out: an op
   const operator = aboveRoleWords("operator");
   assert.match(operator, /^Above their role, so no tool of yours proposes it: only an owner can /);
   for (const doing of [
-    "change how the receptionist treats one person",
-    "change how the receptionist treats these people",
+    "change how AI treats one person",
+    "change how AI treats these people",
     "merge two records of one person",
   ])
     assert.ok(operator.split("; only an owner or")[0].includes(doing), doing);
@@ -312,7 +310,7 @@ test("a member below an owner hears who can do what their tools leave out: an op
   assert.match(operator, /never that a tool is not available/);
   assert.match(operator, /a thread taken over is that one thread, for now/);
   const partner = aboveRoleWords("partner");
-  assert.match(partner, /only an owner can change how the receptionist treats one person/);
+  assert.match(partner, /only an owner can change how AI treats one person/);
   assert.ok(!partner.includes("partner can"), "a partner's own acts are theirs");
   assert.equal(aboveRoleWords("owner"), null);
   assert.equal(aboveRoleWords("viewer"), null);

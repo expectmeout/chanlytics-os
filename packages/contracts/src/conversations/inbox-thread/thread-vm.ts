@@ -313,7 +313,7 @@ export function toInboxThreadVM(
           ? HELD_WORDS.yours.sentence
           : moveWords.lastWord
             ? moveWords.lastWord.text
-            : "The receptionist answered this on its own. Nothing is owed.",
+            : "AI answered this on its own. Nothing is owed.",
     ...holdWordsOf(escalation, claimedByOther, tz, now.getTime()),
     ...moments,
     ...inboxThreadClock(moments, tz, now.getTime()),
@@ -463,7 +463,7 @@ function lastWordOf(dto: ConversationDto, tz: string, now: Date): NonNullable<In
   if (!last) {
     if (failedBy) return { text: `Nothing has reached them — the message from ${failedBy} didn't send.`, at };
     return dto.messages.some((m) => m.type === "call_summary")
-      ? { text: "The phone receptionist handled their call — no one asked for you." }
+      ? { text: "AI handled their call — no one asked for you." }
       : { text: "No messages yet." };
   }
   if (last.direction === "inbound") {

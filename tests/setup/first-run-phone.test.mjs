@@ -106,7 +106,7 @@ test("choosing at Where it answers (canvas 4): keeping the listing's number firs
   // Go live spends: the checkout starts the trial, which covers the number (decision 0090), and says so.
   const go = phone(dtoOf());
   assert.equal(go.stage, "go");
-  assert.equal(go.heading, "How should calls reach your receptionist?");
+  assert.equal(go.heading, "How should calls reach AI?");
   assert.deepEqual(go.plan, {
     offer: "14 days free, then $49.00 a month",
     note: "Your number is included. Nothing is charged until the trial ends, and you can cancel anytime from Billing.",
@@ -224,7 +224,7 @@ test("pressed and allowed to spend: buying, in the area code of the number kept,
   assert.deepEqual(keep.status, {
     state: "waiting_them",
     words: "Waiting on us",
-    sentence: "Getting your receptionist's number in 305…",
+    sentence: "Getting AI's number in 305…",
     detail: "Usually a minute or two; this page updates by itself",
   });
   assert.equal(keep.lead, W.readyLeadForwarded, "customers never see it");
@@ -256,7 +256,7 @@ test("a number on its way (canvas R4): the line row's own words", () => {
   const connecting = phone(
     dtoOf({ billing: paying, lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" })] } }),
   );
-  assert.equal(connecting.stage, "getting", "set up and being connected to the receptionist");
+  assert.equal(connecting.stage, "getting", "set up and being connected to AI");
 });
 
 test("everything this step does not draw is Setup's rows, which already say it", () => {
@@ -427,7 +427,7 @@ test("the code (canvas R5, P5): from the forwarding saved, with the steps, the w
     }),
     null,
   );
-  assert.match(verified.code.verified, /reach your receptionist/, "Setup's keep row's own sentence");
+  assert.match(verified.code.verified, /reach AI/, "Setup's keep row's own sentence");
 
   const redo = phone(dto, kept({ rings: "landline", redo: true }));
   assert.equal(redo.stage, "ask", "changing the answers asks them again");
@@ -442,7 +442,7 @@ test("the code follows what was saved: every call when Setup's card saved that, 
     null,
   );
   assert.deepEqual([vm.code.dial, vm.code.off], ["*723055550142", "To switch it off later, dial *73."]);
-  assert.equal(vm.lead, "It tells your phone company to send every call to your receptionist. You only do this once.");
+  assert.equal(vm.lead, "It tells your phone company to send every call to AI. You only do this once.");
   const other = phone(
     answeringDto({ lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" }), forwardedLine("other")] } }),
     null,

@@ -138,7 +138,7 @@ test("a synced profile with some reviews answered: the counts, the mix, the spee
   assert.deepEqual(said(tile(vm, "written")), { value: "6", meta: "with words or without", compare: "up from 3" });
   assert.deepEqual(said(tile(vm, "answered")), {
     value: "3 of 6",
-    meta: "1 by the receptionist, 2 by you",
+    meta: "1 by AI, 2 by you",
     compare: null,
   });
   assert.deepEqual(said(tile(vm, "reply_time")), { value: "6h", meta: "the middle of 3 replies", compare: null });
@@ -228,7 +228,7 @@ test("the period asked for is the period said: seven days, and Month's one day o
   );
 });
 
-test("what waits: the oldest reviews with no reply, the reply the receptionist held, and none drawn twice", () => {
+test("what waits: the oldest reviews with no reply, the reply AI held, and none drawn twice", () => {
   const vm = vmOf(reviewsDto());
   assert.equal(vm.waiting.total, 4);
   assert.deepEqual(
@@ -237,7 +237,7 @@ test("what waits: the oldest reviews with no reply, the reply the receptionist h
       ["old", 3, null],
       ["f", 4, null],
       ["e", 5, null],
-      ["d", 2, "The receptionist wrote a reply and held it: it named a price."],
+      ["d", 2, "AI wrote a reply and held it: it named a price."],
     ],
   );
   assert.equal(vm.waiting.rows[0].author, "Ana P.", "each is a review as the page draws one");
@@ -262,7 +262,7 @@ test("what waits: the oldest reviews with no reply, the reply the receptionist h
     ),
   });
   const rows = vmOf(reviewsDto({ ledger: money })).waiting.rows;
-  assert.equal(rows[3].held, "The receptionist wrote a reply and held it: it named money.");
+  assert.equal(rows[3].held, "AI wrote a reply and held it: it named money.");
   assert.equal(rows[2].held, null, "a reason this set does not hold is never guessed");
   const many = Array.from({ length: 7 }, (_, i) => waitingReview(`w${i}`, at(`2026-05-0${i + 1}`)));
   const capped = vmOf(reviewsDto({ ledger: reviewsLedger({ waiting: many, waiting_total: 9 }) }));
@@ -331,7 +331,7 @@ test("two replies say how many there are; the third gives the middle", () => {
   assert.equal(tile(four, "reply_time").value, "3h 30m", "an even count takes the middle of the two between");
 });
 
-test("who answered: the reply the database says is the receptionist's, and every other reply is the owner's", () => {
+test("who answered: the reply the database says is AI's, and every other reply is the owner's", () => {
   // Which reply is whose is the database's (reviews_ledger, held by google-reviews-ledger.db.test.mjs): the last reply
   // Chanlytics recorded under the review, if it is the automatic mode's and is the one on Google (an owner rewriting it on
   // Google moves its time past the event's slack, and the row then names no one). The fold counts what the row says.
@@ -343,17 +343,17 @@ test("who answered: the reply the database says is the receptionist's, and every
     reply("r4", "2026-08-31", null),
   ];
   const vm = vmOf(dtoOf(ledgerOf(written)));
-  assert.equal(tile(vm, "answered").meta, "2 by the receptionist, 2 by you");
+  assert.equal(tile(vm, "answered").meta, "2 by AI, 2 by you");
   const none = vmOf(dtoOf(ledgerOf(written.map((r) => ({ ...r, by: null })))));
   assert.equal(tile(none, "answered").meta, "4 by you");
   const all = vmOf(dtoOf(ledgerOf(written.map((r) => ({ ...r, by: "receptionist" })))));
-  assert.equal(tile(all, "answered").meta, "4 by the receptionist");
+  assert.equal(tile(all, "answered").meta, "4 by AI");
   // a review with no reply has no writer to count, whatever the row says
   const unanswered = vmOf(dtoOf(ledgerOf([writtenReview("u", at("2026-09-03"), 5, null, { by: "receptionist" })])));
   assert.deepEqual(said(tile(unanswered, "answered")), { value: "0 of 1", meta: "none answered yet", compare: null });
   // the owner's rewrite of the receptionist's reply on Google: the row names no one, and the reply is the owner's
   const rewritten = vmOf(dtoOf(ledgerOf([reply("w1", "2026-09-03", "receptionist"), reply("w2", "2026-09-02", null)])));
-  assert.equal(tile(rewritten, "answered").meta, "1 by the receptionist, 1 by you");
+  assert.equal(tile(rewritten, "answered").meta, "1 by AI, 1 by you");
 });
 
 test("a period with no review in it: a real zero where the history is known, and the period before beside it", () => {
@@ -709,7 +709,7 @@ test("the three figures say what they count", () => {
   );
   assert.equal(
     metricWordsOf("reviews_answered"),
-    "Of the reviews written in this period, how many have a reply on Google, from you or the receptionist. A review with no reply yet is not answered. A reply counts as the receptionist's where the last reply Chanlytics recorded under the review was its own; every other reply is yours, written here or on Google.",
+    "Of the reviews written in this period, how many have a reply on Google, from you or AI. A review with no reply yet is not answered. A reply counts as AI's where the last reply Chanlytics recorded under the review was its own; every other reply is yours, written here or on Google.",
   );
   assert.equal(
     metricWordsOf("review_reply_time"),

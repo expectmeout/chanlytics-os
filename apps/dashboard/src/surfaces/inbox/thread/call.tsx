@@ -472,7 +472,7 @@ function callLine(c: CallDraw, line: CallLine, i: number) {
         {/* Its moment in the bubble's corner, as every bubble says its time (timeline.tsx bubbleCorner): it stood over the
             words, centred above a short line. Who spoke is said to a screen reader first: the side says it to the eye. */}
         <div className="tl-msg-body">
-          {!whisper && <span className="tl-spoken-who">{line.speaker === "agent" ? "Receptionist" : them}</span>}
+          {!whisper && <span className="tl-spoken-who">{line.speaker === "agent" ? "AI" : them}</span>}
           <span className="tl-spoken-words">{line.text}</span>
           {spokenStamp(c, line, whisper, playable)}
         </div>

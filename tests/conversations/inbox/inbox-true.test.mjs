@@ -136,7 +136,7 @@ test("a teammate's name on a thread nobody flagged is not a claim: the thread is
 test("a quiet thread says who had the last word, in the words Conversations uses, and says when a reply didn't send", () => {
   const word = (messages, over) => vmOf(quiet(messages, over)).lastWord;
   assert.deepEqual(word([wrote("m1", "Open Sunday?", 30), ours("m2", "ai", "Closed Sundays.", 29)]), {
-    text: "Answered by the receptionist — no one asked for you.",
+    text: "Answered by AI — no one asked for you.",
   });
   assert.deepEqual(word([wrote("m1", "Open Sunday?", 30), ours("m2", "human", "We are closed, sorry!", 20, "read")]), {
     text: "Answered by your team — no one asked for you.",
@@ -155,10 +155,10 @@ test("a quiet thread says who had the last word, in the words Conversations uses
   assert.deepEqual(
     word([wrote("m1", "Can I book at 3?", 30), ours("m2", "ai", "3pm works, booked!", 29, "failed")]),
     {
-      text: "They wrote last, and the reply from the receptionist didn't send — as far as they know, nobody answered.",
+      text: "They wrote last, and the reply from AI didn't send — as far as they know, nobody answered.",
       at: "9:31 AM",
     },
-    "REGRESSION: it read 'Answered by the receptionist — no one asked for you'",
+    "REGRESSION: it read 'Answered by AI — no one asked for you'",
   );
   assert.deepEqual(
     word([
@@ -167,7 +167,7 @@ test("a quiet thread says who had the last word, in the words Conversations uses
       ours("m3", "human", "See you Monday!", 10, "failed"),
     ]),
     {
-      text: "Answered by the receptionist — the last message from your team didn't send.",
+      text: "Answered by AI — the last message from your team didn't send.",
       at: "9:50 AM",
     },
     "they were answered; what failed is a later word, and the line says both",
@@ -182,7 +182,7 @@ test("a quiet thread says who had the last word, in the words Conversations uses
     "a reply someone canceled is not a failure: they are simply waiting",
   );
   assert.deepEqual(word([callNote("m1", 30)], { last_wa_inbound_at: null }), {
-    text: "The phone receptionist handled their call — no one asked for you.",
+    text: "AI handled their call — no one asked for you.",
   });
   assert.deepEqual(word([]), { text: "No messages yet." });
   assert.equal(
@@ -197,7 +197,7 @@ test("a quiet thread says who had the last word, in the words Conversations uses
   );
 });
 
-test("every message of ours carries what became of it, the receptionist's as much as the team's", () => {
+test("every message of ours carries what became of it, AI's as much as the team's", () => {
   const vm = vmOf(
     quiet([
       callNote("m0", 60),
@@ -210,7 +210,7 @@ test("every message of ours carries what became of it, the receptionist's as muc
   assert.deepEqual(
     [failed.statusLabel, failed.reachedCustomer],
     ["Didn't send", false],
-    "REGRESSION: the page could not tell the receptionist's failed reply from a sent one",
+    "REGRESSION: the page could not tell AI's failed reply from a sent one",
   );
   assert.deepEqual([delivered.statusLabel, delivered.reachedCustomer], ["Delivered", true]);
   assert.equal(theirs.reachedCustomer, undefined, "the customer's own words have no send status");
@@ -247,7 +247,7 @@ test("any other hold's details are the dock's, under its Why?, whole or cut at a
   assert.equal(vm.holdNote, "the WhatsApp number is not connected");
   const long =
     "The reply could not be delivered because the WhatsApp number is not connected to this workspace any more, so reconnect it from Settings before anything else. " +
-    "Until then nothing the receptionist writes on WhatsApp can leave, and every customer who writes there waits for a person";
+    "Until then nothing AI writes on WhatsApp can leave, and every customer who writes there waits for a person";
   const cut = of(long).holdNote;
   assert.match(cut, /…$/, "REGRESSION: cut mid-word, with nothing to say so");
   const kept = cut.slice(0, -1);
@@ -345,7 +345,7 @@ test("the pane: a quiet thread's state is the row's pill, in its tone; the reply
   );
   assert.ok(
     !textOf(tree).includes("no one asked for you"),
-    "REGRESSION: 'Answered by the receptionist — no one asked for you' over a reply that never left",
+    "REGRESSION: 'Answered by AI — no one asked for you' over a reply that never left",
   );
   assert.ok(!textOf(tree).includes("Where this stands"), "REGRESSION: the banner's sentence was said again below it");
 
@@ -360,7 +360,7 @@ test("the pane: a quiet thread's state is the row's pill, in its tone; the reply
   assert.equal(
     bubbles.find((b) => textOf(b).includes("bridal trial")),
     undefined,
-    "REGRESSION: a call note was drawn as words the receptionist sent",
+    "REGRESSION: a call note was drawn as words AI sent",
   );
   const call = find(tree, byTestId("tl-call"));
   assert.deepEqual(
@@ -382,11 +382,7 @@ test("the pane: a quiet thread's state is the row's pill, in its tone; the reply
   const handledPill = find(handled, (n) => n.props?.kind === "thread");
   assert.equal(handledPill?.props.value, "answered", "the one word for it");
   assert.equal(stateOf("thread", "answered").tone, "ok", "and green, since something answered them");
-  assert.equal(
-    textOf(find(handled, hasClass("ix-th-standing-meta"))),
-    "by the receptionist",
-    "who gave the last word beside it",
-  );
+  assert.equal(textOf(find(handled, hasClass("ix-th-standing-meta"))), "by AI", "who gave the last word beside it");
   assert.ok(!textOf(answered).includes("no one asked for you"));
 });
 
@@ -402,7 +398,7 @@ test("the pane: a reply that didn't send says why under its words, once, from th
     textOf(why[0]).trim(),
     /^WhatsApp wouldn't send it: more than 24 hours have passed since they last replied/,
   );
-  assert.match(textOf(why[0]).trim(), /\(WhatsApp error 131047\)\.$/);
+  assert.doesNotMatch(textOf(why[0]).trim(), /\d{4,}|\berror\b/i, "no error's number reaches the owner");
 
   // A failure whose row says nothing readable draws no line, and a bubble that arrived never does.
   const unsaid = paneOf(vmOf(quiet([wrote("m1", "Hi", 30), ours("m2", "ai", "Hello", 29, "failed")])));
@@ -412,7 +408,7 @@ test("the pane: a reply that didn't send says why under its words, once, from th
   assert.equal(all(paneOf(vmOf(quiet([wrote("m1", "Hi", 30), sent]))), byTestId("tl-msg-failed-why")).length, 0);
 });
 
-test("the pane: a thread you have says why it was flagged, where 'Where this stands' said it, and that the receptionist is quiet while you have it", () => {
+test("the pane: a thread you have says why it was flagged, where 'Where this stands' said it, and that AI is quiet while you have it", () => {
   const later = new Date(NOW.getTime() + 3_600_000).toISOString();
   const mine = vmOf(
     quiet([wrote("m1", "Can I speak to someone?", 40)], {

@@ -192,7 +192,7 @@ test("a held thread says why, to the Inbox and to the alert, and a broken config
     [true, "person_hold", "(held — you handle this person yourself)", "this person is set to Stays quiet"],
   );
   // The mode in the Autonomy pane's own words, never the stored token an owner never sees.
-  assert.match(person.details, /You set the receptionist to Stays quiet for this person/);
+  assert.match(person.details, /You set AI to Stays quiet for this person/);
   const policy = holdCopy({ brainCfg, personMode: null, replyMode: "ask", configBroken: false });
   assert.deepEqual(
     [policy.personHold, policy.reason, policy.why],
@@ -206,7 +206,7 @@ test("a held thread says why, to the Inbox and to the alert, and a broken config
   assert.match(broken.details, /invalid field/);
   const none = holdCopy({ brainCfg: null, personMode: "never", replyMode: "auto", configBroken: false });
   assert.deepEqual([none.personHold, none.why], [false, "no persona configured"], "no persona is never a person hold");
-  assert.match(none.details, /No brain profile configured/);
+  assert.match(none.details, /AI isn't set up yet/);
 });
 
 test("the shape: the webhook, the message path, the bookkeeping, the alerts, the steps — each in its file, the path using the steps", () => {

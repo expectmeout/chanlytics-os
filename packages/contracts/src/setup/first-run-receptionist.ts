@@ -170,12 +170,12 @@ export function receptionistCardOf(cardInputs: ReceptionistCardInputs): Receptio
   const assistant = (profile?.assistant_name ?? "").trim() || null;
   const status = cardStatusOf(cardInputs);
   return {
-    caption: "Your receptionist, so far",
+    caption: "AI, so far",
     initials: assistant ? initialsOf(assistant) : name ? initialsOf(name) : "",
-    name: name || "Your receptionist",
+    name: name || "AI",
     assistant,
     status,
-    strip: `${assistant ?? "Your receptionist"} · ${status.words}`,
+    strip: `${assistant ?? "AI"} · ${status.words}`,
     greetingLabel: "Greets every caller with",
     greeting: cardGreeting(spoken, profile, cardInputs.setup),
     sounds: soundsWords(profile),

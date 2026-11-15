@@ -89,14 +89,13 @@ export const FIRST_RUN_CHANNELS_WORDS = {
           : l.type === "voip"
             ? `an office phone system${l.name ? ` (${l.name})` : ""}, we checked`
             : null,
-    nobodyPicksUp: "Calls nobody picks up go to your receptionist.",
-    everyCall: "Every call goes to your receptionist.",
+    nobodyPicksUp: "Calls nobody picks up go to AI.",
+    everyCall: "Every call goes to AI.",
     newSays: "Customers call this number directly. Put it on your Google listing and your website once it's live.",
     moveSays: "Nothing changes for customers. Until the move is done, the number forwards.",
     /** Not by phone (decision 0091): a business whose customers write, and never call, goes live without a number. */
     noCalls: "We don't take calls",
-    noCallsSays:
-      "Not by phone. Your receptionist answers where your customers write, and you can add a number any time from Setup.",
+    noCallsSays: "Not by phone. AI answers where your customers write, and you can add a number any time from Setup.",
     callsAfterAll: "Take calls after all",
   },
   whatsapp: {
@@ -108,7 +107,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     /** Keeping the app (R12, coexistence), said only where this deployment connects that way. */
     same: (n: string) => `WhatsApp on ${n}`,
     sameSays:
-      "Keep using the app: your receptionist answers what you don't. Your contacts and last 6 months of chats come in, if you say yes in Meta's window.",
+      "Keep using the app: AI answers what you don't. Your contacts and last 6 months of chats come in, if you say yes in Meta's window.",
     /** Where it cannot keep the app yet: honest about what connecting does. */
     sameMoves: "WhatsApp moves to a number on Chanlytics. The app on your phone stops receiving its messages.",
     own: (n: string | null) => (n ? `On its own number, ${n}` : "On its own number"),
@@ -133,7 +132,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     bySite: "A booking site",
     byMessage: "By message",
     byHandSays:
-      "Your receptionist takes their name, what they need and when, and you confirm. Reminders the day before need a calendar: paste its link here any time.",
+      "AI takes their name, what they need and when, and you confirm. Reminders the day before need a calendar: paste its link here any time.",
     paste: "Paste a calendar link (optional)",
     clients: "Bring your clients",
     clientsDone: (n: number, tool: string | null) => `${n.toLocaleString()} clients in${tool ? ` from ${tool}` : ""}`,

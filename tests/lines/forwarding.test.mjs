@@ -32,7 +32,7 @@ import { TENANT, rows } from "../_rows.mjs";
 
 const DEST = "+13055550123";
 
-test("the codes: every carrier and mode dials the receptionist's line; each card says how to dial and what breaks it", () => {
+test("the codes: every carrier and mode dials AI's line; each card says how to dial and what breaks it", () => {
   const v = forwardingCodes("verizon", "unanswered", DEST);
   assert.deepEqual(v.on, { code: "*713055550123", tel: "tel:*713055550123" });
   assert.deepEqual(v.off, { code: "*73", tel: "tel:*73" });
@@ -99,7 +99,7 @@ test("the codes: every carrier and mode dials the receptionist's line; each card
   assert.ok(isCarrier("att") && !isCarrier("sprint") && isForwardingMode("always") && !isForwardingMode("busy"));
 });
 
-test("the verification rule: inside the window, on the receptionist's line, from whatever phone", () => {
+test("the verification rule: inside the window, on AI's line, from whatever phone", () => {
   const facts = {
     carrier: "verizon",
     mode: "unanswered",
@@ -237,7 +237,7 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
   );
   assert.equal(row(noLine, "keep").state, "not_started");
   assert.equal(row(noLine, "keep").verb, null, "the line row is the next thing, not this");
-  assert.match(row(noLine, "keep").sentence, /^Once your receptionist has a line/);
+  assert.match(row(noLine, "keep").sentence, /^Once AI has a line/);
   assert.equal(row(noLine, "keep").required, false);
   const fresh = setupSteps(base(), NOW);
   assert.equal(row(fresh, "keep").state, "not_started");
@@ -249,7 +249,7 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
   assert.deepEqual(
     fresh.rows.map((r) => r.id),
     ["facts", "handoff", "line", "receptionist", "try", "keep", "whatsapp", "calendar", "team", "yes"],
-    "ten rows: the test call after the receptionist, then the kept number",
+    "ten rows: the test call after AI, then the kept number",
   );
   const dial = setupSteps({ ...base(), lines: lines([fwLine()]) }, NOW);
   assert.equal(row(dial, "keep").state, "waiting_you");
@@ -265,7 +265,7 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
   const office = setupSteps({ ...base(), lines: lines([fwLine({}, { carrier: "office" })]) }, NOW);
   assert.equal(
     row(office, "keep").sentence,
-    `Forward ${formatPhoneDisplay("+12125550142")} to your receptionist in your phone system's settings, then test it.`,
+    `Forward ${formatPhoneDisplay("+12125550142")} to AI in your phone system's settings, then test it.`,
     "no code to dial in an office phone system",
   );
   assert.deepEqual(row(office, "keep").details, ["Only calls you don't answer · An office phone system"]);
@@ -279,7 +279,7 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
     NOW,
   );
   assert.equal(row(done, "keep").state, "ready");
-  assert.equal(row(done, "keep").sentence, `Calls to ${formatPhoneDisplay("+12125550142")} reach your receptionist.`);
+  assert.equal(row(done, "keep").sentence, `Calls to ${formatPhoneDisplay("+12125550142")} reach AI.`);
   assert.deepEqual(row(done, "keep").details, [
     `Verified ${agoWords(Date.parse("2026-09-07T15:08:00Z"), NOW)}`,
     "Only calls you don't answer · Verizon",

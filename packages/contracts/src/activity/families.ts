@@ -221,7 +221,7 @@ export const ACTIVITY_PAGE_WORDS = {
   /** The first box: every part of the product, or what went wrong. The second, once a part is picked: its kinds. */
   area: { label: "Part of the product", any: "All activity", problems: "What went wrong or was stopped" },
   kind: { label: "Kind of activity", any: "All kinds" },
-  who: { label: "Who did it", any: "Anyone", receptionist: "Receptionist", system: "System" },
+  who: { label: "Who did it", any: "Anyone", receptionist: "AI", system: "System" },
   when: {
     label: "When",
     any: "Any time",

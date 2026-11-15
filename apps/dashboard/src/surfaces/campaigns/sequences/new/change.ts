@@ -22,13 +22,13 @@ export const CHANGE_LINE_MIN = 2;
 export const CHANGE_WORDS = {
   label: "What should change?",
   placeholder: "Change it by saying it",
-  hint: "Ask changes what you say and leaves the rest",
+  hint: "AI changes what you say and leaves the rest",
   letGo: "Let go to change it",
   send: "Change it",
-  changing: "Ask is changing it",
-  same: "Ask changed nothing",
+  changing: "AI is changing it",
+  same: "AI changed nothing",
   changed: (parts: readonly string[]) =>
-    `Ask changed ${new Intl.ListFormat("en-GB", { type: "conjunction" }).format(parts)}`,
+    `AI changed ${new Intl.ListFormat("en-GB", { type: "conjunction" }).format(parts)}`,
   part: {
     kind: "what it is",
     who: "who it is for",

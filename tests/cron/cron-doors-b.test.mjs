@@ -2140,7 +2140,7 @@ test("lines: a line 'setting up' past its deadline is taken and resumed by sched
   assert.equal(row(worn).voice_state, "failed");
   assert.equal(
     row(worn).last_error,
-    "Setting up stopped while connecting the number to the receptionist, and 3 automatic tries did not finish it. Retry picks up where it stopped.",
+    "Setting up stopped while connecting the number to AI, and 3 automatic tries did not finish it. Retry picks up where it stopped.",
   );
   assert.equal(row(worn).facts.trunk_ready, true, "every receipt the saga reads survives");
   // Resumed: the take is visible on the row, the try is counted, and the saga runs on the ledger.
@@ -2180,7 +2180,7 @@ test("lines: a line 'setting up' past its deadline is taken and resumed by sched
   assert.equal(bell.title, "Your phone line hit a snag — a person at Chanlytics has it");
   assert.equal(
     bell.body,
-    "Setting up +1 (305) 555-0100 stopped while connecting the number to the receptionist. You can retry from Setup; we have been told and will finish it with you if the retry does not.",
+    "Setting up +1 (305) 555-0100 stopped while connecting the number to AI. You can retry from Setup; we have been told and will finish it with you if the retry does not.",
   );
 
   // The mail: the platform, twice -- the line given up on, then the first automatic try.
@@ -2194,9 +2194,7 @@ test("lines: a line 'setting up' past its deadline is taken and resumed by sched
   );
   assert.match(
     mail[0].text,
-    new RegExp(
-      `line ${worn} for \\+13055550100 stopped at step "connecting the number to the receptionist" \\(started by sweep\\)`,
-    ),
+    new RegExp(`line ${worn} for \\+13055550100 stopped at step "connecting the number to AI" \\(started by sweep\\)`),
   );
   assert.match(mail[0].text, /3 automatic tries did not finish it/);
   assert.match(
@@ -2206,7 +2204,7 @@ test("lines: a line 'setting up' past its deadline is taken and resumed by sched
   );
   assert.match(
     mail[1].text,
-    new RegExp(`line ${oldest} for \\+1 \\(305\\) 555-0100 stopped while connecting the number to the receptionist`),
+    new RegExp(`line ${oldest} for \\+1 \\(305\\) 555-0100 stopped while connecting the number to AI`),
   );
   assert.match(mail[1].text, /try 1 of 3\. You hear again only if those do not finish it\./);
   assert.ok(
@@ -2425,7 +2423,7 @@ test("lines (A2): with a grace set, the owner is warned once -- the day, the for
     assert.equal(bell.title, `Your number +1 (305) 555-0100 goes back on ${day}`);
     assert.equal(
       bell.body,
-      `Your subscription ended, so your receptionist's number, +1 (305) 555-0100, goes back to the phone company on ${day}. After that it can't be got back, and callers to it reach nobody.\n\n` +
+      `Your subscription ended, so AI's number, +1 (305) 555-0100, goes back to the phone company on ${day}. After that it can't be got back, and callers to it reach nobody.\n\n` +
         `+1 (305) 555-0111 forwards its calls to it. Switch that forwarding off before ${day}, or those calls will go nowhere.\n\n` +
         "To keep the number, resume from Billing: https://dash.test/w/harbor-moving#/admin/billing\n",
     );
@@ -2492,7 +2490,7 @@ test("lines (A2): with a grace set, the owner is warned once -- the day, the for
   assert.equal(told.title, "Your number +1 (305) 555-0100 was released");
   assert.equal(
     told.body,
-    "+1 (305) 555-0100 went back to the phone company, as we wrote a week ago. Your receptionist no longer answers on it.\n\n" +
+    "+1 (305) 555-0100 went back to the phone company, as we wrote a week ago. AI no longer answers on it.\n\n" +
       "If +1 (305) 555-0111 still forwards to it, switch that forwarding off: those calls go nowhere now.\n\n" +
       "If you resume, Setup picks a new number with you.\n",
   );

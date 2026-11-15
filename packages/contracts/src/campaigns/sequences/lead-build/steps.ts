@@ -64,7 +64,7 @@ export const LEAD_BUILD_WORDS = {
   email: "Email",
   inThread: "It answers the email before it, in the same thread: no subject.",
   insert: "Insert",
-  askRewrites: "Ask rewrites it",
+  askRewrites: "AI rewrites it",
   rewriteChange: "What should change?",
   rewriteGo: "Rewrite",
   rewriteGoing: "Rewriting…",
@@ -72,7 +72,7 @@ export const LEAD_BUILD_WORDS = {
   rewriteLong: `At most ${LEAD_REWRITE_CHANGE_MAX} characters.`,
   rewriteBroke: "That rewrite broke a cold email rule, so your email stayed as it was. Say it another way.",
   rewriteLostOpening: "That rewrite dropped the opening, so your email stayed as it was. Try again.",
-  rewriteFailed: "Ask couldn’t rewrite it just now. Try again.",
+  rewriteFailed: "AI couldn’t rewrite it just now. Try again.",
   preview: "Preview",
   holdsOne: "A value that can’t be filled holds that one email for you.",
   aboutThem: "About them",
@@ -82,8 +82,8 @@ export const LEAD_BUILD_WORDS = {
   /** {{their preview}} (decision 0079): made at the first email that names it. */
   previewMade: "made when it goes",
   /** Why a step offers no {{their preview}}: a first email carries no link, and a company takes no bookings. */
-  previewLater: "Their receptionist goes in a later email: a first email carries no link.",
-  previewNotForCompanies: "Their receptionist is for a business that takes bookings, so a company gets none.",
+  previewLater: "Their preview goes in a later email: a first email carries no link.",
+  previewNotForCompanies: "Their preview is for a business that takes bookings, so a company gets none.",
   notSet: "not set",
   add: "Add",
   waits: "Waits",

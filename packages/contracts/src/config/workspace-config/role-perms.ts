@@ -131,8 +131,8 @@ export const ROLE_SAYS: Record<Role, RoleSays> = {
   partner: {
     label: "Partner",
     one: "a Partner",
-    can: "Sets up and runs the receptionist with you. No billing, team or customer export.",
-    short: "Sets up and runs the receptionist with you",
+    can: "Sets up and runs AI with you. No billing, team or customer export.",
+    short: "Sets up and runs AI with you",
   },
   viewer: {
     label: "Viewer",

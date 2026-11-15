@@ -141,7 +141,7 @@ test("with no hours stored, the row is empty in the old card's words, and its ac
   const tree = drawTab({ profile: without(marisa, "hours") });
   const row = byTestId(tree, "rec-row-hours");
   assert.equal(row.props["data-empty"], "true");
-  assert.match(textOf(row), /Not set — the receptionist cannot state your hours/);
+  assert.match(textOf(row), /Not set — AI cannot state your hours/);
   const act = byTestId(tree, "rec-row-act-hours");
   assert.equal(textOf(act), "Add them");
   assert.ok(act.props["aria-label"].startsWith("Add them"), "a person who says the words on it reaches it");
@@ -151,7 +151,7 @@ test("with no hours stored, the row is empty in the old card's words, and its ac
   );
 });
 
-test("the hours fold is the week on one scale: a switch, the bars and the times for each day, in the zone the receptionist states them in", () => {
+test("the hours fold is the week on one scale: a switch, the bars and the times for each day, in the zone AI states them in", () => {
   let tree = drawTab();
   assert.deepEqual(openFolds(tree), []);
   assert.equal(foldOf(tree, "hours").props.hidden, true, "drawn, and hidden until it is asked for");
@@ -229,7 +229,7 @@ test("an hours save sends the stored config with the week changed, and everythin
       profile: { ...stored.brain.profile, hours: { ...marisa.hours, mon: { open: "09:30", close: "17:00" } } },
     },
   });
-  assert.equal(textOf(flashes.at(-1).msg), "Saved — the receptionist picks it up within a minute");
+  assert.equal(textOf(flashes.at(-1).msg), "Saved — AI picks it up within a minute");
   assert.deepEqual(openFolds(redrawTab(flash)), [], "accepted, the fold closes");
 });
 
@@ -341,11 +341,7 @@ test("a shift typed half-way is said under its day, and overlapping shifts in th
     "and its boxes are described by it",
   );
   assert.equal(byTestId(tree, "rec-hours-problem-mon"), null);
-  assert.equal(
-    byTestId(tree, "rec-fold-says-hours"),
-    null,
-    "a draft the page refuses is never told to the receptionist",
-  );
+  assert.equal(byTestId(tree, "rec-fold-says-hours"), null, "a draft the page refuses is never told to AI");
   // Typing in that day takes its sentence away.
   typeAt(tree, "Sunday closes", "14:00");
   tree = redrawTab(flash);
@@ -498,7 +494,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
   );
 });
 
-test("the hours fold says what the receptionist will be told as the draft stands, what goes, and when a week is the last thing a record composes from", () => {
+test("the hours fold says what AI will be told as the draft stands, what goes, and when a week is the last thing a record composes from", () => {
   let tree = drawTab();
   const stored = settingsHeld().config.brain;
   openFold(tree, "hours");
@@ -889,7 +885,7 @@ test("the closures fold adds, edits and removes a closed day, puts a removed one
       profile: { ...stored.brain.profile, closures: [XMAS, { date: "2100-07-04", note: "Independence Day" }] },
     },
   });
-  assert.equal(textOf(flashes.at(-1).msg), "Saved — the receptionist picks it up within a minute");
+  assert.equal(textOf(flashes.at(-1).msg), "Saved — AI picks it up within a minute");
 });
 
 test("what stops a closures save is said under its own box, and at the cap the fold says so and offers no more", () => {
@@ -932,7 +928,7 @@ test("what stops a closures save is said under its own box, and at the cap the f
   assert.equal(byTestId(tree, "rec-closures-add"), null);
   assert.equal(
     textOf(byTestId(tree, "rec-closures-cap")),
-    `That is the most closures the receptionist keeps (${MAX_CLOSURES}). Dates that have passed can go.`,
+    `That is the most closures AI keeps (${MAX_CLOSURES}). Dates that have passed can go.`,
   );
   press(byTestId(tree, "rec-closure-remove-0"));
   tree = redrawTab();
@@ -1129,7 +1125,7 @@ test("the booking tool row states what the owner books with, and under it one ma
     let open = foldOf(redrawTab(), "calendar");
     assert.equal(
       textOf(byTestId(open, "bto-link-note")).replace("I have a calendar link", "").trim(),
-      "Booksy offers no calendar link. The receptionist sends your booking link instead of naming open times.",
+      "Booksy offers no calendar link. AI sends your booking link instead of naming open times.",
     );
     assert.equal(byTestId(open, "bto-link"), null, "no box for a link the tool does not give");
     assert.match(textOf(byTestId(open, "bto-emails")), /^Booking emails/);
@@ -1236,7 +1232,7 @@ test("the fold asks what the owner books with and draws only what that answer ha
     tree = redrawTab();
     assert.equal(
       textOf(byTestId(tree, "bto-link-note")),
-      "Nothing to connect. The receptionist sends your booking link instead of naming open times.",
+      "Nothing to connect. AI sends your booking link instead of naming open times.",
     );
     assert.equal(byTestId(tree, "bto-link"), null);
     assert.equal(byTestId(tree, "bto-emails"), null);
@@ -1266,7 +1262,7 @@ test("REGRESSION (the review of 8 Oct 2026): 'I book by hand' over a calendar li
     assert.equal(byTestId(tree, "bto-link"), null, "by hand has no box, even over a link that is kept");
     assert.equal(
       textOf(byTestId(tree, "bto-link-note")),
-      "Nothing to connect. The receptionist sends your booking link instead of naming open times. Saving this removes your calendar link.",
+      "Nothing to connect. AI sends your booking link instead of naming open times. Saving this removes your calendar link.",
     );
     // Another answer before saving: the address is still in its box, so a change of mind loses nothing.
     pickBooksWith(tree, "calendar");
@@ -1527,7 +1523,7 @@ test("a calendar with no tool behind it: the fold holds the link's one box, chec
     pickBooksWith(tree, "calendar");
     tree = redrawTab(flash);
     const fold = foldOf(tree, "calendar");
-    assert.ok(textOf(byTestId(fold, "bto-link")).startsWith("Calendar link So the receptionist can offer open times."));
+    assert.ok(textOf(byTestId(fold, "bto-link")).startsWith("Calendar link So AI can offer open times."));
     assert.match(
       textOf(byTestId(fold, "rec-calendar-note")),
       /^Paste the private address of the calendar your bookings land in\. It is only ever read\. Nothing is booked from here; your booking link does that\.$/,
@@ -1863,11 +1859,7 @@ test("a day switched on with no times is said under its day, and the week is not
     "Sunday is switched on with no times. Give it an opening and a closing time, or switch it off.",
   );
   assert.equal(labelled(tree, "Sunday opens").props["aria-invalid"], true, "on the boxes it is about");
-  assert.equal(
-    byTestId(tree, "rec-fold-says-hours"),
-    null,
-    "and nothing is told to the receptionist of a week the page refuses",
-  );
+  assert.equal(byTestId(tree, "rec-fold-says-hours"), null, "and nothing is told to AI of a week the page refuses");
   // Either answer takes the sentence away: its times, or the switch.
   typeAt(tree, "Sunday opens", "10:00");
   tree = redrawTab(flash);

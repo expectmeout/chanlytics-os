@@ -654,8 +654,7 @@ const BT_STORED_AS: StoredAs = {
    every business, one typed a web address; the address takes anything, empty included. */
 
 // The API refuses an empty name too, but names no field: checked here, the owner is told where.
-const btCheckName = (d: unknown) =>
-  btTrimmed(d) ? null : "The receptionist needs a business name before it can answer anyone.";
+const btCheckName = (d: unknown) => (btTrimmed(d) ? null : "AI needs a business name before it can answer anyone.");
 const btCheckWebsite = (d: unknown) => {
   const v = btTrimmed(d);
   return v && !btWebOf(v) ? "The website needs to be a web address, like example.com." : null;
@@ -671,7 +670,7 @@ const btCheckPublished = (d: PublishedDraft, line: string | null | undefined) =>
   const v = btPublishedOf(d, line);
   const bad = v ? whyNotAPhone(v) : null;
   if (bad) return bad;
-  return !v && !line ? "There is no line yet, so the receptionist needs a number to give out." : null;
+  return !v && !line ? "There is no line yet, so AI needs a number to give out." : null;
 };
 // `kept` is the number the business keeps and forwards to the receptionist (contracts kept_line): a transfer there comes straight back.
 const btCheckTransfer = (d: string | null | undefined, line: string | null | undefined, kept?: string | null) =>

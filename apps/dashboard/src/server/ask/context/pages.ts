@@ -310,8 +310,8 @@ async function adsAggregate(rc: ReaderContext, view: string | null | undefined):
  */
 const contentAggregate = (view: string): string =>
   view === "content:library"
-    ? "on screen is Content's Library: the photos and clips the business keeps, which Ask makes posts and videos from"
-    : `on screen is Content, the posts and videos Ask made, showing ${view.slice("content:".length) || "all"}`;
+    ? "on screen is Content's Library: the photos and clips the business keeps, which AI makes posts and videos from"
+    : `on screen is Content, the posts and videos AI made, showing ${view.slice("content:".length) || "all"}`;
 
 /**
  * Campaigns: the home's ledger (its campaigns and one-off sends), Sent's runs, the Library's messages, Ads or Content, whichever

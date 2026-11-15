@@ -34,7 +34,7 @@ function TbAskDue() {
     return () => window.removeEventListener("ask:follow-ups", hear);
   }, []);
   return due ? (
-    <span className="subtab-dot" role="img" aria-label="Ask has something ready for you" data-testid="tb-ask-due" />
+    <span className="subtab-dot" role="img" aria-label="AI has something ready for you" data-testid="tb-ask-due" />
   ) : null;
 }
 
@@ -320,7 +320,7 @@ const tbPresence = () => {
   return (
     <Menu
       btnClass="btn btn-ghost btn-sm tb-presence"
-      title="Presence — gates transfers and veto timers"
+      title="Away pauses call transfers and the wait before a reply sends"
       label={
         <>
           <span className={`tb-pres-dot ${pr.away ? "away" : pr.transfers ? "" : "off"}`}></span>{" "}
@@ -329,9 +329,7 @@ const tbPresence = () => {
       }
       items={[
         {
-          header: pr.away
-            ? "Away — veto timers paused · holding line"
-            : "Available — timers run · transfers " + (pr.transfers ? "on" : "off"),
+          header: pr.away ? "Away · replies wait for you" : "Available · transfers " + (pr.transfers ? "on" : "off"),
         },
         { label: "Available", icon: "check", onClick: () => pr.setAway(false), meta: pr.away ? "" : "current" },
         { label: "Away", icon: "pause", onClick: () => pr.setAway(true), meta: pr.away ? "current" : "" },
@@ -356,8 +354,8 @@ const bellTip = (real: Bell | null, unread: number, dots: number) =>
   real
     ? BELL_READ_WORDS.tip(unread, dots)
     : unread > 0
-      ? `${unread} unread — what agents did while you weren't looking`
-      : "What agents did while you weren't looking";
+      ? `${unread} unread — what AI did while you weren't looking`
+      : "What AI did while you weren't looking";
 
 // The theme button steps through the preference, System included, and says which is on and what a press makes it (N19).
 // The shell's words decide; the standalone mockup, without them, keeps its light and dark flip.

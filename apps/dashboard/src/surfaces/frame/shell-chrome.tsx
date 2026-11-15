@@ -54,17 +54,15 @@ class ShellErrorBoundary extends Component<{ children: ReactNode }, { err: Error
         <div className="soon-glyph">
           <Glyph name="alert" size={22} />
         </div>
-        <div className="soon-title">This surface hit an error</div>
-        <div className="soon-blurb">
-          The rest of the OS is fine — this pane failed to render.{" "}
-          {String((this.state.err && this.state.err.message) || "")}
-        </div>
+        {/* What broke is the report's (componentDidCatch, above), for Health: a person is never shown an error's own text (docs/words.md). */}
+        <div className="soon-title">This page didn&apos;t load</div>
+        <div className="soon-blurb">Reload it, or go to Today.</div>
         <div className="soon-actions">
-          <button className="btn btn-sm" onClick={() => shellAddress().go("today")}>
-            <Glyph name="home" size={12} /> Back to Today
-          </button>
-          <button className="btn btn-ghost btn-sm" onClick={() => window.location.reload()}>
+          <button className="btn btn-sm" onClick={() => window.location.reload()}>
             Reload
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => shellAddress().go("today")}>
+            <Glyph name="home" size={12} /> Go to Today
           </button>
           {reportDoor.open && (
             <Button size="sm" variant="quiet" onClick={() => reportDoor.open?.("this page", "wrong")}>

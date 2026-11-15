@@ -245,7 +245,7 @@ function verbButton(o: {
       onClick={() => navigate(verb.to)}
       aria-label={named}
       data-testid={testid}
-      title={r.kind === "whatsapp" ? "What the receptionist and your campaigns send on this number" : undefined}
+      title={r.kind === "whatsapp" ? "What AI and your campaigns send on this number" : undefined}
     >
       {label}
     </Button>

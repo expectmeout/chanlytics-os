@@ -311,7 +311,7 @@ const answerStyleAction = actAction({
     return propose({
       kind: "answer_style",
       title: "How you like answers",
-      summary: words ? `Kept for your answers from now on: ${words}` : "Your note cleared: answers as Ask writes them",
+      summary: words ? `Kept for your answers from now on: ${words}` : "Your note cleared: answers as AI writes them",
       payload: { words, previous },
     });
   },

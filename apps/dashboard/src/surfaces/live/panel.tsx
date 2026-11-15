@@ -44,14 +44,14 @@ const LrTranscript = ({ c }: { c: LiveCallVM }) => {
               // Chanlytics spoke, not the owner: a correction, or the
               // hand-over. Said as what it was, never as the owner's words.
               <div key={i} className="lm-whisper-line" data-testid="live-platform-line">
-                <span className="lm-whisper-line-label">Chanlytics told the receptionist</span>
+                <span className="lm-whisper-line-label">Chanlytics told AI</span>
                 <span className="lm-whisper-line-text">{m.text}</span>
               </div>
             ) : (
               <div key={i} className={`tl-msg ${m.speaker === "client" ? "client" : "agent"}`}>
                 <div className="tl-msg-bubble">
                   <div className="tl-msg-meta">
-                    <span>{m.speaker === "client" ? c.whoShort : "Phone receptionist"}</span>
+                    <span>{m.speaker === "client" ? c.whoShort : "AI"}</span>
                     <span className="mono">{m.t}</span>
                   </div>
                   <div className="tl-msg-body">{m.text}</div>
@@ -152,7 +152,7 @@ function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
             <LrPill c={c} />
           </div>
           <div className="lm-head-meta">
-            <span>Phone receptionist</span>
+            <span>AI</span>
             <span className="cv-dot" />
             {/* Their number rings from here, but not for someone on do-not-contact (consent mayRing, R11 S9-6). */}
             {c.number && c.dnc ? (
@@ -204,7 +204,7 @@ function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
       </header>
       {c.live && (
         <div className="lm-head-actions">
-          <span className="lm-live-note" title="The receptionist is handling this call on its own.">
+          <span className="lm-live-note" title="AI is handling this call on its own.">
             <span className="live-dot lm-pulse" aria-hidden="true" />
             {quietS >= 15 ? `Last heard ${quietS} s ago` : "Handling it"}
           </span>
@@ -271,9 +271,7 @@ function panelFoot({ c, open }: SummaryProps) {
   if (c.live) return null;
   return (
     <footer className={`lm-controls${c.stale ? "" : " is-over"}`}>
-      <span className="lm-controls-who tabular">
-        {c.number || "Caller ID withheld"} &nbsp;&amp;&nbsp; Phone receptionist
-      </span>
+      <span className="lm-controls-who tabular">{c.number || "Caller ID withheld"} &nbsp;&amp;&nbsp; AI</span>
       <span className="lm-ended-chip">
         {c.missed ? (
           "Nothing to review."

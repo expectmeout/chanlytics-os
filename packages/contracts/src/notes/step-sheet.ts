@@ -20,14 +20,14 @@ export const STEP_SHEET_WORDS = {
   for: { label: "For", anyone: "Anyone on the team", me: "Me" },
   // Who sees a step: the team, and Ask, which reads each person's next step (its people and Pipeline reads); never the
   // receptionist, since a step is the team's whatever a note's switch says (00166).
-  teamOnly: "Your team and Ask see it; the receptionist doesn't.",
+  teamOnly: "For your team. AI never uses it with customers.",
   /**
    * What a new step on a deal opens with, from the act its card leads with (dealNextAct): its send, today, or its
    * follow-up, tomorrow. Any other act opens it empty.
    */
   suggested: { send: "Send the proposal", "follow-up": "Follow up on the proposal" },
   /** A note with no day: whether the receptionist reads it (it uses notes as facts, never aloud). */
-  reads: { label: "Team only", hint: "The receptionist won't read it" },
+  reads: { label: "Team only", hint: "Never used in replies to customers" },
   save: { add: "Set it", edit: "Save", note: "Add it" },
   saving: "Saving…",
   reading: "Reading…",

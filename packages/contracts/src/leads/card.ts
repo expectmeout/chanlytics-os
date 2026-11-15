@@ -368,7 +368,7 @@ const LEAD_CARD_SLOT_FROM = {
   signs: "The name this sequence signs with",
   booking: "Your booking link, in Settings",
   opening: "Written for them before it goes",
-  preview: "Their own receptionist, made when the first email that names it goes",
+  preview: "Their own preview, made when the first email that names it goes",
   fallback: (sentence: string) => `Nobody is named here, so it says “${sentence}”`,
   gap: "They have none, so the send would hold this email",
 } as const;
@@ -532,7 +532,7 @@ const LEAD_CARD_REASON_WORDS = {
   unclaimed: "nobody has claimed its listing",
   both: (low: string) => `${low}, and nobody has claimed its listing.`,
   fromListing: "Seen on its listing: the spread of its reviews and its claim mark.",
-  fromJudge: "Ask's reading of its listing and its website. A reading, not a fact on the page.",
+  fromJudge: "AI's reading of its listing and its website. A reading, not a fact on the page.",
   fromCompany: "What its source says of the company.",
 } as const;
 

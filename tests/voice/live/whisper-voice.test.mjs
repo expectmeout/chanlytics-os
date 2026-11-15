@@ -130,7 +130,7 @@ test("hold to talk: the browser's recogniser, hidden where it does not exist", (
     null,
     "the mic stands where the arrow does while nothing is typed",
   );
-  assert.match(hint(plain), /Only the receptionist hears this/, "and the line under the field says who hears it");
+  assert.match(hint(plain), /Only AI hears this/, "and the line under the field says who hears it");
   hearing({ webkitSpeechRecognition: Recogniser });
   assert.ok(talk(mount()), "and the prefixed one, where that is all there is (Safari)");
 });

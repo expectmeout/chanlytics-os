@@ -98,7 +98,7 @@ test("on a phone Need you is the people under the page's head, and To do is a gr
     "its first group's head holds the way there, as the day's the Calendar's",
   );
   assert.equal(all(queue, (n) => n.props?.["data-testid"] === "today-queue-door").length, 1, "once");
-  assert.equal(byTestId(queue, "today-queue-ask"), null, "each card says what Ask prepared: no line over them");
+  assert.equal(byTestId(queue, "today-queue-ask"), null, "each card says what AI prepared: no line over them");
   assert.equal(byTestId(queue, "today-queue").props["data-phone"], true);
   const todo = byTestId(queue, "today-group-todo");
   assert.ok(todo, "To do is a group of Need you");
@@ -135,7 +135,7 @@ test("on a phone the day's four figures stand in Today so far, each by its short
   assert.ok(
     all(desk, (n) => classes(n).includes("tc-fig"))
       .map((n) => n.props.title)
-      .includes("answered by the receptionist"),
+      .includes("answered by AI"),
     "and the whole name is the figure's title",
   );
   phone = true;
@@ -187,7 +187,7 @@ test("Need you holds each wait to the business's own target, and the open card s
   );
 });
 
-test("on a phone one card holds Ask's work, the next is a row with its press, which opens the walk on it", () => {
+test("on a phone one card holds AI's work, the next is a row with its press, which opens the walk on it", () => {
   phone = true;
   set(twoWaiting());
   const queue = draw(NeedYou);
@@ -482,7 +482,7 @@ test("Need you has no cuts over it, on a desk or a phone: its groups are its ord
   }
 });
 
-test("on a phone's Up next two lines of Ask's reply stand with no box round them, and a press opens the walk on it", () => {
+test("on a phone's Up next two lines of AI's reply stand with no box round them, and a press opens the walk on it", () => {
   phone = true;
   // Sofia wrote an hour ago on WhatsApp: the window is open, so Ask's reply can be sent from the card.
   // A thread of its own: the drafts the tab holds outlive a test, and an earlier one read Sofia's and was refused.
@@ -535,7 +535,7 @@ test("on a phone's Up next two lines of Ask's reply stand with no box round them
   }
 });
 
-test("the head says Ask has a reply ready only where its words can go: never over a card whose one press is a template", () => {
+test("the head says AI has a reply ready only where its words can go: never over a card whose one press is a template", () => {
   phone = true;
   /** One handoff on WhatsApp, its window open or shut, with Ask's reply kept for it; what the head is told of it. */
   const headOver = (lastIn) => {
@@ -563,10 +563,10 @@ test("the head says Ask has a reply ready only where its words can go: never ove
     return again(() => useNeedYouLine(surfaceValue("today") ?? null));
   };
   try {
-    assert.match(String(headOver("2026-09-18T19:00:00Z")), /Ask has a reply ready/, "an open window: the words can go");
+    assert.match(String(headOver("2026-09-18T19:00:00Z")), /AI has a reply ready/, "an open window: the words can go");
     assert.doesNotMatch(
       String(headOver("2026-09-16T19:00:00Z")),
-      /Ask has/,
+      /AI has/,
       "REGRESSION: the head said a reply was drafted over a card whose one press was Choose a template",
     );
   } finally {
@@ -574,7 +574,7 @@ test("the head says Ask has a reply ready only where its words can go: never ove
   }
 });
 
-test("on a phone the page is one column in the canvas's order: Ask found leads where Need you draws no pane, setting up goes under the work while anyone waits, and the page's end is last", async () => {
+test("on a phone the page is one column in the canvas's order: AI found leads where Need you draws no pane, setting up goes under the work while anyone waits, and the page's end is last", async () => {
   phone = true;
   const { TodayZones } = await import("../../../apps/dashboard/src/surfaces/today/zones/page.tsx");
   const order = () => {

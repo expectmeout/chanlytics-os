@@ -150,7 +150,7 @@ function CrWindow({ w, hours }: { w: CalendarWindowVM; hours: Hours }) {
     <div
       className="cal-open"
       style={{ top: ofHours(from), height: `max(18px, ${ofHours(span)} - 2px)` }}
-      title={`Open · ${w.label} — the receptionist would offer this`}
+      title={`Open · ${w.label} — AI would offer this`}
       data-testid="cal-window"
     >
       <span className="cal-open-label">Open · {w.label}</span>
@@ -633,7 +633,7 @@ function agendaOpenTimes(p: {
     // After "Open:", a day inside the offer with no times says "none" (3 Nov 2026: "Open: nothing the receptionist
     // would offer" was the label's own word said again, longer).
     <span className="ag-none">
-      {service && service.consultFirst ? "the receptionist offers a consultation for this, not the service" : "none"}
+      {service && service.consultFirst ? "AI offers a consultation for this, not the service" : "none"}
     </span>
   );
 }

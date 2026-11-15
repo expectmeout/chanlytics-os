@@ -167,7 +167,7 @@ const figureOf = (
 function whoAnsweredWords(answered: number, receptionist: number): string {
   if (!answered) return "none answered yet";
   const you = answered - receptionist;
-  return [receptionist ? `${receptionist} by the receptionist` : null, you ? `${you} by you` : null]
+  return [receptionist ? `${receptionist} by AI` : null, you ? `${you} by you` : null]
     .filter((w): w is string => !!w)
     .join(", ");
 }
@@ -275,7 +275,7 @@ function reviewsWaitingOf(
     const reason = reviewHeldWords(r.held);
     return {
       ...toGoogleReviewVM(r, linkedAt, tz, nowMs),
-      held: reason ? `The receptionist wrote a reply and held it: ${reason}.` : null,
+      held: reason ? `AI wrote a reply and held it: ${reason}.` : null,
     };
   });
   return { total: ledger.waiting_total, rows };

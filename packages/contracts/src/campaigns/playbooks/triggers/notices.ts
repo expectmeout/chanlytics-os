@@ -238,8 +238,7 @@ export function triggerOffered(target: { kind: string }): boolean {
  * running: the run asks triggerOffered, which they still pass.
  */
 export const MOMENTS_RETIRED: Partial<Record<PlaybookTrigger, string>> = {
-  new_week:
-    "Your receptionist answers a first contact itself, and asks there for the yes to offers that a welcome would need.",
+  new_week: "AI answers a first contact itself, and asks there for the yes to offers that a welcome would need.",
   phoned_only:
     "The call's text does this during the call: the booking link and your WhatsApp, sent when a caller asks for them.",
 };

@@ -226,7 +226,7 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
   assert.equal(rejected.subject, "WhatsApp asked for a change to “Appointment reminder”");
   assert.equal(
     rejected.body,
-    "WhatsApp asked for a change: the way its values are written. Ask writes new words for you to send back. Open “Appointment reminder” in Messages to send them.",
+    "WhatsApp asked for a change: the way its values are written. AI writes new words for you to send back. Open “Appointment reminder” in Messages to send them.",
   );
   const told = (event) =>
     mod.describeWabaChange(
@@ -333,7 +333,7 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
     route: "campaigns/messages/winback_offer",
     about: { type: "template", id: "winback_offer" },
     subject: "WhatsApp asked for a change to “Win-back (earlier)”",
-    body: "WhatsApp asked for a change: its words do not match the language or kind it was filed as. Ask writes new words for you to send back. Open “Win-back (earlier)” in Messages to send them.",
+    body: "WhatsApp asked for a change: its words do not match the language or kind it was filed as. AI writes new words for you to send back. Open “Win-back (earlier)” in Messages to send them.",
     alert: true,
   });
   assert.equal(status("PAUSED").subject, "WhatsApp is holding “Win-back (earlier)” for a few hours");

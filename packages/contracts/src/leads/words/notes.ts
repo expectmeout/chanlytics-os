@@ -77,7 +77,7 @@ export const LEAD_OUTSIDE_US_LINE =
 
 /** The second: what the workspace sells, in the owner's own words, or "what you do". */
 export function leadNotBusinessesLine(want: string | null): string {
-  return `I find businesses, not people at home. People who want ${want && want.trim() ? want.trim() : "what you do"} find you, and your receptionist answers them. Businesses whose clients need you next are a good start:`;
+  return `I find businesses, not people at home. People who want ${want && want.trim() ? want.trim() : "what you do"} find you, and AI answers them. Businesses whose clients need you next are a good start:`;
 }
 
 /** The third: what was asked for, named, and what the one card can do. The ask is logged as demand (§0.3). */

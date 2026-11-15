@@ -10,7 +10,7 @@ const Body = z.object({
   text: z
     .string()
     .trim()
-    .min(1, "Say something for the receptionist to use.")
+    .min(1, "Say something for AI to use.")
     .max(MAX_CHARS, `Keep a whisper under ${MAX_CHARS} characters — it is worked into one answer.`),
   trigger: z.boolean().optional(),
 });

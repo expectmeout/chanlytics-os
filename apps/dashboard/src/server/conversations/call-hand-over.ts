@@ -19,7 +19,7 @@ export async function passCallToOwnerLine(ctx: RouteContext, call: VerbCall) {
   if (!line) {
     throw new AppError(
       "conflict",
-      "This workspace has no line to pass calls to. Add the business's own number under Settings, and the receptionist can hand calls over.",
+      "This workspace has no line to pass calls to. Add the business's own number under Settings, and AI can hand calls over.",
       409,
     );
   }

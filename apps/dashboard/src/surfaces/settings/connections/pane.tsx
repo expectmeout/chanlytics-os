@@ -242,11 +242,7 @@ async function runVerb(
       const tryIt = res.ok ? tryItLink(res.number) : null;
       k.flash({
         tone: res.ok ? "ok" : "danger",
-        msg: res.ok ? (
-          <>WhatsApp {res.number || "number"} is connected — the receptionist answers on it now</>
-        ) : (
-          <>{res.message}</>
-        ),
+        msg: res.ok ? <>WhatsApp {res.number || "number"} is connected — AI answers on it now</> : <>{res.message}</>,
         action: tryIt ? { label: "Try it", onClick: () => window.open(tryIt, "_blank", "noopener,noreferrer") } : null,
       });
       return;
@@ -423,7 +419,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
       <FailedRead
         kind="card"
         what="your connections"
-        body="The receptionist keeps answering; this page just can't show the connections at the moment."
+        body="AI keeps answering; this page just can't show the connections at the moment."
         surface="channels"
         testid="connections-connected"
       />

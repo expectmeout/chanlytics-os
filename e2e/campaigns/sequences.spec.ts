@@ -142,7 +142,7 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     await expectRunsReport(page, s.id);
   });
 
-  test("a run's old address that went, as a bell row or Ask's card kept it, lands on its campaign's report over its day", async ({
+  test("a run's old address that went, as a bell row or AI's card kept it, lands on its campaign's report over its day", async ({
     page,
   }) => {
     const list = await readList(page);
@@ -165,7 +165,7 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     await expect(page.getByTestId("bc-sheet")).toBeVisible();
   });
 
-  test("New is one line to Ask, or a start from what's happening, for every kind; nothing is drafted here", async ({
+  test("New is one line to AI, or a start from what's happening, for every kind; nothing is drafted here", async ({
     page,
   }) => {
     await page.goto("/#/campaigns/sequences/new");

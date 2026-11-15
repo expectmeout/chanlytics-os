@@ -136,7 +136,7 @@ test("changing an approved message's WhatsApp words says first what waits while 
   // One sentence, contracts', which Ask's card says too.
   assert.equal(
     contracts.MESSAGE_CHANGE_WORDS.holdsWhileChecked(["Hours"], true),
-    "While WhatsApp looks at the new words, usually a few minutes, “Hours” waits and sends by itself once it says yes, and the receptionist won't text it to someone who asks to book.",
+    "While WhatsApp looks at the new words, usually a few minutes, “Hours” waits and sends by itself once it says yes, and AI won't text it to someone who asks to book.",
   );
   assert.equal(contracts.MESSAGE_CHANGE_WORDS.holdsWhileChecked([], false), null, "nothing sends it: nothing is said");
 });
@@ -175,7 +175,7 @@ test("a language word asked for from the menu goes again as its list closes with
   assert.equal(langWord(tree), null, "closed with nothing added (the live demo, 12 Nov 2026: an 'English' stayed)");
 });
 
-test("a language added is written for every version the message has: a message with no WhatsApp version adds one by its email and text alone, each written by Ask and saved", async () => {
+test("a language added is written for every version the message has: a message with no WhatsApp version adds one by its email and text alone, each written by AI and saved", async () => {
   const calls = stubbed({
     rewrite: async (b) => (
       calls.push(["rewrite", b]),
@@ -258,14 +258,14 @@ test("New's drawer on a phone draws no 'Messages' line over its own head, as an 
   if (drawer) assert.equal(drawer.props.bare, true);
 });
 
-test("a refused message whose fix Ask already wrote opens on those words at once, never asking Ask again; Undo is the refused words", () => {
+test("a refused message whose fix AI already wrote opens on those words at once, never asking Ask again; Undo is the refused words", () => {
   let asked = 0;
   stubbed({ rewrite: async () => (asked++, new Promise(() => undefined)) });
   const kept = "Hi {{1}}, our hours start {{2}}. Book when it suits you.";
   const refused = custom(HOURS, { meta_status: "rejected", rejected_reason: "Promotional words", fix_words: kept });
   let tree = opened(page({ rows: [refused] }), HOURS);
   assert.equal(boxOf(tree, "Message").props.value, kept, "the kept words, in the box");
-  assert.equal(asked, 0, "Ask is not asked again");
+  assert.equal(asked, 0, "AI is not asked again");
   press(byTestId(paneOf(tree), "template-version-undo"));
   tree = redraw();
   assert.equal(
@@ -281,7 +281,7 @@ test("a refused message whose fix Ask already wrote opens on those words at once
   assert.deepEqual(calls[0].fixing, { template_id: `w-${HOURS}`, reason: "Promotional words" });
 });
 
-test("a refusal WhatsApp gave no reason for keeps Ask's fix under no reason, as the read finds it, never under the prompt's words", () => {
+test("a refusal WhatsApp gave no reason for keeps AI's fix under no reason, as the read finds it, never under the prompt's words", () => {
   const calls = [];
   stubbed({ rewrite: async (b) => (calls.push(b), new Promise(() => undefined)) });
   opened(page({ rows: [custom(HOURS, { meta_status: "rejected", rejected_reason: null })] }), HOURS);
@@ -350,7 +350,7 @@ test("words the door refuses before sending them (their shape, or what a reader 
   await settle();
   tree = redraw();
   assert.equal(textOf(byTestId(paneOf(tree), "template-version-error")), would, "why, under the box");
-  assert.equal(asked.length, 1, "Ask is asked once, at once");
+  assert.equal(asked.length, 1, "AI is asked once, at once");
   assert.equal(asked[0].ask, TPL_VERSION_WORDS.fixBefore(would));
   assert.equal(asked[0].body, "Hi {{1}}, send your full card number before {{2}}.", "from the words as they were");
   // One change a day, a twin, a send going out: said, and Ask is not asked to write words that would change nothing.

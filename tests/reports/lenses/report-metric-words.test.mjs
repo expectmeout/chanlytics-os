@@ -218,7 +218,7 @@ test("every figure the reports build names a metric that has words, and no two m
   assert.equal(
     metrics.length,
     44,
-    "the receptionist's six, booked, Google's four, the three more the profile's reviews add, the seven the Receptionist lens's own read adds, the ten the People lens's own read adds (its New people is the Overview's), the three the Campaigns lens's reach-outs add and the ten its own read adds (people sent to, delivered, people who wrote back, said yes, asked to stop, and the five that are stuck now); the sends' old Messages sent and Replied tiles went on 11 Oct 2026 with the tiles nothing drew",
+    "AI's six, booked, Google's four, the three more the profile's reviews add, the seven the Receptionist lens's own read adds, the ten the People lens's own read adds (its New people is the Overview's), the three the Campaigns lens's reach-outs add and the ten its own read adds (people sent to, delivered, people who wrote back, said yes, asked to stop, and the five that are stuck now); the sends' old Messages sent and Replied tiles went on 11 Oct 2026 with the tiles nothing drew",
   );
   for (const m of metrics) {
     const words = metricWordsOf(m);
@@ -236,12 +236,12 @@ test("the words that cite a window cite the constant the report counts by, not a
   // Said once and read twice, in the words the figure's own line uses ("under an hour old"): the definition, character for character.
   assert.equal(
     metricWordsOf("missed_calls_answered"),
-    `Of the people who rang in this period and found nobody (the call never connected, or reached voicemail), how many you or the receptionist reached within ${MISSED_CALL_TOUCH_WORDS}, by a message that went out or a call that got through. A person counts once, at their first such call; a call the receptionist placed, a person whose call is under ${MISSED_CALL_TOUCH_WORDS} old, and a call with no caller on record are not counted.`,
+    `Of the people who rang in this period and found nobody (the call never connected, or reached voicemail), how many you or AI reached within ${MISSED_CALL_TOUCH_WORDS}, by a message that went out or a call that got through. A person counts once, at their first such call; a call AI placed, a person whose call is under ${MISSED_CALL_TOUCH_WORDS} old, and a call with no caller on record are not counted.`,
   );
 });
 
 test("a definition uses the word the figure's own line uses: calls that connected, handovers that wanted a message", () => {
-  assert.match(metricWordsOf("calls"), /^Calls to the receptionist that connected\. /);
+  assert.match(metricWordsOf("calls"), /^Calls to AI that connected\. /);
   assert.match(metricWordsOf("handover_first_reply"), /, over the handovers that wanted a message, /);
   for (const m of ["calls", "handover_first_reply"])
     assert.doesNotMatch(metricWordsOf(m), /someone spoke on/, `${m}: one word for a call that connected`);

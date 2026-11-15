@@ -262,7 +262,7 @@ const emptyOf = (p: LeadsPage): TableEmpty => {
   return (
     p.lists.emptyOf(openSearch) || {
       title: "No leads in this view yet.",
-      body: "Describe the businesses you want and Claude finds them.",
+      body: "Describe the businesses you want and AI finds them.",
       action: canFind ? { label: "Find leads", onClick: openFind } : null,
     }
   );

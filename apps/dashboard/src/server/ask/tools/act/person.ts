@@ -92,8 +92,8 @@ async function proposePersonMode(
     return refuse(`for ${person.who} the receptionist already ${LABEL[mode]}: say so, and change nothing`);
   return propose({
     kind: "person_mode",
-    title: `Receptionist for ${person.who}`,
-    summary: `The receptionist ${LABEL[mode]}`,
+    title: `AI for ${person.who}`,
+    summary: `AI ${LABEL[mode]}`,
     payload: { contact_id: person.id, mode, previous: pol?.mode ?? "inherit", who: person.who },
   });
 }
@@ -106,7 +106,7 @@ type NoteFor = (typeof NOTE_FOR)[number];
  * alone is read before every answer to that person), or the team alone, in the person page's own words (NOTE_WORDS).
  */
 const NOTE_READERS: Record<NoteFor, (who: string) => string> = {
-  receptionist: (person) => `The receptionist reads it before it answers ${person}`,
+  receptionist: (person) => `AI reads it before it answers ${person}`,
   team: () =>
     `${NOTE_WORDS.teamOnly}: ${NOTE_WORDS.teamOnlyHint.charAt(0).toLowerCase()}${NOTE_WORDS.teamOnlyHint.slice(1)}`,
 };
@@ -393,7 +393,7 @@ async function proposeMessage(toolContext: ToolContext, input: MessageAsk): Prom
   return propose({
     kind: "person_message",
     title: `Message ${person.who}`,
-    summary: `${template ? `“${template.name}” (approved message)` : text} · by ${wire}${subject ? `, subject “${subject}”` : ""} · then ${then === "me" ? "you have the thread" : "the receptionist has it"}${firstText}`,
+    summary: `${template ? `“${template.name}” (approved message)` : text} · by ${wire}${subject ? `, subject “${subject}”` : ""} · then ${then === "me" ? "you have the thread" : "AI has it"}${firstText}`,
     payload: {
       contact_id: person.id,
       who: person.who,
@@ -424,7 +424,7 @@ const modeAction = actAction({
   kind: "person_mode",
   input: z.object({ contact_id: z.string(), mode: z.enum(["auto", "ask", "never", "inherit"]) }),
   examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", mode: "never" }],
-  label: "Preparing a receptionist change",
+  label: "Preparing a change to AI",
   // Its card's role clause, its own (approvalWords, one derivation): an action beside it may need another role.
   words: `Action mode takes contact_id, the id a read returned, and mode, how the receptionist treats them: auto (answers them), ask (asks a person first), never (stays silent with them) or inherit (follows the workspace's rule). Call it when they want the receptionist to stop, resume or check first with one person; propose_settings with action autonomy changes a whole class, and propose_thread_verb acts on one thread. ${approvalWords("person_mode")}.`,
   build: proposePersonMode,

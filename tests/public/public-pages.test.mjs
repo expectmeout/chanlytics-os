@@ -154,7 +154,7 @@ test("the doors are dressed by one shell: the form comes first, the half beside 
     order.some((w) => w.includes("An example")),
     "the conversation says it is an example",
   );
-  for (const w of ["Hi! Do you have anything Saturday?", "An example of your receptionist answering"])
+  for (const w of ["Hi! Do you have anything Saturday?", "An example of AI answering"])
     assert.ok(
       hidden.includes(w),
       `"${w}" is aria-hidden -- a screen reader gets the sentence, not a dialogue it would have to disbelieve`,

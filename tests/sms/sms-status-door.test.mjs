@@ -195,7 +195,7 @@ test("a text the carrier refuses after taking it flags its thread, whose event r
     "the hold a send that fails at the wire raises: the same reason, on the same thread",
   );
   assert.match(holds[0].details, /^A reply from your team was accepted for sending but did not reach them\./);
-  assert.match(holds[0].details, /The text was filtered as a possible policy violation \(Twilio error 30007\)\.$/);
+  assert.match(holds[0].details, /The text was filtered as a possible policy violation\.$/);
   assert.deepEqual(
     told.map((e) => [e.kind, e.subject_type, e.subject_id]),
     [["escalation.opened", "conversation", "cv-1"]],
@@ -241,7 +241,7 @@ test("a campaign's text, a customer's row and a delivered text raise nothing, an
   assert.deepEqual(raised(ok), { holds: [], told: [], bell: [], events: [] }, "a delivery is no news");
 });
 
-test("the receptionist's reply is said as the receptionist's, and a thread already held for something else is held for this", async () => {
+test("AI's reply is said as AI's, and a thread already held for something else is held for this", async () => {
   const w = world({ row: { sender: "ai" } });
   w.tables.escalations = [
     { id: "e0", tenant_id: w.T, conversation_id: "cv-1", reason: "human_token", details: "asked", state: "open" },
@@ -250,7 +250,7 @@ test("the receptionist's reply is said as the receptionist's, and a thread alrea
   const { holds, told } = raised(w);
   assert.equal(holds.length, 1, "one open hold per thread");
   assert.equal(holds[0].reason, "send_failed", "the reason a person is needed for has changed under them");
-  assert.match(holds[0].details, /^The receptionist's reply was accepted for sending/);
+  assert.match(holds[0].details, /^AI's reply was accepted for sending/);
   assert.deepEqual(
     told.map((e) => [e.kind, e.subject_id, e.data]),
     [["escalation.changed", "e0", { from: "human_token", to: "send_failed" }]],

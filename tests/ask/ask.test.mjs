@@ -242,7 +242,7 @@ const REACHED = {
   "admin/integrations": ["Connections", "admin/integrations"],
   "admin/billing": ["Billing", "admin/billing"],
   // The pane says it is not built and points at How it answers: Memory's jump lands there, never on it (#417).
-  "admin/memory": ["Receptionist memory", "admin/receptionist"],
+  "admin/memory": ["AI's memory", "admin/receptionist"],
   "admin/activity": ["Activity", "admin/activity"],
   "admin/platform": ["Back office", "admin/platform"],
   "admin/partner": ["Partner", "admin/partner"],
@@ -412,7 +412,7 @@ test("the question about proposals is offered once a deal is on file (0004; 0008
   );
 });
 
-test("on the first run the page's own questions lead: what is left to set up and the hours, then what Ask can do, in either language, and never an offer or a playbook; Today opens on what to do next (the operator, D7) and Settings offers no invitation (the Team page's alone); every other page's chips are what they were (Ask Rewired, Phase 7)", () => {
+test("on the first run the page's own questions lead: what is left to set up and the hours, then what AI can do, in either language, and never an offer or a playbook; Today opens on what to do next (the operator, D7) and Settings offers no invitation (the Team page's alone); every other page's chips are what they were (Ask Rewired, Phase 7)", () => {
   const quiet = { needsYou: 0, heldDrafts: 0, missedToday: 0, liveNow: 0, hasCalendar: false, canAct: true };
   const chips = (surface, language = "en") =>
     buildAskSuggestions({ ...quiet, surface, language, leadSearches: ["pilates in denver"] }).map(
@@ -424,7 +424,7 @@ test("on the first run the page's own questions lead: what is left to set up and
     "What can you do for me?",
     "Who needs me right now?*",
     "How did the week go?",
-    "What can the receptionist do on its own?",
+    "What can you do on your own?",
     "Remember that ",
   ]);
   assert.deepEqual(chips("start", "es").slice(0, 2), [
@@ -434,7 +434,7 @@ test("on the first run the page's own questions lead: what is left to set up and
   const first = buildAskSuggestions({ ...quiet, surface: "start", language: "en" })[0];
   assert.equal(first.fast, false, "the model's, over the steps the server's start provider reads: no quick answer");
   // The page questions as one table (PAGE_QUESTIONS): each other surface offers what it did before it, word for word.
-  const EVERYONE = ["Who needs me right now?*", "How did the week go?", "What can the receptionist do on its own?"];
+  const EVERYONE = ["Who needs me right now?*", "How did the week go?", "What can you do on your own?"];
   const OFFER = ["Remember that ", "Send the ", "Start a win-back campaign for the quiet clients"];
   const CALLS = ["Did anyone call while I was busy?", ...EVERYONE, "Remember that "];
   const was = {
@@ -448,7 +448,7 @@ test("on the first run the page's own questions lead: what is left to set up and
     ],
     inbox: [
       "Who wrote today?",
-      "What can the receptionist do on its own?",
+      "What can you do on your own?",
       "Who needs me right now?*",
       "How did the week go?",
       "Remember that ",
@@ -458,14 +458,9 @@ test("on the first run the page's own questions lead: what is left to set up and
     leads: ["Find more like: pilates in denver", ...EVERYONE, "Remember that "],
     conversations: CALLS,
     live: CALLS,
-    reports: [
-      "How did the week go?",
-      "Who needs me right now?*",
-      "What can the receptionist do on its own?",
-      "Remember that ",
-    ],
+    reports: ["How did the week go?", "Who needs me right now?*", "What can you do on your own?", "Remember that "],
     settings: [
-      "What can the receptionist do on its own?",
+      "What can you do on your own?",
       "What are our hours this week?",
       "Who needs me right now?*",
       "How did the week go?",
@@ -483,7 +478,7 @@ test("on the first run the page's own questions lead: what is left to set up and
 });
 
 test("the surfaces are one list, Leads among them, and every kind a scope may have is a kind a citation names, a run as a broadcast: the route and the prompt read the same names", () => {
-  assert.ok(ASK_SURFACES.includes("leads"), "Leads is a page Ask knows it is on");
+  assert.ok(ASK_SURFACES.includes("leads"), "Leads is a page AI knows it is on");
   assert.ok(ASK_SURFACES.includes("people") && ASK_SURFACES.includes("other"));
   assert.equal(new Set(ASK_SURFACES).size, ASK_SURFACES.length, "each said once");
   assert.deepEqual(
@@ -671,7 +666,7 @@ test("the three quick questions are told by their words; the answers are ask/ans
   });
   assert.equal(askIntent("qué hay libre mañana", NOW, TZ).day, "2026-09-06");
   assert.equal(dayFromQuestion("any slots today", NOW, TZ), "2026-09-05");
-  assert.equal(askIntent("what did the receptionist tell Dani?", NOW, TZ), null, "the long tail is the model's");
+  assert.equal(askIntent("what did AI tell Dani?", NOW, TZ), null, "the long tail is the model's");
   assert.equal(askIntent("tell rosa we are running late", NOW, TZ), null);
 });
 
@@ -828,18 +823,18 @@ test("language, scope and settings changes", () => {
   // The card quotes what the receptionist will be told, after its title and its last day: what is approved is the text.
   assert.equal(
     describeSettingsChange(holiday),
-    "Note for the receptionist: “Holiday hours”, until 2026-12-31 — “Open 10 to 2 this week.”",
+    "Note for AI: “Holiday hours”, until 2026-12-31 — “Open 10 to 2 this week.”",
   );
   assert.equal(
     describeSettingsChange({ op: "add_note", title: "Parking", text: "Behind the building.\n\nUse the side door." }),
-    "Note for the receptionist: “Parking” — “Behind the building. Use the side door.”",
+    "Note for AI: “Parking” — “Behind the building. Use the side door.”",
     "a note with no last day says none, and its text is one line",
   );
   // A long text is cut on a whole word at 160 characters, with an ellipsis inside the quote.
   const long = `${"Ten percent off every colour booked this month ".repeat(4)}and nothing else.`;
   const longLine = describeSettingsChange({ op: "add_note", title: "Offer", text: long });
   const quoted = longLine.slice(longLine.indexOf("— “") + 3, -1);
-  assert.ok(longLine.startsWith("Note for the receptionist: “Offer” — “") && longLine.endsWith("…”"), longLine);
+  assert.ok(longLine.startsWith("Note for AI: “Offer” — “") && longLine.endsWith("…”"), longLine);
   assert.ok(quoted.length <= 161 && long.startsWith(quoted.slice(0, -1)) && long[quoted.length - 1] === " ", quoted);
   assert.equal(
     applySettingsChange(cfg, { op: "add_service", name: "Gloss", duration_min: 45 }).brain.profile.services[0]
@@ -1031,7 +1026,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     [called.say.headline, called.show.items.map((i) => i.source.to)],
     ["One missed call today.", ["conversations/cv-k1"]],
   );
-  assert.equal(api.quick("what did the receptionist tell Dani?"), null, "the long tail is the model's");
+  assert.equal(api.quick("what did AI tell Dani?"), null, "the long tail is the model's");
   const drawn = api.answer({ text: "Hi", citations: [], navigate: null, followups: [], proposals: [], language: "en" });
   assert.equal(drawn.answer.form, "prose", "an answer made before the Line reads back as prose");
   assert.equal(api.answerText(drawn.answer), "Hi");
@@ -1178,7 +1173,7 @@ test("the loop and its reads: several at once, the stable block cached, through 
     assert.ok(read[0].includes(words), words);
 });
 
-test("REGRESSION: the rules say what stays on a page and where, from the guide's own table, and which yes a one-off send reaches -- asked to delete everyone, Ask said to look for a delete option; of a reminder, it said a one-off send reaches only the yes to offers (the operator stress run, 15 Oct 2026)", () => {
+test("REGRESSION: the rules say what stays on a page and where, from the guide's own table, and which yes a one-off send reaches -- asked to delete everyone, AI said to look for a delete option; of a reminder, it said a one-off send reaches only the yes to offers (the operator stress run, 15 Oct 2026)", () => {
   const one = ASK_RULES.find((r) => r.startsWith("A proposal is one card."));
   // Every act the guide leaves to its page, with its page and why, in the rule that says to name where.
   for (const p of ASK_GUIDE_PAGES)
@@ -1199,7 +1194,7 @@ test("REGRESSION: the rules say what stays on a page and where, from the guide's
   assert.ok(!/reaches only the people who said yes[;,]/.test(ASK_RULES.join("\n")), "never which yes left unsaid");
 });
 
-test("the gateway: the key stays on the edge, Ask's tokens have their own event kind and their own cap; the dashboard signs for the door and holds no key", () => {
+test("the gateway: the key stays on the edge, AI's tokens have their own event kind and their own cap; the dashboard signs for the door and holds no key", () => {
   // The door itself -- the knock, purpose 'ask', the budget refused at the
   // cap, the request streamed, the stream forwarded and metered -- runs in
   // llm-door.test.mjs.
@@ -1209,7 +1204,7 @@ test("the gateway: the key stays on the edge, Ask's tokens have their own event 
   const budget = readCode("apps/edge/lib/ai/budget.ts") + readCode("packages/db/src/repositories/ai/usage.ts");
   assert.ok(
     budget.includes('.eq("kind", "usage.llm_tokens")') && !/usage\.ask_tokens/.test(budget),
-    "the receptionist's budget never counts Ask",
+    "AI's budget never counts Ask",
   );
   assert.equal(
     ASK_TOKENS_DAY,
@@ -1268,7 +1263,7 @@ test("the gateway's usage tee reads the counts out of a passing stream and repor
   const ok = mod.validateGatewayRequest({ max_tokens: 99999, messages: [{ role: "user", content: "hi" }], tools: [] });
   assert.ok(
     ok.ok && ok.request.max_tokens === ASK_MAX_TOKENS && ok.request.model === mod.GATEWAY_FALLBACK_MODEL,
-    "a request that names no model gets the fallback every older caller expects and Ask's ceiling; Ask's profile moves Ask alone",
+    "a request that names no model gets the fallback every older caller expects and AI's ceiling; AI's profile moves Ask alone",
   );
 });
 
@@ -1559,7 +1554,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.ok(thread.includes("if (words) setText(words);"), "Edit in the composer lands the words in the composer");
 });
 
-test("voice and the phone: hold to talk uses the browser's recogniser, the origin may ask for the microphone, the phone's ✦ opens Ask above the tab bar", () => {
+test("voice and the phone: hold to talk uses the browser's recogniser, the origin may ask for the microphone, the phone's ✦ opens AI above the tab bar", () => {
   // The one recogniser is the kit's (surfaces/kit/talk), which Ask's hook delegates to. Press to start, release to
   // stop, what was heard sent on its own, and the language it listens in: executed in ask-palette.test.mjs ("on a
   // phone the mic keeps the finger", "the Line's recogniser listens in the Line's language").
@@ -1621,10 +1616,10 @@ test("an answer never carries tags: the leak seen on production is cut", () => {
   // Every string of the answer, and Say while it streams, goes through cleanAnswer: normalizeAnswer in
   // ask-answer.test.mjs, the stream in ask-turn.test.mjs.
   const leaked =
-    'The 4:22 AM call ran 5:16 and the receptionist handled it.</answer>\n<parameter name="citations">[{"kind": "call", "id": "' +
+    'The 4:22 AM call ran 5:16 and AI handled it.</answer>\n<parameter name="citations">[{"kind": "call", "id": "' +
     ID +
     '", "label": "4:22 AM call"}]';
-  assert.equal(cleanAnswer(leaked), "The 4:22 AM call ran 5:16 and the receptionist handled it.");
+  assert.equal(cleanAnswer(leaked), "The 4:22 AM call ran 5:16 and AI handled it.");
   assert.equal(cleanAnswer("<answer>Hola.</answer>"), "Hola.");
   assert.equal(cleanAnswer("Plain, with a <b>tag</b> inside."), "Plain, with a tag inside.");
   assert.equal(
@@ -2071,7 +2066,7 @@ test("the cross-page reads: what a question names plainly of another page is rea
     "what are our hours this week?",
     "close the salon this coming Friday for a family matter",
     "invite maria.reception@example.com as a viewer",
-    "let the receptionist decide refunds on its own",
+    "let AI decide refunds on its own",
     "send Maria the booking link",
     "schedule the reminder for 9am",
     "what should I do about the refund she asked for?",
@@ -2179,7 +2174,7 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   assert.ok(ASK_DEFINITIONS.playbook.includes("say campaign, never playbook"), ASK_DEFINITIONS.playbook);
 });
 
-test("the rules know the plan and the message (the marketing manager's §5.7): an offer, a promotion or a whole setup is one plan, whose steps Ask never assembles, and a message's words are a message card's alone, every channel's version on it; the setup rule says so itself, no rule left says otherwise, the rules name no tool (the answer canvas, A2: the tools' descriptions say which), and on Campaigns the turn's words name the plan first", async () => {
+test("the rules know the plan and the message (the marketing manager's §5.7): an offer, a promotion or a whole setup is one plan, whose steps AI never assembles, and a message's words are a message card's alone, every channel's version on it; the setup rule says so itself, no rule left says otherwise, the rules name no tool (the answer canvas, A2: the tools' descriptions say which), and on Campaigns the turn's words name the plan first", async () => {
   const { turnWords } = await import(
     pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt/prompt.ts")).href
   );

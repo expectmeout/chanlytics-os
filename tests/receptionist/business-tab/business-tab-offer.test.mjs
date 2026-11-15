@@ -669,7 +669,7 @@ test("the list keeps its cap of sixty through Add and through both Undos", () =>
   assert.equal(byTestId(tree, "rec-services-add"), null, "no Add past the cap the save's schema keeps");
   assert.match(
     textOf(byTestId(tree, "rec-services-cap")),
-    /That is the most services the receptionist keeps \(60\)\. Remove one first\./,
+    /That is the most services AI keeps \(60\)\. Remove one first\./,
   );
   press(byTestId(tree, "rec-service-remove-0"));
   tree = redrawTab(flash);
@@ -683,7 +683,7 @@ test("the list keeps its cap of sixty through Add and through both Undos", () =>
   assert.equal(rowsOf(tree).length, LIMIT, "REGRESSION: the toast's Undo put a sixty-first back");
   assert.deepEqual(
     [flashes.at(-1).tone, said(flashes.at(-1))],
-    ["warn", "Not put back — That is the most services the receptionist keeps (60). Remove one first."],
+    ["warn", "Not put back — That is the most services AI keeps (60). Remove one first."],
   );
   press(undoFor(tree, "Service 1"));
   tree = redrawTab(flash);
@@ -726,7 +726,7 @@ test("a save sends the stored config with the services changed, and nothing else
     "the whole config, with one service changed and every other key as it was",
   );
   assert.equal(sheetOf(tree), null, "taken, the sheet closes");
-  assert.equal(said(flashes.at(-1)), "Saved — the receptionist picks it up within a minute");
+  assert.equal(said(flashes.at(-1)), "Saved — AI picks it up within a minute");
 });
 
 test("an unchanged Save sends nothing and closes, and so does one typed and typed back", () => {

@@ -90,7 +90,7 @@ test("the platform's endings page and say what mends them; nobody else's does; a
 test("the three lists read the same words they did before the table", () => {
   const before = {
     user_hangup: "Customer hung up",
-    agent_hangup: "Receptionist ended the call",
+    agent_hangup: "AI ended the call",
     call_transfer: "Transferred to a person",
     voicemail_reached: "Reached voicemail",
     dial_no_answer: "No answer",
@@ -98,7 +98,7 @@ test("the three lists read the same words they did before the table", () => {
     dial_failed: "Call couldn't connect",
     inactivity: "Ended after silence",
     max_duration_reached: "Hit the call length limit",
-    concurrency_limit_reached: "Line was busy — all agents in use",
+    concurrency_limit_reached: "The line was busy",
     user_declined: "Customer declined the call",
     marked_as_spam: "Flagged as spam by the carrier",
     manual_stopped: "Ended from the dashboard",

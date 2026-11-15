@@ -79,7 +79,7 @@ test("the policy: a write, the workspace's, the owner's or the partner's (0012),
   });
 });
 
-test("with a listing linked and no receptionist, the receptionist is Google's: written at the next version, by its author, and recorded", async () => {
+test("with a listing linked and no receptionist, AI is Google's: written at the next version, by its author, and recorded", async () => {
   const t = tables({ config: { notifications: { escalation_emails: ["ada@example.com"] } }, listing: LISTED });
   const out = await receptionist.POST.run(post(), ctxFor(t));
   assert.deepEqual(out, { wrote: true });
@@ -112,7 +112,7 @@ test("with a listing linked and no receptionist, the receptionist is Google's: w
   assert.deepEqual(Object.keys(t.events[0].data).sort(), ["by", "fields", "version"]);
 });
 
-test("not on Google, the receptionist is the name typed at sign-up, with the product's own prompt and messages", async () => {
+test("not on Google, AI is the name typed at sign-up, with the product's own prompt and messages", async () => {
   const t = tables();
   assert.deepEqual(await receptionist.POST.run(post(), ctxFor(t)), { wrote: true });
   const saved = parseTenantConfig(t.tenant_config[0].config);
@@ -124,7 +124,7 @@ test("not on Google, the receptionist is the name typed at sign-up, with the pro
 test("a receptionist already set up is never replaced: Google fills only what it states none of, and nothing when it states it all", async () => {
   const brain = {
     business_name: "Harbor Moving",
-    system_prompt: "You are the receptionist for Harbor Moving, which quotes each move before it is booked.",
+    system_prompt: "You are AI for Harbor Moving, which quotes each move before it is booked.",
     fallbacks: { greeting: "g", error: "e", non_text: "n" },
   };
   // Set up with the name alone (not on Google, said), and the listing linked after: Google's facts are filled in.
@@ -157,7 +157,12 @@ test("a receptionist already set up is never replaced: Google fills only what it
   await refused(receptionist.POST.run(post(), broken), "conflict", 409, "could not be read");
   assert.equal(writes(broken), 0);
   const missing = { ...tables(), tenant_config: [] };
-  await refused(receptionist.POST.run(post(), ctxFor(missing)), "conflict", 409, "no settings record yet");
+  await refused(
+    receptionist.POST.run(post(), ctxFor(missing)),
+    "conflict",
+    409,
+    "Settings aren't ready for this workspace yet",
+  );
 });
 
 test("only an owner sets it up", async () => {
@@ -169,7 +174,7 @@ test("only an owner sets it up", async () => {
 test("a colleague who set one up first wins: nothing is written over theirs; a save of something else is the settings' own conflict", async () => {
   const brain = {
     business_name: "Harbor Moving Co",
-    system_prompt: "You are the receptionist for Harbor Moving Co, answering customers in a warm, short way.",
+    system_prompt: "You are AI for Harbor Moving Co, answering customers in a warm, short way.",
     fallbacks: { greeting: "g", error: "e", non_text: "n" },
   };
   // The read sees version 4 with no receptionist; by the write, a colleague's save has moved it to 5.
@@ -195,7 +200,7 @@ test("a colleague who set one up first wins: nothing is written over theirs; a s
   await refused(receptionist.POST.run(post(), other.ctx), "conflict", 409, "Someone else saved settings");
 });
 
-test("REGRESSION (row 20): setting the receptionist up keeps what a newer build stored, a section and a field inside one", async () => {
+test("REGRESSION (row 20): setting AI up keeps what a newer build stored, a section and a field inside one", async () => {
   // The config column is written whole. A section this build has never heard of, and a field inside one it has, were
   // left out of what was read, so they were left out of what was written back: deleted by a rolled-back dashboard's
   // first receptionist as by its settings save (contracts withStoredKeysKept). The ledger names only what changed.
@@ -207,12 +212,12 @@ test("REGRESSION (row 20): setting the receptionist up keeps what a newer build 
   assert.deepEqual(await receptionist.POST.run(post(), ctxFor(t)), { wrote: true });
   const row = t.tenant_config[0];
   assert.equal(row.version, 5, "written once, at the next version");
-  assert.equal(row.config.brain.business_name, "Harbor Moving", "the receptionist is set up from the workspace's name");
+  assert.equal(row.config.brain.business_name, "Harbor Moving", "AI is set up from the workspace's name");
   assert.deepEqual(row.config.guardrails, { no_prices: true }, "a section this build has never heard of is kept");
   assert.equal(row.config.notifications.digest_hour, 7, "and a field inside one it has");
   assert.deepEqual(row.config.notifications.escalation_emails, ["ada@example.com"]);
   assert.ok(
     t.events[0].data.fields.every((f) => f !== "guardrails" && f !== "digest_hour"),
-    "the ledger names the receptionist's fields, not the ones kept",
+    "the ledger names AI's fields, not the ones kept",
   );
 });
