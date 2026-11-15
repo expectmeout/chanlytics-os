@@ -16,8 +16,13 @@ import { isOneOf } from "../../shared/unknown";
 
 /** What a tick, a refusal and the Campaigns head say of offers by email. One owner for each sentence. */
 export const OFFERS_BY_EMAIL_WORDS = {
-  /** The deployment's campaigns domain is not set up or not verified yet. */
-  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
+  /**
+   * The deployment's campaigns domain is not set up or not verified yet: Chanlytics' own, nothing the owner can do, so it
+   * is said as a text's rule is ("Texts carry no offers."), true and asking nothing (the clean list, 14 Nov 2026). It names
+   * the news with the offers, since the business's own news by email is held with them (consent.ts isOfferByEmail), and a
+   * tick, a run and a refusal say this of either.
+   */
+  noCampaignsDomain: "Emails carry no offers or news for now.",
   /** The business has no postal address on file, which every offer's foot names. */
   noAddress: "Add your business's address to send offers by email.",
   /** The workspace's offers are paused by a gate. */
@@ -133,6 +138,12 @@ export interface EmailOffers {
   why: string | null;
   /** A gate holds them (the others are the deployment's and the business's to set up): the Campaigns head says so. */
   paused: OfferPause | null;
+  /**
+   * The door that opens them, where they are closed and the business has one (reach-for.ts ChannelMend): its postal
+   * address. Absent where they are open, or closed by what nothing the business does opens (Chanlytics' own domain, a
+   * gate's pause, a check that could not be made, Meta's pause on WhatsApp).
+   */
+  mend?: "address";
 }
 
 /**
@@ -154,7 +165,8 @@ export function emailOffersOpen(offerFacts: OfferFacts, couldNotBeChecked: strin
   if (offerFacts.campaigns === null) return { ok: false, why: couldNotBeChecked, paused: offerFacts.paused };
   if (!offerFacts.campaigns)
     return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain, paused: offerFacts.paused };
-  if (!offerFacts.address) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noAddress, paused: offerFacts.paused };
+  if (!offerFacts.address)
+    return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noAddress, paused: offerFacts.paused, mend: "address" };
   if (offerFacts.paused) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.paused, paused: offerFacts.paused };
   return { ok: true, why: null, paused: null };
 }

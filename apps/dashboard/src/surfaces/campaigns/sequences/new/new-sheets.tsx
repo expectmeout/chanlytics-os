@@ -27,6 +27,7 @@ import {
   sequenceStartModesFor,
   sequenceRoute,
   zonedInputValue,
+  type ChannelsReady,
   type ConsentChannel,
   type DraftWho,
   type MailboxHistory,
@@ -48,6 +49,7 @@ import { gate, routeDoor } from "../../../frame-verbs";
 import { pageClock } from "@/bridge/zone";
 import { HistoryChoice, historyKept } from "../../../settings/connections/history-choice";
 import { WhenDayTime } from "../../broadcasts/when";
+import { draftChoicesOf } from "@/lib/new-checks";
 import { Choice } from "./choice";
 import * as M from "./new-model";
 import { AudienceToggle, CaseNote } from "./new-parts";
@@ -477,16 +479,21 @@ export function HourSelect({ hour, onHour }: { hour: number; onHour: (h: number)
   );
 }
 
-/** The channels a one-off goes by: each person once, the first they can hear it on; a text never carries an offer. */
+/**
+ * The channels a one-off goes by: each person once, the first they can hear it on. Each row is the one rule's answer for
+ * its message here (new-checks.ts draftChoicesOf, the send door's own question): open, or closed in the rule's own words,
+ * with the door to Connections only where connecting the channel is what opens it. Nothing is offered that the send
+ * would refuse, and a rule nobody here can change asks for nothing.
+ */
 export function ChannelsSheet(p: {
   open: boolean;
   draft: NewDraftDto;
-  ready: readonly ConsentChannel[];
+  /** The workspace's channels now (DraftReads.channels). */
+  channels: ChannelsReady;
   onChannels: (c: ConsentChannel[]) => void;
   onClose: () => void;
 }) {
-  const offer = p.draft.steps[0]?.message?.offer ?? false;
-  const holds = p.draft.steps[0]?.message?.channels ?? [];
+  const choices = draftChoicesOf(p.draft, p.draft.steps[0]?.message ?? null, p.channels);
   const rows: { c: ConsentChannel; name: string }[] = [
     { c: "whatsapp", name: W.channels.whatsapp },
     { c: "email", name: W.channels.email },
@@ -510,20 +517,17 @@ export function ChannelsSheet(p: {
     >
       <div className="sq-nw-rows">
         {rows.map(({ c, name }) => {
-          const never = c === "sms" && offer;
-          const can = !never && holds.includes(c) && p.ready.includes(c);
+          const choice = choices.find((x) => x.channel === c);
+          const can = choice?.ok === true;
           const on = can && p.draft.channels.includes(c);
           return (
             <div key={c} className="sq-nw-switchrow" data-off={can ? undefined : "true"}>
               <span>
                 {name}
                 <small>
-                  {never ? (
-                    W.channels.noOffer
-                  ) : !holds.includes(c) ? (
-                    W.channels.noVersion
-                  ) : !p.ready.includes(c) ? (
-                    // Not connected: the door that connects it, where every "can't send on" door lands.
+                  {can ? (
+                    (countOf(c) ?? W.channels.can)
+                  ) : choice?.mend === "connect" ? (
                     <>
                       {W.channels.notReady} ·{" "}
                       <LinkButton size="inherit" {...routeDoor(CHANNELS_DOOR)} data-testid={`sq-nw-connect-${c}`}>
@@ -531,7 +535,7 @@ export function ChannelsSheet(p: {
                       </LinkButton>
                     </>
                   ) : (
-                    (countOf(c) ?? W.channels.can)
+                    (choice?.why ?? W.channels.notReady)
                   )}
                 </small>
               </span>

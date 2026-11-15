@@ -8,7 +8,7 @@
  * who has waited longest. The month's emails and texts (CAMPAIGN_MONTH_ALLOWANCE) are held against that run, as its
  * enrolment holds them (core campaigns/allowance.ts listPastTheMonth, over the run's own people), never against everyone.
  */
-import { allowanceBeforeSend, type MonthSent } from "../broadcasts/reach-for";
+import { allowanceBeforeSend, type MonthSent } from "../broadcasts/month-allowance";
 import type { SendPurpose } from "../../consent/consent";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import type { RunReach } from "./reach";

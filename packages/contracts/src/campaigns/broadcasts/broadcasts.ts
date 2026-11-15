@@ -41,7 +41,6 @@ export {
   NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
   newCampaignChannels,
   CHANNEL_WORDS,
-  CAMPAIGN_MONTH_ALLOWANCE,
   HELD_ON,
   channelRefuses,
   channelNeverCarries,
@@ -51,6 +50,12 @@ export {
   reachFor,
   reachSplit,
   reachSplitWords,
+} from "./reach-for";
+
+export type { ChannelReady, ChannelsReady, HeldOn, ReachRow, ReachSplit } from "./reach-for";
+
+export {
+  CAMPAIGN_MONTH_ALLOWANCE,
   heldByAllowance,
   allowanceRoom,
   pastAllowance,
@@ -59,9 +64,9 @@ export {
   allowanceBeforeSend,
   allowanceLine,
   allowanceLines,
-} from "./reach-for";
+} from "./month-allowance";
 
-export type { ChannelReady, ChannelsReady, HeldOn, MonthSent, MonthSentRead, ReachRow, ReachSplit } from "./reach-for";
+export type { MonthSent, MonthSentRead } from "./month-allowance";
 
 export {
   BROADCAST_FAILURES,

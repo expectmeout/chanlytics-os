@@ -59,7 +59,9 @@ export interface ErrorDetailsByCode {
     | { readonly fields: Readonly<Record<string, string>> }
     | { readonly issues: readonly { readonly words: string }[] }
     /** No mailbox is connected at all: New takes its mailbox off for it (contracts refusalNeedsMailbox). */
-    | { readonly needs: "mailbox" };
+    | { readonly needs: "mailbox" }
+    /** A rule closes the channel to this kind of message (a text never carries an offer): no page opens it. */
+    | { readonly mend: null };
   /** How long until the limit lets this through. */
   rate_limited: { readonly retry_after_s: number };
   /** The least role that may, so a page titles the refusal "Owner only" rather than guess it from the sentence. */
@@ -68,8 +70,16 @@ export interface ErrorDetailsByCode {
   unauthorized: { readonly session_ended: true };
   /** The record the person became (shell/refusal.ts combinedInto). */
   not_found: { readonly moved_to: string };
-  /** What a rehearsal may still use; or the address a reply will go to, for the member to confirm. */
-  conflict: { readonly allowance: unknown } | { readonly confirm_email_to: string };
+  /**
+   * What a rehearsal may still use; or the address a reply will go to, for the member to confirm; or, where a channel
+   * cannot carry the message here, the door that opens it (campaigns reach-for.ts ChannelMend: connecting the channel,
+   * the business's address) and null where nothing the business does opens it, so a card offers that page or none and
+   * never guesses one from the sentence (ask/proposals/spec.ts failureDoorOf).
+   */
+  conflict:
+    | { readonly allowance: unknown }
+    | { readonly confirm_email_to: string }
+    | { readonly mend: "connect" | "address" | null };
   /** The edge's reason, the code support reads. */
   upstream_voice: { readonly reason: string };
   upstream_anthropic: { readonly reason: string };

@@ -246,8 +246,6 @@ export const NEW_WORDS = {
     email: "Email",
     sms: "Text",
     can: "They can hear it this way",
-    noOffer: "A text can’t carry an offer",
-    noVersion: "This message has no version for it",
     notReady: "Not connected yet",
     leads: "To leads it is email alone, from your mailbox.",
     canHear: (n: number) => `${n} can hear it this way`,

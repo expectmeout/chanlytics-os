@@ -22,6 +22,7 @@ import {
   UNKNOWN_AUDIENCE_WORDS,
   clockWhen,
   localHour,
+  readyOrWhatsApp,
   sequenceRoute,
   whoSuits,
   zoneDayKey,
@@ -107,8 +108,10 @@ function useNewReads(sources: ReachOutSourceDto[] | null | undefined): {
   };
   const offered = pb.templates ?? [];
   const library = { messages: offered.flatMap((t) => (t.message ? [t.message] : [])), rows: offered };
-  // What it can send on now; where that could not be read, WhatsApp, as every send went before a channel was read.
-  const ready: ConsentChannel[] = pb.ready ? CONSENT_CHANNELS.filter((c) => pb.ready?.[c]?.ready) : ["whatsapp"];
+  // Its channels now, as the one rule reads them; where they could not be read, WhatsApp alone, as every send went
+  // before a channel was read (contracts readyOrWhatsApp).
+  const channels = readyOrWhatsApp(pb.ready);
+  const ready: ConsentChannel[] = CONSENT_CHANNELS.filter((c) => channels[c].ready);
   return {
     business: pb.businessName,
     // Which links a value may be filled with: Send it again puts right a slot it filled with a link no longer on file.
@@ -125,7 +128,7 @@ function useNewReads(sources: ReachOutSourceDto[] | null | undefined): {
     draft: {
       who,
       library,
-      ready,
+      channels,
       paused: pb.ready?.paused === true,
       today: zoneDayKey(Date.now(), pb.timezone),
       timezone: pb.timezone,
@@ -440,8 +443,8 @@ function shownDraftOf(
   if (!reads) return held ?? opened;
   const k = reads.draft.recount;
   if (held && held === kept)
-    return M.recounted(null, M.onReadyChannels({ ...held, reach: null }, reads.draft.ready), k);
-  return held ?? (opened ? M.recounted(null, M.onReadyChannels(opened, reads.draft.ready), k) : null);
+    return M.recounted(null, M.onReadyChannels({ ...held, reach: null }, reads.draft.channels), k);
+  return held ?? (opened ? M.recounted(null, M.onReadyChannels(opened, reads.draft.channels), k) : null);
 }
 
 /**

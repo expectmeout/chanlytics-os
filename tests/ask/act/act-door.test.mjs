@@ -127,6 +127,29 @@ test("D37: a refusal is one sentence and one way forward, and it is kept", async
   assert.equal(tables.ask_actions[0].state, "failed");
 });
 
+test("a refusal that says its own door is believed before its sentence: a rule's has none, so a card it stops is not sent to Connections (the review of 15 Nov 2026)", async () => {
+  const stopped = async (error) => {
+    const { ctx } = world([noteCard()]);
+    answers.push({ status: 409, json: { ok: false, error } });
+    return runAct(ctx, req(), member, { messageId: MSG, proposalId: "p-note", by: "press" });
+  };
+  const rule = "Emails carry no offers or news for now.";
+  assert.equal((await stopped({ code: "conflict", message: rule, details: { mend: null } })).forward, null);
+  assert.deepEqual(
+    (await stopped({ code: "conflict", message: rule })).forward,
+    { to: "admin/connections" },
+    "a refusal that names no door is read by its sentence, as before",
+  );
+  const mailbox = "Set up email in Settings › Connections first.";
+  assert.deepEqual((await stopped({ code: "conflict", message: mailbox, details: { mend: "connect" } })).forward, {
+    to: "admin/connections",
+  });
+  const address = "Add your business's address to send offers by email.";
+  assert.deepEqual((await stopped({ code: "conflict", message: address, details: { mend: "address" } })).forward, {
+    to: "admin/workspace",
+  });
+});
+
 test("D35: they wrote again since the card was made: nothing goes out, and it says so", async () => {
   const { ctx } = world([replyCard()], {
     conversations: [{ id: CONV, tenant_id: TENANT, state: "open", assignee_user_id: null, snooze_until: null }],

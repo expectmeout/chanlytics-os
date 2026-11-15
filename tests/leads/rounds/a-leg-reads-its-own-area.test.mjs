@@ -191,3 +191,15 @@ test("a top-up with nothing left to ask in its area names where the search looks
   assert.ok(after.nearby.length > 0, "it names the next area, which the round's end opens where the search widens");
   for (const area of after.nearby) assert.notEqual(area.label, card.plan.area.label);
 });
+
+test("a search of more places than one answer holds is read whole: the count, the checks and the next area all read it", async () => {
+  const { w } = searching({});
+  // One answer of the database holds a thousand rows (PostgREST's max_rows, which the world in memory keeps too).
+  const card = cardRoundRead(w, 1_003, 40);
+  const db = leadDb(w.db);
+  const ofRound = await db.membersOfRound(card.id);
+  assert.equal(ofRound.length, 1_003, "every member of the round, past the thousandth");
+  assert.equal(ofRound.filter((m) => m.counted).length, 40);
+  assert.equal(new Set(ofRound.map((m) => m.lead_id)).size, 1_003, "each read once: no page repeats or skips one");
+  assert.equal((await db.membersOfSearch(card.search_id)).length, 1_003, "and of the search");
+});

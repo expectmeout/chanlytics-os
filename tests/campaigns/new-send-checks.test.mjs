@@ -22,9 +22,11 @@ import {
   NEW_ONCE_AHEAD_DAYS,
   NEW_WORDS,
   NO_CHANNEL_REACH,
+  OFFERS_BY_EMAIL_WORDS,
   REACH_OUT_GAP_FIRST,
   allLeftOutWords,
   campaignMessagesOf,
+  channelsReady,
   emptyAudienceRefusal,
   noChannelWords,
   noYesWords,
@@ -37,6 +39,22 @@ const M = await import("../../apps/dashboard/src/surfaces/campaigns/sequences/ne
 
 const ID = (n) => `00000000-0000-4000-8000-00000000000${n}`;
 const ALL = ["whatsapp", "email", "sms"];
+/** Offers by email as the workspace's facts say them: open, or off while Chanlytics' own offers domain is. */
+const OFFERS_OPEN = { campaigns: true, address: true, paused: null };
+const OFFERS_OFF = { ...OFFERS_OPEN, campaigns: false };
+/**
+ * The workspace's channels as the one rule reads them (contracts channelsReady), with `on` connected: offers by email
+ * open unless `more.offers` says otherwise, and the WhatsApp number known only where `more.number` gives it (a US one is
+ * held by Meta's pause on offers).
+ */
+const ws = (on = ALL, more = {}) =>
+  channelsReady({
+    whatsapp: on.includes("whatsapp")
+      ? { canSend: true, refusal: null, ...(more.number ? { number: more.number } : {}) }
+      : null,
+    textLine: on.includes("sms") ? { sms_state: "active", reg_mock: false } : null,
+    email: { mailbox: on.includes("email"), domain: true, offers: more.offers ?? OFFERS_OPEN },
+  });
 /**
  * A count as GET playbooks answers one (server/campaigns/playbook-pools.ts PoolCounts): who can hear it of everyone it
  * names, why the rest cannot, and by channel; for WhatsApp alone, with `by` holding each other set it could tick.
@@ -128,12 +146,12 @@ const ROWS = [
   },
 ];
 const reads = (over = {}) => ({ counts: COUNTS, running: runningOf(ROWS), ready: ALL, ...over });
-const AT = { paused: false, localNow: "2026-10-20T14:30", ready: ALL };
+const AT = { paused: false, localNow: "2026-10-20T14:30", channels: ws() };
 
 /** A one-off by hand to `who` with `message` first, counted as the page counts it as it changes. */
 function once(who, message, { ready = ALL, channels = null, r = reads({ ready }) } = {}) {
   let d = M.setWho(M.draftByHand("once", "people", "Harbor Studio"), who);
-  d = M.setMessage(d, 0, message, ready);
+  d = M.setMessage(d, 0, message, ws(ready));
   if (channels) d = M.setChannels(d, channels);
   return M.recounted(null, d, r);
 }
@@ -233,37 +251,37 @@ test("a one-off is counted by the yes it needs or not at all: a list and everyon
 
 test("REGRESSION: nobody said yes is a door to getting their yes, naming the list in quotes and the yes by what the message is", () => {
   const offer = once(WALKINS, OFFER);
-  assert.deepEqual(M.nobodyOf(offer, ALL), { words: noYesWords("“Walk-ins”", "marketing"), door: { kind: "yes" } });
-  assert.match(M.nobodyOf(offer, ALL).words, /“Walk-ins” has said yes to offers/);
+  assert.deepEqual(M.nobodyOf(offer, ws()), { words: noYesWords("“Walk-ins”", "marketing"), door: { kind: "yes" } });
+  assert.match(M.nobodyOf(offer, ws()).words, /“Walk-ins” has said yes to offers/);
   // A message that is no offer needs a yes to messages, and says so (Ask's count, as it answered it, stands).
   const news = {
-    ...M.setMessage(M.setWho(M.draftByHand("once", "people", "Harbor Studio"), WALKINS), 0, NEWS, ALL),
+    ...M.setMessage(M.setWho(M.draftByHand("once", "people", "Harbor Studio"), WALKINS), 0, NEWS, ws()),
     reach: { can: 0, of: 5, left: NEW_WORDS.reach.neverYes(5), nobody: "no_yes" },
   };
   assert.equal(M.recounted(null, news, reads()), news, "Ask's count stands until something it was counted for changes");
-  assert.deepEqual(M.nobodyOf(news, ALL), {
+  assert.deepEqual(M.nobodyOf(news, ws()), {
     words: noYesWords("“Walk-ins”", "conversational"),
     door: { kind: "yes" },
   });
-  assert.match(M.nobodyOf(news, ALL).words, /has said yes to messages/);
+  assert.match(M.nobodyOf(news, ws()).words, /has said yes to messages/);
 });
 
 test("REGRESSION (#663): said yes with no number never asks for their yes again; it says who said it and what they lack", () => {
   // News by WhatsApp to Regulars, Ask's count standing: three said yes, none with a number. Its text version is a way the
   // workspace can send that the draft doesn't tick, so How it goes is the door; never Get their yes.
   const news = {
-    ...M.setChannels(M.setMessage(M.setWho(M.draftByHand("once", "people", "x"), REGULARS), 0, NEWS, ALL), [
+    ...M.setChannels(M.setMessage(M.setWho(M.draftByHand("once", "people", "x"), REGULARS), 0, NEWS, ws()), [
       "whatsapp",
     ]),
     reach: { can: 0, of: 4, left: NEW_WORDS.reach.noNumber(3), nobody: "no_reach", said_yes: 3 },
   };
-  const said = M.nobodyOf(news, ALL);
+  const said = M.nobodyOf(news, ws());
   assert.deepEqual(said, { words: saidYesWords("“Regulars”", "conversational", 0, 3), door: { kind: "how" } });
   assert.match(said.words, /none with a number to send to$/);
   // Counted as the page counts it: an offer by WhatsApp alone, its email version unticked.
   const offer = once(REGULARS, OFFER, { channels: ["whatsapp"] });
   assert.deepEqual([offer.reach.nobody, offer.reach.said_yes], ["no_reach", 3]);
-  assert.deepEqual(M.nobodyOf(offer, ALL), {
+  assert.deepEqual(M.nobodyOf(offer, ws()), {
     words: saidYesWords("“Regulars”", "marketing", 0, 3),
     door: { kind: "how" },
   });
@@ -271,12 +289,12 @@ test("REGRESSION (#663): said yes with no number never asks for their yes again;
   const all = once(REGULARS, OFFER);
   assert.deepEqual(all.channels, ["whatsapp", "email"]);
   // Email ticked: said as the send's own refusal says it, by what each channel asks of a person, never "a number" alone.
-  assert.deepEqual(M.nobodyOf(all, ALL), {
+  assert.deepEqual(M.nobodyOf(all, ws()), {
     words: emptyAudienceRefusal("marketing", "Regulars", [], { channels: ["whatsapp", "email"], about: "ours" }),
     door: null,
   });
-  assert.match(M.nobodyOf(all, ALL).words, /^Nobody on “Regulars” can be sent this yet\./);
-  for (const d of [news, offer, all]) assert.notDeepEqual(M.nobodyOf(d, ALL).door, { kind: "yes" });
+  assert.match(M.nobodyOf(all, ws()).words, /^Nobody on “Regulars” can be sent this yet\./);
+  for (const d of [news, offer, all]) assert.notDeepEqual(M.nobodyOf(d, ws()).door, { kind: "yes" });
 });
 
 test("no channel can carry it: Connect a channel the message holds that isn't connected, else How it goes; who said yes said with it", () => {
@@ -285,13 +303,13 @@ test("no channel can carry it: Connect a channel the message holds that isn't co
   const vip = once(VIP, OFFER, { ready });
   assert.deepEqual(vip.channels, ["email"], "the first message ticks only what can send now");
   assert.deepEqual([vip.reach.nobody, vip.reach.said_yes], ["no_channel", 38]);
-  assert.deepEqual(M.nobodyOf(vip, ready), {
+  assert.deepEqual(M.nobodyOf(vip, ws(ready)), {
     words: saidYesWords("“VIP clients”", "marketing", 0, 38, NO_CHANNEL_REACH),
     door: { kind: "connect", channel: "whatsapp" },
   });
   // Everything connected, WhatsApp unticked by the owner: How it goes is the cure.
   const unticked = once(VIP, OFFER, { channels: ["email"] });
-  assert.deepEqual(M.nobodyOf(unticked, ALL), {
+  assert.deepEqual(M.nobodyOf(unticked, ws()), {
     words: saidYesWords("“VIP clients”", "marketing", 0, 38, NO_CHANNEL_REACH),
     door: { kind: "how" },
   });
@@ -301,7 +319,7 @@ test("no channel can carry it: Connect a channel the message holds that isn't co
   });
   const waOnly = { ...OFFER, channels: ["whatsapp"] };
   const everyone = once(M.everyoneOf(true), waOnly, { r: usPause });
-  assert.deepEqual(M.nobodyOf(everyone, ALL), {
+  assert.deepEqual(M.nobodyOf(everyone, ws()), {
     words: saidYesWords(`“${EVERYONE_LABEL}”`, "marketing", 0, 26, NO_CHANNEL_REACH),
     door: null,
   });
@@ -309,16 +327,16 @@ test("no channel can carry it: Connect a channel the message holds that isn't co
   const none = reads({
     counts: { ...COUNTS, pools: { "seg:walkins": pool(0, { pool: 5, noYes: 5, saidYes: 0, no_channel: 5 }) } },
   });
-  assert.equal(M.nobodyOf(once(WALKINS, waOnly, { r: none }), ALL).words, noChannelWords("“Walk-ins”", "marketing"));
+  assert.equal(M.nobodyOf(once(WALKINS, waOnly, { r: none }), ws()).words, noChannelWords("“Walk-ins”", "marketing"));
 });
 
 test("REGRESSION: an offer whose one way is WhatsApp, not connected, ticks nothing and says what to connect -- never Pick how", () => {
   const W = NEW_WORDS.draft;
   const ready = ["email"];
-  const foot = { ...AT, ready };
+  const foot = { ...AT, channels: ws(ready) };
   const waOnly = { ...OFFER, channels: ["whatsapp"] };
   // Before who: the parts still to pick, and how is not one of them, since How has nothing it could tick.
-  const picked = M.setMessage(M.draftByHand("once", "people", "x"), 0, waOnly, ready);
+  const picked = M.setMessage(M.draftByHand("once", "people", "x"), 0, waOnly, ws(ready));
   assert.deepEqual(picked.channels, [], "nothing it can go by is connected: nothing ticked");
   assert.deepEqual(M.notReady(picked, foot), { lead: W.pick([W.parts.who]), sub: W.thenItCanGo });
   // VIP picked: counted on no channel, so the 38 who said yes are held for it, and the foot says what to connect.
@@ -329,12 +347,12 @@ test("REGRESSION: an offer whose one way is WhatsApp, not connected, ticks nothi
     lead: NEW_WORDS.reach.why.no_channel,
     sub: NEW_WORDS.reach.connect("whatsapp"),
   });
-  assert.deepEqual(M.nobodyOf(vip, ready), {
+  assert.deepEqual(M.nobodyOf(vip, ws(ready)), {
     words: saidYesWords("“VIP clients”", "marketing", 0, 38, NO_CHANNEL_REACH),
     door: { kind: "connect", channel: "whatsapp" },
   });
   // Nobody on it said yes either: the channel is still what is missing, said without a count of a yes.
-  assert.deepEqual(M.nobodyOf(once(WALKINS, waOnly, { ready }), ready), {
+  assert.deepEqual(M.nobodyOf(once(WALKINS, waOnly, { ready }), ws(ready)), {
     words: noChannelWords("“Walk-ins”", "marketing"),
     door: { kind: "connect", channel: "whatsapp" },
   });
@@ -344,7 +362,7 @@ test("REGRESSION: an offer whose one way is WhatsApp, not connected, ticks nothi
   const unticked = M.recounted(byEmail, M.setChannels(byEmail, []), reads({ ready }));
   assert.deepEqual([unticked.reach.can, unticked.reach.nobody], [0, "no_channel"]);
   assert.deepEqual(M.notReady(unticked, foot), { lead: W.pick([W.parts.how]), sub: W.thenItCanGo });
-  assert.equal(M.nobodyOf(unticked, ready), null);
+  assert.equal(M.nobodyOf(unticked, ws(ready)), null);
 });
 
 test("everyone heard from you this week is said as the week's breath, with no door; everyone is named Everyone", () => {
@@ -353,35 +371,35 @@ test("everyone heard from you this week is said as the week's breath, with no do
   });
   const d = once(M.everyoneOf(true), OFFER, { r: heard });
   assert.equal(d.who.label, NEW_WORDS.draft.everyoneOffers, "the draft says who it is by the yes");
-  assert.deepEqual(M.nobodyOf(d, ALL), { words: allLeftOutWords(EVERYONE_LABEL, 3), door: null });
+  assert.deepEqual(M.nobodyOf(d, ws()), { words: allLeftOutWords(EVERYONE_LABEL, 3), door: null });
   // Nobody of everyone said yes to offers: their yes, by the list's own name.
   const noYes = reads({
     counts: { ...COUNTS, pools: { everyone_monthly: pool(0, { pool: 9, noYes: 9, saidYes: 0 }) } },
   });
-  assert.deepEqual(M.nobodyOf(once(M.everyoneOf(true), OFFER, { r: noYes }), ALL), {
+  assert.deepEqual(M.nobodyOf(once(M.everyoneOf(true), OFFER, { r: noYes }), ws()), {
     words: noYesWords(`“${EVERYONE_LABEL}”`, "marketing"),
     door: { kind: "yes" },
   });
 });
 
 test("no card where someone can hear it, where how is still to pick, or where it is no one-off to people", () => {
-  assert.equal(M.nobodyOf(once(VIP, OFFER), ALL), null, "38 can hear it");
+  assert.equal(M.nobodyOf(once(VIP, OFFER), ws()), null, "38 can hear it");
   // How still to pick: counted, nothing carries it, and the foot already says so (the send screen's rule).
   const walkins = once(WALKINS, OFFER);
   const noHow = M.recounted(walkins, M.setChannels(walkins, []), reads());
   assert.deepEqual([noHow.reach.can, noHow.reach.nobody], [0, "no_channel"]);
-  assert.equal(M.nobodyOf(noHow, ALL), null);
+  assert.equal(M.nobodyOf(noHow, ws()), null);
   assert.deepEqual(M.notReady(noHow, AT), {
     lead: NEW_WORDS.draft.pick([NEW_WORDS.draft.parts.how]),
     sub: NEW_WORDS.draft.thenItCanGo,
   });
-  assert.equal(M.nobodyOf(M.draftByHand("once", "people", "x"), ALL), null, "no one picked");
+  assert.equal(M.nobodyOf(M.draftByHand("once", "people", "x"), ws()), null, "no one picked");
   const sequence = {
     ...M.setWho(M.draftByHand("sequence", "people", "x"), WALKINS),
     channels: ["whatsapp"],
     reach: { can: 0, of: 5, left: null, nobody: "no_yes" },
   };
-  assert.equal(M.nobodyOf(sequence, ALL), null, "a sequence runs on: nobody today still starts");
+  assert.equal(M.nobodyOf(sequence, ws()), null, "a sequence runs on: nobody today still starts");
 });
 
 /* ------------------------------------- counted again as it changes ------------------------------------- */
@@ -389,7 +407,7 @@ test("no card where someone can hear it, where how is still to pick, or where it
 test("who, how and the message picked count it again: its reach, its twin and its checks follow the choice in front of the owner", () => {
   const C = NEW_WORDS.checks;
   const r = reads();
-  let prev = M.recounted(null, M.setMessage(M.draftByHand("sequence", "people", "x"), 0, NEWS, ALL), r);
+  let prev = M.recounted(null, M.setMessage(M.draftByHand("sequence", "people", "x"), 0, NEWS, ws()), r);
   assert.equal(prev.reach, null, "no one picked yet");
   // A win-back runs on the quiet ones already: a second would send twice.
   let next = M.recounted(prev, M.setWho(prev, { kind: "moment", trigger: "quiet_30", label: "when they go quiet" }), r);
@@ -422,7 +440,7 @@ test("who, how and the message picked count it again: its reach, its twin and it
   assert.deepEqual([byEmail.reach.can, byEmail.reach.held], [141, undefined]);
   assert.ok(byEmail.checks.some((c) => c.words === C.byEmail(141)));
   // The message turned news: everyone is said by the yes it needs, and is no longer counted by the yes to offers.
-  off = M.recounted(off, M.setMessage(off, 0, NEWS, ALL), r);
+  off = M.recounted(off, M.setMessage(off, 0, NEWS, ws()), r);
   assert.deepEqual([off.who.label, off.reach, off.channels], [NEW_WORDS.draft.everyoneNews, null, ["whatsapp", "sms"]]);
   assert.equal(
     off.checks.some((c) => c.words === C.offersOnly),
@@ -434,7 +452,7 @@ test("what Ask answered stands until something it was counted for changes; a dra
   const r = reads();
   // Ask's draft, as it answered: its count kept, though the page would count it otherwise.
   const asked = {
-    ...M.setWho(M.setMessage(M.draftByHand("once", "people", "x"), 0, OFFER, ALL), VIP),
+    ...M.setWho(M.setMessage(M.draftByHand("once", "people", "x"), 0, OFFER, ws()), VIP),
     reach: { can: 99, of: null, left: null },
   };
   assert.equal(M.recounted(null, asked, r), asked);
@@ -468,7 +486,7 @@ test("then a value left blank, by its name where it has one; then a time gone by
   const nameless = M.setTyped(once(VIP, { ...OFFER, labels: ["First name", "Value 2"] }), 0, 1, "");
   assert.deepEqual(M.notReady(nameless, AT), { lead: W.fill(null), sub: W.thenItCanGo }, "“Value 2” is no name");
   const sequence = M.setTyped(
-    M.setMessage(M.setWho(M.draftByHand("sequence", "people", "x"), VIP), 0, OFFER, ALL),
+    M.setMessage(M.setWho(M.draftByHand("sequence", "people", "x"), VIP), 0, OFFER, ws()),
     0,
     1,
     "",
@@ -518,20 +536,20 @@ test("a one-off to leads on a search with none ready yet is not stopped: it take
   const d = M.recounted(null, M.setWho(M.draftByHand("once", "leads", "x"), trainers), r);
   assert.deepEqual(d.reach, { can: 0, of: null, left: NEW_WORDS.reach.checking(3) });
   assert.equal(M.notReady(d, AT), null, "no one to send to stops a one-off to people alone");
-  assert.equal(M.nobodyOf(d, ALL), null);
+  assert.equal(M.nobodyOf(d, ws()), null);
   // The same nobody on a one-off to people stops it.
   assert.equal(M.notReady(once(WALKINS, OFFER), AT).lead, NEW_WORDS.reach.nobody);
 });
 
 test("a person's first message ticks the channels it holds that can send now, never one nothing can carry", () => {
   const d = M.setWho(M.draftByHand("once", "people", "x"), M.everyoneOf(false));
-  const picked = M.setMessage(d, 0, OFFER, ["email", "sms"]);
+  const picked = M.setMessage(d, 0, OFFER, ws(["email", "sms"]));
   assert.deepEqual(picked.channels, ["email"]);
   assert.equal(picked.who.label, NEW_WORDS.draft.everyoneOffers, "everyone is said by the offer's yes");
-  assert.deepEqual(M.setMessage(d, 0, OFFER, ALL).channels, ["whatsapp", "email"]);
+  assert.deepEqual(M.setMessage(d, 0, OFFER, ws()).channels, ["whatsapp", "email"]);
   assert.deepEqual(M.setMessage(d, 0, OFFER).channels, ["whatsapp", "email"], "with no ready read, what it holds");
   assert.deepEqual(
-    M.setMessage(d, 0, NEWS, ["email"]).channels,
+    M.setMessage(d, 0, NEWS, ws(["email"])).channels,
     [],
     "nothing it holds can go: none, and the foot asks how",
   );
@@ -540,15 +558,57 @@ test("a person's first message ticks the channels it holds that can send now, ne
 test("REGRESSION: a text never carries an offer -- an offer with a text version is not ticked by text, nor offered Connect texting", () => {
   const withText = { ...OFFER, channels: ["whatsapp", "sms"] };
   const d = M.setWho(M.draftByHand("once", "people", "x"), M.everyoneOf(true));
-  assert.deepEqual(M.setMessage(d, 0, withText, ALL).channels, ["whatsapp"], "its text version is no way to send it");
-  assert.deepEqual(M.setMessage(d, 0, NEWS, ALL).channels, ["whatsapp", "sms"], "news goes by text as by WhatsApp");
+  assert.deepEqual(M.setMessage(d, 0, withText, ws()).channels, ["whatsapp"], "its text version is no way to send it");
+  assert.deepEqual(M.setMessage(d, 0, NEWS, ws()).channels, ["whatsapp", "sms"], "news goes by text as by WhatsApp");
   // Meta's pause on offers to US numbers, texting not connected: connecting it would carry no offer, so no door.
   const usPause = reads({
     ready: ["whatsapp"],
     counts: { ...COUNTS, pools: { everyone_monthly: pool(0, { pool: 26, saidYes: 26, no_channel: 26 }) } },
   });
   const everyone = once(M.everyoneOf(true), withText, { ready: ["whatsapp"], r: usPause });
-  assert.equal(M.nobodyOf(everyone, ["whatsapp"]).door, null);
+  assert.equal(M.nobodyOf(everyone, ws(["whatsapp"])).door, null);
+});
+
+test("REGRESSION (the review of 15 Nov 2026): New ticks what the send itself takes -- no news or offer by email while offers by email are off, no offer by WhatsApp from a US number, and never Pick how with nothing to pick", () => {
+  const d = M.setWho(M.draftByHand("once", "people", "x"), VIP);
+  const off = ws(ALL, { offers: OFFERS_OFF });
+  // A one-off is the business's own news whatever it says, and the send holds news by email with the offers: not ticked.
+  const newsByEmail = { ...NEWS, channels: ["whatsapp", "email"] };
+  assert.deepEqual(M.setMessage(d, 0, newsByEmail, off).channels, ["whatsapp"]);
+  assert.deepEqual(M.setMessage(d, 0, OFFER, off).channels, ["whatsapp"], "nor an offer's email");
+  // A sequence at a visit's moment is about their own visit: its email goes whatever offers by email are doing.
+  const dayBefore = { kind: "moment", trigger: "visit_tomorrow", label: "The day before" };
+  const reminder = M.setWho(M.draftByHand("sequence", "people", "x"), dayBefore);
+  assert.deepEqual(M.setMessage(reminder, 0, newsByEmail, off).channels, ["whatsapp", "email"]);
+  // An offer from a US number: WhatsApp delivers none there, so it is not ticked though the message holds a version.
+  const us = ws(ALL, { number: "+12025550123" });
+  assert.deepEqual(M.setMessage(d, 0, OFFER, us).channels, ["email"]);
+  assert.deepEqual(M.setMessage(d, 0, newsByEmail, us).channels, ["whatsapp", "email"], "its news still goes");
+  // An email-only business picks an offer while offers by email are off: nothing can be ticked and nothing connected
+  // would open a way, so the foot says why, in the rule's own words, and never "Pick how it goes".
+  const emailOnly = ws(["email"], { offers: OFFERS_OFF });
+  const byEmail = { ...OFFER, channels: ["email"] };
+  const stuck = M.setMessage(d, 0, byEmail, emailOnly);
+  assert.deepEqual(stuck.channels, []);
+  assert.deepEqual(M.notReady(stuck, { ...AT, channels: emailOnly }), {
+    lead: NEW_WORDS.reach.why.no_channel,
+    sub: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain,
+  });
+  // The address is the business's own to add: said in the words that name it, before any reason nothing changes.
+  const noAddress = ws(ALL, { number: "+12025550123", offers: { ...OFFERS_OPEN, address: false } });
+  assert.equal(
+    M.notReady(M.setMessage(d, 0, OFFER, noAddress), { ...AT, channels: noAddress }).sub,
+    OFFERS_BY_EMAIL_WORDS.noAddress,
+  );
+  // A US number and offers by email off: what waits is said, since it is what will open.
+  const both = ws(ALL, { number: "+12025550123", offers: OFFERS_OFF });
+  assert.equal(
+    M.notReady(M.setMessage(d, 0, OFFER, both), { ...AT, channels: both }).sub,
+    OFFERS_BY_EMAIL_WORDS.noCampaignsDomain,
+  );
+  // A draft kept from before with email ticked, opened again: the tick the send would refuse is gone.
+  const kept = { ...M.setMessage(d, 0, OFFER, ws()), channels: ["whatsapp", "email"] };
+  assert.deepEqual(M.onReadyChannels(kept, off).channels, ["whatsapp"]);
 });
 
 test("REGRESSION: Step 1 can go by what the draft ticks, of what can send now -- an offer holding a text version never says “or text”", () => {
@@ -579,20 +639,20 @@ test("REGRESSION: Step 1 can go by what the draft ticks, of what can send now --
 test("a draft opened from before goes by what is connected now: a closed channel is unticked for people, a lead's email kept", () => {
   const people = once(VIP, OFFER);
   assert.deepEqual(people.channels, ["whatsapp", "email"]);
-  assert.deepEqual(M.onReadyChannels(people, ["email", "sms"]).channels, ["email"]);
-  assert.equal(M.onReadyChannels(people, ALL).channels.join(), "whatsapp,email", "all still connected: as it was");
+  assert.deepEqual(M.onReadyChannels(people, ws(["email", "sms"])).channels, ["email"]);
+  assert.equal(M.onReadyChannels(people, ws()).channels.join(), "whatsapp,email", "all still connected: as it was");
   // Its one way closed since: nothing ticked, and the foot says what to connect rather than asking how.
   const waOnly = once(VIP, { ...OFFER, channels: ["whatsapp"] });
-  const closed = M.onReadyChannels(waOnly, ["email"]);
+  const closed = M.onReadyChannels(waOnly, ws(["email"]));
   const reopened = M.recounted(waOnly, closed, reads({ ready: ["email"] }));
   assert.deepEqual(reopened.channels, []);
-  assert.deepEqual(M.notReady(reopened, { ...AT, ready: ["email"] }), {
+  assert.deepEqual(M.notReady(reopened, { ...AT, channels: ws(["email"]) }), {
     lead: NEW_WORDS.reach.why.no_channel,
     sub: NEW_WORDS.reach.connect("whatsapp"),
   });
   // A one-off to leads goes from the mailbox by email whatever the people channels are.
   const leads = M.setWho(M.draftByHand("once", "leads", "x"), { kind: "search", id: ID(9), label: "Trainers" });
-  assert.equal(M.onReadyChannels(leads, ["whatsapp"]), leads);
+  assert.equal(M.onReadyChannels(leads, ws(["whatsapp"])), leads);
   assert.deepEqual(leads.channels, ["email"]);
 });
 

@@ -19,7 +19,7 @@ import {
   stateOfZip,
 } from "../../../packages/core/src/leads/geo.ts";
 import { judgeBatch, factsOf, fact, JUDGE_REFUSED_REASON } from "../../../packages/core/src/leads/judge.ts";
-import { probeAsk, mainAsk, runCaps, yieldOf } from "../../../packages/core/src/leads/sizing.ts";
+import { probeAsk, mainAsk, probeYield, runCaps, yieldOf } from "../../../packages/core/src/leads/sizing.ts";
 import { afterProbe } from "../../../packages/core/src/leads/question.ts";
 import { discoveryEnding, termsShortOf, runStateOf } from "../../../packages/core/src/leads/endings.ts";
 import { leadMarkFrom, leadMarksFrom } from "../../../packages/core/src/leads/mark.ts";
@@ -253,6 +253,23 @@ test("a batch is judged in the round it belongs to: the workspace and the round 
   n = 1;
   await judgeBatch(judge, PLAN, [f], "op-5");
   assert.deepEqual(seen, [[undefined, undefined]]);
+});
+
+test("sizing: the probe's yield counts what the search's standard counts: an email search sizes from the places with an email, never from a phone", () => {
+  // Twenty places the probe judged: two left out, every one of the rest with a phone that dials, eight with an email.
+  const probe = Array.from({ length: 20 }, (_, i) => ({
+    class: i < 2 ? "excluded" : "review",
+    phone: "+15125550100",
+    email: i >= 2 && i < 10 ? `owner${i}@example.com` : null,
+  }));
+  assert.equal(probeYield(probe, "phone"), 0.9, "made for calls: a phone that dials is a way to count");
+  assert.equal(probeYield(probe, "email"), 0.4, "made for email: only a place with an email can come to count");
+  // What that does to the main phase of a search for 300: the phone's yield asked for 1.2 times the count and stopped
+  // far short of it; the email's asks for the places its count needs.
+  const plan = { ...PLAN, contact: "email", count: 300 };
+  const places = (y) =>
+    mainAsk(plan, 300, y, null, 5, { read: new Map(), begun: new Set() }).perTerm.reduce((a, b) => a + b, 0);
+  assert.ok(places(probeYield(probe, "email")) > places(probeYield(probe, "phone")));
 });
 
 test("sizing: the probe spreads 25 across the terms; the main phase divides the remainder by the yield within 1.2x and 4x; caps carry headroom, fit the reserve, never go under the floor", () => {

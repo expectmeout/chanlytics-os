@@ -1445,7 +1445,7 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
       post(tablesFor(), { channels: ["email"] }).run,
       "conflict",
       409,
-      "Offers by email start once the campaigns domain is set up.",
+      "Emails carry no offers or news for now.",
     );
     // The edge could not be asked: not offered, and said so, never guessed ready.
     await edgeSays(new Error("connect ECONNREFUSED"));
@@ -1509,7 +1509,7 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
       post(tablesFor(offer), { channels: ["email"] }).run,
       "conflict",
       409,
-      "Offers by email start once the campaigns domain is set up.",
+      "Emails carry no offers or news for now.",
     );
     await refused(post(tablesFor(offer), { channels: ["sms"] }).run, "validation", 400, "Texts carry no offers.");
     await refused(

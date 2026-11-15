@@ -4,18 +4,24 @@
  * (validateTemplateDraft, so the body is this verb's own to read); what Meta then says (pending, approved, rejected
  * with a reason) is the row's status, kept current by the webhook. The submission itself is the edge's
  * (meta-templates.ts createTemplate), as every write that leaves for a provider is. A message written whole
- * (write-message.ts, POST templates/message) submits its WhatsApp version through the same verb (submitDraft).
+ * (write-message.ts, POST templates/message) submits its WhatsApp version through the same verb (submitDraft). So the
+ * verb is the floor under every writer: what a rule closes WhatsApp to for this business (contracts channelRuledOut: an
+ * offer from a number Meta's pause holds) is refused here, whichever page, card or body asked for it.
  */
 import {
   AppError,
   LIBRARY_WORDS,
   TEMPLATE_SAME_NAME_WORDS,
+  channelRuledOut,
+  purposeOfTemplate,
   templateComponents,
   validateTemplateDraft,
   textOrEmpty,
   valueAt,
+  whatsappOffersOpen,
+  type TenantId,
 } from "@chanlytics/contracts";
-import { findTemplateId } from "@chanlytics/db/campaigns";
+import { findTemplateId, findWhatsappChannelFacts } from "@chanlytics/db/campaigns";
 import { readJsonBody } from "@/server/shared/request-guards";
 import { createTemplate } from "@/server/campaigns/meta-templates";
 import type { EdgeReason } from "@/server/shared/edge";
@@ -66,6 +72,15 @@ export function submitRefusal(r: { reason: EdgeReason; detail?: string }): AppEr
   return new AppError(theirs ? "conflict" : "upstream_meta", sentence, theirs ? 409 : 502);
 }
 
+/**
+ * Whether offers can go by WhatsApp from this workspace's number (contracts whatsappOffersOpen), read where a writer holds
+ * no channels read: null where it has no number, which holds nothing.
+ */
+export async function getWhatsAppOffers(ctx: RouteContext, tenantId: TenantId) {
+  const line = await findWhatsappChannelFacts(ctx.supabase, tenantId);
+  return line ? whatsappOffersOpen(line.number) : null;
+}
+
 export async function submitTemplate(ctx: RouteContext, req: Request, member: Member, review?: ReviewWords) {
   return submitDraft(ctx, member, (await readJsonBody(req)) as TemplateAsked | null, review);
 }
@@ -96,6 +111,14 @@ export async function submitDraft(ctx: RouteContext, member: Member, body: Templ
   });
   if (!check.ok) throw new AppError("validation", check.error);
   const value = check.value;
+  // The floor (the review of 15 Nov 2026): a WhatsApp version of a message already on file, or another language of it,
+  // came here past the writers' own question, and an offer went to Meta's review from a number no offer leaves by.
+  const ruled = channelRuledOut(
+    "whatsapp",
+    purposeOfTemplate(value.category),
+    await getWhatsAppOffers(ctx, member.tenantId),
+  );
+  if (ruled) throw new AppError("conflict", ruled, 409, { mend: null });
 
   const dup = await findTemplateId(ctx.supabase, member.tenantId, value.name, value.language);
   // A name and language this workspace already holds, refused as a message written whole and Ask's card refuse it.
