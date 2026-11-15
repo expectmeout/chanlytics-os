@@ -332,7 +332,7 @@ function withoutClaimedWrite(
   input: Pick<TurnInput, "language" | "tenantId">,
   created: readonly AskProposal[],
 ): AskAnswer {
-  if (created.length === 0 || !claimsWrite(answer.say.headline)) return answer;
+  if (created.length === 0 || !claimsWrite(answer.say.headline, { besideCards: true })) return answer;
   log.warn("ask_answer_claimed_write", { cards: created.length, tenant_id: input.tenantId });
   return {
     ...answer,

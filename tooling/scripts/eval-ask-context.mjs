@@ -566,7 +566,8 @@ export function namesCard(m, first) {
   const kinds = new Set(cards.map((p) => p.kind));
   const again = [...new Set((m?.proposals ?? []).map((p) => p.kind).filter((k) => kinds.has(k)))];
   if (again.length) fails.push(`a second ${again.join("/")} card, where turn 1's is one press above`);
-  if (claimsWrite(text)) fails.push(`the answer claims the card was done: “${text.slice(0, 120)}”`);
+  if (claimsWrite(text, { besideCards: true }))
+    fails.push(`the answer claims the card was done: “${text.slice(0, 120)}”`);
   return fails;
 }
 

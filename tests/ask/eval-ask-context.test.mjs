@@ -470,7 +470,7 @@ test("an answer that says it did something is a claim: sent, changed, approved, 
     "He enviado la respuesta.",
     "Done, it's saved.",
   ])
-    assert.equal(claimsWrite(said), true, said);
+    assert.equal(claimsWrite(said, { besideCards: false }), true, said);
   for (const said of [
     "The “Remember this” card is above: approve it there.",
     "Once you've approved it, AI will say so.",
@@ -478,7 +478,7 @@ test("an answer that says it did something is a claim: sent, changed, approved, 
     "Apruébala arriba; nada pasa hasta entonces.",
     "The card is waiting for your approval.",
   ])
-    assert.equal(claimsWrite(said), false, said);
+    assert.equal(claimsWrite(said, { besideCards: false }), false, said);
   // A draft or a message the answer quotes is someone else's words, never a claim of the answer's own; the same words
   // unquoted are, as the headline's one-sentence check reads only the headline's own.
   for (const said of [
@@ -486,9 +486,9 @@ test("an answer that says it did something is a claim: sent, changed, approved, 
     "The card says “Done, see you Friday.” once you send it.",
     "Robin wrote «I sent it yesterday» and is waiting.",
   ])
-    assert.equal(claimsWrite(said), false, said);
-  assert.equal(claimsWrite("Hi Robin, I've sent the link again."), true);
-  assert.equal(claimsWrite('"Hi Robin." I\'ve sent the link again.'), true, "a claim beside a quote is a claim");
+    assert.equal(claimsWrite(said, { besideCards: false }), false, said);
+  assert.equal(claimsWrite("Hi Robin, I've sent the link again.", { besideCards: false }), true);
+  assert.ok(claimsWrite('"Hi Robin." I\'ve sent the link again.', { besideCards: false }), "beside a quote, a claim");
 });
 
 const CARD = {
