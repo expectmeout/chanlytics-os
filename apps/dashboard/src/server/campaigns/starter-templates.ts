@@ -43,9 +43,9 @@ import {
   starterByKey,
   startersForTrigger,
   startersOffered,
+  parseTenantConfig,
   starterDraft,
-  starterEmailText,
-  starterSmsText,
+  starterLanguageOf,
   starterText,
   templateComponents,
   momentNamesVisit,
@@ -76,7 +76,9 @@ import {
   listTemplatesNamed,
   findWhatsappChannelFacts,
 } from "@chanlytics/db/campaigns";
+import { logAndGoOn } from "@chanlytics/log";
 import { templateValuePorts } from "@/server/campaigns/ports";
+import { getStoredConfig } from "@/server/workspace/config-row";
 import { whatsappWrittenHere } from "@/server/campaigns/write-message";
 import { readJsonBody } from "@/server/shared/request-guards";
 import { createTemplate, syncTemplates } from "@/server/campaigns/meta-templates";
@@ -153,11 +155,22 @@ async function startersHere(ctx: RouteContext, tenantId: TenantId, keys: unknown
 }
 
 /**
+ * The language a starter is filed in here (contracts starterLanguageOf): its customers', by the languages the business's
+ * profile says it answers in, as New and the step editor show it. A profile that could not be read names none: English.
+ */
+async function starterLanguageHere(ctx: RouteContext, tenantId: TenantId, starter: StarterTemplate): Promise<string> {
+  const config = await getStoredConfig(ctx.supabase, tenantId)
+    .then(parseTenantConfig)
+    .catch(logAndGoOn("starter language", null));
+  return starterLanguageOf(starter, config?.brain?.profile?.languages);
+}
+
+/**
  * POST templates/starter: starters filed as a use of them asks (the clean list, 14 Nov 2026): a sequence's step editor
  * files the one it picked, on the sequence's channels, as its Save is pressed. No page adds the set, nor a starter by
- * itself, and nothing is filed as a number connects: a starter is ready to use as it is, and goes to WhatsApp for review
- * the first time something sends it. Asked for one starter in one language, the answer names the version a step sends
- * (`template_id`, its message's anchor; null where nothing of it is on file).
+ * itself: a starter is ready to use as it is, and goes to WhatsApp for review the first time something sends it (or, for
+ * one already in use, as a number connects: fileStartersWhatsAppOnConnect). Asked for one starter in one language, the
+ * answer names the version a step sends (`template_id`, its message's anchor; null where nothing of it is on file).
  */
 export async function addStarterTemplates(ctx: RouteContext, req: Request, member: Member) {
   const filed = await fileStarters(ctx, member.tenantId, ((await readJsonBody(req)) as StartersAsked | null) ?? {});
@@ -334,6 +347,8 @@ interface StarterJudged {
   starter: StarterTemplate;
   /** Its slots, filled with the starter's own sources (contracts defaultParamSpecs, the starter's slots in English). */
   params: ParamSpec[];
+  /** The language it is filed in here (starterLanguageHere), which what is on file is read in too. */
+  language: string;
   cls: PlaybookPolicyClass;
   /** The channels the campaign goes by: those named, or, named none, those held at once and WhatsApp where there is a number. */
   channels: ConsentChannel[];
@@ -362,17 +377,22 @@ async function momentLabel(ctx: RouteContext, tenantId: TenantId, trig: Trigger)
  * the WhatsApp version on file, where there is one, may yet send: one WhatsApp refused, paused or disabled, or one this
  * product cannot send whole, never will.
  */
-async function heldAtOnce(ctx: RouteContext, tenantId: TenantId, starter: StarterTemplate, purpose: AskedPurpose) {
+async function heldAtOnce(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  starter: StarterTemplate,
+  on: { purpose: AskedPurpose; language: string },
+) {
+  const { purpose, language } = on;
   const [rows, line] = await Promise.all([
-    listMessageVersionRows(ctx.supabase, tenantId, { name: starter.name, language: STARTER_LANGUAGE }),
+    listMessageVersionRows(ctx.supabase, tenantId, { name: starter.name, language }),
     findWhatsappChannelFacts(ctx.supabase, tenantId),
   ]);
-  const onFile = campaignMessageOf(rows, starter.name, STARTER_LANGUAGE);
+  const onFile = campaignMessageOf(rows, starter.name, language);
   const held = onFile ? messageHolds(onFile) : null;
+  // What the filing writes at once, in this language exactly (template-versions.ts starterWords): no English stand-in.
   const writes = (c: ConsentChannel) =>
-    c === "email"
-      ? starterEmailText(starter, STARTER_LANGUAGE) !== null
-      : c === "sms" && starterSmsText(starter, STARTER_LANGUAGE) !== null;
+    c === "email" ? !!starter.email?.[language] : c === "sms" && !!starter.sms?.[language];
   const atOnce = CONSENT_CHANNELS.filter((c) => channelNeverCarries(c, purpose) === null && (held?.[c] || writes(c)));
   const wa = onFile?.versions.whatsapp ?? null;
   const whatsappMaySend = !wa || (wa.blocked === null && (wa.status === "approved" || wa.status === "pending"));
@@ -470,7 +490,8 @@ export async function checkStarterPlaybook(
   const starter = startersForTrigger(trig.id).find((s) => s.key === key && !s.retired);
   if (!starter)
     throw new AppError("validation", LIBRARY_STARTER_WORDS.notThisMoment(await momentLabel(ctx, tenantId, trig)));
-  if (starterText(starter, STARTER_LANGUAGE).slots.some((s) => s.kind === "text"))
+  const language = await starterLanguageHere(ctx, tenantId, starter);
+  if (starterText(starter, language).slots.some((s) => s.kind === "text"))
     throw new AppError("validation", LIBRARY_STARTER_WORDS.takesOwnWords(starter.title));
   const fit = messageFitsMoment(cls, starter.category);
   if (!fit.ok) throw new AppError("validation", fit.words);
@@ -485,7 +506,7 @@ export async function checkStarterPlaybook(
   const named = body.channels === undefined || body.channels === null ? null : parseChannels(body.channels);
   const never = (named ?? []).map((c) => channelNeverCarries(c, purpose)).find((w) => w !== null);
   if (never) throw new AppError("validation", never);
-  const held = await heldAtOnce(ctx, tenantId, starter, purpose);
+  const held = await heldAtOnce(ctx, tenantId, starter, { purpose, language });
   // WhatsApp named for an offer no one here can be sent by it (a US number): refused in the pause's own words.
   if (named?.includes("whatsapp") && !held.whatsappWritten && held.whatsappOffers?.why)
     throw new AppError("validation", held.whatsappOffers.why, undefined, { mend: null });
@@ -493,6 +514,7 @@ export async function checkStarterPlaybook(
   return {
     starter,
     params,
+    language,
     cls,
     channels,
     whatsappOnFile: held.whatsapp,
@@ -519,7 +541,10 @@ export async function withStarterMessage(
   const { starter_key: _key, ...rest } = record;
   // Every check that could refuse the card, before anything is filed: nothing reaches Meta for a card that is refused.
   const judged = await checkStarterPlaybook(ctx, member.tenantId, record);
-  const { result, message } = await filedForUse(ctx, member.tenantId, judged.starter, judged.channels);
+  const { result, message } = await filedForUse(ctx, member.tenantId, judged.starter, {
+    channels: judged.channels,
+    language: judged.language,
+  });
   const holds = message ? messageHolds(message) : null;
   if (!result || !message || !judged.channels.some((c) => holds?.[c])) throw notFiled(result);
   return {
@@ -531,19 +556,20 @@ export async function withStarterMessage(
 /* ---- A starter filed the first time something uses it ---- */
 
 /**
- * One starter filed in English on the channels a use goes by (fileStarters), and its message as the filing left it, read
- * back (null where no version of it is on file).
+ * One starter filed in its language here (starterLanguageHere) on the channels a use goes by (fileStarters), and its
+ * message as the filing left it, read back (null where no version of it is on file).
  */
 async function filedForUse(
   ctx: RouteContext,
   tenantId: TenantId,
   starter: StarterTemplate,
-  channels: readonly ConsentChannel[],
+  use: { channels: readonly ConsentChannel[]; language: string },
 ) {
-  const filed = await fileStarters(ctx, tenantId, { keys: [starter.key], languages: [STARTER_LANGUAGE], channels });
-  const result = filed.results.find((r) => r.key === starter.key && r.language === STARTER_LANGUAGE) ?? null;
-  const rows = await listMessageVersionRows(ctx.supabase, tenantId, { name: starter.name, language: STARTER_LANGUAGE });
-  return { result, message: campaignMessageOf(rows, starter.name, STARTER_LANGUAGE) };
+  const { channels, language } = use;
+  const filed = await fileStarters(ctx, tenantId, { keys: [starter.key], languages: [language], channels });
+  const result = filed.results.find((r) => r.key === starter.key && r.language === language) ?? null;
+  const rows = await listMessageVersionRows(ctx.supabase, tenantId, { name: starter.name, language });
+  return { result, message: campaignMessageOf(rows, starter.name, language) };
 }
 
 /**
@@ -561,7 +587,8 @@ function notFiled(result: StarterResult | null): AppError {
 
 /**
  * A starter filed the first time something uses it (the clean list, 14 Nov 2026): a step of New's draft, as the draft is
- * kept or started (drafts/sequence-new.ts). In English, on the channels the draft goes by: its email and text versions at
+ * kept or started (drafts/sequence-new.ts). In its customers' language (starterLanguageHere, as New showed it), on the
+ * channels the draft goes by: its email and text versions at
  * once, and its WhatsApp version sent to WhatsApp for review where those hold WhatsApp and there is a number, the run that
  * sends it waiting for the answer as a run waits for any version in review. Answers the version a step names (the
  * message's anchor). A key that is no starter of the set is refused as a pick of none; a filing that left no version on
@@ -575,7 +602,33 @@ export async function fileStarterForUse(
 ): Promise<string> {
   const starter = starterByKey(key);
   if (!starter) throw new AppError("validation", PICK_A_STARTER);
-  const { result, message } = await filedForUse(ctx, tenantId, starter, channels);
+  const language = await starterLanguageHere(ctx, tenantId, starter);
+  const { result, message } = await filedForUse(ctx, tenantId, starter, { channels, language });
   if (!result || !message) throw notFiled(result);
   return message.anchor.id;
+}
+
+/**
+ * A number connected after starters went into use (the review of 15 Nov 2026): each starter on file by email or text
+ * alone gets its WhatsApp version, in each language it is on file in, sent for review, as one filed with a number would
+ * have had. Nothing else of the set is filed, an offer from a number Meta's pause holds gets none (fileStarters), and one
+ * whose WhatsApp version is on file is left as it is. The connect route runs it once its own answer has gone; a failure
+ * stops nothing, and the starter's WhatsApp version is then filed the next time a use asks for it.
+ */
+export async function fileStartersWhatsAppOnConnect(ctx: RouteContext, tenantId: TenantId): Promise<void> {
+  const offered = await startersHere(ctx, tenantId, []);
+  const own = await getStartersFiled(
+    ctx,
+    tenantId,
+    offered.map((s) => s.name),
+  );
+  const byLanguage = new Map<string, Set<string>>();
+  for (const filed of own) {
+    const [, name, language] = filed.split("|");
+    const starter = offered.find((s) => s.name === name);
+    if (!starter || !language || !starter.texts[language]) continue;
+    byLanguage.set(language, (byLanguage.get(language) ?? new Set()).add(starter.key));
+  }
+  for (const [language, keys] of byLanguage)
+    await fileStarters(ctx, tenantId, { keys: [...keys], languages: [language], channels: ["whatsapp"] });
 }

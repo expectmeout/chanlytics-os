@@ -106,7 +106,7 @@ const tpl = (n, tenant_id, over = {}) => ({
  * would. The member's own session holds the first and the last; create_message_version is on the service client only,
  * as it is granted, so a call of it on the session would find no such function.
  */
-function world(tables) {
+function world(tables, moreDoors = {}) {
   const calls = [];
   const refuse = {};
   let next = 900;
@@ -179,7 +179,11 @@ function world(tables) {
     supabase: fakeDb(
       tables,
       {},
-      { save_template_version: rpcs.save_template_version, remove_template_version: rpcs.remove_template_version },
+      {
+        save_template_version: rpcs.save_template_version,
+        remove_template_version: rpcs.remove_template_version,
+        ...moreDoors,
+      },
     ),
     userId: USER,
     email: "ada@example.com",
@@ -739,6 +743,127 @@ test("from a US number an offer starter is filed without its WhatsApp version, a
     502,
     "Adding templates only works on the production dashboard.",
   );
+});
+
+/** The workspace's configuration, whole enough to read, its profile saying the languages it answers customers in. */
+const configIn = (languages) => ({
+  tenant_id: B,
+  version: 1,
+  updated_at: "2026-11-01T00:00:00Z",
+  updated_by: null,
+  config: {
+    brain: {
+      business_name: "Luna Studio",
+      system_prompt: "You answer customers for Luna Studio, a hair salon, kindly and briefly.",
+      fallbacks: { greeting: "g", error: "e", non_text: "n" },
+      profile: { languages },
+    },
+  },
+});
+
+test("Keep files a ready-made starter its draft names in the business's customers' language, and the kept draft names the message filed, never the starter (the review of 15 Nov 2026)", async () => {
+  const { makeFromNew } = await import(at("apps/dashboard/src/server/drafts/sequence-new.ts"));
+  const kept = [];
+  const keepDoor = {
+    sequence_once_keep: (a) => {
+      kept.push(a);
+      return { id: id(70), state: "draft" };
+    },
+  };
+  const keep = (languages) => {
+    const tables = { memberships: both("viewer", "operator"), templates: [], tenant_config: [configIn(languages)] };
+    const w = world(tables, keepDoor);
+    const made = makeFromNew(
+      w.ctx(),
+      { tenantId: B, role: "operator" },
+      {
+        kind: "once",
+        audience: "people",
+        name: "A quick note",
+        who: { kind: "everyone", label: "everyone" },
+        run_hour: 10,
+        at: null,
+        channels: ["email"],
+        mode: null,
+        adds_new: false,
+        steps: [
+          {
+            name: "",
+            after_days: null,
+            only_if: [],
+            does: "message",
+            message: { template_id: null, params: [], written: null, starter: "quick_note" },
+            email: null,
+            hand: "",
+          },
+        ],
+        start: false,
+      },
+    );
+    return { tables, w, made };
+  };
+  // A business that answers its customers in Spanish: filed in Spanish, on the channel the draft goes by.
+  let { tables, w, made } = keep(["Spanish"]);
+  assert.deepEqual(await made, { made: id(70), kind: "once", state: "draft" });
+  assert.deepEqual(
+    w.calls.map(([door, a]) => `${door}:${a.p_name}/${a.p_channel}/${a.p_language}`),
+    ["create:quick_note/email/es"],
+  );
+  const filed = tables.templates.find((t) => t.name === "quick_note");
+  assert.equal(filed.body_preview, starterEmailText(starterByKey("quick_note"), "es").body, "its Spanish words");
+  assert.deepEqual(
+    kept[0].p_once.step.message,
+    { template_id: filed.id, params: [], written: null, starter: null },
+    "the draft keeps the message filed, so opening it again names a message on file",
+  );
+  // One that names English first, or none: English, as before.
+  for (const languages of [["English", "Spanish"], []]) {
+    ({ w, made } = keep(languages));
+    await made;
+    assert.deepEqual(
+      w.calls.map(([, a]) => a.p_language),
+      ["en_US"],
+      String(languages),
+    );
+  }
+});
+
+test("a number connected later gives each starter in use by email or text its WhatsApp version, in the language it is on file in, and nothing else of the set (the review of 15 Nov 2026)", async () => {
+  const { fileStartersWhatsAppOnConnect } = await import(
+    at("apps/dashboard/src/server/campaigns/starter-templates.ts")
+  );
+  const inUse = (number, filed) => {
+    const tables = {
+      memberships: both("viewer", "operator"),
+      templates: filed,
+      tenant_channels: [{ ...NUMBER, number_e164: number }],
+    };
+    return { tables, w: world(tables) };
+  };
+  const emailOf = (name, language) =>
+    tpl(60, B, { channel: "email", name, language, source: "chanlytics", category: starterByName(name).category });
+  // A reminder on file in Spanish by email alone: its WhatsApp version is asked for, which a preview refuses at its
+  // guard, as every submission here is.
+  let { w } = inUse("+447700900123", [emailOf("visit_reminder", "es")]);
+  await refused(
+    fileStartersWhatsAppOnConnect(w.ctx(), B),
+    "upstream_meta",
+    502,
+    "Adding templates only works on the production dashboard.",
+  );
+  assert.deepEqual(w.calls, [], "no email or text is written again, and nothing of the set beside it is filed");
+  // Its WhatsApp version already on file: left as it is, and nothing is asked.
+  ({ w } = inUse("+447700900123", [emailOf("visit_reminder", "es"), tpl(61, B, { language: "es" })]));
+  await fileStartersWhatsAppOnConnect(w.ctx(), B);
+  assert.deepEqual(w.calls, []);
+  // An offer from a US number: WhatsApp delivers it to nobody there, so none is made, and nothing is asked.
+  ({ w } = inUse("+12025550123", [emailOf("quick_note", "en_US")]));
+  await fileStartersWhatsAppOnConnect(w.ctx(), B);
+  assert.deepEqual(w.calls, []);
+  // Nothing in use: nothing is filed.
+  ({ w } = inUse("+447700900123", []));
+  await fileStartersWhatsAppOnConnect(w.ctx(), B);
+  assert.deepEqual(w.calls, []);
 });
 
 test("with no number and the door not switched on, each version says so in one plain sentence and the answer arrives whole", async () => {

@@ -91,6 +91,7 @@ function useNewReads(sources: ReachOutSourceDto[] | null | undefined): {
   useReadsHere(READS);
   const pb = useSurface("playbooks");
   const seq = useSurface("sequences");
+  const settings = useSurface("settings");
   if (!pb || sources === undefined) return null;
   const who = {
     moments: pb.triggers,
@@ -107,7 +108,12 @@ function useNewReads(sources: ReachOutSourceDto[] | null | undefined): {
     running: seq?.sequences ?? [],
   };
   const offered = pb.templates ?? [];
-  const library = { messages: offered.flatMap((t) => (t.message ? [t.message] : [])), rows: offered };
+  const library = {
+    messages: offered.flatMap((t) => (t.message ? [t.message] : [])),
+    rows: offered,
+    // The languages its customers are written to in, which a ready-made starter is shown and filed in.
+    languages: settings?.settings?.config?.brain?.profile?.languages ?? [],
+  };
   // Its channels now, as the one rule reads them; where they could not be read, WhatsApp alone, as every send went
   // before a channel was read (contracts readyOrWhatsApp).
   const channels = readyOrWhatsApp(pb.ready);

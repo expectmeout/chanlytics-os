@@ -47,7 +47,14 @@ export { askIntent, callsToday, dayFromQuestion, quickAnswerOf } from "./fast-pa
 export type { AskIntent, FastCall } from "./fast-paths";
 export { ASK_ALONE_DAY_MAX, ASK_ALONE_UNDOS_MAX, FREEDOM_REASONS, freedomOf, rowOf } from "./freedom";
 export type { FreedomAnswer, FreedomReason, FreedomVerdict, FreedomWorld } from "./freedom";
-export { ASK_LANGUAGES, detectLanguage, messageLanguageOf, messageLanguagesNext, messageLanguagesOf } from "./language";
+export {
+  ASK_LANGUAGES,
+  detectLanguage,
+  messageLanguageOf,
+  messageLanguagesNext,
+  messageLanguagesOf,
+  starterLanguageOf,
+} from "./language";
 export type { AskLanguage } from "./language";
 export {
   ASK_CORE_TOOLS_CHARS_CEILING,

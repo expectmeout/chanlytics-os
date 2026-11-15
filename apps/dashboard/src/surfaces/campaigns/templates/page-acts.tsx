@@ -161,15 +161,18 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
   // A language the set wrote, added to a starter the workspace already uses: filed as it is (POST templates/starter), its
   // WhatsApp version sent for review. A ready-made starter nothing has filed is never added this way: its first use files
   // it (the clean list, 14 Nov 2026).
+  // WhatsApp is said only where its version went to WhatsApp (the review of 15 Nov 2026): with no number, or for an offer
+  // from a number WhatsApp delivers none from, the email and text are added and nothing waits on WhatsApp.
   const addLanguage = (g: StarterGroup, lang: TplLang) =>
     run(
       `add:${g.starter.key}:${lang.id}`,
       () => templateVerbs.fileStarters({ keys: [g.starter.key], languages: [lang.id] }),
-      () => (
-        <>
-          <b>{g.title}</b> in {lang.label} is added — WhatsApp reads its words, usually within minutes
-        </>
-      ),
+      (r) =>
+        TPL_VERSION_WORDS.languageAdded(
+          g.title,
+          lang.label,
+          r.data.results.some((x) => x.status === "submitted" || x.status === "synced"),
+        ),
     );
   const sync = () =>
     run(

@@ -51,7 +51,7 @@ import {
 import { askMemoryLines } from "@chanlytics/db/ask";
 import { listPolicies } from "@chanlytics/db/workspace";
 import { listMailboxConnectionsOf } from "@chanlytics/db/email";
-import { doesMakePreviews, listSequenceMakes, findWorkspaceWords } from "@chanlytics/db/campaigns";
+import { doesMakePreviews, listSequenceMakes, findWorkspaceWords, reviewLinkOf } from "@chanlytics/db/campaigns";
 import type { PoolRead } from "@/lib/campaign-channels";
 import { runningOf } from "@/lib/new-checks";
 import { findCalendar } from "../calendar/settings";
@@ -79,6 +79,7 @@ import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 import { LEFT_OUT_ASKED_MAX } from "../campaigns/sequences/left-out";
 import { CHANGE_RULE, standsAsked } from "./sequence-change";
+import { knownStartersOf } from "./known-starters";
 
 /** How much of a message's words the model is handed. */
 const BODY_CHARS = 280;
@@ -149,6 +150,22 @@ function offeredOf(read: {
     });
   }
   return out;
+}
+
+/**
+ * The messages a step may send, as the drafter is told them: the business's own first (offeredOf), then the ready-made
+ * starters none of them is, in its customers' language (drafts/known-starters.ts).
+ */
+function messagesKnownOf(
+  read: Parameters<typeof offeredOf>[0],
+  here: { reviewLink: boolean; config: { brain?: { profile?: { languages?: string[] } } } | null },
+): KnownMessage[] {
+  const onFile = offeredOf(read);
+  const languages = here.config?.brain?.profile?.languages;
+  return [
+    ...onFile,
+    ...knownStartersOf(read.messages, { reviewLink: here.reviewLink, languages, from: onFile.length }),
+  ];
 }
 
 /** An email as the model reads one: its subject, then its words, cut where a first email ends. */
@@ -266,7 +283,7 @@ export function draftAskedParts(known: DraftKnown, ask: NewDraftAsk): ToldPart[]
           "The business's messages",
           known.messages.map(
             (m) =>
-              `- ${m.key}: "${m.title}", ${m.offer ? "an offer" : "news or about their booking"}, goes by ${m.channels.join(" or ")}; its values: ${m.slots.join(", ") || "none"}\n${fenced("record", m.body.slice(0, BODY_CHARS))}`,
+              `- ${m.key}: "${m.title}"${m.starter ? " (ready-made)" : ""}, ${m.offer ? "an offer" : "news or about their booking"}, goes by ${m.channels.join(" or ")}; its values: ${m.slots.join(", ") || "none"}\n${fenced("record", m.body.slice(0, BODY_CHARS))}`,
           ),
         )
       : "The business has no message it can send yet: write the ones its steps need.",
@@ -510,7 +527,7 @@ export async function draftSequence(rc: ReaderContext, ask: NewDraftAsk): Promis
  */
 export async function readDraftKnown(rc: ReaderContext): Promise<DraftKnown> {
   const { ctx, tenantId } = rc;
-  const [library, shape, named, calendarOn, pb, seqs, sources, policies, mailboxes, config, previews] =
+  const [library, shape, named, calendarOn, pb, seqs, sources, policies, mailboxes, config, previews, link] =
     await Promise.all([
       load(rc, templates, { all: false }),
       load(rc, facts.businessShape, undefined),
@@ -523,6 +540,8 @@ export async function readDraftKnown(rc: ReaderContext): Promise<DraftKnown> {
       readOrNull(listMailboxConnectionsOf(ctx.supabase, tenantId), "mailboxes", tenantId),
       readOrNull(getStoredConfig(ctx.supabase, tenantId).then(parseTenantConfig), "config", tenantId),
       readOrNull(doesMakePreviews(ctx.supabase, tenantId), "previews", tenantId),
+      // Whether the Google listing keeps a review link: the review ask is a starter offered only where it does.
+      reviewLinkOf(ctx.supabase, tenantId).catch(logAndGoOn("review link", null)),
     ]);
   const rows = seqs?.data.sequences ?? [];
   const owner = await getOwner(rc, rows, config);
@@ -558,7 +577,7 @@ export async function readDraftKnown(rc: ReaderContext): Promise<DraftKnown> {
         ready: s.ready,
         checking: Math.max(0, s.with_unconfirmed - s.ready),
       })),
-    messages: offeredOf(library.data),
+    messages: messagesKnownOf(library.data, { reviewLink: link !== null, config }),
     running: runningOf(rows),
     ready: ready
       ? (["whatsapp", "sms", "email"] as const).filter((c): c is ConsentChannel => ready[c]?.ready === true)

@@ -1,5 +1,8 @@
+import { after } from "next/server";
 import { z } from "zod";
+import { logAndGoOn } from "@chanlytics/log";
 import { AppError } from "@chanlytics/contracts";
+import { fileStartersWhatsAppOnConnect } from "@/server/campaigns/starter-templates";
 import { write, workspace } from "@/server/shared/route";
 import { recordDecision } from "@/server/shared/verbs";
 import { connectWhatsApp } from "@/server/connections/whatsapp";
@@ -70,6 +73,9 @@ export const POST = write({
       registration: item.registration,
       keep_app: input.keep_app === true,
     });
+    // A starter already in use by email or text gets its WhatsApp version as the number arrives, once this answer has
+    // gone: nothing else of the set is filed (the review of 15 Nov 2026). A failure stops nothing.
+    after(() => fileStartersWhatsAppOnConnect(ctx, member.tenantId).catch(logAndGoOn("starters on connect")));
     return {
       ok: true,
       channel_id: item.channelId,

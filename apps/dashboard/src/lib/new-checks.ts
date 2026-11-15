@@ -155,7 +155,13 @@ export function newReachOf(who: DraftWho | null, counts: NewCounts, how: ReachHo
 /** How a draft goes, read off the draft: what it is, its channels, and its first message's yes and review. */
 export const reachHowOf = (d: Pick<NewDraftDto, "kind" | "channels" | "steps">): ReachHow => {
   const first = d.steps[0]?.message ?? null;
-  return { kind: d.kind, channels: d.channels, offer: !!first?.offer, review: !!first?.written?.versions.whatsapp };
+  // A ready-made starter files its WhatsApp version as it is made, as one Ask wrote does: both wait on its review.
+  return {
+    kind: d.kind,
+    channels: d.channels,
+    offer: !!first?.offer,
+    review: !!first?.written?.versions.whatsapp || !!first?.starter,
+  };
 };
 
 /** A message's purpose, as consent reads it: an offer is marketing, anything else a conversation. */

@@ -38,7 +38,7 @@ export { ASK_CITATION_KINDS, ASK_PAGE_ROUTES, ASK_ROW_WORDS, citationRoute, empt
 export { ASK_ADS_VIEW, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, isAskAdsView, itemFocus } from "./ask/context";
 export { askIntent, callsToday, dayFromQuestion, quickAnswerOf } from "./ask/fast-paths";
 export { ASK_ALONE_DAY_MAX, ASK_ALONE_UNDOS_MAX, FREEDOM_REASONS, freedomOf, rowOf } from "./ask/freedom";
-export { ASK_LANGUAGES, detectLanguage, messageLanguageOf, messageLanguagesNext, messageLanguagesOf } from "./ask/language";
+export { ASK_LANGUAGES, detectLanguage, messageLanguageOf, messageLanguagesNext, messageLanguagesOf, starterLanguageOf } from "./ask/language";
 export { ASK_CORE_TOOLS_CHARS_CEILING, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_SELECTION_MAX, ASK_SPEECH_MAX_CHARS, ASK_SPOKEN_TURN_BUDGET_MS, ASK_TOOLS_CHARS_CEILING, ASK_TURN_BUDGET_MS, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_ID, ASK_VOICE_IDLE_MS, ASK_VOICE_MODEL, ASK_VOICE_PULSE_MS, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_UP_WAIT_MS, askColumnOf, isVoiceEndReason, SPEECH_PURPOSES, VOICE_END_REASONS } from "./ask/limits";
 export { ASK_FINDING_WORDS, ASK_FOUND_VIEW, askFindingsOf, findingCardId, isFindingCard, isRested, repliesFellCard, restedOf, restedWith, restedWithout } from "./ask/memory/findings";
 export { ASK_LATELY_DAYS, dayAfterDays, ideasSeenOf, ideasWithResults, latelyRows, latelySaid, settledTitles } from "./ask/memory/lately";

@@ -383,7 +383,10 @@ export function StepEditor({
   const settings = useSurface("settings");
   // The workspace's messages, then the ready-made starters nothing has filed (the clean list, 14 Nov 2026).
   const offered = useMemo(
-    () => [...(cmOfferedFrom(settings) ?? []), ...readyMadeOf(settings?.templatesAll)],
+    () => [
+      ...(cmOfferedFrom(settings) ?? []),
+      ...readyMadeOf(settings?.messages, settings?.settings?.config?.brain?.profile?.languages),
+    ],
     [settings],
   );
   const first = step?.place === 1;
