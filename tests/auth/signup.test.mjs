@@ -198,8 +198,12 @@ test("the wiring: two public paths, the guards on the route, a service role that
   // same file: the ratchet counts source reads per test file, and it is right
   // to — a file that reads more source is a file pinning more text.
   assert.ok(
-    route.includes("if (!isUsablePassword(input.password))"),
+    route.includes("if (!byCode && !isUsablePassword(input.password))"),
     "the credential is insisted on by the creating path, not by the schema the waitlist also passes through",
+  );
+  assert.ok(
+    route.includes("const byCode = !!preview && input.password === undefined;"),
+    "and the one account made with none is a live preview's, whose link the route checked first (decision 0079)",
   );
   assert.ok(
     route.indexOf('if (posture === "waitlist")') < route.indexOf("isUsablePassword(input.password)"),

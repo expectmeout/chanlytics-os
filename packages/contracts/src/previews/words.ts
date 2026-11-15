@@ -84,7 +84,8 @@ export const LEAD_PREVIEW_WORDS = {
   /** Sign-up, from Make it mine (L4): whose receptionist waits, and the one press of someone already signed in. */
   signup: {
     title: (business: string) => `AI for ${business.trim()} is waiting for you`,
-    lead: "Make an account to keep it. Everything it knows comes with it.",
+    // No password is asked from a preview's link (the canvas's call P10): the code that proves the address is the way in.
+    lead: "A code is emailed to you, so there is no password to choose. Everything it knows comes with it.",
     signedIn: (email: string) =>
       `You're signed in as ${email}. It becomes a workspace of yours, with everything it knows.`,
     claim: "Make it mine",
