@@ -499,6 +499,16 @@ function momentsOf(
   }));
 }
 
+/**
+ * Whether offers can go by WhatsApp and by email here, as the channels read says (absent, nothing is held): the judge keeps
+ * an offer off a channel no one here can be sent it by (draft-judge.ts DraftKnown, the clean list, 14 Nov 2026).
+ */
+function offersOf(
+  ready: { whatsapp: { offers?: DraftKnown["whatsappOffers"] }; email: { offers?: { ok: boolean } } } | null,
+) {
+  return { whatsappOffers: ready?.whatsapp.offers ?? null, emailOffers: ready?.email.offers ?? null };
+}
+
 /** The route's handle: everything a draft is judged against, read at once, then the draft. */
 export async function draftSequence(rc: ReaderContext, ask: NewDraftAsk): Promise<NewDraftDto> {
   return draftSequenceFrom(await readDraftKnown(rc), ask, { tenantId: rc.tenantId, userId: rc.userId });
@@ -563,8 +573,7 @@ export async function readDraftKnown(rc: ReaderContext): Promise<DraftKnown> {
     ready: ready
       ? (["whatsapp", "sms", "email"] as const).filter((c): c is ConsentChannel => ready[c]?.ready === true)
       : [],
-    whatsappOffers: ready?.whatsapp.offers ?? null,
-    emailOffers: ready?.email.offers ?? null,
+    ...offersOf(ready),
     classModes: Object.fromEntries((policies ?? []).map((p) => [p.class, p.mode])),
     // None named is every connected mailbox (00424): the draft names none, and says the first.
     mailbox: live.length ? { ids: [], label: live[0]?.address ?? "" } : null,

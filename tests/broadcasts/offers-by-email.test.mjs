@@ -479,7 +479,7 @@ test("where the deployment names a campaigns domain the provider does not verify
   assert.equal(wentOn.news.length, 1);
   assert.equal(
     wentOn.news[0].body,
-    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the thread, offers and news by email can't leave yet: the campaigns domain isn't switched on, or a run that did not finish). Replies land in the Inbox.",
+    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the thread, no offers by email for now, or a run that did not finish). Replies land in the Inbox.",
   );
   assert.deepEqual(
     paged.map((p) => [p[0], /goes on for everyone else/.test(p[2])]),
