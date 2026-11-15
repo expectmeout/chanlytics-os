@@ -74,8 +74,8 @@ export function batchFactsOf(run: BatchRun, runs: readonly BatchRun[], nowMs: nu
  * It says your OK either way, since a phone draws no state line under it: with no time to name, how its wait ends says it.
  */
 function batchSaid(f: BatchFacts, ends: string): string {
-  const waits = f.firstGoes ? `Waits for your OK; the first goes ${f.firstGoes}.` : `${ends}.`;
-  return f.last ? `${waits} Last batch: ${f.last.sent} sent, ${f.last.replied} replied.` : waits;
+  const waits = f.firstGoes ? `Waits for you to approve. The first goes ${f.firstGoes}.` : `${ends}.`;
+  return f.last ? `${waits} Last send: ${f.last.sent} sent, ${f.last.replied} replied.` : waits;
 }
 
 export interface TodayRunWordsVM {
@@ -121,7 +121,7 @@ export function todayRunWords(run: RunLike, facts?: BatchFacts): TodayRunWordsVM
   // "a reach-out" (the Campaigns wiring review's lane 7).
   const kind = reach ? "Cold email" : "Campaign";
   const sent = `${run.counts.sent} sent`;
-  const held = `${heldEmailsWords(run.held ?? 0)}. The rest of the run goes as planned.`;
+  const held = `${heldEmailsWords(run.held ?? 0)}. The rest goes as planned.`;
   const drafted = `${plural(run.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
   // How its wait ends, by the wait rule (decision 0064): a customer batch's until its day ends, then skipped and told, a
   // visit's until 21:00, as its notice says (batchWaitWords); a reach-out's or a one-off's until it is answered.
@@ -156,7 +156,7 @@ export function todayRunWords(run: RunLike, facts?: BatchFacts): TodayRunWordsVM
     held: {
       meta: `${kind} · going`,
       sentence: held,
-      status: ["Held for your say"],
+      status: ["Waits for you"],
     },
     drafted: {
       meta: `${kind} · to send`,
@@ -174,12 +174,12 @@ export function todayRunWords(run: RunLike, facts?: BatchFacts): TodayRunWordsVM
 
 /** "2 runs waiting" beside the queue's own parts; null when none waits. */
 export function todayRunsSub(count: number): string | null {
-  return count ? `${count} run${count === 1 ? "" : "s"} waiting` : null;
+  return count ? `${count} to approve` : null;
 }
 
 /** "1 run too late to approve" beside the queue's parts: a run whose day has passed, which waits on nobody; null for none. */
 export function todayLateRunsSub(count: number): string | null {
-  return count ? `${count} run${count === 1 ? "" : "s"} too late to approve` : null;
+  return count ? `${count} send${count === 1 ? "" : "s"} too late to approve` : null;
 }
 
 /**

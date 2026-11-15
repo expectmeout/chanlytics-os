@@ -25,7 +25,6 @@ import {
   leadCheckWord,
   toLeadRowVM,
   leadRail,
-  leadSearchEmptyWords,
   leadUndoable,
   leadsStanding,
   leadReviewGroups,
@@ -1566,26 +1565,6 @@ test("the rail draws a sequence's own list with the sequences, apart from the se
     ["272 not contacted"],
     "the head counts no searches at all: the rail and the Lists sheet list them",
   );
-});
-
-test("a search's empty view says what its round holds: leads to look at, or that it is still looking", () => {
-  assert.deepEqual(leadSearchEmptyWords({ state: "running", review: 67 }), {
-    title: "67 leads need a look.",
-    body: "AI is still checking them, and could not decide on these yet.",
-    review: true,
-  });
-  assert.equal(leadSearchEmptyWords({ state: "ended", review: 1 }).title, "1 lead needs a look.");
-  assert.deepEqual(leadSearchEmptyWords({ state: "running", review: 0 }), {
-    title: "Still looking.",
-    body: "Leads come in here as AI checks them.",
-    review: false,
-  });
-  assert.equal(
-    leadSearchEmptyWords({ state: "ended", review: 0 }),
-    null,
-    "an ended search with none: the page's words",
-  );
-  assert.equal(leadSearchEmptyWords(null), null);
 });
 
 test("a row reads its status group, and none where the read asked none", () => {

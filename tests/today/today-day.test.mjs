@@ -143,7 +143,7 @@ test("today and tomorrow, as the calendar reads them: items in time order with t
     [
       ["All day", "", "later", null],
       ["10 AM", "1h", "now", null],
-      ["2 PM", "1h", "next", "Needs you — in Inbox"],
+      ["2 PM", "1h", "next", "Needs you · in Inbox"],
     ],
   );
   assert.deepEqual(today.summary, { booked: "3 booked", flagged: "1 needs you" });
@@ -184,7 +184,7 @@ test("today and tomorrow, as the calendar reads them: items in time order with t
   assert.equal(vm.nextOpening, "Mon 9:30 AM");
   assert.deepEqual(
     vm.reminders,
-    { text: "Appointment reminder: 2 people · next run today 10:00 AM", to: "campaigns/sequences" },
+    { text: "Appointment reminder: 2 people · next send today 10:00 AM", to: "campaigns/sequences" },
     "only the visit playbooks speak here",
   );
 });
@@ -237,7 +237,7 @@ test("without a feed the day says nothing; with one and no visit playbook it off
   // "campaign", never "playbook" (decision 19).
   assert.equal(
     on.reminders.text,
-    "No appointment reminders yet — a campaign can write the day before an appointment and the day after.",
+    "No appointment reminders yet. A campaign can write the day before an appointment and the day after.",
   );
   // A count the server could not make is left out, never said as "null people".
   const uncounted = todayDay(
@@ -256,7 +256,7 @@ test("without a feed the day says nothing; with one and no visit playbook it off
   );
   assert.equal(
     uncounted.reminders.text,
-    "Appointment reminder: next run today 10:00 AM · After the appointment: 1 person · next run today 6:00 PM",
+    "Appointment reminder: next send today 10:00 AM · After the appointment: 1 person · next send today 6:00 PM",
   );
 });
 
@@ -283,11 +283,11 @@ test("the day's reminders say the workspace's word, as Campaigns does, from the 
   );
   assert.equal(
     meeting.reminders.text,
-    "Meeting reminder: 2 people · next run today 10:00 AM · After the meeting: 1 person · next run today 6:00 PM",
+    "Meeting reminder: 2 people · next send today 10:00 AM · After the meeting: 1 person · next send today 6:00 PM",
   );
   assert.equal(
     todayDay(today, pb([], "session")).reminders.text,
-    "No session reminders yet — a campaign can write the day before a session and the day after.",
+    "No session reminders yet. A campaign can write the day before a session and the day after.",
   );
   // The playbooks not read yet (or a read that failed): the day does not know whether a reminder runs, so it says none.
   assert.equal(todayDay(today, null).reminders, null);
@@ -454,7 +454,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     when: "waited 2h",
     sentence: "They wrote back to your sequence. Nothing is sent without you.",
     quoted: false,
-    status: ["Escalated", "Needs review", "since 2:04 PM"],
+    status: ["Needs you", "Needs review", "since 2:04 PM"],
     tone: "escalated",
     warn: false,
     cta: { label: "Open and reply", to: "inbox/th-cv1" },
@@ -588,15 +588,15 @@ test("a batch waiting for an OK says when its first email goes and what its last
   assert.deepEqual(facts, { firstGoes: "today 10:00 AM", last: { sent: 20, replied: 3 } });
   assert.equal(
     todayRunWords(waiting, facts).waiting.sentence,
-    "17 businesses. Waits for your OK; the first goes today 10:00 AM. Last batch: 20 sent, 3 replied.",
+    "17 businesses. Waits for you to approve. The first goes today 10:00 AM. Last send: 20 sent, 3 replied.",
   );
   // Its time has passed: the clock plans its sends again after an OK, so it names no time.
   const late = batchFactsOf(waiting, [waiting], Date.parse("2026-11-02T16:00:00.000Z"));
   assert.deepEqual(late, { firstGoes: null, last: null });
-  // A time it cannot name still says your OK: a phone draws no state line under it.
+  // A time it cannot name still says it waits for approval: a phone draws no state line under it.
   assert.match(
     todayRunWords(waiting, { firstGoes: null, last: { sent: 20, replied: 3 } }).waiting.sentence,
-    /Waits for your OK.*Last batch: 20 sent, 3 replied./,
+    /Waits for you to approve.*Last send: 20 sent, 3 replied./,
   );
   assert.equal(todayRunWords(waiting, late).waiting.sentence, todayRunWords(waiting).waiting.sentence);
 });

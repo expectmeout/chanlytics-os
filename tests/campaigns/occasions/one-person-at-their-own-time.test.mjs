@@ -224,7 +224,7 @@ test("while a step's words are new its batch waits, and its owner is told it wai
   assert.equal(row.state, "pending_approval");
   assert.equal(sendAt, null);
   const [, , body] = of("notify")[0];
-  assert.match(body, /Goes only if you approve it before .*2:00 PM; after that it is skipped/);
+  assert.match(body, /Goes only if you approve it before .*2:00 PM. After that it's skipped/);
 });
 
 test("its words seen going, a sequence whose row says ask is held for a stop and goes: nobody is asked one person at a time (decision 0119)", async () => {

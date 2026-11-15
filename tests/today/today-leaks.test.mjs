@@ -496,7 +496,7 @@ test("two broadcasts that went out are not counted into the jobs that did not fi
   assert.equal(total, 3);
   assert.deepEqual(
     groups.map((g) => g.title ?? g.row.title),
-    ["A outbound_send job did not finish", "2 runs finished"],
+    ["A outbound_send job did not finish", "2 campaign sends finished"],
     "the failure stands alone; the two sends are their own group, in their own words",
   );
   assert.equal(groups[0].count, 1, "one job did not finish, not three");
@@ -598,9 +598,9 @@ test("several templates at once are one row each way -- a sync can approve a bat
     t("2", "template_ready", "b"),
     t("3", "template_ready", "c"),
   ]);
-  assert.equal(ready.groups[0].title, "3 templates are ready to send");
+  assert.equal(ready.groups[0].title, "3 messages approved by WhatsApp");
   const blocked = todayAwayGrouped([t("4", "template_blocked", "a"), t("5", "template_blocked", "b")]);
-  assert.equal(blocked.groups[0].title, "2 templates cannot be sent");
+  assert.equal(blocked.groups[0].title, "2 messages need a change");
   assert.equal(
     todayAwayGrouped([t("6", "template_ready", "only one")]).groups[0].title,
     null,
@@ -788,8 +788,8 @@ test("the unanswered row names who is waiting NOW, up to two, from the threads T
   ];
   const row = todayLeaksV2(reports(), people(), waiting).rows.find((l) => l.id === "unanswered");
   assert.deepEqual(row.people, [
-    { id: "cv-d", name: "Dulce Amaro", to: "inbox/th-cv-d", title: "Open Dulce Amaro's thread" },
-    { id: "cv-r", name: "Renata Solís", to: "inbox/th-cv-r", title: "Open Renata Solís's thread" },
+    { id: "cv-d", name: "Dulce Amaro", to: "inbox/th-cv-d", title: "Open Dulce Amaro's conversation" },
+    { id: "cv-r", name: "Renata Solís", to: "inbox/th-cv-r", title: "Open Renata Solís's conversation" },
   ]);
   assert.equal(row.peopleLead, "Waiting now", "the lead says they are waiting now, and the page draws it as said");
   assert.equal(
@@ -884,7 +884,7 @@ test("the sentences the queue and the card say about a playbook's run come from 
   assert.deepEqual(w.waiting, {
     meta: "Campaign · ready",
     // How its wait ends is the wait rule's (decision 0064): a customer batch's until its day ends.
-    sentence: "3 people. Waits for your OK until the end of its day; then it is skipped, and you are told.",
+    sentence: "3 people. Waits for you to approve until the end of its day. Then it's skipped, and you're told.",
     status: ["Waiting for your approval"],
   });
   // A reach-out's run writes to businesses, and says it is a reach-out (Reach out Part 5, PR 8).
@@ -892,7 +892,7 @@ test("the sentences the queue and the card say about a playbook's run come from 
   // A reach-out's run has no day to pass: it waits until answered.
   assert.equal(
     reach.waiting.sentence,
-    "44 businesses. Waits for your OK, and you are reminded each morning; no new business is written to until you give it.",
+    "44 businesses. Waits for you to approve. Nothing new goes out until you do, and you're reminded each morning.",
   );
   assert.equal(reach.waiting.meta, "Cold email · ready");
   assert.equal(reach.soon.meta, "Cold email · sends today 9:00 AM");
@@ -913,8 +913,8 @@ test("the sentences the queue and the card say about a playbook's run come from 
     { counts: "1 sent", still: true },
   );
   assert.equal(todayRunWords({ ...run, recipient_count: 1 }).people, "1 person");
-  assert.equal(todayRunsSub(2), "2 runs waiting");
-  assert.equal(todayRunsSub(1), "1 run waiting");
+  assert.equal(todayRunsSub(2), "2 to approve");
+  assert.equal(todayRunsSub(1), "1 to approve");
   assert.equal(todayRunsSub(0), null);
   assert.deepEqual(
     todayRunApproved("Win-back", 3, "sending now"),

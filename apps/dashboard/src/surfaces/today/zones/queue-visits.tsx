@@ -1,6 +1,7 @@
 /**
- * Yesterday's visits to mark, as rows of Today's queue (decision 0047, D1-visit-mark; the product call of 11 Oct 2026): a
- * visit of yesterday's that has ended, that the record keeps a row for and that is for a person the board matched, and that
+ * The past week's visits to mark, as rows of Today's queue (decision 0047, D1-visit-mark; the product call of 11 Oct 2026,
+ * yesterday's alone, widened to a week on 15 Nov 2026): a visit of one of the seven days before today's that has ended,
+ * that the record keeps a row for and that is for a person the board matched, and that
  * nobody has said whether they came to, asks "Did they come?" with Kept and Missed, three at most and one row for the rest
  * (contracts withVisitsAsked). Like the steps due (queue-steps.tsx) they are the team's own to-do and nobody waiting on a person:
  * counted in the head's sub-line and its foot, never in the number that says who needs you.
@@ -11,16 +12,16 @@
  * the panel's (surfaces/visit-line.tsx sayVisit): an operator's, said to anyone else by the button, which is Need you's own
  * (need-you/visit-work.tsx, decision 0071: Missed goes on to the rebook Ask writes).
  */
-import type { AppointmentWord, CalendarLike, TodayVisitsAskedVM } from "@chanlytics/contracts";
+import type { AppointmentWord, TodayVisitsAskedVM } from "@chanlytics/contracts";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
 
 /**
- * Yesterday's unmarked visits, from the Calendar as the surface holds it; null while the calendar is unread, one that could not
- * be read, one that does not hold the day before today, and with none to mark: no visit is claimed on a guess.
+ * The past week's unmarked visits, from the Calendar as the surface holds it; null while the calendar is unread, one that
+ * could not be read, one that does not hold today, and with none to mark: no visit is claimed on a guess.
  */
 export function askedVisits(word: AppointmentWord): TodayVisitsAskedVM | null {
   const cal = surfaceValue("calendar");
   if (!cal || !cal.vm || cal.vm.feed.state !== "ok") return null;
-  return TODAY_HELPERS.visitsAsked(cal.vm as CalendarLike, Date.now(), word);
+  return TODAY_HELPERS.visitsAsked(cal.vm, Date.now(), word);
 }

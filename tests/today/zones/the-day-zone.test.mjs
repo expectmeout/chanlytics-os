@@ -133,7 +133,7 @@ test("the morning: Next and Then with one fact each, when they were last in or t
   assert.equal(z.tomorrow, false);
   assert.deepEqual(cellsOf(z), [
     ["Next", "9 AM", "Noor Haddad · Cut", "Last here Aug 12"],
-    ["Then", "11 AM", "Elena Vega · Color", "First visit"],
+    ["Then", "11 AM", "Elena Vega · Color", "First time here"],
   ]);
   assert.deepEqual(linesOf(z), [
     ["12:45 PM", "Joy Lin", "Blow-dry · 1h"],
@@ -151,7 +151,7 @@ test("the shift: the visit under way is Now, its span said, the next beside it, 
   assert.deepEqual(
     cellsOf(z).map(([e, , what, fact]) => [e, what, fact]),
     [
-      ["Now", "Elena Vega · Color", "First visit"],
+      ["Now", "Elena Vega · Color", "First time here"],
       ["Next", "Joy Lin · Blow-dry", "Last here Sep 1"],
     ],
   );
@@ -245,7 +245,7 @@ test("the day turns to tomorrow at closing time, by the business's hours, not wh
   assert.equal(z.tomorrow, true, "REGRESSION: it turned only at the grid's end, an hour after Tuesday closed");
   assert.equal(z.title, "Tomorrow");
   assert.deepEqual(cellsOf(z), [
-    ["First", "9 AM", "Tove Lind · Cut", "First visit"],
+    ["First", "9 AM", "Tove Lind · Cut", "First time here"],
     ["Then", "10:30 AM", "Camila Ortiz · Color", "Last here Sep 1"],
   ]);
   assert.notEqual(z.bar, null, "REGRESSION: tomorrow was drawn without its bar");
@@ -383,6 +383,6 @@ test("a fact the read does not hold is not said: nobody matched, or whether they
   assert.deepEqual(
     cellsOf(z).map(([e, , what, fact]) => [e, what, fact]),
     [["Next", "Ines Mora · Fringe trim", null]],
-    "Ines's visits were read and the record was not asked of before the season: no 'First visit'",
+    "Ines's visits were read and the record was not asked of before the season: no 'First time here'",
   );
 });

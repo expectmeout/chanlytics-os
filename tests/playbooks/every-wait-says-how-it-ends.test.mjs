@@ -62,24 +62,24 @@ test("each rule ends in one sentence, the same wherever it is said", () => {
   assert.equal(waitEndsWords("reply"), "Goes at its time unless you stop it", "no time known: never a made-up one");
   assert.equal(
     waitEndsWords("batch_ask"),
-    "Waits for your OK until the end of its day; then it is skipped, and you are told",
+    "Waits for you to approve until the end of its day. Then it's skipped, and you're told",
   );
   assert.equal(
     waitEndsWords("visit_ask", "21:00"),
-    "Goes only if you approve it before 21:00 by your clock; after that it is skipped, and it does not reach them",
+    "Goes only if you approve it before 21:00 by your clock. After that it's skipped and doesn't reach them",
   );
   assert.equal(
     waitEndsWords("visit_ask"),
-    "Goes only if you approve it before the day's sending hours end; after that it is skipped, and it does not reach them",
+    "Goes only if you approve it before the day's sending hours end. After that it's skipped and doesn't reach them",
     "no hour known: never a made-up one",
   );
   assert.equal(
     waitEndsWords("leads_batch"),
     // A run to leads has no day to pass, so its owner is reminded each morning while it waits (decision 0120).
-    "Waits for your OK, and you are reminded each morning; no new business is written to until you give it",
+    "Waits for you to approve. Nothing new goes out until you do, and you're reminded each morning",
   );
   assert.equal(waitEndsWords("to_send"), "Waits for you to send it from your own inbox");
-  assert.equal(waitEndsWords("hold"), "Waits for you; nothing more goes until you answer");
+  assert.equal(waitEndsWords("hold"), "Waits for you. Nothing more goes until you answer");
 });
 
 test("the notices of a batch say its wait by the rule: ready (until its day ends), held for a stop (goes at its time), skipped (told, never silent)", () => {
@@ -128,7 +128,7 @@ test("REGRESSION: a reminder nobody approved told its owner its people were in l
   );
   assert.equal(
     ready.body,
-    "3 people have become eligible for “Appointment reminder”. Approve or skip it from your Inbox or Today. Goes only if you approve it before 21:00 by your clock; after that it is skipped, and it does not reach them.",
+    "3 people have become eligible for “Appointment reminder”. Approve or skip it from your Inbox or Today. Goes only if you approve it before 21:00 by your clock. After that it's skipped and doesn't reach them.",
   );
   // Today's row, which the notice sends the owner to, says its wait the one way (and so does Coming up, which reads it).
   const row = { state: "pending_approval", recipient_count: 3, when: "today", counts: { sent: 0, replied: 0 } };
@@ -163,7 +163,7 @@ test("REGRESSION: a reminder nobody approved told its owner its people were in l
   ]) {
     assert.equal(
       readyRunNotice("Win-back", 4, trigger).body,
-      "4 people have become eligible for “Win-back”. Approve or skip it from your Inbox or Today. Waits for your OK until the end of its day; then it is skipped, and you are told.",
+      "4 people have become eligible for “Win-back”. Approve or skip it from your Inbox or Today. Waits for you to approve until the end of its day. Then it's skipped, and you're told.",
       String(trigger),
     );
     assert.equal(
@@ -455,11 +455,11 @@ test("a freed time's batch (decision 0082) waits for an OK only until the time i
   assert.deepEqual(waitRuleOf("freed_ask"), { goes: "with_your_ok", ends: "end_of_its_time", act: "approve" });
   assert.equal(
     waitEndsWords("freed_ask"),
-    "Goes only if you approve it before the time it offers; after that it is skipped",
+    "Goes only if you approve it before the time it offers. After that it's skipped",
   );
   assert.equal(
     waitEndsWords("freed_ask", "Tue 3:00 PM"),
-    "Goes only if you approve it before Tue 3:00 PM; after that it is skipped",
+    "Goes only if you approve it before Tue 3:00 PM. After that it's skipped",
   );
   assert.ok(readyRunNotice("Fill a cancellation", 4, "slot_opened").body.endsWith(`${waitEndsWords("freed_ask")}.`));
   // Today's row: the time first, then who it reaches and why them, then how the wait ends; once it went, who took it.

@@ -122,7 +122,7 @@ after(() => {
 test("yesterday's unmarked visits are To do's rows: the person, 'Did they come?', Kept and Missed as the verbs, the visit on the Calendar as the door; three at most, then the rest at the foot", () => {
   clear();
   const tree = draw();
-  assert.match(textOf(todoOf(tree)), /To do\s*4/, "how many To do holds, by its name");
+  assert.match(textOf(todoOf(tree)), /Do\s*4/, "how many To do holds, by its name");
   assert.equal(
     all(queueOf(tree), (n) => n.props?.["data-testid"] === "queue-handoff").length,
     1,
@@ -151,10 +151,11 @@ test("yesterday's unmarked visits are To do's rows: the person, 'Did they come?'
   );
   find(open, (n) => classes(n).includes("cl-attn-body")).props.onClick();
   assert.equal(went.at(-1), "calendar/2026-09-17:a-r-a");
-  // The rest, at To do's foot: how many more, and, nothing else being left out, the Calendar on yesterday as its door.
+  // The rest, at To do's foot: how many more, and, nothing else being left out, the first visit it does not draw as its
+  // door (15 Nov 2026: it was the Calendar on yesterday), whose sheet's Next walks on through the rest.
   const foot = byTestId(queueOf(tree), "today-group-todo-more");
   assert.equal(textOf(foot).trim(), "1 more to do");
-  assert.match(foot.props.href, /calendar\/2026-09-17$/, "the Inbox holds no visit");
+  assert.match(foot.props.href, /calendar\/2026-09-17:a-r-g$/, "the Inbox holds no visit");
 });
 
 test("with nobody waiting, To do is the list: its three, nobody waiting over them", () => {
@@ -182,7 +183,7 @@ test("a day with only visits to mark is not an empty queue; none to mark, an unr
     all(queueOf(tree), (n) => String(n.props?.["data-testid"] ?? "").startsWith("today-queue-empty-")).length,
     0,
   );
-  assert.match(textOf(queueOf(tree)), /To do\s*1/);
+  assert.match(textOf(queueOf(tree)), /To-dos\s*1/);
   clear([block("a", 14, "kept")]);
   assert.equal(rowsOf(draw()).length, 0, "marked: nothing to ask");
   clear();
@@ -448,7 +449,7 @@ test("REGRESSION: a visit marked keeps its place in To do's three, with its word
   assert.ok(textOf(rows[0]).includes("Kept"), "it says what it was marked");
   const foot = byTestId(queueOf(after), "today-group-todo-more");
   assert.ok(foot && textOf(foot).includes("1 more to do"), "REGRESSION: the visit left out was said nowhere");
-  assert.match(foot.props.href, /calendar\/2026-09-17$/, "its door is the Calendar on yesterday");
+  assert.match(foot.props.href, /calendar\/2026-09-17:a-r-g$/, "its door is the one left out, on the Calendar");
 });
 
 test("Mark all kept, at To do's foot: every one of yesterday's left to mark, the ones past the three drawn among them, asked first, then said through the one door; nothing for one, or for whoever may not say it", async () => {

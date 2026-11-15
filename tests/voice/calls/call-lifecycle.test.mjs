@@ -382,9 +382,9 @@ test("Today: a call in progress is a row that says so and opens Live — never '
 test("Today: a call that just ended waits for its summary instead of reporting none", () => {
   const justEnded = { ...base, status: "ended", ended_at: agoIso(60_000), duration_ms: 60_000 };
   const vm = toTodayVM(metrics(), [], [], [justEnded], NOW);
-  assert.equal(vm.calls.rows[0].note, "Summary on its way from the voice provider");
+  assert.equal(vm.calls.rows[0].note, "Summary on its way");
   const longAgo = { ...base, status: "ended", ended_at: agoIso(CALL_HEARTBEAT_MS * 2), duration_ms: 60_000 };
-  assert.equal(toTodayVM(metrics(), [], [], [longAgo], NOW).calls.rows[0].note, "No summary from the voice provider");
+  assert.equal(toTodayVM(metrics(), [], [], [longAgo], NOW).calls.rows[0].note, "No summary");
 });
 
 test("Today: a dial that never connected is not a call worth an ear", () => {
