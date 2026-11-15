@@ -70,8 +70,8 @@ export function postDrawProblem(words: string, limit: number): string | null {
 
 /**
  * What is wrong with some words a post would say, in a sentence for the model, or null. `owner` is what the owner has said: their
- * questions in this thread and what they wrote in Settings. Nothing is a stranger's word here: not what a customer wrote, a
- * page shows or a read returned.
+ * questions in this thread and what they wrote in Settings as theirs to say (contracts ownersSayings). Nothing is a stranger's
+ * word here: not what a customer wrote, a page shows or a read returned.
  */
 export function postWordsProblem(words: string, owner: string, limit: number): string | null {
   const text = words.trim();

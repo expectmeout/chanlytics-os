@@ -281,9 +281,11 @@ test("who may: whoever may delete a file, as the card's Undo does; an operator a
 test("Save keeps a shape each in the file's folder, and the file by its door: what it says, who is in it, how it was made", async () => {
   const { asked, ctx } = world();
   const out = await save.POST.run(post(PLAN), ctx);
-  assert.equal(asked.uploaded.length, 3);
+  assert.equal(asked.uploaded.length, 4);
   const id = asked.made[0].p_id;
+  // Its three shapes, and the wide picture Google is sent, drawn once with them and never again (posts/google.ts).
   assert.deepEqual(asked.uploaded.map((u) => u.path).sort(), [
+    `${A}/${id}/google.jpg`,
     `${A}/${id}/original.jpg`,
     `${A}/${id}/square.jpg`,
     `${A}/${id}/story.jpg`,
@@ -313,21 +315,21 @@ test("the same picture pressed twice is the one file, and the second press leave
   });
   const out = await save.POST.run(post(PLAN), ctx);
   assert.deepEqual([out.file_id, out.name, out.twin], [MADE, "come-see", true]);
-  assert.equal(asked.removed.length, 3, "these bytes are nobody's");
+  assert.equal(asked.removed.length, 4, "these bytes are nobody's");
 });
 
 test("a library that is full, a door that fails, or a shape that won't store each leave nothing behind", async () => {
   const full = world({ fate: { fate: "full", file_id: null } });
   await assert.rejects(save.POST.run(post(PLAN), full.ctx), (e) => e.code === "validation");
-  assert.equal(full.asked.removed.length, 3);
+  assert.equal(full.asked.removed.length, 4);
 
   const broken = world({ doorThrows: true });
   await assert.rejects(save.POST.run(post(PLAN), broken.ctx));
-  assert.equal(broken.asked.removed.length, 3);
+  assert.equal(broken.asked.removed.length, 4);
 
   const stuck = world({ uploadFails: "story.jpg" });
   await assert.rejects(save.POST.run(post(PLAN), stuck.ctx), (e) => e.code === "unavailable");
-  assert.equal(stuck.asked.removed.length, 3);
+  assert.equal(stuck.asked.removed.length, 4);
   assert.equal(stuck.asked.made.length, 0, "no row for a post that did not arrive");
 });
 

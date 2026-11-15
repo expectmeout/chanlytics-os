@@ -1,21 +1,13 @@
 /**
  * A kept post on the business's Google profile, and off it (decision 0099, step 3): a person's press, and only that. The picture is
- * drawn for what Google shows, from what the post was asked to be, and kept in the file's own folder, so what empties the folder empties
+ * the post's own wide shape, drawn for what Google shows and kept once in the file's own folder, so what empties the folder empties
  * it. Google fetches it by itself, some time after it answers, so its address lasts a day. The edge holds the token and says it to Google.
  *
  * The press keeps its placement as Instagram's does (00611, decision 0121, D16): one record of where each post went, written before
  * the edge is asked, its one send kept as an attempt, and settled by the answer: up, with Google's name for it, or refused in words.
  */
 import "server-only";
-import {
-  AppError,
-  DAY_MS,
-  FILE_WORDS,
-  POST_SOON_MS,
-  SECOND_MS,
-  fileFolderOf,
-  type PostPlan,
-} from "@chanlytics/contracts";
+import { AppError, DAY_MS, FILE_WORDS, POST_SOON_MS, SECOND_MS, type PostPlan } from "@chanlytics/contracts";
 import {
   beginPost,
   closePostAttempt,
@@ -24,6 +16,7 @@ import {
   openPostAttempt,
   type FileMemberRow,
 } from "@chanlytics/db/files";
+import { logAndGoOn } from "@chanlytics/log";
 import { callEdgeGoogle } from "@/server/connections/google";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
@@ -32,7 +25,7 @@ import type { RouteContext } from "@/server/shared/with-route";
 import { bucket } from "../files/file";
 import { getMaterial } from "./material";
 import { keepPostWords } from "./caption";
-import { getPhoto, postDrawn } from "./make";
+import { getPhoto, googlePicturePathOf, postDrawn } from "./make";
 import { readFileRecord } from "./record";
 
 const ON_GOOGLE = FILE_WORDS.google;
@@ -42,16 +35,37 @@ const PICTURE_LINK_S = DAY_MS / SECOND_MS;
 /** A photo read, a picture drawn and Google asked: the slowest a press waits. */
 const GOOGLE_ASKED_MS = 25 * SECOND_MS;
 
-/** The picture Google is sent to fetch. Drawn afresh each time: a post's words never change, but its logo and its colour may. */
+/**
+ * Whether a picture is in the bucket at this path. A look that fails says no (the client throws on an outage, where it
+ * answers false for a picture that is not there): the store that follows never writes over one, and says why it failed.
+ */
+const pictureKept = (path: string): Promise<boolean> =>
+  bucket()
+    .exists(path)
+    .then((found) => found.data === true)
+    .catch(logAndGoOn("looking for the picture Google is sent", false));
+
+/**
+ * The picture Google is sent to fetch: the post's wide shape, kept once and never written over. A post keeps it from its making
+ * (posts/make.ts), drawn with its other shapes; one made before that has it drawn the first time it is asked for, and it is that
+ * picture from then on.
+ *
+ * It was drawn afresh at every press, under the one name, before the press was judged (14 Nov 2026): a second press, even one
+ * refused because the first still waited for its time, replaced the picture the waiting post would send, with the logo and the
+ * colour as they stood that minute.
+ */
 async function pictureForGoogle(ctx: RouteContext, member: Member, fileId: string, plan: PostPlan): Promise<string> {
-  const photo = await getPhoto(ctx, plan);
-  const material = await getMaterial(ctx, member, { file: photo, at: plan.at });
-  const picture = await postDrawn(plan, material, "wide", false);
-  const path = `${fileFolderOf(member.tenantId, fileId)}/google.jpg`;
-  const stored = await bucket().upload(path, picture, { contentType: "image/jpeg", upsert: true });
-  if (stored.error) {
-    log.error("file_google_store_failed", { tenant_id: member.tenantId, error: stored.error.message });
-    throw new AppError("unavailable", ON_GOOGLE.notSent);
+  const path = googlePicturePathOf(member.tenantId, fileId);
+  if (!(await pictureKept(path))) {
+    const photo = await getPhoto(ctx, plan);
+    const material = await getMaterial(ctx, member, { file: photo, at: plan.at });
+    const picture = await postDrawn(plan, material, "wide", false);
+    const stored = await bucket().upload(path, picture, { contentType: "image/jpeg", upsert: false });
+    // Refused because another press kept it in the same moment: theirs stands, and this one sends it.
+    if (stored.error && !(await pictureKept(path))) {
+      log.error("file_google_store_failed", { tenant_id: member.tenantId, error: stored.error.message });
+      throw new AppError("unavailable", ON_GOOGLE.notSent);
+    }
   }
   const signed = await bucket().createSignedUrl(path, PICTURE_LINK_S);
   if (signed.error || !signed.data) {

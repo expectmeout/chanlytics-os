@@ -487,7 +487,7 @@ const fileRow = (over = {}) => ({
 
 function askedOnce(
   input,
-  { file = {}, question = OWNER, earlier = [], phone = "(555) 010-0100", subject = null } = {},
+  { file = {}, question = OWNER, earlier = [], phone = "(555) 010-0100", subject = null, brain = {} } = {},
 ) {
   const config = {
     brain: {
@@ -495,6 +495,7 @@ function askedOnce(
       system_prompt: "Answer as the front desk of Harbor: brief and warm, never a price.",
       fallbacks: { greeting: "g", error: "e", non_text: "n" },
       ...(phone ? { phone_display: phone } : {}),
+      ...brain,
     },
   };
   const tables = {
@@ -617,8 +618,40 @@ test("the words may rest on what they said earlier in the thread, and on what th
   const none = await asked({ book: false }, { question: "use the other photo" });
   assert.equal(none.proposal, null);
   assert.match(none.refusal, /price or a share/);
-  const settings = await asked({ line: "Call the 555 line", book: false }, { question: "make a post" });
-  assert.equal(settings.proposal?.kind, "post", "their Settings say 555");
+  const priced = { profile: { services: [{ name: "Balayage", price_note: "from $45" }] } };
+  const settings = await asked({ line: "Balayage from $45", book: false }, { question: "make a post", brain: priced });
+  assert.equal(settings.proposal?.kind, "post", "their Settings say what a balayage costs");
+});
+
+test("only what the owner wrote as theirs to say counts from Settings: not a number to call, a setting, what they forbid, or an offer that ended", async () => {
+  // Settings as a business keeps them: a service with its length and its price, an offer that ended in October and one
+  // still running, a booking note that forbids, and the hand-written prompt with what never to say.
+  const brain = {
+    system_prompt:
+      "Answer as the front desk of Harbor: brief and warm. Never offer a discount, never promise guaranteed results, and never say our $500 package.",
+    profile: {
+      services: [{ name: "Balayage", duration_min: 50, price_note: "from $45" }],
+      notes: [
+        { title: "October offer", text: "20% off balayage.", until: "2026-10-31" },
+        { title: "Holiday", text: "A free blowout with any color.", until: "2026-12-31" },
+      ],
+      booking_rules: { notes: ["Never take a deposit by message."] },
+    },
+  };
+  const said = (line) => asked({ line, book: false }, { question: "make a post about our new floor", brain });
+  // Theirs to say: a service's price box, and a note still in force.
+  for (const line of ["Balayage from $45", "A free blowout with any color"]) {
+    const out = await said(line);
+    assert.equal(out.proposal?.kind, "post", `${line}: ${out.refusal ?? out.result}`);
+  }
+  // Not theirs: each of these went on a card while the whole of Settings counted as said.
+  assert.match((await said("Over 555 clients")).refusal, /number 555/, "a number to call is no claim");
+  assert.match((await said("50 years of color")).refusal, /number 50/, "a service's minutes are no claim");
+  assert.match((await said("Discount this week")).refusal, /money/, "the prompt forbids a discount: that is no offer");
+  assert.match((await said("Guaranteed results")).refusal, /promise/, "nor a promise it forbids");
+  assert.match((await said("The $500 package")).refusal, /price/, "nor a price it forbids");
+  assert.match((await said("Deposit holds your spot")).refusal, /money/, "nor what a booking note forbids");
+  assert.match((await said("20% off balayage")).refusal, /price or a share/, "an offer that ended is theirs no longer");
 });
 
 test("a piece made here and asked about lends its own kept words: made again with one thing changed, its offer stays the owner's", async () => {

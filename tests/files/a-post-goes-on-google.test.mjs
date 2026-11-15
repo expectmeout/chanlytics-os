@@ -115,7 +115,15 @@ function world({
   made = { from: PHOTO_ID, plan: PLAN },
   storeFails = false,
   posts = [],
+  // The pictures already in Storage, by their paths; `seenLate` is one another press stored between this one's look and
+  // its own store.
+  kept = [],
+  seenLate = false,
+  // Storage cannot be looked at: its client throws on an outage, where it answers false for a picture that is not there.
+  looksFail = false,
 } = {}) {
+  const inStorage = new Set(kept);
+  let looks = 0;
   const uploaded = [];
   const signed = [];
   const attempts = [];
@@ -174,8 +182,17 @@ function world({
   service.storage = {
     from: () => ({
       download: async () => ({ data: new Blob([PHOTO]), error: null }),
+      exists: async (p) => {
+        if (looksFail) throw new Error("fetch failed");
+        looks += 1;
+        if (seenLate && looks === 1) inStorage.add(p);
+        return { data: seenLate && looks === 1 ? false : inStorage.has(p), error: null };
+      },
       upload: async (p, bytes, o) => {
         if (storeFails) return { error: { message: "full" } };
+        // As Storage answers: a path that is there is never written over unless asked to be.
+        if (inStorage.has(p) && !o?.upsert) return { error: { message: "The resource already exists" } };
+        inStorage.add(p);
         uploaded.push({ path: p, bytes, ...o });
         return { data: { path: p }, error: null };
       },
@@ -293,7 +310,7 @@ test("the post goes up: drawn for what Google shows, kept in its own folder, fet
     `${A}/${POST_ID}/google.jpg`,
     "in the file's folder, so the purge that empties it empties this",
   );
-  assert.equal(stored.upsert, true, "a second time over the first");
+  assert.equal(stored.upsert, false, "kept once: nothing is ever written over it");
   const seen = await sharp(stored.bytes).metadata();
   assert.deepEqual([seen.format, seen.width, seen.height], ["jpeg", 1200, 900], "4:3, which Google shows whole");
   assert.deepEqual(edge.asked, [
@@ -309,6 +326,31 @@ test("the post goes up: drawn for what Google shows, kept in its own folder, fet
     },
   ]);
   assert.ok(signed[0].seconds >= 3600, "long enough for Google to come for it, whenever it does");
+});
+
+test("the picture Google is sent is kept once and never written over: a press refused as busy changes nothing a waiting post will send", async () => {
+  const PICTURE = `${A}/${POST_ID}/google.jpg`;
+  // One waits for its time, its picture kept. A second press is refused, and must leave that picture as it is.
+  const busy = world({ posts: [placementRow({ status: "queued" })], kept: [PICTURE] });
+  await assert.rejects(route.POST.run(send("POST", { summary: WORDS }), busy.ctx), /already on its way to Google/);
+  assert.equal(busy.uploaded.length, 0, "nothing is drawn over the picture the waiting post sends");
+  // A post made since keeps its picture with its other shapes: the press sends that one, and draws nothing.
+  const made = world({ kept: [PICTURE] });
+  await route.POST.run(send("POST", { summary: WORDS }), made.ctx);
+  assert.equal(made.uploaded.length, 0);
+  assert.equal(edge.asked.at(-1).photo_url, `https://storage.example/${PICTURE}?token=t`);
+  // Two presses at once on a post made before: the one that stores second finds it there, and sends the first's.
+  const late = world({ seenLate: true });
+  await route.POST.run(send("POST", { summary: WORDS }), late.ctx);
+  assert.equal(late.uploaded.length, 0, "the other press's picture stands");
+  assert.equal(edge.asked.at(-1).photo_url, `https://storage.example/${PICTURE}?token=t`);
+  // Storage cannot be looked at: a picture it could not see is never written over, the person is told in the door's own
+  // words, and Google is not asked.
+  const blind = world({ kept: [PICTURE], looksFail: true });
+  const askedBefore = edge.asked.length;
+  await assert.rejects(route.POST.run(send("POST", { summary: WORDS }), blind.ctx), /did not go through/);
+  assert.equal(blind.uploaded.length, 0);
+  assert.equal(edge.asked.length, askedBefore);
 });
 
 test("a post set for its time is drawn now and kept with its time, and Google is asked by its job then (00616)", async () => {
