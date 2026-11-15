@@ -141,6 +141,12 @@ test("the mark promises nothing the door would refuse: a lead that can get none 
       say: F.mark.cannot,
       tone: "warn",
     });
+  // Switched off on the edge: nothing is made, so the email waits; a lead that can get none is told that first.
+  assert.deepEqual(previewMarkOf({ preview: null, makes: true, cannot: null, paused: true }, NOW), {
+    say: F.mark.paused,
+    tone: "warn",
+  });
+  assert.equal(previewMarkOf({ preview: null, makes: true, cannot: "closed", paused: true }, NOW).say, F.mark.cannot);
   // Nothing in the way: made when this goes, as before.
   assert.equal(previewMarkOf({ preview: null, makes: true, cannot: null }, NOW).say, F.mark.none);
 });

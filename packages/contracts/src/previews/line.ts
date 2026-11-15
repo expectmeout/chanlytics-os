@@ -36,11 +36,14 @@ export interface LeadPreviewFacts {
  * GET leads/:id/preview: the lead's preview, or none made; whether this workspace makes them (ours); and, where it does
  * and none is made, why this lead can get none, as its door would refuse it (00497 preview_make: not a business that
  * takes bookings, a lead that is closed, no name to set it up under). Null or absent: nothing stands in the way.
+ * `paused`: none is being made for anyone just now (the edge's switch, asked of its standing door), so an email that
+ * carries the link waits. Absent or false: made as usual, or the edge did not say.
  */
 export interface LeadPreviewDto {
   preview: LeadPreviewFacts | null;
   makes: boolean;
   cannot?: "not_a_business" | "closed" | "no_name" | null;
+  paused?: boolean;
 }
 
 /** The lead sheet's line. */
@@ -76,6 +79,8 @@ export const PREVIEW_LINE_WORDS = {
   /** None made, and its door would refuse this lead: said before any email goes, with nothing to press. */
   cannot: (reason: NonNullable<LeadPreviewDto["cannot"]>) =>
     `Can't be made: ${CANNOT_WHY[reason]}. An email that carries its link is skipped.`,
+  /** None is being made for anyone just now: what is happening, that it mends itself, and nothing to press. */
+  paused: "Paused for now. An email that carries its link waits, and goes by itself once these are made again.",
   building: "Being set up. It takes about half a minute.",
   slow: "Still being set up. It usually takes half a minute; this one is slower, and it is checked again by itself.",
   failed: (reason: string | null) => `Couldn't be made: ${reason === "no_name" ? NO_NAME : "its set-up failed"}.`,
@@ -103,8 +108,9 @@ function noneLineOf(dto: LeadPreviewDto): LeadPreviewLineVM | null {
   const words = PREVIEW_LINE_WORDS;
   if (!dto.makes) return null;
   const none = { said: [], open: null, link: null };
-  return dto.cannot
-    ? { ...none, words: words.cannot(dto.cannot), tone: "warn", make: false }
+  if (dto.cannot) return { ...none, words: words.cannot(dto.cannot), tone: "warn", make: false };
+  return dto.paused
+    ? { ...none, words: words.paused, tone: "warn", make: false }
     : { ...none, words: words.none, tone: "quiet", make: true };
 }
 

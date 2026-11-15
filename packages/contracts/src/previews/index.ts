@@ -1,4 +1,4 @@
-export { PREVIEW_MAKE_DOOR } from "./edge-doors";
+export { PREVIEW_MAKE_DOOR, PREVIEWS_STANDING_DOOR } from "./edge-doors";
 export {
   PREVIEW_LIMITS,
   PREVIEW_STATES,

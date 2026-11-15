@@ -58,6 +58,8 @@ export const LEAD_FILL_WORDS = {
     none: "made when this goes",
     /** Its door would refuse this lead one (a company, a closed lead, no name): said before the email goes. */
     cannot: "can't be made for this lead, so this email is skipped",
+    /** None is being made for anyone just now (the edge's switch): the email waits, and goes once they are. */
+    paused: "paused for now, so this email waits",
     building: "being made",
     /** Being made for longer than usual: still looked at, and its line says so. */
     slow: "still being made, slower than usual",
@@ -155,7 +157,8 @@ export function previewMarkOf(dto: LeadPreviewDto | null, now: Date): PreviewMar
   const preview = dto.preview;
   if (!preview) {
     if (!dto.makes) return { say: F.mark.notOurs, tone: "warn" };
-    return dto.cannot ? { say: F.mark.cannot, tone: "warn" } : { say: F.mark.none, tone: "quiet" };
+    if (dto.cannot) return { say: F.mark.cannot, tone: "warn" };
+    return dto.paused ? { say: F.mark.paused, tone: "warn" } : { say: F.mark.none, tone: "quiet" };
   }
   if (preview.state === "building")
     return { say: previewBuildSlow(preview, now) ? F.mark.slow : F.mark.building, tone: "busy" };

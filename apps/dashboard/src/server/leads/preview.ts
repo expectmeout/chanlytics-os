@@ -9,7 +9,7 @@ import "server-only";
  *   makeLeadPreviewFor  POST leads/:id/preview, Make their preview: asked of the edge's door (askPreview, the sender's
  *                       own way, its switch with it), then the line read again
  */
-import { AppError, leadCalledByOf, type LeadPreviewDto } from "@chanlytics/contracts";
+import { AppError, SECOND_MS, leadCalledByOf, type LeadPreviewDto } from "@chanlytics/contracts";
 import { findLeadForPreview, findLeadPreview, doesMakePreviews, type LeadPreviewRow } from "@chanlytics/db/campaigns";
 import { callEdge, edgeRefusalWords } from "../shared/edge";
 import type { RouteContext } from "../shared/with-route";
@@ -51,6 +51,24 @@ function previewCannotOf(
   return name.trim().length < 2 ? "no_name" : null;
 }
 
+/** How long the edge's standing door is waited for: the sheet's line is not held up by a slow answer about a switch. */
+const STANDING_WAIT_MS = 2 * SECOND_MS;
+
+/**
+ * Whether none is being made for anyone just now, as the edge's standing door says its switch. Only a plain "off" is
+ * believed: an older edge with no such door, one that could not be reached, or an answer that says nothing of it claims
+ * nothing, and the line reads as it did before.
+ */
+async function arePreviewsPaused(ctx: Ctx, tenantId: TenantId): Promise<boolean> {
+  const answer = await callEdge("/api/admin/previews/standing", null, {
+    workspace: tenantId,
+    user: ctx.userId,
+    method: "GET",
+    timeoutMs: STANDING_WAIT_MS,
+  });
+  return answer.status === 200 && answer.body?.on === false;
+}
+
 export async function getLeadPreview(ctx: Ctx, tenantId: TenantId, leadId: string): Promise<LeadPreviewDto> {
   const [row, makes] = await Promise.all([
     findLeadPreview(ctx.supabase, tenantId, leadId),
@@ -58,7 +76,10 @@ export async function getLeadPreview(ctx: Ctx, tenantId: TenantId, leadId: strin
   ]);
   // The lead is read only where one would be made for it: a workspace that makes them, and none made yet.
   const lead = !row && makes ? await findLeadForPreview(ctx.supabase, tenantId, leadId) : null;
-  return { preview: row ? previewFactsOf(row) : null, makes, cannot: lead ? previewCannotOf(lead) : null };
+  const cannot = lead ? previewCannotOf(lead) : null;
+  // The switch is asked only where its answer changes what is said: a lead that would otherwise get one.
+  const paused = lead && !cannot ? await arePreviewsPaused(ctx, tenantId) : false;
+  return { preview: row ? previewFactsOf(row) : null, makes, cannot, paused };
 }
 
 /** The edge door's refusals, said in its words: none such, not a workspace of ours, or the door's own (switched off). */

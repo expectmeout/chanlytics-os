@@ -63,3 +63,11 @@ export async function makePreviewFor(auth: Admitted, body: Partial<{ tenant_id: 
   if (created.reason === "not_ours") return refuse(403, "platform_only", created.message);
   return refuse(409, "preview_failed", created.message);
 }
+
+/**
+ * Whether a lead's preview is made at all just now (GET /api/admin/previews/standing): the switch, said to the
+ * dashboard, so the lead sheet tells its member an email will wait before it does. Nothing is read and nothing made.
+ */
+export function previewsStanding(): Response {
+  return json(200, { ok: true, on: env.LEAD_PREVIEWS === "on" });
+}
