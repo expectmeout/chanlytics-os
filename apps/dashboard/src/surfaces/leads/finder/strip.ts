@@ -269,9 +269,11 @@ const ldStripOf = (
     const parts = [`${counted} of ${goal}`, `${r.emails_checked} emails checked`, `about ${minutesLeft} min left`];
     // The first 25 size the rest of the round (S6), so until they are in the estimate is an assumption and says so (P3).
     if (counted < LEAD_PROBE_SEEN) parts.push("estimates update after the first 25");
-    // A leg reads the next area out (decision 0133): the strip names it, and says the card's area is done.
+    // A leg reads the next area out (decision 0133): the strip names it, and says it comes after the card's area. Never
+    // that the card's area is searched: a round also moves on from a term it asked no deeper, or one its reserve cut
+    // short, and a screen says only what is known (docs/words.md).
     const leg = r.purpose === "widen" && r.area ? r.area : null;
-    if (leg) parts.splice(1, 0, `${planArea(plan.area)} searched`);
+    if (leg) parts.splice(1, 0, `after ${planArea(plan.area)}`);
     return {
       state: "running",
       alert: false,

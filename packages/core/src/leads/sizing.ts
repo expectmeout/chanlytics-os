@@ -7,8 +7,9 @@
  *     reserve holds a run for, E10) and for the main phase (what remains, over the yield, without the term the question
  *     dropped: a term not yet asked before one that was, and one asked again past what it read).
  *   - yieldOf / probeYield / hasContact: the yield that sizes the main phase: the share of the probe's places that are not
- *     left out and hold a way to reach them (a phone that dials, or a candidate email: decision 0010), never the Qualified
- *     share, and never under 5%; a probe that judged nothing counts as 20%.
+ *     left out and hold a way to reach them that the search's standard counts (a candidate email for a search made for
+ *     email, decision 0132; that or a phone that dials for one made for calls, decision 0010), never the Qualified share,
+ *     and never under 5%; a probe that judged nothing counts as 20%.
  *   - runCaps: one dollar cap per run: the estimate for its places, every cap scaled down when the sum would pass what
  *     the round still has reserved, none under the actor's floor (MAPS_CAP_FLOOR_USD), and only as many runs as the
  *     reserve holds a floor for, in the plan's order: the caps together never pass it, and with less than one floor
@@ -20,6 +21,7 @@ import {
   placesPastRead,
   placesToAsk,
   leadPhoneState,
+  type LeadContactStandard,
   type LeadMemberClass,
   type LeadSearchPlan,
 } from "@chanlytics/contracts";
@@ -81,10 +83,17 @@ export function yieldOf(judged: number, usable: number): number {
 }
 
 /**
- * A place a lead could come from (decision 0010): a phone that dials, or a candidate email the cleaner kept -- either,
- * whichever the search prefers, since either one checked makes the lead count.
+ * A place a lead could come from under the search's standard, as contracts' classify counts one once its email is
+ * checked. A search made for email counts a lead only with an email that checked out (decision 0132), so only a candidate
+ * email the cleaner kept is a way to it: nearly every place has a phone, and a probe that counted them sized an email
+ * search's main phase at about half the places its count needed. A search made for calls counts either (decision 0010):
+ * a phone that dials, or a candidate email.
  */
-export function hasContact(place: { phone: string | null; email: string | null }): boolean {
+export function hasContact(
+  place: { phone: string | null; email: string | null },
+  contact: LeadContactStandard,
+): boolean {
+  if (contact === "email") return place.email !== null;
   return leadPhoneState(place.phone) === "ok" || place.email !== null;
 }
 
@@ -95,8 +104,11 @@ export function hasContact(place: { phone: string | null; email: string | null }
  * email is not Qualified until the mailbox checks land, and a round sized
  * from zero asks the provider for everything it is allowed to.
  */
-export function probeYield(members: { class: LeadMemberClass; phone: string | null; email: string | null }[]): number {
-  return yieldOf(members.length, members.filter((m) => m.class !== "excluded" && hasContact(m)).length);
+export function probeYield(
+  members: { class: LeadMemberClass; phone: string | null; email: string | null }[],
+  contact: LeadContactStandard,
+): number {
+  return yieldOf(members.length, members.filter((m) => m.class !== "excluded" && hasContact(m, contact)).length);
 }
 
 /**

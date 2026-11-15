@@ -1259,11 +1259,11 @@ test("an email search's picker says a checked email alone: a phone never counts 
   assert.equal(textOf(byTestId(open, "plan-contact-phone")), "reached by phone or a checked email");
 });
 
-test("a leg's strip counts the whole search and names the area it reads, and says the card's area is done", () => {
+test("a leg's strip counts the whole search and names the area it reads, after the card's, which it never calls searched", () => {
   const leg = withRound({ purpose: "widen", seq: 3, target: 114, area: NEARBY });
   const vm = leadStrip(leg, NOW);
   assert.equal(vm.title, "Finding personal trainers in Round Rock, TX");
-  assert.deepEqual(vm.parts.slice(0, 3), ["86 of 200", "Austin, TX searched", "41 emails checked"]);
+  assert.deepEqual(vm.parts.slice(0, 3), ["86 of 200", "after Austin, TX", "41 emails checked"]);
   assert.deepEqual(vm.count, { n: 86, of: 200 }, "of what the owner asked, never of the 114 the leg still wants");
   assert.deepEqual(
     leadStrip(withRound({ purpose: "topup", seq: 2, target: 114 }), NOW).count,

@@ -22,13 +22,14 @@ import {
   listPlacesSuppressed,
   listRoundsOfSearch,
   listRunsOfRound,
-  listSearchMembers,
+  pageSearchMembers,
   recordRoundNearby,
   recordLeadSiteReadsSpent,
   upsertLeadCompany,
 } from "@chanlytics/db/leads";
 import { asJson, readColumn } from "@chanlytics/db/shared";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
+import { readAllRows } from "../shared/paged.js";
 import type { Database } from "@chanlytics/db/types";
 import {
   DEFAULT_TIMEZONE,
@@ -102,11 +103,16 @@ function callsOn(db: Db) {
 
 export function leadDb(db: Db): LeadDb {
   const { bool, json } = callsOn(db);
-  /** A round's members, or a search's, with the facts of each lead the runner reads back. */
+  /**
+   * A round's members, or a search's, with the facts of each lead the runner reads back. Every one of them: the count, the
+   * addresses to check and where the search looks next are all worked out from this, and an answer holds a thousand rows
+   * at most, which a city's round or a search of several legs passes (decision 0133).
+   */
   async function membersWhere(col: "round_id" | "search_id", id: string): Promise<LeadMemberRow[]> {
-    const members = must<Database["public"]["Tables"]["lead_search_members"]["Row"][]>(
+    const members = await readAllRows<Database["public"]["Tables"]["lead_search_members"]["Row"]>(
       "lead_search_members read",
-      await listSearchMembers(db, col, id),
+      (from, to) => pageSearchMembers(db, col, id, from, to),
+      "whole",
     );
     if (!members.length) return [];
     type LeadFacts = Pick<

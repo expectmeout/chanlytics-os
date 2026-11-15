@@ -18,7 +18,7 @@ export {
   listPlacesSuppressed,
   listRoundsOfSearch,
   listRunsOfRound,
-  listSearchMembers,
+  pageSearchMembers,
   recordRoundNearby,
 } from "./finder";
 export {
