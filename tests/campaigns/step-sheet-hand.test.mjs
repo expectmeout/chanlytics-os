@@ -55,6 +55,7 @@ const { Field } = await import(`${S}/kit/field/field.tsx`);
 const { ListRow } = await import(`${S}/kit/list-row/list-row.tsx`);
 const { Confirm } = await import(`${S}/kit/confirm/confirm.tsx`);
 const { StepSheet } = await import(`${S}/campaigns/sequences/step-sheet.tsx`);
+const { readyMadeOf, stepSaved } = await import(`${S}/campaigns/sequences/step-pick.ts`);
 const { SequenceSteps } = await import(`${S}/campaigns/sequences/steps.tsx`);
 
 const { NEW_WORDS, SCHEDULE_WORDS: SW, SEQUENCE_EDIT_WORDS: E, SEQUENCE_FLOW_WORDS: F, handTitleOf } = contracts;
@@ -208,6 +209,65 @@ beforeEach(() => {
   picked = [];
   done = 0;
   offering([COME_BACK]);
+});
+
+test("a step's ready-made starters are those no message on file is named for, in the business's customers' language; Save files the one picked first, in that language on the sequence's channels, and the step sends the message it left (the review of 15 Nov 2026)", async () => {
+  // Read from the messages, every channel's: a starter on file by email alone is the workspace's, never offered again.
+  const read = (names, languages) => ({
+    messages: names.map((name) => ({ name })),
+    settings: { config: { brain: { profile: { languages } } } },
+  });
+  const made = readyMadeOf(read(["quick_note"], ["Spanish"]));
+  assert.equal(
+    made.some((o) => o.name === "quick_note"),
+    false,
+    "on file by email alone: never ready-made beside itself",
+  );
+  const reminder = made.find((o) => o.name === "visit_reminder");
+  assert.equal(reminder.language, "es", "a business that answers in Spanish is offered it in Spanish");
+  assert.equal(reminder.body_preview, contracts.starterText(contracts.starterByKey("visit_reminder"), "es").body);
+  assert.equal(readyMadeOf(read([], ["English"])).find((o) => o.name === "visit_reminder").language, "en_US");
+  assert.deepEqual(readyMadeOf({ ...read([], ["Spanish"]), messages: null }), [], "none until the messages are read");
+  // Save, as a new step at the end.
+  const real = W.fetch;
+  const asked = [];
+  W.fetch = async (url, init = {}) => {
+    const path = new URL(String(url), "https://app.example").pathname.replace(/^.*\/api\/v1\//, "");
+    asked.push([init.method || "GET", path, init.body ? JSON.parse(init.body) : null]);
+    return path === "templates/starter"
+      ? json(200, { ok: true, data: { results: [], template_id: "t-es" } })
+      : json(200, { ok: true, data: { id: "st-3", place: 3, decision_id: "d1" } });
+  };
+  const save = {
+    picked: reminder,
+    channels: ["whatsapp", "email"],
+    flash: (f) => flashes.push(f),
+    sequenceId: SEQ,
+    step: null,
+    first: false,
+    days: 3,
+    only: ["no_booking"],
+    waitChanged: true,
+    wordsChanged: false,
+    params: [],
+  };
+  try {
+    assert.equal(await stepSaved(save), true);
+    assert.deepEqual(asked[0], [
+      "POST",
+      "templates/starter",
+      { keys: ["visit_reminder"], languages: ["es"], channels: ["whatsapp", "email"] },
+    ]);
+    assert.equal(asked[1][2].template_id, "t-es", "the step sends the message its filing left");
+    // A filing that left nothing to send by: no step is made, and it says so.
+    asked.length = 0;
+    flashes = [];
+    W.fetch = async () => json(200, { ok: true, data: { results: [], template_id: null } });
+    assert.equal(await stepSaved(save), false);
+    assert.deepEqual(flashes, [{ tone: "danger", msg: contracts.LIBRARY_STARTER_WORDS.notAdded }]);
+  } finally {
+    W.fetch = real;
+  }
 });
 
 test("Add a step opens on what the step will do: New's three rows, the one pressed handed back to open its editor", () => {

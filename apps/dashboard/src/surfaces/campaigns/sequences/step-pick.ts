@@ -1,7 +1,8 @@
 /**
  * What a step's editor picks from and how its Save lands (split out of step-editor.tsx, which it would have taken past
  * its length): the workspace's messages and, after them, the ready-made starters nothing has filed (the clean list, 14 Nov
- * 2026), each under a pick of its own; on Save, a ready-made starter is filed on the sequence's channels (POST
+ * 2026), each under a pick of its own, in the language the business's customers are written to in (lib/starter-message.ts
+ * starterLanguageOf); on Save, a ready-made starter is filed in that language on the sequence's channels (POST
  * templates/starter, its WhatsApp version sent for review then) and the step takes the version that leaves, through the
  * two doors a step is changed by: its wait, and its words.
  */
@@ -20,7 +21,7 @@ import {
 } from "@chanlytics/contracts";
 import type { FrameFlash } from "../../frame-verbs";
 import type { CmOffered } from "../parts/channels";
-import { STARTER_LANGUAGE } from "../templates/group";
+import { profileLanguagesOf, starterLanguageOf } from "@/lib/starter-message";
 import { starters, templates as templateVerbs } from "../templates/verbs";
 import { TPL_LIST_WORDS } from "../templates/words";
 import { pressed } from "./verbs";
@@ -29,18 +30,19 @@ import { pressed } from "./verbs";
 const STARTER_PICK = "starter:";
 
 /**
- * A ready-made starter as the editor offers and previews it: its words as the set writes them, on the channels it is
- * written for, under a pick of its own. Nothing is filed until Save (stepSaved).
+ * A ready-made starter as the editor offers and previews it: its words as the set writes them in `language`, on the
+ * channels it is written for in that language exactly (as its filing writes them), under a pick of its own. Nothing is
+ * filed until Save (stepSaved).
  */
-function starterOffered(starter: StarterTemplate): CmOffered {
-  const text = starterText(starter, STARTER_LANGUAGE);
-  const email = starterEmailText(starter, STARTER_LANGUAGE);
-  const sms = starterSmsText(starter, STARTER_LANGUAGE);
+function starterOffered(starter: StarterTemplate, language: string): CmOffered {
+  const text = starterText(starter, language);
+  const email = starter.email?.[language] ? starterEmailText(starter, language) : null;
+  const sms = starter.sms?.[language] ? starterSmsText(starter, language) : null;
   return {
     id: `${STARTER_PICK}${starter.key}`,
     channel: "whatsapp",
     name: starter.name,
-    language: STARTER_LANGUAGE,
+    language,
     body_preview: text.body,
     variables: text.slots.map((slot, i) => ({ position: i + 1, label: slot.label, example: slot.example })),
     footer: text.footer,
@@ -60,11 +62,28 @@ function starterOffered(starter: StarterTemplate): CmOffered {
   };
 }
 
-/** The ready-made starters a step may take: those offered here that nothing on file is named for, once Settings is read. */
-export function readyMadeOf(templatesAll: readonly { name: string }[] | null | undefined): CmOffered[] {
-  if (!templatesAll) return [];
-  const held = new Set(templatesAll.map((t) => t.name));
-  return starters.list.filter((s) => !s.retired && !held.has(s.name)).map(starterOffered);
+/**
+ * The ready-made starters a step may take: those offered here that no message on file is named for, on any channel, once
+ * Settings' messages are read (none offered until then, so a starter on file is never offered beside itself), in the
+ * language its profile says its customers are written to in. The messages, not the WhatsApp rows: a starter on file by
+ * email or text alone (no number, or an offer from a US number) is the workspace's message, never ready-made again (the
+ * review of 15 Nov 2026).
+ */
+export function readyMadeOf(
+  read:
+    | {
+        messages: readonly { name: string }[] | null;
+        settings: { config: Parameters<typeof profileLanguagesOf>[0] } | null;
+      }
+    | null
+    | undefined,
+): CmOffered[] {
+  if (!read?.messages) return [];
+  const held = new Set(read.messages.map((m) => m.name));
+  const languages = profileLanguagesOf(read.settings?.config);
+  return starters.list
+    .filter((s) => !s.retired && !held.has(s.name))
+    .map((s) => starterOffered(s, starterLanguageOf(s, languages)));
 }
 
 /** What a pick says beside its name: the channels a message holds, or that a starter is ready-made. */
@@ -84,9 +103,10 @@ async function templateIdOf(
 ): Promise<string | null> {
   if (!picked.id.startsWith(STARTER_PICK)) return picked.id;
   const key = picked.id.slice(STARTER_PICK.length);
+  // In the language it was offered in, which the editor previewed: the business's customers' (readyMadeOf).
   const filed = await templateVerbs.fileStarters({
     keys: [key],
-    languages: [STARTER_LANGUAGE],
+    languages: [picked.language],
     channels: [...channels],
   });
   if (filed.ok && filed.data.template_id) return filed.data.template_id;

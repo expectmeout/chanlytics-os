@@ -130,6 +130,11 @@ export interface NewDraftAsk {
           after_days: number;
           only_if: FollowUpCondition[];
           template_id: string | null;
+          /**
+           * A ready-made starter the step sends, by its key, where it names no message on file (NewMessage `starter`): the
+           * AI is told it, so a change keeps it. Absent from a page opened before it.
+           */
+          starter?: string | null | undefined;
           texts: string[];
           write: {
             title: string;

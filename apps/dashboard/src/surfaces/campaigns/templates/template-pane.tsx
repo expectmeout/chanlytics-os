@@ -19,7 +19,13 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { MESSAGE_CHANGE_WORDS, VERSION_CHANNELS, VERSION_CHANNEL_WORDS, channelChoices } from "@chanlytics/contracts";
+import {
+  MESSAGE_CHANGE_WORDS,
+  VERSION_CHANNELS,
+  VERSION_CHANNEL_WORDS,
+  channelChoices,
+  channelRuledOut,
+} from "@chanlytics/contracts";
 import type { CampaignMessage, VersionChannel } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
@@ -75,6 +81,12 @@ interface PaneProps {
  */
 function languageAdds(props: PaneProps, facts: Facts) {
   const own = [...facts.has.email, ...facts.has.sms];
+  // An offer from a number WhatsApp delivers none from is never written for WhatsApp (contracts channelRuledOut, the
+  // review of 15 Nov 2026: its WhatsApp version went to the composer, and the send refused it): its new language is
+  // written by its email and text alone, as a message with no WhatsApp version is.
+  const offers = surfaceValue("playbooks")?.ready?.whatsapp.offers;
+  const message = facts.lang.message;
+  const whatsappRuled = !!message && channelRuledOut("whatsapp", message.purpose, offers) !== null;
   const translate = (from: string | null, to: TplLang) => {
     // A channel the message already has in the new language keeps its own words: only the missing ones are written.
     const has = (r: TemplateDto) => own.some((o) => o.language === to.id && o.channel === r.channel);
@@ -82,8 +94,12 @@ function languageAdds(props: PaneProps, facts: Facts) {
     if (rows.length && props.onTranslateOwn) props.onTranslateOwn(props.g.title, rows, to);
   };
   const ownOnly =
-    !props.g.starter && facts.present.length === 0 && own.length > 0 && !!props.canWrite && !!props.onTranslateOwn;
-  return { ownOnly, translate };
+    !props.g.starter &&
+    (facts.present.length === 0 || whatsappRuled) &&
+    own.length > 0 &&
+    !!props.canWrite &&
+    !!props.onTranslateOwn;
+  return { ownOnly, translate, whatsappRuled };
 }
 
 /** The standings whose words WhatsApp lets be changed: approved, refused and paused (Meta's template management page). */
@@ -448,7 +464,7 @@ export function TemplatePane(p: PaneProps) {
   const setting = placeOfMessage(g, messageFacts({ g, langs, S, versions, view: first }));
   const { view, row } = lang;
   const adds = languageAdds(p, facts);
-  const mayAdd = lang.mayAdd || adds.ownOnly;
+  const mayAdd = (lang.mayAdd && !adds.whatsappRuled) || adds.ownOnly;
   const { inView, anchor } = versionsInView(facts);
   const closeActs = () => {
     setRenaming(false);

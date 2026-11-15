@@ -92,7 +92,10 @@ export interface KnownSearch {
 /** A message this workspace can send now, as the model is handed it and the draft shows it. */
 export interface KnownMessage {
   key: string;
-  templateId: string;
+  /** The version it sends by, on file; null for a ready-made starter, filed only once a draft is kept or started. */
+  templateId: string | null;
+  /** A ready-made starter's key (drafts/known-starters.ts), which the kept step carries and its make files. */
+  starter?: string;
   title: string;
   body: string;
   offer: boolean;
@@ -335,6 +338,7 @@ function peopleMessage(
     if (!standing.untouched && !fillable(held.slots, first, moment)) return NEW_WORDS.cannot.why.onlyFirst;
     return {
       template_id: held.templateId,
+      ...(held.starter ? { starter: held.starter } : {}),
       title: held.title,
       body: held.body,
       channels: held.channels,

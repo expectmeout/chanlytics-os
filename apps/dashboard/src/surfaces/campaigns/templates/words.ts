@@ -174,6 +174,14 @@ export const TPL_VERSION_WORDS = {
    */
   translateAsk: (language: string): string =>
     `Write this same message in ${language}: the same meaning and the same values, in the words people there use. Add nothing.`,
+  /**
+   * A language the set wrote, added to a starter in use: WhatsApp is named only where its version went to WhatsApp (the
+   * review of 15 Nov 2026): with no number, or for an offer from a number WhatsApp delivers none from, nothing waits on it.
+   */
+  languageAdded: (title: string, language: string, toWhatsApp: boolean): string =>
+    toWhatsApp
+      ? `${title} in ${language} is added. WhatsApp checks its words, usually within minutes.`
+      : `${title} in ${language} is added.`,
   translated: (title: string, language: string, saved: readonly string[]): string =>
     `${title} in ${language}: its ${saved.join(" and ")} ${saved.length === 1 ? "version is" : "versions are"} saved`,
   translatedPart: (saved: readonly string[], reason: string): string =>
