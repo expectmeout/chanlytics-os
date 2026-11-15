@@ -133,7 +133,7 @@ const REASONS_ES: ReadonlyMap<string, string> = new Map([
   [CHANNEL_WORDS.noMailbox, "Configura primero el correo en Ajustes › Conexiones."],
   [CHANNEL_WORDS.noEmailDomain, "El correo aún no está activado en esta instalación."],
   [CHANNEL_WORDS.unchecked, "No se pudo comprobar ahora mismo."],
-  [OFFERS_BY_EMAIL_WORDS.noCampaignsDomain, "Los correos no llevan ofertas por ahora."],
+  [OFFERS_BY_EMAIL_WORDS.noCampaignsDomain, "Los correos no llevan ofertas ni novedades por ahora."],
   [OFFERS_BY_EMAIL_WORDS.noAddress, "Añade la dirección de tu negocio para enviar ofertas por correo."],
   [OFFERS_BY_EMAIL_WORDS.paused, "Las ofertas por correo están en pausa mientras se calman las quejas y los rebotes."],
   [

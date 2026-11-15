@@ -16,13 +16,13 @@ import {
   templateTitle,
 } from "@chanlytics/contracts";
 import { getChannelsReady } from "../../../campaigns/channels-ready";
+import { getWhatsAppOffers } from "../../../campaigns/template-submit";
 import { refuseWrittenUtility } from "../../../campaigns/template-versions";
 import {
   checkMessage,
   findHeldValues,
   getMessageOnFile,
   getWhatsAppFilingRefusal,
-  getWhatsAppOffers,
   versionsWrittenHere,
   type WriteMessageBody,
 } from "../../../campaigns/write-message";

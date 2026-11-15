@@ -488,7 +488,7 @@ export async function checkStarterPlaybook(
   const held = await heldAtOnce(ctx, tenantId, starter, purpose);
   // WhatsApp named for an offer no one here can be sent by it (a US number): refused in the pause's own words.
   if (named?.includes("whatsapp") && !held.whatsappWritten && held.whatsappOffers?.why)
-    throw new AppError("validation", held.whatsappOffers.why);
+    throw new AppError("validation", held.whatsappOffers.why, undefined, { mend: null });
   const channels = starterChannels(starter.title, named, held);
   return {
     starter,

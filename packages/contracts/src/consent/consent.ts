@@ -332,7 +332,7 @@ export const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, 
   // Email's, at the wire (deliver.ts). An offer by email leaves only once the deployment has its campaigns domain
   // verified and the workspace's offers are not paused; a suppression is a fact about the address.
   email_marketing_disabled:
-    "Emails carry no offers for now. Reminders, confirmations and replies still reach this customer by email.",
+    "Emails carry no offers or news for now. Reminders, confirmations and replies still reach this customer by email.",
   email_offers_paused:
     "Offers by email are paused for your workspace while complaints and bounces settle. Reminders, confirmations and replies keep going, and offers on WhatsApp are not affected.",
   email_suppressed:

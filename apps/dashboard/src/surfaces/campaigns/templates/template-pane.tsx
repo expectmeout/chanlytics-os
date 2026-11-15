@@ -117,9 +117,11 @@ function useVersionHeld() {
 }
 
 /**
- * Why each channel cannot carry the message for this business now, or null where it can, or where that was not read (the
- * sequences' read of the business's channels, contracts channelChoices): no text line yet, email not set up for offers,
- * Meta's pause on offers. What a channel never carries (an offer, by text) is its tab's own, dimmed, and not said here.
+ * Why each channel cannot carry the message for this business now, where the business has a door that opens it (the one
+ * rule's `mend`, contracts channelChoices over the sequences' read of the business's channels): no text line yet, no
+ * mailbox, no address for offers by email. Null where it can, where that was not read, and where nothing the business
+ * does opens it (a text of an offer, Meta's pause on offers, Chanlytics' own offers domain): a tab says nothing an owner
+ * cannot act on (the clean list's G4 and G5), so those carry no amber mark and no line.
  */
 function channelsCannot(message: CampaignMessage | null): Record<VersionChannel, string | null> {
   const none = { whatsapp: null, email: null, sms: null };
@@ -127,7 +129,7 @@ function channelsCannot(message: CampaignMessage | null): Record<VersionChannel,
   if (!ready || !message) return none;
   const cannot: Record<VersionChannel, string | null> = { ...none };
   for (const c of channelChoices(ready, message.purpose, aboutOfMessage(message)))
-    if (!c.ok && !(c.channel === "sms" && message.purpose === "marketing")) cannot[c.channel] = c.why;
+    if (!c.ok && c.mend !== null) cannot[c.channel] = c.why;
   return cannot;
 }
 

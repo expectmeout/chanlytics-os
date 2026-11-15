@@ -59,6 +59,7 @@ const {
   leadChainStepOf,
   newListOf,
   whatsappOffersOpen,
+  channelsReady,
   sentAsDrafted,
   voiceLineOf,
   voiceSaid,
@@ -89,7 +90,15 @@ const pool = (candidates, more = {}) => ({
   ...more,
 });
 /** What the foot reads of the workspace: not paused, and the business's clock where KNOWN's is. */
-const FOOT = { paused: false, localNow: "2026-10-20T14:30", ready: ["whatsapp", "email", "sms"] };
+const OFFERS_OPEN = { campaigns: true, address: true, paused: null };
+/** The workspace's channels as the one rule reads them (contracts channelsReady): every one connected, offers by email as given. */
+const channelsWith = (offers = OFFERS_OPEN) =>
+  channelsReady({
+    whatsapp: { canSend: true, refusal: null },
+    textLine: { sms_state: "active", reg_mock: false },
+    email: { mailbox: true, domain: true, offers },
+  });
+const FOOT = { paused: false, localNow: "2026-10-20T14:30", channels: channelsWith() };
 const KNOWN = {
   business: "Harbor Studio",
   localNow: "2026-10-20T14:30",
@@ -700,10 +709,13 @@ test("from a US number, an offer Ask writes is kept without its WhatsApp version
     "WhatsApp's alone: nothing to keep",
   );
   // Where offers by email cannot go here (G4: Chanlytics' offers domain off), an offer's draft is not ticked by email,
-  // as a text of an offer is not; news that is no offer is.
-  const noMail = { ...KNOWN, emailOffers: { ok: false } };
+  // as a text of an offer is not: the draft goes by what the send itself takes (the one rule, over the channels read).
+  const noMail = { ...KNOWN, channels: channelsWith({ ...OFFERS_OPEN, campaigns: false }) };
   const mailOnly = draftKept(onceWith({ write: both }), noMail, OFFER_LINE);
-  assert.equal(mailOnly.channels.includes("email"), false, mailOnly.channels.join());
+  assert.deepEqual(mailOnly.channels, ["whatsapp"], mailOnly.channels.join());
+  // The channels read with offers by email open: both, as with no read at all.
+  const open = draftKept(onceWith({ write: both }), { ...KNOWN, channels: channelsWith() }, OFFER_LINE);
+  assert.deepEqual(open.channels, ["whatsapp", "email"]);
   // Elsewhere, the same offer keeps its WhatsApp version.
   const there = draftKept(onceWith({ write: both }), KNOWN, OFFER_LINE).steps[0].message;
   assert.deepEqual(there.channels, ["whatsapp", "email"]);
@@ -818,7 +830,7 @@ test("a draft to leads with no mailbox says what stops it, and says it before an
     subject: "Missed calls",
     body: "{{opening}}\n\nWorth a look?",
   });
-  const foot = { ready: ["email"], paused: false, localNow: "2026-11-09T10:00" };
+  const foot = { channels: channelsWith(), paused: false, localNow: "2026-11-09T10:00" };
   assert.equal(M.notReady(picked, foot), null, "a mailbox to send from: nothing stops it");
   const none = { ...picked, mailbox: { ids: [], label: "" } };
   assert.deepEqual(M.notReady(none, foot), { lead: W.needsMailbox, sub: W.needsMailboxSub });

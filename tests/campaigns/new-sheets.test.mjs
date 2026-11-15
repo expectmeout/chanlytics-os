@@ -310,10 +310,26 @@ const NEWS = {
 /** And an offer by WhatsApp or text, whose text version can never carry it. */
 const OFFER = { ...NEWS, template_id: "tpl-offer", title: "Autumn offer", channels: ["whatsapp", "sms"], offer: true };
 
-/** The channels sheet over a one-off of `message`, where the workspace sends on `ready` alone. */
-function channelsSheet(message, ready) {
-  const draft = M.setMessage(ONCE, 0, message, ready);
-  return sheet(ChannelsSheet, () => ({ open: true, draft, ready, onChannels() {}, onClose() {} }))();
+/** Offers by email as the workspace's facts say them: open, or off while Chanlytics' own offers domain is. */
+const OFFERS_OPEN = { campaigns: true, address: true, paused: null };
+/**
+ * The workspace's channels as the one rule reads them (contracts channelsReady), with `on` connected: offers by email
+ * open unless `more.offers` says otherwise, the WhatsApp number known only where `more.number` gives it, and the texting
+ * line as `more.textLine` files it where it is given.
+ */
+const ws = (on, more = {}) =>
+  contracts.channelsReady({
+    whatsapp: on.includes("whatsapp")
+      ? { canSend: true, refusal: null, ...(more.number ? { number: more.number } : {}) }
+      : null,
+    textLine: more.textLine ?? (on.includes("sms") ? { sms_state: "active", reg_mock: false } : null),
+    email: { mailbox: on.includes("email"), domain: true, offers: more.offers ?? OFFERS_OPEN },
+  });
+
+/** The channels sheet over a one-off of `message`, where the workspace's channels are `channels`. */
+function channelsSheet(message, channels) {
+  const draft = M.setMessage(ONCE, 0, message, channels);
+  return sheet(ChannelsSheet, () => ({ open: true, draft, channels, onChannels() {}, onClose() {} }))();
 }
 /** A channel's row on the sheet, by its name. */
 const rowOf = (tree, name) =>
@@ -326,7 +342,7 @@ const switchOf = (row) => find(row, (n) => n.type === Switch);
 test("How it goes: a way the message holds that isn't connected says so, with the door that connects it; a text is never offered for an offer", () => {
   went.length = 0;
   // News by WhatsApp, email or text, where only WhatsApp is connected.
-  let tree = channelsSheet(NEWS, ["whatsapp"]);
+  let tree = channelsSheet(NEWS, ws(["whatsapp"]));
   const whatsapp = rowOf(tree, W.channels.whatsapp);
   assert.equal(hostOf(whatsapp, "sq-nw-connect-whatsapp"), null, "connected: nothing to connect");
   assert.ok(textOf(whatsapp).includes(W.channels.can));
@@ -344,40 +360,53 @@ test("How it goes: a way the message holds that isn't connected says so, with th
   press(hostOf(tree, "sq-nw-connect-email"));
   assert.deepEqual(went, [contracts.CHANNELS_DOOR], "where every can't-send-on door lands");
 
-  // An offer with a text version, texting not connected: connecting it would carry no offer, so no door; no email
-  // version, so nothing to connect there either.
-  tree = channelsSheet(OFFER, ["whatsapp"]);
+  // An offer with a text version, texting not connected: connecting it would carry no offer, so no door, and the row
+  // says the rule in its one spelling; no email version, mailbox connected, so the message's own reason and no door.
+  tree = channelsSheet(OFFER, ws(["whatsapp", "email"]));
   const text = rowOf(tree, W.channels.sms);
-  assert.ok(textOf(text).includes(W.channels.noOffer));
+  assert.ok(textOf(text).includes(contracts.CHANNEL_WORDS.noOffersByText));
   assert.equal(hostOf(text, "sq-nw-connect-sms"), null, "REGRESSION: Connect texting offered for an offer");
   const email = rowOf(tree, W.channels.email);
-  assert.ok(textOf(email).includes(W.channels.noVersion));
+  assert.ok(textOf(email).includes(contracts.noVersionWords("email")));
   assert.equal(hostOf(email, "sq-nw-connect-email"), null);
 });
 
-test("an offer's email where offers by email cannot go here is closed with its own reason, as a text of an offer is, and no door is offered; news by email is not held (the clean list, G4)", () => {
+test("a row is the send's own answer: what it would refuse is closed in the rule's words, and Connect is offered only where connecting opens it (the review of 15 Nov 2026)", () => {
   const why = contracts.OFFERS_BY_EMAIL_WORDS.noCampaignsDomain;
-  assert.equal(why, "Emails carry no offers for now.", "a rule's words, asking nothing of the owner");
+  assert.equal(why, "Emails carry no offers or news for now.", "a rule's words, true of both, asking nothing");
+  const off = ws(["whatsapp", "email"], { offers: { ...OFFERS_OPEN, campaigns: false } });
   const mailOffer = { ...NEWS, template_id: "tpl-mail-offer", channels: ["whatsapp", "email"], offer: true };
-  const sheetOf = (message) => {
-    const draft = M.setMessage(ONCE, 0, message, ["whatsapp", "email"]);
-    return sheet(ChannelsSheet, () => ({
-      open: true,
-      draft,
-      ready: ["whatsapp", "email"],
-      offersByEmail: why,
-      onChannels() {},
-      onClose() {},
-    }))();
+  const closed = (row, c) => {
+    assert.equal(hostOf(row, `sq-nw-connect-${c}`), null, `${c}: nothing of the owner's to connect`);
+    assert.deepEqual([switchOf(row).props.checked, switchOf(row).props.readOnly], [false, true], `${c}: not to tick`);
   };
-  const email = rowOf(sheetOf(mailOffer), W.channels.email);
-  assert.ok(textOf(email).includes(why), textOf(email));
-  assert.equal(hostOf(email, "sq-nw-connect-email"), null, "nothing of the owner's to connect");
-  assert.deepEqual([switchOf(email).props.checked, switchOf(email).props.readOnly], [false, true]);
-  assert.doesNotMatch(textOf(email), /campaigns domain|set up/);
-  // News that is no offer goes by email as it did.
-  const news = rowOf(sheetOf({ ...NEWS, channels: ["whatsapp", "email"] }), W.channels.email);
-  assert.equal(switchOf(news).props.readOnly, false);
+  // An offer's email while offers by email are off.
+  const offerEmail = rowOf(channelsSheet(mailOffer, off), W.channels.email);
+  assert.ok(textOf(offerEmail).includes(why), textOf(offerEmail));
+  assert.doesNotMatch(textOf(offerEmail), /campaigns domain|set up/);
+  closed(offerEmail, "email");
+  // REGRESSION: a one-off's news is held by email with the offers at Send, so its email is closed here too, not ticked.
+  const newsEmail = rowOf(channelsSheet({ ...NEWS, channels: ["whatsapp", "email"] }, off), W.channels.email);
+  assert.ok(textOf(newsEmail).includes(why), textOf(newsEmail));
+  closed(newsEmail, "email");
+  // Offers by email open: news and an offer both go by it.
+  const open = ws(["whatsapp", "email"]);
+  assert.equal(switchOf(rowOf(channelsSheet(mailOffer, open), W.channels.email)).props.checked, true);
+  // REGRESSION: an offer's WhatsApp from a US number, though the message holds a version: closed in the pause's words.
+  const us = ws(["whatsapp", "email"], { number: "+12025550123" });
+  const whatsapp = rowOf(channelsSheet(mailOffer, us), W.channels.whatsapp);
+  assert.ok(textOf(whatsapp).includes(contracts.whatsappOffersOpen("+12025550123").why), textOf(whatsapp));
+  closed(whatsapp, "whatsapp");
+  assert.equal(switchOf(rowOf(channelsSheet(mailOffer, us), W.channels.email)).props.checked, true, "it goes by email");
+  // A texting line the carriers have not approved: its own reason, and no Connect, which would change nothing.
+  const waiting = ws(["whatsapp"], { textLine: { sms_state: "pending", reg_mock: false } });
+  const text = rowOf(channelsSheet(NEWS, waiting), W.channels.sms);
+  assert.ok(textOf(text).includes(contracts.CHANNEL_WORDS.textLineNotActive), textOf(text));
+  closed(text, "sms");
+  // The business's address missing: said in the words that name it, which is the owner's to add.
+  const noAddress = ws(["whatsapp", "email"], { offers: { ...OFFERS_OPEN, address: false } });
+  const needs = rowOf(channelsSheet(mailOffer, noAddress), W.channels.email);
+  assert.ok(textOf(needs).includes(contracts.OFFERS_BY_EMAIL_WORDS.noAddress), textOf(needs));
 });
 
 test("Where a sequence to leads sends from says the pace it starts at, the one its make writes (0077, D7)", () => {

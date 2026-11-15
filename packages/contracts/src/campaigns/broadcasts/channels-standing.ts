@@ -2,14 +2,15 @@
  * Where the workspace stands on its channels, said once at the head of Campaigns (the spec of 8 October 2026, "A campaign
  * says where it goes"): the channels it can send on now as one clause ("Sending on WhatsApp and by email"), then each
  * closed one with the reason the readiness already carries ("Text: no texting line yet"), the reason being a door to
- * Settings › Connections where the owner can mend it there. Every word is one the product already says of a channel
- * (VERSION_CHANNEL_WORDS, CONSENT_CHANNEL_WORDS, CHANNEL_WORDS): nothing here is a second spelling.
+ * Settings › Connections where the owner can mend it there (the readiness's own `mend`, reach-for.ts ChannelMend: never
+ * read off the sentence). Every word is one the product already says of a channel (VERSION_CHANNEL_WORDS,
+ * CONSENT_CHANNEL_WORDS, CHANNEL_WORDS): nothing here is a second spelling.
  */
 import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../../consent/channels";
 import { VERSION_CHANNEL_WORDS } from "../templates/message-versions/channels";
 import { joinWords } from "../../shared/words";
 import { WORKSPACE_PAUSED_FACT } from "../../workspace/billing/plans";
-import { CHANNEL_WORDS, type ChannelsReady } from "./reach-for";
+import type { ChannelsReady } from "./reach-for";
 
 /** Where the closed channels are mended: Settings › Connections (the shell's address for it). */
 export const CHANNELS_DOOR = "admin/integrations";
@@ -28,17 +29,6 @@ export interface ChannelStandingPart {
   /** Where the owner mends it, for a closed channel the workspace can mend; null for the open clause and for what no setting fixes. */
   door: string | null;
 }
-
-/**
- * What no setting of the workspace fixes: a check that could not be made just now, a deployment without an email wire,
- * and a texting line that waits on the carriers or is a test filing. A closed channel with any other reason has its door.
- */
-const NO_DOOR: readonly string[] = [
-  CHANNEL_WORDS.unchecked,
-  CHANNEL_WORDS.noEmailDomain,
-  CHANNEL_WORDS.textLineNotActive,
-  CHANNEL_WORDS.textLineMock,
-];
 
 /** A reason as a line's words: the sentence the readiness carries, without its full stop, after the channel's name. */
 function closedWords(channel: ConsentChannel, closedReason: string | null): string {
@@ -76,7 +66,9 @@ export function channelsStandingParts(ready: ChannelsReady | null | undefined): 
       channels: [c],
       open: false,
       words: closedWords(c, reason),
-      door: reason && NO_DOOR.includes(reason) ? null : CHANNELS_DOOR,
+      // What no setting of the workspace fixes has no door: a check that could not be made just now, a deployment without
+      // an email wire, a texting line that waits on the carriers or is a test filing, a number whose quality must recover.
+      door: ready[c].mend === "connect" ? CHANNELS_DOOR : null,
     });
   }
   return parts;

@@ -8,8 +8,14 @@
 import {
   NEW_WORDS,
   REACH_OUT_GAP_FIRST,
+  WHATSAPP_VERSION_ALONE,
+  channelChoices,
   channelNeverCarries,
+  messageAboutOfTrigger,
+  noVersionWords,
+  readyForMessage,
   type AskedPurpose,
+  type ChannelsReady,
   type ConsentChannel,
   type DraftWho,
   type NewCheck,
@@ -161,6 +167,56 @@ export const messagePurposeOf = (m: Pick<NewMessage, "offer"> | null | undefined
  */
 export const carriersOf = (m: Pick<NewMessage, "channels" | "offer">): ConsentChannel[] =>
   m.channels.filter((c) => channelNeverCarries(c, messagePurposeOf(m)) === null);
+
+/** A draft's message as the send door reads a message's versions: one on each channel it is written for, ready to go. */
+const versionsOf = (m: Pick<NewMessage, "channels">) => ({
+  versions: {
+    whatsapp: m.channels.includes("whatsapp") ? WHATSAPP_VERSION_ALONE.versions.whatsapp : null,
+    email: m.channels.includes("email") ? { id: "" } : null,
+    sms: m.channels.includes("sms") ? { id: "" } : null,
+  },
+});
+
+/**
+ * How each channel stands for a draft's first message, here and now: the send door's own question, asked the door's own
+ * way (contracts channelChoices over readyForMessage, the one rule). A one-off is the business's own news whatever it
+ * says (core create-broadcast.ts readCampaignHowOf), and a sequence's message is about what its moment is
+ * (messageAboutOfTrigger); a list's is the business's own. What New ticks, what its picker offers, what its foot asks for
+ * and what the AI's draft goes by are all read from this, so nothing is ticked here that the send then refuses (the
+ * review of 15 Nov 2026: New asked only whether the channel was connected, and an offer's WhatsApp from a US number, or
+ * news by email while offers by email are off, was ticked and refused at Send). One thing is New's own: a channel the
+ * message is not written for says that (contracts noVersionWords), whatever the workspace could connect there, since
+ * connecting it would open nothing, and a business that sends by email alone is never sent to connect a number.
+ */
+export function draftChoicesOf(
+  d: Pick<NewDraftDto, "kind" | "who">,
+  m: Pick<NewMessage, "channels" | "offer">,
+  workspace: ChannelsReady,
+) {
+  const about = d.kind === "sequence" && d.who?.kind === "moment" ? messageAboutOfTrigger(d.who.trigger) : "ours";
+  return channelChoices(readyForMessage(workspace, versionsOf(m)), messagePurposeOf(m), about).map((c) =>
+    c.rule || m.channels.includes(c.channel) ? c : { ...c, ok: false, why: noVersionWords(c.channel), mend: null },
+  );
+}
+
+/** The channels a draft's first message can go by now (draftChoicesOf): what it is ticked to. */
+export const draftOpenOf = (...asked: Parameters<typeof draftChoicesOf>): ConsentChannel[] =>
+  draftChoicesOf(...asked)
+    .filter((c) => c.ok)
+    .map((c) => c.channel);
+
+/**
+ * The channels the AI's draft goes by (server/campaigns/sequences/draft-judge.ts): draftOpenOf where the workspace's
+ * channels were read, so it ticks no offer's email where offers by email are off and no offer's WhatsApp from a US
+ * number; where they were not, what the message is written for that the workspace sends on (`ready`), as before.
+ */
+export function draftGoesBy(
+  d: Pick<NewDraftDto, "kind" | "who">,
+  m: Pick<NewMessage, "channels" | "offer">,
+  read: { channels?: ChannelsReady | null | undefined; ready: readonly ConsentChannel[] },
+): ConsentChannel[] {
+  return read.channels ? draftOpenOf(d, m, read.channels) : carriersOf(m).filter((c) => read.ready.includes(c));
+}
 
 const CHANNEL_SAID: Record<ConsentChannel, string> = { whatsapp: "WhatsApp", email: "email", sms: "text" };
 

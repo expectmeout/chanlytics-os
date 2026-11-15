@@ -89,11 +89,12 @@ export { CHANNELS_DOOR, channelsStandingParts, channelsStandingWords } from "./c
 export { emailOffersOpen, OFFER_GATES, offerGate, offerPauseOf, OFFERS_BY_EMAIL_WORDS, OFFERS_NOTICE_WORDS, OFFERS_PAUSED_WORDS, offersPausedLine } from "./campaigns/broadcasts/email-offers";
 export { BROADCAST_FAILURE_WORDS, BROADCAST_FAILURES, broadcastFailureWords } from "./campaigns/broadcasts/failure-words";
 export { BROADCAST_FAILURE_FIX, broadcastFailureFix, emailRunStop, playbookRunNext, stoppedRunFix, wireFailure } from "./campaigns/broadcasts/failures";
+export { allowanceBeforeSend, allowanceLine, allowanceLines, allowanceRoom, CAMPAIGN_MONTH_ALLOWANCE, heldByAllowance, monthSentAt, nextMonthStart, pastAllowance } from "./campaigns/broadcasts/month-allowance";
 export { dailyLimit, LIMIT_TIERS, numberHealth, overLimitRefusal } from "./campaigns/broadcasts/number";
 export { OFFER_PLAN_WORDS } from "./campaigns/broadcasts/offer-plan-words";
 export { PREVIEW_CHANNEL_WORDS, PREVIEW_WORDS, previewOn, previewParts, previewSays, previewVersionsOf, reachBarParts, reachBarWords, reachByWords } from "./campaigns/broadcasts/preview-by-channel";
 export { answeredYes, personReachOf, READY_WHATSAPP_ALONE, readyOrWhatsApp } from "./campaigns/broadcasts/reach-any";
-export { allowanceBeforeSend, allowanceLine, allowanceLines, allowanceRoom, CAMPAIGN_MONTH_ALLOWANCE, CHANNEL_WORDS, channelChoices, channelNeverCarries, channelRefuses, channelsReady, DEFAULT_CAMPAIGN_CHANNELS, HELD_ON, heldByAllowance, monthSentAt, NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, newCampaignChannels, nextMonthStart, offersNote, pastAllowance, reachFor, reachSplit, reachSplitWords, usableChannels } from "./campaigns/broadcasts/reach-for";
+export { CHANNEL_WORDS, channelChoices, channelNeverCarries, channelRefuses, channelsReady, DEFAULT_CAMPAIGN_CHANNELS, HELD_ON, NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, newCampaignChannels, offersNote, reachFor, reachSplit, reachSplitWords, channelRuledOut, usableChannels } from "./campaigns/broadcasts/reach-for";
 export { answersToRuns } from "./campaigns/broadcasts/run-answers";
 export { consentAnswerWords, receiptWords, RUN_FILTERS, RUN_REPORT_STEPS, toRunReportVM } from "./campaigns/broadcasts/run-report";
 export { allLeftOutWords, BREATH_WHY, breathSplit, breathTouchOf, breathWaitWords, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, finishedRunHeldWhy, goesToOf, HEARD_UNREAD_WORDS, heardFor, heardTooWords, heardWithin, heardWords, HELD_REASONS, HELD_WHEN_COUNTED, isReplyTo, LEFT_OUT_FACTS, leftOutBy, leftOutByFacts, reachAfterBreath, RECIPIENT_REASON_HEARD, REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, runStillMoving } from "./campaigns/broadcasts/run-words";

@@ -18,6 +18,7 @@ import {
   newListOf,
   whoSuits,
   clipAtWord,
+  type ChannelsReady,
   type ConsentChannel,
   type NewAudience,
   type NewDraftAnswer,
@@ -33,7 +34,7 @@ import {
   type ParamSpec,
 } from "@chanlytics/contracts";
 import type { PoolRead } from "@/lib/campaign-channels";
-import { carriersOf, newChecksOf, newReachOf, twinOf, type NewCounts, type NewRunning } from "@/lib/new-checks";
+import { draftGoesBy, newChecksOf, newReachOf, twinOf, type NewCounts, type NewRunning } from "@/lib/new-checks";
 import { checkMessage, versionsWrittenHere } from "../write-message";
 import { NOTHING_STOOD, standingAt, stoodStepsOf, type Standing } from "./draft-stands";
 import { leftOutKept } from "./left-out";
@@ -163,11 +164,12 @@ export interface DraftKnown {
    */
   whatsappOffers?: { ok: boolean; why: string | null } | null;
   /**
-   * Whether offers can go by email here (contracts emailOffersOpen, as the channels read carries it): where they cannot
-   * (Chanlytics' offers domain off, the business's address missing, a pause), an offer's draft is not ticked by email,
-   * as a text of an offer is not. Absent, nothing is held.
+   * The workspace's channels as they were read, which the one rule reads (lib/new-checks.ts draftGoesBy): what a draft
+   * to people goes by is what its first message can go by here now, as New's picker and the send door say it, so the
+   * AI's draft ticks nothing the send would refuse. Null or absent where they were not read: it then goes by what the
+   * message is written for that `ready` names.
    */
-  emailOffers?: { ok: boolean } | null;
+  channels?: ChannelsReady | null;
   /** Each class's Autonomy row's mode, which a new sequence of it starts as. */
   classModes: Record<string, string | null>;
   mailbox: { ids: string[]; label: string } | null;
@@ -555,14 +557,10 @@ function howOf(
   const leads = params.audience === "leads";
   const policy = classOf(params.audience, params.moment);
   const box = known.mailbox;
-  // An offer's email where offers by email cannot go here is no channel of it, as a text of an offer is not.
-  const shut = (c: ConsentChannel) => c === "email" && !!params.first?.offer && known.emailOffers?.ok === false;
   return {
     run_hour: Math.min(PLAYBOOK_HOURS.max, Math.max(PLAYBOOK_HOURS.min, answer.hour || PLAYBOOK_DEFAULTS.runHour)),
     at: params.kind === "once" ? onceAt(answer.when, known.localNow) : null,
-    channels: leads
-      ? ["email"]
-      : (params.first ? carriersOf(params.first) : []).filter((c) => known.ready.includes(c) && !shut(c)),
+    channels: leads ? ["email"] : params.first ? draftGoesBy(params, params.first, known) : [],
     mailbox: leads ? { ids: box?.ids ?? [], label: box?.label ?? "" } : null,
     adds_new: leads && params.who?.kind === "search",
     policy_class: policy,

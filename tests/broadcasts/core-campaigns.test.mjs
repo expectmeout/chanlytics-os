@@ -759,9 +759,14 @@ test("a broadcast of the business's news by email is refused at create while the
     });
   const tick = (f, channels = ["whatsapp", "email"]) => make(f, { template_id: T1, audience: everyone, channels });
   const f = news();
-  await refused(tick(f), "conflict", 409, "Emails carry no offers for now.");
+  await refused(tick(f), "conflict", 409, "Emails carry no offers or news for now.");
   assert.deepEqual(f.ops(), [], "refused before anyone is enrolled, a row or a decision");
-  await refused(tick(news({ ...OFFERS_OPEN, campaigns: false })), "conflict", 409, "Emails carry no offers for now.");
+  await refused(
+    tick(news({ ...OFFERS_OPEN, campaigns: false })),
+    "conflict",
+    409,
+    "Emails carry no offers or news for now.",
+  );
   await refused(tick(news({ ...OFFERS_OPEN, address: false })), "conflict", 409, "Add your business's address");
   await refused(
     tick(news({ ...OFFERS_OPEN, paused: { at: "2026-10-01T10:00:00Z", reason: "bounces" } })),
@@ -796,7 +801,7 @@ test("a tick the send cannot keep is refused at create, in the words the compose
   // Offers: texts carry none (a request that is wrong), and an email goes only once the workspace can send offers by
   // email (a state of the workspace, with the reason that is true).
   await refused(tick(offer(), ["sms"]), "validation", 400, "Texts carry no offers.");
-  await refused(tick(offer(), ["whatsapp", "email"]), "conflict", 409, "Emails carry no offers for now.");
+  await refused(tick(offer(), ["whatsapp", "email"]), "conflict", 409, "Emails carry no offers or news for now.");
   const withOffers = (offers) =>
     offer({ channels: workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true, offers }) });
   await refused(
@@ -824,7 +829,12 @@ test("a tick the send cannot keep is refused at create, in the words the compose
       ...over,
     });
   await tick(visit(), ["email"]);
-  await refused(tick(visit({ channels: ready }), ["email"]), "conflict", 409, "Emails carry no offers for now.");
+  await refused(
+    tick(visit({ channels: ready }), ["email"]),
+    "conflict",
+    409,
+    "Emails carry no offers or news for now.",
+  );
   await refused(tick(visit({ channels: workspace() }), ["sms"]), "conflict", 409, "No texting line yet.");
   await refused(
     tick(visit({ channels: workspace({ textLine: { sms_state: "pending", reg_mock: false } }) }), ["sms"]),

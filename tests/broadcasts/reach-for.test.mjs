@@ -19,6 +19,7 @@ import {
   channelChoices,
   channelNeverCarries,
   channelRefuses,
+  channelRuledOut,
   channelsReady,
   enrolFor,
   heldByAllowance,
@@ -80,9 +81,10 @@ test("whether the workspace can send on each channel, and the sentence that says
     email: { ready: true, why: null },
   });
   const none = channelsReady({ whatsapp: null, textLine: null, email: { mailbox: false, domain: false } });
+  // What the business can connect says so (`mend`); a deployment without an email wire is nobody's of theirs to mend.
   assert.deepEqual(none, {
-    whatsapp: { ready: false, why: CHANNEL_WORDS.noWhatsApp },
-    sms: { ready: false, why: CHANNEL_WORDS.noTextLine },
+    whatsapp: { ready: false, why: CHANNEL_WORDS.noWhatsApp, mend: "connect" },
+    sms: { ready: false, why: CHANNEL_WORDS.noTextLine, mend: "connect" },
     email: { ready: false, why: CHANNEL_WORDS.noEmailDomain },
   });
   const flagged = channelsReady({
@@ -93,6 +95,57 @@ test("whether the workspace can send on each channel, and the sentence that says
   assert.equal(flagged.whatsapp.why, "Your number is flagged by WhatsApp.", "the number's own refusal");
   assert.equal(flagged.sms.why, CHANNEL_WORDS.textLineMock, "a test filing sends nothing");
   assert.equal(flagged.email.why, CHANNEL_WORDS.noMailbox);
+  assert.deepEqual(
+    [flagged.whatsapp.mend, flagged.sms.mend, flagged.email.mend],
+    [undefined, undefined, "connect"],
+    "a number's quality and a test filing wait; a mailbox is the business's to connect",
+  );
+});
+
+test("each choice says what closes it: a rule (nothing to press, no version written) or the door that opens it (the review of 15 Nov 2026: one channel question)", () => {
+  const facts = (c) => [c.channel, c.ok, c.rule, c.mend];
+  // Open: no rule, no door.
+  assert.deepEqual(channelChoices(READY_OPEN, "conversational", "ours").map(facts), [
+    ["whatsapp", true, false, null],
+    ["sms", true, false, null],
+    ["email", true, false, null],
+  ]);
+  // An offer from a US number, the business's address missing: Meta's pause and the text's rule are rules; the
+  // address is the business's to add.
+  const us = channelsReady({
+    whatsapp: { canSend: true, refusal: null, number: "+12025550123" },
+    textLine: { sms_state: "active", reg_mock: false },
+    email: { mailbox: true, domain: true, offers: { ...OPEN, address: false } },
+  });
+  assert.deepEqual(channelChoices(us, "marketing", "ours").map(facts), [
+    ["whatsapp", false, true, null],
+    ["sms", false, true, null],
+    ["email", false, false, "address"],
+  ]);
+  // Chanlytics' own offers domain off: no rule (the version is written, and goes the day it opens), and no door.
+  const off = channelsReady({
+    whatsapp: null,
+    textLine: null,
+    email: { mailbox: true, domain: true, offers: { ...OPEN, campaigns: false } },
+  });
+  assert.deepEqual(channelChoices(off, "marketing", "ours").map(facts), [
+    ["whatsapp", false, false, "connect"],
+    ["sms", false, true, null],
+    ["email", false, false, null],
+  ]);
+  assert.equal(
+    channelChoices(off, "conversational", "ours").find((c) => c.channel === "email").why,
+    OFFERS_BY_EMAIL_WORDS.noCampaignsDomain,
+    "the business's news by email waits with the offers, in the sentence that names both",
+  );
+  assert.match(OFFERS_BY_EMAIL_WORDS.noCampaignsDomain, /offers or news/);
+  // The writers' question is the rule's alone: what is written for a channel never depends on what is connected.
+  const paused = { ok: false, why: "paused by Meta" };
+  assert.equal(channelRuledOut("sms", "marketing", null), CHANNEL_WORDS.noOffersByText);
+  assert.equal(channelRuledOut("whatsapp", "marketing", paused), "paused by Meta");
+  assert.equal(channelRuledOut("whatsapp", "conversational", paused), null, "their visit's message is written");
+  assert.equal(channelRuledOut("whatsapp", "marketing", null), null, "a number not known holds nothing");
+  assert.equal(channelRuledOut("email", "marketing", paused), null, "an offer's email is written, and waits");
   assert.equal(
     channelsReady({
       whatsapp: null,

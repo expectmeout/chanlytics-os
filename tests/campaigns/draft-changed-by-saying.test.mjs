@@ -405,7 +405,7 @@ const askWrote = (whatsapp) => ({
 const twoSteps = () => {
   const typed = { ...held, params: [{ kind: "first_name" }, { kind: "text", value: "20% off" }] };
   const first = M.setMessage(sequence(), 0, typed);
-  const second = M.setMessage(M.addStep(first, "message"), 1, askWrote("Hi {{1}}, it has been a while."), ["whatsapp"]);
+  const second = M.setMessage(M.addStep(first, "message"), 1, askWrote("Hi {{1}}, it has been a while."));
   return { ...M.setWait(second, 1, 28), said: LINE.words };
 };
 

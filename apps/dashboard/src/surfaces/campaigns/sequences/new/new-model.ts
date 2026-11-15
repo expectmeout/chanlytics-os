@@ -34,6 +34,7 @@ import {
   whoSuits,
   type AppointmentWord,
   type CampaignMessage,
+  type ChannelsReady,
   type ConsentChannel,
   type DraftWho,
   type FollowUpCondition,
@@ -53,6 +54,8 @@ import {
 import type { KeptSend } from "./kept-send";
 import {
   carriersOf,
+  draftChoicesOf,
+  draftOpenOf,
   messagePurposeOf,
   newChecksOf,
   newReachOf,
@@ -240,11 +243,16 @@ function stillCarried(ticked: readonly ConsentChannel[], message: NewMessage | n
 }
 
 /**
- * A draft from before (one the tab kept, Send it again, a kept one-off) on the channels the workspace sends on now: one
- * closed since is never left ticked where How cannot untick it.
+ * A draft from before (one the tab kept, Send it again, a kept one-off) on the channels its message can go by here now
+ * (the one rule, new-checks.ts draftOpenOf; with no message yet, those the workspace sends on): one closed since is never
+ * left ticked where How cannot untick it.
  */
-export const onReadyChannels = (d: NewDraftDto, ready: readonly ConsentChannel[]): NewDraftDto =>
-  d.audience === "people" ? { ...d, channels: d.channels.filter((c) => ready.includes(c)) } : d;
+export function onReadyChannels(d: NewDraftDto, workspace: ChannelsReady): NewDraftDto {
+  if (d.audience !== "people") return d;
+  const first = d.steps[0]?.message ?? null;
+  const open = first ? draftOpenOf(d, first, workspace) : CONSENT_CHANNELS.filter((c) => workspace[c].ready);
+  return { ...d, channels: d.channels.filter((c) => open.includes(c)) };
+}
 
 /** A one-off kept as a draft (00465 `sequences.once`), opened again as New's draft; null where its message is gone. */
 export function onceKeptOf(
@@ -382,17 +390,18 @@ export function valueLabelOf(m: NewMessage, at: number): string | null {
 
 /**
  * A step's message changed: one of the workspace's, or the one Ask wrote, kept. A person's first message ticks the
- * channels it holds that the workspace can send on now (`ready`), as Ask's draft does: never one nothing can carry.
+ * channels it can go by here now (`workspace`: the one rule, new-checks.ts draftOpenOf), as Ask's draft does: never one
+ * the send would refuse.
  */
 export const setMessage = (
   d: NewDraftDto,
   i: number,
   message: NewMessage,
-  ready: readonly ConsentChannel[] | null = null,
+  workspace: ChannelsReady | null = null,
 ): NewDraftDto => {
   const next = stepsNowTheOwners(withStep(d, i, (s) => ({ ...s, does: "message", message, hand: "" })));
   if (i !== 0 || d.audience !== "people") return next;
-  const channels = carriersOf(message).filter((c) => !ready || ready.includes(c));
+  const channels = workspace ? draftOpenOf(d, message, workspace) : carriersOf(message);
   return { ...next, channels, who: d.who?.kind === "everyone" ? everyoneOf(message.offer) : d.who };
 };
 
@@ -486,20 +495,37 @@ export interface FootReads {
   paused: boolean;
   /** "YYYY-MM-DDTHH:MM" by the business's clock, which a one-off's time is set and read in. */
   localNow: string;
-  /** The channels the workspace can send on now. */
-  ready: readonly ConsentChannel[];
+  /** The workspace's channels now, which the one rule reads (new-checks.ts draftChoicesOf). */
+  channels: ChannelsReady;
+}
+
+/** How each channel its first message is written for stands here now (the one rule, new-checks.ts draftChoicesOf). */
+function heldChoicesOf(d: NewDraftDto, workspace: ChannelsReady) {
+  const first = d.steps[0]?.message;
+  return first ? draftChoicesOf(d, first, workspace).filter((c) => first.channels.includes(c.channel)) : [];
 }
 
 /**
- * The channel to connect where a person's draft goes by nothing because none of the ways its first message can go is
- * connected (so How has nothing to tick): the first of them; null where one is, or nothing is picked yet.
+ * Where a person's draft goes by nothing because none of the ways its first message is written for is open here (so How
+ * has nothing to tick): the channel to connect, where connecting one opens a way; else why, in the reason the rule gives
+ * (one the business can mend first, then one that waits, then a rule's), which asks nothing where nothing can be done.
+ * Null where one is open, or nothing is picked yet.
  */
-function unconnectedOnly(d: NewDraftDto, ready: readonly ConsentChannel[]): ConsentChannel | null {
-  const first = d.steps[0]?.message;
-  if (d.audience !== "people" || d.channels.length > 0 || !first) return null;
-  const carriers = carriersOf(first);
-  return carriers.length > 0 && carriers.every((c) => !ready.includes(c)) ? (carriers[0] ?? null) : null;
+function noWayOf(d: NewDraftDto, workspace: ChannelsReady): { connect: ConsentChannel } | { why: string } | null {
+  if (d.audience !== "people" || d.channels.length > 0) return null;
+  const choices = heldChoicesOf(d, workspace);
+  if (choices.length === 0 || choices.some((c) => c.ok)) return null;
+  const connect = choices.find((c) => c.mend === "connect");
+  if (connect) return { connect: connect.channel };
+  const said = choices.find((c) => c.mend !== null) ?? choices.find((c) => !c.rule) ?? choices[0];
+  return said?.why ? { why: said.why } : null;
 }
+
+/** What the foot says where no way is open (noWayOf): the channel to connect, or why, under "Nothing it goes by can carry it". */
+const noWaySaid = (noWay: NonNullable<ReturnType<typeof noWayOf>>): { lead: string; sub: string } => ({
+  lead: NEW_WORDS.reach.why.no_channel,
+  sub: "connect" in noWay ? NEW_WORDS.reach.connect(noWay.connect) : noWay.why,
+});
 
 /** The last moment a one-off may be set for, by the business's clock: NEW_ONCE_AHEAD_DAYS after now. */
 const lastAtOf = (localNow: string): string =>
@@ -528,19 +554,19 @@ export function notReady(d: NewDraftDto, at: FootReads): { lead: string; sub: st
     s.does !== "message" ? !!s.hand.trim() : d.audience === "leads" ? true : !!s.message,
   );
   // The parts still to pick, by what the empty part says on the page: a sequence's when, a one-off's who, a search. How
-  // is asked only where something can be picked: with none of its ways connected, the foot says what to connect.
+  // is asked only where something can be picked: with none of its ways open here, the foot says what to connect, or why.
   const W = NEW_WORDS.draft;
   const then = d.kind === "once" ? W.thenItCanGo : W.thenItCanStart;
-  const unconnected = unconnectedOnly(d, at.ready);
+  const noWay = noWayOf(d, at.channels);
   const parts = [
     ...(d.who ? [] : [d.audience === "leads" ? W.parts.search : d.kind === "once" ? W.parts.who : W.parts.when]),
-    ...(d.audience === "people" && d.channels.length === 0 && !unconnected ? [W.parts.how] : []),
+    ...(d.audience === "people" && d.channels.length === 0 && !noWay ? [W.parts.how] : []),
     ...(steps ? [] : [W.parts.message]),
   ];
   if (parts.length) return { lead: W.pick(parts), sub: then };
   // A sequence to leads sends from a mailbox: with none, the foot's act is the way to one.
   if (d.audience === "leads" && d.mailbox && !d.mailbox.label) return { lead: W.needsMailbox, sub: W.needsMailboxSub };
-  if (unconnected) return { lead: NEW_WORDS.reach.why.no_channel, sub: NEW_WORDS.reach.connect(unconnected) };
+  if (noWay) return noWaySaid(noWay);
   const blank = blankValueOf(d);
   if (blank) return { lead: W.fill(blank.label), sub: then };
   if (d.kind === "once" && d.at !== null && d.at <= at.localNow) return { lead: W.passed, sub: W.passedSub };
@@ -568,21 +594,21 @@ export type NobodyDoor = { kind: "yes" } | { kind: "connect"; channel: ConsentCh
  * this week. One door at most, with who it goes to beside it. Null where someone can hear it, or how is still to pick
  * (no channel ticked, with one it could be ticked to connected).
  */
-export function nobodyOf(d: NewDraftDto, ready: readonly ConsentChannel[]): { words: string; door: NobodyDoor } | null {
+export function nobodyOf(d: NewDraftDto, workspace: ChannelsReady): { words: string; door: NobodyDoor } | null {
   const r = d.reach;
   if (d.kind !== "once" || d.audience !== "people" || !d.who || r?.can !== 0) return null;
-  if (d.channels.length === 0 && !unconnectedOnly(d, ready)) return null;
+  if (d.channels.length === 0 && !noWayOf(d, workspace)) return null;
   const label = d.who.kind === "everyone" ? EVERYONE_LABEL : d.who.label;
   const said = `“${label}”`;
   const first = d.steps[0]?.message ?? null;
   const purpose = messagePurposeOf(first);
-  // Only what can carry it: connecting texting, or ticking it, never helps an offer.
-  const holds = first ? carriersOf(first) : [];
-  // A channel its message holds that the workspace can send on and the draft doesn't tick: how it goes is the cure.
-  const untried = holds.some((c) => ready.includes(c) && !d.channels.includes(c));
+  // Only what the one rule says can carry it: connecting texting, or ticking it, never helps an offer.
+  const choices = heldChoicesOf(d, workspace);
+  // A channel its message can go by here that the draft doesn't tick: how it goes is the cure.
+  const untried = choices.some((c) => c.ok && !d.channels.includes(c.channel));
   if (r.nobody === "breath") return { words: allLeftOutWords(label, r.held ?? 0), door: null };
   if (r.nobody === "no_channel") {
-    const unconnected = holds.find((c) => !ready.includes(c)) ?? null;
+    const unconnected = choices.find((c) => c.mend === "connect")?.channel ?? null;
     return {
       words: r.said_yes ? saidYesWords(said, purpose, 0, r.said_yes, NO_CHANNEL_REACH) : noChannelWords(said, purpose),
       door: unconnected ? { kind: "connect", channel: unconnected } : untried ? { kind: "how" } : null,

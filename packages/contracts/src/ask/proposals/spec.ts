@@ -180,12 +180,21 @@ export function errorMessageOf(error: Record<string, unknown>, status: number): 
     : "That was refused. Nothing went out.";
 }
 
+/** The page each of a channel's doors is (campaigns reach-for.ts ChannelMend), as a card's way forward names it. */
+const MEND_DOORS: Record<string, string> = { connect: "admin/connections", address: "admin/workspace" };
+
 /**
  * The one way forward from a failure (D37): where what stopped it is fixed, where a sentence names something a page mends.
- * Null where it names nothing, and the card's own Try again is all there is.
+ * Null where it names nothing, and the card's own Try again is all there is. A refusal that says its own door is believed
+ * before any sentence is read (`details.mend`, a channel's: shared/errors.ts): a rule's has none, so a card stopped by
+ * "Emails carry no offers or news for now." is not sent to Connections, where nothing would open it.
  */
-export function failureDoorOf(code: string, message: string): { to: string } | null {
+export function failureDoorOf(code: string, message: string, details?: unknown): { to: string } | null {
   if (code === "lapsed" || code === "moved" || code === "waits") return null;
+  if (typeof details === "object" && details !== null && "mend" in details) {
+    const to = typeof details.mend === "string" ? MEND_DOORS[details.mend] : undefined;
+    return to ? { to } : null;
+  }
   if (/mailbox|e-?mail|correo|campaigns domain|dominio/i.test(message)) return { to: "admin/connections" };
   if (/whatsapp|number|número/i.test(message)) return { to: "admin/connections" };
   if (/address|dirección/i.test(message)) return { to: "admin/workspace" };

@@ -285,7 +285,7 @@ const newPane = (record, draft) => {
     reads: {
       who: { moments: [], lists: [], everyone: 0, everyoneHeld: 0, sources: [], running: [] },
       library: libraryOf(record),
-      ready,
+      channels: readyOf(record),
       paused: readyOf(record).paused === true,
       today: contracts.zoneDayKey(NOW, "UTC"),
       timezone: "UTC",
@@ -354,7 +354,7 @@ test("a workspace with no WhatsApp number offers New the messages it has written
   // A one-off by hand, its first message the starter: ticked by the channels it holds that the workspace can send on.
   const first = held[0];
   assert.deepEqual(first.channels, ["email", "sms"], "an email and a text, and no WhatsApp version");
-  const draft = M.setMessage(M.draftByHand("once", "people", WORKSPACE.name), 0, first, readyChannelsOf(record));
+  const draft = M.setMessage(M.draftByHand("once", "people", WORKSPACE.name), 0, first, readyOf(record));
   assert.deepEqual(draft.channels, ["email"], "it opens on Email: there is no text line to send on");
   const pane = newPane(record, draft);
   assert.equal(
@@ -371,7 +371,7 @@ test("a workspace with no WhatsApp number offers New the messages it has written
   const channels = byTestId(pane, "sq-nw-channels");
   const rowOf = (name) => find(channels, (n) => n.props?.className === "sq-nw-switchrow" && textOf(n).startsWith(name));
   for (const [name, why] of [
-    [W.channels.whatsapp, W.channels.noVersion],
+    [W.channels.whatsapp, contracts.noVersionWords("whatsapp")],
     [W.channels.sms, W.channels.notReady],
   ]) {
     assert.equal(rowOf(name).props["data-off"], "true", `${name} cannot be ticked`);
@@ -388,7 +388,7 @@ test("a workspace with no WhatsApp number offers New the messages it has written
   // what an email asks of a person -- never a number, and never their yes again (the send screen's words, decision 0065
   // step 7). Counted as Ask's draft counts it: nobody, two who said yes.
   const [list] = record.lists;
-  const offer = M.setWho(M.setMessage(draft, 0, held[1], readyChannelsOf(record)), {
+  const offer = M.setWho(M.setMessage(draft, 0, held[1], readyOf(record)), {
     kind: "list",
     token: `list:${list.id}`,
     label: list.name,

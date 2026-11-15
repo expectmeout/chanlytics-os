@@ -857,6 +857,32 @@ test("templates: the composers see the approved and unhidden, Settings sees ever
     502,
     "Submitting only works on the production dashboard.",
   );
+  // The floor under every writer (the review of 15 Nov 2026): an offer is never sent to WhatsApp's review from a US
+  // number, where no offer is delivered by it, whichever page asked; a message about their own visit still goes on.
+  const fromUs = {
+    ...tables,
+    tenant_channels: [{ id: "ch-us", tenant_id: B, kind: "whatsapp", status: "active", number_e164: "+12025550123" }],
+  };
+  const offer = {
+    name: "spring_offer",
+    language: "en_US",
+    category: "marketing",
+    body: "Spring colour is 10% off this month. Reply here to book a time.",
+    footer: "Reply STOP to opt out",
+    examples: [],
+  };
+  await refused(
+    templates.POST.run(send("POST", offer, inB), ctxFor(fromUs)),
+    "conflict",
+    409,
+    "WhatsApp is not delivering offers to US numbers",
+  );
+  await refused(
+    templates.POST.run(send("POST", { ...written, name: "visit_reminder_two" }, inB), ctxFor(fromUs)),
+    "upstream_meta",
+    502,
+    "Submitting only works on the production dashboard.",
+  );
 });
 
 test("one template: hidden or titled through the definer doors; deleting is refused while a broadcast still uses it, and stops at the production guard otherwise", async () => {
@@ -1445,7 +1471,7 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
       post(tablesFor(), { channels: ["email"] }).run,
       "conflict",
       409,
-      "Offers by email start once the campaigns domain is set up.",
+      "Emails carry no offers or news for now.",
     );
     // The edge could not be asked: not offered, and said so, never guessed ready.
     await edgeSays(new Error("connect ECONNREFUSED"));
@@ -1509,7 +1535,7 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
       post(tablesFor(offer), { channels: ["email"] }).run,
       "conflict",
       409,
-      "Offers by email start once the campaigns domain is set up.",
+      "Emails carry no offers or news for now.",
     );
     await refused(post(tablesFor(offer), { channels: ["sms"] }).run, "validation", 400, "Texts carry no offers.");
     await refused(

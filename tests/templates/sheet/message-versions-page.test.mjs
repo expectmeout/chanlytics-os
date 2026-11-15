@@ -1013,6 +1013,29 @@ test("the open message says where each language stands on each channel, in contr
   });
 });
 
+test("a channel's tab asks for you only where there is something to do: what nobody here can change says nothing, a channel to connect says so (the review of 15 Nov 2026; the clean list's G4 and G5)", () => {
+  const OPEN = { campaigns: true, address: true, paused: null };
+  /** An offer with a WhatsApp and an email version, opened where the business's channels are `ready`. */
+  const stands = (ready) => {
+    page({ rows: [custom(HOURS, { category: "marketing" })], versions: [ownRow("email", HOURS)] });
+    setSurfaceValue("playbooks", { rows: [], ready });
+    return opened(redraw(), HOURS);
+  };
+  const channels = (number, email) =>
+    contracts.channelsReady({ whatsapp: { canSend: true, refusal: null, number }, textLine: null, email });
+  // A US number, where WhatsApp delivers no offers, and Chanlytics' own offers domain off: neither is the owner's to
+  // change, so neither tab wears the amber mark, and no line under the tab asks for anything.
+  let tree = stands(channels("+12025550123", { mailbox: true, domain: true, offers: { ...OPEN, campaigns: false } }));
+  assert.deepEqual([tabOf(tree, "whatsapp").need, tabOf(tree, "email").need], [undefined, undefined]);
+  assert.equal(byTestId(tree, "template-channel-cannot"), null, "WhatsApp's tab says nothing of the pause");
+  tabsOf(tree).props.onSelect("email");
+  assert.equal(byTestId(redraw(), "template-channel-cannot"), null, "nor the email's of the offers domain");
+  // No mailbox: the owner's to connect, so the email's tab says so, in the readiness's own words.
+  tree = stands(channels("+447700900123", { mailbox: false, domain: true, offers: OPEN }));
+  assert.equal(tabOf(tree, "email").need, contracts.CHANNEL_WORDS.noMailbox);
+  assert.equal(tabOf(tree, "whatsapp").need, undefined, "WhatsApp, which can send it, asks for nothing");
+});
+
 test("the language control lists a language the message holds on any channel under one heading, with where it stands, and a language on no channel is the library's to add", () => {
   const own = [
     ownRow("email", HOURS, { category: "utility" }),

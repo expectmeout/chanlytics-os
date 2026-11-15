@@ -270,7 +270,7 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   sms_carries_no_promotions: "no offers by text",
   // The campaigns domain offers leave from is not this deployment's to use, or the provider does not verify it: the business's
   // news by email is an offer at the door (decision D2), so it waits as an offer does. Each person's own skip, final.
-  email_marketing_disabled: "no offers by email for now",
+  email_marketing_disabled: "no offers or news by email for now",
   // The workspace's offers by email are paused while complaints or bounces settle (email-offers.ts), and the business's news
   // by email with them (decision D2); a visit's reminder and a reply still go.
   email_offers_paused: "offers and news by email are paused",
