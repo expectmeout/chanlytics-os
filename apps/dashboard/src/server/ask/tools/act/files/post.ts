@@ -9,6 +9,8 @@ import {
   POST_VOICES,
   fileSaidOf,
   isAskMorningQuestion,
+  ownersSayings,
+  parseTenantConfig,
   postWordsIn,
   secondsOf,
   whoStandsOf,
@@ -51,15 +53,18 @@ import { filesNamed } from "../../read/files";
  */
 
 /**
- * What the owner has said, as a post's words are held to it: this thread's questions, their Settings, and the words kept on
- * the piece the turn is about, where it is one made here (posts/made-as.ts readKeptWords): "move the words down" on a post
- * that says "20% off this week" makes it again with its own offer. A morning's turn asks itself.
+ * What the owner has said, as a post's words are held to it: this thread's questions, what they wrote in Settings as theirs
+ * to say (contracts ownersSayings: a service's price, a note still running, a booking note; never a number to call, a
+ * setting, what they forbid or an offer that ended), and the words kept on the piece the turn is about, where it is one made
+ * here (posts/made-as.ts readKeptWords): "move the words down" on a post that says "20% off this week" makes it again with
+ * its own offer. A morning's turn asks itself.
  */
 export async function ownersWords(toolContext: ToolContext, config: unknown): Promise<string> {
   const kept = toolContext.subjectFile
     ? await readKeptWords(toolContext.ctx.supabase, toolContext.tenantId, toolContext.subjectFile)
     : "";
-  return [ownersTyped(toolContext), config ? JSON.stringify(config) : "", kept].join("\n");
+  const settings = ownersSayings(parseTenantConfig(config)?.brain, toolContext.timezone, toolContext.now);
+  return [ownersTyped(toolContext), ...settings, kept].join("\n");
 }
 
 /**
