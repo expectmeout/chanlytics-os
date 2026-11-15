@@ -134,7 +134,10 @@ function fakes(over = {}) {
       if (WRITES.has(name)) log.push([name, ...args]);
       if (name === "alert") alertsRaised.push(args[0]);
       if (answer instanceof Error) throw answer;
-      return typeof answer === "function" ? answer(...args) : answer;
+      const value = typeof answer === "function" ? answer(...args) : answer;
+      // The batch read keeps `not` as the database does (db listQueuedRecipients): a row with no channel is WhatsApp's.
+      const others = name === "batch" && args[2]?.not === "whatsapp";
+      return others ? value.filter((r) => (r.channel ?? "whatsapp") !== "whatsapp") : value;
     };
   }
   return {
@@ -979,7 +982,7 @@ test("a playbook's run that stops is never told to send it again: every stop say
   const LATER =
     "It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
   assert.equal(playbookRunNext({ playbook_id: "p1", trigger: "everyone_monthly" }, "when_it_can"), LATER);
-  const outlasts = new Set(["provider_limit", "template_not_approved"]);
+  const outlasts = new Set(["provider_limit", "template_not_approved", "whatsapp_wait_ended"]);
   for (const code of BROADCAST_FAILURES) {
     for (const reached of [0, 3]) {
       const fix = broadcastFailureFix(code, reached, { playbook_id: "p1", trigger: "everyone_monthly" });
@@ -2742,9 +2745,10 @@ test("a marketing message with no WhatsApp row is an offer by email as any is: h
   assert.equal(sendsOf(visit.f)[0].purpose, "conversational");
 });
 
-test("a message whose WhatsApp row is waiting, or whole to nobody, holds its WhatsApp people alone: the people on email go on their version and the run is not failed", async () => {
+test("a message whose WhatsApp row WhatsApp refused, or is whole to nobody, holds its WhatsApp people alone: the people on email go on their version and the run is not failed", async () => {
   const held = {
-    pending: { ...visitRows.whatsapp, meta_status: "pending" },
+    // One WhatsApp is still checking waits instead (tests/campaigns/a-send-waits-for-whatsapp.test.mjs).
+    rejected: { ...visitRows.whatsapp, meta_status: "rejected" },
     // Approved by Meta, but with a picture for a heading, which this product cannot put on the wire (contracts templateBlocked).
     blocked: {
       ...visitRows.whatsapp,
@@ -2797,10 +2801,6 @@ test("a message whose only row is a WhatsApp one that cannot be sent, with every
     return alert.body;
   };
   assert.equal(
-    await stopped(versionsOf([], { whatsapp: { ...visitRows.whatsapp, meta_status: "pending" } })),
-    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes. Everyone on this run goes by WhatsApp, so nothing was sent.",
-  );
-  assert.equal(
     await stopped(versionsOf([], { whatsapp: { ...visitRows.whatsapp, meta_status: "rejected" } })),
     "WhatsApp asked for a change to this message's words. AI writes new words for you to send back. Everyone on this run goes by WhatsApp, so nothing was sent.",
   );
@@ -2829,7 +2829,7 @@ test("a read of the message that throws leaves the batch unsent and the error up
   const timeout = new Error("canceling statement due to statement timeout");
   const lost = world({ batch: [on("whatsapp"), on("email", "k3")], message: timeout, byOtherChannels: false });
   await assert.rejects(sendBroadcastBatch(lost.f.ports, cmd()), timeout);
-  assert.deepEqual(lost.f.ops(), ["startSending"], "marked sending, as the batch's first write; nothing else written");
+  assert.deepEqual(lost.f.ops(), [], "nothing is written: the run is marked sending once its message is read");
   assert.deepEqual(lost.f.marks(), [], "nobody is claimed or held");
 });
 

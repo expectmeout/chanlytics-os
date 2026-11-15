@@ -44,7 +44,12 @@ export function parseChannels(value: unknown, kept: readonly string[] | null = n
  * hears it offers that page or none, and never reads one off the sentence.
  */
 export function refuseTicks(how: CampaignHow, purpose: AskedPurpose): void {
-  const no = channelChoices(how.ready, purpose, how.about).find((c) => how.channels.includes(c.channel) && !c.ok);
+  // A send that waits keeps a tick WhatsApp is still to say yes to (contracts ChannelReady `waits`): its people wait at
+  // the send, and nothing is refused for a review that ends by itself.
+  const kept = (channel: ConsentChannel): boolean => how.wait === true && how.ready[channel].waits === true;
+  const no = channelChoices(how.ready, purpose, how.about).find(
+    (c) => how.channels.includes(c.channel) && !c.ok && !(kept(c.channel) && !c.rule),
+  );
   if (!no) return;
   const words = no.why ?? `${no.channel} is not ready to send on.`;
   if (channelNeverCarries(no.channel, purpose)) throw new AppError("validation", words, undefined, { mend: null });

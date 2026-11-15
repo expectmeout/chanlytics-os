@@ -18,8 +18,10 @@ import {
   heardTooWords,
   heardWords,
   leftOutBy,
+  NEW_WORDS,
   nextOpenMoment,
   parseParamSpec,
+  whatsappWaits,
   proposalChannelsWords,
   sendsWaitWords,
   type AskedPurpose,
@@ -91,7 +93,9 @@ async function broadcastBy(
   const given = proposedChannels(value);
   if ("refusal" in given) return given;
   const { channels, named } = given;
-  if (!named) {
+  // Named or not, a message WhatsApp is still checking is judged by the route's own rule below, which keeps its tick: the
+  // send waits for it (core messages/broadcast/whatsapp-wait.ts), and the card says who waits (whatsappChecking).
+  if (!named && !whatsappWaits(message)) {
     // A broadcast is the business's news (contracts MessageAbout, decision D1).
     const how = await getWhatsappHow(toolContext, "ours");
     return how.ready.whatsapp.ready
@@ -123,11 +127,10 @@ async function broadcastMessage(
 ): Promise<AskedMessage | { refusal: string }> {
   const askedMessage = await getAskedMessage(toolContext, id);
   if ("refusal" in askedMessage) return askedMessage;
-  // A broadcast is the business's news (contracts MessageAbout, decision D1).
-  const no =
-    channels === undefined || channels === null
-      ? await findWhatsappAloneRefusal(toolContext, askedMessage.message, "ours")
-      : null;
+  // A broadcast is the business's news (contracts MessageAbout, decision D1). One WhatsApp is still checking is no
+  // refusal: the send waits for it.
+  const alone = (channels === undefined || channels === null) && !whatsappWaits(askedMessage.message);
+  const no = alone ? await findWhatsappAloneRefusal(toolContext, askedMessage.message, "ours") : null;
   return no ? { refusal: no } : askedMessage;
 }
 
@@ -317,6 +320,16 @@ function messageSaid(
   return sent.asked ? cardSays(sent.asked, params, by, room) : { says: stepSays(sent.step, params) };
 }
 
+/**
+ * What the card says where WhatsApp is still checking the message's words and the send waits for it (core
+ * messages/broadcast/whatsapp-wait.ts): who gets it once approved, in the words New asks its question with. Nothing where
+ * nobody on it goes by WhatsApp, or WhatsApp approves the message now.
+ */
+function whatsappChecking(how: CampaignHow, onWhatsApp: number, count: number): string {
+  if (!how.ready.whatsapp.waits || onWhatsApp === 0) return "";
+  return ` · ${NEW_WORDS.confirm.checking(count > onWhatsApp)}`;
+}
+
 async function proposeBroadcast(toolContext: ToolContext, input: BroadcastProposed): Promise<ProposalOutcome> {
   const templateId = str(input.template_id, 40);
   const kind = str(input.audience_kind, 10);
@@ -364,13 +377,14 @@ async function proposeBroadcast(toolContext: ToolContext, input: BroadcastPropos
     ? `“${asked.message.name}” · ${whenWords}: ${messageWords.says}`
     : `${messageWords.says} · ${whenWords}`;
   const reaches = `${count} ${count === 1 ? "person" : "people"} who said yes${says}`;
+  const checking = whatsappChecking(by.how, byChannel.whatsapp, count);
   return propose({
     kind: "broadcast",
     title: `Send to ${label}`,
-    summary: `${reaches}${held}${leftOutSaid} · ${subject}`,
+    summary: `${reaches}${held}${leftOutSaid}${checking} · ${subject}`,
     // The same pieces as a sheet (playbook-card.ts): who it reaches, when it goes, what it says; what holds it apart.
     sheet: {
-      holds: holdsOf(held, leftOutSaid),
+      holds: holdsOf(held, leftOutSaid, checking),
       rows: [
         { label: "Reaches", value: sheetWords(reaches) },
         { label: "Goes", value: sheetWords(whenWords) },

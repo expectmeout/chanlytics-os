@@ -200,6 +200,10 @@ export async function readCampaignHow(
  *
  * The one rule for a broadcast's ticks: the route asks it, and so does Ask before it proposes one, so a card the route
  * would refuse is never shown.
+ *
+ * A send by hand waits for WhatsApp (contracts CampaignHow `wait`): a tick WhatsApp is still to say yes to is kept, the
+ * people an email or a text reaches go at once, and those only WhatsApp reaches wait at the send for its yes
+ * (messages/broadcast/whatsapp-wait.ts), so nobody is left out for a review that ends by itself.
  */
 export async function readCampaignHowOf(
   ports: Pick<CreateBroadcastPorts, "channels">,
@@ -208,7 +212,8 @@ export async function readCampaignHowOf(
   purpose: AskedPurpose,
 ): Promise<{ how: CampaignHow; health: NumberHealth | null }> {
   // A broadcast is news the business chose to send, whatever its message's category (decision D1).
-  const created = await readCampaignHow(ports, message, channels, "ours");
+  const read = await readCampaignHow(ports, message, channels, "ours");
+  const created = { ...read, how: { ...read.how, wait: true } };
   // A paused workspace sends nothing: the door refuses every message of the run (deliver.ts `paused`), so a broadcast made
   // under one would be enrolled, scheduled, and stopped by the first batch. It is refused here, in the words the composers
   // say it in (their Send is not offered), before the people are read.
