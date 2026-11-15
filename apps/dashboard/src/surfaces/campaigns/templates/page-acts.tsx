@@ -163,15 +163,15 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
   // it (the clean list, 14 Nov 2026).
   // WhatsApp is said only where its version went to WhatsApp (the review of 15 Nov 2026): with no number, or for an offer
   // from a number WhatsApp delivers none from, the email and text are added and nothing waits on WhatsApp.
-  const addLanguage = (g: StarterGroup, lang: TplLang) =>
+  const addLanguage = (group: StarterGroup, lang: TplLang) =>
     run(
-      `add:${g.starter.key}:${lang.id}`,
-      () => templateVerbs.fileStarters({ keys: [g.starter.key], languages: [lang.id] }),
-      (r) =>
+      `add:${group.starter.key}:${lang.id}`,
+      () => templateVerbs.fileStarters({ keys: [group.starter.key], languages: [lang.id] }),
+      (filed) =>
         TPL_VERSION_WORDS.languageAdded(
-          g.title,
+          group.title,
           lang.label,
-          r.data.results.some((result) => result.status === "submitted" || result.status === "synced"),
+          filed.data.results.some((result) => result.status === "submitted" || result.status === "synced"),
         ),
     );
   const sync = () =>
