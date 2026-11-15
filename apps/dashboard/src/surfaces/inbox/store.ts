@@ -39,7 +39,7 @@ export const REAL_BUCKETS: InboxBucket[] = [
   {
     id: "aside",
     label: INBOX_BUCKET_WORDS.aside,
-    hint: "Not a customer's, as far as we can tell: sales pitches and programs' mail",
+    hint: "Not a customer's, as far as AI can tell: sales pitches and programs' mail",
     icon: "archive",
     onlyWithRows: true,
   },

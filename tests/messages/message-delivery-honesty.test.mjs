@@ -80,7 +80,7 @@ test("every way of not arriving is marked as not arriving", () => {
 
 test("an email's delivered receipt says what it knows: their mail server took it, not that it is on their phone", () => {
   // Resend's `delivered` is the receiving server's acceptance. A text or a WhatsApp message is "Delivered" on a phone.
-  assert.equal(messageStatusLabel("delivered", "email"), "Reached their mail server");
+  assert.equal(messageStatusLabel("delivered", "email"), "Handed to their email");
   assert.equal(messageStatusLabel("delivered", "whatsapp"), "Delivered");
   assert.equal(messageStatusLabel("delivered", "sms"), "Delivered");
   assert.equal(messageStatusLabel("delivered"), "Delivered", "a row that names no wire keeps the word it always had");
@@ -90,7 +90,7 @@ test("an email's delivered receipt says what it knows: their mail server took it
 
   // Both panes draw it from the row's own channel (the Inbox's thread and Conversations).
   const email = toConversationVM(dto([msg("delivered", "Thanks", { channel: "email" })]), null, ZONE);
-  assert.equal(email.messages[0].statusLabel, "Reached their mail server");
+  assert.equal(email.messages[0].statusLabel, "Handed to their email");
   const text = toConversationVM(dto([msg("delivered", "Thanks", { channel: "sms" })]), null, ZONE);
   assert.equal(text.messages[0].statusLabel, "Delivered");
 });
@@ -98,7 +98,7 @@ test("an email's delivered receipt says what it knows: their mail server took it
 test("the Inbox's thread says the same words for an email as Conversations does", () => {
   const thread = toInboxThreadVM(dto([msg("delivered", "Thanks", { channel: "email" })]), null, ZONE);
   const bubble = thread.timeline.find((e) => e.type === "msg");
-  assert.equal(bubble.statusLabel, "Reached their mail server");
+  assert.equal(bubble.statusLabel, "Handed to their email");
 });
 
 test("a customer's own message is never given a send status", () => {

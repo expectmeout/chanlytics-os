@@ -557,9 +557,9 @@ test("the template send is the reply box's capsule: the message it will send at 
   );
   // What fits first: a note answers whatever they asked ("How did it go" stood first under a price question, I4).
   assert.equal(nameOf(tree), "A quick note", "REGRESSION: 'Send booking link', whichever template was picked");
-  assert.ok(buttonsOf(tree).includes("Send template"), "the reply box's own Send, at the capsule's foot");
+  assert.ok(buttonsOf(tree).includes("Send"), "the reply box's own Send, at the capsule's foot");
   assert.ok(find(tree, hasClass("ix-composer-row")), "the same capsule the reply box is, not a box of its own");
-  assert.equal(textOf(find(tree, hasClass("ix-tpl-note"))), "Reopens the chat", "what sending it does");
+  assert.equal(textOf(find(tree, hasClass("ix-tpl-note"))), "Lets you write freely again", "what sending it does");
   // Why the rest are not offered is one tap away, in the menu on its name, never a sentence under the reply box or a link.
   assert.equal(find(tree, byTestId("ix-tpl-hidden")), undefined);
   // (The window's own Why? heads the box, ChatClosed: that one says why only a template sends.)

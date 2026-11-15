@@ -67,11 +67,11 @@ test("the gate: Veto sends a caller's link, Never and AI hold it", () => {
 
 test("the reason exists everywhere a reason is read", () => {
   assert.ok(ESCALATION_REASONS.includes("person_hold"));
-  assert.equal(ESCALATION_REASON_LABELS.person_hold, "You handle this person — AI stays out");
-  assert.equal(reasonShort("person_hold"), "you handle this person");
+  assert.equal(ESCALATION_REASON_LABELS.person_hold, "You answer this person · AI stays out");
+  assert.equal(reasonShort("person_hold"), "you answer this person");
   // The workspace hold no longer masquerades as a pricing question either.
-  assert.equal(ESCALATION_REASON_LABELS.policy_block, "Held by your reply setting — nothing was sent");
-  assert.equal(reasonShort("policy_block"), "held by your reply setting");
+  assert.equal(ESCALATION_REASON_LABELS.policy_block, "Your reply setting keeps it for you · nothing was sent");
+  assert.equal(reasonShort("policy_block"), "your reply setting keeps it for you");
   const sql = readRaw("supabase/migrations/00032_person_hold_reason.sql");
   assert.ok(sql.includes("'person_hold'"), "the CHECK admits it, or the insert fails with nobody told");
 });

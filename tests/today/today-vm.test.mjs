@@ -1004,7 +1004,7 @@ test("the answered receipt is a sentence at every count: both times, each time, 
   assert.equal(once("paused"), "Handed over once, because the workspace is paused. The rest it answered itself.");
   assert.equal(
     once("state_unavailable"),
-    "Handed over once, because it could not read the thread. The rest it answered itself.",
+    "Handed over once, because it couldn't read the conversation. The rest it answered itself.",
   );
   for (const reason of ESCALATION_REASONS)
     assert.match(once(reason), /^Handed over once, (because|for|while) /, reason);

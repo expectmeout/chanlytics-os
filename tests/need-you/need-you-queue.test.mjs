@@ -231,7 +231,7 @@ test("a reply row says what its reply answers and goes by: their newest message,
   );
   assert.equal(
     of("cv-chris").reason,
-    "Set to Ask me first — a person answers this one",
+    "Set to ask you first · a person answers this one",
     "why it was handed over, for Ask's draft",
   );
 });

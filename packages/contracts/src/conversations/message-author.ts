@@ -112,9 +112,9 @@ export function messageAuthor(message: MessageDto): MessageAuthor | null {
 
 /** A chat row's second line: that a person has the thread, or who had the last word. */
 export function lastWordLine(needsHuman: boolean, last: MessageDto | null, author: MessageAuthor | null): string {
-  if (needsHuman) return "AI paused — a person has this thread";
+  if (needsHuman) return "AI paused · a person has this conversation";
   if (!last) return "No messages yet";
-  if (last.direction === "inbound") return "They wrote last — no reply yet";
+  if (last.direction === "inbound") return "They wrote last · no reply yet";
   if (!author) return "Answered automatically";
   if (author.kind === "receptionist") return "Answered by AI";
   if (author.kind === "team") return "Answered by your team";

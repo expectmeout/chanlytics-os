@@ -1133,7 +1133,7 @@ test("Right now says the state once: the pill wears the standing's word, the sen
   // someone answers" was said for every reason, over a person who had asked to stop (the 2 Oct 2026 audit).
   assert.match(
     vm.rightNow.detail,
-    /^Since .*\. They asked for a person\. A holding message went out — they're waiting on you\.$/,
+    /^Since .*\. They asked for a person\. A holding message went out, and they're waiting on you\.$/,
     vm.rightNow.detail,
   );
   const draw = await profile(vm);

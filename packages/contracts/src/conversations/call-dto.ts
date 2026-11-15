@@ -180,7 +180,7 @@ export const CALL_TRANSCRIPT = "Transcript";
 export const CALL_RESULT_WORDS = {
   live: "Live",
   missed: "Never connected",
-  failed: "Call failed",
+  failed: "Call didn't connect",
   handled: "Handled",
   abandoned: "Hung up early",
   callback: "Asked for a call back",
@@ -188,9 +188,9 @@ export const CALL_RESULT_WORDS = {
 } as const;
 
 /** The line a missed call leaves in the customer's thread: what the text receptionist and the next call read back. */
-export const MISSED_CALL_LINE = "Missed call — they rang and it never connected.";
+export const MISSED_CALL_LINE = "Missed call. They rang and it never connected.";
 /** The line our own dial leaves there when nobody picked up. */
-export const UNCONNECTED_DIAL_LINE = "Outbound call — it never connected.";
+export const UNCONNECTED_DIAL_LINE = "Outgoing call. It never connected.";
 /** A call's note where nobody spoke: a later call that did is someone speaking to them (thread-move.ts). */
 export const NEVER_CONNECTED_LINES: readonly string[] = [MISSED_CALL_LINE, UNCONNECTED_DIAL_LINE];
 

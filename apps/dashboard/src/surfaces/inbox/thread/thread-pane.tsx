@@ -202,20 +202,20 @@ function realThread(
         // The role first, for every verb: a real thread's hand-back used to skip the check and reach the server.
         onDecide={(_id, action) => {
           if (!can()) return;
-          if (action === "__HANDBACK__") void verb(t, "hand-back", undefined, "cleared — AI is answering again");
+          if (action === "__HANDBACK__") void verb(t, "hand-back", undefined, "AI is answering again");
           else if (action === "__BOOKED__" || action === "__CANT__") void answerHere(t, action === "__BOOKED__", say);
         }}
         onSnooze={() => {
           if (can() && t.state !== "snoozed") void verb(t, "snooze", {}, "snoozed until tomorrow 10:00");
         }}
         onWake={() => {
-          if (can() && t.state === "snoozed") void verb(t, "wake", {}, "awake — back in the queue");
+          if (can() && t.state === "snoozed") void verb(t, "wake", {}, "back in Needs you");
         }}
         onTakeOver={() => {
-          if (can()) void verb(t, "take-over", undefined, "you have it — AI is paused");
+          if (can()) void verb(t, "take-over", undefined, "you're replying, AI is paused");
         }}
         onHandBack={() => {
-          if (can() && t.takenOver) void verb(t, "hand-back", undefined, "handed back — AI resumes");
+          if (can() && t.takenOver) void verb(t, "hand-back", undefined, "handed back to AI");
         }}
         onArchive={() => {
           if (can()) void verb(t, "archive", {}, "archived");

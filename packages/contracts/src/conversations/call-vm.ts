@@ -213,7 +213,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const ending = endedHowOf(dto);
   if (ending) bullets.push(`Ended: ${ending}`);
   if (dto.sentiment) {
-    bullets.push(`Caller sentiment: ${dto.sentiment} — the voice provider's own read`);
+    bullets.push(`Sounded ${dto.sentiment.toLowerCase()}`);
   }
   const outcomeWords = callOutcomeWords(dto.outcome);
   if (outcomeWords) bullets.push(outcomeWords);
@@ -237,7 +237,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
               : "No recording for this call",
     );
   }
-  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
+  if (dto.message_id && !withheld) bullets.push(`Noted in ${whoShort}'s conversation in the Inbox`);
 
   const transcript = transcriptOf(dto.transcript_object ?? []);
 
@@ -261,7 +261,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     outcome: callOutcomeFor(dto, live),
     ...(live ? { live: true } : {}),
     snippet: withheld
-      ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — caller ID withheld, so this call isn't linked to a customer.`
+      ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""}. Caller ID withheld, so it isn't linked to anyone.`
       : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — ${snippetBody}`,
     summary: { headline: wanted || firstSentence || snippetBody, bullets },
     ...linesOf(transcript, dto),

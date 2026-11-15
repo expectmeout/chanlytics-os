@@ -403,7 +403,7 @@ function searchBox(L: ListCtx) {
       {!inLine && (
         <Search
           className="ix-lookup"
-          label={allThreads.some((t) => t.real) ? "Search by name or message" : "Search threads, clients, tags"}
+          label={allThreads.some((t) => t.real) ? "Search by name or message" : "Search conversations, people, tags"}
           value={query}
           onChange={setQuery}
           inputRef={L.findRef}
@@ -499,8 +499,8 @@ function searchSaid(L: ListCtx) {
             ? "match"
             : "matches"
           : visible.length === 1
-            ? "thread in view"
-            : "threads in view"}
+            ? "conversation in view"
+            : "conversations in view"}
       </span>
       {searching && <span className="ix-search-hint">in "{query}"</span>}
     </span>
@@ -563,7 +563,7 @@ function emptyWords(isReal: boolean): Record<string, EmptyWords> {
     waiting: {
       icon: "users",
       title: "Nothing waiting",
-      body: "Threads where the next move is theirs, or a teammate's, show here.",
+      body: "Conversations where the next move is theirs, or a teammate's, show here.",
     },
     done: isReal
       ? {
@@ -575,14 +575,14 @@ function emptyWords(isReal: boolean): Record<string, EmptyWords> {
       : {
           icon: "check",
           title: "48 resolved this week",
-          body: "Handled threads archive after 7 days — every transcript stays in Conversations.",
+          body: "Handled conversations archive after 7 days. Every transcript stays in Conversations.",
           cta: { label: "Open Conversations", to: "conversations" },
         },
     snoozed: isReal
       ? {
           icon: "clock",
           title: "Nothing snoozed",
-          body: "Snooze hides a thread from your queue. AI keeps answering it.",
+          body: "Snooze hides a conversation from this list. AI keeps answering it.",
         }
       : {
           icon: "clock",
@@ -592,9 +592,9 @@ function emptyWords(isReal: boolean): Record<string, EmptyWords> {
     needs: {
       icon: "check",
       title: "Nothing needs you",
-      body: "Threads AI pauses for a human land here first.",
+      body: "Conversations AI hands to you land here first.",
     },
-    watching: { icon: "eye", title: "Nothing in flight", body: "Threads AI is working on show here." },
+    watching: { icon: "eye", title: "Nothing in flight", body: "Conversations AI is answering show here." },
     drafts: { icon: "edit", title: "No drafts waiting", body: "Replies AI wrote wait here for your review." },
     escalated: isReal
       ? {
@@ -602,7 +602,7 @@ function emptyWords(isReal: boolean): Record<string, EmptyWords> {
           title: "Nobody's waiting on you",
           body: "AI is answering on its own. Anything left for you lands here.",
         }
-      : { icon: "flag", title: "No escalations", body: "Sensitive threads that need a human land here." },
+      : { icon: "flag", title: "No escalations", body: "Sensitive conversations that need a person land here." },
   };
 }
 
@@ -618,7 +618,7 @@ function emptyThreads(L: ListCtx) {
   const meta: EmptyWords = emptyWords(isReal)[activeView ? "view" : activeBucket] || {
     icon: "filter",
     title: "Nothing in this view",
-    body: "No threads match this saved view right now.",
+    body: "No conversations match this view right now.",
   };
   // Needs you with nobody in it and nothing typed is what the pane beside says, as "Inbox zero" (thread.tsx InboxEmpty):
   // where that pane stands (a desk), this card steps aside for it (inbox.css, .ix-zero-beside), so the page says it once.
@@ -632,8 +632,8 @@ function emptyThreads(L: ListCtx) {
       title={query ? `No matches for "${query}"` : meta.title || "All clear"}
       body={
         query
-          ? "Try a different term — search spans every bucket."
-          : meta.body || "AI surfaces anything that needs you."
+          ? "Try another word. Search looks through every tab."
+          : meta.body || "AI brings anything that needs you here."
       }
       action={
         query

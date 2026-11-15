@@ -194,7 +194,7 @@ test("the event names the usual cause rather than making someone guess", () => {
     assert.match(noTemplateWords(null), /^No approved template yet/);
     // And the courier refuses rather than posting a request the server must
     // reject with a message the operator cannot act on.
-    assert.match(verbs2, /has no approved template yet/);
+    assert.match(verbs2, /No WhatsApp message is approved yet/);
   });
 
   // That a template read that fails degrades rather than blanking the Inbox is run, not read off the source:

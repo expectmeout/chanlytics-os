@@ -109,7 +109,7 @@ test("what happens next, by the reply row's mode, the hold and a hand-off, each 
   );
   assert.equal(
     words({ escalate: true, reason: "booking_request" }).words,
-    "It would send this right away. Then the conversation is yours: asked to book a time — confirm it or say you can't.",
+    "It would send this right away. Then the conversation is yours: asked to book a time · confirm it or say you can't.",
   );
 });
 

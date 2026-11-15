@@ -66,7 +66,7 @@ export const threadVerbs = (flash: (flash: Flash) => void) => {
             flash({
               msg: (
                 <>
-                  <b>{t.who}</b> — {okMsg}
+                  <b>{t.who}</b> · {okMsg}
                 </>
               ),
             });
@@ -112,7 +112,7 @@ export const threadVerbs = (flash: (flash: Flash) => void) => {
         flash({
           msg: (
             <>
-              <b>{t.who}</b> — {okMsg}
+              <b>{t.who}</b> · {okMsg}
               {secs ? <> · sends in {secs} s unless you undo</> : null}
             </>
           ),
@@ -124,7 +124,7 @@ export const threadVerbs = (flash: (flash: Flash) => void) => {
                 cancelSend(mid).then((c) =>
                   flash({
                     tone: c.ok ? "ok" : "danger",
-                    msg: c.ok ? <>Send canceled — nothing was delivered</> : <>{c.message}</>,
+                    msg: c.ok ? <>Send canceled · nothing went</> : <>{c.message}</>,
                   }),
                 )
             : null,
