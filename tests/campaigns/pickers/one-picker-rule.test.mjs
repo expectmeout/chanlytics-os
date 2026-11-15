@@ -12,7 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const SRC = "../../apps/dashboard/src";
+const SRC = "../../../apps/dashboard/src";
 const { pickableMessages, isBeingChecked } = await import(`${SRC}/lib/pickable-messages.ts`);
 const { knownMessagesOf } = await import(`${SRC}/server/drafts/known-messages.ts`);
 const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);
@@ -113,7 +113,7 @@ test("the AI's drafter is offered the same messages by the same channels, keyed 
   const known = knownMessagesOf({ templates: ROWS, messages: MESSAGES });
   const nameOf = (m) => ROWS.find((r) => r.id === m.templateId).name;
   assert.deepEqual(byName(known.map((m) => [nameOf(m), asSet(m.channels)])), LISTED);
-  assert.deepEqual(known.filter((m) => m.checking).map(nameOf), CHECKING);
+  assert.deepEqual(known.filter((m) => m.beingChecked).map(nameOf), CHECKING);
   assert.deepEqual(
     known.map((m) => m.key),
     known.map((_, i) => `k${i + 1}`),

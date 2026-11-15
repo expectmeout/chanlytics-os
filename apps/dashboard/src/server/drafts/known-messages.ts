@@ -2,7 +2,7 @@
  * The business's own messages the AI's drafter is offered (the one picker rule, 15 Nov 2026): what a sequence's step
  * editor and New list, by the same function (lib/pickable-messages.ts pickableMessages), each keyed for the model and
  * drawn from the row of the first channel it goes by. It decided alone before, and offered no message whose WhatsApp
- * words were being checked, even one that holds an email. One being checked is among them now (`checking`): a send and a
+ * words were being checked, even one that holds an email. One being checked is among them now (`beingChecked`): a send and a
  * sequence's run wait for that check, and the drafter is told it goes there once approved. The ready-made starters
  * follow them (drafts/known-starters.ts).
  */
@@ -29,6 +29,6 @@ export function knownMessagesOf(read: KnownMessagesRead): KnownMessage[] {
     channels: (["whatsapp", "email", "sms"] as const).filter((channel) => channels.includes(channel)),
     slots: defaultSlotKinds(row),
     labels: slotLabels(row),
-    ...(checking ? { checking } : {}),
+    ...(checking ? { beingChecked: true } : {}),
   }));
 }

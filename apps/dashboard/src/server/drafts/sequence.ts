@@ -254,7 +254,7 @@ export function draftAskedParts(known: DraftKnown, ask: NewDraftAsk): ToldPart[]
           "The business's messages",
           known.messages.map(
             (m) =>
-              `- ${m.key}: "${m.title}"${m.starter ? " (ready-made)" : ""}, ${m.offer ? "an offer" : "news or about their booking"}, goes by ${m.channels.join(" or ")}${m.checking ? " (WhatsApp is still checking its words: it goes there once approved)" : ""}; its values: ${m.slots.join(", ") || "none"}\n${fenced("record", m.body.slice(0, BODY_CHARS))}`,
+              `- ${m.key}: "${m.title}"${m.starter ? " (ready-made)" : ""}, ${m.offer ? "an offer" : "news or about their booking"}, goes by ${m.channels.join(" or ")}${m.beingChecked ? " (WhatsApp is still checking its words: it goes there once approved)" : ""}; its values: ${m.slots.join(", ") || "none"}\n${fenced("record", m.body.slice(0, BODY_CHARS))}`,
           ),
         )
       : "The business has no message it can send yet: write the ones its steps need.",
