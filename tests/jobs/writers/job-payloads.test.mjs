@@ -88,8 +88,17 @@ test("the shapes writers hand over are what their kind says", () => {
     erasure_finish: { contact_id: "c", by: null },
     reply_draft: { conversation_id: "c", draft_kind: "reply", rules: "1", message_id: "m" },
     file_look: { file_id: "f", edition: "1" },
-    file_fetch: { source: "s", batch: "1", items: [{ url: "https://example.com/a", ref: "r" }], rang: true },
+    file_fetch: {
+      source: "s",
+      batch: "1",
+      items: [
+        { url: "https://example.com/a", ref: "r" },
+        { url: "https://example.com/v.mp4", ref: "v", kind: "video" },
+      ],
+      rang: true,
+    },
     file_purge: { file_id: "f", why: "sweep" },
+    instagram_read: { handle: "harborsalon", step: "collect", try: "1", run_id: "r", dataset_id: "d" },
     video_digest: { file_id: "f", step: "sheet", edition: "1" },
     post_prepare: { post_id: "p", attempt: "1" },
     post_publish: { post_id: "p", attempt: "1" },

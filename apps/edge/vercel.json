@@ -50,6 +50,9 @@
           "api/admin/files/video-start.ts": {
             "maxDuration": 15
           },
+          "api/admin/files/bring-in.ts": {
+            "maxDuration": 10
+          },
           "api/admin/files/play.ts": {
             "maxDuration": 10
           },

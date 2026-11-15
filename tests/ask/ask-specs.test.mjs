@@ -123,6 +123,8 @@ const KINDS = [
   "publish",
   // A video made from the business's clips (decision 0122).
   "piece",
+  // A business's photos and videos brought in from a link it gave (Content's empty state, 14 Nov 2026).
+  "bring_in",
   // A message on file changed from Ask (the message sheet's review, 12 Nov 2026): its words, its name, put away, deleted.
   "message_words",
   "message_rename",
@@ -214,6 +216,8 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     // Putting a made post up is the settings permission's, as the page's Post it is.
     publish: "settings",
     piece: "settings",
+    // Bringing in a website's or an Instagram's photos and videos is the settings permission's, as the Library's Keep is.
+    bring_in: "settings",
     // A message on file changed, as its sheet's own presses are: the approve permission's.
     message_words: "approve",
     message_rename: "approve",
@@ -693,6 +697,7 @@ const SHAPES = {
       language: "en",
     }),
   ],
+  bring_in: [card("bring_in", { link: "instagram.com/harborsalon" })],
   piece: [
     card("piece", {
       shape: "hook_cut",
@@ -989,6 +994,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     post: ["DELETE files/[id]", "POST files/post"],
     publish: ["PATCH files/[id]", "PATCH files/[id]/posts", "POST files/[id]/google", "POST files/[id]/instagram"],
     piece: ["POST files/video"],
+    bring_in: ["POST content/bring-in"],
     fix: [],
     message_words: ["POST templates/versions", "PUT templates/[id]"],
     message_rename: ["PUT templates/[id]"],
@@ -1026,6 +1032,7 @@ test("a spec's `needs` is the policy role of every route it names; the exception
       .map(([k, s]) => [k, s.needs])
       .sort(([a], [b]) => a.localeCompare(b)),
     [
+      ["bring_in", "partner"],
       ["fact_suggestion", "partner"],
       ["invite", "owner"],
       ["lead_addressee", "partner"],

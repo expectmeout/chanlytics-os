@@ -33,10 +33,10 @@ async function profileOf(db: Db, tenantId: TenantId): Promise<PreviewPageFacts["
   return parseTenantConfig(row?.config ?? null)?.brain?.profile ?? null;
 }
 
-/** The number the business's listing gives, from the lead it was made from; none where the lead is gone. */
-async function listingPhoneOf(db: Db, row: LeadPreviewRow): Promise<string | null> {
+/** What the page shows of the lead it was made from: its listing's number and its Google photo; none where it is gone. */
+async function leadShownOf(db: Db, row: LeadPreviewRow): Promise<{ phone: string | null; photo: string | null }> {
   const lead = await findLeadForPreview(db, row.tenant_id, row.lead_id).catch(() => null);
-  return formatPhoneDisplay(lead?.phone_e164 ?? null);
+  return { phone: formatPhoneDisplay(lead?.phone_e164 ?? null), photo: lead?.image_url ?? null };
 }
 
 /** The page's read for a token, or null where it names no preview. Throws where the database cannot be asked. */
@@ -45,9 +45,9 @@ export async function findPreviewPage(token: string, db: Db | null = linkPageDb(
   const row = await findLeadPreviewByToken(db, token);
   if (!row) return null;
   const ws = row.preview_tenant_id;
-  const [look, profile, phone] = ws
-    ? await Promise.all([linkPageLookOf(db, ws), profileOf(db, ws), listingPhoneOf(db, row)])
-    : [NO_LOOK, null, null];
+  const [look, profile, shown] = ws
+    ? await Promise.all([linkPageLookOf(db, ws), profileOf(db, ws), leadShownOf(db, row)])
+    : [NO_LOOK, null, { phone: null, photo: null }];
   return {
     row,
     look,
@@ -59,8 +59,9 @@ export async function findPreviewPage(token: string, db: Db | null = linkPageDb(
       business: look.business ?? "",
       logo_url: look.logo_url,
       profile,
-      phone_display: phone,
+      phone_display: shown.phone,
       call_seconds: row.call_seconds,
+      photo_url: shown.photo,
     },
   };
 }

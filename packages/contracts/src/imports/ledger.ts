@@ -22,6 +22,9 @@ export const IMPORT_SOURCES = [
   "whatsapp_contacts",
   "whatsapp_history",
   "google_photos",
+  // What a business's own website shows and plays, and its Instagram's posts and reels (Content's empty state, 14 Nov 2026).
+  "website_media",
+  "instagram",
 ] as const;
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
 
@@ -77,8 +80,10 @@ export interface ImportCounts {
   past?: number;
   coming?: number;
   reviews?: number;
-  /** Photos brought in from the business's own Google profile. */
+  /** Photos brought in from the business's own Google profile, its website or its Instagram. */
   photos?: number;
+  /** Videos brought in from its website or its Instagram. */
+  videos?: number;
   /** Reviews that wait for a reply. */
   unanswered?: number;
   /** Rows of a file that had neither a number nor an address; emails the mailbox refused to hand over. */
@@ -136,6 +141,8 @@ const IMPORT_DOORS: Readonly<Record<ImportSource, string>> = {
   whatsapp_contacts: "clients",
   whatsapp_history: "inbox",
   google_photos: CONTENT_LIBRARY_ROUTE,
+  website_media: CONTENT_LIBRARY_ROUTE,
+  instagram: CONTENT_LIBRARY_ROUTE,
 };
 
 /** The row of Connections a mailbox's "Left in your mailbox" is, as Settings' address names it (settings/frame/tabs.ts). */
@@ -153,6 +160,8 @@ export const IMPORT_WORDS = {
     whatsapp_contacts: "WhatsApp contacts",
     whatsapp_history: "WhatsApp chats",
     google_photos: "Your Google photos",
+    website_media: "Your website's photos and videos",
+    instagram: "Your Instagram",
   } satisfies Record<ImportSource, string>,
   in: "In",
   stopped: "Stopped",
@@ -204,6 +213,16 @@ function mailSaysOf(importRow: ImportRowDto, tz: string): string {
   );
 }
 
+/** What a website's or an Instagram's photos and videos brought: "12 photos · 3 videos", and whose, or that they are being read. */
+function mediaSaysOf(counts: ImportCounts, via: string | null): string {
+  if (counts.photos === undefined && counts.videos === undefined) return "Reading them";
+  return joined(
+    groupedPlural(counts.photos ?? 0, "photo"),
+    counts.videos ? groupedPlural(counts.videos, "video") : null,
+    via,
+  );
+}
+
 /** What one source brought, in words, its days by the workspace's calendar (`tz`). */
 function saysOf(otherImport: ImportRowDto, tz: string): string {
   const counts = otherImport.counts;
@@ -234,6 +253,9 @@ function saysOf(otherImport: ImportRowDto, tz: string): string {
       return mailSaysOf(otherImport, tz);
     case "google_photos":
       return counts.photos === undefined ? "Reading them" : groupedPlural(counts.photos, "photo");
+    case "website_media":
+    case "instagram":
+      return mediaSaysOf(counts, via);
     case "whatsapp_contacts":
       return counts.people === undefined ? "Reading them" : countOfPeople(counts.people);
     case "whatsapp_history":
@@ -294,7 +316,7 @@ function leadCountOf(r: ImportRowDto): number | null {
   if (r.state === "failed") return null;
   if (r.source === "mailbox") return c.messages || null;
   if (r.source === "google_reviews") return c.reviews || null;
-  if (r.source === "google_photos") return c.photos || null;
+  if (r.source === "google_photos" || r.source === "website_media" || r.source === "instagram") return c.photos || null;
   if (r.source === "calendar") return c.past || null;
   return r.source === "whatsapp_history" ? null : (c.people ?? null);
 }
@@ -449,6 +471,8 @@ export function sourceRowsOf(rows: readonly ImportRowDto[] | null | undefined): 
 const SAID_ORDER: readonly ImportSource[] = [
   "google_reviews",
   "google_photos",
+  "website_media",
+  "instagram",
   "calendar",
   "clients_file",
   "contacts",

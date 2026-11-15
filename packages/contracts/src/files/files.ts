@@ -104,6 +104,8 @@ export const FILE_WORDS = {
    */
   bell: {
     title: "New photos are waiting",
+    /** A batch that brought a video too (a website's, a profile's, an Instagram's). */
+    titleVideos: "New photos and videos are waiting",
     body: "Keep them, or set them aside",
   },
   /**
@@ -161,6 +163,7 @@ export const FILE_WORDS = {
     google_profile: "From your Google profile",
     google_listing: "From your Google listing",
     website: "From your website",
+    instagram: "From your Instagram",
     made: "Made with Ask",
   } satisfies Record<FileSource, string>,
   looking: "Ask is looking at it",

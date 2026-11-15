@@ -94,10 +94,17 @@ export const JOB_PAYLOADS = {
   file_fetch: carrying({
     source: z.string(),
     batch: z.string(),
-    items: z.array(z.strictObject({ url: z.string(), ref: z.string() })),
+    items: z.array(z.strictObject({ url: z.string(), ref: z.string(), kind: z.literal("video").optional() })),
     rang: z.boolean().optional(),
   }),
   file_purge: carrying({ file_id: z.string(), why: z.string() }),
+  instagram_read: carrying({
+    handle: z.string(),
+    step: z.enum(["start", "collect"]),
+    try: z.string(),
+    run_id: z.string().optional(),
+    dataset_id: z.string().optional(),
+  }),
   video_digest: carrying({ file_id: z.string(), step: z.string(), edition: z.string() }),
   post_prepare: carrying({ post_id: z.string(), attempt: z.string() }),
   post_publish: carrying({ post_id: z.string(), attempt: z.string() }),

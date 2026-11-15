@@ -473,3 +473,20 @@ export async function listFilesToPurgeAgain(
 
 /** The bucket, on whichever client holds the service role. */
 export const filesBucket = (db: Db): ReturnType<Db["storage"]["from"]> => db.storage.from(FILES_BUCKET);
+
+/** The roads a found file comes by: a website, a listing, a connected profile, an Instagram. */
+const FOUND_ROADS = ["website", "google_listing", "google_profile", "instagram"] as const;
+
+/** Each found file still here and not set aside, as its road and its kind: all of them, since a workspace holds FILES_MAX. */
+export async function listFoundFileKinds(db: Db, tenantId: TenantId): Promise<{ source: string; kind: string }[]> {
+  const { data, error } = await db
+    .from("files")
+    .select("source, kind")
+    .eq("tenant_id", tenantId)
+    .is("removed_at", null)
+    .neq("status", "set_aside")
+    .in("source", [...FOUND_ROADS])
+    .limit(FILES_MAX);
+  if (error) throw new DbFailure(error, "found files");
+  return data;
+}

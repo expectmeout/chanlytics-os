@@ -746,6 +746,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "POST content/bring-in": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "POST conversations/[id]/archive": {
       "kind": "write",
       "scope": "row",

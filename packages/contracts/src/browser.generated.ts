@@ -249,7 +249,8 @@ export { businessMsBetween, firstNameOfAddress, SUPPORT_KIND_FILTER_WORDS, SUPPO
 export { askCode, askDoneOf, cameInOf, FIND_KINDS, FIND_LIMITS, findDigits, findGroups, inboxHomeUrl, inboxSearchUrl, SUPPORT_KIND_WORDS, SUPPORT_TOPICS, SUPPORT_WORDS, supportPathOf, supportTopicOf } from "./console/support/asks";
 export { pageWords, reportCode, reportOf, SETUP_ASK_WORDS, supportClusters } from "./console/support/reports";
 export { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, CONTENT_VIEWS, contentPlaceOf, contentPreviewOf, contentRouteOf, isContentParam } from "./content/address";
-export { CONTENT_IDEAS, contentIdeaAsk, contentIdeaFilesOf, contentIdeasFor, contentIdeasReady } from "./content/ideas";
+export { BRING_IN_WORDS, bringInOf, bringInSpec } from "./content/bring-in";
+export { CONTENT_IDEAS, contentIdeaAsk, contentIdeaFilesOf, contentIdeasFor, contentIdeasReady, reviewIdeaTitleOf } from "./content/ideas";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./content/lines";
 export { CONTENT_TODAY_PIECES, CONTENT_TODAY_WORDS } from "./content/note";
 export { CONTENT_FAILED_DAYS, CONTENT_LINES_PAGE, CONTENT_MAKING_MAX, CONTENT_MAX, CONTENT_PAGE, CONTENT_STOPPED_MAX, CONTENT_WORDS, contentHeadOf, contentMakingSaid, contentMarkOf, contentMarkSaid, contentMarkToneOf, contentMoving, contentPieceMarkOf, contentViewCountOf, contentViewDrawsLines, contentWakesAt, newestAtEachPlace } from "./content/page";
@@ -263,6 +264,7 @@ export { PIECE_LIMITS, PIECE_SHAPES, PIECE_WORDS_HOLDS, PIECE_WORDS_PLACES, piec
 export { HAND_LINK_MAX, INSTAGRAM_POST_KINDS, ON_INSTAGRAM, POST_AHEAD_DAYS_MAX, POST_CAPTION_MAX, POST_KINDS, POST_ON_ITS_WAY, POST_PLACE_SAID, POST_PLACES, POST_PULLABLE, POST_SOON_MS, POST_STATUSES, POST_VIAS, postCaptionProblem, postPlaceTakenOf, postStoppedWhyOf, postWaitsForItsTime } from "./content/posts";
 export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./content/publish";
 export { CONTENT_SHEET_WORDS } from "./content/sheet-words";
+export { CONTENT_SOURCE_WORDS, contentSourcesSaid } from "./content/sources";
 export { ABANDONED_MS, abandonedCall, CALL_TRANSCRIPT, callAttemptWords, DISCONNECTION_LABELS, MISSED_CALL_LINE, missedCall, neverConnected, reachedVoicemail, UNCONNECTED_DIAL_LINE } from "./conversations/call-dto";
 export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./conversations/call-vm";
 export { dockLineOf, DRAFTED_TODO, ESCALATION_ACTS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, HAND_BACK_REASONS, HOLD_ACT_WORDS, holdActOf, holdToDoOf, holdWaits, OPEN_HOLDS_READ_MAX, PITCH_TODO, reasonLabelOf, reasonShort, reasonSummaryOf, WAITING_REASONS, waitsOnAPerson } from "./conversations/escalations";
@@ -318,7 +320,7 @@ export { BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, bookingPageOf, bookingT
 export { gainedOver, reviewIsNew, reviewNoticeIsAbout, reviewSnippet, toGoogleReviewVM, toGoogleVM } from "./google/google";
 export { bookingPageOffered, checkedWords, connectionWords, GOOGLE_SHOWN_REVIEWS, hoursFromGoogle, listingFactsOf, listingLine, NEW_REVIEW_NEWS, placesQueryOf, ratingWords, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, reviewsWords, starsOf } from "./google/listing";
 export { autoReplyBell, autoReplyCandidates, autoReplyHold, cleanDraft, heldReviewReplyOf, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_HOLD_MS, REVIEW_REPLY_HELD_TITLE, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, reviewDraftsBell, reviewHeldReplyWords, reviewHeldWords, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords } from "./google/review-reply";
-export { bookingPageRead, BUSINESS_READ_SOURCES, businessReadFactsOf, FOUND_WORDS, foundOf, WEBSITE_READ_SCHEMA, WEBSITE_READ_SYSTEM, WEBSITE_UNREAD_WORDS } from "./imports/business-reads";
+export { bookingPageRead, BUSINESS_READ_SOURCES, businessReadFactsOf, filmShotsOf, FOUND_WORDS, foundOf, WEBSITE_READ_SCHEMA, WEBSITE_READ_SYSTEM, WEBSITE_UNREAD_WORDS } from "./imports/business-reads";
 export { csvCell, fileDateOf, importCounts, importRowsOf, matchColumns, parseCsv, viaWords } from "./imports/csv";
 export { foundRecordOf, foundServicesRoom, withFoundClosure, withFoundNote, withFoundServices, withFoundWorn } from "./imports/found-adds";
 export { broughtInCardOf, broughtInShown, HISTORY_BACK_DAYS, IMPORT_SOURCES, IMPORT_STATES, IMPORT_STOPPED_WORDS, IMPORT_WORDS, importLineOf, importLinesOf, importNotesOf, MAILBOX_LEFT_ROW, PER_MAILBOX_SOURCES, sourceRowsOf, WHATSAPP_PART_WORDS, whatsappPartsOf } from "./imports/ledger";
@@ -348,8 +350,8 @@ export { cleanEmailCandidates, isSiteRoot, LEAD_JUNK_EMAIL_DOMAINS, LEAD_PLACEHO
 export { endingOfRound, LEAD_ENDING_WORDS } from "./leads/search/endings";
 export { PEOPLE_CARD, PEOPLE_COMPANY_SIZES, PEOPLE_COUNT_MAX, PEOPLE_INDUSTRIES_MAX, PEOPLE_KEYWORDS_MAX, PEOPLE_RUN_FLOOR_USD, PEOPLE_SENIORITIES, PEOPLE_SENIORITY_WORDS, PEOPLE_STATES_MAX, PEOPLE_TITLES_MAX } from "./leads/search/people-plan/card";
 export { listTyped, PEOPLE_ASKED_CHARS, PEOPLE_FIND_WORDS, PEOPLE_INDUSTRY_CHARS, PEOPLE_PROVIDER_LEAST, PEOPLE_STRIP_WORDS, PEOPLE_TITLE_CHARS, peopleEstimateUsd, peoplePlanAsk, peoplePlanFactLine, peoplePlanFrom, peoplePlanOf, peoplePlanRows, peoplePlanSentence, peopleSheetProblems, peopleWho, usStateCode, usStateName, usStatesTyped } from "./leads/search/people-plan/plan";
-export { planNeedsASite, planReadsSites, planVersionOf } from "./leads/search/plan";
-export { planArea, planLeavingOut, planSaid, planSentence, planWhere, planWho, planWords, lowerFirst } from "./leads/search/sentence";
+export { planNeedsASite, planReadsSites, planVersionOf, reachOf } from "./leads/search/plan";
+export { planArea, planLeavingOut, planSaid, planSentence, planWhere, planWho, planWords, lowerFirst, planMinutesSaid, planReachChoices, planReachMiles, planReachSaid } from "./leads/search/sentence";
 export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_REACH_FILTERS, LEAD_STAGES, LEAD_STATUS_GROUPS, LEAD_COUNTER_KINDS, LEAD_MEMBER_CLASSES, LEAD_PREFERENCE_KINDS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS } from "./leads/search/sets";
 export { LEAD_COLUMN_GROUPS, LEAD_RATED_HINT, leadClaimedWord, leadColumnsOf, leadOutcomeWord } from "./leads/sheet/lead-row-columns";
 export { LEAD_OWN_EMAIL_WORDS, leadEmailFromOf, leadEmailLineOf, leadEmailRefusalOf } from "./leads/sheet/lead-sheet-email";

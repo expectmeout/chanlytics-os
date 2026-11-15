@@ -1,7 +1,7 @@
 {
-  "rows": 179,
+  "rows": 180,
   "same": 14,
-  "differ": 165,
+  "differ": 166,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -256,7 +256,9 @@
         "audiences": "broadcasts",
         "broadcasts": "broadcasts, clients/get-yes, inbox, today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content": "campaigns/content, campaigns/content/library",
         "conversations": "every page",
+        "files": "admin/files",
         "inbox": "every page",
         "leads": "clients/leads, leads",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
@@ -384,7 +386,9 @@
         "audiences": "broadcasts",
         "broadcasts": "broadcasts, clients/get-yes, inbox, today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content": "campaigns/content, campaigns/content/library",
         "conversations": "conversations, inbox",
+        "files": "admin/files",
         "inbox": "inbox",
         "leads": "clients/leads, leads",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
@@ -436,6 +440,8 @@
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
       "missing": {
+        "content": "campaigns/content, campaigns/content/library",
+        "files": "admin/files",
         "person": "clients/person",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
@@ -459,6 +465,8 @@
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
       "missing": {
+        "content": "campaigns/content, campaigns/content/library",
+        "files": "admin/files",
         "person": "clients/person",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
@@ -888,7 +896,9 @@
       },
       "missing": {
         "calendar": "every page",
+        "content": "campaigns/content, campaigns/content/library",
         "conversations": "every page",
+        "files": "admin/files",
         "inbox": "every page",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
@@ -904,6 +914,14 @@
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page",
         "today_pins": "today"
+      }
+    },
+    "POST content/bring-in": {
+      "changes": "",
+      "doors": "imports",
+      "door": {
+        "content": "campaigns/content, campaigns/content/library",
+        "files": "admin/files"
       }
     },
     "POST conversations/[id]/archive": {
@@ -1199,6 +1217,8 @@
         "audiences": "broadcasts",
         "broadcasts": "broadcasts",
         "calendar": "every page",
+        "content": "campaigns/content, campaigns/content/library",
+        "files": "admin/files",
         "notifications": "every page",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
@@ -1887,7 +1907,9 @@
         "audiences": "broadcasts",
         "broadcasts": "broadcasts, clients/get-yes, inbox, today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content": "campaigns/content, campaigns/content/library",
         "conversations": "conversations, inbox",
+        "files": "admin/files",
         "inbox": "inbox",
         "leads": "clients/leads, leads",
         "notifications": "today",
@@ -2228,6 +2250,8 @@
         "audiences": "broadcasts",
         "broadcasts": "broadcasts",
         "calendar": "every page",
+        "content": "campaigns/content, campaigns/content/library",
+        "files": "admin/files",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
@@ -2430,6 +2454,8 @@
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
       "missing": {
+        "content": "campaigns/content, campaigns/content/library",
+        "files": "admin/files",
         "person": "clients/person",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
@@ -2453,7 +2479,9 @@
         "audiences": "broadcasts",
         "broadcasts": "broadcasts, clients/get-yes, inbox, today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content": "campaigns/content, campaigns/content/library",
         "conversations": "conversations, inbox",
+        "files": "admin/files",
         "inbox": "inbox",
         "leads": "clients/leads, leads",
         "notifications": "today",
@@ -2901,6 +2929,8 @@
       },
       "missing": {
         "calendar_runs": "calendar",
+        "content": "campaigns/content, campaigns/content/library",
+        "files": "admin/files",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "person": "clients/person",
         "reach_outs": "campaigns/messages, messages, outbound",

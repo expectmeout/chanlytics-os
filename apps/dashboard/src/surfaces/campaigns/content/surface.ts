@@ -91,13 +91,15 @@ export const contentOverride: SurfaceOverride = {
   maxWaitMs: DEAR_READ_LONGEST_WAIT_MS,
   ...declareReads("content", {
     // Its files, and the reviews its "newest review" idea is offered from (server readers/content.ts ideaFilesOf): a first
-    // review landing offers the idea without a press.
-    reads: ["file", "review"],
+    // review landing offers the idea without a press. And, while nothing is kept, where Ask looked for photos and videos
+    // (readers/content-sources.ts): the website's read and the ledger's run (brought), the website its settings name
+    // (facts) and the linked listing (review), so "Looking" turns into what came the moment it lands.
+    reads: ["file", "review", "brought", "facts"],
     fresh: "its-page",
     omit: [
       {
-        tables: ["google_listings", "google_connections"],
-        why: "an idea is offered where a review says something; the listing and the profile's connection are Settings' and the open piece's own read",
+        tables: ["google_connections"],
+        why: "an idea is offered where a review says something; the profile's connection is Settings' and the open piece's own read",
       },
     ],
   }),

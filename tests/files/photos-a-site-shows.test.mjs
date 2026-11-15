@@ -6,7 +6,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
-const { SITE_PHOTOS_MAX, sitePhotosFrom } = await importSrc("packages/core/src/look/site-photos.ts");
+const { SITE_PHOTOS_MAX, SITE_VIDEOS_MAX, sitePhotosFrom, siteVideosFrom } = await importSrc(
+  "packages/core/src/look/site-photos.ts",
+);
 
 const PAGE = "https://harbor.example/services/";
 
@@ -116,4 +118,30 @@ test("nothing but the public web is an address, and a page offers each once, wit
   ]);
   const many = Array.from({ length: 40 }, (_, i) => `<img src="/p${i}.jpg">`).join("");
   assert.equal(sitePhotosFrom(many, PAGE).length, SITE_PHOTOS_MAX);
+});
+
+test("the videos a page plays come in by their file's address, made whole, each once", () => {
+  const html =
+    `<video src="reels/cut.mp4" poster="reels/cut-poster.webp" muted></video>` +
+    `<video><source src="https://cdn.example/hero.webm?v=2" type="video/webm"></video>` +
+    `<video src="reels/cut.mp4"></video><video src="/stream/live.m3u8"></video>`;
+  assert.deepEqual(siteVideosFrom(html, PAGE), {
+    videos: ["https://harbor.example/services/reels/cut.mp4", "https://cdn.example/hero.webm?v=2"],
+    embedded: 0,
+  });
+});
+
+test("a player embedded from another platform is counted, never fetched", () => {
+  const html =
+    `<iframe src="https://www.youtube.com/embed/abc123"></iframe>` +
+    `<iframe src="https://www.youtube.com/embed/abc123?rel=0"></iframe>` +
+    `<iframe src="https://player.vimeo.com/video/42"></iframe>`;
+  assert.deepEqual(siteVideosFrom(html, PAGE), { videos: [], embedded: 2 });
+});
+
+test("a page offers so many videos, and a video's poster is not a photo of its own", () => {
+  const many = Array.from({ length: SITE_VIDEOS_MAX + 3 }, (_, i) => `<video src="/v${i}.mp4"></video>`).join("");
+  assert.equal(siteVideosFrom(many, PAGE).videos.length, SITE_VIDEOS_MAX);
+  const html = `<video src="/a.mp4" poster="/a-poster.jpg"></video><img src="/a-poster.jpg"><img src="/shop.jpg">`;
+  assert.deepEqual(sitePhotosFrom(html, PAGE), ["https://harbor.example/shop.jpg"]);
 });

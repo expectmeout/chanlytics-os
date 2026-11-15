@@ -100,7 +100,7 @@ const SHOWN_STARS_MIN = 4;
 export const listReviewWords = async (db: Db, tenantId: TenantId, limit: number) =>
   db
     .from("google_reviews")
-    .select("body")
+    .select("body, author, rating")
     .eq("tenant_id", tenantId)
     .not("body", "is", null)
     .gte("rating", SHOWN_STARS_MIN)

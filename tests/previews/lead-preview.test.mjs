@@ -42,6 +42,7 @@ const FACTS = {
   profile: PROFILE,
   phone_display: "+1 (512) 555-0142",
   call_seconds: 0,
+  photo_url: null,
 };
 
 test("which page: open, its twenty said, being set up, ended by its state or its clock, someone's own now", () => {
@@ -82,25 +83,40 @@ test("the chat as the row keeps it: each turn read for what it is, an answer wit
   assert.deepEqual(previewTurnsOf(null), []);
 });
 
-test("three questions from its own facts: a day it is closed, a time tomorrow, a service's price", () => {
+test("starters ask only what it knows: a service, a day it is closed, where it is; never a price, never a visit time", () => {
   assert.deepEqual(previewStartersOf(PROFILE), [
+    "Can you tell me about the fade?",
     "Are you open on Sunday?",
-    "Can I come in tomorrow at 2?",
-    "How much is the fade?",
+    "Where are you located?",
   ]);
+  assert.equal(
+    previewStartersOf({ ...PROFILE, services: [{ name: "Swedish Massage" }] })[0],
+    "Can you tell me about the Swedish Massage?",
+  );
+  // A plumber the finder found with services and a street, and no hours.
   assert.deepEqual(
-    previewStartersOf({ ...PROFILE, services: [{ name: "Swedish Massage" }] })[2],
-    "How much is the Swedish Massage?",
+    previewStartersOf({ address: "80 Made Up St, Brooklyn, NY 11225", services: [{ name: "Hydro Jetting" }] }),
+    ["Can you tell me about the Hydro Jetting?", "Where are you located?", "Can someone call me back?"],
   );
   const allWeek = Object.fromEntries(Object.keys(WEEK).map((d) => [d, { open: "08:00", close: "20:00" }]));
   assert.deepEqual(previewStartersOf({ hours: allWeek, services: [] }), [
     "What are your hours?",
-    "Can I come in tomorrow at 2?",
+    "Can someone call me back?",
   ]);
-  assert.deepEqual(
-    previewStartersOf(null),
-    ["What are your hours?", "Can I come in tomorrow at 2?"],
-    "never one twice",
+  // Knows nothing: the one question every receptionist handles.
+  assert.deepEqual(previewStartersOf(null), ["Can someone call me back?"]);
+  for (const p of [PROFILE, { hours: allWeek }, null])
+    for (const s of previewStartersOf(p)) assert.doesNotMatch(s, /how much|price|cost|come in/i, s);
+});
+
+test("it speaks first, as their business, and always says it is automated", () => {
+  assert.equal(
+    previewPageOf(FACTS, NOW).greeting,
+    "Hi, this is Fixture Barbers. I'm the automated assistant. What can I help you with?",
+  );
+  assert.equal(
+    previewPageOf({ ...FACTS, profile: { ...PROFILE, assistant_name: " Ava " } }, NOW).greeting,
+    "Hi, this is Fixture Barbers. I'm Ava, the automated assistant. What can I help you with?",
   );
 });
 
@@ -150,8 +166,19 @@ test("the page's words say the business by its name", () => {
   assert.equal(W.title("Fixture Barbers"), "Fixture Barbers' receptionist");
   assert.equal(W.title("Luna"), "Luna's receptionist");
   assert.equal(W.building.title("Luna"), "Setting up Luna's receptionist");
-  assert.equal(W.setUp("Fixture Barbers"), "Chanlytics set this up for Fixture Barbers.");
+  assert.equal(W.madeFrom, "Set up by Chanlytics from your Google listing and website.");
   assert.equal(W.left(1), "1 message left");
   assert.equal(W.left(19), "19 messages left");
   assert.equal(W.taken.title("Fixture Barbers"), "Fixture Barbers is already set up.");
+});
+
+test("the page carries their Google photo, and nothing where the lead has none", () => {
+  const photo = "https://lh3.googleusercontent.com/p/made-up";
+  assert.equal(previewPageOf({ ...FACTS, photo_url: photo }, NOW).photo, photo);
+  assert.equal(previewPageOf(FACTS, NOW).photo, null);
+  // Only Google's own photos, over https: anything else is no photo (the page's CSP allows that host alone).
+  assert.equal(previewPageOf({ ...FACTS, photo_url: "http://evil.example/x.jpg" }, NOW).photo, null);
+  assert.equal(previewPageOf({ ...FACTS, photo_url: "http://lh3.googleusercontent.com/p/x" }, NOW).photo, null);
+  // A page with nothing to try shows no photo.
+  assert.equal(previewPageOf({ ...FACTS, photo_url: photo, state: "claimed" }, NOW).photo, null);
 });

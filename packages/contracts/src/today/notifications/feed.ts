@@ -158,6 +158,8 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   file_look: { stopped: "A photo could not be looked at", to: CONTENT_LIBRARY_ROUTE },
   // Not sent: Inbox simply holds what came, and nothing an owner did is waiting on it.
   file_fetch: { stopped: "Photos from your website could not all be brought in", to: CONTENT_LIBRARY_ROUTE },
+  // Not sent: the Library's card says the read stopped, from the ledger's line, where the owner pasted the link.
+  instagram_read: { stopped: "Your Instagram could not be read", to: CONTENT_LIBRARY_ROUTE },
   // Not sent: a removed file already looks gone, and nothing is the owner's to do. Health counts it.
   file_purge: { stopped: "A removed photo could not be let go", to: CONTENT_LIBRARY_ROUTE },
   // A video's digest. Not sent (packages/jobs TOLD_ELSEWHERE): its tile says what it has, and the sweep tries the step again.

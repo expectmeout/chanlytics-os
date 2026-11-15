@@ -319,6 +319,7 @@ const JOB_WORDS: Record<JobKind, string> = {
   erasure_finish: "Finishing a person's erasure",
   file_look: "Looking at a file",
   file_fetch: "Bringing in a business's photos",
+  instagram_read: "Reading a business's Instagram",
   file_purge: "Letting go of a removed file",
   video_digest: "Making a video ready",
   post_prepare: "Making a post ready on Instagram",

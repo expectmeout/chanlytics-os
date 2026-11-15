@@ -18,24 +18,26 @@ import {
   SECOND_MS,
   bookingToolOfLink,
   businessReadFactsOf,
+  filmShotsOf,
   feedUrlOk,
   fenced,
   listingFactsOf,
   parseTenantConfig,
   ANSWER_JSON_ONLY,
   isTenantId,
+  valueAt,
 } from "@chanlytics/contracts";
 import type { SitePage } from "@chanlytics/channels/website";
 import { bookingPageOfSite, sitePagesLinkedFrom, sitePagesNamed } from "@chanlytics/core";
 import { getTenantConfig } from "@chanlytics/db/workspace";
-import { keepBusinessRead, findListingFactsStored } from "@chanlytics/db/imports";
+import { keepBusinessRead, findListingFactsStored, noteImport } from "@chanlytics/db/imports";
 import type { Database, Json } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
 import { askJson, promptHashOf } from "../ai/model.js";
 import { env } from "../shared/env.js";
 import { findHomePage, PAGE_READS, findSitePage, listSiteLinks, sitePagesReadable } from "../shared/public-page.js";
 import { wearSiteLook } from "./look.js";
-import { askForFoundFiles, sitePhotosOf } from "../files/found.js";
+import { askForFoundFiles, sitePhotosOf, siteVideosOf } from "../files/found.js";
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
@@ -128,11 +130,16 @@ export async function readWebsite(
     (p): p is { at: string; page: SitePage; booking: boolean } => !!p.page,
   );
   const booking_read = pages.some((p) => p.booking);
-  // The photographs these pages show, for the Inbox of Files (decision 0099): the owner says which are theirs.
+  // The photographs these pages show and the videos they play, for the Library's Inbox (decision 0099, and Content's
+  // empty state): the owner says which are theirs. What was seen is kept with the read, so the page can say what came of it.
+  let media: Json | undefined;
   if (photos) {
     // A booking platform's pictures are its own, not the business's.
     const own = pages.filter((p) => !p.booking).map((p) => p.page);
-    await askForFoundFiles(db, tenantId, { source: "website", items: sitePhotosOf(own) }).catch((e: unknown) =>
+    const seen = sitePhotosOf(own);
+    const played = siteVideosOf(own);
+    media = { photos: seen.length, videos: played.items.length, embedded: played.embedded };
+    await askForFoundFiles(db, tenantId, { source: "website", items: [...seen, ...played.items] }).catch((e: unknown) =>
       log.warn("file_fetch_failed", { source: "website", error: errField(e) }),
     );
   }
@@ -162,9 +169,10 @@ export async function readWebsite(
     answer = answered?.answer ?? null;
   } catch (e) {
     log.warn("website_read_failed", { step: "reading", error: errField(e) });
-    return keep({ look, booking_page }, WEBSITE_UNREAD_WORDS.failed);
+    return keep({ look, booking_page, ...(media ? { media } : {}) }, WEBSITE_UNREAD_WORDS.failed);
   }
   const facts = businessReadFactsOf(answer);
+  const film = filmShotsOf(answer);
   const found = facts.services.length + facts.rules.length + facts.answers.length + facts.closed.length;
   log.info("website_read", { pages: pages.length, services: facts.services.length, found, booking: !!booking_page });
   const kept: Json = {
@@ -176,6 +184,9 @@ export async function readWebsite(
     look,
     booking_page,
     booking_read,
+    ...(media ? { media } : {}),
+    // What to film for a video, from what the site says it does (Content's empty state): kept only where it wrote some.
+    ...(film.length ? { film: film.map((f) => ({ what: f.what, how: f.how })) } : {}),
   };
   return keep(kept, found || facts.description ? null : WEBSITE_UNREAD_WORDS.nothing);
 }
@@ -207,7 +218,16 @@ export function websiteReader(db: Db): NonNullable<JobContext["website"]> {
   return {
     read: async (job: ClaimedJob, deadline: number) => {
       const url = typeof job.payload.url === "string" ? job.payload.url : null;
-      await readWebsite(db, job.tenant_id, url, { deadline, fresh: true, photos: true });
+      const ledger = (state: "running" | "done" | "failed", error?: string) =>
+        noteImport(db, { tenantId: job.tenant_id, source: "website_media", state, ...(error ? { error } : {}) }).catch(
+          logAndGoOn("website read: its line on the ledger"),
+        );
+      // The empty Content page says "Looking" from here; the found-files job says what came, or this says nothing will.
+      await ledger("running");
+      const kept = await readWebsite(db, job.tenant_id, url, { deadline, fresh: true, photos: true });
+      const media = valueAt(kept.facts, "media");
+      if (!media) await ledger("failed", kept.error ?? WEBSITE_UNREAD_WORDS.failed);
+      else if (!valueAt(media, "photos") && !valueAt(media, "videos")) await ledger("done");
     },
   };
 }

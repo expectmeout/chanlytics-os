@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 186 | 186 |
 | reader | 77 | 0 |
-| the server's | 338 | 293 |
+| the server's | 339 | 294 |
 | computed column | 3 | 0 |
 | trigger | 101 | 71 |
-| all | 705 | 550 |
+| all | 706 | 551 |
 
 ## Called by nothing
 
@@ -174,7 +174,7 @@ being read is dropped by a migration.
 | `fact_suggestion_answer` | door | a signed-in person, the server | code `apps/dashboard/src/server/receptionist/fact-notes.ts`, `packages/db/src/repositories/facts/suggestions.ts` | A member answers a note suggested from an owner's correction (decision 0063): |
 | `file_change` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | What a person says of a file (00551): |
 | `file_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The one door every road keeps a file by, after the server proved its bytes (00551). |
-| `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 4 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
+| `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 5 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
 | `file_keep_many` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | The Found online list's press (00551, 00619): |
 | `file_listing_aside` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | What a public listing offered and nobody kept goes aside (00551): |
 | `file_look_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | What the look saw (00551), under the owner's word: |
@@ -190,6 +190,7 @@ being read is dropped by a migration.
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
 | `file_upload_lapsed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A video whose bytes never arrived, a day on (00556): |
 | `file_video_begin` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A member's video on its way (00556), once the video platform holds its reservation: |
+| `file_video_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A found video on its way (00626), once the video platform is fetching it from its address: |
 | `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612): |
 | `finish_broadcast` | the server's | the server | code `packages/db/src/repositories/events/delivery.ts` | A run that sent its last batch: |
 | `first_replies` | reader | a signed-in person, the server | code `apps/dashboard/src/server/metrics/metrics.ts`, `packages/contracts/src/today/metrics.ts` and 1 more; SQL `metrics_summary`, `platform_metrics_roll` and 2 more |  |

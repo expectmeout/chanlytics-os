@@ -122,6 +122,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "client_error",
   "client_error_not_kept",
   "consent_qr_standing_failed",
+  "content_bring_in_failed",
   "cross_site_write_refused",
   "db_failed",
   "deal_door_unknown_answer",

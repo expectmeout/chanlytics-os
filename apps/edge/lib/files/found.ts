@@ -24,11 +24,13 @@ import { FINGERPRINT_BYTES, fileFingerprintOf } from "@chanlytics/channels/files
 import { RESPONSE_MAX_BYTES, publicFetcher } from "@chanlytics/channels/shared";
 import { fetchImageBytes, type SitePage } from "@chanlytics/channels/website";
 import { findPlacePhotoUri, type PlaceDetails } from "@chanlytics/channels/google";
-import { imageHeaderOf, sitePhotosFrom } from "@chanlytics/core";
+import { SITE_VIDEOS_MAX, imageHeaderOf, sitePhotosFrom, siteVideosFrom } from "@chanlytics/core";
 import { findFileForWork, recordFileFound, markFileSeen, filesBucket } from "@chanlytics/db/files";
+import { noteImport } from "@chanlytics/db/imports";
 import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { http } from "../shared/google/places.js";
+import { keepFoundVideo } from "./found-video.js";
 import { recordNotification } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
@@ -44,10 +46,12 @@ const BATCH_KEY_CHARS = 16;
 const FETCHES_AT_ONCE = 4;
 const FETCH_MS = 5 * SECOND_MS;
 
-/** A found picture, as a job or an import part hands it: where it is, and what is known of it. */
+/** A found picture or video, as a job or an import part hands it: where it is, and what is known of it. */
 export interface FoundFile {
   url: string;
   ref: string;
+  /** A video is fetched by the video platform (found-video.ts); absent, a picture. */
+  kind?: "image" | "video";
   shows?: FileShows | null;
   /** What to call it until the look does. Absent, the last word of its address. */
   name?: string;
@@ -136,7 +140,8 @@ function itemsOf(raw: unknown): FoundFile[] {
   return raw.flatMap((i: unknown) => {
     const o = recordOrEmpty(i);
     if (typeof o.url !== "string" || !o.url) return [];
-    return [{ url: o.url, ref: typeof o.ref === "string" ? o.ref : o.url }];
+    const ref = typeof o.ref === "string" ? o.ref : o.url;
+    return [o.kind === "video" ? { url: o.url, ref, kind: "video" as const } : { url: o.url, ref }];
   });
 }
 
@@ -152,7 +157,16 @@ async function addressedNow(source: string, file: FoundFile): Promise<FoundFile 
  * The roads a batch may come by. All wait in the Inbox for a person's word: a website's photos may be anyone's, and linking
  * a public listing does not prove it is yours. Only a connected profile, whose owner signed in, files what it brings.
  */
-const FOUND_ROADS: ReadonlySet<string> = new Set(["website", "google_listing"]);
+const FOUND_ROADS: ReadonlySet<string> = new Set(["website", "google_listing", "instagram"]);
+
+/**
+ * The ledger's row a road's batches add to (imports, 00626): a website's photos and videos, an Instagram's posts and reels,
+ * so the empty Content page says "Looking" while they come and what came once they have. A listing's are asked at its link.
+ */
+const ROAD_LEDGER: Readonly<Record<string, "website_media" | "instagram">> = {
+  website: "website_media",
+  instagram: "instagram",
+};
 
 /** One picture of a batch, what became of it, or that it could not be kept for now, which the batch throws for at its end. */
 async function oneFound(db: Db, job: ClaimedJob, source: string, item: FoundFile): Promise<FoundFate | "failed"> {
@@ -167,6 +181,14 @@ async function oneFound(db: Db, job: ClaimedJob, source: string, item: FoundFile
   }
   if (!file) return "passed";
   try {
+    if (file.kind === "video")
+      return await keepFoundVideo(db, job.tenant_id, {
+        source,
+        status: "inbox",
+        url: file.url,
+        ref: file.ref,
+        name: firstNameOf(file.url, source),
+      });
     return await keepFoundFile(db, job.tenant_id, { source, status: "inbox", file });
   } catch (e) {
     log.warn("file_fetch_failed", { source, step: "keep", error: errField(e) });
@@ -184,14 +206,15 @@ export async function fetchFiles(db: Db, job: ClaimedJob, deadline: number): Pro
   if (!FOUND_ROADS.has(source)) throw new Error(`file_fetch: nothing here brings ${source} in`);
   const items = itemsOf(job.payload.items);
   let kept = 0;
+  let keptVideos = 0;
   let failed = 0;
   let full = false;
   let at = 0;
   for (; at < items.length && Date.now() < deadline && !full; at += FETCHES_AT_ONCE) {
-    const fates = await Promise.all(
-      items.slice(at, at + FETCHES_AT_ONCE).map((item) => oneFound(db, job, source, item)),
-    );
+    const part = items.slice(at, at + FETCHES_AT_ONCE);
+    const fates = await Promise.all(part.map((item) => oneFound(db, job, source, item)));
     kept += fates.filter((f) => f === "kept").length;
+    keptVideos += fates.filter((f, i) => f === "kept" && part[i]?.kind === "video").length;
     failed += fates.filter((f) => f === "failed").length;
     full = fates.includes("full");
   }
@@ -201,16 +224,26 @@ export async function fetchFiles(db: Db, job: ClaimedJob, deadline: number): Pro
       job.tenant_id,
       {
         kind: "files_waiting",
-        title: FILE_WORDS.bell.title,
+        title: keptVideos > 0 ? FILE_WORDS.bell.titleVideos : FILE_WORDS.bell.title,
         body: FILE_WORDS.bell.body,
         route: CONTENT_LIBRARY_ROUTE,
       },
       db,
     );
   }
-  if (!full && at < items.length) {
+  const goesOn = !full && at < items.length;
+  if (goesOn) {
     await askForFoundFiles(db, job.tenant_id, { source, items: items.slice(at), rang: rang || kept > 0 });
   }
+  const ledger = ROAD_LEDGER[source];
+  if (ledger)
+    await noteImport(db, {
+      tenantId: job.tenant_id,
+      source: ledger,
+      state: goesOn ? "running" : "done",
+      counts: { photos: kept - keptVideos, videos: keptVideos },
+      add: true,
+    });
   logger({ tenant_id: job.tenant_id }).info("file_fetch_done", { source, asked: items.length, kept, failed, full });
   if (failed > 0) throw new Error(`file_fetch: ${failed} of ${items.length} could not be kept`);
 }
@@ -235,7 +268,12 @@ export async function askForFoundFiles(
     tenantId,
     kind: "file_fetch",
     dueAt: new Date(),
-    payload: { source, batch, items: items.map((i) => ({ url: i.url, ref: i.ref })), ...(rang ? { rang: true } : {}) },
+    payload: {
+      source,
+      batch,
+      items: items.map((i) => ({ url: i.url, ref: i.ref, ...(i.kind === "video" ? { kind: "video" } : {}) })),
+      ...(rang ? { rang: true } : {}),
+    },
   });
 }
 
@@ -243,6 +281,16 @@ export async function askForFoundFiles(
 export function sitePhotosOf(pages: readonly SitePage[]): FoundFile[] {
   const urls = new Set(pages.flatMap((p) => sitePhotosFrom(p.html, p.url)));
   return [...urls].map((url) => ({ url, ref: url }));
+}
+
+/** The videos a read site's pages play, each once, and how many players of other platforms they embed. */
+export function siteVideosOf(pages: readonly SitePage[]): { items: FoundFile[]; embedded: number } {
+  const read = pages.map((p) => siteVideosFrom(p.html, p.url));
+  const urls = new Set(read.flatMap((r) => r.videos));
+  return {
+    items: [...urls].slice(0, SITE_VIDEOS_MAX).map((url) => ({ url, ref: url, kind: "video" as const })),
+    embedded: read.reduce((n, r) => n + r.embedded, 0),
+  };
 }
 
 /** A name as two spellings of it are one: Café Luna is Cafe Luna, and punctuation says nothing. */

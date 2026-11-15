@@ -70,7 +70,7 @@ export function IdeaRows({
               )}
             </span>
             <span className="cnv-idea-words">
-              <b>{idea.title}</b>
+              <b>{picks.find((pick) => pick.key === idea.key)?.title ?? idea.title}</b>
               <span>{idea.sub}</span>
             </span>
             <Icon name="chevron" size={12} />

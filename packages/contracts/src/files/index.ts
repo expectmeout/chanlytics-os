@@ -1,4 +1,10 @@
-export { FILE_COPIES_DOOR, FILE_LISTEN_DOOR, FILE_PLAY_DOOR, FILE_VIDEO_START_DOOR } from "./edge-doors";
+export {
+  FILE_BRING_IN_DOOR,
+  FILE_COPIES_DOOR,
+  FILE_LISTEN_DOOR,
+  FILE_PLAY_DOOR,
+  FILE_VIDEO_START_DOOR,
+} from "./edge-doors";
 export { FILE_WORDS, fileCursorOf, filesSayOf, keptSaidOf } from "./files";
 export {
   FILE_IMAGE_MIMES,

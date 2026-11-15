@@ -18,10 +18,28 @@
   flex-direction: column;
   gap: var(--space-2);
 }
-.pv-head-top {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+/* Their Google photo across the top, their mark over its corner. */
+.pv-hero {
+  position: relative;
+  margin-bottom: var(--space-2);
+}
+.pv-photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 7;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset-fill);
+}
+.pv-hero > .pv-logo {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  height: 44px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--surface-page-fill);
+  box-shadow: var(--surface-float-depth);
 }
 .pv-logo {
   display: block;

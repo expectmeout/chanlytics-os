@@ -542,6 +542,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST files/keep": filesIfDrawn,
   "POST files/post": filesAndContentIfDrawn,
   "POST files/video": filesAndContentIfDrawn,
+  // A link brought in (Ask's bring_in card): the ledger's line says "Looking" on both pages' cards at once.
+  "POST content/bring-in": filesAndContentIfDrawn,
   "PATCH files/[id]": () => [...filesIfDrawn(), ...postMoved()],
   "DELETE files/[id]": () => [...filesIfDrawn(), ...postMoved()],
   // Undo of a delete (the content redesign's stage 3): a file back.

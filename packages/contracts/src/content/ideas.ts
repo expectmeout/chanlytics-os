@@ -78,7 +78,21 @@ export interface ContentIdeaFiles {
   key: ContentIdea["key"];
   files: { id: string; name: string }[];
   ready: boolean;
+  /**
+   * What the idea is called for this business, where what it is made from says more than the general words: the review's
+   * writer and stars ("Rosa's 5 stars, as a post"). Absent, the idea's own title.
+   */
+  title?: string;
 }
+
+/** A review's writer as an idea names them: their first name, and nothing where none was read. */
+const reviewerFirstNameOf = (author: string | null): string | null => author?.trim().split(/\s+/)[0] || null;
+
+/** The newest review's idea, named by who wrote it and its stars: "Rosa's 5 stars, as a post". */
+export const reviewIdeaTitleOf = (review: { author: string | null; rating: number | null }): string | null => {
+  const reviewer = reviewerFirstNameOf(review.author);
+  return reviewer && review.rating ? `${reviewer}'s ${review.rating} stars, as a post` : null;
+};
 
 /**
  * Which files each idea would use, from the newest kept files, newest first: the two newest photos of the work for a before
@@ -87,7 +101,7 @@ export interface ContentIdeaFiles {
  */
 export function contentIdeaFilesOf(
   kept: readonly Pick<FileDto, "id" | "name" | "kind" | "shows" | "media_status">[],
-  holds: { review: boolean },
+  holds: { review: boolean; reviewTitle?: string | null },
 ): ContentIdeaFiles[] {
   const named = (files: typeof kept) => files.map((f) => ({ id: f.id, name: f.name }));
   const photos = kept.filter((f) => f.kind !== "video");
@@ -96,7 +110,7 @@ export function contentIdeaFilesOf(
   return [
     { key: "before_after", files: work.length >= 2 ? named(work.slice(0, 2)) : [], ready: photos.length >= 2 },
     // Made from a review's own words, which no file holds: there where the workspace holds a review that says something.
-    { key: "review", files: [], ready: holds.review },
+    { key: "review", files: [], ready: holds.review, ...(holds.reviewTitle ? { title: holds.reviewTitle } : {}) },
     { key: "video", files: named(clips.slice(0, 4)), ready: clips.length > 0 },
     { key: "photo_post", files: named(photos.slice(0, 1)), ready: photos.length > 0 },
   ];

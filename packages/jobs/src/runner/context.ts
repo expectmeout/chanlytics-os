@@ -299,6 +299,14 @@ export interface JobContext {
     read: (job: ClaimedJob, deadline: number) => Promise<void>;
   };
   /**
+   * An Instagram account's posts and reels (00626), as the edge holds the scraping platform's key. INJECTED; an
+   * instagram_read job in a runtime without it fails loudly.
+   */
+  instagram?: {
+    /** One step: the run started, or asked after and its posts handed on; none started after `deadline`. */
+    read: (job: ClaimedJob, deadline: number) => Promise<void>;
+  };
+  /**
    * A business's files (decision 0099), as the edge holds them: the model's key and the provider's copy live there.
    * INJECTED like the website reader; a file job in a runtime without it fails loudly.
    */

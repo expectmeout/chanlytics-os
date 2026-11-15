@@ -7,6 +7,7 @@
  * thing that matters most (the content canvas, "Every state a piece can be in"): what needs the owner, then what is
  * working, then what is done.
  */
+import type { ContentSourcesDto } from "./sources";
 import type { FileDto } from "../files/views";
 import type { ContentIdeaFiles } from "./ideas";
 import type { ContentView } from "./address";
@@ -106,6 +107,11 @@ export interface ContentPageDto {
   ideas: ContentIdeaFiles[];
   /** The words All was found by (files_found: a piece's name and what Ask's look saw or heard in it), or null: all of it. */
   about: string | null;
+  /**
+   * Where Ask looks for photos and videos and what came of it (sources.ts), read while nothing is kept: the empty state's
+   * card on Made and on the Library. Absent from a page read before it was asked for, and where something is kept.
+   */
+  sources?: ContentSourcesDto | null;
 }
 
 /** How many a view holds, from the tally: what the views' control says beside each. */
@@ -531,7 +537,9 @@ export function contentMakingSaid(making: ContentMakingDto): { title: string; st
 /**
  * Whether the page should be read again on its own: a video still being made, or a post going up now. Neither is told to a
  * page by the feed (00611, 00613), so the page asks while one moves and stops when none does. A post set for later is not
- * moving: the page does not ask all week for it.
+ * moving: the page does not ask all week for it. A place read for its photos and videos is not asked after either: what it
+ * brings, its ledger's run and the website's read are told by the feed as they land (00480, 00551), and the card reads itself
+ * once more where a run ends unheard (sources.ts `reading_until`).
  */
 export function contentMoving(page: ContentPageDto, nowMs: number): boolean {
   return (

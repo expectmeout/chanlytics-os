@@ -152,6 +152,8 @@ test("a website read: its home page and the pages it links to for services and q
     // No booking platform's page named here: none read beside the site (the onboarding PRD's P8).
     booking_page: null,
     booking_read: false,
+    // What its pages showed and played, before each is judged: what the empty Content page says came of the read.
+    media: { photos: 0, videos: 0, embedded: 0 },
   });
   assert.deepEqual(
     w.tables.ai_usage.map((u) => [u.tenant_id, u.purpose]),
@@ -166,14 +168,19 @@ const BOOK = "https://calendly.com/harbor-moving-example/estimate";
 const BOOKING_HOME = `<html><body><h1>Harbor Moving</h1><nav><a href="${BOOK}">Book an estimate</a></nav></body></html>`;
 const BOOKING_PAGE = "<html><body><h2>Estimate visit</h2><p>Thirty minutes, free.</p></body></html>";
 
-test("the job's read asks for the photographs its pages show; a lead's preview, on the same reader, asks for none", async () => {
-  const pictured = `<html><body><h1>Harbor Moving</h1><p>Family movers in Brooklyn.</p><img src="/van.jpg"></body></html>`;
+test("the job's read asks for the photographs its pages show and the videos they play; a lead's preview asks for none", async () => {
+  const pictured = `<html><body><h1>Harbor Moving</h1><p>Family movers in Brooklyn.</p><img src="/van.jpg">
+    <video src="/load.mp4" poster="/load.jpg"></video><iframe src="https://www.youtube.com/embed/abc"></iframe></body></html>`;
   const fetches = (w) => w.tables.jobs.filter((j) => j.kind === "file_fetch");
   const job = world();
   const net = web({ [`${SITE}/`]: pictured }, READ);
   try {
     await read(job);
-    assert.deepEqual(fetches(job)[0].payload.items, [{ url: `${SITE}/van.jpg`, ref: `${SITE}/van.jpg` }]);
+    assert.deepEqual(fetches(job)[0].payload.items, [
+      { url: `${SITE}/van.jpg`, ref: `${SITE}/van.jpg` },
+      { url: `${SITE}/load.mp4`, ref: `${SITE}/load.mp4`, kind: "video" },
+    ]);
+    assert.deepEqual(job.tables.business_reads.at(-1).facts.media, { photos: 1, videos: 1, embedded: 1 });
     assert.equal(fetches(job)[0].payload.source, "website");
     // previews/build.ts calls readWebsite with no more than this: a stranger's site, in a workspace nobody is a member of.
     const preview = world();

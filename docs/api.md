@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-400 handlers in 58 domains.
+401 handlers in 58 domains.
 
 ## activity
 
@@ -861,6 +861,14 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | `limit` | integer | no | ≥ 1; ≤ 96 |
 | `about` | string | no | at most 80 characters |
 
+### `POST /api/v1/content/bring-in`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `link` | string | yes | at least 1 characters; at most 500 characters |
+
 ### `GET /api/v1/content/note`
 
 Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
@@ -1376,7 +1384,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `source` | one of `"google_reviews"`, `"calendar"`, `"clients_file"`, `"mailbox"`, `"contacts"`, `"whatsapp_contacts"`, `"whatsapp_history"`, `"google_photos"` | yes |  |
+| `source` | one of `"google_reviews"`, `"calendar"`, `"clients_file"`, `"mailbox"`, `"contacts"`, `"whatsapp_contacts"`, `"whatsapp_history"`, `"google_photos"`, `"website_media"`, `"instagram"` | yes |  |
 
 ## lead-operations
 
@@ -2286,7 +2294,7 @@ Writes; for platform staff; counts against the `platform_job_pause` rate; spends
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
 | `paused` | boolean | yes |  |
 | `why` | object | yes |  |
 
@@ -2306,7 +2314,7 @@ Writes; for platform staff; counts against the `platform_job_requeue_kind` rate;
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
 | `since` | string (date-time) | yes |  |
 | `why` | object | yes |  |
 
@@ -3584,7 +3592,7 @@ Every door on the edge whose body contracts declares (`packages/contracts/src/<d
 the dashboard's `callEdge` sends a declared door the body its schema takes, and the door reads its body through the same
 schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 
-55 doors.
+56 doors.
 
 ### `POST /api/admin/billing`
 
@@ -3658,6 +3666,13 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | --- | --- | --- | --- |
 | `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `cases` | array of object | no |  |
+
+### `POST /api/admin/files/bring-in`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `link` | string | yes | at most 500 characters |
 
 ### `POST /api/admin/files/copies`
 

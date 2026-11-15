@@ -37,7 +37,7 @@ export const FILE_STATUSES = ["inbox", "filed", "set_aside"] as const;
 
 export type FileStatus = (typeof FILE_STATUSES)[number];
 
-export const FILE_SOURCES = ["upload", "google_profile", "google_listing", "website", "made"] as const;
+export const FILE_SOURCES = ["upload", "google_profile", "google_listing", "website", "instagram", "made"] as const;
 
 export type FileSource = (typeof FILE_SOURCES)[number];
 

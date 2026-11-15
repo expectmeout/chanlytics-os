@@ -30,6 +30,8 @@ const SOURCE_GLYPH: Record<ImportSource, string> = {
   whatsapp_contacts: "users",
   whatsapp_history: "chat",
   google_photos: "image",
+  website_media: "image",
+  instagram: "image",
 };
 
 /**

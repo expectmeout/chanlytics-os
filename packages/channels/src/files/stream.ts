@@ -146,6 +146,40 @@ export async function reserveStreamUpload(
   return { ok: true, uploadUrl, mediaRef };
 }
 
+export type StreamTaken = { ok: true; mediaRef: string } | { ok: false; error: string; full: boolean };
+
+/**
+ * A video on the public web, fetched by Stream itself from its address (`POST /stream/copy`): what a business's website,
+ * profile or Instagram plays, so its bytes never pass through us. `name` is our file's id, as an upload's is, and the
+ * webhook says when it is ready. Asked once: a second ask would be a second video, so a lost answer is the caller's to
+ * judge (the address is kept on the row, and found again is a twin).
+ */
+export async function askStreamToFetch(
+  account: StreamAccount,
+  video: { url: string; name: string },
+  deps: ModelDeps = {},
+): Promise<StreamTaken> {
+  const reply = await fetchFromProvider(
+    "cloudflare",
+    `${STREAM_ACCOUNTS_API}/${encodeURIComponent(account.accountId)}/stream/copy`,
+    {
+      method: "POST",
+      headers: { ...apiHeaders(account), "content-type": "application/json" },
+      body: JSON.stringify({ url: video.url, meta: { name: video.name }, requireSignedURLs: true }),
+      timeoutMs: API_TRY_MS,
+    },
+    deps,
+  );
+  if (reply.outcome !== "ok") {
+    const words = failureWords(reply);
+    return { ok: false, error: words, full: /storage|capacity|quota|exceed/i.test(words) };
+  }
+  const uid = streamVideoOf(answerObject(reply)?.result)?.uid ?? "";
+  return /^[0-9a-f]{32}$/i.test(uid)
+    ? { ok: true, mediaRef: uid }
+    : { ok: false, error: "the answer named no video", full: false };
+}
+
 /* ------------------------------------------------------------------------------------------------- the API reads -- */
 
 export type StreamRead = { ok: true; video: StreamVideo } | { ok: false; gone: boolean; error: string };

@@ -68,6 +68,8 @@ export interface PreviewPageVM {
   state: PreviewPageState;
   business: string;
   logo_url: string | null;
+  /** Their Google photo, only from Google's own host. */
+  photo: string | null;
   turns: PreviewTurnVM[];
   /** Messages it will still answer. */
   left: number;
@@ -75,6 +77,8 @@ export interface PreviewPageVM {
   call_left_ms: number;
   /** Three questions to start from, on a chat with nothing in it yet. */
   starters: string[];
+  /** What it says first in the chat, as their business: shown, never stored or counted. */
+  greeting: string;
   knows: PreviewKnowsRowVM[];
 }
 
@@ -86,11 +90,17 @@ export interface PreviewPageFacts {
   turns: unknown;
   business: string;
   logo_url: string | null;
-  profile: Pick<BusinessProfile, "hours" | "address" | "website" | "services"> | null;
+  profile: Pick<BusinessProfile, "hours" | "address" | "website" | "services" | "assistant_name"> | null;
   phone_display: string | null;
   /** The seconds its ended calls spoke (lead_previews.call_seconds). */
   call_seconds: number;
+  /** The lead's Google photo (leads.image_url), or none. */
+  photo_url: string | null;
 }
+
+/** Their photo as the page may draw it: Google's own host, over https, else none (the CSP allows that host alone). */
+const GOOGLE_PHOTO = /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\//;
+const photoOf = (url: string | null): string | null => (url && GOOGLE_PHOTO.test(url) ? url : null);
 
 const TURN_TONES: ReadonlySet<string> = new Set(["sends", "waits", "yours"]);
 type Tone = NonNullable<PreviewTurnVM["then"]>["tone"];
@@ -115,20 +125,22 @@ const serviceAsAsked = (name: string): string =>
   /^[A-Z][a-z]/.test(name) && !/^[A-Z][a-z]+ [A-Z]/.test(name) ? `${name[0]?.toLowerCase()}${name.slice(1)}` : name;
 
 /**
- * Three questions a customer would ask, from what it knows: a day it is closed (or its hours, where it knows none), a
- * time tomorrow, and the price of a service it lists, where the price rule shows itself holding.
+ * Up to three questions a customer would ask that it can answer from what it knows: a service it lists, a day it is
+ * closed (or its hours), where it is; and, where it knows less, the one every receptionist handles. Never a price (it
+ * refuses one it was not given) and never a visit time (many businesses come to the customer).
  */
 export function previewStartersOf(profile: PreviewPageFacts["profile"]): string[] {
+  const service = profile?.services?.find((s) => s.name.trim())?.name.trim();
   const hours = profile?.hours;
   const open = DAYS.filter((d) => dayIntervals(hours?.[d]).length > 0);
   const closed = open.length ? DAYS.find((d) => !open.includes(d)) : undefined;
-  const service = profile?.services?.find((s) => s.name.trim())?.name.trim();
   const starters = [
-    closed ? `Are you open on ${DAY_NAMES[closed]}?` : "What are your hours?",
-    "Can I come in tomorrow at 2?",
-    service ? `How much is the ${serviceAsAsked(service)}?` : open.length ? "What are your hours?" : null,
+    service ? `Can you tell me about the ${serviceAsAsked(service)}?` : null,
+    closed ? `Are you open on ${DAY_NAMES[closed]}?` : open.length ? "What are your hours?" : null,
+    profile?.address?.trim() ? "Where are you located?" : null,
+    "Can someone call me back?",
   ];
-  return [...new Set(starters.filter((s): s is string => !!s))].slice(0, 3);
+  return starters.filter((s): s is string => !!s).slice(0, 3);
 }
 
 /** The services as a line: the first six, and how many more. */
@@ -216,10 +228,15 @@ export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): Pr
     state,
     business: previewPageFacts.business,
     logo_url: previewPageFacts.logo_url,
+    photo: state === "ended" || state === "taken" ? null : photoOf(previewPageFacts.photo_url),
     turns,
     left: Math.max(0, PREVIEW_LIMITS.messages - previewPageFacts.asked_count),
     call_left_ms: Math.max(0, PREVIEW_LIMITS.callMs - previewPageFacts.call_seconds * SECOND_MS),
     starters: state === "ready" && !turns.length ? previewStartersOf(previewPageFacts.profile) : [],
+    greeting: LEAD_PREVIEW_WORDS.textGreeting(
+      previewPageFacts.business,
+      previewPageFacts.profile?.assistant_name ?? null,
+    ),
     knows:
       state === "ready" || state === "spent"
         ? previewKnowsOf(previewPageFacts.profile, previewPageFacts.phone_display)
