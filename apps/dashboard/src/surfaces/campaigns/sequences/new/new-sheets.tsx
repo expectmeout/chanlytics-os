@@ -48,6 +48,7 @@ import { gate, routeDoor } from "../../../frame-verbs";
 import { pageClock } from "@/bridge/zone";
 import { HistoryChoice, historyKept } from "../../../settings/connections/history-choice";
 import { WhenDayTime } from "../../broadcasts/when";
+import { UNCONNECTED, closedReasonOf } from "./channel-closed";
 import { Choice } from "./choice";
 import * as M from "./new-model";
 import { AudienceToggle, CaseNote } from "./new-parts";
@@ -477,29 +478,6 @@ export function HourSelect({ hour, onHour }: { hour: number; onHour: (h: number)
   );
 }
 
-/** A channel not connected yet: its row says so with the door that connects it, where every "can't send on" door lands. */
-const NOT_READY = "not-ready";
-
-/**
- * Why a channel cannot carry the step's message, or null where it can: a rule that closes it for an offer (a text never
- * carries one, nor an email where offers by email cannot go here, in that reason's own words), no version for it, or not
- * connected yet (NOT_READY).
- */
-function whyClosed(
-  c: ConsentChannel,
-  step: {
-    offer: boolean;
-    holds: readonly ConsentChannel[];
-    ready: readonly ConsentChannel[];
-    offersByEmail?: string | null;
-  },
-): string | null {
-  if (step.offer && c === "sms") return W.channels.noOffer;
-  if (step.offer && c === "email" && step.offersByEmail) return step.offersByEmail;
-  if (!step.holds.includes(c)) return W.channels.noVersion;
-  return step.ready.includes(c) ? null : NOT_READY;
-}
-
 /** The channels a one-off goes by: each person once, the first they can hear it on; a text never carries an offer. */
 export function ChannelsSheet(p: {
   open: boolean;
@@ -535,15 +513,15 @@ export function ChannelsSheet(p: {
     >
       <div className="sq-nw-rows">
         {rows.map(({ c, name }) => {
-          const why = whyClosed(c, { offer, holds, ready: p.ready, offersByEmail: p.offersByEmail });
-          const can = why === null;
+          const reason = closedReasonOf(c, { offer, holds, ready: p.ready, offersByEmail: p.offersByEmail });
+          const can = reason === null;
           const on = can && p.draft.channels.includes(c);
           return (
             <div key={c} className="sq-nw-switchrow" data-off={can ? undefined : "true"}>
               <span>
                 {name}
                 <small>
-                  {why === NOT_READY ? (
+                  {reason === UNCONNECTED ? (
                     <>
                       {W.channels.notReady} ·{" "}
                       <LinkButton size="inherit" {...routeDoor(CHANNELS_DOOR)} data-testid={`sq-nw-connect-${c}`}>
@@ -551,7 +529,7 @@ export function ChannelsSheet(p: {
                       </LinkButton>
                     </>
                   ) : (
-                    (why ?? countOf(c) ?? W.channels.can)
+                    (reason ?? countOf(c) ?? W.channels.can)
                   )}
                 </small>
               </span>
