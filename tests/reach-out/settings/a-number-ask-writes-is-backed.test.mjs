@@ -8,8 +8,8 @@ import assert from "node:assert/strict";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
-const { draftBackingOf, leadEmail } =
-  await import("../../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
+const { draftBackingOf } = await import("../../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
+const { leadEmail } = await import("../../../apps/dashboard/src/server/campaigns/sequences/lead-email.ts");
 const { numberBacking, unbackedNumbers } =
   await import("../../../apps/dashboard/src/server/campaigns/sequences/numbers.ts");
 

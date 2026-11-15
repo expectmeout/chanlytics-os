@@ -9,17 +9,12 @@ import {
   NUMBERED_SLOT,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
-  REACH_OUT_SUBJECT_MAX,
   handStepsHold,
-  linkCount,
   newConditionsOf,
   newSequenceMode,
   newWaitOf,
   numberedValues,
   slugTemplateName,
-  validateReachOutWords,
-  violatesNoPrices,
-  wordsIssueWords,
   newListOf,
   whoSuits,
   clipAtWord,
@@ -29,7 +24,6 @@ import {
   type NewDraftAnswerStep,
   type NewDraftAsk,
   type NewDraftDto,
-  type NewEmail,
   type NewKind,
   type NewMessage,
   type NewStep,
@@ -43,7 +37,8 @@ import { carriersOf, newChecksOf, newReachOf, twinOf, type NewCounts, type NewRu
 import { checkMessage, versionsWrittenHere } from "../write-message";
 import { NOTHING_STOOD, standingAt, stoodStepsOf, type Standing } from "./draft-stands";
 import { leftOutKept } from "./left-out";
-import { numberBacking, ownerPriceWords, unbackedNumbers, unsaidPrice } from "./numbers";
+import { clause, cleanWords, emailWritten, leadEmailRefusal, subjectHeld } from "./lead-email";
+import { numberBacking, ownerPriceWords, unsaidPrice } from "./numbers";
 
 /**
  * Ask's answer to New, judged (decision 0065): only what this workspace offers and holds is kept, within each audience's
@@ -181,7 +176,6 @@ export interface DraftKnown {
 type Judged = { step: NewStep; reason?: string } | { dropped: string; reason?: string };
 
 /** A reason as a clause: the message door's own sentences lose their closing stop. */
-const clause = (reason: string): string => reason.trim().replace(/[.!]+$/, "");
 
 /** A step Ask's answer wrote that cannot be kept: its place in the answer, and why. */
 export interface RefusedStep {
@@ -227,8 +221,6 @@ function fillable(slots: readonly ParamSourceKind[], first: boolean, moment: Kno
           : true,
   );
 }
-
-const cleanWords = (s: string) => s.replace(/\r\n?/g, "\n").trim();
 
 /**
  * A message Ask wrote for a person's step, as the message door would file it; or why it would not, in a clause
@@ -354,40 +346,6 @@ function peopleMessage(
     owner,
     whatsappOffers: known.whatsappOffers,
   });
-}
-
-/**
- * A lead's email: kept where it holds as every email must, a first one with no link (the check says so), and no number
- * about the business that the owner's claims or its name do not back (decision 0113), else left for the owner to write.
- */
-export function leadEmail(
-  newDraftAnswerStep: Pick<NewDraftAnswerStep, "subject" | "body">,
-  first: boolean,
-  backing: readonly string[],
-): NewEmail {
-  const item = emailWritten(newDraftAnswerStep, first);
-  return leadEmailRefusal(item, first, backing) === null ? item : { subject: first ? item.subject : null, body: "" };
-}
-
-/** A subject kept over an email left to write: one past what a subject holds is the owner's to write too. */
-const subjectHeld = (subject: string | null): string | null =>
-  subject && subject.length <= REACH_OUT_SUBJECT_MAX ? subject : null;
-
-/** A lead's email as it was written: a later one answers in the first's thread, so it has no subject. */
-const emailWritten = (written: Pick<NewDraftAnswerStep, "subject" | "body">, first: boolean): NewEmail => ({
-  subject: first ? cleanWords(written.subject) || null : null,
-  body: cleanWords(written.body),
-});
-
-/** Why a lead's email does not hold, in a clause (the rule it breaks, in the words its sheet says it in); null where it holds. */
-function leadEmailRefusal(item: NewEmail, first: boolean, backing: readonly string[]): string | null {
-  const reasons = NEW_WORDS.cannot.why;
-  const issue = validateReachOutWords(item, first)[0];
-  if (issue) return clause(wordsIssueWords(issue));
-  if (violatesNoPrices(`${item.subject ?? ""} ${item.body}`)) return reasons.price;
-  if (first && linkCount(item.body) > 0) return reasons.firstLink;
-  if (unbackedNumbers(`${item.subject ?? ""}\n${item.body}`, backing).length > 0) return reasons.unbackedNumber;
-  return null;
 }
 
 /**
