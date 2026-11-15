@@ -1372,7 +1372,7 @@ test("a write claimed is one predicate (the moment spec, A4): what the eval judg
     "Done, it's on.",
     "All set. All done!",
   ])
-    assert.equal(claimsWrite(said), true, said);
+    assert.equal(claimsWrite(said, { besideCards: true }), true, said);
   for (const said of [
     "Two cards to review: a win-back and a follow-up.",
     "Once you approve it, it starts running.",
@@ -1383,7 +1383,7 @@ test("a write claimed is one predicate (the moment spec, A4): what the eval judg
     "The card is waiting for your approval.",
     'Here is the reply, ready to approve: "I\'ve set up your visit."',
   ])
-    assert.equal(claimsWrite(said), false, said);
+    assert.equal(claimsWrite(said, { besideCards: true }), false, said);
 });
 
 /* ------------------------------------------------------- the words' formatting */
