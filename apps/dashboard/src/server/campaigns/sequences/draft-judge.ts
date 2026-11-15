@@ -103,6 +103,8 @@ export interface KnownMessage {
   slots: ParamSourceKind[];
   /** Its values' names (contracts slotLabels), which the draft asks a typed value as. */
   labels?: string[];
+  /** WhatsApp is still checking its WhatsApp words (lib/pickable-messages.ts pickableMessages): it is offered all the same, and the draft says so. */
+  beingChecked?: boolean;
 }
 
 /** A sequence the workspace keeps, for its twin (lib/new-checks.ts, which New's page reads it by too). */
@@ -349,6 +351,7 @@ function peopleMessage(
       offer: held.offer,
       written: null,
       ...(held.labels ? { labels: held.labels } : {}),
+      ...(held.beingChecked ? { checking: true } : {}),
     } satisfies NewMessage;
   }
   if (!newDraftAnswerStep.write.title) return NEW_WORDS.cannot.why.noMessage;

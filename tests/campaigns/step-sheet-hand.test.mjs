@@ -55,7 +55,7 @@ const { Field } = await import(`${S}/kit/field/field.tsx`);
 const { ListRow } = await import(`${S}/kit/list-row/list-row.tsx`);
 const { Confirm } = await import(`${S}/kit/confirm/confirm.tsx`);
 const { StepSheet } = await import(`${S}/campaigns/sequences/step-sheet.tsx`);
-const { readyMadeOf, stepSaved } = await import(`${S}/campaigns/sequences/step-pick.ts`);
+const { pickMetaOf, readyMadeOf, stepSaved } = await import(`${S}/campaigns/sequences/step-pick.ts`);
 const { SequenceSteps } = await import(`${S}/campaigns/sequences/steps.tsx`);
 
 const { NEW_WORDS, SCHEDULE_WORDS: SW, SEQUENCE_EDIT_WORDS: E, SEQUENCE_FLOW_WORDS: F, handTitleOf } = contracts;
@@ -549,4 +549,12 @@ test("REGRESSION: a message's editor is its own step's: moved to another step wi
     [10, []],
     "REGRESSION: the save carried the second step's condition onto the third",
   );
+});
+
+test("a step's picker says how each message goes, and which one WhatsApp is still checking (the one picker rule)", () => {
+  const offered = (over) => ({ id: "t-1", channels: ["whatsapp", "email"], ...over });
+  assert.equal(pickMetaOf(offered()), "On WhatsApp, By email");
+  assert.equal(pickMetaOf(offered({ checking: true })), "On WhatsApp, By email · Being checked");
+  assert.equal(pickMetaOf(offered({ channels: ["whatsapp"], checking: true })), "On WhatsApp · Being checked");
+  assert.equal(pickMetaOf(offered({ channels: ["email"] })), "By email");
 });

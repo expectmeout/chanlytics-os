@@ -11,7 +11,6 @@ import {
   HELD_ON,
   VERSION_CHANNEL_WORDS,
   WHATSAPP_VERSION_ALONE,
-  campaignMessagesOf,
   formatPhoneDisplay,
   numberHealth,
   whatsappLineOf,
@@ -35,6 +34,7 @@ import {
   type ReachSplit,
 } from "@chanlytics/contracts";
 import { channelsOpenFor, openAmong } from "@/lib/campaign-channels";
+import { pickableMessages } from "@/lib/pickable-messages";
 import type { SettingsSurface } from "@/bridge/surfaces/settings";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { offeredRows } from "@/surfaces/offered-templates";
@@ -93,56 +93,49 @@ export function cmDefaultChannels(
 /**
  * A message the composers offer, in the shape their pages read: the row its words are drawn from (the WhatsApp version's
  * where the read holds it, else the first of its own), under the message's own id (its anchor's), title and category.
- * `channels` are those it holds now (contracts messageHolds), `message` the one reading of it (its WhatsApp version's
+ * `channels` are those it goes by (lib/pickable-messages.ts pickableMessages), `message` the one reading of it (its WhatsApp version's
  * standing is where a tick's sentence comes from), `versions` the words of its email and text versions in its language, for a
  * preview to draw a person on those channels as they read it (contracts previewVersionsOf, which Ask's cards read the same
  * rows through: a channel the message has no row on is left out). `message` is absent on a template
  * stamped before messages were kept, which reads as WhatsApp's version alone. `channel` is the row the words are on.
+ * `checking`: WhatsApp is still checking its WhatsApp words, and it is picked all the same: what sends it waits for that.
  */
 export type CmOffered = TemplateDto & {
   purpose: AskedPurpose;
   channels: ConsentChannel[];
   versions?: PreviewVersions;
   message?: CampaignMessage;
+  checking?: boolean;
 };
 
 /**
- * The messages a composer offers, from the templates read: every message that is offered (not hidden, at least one channel
- * held: contracts campaignMessagesOf), made of the read's own `messages` where it carries them (they are made of EVERY row,
- * so a WhatsApp version still in review keeps its standing), else of its rows. A message whose WhatsApp version is approved
- * and cannot be put on the wire whole, and holds nothing else, is listed too, `blocked`, so the picker says why it is not
- * offered (contracts sendableTemplates); a message whose only version is one WhatsApp has not approved is not.
+ * The messages a composer offers, from the templates read: every message a picker may list, by the one picker rule
+ * (lib/pickable-messages.ts pickableMessages: not hidden, and going by a channel now or once WhatsApp has checked its words), made of
+ * the read's own `messages` where it carries them (they are made of EVERY row, so a WhatsApp version still being checked
+ * keeps its standing), else of its rows. Each is drawn from the row of the first channel it goes by, under its own id.
+ * One WhatsApp approved in a shape this product cannot send whole, with nothing else written for it, is not listed: the
+ * Messages list does not show it either (it was listed here with its reason, the review of 15 Nov 2026).
  */
 export function cmOfferedMessages(read: { templates?: TemplateDto[]; messages?: CampaignMessage[] }): CmOffered[] {
   const rows = read.templates ?? [];
-  return (read.messages ?? campaignMessagesOf(rows)).flatMap((m) => {
-    const whatsapp = m.versions.whatsapp;
-    const blockedAlone = !m.hidden && whatsapp !== null && whatsapp.status === "approved" && whatsapp.blocked !== null;
-    const own = rows.filter((r) => r.name === m.name && r.language === m.language);
-    const row =
-      own.find((r) => r.id === m.anchor.id) ?? CONSENT_CHANNELS.flatMap((c) => own.filter((r) => r.channel === c))[0];
-    if (!(m.offered || blockedAlone) || !row) return [];
-    const held = messageHolds(m);
-    return [
-      {
-        ...row,
-        id: m.anchor.id,
-        title: m.title,
-        category: m.category,
-        blocked: m.offered ? null : (whatsapp?.blocked ?? null),
-        purpose: m.purpose,
-        channels: CONSENT_CHANNELS.filter((c) => held[c]),
-        versions: previewVersionsOf(rows, m.name, m.language),
-        message: m,
-      },
-    ];
-  });
+  return pickableMessages(rows, read.messages).map(({ message, channels, row, checking }) => ({
+    ...row,
+    id: message.anchor.id,
+    title: message.title,
+    category: message.category,
+    blocked: null,
+    purpose: message.purpose,
+    channels,
+    versions: previewVersionsOf(rows, message.name, message.language),
+    message,
+    ...(checking ? { checking } : {}),
+  }));
 }
 
 /**
  * The messages a composer offers, made of the settings read (surfaces/offered-templates.ts), the one read of the templates:
  * undefined before it has landed (the composer says it is still reading), null where its templates read failed (it says it could
- * not read them), else cmOfferedMessages over the rows that may go and the messages made of every row.
+ * not read them), else cmOfferedMessages over the rows a picker draws from and the messages made of every row.
  */
 export function cmOfferedFrom(settings: SettingsSurface | undefined): CmOffered[] | null | undefined {
   const rows = offeredRows(settings);

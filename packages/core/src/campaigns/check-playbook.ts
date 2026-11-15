@@ -23,7 +23,7 @@ import {
   isWinBack,
   localDate,
   messageFitsMoment,
-  messageHolds,
+  messageGoesBy,
   messageWhyNot,
   momentOffered,
   momentReadsCalendar,
@@ -202,14 +202,18 @@ function refuseMessageThatDisagrees(
 
 /**
  * A playbook keeps a tick that cannot send yet (its runs hold those people), but never goes by a message none of whose
- * ticks it holds: a broadcast of it could not be sent, and a playbook can never name a message a broadcast could not
- * send. Refused in each ticked channel's sentence for the version the message lacks (contracts messageWhyNot, one after
- * another), so a message with an email and no WhatsApp version is kept on WhatsApp and email, and is refused on WhatsApp
- * alone with WhatsApp's standing.
+ * ticks it goes by: a broadcast of it could not be sent, and a playbook can never name a message a broadcast could not
+ * send. It goes by a channel it holds a version for, and by WhatsApp while WhatsApp is still checking its words (the one
+ * picker rule, contracts messageGoesBy): a picker lists such a message, a send of it waits for the check
+ * (messages/broadcast/whatsapp-wait.ts) and so does the day's run (paced.ts waitsOnWhatsApp), so the playbook it is
+ * picked for is made. It was refused, and a message a picker listed could not be started. Refused in each ticked
+ * channel's sentence for the version the message lacks (contracts messageWhyNot, one after another), so a message with
+ * an email and no WhatsApp version is kept on WhatsApp and email, and is refused on WhatsApp alone with WhatsApp's
+ * standing.
  */
 function refuseMessageNoTickHolds(message: CampaignMessage, channels: readonly ConsentChannel[]): void {
-  const held = messageHolds(message);
-  if (channels.some((c) => held[c])) return;
+  const goes = messageGoesBy(message);
+  if (channels.some((c) => goes.includes(c))) return;
   const words = channels.flatMap((c) => messageWhyNot(message, c) ?? []);
   throw new AppError("conflict", words.join(" "), 409);
 }

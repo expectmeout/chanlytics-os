@@ -68,6 +68,12 @@ function notHereOf(m: NewMessage, first: boolean, who: DraftWho | null): string 
 
 const channelsSaid = (m: NewMessage): string => channelsSaidOf(m.channels, " · ");
 
+/** What a message of the workspace's says under its name: how it goes, that it is an offer, and that WhatsApp is still checking it. */
+const heldSaid = (m: NewMessage): string =>
+  [channelsSaid(m), m.offer ? W.sheets.anOffer : null, m.checking ? W.checks.checking : null]
+    .filter(Boolean)
+    .join(" · ");
+
 /**
  * The ready-made starters a step may take: those offered here that the workspace holds no message of yet, by what each is
  * for (templates/group.ts starterMoment). None until the Library is read, so a starter on file is never offered twice.
@@ -137,7 +143,7 @@ export function MessageSheet(p: {
               key={m.template_id}
               glyph="chat"
               name={m.title}
-              said={notHere ?? `${channelsSaid(m)}${m.offer ? ` · ${W.sheets.anOffer}` : ""}`}
+              said={notHere ?? heldSaid(m)}
               on={step?.message?.template_id === m.template_id}
               off={!fits}
               onPick={() => p.onMessage(m)}
