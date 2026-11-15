@@ -137,8 +137,15 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
      `plan.reach_m`;
    - **"Look up to 50 miles"**: a round with no area left within the reach names the areas past it, each marked with
      the reach it was found at (`LeadArea.beyond_m`), which `lead_round_end` never opens. A `reach_searched` ending
-     offers the press only where one was found; the plan card opens with the wider reach, and `lead_search_more` opens
-     the approved top-up as a leg on the first marked area within it, reading none of the search's own areas again;
+     offers the press only where one was found; the plan card opens with the wider reach, and the approved top-up moves
+     on past the old reach as the next point says;
+   - **a top-up carries on where the search was** (the review of 14 November): a term counts only what was read in its
+     own area (`readInArea`: the most its runs read there, or what was kept of it, and nothing past an area searched to
+     its end), so "Find N more nearby" asks a fresh area whole, for every workspace; and a top-up with nothing left to
+     ask in its area names where the search looks next before it ends (`nothingToStart`, `findNextAreas`), so Carry on,
+     the rest when the leads renew and Look up to 50 miles move on to the next area instead of ending where they began;
+   - **a leg the month's leads held short** met the count it was given and not the search's: `lead_round_end` ends it on
+     `month_leads_used` (the day the leads renew, and Find the other N), never as found;
    - **"Find the other 50 on Dec 1"** on `month_leads_used`: Find more with the purpose `defer` calls
      `lead_search_on_renewal`, which reserves the rest from the workspace's next month now and queues a top-up that
      starts at midnight on its first day (`lead_rounds.starts_at`, its start job due then). The strip says when, with
@@ -166,10 +173,10 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
 - `tests/leads/rounds/a-failed-run-is-tried-again.test.mjs`: a partway failure tried again under its own run, asked past
   what it read; three tries and no more; every term failing at once pages and spends no try.
 - `tests/leads/rounds/a-leg-reads-its-own-area.test.mjs`: a leg with nothing within its reach names the areas past it,
-  marked. `tests/leads/finder/lead-ask.test.mjs`: Ask's `reach_miles`. `tests/leads/lead-routes.test.mjs`: Find more,
+  marked; a top-up in a fresh area asks it whole; a top-up with nothing left in its area names the next and ends. `tests/leads/finder/lead-ask.test.mjs`: Ask's `reach_miles`. `tests/leads/lead-routes.test.mjs`: Find more,
   deferred. `tests/console/back-office/what-the-finder-set-aside.test.mjs`: the Console's tab.
-- The database cases (CI): a marked area never opened by a round's end, and opened by Find more with its reach; the
-  deferred round reserved from next month and started on its first day.
+- The database cases (CI): a marked area never opened by a round's end; a leg the month held short ends on the
+  month's leads; the deferred round reserved from next month and started on its first day.
 
 ## Risks
 

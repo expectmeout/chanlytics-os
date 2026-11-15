@@ -19,6 +19,7 @@ export {
   listRoundsOfSearch,
   listRunsOfRound,
   listSearchMembers,
+  recordRoundNearby,
 } from "./finder";
 export {
   askForIdeasAgain,
@@ -83,7 +84,7 @@ export {
   findSearchScope,
   findSearchWidens,
   importLeadList,
-  listRoundAreas,
+  listRoundExtras,
   listSearchCards,
   listSearchNames,
   markLeadsExported,

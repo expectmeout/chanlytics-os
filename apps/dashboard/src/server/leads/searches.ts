@@ -27,7 +27,7 @@ import {
   findSearchCard,
   findSearchScope,
   listLeadCardsLive,
-  listRoundAreas,
+  listRoundExtras,
   listSearchCards,
   readLeadListCounts,
   removeLeadSearch,
@@ -331,7 +331,7 @@ async function roundExtrasOf(
 ): Promise<Map<string, { area?: LeadArea; starts_at?: string }>> {
   const ids = rows.flatMap((r) => ((r.purpose === "widen" || r.state === "queued") && r.round_id ? [r.round_id] : []));
   if (!ids.length) return new Map();
-  const { data, error } = await listRoundAreas(ctx.supabase, tenantId, ids);
+  const { data, error } = await listRoundExtras(ctx.supabase, tenantId, ids);
   if (error) throw new DbFailure(error, "cannot read what a search's latest round reads and when it starts");
   return new Map(
     data.map((x) => {

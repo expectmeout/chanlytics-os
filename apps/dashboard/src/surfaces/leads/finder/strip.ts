@@ -66,11 +66,11 @@ type PlacesSearch = LeadSearchDto & { round: Round; plan: LeadSearchPlan };
 
 /**
  * What the search is counting to: what the owner asked for, never the first 25 the probe sizes the round with (Ruben, 14
- * Nov 2026: asked for 300, the strip said "0 of 25"), nor what a leg still wants (decision 0133: its count runs across
- * every leg, so 120 found before it is 120 of 300, never of the 180 left); a top-up's own count is its target.
+ * Nov 2026: asked for 300, the strip said "0 of 25"), nor what a leg or a top-up still wants: their count runs across the
+ * whole search (decision 0133), so 120 found before is 120 of 300, never of the 180 left. A renewal finds its count anew.
  */
 const ldGoal = (r: Round, plan: LeadSearchPlan): number =>
-  r.purpose === "probe" ? Math.max(r.target, plan.count) : r.purpose === "widen" ? plan.count : r.target;
+  r.purpose === "probe" ? Math.max(r.target, plan.count) : r.purpose === "renew" ? r.target : plan.count;
 
 /** How far past the reach the round found an area, in miles, where it found one (decision 0133). */
 const ldFurther = (s: PlacesSearch): { further?: number } => {

@@ -6,7 +6,7 @@
  * edge's leadDb) says a failure in its words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../types";
+import type { Database, Json } from "../../types";
 import { DbFailure, type TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
@@ -43,7 +43,15 @@ export const findPlatformDayCounter = async (db: Db, day: string) =>
 
 /** A search's rounds in order, each with its plan (decision 0133: where its legs read). */
 export const listRoundsOfSearch = async (db: Db, searchId: string) =>
-  db.from("lead_rounds").select("id, seq, purpose, plan").eq("search_id", searchId).order("seq", { ascending: true });
+  db
+    .from("lead_rounds")
+    .select("id, seq, purpose, plan, ending")
+    .eq("search_id", searchId)
+    .order("seq", { ascending: true });
+
+/** Where a round that ran out of its area looks next (decision 0133): written while it is open, before it ends. */
+export const recordRoundNearby = async (db: Db, roundId: string, nearby: Json) =>
+  db.from("lead_rounds").update({ nearby }).eq("id", roundId).neq("state", "ended");
 
 /** The members of a round, or of a search, whole. */
 export const listSearchMembers = async (db: Db, by: "round_id" | "search_id", id: string) =>

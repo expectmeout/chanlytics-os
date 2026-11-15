@@ -358,7 +358,9 @@ export interface LeadDb {
   /** Every member of the search, of every round: what a top-up or a renewal sizes from (PRD §0.5, "the running yield"). */
   membersOfSearch(searchId: string): Promise<LeadMemberRow[]>;
   /** The search's rounds in order, each with its plan: where its legs read (decision 0133), and the area on its card. */
-  roundsOfSearch(searchId: string): Promise<Pick<LeadRoundRow, "id" | "seq" | "purpose" | "plan">[]>;
+  roundsOfSearch(searchId: string): Promise<Pick<LeadRoundRow, "id" | "seq" | "purpose" | "plan" | "ending">[]>;
+  /** Where a round that ran out of its area looks next (decision 0133): written before it ends, as a collect writes it. */
+  roundNearby(roundId: string, nearby: LeadArea[]): Promise<void>;
   /** place id -> lead id, for the place ids this workspace already holds (leads and folded listings). */
   placeIdsHeld(tenantId: TenantId, placeIds: string[]): Promise<Map<string, string>>;
   sharesOf(

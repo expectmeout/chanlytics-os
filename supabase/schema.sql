@@ -11552,6 +11552,7 @@ declare
   v_usd    numeric;
   v_err    jsonb;
   v_next   uuid;
+  v_short  boolean;
 begin
   if p_ending not in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused', 'reach_searched', 'day_used') then
     raise exception 'not one of the endings: %', p_ending using errcode = '22023';
@@ -11617,6 +11618,16 @@ begin
                         else p_ending end;
         end if;
       end if;
+    end if;
+  end if;
+  -- A leg the month's leads held short (decision 0133) met the count it was given and not the search's: the search
+  -- stops on the month's leads, with the day they renew, never as found.
+  if p_ending = 'target_reached' and r.purpose = 'widen' then
+    select (x.plan->>'count')::integer > (select count(*) from public.lead_search_members m
+                                           where m.search_id = r.search_id and m.counted)
+      into v_short from public.lead_searches x where x.id = r.search_id;
+    if v_short then
+      v_ending := 'month_leads_used';
     end if;
   end if;
   update public.lead_rounds
@@ -12734,8 +12745,6 @@ declare
   v_pday    text;
   v_err     jsonb;
   v_round   uuid;
-  v_beyond  jsonb;
-  v_purpose text := p_purpose;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -12778,15 +12787,6 @@ begin
   else
     v_target := v_count;
   end if;
-  -- Look further out (decision 0133): a search that searched every area within its reach, asked for more with a reach as
-  -- far as an area its last round found past it, carries on from that area as a leg, and reads none of its own again.
-  if p_purpose = 'topup' and last.ending = 'reach_searched' then
-    select a into v_beyond from jsonb_array_elements(coalesce(last.nearby, '[]'::jsonb)) as x(a)
-     where a ? 'beyond_m' and (a->>'beyond_m')::integer <= coalesce((p_plan->>'reach_m')::integer, 0) limit 1;
-    if v_beyond is not null then
-      v_purpose := 'widen';
-    end if;
-  end if;
   if not public.lead_searches_on(s.tenant_id) then
     return jsonb_build_object('error', 'paused', 'sentence', 'Lead searches are paused for now. Your leads are all here, and nothing is being counted.');
   end if;
@@ -12806,15 +12806,13 @@ begin
     update public.lead_searches set plan = p_plan where id = p_search_id;
   end if;
   insert into public.lead_rounds (tenant_id, search_id, seq, purpose, plan, plan_version, target, state, allowance_reserved, cost_reserved_usd, month, day, platform_day)
-  values (s.tenant_id, p_search_id, last.seq + 1, v_purpose,
-          case when v_beyond is null then p_plan else jsonb_set(p_plan, '{area}', v_beyond - 'beyond_m') end,
-          v_version, v_target, 'queued', v_target, p_estimate_usd, v_month, v_day, v_pday)
+  values (s.tenant_id, p_search_id, last.seq + 1, p_purpose, p_plan, v_version, v_target, 'queued', v_target, p_estimate_usd, v_month, v_day, v_pday)
   returning id into v_round;
   insert into public.jobs (tenant_id, kind, due_at, payload)
   values (s.tenant_id, 'lead_round_start', now(), jsonb_build_object('round_id', v_round));
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (s.tenant_id, 'lead.round', 'lead', 'lead_round', v_round,
-          jsonb_build_object('search_id', p_search_id, 'seq', last.seq + 1, 'state', 'queued', 'purpose', v_purpose, 'target', v_target, 'by', v_user));
+          jsonb_build_object('search_id', p_search_id, 'seq', last.seq + 1, 'state', 'queued', 'purpose', p_purpose, 'target', v_target, 'by', v_user));
   return jsonb_build_object('search_id', p_search_id, 'round_id', v_round, 'seq', last.seq + 1, 'target', v_target);
 end $$;
 
@@ -12823,7 +12821,7 @@ end $$;
 -- Name: FUNCTION lead_search_more(p_search_id uuid, p_purpose text, p_plan jsonb, p_estimate_usd numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_search_more(p_search_id uuid, p_purpose text, p_plan jsonb, p_estimate_usd numeric) IS 'Owner. A new round on an ended search: topup reserves the count minus what already counted, renew the whole count, through the same reservation as create; the plan is the current version or the next (stored on the search); the estimate at most lead_estimate_ceiling for the plan''s count and terms (00364). {error: live} while a round is open; {error: nothing_to_add} when the count is already met; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00364). A top-up of a search that ended reach_searched, with a reach as far as an area its last round found past its own (nearby, marked beyond_m), opens a widen round on that area instead (decision 0133).';
+COMMENT ON FUNCTION public.lead_search_more(p_search_id uuid, p_purpose text, p_plan jsonb, p_estimate_usd numeric) IS 'Owner. A new round on an ended search: topup reserves the count minus what already counted, renew the whole count, through the same reservation as create; the plan is the current version or the next (stored on the search); the estimate at most lead_estimate_ceiling for the plan''s count and terms (00364). {error: live} while a round is open; {error: nothing_to_add} when the count is already met; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00364).';
 
 
 --

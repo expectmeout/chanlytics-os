@@ -27,7 +27,7 @@ export function runStateOf(status: string): "running" | "succeeded" | "failed" |
 }
 
 /** A run the provider failed or let time out: the source stopped answering it. */
-export const failedRun = (r: LeadRunRow): boolean => r.state === "failed" || r.state === "timed_out";
+export const failedRun = (run: LeadRunRow): boolean => run.state === "failed" || run.state === "timed_out";
 
 /**
  * The runs that stand for their terms (decision 0133): a failed run that a later run of its term followed (a try

@@ -12,6 +12,9 @@
 import { reachOf, type LeadArea, type LeadSearchPlan } from "@chanlytics/contracts";
 import { haversineM, nearestAreas, type LatLng } from "./geo";
 
+/** One area as the search's rounds name it: two rounds of one area read the same ground. */
+export const areaKey = (area: Pick<LeadArea, "kind" | "label">): string => `${area.kind}:${area.label}`;
+
 /** How many areas one rung names: the first is the next leg's, all of them the owner's "look near" when widening is off. */
 const RUNG_AREAS = 3;
 /** Every ZIP centre nearestAreas could give inside any reach, so the spacing below has all of them to choose from. */

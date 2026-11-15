@@ -165,3 +165,29 @@ test("a leg with nothing left within its reach names the areas past it, each mar
     assert.ok(haversineM(area.center, AUSTIN) <= 50 * 1_609, `${area.zip} stays within the farthest an owner may ask`);
   }
 });
+
+/** A top-up the owner pressed (Carry on, Find more, the rest when the leads renew): the search's plan on `area`. */
+function topupOpened(w, card, area, wanted) {
+  const leg = legOpened(w, card, wanted);
+  return Object.assign(leg, { purpose: "topup", plan: { ...card.plan, area } });
+}
+
+test("a top-up in a fresh area asks it whole, though its term read the card's area to its limit (decision 0133)", async () => {
+  const { w, p } = searching({});
+  const card = cardRoundRead(w, 600, 30);
+  const topup = topupOpened(w, card, LEG_AREA, 70);
+  await startRound(p(), topup.id, OWNER);
+  assert.deepEqual(asked(w), [["hair salon", 120]], "what the term read in the city says nothing of the ZIP");
+});
+
+test("a top-up with nothing left to ask in its area names where the search looks next, and ends, so its next area opens", async () => {
+  const { w, p } = searching({});
+  const card = cardRoundRead(w, 50, 10);
+  const topup = topupOpened(w, card, card.plan.area, 90);
+  await startRound(p(), topup.id, OWNER);
+  assert.deepEqual(asked(w), [], "the card's area was searched to its end: nothing past it is paid for");
+  const after = w.T.lead_rounds.find((r) => r.id === topup.id);
+  assert.equal(after.ending, "few_new_matches");
+  assert.ok(after.nearby.length > 0, "it names the next area, which the round's end opens where the search widens");
+  for (const area of after.nearby) assert.notEqual(area.label, card.plan.area.label);
+});

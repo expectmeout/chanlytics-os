@@ -629,6 +629,6 @@
     "00624_a_policy_changes_in_one_write.sql": "8f687746321cb05b2988cd298dc1a4b4d072915eb64fd765108497d4ff891c46",
     "00625_a_day_is_one_sum_and_a_page_reads_its_own_modes.sql": "81539de9f6b698294c5e3781c5a0d330e553ccbfd2e1089b695ff8a7d998b7f5",
     "00626_the_lead_caps_fit_a_count.sql": "5f78b08d088d1a2984d6341748a3c6485fcca2c0701079f110baa211103fba32",
-    "00627_a_search_widens_until_its_count.sql": "09d6d1bd07a4bd3205bbe3a6ab1d8eca15c10fc114b539b3834573283b15db4e"
+    "00627_a_search_widens_until_its_count.sql": "cd7e115889884cc262fe86c8063b95814609b813e41d8266f46a623972eb54a2"
   }
 }

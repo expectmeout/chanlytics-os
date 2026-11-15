@@ -1265,6 +1265,11 @@ test("a leg's strip counts the whole search and names the area it reads, and say
   assert.equal(vm.title, "Finding personal trainers in Round Rock, TX");
   assert.deepEqual(vm.parts.slice(0, 3), ["86 of 200", "Austin, TX searched", "41 emails checked"]);
   assert.deepEqual(vm.count, { n: 86, of: 200 }, "of what the owner asked, never of the 114 the leg still wants");
+  assert.deepEqual(
+    leadStrip(withRound({ purpose: "topup", seq: 2, target: 114 }), NOW).count,
+    { n: 86, of: 200 },
+    "a top-up's too: 86 of 200, never 86 of 114",
+  );
 });
 
 test("a search that read everything within its reach says how far, never that none exist, and what stays the owner's", () => {

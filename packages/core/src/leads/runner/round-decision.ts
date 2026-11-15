@@ -10,11 +10,12 @@ import { runIdFor } from "../ids";
 import type { CollectPage, LeadMemberRow, LeadPorts, LeadRoundRow, LeadRunRow } from "../ports";
 import { afterProbe } from "../question";
 import { runsRoom } from "../sizing";
+import { areaKey } from "../ladder";
 import { nearbyFor } from "./places";
 import { LEAD_RUN_RETRY_SECONDS, retryOf } from "./retries";
 import { type Phase, outOfTime, targetOf, wasJudged } from "./rules";
 import { logAndGoOn } from "@chanlytics/log";
-import { reachOf } from "@chanlytics/contracts";
+import { reachOf, type LeadArea } from "@chanlytics/contracts";
 
 /** The round's first batch of mailbox checks, written with the page that sends the round to them. */
 const FIRST_CHECK = { kind: "lead_check", batch: 0, run_after_seconds: 0 } as const;
@@ -104,25 +105,23 @@ const TRY_AGAIN: Decision = {
  * past the area of every leg it opened, this one's too. A leg's own plan names its leg's area, so the card's is the
  * newest round that is no leg.
  */
-async function nearbyOfSearch(leadPorts: LeadPorts, round: LeadRoundRow, members: LeadMemberRow[]) {
+export async function findNextAreas(leadPorts: LeadPorts, round: LeadRoundRow): Promise<LeadArea[]> {
   const rounds = await leadPorts.db.roundsOfSearch(round.search_id);
   const card = rounds.filter((r) => r.purpose !== "widen").at(-1) ?? round;
-  const legs = rounds.filter((r) => r.purpose === "widen").map((r) => r.plan.area);
   // A leg's plan is the search's own with its area swapped, so it carries the reach the owner asked last ("Look up to
   // 50 miles"); the card's round may carry the reach before it.
   const plan = { ...card.plan, ...(round.plan.reach_m === undefined ? {} : { reach_m: round.plan.reach_m }) };
-  const cardRounds = new Set(rounds.filter((r) => r.purpose !== "widen").map((r) => r.id));
-  const found =
-    round.purpose === "widen"
-      ? (await leadPorts.db.membersOfSearch(round.search_id)).filter((m) => cardRounds.has(m.round_id ?? ""))
-      : members;
-  const within = nearbyFor(plan, found, legs);
+  // The ladder measures from the card's area and what its rounds found there, and passes every other area read.
+  const onCard = new Set(rounds.filter((r) => areaKey(r.plan.area) === areaKey(card.plan.area)).map((r) => r.id));
+  const read = rounds.filter((r) => !onCard.has(r.id)).map((r) => r.plan.area);
+  const found = (await leadPorts.db.membersOfSearch(round.search_id)).filter((m) => onCard.has(m.round_id ?? ""));
+  const within = nearbyFor(plan, found, read);
   // Nothing left within the reach on its card: the areas past it, up to the farthest an owner may ask (reachOf holds
   // every reach to it), each marked with that reach, so the round's end never opens one by itself and the owner's Look up
   // to 50 miles can.
   const farthest = reachOf(plan.area, Number.POSITIVE_INFINITY);
   if (within.length || reachOf(plan.area, plan.reach_m) >= farthest) return within;
-  return nearbyFor({ ...plan, reach_m: farthest }, found, legs).map((a) => ({ ...a, beyond_m: farthest }));
+  return nearbyFor({ ...plan, reach_m: farthest }, found, read).map((a) => ({ ...a, beyond_m: farthest }));
 }
 
 /** The searching is over: the ending, pending the checks (a stopped round says so through stopRun). */
@@ -158,9 +157,7 @@ async function phaseOver(
   // A round that ran dry says where to look next (D3): written with its ending, before the round is final. Where the
   // search widens by itself (decision 0133), its first area is the next leg's, which the round's end opens.
   const nearby =
-    ending === "searched_everything" || ending === "few_new_matches"
-      ? await nearbyOfSearch(leadPorts, round, members)
-      : [];
+    ending === "searched_everything" || ending === "few_new_matches" ? await findNextAreas(leadPorts, round) : [];
   return {
     round: {
       state: "checking",
