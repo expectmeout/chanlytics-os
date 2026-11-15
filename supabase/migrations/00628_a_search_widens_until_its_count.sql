@@ -44,7 +44,7 @@ alter table public.lead_rounds add constraint lead_rounds_ending_pending_check
 alter table public.lead_platform add column if not exists widen_on boolean not null default false;
 alter table public.lead_platform add column if not exists widen_tenants uuid[] not null default '{}'::uuid[];
 comment on column public.lead_platform.widen_on is
-  'Whether every workspace''s search widens until its count (decision 0133, 00627): a round that runs dry opens the next leg on the nearest area left within the reach on its card. Off by default.';
+  'Whether every workspace''s search widens until its count (decision 0133, 00628): a round that runs dry opens the next leg on the nearest area left within the reach on its card. Off by default.';
 comment on column public.lead_platform.widen_tenants is
   'The workspaces a search widens for while widen_on is off (decision 0133): the first real run, one workspace at a time. Switched by hand.';
 
@@ -199,7 +199,7 @@ begin
 end $$;
 
 comment on function public.lead_round_end(uuid, text) is
-  'Ends a round with one of the endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. Where the platform widens for the workspace (decision 0133, 00627), a search short of its count whose round ran dry opens its next leg here (purpose widen, on the first area of nearby), or ends on reach_searched, day_used, month_leads_used or budget_used. True once; false when already ended.';
+  'Ends a round with one of the endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. Where the platform widens for the workspace (decision 0133, 00628), a search short of its count whose round ran dry opens its next leg here (purpose widen, on the first area of nearby), or ends on reach_searched, day_used, month_leads_used or budget_used. True once; false when already ended.';
 
 create or replace function public.lead_rounds_guard()
 returns trigger

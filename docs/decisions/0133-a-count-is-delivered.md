@@ -1,7 +1,7 @@
 # 0133 · A count is delivered
 
 **Status:** Decided by Ruben, 14 November 2026 ("Yes, all five", to D1-D5 of the plan below, and "Yes, take them", to an
-outside review's six changes); steps 1 to 4 built (00626, 00627; widening ships off), step 5 not yet. Written against main at `e40c45927f`; built in one lane, `cm-count-delivered`.
+outside review's six changes); steps 1 to 4 built (00627, 00628; widening ships off), step 5 not yet. Written against main at `e40c45927f`; built in one lane, `cm-count-delivered`.
 
 ## Context
 
@@ -78,7 +78,7 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
 - **A leg** is one round of `purpose = 'widen'` on one area: the search's plan with the rung's first area. A run is
   still one per term (its id is round, phase and term), and each leg is a round of its own, so no two runs share an
   id. Legs run one after another, so a search holds about one run per term at a time.
-- **Where it opens:** `lead_round_end` (00627). A round ending `few_new_matches` or `searched_everything` short of the
+- **Where it opens:** `lead_round_end` (00628). A round ending `few_new_matches` or `searched_everything` short of the
   search's count, where `lead_platform.widen_on` or `widen_tenants` names the workspace, does three things:
   - settles and releases its own reservation;
   - reserves the next leg through `lead_reserve`, at `lead_estimate_ceiling` for what the count still wants, and only
@@ -100,10 +100,10 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
 
 ## Steps
 
-1. **Deep for a city, and the caps** (00626, applied before the merge): `maxPerTerm` reads 600 for a city area; the
+1. **Deep for a city, and the caps** (00627, applied before the merge): `maxPerTerm` reads 600 for a city area; the
    month's, the day's and the platform's caps.
 2. **The ladder and the reach**, nothing a customer sees: `ladder.ts`; `plan.reach_m`.
-3. **Legs** (00627, applied before the merge), off for everyone:
+3. **Legs** (00628, applied before the merge), off for everyone:
    - the round's end opens the next leg;
    - a leg reads and sizes its own area;
    - the two endings; the notice;
@@ -114,7 +114,7 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
    - **only finished leads for a search:** its band is Qualified alone, and its strip links to no Needs review or Left
      out, nor says a number of them (`leadBand` and the strip read `isLeadList`: a list of the owner's own keeps all
      three, D4);
-   - **the card's reach line,** where the workspace widens (`lead_search_widens`, 00627, the one rule `lead_round_end`
+   - **the card's reach line,** where the workspace widens (`lead_search_widens`, 00628, the one rule `lead_round_end`
      reads too): "Looks in Brooklyn first, then nearby, up to 25 miles away", and "Change how far" (only the card's
      area, 10, 25 or 50 miles, and the plan's own) writes `plan.reach_m`. Ask's card says the same as a row. Where it
      does not widen, no reach is said, and a count past one area is said as before;

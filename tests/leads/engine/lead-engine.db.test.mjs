@@ -1971,7 +1971,7 @@ test(
 
     let r = await atTheEdge((q) => q.eq("tenant_id", A).eq("kind", "budget").eq("period", month), 39.9, 0.2);
     assert.equal(r.error, "budget_used", JSON.stringify(r));
-    assert.equal(Number(r.left_usd), 0.1, "what is left of the month's $40 (00626)");
+    assert.equal(Number(r.left_usd), 0.1, "what is left of the month's $40 (00627)");
     assert.match(
       r.sentence,
       /^This month's searching is nearly used up\. Try a smaller search, or a phone standard; it renews on [A-Z][a-z]{2} 1\.$/,

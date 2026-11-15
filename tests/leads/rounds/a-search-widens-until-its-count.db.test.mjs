@@ -1,5 +1,5 @@
 /**
- * A search widens until its count (decision 0133, 00627): where the platform widens for the workspace, a round that ends
+ * A search widens until its count (decision 0133, 00628): where the platform widens for the workspace, a round that ends
  * short of the search's count, having run dry, opens the search's next leg itself (lead_round_end), on the first area it
  * named, for what the count still wants, through the same reservation as any round; it rings nothing, and the leg that
  * ends the search rings with every leg's count. It stops on reach_searched (no area left, or the last two legs adding

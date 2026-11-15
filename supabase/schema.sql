@@ -11669,7 +11669,7 @@ end $$;
 -- Name: FUNCTION lead_round_end(p_round_id uuid, p_ending text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) IS 'Ends a round with one of the endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. Where the platform widens for the workspace (decision 0133, 00627), a search short of its count whose round ran dry opens its next leg here (purpose widen, on the first area of nearby), or ends on reach_searched, day_used, month_leads_used or budget_used. True once; false when already ended.';
+COMMENT ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) IS 'Ends a round with one of the endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. Where the platform widens for the workspace (decision 0133, 00628), a search short of its count whose round ran dry opens its next leg here (purpose widen, on the first area of nearby), or ends on reach_searched, day_used, month_leads_used or budget_used. True once; false when already ended.';
 
 
 --
@@ -39257,7 +39257,7 @@ COMMENT ON COLUMN public.lead_platform.prices IS 'Each lead source''s event pric
 -- Name: COLUMN lead_platform.widen_on; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.lead_platform.widen_on IS 'Whether every workspace''s search widens until its count (decision 0133, 00627): a round that runs dry opens the next leg on the nearest area left within the reach on its card. Off by default.';
+COMMENT ON COLUMN public.lead_platform.widen_on IS 'Whether every workspace''s search widens until its count (decision 0133, 00628): a round that runs dry opens the next leg on the nearest area left within the reach on its card. Off by default.';
 
 
 --

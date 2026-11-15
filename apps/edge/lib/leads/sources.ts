@@ -94,7 +94,7 @@ export async function recordPageContactsUnread(
 const PLATFORM_DAY_PAGE_SHARE = 0.8;
 
 /**
- * Every workspace's searching together has reserved or spent 80% of the platform's day (decision 0133, 00626): paged
+ * Every workspace's searching together has reserved or spent 80% of the platform's day (decision 0133, 00627): paged
  * once that day. Past the cap a search's next leg ends on "today's searching is used", and a new search is refused
  * until the next UTC day, so we hear before it happens. True when it paged.
  */

@@ -1753,7 +1753,7 @@ One row. searches_on is the kill switch for every workspace; tenants_on lists th
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `cards_on` | text[] | no | `ARRAY['local_businesses'::text]` | The cards that find leads now (00430): local_businesses, and people_at_companies once its calibration run proved its filters and fields. Switched by hand; lead_card_live reads it. |
 | `prices` | jsonb | no | `'{}'::jsonb` | Each lead source's event prices by actor and event, as the price watch last read them (00506): the baseline the next daily read is compared with, a rise past a tenth or a new charge paged to the platform, since the cards' prices (contracts LEAD_CARDS) and the SQL ceiling are written by hand. |
-| `widen_on` | boolean | no | `false` | Whether every workspace's search widens until its count (decision 0133, 00627): a round that runs dry opens the next leg on the nearest area left within the reach on its card. Off by default. |
+| `widen_on` | boolean | no | `false` | Whether every workspace's search widens until its count (decision 0133, 00628): a round that runs dry opens the next leg on the nearest area left within the reach on its card. Off by default. |
 | `widen_tenants` | uuid[] | no | `'{}'::uuid[]` | The workspaces a search widens for while widen_on is off (decision 0133): the first real run, one workspace at a time. Switched by hand. |
 
 ### lead_preferences
