@@ -33,7 +33,6 @@ import {
   type MailboxHistory,
   type NewAudience,
   type NewDraftDto,
-  type NewMessage,
   type NewKind,
   type ReachOutSourceDto,
   type SequenceMode,
@@ -480,9 +479,6 @@ export function HourSelect({ hour, onHour }: { hour: number; onHour: (h: number)
   );
 }
 
-/** A draft with no message yet, as the picker reads it: every channel written for, so each row says what the workspace can do. */
-const ANY_MESSAGE: Pick<NewMessage, "channels" | "offer"> = { channels: ["whatsapp", "email", "sms"], offer: false };
-
 /**
  * The channels a one-off goes by: each person once, the first they can hear it on. Each row is the one rule's answer for
  * its message here (new-checks.ts draftChoicesOf, the send door's own question): open, or closed in the rule's own words,
@@ -497,7 +493,7 @@ export function ChannelsSheet(p: {
   onChannels: (c: ConsentChannel[]) => void;
   onClose: () => void;
 }) {
-  const choices = draftChoicesOf(p.draft, p.draft.steps[0]?.message ?? ANY_MESSAGE, p.channels);
+  const choices = draftChoicesOf(p.draft, p.draft.steps[0]?.message ?? null, p.channels);
   const rows: { c: ConsentChannel; name: string }[] = [
     { c: "whatsapp", name: W.channels.whatsapp },
     { c: "email", name: W.channels.email },

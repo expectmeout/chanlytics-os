@@ -59,6 +59,8 @@ export function channelsStandingParts(ready: ChannelsReady | null | undefined): 
       door: null,
     },
   ];
+  // What no setting of the workspace fixes has no door: a check that could not be made just now, a deployment without an
+  // email wire, a texting line that waits on the carriers or is a test filing, a number whose quality must recover.
   for (const c of closed) {
     const reason = ready[c].why;
     parts.push({
@@ -66,8 +68,6 @@ export function channelsStandingParts(ready: ChannelsReady | null | undefined): 
       channels: [c],
       open: false,
       words: closedWords(c, reason),
-      // What no setting of the workspace fixes has no door: a check that could not be made just now, a deployment without
-      // an email wire, a texting line that waits on the carriers or is a test filing, a number whose quality must recover.
       door: ready[c].mend === "connect" ? CHANNELS_DOOR : null,
     });
   }

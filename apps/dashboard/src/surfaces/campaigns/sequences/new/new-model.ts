@@ -54,9 +54,10 @@ import {
 import type { KeptSend } from "./kept-send";
 import {
   carriersOf,
-  draftChoicesOf,
   draftOpenOf,
+  heldChoicesOf,
   messagePurposeOf,
+  noWayOf,
   newChecksOf,
   newReachOf,
   reachHowOf,
@@ -499,29 +500,7 @@ export interface FootReads {
   channels: ChannelsReady;
 }
 
-/** How each channel its first message is written for stands here now (the one rule, new-checks.ts draftChoicesOf). */
-function heldChoicesOf(d: NewDraftDto, workspace: ChannelsReady) {
-  const first = d.steps[0]?.message;
-  return first ? draftChoicesOf(d, first, workspace).filter((c) => first.channels.includes(c.channel)) : [];
-}
-
-/**
- * Where a person's draft goes by nothing because none of the ways its first message is written for is open here (so How
- * has nothing to tick): the channel to connect, where connecting one opens a way; else why, in the reason the rule gives
- * (one the business can mend first, then one that waits, then a rule's), which asks nothing where nothing can be done.
- * Null where one is open, or nothing is picked yet.
- */
-function noWayOf(d: NewDraftDto, workspace: ChannelsReady): { connect: ConsentChannel } | { why: string } | null {
-  if (d.audience !== "people" || d.channels.length > 0) return null;
-  const choices = heldChoicesOf(d, workspace);
-  if (choices.length === 0 || choices.some((c) => c.ok)) return null;
-  const connect = choices.find((c) => c.mend === "connect");
-  if (connect) return { connect: connect.channel };
-  const said = choices.find((c) => c.mend !== null) ?? choices.find((c) => !c.rule) ?? choices[0];
-  return said?.why ? { why: said.why } : null;
-}
-
-/** What the foot says where no way is open (noWayOf): the channel to connect, or why, under "Nothing it goes by can carry it". */
+/** What the foot says where no way is open (new-checks.ts noWayOf): the channel to connect, or why. */
 const noWaySaid = (noWay: NonNullable<ReturnType<typeof noWayOf>>): { lead: string; sub: string } => ({
   lead: NEW_WORDS.reach.why.no_channel,
   sub: "connect" in noWay ? NEW_WORDS.reach.connect(noWay.connect) : noWay.why,
