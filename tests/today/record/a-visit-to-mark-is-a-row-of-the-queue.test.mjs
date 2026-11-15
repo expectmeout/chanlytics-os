@@ -151,10 +151,11 @@ test("yesterday's unmarked visits are To do's rows: the person, 'Did they come?'
   );
   find(open, (n) => classes(n).includes("cl-attn-body")).props.onClick();
   assert.equal(went.at(-1), "calendar/2026-09-17:a-r-a");
-  // The rest, at To do's foot: how many more, and, nothing else being left out, the Calendar on yesterday as its door.
+  // The rest, at To do's foot: how many more, and, nothing else being left out, the first visit it does not draw as its
+  // door (15 Nov 2026: it was the Calendar on yesterday), whose sheet's Next walks on through the rest.
   const foot = byTestId(queueOf(tree), "today-group-todo-more");
   assert.equal(textOf(foot).trim(), "1 more to do");
-  assert.match(foot.props.href, /calendar\/2026-09-17$/, "the Inbox holds no visit");
+  assert.match(foot.props.href, /calendar\/2026-09-17:a-r-g$/, "the Inbox holds no visit");
 });
 
 test("with nobody waiting, To do is the list: its three, nobody waiting over them", () => {
@@ -448,7 +449,7 @@ test("REGRESSION: a visit marked keeps its place in To do's three, with its word
   assert.ok(textOf(rows[0]).includes("Kept"), "it says what it was marked");
   const foot = byTestId(queueOf(after), "today-group-todo-more");
   assert.ok(foot && textOf(foot).includes("1 more to do"), "REGRESSION: the visit left out was said nowhere");
-  assert.match(foot.props.href, /calendar\/2026-09-17$/, "its door is the Calendar on yesterday");
+  assert.match(foot.props.href, /calendar\/2026-09-17:a-r-g$/, "its door is the one left out, on the Calendar");
 });
 
 test("Mark all kept, at To do's foot: every one of yesterday's left to mark, the ones past the three drawn among them, asked first, then said through the one door; nothing for one, or for whoever may not say it", async () => {

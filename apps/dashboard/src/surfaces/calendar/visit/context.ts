@@ -5,6 +5,14 @@
 import type { AppointmentWord, CalendarBlockVM, VisitFollowUp, VisitWord } from "@chanlytics/contracts";
 import type { VisitSheetVM } from "./sheet-view";
 
+/** The next visit to mark, as the foot offers it (next.tsx): its words, and what a press does. */
+export interface VisitNext {
+  label: string;
+  /** Who and when, and how many are left, for a screen reader and a pointer's hover. */
+  aria: string;
+  go: () => void;
+}
+
 /** What the parts are drawn from, and what they do. */
 export interface VisitCtx {
   block: CalendarBlockVM;
@@ -17,4 +25,6 @@ export interface VisitCtx {
   flash: (text: string) => void;
   /** Keep what the door answered a word said here (useVisitOutcome): the sheet draws the visit as it was told. */
   settle: (word: VisitWord, follows: VisitFollowUp | null) => void;
+  /** Once a word is said here, the next visit waiting for one (next.tsx), else null. */
+  next: VisitNext | null;
 }

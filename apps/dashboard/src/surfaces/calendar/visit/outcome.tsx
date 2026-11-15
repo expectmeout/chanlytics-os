@@ -11,6 +11,7 @@
 import { useState } from "react";
 import { VISIT_ASK_WORDS, type CalendarBlockVM, type VisitFollowUp, type VisitWord } from "@chanlytics/contracts";
 import type { VisitCtx } from "./context";
+import { noteSaid } from "./next";
 import type { VisitSheetOutcome } from "./sheet-view";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { gate } from "../../frame-verbs";
@@ -51,7 +52,10 @@ export async function sayHere(
   const mark = visitCtx.vm.line.mark;
   if (!mark) return null;
   const answer = await sayVisit(mark.id, word);
-  if (answer.ok) visitCtx.settle(word, answer.follows);
+  if (answer.ok) {
+    noteSaid(mark.id);
+    visitCtx.settle(word, answer.follows);
+  }
   return answer;
 }
 

@@ -260,15 +260,17 @@ export const NEED_YOU_WORDS = {
       `They missed their ${word} ${when}. Say sorry we missed them, and ask whether they would like another time. Use the booking link where one helps.`,
     rebookSent: "Missed · rebook sent",
     /**
-     * Every one of yesterday's left to mark, said kept at once (Today's Mark all kept, decision 0123's loose end): the
+     * Every one of the past week's left to mark, said kept at once (Today's Mark all kept, decision 0123's loose end): the
      * press, its question, and what it came to. A Kept cannot be taken back to unmarked, only changed to Missed, so the
-     * question says so, and what follows.
+     * question says so, and what follows: a thank-you says "yesterday", so where one of them is older (`older`), only
+     * yesterday's are thanked.
      */
     allKept: {
       act: (n: number) => `Mark all ${n} kept`,
-      ask: (n: number, many: string) => `Did all ${n} of yesterday's ${many} come?`,
-      detail:
-        "Each one marked kept is thanked, where a thank-you runs. Any of them can be changed to Missed afterwards, on the Calendar.",
+      ask: (n: number, many: string, older: boolean) =>
+        older ? `Did all ${n} ${many} of the past week come?` : `Did all ${n} of yesterday's ${many} come?`,
+      detail: (older: boolean) =>
+        `${older ? "Yesterday's are thanked, where a thank-you runs. Older ones are only marked." : "Each one marked kept is thanked, where a thank-you runs."} Any of them can be changed to Missed afterwards, on the Calendar.`,
       yes: "Mark them kept",
       no: "Not yet",
       done: (n: number) => (n === 1 ? "Marked kept" : `${n} marked kept`),
