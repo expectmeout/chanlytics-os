@@ -26,6 +26,20 @@ export const listSearchCards = async (db: Db, tenantId: TenantId, limit: number)
     .order("created_at", { ascending: false })
     .limit(limit);
 
+/**
+ * What the view does not carry of these rounds of the workspace (decision 0133): the area a leg reads, which the strip
+ * names while it runs, and when a round put off until the month's leads renew starts.
+ */
+export const listRoundExtras = async (db: Db, tenantId: TenantId, roundIds: string[]) =>
+  db.from("lead_rounds").select("id, area:plan->area, starts_at").eq("tenant_id", tenantId).in("id", roundIds);
+
+/** Whether the workspace's searches look further out by themselves, short of their count (decision 0133). */
+export async function findSearchWidens(db: Db, tenantId: TenantId): Promise<boolean> {
+  const { data, error } = await db.rpc("lead_search_widens", { p_tenant_id: tenantId });
+  if (error) throw new DbFailure(error, "cannot read whether searches widen");
+  return data === true;
+}
+
 /** The name of the workspace's newest search not removed, or null where there is none; a blank name is "", still one. */
 export async function findNewestSearchName(db: Db, tenantId: TenantId): Promise<string | null> {
   const { data, error } = await db

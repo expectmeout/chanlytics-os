@@ -447,7 +447,7 @@ export {
   usStatesTyped,
 } from "./search/people-plan/plan";
 export type { LeadPeoplePlan, PeopleMonth, PeoplePlanInput } from "./search/people-plan/plan";
-export { planNeedsASite, planReadsSites, planVersionOf } from "./search/plan";
+export { planNeedsASite, planReadsSites, planVersionOf, reachOf } from "./search/plan";
 export type {
   LeadArea,
   LeadContactStandard,
@@ -458,7 +458,7 @@ export type {
 } from "./search/plan";
 export { LeadSearchPlanSchema } from "./search/plan-schema";
 export { planArea, planLeavingOut, planSaid, planSentence, planWhere, planWho, planWords } from "./search/sentence";
-export { lowerFirst } from "./search/sentence";
+export { lowerFirst, planMinutesSaid, planReachChoices, planReachMiles, planReachSaid } from "./search/sentence";
 export type { LeadPlanWord } from "./search/sentence";
 export {
   LEAD_COUNTER_KINDS,

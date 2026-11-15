@@ -89,6 +89,8 @@ export interface LeadRunRow {
 /** A member of the round with the facts of its lead the runner reads back (the probe's yield, the center, the emails to check). */
 export interface LeadMemberRow {
   lead_id: string;
+  /** The round that found it: a leg's places are told apart from the area on the card's (decision 0133). */
+  round_id: string | null;
   class: LeadMemberClass;
   excluded_by: string | null;
   fit: LeadFit | null;
@@ -355,6 +357,10 @@ export interface LeadDb {
   membersOfRound(roundId: string): Promise<LeadMemberRow[]>;
   /** Every member of the search, of every round: what a top-up or a renewal sizes from (PRD §0.5, "the running yield"). */
   membersOfSearch(searchId: string): Promise<LeadMemberRow[]>;
+  /** The search's rounds in order, each with its plan: where its legs read (decision 0133), and the area on its card. */
+  roundsOfSearch(searchId: string): Promise<Pick<LeadRoundRow, "id" | "seq" | "purpose" | "plan" | "ending">[]>;
+  /** Where a round that ran out of its area looks next (decision 0133): written before it ends, as a collect writes it. */
+  roundNearby(roundId: string, nearby: LeadArea[]): Promise<void>;
   /** place id -> lead id, for the place ids this workspace already holds (leads and folded listings). */
   placeIdsHeld(tenantId: TenantId, placeIds: string[]): Promise<Map<string, string>>;
   sharesOf(
@@ -414,6 +420,7 @@ export interface LeadPorts {
     e:
       | { kind: "question"; roundId: string }
       | { kind: "source_refused"; actor: string; build: string; why: string }
+      | { kind: "source_down"; actor: string; build: string; runs: number }
       | { kind: "contacts_unread"; actor: string; build: string; sites: number },
   ): Promise<void>;
   /** Epoch ms: no provider or model call is started after this. */

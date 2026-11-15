@@ -3382,12 +3382,8 @@ test("the Excluded view's chips count by criterion, and each narrows the rows", 
       textOf(n).trim(),
       n.props["aria-selected"],
     ]),
-    [
-      ["2 Qualified", false],
-      ["1 Needs review", false],
-      ["1 Filtered out", true],
-    ],
-    "the three classes, each a view of the search",
+    [["2 Qualified", false]],
+    "a search's band is its finished leads alone (decision 0133): the Excluded view is its question's, by its address",
   );
 });
 
@@ -3781,7 +3777,11 @@ test("the strip above the table is a component that exists, with a view model be
     "opening a search draws its strip (LeadStrip, imported by the scope): a name nothing declares would throw here",
   );
   assert.equal(s.vm.title, "Found 161 personal trainers", "the ended round's own sentence, from contracts");
-  assert.deepEqual(s.vm.parts, ["88 you can email", "72 by phone", "1 left out"]);
+  assert.deepEqual(
+    s.vm.parts,
+    ["88 you can email", "72 by phone"],
+    "what the search set aside is ours, never a number of its ending (decision 0133)",
+  );
   assert.equal(typeof s.onAction, "function", "one onAction, and it is the page's");
 });
 
@@ -4064,8 +4064,8 @@ test("an ending's one next step opens the plan and starts nothing until it is ap
   const s = strips.at(-1);
   assert.deepEqual(
     s.vm.actions.map((a) => a.id),
-    ["carry_on", "review", "excluded"],
-    "one next step, and the piles the ending's numbers open",
+    ["carry_on"],
+    "one next step, and no pile of ours (decision 0133)",
   );
   s.onAction("carry_on", s.vm.actions[0].arg);
   draw({ leadsRoute: `leads:s-${SEARCH_A}` });

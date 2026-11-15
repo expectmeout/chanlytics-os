@@ -670,8 +670,35 @@ test(
   { skip },
   async () => {
     const w = await world();
-    const rang = bodyIn(migration("00506"), "create or replace function public.lead_rounds_notify(");
-    assert.equal(liveBody("lead_rounds_notify"), rang, "the database runs 00506's");
+    const widened = bodyIn(migration("00628"), "create or replace function public.lead_rounds_notify(");
+    assert.equal(liveBody("lead_rounds_notify"), widened, "the database runs 00628's");
+    // 00628 is 00506's with a search that widens to its count (decision 0133): a round that opened the next leg rings
+    // nothing, the one that ends a widened search counts every leg's finished leads, and an ending short of its count
+    // says why in its title; and nothing else.
+    const rang = widened
+      .replace("  v_want integer;\n", "")
+      .replace("  v_wide boolean;\n", "")
+      .replace(
+        "  select s.name, s.via, (s.plan->>'count')::integer into v_name, v_via, v_want\n    from public.lead_searches s where s.id = NEW.search_id;\n",
+        "  select s.name, s.via into v_name, v_via from public.lead_searches s where s.id = NEW.search_id;\n",
+      )
+      .replace(
+        /coalesce\(NEW\.ending, ''\) <> 'stopped'\n {8}and not NEW\.carries_on then\n(?: {4}--[^\n]*\n){2} {4}select exists [^\n]*into v_wide;\n/,
+        "coalesce(NEW.ending, '') <> 'stopped' then\n",
+      )
+      .replace(
+        /where \(m\.round_id = NEW\.id or \(v_wide and m\.search_id = NEW\.search_id\)\) and m\.class = 'qualified' and m\.blanked_at is null\n {7}and \(v_via = 'import' or public\.lead_member_shown\(m\.class, m\.counted\)\);\n/,
+        "where m.round_id = NEW.id and m.class = 'qualified' and m.blanked_at is null;\n",
+      )
+      .replace(
+        / {16}when NEW\.ending = '(?:day_used|month_leads_used|budget_used|reach_searched)'[^\n]*\n[^\n]*\n/g,
+        "",
+      )
+      .replace(
+        /case when v_via <> 'import' and NEW\.ending = 'reach_searched' then\n[^\n]*\n {16}when v_via <> 'import' then /,
+        "case when v_via <> 'import' then ",
+      );
+    assert.equal(rang, bodyIn(migration("00506"), "create or replace function public.lead_rounds_notify("));
     // 00506 is 00491's with a search that ended waiting a day on its question ringing, and saying so, and nothing else.
     const told = rang
       .replace(

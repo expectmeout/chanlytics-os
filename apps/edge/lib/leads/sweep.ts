@@ -16,6 +16,7 @@ import { json, refuse } from "../shared/http.js";
 import { errField } from "../shared/log.js";
 import { leadWires, type LeadWires } from "./wires.js";
 import { markLeadsAgain } from "./marks.js";
+import { recordPagePlatformDay } from "./sources.js";
 import {
   planLeadSweep,
   type CarryAction,
@@ -268,6 +269,22 @@ async function marksAgain(
   }
 }
 
+/**
+ * Every workspace's searching near the platform's day cap pages us once that day (decision 0133): whether it paged, and
+ * one failure when the counter could not be read, which it says in the sweep's log.
+ */
+async function watchPlatformDay(
+  { db, L }: Pick<SweepTick, "db" | "L">,
+  now: number,
+): Promise<{ paged: boolean; failed: number }> {
+  try {
+    return { paged: await recordPagePlatformDay(db, now), failed: 0 };
+  } catch (e) {
+    L.error("leads_sweep_platform_day_failed", { error: errField(e) });
+    return { paged: false, failed: 1 };
+  }
+}
+
 export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
   const now = Date.now();
   let runs: SweepRunRow[];
@@ -397,6 +414,8 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
   }
   const later = await secondTries({ db, L }, wires, now + SWEEP_DEADLINE_MS);
   Object.assign(counts, { ...later, failed: counts.failed + later.failed });
-  L.info("leads_sweep_done", { ...counts, actions: actions.length });
+  const platform = await watchPlatformDay({ db, L }, now);
+  Object.assign(counts, { failed: counts.failed + platform.failed });
+  L.info("leads_sweep_done", { ...counts, platform_day_paged: platform.paged, actions: actions.length });
   return json(200, { ok: true, ...counts });
 }

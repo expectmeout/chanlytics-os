@@ -3612,6 +3612,8 @@ export type Database = {
           searches_on: boolean
           tenants_on: string[]
           updated_at: string
+          widen_on: boolean
+          widen_tenants: string[]
         }
         Insert: {
           cards_on?: string[]
@@ -3622,6 +3624,8 @@ export type Database = {
           searches_on?: boolean
           tenants_on?: string[]
           updated_at?: string
+          widen_on?: boolean
+          widen_tenants?: string[]
         }
         Update: {
           cards_on?: string[]
@@ -3632,6 +3636,8 @@ export type Database = {
           searches_on?: boolean
           tenants_on?: string[]
           updated_at?: string
+          widen_on?: boolean
+          widen_tenants?: string[]
         }
         Relationships: []
       }
@@ -3797,6 +3803,7 @@ export type Database = {
           allowance_reserved: number
           allowance_used: number
           answered: string | null
+          carries_on: boolean
           cost_reserved_usd: number
           cost_usd: number
           created_at: string
@@ -3819,6 +3826,7 @@ export type Database = {
           seq: number
           site_reads: number
           started_at: string | null
+          starts_at: string | null
           state: string
           state_since: string
           target: number
@@ -3829,6 +3837,7 @@ export type Database = {
           allowance_reserved?: number
           allowance_used?: number
           answered?: string | null
+          carries_on?: boolean
           cost_reserved_usd?: number
           cost_usd?: number
           created_at?: string
@@ -3851,6 +3860,7 @@ export type Database = {
           seq: number
           site_reads?: number
           started_at?: string | null
+          starts_at?: string | null
           state?: string
           state_since?: string
           target: number
@@ -3861,6 +3871,7 @@ export type Database = {
           allowance_reserved?: number
           allowance_used?: number
           answered?: string | null
+          carries_on?: boolean
           cost_reserved_usd?: number
           cost_usd?: number
           created_at?: string
@@ -3883,6 +3894,7 @@ export type Database = {
           seq?: number
           site_reads?: number
           started_at?: string | null
+          starts_at?: string | null
           state?: string
           state_since?: string
           target?: number
@@ -9552,12 +9564,17 @@ export type Database = {
         }
         Returns: Json
       }
+      lead_search_on_renewal: {
+        Args: { p_estimate_usd: number; p_search_id: string }
+        Returns: Json
+      }
       lead_search_remove: { Args: { p_search_id: string }; Returns: Json }
       lead_search_rename: {
         Args: { p_name: string; p_search_id: string }
         Returns: Json
       }
       lead_search_undo: { Args: { p_search_id: string }; Returns: Json }
+      lead_search_widens: { Args: { p_tenant_id: string }; Returns: boolean }
       lead_searches_on: { Args: { p_tenant_id: string }; Returns: boolean }
       lead_set_stage: {
         Args: {

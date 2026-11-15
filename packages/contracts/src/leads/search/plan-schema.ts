@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { stripUnsafe, KEY, US_CODES } from "./plan";
 import type { LeadSearchPlan } from "./plan";
-import { LEAD_MAX_PLACES, US_ZIP } from "./caps";
+import { LEAD_MAX_PLACES, LEAD_REACH_MAX_M, US_ZIP } from "./caps";
 
 /** Words the plan keeps: what is unsafe taken out, trimmed, then held to a length (the people plan reads it too). */
 export const words = (min: number, max: number) =>
@@ -34,6 +34,7 @@ export const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan> = z
       zip: z.string().regex(US_ZIP).optional(),
       query: words(2, 120),
     }),
+    reach_m: z.number().int().min(0).max(LEAD_REACH_MAX_M).optional(),
     count: z.number().int().min(1).max(LEAD_MAX_PLACES),
     contact: z.enum(["phone", "email"]),
     criteria: z

@@ -24,6 +24,24 @@ export const findWorkspaceForConsole = async (db: Db, tenantId: TenantId) =>
     .eq("id", tenantId)
     .maybeSingle();
 
+/** What each of a workspace's searches spent, round by round: the provider's runs and the judge's calls (decision 0133). */
+export const listSearchSpend = async (db: Db, tenantId: TenantId, searchIds: string[]) =>
+  db.from("lead_rounds").select("search_id, cost_usd, judge_usd").eq("tenant_id", tenantId).in("search_id", searchIds);
+
+/**
+ * The places one of a workspace's searches set aside, newest first, `limit` of them (decision 0133): Needs review and
+ * Left out, each with why, the term that found it and the lead's name. The team's view; the owner never sees these.
+ */
+export const listSetAsidePlaces = async (db: Db, tenantId: TenantId, searchId: string, limit: number) =>
+  db
+    .from("lead_search_members")
+    .select("class, excluded_by, created_at, term:judgment->>term, lead:leads(business_name)")
+    .eq("tenant_id", tenantId)
+    .eq("search_id", searchId)
+    .in("class", ["review", "excluded"])
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
 /** One workspace's newest events, `limit` of them: their kind and subject, never their data. */
 export const listWorkspaceEvents = async (db: Db, tenantId: TenantId, limit: number) =>
   db

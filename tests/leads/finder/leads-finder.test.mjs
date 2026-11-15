@@ -16,6 +16,7 @@ import fs from "node:fs";
 import {
   SEARCH_CARD_REPLACED,
   searchCardView,
+  leadBand,
   LEAD_QUESTION_WAIT_LINE,
   LEAD_ROUND_ENDINGS,
   LeadSearchPlanSchema,
@@ -339,8 +340,8 @@ test("a changed count re-plans without the model, and a changed area makes a new
   const counts = byTestId((click(byTestId(drawCard(st), "plan-count")), drawCard(st)), "plan-count-50");
   assert.match(
     textOf(counts),
-    /about 16 min/,
-    "every count says about how long it takes, at the rate five real searches measured",
+    /about 12 to 24 min/,
+    "every count says about how long it takes, at the rate five real searches measured, as a range until real searches measure the spread (decision 0133)",
   );
   st.pick = null;
   pickOption(st, "area", "Round Rock, TX");
@@ -408,7 +409,7 @@ test("Leaving out is chips the owner can take back, Likely says what past search
   );
   assert.equal(
     textOf(byTestId(tree, "plan-facts")),
-    "About 48 minutes — leave the page if you likeAnything already yours is skippedCounts only matches with a checked phone or email · 486 left this month",
+    "About 40 to 80 minutes — leave the page if you likeAnything already yours is skippedCounts only matches with a checked email · 486 left this month",
   );
   assert.equal(/\$/.test(textOf(tree)), false, "there is no dollar meter");
   const chip = byTestId(tree, "plan-leaving-chain");
@@ -831,7 +832,7 @@ test("the running strip says what is true, and its Stop is the only thing to pre
   assert.equal(textOf(byTestId(tree, "strip-title")), "Finding personal trainers in Austin, TX");
   assert.equal(
     textOf(byTestId(tree, "strip-parts")),
-    " \u00b7 86 of 200 \u00b7 41 emails checked \u00b7 about 27 min left",
+    " \u00b7 86 of 200 \u00b7 41 emails checked \u00b7 about 30 min left",
   );
   assert.equal(byTestId(tree, "lead-strip").props.role, "status");
   assert.equal(
@@ -977,8 +978,7 @@ test("every ending is one strip with one next step, and each draws its own words
     assert.match(strip.props.className, /\bdone\b/, ending);
     assert.equal(strip.props.role, "status", ending);
     assert.ok(textOf(byTestId(tree, "strip-title")).length > 0, ending);
-    // One next step and Sort by fit at most; the ending's numbers ("14 need a look", "4 left out") are quiet links
-    // into their piles and are not pressed to decide anything.
+    // One next step and Sort by fit at most; a search names no pile of ours (decision 0133).
     const buttons = all(tree, (n) => n.type === "button" && n.props?.className !== "lnk");
     assert.ok(buttons.length <= 2, `${ending}: ${buttons.length} buttons`);
     assert.ok(
@@ -1011,14 +1011,14 @@ test("every ending is one strip with one next step, and each draws its own words
   assert.equal(textOf(byTestId(reached, "strip-title")), "Found 200 personal trainers");
   assert.equal(
     textOf(byTestId(reached, "strip-parts")),
-    " \u00b7 88 you can email \u00b7 112 by phone \u00b7 40 left out",
+    " \u00b7 88 you can email \u00b7 112 by phone",
+    "what the search set aside is ours, never a number of its ending (decision 0133)",
   );
   assert.equal(
-    byTestId(reached, "strip-excluded").props.className,
-    "lnk",
-    "40 left out is a link into the view, not a button beside the next step",
+    all(reached, (n) => n.props?.["data-testid"] === "strip-excluded").length,
+    0,
+    "and no way into Left out from a search's strip",
   );
-  assert.equal(textOf(byTestId(reached, "strip-excluded")), "40 left out");
 });
 
 test("each ending says contracts' own sentence, with this round's numbers in it, and Undo goes once it is a day old or has been used", () => {
@@ -1028,54 +1028,36 @@ test("each ending says contracts' own sentence, with this round's numbers in it,
       return [e, [v.title, ...v.parts].join(" \u00b7 "), ids(v)];
     }),
     [
-      [
-        "target_reached",
-        "Found 61 personal trainers \u00b7 34 you can email \u00b7 27 by phone \u00b7 40 left out",
-        ["excluded", "sort_fit"],
-      ],
+      ["target_reached", "Found 61 personal trainers \u00b7 34 you can email \u00b7 27 by phone", ["sort_fit"]],
       [
         "searched_everything",
         "Found 61 personal trainers \u00b7 everything these searches returned in Austin, TX",
-        ["nearby", "sort_fit", "excluded"],
+        ["nearby", "sort_fit"],
       ],
-      [
-        "month_leads_used",
-        "Stopped at 61 \u00b7 this month's leads are used \u00b7 the 61 found are yours",
-        ["excluded"],
-      ],
-      [
-        "budget_used",
-        "Stopped at 61 \u00b7 this month's searching is used up \u00b7 the 61 found are yours",
-        ["excluded"],
-      ],
-      [
-        "few_new_matches",
-        "Found 61 of 200 personal trainers in Austin, TX \u00b7 the 61 found are yours",
-        ["excluded"],
-      ],
-      [
-        "stopped",
-        "Stopped at 61 \u00b7 the 61 found are yours \u00b7 nothing else was counted",
-        ["carry_on", "excluded"],
-      ],
+      ["month_leads_used", "Stopped at 61 \u00b7 this month's leads are used \u00b7 the 61 found are yours", []],
+      ["budget_used", "Stopped at 61 \u00b7 this month's searching is used up \u00b7 the 61 found are yours", []],
+      ["few_new_matches", "Found 61 of 200 personal trainers in Austin, TX \u00b7 the 61 found are yours", []],
+      ["stopped", "Stopped at 61 \u00b7 the 61 found are yours \u00b7 nothing else was counted", ["carry_on"]],
       [
         "source_failed",
         "Stopped at 40: the source stopped answering \u00b7 the 61 found are yours \u00b7 nothing more was counted",
-        ["try_again", "excluded"],
+        ["try_again"],
       ],
       [
         "question_unanswered",
         "Stopped after a day without your answer \u00b7 the 61 found before it asked are yours",
-        ["answer_now", "excluded"],
+        ["answer_now"],
       ],
+      ["paused", "Lead searches are paused for now \u00b7 your leads are all here \u00b7 nothing is being counted", []],
       [
-        "paused",
-        "Lead searches are paused for now \u00b7 your leads are all here \u00b7 nothing is being counted",
-        ["excluded"],
+        "reach_searched",
+        "Found 61 of 200 personal trainers \u00b7 every area within 25 miles was searched, and no more that fit were found \u00b7 the other 139 stay yours this month",
+        ["sort_fit"],
       ],
+      ["day_used", "Stopped at 61 \u00b7 today's searching is used up \u00b7 the 61 found are yours", ["carry_on"]],
     ],
   );
-  assert.equal(leadStrip(ended("target_reached"), NOW).actions[0].label, "40 left out");
+  assert.equal(leadStrip(ended("target_reached"), NOW).actions[0].label, "Sort by fit");
   assert.equal(leadStrip(ended("searched_everything"), NOW).actions[0].label, "Find 139 more nearby");
   const nearby = leadStrip(ended("searched_everything", { counted: 0, excluded: 3 }), NOW, {
     nearby: ["Alpine", "Fort Davis"],
@@ -1086,12 +1068,12 @@ test("each ending says contracts' own sentence, with this round's numbers in it,
   );
   assert.deepEqual(
     [nearby.parts, ids(nearby)],
-    [["Nothing was counted."], ["nearby", "excluded"]],
-    "nothing was counted, so nothing is worth re-sorting; the 3 left out are a link",
+    [["Nothing was counted."], ["nearby"]],
+    "nothing was counted, so nothing is worth re-sorting, and what was left out is ours (decision 0133)",
   );
   assert.deepEqual(
     ids(leadStrip(ended("searched_everything", { counted: 0, excluded: 3 }), NOW)),
-    ["excluded"],
+    [],
     "with nowhere else to look there is no next step to offer",
   );
   // The round's own nearby areas (00145): the step names them and opens the plan on the nearest.
@@ -1145,10 +1127,10 @@ test("an ending never re-sorts by itself: it offers Sort by fit, and says how ma
   assert.equal(textOf(byTestId(tree, "strip-take_offered")), "Show 12 new");
   click(byTestId(tree, "strip-take_offered"));
   click(byTestId(tree, "strip-sort_fit"));
-  assert.deepEqual(acted, [
-    ["take_offered", undefined],
-    ["sort_fit", undefined],
-  ]);
+  assert.deepEqual(
+    acted.map(([id]) => id),
+    ["take_offered", "sort_fit"],
+  );
   assert.equal(
     byTestId(drawStrip(withRound({ state: "ended", ending: "target_reached" }), []), "strip-take_offered"),
     null,
@@ -1169,7 +1151,9 @@ test("the nine ending sentences are contracts' leadEndingLine, never the strip's
       target: r.target,
       emails: r.emails_checked,
       phones: r.with_phone,
-      excluded: r.excluded,
+      // A search passes no number of what it set aside (decision 0133), and says how far it looked: Austin's 25 miles.
+      excluded: 0,
+      reachMiles: 25,
       checking: false,
       foundBefore: r.counted,
       nearby: [],
@@ -1191,22 +1175,18 @@ test("the nine ending sentences are contracts' leadEndingLine, never the strip's
   );
 });
 
-test("holding the band, the strip drops its own ways into each pile -- the band's tabs are those doors -- and keeps its one next step", () => {
+test("a search's strip, alone or holding the band, has no way into either pile, and keeps its one next step", () => {
   const search = ended("target_reached", { qualified: 21, review: 14, excluded: 40 });
   frames.begin();
   const alone = LeadStrip({ vm: leadStrip(search, NOW), onAction: () => {} });
-  assert.ok(byTestId(alone, "strip-review"), "with no band, the strip is the way into the pile");
+  assert.equal(byTestId(alone, "strip-review"), null, "what the search set aside is ours (decision 0133)");
   frames.begin();
   const held = LeadStrip({ vm: leadStrip(search, NOW), onAction: () => {}, children: "the band" });
-  assert.equal(
-    byTestId(held, "strip-review"),
-    null,
-    "the band's tab says 14 need a look; the strip does not say it again",
-  );
+  assert.equal(byTestId(held, "strip-review"), null, "nor with the band: a search's band is its finished leads alone");
   assert.equal(
     byTestId(held, "strip-excluded"),
     null,
-    "nor 40 left out: the band's tab is that door too, and the strip keeps its one next step (Ruben, 10 Oct 2026)",
+    "nor 40 left out, and the strip keeps its one next step (Ruben, 10 Oct 2026)",
   );
   assert.ok(
     find(held, (n) => n.props?.className === "lf-strip-band"),
@@ -1247,5 +1227,139 @@ test("a search that has ended offers what it held back as the strip's one main b
   assert.ok(
     plain.actions.some((a) => a.primary),
     "the ending's own next step is still the main button",
+  );
+});
+
+/* ------------------------------------------------- decision 0133: a count is delivered, the owner's side -- */
+
+const reachText = (tree) => textOf(byTestId(tree, "plan-reach-line")).replace("Change how far", "").trim();
+
+test("a card whose search widens says how far it looks, and its picker changes the reach; one that does not says no reach", () => {
+  const st = { plan: PLAN, pick: null, refusal: null };
+  assert.equal(
+    all(drawCard(st), (x) => x.props?.["data-testid"] === "plan-reach-line").length,
+    0,
+    "a search that stays in its area is never said to look further (nothing the database cannot support)",
+  );
+  const widens = { facts: { ...FACTS, widens: true } };
+  assert.equal(reachText(drawCard(st, widens)), "Looks in Austin, TX first, then nearby, up to 25 miles away");
+  pickOption(st, "reach", "0", widens);
+  assert.equal(st.plan.reach_m, 0, "only the card's area is a reach of none");
+  assert.equal(st.plan.version, 2, "how far is one of the plan's own words: a new version the owner approves");
+  assert.equal(reachText(drawCard(st, widens)), "Looks only in Austin, TX");
+  st.pick = null;
+  pickOption(st, "reach", "50", widens);
+  assert.equal(reachText(drawCard(st, widens)), "Looks in Austin, TX first, then nearby, up to 50 miles away");
+});
+
+test("an email search's picker says a checked email alone: a phone never counts for it (#2321)", () => {
+  const st = { plan: { ...PLAN, contact: "phone" }, pick: null, refusal: null };
+  const open = (click(byTestId(drawCard(st), "plan-contact")), drawCard(st));
+  assert.equal(textOf(byTestId(open, "plan-contact-email")), "reached by a checked email");
+  assert.equal(textOf(byTestId(open, "plan-contact-phone")), "reached by phone or a checked email");
+});
+
+test("a leg's strip counts the whole search and names the area it reads, and says the card's area is done", () => {
+  const leg = withRound({ purpose: "widen", seq: 3, target: 114, area: NEARBY });
+  const vm = leadStrip(leg, NOW);
+  assert.equal(vm.title, "Finding personal trainers in Round Rock, TX");
+  assert.deepEqual(vm.parts.slice(0, 3), ["86 of 200", "Austin, TX searched", "41 emails checked"]);
+  assert.deepEqual(vm.count, { n: 86, of: 200 }, "of what the owner asked, never of the 114 the leg still wants");
+  assert.deepEqual(
+    leadStrip(withRound({ purpose: "topup", seq: 2, target: 114 }), NOW).count,
+    { n: 86, of: 200 },
+    "a top-up's too: 86 of 200, never 86 of 114",
+  );
+});
+
+test("a search that read everything within its reach says how far, never that none exist, and what stays the owner's", () => {
+  const vm = leadStrip(ended("reach_searched", { purpose: "widen", target: 139 }), NOW);
+  assert.equal(vm.title, "Found 61 of 200 personal trainers");
+  assert.deepEqual(vm.parts, [
+    "every area within 25 miles was searched, and no more that fit were found",
+    "the other 139 stay yours this month",
+  ]);
+  assert.equal(vm.state, "found");
+});
+
+test("a search's ending names no pile of ours, and its band is its finished leads alone; a list of the owner's own keeps all three", () => {
+  const done = ended("target_reached", { review: 4, excluded: 40, qualified: 61 });
+  const vm = leadStrip(done, NOW);
+  assert.deepEqual(
+    vm.actions.filter((a) => a.pile || a.id === "review" || a.id === "excluded"),
+    [],
+    "no way into Needs review or Left out from a search's strip",
+  );
+  assert.equal(vm.parts.filter((p) => /left out/.test(p)).length, 0);
+  assert.deepEqual(
+    leadBand(done).classes.map((c) => c.id),
+    ["qualified"],
+  );
+  assert.deepEqual(
+    leadBand({ ...done, via: "import" }).classes.map((c) => c.id),
+    ["qualified", "review", "excluded"],
+  );
+});
+
+test("a search stopped by the month's leads says the day they renew, and offers the rest then; put off, it says when", () => {
+  const vm = leadStrip(ended("month_leads_used"), NOW, { month: { renewsOn: "Oct 1" } });
+  assert.deepEqual(vm.parts, ["this month's leads are used", "the 61 found are yours", "your leads renew on Oct 1"]);
+  assert.deepEqual(
+    vm.actions.map((a) => [a.id, a.label]),
+    [["on_renewal", "Find the other 139 on Oct 1"]],
+    "the rest, carried on when they renew: one press with the day on it",
+  );
+  const waiting = leadStrip(
+    withRound({
+      seq: 2,
+      purpose: "topup",
+      state: "queued",
+      target: 139,
+      counted: 61,
+      starts_at: "2026-10-01T05:00:00Z",
+    }),
+    NOW,
+    { month: { renewsOn: "Oct 1" } },
+  );
+  assert.equal(waiting.title, "Finds the other 139 personal trainers on Oct 1");
+  assert.deepEqual(waiting.parts, ["when your leads renew", "nothing is searched or counted before then"]);
+  assert.deepEqual(
+    waiting.actions.map((a) => a.id),
+    ["not_on_renewal"],
+    "and Don't, which ends it and gives back what it held",
+  );
+});
+
+test("Ask's search card says how far a search looks only where it widens", () => {
+  const card = (facts) =>
+    searchCardView({ id: "p9", kind: "lead_search", status: "proposed", payload: { plan: PLAN, facts } }).sheet.rows;
+  assert.equal(card(FACTS).filter((r) => r.label === "How far").length, 0);
+  assert.deepEqual(
+    card({ ...FACTS, widens: true }).filter((r) => r.label === "How far"),
+    [{ label: "How far", value: "Looks in Austin, TX first, then nearby, up to 25 miles away" }],
+  );
+});
+
+test("a search that read everything within its reach offers to look further only where its round found an area past it", () => {
+  const past = { ...NEARBY, beyond_m: 50 * 1_609 };
+  const vm = leadStrip(ended("reach_searched", { purpose: "widen", target: 139, nearby: [past] }), NOW);
+  assert.deepEqual(
+    vm.actions.map((a) => [a.id, a.label]),
+    [
+      ["reach_further", "Look up to 50 miles"],
+      ["sort_fit", "Sort by fit"],
+    ],
+  );
+  assert.equal(
+    vm.actions[0].arg.reach_m,
+    50 * 1_609,
+    "the plan card opens with the wider reach, for the owner to approve",
+  );
+  assert.equal(vm.actions[0].arg.area.label, "Austin, TX", "measured from the card's own area");
+  assert.ok(LEAD_ROUND_MAKERS.includes("reach_further"), "a press that makes a round opens the plan first");
+  assert.deepEqual(
+    leadStrip(ended("reach_searched", { purpose: "widen", target: 139, nearby: [] }), NOW).actions.map((a) => a.id),
+    ["sort_fit"],
+    "nothing found past the reach: no press that would find nothing",
   );
 });

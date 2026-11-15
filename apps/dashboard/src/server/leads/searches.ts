@@ -27,6 +27,7 @@ import {
   findSearchCard,
   findSearchScope,
   listLeadCardsLive,
+  listRoundExtras,
   listSearchCards,
   readLeadListCounts,
   removeLeadSearch,
@@ -153,7 +154,7 @@ export function morePlanOf(search: Pick<SearchViewRow, "plan">, plan: LeadSearch
   return typeof at === "number" ? { ...plan, version: Math.min(plan.version, at + 1) } : plan;
 }
 
-async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<SearchViewRow[]> {
+export async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<SearchViewRow[]> {
   const { data, error } = await listSearchCards(ctx.supabase, tenantId, 200);
   if (error) throw new DbFailure(error);
   return (data ?? []) as SearchViewRow[];
@@ -318,6 +319,28 @@ export function toSearchDto(searchView: SearchViewRow): LeadSearchDto {
   };
 }
 
+/**
+ * What the view does not carry of each search's latest round (decision 0133), by round: the area a leg reads (the view
+ * carries the search's own plan, and a leg's is the next area out), and when a round put off until the month's leads
+ * renew starts. Read only where a search's latest round is one of those.
+ */
+async function roundExtrasOf(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: TenantId,
+  rows: readonly SearchViewRow[],
+): Promise<Map<string, { area?: LeadArea; starts_at?: string }>> {
+  const ids = rows.flatMap((r) => ((r.purpose === "widen" || r.state === "queued") && r.round_id ? [r.round_id] : []));
+  if (!ids.length) return new Map();
+  const { data, error } = await listRoundExtras(ctx.supabase, tenantId, ids);
+  if (error) throw new DbFailure(error, "cannot read what a search's latest round reads and when it starts");
+  return new Map(
+    data.map((x) => {
+      const area = nearbyOf([x.area])[0];
+      return [x.id, { ...(area ? { area } : {}), ...(x.starts_at ? { starts_at: x.starts_at } : {}) }] as const;
+    }),
+  );
+}
+
 /** Every kept search with its latest round, and the rail's counts: one read of each. */
 export async function getSearches(
   ctx: Pick<RouteContext, "supabase">,
@@ -329,7 +352,13 @@ export async function getSearches(
     // Which cards find leads now (00430): what the rail, the first day and Ask may offer. Unread, the Maps card alone.
     listLeadCardsLive(ctx.supabase).catch(() => ["local_businesses"]),
   ]);
-  return { searches: rows.map(toSearchDto), counts, cards_live: live };
+  const extras = await roundExtrasOf(ctx, tenantId, rows);
+  const searches = rows.map((row) => {
+    const dto = toSearchDto(row);
+    const extra = extras.get(row.round_id ?? "");
+    return extra && dto.round ? { ...dto, round: { ...dto.round, ...extra } } : dto;
+  });
+  return { searches, counts, cards_live: live };
 }
 
 /* --------------------------------------------------------- a search, kept */

@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-400 handlers in 58 domains.
+401 handlers in 58 domains.
 
 ## activity
 
@@ -1426,6 +1426,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `asked` | string | yes |  |
 | `terms` | array of string | yes | at least 1; at most 5 |
 | `area` | object | yes |  |
+| `reach_m` | integer | no | ≥ 0; ≤ 80450 |
 | `count` | integer | yes | ≥ 1; ≤ 1000 |
 | `contact` | one of `"phone"`, `"email"` | yes |  |
 | `criteria` | array of object | yes | at most 8 |
@@ -1469,7 +1470,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `purpose` | one of `"topup"`, `"renew"` | yes |  |
+| `purpose` | one of `"topup"`, `"renew"`, `"defer"` | yes |  |
 | `plan` | object | yes |  |
 
 ### `POST /api/v1/lead-searches/[id]/stop`
@@ -2490,6 +2491,14 @@ Writes; for platform staff; counts against the `platform_support_resend` rate; s
 Reads; for platform staff; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/platform/tenants/[id]/route.ts`).
+
+### `GET /api/v1/platform/tenants/[id]/set-aside`
+
+Reads; for platform staff; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `search` | string (uuid) | no |  |
 
 ### `POST /api/v1/platform/waitlist/invited`
 

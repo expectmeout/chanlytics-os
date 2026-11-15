@@ -150,8 +150,8 @@ test("a place left out for no site counts in the yield that sizes the next pass:
   const again = w.apify.calls.filter((c) => c.op === "startRun").at(-1).input.maxCrawledPlacesPerSearch;
   assert.equal(
     again,
-    120,
-    "30 wanted at a fifth, held to four times and to what a term can return; 61 if it read the five alone",
+    145,
+    "30 wanted at a fifth, held to four times: 120 more past the 25 it read, inside a city's 600 a term (decision 0133); 61 if it read the five alone",
   );
 });
 

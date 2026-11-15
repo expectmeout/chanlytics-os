@@ -7,12 +7,24 @@
 import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels/leads";
 import { peoplePlanOf } from "@chanlytics/contracts";
 import { CARDS, MAPS_RUN_TIMEOUT_SECS } from "../cards";
-import { runIdFor, hashSha256Hex } from "../ids";
-import type { LeadMemberRow, LeadPorts, LeadRoundRow } from "../ports";
-import { mainAsk, probeAsk, probeYield, runCaps, runsRoom, type TermsAsk, type TermsTried } from "../sizing";
+import { failedRun } from "../endings";
+import { areaKey } from "../ladder";
+import { retryRunIdFor, runIdFor, hashSha256Hex } from "../ids";
+import type { LeadPorts, LeadRoundRow } from "../ports";
+import {
+  finishedYield,
+  mainAsk,
+  probeAsk,
+  probeYield,
+  runCaps,
+  runsRoom,
+  type TermsAsk,
+  type TermsTried,
+} from "../sizing";
 import { claimOrRecover, startFailed } from "./claim";
 import { startPeople } from "./people";
 import { rejudgeProbe } from "./rejudge";
+import { findNextAreas } from "./round-decision";
 import {
   FIRST_COLLECT_SECONDS,
   INPUT_MARKER,
@@ -53,6 +65,7 @@ async function runsToStart(
   phase: Phase,
   ask: TermsAsk,
   caps: number[],
+  tries: ReadonlyMap<string, number>,
 ): Promise<{ wanted: WantedRun[]; untried: TermSaid[] }> {
   const wanted: WantedRun[] = [];
   const untried: TermSaid[] = [];
@@ -64,7 +77,11 @@ async function runsToStart(
       untried.push({ term, kind: "no_room" });
       continue;
     }
-    const id = await runIdFor(roundId, phase, term);
+    // A term whose main runs failed starts its next try under a row of its own (retries.ts); the first is the plain id.
+    const id =
+      phase === "main"
+        ? await retryRunIdFor(roundId, term, tries.get(term) ?? 0)
+        : await runIdFor(roundId, phase, term);
     wanted.push({ id, term, hash: await hashSha256Hex(await leadPorts.webhookToken(id)), places, cap });
   }
   for (const term of ask.waiting) untried.push({ term, kind: "no_room" });
@@ -75,18 +92,24 @@ async function runsToStart(
  * A start with no run to make. One tried again under a run it began leaves the round to that run. With less left than
  * one run's floor, nothing can start, so the round ends on the word for it, as one with nothing left does, never left
  * queued for the sweep to call the source failed (29 Oct 2026: five leads reserved $0.33 and waited an hour). With room,
- * every term it would ask has read all a term may: there is nothing new to pay for, and it says so.
+ * every term it would ask has read all a term may in its area: there is nothing new to pay for there, so it names where
+ * the search looks next before it ends (decision 0133), and a top-up of a search whose area is read (Carry on, the rest
+ * when the leads renew, Look up to 50 miles) carries on there instead of ending where it began.
  */
 async function nothingToStart(
   leadPorts: LeadPorts,
-  roundId: string,
+  round: LeadRoundRow,
   phase: Phase,
   untried: TermSaid[],
   room: number,
   begun: boolean,
 ): Promise<StartOutcome> {
   if (begun) return { kind: "started", phase, runs: untried };
-  await leadPorts.db.roundEnd(roundId, room > 0 ? "few_new_matches" : "budget_used");
+  if (room > 0) {
+    const nearby = await findNextAreas(leadPorts, round);
+    if (nearby.length) await leadPorts.db.roundNearby(round.id, nearby);
+  }
+  await leadPorts.db.roundEnd(round.id, room > 0 ? "few_new_matches" : "budget_used");
   return { kind: "spent" };
 }
 
@@ -100,26 +123,60 @@ export const UNMEASURED_YIELD = 0.5;
  */
 async function runningYield(p: LeadPorts, round: LeadRoundRow): Promise<number> {
   const judged = (await p.db.membersOfSearch(round.search_id)).filter(wasWeighed);
-  return judged.length ? probeYield(judged) : UNMEASURED_YIELD;
+  if (!judged.length) return UNMEASURED_YIELD;
+  // A leg (decision 0133) sizes from what counted, every earlier round ended and checked: a candidate email is no lead
+  // until its check, so the share with a way to reach them asked a leg for too few places.
+  return round.purpose === "widen" ? finishedYield(judged) : probeYield(judged);
+}
+
+/**
+ * What the search's other rounds of this round's own area read of each term (decision 0133): the most a term's runs read
+ * there, or what those rounds kept of it where that is more (a run's own count is the provider's; what was kept is the
+ * floor of it). A term read in another area says nothing of this one, and an area a round read to its end (searched
+ * everything) has nothing new for any term: placesPastRead asks past what was read.
+ */
+async function readInArea(leadPorts: LeadPorts, round: LeadRoundRow): Promise<Map<string, number>> {
+  const here = areaKey(round.plan.area);
+  const sameArea = (await leadPorts.db.roundsOfSearch(round.search_id)).filter(
+    (r) => r.id !== round.id && areaKey(r.plan.area) === here,
+  );
+  const read = new Map<string, number>();
+  if (sameArea.some((r) => r.ending === "searched_everything"))
+    for (const t of round.plan.terms) read.set(t, Number.POSITIVE_INFINITY);
+  const others = new Set(sameArea.map((r) => r.id));
+  for (const m of await leadPorts.db.membersOfSearch(round.search_id))
+    if (m.term !== null && others.has(m.round_id ?? "")) read.set(m.term, (read.get(m.term) ?? 0) + 1);
+  for (const other of sameArea)
+    for (const r of await leadPorts.db.runsOfRound(other.id))
+      if (r.purpose === "discover" && r.term !== null) read.set(r.term, Math.max(read.get(r.term) ?? 0, r.items_seen));
+  return read;
 }
 
 /**
  * What a search has asked of its terms, for a start of its main phase: the provider answers a term from the top, so
- * what it read is what a new ask must go past. This round's probe says exactly, and the search's earlier rounds by the
- * places they kept of each term. A main run of this round is one this phase began.
+ * what it read is what a new ask must go past. This round's probe says exactly; so do the runs of the search's other
+ * rounds of this same area, and only those: a term read in another area says nothing of this one (decision 0133: a
+ * fresh ZIP was asked for nothing past the 120 a term had read in the city), and an area a round read to its end
+ * (searched everything) has nothing new for any term. A main run of this round is one this phase began, unless it
+ * failed: a term whose main runs all failed is asked again, past the most any of its runs read, under its next try
+ * (retries.ts).
  */
-async function termsTried(leadPorts: LeadPorts, round: LeadRoundRow, own: LeadMemberRow[]): Promise<TermsTried> {
+async function termsTried(
+  leadPorts: LeadPorts,
+  round: LeadRoundRow,
+): Promise<TermsTried & { tries: Map<string, number> }> {
   const read = new Map<string, number>();
   const begun = new Set<string>();
+  const tries = new Map<string, number>();
   for (const r of await leadPorts.db.runsOfRound(round.id)) {
     if (r.purpose !== "discover" || r.term === null) continue;
-    if ((await runIdFor(round.id, "probe", r.term)) === r.id) read.set(r.term, r.items_seen);
-    else begun.add(r.term);
+    const probe = (await runIdFor(round.id, "probe", r.term)) === r.id;
+    if (probe || failedRun(r)) read.set(r.term, Math.max(read.get(r.term) ?? 0, r.items_seen));
+    if (!probe && failedRun(r)) tries.set(r.term, (tries.get(r.term) ?? 0) + 1);
+    else if (!probe) begun.add(r.term);
   }
-  const ours = new Set(own.map((m) => m.lead_id));
-  for (const m of await leadPorts.db.membersOfSearch(round.search_id))
-    if (!ours.has(m.lead_id) && m.term !== null) read.set(m.term, (read.get(m.term) ?? 0) + 1);
-  return { read, begun };
+  for (const [term, n] of await readInArea(leadPorts, round)) read.set(term, Math.max(read.get(term) ?? 0, n));
+  return { read, begun, tries };
 }
 
 export async function startRound(
@@ -155,6 +212,7 @@ export async function startRound(
   const room = runsRoom(leftUsd);
   let begun = false;
   let ask: TermsAsk;
+  let tries: ReadonlyMap<string, number> = new Map();
   if (phase === "probe") {
     ask = probeAsk(plan, room);
   } else {
@@ -169,12 +227,14 @@ export async function startRound(
     // The question said "I'm dropping X: it mostly returned those", and a yes accepted it. An answer that changed the
     // plan is a new plan, and its terms are the owner's: the dropped one finds the very kind they just included.
     const dropTerm = round.answered === "keep" ? (round.question?.dropTerm ?? null) : null;
-    const tried = await termsTried(leadPorts, round, members);
+    const tried = await termsTried(leadPorts, round);
     begun = tried.begun.size > 0;
+    tries = tried.tries;
     ask = mainAsk(plan, targetOf(round) - counted, other, dropTerm, room, tried);
   }
-  const { wanted, untried } = await runsToStart(leadPorts, round.id, phase, ask, runCaps(plan, ask.perTerm, leftUsd));
-  if (!wanted.length) return nothingToStart(leadPorts, round.id, phase, untried, room, begun);
+  const caps = runCaps(plan, ask.perTerm, leftUsd);
+  const { wanted, untried } = await runsToStart(leadPorts, round.id, phase, ask, caps, tries);
+  if (!wanted.length) return nothingToStart(leadPorts, round, phase, untried, room, begun);
   const rows = await leadPorts.db.runsEnsure(
     wanted.map((item) => ({
       id: item.id,

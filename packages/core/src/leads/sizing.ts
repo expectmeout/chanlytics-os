@@ -99,6 +99,14 @@ export function probeYield(members: { class: LeadMemberClass; phone: string | nu
   return yieldOf(members.length, members.filter((m) => m.class !== "excluded" && hasContact(m)).length);
 }
 
+/**
+ * What a search's earlier rounds delivered for each place they judged: the share that counted, every one of them ended
+ * and its emails checked. A leg (decision 0133) sizes from it, never from a candidate email that may not check out.
+ */
+export function finishedYield(members: { counted: boolean }[]): number {
+  return yieldOf(members.length, members.filter((m) => m.counted).length);
+}
+
 /** Dollars as whole cents, read down, so a sum of caps is never a rounding over what it is held to. */
 const centsDown = (usd: number) => Math.floor(usd * 100 + 1e-6);
 

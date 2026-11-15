@@ -4,10 +4,10 @@ import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, estimateForRound, morePlanOf, planAsJson, refusalOf, searchRow } from "@/server/leads/leads";
 import { refuseList } from "@/server/leads/lists";
-import { askForMore } from "@/server/leads/search-acts";
+import { askForMore, askOnRenewal } from "@/server/leads/search-acts";
 
 const Body = z.object({
-  purpose: z.enum(["topup", "renew"]),
+  purpose: z.enum(["topup", "renew", "defer"]),
   plan: LeadSearchPlanSchema,
 });
 
@@ -30,13 +30,21 @@ export const POST = write({
     // A list of your own (00242) is never searched again: a finder's plan never lands on it (J9).
     refuseList(search);
     const plan = morePlanOf(search, input.plan);
-    const { data, error } = await askForMore(ctx, {
-      p_search_id: search.id,
-      p_purpose: input.purpose,
-      p_plan: planAsJson(plan),
-      p_estimate_usd: estimateForRound(plan, input.purpose, search.counted),
-    });
-    if (error) throw new DbFailure(error, "lead_search_more");
+    // Deferred (decision 0133): the rest of a count the month's leads stopped, reserved from the next month now and
+    // started on its first day, on the search's own plan (lead_search_on_renewal).
+    const { data, error } =
+      input.purpose === "defer"
+        ? await askOnRenewal(ctx, {
+            p_search_id: search.id,
+            p_estimate_usd: estimateForRound(plan, "topup", search.counted),
+          })
+        : await askForMore(ctx, {
+            p_search_id: search.id,
+            p_purpose: input.purpose,
+            p_plan: planAsJson(plan),
+            p_estimate_usd: estimateForRound(plan, input.purpose, search.counted),
+          });
+    if (error) throw new DbFailure(error, input.purpose === "defer" ? "lead_search_on_renewal" : "lead_search_more");
     const answer = answerOf(data);
     const refused = refusalOf(answer);
     if (refused) throw refused;
