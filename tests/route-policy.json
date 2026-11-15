@@ -1309,6 +1309,13 @@
       "rate": null,
       "spend": false
     },
+    "POST leads/[id]/name": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "lead_member",
+      "spend": false
+    },
     "POST leads/[id]/preview": {
       "kind": "write",
       "scope": "workspace",

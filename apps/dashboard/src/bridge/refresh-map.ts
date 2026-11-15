@@ -383,6 +383,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST leads/[id]/later": leads,
   // Who a company's reach-out writes to (00430): the row's addressee, its address and that address's check.
   "POST leads/[id]/addressee": leads,
+  // A lead's name or city put right (00631): the row's name, its city and its facts, which every email's blanks read.
+  "POST leads/[id]/name": leads,
   // An add taken back (00426) skips its lead's planned email in a waiting run and takes it off the reach-out's list:
   // the run's counts and the reach-out's people move with the leads.
   "POST lead-operations/[id]/undo": () => [...leadsAnswered(), reachOutsOverride, broadcastsOverride],

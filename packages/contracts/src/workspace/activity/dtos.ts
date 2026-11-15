@@ -185,6 +185,7 @@ export const WORDS: Record<string, string> = {
   "lead.put_back": "A lead was put back in Needs review",
   "lead.later": "A lead was put off for later",
   "lead.addressee_chosen": "A company's sequence was set to write to someone else",
+  "lead.named": "A lead's name or city was put right",
   "lead.search_renamed": "A search was renamed",
   "lead.search_removed": "A search was removed",
   "reach_out.source_set": "A sequence was set to add a search's new leads, or to stop",

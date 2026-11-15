@@ -1437,6 +1437,8 @@ html.frame-on .lw .lw-recep[data-tone="warn"], .lw .lw-recep[data-tone="warn"] {
 .lw-fill-says { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: min(280px, calc(100vw - 32px)); }
 .lw-fill-says[role="dialog"] { background-color: var(--surface-pop-solid); background-image: none; backdrop-filter: none; }
 .lw-fill-t { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
+/* A name or a city put right for every email: its box, its note and its Save, the bubble's width. */
+.lw-fill-fix { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; }
 .lw-now-view { margin: 2px 0 6px; }
 .lw-mail-n { margin: 6px 0 0; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-muted); }
 .lw-mail-n.warn { color: var(--warn-ink); }

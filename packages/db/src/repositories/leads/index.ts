@@ -32,6 +32,7 @@ export {
   findLeadCountries,
   findLeadPricesSeen,
   getIdeaCustomerRows,
+  nameLead,
   getLeadAllowance,
   getLeadViewCounts,
   keepIdeas,

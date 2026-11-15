@@ -2,6 +2,7 @@
  * A fill-in on the lead's card (decision 0127): the rules and the words only the sheet says, so they live with it.
  *
  *   fillInSaysOf     what a blank's value says when it is pressed: what it is, where it came from, whether it changes
+ *   fillInFixOf      which of a lead's own values a blank is, where it can be put right for every email (00631)
  *   emailBlanksOf    a step's words with every blank by its name, where they name any: what Show the blanks draws
  *   previewMarkOf    what the receptionist's mark says after its name: what the send will do with the email
  *
@@ -12,6 +13,7 @@ import {
   REACH_OUT_SLOT_SET as SLOTS,
   capitalize,
   leadAddresseeOf,
+  leadOwnOf,
   previewBuildSlow,
   previewClaimable,
   previewStateOf,
@@ -41,6 +43,22 @@ export const LEAD_FILL_WORDS = {
   each: "Different for each business.",
   same: "The same in every email.",
   change: "Change it for this one",
+  /** A name or a city its owner put right (00631 lead_named): whose it is, and what its listing said where that is kept. */
+  yours: "From you.",
+  yoursWas: (was: string) => `From you. Its listing says “${was}”.`,
+  /** Putting a lead's name or city right on the lead itself, so every email to them says it. */
+  every: {
+    open: "Change it for every email",
+    name: "What to call them",
+    city: "Their city",
+    note: "Every email to them says this from now on.",
+    save: "Save",
+    saved: (again: number) =>
+      again > 0
+        ? `Saved. The line about them is being written again in ${again === 1 ? "1 waiting email" : `${again} waiting emails`}.`
+        : "Saved. Every email to them says this now.",
+    failed: "That didn't save. Try again in a moment.",
+  },
   /** What Show the blanks calls the line written for them. */
   lineBlank: "A line about them",
   /** The switch over the email: the email with this lead's values in, or the step's words with each blank named. */
@@ -80,6 +98,9 @@ interface FillInSays {
   varies: string;
 }
 
+/** Where a value its owner put right came from: them, and what its listing said where the lead keeps it. */
+const ownFrom = (was: string | null): string => (was ? F.yoursWas(was) : F.yours);
+
 /**
  * What the blank `slot` says for this lead; null for the line, the receptionist's link, or a name that is no blank.
  * `found` is the row's own Source word (contracts leadSourceWord: its Maps listing, a business directory, or the owner's
@@ -88,12 +109,13 @@ interface FillInSays {
  */
 export function fillInSaysOf(slot: string, lead: SlotLead, found: string | null): FillInSays | null {
   const from = found ? F.source(found) : null;
+  const own = leadOwnOf(lead.facts);
   switch (slot) {
     case "business":
     case "company":
-      return { title: F.business, from, varies: F.each };
+      return { title: F.business, from: own.name ? ownFrom(own.was.name) : from, varies: F.each };
     case "city":
-      return { title: F.city, from, varies: F.each };
+      return { title: F.city, from: own.city ? ownFrom(own.was.city) : from, varies: F.each };
     case "first name":
       return { title: F.firstName, from: leadAddresseeOf(lead)?.first_name ? F.named : F.nobody, varies: F.each };
     case "title":
@@ -109,6 +131,15 @@ export function fillInSaysOf(slot: string, lead: SlotLead, found: string | null)
     default:
       return null;
   }
+}
+
+/**
+ * Which of a lead's own values the blank `slot` is, where its owner can put it right for every email (00631
+ * lead_named): its name or its city. Null for a person's (their source's), the workspace's own, and the line.
+ */
+export function fillInFixOf(slot: string): "name" | "city" | null {
+  if (slot === "business" || slot === "company") return "name";
+  return slot === "city" ? "city" : null;
 }
 
 /** A step's words with each blank named, in pieces (words, and a blank by its name): its subject, where it has one, and its body. */

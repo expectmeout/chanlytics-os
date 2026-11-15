@@ -330,7 +330,7 @@ export type {
   ProposeLeadSearch,
   ProposePeopleSearch,
 } from "./plan-schema";
-export { leadCalledByOf } from "./search/called-by";
+export { LEAD_NAMED, leadCalledByOf, leadNamedRefusal, leadOwnOf } from "./search/called-by";
 export {
   BUSINESS_LINE_MAX,
   LEAD_ASK_MAX_FACTOR,

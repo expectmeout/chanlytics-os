@@ -3,6 +3,7 @@
  * from the cleaner (clean.ts), since every email's fill reads it (reach-out-rules reachOutValues), so every page that
  * draws an email loads it, and the cleaner's hosts and addresses stay with the pages that clean a listing.
  */
+import { entryOf, recordOrEmpty } from "../../shared/unknown";
 import { US_CODES } from "./plan";
 
 /** A listing's keyword tail starts at a bar, a spaced dash, a colon or a semicolon: what follows is no part of a name. */
@@ -108,11 +109,17 @@ function casedAsSaid(name: string): string {
  * What these cannot tell stays as its listing writes it: a name's own capitals ("NOVA", "iFix"), a city
  * with no state after it, services with no mark before them. Nothing is cut to nothing. The listing's name stays the
  * lead's, as Leads shows it; every email's fill says this (reach-out-rules reachOutValues), and so do the opening's
- * record and its check.
+ * record and its check. A name its owner typed (00631 lead_named, the lead's facts.own) is said as typed: the tidy-up
+ * is for a listing's title, never for a person's own word.
  */
-export function leadCalledByOf(input: { business_name: string | null; city?: string | null }): string | null {
+export function leadCalledByOf(input: {
+  business_name: string | null;
+  city?: string | null;
+  facts?: unknown;
+}): string | null {
   const listed = (input.business_name ?? "").replace(/\s+/g, " ").trim();
   if (!listed) return null;
+  if (leadOwnOf(input.facts).name) return listed;
   // The first part that says something, unless it is only the city ("Springfield | Harbor Movers").
   const city = input.city?.trim().toLowerCase();
   const head = listed.split(NAME_TAIL).find((p) => hasLetter(p) && p.trim().toLowerCase() !== city) ?? listed;
@@ -123,3 +130,32 @@ export function leadCalledByOf(input: { business_name: string | null; city?: str
   name = keptOr(name, name.replace(COMPANY_FORM, ""));
   return casedAsSaid(name);
 }
+
+/** What its owner may type for a lead's name and its city; the door holds the same (00631 lead_named). */
+export const LEAD_NAMED = { name: { min: 2, max: 200 }, city: { max: 120 } } as const;
+
+/**
+ * What of a lead is its owner's own word (00631 lead_named, leads.facts.own): its name, its city, and what its listing
+ * said of each before it was put right. A lead nobody put right says neither.
+ */
+export function leadOwnOf(facts: unknown): {
+  name: boolean;
+  city: boolean;
+  was: { name: string | null; city: string | null };
+} {
+  const own = recordOrEmpty(recordOrEmpty(facts).own);
+  const was = recordOrEmpty(own.was);
+  const kept = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value.trim() : null);
+  return { name: own.name === true, city: own.city === true, was: { name: kept(was.name), city: kept(was.city) } };
+}
+
+const LEAD_NAMED_REFUSED = {
+  gone: "This lead is gone.",
+  bad_name: "A name is 2 to 200 characters.",
+  bad_city: "A city is 120 characters at most.",
+  nothing: "That is what it says already.",
+} as const;
+
+/** A refusal of the name door in words, by its code (lead_named's {error}). */
+export const leadNamedRefusal = (code: string): string =>
+  entryOf(LEAD_NAMED_REFUSED, code) ?? "Nothing changed. Reload and try again.";

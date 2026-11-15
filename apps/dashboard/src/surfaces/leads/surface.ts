@@ -529,6 +529,13 @@ export async function laterLead(searchId: string, id: string) {
 export async function chooseAddressee(id: string, person: number) {
   return api()("POST leads/[id]/addressee", { params: { id }, body: { person }, refresh: "behind" });
 }
+/**
+ * A lead's name or its city put right for every email to them (00631 lead_named): the lead's rows are read again behind
+ * its answer, so the card's blanks say it at once.
+ */
+export async function nameLead(id: string, body: { business_name: string } | { city: string }) {
+  return api()("POST leads/[id]/name", { params: { id }, body, refresh: "behind" });
+}
 /** Undo names the operation and the version the page saw (E9): the server refuses when anyone changed it since. */
 export async function undoLeadOperation(opId: string, version: number) {
   return api()("POST lead-operations/[id]/undo", { params: { id: opId }, body: { version } });

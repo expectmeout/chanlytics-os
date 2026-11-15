@@ -24,6 +24,7 @@ export type {
 } from "./lead-preview";
 export { PREVIEW_LINE_WORDS, previewBuildSlow, previewLineOf } from "./line";
 export type { LeadPreviewDto, LeadPreviewFacts, LeadPreviewLineVM } from "./line";
+export { withPreviewNamed } from "./named";
 export { PREVIEW_TAUGHT, previewFactOf, previewTheirsOf, withPreviewFix, withPreviewTaught } from "./theirs";
 export type { PreviewFact } from "./theirs";
 export { PREVIEW_TRIED_DAYS, previewSaidOf, previewTriedWords } from "./tried";

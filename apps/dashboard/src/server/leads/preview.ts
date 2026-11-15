@@ -43,7 +43,7 @@ type LeadForPreview = NonNullable<Awaited<ReturnType<typeof findLeadForPreview>>
  * answer before the email that would ask it goes.
  */
 function previewCannotOf(
-  lead: Pick<LeadForPreview, "kind" | "stage" | "business_name" | "city">,
+  lead: Pick<LeadForPreview, "kind" | "stage" | "business_name" | "city" | "facts">,
 ): NonNullable<LeadPreviewDto["cannot"]> | null {
   if (lead.kind !== "place") return "not_a_business";
   if (lead.stage !== "ready" && lead.stage !== "nurture") return "closed";

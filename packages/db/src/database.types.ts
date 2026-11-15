@@ -9414,6 +9414,10 @@ export type Database = {
         Returns: Json
       }
       lead_name_key: { Args: { p_name: string }; Returns: string }
+      lead_named: {
+        Args: { p_business_name?: string; p_city?: string; p_lead_id: string }
+        Returns: Json
+      }
       lead_niche_prior: { Args: { p_category_key: string }; Returns: Json }
       lead_people_search_create: {
         Args: {
