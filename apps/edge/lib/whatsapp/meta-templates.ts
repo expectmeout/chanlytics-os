@@ -78,10 +78,14 @@ export async function listTemplates(
   return { ok: true, templates: out };
 }
 
-/** Meta's status words into the table's. Anything still in flight is pending. */
+/**
+ * Meta's status words into the table's. Anything still in flight is pending. REINSTATED is a webhook's event, never a
+ * status in Meta's list: a message turned back on, which can be sent again.
+ */
 export function mapStatus(text: string | null | undefined): TemplateStatus {
   switch (String(text ?? "").toUpperCase()) {
     case "APPROVED":
+    case "REINSTATED":
       return "approved";
     case "REJECTED":
       return "rejected";

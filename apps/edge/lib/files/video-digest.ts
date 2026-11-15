@@ -54,6 +54,7 @@ import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { logger } from "../shared/log.js";
 import { hearNote, transcribe, type HeardFor } from "./hearing.js";
 import { findClaudeCopy } from "./look.js";
+import { keepPrint, downloadMade } from "./prints.js";
 import { drawPoster, drawVideoSheet, type VideoAt } from "./video-sheet.js";
 import { hearingSetup, streamKeys } from "./video-keys.js";
 
@@ -135,7 +136,11 @@ async function keepSound(
 /* --------------------------------------------------------------------------------------------------- the steps -- */
 
 /** The sheet, its first poster, and the copy Anthropic reads it by. */
-async function sheetStep(digest: Digest): Promise<void> {
+/**
+ * The first step: the poster, then the video's print from it (00630), so a twin of a video already here goes before its sheet,
+ * its sound and its look are paid; then the sheet and the model's copy of it. Answers whether the video is still here.
+ */
+async function sheetStep(digest: Digest): Promise<boolean> {
   const keys = streamKeys();
   if (!keys) throw new Error("video_digest: Stream is not configured here");
   const plan = videoSheetPlanOf({
@@ -144,19 +149,26 @@ async function sheetStep(digest: Digest): Promise<void> {
     height: digest.row.height,
   });
   const alreadyMade = await madeOf(digest);
+  let poster: Uint8Array | null = null;
+  if (!alreadyMade.has(FILE_MADE_OF_VIDEO.poster)) {
+    const drawn = await drawPoster(keys.signing, digest.video, plan.times[1] ?? plan.times[0] ?? 0);
+    if (drawn) await keepMade(digest, "poster", drawn.bytes);
+    poster = drawn?.bytes ?? null;
+  }
+  if (!digest.row.picture_print) {
+    const printFrom = poster ?? (await downloadMade(digest.db, digest.row, "poster"));
+    if (printFrom && (await keepPrint(digest.db, digest.row, printFrom))) return false;
+  }
   if (!alreadyMade.has(FILE_MADE_OF_VIDEO.sheet)) {
     const sheet = await drawVideoSheet(keys.signing, digest.video, plan);
     if (!sheet) throw new Error("video_digest: Stream gave none of the sheet's frames");
     await keepMade(digest, "sheet", sheet.bytes);
   }
-  if (!alreadyMade.has(FILE_MADE_OF_VIDEO.poster)) {
-    const poster = await drawPoster(keys.signing, digest.video, plan.times[1] ?? plan.times[0] ?? 0);
-    if (poster) await keepMade(digest, "poster", poster.bytes);
-  }
   // The copy is the sheet's (look.ts claudeCopyOf, a video's branch): made now, or kept from a run before.
   const fresh = await findFileForWork(digest.db, digest.row.tenant_id, digest.row.id);
-  if (!fresh || fresh.removed_at) return;
+  if (!fresh || fresh.removed_at) return false;
   if (!(await findClaudeCopy(digest.db, fresh))) throw new Error("video_digest: no copy of the sheet for the model");
+  return true;
 }
 
 /** The sound kept in the folder; `none` where Stream makes no sound for the clip. Answers the step after it. */
@@ -320,8 +332,8 @@ export async function digestVideo(db: Db, job: ClaimedJob, deadline: number): Pr
   let next: VideoDigestStep | null;
   switch (step) {
     case "sheet":
-      await sheetStep(digest);
-      next = nextDigestStepOf(step);
+      // A video that went as a twin of one already here has nothing more to make.
+      next = (await sheetStep(digest)) ? nextDigestStepOf(step) : null;
       break;
     case "audio":
       next = await audioStep(digest, sound);

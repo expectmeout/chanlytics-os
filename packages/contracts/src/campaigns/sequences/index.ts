@@ -214,8 +214,9 @@ export {
   scheduleStepState,
   scheduleStepSub,
   scheduleWait,
+  stepAsOffer,
 } from "./schedule";
-export type { ScheduleCtx, ScheduleState } from "./schedule";
+export type { ScheduleCtx, ScheduleState, StepOffer } from "./schedule";
 export {
   batchModeOf,
   coldBatchAsks,

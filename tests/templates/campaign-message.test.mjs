@@ -79,7 +79,7 @@ const SETS = [
 const ANCHORS = { w: "whatsapp", e: "email", s: "sms", we: "whatsapp", ws: "whatsapp", es: "email", wes: "whatsapp" };
 const WHY_WHATSAPP = {
   absent: "This message has no WhatsApp version.",
-  pending: "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+  pending: "WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day).",
   rejected: "WhatsApp asked for a change to this message's words. AI writes new words for you to send back.",
 };
 const NO_EMAIL = "This message has no email version yet.";
@@ -431,7 +431,7 @@ test("a channel the message does not hold has one sentence, and the words an ema
   assert.equal(messageWhyNot(m(E()), "whatsapp"), "This message has no WhatsApp version.");
   assert.equal(
     messageWhyNot(m(W({ meta_status: "pending" })), "whatsapp"),
-    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+    "WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day).",
   );
   assert.equal(
     messageWhyNot(m(W({ meta_status: "rejected" }), E()), "whatsapp"),
@@ -508,7 +508,7 @@ test("a row that names no status, or one the set does not know, is waiting, as t
     assert.equal(messageHolds(m).whatsapp, false);
     assert.equal(
       messageWhyNot(m, "whatsapp"),
-      "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+      "WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day).",
     );
   }
 });
@@ -666,7 +666,7 @@ test("a starter's line says where its WhatsApp version stands in the Library's w
   const library = "Campaigns › Messages";
   assert.equal(
     STARTER_LINE_WORDS.standing("pending"),
-    "has its WhatsApp version in review — it appears here once approved, usually within minutes.",
+    "has its WhatsApp version in review — it appears here once approved (usually minutes, sometimes a day).",
   );
   // The word after "its WhatsApp version" is messageStandingWords' own for that status, so a refusal is refused here too.
   for (const status of ["rejected", "paused", "disabled", "approved"]) {
@@ -678,7 +678,7 @@ test("a starter's line says where its WhatsApp version stands in the Library's w
   assert.equal(STARTER_LINE_WORDS.standing("mystery"), STARTER_LINE_WORDS.standing("pending"));
   assert.equal(
     STARTER_LINE_WORDS.reviewing(2),
-    "Your starter messages' WhatsApp versions are in review (2) — they appear here once approved, usually within minutes.",
+    "Your starter messages' WhatsApp versions are in review (2) — they appear here once approved (usually minutes, sometimes a day).",
   );
   // The link says what it does, and stops: where the WhatsApp version stands is the line's once it is added (`standing`).
   assert.equal(STARTER_LINE_WORDS.add, "Add it");

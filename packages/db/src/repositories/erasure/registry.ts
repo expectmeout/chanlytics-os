@@ -440,7 +440,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // platform's id for it and its error code are nobody's.
   files: {
     ...all(WITH_WORKSPACE, "look", "made", "name", "source_ref", "sound", "sound_said"),
-    ...all(NOT_PERSONAL, "fingerprint", "claude_copy", "media_ref", "media_error"),
+    ...all(NOT_PERSONAL, "fingerprint", "claude_copy", "media_ref", "media_error", "picture_print"),
   },
   // What a person removed, by a hash of its bytes alone (00551).
   files_let_go: { fingerprint: NOT_PERSONAL },

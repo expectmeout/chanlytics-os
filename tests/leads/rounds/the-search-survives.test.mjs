@@ -7,7 +7,8 @@
  *   - the function is killed before a door call, or after the door committed and before its answer came back
  *     (the collect's commit, the check's, a round's end, a claim, a start recorded, the sweep's ending, a job written);
  *   - the provider answers a read with a 429;
- *   - the sweep ticks between any two jobs, and the clock moves on when nothing is due;
+ *   - the sweep ticks between any two jobs, and the clock moves on when nothing is due. Its door has no provider here
+ *     (no token), so the one thing it does only with one, looking for an unknown start, is made beside it;
  *   - the owner answers the question after a while, or stops the search.
  * A job that throws is tried again later, three tries in all, as the ledger does.
  *
@@ -25,6 +26,8 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { dispatchJob } from "../../../packages/jobs/src/handlers/handlers.ts";
+import { reconcileUnknownRuns } from "../../../packages/core/src/leads/runner/sweep.ts";
+import { leadDb } from "../../../apps/edge/lib/leads/db.ts";
 import { LEAD_ROUND_ENDINGS } from "../../../packages/contracts/src/leads/search/sets.ts";
 import { leadWorld, TENANT } from "../../_lead-world.mjs";
 import { at, knock, answer, vault } from "../../_cron-doors-world.mjs";
@@ -129,6 +132,18 @@ function killable(db, rng, kills) {
   });
 }
 
+/**
+ * The sweep's look for an unknown start (core reconcileUnknownRuns): found at the provider, it is taken up; not found
+ * once its grace is over, it is failed, and its collect lets the round go on. The cron door makes it only where the
+ * deployment holds the provider's token, and this world's does not, so a start its door marked unknown stood unknown for
+ * good: a check's start killed after its claim, and killed again on its next try, left its round at its checks with
+ * nothing due (seed 26, 15 Nov 2026). Made here over the world's provider, as production's sweep makes it.
+ */
+async function lookForUnknownStarts(w, db) {
+  const unknown = w.T.lead_runs.filter((r) => r.state === "unknown");
+  if (unknown.length) await reconcileUnknownRuns(w.ports("sweep", { db: leadDb(db) }), unknown);
+}
+
 /** The four rules that hold after every step, whatever was killed. */
 function holds(w, pendingSeen, seed, step) {
   const where = `seed ${seed}, step ${step}`;
@@ -214,6 +229,7 @@ async function runSeed(seed) {
         // Nothing due, or the sweep's tick between two jobs: the clock moves on when nothing is due.
         if (!due) w.clock.advance(5 * 60_000);
         await answer(await knock(sweep.POST, "leads"));
+        await lookForUnknownStarts(w, db);
         holds(w, pendingSeen, seed, step);
         continue;
       }

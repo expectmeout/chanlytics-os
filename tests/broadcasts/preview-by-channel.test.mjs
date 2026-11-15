@@ -665,7 +665,7 @@ test("the one picker rule: a message WhatsApp is still checking is offered, by W
   assert.deepEqual(by.ticked, ["email"]);
   assert.equal(
     by.ticks.whatsapp.why,
-    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+    "WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day).",
   );
   assert.equal(by.ticks.whatsapp.on, false);
   // Refused, paused and disabled each say their own, go by the email alone, and alone are not offered at all.

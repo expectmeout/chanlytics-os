@@ -4,8 +4,9 @@
  * estimateRoundUsd (their price, with room).
  *
  *   - probeAsk / mainAsk: the terms and places per term for the probe (LEAD_PROBE_PLACES spread across the terms the
- *     reserve holds a run for, E10) and for the main phase (what remains, over the yield, without the term the question
- *     dropped: a term not yet asked before one that was, and one asked again past what it read).
+ *     reserve holds a run for, E10) and for the main phase: one term at a time, for what remains over the yield,
+ *     without the term the question dropped or a synonym that mostly returned places already held; a failed term due
+ *     again first, then one not yet asked, then one asked before, past what it read.
  *   - yieldOf / probeYield / hasContact: the yield that sizes the main phase: the share of the probe's places that are not
  *     left out and hold a way to reach them that the search's standard counts (a candidate email for a search made for
  *     email, decision 0132; that or a phone that dials for one made for calls, decision 0010), never the Qualified share,
@@ -27,17 +28,28 @@ import {
 } from "@chanlytics/contracts";
 import { MAPS_CAP_FLOOR_USD } from "./cards";
 
-/** What a start asks: the terms it can start runs for, the places each, and the terms the reserve holds no run for. */
+/**
+ * What a start asks: the terms it can start runs for, the places each, the terms the reserve holds no run for, and (the
+ * main phase's) the terms whose turn comes once the one before them has read its area.
+ */
 export interface TermsAsk {
   terms: string[];
   perTerm: number[];
   waiting: string[];
+  later?: string[];
 }
 
-/** What a search asked of its terms before this start: the places each has read, and the terms this phase has begun. */
+/**
+ * What a search asked of its terms before this start: the places each has read, and the terms this phase has begun. And,
+ * of this phase: whether a run is still out, the failed terms due another try, and the synonyms that mostly returned
+ * places the workspace already held (runner/main-ask.ts staleTermsOf).
+ */
 export interface TermsTried {
   read: ReadonlyMap<string, number>;
   begun: ReadonlySet<string>;
+  running?: boolean;
+  again?: ReadonlySet<string>;
+  stale?: ReadonlySet<string>;
 }
 
 /** The probe: LEAD_PROBE_PLACES spread across the terms the reserve holds a run for (E10), the rest waiting. */
@@ -48,9 +60,30 @@ export function probeAsk(plan: LeadSearchPlan, room: number): TermsAsk {
 }
 
 /**
- * The main phase: the remainder over the yield, without the term the question dropped, shared by the terms the reserve
- * holds a run for. A term this phase began stays (a start tried again starts no other), then a term not yet asked, then
- * one that was, asked past what it read (contracts placesPastRead).
+ * The terms a main phase asks at all: the plan's, without the one the question dropped and without a synonym that mostly
+ * returned places the workspace already held. The widest of them is always asked: a search with nothing else to ask
+ * still asks it.
+ */
+export function termsToAsk(
+  plan: Pick<LeadSearchPlan, "terms">,
+  dropTerm: string | null,
+  stale: ReadonlySet<string> | undefined,
+): string[] {
+  const left = plan.terms.filter((t) => t !== dropTerm);
+  const kept = left.length ? left : plan.terms;
+  return kept.filter((t, i) => i === 0 || !stale?.has(t));
+}
+
+/**
+ * The main phase, one term at a time (decision 0133): the source charges for every place it returns, and a search's
+ * terms are synonyms that mostly return the same places, so a term is asked alone, for all the phase still wants (the
+ * remainder over the yield), and never beside a run still out. `remaining` is its caller's: for a term after the first,
+ * the count less what the places already held may yet deliver, so none is asked where that is nothing. Whose turn: a
+ * failed term due another try, then a term not yet asked, then one asked before, past what it read (placesPastRead);
+ * never the term the question dropped, a term this phase began, or a synonym that mostly returned places the workspace
+ * already held (the widest term is always asked). `terms` is that one term where the reserve holds a run for it; `later`
+ * is the terms still to come that it also holds a run for, which the end of a run starts once those before them came
+ * back short (runner/round-decision.ts); `waiting` is the terms it holds none for.
  */
 export function mainAsk(
   plan: LeadSearchPlan,
@@ -60,21 +93,33 @@ export function mainAsk(
   room: number,
   tried: TermsTried,
 ): TermsAsk {
-  const left = plan.terms.filter((t) => t !== dropTerm);
-  const kept = left.length ? left : plan.terms;
+  const fresh = termsToAsk(plan, dropTerm, tried.stale);
+  const open = fresh.filter((t) => !tried.begun.has(t));
+  const again = (t: string) => tried.again?.has(t) ?? false;
   const order = [
-    ...kept.filter((t) => tried.begun.has(t)),
-    ...kept.filter((t) => !tried.begun.has(t) && !tried.read.has(t)),
-    ...kept.filter((t) => !tried.begun.has(t) && tried.read.has(t)),
+    ...open.filter(again),
+    ...open.filter((t) => !again(t) && !tried.read.has(t)),
+    ...open.filter((t) => !again(t) && tried.read.has(t)),
   ];
-  const terms = order.slice(0, Math.max(room, tried.begun.size));
-  const more = terms.length ? placesToAsk({ ...plan, terms }, Math.max(1, remaining), yieldSoFar).perTerm : [];
-  return {
-    terms,
-    perTerm: terms.map((t, i) => placesPastRead(plan, tried.read.get(t) ?? 0, more[i] ?? 0)),
-    waiting: order.slice(terms.length),
-  };
+  // The phase's first term is asked for one place at least, as a main phase always was; a later one for nothing where
+  // nothing more is wanted.
+  const wanted =
+    remaining > 0 || !tried.begun.size
+      ? placesToAsk({ ...plan, terms: fresh }, Math.max(1, remaining), yieldSoFar).total
+      : 0;
+  const asks = order.map((t) => placesPastRead(plan, tried.read.get(t) ?? 0, wanted));
+  const at = tried.running ? -1 : asks.findIndex((n) => n > 0);
+  const next = order[at];
+  if (next === undefined) return { terms: [], perTerm: [], waiting: [], later: order };
+  // Of the terms still to come, those the reserve holds a run for after this one wait their turn; the rest it has no
+  // room for, as a term past the reserve never did.
+  const rest = order.filter((t) => t !== next);
+  if (room <= 0) return { terms: [], perTerm: [], waiting: [next, ...rest], later: [] };
+  return { terms: [next], perTerm: [asks[at] ?? 0], waiting: rest.slice(room - 1), later: rest.slice(0, room - 1) };
 }
+
+/** The even yield a later round sizes from when its search has judged nothing yet. */
+export const UNMEASURED_YIELD = 0.5;
 
 /** A share of what was judged, floored so one bad probe never asks for everything. */
 export function yieldOf(judged: number, usable: number): number {

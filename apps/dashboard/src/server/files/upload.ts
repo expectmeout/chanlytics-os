@@ -234,6 +234,8 @@ export async function finishUpload(
     shows: null,
     edition: FILE_LOOK_EDITION,
     actor: ctx.userId,
+    // Only the first bytes are read here: the look prints the picture as it starts (00630 file_printed).
+    print: null,
   });
   if (answered.fate === "full") throw new AppError("validation", W.full);
   return { file_id: answered.file_id ?? id, twin: answered.fate === "here" };

@@ -21,6 +21,35 @@ export const TEMPLATE_STATUS_WORDS: Record<TemplateStatus, string> = {
 };
 
 /**
+ * How long WhatsApp takes to check a message's words, said one way on every page that says it. Most said "usually within
+ * minutes" and two "sometimes a day"; a ready-made follow-up took 23 hours (15 Nov 2026).
+ */
+export const WHATSAPP_REVIEW_TAKES = "usually minutes, sometimes a day";
+
+/**
+ * What the bell and the mail call WhatsApp's answer on a saved message, each around the message's own name. The edge keeps
+ * its notice under these (waba-events.ts), and the rule that closes a warning once the approval is kept finds both by them
+ * (waits/notice-mends.ts). They were written in each place: on 13 Nov 2026 the edge's were said in plainer words, the rule
+ * went on looking for the old ones, and an approval closed nothing, so a refusal asked on beside it.
+ *
+ * Beside the four statuses: an approval that says its kind, where WhatsApp approved the message as an offer (who an offer
+ * reaches is not who a notice reaches, so the title says it); and two things WhatsApp says of a message it had approved,
+ * that it goes out again (a hold ended, or a message turned off was turned back on) and that it is an offer from now on.
+ */
+export const TEMPLATE_NOTICE_TITLES = {
+  rejected: (title: string): string => `WhatsApp asked for a change to “${title}”`,
+  paused: (title: string): string => `WhatsApp is holding “${title}” for a few hours`,
+  disabled: (title: string): string => `WhatsApp turned “${title}” off`,
+  approved: (title: string): string => `WhatsApp approved “${title}”`,
+  approvedOffer: (title: string): string => `WhatsApp approved “${title}” as an offer`,
+  resumed: (title: string): string => `WhatsApp is sending “${title}” again`,
+  offer: (title: string): string => `WhatsApp now treats “${title}” as an offer`,
+} as const satisfies Record<
+  Exclude<TemplateStatus, "pending"> | "approvedOffer" | "resumed" | "offer",
+  (title: string) => string
+>;
+
+/**
  * The languages a template may be written in: every one WhatsApp takes
  * (templates/languages.ts). It was six, so a business writing to its customers
  * in French or Vietnamese was told to "pick a language from the list".

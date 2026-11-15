@@ -57,6 +57,8 @@ export async function recordFileFound(
     shows: FileShows | null;
     edition: number;
     actor: string | null;
+    /** What the picture looks like (00630), where its bytes were read whole: judged against the business's files by it too. */
+    print: string | null;
   },
 ): Promise<FileFate> {
   const { data, error } = await db.rpc("file_found", {
@@ -74,9 +76,25 @@ export async function recordFileFound(
     p_shows: args.shows,
     p_edition: args.edition,
     ...(args.actor ? { p_actor: args.actor } : {}),
+    ...(args.print ? { p_print: args.print } : {}),
   });
   if (error) throw new DbFailure(error, "file found");
   return fateOf(data);
+}
+
+/** What became of a picture printed after it was kept: still here, or gone as the twin of the one named. */
+export type PrintFate = { fate: "kept" | "gone"; twinId: string | null };
+
+/**
+ * A picture's print, kept and judged (00630 file_printed): an upload's as its look starts, a video's at its digest's first step,
+ * a file from before by the backfill. Where it twins another, the rule there says which goes. The service role's.
+ */
+export async function recordFilePrint(db: Db, tenantId: TenantId, id: string, print: string): Promise<PrintFate> {
+  const { data, error } = await db.rpc("file_printed", { p_tenant_id: tenantId, p_id: id, p_print: print });
+  if (error) throw new DbFailure(error, "file printed");
+  const o = recordOrEmpty(data);
+  if (o.fate !== "kept" && o.fate !== "gone") throw new Error("file printed: no fate answered");
+  return { fate: o.fate, twinId: typeof o.twin_id === "string" ? o.twin_id : null };
 }
 
 /** What Ask made, kept as a file once its bytes are stored (00553). The service role's. */

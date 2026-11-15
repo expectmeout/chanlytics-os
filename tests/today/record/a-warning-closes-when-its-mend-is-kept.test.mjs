@@ -16,6 +16,7 @@ import {
   NOTICE_MENDS,
   OFFERS_NOTICE_WORDS,
   SERVER_NOTIFICATION_KINDS,
+  TEMPLATE_NOTICE_TITLES,
   kindsEndedBy,
   warningsMendedBy,
 } from "@chanlytics/contracts";
@@ -24,6 +25,9 @@ import { fakeDb } from "../../_fake-db.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const { recordNotification, mendWarnings } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/alerts/notify.ts")).href
+);
+const { describeWabaChange } = await import(
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/waba-events.ts")).href
 );
 
 const TENANT = "11111111-0000-4000-8000-000000000001";
@@ -97,12 +101,27 @@ test("a mend names its warning by title: 'back to normal' mends 'flagged' and no
     titles({ change: "billing.paid" }).map(([, source]) => source),
     ["^A payment did not go through$", "^Your trial ends in three days$"],
   );
-  // A version approved mends that version's refusal, pause or disable (the same subject: its name and language), in the
-  // edge's own words for them (waba-events.ts statusWord over TEMPLATE_STATUS_WORDS).
-  const [version, ...others] = warningsMendedBy({ kind: "template_ready", title: "Template “spring_offer” approved" });
+  // A version approved mends that version's refusal, hold or turn-off (the same subject: its name and language), under
+  // the titles the edge keeps them by (TEMPLATE_NOTICE_TITLES, which waba-events.ts reads) and under those of before
+  // 13 Nov 2026, which a warning kept then still carries.
+  const [version, ...others] = warningsMendedBy({
+    kind: "template_ready",
+    title: TEMPLATE_NOTICE_TITLES.approved("Spring offer"),
+  });
   assert.equal(others.length, 0);
   assert.deepEqual([version.kind, version.sameSubject], ["template_blocked", true]);
+  // An approval as an offer, and a message WhatsApp sends again, mend the same warnings; one filed as an offer mends none.
+  for (const by of ["approvedOffer", "resumed"])
+    assert.deepEqual(
+      titles({ kind: "template_ready", title: TEMPLATE_NOTICE_TITLES[by]("Spring offer") }),
+      [["template_blocked", version.title.source, true]],
+      by,
+    );
+  assert.deepEqual(titles({ kind: "template_ready", title: TEMPLATE_NOTICE_TITLES.offer("Spring offer") }), []);
   for (const title of [
+    TEMPLATE_NOTICE_TITLES.rejected("Spring offer"),
+    TEMPLATE_NOTICE_TITLES.paused("Spring offer"),
+    TEMPLATE_NOTICE_TITLES.disabled("Spring offer"),
     "Template “spring_offer” refused",
     "Template “spring_offer” paused",
     "Template “spring_offer” disabled",
@@ -155,6 +174,73 @@ test("kept good news closes the warning it mends, for everyone: not another numb
   // Kept again: nothing more to close, and nothing reopens.
   await recordNotification(TENANT, back, db);
   assert.equal(isClosed(rows, flagged), true);
+});
+
+// WhatsApp's news of a message, in the edge's own words (waba-events.ts describeWabaChange), never written again here: on
+// 13 Nov 2026 the edge said its titles in plainer words, the pair went on looking for the old ones, and an approval
+// closed nothing.
+const told = (field, value) =>
+  describeWabaChange(
+    { field, value: { message_template_name: "spring_offer", message_template_language: "en_US", ...value } },
+    null,
+  );
+const status = (event, over = {}) => told("message_template_status_update", { event, ...over });
+/** That news as the bell kept it an hour ago: a warning about its message, open. */
+const keptAs = (words) =>
+  warning(words.kind, words.subject, { subject_type: words.about.type, subject_id: words.about.id });
+
+test("WhatsApp's approval of a message closes that message's refusal, hold and turn-off, each under the title the edge keeps it by", async () => {
+  const refused = keptAs(status("REJECTED"));
+  const held = keptAs(status("PAUSED"));
+  const off = keptAs(status("DISABLED"));
+  const spanish = keptAs(status("REJECTED", { message_template_language: "es" }));
+  const another = keptAs(status("REJECTED", { message_template_name: "winback_offer" }));
+  const moved = keptAs(told("template_category_update", { new_category: "MARKETING" }));
+  // A refusal kept before 13 Nov 2026 is on the bell for its thirty days, under that day's title.
+  const before = warning("template_blocked", "Template “spring_offer” refused", {
+    subject_type: "template",
+    subject_id: "spring_offer:en_US",
+  });
+  const rows = [refused, held, off, spanish, another, moved, before];
+  const db = fakeDb({ notifications: rows });
+  const approved = status("APPROVED");
+  const kept = await recordNotification(
+    TENANT,
+    { kind: approved.kind, title: approved.subject, body: approved.body, route: approved.route, about: approved.about },
+    db,
+  );
+  assert.ok(kept, "the approval is kept");
+  assert.equal(
+    isClosed(rows, refused),
+    true,
+    `REGRESSION (13 Nov 2026): “${refused.title}” stayed open beside “${approved.subject}”`,
+  );
+  assert.equal(isClosed(rows, held), true, `“${held.title}” stayed open beside the approval`);
+  assert.equal(isClosed(rows, off), true, `“${off.title}” stayed open beside the approval`);
+  assert.equal(isClosed(rows, before), true, "a refusal kept under the title of before is that message's too");
+  assert.equal(isClosed(rows, spanish), false, "another language's refusal still stands");
+  assert.equal(isClosed(rows, another), false, "another message's refusal is its own");
+  assert.equal(isClosed(rows, moved), false, "an approval does not lift a move to offers");
+});
+
+test("a hold that ends closes that message's hold without a word: no other message's, and no refusal's words are sent back by it", async () => {
+  const held = keptAs(status("PAUSED"));
+  const off = keptAs(status("DISABLED"));
+  const another = keptAs(status("PAUSED", { message_template_name: "winback_offer" }));
+  const rows = [held, off, another];
+  const db = fakeDb({ notifications: rows });
+  // WhatsApp's unpause (Meta: other_info.title UNPAUSE) is news told to nobody (alert false): it mends, as "back to normal" does.
+  const again = status("APPROVED", { other_info: { title: "UNPAUSE" } });
+  assert.equal(again.alert, false);
+  await mendWarnings(db, {
+    tenantId: TENANT,
+    by: { kind: again.kind, title: again.subject },
+    subject: again.about,
+    keptId: null,
+  });
+  assert.equal(isClosed(rows, held), true, `“${held.title}” stayed open after “${again.subject}”`);
+  assert.equal(isClosed(rows, off), true, "a message turned back on is no longer off");
+  assert.equal(isClosed(rows, another), false, "another message's hold is its own");
 });
 
 test("a mailbox's hold is mended by its own resume, its sign-out by connecting it again, and either by its removal", async () => {
