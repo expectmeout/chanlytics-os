@@ -20,7 +20,8 @@ of the public will experience.
 
 1. `README.md`: the moving parts, the things that will surprise you, the conventions.
 2. `docs/glossary.md`: the words, and the two rules about storage's own, _tenant_ versus _workspace_ and _contact_
-   versus _person_. `docs/naming.md` is the grammar every name follows.
+   versus _person_. `docs/naming.md` is the grammar every name follows, and `docs/words.md` how a screen says each
+   thing: the AI is called AI, one word for each thing, and the shape of every badge, notice and problem.
 3. `docs/architecture.md`: how it is wired, and where to look for each concern.
 4. `docs/runbook.md`: run it, test it, deploy it, roll it back.
 5. `docs/decisions/`: what is decided, and in its README which of it is built. Read the relevant note before
