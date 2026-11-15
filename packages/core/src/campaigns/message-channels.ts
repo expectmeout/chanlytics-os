@@ -39,12 +39,14 @@ export function parseChannels(value: unknown, kept: readonly string[] | null = n
 /**
  * A tick the send cannot keep, refused at create (spec 4.10: not at send), in the words of contracts channelChoices: a
  * channel the purpose never carries (texts carry no offers) is a request that is wrong; one the workspace is not ready
- * on, or whose message has no version, is a state of the workspace that is not.
+ * on, or whose message has no version, is a state of the workspace that is not. The door that opens it rides the refusal
+ * (the choice's own `mend`: connecting the channel, the business's address, or none where a rule closes it), so whoever
+ * hears it offers that page or none, and never reads one off the sentence.
  */
 export function refuseTicks(how: CampaignHow, purpose: AskedPurpose): void {
   const no = channelChoices(how.ready, purpose, how.about).find((c) => how.channels.includes(c.channel) && !c.ok);
   if (!no) return;
   const words = no.why ?? `${no.channel} is not ready to send on.`;
-  if (channelNeverCarries(no.channel, purpose)) throw new AppError("validation", words);
-  throw new AppError("conflict", words, 409);
+  if (channelNeverCarries(no.channel, purpose)) throw new AppError("validation", words, undefined, { mend: null });
+  throw new AppError("conflict", words, 409, { mend: no.mend });
 }

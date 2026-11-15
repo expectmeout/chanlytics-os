@@ -34,6 +34,7 @@ import {
   TEMPLATE_NAME_WORDS,
   TEMPLATE_SAME_NAME_WORDS,
   channelNeverCarries,
+  channelRuledOut,
   metaStatusOf,
   purposeOfTemplate,
   starterByName,
@@ -41,20 +42,14 @@ import {
   templateTitle,
   validateOwnVersion,
   validateTemplateDraft,
-  whatsappOffersOpen,
   type ConsentChannel,
   type OwnVersionChannel,
   type ParamSpec,
   type TemplateStatus,
 } from "@chanlytics/contracts";
-import {
-  findHeldMessage,
-  findWhatsappChannelFacts,
-  listMessageVersionRows,
-  setTemplateTitle,
-} from "@chanlytics/db/campaigns";
+import { findHeldMessage, listMessageVersionRows, setTemplateTitle } from "@chanlytics/db/campaigns";
 import { findWhatsAppAccount } from "@chanlytics/db/channels";
-import { submitDraft } from "@/server/campaigns/template-submit";
+import { getWhatsAppOffers, submitDraft } from "@/server/campaigns/template-submit";
 import { WHATSAPP_ACCOUNT_MISSING, refuseTwinWords, type ReviewWords } from "@/server/campaigns/whatsapp-refusals";
 import { MESSAGE_VALUES_WORDS, fileWrittenVersion, refuseWrittenUtility } from "@/server/campaigns/template-versions";
 import { log } from "@/server/shared/log";
@@ -99,37 +94,29 @@ export interface WriteMessageAnswer {
   refused?: { channel: ConsentChannel; words: string };
 }
 
+/** Whether offers can go by WhatsApp here, as a writer holds it: a channels read's, or the number's own (template-submit.ts). */
+type WhatsAppOffers = { ok: boolean; why: string | null } | null | undefined;
+
 /**
  * Whether a message of this kind is written for WhatsApp in this workspace at all (G1 of the clean-list plan, 14 Nov
- * 2026: nothing is made that cannot be sent here): never where it is an offer and the workspace's number is one Meta's pause holds
- * (`whatsappOffers`, contracts whatsappOffersOpen: marketing messages to US numbers), since no offer reaches anyone there
- * by WhatsApp. Nothing of such a version is written, filed or said: the card, the draft and the door each take the message
- * without it. A text of an offer stays the door's own refusal (checkMessage), which tells its writer. Absent, nothing is
- * held, as a read that did not know the number holds nothing.
+ * 2026: nothing is made that cannot be sent here): the one rule's answer, asked here for every writer (contracts
+ * channelRuledOut: never where it is an offer and the workspace's number is one Meta's pause holds, since no offer
+ * reaches anyone there by WhatsApp). Nothing of such a version is written, filed or said: the card, the draft and the door
+ * each take the message without it. A text of an offer stays the door's own refusal (checkMessage), which tells its
+ * writer. Absent, nothing is held, as a read that did not know the number holds nothing.
  */
-export const whatsappWrittenHere = (
-  category: WriteMessageBody["category"],
-  whatsappOffers: { ok: boolean } | null | undefined,
-): boolean => purposeOfTemplate(category) !== "marketing" || whatsappOffers?.ok !== false;
+export const whatsappWrittenHere = (category: WriteMessageBody["category"], whatsappOffers: WhatsAppOffers): boolean =>
+  channelRuledOut("whatsapp", purposeOfTemplate(category), whatsappOffers) === null;
 
 /** A message's versions without the one this workspace never writes it on (whatsappWrittenHere, above). */
 export function versionsWrittenHere<V extends WriteMessageBody["versions"]>(
   versions: V,
   category: WriteMessageBody["category"],
-  whatsappOffers: { ok: boolean } | null | undefined,
+  whatsappOffers: WhatsAppOffers,
 ): V | Omit<V, "whatsapp"> {
   if (!versions.whatsapp || whatsappWrittenHere(category, whatsappOffers)) return versions;
   const { whatsapp: _held, ...rest } = versions;
   return rest;
-}
-
-/**
- * Whether offers can go by WhatsApp from this workspace's number (contracts whatsappOffersOpen), read where a writer holds
- * no channels read: null where it has no number, which holds nothing.
- */
-export async function getWhatsAppOffers(ctx: RouteContext, tenantId: TenantId) {
-  const line = await findWhatsappChannelFacts(ctx.supabase, tenantId);
-  return line ? whatsappOffersOpen(line.number) : null;
 }
 
 /** A version that could not be filed for a reason no one meant a person to read (a fault, not a refusal). */
@@ -319,8 +306,9 @@ async function writtenHereOf(
     ...request,
     versions: versionsWrittenHere(request.versions, request.category, offers),
   };
+  // A rule's refusal: no page opens it, and it says so (contracts ErrorDetailsByCode), so a card offers none.
   if (!body.versions.whatsapp && !body.versions.email && !body.versions.sms)
-    throw new AppError("validation", offers?.why ?? NOT_FILED);
+    throw new AppError("validation", offers?.why ?? NOT_FILED, undefined, { mend: null });
   return body;
 }
 

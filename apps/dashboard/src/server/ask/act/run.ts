@@ -60,6 +60,8 @@ interface Answered {
   message: string;
   /** The route's own words for a refusal, where it gave any: what a card stopped part way says after what went. */
   own: string;
+  /** What the refusal carries beside its words (contracts ErrorDetailsByCode), as it came: its door, where it names one. */
+  details?: unknown;
 }
 
 /** One of a spec's calls, as a request of its own to this app, under the member's own session. */
@@ -109,6 +111,7 @@ async function callRoute(
     code: typeof error.code === "string" ? error.code : "unknown",
     message: errorMessageOf(error, res.status),
     own: typeof error.message === "string" ? error.message : "",
+    details: error.details,
   };
 }
 
@@ -169,7 +172,15 @@ const told = (calls: readonly ProposalCall[]): AskActAnswer["calls"] =>
 async function failed(
   ctx: RouteContext,
   sides: { messageId: string; proposalId: string; actionId: string | null },
-  words: { message: string; code: string; moved: boolean; redraft?: boolean; landed?: number; card: AskProposal },
+  words: {
+    message: string;
+    code: string;
+    moved: boolean;
+    redraft?: boolean;
+    landed?: number;
+    details?: unknown;
+    card: AskProposal;
+  },
 ): Promise<AskActAnswer> {
   const outcome: AskProposalOutcome = {
     state: "failed",
@@ -188,7 +199,7 @@ async function failed(
     message: words.message,
     outcome,
     calls: [],
-    forward: failureDoorOf(words.code, words.message),
+    forward: failureDoorOf(words.code, words.message, words.details),
     ...(words.redraft ? { redraft: true } : {}),
     ...(words.landed ? { landed: words.landed } : {}),
   };
@@ -199,8 +210,12 @@ async function failed(
  * rest did not (contracts PROPOSAL_WORDS.batchStopped, the browser's walk's words), so a part that went is never told as
  * nothing gone. Its record says the same: `partly_done`.
  */
-function stoppedAt(refused: Answered, landed: number, of: number): { message: string; code: string; landed: number } {
-  if (landed === 0) return { message: refused.message, code: refused.code, landed };
+function stoppedAt(
+  refused: Answered,
+  landed: number,
+  of: number,
+): { message: string; code: string; landed: number; details?: unknown } {
+  if (landed === 0) return { message: refused.message, code: refused.code, landed, details: refused.details };
   const reason = refused.own || PROPOSAL_WORDS.nextPartStopped;
   return { message: PROPOSAL_WORDS.batchStopped(landed, of, reason), code: "partly_done", landed };
 }

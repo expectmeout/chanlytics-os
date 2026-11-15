@@ -159,7 +159,7 @@ export {
 export type { PreviewOn, PreviewPart, PreviewVersions, ReachBarPart } from "./preview-by-channel";
 export { answeredYes, personReachOf, READY_WHATSAPP_ALONE, readyOrWhatsApp } from "./reach-any";
 export type { PersonReach } from "./reach-any";
-export { usableChannels } from "./reach-for";
+export { channelRuledOut, usableChannels } from "./reach-for";
 export { answersToRuns } from "./run-answers";
 export type { AnswerEvent, AnswerPurpose, AnswerSend, RunAnswer } from "./run-answers";
 export {

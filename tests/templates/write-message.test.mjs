@@ -36,6 +36,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/templates/message/route.ts"));
+const templatesRoute = await import(at("apps/dashboard/app/api/v1/templates/route.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -446,6 +447,32 @@ test("(b1) from a US number an offer is written without its WhatsApp version, si
     message({ name: "visit_thanks", category: "utility", versions: { email: VISIT_EMAIL, whatsapp: VISIT_WHATSAPP } }),
   );
   assert.deepEqual(w.order, ["create:email", "meta"]);
+});
+
+test("(b2) the floor under every writer: POST templates, which a WhatsApp version of a message on file and another language of it are sent by, refuses an offer from a US number in the pause's words and asks WhatsApp nothing (the review of 15 Nov 2026)", async () => {
+  const submitted = (w, body) =>
+    templatesRoute.POST.run(
+      new Request(`http://localhost/api/v1/x?workspace=${B}`, { method: "POST", body: JSON.stringify(body) }),
+      w.ctx,
+    );
+  const offer = {
+    name: "spring_colour_two",
+    language: "en_US",
+    category: "marketing",
+    ...WHATSAPP,
+    examples: ["Dani", "Luna Studio"],
+  };
+  let w = open();
+  w.tables.tenant_channels[0].number_e164 = "+12025550123";
+  await refused(submitted(w, offer), "conflict", 409, "WhatsApp is not delivering offers to US numbers");
+  assert.equal(w.meta.calls.length, 0, "nothing asked of WhatsApp");
+  // A message about their own visit is no offer: it goes for review from the same number.
+  await submitted(w, { ...offer, name: "visit_thanks_two", category: "utility", ...VISIT_WHATSAPP, footer: null });
+  assert.equal(w.meta.calls.length, 1);
+  // And from a number the pause does not hold, the offer goes for review as it did.
+  w = open();
+  await submitted(w, offer);
+  assert.equal(w.meta.calls.length, 1);
 });
 
 test("(c) WhatsApp's version refused at the edge leaves the email filed and is answered under `refused`, in the words POST templates says, never thrown", async () => {

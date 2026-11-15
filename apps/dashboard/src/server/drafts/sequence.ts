@@ -563,6 +563,8 @@ export async function readDraftKnown(rc: ReaderContext): Promise<DraftKnown> {
     ready: ready
       ? (["whatsapp", "sms", "email"] as const).filter((c): c is ConsentChannel => ready[c]?.ready === true)
       : [],
+    // The channels as read, for the one rule (draft-judge.ts firstGoesBy), and WhatsApp's offers for what Ask writes.
+    channels: ready,
     whatsappOffers: ready?.whatsapp.offers ?? null,
     classModes: Object.fromEntries((policies ?? []).map((p) => [p.class, p.mode])),
     // None named is every connected mailbox (00424): the draft names none, and says the first.

@@ -127,7 +127,11 @@ const READS = {
     running: [],
   },
   library: { messages: [], rows: [] },
-  ready: READY,
+  channels: contracts.channelsReady({
+    whatsapp: { canSend: true, refusal: null },
+    textLine: null,
+    email: { mailbox: true, domain: true, offers: { campaigns: true, address: true, paused: null } },
+  }),
   paused: false,
   today: contracts.zoneDayKey(Date.now(), ZONE),
   timezone: ZONE,

@@ -18,7 +18,7 @@ import {
   clockHour,
   sequenceRoute,
   zonedInputValue,
-  type ConsentChannel,
+  type ChannelsReady,
   type MailboxHistory,
   type NewAudience,
   type NewDraftDto,
@@ -64,11 +64,16 @@ import {
   type WhoReads,
 } from "./new-sheets";
 
-/** What the draft reads beside itself: who it could be for, the Library, the channels connected, and the business's clock. */
+/** What the draft reads beside itself: who it could be for, the Library, the workspace's channels, and the business's clock. */
 export interface DraftReads {
   who: WhoReads;
   library: LibraryReads | null;
-  ready: readonly ConsentChannel[];
+  /**
+   * The workspace's channels now, as the one rule reads them (lib/new-checks.ts draftChoicesOf, the send door's own
+   * question): what a message is ticked to, what the picker offers and what the foot asks for are read from this, so an
+   * offer's email where offers by email are off, or its WhatsApp from a US number, is neither ticked nor offered.
+   */
+  channels: ChannelsReady;
   /** The workspace is paused for billing: nothing sends, so Send and Start wait and say why first. */
   paused: boolean;
   /** Today by the business's clock ("YYYY-MM-DD"), where a one-off's day starts. */
@@ -83,7 +88,7 @@ export interface DraftReads {
 const footReadsOf = (reads: DraftReads): M.FootReads => ({
   paused: reads.paused,
   localNow: zonedInputValue(Date.now(), reads.timezone),
-  ready: reads.ready,
+  channels: reads.channels,
 });
 
 /** What the draft's parts ask of the page. */
@@ -214,7 +219,7 @@ function NobodyCase(p: { said: NonNullable<ReturnType<typeof M.nobodyOf>>; open:
  */
 function DraftCases(p: {
   draft: NewDraftDto;
-  ready: readonly ConsentChannel[];
+  channels: ChannelsReady;
   paused: boolean;
   busy: boolean;
   open: (s: NewSheet) => void;
@@ -247,7 +252,7 @@ function DraftCases(p: {
       />,
     );
   // A one-off goes to whoever can hear it now, so with nobody there is nothing to send (D4); a sequence runs on.
-  const nobody = M.nobodyOf(draft, p.ready);
+  const nobody = M.nobodyOf(draft, p.channels);
   if (nobody) cards.push(<NobodyCase key="nobody" said={nobody} open={p.open} />);
   // A WhatsApp version Ask wrote goes to Meta as it is filed (D5): sent before Meta approves it, it goes by the rest; kept,
   // it is filed now and waits under Drafts while Meta reviews it.
@@ -339,7 +344,7 @@ function DraftSheets(p: {
       <ChannelsSheet
         open={sheet?.kind === "channels"}
         draft={draft}
-        ready={reads.ready}
+        channels={reads.channels}
         onChannels={(c) => change(M.setChannels(draft, c))}
         onClose={close}
       />
@@ -349,7 +354,7 @@ function DraftSheets(p: {
         i={i}
         library={reads.library}
         onMessage={(m) => {
-          change(M.setMessage(draft, i, m, reads.ready));
+          change(M.setMessage(draft, i, m, reads.channels));
           close();
         }}
         onWrite={() => p.write(i)}
@@ -361,7 +366,7 @@ function DraftSheets(p: {
         i={i}
         blank={p.blank}
         opens={p.opens}
-        onMessage={(m) => change(M.setMessage(draft, i, m, reads.ready))}
+        onMessage={(m) => change(M.setMessage(draft, i, m, reads.channels))}
         onEmail={(e) => change(M.setEmail(draft, i, e))}
         onClose={close}
       />
@@ -400,7 +405,7 @@ const subOf = (d: NewDraftDto): string =>
 /** Who and when, its notes, and the steps: the draft's own column. */
 function DraftBody(p: {
   draft: NewDraftDto;
-  ready: readonly ConsentChannel[];
+  channels: ChannelsReady;
   paused: boolean;
   busy: boolean;
   open: (s: NewSheet) => void;
@@ -417,7 +422,7 @@ function DraftBody(p: {
     <>
       <DraftCases
         draft={draft}
-        ready={p.ready}
+        channels={p.channels}
         paused={p.paused}
         busy={p.busy}
         open={p.open}
@@ -588,7 +593,7 @@ export function DraftView(p: {
             <div className="sq-nw-col" inert={redrafting}>
               <DraftBody
                 draft={draft}
-                ready={reads.ready}
+                channels={reads.channels}
                 paused={reads.paused}
                 busy={p.busy}
                 open={open}

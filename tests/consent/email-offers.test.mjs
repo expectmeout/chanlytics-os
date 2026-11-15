@@ -374,10 +374,7 @@ test("offers by email go only where the campaigns domain is verified, the busine
   const paused = { at: "2026-10-01T10:00:00Z", reason: "complaints" };
   const verdict = (o) => emailOffersOpen(o, CHANNEL_WORDS.unchecked);
   assert.deepEqual(verdict(OPEN), { ok: true, why: null, paused: null });
-  assert.equal(
-    verdict({ ...OPEN, campaigns: false }).why,
-    "Offers by email start once the campaigns domain is set up.",
-  );
+  assert.equal(verdict({ ...OPEN, campaigns: false }).why, "Emails carry no offers or news for now.");
   assert.equal(verdict({ ...OPEN, address: false }).why, "Add your business's address to send offers by email.");
   assert.equal(verdict({ ...OPEN, paused }).why, OFFERS_BY_EMAIL_WORDS.paused);
   assert.equal(
@@ -447,11 +444,11 @@ test("offers by email go only where the campaigns domain is verified, the busine
   );
   assert.deepEqual(
     channelChoices(ready({ ...OPEN, paused }), "marketing", "ours").find((c) => c.channel === "email"),
-    { channel: "email", ok: false, why: OFFERS_BY_EMAIL_WORDS.paused },
+    { channel: "email", ok: false, why: OFFERS_BY_EMAIL_WORDS.paused, rule: false, mend: null },
   );
   assert.deepEqual(
     channelChoices(ready({ ...OPEN, paused }), "conversational", "ours").find((c) => c.channel === "email"),
-    { channel: "email", ok: false, why: OFFERS_BY_EMAIL_WORDS.paused },
+    { channel: "email", ok: false, why: OFFERS_BY_EMAIL_WORDS.paused, rule: false, mend: null },
     "the pause holds the news with the offers",
   );
   assert.equal(
