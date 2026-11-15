@@ -16,9 +16,9 @@
  * Nothing here is shown to an owner, so the vendor's names are fine in what it says.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { keepLeadPrices, findLeadPricesSeen, type LeadPricesSeen } from "@chanlytics/db/leads";
+import { findPlatformDayCounter, keepLeadPrices, findLeadPricesSeen, type LeadPricesSeen } from "@chanlytics/db/leads";
 import type { Database } from "@chanlytics/db/types";
-import { DAY_MS } from "@chanlytics/contracts";
+import { DAY_MS, DbFailure, LEAD_PLATFORM_DAY_CAP_USD } from "@chanlytics/contracts";
 import { apifyClient, type ApifyClient } from "@chanlytics/channels/leads";
 import { leadPins } from "@chanlytics/core";
 import { pageOperator, type PagePorts } from "../shared/alerts/page-operator.js";
@@ -48,6 +48,27 @@ export async function recordPageSourceRefused(
 }
 
 /**
+ * Every term's run of a round failed within half a minute of starting (decision 0133, core retries.ts): a key, a limit or
+ * a build that fails once the run begins, which no wait mends, so no try is spent on it and the platform is paged at
+ * once, one page per actor per pager window. A run that fails partway is tried again first, and pages nothing.
+ */
+export async function recordPageSourceDown(
+  db: Db,
+  input: { actor: string; build: string; runs: number },
+  pager: Omit<PagePorts, "db"> = {},
+): Promise<void> {
+  await pageOperator(
+    { db, ...pager },
+    `lead_source_down:${input.actor}`,
+    `A lead source fails every run at once: ${input.actor}`,
+    `${input.actor} at build ${input.build} failed all ${input.runs} of a round's runs within half a minute of starting ` +
+      `them.\n\nThe round ended on the source and was not tried again: a failure this quick is a key, a limit or a ` +
+      `build, not a bad minute. Read a failed run's log in the provider's console; a build it has moved past: probe its ` +
+      `latest build with the card's own input (a few places), then pin its number and id in ${CARDS_FILE}.\n`,
+  );
+}
+
+/**
  * A page of places with websites came back with none of them read for contacts: paged once per actor per pager window.
  * 14 Nov 2026: from 13 Nov the Maps actor's pinned build had its contacts service refused ("User was not found or
  * authentication token is not valid"), read no site, and crashed on longer runs; nothing said so for a day.
@@ -67,6 +88,37 @@ export async function recordPageContactsUnread(
       `details" names why); a build the provider has moved past: probe its latest build with the card's own input (a few ` +
       `places), check its items carry a domain and emails, then pin its number and id in ${CARDS_FILE}.\n`,
   );
+}
+
+/** The share of the platform's searching day that pages us (decision 0133). */
+const PLATFORM_DAY_PAGE_SHARE = 0.8;
+
+/**
+ * Every workspace's searching together has reserved or spent 80% of the platform's day (decision 0133, 00627): paged
+ * once that day. Past the cap a search's next leg ends on "today's searching is used", and a new search is refused
+ * until the next UTC day, so we hear before it happens. True when it paged.
+ */
+export async function recordPagePlatformDay(
+  db: Db,
+  nowMs: number,
+  pager: Omit<PagePorts, "db"> = {},
+): Promise<boolean> {
+  const day = new Date(nowMs).toISOString().slice(0, 10);
+  const { data, error } = await findPlatformDayCounter(db, day);
+  if (error) throw new DbFailure(error, "the platform's day of lead searching");
+  const spent = Number(data?.used ?? 0) + Number(data?.reserved ?? 0);
+  if (spent < PLATFORM_DAY_PAGE_SHARE * LEAD_PLATFORM_DAY_CAP_USD) return false;
+  await pageOperator(
+    { db, ...pager },
+    `lead_platform_day:${day}`,
+    `Lead searching is near today's cap: $${spent.toFixed(2)} of $${LEAD_PLATFORM_DAY_CAP_USD}`,
+    `Every workspace's lead searching together has reserved or spent $${spent.toFixed(2)} of the platform's ` +
+      `$${LEAD_PLATFORM_DAY_CAP_USD} for ${day} (UTC).\n\nAt the cap a new search is refused until tomorrow and a search ` +
+      `widening to its count stops on "today's searching is used". Read which searches spent it (lead_rounds by ` +
+      `platform_day); if it is real demand, raise platform_day_usd in lead_cap and LEAD_PLATFORM_DAY_CAP_USD together, ` +
+      `in a migration.\n`,
+  );
+  return true;
 }
 
 /** The provider's client for the watch, when this deployment holds the key; null checks nothing. */

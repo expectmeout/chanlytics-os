@@ -15,3 +15,11 @@ export async function hashSha256Hex(text: string): Promise<string> {
 export async function runIdFor(roundId: string, phase: "probe" | "main" | "check", term: string): Promise<string> {
   return makeUuidV5(`lead_run:${roundId}:${phase}:${term}`);
 }
+
+/**
+ * A main run of a term whose earlier tries failed (decision 0133, retries.ts): the round, the term and the try, so each
+ * try is a row of its own and a starter that repeats one meets the row it made. The first try is runIdFor's own.
+ */
+export async function retryRunIdFor(roundId: string, term: string, tries: number): Promise<string> {
+  return tries > 0 ? makeUuidV5(`lead_run:${roundId}:main:${term}:try${tries}`) : runIdFor(roundId, "main", term);
+}

@@ -58,6 +58,7 @@ const {
   asDraftedOf,
   leadChainStepOf,
   newListOf,
+  whatsappOffersOpen,
   sentAsDrafted,
   voiceLineOf,
   voiceSaid,
@@ -685,6 +686,22 @@ test("REGRESSION (13 Nov 2026): a price or a discount the owner never gave stays
   );
   const typed = draftKept(onceWith({ message: "k2", texts: ["30% off any service this week"] }), KNOWN, OFFER_LINE);
   assert.deepEqual(typed.steps[0].message.params[1], { kind: "text", value: "" });
+});
+
+test("from a US number, an offer Ask writes is kept without its WhatsApp version, since no offer reaches anyone there by WhatsApp; one that was WhatsApp's alone is refused in the pause's words (the clean list, G1)", () => {
+  const US = { ...KNOWN, whatsappOffers: whatsappOffersOpen("+12025550123") };
+  const words = "Hi {{first name}}, 20% off any service this week. Book here: {{booking link}} See you soon.";
+  const both = { ...offerWritten(words), email_subject: "This week", email_body: words };
+  const kept = draftKept(onceWith({ write: both }), US, OFFER_LINE).steps[0].message;
+  assert.deepEqual([kept.channels, Object.keys(kept.written.versions)], [["email"], ["email"]]);
+  assert.deepEqual(
+    stepsJudged(onceWith({ write: offerWritten(words) }), US, OFFER_LINE).refused,
+    [{ place: 1, reason: US.whatsappOffers.why.replace(/[.!]+$/, "") }],
+    "WhatsApp's alone: nothing to keep",
+  );
+  // Elsewhere, the same offer keeps its WhatsApp version.
+  const there = draftKept(onceWith({ write: both }), KNOWN, OFFER_LINE).steps[0].message;
+  assert.deepEqual(there.channels, ["whatsapp", "email"]);
 });
 
 /* ------------------------------ the draft as the page holds it ------------------------------ */

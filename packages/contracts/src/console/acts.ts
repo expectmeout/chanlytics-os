@@ -177,7 +177,7 @@ export function staffSeesScreen(role: StaffRole | null | undefined, screen: Cons
 }
 
 /** A workspace's tabs, in order. */
-export const CONSOLE_WORKSPACE_TABS = ["overview", "lines", "activity"] as const;
+export const CONSOLE_WORKSPACE_TABS = ["overview", "lines", "activity", "leads"] as const;
 
 export type ConsoleWorkspaceTab = (typeof CONSOLE_WORKSPACE_TABS)[number];
 
@@ -185,6 +185,8 @@ export const CONSOLE_WORKSPACE_TAB_WORDS: Record<ConsoleWorkspaceTab, string> = 
   overview: "Overview",
   lines: "Setup and lines",
   activity: "Activity",
+  // What the finder set aside, per search (decision 0133): the owner sees only what counted.
+  leads: "Leads set aside",
 };
 
 /** What an address under /console names: a screen, and on a workspace its slug and its tab. */

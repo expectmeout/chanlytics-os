@@ -20,10 +20,16 @@ export const LEAD_TRIAL_ALLOWANCE = 50;
 export function leadAllowanceFor(billingStatus: string | null | undefined): number {
   return billingStatus === "trialing" ? LEAD_TRIAL_ALLOWANCE : LEAD_MONTHLY_ALLOWANCE;
 }
-/** §16.32: what searching may cost a workspace a month: scraping, judging, checks, retries. */
-export const LEAD_MONTHLY_BUDGET_USD = 25;
-export const LEAD_DAY_CAP_USD = 10;
-export const LEAD_PLATFORM_DAY_CAP_USD = 50;
+/**
+ * §16.32: what searching may cost a workspace a month: scraping, judging, checks, retries. Each cap is a count it must
+ * carry at a dear niche's 8¢ a checked-email lead (decision 0133, 00627; Ruben's D1, 14 Nov 2026): the month's 500 leads
+ * and a search of 300 in a day. The platform's day, every workspace's together, rises less (an outside review of the
+ * plan, taken 14 Nov): $150 until real searches measure what a lead costs, with a page at 80% of it
+ * (apps/edge/lib/leads/sources.ts recordPagePlatformDay).
+ */
+export const LEAD_MONTHLY_BUDGET_USD = 40;
+export const LEAD_DAY_CAP_USD = 25;
+export const LEAD_PLATFORM_DAY_CAP_USD = 150;
 /** §16.5: under this share of Qualified among the first places, the round stops and asks. */
 export const LEAD_QUESTION_THRESHOLD = 0.6;
 /** Below this many judged places the question is not asked: too little to go on. */
@@ -31,6 +37,27 @@ export const LEAD_QUESTION_MIN_EVIDENCE = 10;
 export const LEAD_PROBE_PLACES = 25;
 export const LEAD_JUDGE_BATCH = 25;
 export const LEAD_MAX_PLACES = 1000;
+/**
+ * What one term may be asked for in a city: the source splits a city into map pages by itself, where a ZIP's or a
+ * circle's one map view stops near the card's 120 (decision 0133: "med spa" in Brooklyn read 243 places in one run of
+ * 4 min 55 s, 14 Nov 2026). A term that comes back under its ask has read the whole city.
+ */
+export const LEAD_DEEP_PER_TERM = 600;
+
+/* ---------------------------------------------------------- the reach -- */
+
+/** A mile, in metres, as a search's reach is said (decision 0133). */
+export const LEAD_REACH_MILE_M = 1_609;
+/**
+ * How far a search looks past its area when the owner has not said (decision 0133, Ruben's D2, 14 Nov 2026): 25 miles
+ * from a city's centre, 15 from a ZIP's; a circle looks out to twice its radius.
+ */
+export const LEAD_REACH_DEFAULT_MILES = { city: 25, zip: 15 } as const;
+/** What the card's "how far" offers, in miles (decision 0133): 0 is only the area on the card. */
+export const LEAD_REACH_CHOICE_MILES = [0, 10, 25, 50] as const;
+/** The farthest an owner may ask a search to look: 50 miles. */
+export const LEAD_REACH_MAX_M = 50 * LEAD_REACH_MILE_M;
+
 /** Every fact a place gives the judge is cut to this many characters (§7.1). */
 export const LEAD_FACT_MAX = 120;
 /** What a place's own website says is cut to this, where a plan reads sites: its booking link, title, description and first words. */

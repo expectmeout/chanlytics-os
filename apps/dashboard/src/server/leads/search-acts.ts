@@ -7,6 +7,7 @@ import "server-only";
 import {
   answerSearchRound,
   askSearchForMore,
+  askSearchOnRenewal,
   excludeSearchMember,
   keepSearchMember,
   putBackSearchMember,
@@ -28,5 +29,7 @@ export const answerRound = (ctx: Ctx, args: Parameters<typeof answerSearchRound>
 export const stopRound = (ctx: Ctx, args: Parameters<typeof stopSearchRound>[1]) => stopSearchRound(ctx.supabase, args);
 export const askForMore = (ctx: Ctx, args: Parameters<typeof askSearchForMore>[1]) =>
   askSearchForMore(ctx.supabase, args);
+export const askOnRenewal = (ctx: Ctx, args: Parameters<typeof askSearchOnRenewal>[1]) =>
+  askSearchOnRenewal(ctx.supabase, args);
 export const undoLeadAct = (ctx: Ctx, args: Parameters<typeof undoLeadOperation>[1]) =>
   undoLeadOperation(ctx.supabase, args);

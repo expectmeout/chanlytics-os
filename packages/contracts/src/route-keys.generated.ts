@@ -116,6 +116,7 @@ export const ROUTE_KEYS = [
   "GET platform/support",
   "GET platform/support/bugs",
   "GET platform/tenants/[id]",
+  "GET platform/tenants/[id]/set-aside",
   "GET platform/workspaces/[slug]",
   "GET playbooks",
   "GET policies",

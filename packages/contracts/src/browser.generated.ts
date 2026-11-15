@@ -218,7 +218,7 @@ export { ASK_GOAL_MAX, DAY_NAMES, dayProblems, DAYS, GUARDRAIL_KEYS, guardrailsI
 export { EARLIER_FALLBACK_DEFAULTS, FALLBACK_DEFAULTS, FALLBACK_DETAILS, FALLBACK_ROWS, fallbackMessages, isProductFallback, unknownDetails } from "./config/workspace-config/fallbacks";
 export { offersAfterStart, offersFacts } from "./config/workspace-config/offers-ask";
 export { bookingHeld, HELD_DRAFTS_DAYS, heldDraftsByClass, heldDraftsLine, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_CLASSES, POLICY_COVERS, POLICY_MODE_WORDS, POLICY_MODES, policyAskClass, policyClassLabel, policyClassOfIntent, policyClassQuestion, policyModeOffered, policyModeRefusal, policyRules } from "./config/workspace-config/policy-classes";
-export { allowedPrices, priceAllowance } from "./config/workspace-config/price-allowance";
+export { allowedPrices, ownersSayings, priceAllowance } from "./config/workspace-config/price-allowance";
 export { hoursRuns } from "./config/workspace-config/prompt-hours";
 export { applyReachOutChange, ASK_REACH_OUT_ROWS, describeReachOutChange, isReachOutChange, writeReachOutKey } from "./config/workspace-config/reach-out-change";
 export { hasProfile, instructionsDraft, NO_FIELDS_COMPOSED_WORDS, ownWordsOf, resolveSystemPrompt, whoseWords } from "./config/workspace-config/resolve";
@@ -350,8 +350,8 @@ export { cleanEmailCandidates, isSiteRoot, LEAD_JUNK_EMAIL_DOMAINS, LEAD_PLACEHO
 export { endingOfRound, LEAD_ENDING_WORDS } from "./leads/search/endings";
 export { PEOPLE_CARD, PEOPLE_COMPANY_SIZES, PEOPLE_COUNT_MAX, PEOPLE_INDUSTRIES_MAX, PEOPLE_KEYWORDS_MAX, PEOPLE_RUN_FLOOR_USD, PEOPLE_SENIORITIES, PEOPLE_SENIORITY_WORDS, PEOPLE_STATES_MAX, PEOPLE_TITLES_MAX } from "./leads/search/people-plan/card";
 export { listTyped, PEOPLE_ASKED_CHARS, PEOPLE_FIND_WORDS, PEOPLE_INDUSTRY_CHARS, PEOPLE_PROVIDER_LEAST, PEOPLE_STRIP_WORDS, PEOPLE_TITLE_CHARS, peopleEstimateUsd, peoplePlanAsk, peoplePlanFactLine, peoplePlanFrom, peoplePlanOf, peoplePlanRows, peoplePlanSentence, peopleSheetProblems, peopleWho, usStateCode, usStateName, usStatesTyped } from "./leads/search/people-plan/plan";
-export { planNeedsASite, planReadsSites, planVersionOf } from "./leads/search/plan";
-export { planArea, planLeavingOut, planSaid, planSentence, planWhere, planWho, planWords, lowerFirst } from "./leads/search/sentence";
+export { planNeedsASite, planReadsSites, planVersionOf, reachOf } from "./leads/search/plan";
+export { planArea, planLeavingOut, planSaid, planSentence, planWhere, planWho, planWords, lowerFirst, planMinutesSaid, planReachChoices, planReachMiles, planReachSaid } from "./leads/search/sentence";
 export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_REACH_FILTERS, LEAD_STAGES, LEAD_STATUS_GROUPS, LEAD_COUNTER_KINDS, LEAD_MEMBER_CLASSES, LEAD_PREFERENCE_KINDS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS } from "./leads/search/sets";
 export { LEAD_COLUMN_GROUPS, LEAD_RATED_HINT, leadClaimedWord, leadColumnsOf, leadOutcomeWord } from "./leads/sheet/lead-row-columns";
 export { LEAD_OWN_EMAIL_WORDS, leadEmailFromOf, leadEmailLineOf, leadEmailRefusalOf } from "./leads/sheet/lead-sheet-email";

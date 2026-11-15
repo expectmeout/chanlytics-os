@@ -721,6 +721,26 @@ test("the channels asked for are the ones written: a number and WhatsApp alone a
   assert.equal(LIBRARY_STARTER_WORDS.pickAChannel, "Pick at least one channel: WhatsApp, email or text.");
 });
 
+test("from a US number an offer starter is filed without its WhatsApp version, and nothing is said of it; a reminder still goes to WhatsApp for review (the clean list, G1)", async () => {
+  const US = { ...NUMBER, number_e164: "+12025550123" };
+  const tables = { memberships: both("viewer", "operator"), templates: [], tenant_channels: [US] };
+  const w = world(tables);
+  const offer = await post(w, { keys: ["quick_note"], languages: ["en_US"] });
+  assert.deepEqual(detailed(offer), [["quick_note", "en_US", "skipped", undefined, ["email:saved"]]]);
+  assert.deepEqual(
+    w.calls.map(([door, a]) => `${door}:${a.p_name}/${a.p_channel}`),
+    ["create:quick_note/email"],
+    "its email, and nothing asked of WhatsApp (whose guard would have refused here)",
+  );
+  // A reminder is no offer: its WhatsApp version is submitted, which a preview refuses at its guard, as it always did.
+  await refused(
+    post(w, { keys: ["visit_reminder"], languages: ["en_US"] }),
+    "upstream_meta",
+    502,
+    "Adding templates only works on the production dashboard.",
+  );
+});
+
 test("with no number and the door not switched on, each version says so in one plain sentence and the answer arrives whole", async () => {
   const { tables, w } = empty();
   w.refuse.create = doorError(

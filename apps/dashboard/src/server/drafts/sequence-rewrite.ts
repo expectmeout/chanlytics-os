@@ -17,7 +17,8 @@ import { sequences } from "../readers/sequences";
 import { getStoredConfig } from "../workspace/config-row";
 import { numberBacking } from "../campaigns/sequences/numbers";
 import { LEAD_RULES, PREVIEW_RULE, readOrNull, getOwner, ownerSaid } from "./sequence";
-import { leadEmail, type OwnerKnown } from "../campaigns/sequences/draft-judge";
+import type { OwnerKnown } from "../campaigns/sequences/draft-judge";
+import { leadEmail } from "../campaigns/sequences/lead-email";
 import { LEFT_OUT_ASKED_MAX, leftOutKept } from "../campaigns/sequences/left-out";
 import type { TenantId } from "@chanlytics/contracts";
 

@@ -6,7 +6,8 @@
  *     each item cleaned (clean.ts) and marked when a rule settles it before judging (closed for good: left out; no
  *     location: Needs review), with the items around them.
  *   - centerOf / nearbyFor: where the round measures from (the plan's centre, or for a city ask the median of the probe's
- *     places, E7) and where to look next when a round ran dry (the three nearest ZIP centres past the area, D3).
+ *     places, E7) and where to look next when a round ran dry (the distance ladder's next rung past the area and every
+ *     area a leg read, inside the search's reach: decision 0133).
  *   - memberOf: the member and the lead's columns the commit writes for one place, its class decided by code from the
  *     judge's answers (contracts classify, §0.1) or by the rule that kept it from the judge, a left-out place keeping none
  *     of its candidate emails or listing detail (PRD §0.4, §15).
@@ -26,7 +27,8 @@ import {
 } from "@chanlytics/contracts";
 import { areaCenter, type LeadCardRunner } from "../cards";
 import { cleanPlace, type CleanPlace } from "../clean";
-import { inArea, haversineM, medianCenter, nearestAreas, radiusFromSpread, type LatLng } from "../geo";
+import { inArea, haversineM, medianCenter, radiusFromSpread, type LatLng } from "../geo";
+import { nextRung } from "../ladder";
 import { JUDGE_REFUSED_REASON, factsOf } from "../judge";
 import type { CollectPlace, LeadMemberRow, LeadShare } from "../ports";
 import { CLOSED_REASON, NO_LOCATION_REASON, NO_SITE_REASON } from "./rules";
@@ -49,14 +51,22 @@ export function centerOf(plan: LeadSearchPlan, members: LeadMemberRow[]): { cent
   return { center, radiusM: center ? radiusFromSpread(center, points) : plan.area.radius_m };
 }
 
+/** A city's own ground, at least: no rung starts inside it, whatever its places' spread says (D3). */
+const CITY_GROUND_M = 15_000;
+
 /**
- * Where to look next when a round ran dry (D3): the nearest ZIP centres past the area it measured from, three of them.
- * Nothing when the round has no centre yet (a city ask whose probe placed nothing).
+ * Where to look next when a round ran dry (D3, decision 0133): the distance ladder's next rung, from the area on the
+ * card and the places found there, past every area a leg already read. Nothing when there is no centre yet (a city ask
+ * whose probe placed nothing) or nothing left within the reach.
  */
-export function nearbyFor(plan: LeadSearchPlan, members: LeadMemberRow[]): LeadArea[] {
+export function nearbyFor(
+  plan: LeadSearchPlan,
+  members: LeadMemberRow[],
+  read: readonly Pick<LeadArea, "center" | "zip">[],
+): LeadArea[] {
   const geo = centerOf(plan, members);
-  if (!geo.center) return [];
-  return nearestAreas(geo.center, { excludeWithinM: Math.max(geo.radiusM, 15_000), take: 3, state: plan.area.state });
+  const ground = plan.area.kind === "city" ? CITY_GROUND_M : plan.area.radius_m;
+  return nextRung({ plan, center: geo.center, areaRadiusM: Math.max(geo.radiusM, ground), read });
 }
 
 /** What each key asked under a plan, worked out once per plan (judgeAsked hashes every question). */

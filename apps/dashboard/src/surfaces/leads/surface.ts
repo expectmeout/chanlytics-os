@@ -582,7 +582,7 @@ export async function answerSearch(id: string, answer: "keep" | "include" | "sto
 export async function ideaCard(words: string) {
   return api()("POST ask/idea", { body: { words }, once: true });
 }
-export async function moreForSearch(id: string, purpose: "topup" | "renew", plan: LeadSearchPlan) {
+export async function moreForSearch(id: string, purpose: "topup" | "renew" | "defer", plan: LeadSearchPlan) {
   return api()("POST lead-searches/[id]/more", { params: { id }, body: { purpose, plan }, once: true });
 }
 export async function stopSearch(id: string) {

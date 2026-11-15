@@ -6,8 +6,7 @@
 import type { LeadPlanFacts } from "./dtos";
 import { planReadsSites, type LeadArea, type LeadSearchPlan } from "./search/plan";
 import type { LeadPeoplePlan } from "./search/people-plan/plan";
-import { planWho } from "./search/sentence";
-import { planMinutes } from "./search/cards";
+import { planMinutesSaid, planWho } from "./search/sentence";
 import { LEAD_CLASSES, LEAD_LISTS, type LeadClass, type LeadList } from "./words/lists";
 import { leadAllowanceFact, outcomeMove } from "./words/notes";
 import {
@@ -268,13 +267,17 @@ export function leadPlanLikely(
  * allowance: a card that had none drew "0 left this month" over a search that could run (Ruben, 10 Oct 2026).
  */
 export function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts | null): string[] {
+  // What counts, as the count reads it (contracts classify): a checked email for a search made for email; else a phone
+  // that is a valid number, or a checked email. A phone is never "checked": its format is (decision 0010; decision 0133).
+  const counts =
+    plan.contact === "email"
+      ? "Counts only matches with a checked email"
+      : "Counts only matches with a valid phone number or a checked email";
   return [
-    `About ${planMinutes(plan)} minutes — leave the page if you like`,
+    `About ${planMinutesSaid(plan, "minutes")} — leave the page if you like`,
     // No number: the card cannot know how many of THIS search's places are already here until it has looked.
     "Anything already yours is skipped",
-    facts
-      ? `Counts only matches with a checked phone or email · ${leadAllowanceFact(facts.leadsLeft)}`
-      : "Counts only matches with a checked phone or email",
+    facts ? `${counts} · ${leadAllowanceFact(facts.leadsLeft)}` : counts,
   ];
 }
 
@@ -287,7 +290,7 @@ export function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts | null)
  * (00398), and the kind it is of.
  */
 export function leadMonthPlanFacts(
-  month: { left: number; renewsOn: string },
+  month: { left: number; renewsOn: string; widens?: boolean },
   count: number,
   nearby: readonly LeadArea[],
   prior: { of: string; counts: LeadPlanFacts["prior"] } | null,
@@ -300,6 +303,7 @@ export function leadMonthPlanFacts(
     priorOf: prior && prior.counts ? prior.of : null,
     renewsOn: month.renewsOn,
     nearby: [...nearby],
+    ...(month.widens ? { widens: true } : {}),
   };
 }
 
@@ -310,7 +314,7 @@ export function leadPlanFactLine(plan: LeadSearchPlan, facts: LeadPlanFacts | nu
   const finds = Math.max(1, leadPlanAsk(plan, facts).count);
   // In the people card's order and words (people-plan.ts peoplePlanFactLine; Ruben, 23 Oct 2026: one card for both).
   return [
-    `About ${planMinutes({ ...plan, count: finds })} min`,
+    `About ${planMinutesSaid({ ...plan, count: finds }, "min")}`,
     ...(facts
       ? [`uses ${Math.max(0, Math.min(plan.count, facts.leadsLeft))} of your ${facts.leadsLeft} leads this month`]
       : []),

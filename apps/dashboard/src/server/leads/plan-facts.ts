@@ -16,7 +16,8 @@ import { readMonthUsed, renewsOnOf } from "./allowance";
 import { listSearchCounts } from "./searches";
 import { getTenantFacts } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
-import { readNichePrior } from "@chanlytics/db/leads";
+import { findSearchWidens, readNichePrior } from "@chanlytics/db/leads";
+import { logAndGoOn } from "@chanlytics/log";
 import type { TenantId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { readAnswer } from "@chanlytics/db/shared";
@@ -57,10 +58,12 @@ export async function planFacts(
   const now = opts.now ?? new Date();
   const { timezone } = await getTenantFacts(ctx.supabase, tenantId);
   const month = leadMonth(timezone, now);
-  const [counts, used, prior] = await Promise.all([
+  const [counts, used, prior, widens] = await Promise.all([
     listSearchCounts(ctx, tenantId),
     readMonthUsed(ctx, tenantId, month),
     opts.categoryKey ? findNichePrior(ctx, opts.categoryKey) : Promise.resolve(null),
+    // Unread, the card says no reach: it says only what a search will surely do (decision 0133).
+    findSearchWidens(ctx.supabase, tenantId).catch(logAndGoOn("lead_search_widens", false)),
   ]);
   // The whole of each ceiling is contracts', never the database's: one
   // derivation per fact, so the number a person reads is spelled once.
@@ -91,5 +94,6 @@ export async function planFacts(
     renewsOn: renewsOnOf(timezone, now),
     // Where to look next is a round's that ran dry (contracts leadMonthPlanFacts): a card Ask makes has none to offer.
     nearby: [],
+    ...(widens ? { widens: true } : {}),
   };
 }

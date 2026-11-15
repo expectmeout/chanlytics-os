@@ -20,6 +20,7 @@
 /* ------------------------------------------------------------ the plan -- */
 
 import { CONTROL_CHARS } from "../../shared/words";
+import { LEAD_REACH_DEFAULT_MILES, LEAD_REACH_MAX_M, LEAD_REACH_MILE_M } from "./caps";
 
 export type LeadContactStandard = "phone" | "email";
 /** likely: Claude's read is enough. seen: a fact the card can show, cited by key (§0.1, 26). */
@@ -54,6 +55,11 @@ export interface LeadArea {
   zip?: string;
   /** The card's own location query, built from the validated plan. */
   query: string;
+  /**
+   * A round's nearby area found past the search's own reach (decision 0133): the reach, in metres, it was found at. Offered
+   * to the owner as "Look up to 50 miles"; the round's end never opens one by itself. Absent on every other area.
+   */
+  beyond_m?: number;
 }
 export interface LeadSearchPlan {
   version: number;
@@ -71,6 +77,12 @@ export interface LeadSearchPlan {
   asked: string;
   terms: string[];
   area: LeadArea;
+  /**
+   * How far past its area the search may look for its count, in metres from the centre (decision 0133): 0 is the area
+   * on the card alone. Absent, the area's default (contracts' reachOf: 25 miles from a city, 15 from a ZIP, twice a
+   * circle's radius); a plan made before it was asked reads the same.
+   */
+  reach_m?: number;
   count: number;
   contact: LeadContactStandard;
   criteria: LeadCriterion[];
@@ -133,6 +145,16 @@ export const US_STATES: Record<string, string> = {
 };
 export const US_CODES = new Set(Object.values(US_STATES));
 
+/**
+ * How far a search looks, in metres from its centre (decision 0133): the owner's own reach where the plan holds one (0 is
+ * only the area on the card), else its area's default.
+ */
+export function reachOf(area: Pick<LeadArea, "kind" | "radius_m">, reachM: number | null | undefined): number {
+  if (typeof reachM === "number") return Math.max(0, Math.min(LEAD_REACH_MAX_M, reachM));
+  if (area.kind === "radius") return 2 * area.radius_m;
+  return LEAD_REACH_DEFAULT_MILES[area.kind] * LEAD_REACH_MILE_M;
+}
+
 /** Whether a search reads each place's own website before its judge asks: a criterion only a website can show. */
 export const planReadsSites = (plan: Pick<LeadSearchPlan, "criteria">): boolean =>
   plan.criteria.some((c) => c.on_site === true);
@@ -160,7 +182,7 @@ const same = (a: unknown, b: unknown) => stableStringify(a) === stableStringify(
 /** The changed plan, with its version bumped when the area, count, contact standard, criteria or exclusions moved (S15). */
 export function planVersionOf(plan: LeadSearchPlan, changed: Partial<LeadSearchPlan>): LeadSearchPlan {
   const next: LeadSearchPlan = { ...plan, ...changed, version: plan.version };
-  const material = (["area", "count", "contact", "criteria", "exclusions"] as const).some(
+  const material = (["area", "reach_m", "count", "contact", "criteria", "exclusions"] as const).some(
     (k) => !same(plan[k], next[k]),
   );
   return { ...next, version: material ? plan.version + 1 : plan.version };

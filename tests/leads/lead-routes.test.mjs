@@ -2185,3 +2185,14 @@ test("a row's mark is the copy we keep, on our own storage; the site's own addre
   assert.equal((await run({})).mark_url, null, "a database from before 00161, which answers no name at all");
   assert.equal((await run({ mark_path: "../media/x.png" })).mark_url, null, "a name we did not write is no address");
 });
+
+test("Find more, deferred, asks the renewal door at its plan's price, and says the door's refusal (decision 0133)", async () => {
+  const seen = [];
+  const answers = [{ round_id: "r2" }, { error: "not_month_used", sentence: "It did not stop at the month's leads." }];
+  const rpcs = { lead_search_on_renewal: (a) => (seen.push(a), answers.shift()) };
+  const defer = () =>
+    more.POST.run(req("POST", { purpose: "defer", plan: PLAN }), ctxOf(world({ role: "owner" }), { id: SEARCH }, rpcs));
+  assert.deepEqual(await defer(), { search_id: SEARCH, round_id: "r2" });
+  assert.ok(seen[0].p_estimate_usd > 0, "priced as a top-up of the plan the owner approved");
+  await refused(defer(), "conflict", 409);
+});

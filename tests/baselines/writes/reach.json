@@ -61,7 +61,7 @@
       }
     },
     "DELETE lead-searches/[id]": {
-      "changes": "contacts UPDATE · lead_operations INSERT · lead_rounds UPDATE · lead_search_members UPDATE · lead_searches UPDATE · leads UPDATE · notifications INSERT UPDATE",
+      "changes": "contacts UPDATE · lead_operations INSERT · lead_rounds INSERT UPDATE · lead_search_members UPDATE · lead_searches UPDATE · leads UPDATE · notifications INSERT UPDATE",
       "tells": "contacts · lead_rounds · notifications",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
@@ -1386,7 +1386,7 @@
       }
     },
     "POST lead-searches/[id]/answer": {
-      "changes": "contacts UPDATE · lead_rounds UPDATE · lead_searches UPDATE · leads UPDATE · notifications INSERT UPDATE",
+      "changes": "contacts UPDATE · lead_rounds INSERT UPDATE · lead_searches UPDATE · leads UPDATE · notifications INSERT UPDATE",
       "tells": "contacts · lead_rounds · notifications",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
@@ -1429,7 +1429,7 @@
       }
     },
     "POST lead-searches/[id]/stop": {
-      "changes": "contacts UPDATE · lead_rounds UPDATE · leads UPDATE · notifications INSERT UPDATE",
+      "changes": "contacts UPDATE · lead_rounds INSERT UPDATE · leads UPDATE · notifications INSERT UPDATE",
       "tells": "contacts · lead_rounds · notifications",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"

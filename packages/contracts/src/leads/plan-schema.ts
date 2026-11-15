@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { LEAD_LISTS, LEAD_CLASSES, LEAD_SORTS, LEAD_NOT_A_FIT_WHYS, LEAD_CALL_OUTCOMES } from "./words/lists";
 import { LEAD_OUTSIDE_US_LINE, leadNoCardLine, leadNotBusinessesLine } from "./words/notes";
-import { BUSINESS_LINE_MAX, LEAD_MAX_PLACES, US_ZIP } from "./search/caps";
+import { BUSINESS_LINE_MAX, LEAD_MAX_PLACES, LEAD_REACH_MAX_M, LEAD_REACH_MILE_M, US_ZIP } from "./search/caps";
 import { LEAD_FITS, LEAD_REACH_FILTERS, LEAD_STATUS_GROUPS } from "./search/sets";
 import { LEAD_CRITERION_KEY, LEAD_WORDS_MAX } from "./plan";
 import { leadKindKey, stateCode } from "./search/clean";
@@ -199,6 +199,16 @@ export const ProposeLeadSearchSchema = z.object({
     .max(6)
     .default([]),
   asked: z.string().trim().min(1).max(400),
+  /**
+   * How far past its area the search may look by itself for its count, in miles (decision 0133), only where the owner
+   * said: 0 keeps it to the area ("only in Brooklyn"). Absent, the area's own reach (contracts reachOf).
+   */
+  reach_miles: z
+    .number()
+    .int()
+    .min(0)
+    .max(Math.round(LEAD_REACH_MAX_M / LEAD_REACH_MILE_M))
+    .optional(),
 });
 
 export type ProposeLeadSearch = z.infer<typeof ProposeLeadSearchSchema>;
@@ -444,6 +454,7 @@ export function planLeadSearch(input: ProposeLeadSearch): LeadPlanned {
       text: l.words,
       origin: "claude" as const,
     })),
+    ...(typeof input.reach_miles === "number" ? { reach_m: input.reach_miles * LEAD_REACH_MILE_M } : {}),
   };
   const checked = LeadSearchPlanSchema.safeParse(plan);
   if (!checked.success) {

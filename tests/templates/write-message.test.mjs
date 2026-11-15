@@ -414,6 +414,40 @@ test("(b) an email and a WhatsApp version with the edge taking it: the email is 
   );
 });
 
+test("(b1) from a US number an offer is written without its WhatsApp version, since no offer reaches anyone there by WhatsApp: nothing goes to Meta; one that was WhatsApp's alone is refused in the pause's words; a visit's still goes for review (the clean list, G1)", async () => {
+  /** A world whose number is a US one (contracts whatsapp-offers.ts: +1 and ten digits). */
+  const fromUs = () => {
+    const w = open();
+    w.tables.tenant_channels[0].number_e164 = "+12025550123";
+    return w;
+  };
+  let w = fromUs();
+  const r = await w.post(message({ versions: { email: EMAIL, whatsapp: WHATSAPP } }));
+  assert.deepEqual(w.order, ["create:email"], "the email alone");
+  assert.deepEqual(w.filed(), [["email", "approved"]]);
+  assert.deepEqual(
+    r.versions.map((v) => v.channel),
+    ["email"],
+    "and nothing is said of a WhatsApp version",
+  );
+  assert.equal(w.meta.calls.length, 0, "nothing asked of WhatsApp");
+  // WhatsApp's alone: there is nothing to write, said as the pause says itself.
+  w = fromUs();
+  await refused(
+    w.post(message({ versions: { whatsapp: WHATSAPP } })),
+    "validation",
+    400,
+    "WhatsApp is not delivering offers to US numbers",
+  );
+  assert.deepEqual([w.order, w.meta.calls.length], [[], 0], "nothing filed");
+  // A message about their own visit is no offer: its WhatsApp version goes for review from the same number.
+  w = fromUs();
+  await w.post(
+    message({ name: "visit_thanks", category: "utility", versions: { email: VISIT_EMAIL, whatsapp: VISIT_WHATSAPP } }),
+  );
+  assert.deepEqual(w.order, ["create:email", "meta"]);
+});
+
 test("(c) WhatsApp's version refused at the edge leaves the email filed and is answered under `refused`, in the words POST templates says, never thrown", async () => {
   // The edge finds no number to make it for (its 409, no_channel).
   const w = open({ edge: { status: 409, body: { error: "no_channel" } } });

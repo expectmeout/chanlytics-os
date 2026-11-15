@@ -565,3 +565,12 @@ test("a card that amends posts the answer to the search that asked, with no undo
     "REGRESSION: an answer started a new search",
   );
 });
+
+test("the owner's own reach rides the plan the card carries: only the area is 0, so many miles is that, and unsaid is none (decision 0133)", async () => {
+  const t = toolContext({ role: "owner", tables: world() });
+  const reach = async (over) =>
+    (await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, ...over })).proposal.payload.plan.reach_m;
+  assert.equal(await reach({ reach_miles: 0 }), 0, "only in Austin");
+  assert.equal(await reach({ reach_miles: 10 }), 10 * 1_609);
+  assert.equal(await reach({}), undefined, "the area's own reach, written nowhere");
+});

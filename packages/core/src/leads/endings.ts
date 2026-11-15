@@ -26,6 +26,22 @@ export function runStateOf(status: string): "running" | "succeeded" | "failed" |
   }
 }
 
+/** A run the provider failed or let time out: the source stopped answering it. */
+export const failedRun = (run: LeadRunRow): boolean => run.state === "failed" || run.state === "timed_out";
+
+/**
+ * The runs that stand for their terms (decision 0133): a failed run that a later run of its term followed (a try
+ * again, or the main phase asking past what a failed probe read) is set aside, so a term tried again and read whole
+ * ends its round as one that never failed.
+ */
+export function standingRuns(runs: readonly LeadRunRow[]): LeadRunRow[] {
+  const later = (first: LeadRunRow, next: LeadRunRow) => Date.parse(next.created_at) > Date.parse(first.created_at);
+  return runs.filter(
+    (r) =>
+      !(failedRun(r) && runs.some((other) => other.purpose === r.purpose && other.term === r.term && later(r, other))),
+  );
+}
+
 /** A run that never finished reading its term: it says nothing of how many places the term holds. */
 const unfinished = (r: LeadRunRow): boolean => r.state === "failed" || r.state === "timed_out" || r.state === "aborted";
 
@@ -55,9 +71,9 @@ export function discoveryEnding(
     budgetLeftUsd: round.cost_reserved_usd - round.cost_usd,
     allowanceLeft: round.allowance_reserved - round.allowance_used,
     stopped: input.stopped,
-    // Any run that failed or timed out stopped the search short of what it asked: "the source stopped answering", with
-    // Try again, never "searched everything" and its places nearby (the live run of 14 Nov 2026).
-    sourceFailed: discover.some((r) => r.state === "failed" || r.state === "timed_out"),
+    // Any run that failed or timed out, and was not tried again, stopped the search short of what it asked: "the source
+    // stopped answering", with Try again, never "searched everything" and its places nearby (the live run of 14 Nov 2026).
+    sourceFailed: standingRuns(discover).some(failedRun),
     unanswered: false,
     paused: false,
   });

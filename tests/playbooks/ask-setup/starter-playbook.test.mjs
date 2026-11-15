@@ -284,6 +284,31 @@ test("a starter not on file and no channel named: its email version is written a
   assert.deepEqual(row.params, defaultParamSpecs({ name: WIN_BACK.name, variables: [] }));
 });
 
+test("from a US number an offer starter is never written for WhatsApp: no channel named is email alone and nothing reaches Meta; WhatsApp named is refused in the pause's words (the clean list, G1)", async () => {
+  const us = { tenant_channels: [{ ...world().tenant_channels[0], number_e164: "+12025550123" }] };
+  let post = open(us);
+  const made = await post({ trigger: "quiet_30", starter_key: WIN_BACK.key });
+  assert.equal(made.starter.status, "skipped");
+  assert.deepEqual(meta.calls, [], "nothing asked of Meta");
+  assert.deepEqual(
+    tables.templates.map((t) => [t.name, t.channel]),
+    [[WIN_BACK.name, "email"]],
+  );
+  assert.deepEqual(tables.playbooks.find((p) => p.id === made.id).channels, ["email"]);
+  post = open(us);
+  await refused(
+    post({ trigger: "quiet_30", starter_key: WIN_BACK.key, channels: ["whatsapp"] }),
+    "validation",
+    400,
+    "WhatsApp is not delivering offers to US numbers",
+  );
+  assert.deepEqual([meta.calls, tables.templates], [[], []], "nothing filed");
+  // A proposal's follow-up is no offer: from the same number it goes to WhatsApp for review as before.
+  post = open(us);
+  await post({ trigger: "proposal_waiting", starter_key: FOLLOW_UP.key });
+  assert.equal(meta.calls.length, 1);
+});
+
 test("a starter not on file where there is no number: no channel named is email alone, its version written at once, and nothing reaches Meta", async () => {
   const post = open({ tenant_channels: [] });
   const made = await post({ trigger: "quiet_30", starter_key: WIN_BACK.key });

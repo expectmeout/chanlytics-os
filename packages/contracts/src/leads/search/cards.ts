@@ -8,6 +8,7 @@ import {
   LEAD_ASK_MAX_FACTOR,
   LEAD_ASK_MIN_FACTOR,
   LEAD_ASSUMED_YIELD,
+  LEAD_DEEP_PER_TERM,
   LEAD_ESTIMATE_MARGIN,
   LEAD_MAX_PLACES,
   LEAD_PROBE_PLACES,
@@ -149,6 +150,17 @@ const cardOf = (plan: LeadSearchPlan): LeadCardBrief => {
   return c;
 };
 
+/**
+ * The most one term is asked for under a plan: deep in a city on the Maps card, which the source splits into map pages by
+ * itself; the card's own cap for a ZIP, a circle or any other card (decision 0133).
+ */
+const perTermCap = (plan: LeadSearchPlan): number => {
+  const card = cardOf(plan);
+  return card.id === "local_businesses" && plan.area.kind === "city"
+    ? Math.max(card.maxPerTerm, LEAD_DEEP_PER_TERM)
+    : card.maxPerTerm;
+};
+
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
 
 /**
@@ -194,7 +206,7 @@ export function placesToAsk(
   yieldSoFar: number | null,
 ): { total: number; perTerm: number[] } {
   const highest = Math.max(1, plan.terms.length);
-  const cap = cardOf(plan).maxPerTerm;
+  const cap = perTermCap(plan);
   if (remaining <= 0) return { total: 0, perTerm: new Array<number>(highest).fill(0) };
   if (yieldSoFar === null) {
     const perTerm = spread(LEAD_PROBE_PLACES, highest, cap);
@@ -215,7 +227,7 @@ export function placesToAsk(
  */
 export function placesPastRead(plan: LeadSearchPlan, read: number, more: number): number {
   if (more <= 0) return 0;
-  const ask = Math.min(cardOf(plan).maxPerTerm, read + more);
+  const ask = Math.min(perTermCap(plan), read + more);
   return ask > read ? ask : 0;
 }
 
@@ -229,9 +241,9 @@ export const LEAD_COUNT_CHOICES = [50, 100, 200, 500] as const;
  * a probe has measured one, the probe's own 25, and the card's rate. Never
  * under two minutes: a search that answers faster still reads as a moment.
  */
-/** The most one area's terms can yield at the assumed rate: terms × the card's per-term cap × the yield. Above it the picker says so. */
+/** The most one area's terms can yield at the assumed rate: terms × what a term may be asked for there × the yield. Above it the picker says so. */
 export function planCeiling(plan: LeadSearchPlan): number {
-  return Math.floor(plan.terms.length * cardOf(plan).maxPerTerm * LEAD_ASSUMED_YIELD);
+  return Math.floor(plan.terms.length * perTermCap(plan) * LEAD_ASSUMED_YIELD);
 }
 
 export function planMinutes(plan: LeadSearchPlan): number {

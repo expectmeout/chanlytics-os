@@ -635,7 +635,7 @@ const ENDING_FACTS = {
 };
 
 test("every ending is one line: what happened, what was kept, what was counted, and at most one next step", () => {
-  assert.equal(LEAD_ROUND_ENDINGS.length, 9);
+  assert.equal(LEAD_ROUND_ENDINGS.length, 11);
   for (const ending of LEAD_ROUND_ENDINGS) {
     const line = leadEndingLine(ending, ENDING_FACTS);
     assert.equal(line.mark, LEAD_ENDING_WORDS[ending], `${ending}: the ending's own word is the strip's name`);
@@ -821,10 +821,10 @@ const PLAN_FACTS = {
 
 test("the plan card's facts are the PRD's three, in leads, with no dollar meter", () => {
   assert.deepEqual(leadPlanFacts(CARD_PLAN, PLAN_FACTS), [
-    "About 48 minutes — leave the page if you like",
+    "About 40 to 80 minutes — leave the page if you like",
     // No number: the card cannot know how many of THIS search's places are already here until it has looked.
     "Anything already yours is skipped",
-    "Counts only matches with a checked phone or email · 486 left this month",
+    "Counts only matches with a checked email · 486 left this month",
   ]);
   assert.equal(/\$/.test(leadPlanFacts(CARD_PLAN, PLAN_FACTS).join(" ")), false);
 });
@@ -1193,9 +1193,9 @@ test("D1-lead-one-reviews: a place with one review reads 1 review, on the row, t
   assert.equal(toLeadPeekVM(row({ reviews: 1284 }), SEARCH_DONE, TZ, NOW).rated.reviews, "1,284 reviews");
 });
 
-test("D5: the band is the search's whole shape, and the fit split is worth drawing only when the fits differ", () => {
+test("D5: a list's band is its whole shape (a search's is its finished leads alone, 0133), and the fit split is worth drawing only when the fits differ", () => {
   const band = leadBand(
-    searchWith({}, { qualified: 19, review: 2, excluded: 7, fits: { strong: 11, look: 6, long: 2 } }),
+    searchWith({ via: "import" }, { qualified: 19, review: 2, excluded: 7, fits: { strong: 11, look: 6, long: 2 } }),
   );
   assert.deepEqual(band.classes, [
     { id: "qualified", label: "19 Qualified", count: 19 },
@@ -1218,7 +1218,7 @@ test("D5: the band is the search's whole shape, and the fit split is worth drawi
     false,
     "every row strong: the split says nothing",
   );
-  assert.equal(leadBand(searchWith({}, { review: 1 })).classes[1].label, "1 Needs review", "one word for one or many");
+  assert.equal(leadBand(searchWith({ via: "import" }, { review: 1 })).classes[1].label, "1 Needs review");
   assert.deepEqual(
     leadBand(searchWith({}, { review: 1 })).fits.map((f) => f.count),
     [0, 0, 0],

@@ -18,11 +18,14 @@
  * a price. The owner's phone greeting counts too, once the switch is off and the line is the one callers hear: a price
  * the owner put in it is one they wrote. With the switch on it gives nothing, and the call's check never reads the
  * greeting's own turn (policy.ts spokenBreach), so the line is heard as written and nothing after it may repeat a price.
+ *
+ * The same pieces of the owner's text, as words, are what a post is held to (ownersSayings): one list of where the owner
+ * writes what is theirs to say (writtenToSay), read here for its amounts and there for its sentences.
  */
 import { greetingOf } from "../../voice/greeting-owner";
 import { namesMoney, priceFigures } from "../policy/prices";
 import type { BrainConfig } from "./brain-config-schema";
-import { notesInForce } from "./compose";
+import { noteAsTold, notesInForce } from "./compose";
 import { guardrailsInForce } from "./config-rules";
 import { hasProfile } from "./resolve";
 
@@ -43,11 +46,14 @@ export interface AllowedPrice {
   from: string;
 }
 
+/** A piece of the owner's text, sentence by sentence, without the sentences that forbid what they name. */
+const sentencesToSay = (text: string): string[] =>
+  text.split(/(?<=[.!?;])\s+|\n+/).filter((s) => s.trim() && !FORBIDS.test(s));
+
 /** The amounts in one piece of the owner's text, sentence by sentence: none from money, a cut, a ban or a share. */
 function amountsIn(text: string): string[] {
-  return text
-    .split(/(?<=[.!?;])\s+|\n+/)
-    .filter((s) => s.trim() && !namesMoney(s) && !CUT.test(s) && !FORBIDS.test(s))
+  return sentencesToSay(text)
+    .filter((s) => !namesMoney(s) && !CUT.test(s))
     .flatMap((s) => priceFigures(s))
     .filter((f) => /^\d+(?:\.\d+)?$/.test(f));
 }
@@ -60,6 +66,79 @@ function amountsInPriceBox(note: string): string[] {
     return [low, high].filter((n): n is string => !!n).flatMap((n) => priceFigures(`$${n}`));
   }
   return amountsIn(note);
+}
+
+/** A price box as it is said: one that is only a price reads as that price ("45-60" as "$45 to $60"), any other as written. */
+function priceBoxAsSaid(note: string): string {
+  const bare = BARE_PRICE.exec(note);
+  if (!bare) return note;
+  const [, low, high] = bare;
+  return [low, high]
+    .filter((n): n is string => !!n)
+    .map((n) => `$${n}`)
+    .join(" to ");
+}
+
+/** One piece of what the owner wrote in Settings as theirs to say: a service's price box, a note still in force, a booking note. */
+interface Written {
+  /** "Haircut" for a service's price box, "Notes" or "Booking notes" for the rest. */
+  from: string;
+  /** What they typed there: for a service its price box alone, empty where it has none. */
+  text: string;
+  /** A service's price box, whose bare numbers are prices. */
+  priceBox: boolean;
+  /** The same as it is said whole: the service with its price, the note with its last day. */
+  told: string;
+}
+
+/**
+ * Where the owner writes what is theirs to say, at `now`: each service's price box, the notes still in force, the booking
+ * notes. The one list of it. Never their phone, their address, their hours, a service's minutes or a booking rule's
+ * number, which are facts with fields of their own and no claim; never a carried hand-written prompt or their
+ * instructions to the receptionist, which hold what it must not say.
+ */
+function writtenToSay(
+  profile: NonNullable<BrainConfig["profile"]>,
+  tz: string | null | undefined,
+  now: Date,
+): Written[] {
+  return [
+    ...(profile.services ?? []).map((s) => ({
+      from: s.name,
+      text: s.price_note ?? "",
+      priceBox: true,
+      told: `${s.name} ${priceBoxAsSaid(s.price_note ?? "")}`.trim(),
+    })),
+    ...notesInForce(profile.notes, tz, now).map((n) => ({
+      from: "Notes",
+      text: `${n.title}. ${n.text}`,
+      priceBox: false,
+      told: noteAsTold(n),
+    })),
+    ...(profile.booking_rules?.notes ?? []).map((n) => ({ from: "Booking notes", text: n, priceBox: false, told: n })),
+  ];
+}
+
+/**
+ * What the owner wrote in Settings as theirs to say at `now`, in sentences: the business's name, each service with its
+ * price, the notes still in force as the receptionist is told them, and the booking notes, without any sentence that
+ * forbids what it names. For a check that holds other words to the owner's: a post's, and its caption's (dashboard
+ * act/files/post.ts ownersWords).
+ *
+ * The whole of Settings counted as said there until 14 Nov 2026: a number to call and a service's minutes each backed any
+ * number, a carried prompt's "never offer a discount" backed a discount, and an offer backed its price after its last day.
+ *
+ * Read whatever the price switch says, and with or without a composed prompt: the switch is over what the receptionist
+ * says by itself, and these words back only what their owner then reads and approves.
+ */
+export function ownersSayings(
+  brain: Pick<BrainConfig, "profile" | "business_name"> | null | undefined,
+  tz: string | null | undefined,
+  now: Date,
+): string[] {
+  if (!brain) return [];
+  const lines = brain.profile ? writtenToSay(brain.profile, tz, now).map((w) => w.told) : [];
+  return [brain.business_name, ...lines].flatMap(sentencesToSay);
 }
 
 /**
@@ -79,9 +158,8 @@ export function allowedPrices(
   const add = (figures: string[], from: string) => {
     for (const figure of figures) if (!out.some((p) => p.figure === figure)) out.push({ figure, from });
   };
-  for (const s of profile.services ?? []) if (s.price_note) add(amountsInPriceBox(s.price_note), s.name);
-  for (const n of notesInForce(profile.notes, tz, now)) add(amountsIn(`${n.title}. ${n.text}`), "Notes");
-  for (const n of profile.booking_rules?.notes ?? []) add(amountsIn(n), "Booking notes");
+  for (const w of writtenToSay(profile, tz, now))
+    if (w.text) add(w.priceBox ? amountsInPriceBox(w.text) : amountsIn(w.text), w.from);
   const greeting = profile.phone_greeting;
   const heard = greeting ? greetingOf({ name: brain?.business_name, stored: greeting, paused: false }).source : null;
   if (greeting && (heard === "owner" || heard === "owner_disclosed")) add(amountsIn(greeting), "Greeting");

@@ -344,7 +344,8 @@ test("sizing: the probe spreads 25 across the terms; the main phase divides the 
   );
   assert.deepEqual(
     mainAsk({ ...PLAN, terms: ["personal trainer"] }, 5, 1, null, 1, {
-      read: new Map([["personal trainer", 120]]),
+      // All a city's term may read (decision 0133: 600, where a ZIP's stops at 120).
+      read: new Map([["personal trainer", 600]]),
       begun: new Set(),
     }).perTerm,
     [0],

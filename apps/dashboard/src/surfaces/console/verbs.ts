@@ -41,6 +41,7 @@ export interface SupportAsk {
   page: number;
 }
 type ConsoleTenant = Output<"GET platform/tenants/[id]">;
+type ConsoleSetAside = Output<"GET platform/tenants/[id]/set-aside">;
 
 /** A read's answer, or why it could not be had, in a person's words; `missing` when the route said there is none. */
 export type Read<T> = { ok: true; data: T } | { ok: false; message: string; missing: boolean };
@@ -67,6 +68,9 @@ export const consoleVerbs = {
   /** A workspace's Setup as its owner sees it, and its events: the back office's read, by id. */
   tenant: async (id: string): Promise<Read<ConsoleTenant>> =>
     readAnswer(await api()("GET platform/tenants/[id]", { params: { id } })),
+  /** What the finder set aside in a workspace, per search (decision 0133): the one asked for, else the newest. */
+  setAside: async (id: string, search: string | null): Promise<Read<ConsoleSetAside>> =>
+    readAnswer(await api()("GET platform/tenants/[id]/set-aside", { params: { id }, query: search ? { search } : {} })),
   find: async (q: string): Promise<Read<{ rows: FindRowDto[] }>> =>
     readAnswer(await api()("GET platform/find", { query: { q } })),
   support: async (a: SupportAsk): Promise<Read<ConsoleSupport>> =>
