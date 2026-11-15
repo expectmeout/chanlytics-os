@@ -214,17 +214,9 @@ function NobodyCase(p: { said: NonNullable<ReturnType<typeof M.nobodyOf>>; open:
 }
 
 /**
- * What stops or bends the draft, over its sentence: a paused workspace, a part left out, a twin, no one to hear it,
- * Meta's review.
+ * What stops or bends the draft, over its sentence: a paused workspace, a part left out, a twin, no one to hear it.
  */
-function DraftCases(p: {
-  draft: NewDraftDto;
-  channels: ChannelsReady;
-  paused: boolean;
-  busy: boolean;
-  open: (s: NewSheet) => void;
-  keep: () => void;
-}) {
+function DraftCases(p: { draft: NewDraftDto; channels: ChannelsReady; paused: boolean; open: (s: NewSheet) => void }) {
   const { draft } = p;
   const cards: ReactNode[] = [];
   // Paused for billing, nothing sends whatever the draft says: said first, as the send screen's foot did.
@@ -254,24 +246,6 @@ function DraftCases(p: {
   // A one-off goes to whoever can hear it now, so with nobody there is nothing to send (D4); a sequence runs on.
   const nobody = M.nobodyOf(draft, p.channels);
   if (nobody) cards.push(<NobodyCase key="nobody" said={nobody} open={p.open} />);
-  // A WhatsApp version Ask wrote goes to Meta as it is filed (D5): sent before Meta approves it, it goes by the rest; kept,
-  // it is filed now and waits under Drafts while Meta reviews it.
-  const review = M.reviewOf(draft);
-  if (review)
-    cards.push(
-      <CaseNote
-        key="review"
-        tone="warn"
-        title={W.review.title}
-        words={W.review.words(review.others, review.only)}
-        acts={
-          <Button size="sm" onClick={p.keep} disabled={p.busy} data-testid="sq-nw-review-keep">
-            {W.review.keep}
-          </Button>
-        }
-        testid="sq-nw-review"
-      />,
-    );
   return cards.length ? <div className="sq-nw-cases">{cards}</div> : null;
 }
 
@@ -420,14 +394,7 @@ function DraftBody(p: {
   const { draft, acts } = p;
   return (
     <>
-      <DraftCases
-        draft={draft}
-        channels={p.channels}
-        paused={p.paused}
-        busy={p.busy}
-        open={p.open}
-        keep={() => acts.make(false)}
-      />
+      <DraftCases draft={draft} channels={p.channels} paused={p.paused} open={p.open} />
       <WhoCaption>
         <AudienceToggle audience={draft.audience} onAudience={(a) => acts.redraft({ audience: a })} />
       </WhoCaption>

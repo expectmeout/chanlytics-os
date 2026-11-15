@@ -14,8 +14,9 @@ import * as M from "./new-model";
 
 /** Who a one-off sent now reaches on each channel ("180 by WhatsApp, 34 by email"), where the workspace counted it. */
 function byWords(draft: NewDraftDto): string {
-  // With WhatsApp's version still at Meta it goes by the others alone, which the question's count already says.
-  if (M.reviewOf(draft)) return "";
+  // With WhatsApp still checking the words, who goes by which is settled as it is sent (whoever an email or a text
+  // reaches goes by that, on time): no split is said, and the question says the wait instead (checksWords).
+  if (M.whatsappChecksOf(draft)) return "";
   const by = draft.reach?.by ?? {};
   return draft.channels
     .flatMap((c) => ((by[c] ?? 0) > 0 ? [W.reach.byChannel(by[c] ?? 0, M.channelsSaidOf([c], ""))] : []))
@@ -38,12 +39,14 @@ interface ConfirmSendProps {
  * the screen's edge, and a plain focus there moved the page to its end (9 Nov 2026).
  */
 function ConfirmSend({ draft, tz, busy, onYes, onNo }: ConfirmSendProps) {
-  const review = M.reviewOf(draft);
   // Who it reaches where the workspace counted it; asked without a number where nothing counts it (news to a list).
-  const reaches = review ? review.can : (draft.reach?.can ?? null);
+  const reaches = draft.reach?.can ?? null;
   const goes = M.sendsAt(tz, Date.now());
   const when = goes.moved ? W.confirm.opens(goes.time) : W.confirm.at(goes.time);
-  const detail = [byWords(draft), when, W.confirm.after].filter(Boolean).join(". ");
+  const checks = M.whatsappChecksOf(draft);
+  const detail = [byWords(draft), when, checks ? W.confirm.checking(checks.others) : "", W.confirm.after]
+    .filter(Boolean)
+    .join(". ");
   return cmFootAsk(
     <Confirm
       question={reaches === null ? W.confirm.titleNow(draft.name) : W.confirm.title(draft.name, reaches)}
@@ -82,9 +85,6 @@ function footLineOf(
     return count === null
       ? { lead: W.draft.leadsWait, sub: null, quiet: false }
       : { lead: W.draft.businesses(count), sub: W.draft.leadsWait, quiet: false };
-  const review = M.reviewOf(draft);
-  if (review && review.only > 0)
-    return { lead: W.review.goes(review.can, review.others), sub: W.review.leftOut(review.only), quiet: false };
   const when = draft.at ? W.draft.goesAt(M.atWords(draft.at)) : M.goesSoonWords(tz, Date.now());
   return count === null
     ? { lead: when, sub: null, quiet: false }
