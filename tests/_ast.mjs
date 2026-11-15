@@ -1495,7 +1495,7 @@ const UNREAD_ATTRIBUTE =
   /^(className|key|id|htmlFor|href|to|role|type|name|variant|size|tone|icon|kind|testid|testId|data-[\w-]+)$/;
 
 /** Whether a string stands for an id where it is: imported, a key, a type, compared, a case, an index, an unread attribute. */
-function idPlace(node) {
+export function idPlace(node) {
   for (let n = node; n.parent; n = n.parent) {
     const p = n.parent;
     if (ts.isJsxAttribute(p)) return UNREAD_ATTRIBUTE.test(p.name.getText());

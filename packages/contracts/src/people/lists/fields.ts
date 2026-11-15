@@ -107,6 +107,7 @@ export const LIST_RULE_FIELDS: readonly {
     label: "Standing",
     kind: "standing",
     needs: [],
+    // screen-word: a note AI reads to build a list's rule, never shown on a page.
     draft:
       "value needs_you (waiting for a person) or waiting_on_you (a thread you have: you took it over, or your reply paused the receptionist)",
   },

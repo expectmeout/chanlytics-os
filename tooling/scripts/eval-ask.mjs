@@ -104,6 +104,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ASK_TOKENS_DAY, BUILTIN_LISTS, cardOpenRoute, oneDoor, priceOf } from "@chanlytics/contracts";
 import { degradedFails, pct, roundBands, spread, streamOf, streamSummary, wilson } from "./ask-stats.mjs";
 import { askSpoken, spokenFails } from "./eval-ask-spoken.mjs";
+import { screenWordsJudged } from "./eval-ask-words.mjs";
 import { usedAny } from "../evals/rename-ask-tools.mjs";
 import {
   ROW_SOURCES,
@@ -443,6 +444,11 @@ export function judge(c, r) {
     if (!text.toLowerCase().includes(s.toLowerCase())) fails.push(`answer lacks “${s}”`);
   for (const s of e.excludes ?? [])
     if (text.toLowerCase().includes(s.toLowerCase())) fails.push(`answer contains “${s}”`);
+  // Every answer, against the words that never reach a screen (docs/words.md): another name for AI fails the turn, and
+  // a word its tools still teach it is noted. A turn that failed says an error's words, not an answer's.
+  const worded = m.failed ? { fails: [], notes: [] } : screenWordsJudged(text, e.keeps_words);
+  fails.push(...worded.fails);
+  notes.push(...worded.notes);
   // A row's id is a uuid a read returned, but a People list's, which is its name (contracts BUILTIN_LISTS: quiet).
   const named = (x) => x.kind === "list" && BUILTIN_LISTS.some((l) => l.id === x.id);
   if (

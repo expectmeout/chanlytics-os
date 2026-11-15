@@ -65,6 +65,7 @@ import { NAME_RATCHETS } from "./repo/names/_names.mjs";
 import { BOUNDARY_RATCHETS } from "./repo/boundaries/_boundaries.mjs";
 import { SIZE_RATCHETS } from "./repo/size/_size.mjs";
 import { RULE_RATCHETS } from "./repo/rules/_rules.mjs";
+import { WORD_RATCHETS } from "./repo/words/_words.mjs";
 import { API_RATCHETS } from "./repo/api/_api.mjs";
 import { TYPE_RATCHETS } from "./types/_types.mjs";
 
@@ -1240,6 +1241,7 @@ export const RATCHETS = [
   ...BOUNDARY_RATCHETS,
   ...SIZE_RATCHETS,
   ...RULE_RATCHETS,
+  ...WORD_RATCHETS,
   ...API_RATCHETS,
   ...TYPE_RATCHETS,
 ].map((m) => ({ mode: "count", ...m, key: m.key ?? m.file.replace(/\.json$/, "") }));

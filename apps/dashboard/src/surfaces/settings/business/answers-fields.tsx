@@ -198,6 +198,7 @@ export const BtaLanguages = ({
 // PRICE_CHOICE_WORDS), and the booking rule is always on (ALWAYS_ON), as nothing in the product books.
 const BTA_RULES: [GuardrailKey, string, string][] = [
   ["never_confirm_booking", "Never confirm a booking", "Never confirms a booking"],
+  // screen-word: "automated assistant" is the disclosure customers hear, said in its own words (decision 0051).
   ["disclose_ai", "Says it's an automated assistant", "Says it's an assistant"],
   ["no_health_advice", "No health advice", "No health advice"],
 ];

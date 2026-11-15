@@ -242,7 +242,7 @@ async function scrubCopiesFirst(
     throw causedBy(
       new AppError(
         "internal",
-        `The assistant's memory of this person could not be scrubbed, so nothing was deleted. ${tryAgain(finishWaits)}`,
+        `AI's memory of this person could not be scrubbed, so nothing was deleted. ${tryAgain(finishWaits)}`,
         500,
       ),
       error,

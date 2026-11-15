@@ -76,6 +76,7 @@ export const ASSISTANT_NAME_WORDS = {
   label: "Its name",
   empty: "No name",
   placeholder: "Ava",
+  // screen-word: "automated assistant" is what callers hear, said in its own words (decision 0051).
   hint: "Callers always hear that it's the automated assistant, so the greeting says it beside the name.",
   gate: "give it a name",
   saved: (name: string | null) => (name ? `It introduces itself as ${name}.` : "It has no name now."),

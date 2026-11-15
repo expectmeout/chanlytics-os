@@ -224,7 +224,7 @@ export async function askOnce(
       return {
         ok: false,
         reason: "refused",
-        message: "The assistant is not available right now. Try again in a moment.",
+        message: "AI is not available right now. Try again in a moment.",
       };
     throw e;
   }

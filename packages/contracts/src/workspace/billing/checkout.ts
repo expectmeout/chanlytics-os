@@ -111,6 +111,7 @@ export function billingAccountDto(row: {
  * message and promise a call back, nothing more. Replaces the business's
  * whole prompt for the call, so no price, no booking and no transfer can
  * come out of a line whose subscription stopped.
+ * screen-word: said to the voice model, never shown on a page.
  */
 export function pausedVoiceFacts(businessName: string | null | undefined): string {
   const name = (businessName ?? "").trim() || "this business";
