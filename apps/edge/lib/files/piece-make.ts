@@ -363,12 +363,23 @@ async function startDrawing(db: Db, piece: PieceRow, tick: number): Promise<void
 
 /* ------------------------------------------------------------------------------------------------------ wait -- */
 
+/**
+ * What a try at a drawing took, said as its machine is let go: which try, the cores it had, and how long it was kept. A
+ * machine is billed for as long as it is kept and by its cores, so a video's cost to draw is these, summed over its
+ * tries (its `piece_drawn` line, and a `piece_drawing_ended` line for each try that failed before it).
+ */
+const machineTook = (kept: PieceMachine): { round: number; vcpus: number; machine_ms: number } => ({
+  round: kept.round,
+  vcpus: MACHINE_VCPUS,
+  machine_ms: Date.now() - new Date(kept.started_at).getTime(),
+});
+
 /** A drawing that will not finish on this machine: let go, and started once more, or the video's end. */
 async function drawAgainOrEnd(db: Db, piece: PieceRow, kept: PieceMachine, ending: string): Promise<void> {
   await machines.stop(machineOf(kept));
   logger({ tenant_id: piece.tenant_id }).warn("piece_drawing_ended", {
     piece: piece.id,
-    round: kept.round,
+    ...machineTook(kept),
     said: ending,
   });
   if (kept.round >= PIECE_ROUNDS_MAX) return endWith(db, piece, "draw");
@@ -465,7 +476,13 @@ async function keepDrawn(db: Db, piece: PieceRow, kept: PieceMachine): Promise<v
   // Its bytes all went: its row says so first, in one step with its machine let go, so nothing after this can throw it away.
   await markPieceSent(db, piece.id);
   await machines.stop(machine);
-  logger({ tenant_id: piece.tenant_id }).info("piece_drawn", { piece: piece.id, bytes: bytes.length, fate: file.fate });
+  logger({ tenant_id: piece.tenant_id }).info("piece_drawn", {
+    piece: piece.id,
+    bytes: bytes.length,
+    fate: file.fate,
+    frames,
+    ...machineTook(kept),
+  });
 }
 
 async function wait(db: Db, piece: PieceRow, tick: number, deadline: number): Promise<void> {

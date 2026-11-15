@@ -265,18 +265,23 @@ export function noRelationshipColumn(error: { message: string } | null | undefin
  * different few of a long batch's queued people on every read, and a person released and read again must come back the
  * same way each time. A customer's sends alone (no lead_id), as a batch of a customer's sequence holds. A failed read
  * throws.
+ *
+ * `not: "whatsapp"`: only the people who go by text or email (a row with no channel is WhatsApp's, 00298), read while a
+ * run's WhatsApp people wait for WhatsApp's yes to its message: they stay queued, and nobody behind them in the order
+ * waits with them.
  */
 export async function listQueuedRecipients(
   db: Db,
-  params: { tenantId: TenantId; broadcastId: string; limit: number },
+  params: { tenantId: TenantId; broadcastId: string; limit: number; not?: "whatsapp" },
 ): Promise<Array<{ contact_id: ContactId; facts: unknown; channel?: string | null; attempt?: number }>> {
-  const { data, error } = await db
+  const queued = db
     .from("sequence_sends")
     .select("contact_id, facts, channel, attempt:attempts")
     .eq("tenant_id", params.tenantId)
     .eq("batch_id", params.broadcastId)
     .is("lead_id", null)
-    .eq("state", "queued")
+    .eq("state", "queued");
+  const { data, error } = await (params.not === "whatsapp" ? queued.in("channel", ["sms", "email"]) : queued)
     .order("contact_id")
     .limit(params.limit);
   if (error) throw new DbFailure(error, "queued_recipients");

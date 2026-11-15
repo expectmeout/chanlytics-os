@@ -420,7 +420,13 @@ export function playbookRunReach(
   const purpose = enrolPurpose(trigger.cls, run.message);
   // How it goes: the ticks and the channels now, and what the moment's message is about (a visit's or a follow-up's is
   // theirs, which by email asks no yes; any other moment's is the business's news: decision D1).
-  const how: CampaignHow = { channels: run.channels, ready: run.ready, about: messageAboutOfTrigger(run.trigger) };
+  const how: CampaignHow = {
+    channels: run.channels,
+    ready: run.ready,
+    about: messageAboutOfTrigger(run.trigger),
+    // A run with no day of its own waits at the send for a channel that opens by itself (reachFor `wait`).
+    wait: run.wait === true,
+  };
   // What each person has had of the follow-up: the latest, and the latest by what each was about (0029).
   const hadOf = (id: string): FollowUpsHad => ({
     at: touches.followUps.get(id),

@@ -257,7 +257,7 @@ function peoplePorts(
   return {
     // On a database 00298 has not reached, a recipient has no channel and everyone goes by WhatsApp, as every run did
     // (packages/db listQueuedRecipients): code that ships before its migration must keep its broadcasts going.
-    batch: (id, limit) => listQueuedRecipients(db, { tenantId, broadcastId: id, limit }),
+    batch: (id, limit, only) => listQueuedRecipients(db, { tenantId, broadcastId: id, limit, ...only }),
     // The batch's people in one read, not one read per person.
     contacts: async (ids) => {
       const { data, error } = await listBatchPeople(db, tenantId, ids);

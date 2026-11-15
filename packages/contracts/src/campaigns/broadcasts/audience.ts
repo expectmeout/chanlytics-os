@@ -145,6 +145,11 @@ export interface CampaignHow {
   ready: ChannelsReady;
   /** A visit or proposal moment's message is theirs, a broadcast ours (consent.ts MessageAbout, decision D1). */
   about: MessageAbout;
+  /**
+   * The send waits for a channel that opens by itself (reach-for.ts reachFor `wait`): a send by hand, and a run with no
+   * day of its own to wait in. Absent, nobody is placed on a channel that cannot carry the message now.
+   */
+  wait?: boolean;
 }
 
 /**
