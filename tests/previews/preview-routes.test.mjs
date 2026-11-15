@@ -232,11 +232,13 @@ test("a press from another site is refused, and forty an hour from one network i
   assert.equal((await post(opened, {}, { ip: "198.51.100.9" })).status, 200, "another network has its own");
 });
 
-test("the page's own count of its opening; Not right kept for the sender, never a word to the receptionist", async () => {
+test("the page's own count of its opening; Not right kept for the sender, even where its record takes no fix", async () => {
   const { row } = world();
   assert.deepEqual((await read(await post(opened, {}))).body.data, { opened: 1 });
   const kept = await read(await post(notRight, { fact: "Hours", said: "We open at 10 on Saturdays" }));
-  assert.deepEqual([kept.status, kept.body.data], [200, { kept: 1 }]);
+  // This world holds no record for the preview: the fix is not made, and the sender's line is kept all the same
+  // (what a fix does to a record is preview-theirs.test.mjs's).
+  assert.deepEqual([kept.status, kept.body.data], [200, { kept: 1, fixed: false }]);
   assert.deepEqual(row.not_right, [{ fact: "Hours", said: "We open at 10 on Saturdays" }]);
   assert.equal((await post(notRight, { fact: "" })).status, 400);
   assert.equal(asked.length, 0, "no model is asked for either");

@@ -19,6 +19,7 @@ import { DAY_NAMES, DAYS } from "../config/workspace-config/config-rules";
 import { REHEARSAL_LIMITS } from "../rehearsal/rehearsal";
 import { RECEPTIONIST_MET, REHEARSE_SKIPPED } from "../setup/put-off";
 import { SECOND_MS } from "../shared/time";
+import { previewTheirsOf } from "./theirs";
 import { LEAD_PREVIEW_WORDS } from "./words";
 
 export const PREVIEW_STATES = ["building", "ready", "failed", "claimed", "ended"] as const;
@@ -154,8 +155,13 @@ function servicesLine(services: readonly { name: string }[]): string {
 export function previewKnowsOf(profile: PreviewPageFacts["profile"], phoneDisplay: string | null): PreviewKnowsRowVM[] {
   const words = LEAD_PREVIEW_WORDS;
   const rows: PreviewKnowsRowVM[] = [];
-  const add = (key: PreviewKnowsRowVM["key"], value: string | null | undefined, from: string) => {
-    if (value?.trim()) rows.push({ key, label: words.rows[key], value: value.trim(), from });
+  // A fact they put right is theirs, in their words, whatever the listing said (previews/theirs.ts).
+  const { fixed } = previewTheirsOf(profile);
+  const add = (key: PreviewKnowsRowVM["key"], listed: string | null | undefined, from: string) => {
+    const theirs = fixed[key];
+    const value = theirs ?? listed;
+    if (value?.trim())
+      rows.push({ key, label: words.rows[key], value: value.trim(), from: theirs ? words.from.you : from });
   };
   add("hours", calendarHoursLines(profile?.hours ?? null).join(" · "), words.from.google);
   add("address", profile?.address, words.from.google);

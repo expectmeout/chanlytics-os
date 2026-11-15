@@ -59,12 +59,16 @@ export const LEAD_PREVIEW_WORDS = {
   },
 
   knowsTitle: "What it knows",
-  from: { google: "From Google", site: "From your site" },
+  from: { google: "From Google", site: "From your site", you: "From you" },
   rows: PREVIEW_FACT_NAMES,
   notRight: "Not right",
   notRightLabel: "What's right? (optional)",
   notRightSend: "Send",
   notRightThanks: "Thanks. You can fix it in a minute once it's yours.",
+  /** After a fact is put right on the page, and where it cannot take another thing told. */
+  teachLabel: "Tell it something a customer asks",
+  fixed: "Fixed. Try it and see.",
+  taughtFull: "That's the three a preview takes. Make it yours to tell it more.",
 
   /** Over the page its sender opens to look at (Open it, `?look=1`): it counts nothing, so it answers nothing. */
   look: "You're looking as Chanlytics. Nothing here counts, so it answers nothing and can't be made yours.",
