@@ -51,6 +51,14 @@ const FITCORP = "FitCorp Austin Central";
 const HYDE_PARK = "Hyde Park Personal Training";
 const SEEDED = [ZILKER, TRAVIS, MUELLER, KETTLEBELL, FITCORP, HYDE_PARK];
 /**
+ * A list of the owner's own, which the nightly's copy holds and production's workspace does not
+ * (tooling/scripts/e2e-harness/copy-states.mjs, OWN_LIST): Mueller and Kettlebell in Needs review, FitCorp left out
+ * as a chain, each as the seeded search judged it. A search the finder ran shows what it qualified alone (decision
+ * 0133), and a list keeps Needs review and Left out (D4), so the acts on those two classes are read on this list.
+ * Restated as the names above are; the test that opens it refuses one that holds anything else.
+ */
+const OWN_LIST_NAME = "e2e copy: a list of my own";
+/**
  * The seed's own arithmetic, as `leadsStanding` counts it: the rail's numbers
  * are the COUNTED Qualified leads (lead_list_counts), so the six seeded places
  * stand as three leads -- two Ready and one Contacted -- and the waiting
@@ -80,14 +88,14 @@ async function watch(page: Parameters<typeof signIn>[0], pattern: string): Promi
 }
 
 /**
- * Open the seeded search from the rail. The strip and the three classes belong
- * to a search -- LeadsScope draws neither while `searchId` is null -- so a test
- * that reads an ending, or a class other than Qualified, comes through here.
+ * Open a search or a list from the rail, the seeded search unless named. The strip and the classes belong to a search --
+ * LeadsScope draws neither while `searchId` is null -- so a test that reads an ending, or a class other than Qualified,
+ * comes through here.
  */
-async function openSeededSearch(page: Page): Promise<void> {
+async function openSearch(page: Page, name = LEAD_SEARCH_NAME): Promise<void> {
   await page.goto("/#/clients/leads");
   await page.waitForLoadState("networkidle");
-  await page.locator(".cl-rail-row", { hasText: LEAD_SEARCH_NAME }).locator(".ld-search-pick").click();
+  await page.locator(".cl-rail-row", { hasText: name }).locator(".ld-search-pick").click();
   await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/leads:s-[0-9a-f-]{36}$/);
 }
 
@@ -128,13 +136,28 @@ test.describe("Leads on a real workspace", () => {
     await expect(rows.nth(2)).toContainText(HYDE_PARK);
 
     // The rail names the search, and its count is the members' count. The strip
-    // and the three classes are the open search's, so read them from it.
+    // and the classes are the open search's, so read them from it.
     await expect(page.locator(".cl-rail-row", { hasText: LEAD_SEARCH_NAME })).toBeVisible();
-    await openSeededSearch(page);
+    await openSearch(page);
     await expectStripEnding(page, "Found 3 personal trainers");
-    await expect(page.getByTestId("lead-strip")).toContainText("1 left out");
+    // A search the finder ran shows what it qualified alone (decision 0133): its strip counts no pile set aside, and its
+    // band is the one count, Qualified. Its two in Needs review and the one it left out are read on the list below.
+    const strip = page.getByTestId("lead-strip");
+    await expect(strip).not.toContainText("left out");
+    await expect(strip).not.toContainText("need a look");
+    await expect(page.getByTestId("lead-class-qualified")).toContainText("3");
+    await expect(page.getByTestId("lead-class-review")).toHaveCount(0);
+    await expect(page.getByTestId("lead-class-excluded")).toHaveCount(0);
+  });
 
-    // Excluded is a view, and the view is the address.
+  test("a list of the owner's own keeps Needs review and Left out, and Left out is a view whose address is the view", async ({
+    page,
+  }) => {
+    await openSearch(page, OWN_LIST_NAME);
+    await expect(page.getByTestId("lead-class-qualified")).toContainText("0");
+    await expect(page.getByTestId("lead-class-review")).toContainText("2");
+    await expect(page.getByTestId("lead-class-excluded")).toContainText("1");
+
     await page.getByTestId("lead-class-excluded").click();
     await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/leads:s-[0-9a-f-]{36}:c-excluded$/);
     const left = page.locator(".cl-table tbody tr").first();
@@ -212,7 +235,7 @@ test.describe("Leads on a real workspace", () => {
   test("the peek names every check's source in two groups, and a catch-all address reads Unconfirmed", async ({
     page,
   }) => {
-    await openSeededSearch(page);
+    await openSearch(page, OWN_LIST_NAME);
     await page.getByTestId("lead-class-review").click();
     await page.locator(".cl-table tbody tr", { hasText: MUELLER }).getByTestId("lead-name").click();
     await expectPeekSeenVersusRead(page);
@@ -266,7 +289,7 @@ test.describe("Leads on a real workspace", () => {
   test("Put back, then Undo, leaves the left-out place as it was", async ({ page }) => {
     const put = await watch(page, "**/api/v1/leads/*/put-back*");
     const undone = await watch(page, "**/api/v1/lead-operations/*/undo*");
-    await openSeededSearch(page);
+    await openSearch(page, OWN_LIST_NAME);
     await page.getByTestId("lead-class-excluded").click();
     const row = page.locator(".cl-table tbody tr", { hasText: FITCORP });
     const before = await leadRowWords(row);
@@ -281,7 +304,7 @@ test.describe("Leads on a real workspace", () => {
   test("Keep on a Needs review row counts it this month, and Undo gives it back", async ({ page }) => {
     const kept = await watch(page, "**/api/v1/leads/*/keep*");
     const undone = await watch(page, "**/api/v1/lead-operations/*/undo*");
-    await openSeededSearch(page);
+    await openSearch(page, OWN_LIST_NAME);
     await page.getByTestId("lead-class-review").click();
     const row = page.locator(".cl-table tbody tr", { hasText: KETTLEBELL });
     const before = await leadRowWords(row);

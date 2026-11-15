@@ -1,16 +1,38 @@
 /**
  * What only a copy may hold (tooling/scripts/e2e-harness/copy-states.mjs): a run waiting for an OK and emails handed to
- * their owner, the states the specs read that production's sweeps would act on, so the seed never writes them. Run here
+ * their owner, the states the specs read that production's sweeps would act on, so the seed never writes them, and a list
+ * of the owner's own whose Needs review and Left out the whole suite's Leads checks act on. Run here
  * over the seed's own workspace in memory, and read by the rules the pages read them by. e2e-workspace.test.mjs holds the
  * seed (it is at its length), and workflow-rules.test.mjs which job runs which.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DAY_MS, isReachOutRun, runDraftedEmails, runWaitsOnYou } from "@chanlytics/contracts";
+import {
+  DAY_MS,
+  isLeadList,
+  isReachOutRun,
+  leadBand,
+  leadMonth,
+  runDraftedEmails,
+  runWaitsOnYou,
+} from "@chanlytics/contracts";
 import { waitRowsOf } from "../../apps/dashboard/src/surfaces/waits/rows.ts";
 import { fakeDb } from "../_fake-db.mjs";
-import { converge, LEADS, verify, WAITING_LEADS } from "../../tooling/scripts/ops/e2e-workspace.mjs";
-import { HANDED_OVER, WAITING_RUN, isACopy, writeCopyStates } from "../../tooling/scripts/e2e-harness/copy-states.mjs";
+import {
+  converge,
+  LEAD_SEARCH,
+  LEADS,
+  TIMEZONE,
+  verify,
+  WAITING_LEADS,
+} from "../../tooling/scripts/ops/e2e-workspace.mjs";
+import {
+  HANDED_OVER,
+  OWN_LIST,
+  WAITING_RUN,
+  isACopy,
+  writeCopyStates,
+} from "../../tooling/scripts/e2e-harness/copy-states.mjs";
 
 const NOW = Date.parse("2026-09-14T09:00:00Z");
 /** What the sequence readers ask a run's day by: the business's day, and the day an OK now would send it. */
@@ -161,11 +183,75 @@ test("an email handed over is whole as 00429 holds one, to a place the waiting s
   );
 });
 
+/** A search or list as the page's band reads it: its round's count of each class, from its members. */
+function bandOf(t, search) {
+  const members = t.lead_search_members.filter((m) => m.search_id === search.id);
+  const n = (cls) => members.filter((m) => m.class === cls).length;
+  return leadBand({
+    via: search.via,
+    round: { qualified: n("qualified"), review: n("review"), excluded: n("excluded"), fits: null },
+  }).classes.map((c) => [c.id, c.count]);
+}
+
+test("a list of the owner's own holds the three the finder did not qualify, as the search judged them, none counted", async () => {
+  const w = seeded();
+  const { tenantId: T } = await night(w);
+  await writeCopyStates(w.db, { now: NOW });
+  const list = w.t.lead_searches.find((s) => s.tenant_id === T && s.name === OWN_LIST.name);
+  assert.ok(isLeadList(list), "a list, which the page keeps Needs review and Left out on (decision 0133, D4)");
+  assert.deepEqual(
+    [list.via, list.plan.list, list.plan.count],
+    ["import", "import", 3],
+    "filed as an import files one",
+  );
+  const search = w.t.lead_searches.find((s) => s.tenant_id === T && s.name === LEAD_SEARCH.name);
+  assert.deepEqual(bandOf(w.t, search), [["qualified", 3]], "the finder's search: what it qualified, alone");
+  assert.deepEqual(
+    bandOf(w.t, list),
+    [
+      ["qualified", 0],
+      ["review", 2],
+      ["excluded", 1],
+    ],
+    "the list: the two e2e/leads.spec.ts keeps and peeks at, and the one it puts back",
+  );
+
+  const [round, ...more] = w.t.lead_rounds.filter((r) => r.search_id === list.id);
+  assert.equal(more.length, 0);
+  assert.deepEqual(
+    [round.state, round.ending, round.target, round.month],
+    ["ended", "target_reached", 3, leadMonth(TIMEZONE, new Date(NOW))],
+    "a finished list: nothing on it is being checked",
+  );
+
+  const members = w.t.lead_search_members.filter((m) => m.search_id === list.id);
+  for (const m of members) {
+    const lead = LEADS.find((l) => l.place_id === w.t.leads.find((x) => x.id === m.lead_id).place_id);
+    const judged = w.t.lead_search_members.find((x) => x.search_id === search.id && x.lead_id === m.lead_id);
+    assert.deepEqual(
+      [m.class, m.excluded_by, m.fit, m.reason],
+      [lead.member.class, lead.member.excluded_by ?? null, lead.member.fit, lead.member.reason],
+      lead.business_name,
+    );
+    assert.deepEqual(m.judgment, judged.judgment, `${lead.business_name}: the peek reads the search's own checks`);
+    assert.deepEqual([m.counted, m.counted_month], [false, null], `${lead.business_name}: Keep is what counts one`);
+    assert.equal(m.round_id, round.id);
+  }
+  assert.deepEqual(
+    members.map((m) => w.t.leads.find((x) => x.id === m.lead_id).place_id).sort(),
+    [...OWN_LIST.leads].sort(),
+  );
+  const mueller = w.t.leads.find((l) => members.some((m) => m.lead_id === l.id) && l.email_state === "catch_all");
+  assert.ok(mueller, "one in Needs review whose address is unconfirmed, for the peek's Unconfirmed");
+  assert.equal(members.filter((m) => m.class === "excluded" && m.excluded_by === "chain").length, 1);
+});
+
 test("run again, it stands as it did: nothing is added to", async () => {
   const w = seeded();
   await night(w);
   await writeCopyStates(w.db, { now: NOW });
-  const counted = () => ["sequence_batches", "sequence_sends", "sequence_steps", "templates"].map((n) => w.t[n].length);
+  const counted = () =>
+    ["sequence_batches", "sequence_sends", "sequence_steps", "templates", "lead_searches"].map((n) => w.t[n].length);
   const once = counted();
   await night(w);
   await writeCopyStates(w.db, { now: NOW });
