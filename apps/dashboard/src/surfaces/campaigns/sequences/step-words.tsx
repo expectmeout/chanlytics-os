@@ -19,7 +19,11 @@ import {
   handTitleOf,
   parseParamSpecs,
   stepApprovalOf,
+  stepAsOffer,
   type HandKind,
+  type SequenceRecordDto,
+  type SequenceStepDto,
+  type StepOffer,
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -44,6 +48,21 @@ export function useStepMessageRead(
     read: Array.isArray(offered),
   };
 }
+
+/**
+ * Whether a step's message is an offer though its sequence's moment is not, and whose word that is (contracts
+ * stepAsOffer): the class a sequence runs under is its first step's, and every step after carries it. Its box and its
+ * sheet then name no channel an offer never goes by, and say who gets it.
+ */
+export const stepOfferOf = (
+  rec: SequenceRecordDto,
+  step: SequenceStepDto,
+  message: CmOffered | null,
+): StepOffer | null =>
+  stepAsOffer(
+    { kind: step.kind, hand: step.hand, policy_class: rec.sequence.first?.policy_class ?? null },
+    message?.message ?? null,
+  );
 
 /** The business's name as a message fills it: an example's words say it. */
 function useBusinessName(): string {

@@ -22,7 +22,11 @@ import {
   type OwnVersionChannel,
 } from "../../campaigns/templates/message-versions/channels";
 import { languageName } from "../../campaigns/templates/languages";
-import { TEMPLATE_BODY_WORDS, TEMPLATE_SAME_NAME_WORDS } from "../../campaigns/templates/templates";
+import {
+  TEMPLATE_BODY_WORDS,
+  TEMPLATE_SAME_NAME_WORDS,
+  WHATSAPP_REVIEW_TAKES,
+} from "../../campaigns/templates/templates";
 import {
   PROPOSAL_WORDS,
   asText,
@@ -598,7 +602,7 @@ export const MESSAGE_WORDS = {
    * person reads WhatsApp, never Meta, as STARTER_LINE_WORDS say the review).
    */
   goes: (now: readonly OwnVersionChannel[], review: boolean): string => {
-    const reviewed = "once WhatsApp has reviewed it (usually minutes, sometimes a day)";
+    const reviewed = `once WhatsApp has reviewed it (${WHATSAPP_REVIEW_TAKES})`;
     if (now.length === 0) return review ? `Its WhatsApp version is ready ${reviewed}` : "";
     return `Ready ${channelsWords(now)} once approved${review ? `; its WhatsApp version ${reviewed}` : ""}`;
   },

@@ -259,7 +259,7 @@ export const ALERT_TOPICS: readonly AlertTopic[] = [
     key: "templates",
     group: "worth_knowing",
     title: "A WhatsApp message was approved, or needs a change",
-    what: "WhatsApp approved a template, or rejected, paused or disabled it, or moved it to marketing, where a send needs the customer's recorded yes.",
+    what: "WhatsApp approved a saved message, asked for a change to it, held it for a few hours or turned it off, or now treats it as an offer, which goes only to people who said yes to offers.",
     email: "choice",
     phone: false,
     kinds: ["template_ready", "template_blocked"],
