@@ -62,6 +62,21 @@ export interface PreviewMade {
   made: boolean;
 }
 
+/**
+ * The lead a reply's thread is about: the newest reading on that conversation names it (sequence_replies), or null where
+ * the thread holds no lead's reply. For a preview made when a business answers (the edge's reply drafter).
+ */
+export async function findLeadOfReply(db: Db, tenantId: TenantId, conversationId: string): Promise<string | null> {
+  const { data, error } = await tenantDb(db, tenantId)
+    .from("sequence_replies")
+    .select("lead_id")
+    .eq("conversation_id", conversationId)
+    .order("read_at", { ascending: false })
+    .limit(1);
+  if (error) throw new DbFailure(error, "cannot read whose reply this is");
+  return data?.[0]?.lead_id ?? null;
+}
+
 /** A lead's preview made, or the one that stands (the service role's). */
 export async function makeLeadPreview(
   db: Db,

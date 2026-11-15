@@ -47,6 +47,7 @@ export {
   doesMakePreviews,
   endPreview,
   findLeadForPreview,
+  findLeadOfReply,
   findLeadPreview,
   findLeadPreviewById,
   findLeadPreviewByToken,
