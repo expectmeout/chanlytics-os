@@ -6361,19 +6361,24 @@ COMMENT ON FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name text,
 
 
 --
--- Name: file_found(uuid, uuid, text, text, text, text, text, bigint, text, integer, integer, text, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: file_found(uuid, uuid, text, text, text, text, text, bigint, text, integer, integer, text, integer, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid DEFAULT NULL::uuid) RETURNS jsonb
+CREATE FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid DEFAULT NULL::uuid, p_print text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
+    AS $_$
 declare
   v_twin    public.files;
+  v_near    uuid;
+  v_fate    text;
   v_name    text;
   v_waiting integer;
   v_due     timestamptz := now();
 begin
+  if p_print is not null and p_print !~ '^[0-9a-f]{32}$' then
+    raise exception 'file_found: % is not a print', p_print using errcode = '22023';
+  end if;
   -- One at a time: photos come side by side, and can share a name or be one picture at two addresses.
   perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
   -- Asked again after a lost answer: the same answer, never its own twin.
@@ -6399,6 +6404,18 @@ begin
   ) then
     return jsonb_build_object('fate', 'here', 'file_id', null);
   end if;
+  -- The same picture by its look (00630): kept once, the better of the two where only one waited.
+  if p_print is not null then
+    v_near := public.file_twin_of(p_tenant_id, p_id, 'image', p_print, null);
+    if v_near is not null then
+      v_fate := public.file_twin_fate(p_source, p_status, p_width::numeric * p_height, v_near);
+      if v_fate = 'new_goes' then
+        return jsonb_build_object('fate', 'here', 'file_id', v_near);
+      elsif v_fate = 'twin_goes' then
+        perform public.file_twin_goes(p_tenant_id, v_near, p_id);
+      end if;
+    end if;
+  end if;
   -- contracts FILES_MAX.
   if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
     return jsonb_build_object('fate', 'full', 'file_id', null);
@@ -6411,9 +6428,9 @@ begin
   end if;
   v_name := public.file_free_name(p_tenant_id, p_name);
   insert into public.files (id, tenant_id, status, source, source_ref, name, mime, bytes, fingerprint,
-                            width, height, shows, created_by)
+                            width, height, shows, created_by, picture_print)
   values (p_id, p_tenant_id, p_status, p_source, p_source_ref, v_name, p_mime, p_bytes, p_fingerprint,
-          p_width, p_height, p_shows, p_actor);
+          p_width, p_height, p_shows, p_actor, p_print);
   -- As text: a job's once-only key is made of strings (job_dedupe_key_of).
   insert into public.jobs (tenant_id, kind, due_at, payload)
   values (p_tenant_id, 'file_look', v_due, jsonb_build_object('file_id', p_id, 'edition', p_edition::text));
@@ -6424,14 +6441,14 @@ begin
             jsonb_build_object('file_id', p_id, 'source', p_source, 'by', p_actor));
   end if;
   return jsonb_build_object('fate', 'kept', 'file_id', p_id);
-end $$;
+end $_$;
 
 
 --
--- Name: FUNCTION file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid, p_print text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid) IS 'The one door every road keeps a file by, after the server proved its bytes (00551). Answers {fate: kept, here or full, file_id}. No session reaches it: what the bytes are is never the browser''s word.';
+COMMENT ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid, p_print text) IS 'The one door every road keeps a file by, after the server proved its bytes (00551), and judged by its look where it carries a print (00630). Answers {fate: kept, here or full, file_id}. No session reaches it: what the bytes are is never the browser''s word.';
 
 
 --
@@ -6786,6 +6803,56 @@ COMMENT ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric,
 
 
 --
+-- Name: file_printed(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_printed(p_tenant_id uuid, p_id uuid, p_print text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_row  public.files;
+  v_near uuid;
+  v_fate text;
+begin
+  if p_print is null or p_print !~ '^[0-9a-f]{32}$' then
+    raise exception 'file_printed: % is not a print', p_print using errcode = '22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  select * into v_row from public.files f where f.tenant_id = p_tenant_id and f.id = p_id and f.removed_at is null;
+  if not found then
+    return jsonb_build_object('fate', 'gone', 'twin_id', null);
+  end if;
+  -- Kept without touching updated_at: a print is no change a page shows.
+  update public.files f set picture_print = p_print where f.id = p_id;
+  if v_row.source = 'made' then
+    return jsonb_build_object('fate', 'kept', 'twin_id', null);
+  end if;
+  v_near := public.file_twin_of(p_tenant_id, p_id, v_row.kind, p_print, v_row.seconds);
+  if v_near is null then
+    return jsonb_build_object('fate', 'kept', 'twin_id', null);
+  end if;
+  v_fate := public.file_twin_fate(v_row.source, v_row.status, v_row.width::numeric * v_row.height, v_near);
+  -- This one goes only where nothing uses it either.
+  if v_fate = 'new_goes' and not exists (select 1 from public.posts p where p.file_id = p_id) then
+    perform public.file_twin_goes(p_tenant_id, p_id, v_near);
+    return jsonb_build_object('fate', 'gone', 'twin_id', v_near);
+  elsif v_fate = 'twin_goes' then
+    perform public.file_twin_goes(p_tenant_id, v_near, p_id);
+    return jsonb_build_object('fate', 'kept', 'twin_id', v_near);
+  end if;
+  return jsonb_build_object('fate', 'kept', 'twin_id', null);
+end $_$;
+
+
+--
+-- Name: FUNCTION file_printed(p_tenant_id uuid, p_id uuid, p_print text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_printed(p_tenant_id uuid, p_id uuid, p_print text) IS 'A picture''s print kept and judged (00630): an upload''s as its look starts, a video''s at its digest''s first step, a file from before by the backfill. Answers {fate: kept or gone, twin_id: the twin that went, or that this one gave way to}. The service role''s.';
+
+
+--
 -- Name: file_purged(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6981,6 +7048,95 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) IS 'A member''s upload begins (00551): the add_files permission (00596: an operator''s too), the workspace''s cap, and the file_purge that lets its bytes go a day on if they never become a file. No row until they are proven.';
+
+
+--
+-- Name: file_twin_fate(text, text, numeric, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_twin_fate(p_source text, p_status text, p_pixels numeric, p_twin_id uuid) RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select case
+    -- A twin a person kept or set aside: a road brings nothing new; an upload is the person's word for it again.
+    when twin.status <> 'inbox' then case when p_source = 'upload' then 'both_stay' else 'new_goes' end
+    -- A waiting twin a post already uses stays where it is.
+    when exists (select 1 from public.posts p where p.file_id = twin.id) then
+      case when p_source = 'upload' or p_status = 'filed' then 'both_stay' else 'new_goes' end
+    -- An upload, or a road that files what it brings (the owner's connected profile), over a twin that only waited.
+    when p_source = 'upload' or p_status = 'filed' then 'twin_goes'
+    -- Two that wait: the bigger stays, and the one already here where they are alike.
+    when coalesce(p_pixels, 0) > coalesce(twin.width::numeric * twin.height, 0) then 'twin_goes'
+    else 'new_goes'
+  end
+  from public.files twin
+  where twin.id = p_twin_id;
+$$;
+
+
+--
+-- Name: FUNCTION file_twin_fate(p_source text, p_status text, p_pixels numeric, p_twin_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_twin_fate(p_source text, p_status text, p_pixels numeric, p_twin_id uuid) IS 'Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: new_goes, twin_goes or both_stay. Its doors''.';
+
+
+--
+-- Name: file_twin_goes(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_twin_goes(p_tenant_id uuid, p_id uuid, p_stays uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update public.files f set removed_at = now(), updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.removed_at is null;
+  if not found then
+    return;
+  end if;
+  -- The purge lets its bytes and its video go. One already on the ledger for this file stays the one.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'file_purge', now(), jsonb_build_object('file_id', p_id, 'why', 'remove'))
+  on conflict do nothing;
+  -- On the record as a removal, and which file stayed in its place.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file.removed', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('file_id', p_id, 'why', 'twin', 'stays', p_stays));
+end $$;
+
+
+--
+-- Name: FUNCTION file_twin_goes(p_tenant_id uuid, p_id uuid, p_stays uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_twin_goes(p_tenant_id uuid, p_id uuid, p_stays uuid) IS 'A twin goes (00630): removed, its purge due now, and a file.removed event that names the file staying. Nothing is let go: a person may add it again. Its doors''.';
+
+
+--
+-- Name: file_twin_of(uuid, uuid, text, text, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_twin_of(p_tenant_id uuid, p_id uuid, p_kind text, p_print text, p_seconds numeric) RETURNS uuid
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select f.id from public.files f
+   where f.tenant_id = p_tenant_id and f.id <> p_id and f.removed_at is null and f.kind = p_kind
+     and f.source <> 'made' and f.picture_print is not null
+     and bit_count(('x' || f.picture_print)::bit(128) # ('x' || p_print)::bit(128)) <= 24
+     and (p_kind <> 'video' or (f.seconds is not null and p_seconds is not null and abs(f.seconds - p_seconds) <= 0.5))
+   order by bit_count(('x' || f.picture_print)::bit(128) # ('x' || p_print)::bit(128)), f.created_at
+   limit 1;
+$$;
+
+
+--
+-- Name: FUNCTION file_twin_of(p_tenant_id uuid, p_id uuid, p_kind text, p_print text, p_seconds numeric); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_twin_of(p_tenant_id uuid, p_id uuid, p_kind text, p_print text, p_seconds numeric) IS 'The file a print finds (00630), by its id: same kind, not removed, not made here, within 24 bits (a video''s within half a second of its length too), the nearest first. Its doors''.';
 
 
 --
@@ -38687,12 +38843,14 @@ CREATE TABLE public.files (
     seconds numeric(8,2),
     sound jsonb,
     sound_said text,
+    picture_print text,
     CONSTRAINT files_kind_check CHECK ((kind = ANY (ARRAY['image'::text, 'video'::text]))),
     CONSTRAINT files_look_status_check CHECK ((look_status = ANY (ARRAY['waiting'::text, 'done'::text, 'refused'::text, 'failed'::text]))),
     CONSTRAINT files_media_shape CHECK ((((kind = 'image'::text) AND (media_ref IS NULL) AND (media_status IS NULL)) OR ((kind = 'video'::text) AND (media_ref IS NOT NULL) AND (media_status IS NOT NULL)))),
     CONSTRAINT files_media_status_check CHECK ((media_status = ANY (ARRAY['uploading'::text, 'processing'::text, 'ready'::text, 'failed'::text]))),
     CONSTRAINT files_mime_check CHECK ((mime = ANY (ARRAY['image/jpeg'::text, 'image/png'::text, 'image/webp'::text, 'image/heic'::text, 'image/heif'::text, 'video/mp4'::text, 'video/quicktime'::text, 'video/webm'::text]))),
     CONSTRAINT files_name_shape CHECK (((char_length(name) >= 1) AND (char_length(name) <= 60) AND (name = lower(name)) AND (name !~ '[[:space:][:cntrl:]/\\.<>"''&]'::text) AND (name !~ '^-|-$|--'::text))),
+    CONSTRAINT files_picture_print_check CHECK (((picture_print IS NULL) OR (picture_print ~ '^[0-9a-f]{32}$'::text))),
     CONSTRAINT files_shows_check CHECK ((shows = ANY (ARRAY['storefront'::text, 'interior'::text, 'work'::text, 'team'::text, 'product'::text, 'menu'::text, 'logo'::text, 'graphic'::text, 'other'::text]))),
     CONSTRAINT files_sound_said_shape CHECK (((sound_said IS NULL) OR ((char_length(sound_said) >= 1) AND (char_length(sound_said) <= 120)))),
     CONSTRAINT files_source_check CHECK ((source = ANY (ARRAY['upload'::text, 'google_profile'::text, 'google_listing'::text, 'website'::text, 'instagram'::text, 'made'::text]))),
@@ -38867,6 +39025,13 @@ COMMENT ON COLUMN public.files.sound IS 'What was heard of a video (contracts fi
 --
 
 COMMENT ON COLUMN public.files.sound_said IS 'A video''s sound in a few words, for the list (contracts soundSaidOf). Written only by file_sound_keep.';
+
+
+--
+-- Name: COLUMN files.picture_print; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.picture_print IS 'What the picture looks like (00630): a 128-bit difference hash, 32 hex characters; a video''s is its poster''s. Twins are within 24 bits. Null until printed.';
 
 
 --
@@ -53540,11 +53705,11 @@ GRANT ALL ON FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name tex
 
 
 --
--- Name: FUNCTION file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid, p_print text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid, p_print text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid, p_print text) TO service_role;
 
 
 --
@@ -53623,6 +53788,14 @@ GRANT ALL ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeri
 
 
 --
+-- Name: FUNCTION file_printed(p_tenant_id uuid, p_id uuid, p_print text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_printed(p_tenant_id uuid, p_id uuid, p_print text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_printed(p_tenant_id uuid, p_id uuid, p_print text) TO service_role;
+
+
+--
 -- Name: FUNCTION file_purged(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -53672,6 +53845,30 @@ GRANT ALL ON FUNCTION public.file_sound_keep(p_tenant_id uuid, p_id uuid, p_part
 REVOKE ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_twin_fate(p_source text, p_status text, p_pixels numeric, p_twin_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_twin_fate(p_source text, p_status text, p_pixels numeric, p_twin_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_twin_fate(p_source text, p_status text, p_pixels numeric, p_twin_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_twin_goes(p_tenant_id uuid, p_id uuid, p_stays uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_twin_goes(p_tenant_id uuid, p_id uuid, p_stays uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_twin_goes(p_tenant_id uuid, p_id uuid, p_stays uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_twin_of(p_tenant_id uuid, p_id uuid, p_kind text, p_print text, p_seconds numeric); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_twin_of(p_tenant_id uuid, p_id uuid, p_kind text, p_print text, p_seconds numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_twin_of(p_tenant_id uuid, p_id uuid, p_kind text, p_print text, p_seconds numeric) TO service_role;
 
 
 --

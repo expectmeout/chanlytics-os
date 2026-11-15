@@ -140,7 +140,7 @@ test("a start tried again finds the run it began and starts no other: the reserv
   assert.equal(w.round().state, "running");
 });
 
-test("a term that came back short does not say the area is searched while another was never asked", async () => {
+test("a term that came back short hands its turn to the next: the one never asked is asked, then the first past what it read", async () => {
   const { w, p } = searching({ ...PLAN, terms: TERMS, count: 30 }, 0.77, {
     "hair salon": fitting(1, 60),
     "hair stylist": fitting(101, 2),
@@ -149,11 +149,20 @@ test("a term that came back short does not say the area is searched while anothe
   await collected(w, p);
   await startRound(p("job-2"), w.round().id, "job-2", true);
   await collected(w, p);
-  assert.equal(
-    w.round().ending_pending ?? w.round().ending,
-    "few_new_matches",
-    "one term ran dry and one was never asked: that is not searched_everything",
+  // It ended "few new matches" here, at 27 of 30, with one term never asked and the first read only by its probe.
+  assert.deepEqual(
+    [w.round().state, w.round().ending_pending],
+    ["running", null],
+    "two of the six asked for: the area holds no more for that term, and the round runs on",
   );
+  await startRound(p("job-3"), w.round().id, "job-3", true);
+  assert.equal(asked(w).at(-1)[0], "barber and hair studio", "the term no start had asked");
+  await collected(w, p);
+  await startRound(p("job-4"), w.round().id, "job-4", true);
+  const [term, places] = asked(w).at(-1);
+  assert.ok(term === "hair salon" && places > 25, `the first term again, past the 25 its probe read: ${places}`);
+  await collected(w, p);
+  assert.equal(w.members().filter((m) => m.counted).length, 30, "and the count is found");
 });
 
 test("a later round of a search goes first to a term no round of it asked, and past what the others read", async () => {

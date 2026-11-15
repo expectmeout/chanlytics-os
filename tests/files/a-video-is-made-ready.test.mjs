@@ -259,7 +259,8 @@ test("the sheet: Stream's frames tiled for real at the plan's size, a first post
   await fileJobs(w.db).digest(job("video_digest", { file_id: F, step: "sheet", edition: "1" }), SOON());
   const plan = videoSheetPlanOf({ seconds: 3, width: 1920, height: 1080 });
   assert.equal(frames.length, plan.times.length + 1, "each frame once, and the poster's");
-  assert.match(frames[0], /\/thumbnails\/thumbnail\.jpg\?time=0\.25s&width=\d+&height=\d+&fit=clip$/);
+  // The poster first: the video's print is its (00630), taken before the sheet is paid for; then the sheet's own frames.
+  assert.match(frames[1], /\/thumbnails\/thumbnail\.jpg\?time=0\.25s&width=\d+&height=\d+&fit=clip$/);
   const sheet = w.bucket.uploaded.find((u) => u.path === `${T}/${F}/sheet.jpg`);
   const meta = await sharp(sheet.bytes).metadata();
   assert.deepEqual([meta.width, meta.height, meta.format], [plan.width, plan.height, "jpeg"]);

@@ -9,8 +9,9 @@ import { discoveryEnding, FINAL_RUN_STATES, standingRuns, termsShortOf } from ".
 import { runIdFor } from "../ids";
 import type { CollectPage, LeadMemberRow, LeadPorts, LeadRoundRow, LeadRunRow } from "../ports";
 import { afterProbe } from "../question";
-import { runsRoom } from "../sizing";
+import { runCaps, runsRoom, termsToAsk } from "../sizing";
 import { areaKey } from "../ladder";
+import { planMainAsk } from "./main-ask";
 import { nearbyFor } from "./places";
 import { LEAD_RUN_RETRY_SECONDS, retryOf } from "./retries";
 import { type Phase, outOfTime, targetOf, wasJudged } from "./rules";
@@ -87,11 +88,37 @@ async function roundDecision(
       next: { kind: "lead_round_start", resume: true, run_after_seconds: 0 },
     };
   }
-  // A term whose run failed partway is tried again before the round ends on the source (retries.ts), where the count is
-  // still short and the round has room for a run; every term failing at once is a fault, said to the platform now.
-  const retry = counted < targetOf(round) ? retryOf(inPhase, leadPorts.now().getTime()) : "none";
-  if (retry === "retry" && runsRoom(round.cost_reserved_usd - round.cost_usd - spentNow) > 0) return TRY_AGAIN;
-  return phaseOver(leadPorts, round, runs, inPhase, members, counted, retry === "down");
+  return mainDecision(leadPorts, round, { runs, inPhase, members, counted, spentNow });
+}
+
+/**
+ * When the main phase's runs are all in: a failed term's next try, the next term's turn, or the phase's end. A term whose
+ * run failed partway is tried again before the round ends on the source (retries.ts), where the count is still short and
+ * the round has room for a run; every term failing at once is a fault, said to the platform now. The next term has its
+ * turn (main-ask.ts) where the count is still short, every term asked so far came back under its ask, so its area holds
+ * no more for them, and the start will find a term to ask and the room for its run. What the phase would ask is read
+ * only where it could go on: it is the search's every round and member.
+ */
+async function mainDecision(
+  leadPorts: LeadPorts,
+  round: LeadRoundRow,
+  phase: { runs: LeadRunRow[]; inPhase: LeadRunRow[]; members: LeadMemberRow[]; counted: number; spentNow: number },
+): Promise<Decision> {
+  const { runs, inPhase, members, counted } = phase;
+  const leftUsd = round.cost_reserved_usd - round.cost_usd - phase.spentNow;
+  const isShort = counted < targetOf(round);
+  const retry = isShort ? retryOf(inPhase, leadPorts.now().getTime()) : "none";
+  if (retry === "retry" && runsRoom(leftUsd) > 0) return TRY_AGAIN;
+  const requests = await requestsOf(leadPorts, standingRuns(inPhase));
+  const cameShort = termsShortOf(standingRuns(inPhase), (r) => requests.get(r.id) ?? null);
+  const isReadWhole = retry === "none" && isShort && cameShort.length > 0 && cameShort.every(Boolean);
+  const main = isReadWhole ? await planMainAsk(leadPorts, round, runs, members, runsRoom(leftUsd)) : null;
+  if (main && (runCaps(round.plan, main.ask.perTerm, leftUsd)[0] ?? 0) > 0) return NEXT_TERM;
+  return phaseOver(leadPorts, round, runs, inPhase, members, counted, {
+    sourceDown: retry === "down",
+    requests,
+    ...(main ? { stale: main.stale } : {}),
+  });
 }
 
 /** The main phase starts its failed terms again, twenty minutes on: the round runs on meanwhile, ending nothing. */
@@ -99,6 +126,29 @@ const TRY_AGAIN: Decision = {
   round: { state: "running", question: null, ending: null },
   next: { kind: "lead_round_start", resume: true, run_after_seconds: LEAD_RUN_RETRY_SECONDS },
 };
+
+/** The main phase starts its next term now: the round runs on, ending nothing. */
+const NEXT_TERM: Decision = {
+  round: { state: "running", question: null, ending: null },
+  next: { kind: "lead_round_start", resume: true, run_after_seconds: 0 },
+};
+
+/**
+ * What each run was asked for, from the input the provider keeps for it: null where it cannot be read or there is no
+ * time left to ask, and such a run is never taken for one that came back short (endings.ts termsShortOf).
+ */
+async function requestsOf(leadPorts: LeadPorts, runs: readonly LeadRunRow[]): Promise<Map<string, number | null>> {
+  const requests = new Map<string, number | null>();
+  for (const r of runs) {
+    if (outOfTime(leadPorts) || !r.apify_run_id) continue;
+    const input = (await leadPorts.apify.runInput(r.apify_run_id).catch(logAndGoOn("runInput", null))) as Record<
+      string,
+      unknown
+    > | null;
+    requests.set(r.id, typeof input?.maxCrawledPlacesPerSearch === "number" ? input.maxCrawledPlacesPerSearch : null);
+  }
+  return requests;
+}
 
 /**
  * The ladder's next rung for the search (decision 0133): measured from the area on its card and the places found there,
@@ -124,7 +174,10 @@ export async function findNextAreas(leadPorts: LeadPorts, round: LeadRoundRow): 
   return nearbyFor({ ...plan, reach_m: farthest }, found, read).map((a) => ({ ...a, beyond_m: farthest }));
 }
 
-/** The searching is over: the ending, pending the checks (a stopped round says so through stopRun). */
+/**
+ * The searching is over: the ending, pending the checks (a stopped round says so through stopRun). `known` is what the
+ * main phase's decision already read: what each run was asked for, and the synonyms the search passes over.
+ */
 async function phaseOver(
   leadPorts: LeadPorts,
   round: LeadRoundRow,
@@ -132,22 +185,15 @@ async function phaseOver(
   phaseRuns: LeadRunRow[],
   members: LeadMemberRow[],
   counted: number,
-  sourceDown = false,
+  known: { sourceDown?: boolean; requests?: Map<string, number | null>; stale?: ReadonlySet<string> } = {},
 ): Promise<Decision> {
   // A term tried again stands by its newest run: the tries that failed before it say nothing of the area.
   const inPhase = standingRuns(phaseRuns);
-  const byKey = new Map<string, number | null>();
-  for (const r of inPhase) {
-    if (outOfTime(leadPorts) || !r.apify_run_id) continue;
-    const input = (await leadPorts.apify.runInput(r.apify_run_id).catch(logAndGoOn("runInput", null))) as Record<
-      string,
-      unknown
-    > | null;
-    byKey.set(r.id, typeof input?.maxCrawledPlacesPerSearch === "number" ? input.maxCrawledPlacesPerSearch : null);
-  }
-  // Every term short says the area is searched; a term this phase never asked has said no such thing.
+  const byKey = known.requests ?? (await requestsOf(leadPorts, inPhase));
+  // Every term short says the area is searched; a term this phase never asked has said no such thing. A term the search
+  // does not ask at all (the one the question dropped, a synonym that mostly returned places already held) is not one.
   const dropTerm = round.answered === "keep" ? (round.question?.dropTerm ?? null) : null;
-  const unasked = round.plan.terms.some((t) => t !== dropTerm && !inPhase.some((r) => r.term === t));
+  const unasked = termsToAsk(round.plan, dropTerm, known.stale).some((t) => !inPhase.some((r) => r.term === t));
   const ending = discoveryEnding(round, runs, {
     counted,
     target: targetOf(round),
@@ -167,7 +213,7 @@ async function phaseOver(
       ...(nearby.length ? { nearby } : {}),
     },
     next: FIRST_CHECK,
-    ...(sourceDown ? { after: () => tellSourceDown(leadPorts, inPhase) } : {}),
+    ...(known.sourceDown ? { after: () => tellSourceDown(leadPorts, inPhase) } : {}),
   };
 }
 

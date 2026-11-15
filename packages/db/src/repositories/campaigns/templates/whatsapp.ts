@@ -84,22 +84,10 @@ export const deleteTemplateRow = async (db: Db, tenantId: TenantId, templateId: 
 export const listWhatsAppTemplateKeys = async (db: Db, tenantId: TenantId) =>
   db.from("templates").select("name, language, variables").eq("tenant_id", tenantId).eq("channel", "whatsapp");
 
-/** One of the workspace's WhatsApp templates, by its name and language, changed. */
-export const patchWhatsAppTemplate = async (
-  db: Db,
-  tenantId: TenantId,
-  key: { name: string; language: string },
-  set: TemplateUpdate,
-) =>
-  db
-    .from("templates")
-    .update(set)
-    .eq("tenant_id", tenantId)
-    .eq("channel", "whatsapp")
-    .eq("name", key.name)
-    .eq("language", key.language);
-
-/** One of the workspace's WhatsApp templates, by its name and language, changed, its id back: none when there is none. */
+/**
+ * One of the workspace's WhatsApp templates, by its name and language, changed, its id and where WhatsApp has it back:
+ * none when there is none.
+ */
 export const patchWhatsAppTemplateBack = async (
   db: Db,
   tenantId: TenantId,
@@ -113,4 +101,4 @@ export const patchWhatsAppTemplateBack = async (
     .eq("channel", "whatsapp")
     .eq("name", key.name)
     .eq("language", key.language)
-    .select("id");
+    .select("id, meta_status");

@@ -140,7 +140,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   );
   assert.equal(
     activityWords("channel.message_template_status_update", { waba_id: "1" }),
-    "Meta reviewed a message",
+    "WhatsApp reviewed a message",
     "Meta's own news of the account is said as what Meta did, never as its field",
   );
   assert.equal(activityWords("something.new", null), "Something · new");

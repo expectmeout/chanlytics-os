@@ -23,6 +23,7 @@ import {
   broadcastFailureFix,
   campaignMessageOf,
   campaignMessagesOf,
+  messageGoesBy,
   messageHolds,
   messageStandingWords,
   messageWhyNot,
@@ -78,7 +79,7 @@ const SETS = [
 const ANCHORS = { w: "whatsapp", e: "email", s: "sms", we: "whatsapp", ws: "whatsapp", es: "email", wes: "whatsapp" };
 const WHY_WHATSAPP = {
   absent: "This message has no WhatsApp version.",
-  pending: "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+  pending: "WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day).",
   rejected: "WhatsApp asked for a change to this message's words. AI writes new words for you to send back.",
 };
 const NO_EMAIL = "This message has no email version yet.";
@@ -106,11 +107,10 @@ for (const set of SETS) {
       });
       const holds = { whatsapp: has.whatsapp && standing === "approved", email: has.email, sms: has.sms };
       assert.deepEqual(messageHolds(m), holds);
-      assert.equal(
-        m.offered,
-        holds.whatsapp || holds.email || holds.sms,
-        "a picker lists a message that holds a channel",
-      );
+      // The one picker rule: it goes by what it holds, and by WhatsApp while WhatsApp is still checking its words.
+      const goes = ["whatsapp", "sms", "email"].filter((c) => holds[c] || (c === "whatsapp" && standing === "pending"));
+      assert.deepEqual(messageGoesBy(m), goes);
+      assert.equal(m.offered, goes.length > 0, "a picker lists a message that goes by a channel, now or once checked");
       assert.equal(m.hidden, false);
       assert.equal(m.slots, 1);
       assert.equal(m.category, "utility");
@@ -122,15 +122,32 @@ for (const set of SETS) {
   }
 }
 
-test("a message whose only version is an unapproved WhatsApp one is not offered, and one with an email beside it is", () => {
+test("the one picker rule: a message whose only version WhatsApp is still checking is offered, since what sends it waits for that; one it holds, refused or turned off is not, and one with an email beside it is", () => {
   for (const meta_status of ["pending", "rejected", "paused", "disabled"]) {
     const alone = campaignMessageOf([W({ meta_status })], NAME, LANGUAGE);
-    assert.equal(alone.offered, false, `${meta_status} alone`);
-    assert.deepEqual(messageHolds(alone), { whatsapp: false, email: false, sms: false });
+    const checking = meta_status === "pending";
+    assert.equal(alone.offered, checking, `${meta_status} alone`);
+    assert.deepEqual(messageGoesBy(alone), checking ? ["whatsapp"] : [], `${meta_status} alone`);
+    assert.deepEqual(messageHolds(alone), { whatsapp: false, email: false, sms: false }, "none can be sent on now");
     const beside = campaignMessageOf([W({ meta_status }), E()], NAME, LANGUAGE);
     assert.equal(beside.offered, true, `${meta_status} beside an email`);
+    assert.deepEqual(messageGoesBy(beside), checking ? ["whatsapp", "email"] : ["email"], `${meta_status} beside it`);
     assert.equal(beside.anchor.channel, "whatsapp", "the anchor is still WhatsApp's, held or not");
   }
+  // Being checked in a shape this product cannot send whole goes nowhere once approved either: not picked.
+  const picture = campaignMessageOf(
+    [W({ meta_status: "pending", blocked: "a picture for a heading" })],
+    NAME,
+    LANGUAGE,
+  );
+  assert.deepEqual([picture.offered, messageGoesBy(picture)], [false, []]);
+  // One the workspace put away is listed by no picker, whatever it goes by.
+  const away = campaignMessageOf(
+    [W({ meta_status: "approved", hidden_at: "2026-10-01T00:00:00.000Z" })],
+    NAME,
+    LANGUAGE,
+  );
+  assert.deepEqual([away.offered, messageGoesBy(away)], [false, ["whatsapp"]]);
 });
 
 /* ---------------------------------- the category and what it is for ---------------------------------- */
@@ -414,7 +431,7 @@ test("a channel the message does not hold has one sentence, and the words an ema
   assert.equal(messageWhyNot(m(E()), "whatsapp"), "This message has no WhatsApp version.");
   assert.equal(
     messageWhyNot(m(W({ meta_status: "pending" })), "whatsapp"),
-    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+    "WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day).",
   );
   assert.equal(
     messageWhyNot(m(W({ meta_status: "rejected" }), E()), "whatsapp"),
@@ -491,7 +508,7 @@ test("a row that names no status, or one the set does not know, is waiting, as t
     assert.equal(messageHolds(m).whatsapp, false);
     assert.equal(
       messageWhyNot(m, "whatsapp"),
-      "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+      "WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day).",
     );
   }
 });
@@ -649,7 +666,7 @@ test("a starter's line says where its WhatsApp version stands in the Library's w
   const library = "Campaigns › Messages";
   assert.equal(
     STARTER_LINE_WORDS.standing("pending"),
-    "has its WhatsApp version in review — it appears here once approved, usually within minutes.",
+    "has its WhatsApp version in review — it appears here once approved (usually minutes, sometimes a day).",
   );
   // The word after "its WhatsApp version" is messageStandingWords' own for that status, so a refusal is refused here too.
   for (const status of ["rejected", "paused", "disabled", "approved"]) {
@@ -661,7 +678,7 @@ test("a starter's line says where its WhatsApp version stands in the Library's w
   assert.equal(STARTER_LINE_WORDS.standing("mystery"), STARTER_LINE_WORDS.standing("pending"));
   assert.equal(
     STARTER_LINE_WORDS.reviewing(2),
-    "Your starter messages' WhatsApp versions are in review (2) — they appear here once approved, usually within minutes.",
+    "Your starter messages' WhatsApp versions are in review (2) — they appear here once approved (usually minutes, sometimes a day).",
   );
   // The link says what it does, and stops: where the WhatsApp version stands is the line's once it is added (`standing`).
   assert.equal(STARTER_LINE_WORDS.add, "Add it");

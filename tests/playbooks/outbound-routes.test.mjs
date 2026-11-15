@@ -822,7 +822,7 @@ test("templates: the composers see the approved and unhidden, Settings sees ever
   };
   assert.deepEqual(
     (await templates.GET.run(get(inB), ctxFor(tables))).templates.map((t) => t.name),
-    ["visit_reminder"],
+    ["visit_reminder", "offer"], // and the one WhatsApp is still checking, which a picker lists (the one picker rule)
   );
   // What it left out is counted by why, in this workspace alone, so an empty picker can say it (noTemplateWords).
   assert.deepEqual(

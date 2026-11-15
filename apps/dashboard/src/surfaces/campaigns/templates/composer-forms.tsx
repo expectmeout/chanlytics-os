@@ -16,6 +16,7 @@ import {
   TEMPLATE_LABEL_MAX,
   TEMPLATE_TITLE_MAX,
   VERSION_CHANNEL_WORDS,
+  WHATSAPP_REVIEW_TAKES,
 } from "@chanlytics/contracts";
 import { gate, navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -517,7 +518,7 @@ function newTemplatePane(c: ComposerCtx, made: Made) {
       title="New message"
       sub={
         where === "whatsapp"
-          ? "WhatsApp reviews it before it can be sent — usually minutes, sometimes a day"
+          ? `WhatsApp reviews it before it can be sent — ${WHATSAPP_REVIEW_TAKES}`
           : where === "email"
             ? NEW_MESSAGE_WORDS.sub
             : undefined
@@ -577,9 +578,7 @@ export function newTemplateForm(c: ComposerCtx, made: Made) {
     <section className="ct-section tpl-composer" data-testid="tpl-composer">
       <div className="ct-sec-head">
         <span className="ct-sec-title">New template</span>
-        <span className="ct-sec-meta">
-          WhatsApp reviews it before it can be sent — usually minutes, sometimes a day
-        </span>
+        <span className="ct-sec-meta">WhatsApp reviews it before it can be sent — {WHATSAPP_REVIEW_TAKES}</span>
         {onCancel && (
           <LinkButton onClick={work.leave} data-testid="tpl-close">
             Close

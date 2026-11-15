@@ -109,18 +109,8 @@ test("the dashboard: the route proves the operator, the service reaches the edge
 test("the webhook writes the row Meta changed; Settings shows every template with its status and one verb", async () => {
   const w = readCode("apps/edge/lib/whatsapp/waba-events.ts");
   assert.ok(w.includes('"template_category_update"'), "a recategorised template changes who may receive it");
-  // Meta's verdict and its reason are written on the row: run in whatsapp/a-template-s-verdict-reaches-its-row.test.mjs.
-  // The write is packages/db's (decision 0111): the template named by its name and language, its category moved.
-  assert.match(
-    w,
-    /patchWhatsAppTemplate\(\s*db,\s*routed\.tenantId,\s*\{ name, language \},\s*\{ category: mapCategory\(/,
-  );
-  assert.ok(
-    w.includes(
-      'const TEMPLATE_STATUS_EVENTS = new Set(["APPROVED", "REJECTED", "PAUSED", "DISABLED", "PENDING_DELETION", "IN_APPEAL"]);',
-    ),
-    "a quality flag leaves an approved template approved",
-  );
+  // Meta's verdict and its reason are written on the row, its kind moved by name and language, and a quality flag leaves
+  // an approved template approved: all three run in whatsapp/a-template-s-verdict-reaches-its-row.test.mjs.
   // The Templates page is a folder of modules (moved from messages.jsx): its source is read as one.
   const s = ["page-parts", "message-row-parts", "emails"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.tsx`))

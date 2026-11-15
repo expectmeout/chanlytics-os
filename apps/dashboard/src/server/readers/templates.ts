@@ -34,6 +34,7 @@ import {
 } from "@chanlytics/db/campaigns";
 import { listWordsKept } from "@chanlytics/db/events";
 import { getTemplateSends as sendsByTemplate } from "@chanlytics/db/reports";
+import { pickerRows } from "@/lib/pickable-messages";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as facts from "./facts";
 
@@ -127,15 +128,18 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
     ...templateParts(components),
     blocked: t.channel === "whatsapp" ? templateBlocked({ components }) : null,
   }));
-  // The composers: approved, and not hidden by the workspace (contracts templateOffered, which the pages that draw their
-  // pickers from the settings read judge the same rows by). Settings sees everything. The ones left out are counted by why, so
-  // an empty picker can say it (contracts noTemplateWords) -- the read that left them out is the one that knows.
-  const templates = all ? every : every.filter(templateOffered);
-  const held = templateHolds(every.filter((t) => !templateOffered(t)));
   // The messages, from every row, the ones the composers leave out included: a WhatsApp version still in review keeps
   // its standing inside its message, and a message with no WhatsApp row is one. Whether a picker lists one is the
   // message's own `offered`.
   const messages = campaignMessagesOf(every);
+  // The composers: approved, and not hidden by the workspace (contracts templateOffered), and the WhatsApp rows WhatsApp
+  // is still checking of the messages a picker lists (lib/pickable-messages.ts pickerRows, the one picker rule: what
+  // sends one waits for that check). The pages that draw their pickers from the settings read keep their rows by the
+  // same function, so the AI's pickers draw the same messages a step's editor does. Settings sees everything. The ones
+  // left out are counted by why, so an empty picker can say it (contracts noTemplateWords) -- the read that left them
+  // out is the one that knows.
+  const templates = all ? every : pickerRows(every, messages);
+  const held = templateHolds(every.filter((t) => !templateOffered(t)));
   // The call's text: the WhatsApp message the phone agent texts a caller who asks to book, found among EVERY WhatsApp row
   // (a hidden one too), as the edge picks it (apps/edge/lib/voice/call-booking-link.ts) and as Settings says what sends it.
   // Campaigns' home says whether there is one (contracts bookingTemplate); null where there is none.

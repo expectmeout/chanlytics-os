@@ -386,7 +386,11 @@ test("a send that waits places on WhatsApp only the people nothing else reaches:
   const ready = readyForMessage(READY, messageOf("pending"));
   assert.deepEqual(
     [ready.whatsapp.ready, ready.whatsapp.waits, ready.whatsapp.why],
-    [false, true, "WhatsApp is checking this message. It sends by itself once approved, usually within minutes."],
+    [
+      false,
+      true,
+      "WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day).",
+    ],
   );
   assert.equal(readyForMessage(READY, messageOf("rejected")).whatsapp.waits, undefined, "a refusal does not wait");
   assert.equal(readyForMessage(READY, messageOf("approved")).whatsapp.waits, undefined);

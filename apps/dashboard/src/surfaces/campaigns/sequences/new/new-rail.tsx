@@ -189,10 +189,10 @@ function StepBox(p: { draft: NewDraftDto; i: number; acts: RailActs } & StepMark
     ) : (
       <PersonParts step={step} i={i} acts={acts} asked={asked} />
     );
-  // A message Ask wrote, or a ready-made starter, goes to Meta for its WhatsApp version; until then the step goes by email
-  // and text.
+  // A message AI wrote, or a ready-made starter, goes to WhatsApp for its words to be checked, and one of the workspace's
+  // own may still be there (`checking`); until it approves them the step goes by email and text.
   const review =
-    step.message?.written?.versions.whatsapp || step.message?.starter
+    step.message?.written?.versions.whatsapp || step.message?.starter || step.message?.checking
       ? { tone: "next" as const, words: W.checks.newMessageDetail }
       : null;
   return (

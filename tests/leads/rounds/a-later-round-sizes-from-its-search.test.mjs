@@ -8,7 +8,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { startRound, UNMEASURED_YIELD } from "../../../packages/core/src/leads/runner/start.ts";
+import { startRound } from "../../../packages/core/src/leads/runner/start.ts";
+import { UNMEASURED_YIELD } from "../../../packages/core/src/leads/sizing.ts";
 import { collect } from "../../../packages/core/src/leads/runner/collect/collect.ts";
 import { leadDb } from "../../../apps/edge/lib/leads/db.ts";
 import { leadWorld, TENANT } from "../../_lead-world.mjs";
@@ -67,8 +68,8 @@ test("a top-up of a search whose places qualified at a tenth asks for what that 
   await startRound(p(), top.id, OWNER);
   assert.equal(
     askedFor(w),
-    100,
-    "20 wanted at a tenth is 200, held to four times the 20: it asked for 40 at an even yield. And the 20 the first term read, which the provider answers first",
+    80,
+    "20 wanted at a tenth is 200, held to four times the 20: it asked for 40 at an even yield. All of it of the one term no round had asked (decision 0133: one term at a time)",
   );
 });
 

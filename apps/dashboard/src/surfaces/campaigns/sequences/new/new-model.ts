@@ -21,7 +21,7 @@ import {
   clockTime,
   defaultSlotKinds,
   emptyAudienceRefusal,
-  messageHolds,
+  messageGoesBy,
   noChannelWords,
   noYesWords,
   saidYesWords,
@@ -65,6 +65,7 @@ import {
   type NewCounts,
   type NewRunning,
 } from "@/lib/new-checks";
+import { isBeingChecked } from "@/lib/pickable-messages";
 
 /** What a door's address asked New for: a moment's line, a one-off, leads, or an audience to message. */
 interface NewAsked {
@@ -358,13 +359,18 @@ export const setOnlyIf = (d: NewDraftDto, i: number, only: readonly FollowUpCond
     s.after_days === null ? s : { ...s, only_if: only.filter((c) => newConditionsOf(d.audience).includes(c)) },
   );
 
-/** A person's step's message: one the workspace holds, as the Library holds it. */
+/**
+ * A person's step's message: one the workspace holds, as the Library holds it, by the channels it goes by (the one
+ * picker rule, contracts messageGoesBy: those it can be sent on now, and WhatsApp while WhatsApp is still checking its
+ * words). One being checked is picked too, and says so (`checking`): what sends it waits for that. Null where it goes by
+ * none, or the Library holds no row of it.
+ */
 export function heldMessageOf(
   m: CampaignMessage,
   rows: readonly { id: string; name: string; variables: unknown; body_preview?: string | null }[],
 ): NewMessage | null {
-  const holds = messageHolds(m);
-  const channels = (["whatsapp", "email", "sms"] as const).filter((c) => holds[c]);
+  const goes = messageGoesBy(m);
+  const channels = (["whatsapp", "email", "sms"] as const).filter((c) => goes.includes(c));
   const id = m.versions.whatsapp?.id ?? m.anchor.id;
   const row = rows.find((r) => r.id === id) ?? rows.find((r) => r.id === m.anchor.id);
   if (!row || channels.length === 0) return null;
@@ -380,6 +386,7 @@ export function heldMessageOf(
     offer: m.purpose === "marketing",
     written: null,
     labels: slotLabels(row),
+    ...(isBeingChecked(m) ? { checking: true } : {}),
   };
 }
 
@@ -484,7 +491,9 @@ export const setName = (d: NewDraftDto, name: string): NewDraftDto => {
 export function whatsappChecksOf(d: NewDraftDto): { others: boolean } | null {
   const first = d.steps[0]?.message;
   if (d.kind !== "once" || d.audience !== "people") return null;
-  if (!(first?.written?.versions.whatsapp || first?.starter) || !d.channels.includes("whatsapp")) return null;
+  // New words, or one of the workspace's own WhatsApp is still checking (the one picker rule lists it).
+  const checks = first?.written?.versions.whatsapp || first?.starter || first?.checking;
+  if (!checks || !d.channels.includes("whatsapp")) return null;
   return { others: d.channels.some((c) => c !== "whatsapp") };
 }
 
