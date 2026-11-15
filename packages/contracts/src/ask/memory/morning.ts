@@ -78,7 +78,7 @@ export const ASK_MORNING_WORDS = {
   dismissed: "Let go",
   /** The member's own bell line when the morning's cards wait (kind ask_cards). */
   bell: (cards: number) => ({
-    title: cards === 1 ? "Ask has one thing for you today" : `Ask has ${cards} things for you today`,
+    title: cards === 1 ? "AI has one thing for you today" : `AI has ${cards} things for you today`,
     body: "It waits on Today, to approve or let go.",
   }),
 } as const;

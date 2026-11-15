@@ -821,7 +821,7 @@ test("sync reads the subscription from Stripe now and applies it: the row follow
       ],
     ],
   );
-  assert.equal(writes(db, "tenants").length, 0, "trialing to active: the receptionist was on and stays on");
+  assert.equal(writes(db, "tenants").length, 0, "trialing to active: AI was on and stays on");
   assert.deepEqual(t.notifications, [], "no change of state, no bell");
 
   // Stripe says paused (the trial ended without a card): the workspace is paused and told, once.
@@ -830,10 +830,10 @@ test("sync reads the subscription from Stripe now and applies it: the row follow
   stripe({ "subscriptions.retrieve": async () => sub({ status: "paused" }) });
   assert.deepEqual(await answer(await knock({ op: "sync" })), [200, { ok: true, status: "paused" }]);
   assert.equal(t2.billing_accounts[0].status, "paused");
-  assert.equal(t2.tenants[0].status, "paused", "the receptionist stops answering");
+  assert.equal(t2.tenants[0].status, "paused", "AI stops answering");
   assert.deepEqual(
     t2.notifications.map((n) => [n.tenant_id, n.kind, n.title, n.route]),
-    [[A, "billing", "Your receptionist is paused", "admin/billing"]],
+    [[A, "billing", "AI is paused", "admin/billing"]],
   );
   assert.match(t2.notifications[0].body, /^The trial ended without a card on file\./);
   assert.deepEqual(
@@ -942,7 +942,7 @@ test("billing never resumes a workspace its last member left, nor rings or recor
   const [status] = await answer(await knock({ op: "sync" }));
   assert.equal(status, 200);
   assert.equal(t.tenants[0].status, "paused", "an active reading does not wake a workspace nobody is in");
-  assert.deepEqual(t.notifications, [], "no bell says the receptionist is back");
+  assert.deepEqual(t.notifications, [], "no bell says AI is back");
   assert.deepEqual(
     t.events.map((e) => e.kind),
     ["billing.updated"],
@@ -989,7 +989,7 @@ test("start_now: a free trial's plan starts today -- Stripe ends the trial and c
     t.events.map((e) => [e.kind, e.data.source, e.data.status]),
     [["billing.updated", "start_now", "active"]],
   );
-  assert.deepEqual(t.notifications, [], "the receptionist was on and stays on: no bell");
+  assert.deepEqual(t.notifications, [], "AI was on and stays on: no bell");
 
   // A card that did not pay: Stripe's word, applied and answered, for the page to say.
   const t2 = tables({ billing_accounts: [subscribed({ status: "trialing" })] });
@@ -1023,7 +1023,7 @@ test("start_now: a free trial's plan starts today -- Stripe ends the trial and c
   assert.equal(t3.billing_accounts[0].status, "trialing", "the row keeps what it had");
 });
 
-test("resume: a paused subscription is resumed on Stripe, billing from now, and applied at once -- the receptionist answers again, the bell says so, the ledger says resumed; anything but a paused subscription is refused in words, and Stripe is not asked", async () => {
+test("resume: a paused subscription is resumed on Stripe, billing from now, and applied at once -- AI answers again, the bell says so, the ledger says resumed; anything but a paused subscription is refused in words, and Stripe is not asked", async () => {
   const t = tables({
     tenants: [{ id: A, slug: "harbor", name: "Harbor Moving", status: "paused", timezone: "America/New_York" }],
     billing_accounts: [subscribed({ status: "paused" })],
@@ -1037,22 +1037,10 @@ test("resume: a paused subscription is resumed on Stripe, billing from now, and 
     "billed from now, not back to the pause; the card read with it",
   );
   assert.equal(t.billing_accounts[0].status, "active");
-  assert.equal(
-    t.tenants[0].status,
-    "active",
-    "the receptionist answers again -- here, without waiting for the webhook",
-  );
+  assert.equal(t.tenants[0].status, "active", "AI answers again -- here, without waiting for the webhook");
   assert.deepEqual(
     t.notifications.map((n) => [n.tenant_id, n.kind, n.title, n.body, n.route]),
-    [
-      [
-        A,
-        "billing",
-        "Your receptionist is back",
-        "Billing is in order; the receptionist answers again.",
-        "admin/billing",
-      ],
-    ],
+    [[A, "billing", "AI is back", "Billing is in order; AI answers again.", "admin/billing"]],
   );
   assert.deepEqual(
     t.events.map((e) => [e.kind, e.data]),

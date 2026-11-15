@@ -72,13 +72,13 @@ export function todayNeedsYou(todayFacts: TodayFacts): NonNullable<TodayVM["need
     count: todayFacts.needsYouCount,
     holds: todayFacts.waits.holds,
     sends: todayFacts.waits.sends,
-    hint: "The receptionist stopped and asked for a human.",
+    hint: "AI stopped and asked for a human.",
     rows,
     // Said only when nothing waits: a reply counting down to send is counted (threadsWaitingOnYou) and has no row here.
     empty: todayFacts.needsYouCount
       ? null
       : period.unanswered_in_window === 0 && period.messages_out_you === 0
-        ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person."
+        ? "Nothing needs you. AI answered every message that came in, and nobody asked for a person."
         : "Nothing needs you right now — nobody asked for a person.",
   };
 }

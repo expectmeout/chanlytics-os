@@ -63,7 +63,7 @@ const said = (m) => {
 const held = (...seconds) => replyHoldDtoOf(holdOf(seconds.map((s) => ({ s, hold: 60 }))));
 const MEDIAN = {
   clause: "typically in 1m 2s, none handed over",
-  line: "4 messages in, 4 answered by the receptionist, typically in 1m 2s.",
+  line: "4 messages in, 4 answered by AI, typically in 1m 2s.",
   fact: "1m 2s",
   detail: "It answered 4 of the 4 on its own, typically in about 1m 2s.",
 };
@@ -71,7 +71,7 @@ const MEDIAN = {
 test("most replies went out as the hold ended: every sentence says so, and none says a minute", () => {
   assert.deepEqual(said(metrics(held(60, 61, 64, 90))), {
     clause: "typically as your 1-minute hold ended, none handed over",
-    line: "4 messages in, 4 answered by the receptionist, typically as your 1-minute hold ended.",
+    line: "4 messages in, 4 answered by AI, typically as your 1-minute hold ended.",
     fact: "as your 1-minute hold ended",
     detail: "It answered 4 of the 4 on its own, typically as your 1-minute hold ended.",
   });
@@ -80,7 +80,7 @@ test("most replies went out as the hold ended: every sentence says so, and none 
 test("most replies went out after the hold, not as it ended: later than the hold, in the same four places", () => {
   assert.deepEqual(said(metrics(held(100, 120, 75, 61))), {
     clause: "typically later than your 1-minute hold, none handed over",
-    line: "4 messages in, 4 answered by the receptionist, typically later than your 1-minute hold.",
+    line: "4 messages in, 4 answered by AI, typically later than your 1-minute hold.",
     fact: "later than your 1-minute hold",
     detail: "It answered 4 of the 4 on its own, typically later than your 1-minute hold.",
   });
@@ -92,7 +92,7 @@ test("the edge of 'as it ended' is the one rule's: a reply a few seconds past it
   assert.equal(said(metrics(held(71, 71, 71, 71))).clause, "typically later than your 1-minute hold, none handed over");
 });
 
-test("a hold few replies waited says nothing of the receptionist's speed: the median, as before", () => {
+test("a hold few replies waited says nothing of AI's speed: the median, as before", () => {
   const some = [
     { s: 12, hold: 0 },
     { s: 70, hold: 60 },
@@ -115,11 +115,11 @@ test("no summary sent (an older server, a longer window, a failed read), or none
   assert.deepEqual(said(metrics(none)), MEDIAN, "and say the median");
 });
 
-test("no median, no sentence about speed, whatever was read: the figure's clause drops it, Ask's fact says there is not enough, the detail goes", () => {
+test("no median, no sentence about speed, whatever was read: the figure's clause drops it, AI's fact says there is not enough, the detail goes", () => {
   const none = said(metrics(held(60, 61, 64, 90), { median_reply_seconds_ai: null }));
   assert.deepEqual(none, {
     clause: "none handed over",
-    line: "4 messages in, 4 answered by the receptionist.",
+    line: "4 messages in, 4 answered by AI.",
     fact: "—",
     detail: null,
   });

@@ -213,8 +213,8 @@ test("a wire that could not carry it flags the thread, whose event tells the own
   await core.sendQueued(draft.ports, send());
   assert.equal(
     draft.log[1][3],
-    "The receptionist's reply could not be delivered (HTTP 500).",
-    "a draft the receptionist queued is not 'a dashboard reply'",
+    "AI's reply could not be delivered (HTTP 500).",
+    "a draft AI queued is not 'a dashboard reply'",
   );
   const refused = fakes({ deliver: { outcome: "refused", reason: "opted_out", messageId: "m1" } });
   await core.sendQueued(refused.ports, send());

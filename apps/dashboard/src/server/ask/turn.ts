@@ -156,7 +156,7 @@ const stillAnswering = (kept: { history: Array<{ role: string }>; sinceLastMs: n
   kept.history.at(-1)?.role === "user" && kept.sinceLastMs !== null && kept.sinceLastMs < MIN_MS;
 
 const BUSY_WORDS = {
-  en: "Ask is still answering your last question here. Ask again in a moment.",
+  en: "AI is still answering your last question here. Ask again in a moment.",
   es: "Ask todavía está respondiendo tu última pregunta aquí. Pregunta de nuevo en un momento.",
 };
 

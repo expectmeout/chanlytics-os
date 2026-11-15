@@ -348,7 +348,7 @@ test("How you sound is one sheet: the tone, what was learned, and the way to tea
   const lines = textOf(byTestId(tree, "rec-cold-voice-lines"));
   assert.match(lines, /Short sentences/);
   assert.match(lines, /Opens with the point/);
-  assert.match(textOf(byTestId(tree, "rec-sound-note")), /Your receptionist keeps its own voice\./);
+  assert.match(textOf(byTestId(tree, "rec-sound-note")), /AI keeps its own voice\./);
   assert.ok(byTestId(tree, "rec-sound-paste"));
   unmount();
 });
@@ -910,7 +910,7 @@ test("What it's told opens on the drafter's words, and an answer's parts carry n
   press(byTestId(tree, "rec-row-act-told"));
   tree = redrawTab();
   assert.ok(byTestId(tree, "rec-told-sheet"));
-  assert.match(textOf(byTestId(tree, "rec-told-hint")), /Written once by Ask/);
+  assert.match(textOf(byTestId(tree, "rec-told-hint")), /Written once by AI/);
   const kinds = byTestId(tree, "rec-told-kind");
   find(kinds, (n) => n.props?.["aria-checked"] !== undefined && textOf(n) === "An answer").props.onClick();
   tree = redrawTab();

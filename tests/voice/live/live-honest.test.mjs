@@ -526,7 +526,7 @@ test("a row says who, how long, and what they last said -- in the Inbox's three 
   const text = textOf(row);
   assert.match(text, /Rosa Díaz/);
   assert.match(text, /1:3\d/, "the running clock, from the call's real start");
-  assert.match(text, /“Hi, is Marisa in today\?”/, "the caller's own last words, not the receptionist's");
+  assert.match(text, /“Hi, is Marisa in today\?”/, "the caller's own last words, not AI's");
   assert.ok(
     find(row, (n) => n.type === StatePill && n.props.value === "live"),
     "and the live pill",
@@ -542,18 +542,10 @@ test("a row says who, how long, and what they last said -- in the Inbox's three 
     }),
   ]);
   const quoted = textOf(callRows(mount())[0]);
-  assert.match(
-    quoted,
-    /“Can I move my Saturday colour to Sunday\?”/,
-    "REGRESSION: the row quoted the receptionist, not the caller",
-  );
+  assert.match(quoted, /“Can I move my Saturday colour to Sunday\?”/, "REGRESSION: the row quoted AI, not the caller");
   assert.doesNotMatch(quoted, /Let me check/);
   withLive([call({ transcript_object: [] })]);
-  assert.match(
-    textOf(callRows(mount())[0]),
-    /The receptionist has picked up/,
-    "before the first words arrive, it says what is true",
-  );
+  assert.match(textOf(callRows(mount())[0]), /AI has picked up/, "before the first words arrive, it says what is true");
 });
 
 test("with nobody on the line the list says what the line is doing and opens Conversations › Calls; no call that has ended is drawn unasked", () => {

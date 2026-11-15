@@ -32,8 +32,8 @@ export const LEAD_CONSENT_REFUSAL =
  * company judge, from the directory.
  */
 export const LEAD_READ_SOURCES = {
-  judge: "Ask · the listing",
-  site: "Ask · their website",
+  judge: "AI · the listing",
+  site: "AI · their website",
   screen: "Chanlytics AI · the listing",
   company: "Chanlytics AI · the directory",
 } as const;

@@ -254,7 +254,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     stopped: isOptedOutContact(dto.contact),
     clientId: dto.contact_id,
     channel: "phone",
-    agent: { glyph: "P", name: "Phone Receptionist" },
+    agent: { glyph: "P", name: "AI on the phone" },
     at: shortTime(dto.started_at, tz, now),
     ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...(dur ? { duration: dur } : {}),

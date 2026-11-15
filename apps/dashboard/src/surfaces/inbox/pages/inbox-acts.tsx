@@ -22,8 +22,7 @@ export const inboxDecide = (ix: InboxSoFar) => {
     if (!canDo("approve")) return;
     const tReal = threads.find((x) => x.id === id);
     if (tReal && tReal.real) {
-      if (action === "__HANDBACK__")
-        void realVerb(tReal, "hand-back", undefined, "cleared — the receptionist is answering again");
+      if (action === "__HANDBACK__") void realVerb(tReal, "hand-back", undefined, "cleared — AI is answering again");
       return;
     }
     const t = threads.find((x) => x.id === id);
@@ -122,7 +121,7 @@ export const inboxThreadActs = (ix: InboxSoFar) => {
     if (!canDo("approve")) return;
     const tReal = threads.find((x) => x.id === id);
     if (tReal && tReal.real) {
-      void realVerb(tReal, "take-over", undefined, "you have it — the receptionist is paused");
+      void realVerb(tReal, "take-over", undefined, "you have it — AI is paused");
       return;
     }
     if (VW.state[id] && !VW.state[id].sent) VW.state[id].held = true; // one voice — agent timer dies
@@ -131,7 +130,7 @@ export const inboxThreadActs = (ix: InboxSoFar) => {
       takenOver: true,
       timeline: [
         ...x.timeline,
-        { type: "event", kind: "takeover", at: IX_NOW, body: "You took this thread — agents stand down" },
+        { type: "event", kind: "takeover", at: IX_NOW, body: "You took this thread — AI steps back" },
       ],
     }));
     window.setTimeout(() => window.dispatchEvent(new CustomEvent("inbox:focus-composer")), FOCUS_COMPOSER_MS);
@@ -142,7 +141,7 @@ export const inboxThreadActs = (ix: InboxSoFar) => {
     const t = threads.find((x) => x.id === id);
     if (!t || !t.takenOver) return;
     if (t.real) {
-      void realVerb(t, "hand-back", undefined, "handed back — the receptionist resumes");
+      void realVerb(t, "hand-back", undefined, "handed back — AI resumes");
       return;
     }
     mutate(id, (x) => ({

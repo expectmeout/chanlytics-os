@@ -53,7 +53,7 @@ test("in the canvas's order, whatever the bell's: answered, booked, asked to sto
     [
       [
         "answered",
-        "The receptionist answered 6",
+        "AI answered 6",
         "Last, to Ana Torres: “We open at 9. I can book you in for 10:15.”",
         "11:02 PM",
         null,

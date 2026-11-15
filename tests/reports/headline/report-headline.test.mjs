@@ -104,8 +104,7 @@ const periodLineOver = (page) => {
   if (page.empty) return `${page.period.now}: nobody wrote or called.`;
   const compare = page.tiles.find((t) => t.id === "messages")?.compare;
   const parts = [`${total} message${total === 1 ? "" : "s"}${compare ? ` (${compare})` : ""}`];
-  if (page.answered.share !== null)
-    parts.push(`${Math.round(page.answered.share * 100)}% answered by the receptionist`);
+  if (page.answered.share !== null) parts.push(`${Math.round(page.answered.share * 100)}% answered by AI`);
   if (page.calls.total) parts.push(`${page.calls.total} call${page.calls.total === 1 ? "" : "s"}`);
   return `${page.period.now}: ${parts.join(", ")}.`;
 };
@@ -137,7 +136,7 @@ test("Worth a look's two rows that read Reports say what they said: the booking 
   assert.equal(rows[1].text, `${totals.none} customer messages never got an answer at all.`);
   assert.equal(
     rows[1].math,
-    `of ${totals.in} in the last ${page.rangeLabel} · the receptionist answered ${totals.ai}, you answered ${totals.you}`,
+    `of ${totals.in} in the last ${page.rangeLabel} · AI answered ${totals.ai}, you answered ${totals.you}`,
   );
   const unread = todayLeaks(toHeadlineVM(headlineOf(dto, "7d", null)), null, []).rows.map((r) => r.id);
   assert.deepEqual(unread, ["unanswered"], "no calendar read is a setup step, not a leak");

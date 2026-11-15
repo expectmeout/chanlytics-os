@@ -58,9 +58,7 @@ export const settingsSpec: ProposalSpecAboveOperator = {
   receipt: (p) => {
     const change = rec(p.payload.change);
     if (change.op !== "add_note") return p.summary;
-    return typeof change.until === "string" && change.until
-      ? `Your receptionist knows, until ${change.until}.`
-      : "Your receptionist knows.";
+    return typeof change.until === "string" && change.until ? `AI knows, until ${change.until}.` : "AI knows.";
   },
   undo: {
     label: () => "Put the previous settings back",

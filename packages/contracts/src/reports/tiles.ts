@@ -218,7 +218,7 @@ const messagesTile: ReportTile = ({ days, current, points, tot, prev, noun, rang
 const answeredTile: ReportTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
   id: "answered",
   metric: "answered_share",
-  label: "Receptionist answered",
+  label: "AI answered",
   value: aiShare === null ? "—" : `${aiShare}%`,
   meta: answeredTotal
     ? `${tot.ai} of ${answeredTotal} · ${tot.you} by you · ${tot.none} unanswered`
@@ -241,7 +241,7 @@ const replyTile: ReportTile = ({ sortedReply, median, p90, hold }) => ({
   // The reply time includes the hold the owner set, and says so where replies waited one (spec D14).
   meta: sortedReply.length
     ? `slowest tenth ${fmtSeconds(p90)} · ${sortedReply.length} replies${holdNote(hold)}`
-    : "no receptionist replies yet",
+    : "no AI replies yet",
   delta: null,
   spark: [],
   compare: null,
@@ -255,7 +255,7 @@ const neededTile: ReportTile = ({ points, tot, prev, noun, rangeLabel, priorHadA
   metric: "handovers",
   label: "Needed you",
   value: String(tot.escalations),
-  meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
+  meta: tot.escalations ? "times AI stopped" : "AI never stopped",
   delta: deltaOf(tot.escalations, prev.escalations, false, noun),
   spark: points.map((p) => p.escalations),
   compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny),

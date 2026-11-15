@@ -215,7 +215,7 @@ function unansweredLeak({ reports, noReply }: LeakFacts): TodayLeakVM | null {
   // over its period; the names are the threads waiting right now.
   if (!(reports && first && first.none >= 2)) return null;
   const text = `${first.none} customer message${first.none === 1 ? "" : "s"} never got an answer at all.`;
-  const math = `of ${reports.messages.total} in the last ${reports.rangeLabel} · the receptionist answered ${first.ai}, you answered ${first.you}`;
+  const math = `of ${reports.messages.total} in the last ${reports.rangeLabel} · AI answered ${first.ai}, you answered ${first.you}`;
   return {
     id: "unanswered",
     tone: "warn",

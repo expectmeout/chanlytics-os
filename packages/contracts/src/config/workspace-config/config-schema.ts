@@ -234,7 +234,7 @@ const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
     ctx.addIssue({
       code: "custom",
       path: ["calendar", "ical_url"],
-      message: feedProblemWords("address") ?? "Not an address the receptionist may read.",
+      message: feedProblemWords("address") ?? "Not an address AI may read.",
     });
   }
   // The booking tool: one of the list, by name, on the way in. The read takes any word (BookingsConfigSchema).

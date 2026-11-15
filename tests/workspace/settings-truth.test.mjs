@@ -100,13 +100,13 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
   // The WhatsApp-app echo pausing for the workspace's own pause_hours, and for
   // the default day when none is set, is run in whatsapp-door.test.mjs.
   assert.ok(
-    alerts.includes("the receptionist is paused on this thread for ${ctx.pausedHours}h."),
+    alerts.includes("AI is paused on this thread for ${ctx.pausedHours}h."),
     "and the handoff email states the same number",
   );
   // Stated only by a branch that actually paused the thread. The email used to
   // promise the pause unconditionally, so nine of the eleven handoffs told the
   // owner the receptionist was out of a thread it was still answering.
-  assert.ok(alerts.includes("(ctx.pausedHours\n        ? `${act.replace"), "and only when this branch paused it");
+  assert.ok(alerts.includes("(ctx.pausedHours ? `${act.replace"), "and only when this branch paused it");
   // The notice's words are named (tell(asked, { said, answered, why, pausedHours }), #1547), so each branch's pause is
   // read by its name.
   assert.ok(
@@ -134,7 +134,7 @@ test("F36/F37: no alert the workspace is offered is Chanlytics' own; switching a
   assert.ok(ALERT_PANE_WORDS.bellLine([]).includes("a problem with a line"));
   // A campaign's run, to the person choosing what reaches them, never a playbook's (decision 19).
   const runs = ALERT_TOPICS.find((t) => t.kinds.includes("playbook"));
-  assert.equal(runs.title, "A campaign waits for your yes");
+  assert.equal(runs.title, "A campaign waits for your approval");
   assert.match(runs.what, /or a campaign could not run today/);
   for (const t of ALERT_TOPICS) assert.doesNotMatch(`${t.title} ${t.what}`, /playbook/i, t.title);
   assert.ok(

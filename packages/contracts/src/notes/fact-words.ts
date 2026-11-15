@@ -28,7 +28,7 @@ export function factNoteChange(factSuggestion: Pick<FactSuggestionDto, "title" |
 /** The words the pane says of what it learned. */
 export const FACT_SUGGEST_WORDS = {
   heading: "Learned from your corrections",
-  sub: "When you rewrite a reply or answer a customer yourself, what you said can become a note the receptionist reads.",
+  sub: "When you rewrite a reply or answer a customer yourself, what you said can become a note AI reads.",
   keep: "Keep as a note",
   dismiss: "Dismiss",
   wrote: (source: CorrectionSource, quote: string) =>
@@ -37,7 +37,7 @@ export const FACT_SUGGEST_WORDS = {
   kept: (title: string) => `Kept as a note: “${title}”`,
   alreadyKept: (title: string) => `Your notes already say this: “${title}”`,
   dismissed: "Dismissed",
-  gate: "Only the owner and a partner change what the receptionist reads.",
+  gate: "Only the owner and a partner change what AI reads.",
   notesFull: `Your notes are full (${PROFILE_LIMITS.notes}). Take one away in Settings › How it answers, then keep this.`,
   answered: "This was answered already.",
   moved: "The settings changed while this was kept. Try again.",

@@ -106,7 +106,7 @@ const lower = (channel: string): string => channel.toLowerCase();
 /** New, said (new-said.tsx): one line to Ask, which writes the message for every channel and files it on one press. */
 export const TPL_NEW_WORDS = {
   title: "New message",
-  sub: "Say what it is for. Ask writes it for WhatsApp, email and text.",
+  sub: "Say what it is for. AI writes it for WhatsApp, email and text.",
   label: "What the message is for",
   hint: "What should it say, and to whom?",
   send: "Ask",
@@ -155,14 +155,14 @@ export const TPL_VERSION_WORDS = {
   undo: "Undo",
   /** The one line to Ask under the words (Ruben, 12 Nov 2026: no preset changes, one input for any). */
   askLabel: "Ask for a change",
-  askHint: "Tell Ask what to change",
+  askHint: "Tell AI what to change",
   /** What a refused message's words are written again for, with WhatsApp's own reason. */
   fixAsk: (reason: string): string =>
     `WhatsApp refused these words (${reason}). Write them again so WhatsApp approves them, saying the same thing.`,
   /** Words refused before they were sent (their shape, or what a reader saw), which Ask writes again from the reason. */
   fixBefore: (reason: string): string =>
     `${reason} Write the words again so WhatsApp takes them, saying the same thing.`,
-  fixing: "Ask is writing words WhatsApp can take…",
+  fixing: "AI is writing words WhatsApp can take…",
   /** WhatsApp's own words, under its editor: what sending them back does. */
   whatsappNote:
     "WhatsApp looks at new words before they go out, usually within minutes. It takes a change to an approved message once a day.",

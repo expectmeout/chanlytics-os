@@ -19,7 +19,7 @@ export const HEAD = {
   money: "Charged to your card by each platform, never through Chanlytics. Pause an ad and nothing more is spent.",
   noAds: "No ads yet.",
   v0Strong: "Ads",
-  v0Rest: " bring new people to your receptionist.",
+  v0Rest: " bring new people to AI.",
   booked: (booked: number, of: number) => ({
     strong: `${booked} of ${of}`,
     rest: " new people from your ads have booked.",
@@ -334,7 +334,7 @@ export const V0 = {
   }),
   more: (n: number) => `${n} more have no way in recorded.`,
   emptyLead: "No one has written from an ad yet.",
-  emptyLine: "When Meta names the ad in someone's first message, your receptionist answers and they are counted here.",
+  emptyLine: "When Meta names the ad in someone's first message, AI answers and they are counted here.",
   /** Read, and nobody at all: People's own answer for these days. */
   nobodyNew: "Nobody new has reached you in the last 30 days.",
   reading: "Counting how new people first reached you…",

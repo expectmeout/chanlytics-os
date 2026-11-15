@@ -43,7 +43,7 @@ const SUB = {
   card_last4: "4242",
 };
 
-test("the receptionist is on for trialing, active, past_due, incomplete and none; off for paused, unpaid, canceled, incomplete_expired", () => {
+test("AI is on for trialing, active, past_due, incomplete and none; off for paused, unpaid, canceled, incomplete_expired", () => {
   for (const s of ["trialing", "active", "past_due", "incomplete", "none"]) assert.equal(receptionistOn(s), true, s);
   for (const s of ["paused", "unpaid", "canceled", "incomplete_expired"]) assert.equal(receptionistOn(s), false, s);
   assert.equal(tenantStatusFor("stripe", "paused"), "paused");
@@ -56,7 +56,7 @@ test("the receptionist is on for trialing, active, past_due, incomplete and none
   assert.equal(BILLING_TRIAL_DAYS, 14);
 });
 
-test("planBilling: the status is copied verbatim, the switch follows the receptionist, the bell rings on a change of state", () => {
+test("planBilling: the status is copied verbatim, the switch follows AI, the bell rings on a change of state", () => {
   const started = planBilling({ mode: "stripe", status: "none", tenant_status: "active" }, SUB, NOW);
   assert.equal(started.row.status, "trialing");
   assert.equal(started.row.card_last4, "4242");
@@ -89,7 +89,7 @@ test("planBilling: the status is copied verbatim, the switch follows the recepti
   );
   assert.equal(back.tenantStatus, "active");
   assert.equal(back.switched, "resumed");
-  assert.equal(back.bell.title, "Your receptionist is back");
+  assert.equal(back.bell.title, "AI is back");
 
   const late = planBilling(
     { mode: "stripe", status: "active", tenant_status: "active" },
@@ -203,7 +203,7 @@ test("the view model per status: what the pane says and what an owner may do", (
     NOW,
   );
   assert.equal(ending.headline, "On trial, ending");
-  assert.ok(ending.detail.startsWith("Cancelled: the receptionist answers until Sep 21, then stops"));
+  assert.ok(ending.detail.startsWith("Cancelled: AI answers until Sep 21, then stops"));
   assert.equal(ending.tone, "warn");
   const paused = toBillingVM(dto(acct({ status: "paused" })), NOW);
   assert.equal(paused.paused, true);
@@ -313,7 +313,7 @@ test("the Setup row: first, for a workspace that pays by card, in each state; ab
       current_period_end: null,
       trial_days: 14,
       cancel_at: "2026-09-21T15:00:00Z",
-    }).sentence.startsWith("On trial, cancelled: the receptionist answers until Sep 21"),
+    }).sentence.startsWith("On trial, cancelled: AI answers until Sep 21"),
   );
   assert.equal(
     rowOf({

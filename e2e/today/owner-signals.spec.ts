@@ -52,7 +52,7 @@ test.describe("What the owner could not have seen, and the door to the fix", () 
     const reach = rows.find((r) => r.key === "rule:unreachable");
     expect(
       reach,
-      `the seeded workspace said yes to messages and nothing to offers; Ask found said: ${JSON.stringify(rows)}`,
+      `the seeded workspace said yes to messages and nothing to offers; AI found said: ${JSON.stringify(rows)}`,
     ).toBeTruthy();
     expect(reach!.text).toMatch(/^\d+ people have said yes to messages, but nobody has said yes to offers\.$/);
     // One act on the row (the phone pass, #2081): the people it counts, where the list's own step goes on to the QR.

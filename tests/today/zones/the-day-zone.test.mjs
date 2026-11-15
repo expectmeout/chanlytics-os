@@ -164,7 +164,7 @@ test("the shift: the visit under way is Now, its span said, the next beside it, 
 
 test("an hour a cancellation freed: offered until it begins, then said and no longer offered, and gone once it is over", () => {
   const begun = zoneAt(tue(14, 45)).lines.find((l) => l.kind === "open");
-  assert.equal(begun.title, "Open · 45 min", "the open part, as the receptionist would book it");
+  assert.equal(begun.title, "Open · 45 min", "the open part, as AI would book it");
   assert.equal(begun.freed, null, "under way: nobody can be offered it");
   assert.equal(begun.sub, "Rosa cancelled.", "REGRESSION: an hour under way said how many could take it");
   assert.equal(
@@ -190,7 +190,7 @@ function zoneOver(change, now) {
   return todayZoneDay(cal, day, [], now.getTime());
 }
 
-test("the freed part is what the receptionist could book: the open part of the visit, at least one of its slots, said whole for someone known by number", () => {
+test("the freed part is what AI could book: the open part of the visit, at least one of its slots, said whole for someone known by number", () => {
   // A window that opens a quarter into Rosa's visit: the part from then, as the edge's freedTimeOf offers it.
   const mid = zoneOver((dto) => {
     dto.days[1].windows = [{ start: iso(tue(14, 45)), end: iso(tue(16)) }];
@@ -350,7 +350,7 @@ test("the turned day's foot says how today went, and the head's line after closi
       { id: "booked", value: 4 },
       { id: "answered", value: 31, of: 34 },
     ]),
-    "Today: 4 booked, 31 of 34 answered by the receptionist.",
+    "Today: 4 booked, 31 of 34 answered by AI.",
   );
   assert.equal(todayWentLine([{ id: "answered", value: null }]), null, "nothing counted: nothing said");
 });

@@ -295,8 +295,8 @@ export function factConflicts(resolvedFacts: ResolvedFacts): FactConflict[] {
       known: phone.disputed.value,
       knownSource: phone.disputed.source,
       sentence: isHandoff
-        ? `Your receptionist tells customers to call ${phone.value}, which is the number it transfers to — so they reach a person directly and never the receptionist answering on ${phone.disputed.value}.`
-        : `Your receptionist tells customers to call ${phone.value}, but it answers on ${phone.disputed.value}. Anyone who calls the published number does not reach it.`,
+        ? `AI tells customers to call ${phone.value}, which is the number it transfers to — so they reach a person directly and never AI answering on ${phone.disputed.value}.`
+        : `AI tells customers to call ${phone.value}, but it answers on ${phone.disputed.value}. Anyone who calls the published number does not reach it.`,
       to: "admin/workspace",
     });
   }
@@ -316,7 +316,7 @@ export function factConflicts(resolvedFacts: ResolvedFacts): FactConflict[] {
       used: resolvedFacts.handoff_number.value,
       known: kept,
       knownSource: resolvedFacts.kept_line.source,
-      sentence: `Your receptionist puts callers who ask for a person through to ${kept}, which forwards the calls nobody picks up back to it — they would come straight back. Give a mobile or another line a person answers.`,
+      sentence: `AI puts callers who ask for a person through to ${kept}, which forwards the calls nobody picks up back to it — they would come straight back. Give a mobile or another line a person answers.`,
       // The transfer row, open on How it answers, where it moved on 17 Oct 2026 (Details holds it no longer).
       to: "admin/workspace/handoff_number",
     });
@@ -329,7 +329,7 @@ export function factConflicts(resolvedFacts: ResolvedFacts): FactConflict[] {
       used: resolvedFacts.address.value,
       known: resolvedFacts.address.disputed.value,
       knownSource: resolvedFacts.address.disputed.source,
-      sentence: `Your receptionist gives ${resolvedFacts.address.value}; Google has you at ${resolvedFacts.address.disputed.value}.`,
+      sentence: `AI gives ${resolvedFacts.address.value}; Google has you at ${resolvedFacts.address.disputed.value}.`,
       to: "admin/workspace",
     });
   }
@@ -341,7 +341,7 @@ export function factConflicts(resolvedFacts: ResolvedFacts): FactConflict[] {
       used: resolvedFacts.business_name.value,
       known: resolvedFacts.business_name.disputed.value,
       knownSource: resolvedFacts.business_name.disputed.source,
-      sentence: `Your receptionist introduces the business as ${resolvedFacts.business_name.value}; ${
+      sentence: `AI introduces the business as ${resolvedFacts.business_name.value}; ${
         resolvedFacts.business_name.disputed.source === "verified" ? "Google lists it" : "this workspace is named"
       } ${resolvedFacts.business_name.disputed.value}.`,
       to: "admin/workspace",

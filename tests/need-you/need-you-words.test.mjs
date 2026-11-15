@@ -76,15 +76,15 @@ test("the countdown says seconds under a minute and minutes from one up", () => 
   assert.equal(NEED_YOU_WORDS.review.postingIn(9), "Posting in 9s");
 });
 
-test("the head's sentence after the count: what Ask prepared, then the one thing that cannot wait; nothing when nothing is", () => {
+test("the head's sentence after the count: what AI prepared, then the one thing that cannot wait; nothing when nothing is", () => {
   const none = { replies: 0, writing: 0, firstWindow: null, held: null };
   assert.equal(needYouSay(none), null);
-  assert.equal(needYouSay({ ...none, replies: 1 }), "Ask has a reply ready.");
+  assert.equal(needYouSay({ ...none, replies: 1 }), "AI has a reply ready.");
   // One sentence, said by the head after how many need you, with the window's own time and the first name (Today in three
   // zones, 2 Nov 2026: "Sofia's window closes at 9:40 AM").
   assert.equal(
     needYouSay({ ...none, replies: 3, firstWindow: { who: "Dana Ruiz", at: "11:52 AM" } }),
-    "Ask has 3 replies ready, and Dana's window closes at 11:52 AM.",
+    "AI has 3 replies ready, and Dana's window closes at 11:52 AM.",
   );
   assert.equal(
     needYouSay({ ...none, firstWindow: { who: "Dana", at: "11:52 AM" } }),
@@ -98,10 +98,10 @@ test("the head's sentence after the count: what Ask prepared, then the one thing
   );
   assert.equal(
     needYouSay({ ...none, replies: 1, firstWindow: { who: "Sam", at: "5:10 PM" }, held: { who: "Priya Shah" } }),
-    "Your receptionist answers Priya on its own unless you stop it. Ask has a reply ready, and Sam's window closes at 5:10 PM.",
+    "AI answers Priya on its own unless you stop it. AI has a reply ready, and Sam's window closes at 5:10 PM.",
     "a reply that goes on its own in minutes comes before a window that closes in hours",
   );
-  assert.equal(needYouSay({ ...none, writing: 2 }), "Ask is drafting your replies.", "writing, with nothing ready yet");
+  assert.equal(needYouSay({ ...none, writing: 2 }), "AI is drafting your replies.", "writing, with nothing ready yet");
   // Someone known only by their number or address is said whole, as every other place shortens a name
   // (thread-contact.ts shortName): "+1" is nobody.
   assert.equal(
@@ -111,8 +111,8 @@ test("the head's sentence after the count: what Ask prepared, then the one thing
       held: { who: "+1 (917) 555-0102" },
       firstWindow: { who: "ana@example.com", at: "9:40 AM" },
     }),
-    "Your receptionist answers +1 (917) 555-0102 on its own unless you stop it. Ask has a reply ready, and ana@example.com's window closes at 9:40 AM.",
-    "REGRESSION: the head said 'Your receptionist answers +1 on its own'",
+    "AI answers +1 (917) 555-0102 on its own unless you stop it. AI has a reply ready, and ana@example.com's window closes at 9:40 AM.",
+    "REGRESSION: the head said 'AI answers +1 on its own'",
   );
 });
 
@@ -121,7 +121,7 @@ test("a thread's draft is current only for their newest message", () => {
   assert.equal(draftIsCurrent({ for_message_id: "m1" }, "m2"), false, "they have said more since: written again");
   const words = (text, brief = null) => ({ text, subject: "", brief, asks: [] });
   assert.equal(draftHasWords({ kind: "reply", words: words("Friday works.") }), true);
-  assert.equal(draftHasWords({ kind: "reply", words: words("  ") }), false, "only a question Ask could not answer");
+  assert.equal(draftHasWords({ kind: "reply", words: words("  ") }), false, "only a question AI could not answer");
   assert.equal(
     draftHasWords({ kind: "brief", words: words("", { opening: "Hi", points: [], avoid: [], ask: "" }) }),
     true,

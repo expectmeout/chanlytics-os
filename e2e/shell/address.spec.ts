@@ -140,6 +140,6 @@ test.describe("the address of a page", () => {
     await loadFresh(page, `/w/${slug}#error=server_error&error_code=unexpected_failure`);
     await expectFrameOn(page, "Today");
     expect(new URL(page.url()).pathname, "not moved: it names no route").toBe(`/w/${slug}`);
-    await expect(page.getByText(/No surface at/), "a sign-in failure is not a routing error").toHaveCount(0);
+    await expect(page.getByText(/Page not found/), "a sign-in failure is not a routing error").toHaveCount(0);
   });
 });

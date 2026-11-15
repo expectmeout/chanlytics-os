@@ -62,7 +62,7 @@ const factsMissing = (i: CapabilityInputs): CapabilityBlocker | null =>
   !i.business.name || !i.business.hours
     ? {
         code: "no_business_facts",
-        words: "The receptionist has no facts to answer with yet: the business name and hours first.",
+        words: "AI has no facts to answer with yet: the business name and hours first.",
       }
     : null;
 

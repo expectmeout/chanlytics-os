@@ -2,7 +2,7 @@
  * 00405 on a real Postgres: provider_code_of, the provider's error code on a failed message, said once in SQL and held to
  * the TypeScript parse that already says it for the thread (contracts conversations/message-words.ts, `providerCodeOf`).
  *
- * The ledger groups why sends failed by this code; the Inbox draws "WhatsApp didn't deliver it (error 131049)" from the
+ * The ledger groups why sends failed by this code; the Inbox draws the sentence for a failed message from the
  * other. Two parsers that disagree would put one failure under two numbers, so every shape a writer puts in
  * `messages.error` (and the ones nobody does) goes through both and must come back the same. The one deliberate difference
  * is a number past the integer type: no provider has one, the SQL answers none, and the test says so apart from the table.

@@ -134,7 +134,7 @@ export function lineReleaseWarning(wordsInput: LineReleaseWordsInput): { subject
   const on = billingDayWords(new Date(wordsInput.on).toISOString(), wordsInput.tz);
   const kept = formatPhoneDisplay(wordsInput.forwardedFrom);
   const lines = [
-    `Your subscription ended, so your receptionist's number, ${number}, goes back to the phone company on ${on}. After that it can't be got back, and callers to it reach nobody.`,
+    `Your subscription ended, so AI's number, ${number}, goes back to the phone company on ${on}. After that it can't be got back, and callers to it reach nobody.`,
     kept
       ? `${kept} forwards its calls to it. Switch that forwarding off before ${on}, or those calls will go nowhere.`
       : null,
@@ -153,7 +153,7 @@ export function lineReleasedWords(wordsInput: Omit<LineReleaseWordsInput, "on" |
   const number = formatPhoneDisplay(wordsInput.number) ?? wordsInput.number;
   const kept = formatPhoneDisplay(wordsInput.forwardedFrom);
   const lines = [
-    `${number} went back to the phone company, as we wrote a week ago. Your receptionist no longer answers on it.`,
+    `${number} went back to the phone company, as we wrote a week ago. AI no longer answers on it.`,
     kept ? `If ${kept} still forwards to it, switch that forwarding off: those calls go nowhere now.` : null,
     "If you resume, Setup picks a new number with you.",
   ].filter((x): x is string => !!x);

@@ -69,7 +69,7 @@ function noBrain(check: FirstRunCheckVM, W: CheckWords, make: () => void, making
           disabled={making}
           aria-busy={making || undefined}
           data-testid="fr-check-make-press"
-          {...gate("settings", "set up the receptionist")}
+          {...gate("settings", "set up AI")}
         >
           <SteadyLabel busy={making} idle={check.make.cta} doing={check.make.busy} />
         </button>

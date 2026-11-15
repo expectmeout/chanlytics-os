@@ -46,10 +46,7 @@ test("what else waits is said in the queue's own sentences, one or many, and not
 
 test("REGRESSION: the head says Nothing needs you only over a queue with nothing in it", () => {
   const empty = todayHeadline(calm(), null, [], []);
-  assert.equal(
-    empty.headline,
-    "The receptionist handled everything — 3 messages from 2 people and 1 call today. Nothing needs you.",
-  );
+  assert.equal(empty.headline, "AI handled everything — 3 messages from 2 people and 1 call today. Nothing needs you.");
   assert.equal(empty.tone, "calm");
   // A search waits on an answer: the head said "Nothing needs you" above a queue that said "1 Need you".
   const waiting = todayHeadline(calm(), null, [], todayAlsoWaiting({ calls: 0, searches: 1 }));

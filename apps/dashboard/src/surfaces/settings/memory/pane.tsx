@@ -89,7 +89,7 @@ function MemoryLine({
           hint={problem ?? lineHint(line, me)}
           act={
             mayChange
-              ? { label: W.edit, onClick: fold.request, gate: gate("settings", "change what Ask remembers") }
+              ? { label: W.edit, onClick: fold.request, gate: gate("settings", "change what AI remembers") }
               : undefined
           }
         >
@@ -123,7 +123,7 @@ function MemoryLine({
         saving={busy}
         saveLabel={W.save}
         cancelLabel={W.cancel}
-        gate={gate("settings", "change what Ask remembers")}
+        gate={gate("settings", "change what AI remembers")}
       >
         <Field
           aria-label={`${W.edit}: ${line.text}`}
@@ -179,7 +179,7 @@ function AddLine({ press }: { press: Press }) {
           variant="primary"
           disabled={busy || !draft.trim()}
           onClick={() => void add()}
-          {...gate("approve", "add to what Ask remembers")}
+          {...gate("approve", "add to what AI remembers")}
           data-testid="mem-add-save"
         >
           {W.add}

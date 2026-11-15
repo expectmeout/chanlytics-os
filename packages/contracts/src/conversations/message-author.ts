@@ -107,18 +107,16 @@ export function messageAuthor(message: MessageDto): MessageAuthor | null {
         { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} campaign` }
       : { kind: "broadcast", words: message.meta?.broadcast_name ? `a one-off send (${via.name})` : "a one-off send" };
   }
-  return message.sender === "ai"
-    ? { kind: "receptionist", words: "the receptionist" }
-    : { kind: "team", words: "your team" };
+  return message.sender === "ai" ? { kind: "receptionist", words: "AI" } : { kind: "team", words: "your team" };
 }
 
 /** A chat row's second line: that a person has the thread, or who had the last word. */
 export function lastWordLine(needsHuman: boolean, last: MessageDto | null, author: MessageAuthor | null): string {
-  if (needsHuman) return "Receptionist paused — a human has this thread";
+  if (needsHuman) return "AI paused — a person has this thread";
   if (!last) return "No messages yet";
   if (last.direction === "inbound") return "They wrote last — no reply yet";
   if (!author) return "Answered automatically";
-  if (author.kind === "receptionist") return "Answered by the receptionist";
+  if (author.kind === "receptionist") return "Answered by AI";
   if (author.kind === "team") return "Answered by your team";
   return `Last message: ${author.words}`;
 }

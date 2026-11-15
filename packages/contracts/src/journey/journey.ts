@@ -80,7 +80,7 @@ export function journeyOf(state: {
       id: "first_contact",
       kind: "receptionist",
       caps: "First contact",
-      name: "Your receptionist",
+      name: "AI",
       glyph: "chat",
       unit: "this week",
       trigger: null,

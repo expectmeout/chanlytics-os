@@ -504,7 +504,7 @@ test("its own read failed: one failed read with its Retry stands in place of the
     const tree = draw({ own: undefined });
     const failed = all(tree, (n) => n.props?.["data-testid"] === "receptionist-failed");
     assert.equal(failed.length, 1, "one, not one a card");
-    assert.ok(textOf(failed[0]).includes("Couldn't read the receptionist's other numbers"), textOf(failed[0]));
+    assert.ok(textOf(failed[0]).includes("Couldn't read AI's other numbers"), textOf(failed[0]));
     const read = find(tree, (n) => n.props?.surface === "reports_receptionist");
     assert.ok(read, "its Retry reads the lens's own surface again");
     assert.equal(read.props.kind, "card");

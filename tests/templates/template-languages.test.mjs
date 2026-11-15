@@ -248,7 +248,7 @@ test("the assistant is told the language by its name and its place, and never 'E
   );
 });
 
-test("a message is written under a message's rules, never the receptionist's: no 'automated assistant', the owner's figures kept", async () => {
+test("a message is written under a message's rules, never AI's: no 'automated assistant', the owner's figures kept", async () => {
   // A rewrite on the live demo added "this is the business's automated assistant" to an owner's note (12 Nov 2026): the
   // writers were handed the receptionist's rules. Now both read the business's own, made from the same settings.
   const { workspaceFacts } = await import("../../apps/dashboard/src/server/ask/prompt/stable-system.ts");
@@ -262,7 +262,7 @@ test("a message is written under a message's rules, never the receptionist's: no
   const real = workspaceFacts("Luna Studio", "America/New_York", config, new Date("2026-11-12T15:00:00Z"));
   assert.ok(
     real.guardrails.some((g) => /automated assistant/.test(g)),
-    "the receptionist still says it is automated",
+    "AI still says it is automated",
   );
   for (const prompt of [
     server.draftSystemPrompt(real, "marketing", "en_US"),
@@ -271,7 +271,7 @@ test("a message is written under a message's rules, never the receptionist's: no
   ]) {
     assert.doesNotMatch(prompt, /always says it is the business's automated assistant/, prompt);
     assert.doesNotMatch(prompt, /never quotes or confirms a price/, "an owner's offer keeps its own figure");
-    assert.match(prompt, /does not speak as the receptionist or say it is automated/);
+    assert.match(prompt, /does not speak as AI or say it is automated/);
     assert.match(prompt, /keeps every price, figure and date the owner gave exactly as given/);
     assert.match(prompt, /gives no health advice/, "the business's own forbidding still holds");
   }

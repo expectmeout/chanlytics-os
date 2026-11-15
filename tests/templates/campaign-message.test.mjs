@@ -79,7 +79,7 @@ const ANCHORS = { w: "whatsapp", e: "email", s: "sms", we: "whatsapp", ws: "what
 const WHY_WHATSAPP = {
   absent: "This message has no WhatsApp version.",
   pending: "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
-  rejected: "WhatsApp asked for a change to this message's words. Ask writes new words for you to send back.",
+  rejected: "WhatsApp asked for a change to this message's words. AI writes new words for you to send back.",
 };
 const NO_EMAIL = "This message has no email version yet.";
 const NO_TEXT = "This message has no text version yet.";
@@ -418,7 +418,7 @@ test("a channel the message does not hold has one sentence, and the words an ema
   );
   assert.equal(
     messageWhyNot(m(W({ meta_status: "rejected" }), E()), "whatsapp"),
-    "WhatsApp asked for a change to this message's words. Ask writes new words for you to send back.",
+    "WhatsApp asked for a change to this message's words. AI writes new words for you to send back.",
   );
   assert.equal(
     messageWhyNot(m(W({ meta_status: "paused" })), "whatsapp"),
@@ -450,7 +450,7 @@ test("a run that stops for a WhatsApp version it cannot send says why in the wor
   );
   assert.equal(
     stopped(W({ meta_status: "rejected" }), E()),
-    `WhatsApp asked for a change to this message's words. Ask writes new words for you to send back. ${LEFT}`,
+    `WhatsApp asked for a change to this message's words. AI writes new words for you to send back. ${LEFT}`,
   );
   assert.equal(
     stopped(W({ meta_status: "paused" })),
@@ -475,7 +475,7 @@ test("WhatsApp's refusal carries Meta's reason when it gave one, and a status th
   const reason = (over) => campaignMessageOf([W(over)], NAME, LANGUAGE).versions.whatsapp.reason;
   assert.equal(
     reason({ meta_status: "rejected", rejected_reason: "ABUSIVE_CONTENT" }),
-    "WhatsApp asked for a change: it reads as abusive or threatening. Ask writes new words for you to send back.",
+    "WhatsApp asked for a change: it reads as abusive or threatening. AI writes new words for you to send back.",
   );
   assert.equal(reason({ meta_status: "rejected", rejected_reason: null }), null, "Meta gave none");
   assert.equal(reason({ meta_status: "pending", rejected_reason: "ABUSIVE_CONTENT" }), null);

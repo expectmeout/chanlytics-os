@@ -43,7 +43,7 @@ test.describe("Ask on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("tb-ask")).toBeEnabled();
     await expect(page.getByTestId("tb-ask")).not.toContainText("Soon");
-    await expect(page.getByRole("button", { name: "New Chat" }), "one door to Ask (the Line, D8)").toHaveCount(0);
+    await expect(page.getByRole("button", { name: "New Chat" }), "one door to AI (the Line, D8)").toHaveCount(0);
     await page.keyboard.press("Control+k");
     const pal = page.getByTestId("ask-real");
     await expect(pal).toBeVisible();

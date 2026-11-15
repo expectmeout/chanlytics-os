@@ -438,11 +438,11 @@ export const PREVIEW = {
   call: "When they call",
   form: "When they send the form",
   drawn: (owner: string) => `Drawn by Chanlytics. When you turn it on, ${owner} also shows its own preview.`,
-  receptionistWrites: "Your receptionist writes the real reply when someone writes.",
+  receptionistWrites: "AI writes the real reply when someone writes.",
   replyLabel: "Example reply, written from your Services and Hours:",
   googleCaption: (line: string) =>
     `Google shows its own number on the ad and passes the call to ${line}. On phones the button calls; on computers it shows the number.`,
-  answers: (business: string) => `Your receptionist answers, starting with: ${business}, how can I help?`,
+  answers: (business: string) => `AI answers, starting with: ${business}, how can I help?`,
   formFilled: "Filled in for them",
   formName: "Name",
   formPhone: "Phone",
@@ -456,6 +456,6 @@ export const PREVIEW = {
   thanksOn: "We'll message you within a few minutes",
   thanksOff: "We'll get back to you",
   neverQuote:
-    "Your receptionist is set to never quote prices, so it will say the price is quoted at a consult. Take the price out of the ad, or change that setting.",
+    "AI is set to never quote prices, so it will say the price is quoted at a consult. Take the price out of the ad, or change that setting.",
   excerpt: (text: string, cta: string) => `${text} · ${cta}`,
 };

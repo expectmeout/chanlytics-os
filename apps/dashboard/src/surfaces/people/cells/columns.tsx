@@ -460,11 +460,11 @@ export const PL_COLUMNS: PeopleColumn[] = [
   // nothing, and the State cell says the exception beside its pill while this column is hidden.
   {
     key: "receptionist",
-    label: "Receptionist",
+    label: "AI",
     on: false,
-    hint: "Whether the receptionist is answering them",
+    hint: "Whether AI is answering them",
     width: { base: 124, min: 108, max: 200 },
-    csv: { head: "Receptionist", cell: (p) => p.receptionist.label },
+    csv: { head: "AI", cell: (p) => p.receptionist.label },
     cell: (p) => (
       <td key="receptionist" className="cl-recept-cell">
         <StatePill

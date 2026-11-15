@@ -101,14 +101,14 @@ export function planBilling(
   let bell: BillingBell | null = null;
   if (switched === "paused") {
     bell = {
-      title: "Your receptionist is paused",
+      title: "AI is paused",
       body:
         sub.status === "paused"
           ? `The trial ended without a card on file. ${PAUSED_WORDS} Resume from Billing.`
           : `The subscription ended. ${PAUSED_WORDS} Resume from Billing.`,
     };
   } else if (switched === "resumed") {
-    bell = { title: "Your receptionist is back", body: "Billing is in order; the receptionist answers again." };
+    bell = { title: "AI is back", body: "Billing is in order; AI answers again." };
   } else if (before.status !== "trialing" && sub.status === "trialing") {
     bell = {
       title: "Your trial has started",
@@ -239,14 +239,12 @@ export function trialUseWords(used: { callSeconds: number; replies: number }): s
 /** Said on the bell when the trial's use nears what it includes, and when it ends the trial early. */
 export const TRIAL_SPENT_WORDS = {
   nearTitle: "Your trial is nearly used",
-  near: (use: string) =>
-    `${use}. When either runs out your plan starts on the card you gave, so your receptionist keeps answering.`,
+  near: (use: string) => `${use}. When either runs out your plan starts on the card you gave, so AI keeps answering.`,
   title: "Your trial's use is spent, so your plan has started",
-  detail: (use: string) =>
-    `${use}. Your plan started today on the card you gave and keeps your receptionist answering.`,
+  detail: (use: string) => `${use}. Your plan started today on the card you gave and keeps AI answering.`,
   /** The plan could not start (a card Stripe refused): the trial runs on, and Billing has the card. */
   failedTitle: "Your trial is used up, and your plan could not start",
-  failed: "Update the card in Billing so your receptionist keeps answering when the trial ends.",
+  failed: "Update the card in Billing so AI keeps answering when the trial ends.",
 } as const;
 
 /** Billing's "Start my plan now": a trial ended early, for more than it includes. */
@@ -311,7 +309,7 @@ export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): Billing
         return {
           ...base,
           headline: "On trial, ending",
-          detail: `Cancelled: the receptionist answers until ${billingDayWords(account.cancel_at ?? account.trial_end, tz) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`,
+          detail: `Cancelled: AI answers until ${billingDayWords(account.cancel_at ?? account.trial_end, tz) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`,
           tone: "warn",
           actions: { checkout: false, portal: true, resume: false, startNow: false },
           paused: false,
@@ -332,7 +330,7 @@ export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): Billing
         headline: account.cancel_at_period_end || account.cancel_at ? "Subscribed, ending" : "Subscribed",
         detail:
           account.cancel_at || account.cancel_at_period_end
-            ? `Ends ${billingDayWords(account.cancel_at ?? account.current_period_end, tz)}; the receptionist answers until then.`
+            ? `Ends ${billingDayWords(account.cancel_at ?? account.current_period_end, tz)}; AI answers until then.`
             : `Next invoice ${billingDayWords(account.current_period_end, tz) || "on the renewal date"}${card ? ` on ${card}` : ""}.`,
         tone: "ok",
         actions: { checkout: false, portal: true, resume: false, startNow: false },
@@ -342,7 +340,7 @@ export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): Billing
       return {
         ...base,
         headline: "Payment failed",
-        detail: `${account.last_payment_failed_at ? `The last charge failed ${agoWords(Date.parse(account.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days; update the card in Manage billing to keep the receptionist answering.`,
+        detail: `${account.last_payment_failed_at ? `The last charge failed ${agoWords(Date.parse(account.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days; update the card in Manage billing to keep AI answering.`,
         tone: "danger",
         actions: { checkout: false, portal: true, resume: false, startNow: false },
         paused: false,
@@ -395,7 +393,5 @@ export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): Billing
  * S20). What the headline does not say is whether the receptionist is answering, and that is receptionistOn's.
  */
 export function billingPill(vm: Pick<BillingVM, "status">): { words: string; tone: "ok" | "danger" } {
-  return receptionistOn(vm.status)
-    ? { words: "Receptionist answering", tone: "ok" }
-    : { words: "Receptionist paused", tone: "danger" };
+  return receptionistOn(vm.status) ? { words: "AI answering", tone: "ok" } : { words: "AI paused", tone: "danger" };
 }

@@ -75,13 +75,7 @@ const mine = { paused_until: ahead(600), assignee_user_id: "me", assignee_is_me:
 
 // [what the thread is, the wire, its open hold, the move, the list it stands in]
 const STATES = [
-  [
-    "the receptionist answered their question",
-    dto({ messages: [inb(120), m({ created_at: ago(119) })] }),
-    null,
-    "answered",
-    "done",
-  ],
+  ["AI answered their question", dto({ messages: [inb(120), m({ created_at: ago(119) })] }), null, "answered", "done"],
   [
     "your team answered, the pause over",
     dto({ messages: [inb(120), m({ sender: "human", created_at: ago(100) })] }),
@@ -89,7 +83,7 @@ const STATES = [
     "answered",
     "done",
   ],
-  ["a call the receptionist took", dto({ messages: [callNote(90)] }), null, "call", "done"],
+  ["a call AI took", dto({ messages: [callNote(90)] }), null, "call", "done"],
   ["they just wrote, a reply being worked out", dto({ messages: [inb(1)] }), null, "replying", "waiting"],
   [
     "they wrote, a rule set it aside, nothing sent",
@@ -301,9 +295,9 @@ test("green is earned: a thread reads Handled only where something answered it",
   assert.deepEqual(
     green.map(([name]) => name),
     [
-      "the receptionist answered their question",
+      "AI answered their question",
       "your team answered, the pause over",
-      "a call the receptionist took",
+      "a call AI took",
       "a call that never connected",
       "a teammate's name left on a quiet thread",
     ],
@@ -322,7 +316,7 @@ test("each word wears one colour: Needs you amber, a countdown coral, a failure 
 test("an answered thread says who answered it, in Conversations' words", () => {
   const [, ai] = STATES[0];
   const [, team] = STATES[1];
-  assert.equal(threadMoveOf(ai, null, NOW).by, "the receptionist");
+  assert.equal(threadMoveOf(ai, null, NOW).by, "AI");
   assert.equal(threadMoveOf(team, null, NOW).by, "your team");
 });
 

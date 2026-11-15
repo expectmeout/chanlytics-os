@@ -121,7 +121,7 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, oth
     if (error instanceof GatewayRefused) {
       if (error.refusal.kind === "budget")
         throw causedBy(
-          new AppError("rate_limited", `Today's assistant budget is spent, so the ${otherText} waits until tomorrow.`),
+          new AppError("rate_limited", `Today's AI limit is reached, so the ${otherText} waits until tomorrow.`),
           error,
         );
       if (error.refusal.kind === "paused")
@@ -136,7 +136,7 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, oth
     throw error;
   }
   const { text, stop } = answer;
-  if (stop === "refusal") throw new AppError("validation", `Claude would not write this ${otherText}.`);
+  if (stop === "refusal") throw new AppError("validation", `AI would not write this ${otherText}.`);
   let value: unknown;
   try {
     value = JSON.parse(text);
@@ -146,7 +146,7 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, oth
       throw causedBy(
         new AppError(
           "upstream_anthropic",
-          `The ${otherText} ran longer than Ask can write at once. Ask for less in one go.`,
+          `The ${otherText} ran longer than AI can write at once. Ask for less in one go.`,
         ),
         causedBy(new Error("cut off at the answer's ceiling (max_tokens)"), unparsed),
       );

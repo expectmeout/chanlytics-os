@@ -31,8 +31,7 @@ export interface GuideRow {
  * for, consent/channels.ts yesCovers); an offer by email needs none of it.
  */
 const STAGE_SENDS: Record<JourneyStageId, string> = {
-  first_contact:
-    "your receptionist's answers, which ask once on WhatsApp for the yes to offers, the yes an offer on WhatsApp needs",
+  first_contact: "AI's answers, which ask once on WhatsApp for the yes to offers, the yes an offer on WhatsApp needs",
   before: "a reminder",
   after: "a thank-you and how it went, with a review ask where your Google listing keeps a review link",
   proposal: "one follow-up with its link",

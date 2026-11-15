@@ -190,15 +190,15 @@ export function consentChangeWords(consentChange: ConsentChange): { who: string;
 
 /** What each verb of the ledger did, said after who did it ("You paused automatic replies", "Ruben snoozed the thread"). */
 const DECISION_LABELS: Record<string, { who: string; did: string }> = {
-  take_over: { who: "Took over", did: "paused the receptionist on this thread" },
-  hand_back: { who: "Handed back", did: "returned the thread to the receptionist" },
+  take_over: { who: "Took over", did: "paused AI on this thread" },
+  hand_back: { who: "Handed back", did: "returned the thread to AI" },
   snooze: { who: "Snoozed", did: "snoozed the thread" },
   wake: { who: "Woke", did: "brought the thread back" },
   resolve: { who: "Resolved", did: "marked the escalation resolved" },
   archive: { who: "Archived", did: "archived the thread" },
   cancel_send: { who: "Canceled a reply", did: "stopped a reply before it sent" },
-  pause_agent: { who: "Paused the receptionist", did: "paused automatic replies" },
-  resume_agent: { who: "Resumed the receptionist", did: "resumed automatic replies" },
+  pause_agent: { who: "Paused AI", did: "paused automatic replies" },
+  resume_agent: { who: "Resumed AI", did: "resumed automatic replies" },
 };
 
 /** A copy of their own records taken from their page (GET export?person, R14 X5): who took one, and when, on their page. */
@@ -221,7 +221,7 @@ function decidedBy(
   viewerId: string | null,
   names: HolderNames | null,
 ): string {
-  if (dec.actor_type === "ai") return "The receptionist";
+  if (dec.actor_type === "ai") return "AI";
   if (dec.actor_type === "system") return "The system";
   if (dec.actor_user_id && dec.actor_user_id === viewerId) return "You";
   return (dec.actor_user_id ? names?.(dec.actor_user_id) : null) || "Your team";
@@ -261,7 +261,7 @@ function speakerOf(author: MessageAuthor | null): string {
   return !author
     ? "System"
     : author.kind === "receptionist"
-      ? "Receptionist"
+      ? "AI"
       : author.kind === "team"
         ? "Your team"
         : capitalize(author.words);
@@ -386,7 +386,7 @@ function escalationItems({ profile, stamp }: PersonCardContext): PersonTimelineI
       text:
         escalation.reason === "callback" && details
           ? details
-          : `${capitalize(reasonShort(escalation.reason)) || "The receptionist stopped"}${details ? ` · “${details}”` : ""}`,
+          : `${capitalize(reasonShort(escalation.reason)) || "AI stopped"}${details ? ` · “${details}”` : ""}`,
       // "Open" beside a row that opens something read as the verb; the state is what it says.
       sub:
         escalation.state === "resolved"

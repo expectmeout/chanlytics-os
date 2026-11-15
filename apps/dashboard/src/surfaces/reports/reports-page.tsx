@@ -78,7 +78,7 @@ function readsAWorkspace() {
           kind="page"
           glyph="wave"
           title="Reports reads a workspace's own numbers"
-          body="Open a workspace to see what its receptionist answered, who reached it, and what its campaigns sent."
+          body="Open a workspace to see what AI answered there, who reached it, and what its campaigns sent."
         />
       </div>
     </div>

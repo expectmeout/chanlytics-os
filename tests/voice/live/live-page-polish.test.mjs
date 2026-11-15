@@ -191,6 +191,6 @@ test("while a call is live the page re-reads every 8 s beside the realtime chann
   // The control the owner reads the wait by names itself where it sits, directly under the transcript.
   withLive([call()]);
   const field = find(byTestId(mount(), "live-whisper"), (n) => n.type === "input");
-  assert.equal(field.props["aria-label"], "Whisper to the receptionist", "the control says what it is where it is");
-  assert.match(field.props.placeholder, /Whisper to the receptionist/);
+  assert.equal(field.props["aria-label"], "Whisper to AI", "the control says what it is where it is");
+  assert.match(field.props.placeholder, /Whisper to AI/);
 });

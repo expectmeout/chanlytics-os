@@ -50,7 +50,7 @@ async function proposeHandOver(t: ToolContext, input: { call_id: string }): Prom
   return propose({
     kind: "call_hand_over",
     title: `Take the call with ${call.who}`,
-    summary: "The receptionist tells them someone is picking up and transfers them; your phone rings.",
+    summary: "AI tells them someone is picking up and transfers them; your phone rings.",
     payload: { call_id: call.id, who: call.who },
   });
 }

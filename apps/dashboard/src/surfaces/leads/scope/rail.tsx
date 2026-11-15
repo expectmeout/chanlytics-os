@@ -290,7 +290,7 @@ export const LeadsRailRows = (p: RailRowsProps) => {
       <RailSection label={W.searchesHeading} testid="leads-searches">
         {rail.searches.map((s) => railSearchRow(s, p))}
         {rail.searches.length === 0 && (
-          <div className="cl-rail-hint">No searches yet. Describe the businesses you want and Claude finds them.</div>
+          <div className="cl-rail-hint">No searches yet. Describe the businesses you want and AI finds them.</div>
         )}
       </RailSection>
       {/* A sequence's own list (00496), named for it: the leads added to it, apart from the search they came from, which

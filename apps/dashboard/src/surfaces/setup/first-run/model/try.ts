@@ -93,16 +93,16 @@ export const FIRST_RUN_TRY_WORDS = {
   listenForwardedOther: "Call your number from another phone. Don't pick up.",
   leadOther:
     "A phone can't call itself, so use a second one or ask someone to call. Ask what a customer would, like “Are you open on Sunday?”",
-  routeOther: (kept: string) => `Another phone calls ${kept} → nobody picks up → your receptionist answers`,
+  routeOther: (kept: string) => `Another phone calls ${kept} → nobody picks up → AI answers`,
   dial: (number: string) => `Call ${number}`,
-  listenOwn: "Call your receptionist from your cell.",
+  listenOwn: "Call AI from your cell.",
   lead: "Ask what a customer would, like “Are you open on Sunday?”",
   listening: "Listening for your call",
   listeningDetail: "This page changes the moment it picks up.",
   listeningWindow: (minutes: number) =>
     `This page changes the moment it picks up. Open for ${minutes} more ${minutes === 1 ? "minute" : "minutes"}.`,
-  route: (kept: string) => `Your cell calls ${kept} → nobody picks up → your receptionist answers`,
-  quietHeading: "No call has reached your receptionist yet",
+  route: (kept: string) => `Your cell calls ${kept} → nobody picks up → AI answers`,
+  quietHeading: "No call has reached AI yet",
   stillListening: "Still listening",
   causesForwarded: [
     {
@@ -111,7 +111,7 @@ export const FIRST_RUN_TRY_WORDS = {
     },
     {
       question: "Did an answering machine or voicemail pick up?",
-      answer: "Turn it off. It answers before your receptionist can.",
+      answer: "Turn it off. It answers before AI can.",
     },
     {
       question: "Did you call from the phone customers call?",
@@ -120,7 +120,7 @@ export const FIRST_RUN_TRY_WORDS = {
   ],
   causeOwn: (number: string) => ({
     question: `Did you call ${number}?`,
-    answer: "That's the number your receptionist answers.",
+    answer: "That's the number AI answers.",
   }),
   showCode: "Show the code again",
   help: "Ask Chanlytics for help",
@@ -128,13 +128,13 @@ export const FIRST_RUN_TRY_WORDS = {
   helpFailed: "Not asked",
   pickedUp: "It picked up.",
   proofForwarded: "Forwarding works",
-  proofOwn: "Your receptionist answered",
+  proofOwn: "AI answered",
   onTheCall: "on the call now",
   behind: "Words arrive a moment behind the call.",
-  doneHeading: "That's your receptionist.",
+  doneHeading: "That's AI.",
   from: (number: string) => `from ${number}`,
   through: (number: string) => `through ${number}`,
-  receptionist: "Receptionist",
+  receptionist: "AI",
   caller: "You",
   someone: "Caller",
   transferLabel: "When a caller asks for a person",
@@ -145,14 +145,13 @@ export const FIRST_RUN_TRY_WORDS = {
   message: "Take a message and email me",
   messageSentence: "Nobody is put through. You get the message right away.",
   notKept: (kept: string) => `Not ${kept}: while it forwards, that call would ring straight back here.`,
-  saved: "Saved. Your receptionist puts callers through as you chose.",
+  saved: "Saved. AI puts callers through as you chose.",
   notSaved: "Not saved",
   notReadYet: "Your settings are still being read. Try again in a moment.",
   inbox: "It's in your Inbox too",
   continue: "Continue",
   skip: "Can't call right now? Skip for now",
-  nudge:
-    "Most owners call once. It takes a minute, and it's the only way to know your calls really reach your receptionist.",
+  nudge: "Most owners call once. It takes a minute, and it's the only way to know your calls really reach AI.",
   stay: "OK, I'll call",
   anyway: "Skip anyway",
 } as const;

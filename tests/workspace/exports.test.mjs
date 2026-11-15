@@ -131,10 +131,10 @@ test("a thread exports oldest first in CHANNEL time, with who said it and what s
   );
   assert.equal(lines[2], "");
   assert.equal(lines[3], "[2026-09-01 09:59] Dani 💅: hola", "channel time, and the customer by their WhatsApp name");
-  assert.equal(lines[4], "[2026-09-01 10:00] Receptionist: Hi Dani!");
+  assert.equal(lines[4], "[2026-09-01 10:00] AI: Hi Dani!");
   assert.equal(lines[5], "    We open at 10.", "a second line stays inside its entry");
   assert.equal(lines[6], "[2026-09-01 10:05] Staff: I'll take it from here");
-  assert.equal(lines[7], "[2026-09-01 10:06] Receptionist: [withdrawn] never sent");
+  assert.equal(lines[7], "[2026-09-01 10:06] AI: [withdrawn] never sent");
   assert.equal(lines[8], "[2026-09-01 10:07] Dani 💅: [image/jpeg]");
   assert.equal(lines[9], "[2026-09-01 10:08] Dani 💅: [call] Inbound call · 1 min");
   assert.equal(text.at(-1), "\n", "ends with a newline like a text file should");
@@ -184,7 +184,7 @@ test("a call exports its facts, its summary, and the turns with a clock; a whisp
   assert.equal(lines[5], "Summary");
   assert.equal(lines[6], "Asked about balayage; sent the booking link.");
   assert.equal(lines[8], "Transcript");
-  assert.equal(lines[9], "[0:00] Receptionist: Thanks for calling!");
+  assert.equal(lines[9], "[0:00] AI: Thanks for calling!");
   assert.equal(lines[10], "[0:04] Daniela Ruiz: Do you do balayage?");
   assert.equal(
     lines[11],
@@ -193,7 +193,7 @@ test("a call exports its facts, its summary, and the turns with a clock; a whisp
   );
   assert.equal(
     lines[12],
-    "[1:02] Receptionist: We do. Saturday has an opening.",
+    "[1:02] AI: We do. Saturday has an opening.",
     "the raw provider shape still gives a clock, rounded to the second as the page's is (61.5 s is 1:02 on Live too)",
   );
   const anon = X.callText(

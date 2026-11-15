@@ -113,7 +113,7 @@ export async function provisionLine(
     await recordNotification(tenant.id, {
       kind: "number",
       title: `Your phone line is ready: ${shown}`,
-      body: `The receptionist answers calls on ${shown}. Call it from your own phone to hear it; the Live page shows the call as it happens. Texting arrives once the carriers register the line.`,
+      body: `AI answers calls on ${shown}. Call it from your own phone to hear it; the Live page shows the call as it happens. Texting arrives once the carriers register the line.`,
       route: FIRST_RUN_ROUTE,
       about: { type: "line", id: line.id },
     });

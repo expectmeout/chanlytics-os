@@ -184,7 +184,7 @@ const row = (over = {}) => ({
 
 /* ------------------------------------------------------------- the tests -- */
 
-test("a view of the Leads scope is a route Ask can cite and the page can read back", () => {
+test("a view of the Leads scope is a route AI can cite and the page can read back", () => {
   const route = leadsRoute({ searchId: "5e000000-0000-4000-8000-000000000001", list: "ready", cls: "review" });
   assert.equal(route, "clients/leads:s-5e000000-0000-4000-8000-000000000001:l-ready:c-review");
   // Ask cites a view that names neither a search nor a lead as a page; one with a search's id names that row, and grounds only
@@ -1571,13 +1571,13 @@ test("the rail draws a sequence's own list with the sequences, apart from the se
 test("a search's empty view says what its round holds: leads to look at, or that it is still looking", () => {
   assert.deepEqual(leadSearchEmptyWords({ state: "running", review: 67 }), {
     title: "67 leads need a look.",
-    body: "Ask is still checking them, and could not decide on these yet.",
+    body: "AI is still checking them, and could not decide on these yet.",
     review: true,
   });
   assert.equal(leadSearchEmptyWords({ state: "ended", review: 1 }).title, "1 lead needs a look.");
   assert.deepEqual(leadSearchEmptyWords({ state: "running", review: 0 }), {
     title: "Still looking.",
-    body: "Leads come in here as Ask checks them.",
+    body: "Leads come in here as AI checks them.",
     review: false,
   });
   assert.equal(

@@ -73,7 +73,7 @@ import {
 after(() => unmount());
 
 const ROWS = ["tone", "languages", "guardrails", "escalate_when", "notes", "extra_instructions", "fallbacks"];
-const SAVED = "Saved — the receptionist picks it up within a minute";
+const SAVED = "Saved — AI picks it up within a minute";
 const said = (f) => textOf({ props: { children: f.msg } });
 const cardOf = (tree) => byTestId(tree, "rec-card-answers");
 /** The box a fold's field draws, by the fold it is in: the kit's RecordField, an input or a textarea. */

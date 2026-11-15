@@ -78,7 +78,7 @@ test("a caller with no WhatsApp thread: phone is the channel, no reply window, t
   );
   assert.equal(
     toInboxThreadVM(conv(), { ...callback, details: null }, ZONE, NOW).summary,
-    "They phoned and are still owed a call: the call didn't connect, they hung up without a word, or the receptionist couldn't finish it.",
+    "They phoned and are still owed a call: the call didn't connect, they hung up without a word, or AI couldn't finish it.",
     "no to-do: the reason's sentence",
   );
   assert.equal(
@@ -260,7 +260,7 @@ test("the wiring: the page branches on the channel and reads the reason's senten
     "the call back is a door",
   );
   assert.ok(
-    find(phone, (n) => n.props?.["aria-label"] === "Nothing needed — hand it back to the receptionist"),
+    find(phone, (n) => n.props?.["aria-label"] === "Nothing needed — hand it back to AI"),
     "the hand back says its whole sentence to a screen reader",
   );
   // The band's Call back is the one way to them, so nothing is drawn where a reply box would be: an empty box stood under

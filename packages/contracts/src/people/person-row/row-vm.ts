@@ -219,7 +219,7 @@ export function threadHeadFactOf(row: PersonRowVM, word: AppointmentWord): Threa
  * and what they agreed to. It was a page away, behind the header's door. Every value is the row's, never a guess.
  */
 export function threadPersonFactsOf(row: PersonRowVM, word: AppointmentWord): ThreadPersonFact[] {
-  const facts: ThreadPersonFact[] = [{ key: "receptionist", label: "Receptionist", value: row.receptionist.label }];
+  const facts: ThreadPersonFact[] = [{ key: "receptionist", label: "AI", value: row.receptionist.label }];
   const arrived = row.cameFrom ? ` · ${row.cameFrom.label}` : "";
   facts.push({ key: "first", label: "First contact", value: `${row.firstContact.label}${arrived}` });
   if (row.lastContact.when)

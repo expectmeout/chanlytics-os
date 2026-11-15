@@ -66,7 +66,7 @@ export function LearnedFromYou({
               variant={i === 0 ? "primary" : "secondary"}
               disabled={busy === s.id}
               onClick={() => void answer(s, true)}
-              {...gate("settings", "keep a note for the receptionist")}
+              {...gate("settings", "keep a note for AI")}
               aria-label={`${W.keep}: ${s.title}`}
               data-testid="aut-fact-keep"
             >
@@ -77,7 +77,7 @@ export function LearnedFromYou({
               variant="quiet"
               disabled={busy === s.id}
               onClick={() => void answer(s, false)}
-              {...gate("settings", "dismiss a note for the receptionist")}
+              {...gate("settings", "dismiss a note for AI")}
               aria-label={`${W.dismiss}: ${s.title}`}
               data-testid="aut-fact-dismiss"
             >

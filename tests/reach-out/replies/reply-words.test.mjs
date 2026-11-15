@@ -52,12 +52,12 @@ test("interested and a question: talking now, and the draft is in the reply box"
     title: "Wrote back · interested",
     said: "“Wants more details”",
     answers: FIRST,
-    did: "Talking now. The receptionist drafted an answer: it's in the reply box.",
+    did: "Talking now. AI drafted an answer: it's in the reply box.",
     doors: ["use_draft"],
   });
   const q = strip({ intent: "question", summary: "Asks the price" });
   assert.deepEqual([q.title, q.did, q.doors], ["Wrote back · a question", "Talking now.", []]);
-  assert.equal(strip({ draft_state: "waiting" }).did, "Talking now. The receptionist is drafting an answer.");
+  assert.equal(strip({ draft_state: "waiting" }).did, "Talking now. AI is drafting an answer.");
   assert.equal(strip({ draft_state: "not_written" }).did, "Talking now.", "a draft not written says nothing");
 });
 
@@ -70,10 +70,7 @@ test("not now: the step's day on Today, and the line of thanks", () => {
     draft_state: "written",
   });
   assert.equal(s.title, "Wrote back · not now");
-  assert.equal(
-    s.did,
-    "A step is on Today for Jan 4, 2027. The receptionist drafted a line of thanks: it's in the reply box.",
-  );
+  assert.equal(s.did, "A step is on Today for Jan 4, 2027. AI drafted a line of thanks: it's in the reply box.");
   assert.equal(strip({ intent: "not_now", step_day: "2026-10-12" }).did, "A step is on Today for Oct 12.");
 });
 

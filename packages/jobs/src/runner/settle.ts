@@ -236,7 +236,7 @@ async function settleSend(db: Db, job: TerminalJob, certain: boolean, failReason
           job.tenant_id,
           row.conversation_id,
           "send_failed",
-          `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${noteOf(certain, failReason)}.`,
+          `${row.sender === "ai" ? "AI's reply" : "A reply"} never left: ${noteOf(certain, failReason)}.`,
         )
       : null;
   return [

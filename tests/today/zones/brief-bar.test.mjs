@@ -73,7 +73,7 @@ test("a call going on takes the row and ends the brief: two things never talk at
   unmount();
   const asked = voice("speaking", "answer");
   drawn(asked, 1);
-  assert.equal(asked.stopped, 0, "an answer Ask reads aloud is not the capsule's to end");
+  assert.equal(asked.stopped, 0, "an answer AI reads aloud is not the capsule's to end");
   unmount();
   holdAsk(undefined);
 });
@@ -82,8 +82,8 @@ test("Listen says the same at rest and while it fetches, so nothing beside it mo
   const speech = { can: true, state: "idle", why: null, toggle() {}, warm() {} };
   const rest = listenButton(speech, "One two three four five six seven eight.");
   const fetching = listenButton({ ...speech, state: "loading" }, "One two three four five six seven eight.");
-  assert.equal(textOf(rest), textOf(fetching), 'REGRESSION: "Getting Ask\'s voice…" grew it up to the date');
+  assert.equal(textOf(rest), textOf(fetching), 'REGRESSION: "Getting AI\'s voice…" grew it up to the date');
   assert.match(rest.props["aria-label"], /^Listen to your brief, 0:03$/);
-  assert.equal(fetching.props["aria-label"], "Getting Ask's voice");
+  assert.equal(fetching.props["aria-label"], "Getting AI's voice");
   assert.equal(fetching.props["aria-busy"], true);
 });

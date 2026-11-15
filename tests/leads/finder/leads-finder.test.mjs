@@ -386,7 +386,7 @@ test("a criterion says how sure it has to be, and one asked for as seen holds no
   assert.equal(byTestId(tree, "plan-approve").props.disabled, false);
 });
 
-test("a card an older build stored still draws and presses, on the page and on Ask's line: its facts hold a key nothing reads now", () => {
+test("a card an older build stored still draws and presses, on the page and on AI's line: its facts hold a key nothing reads now", () => {
   const frozen = JSON.parse(
     fs.readFileSync(new URL("../../fixtures/ask-tool-results-7405e34b.json", import.meta.url), "utf8"),
   );
@@ -512,7 +512,7 @@ test("answering: the panel says the question, sends the owner's words as one tur
   set.more = ANSWERING;
   const tree = drawFinder(st, { answering: ANSWERING });
   assert.equal(textOf(byTestId(tree, "plan-answering")), ANSWERING.question, "the question stays in view");
-  assert.equal(byTestId(tree, "plan-answer-input").props.placeholder, "Tell Claude what you meant");
+  assert.equal(byTestId(tree, "plan-answer-input").props.placeholder, "Tell AI what you meant");
   assert.equal(byTestId(tree, "lead-plan-panel").props["aria-label"], "Change the search");
   const card = await leadAnswerPlan(st.words, set);
   assert.equal(sent.length, 1, "one turn");
@@ -652,7 +652,7 @@ test("answering: a refusal is words under the input and no card, with what was t
   assert.equal(drawFinder({ ...page().st, open: false }), null, "closed, it draws nothing");
 });
 
-test("answering: the card's count is words, its button updates the search, an answer's card commits through Ask's door, and the page's Include posts the plan as given", async () => {
+test("answering: the card's count is words, its button updates the search, an answer's card commits through AI's door, and the page's Include posts the plan as given", async () => {
   const st = { plan: { ...PLAN, version: 2, exclusions: [] }, pick: null, refusal: null };
   const tree = drawCard(st, { answering: ANSWERING, facts: { ...FACTS, leadsLeft: 3, bound: "allowance" } });
   assert.equal(byTestId(tree, "plan-count"), null, "the reservation was made for this count: it is not a picker");
@@ -690,7 +690,7 @@ test("answering: the card's count is words, its button updates the search, an an
   assert.deepEqual(
     never.sent,
     [],
-    "and nothing goes over the wire from the page: an answer from Ask never posts from it",
+    "and nothing goes over the wire from the page: an answer from AI never posts from it",
   );
   assert.deepEqual(
     [s2.open, s2.stage, s2.more],
@@ -756,7 +756,7 @@ test("near the month's limit the card offers what is left and says when the lead
   assert.equal(byTestId(drawCard(st), "plan-covers"), null, "nothing to say when nothing binds");
 });
 
-test("Ask draws a search's card from contracts' rules (surfaces/ask/card.tsx): its rows to read and its one press, never the finder's pickers (Ruben, 23 Oct 2026: a change is said to Ask)", () => {
+test("AI draws a search's card from contracts' rules (surfaces/ask/card.tsx): its rows to read and its one press, never the finder's pickers (Ruben, 23 Oct 2026: a change is said to AI)", () => {
   const card = {
     id: "p-1",
     kind: "lead_search",

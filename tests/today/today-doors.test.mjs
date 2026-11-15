@@ -459,7 +459,7 @@ const setupSurface = (over = {}) => {
 /** Setup's value on the seam (what `useSurface("setup")` answers): the card reads it there, not off the window. */
 const feedSetup = (value) => setSurfaceValue("setup", value);
 
-test("REGRESSION: with no line connected, Today does not say the receptionist is answering -- one sentence, and one door to finishing setting up", () => {
+test("REGRESSION: with no line connected, Today does not say AI is answering -- one sentence, and one door to finishing setting up", () => {
   feedSetup(setupSurface());
   try {
     const vm = todayWith([]);
@@ -470,7 +470,7 @@ test("REGRESSION: with no line connected, Today does not say the receptionist is
     const said = textOf(hero) + textOf(recap) + textOf(queue) + textOf(setup);
     assert.ok(
       !said.includes("answering on its own"),
-      "REGRESSION: the queue said the receptionist was answering, with no line to answer on",
+      "REGRESSION: the queue said AI was answering, with no line to answer on",
     );
     assert.ok(!said.includes("Queue clear — nothing needs you"), "nor that the queue was clear, as if all were well");
     assert.equal(buttonsSaying(setup, "Continue setting up").length, 1, "one door to the first run");
@@ -574,7 +574,7 @@ test("the card once it answers: Setup's own rows, WhatsApp first, folded to the 
     assert.deepEqual(put.at(-1)[1], { on: true, why: "week" }, "a week for every row, never for good");
     const ids = rows.map((r) => r.props["data-testid"].slice("setup-row-".length));
     assert.deepEqual(put.at(-1)[0], ids, "Hide puts every row on the card off at once");
-    const waiting = " Until it is set up, only calls to your receptionist's own number are answered.";
+    const waiting = " Until it is set up, only calls to AI's own number are answered.";
     assert.match(
       textOf(flashes.at(-1).msg),
       new RegExp(
@@ -721,7 +721,7 @@ test("the card draws nothing before Setup is read, nor once its read failed -- t
   }
 });
 
-test("REGRESSION: an email-only workspace is not told nothing can come in, nor that the receptionist is answering", () => {
+test("REGRESSION: an email-only workspace is not told nothing can come in, nor that AI is answering", () => {
   feedSetup({ vm: { line: null, readiness: { answering: false } } });
   try {
     const vm = todayWith([
@@ -732,13 +732,10 @@ test("REGRESSION: an email-only workspace is not told nothing can come in, nor t
     assert.equal(
       vm.standing.lines.text,
       "1 of 1 line connected",
-      "REGRESSION: the page counted the routing rows, and email is not one (the count is contracts', for Ask)",
+      "REGRESSION: the page counted the routing rows, and email is not one (the count is contracts', for AI)",
     );
     assert.ok(!/nothing can come in/i.test(said), "email comes in");
-    assert.ok(
-      !/answering on its own|receptionist is on/i.test(said),
-      `the receptionist does not answer email: ${said}`,
-    );
+    assert.ok(!/answering on its own|receptionist is on/i.test(said), `AI does not answer email: ${said}`);
     assert.ok(!/nothing needs you/i.test(said), `the heading does not reassure over a line nobody answers: ${said}`);
     assert.match(said, /each email waits in Need you/);
   } finally {
@@ -752,7 +749,7 @@ const idea = () => ({
   kind: "message",
   needs: "operator",
   title: "Write to Rosa",
-  summary: "Write to Rosa, as Ask would send it.",
+  summary: "Write to Rosa, as AI would send it.",
   payload: {},
   undo: null,
 });
@@ -842,13 +839,13 @@ test("while someone waits on you, what is left to set up stands under the queue,
   assert.deepEqual(
     work(),
     ["today-setting-up", "NeedYou", "ColdEmailNote", "TodayContentNote", "AskFound"],
-    "nobody waits on a quiet day: the chores lead, and Ask found stands wide in the work's column",
+    "nobody waits on a quiet day: the chores lead, and AI found stands wide in the work's column",
   );
   setSurfaceValue("ask_morning", undefined);
   assert.deepEqual(
     work(),
     ["today-setting-up", "NeedYou", "ColdEmailNote", "TodayContentNote", "AskFound", "DayZone"],
-    "and where Ask found has nothing either, the day stands in the one column rather than beside an empty one",
+    "and where AI found has nothing either, the day stands in the one column rather than beside an empty one",
   );
   // Need you draws its pane while anyone waits: the page's arrangement knows it before anything draws (today/arrangement.ts).
   setSurfaceValue("today", rosaWaits());
@@ -891,7 +888,7 @@ test("while someone waits on you, what is left to set up stands under the queue,
   }
 });
 
-test("one coral across setting up and Ask found (the Moments board: else setting up, else Ask found's first act): the card's first act while it draws one, folded or open", () => {
+test("one coral across setting up and AI found (the Moments board: else setting up, else AI found's first act): the card's first act while it draws one, folded or open", () => {
   setSurfaceValue("ask_morning", morningWith(idea()));
   setSurfaceValue("today", todayWith([]));
   feedSetup(answeringSetup());
@@ -907,7 +904,7 @@ test("one coral across setting up and Ask found (the Moments board: else setting
     const card = mountSetup();
     const verbs = findAll(card, (n) => n.props?.["data-testid"] === "setup-verb");
     assert.ok(verbs.some(isCoral), "nobody waits: the card's first act is the coral");
-    assert.equal(foundAct().props.variant, "quiet", "REGRESSION: Ask found's first act stood coral beside the card's");
+    assert.equal(foundAct().props.variant, "quiet", "REGRESSION: AI found's first act stood coral beside the card's");
     // Folded, the card still says what is next (8 Nov 2026), so its act keeps the coral.
     const open = mountSetup();
     press(find(open, (n) => n.props?.["data-testid"] === "today-setup-fold"));
@@ -974,7 +971,7 @@ test("a batch to leads says when it goes and what the last earned, offers no App
   }
 });
 
-test("Ask found holds what Ask noticed, tagged as no idea of a model's, and says what came of an idea approved", () => {
+test("AI found holds what AI noticed, tagged as no idea of a model's, and says what came of an idea approved", () => {
   const noticed = {
     id: "finding-fell-seq-1",
     kind: "fix",
@@ -1007,8 +1004,8 @@ test("Ask found holds what Ask noticed, tagged as no idea of a model's, and says
     fresh();
     const found = again(() => AskFound({ wide: false }));
     const row = find(found, (n) => n.props?.["data-testid"] === "today-found-noticed");
-    assert.ok(row, "what Ask noticed is a row of its own");
-    assert.match(textOf(row), /Ask noticed/);
+    assert.ok(row, "what AI noticed is a row of its own");
+    assert.match(textOf(row), /AI noticed/);
     assert.equal(buttonsSaying(row, "Look at it").length, 1, "its door, never an Approve");
     assert.equal(buttonsSaying(row, "Approve").length, 0);
     assert.match(

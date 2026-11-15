@@ -70,7 +70,7 @@ function speaker(message: Pick<MessageDto, "sender" | "direction">, customer: st
     case "customer":
       return customer;
     case "ai":
-      return "Receptionist";
+      return "AI";
     case "human":
       return "Staff";
     default:
@@ -185,7 +185,7 @@ export function callText(call: CallDto, opts: ExportOpts): string {
   const turns = (call.transcript_object ?? []).map((t) => {
     const clock = mmssFromSeconds(t.start ?? t.words?.[0]?.start);
     if (t.role === "injected") return `[${clock}] You whispered: ${whisperText(t.content)}`;
-    const name = t.role === "agent" ? "Receptionist" : t.role === "user" ? personName : t.role || "Unknown";
+    const name = t.role === "agent" ? "AI" : t.role === "user" ? personName : t.role || "Unknown";
     return `[${clock}] ${name}: ${(t.content ?? "").trim()}`;
   });
   return [

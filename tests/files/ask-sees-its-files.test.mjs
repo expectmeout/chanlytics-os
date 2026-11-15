@@ -109,7 +109,7 @@ const copiesOf = (mapped) =>
       headers: { "content-type": "application/json" },
     }));
 
-test("the line every turn: what is kept and on which shelves, what Ask made apart, what waits, a logo, how fresh", () => {
+test("the line every turn: what is kept and on which shelves, what AI made apart, what waits, a logo, how fresh", () => {
   const files = [
     { status: "filed", shows: "storefront", created_at: "2026-11-03T15:00:00Z" },
     { status: "filed", shows: "interior", created_at: "2026-11-01T15:00:00Z" },
@@ -121,7 +121,7 @@ test("the line every turn: what is kept and on which shelves, what Ask made apar
   ];
   assert.equal(
     filesLineOf(files, TZ),
-    "Files: 4 photos (place 2, work 1, logos and graphics 1); made by Ask 1; 1 in Inbox; logo yes; last added 4 Nov.",
+    "Files: 4 photos (place 2, work 1, logos and graphics 1); made by AI 1; 1 in Inbox; logo yes; last added 4 Nov.",
   );
   assert.equal(filesLineOf([], TZ), "Files: no photos yet.");
   assert.equal(
@@ -204,7 +204,7 @@ test("a list is read a page at a time, so a long library is reached to its end a
   assert.match(past.error, /there is no page 3: this list ends on page 2/);
 });
 
-test("a look that failed or was refused is said so on its line, so Ask does not take its silence for nothing", () => {
+test("a look that failed or was refused is said so on its line, so AI does not take its silence for nothing", () => {
   const base = {
     name: "x",
     status: "filed",
@@ -605,7 +605,7 @@ test("a zoom that asks the wrong thing of a kind is refused in words", async () 
   assert.match(await ask([row(1)], { action: "zoom", name: "photo-1" }), /name the box to cut/);
 });
 
-test("listen puts Ask's question to the ear, and its answer comes back fenced as another model's", async () => {
+test("listen puts AI's question to the ear, and its answer comes back fenced as another model's", async () => {
   ear = async () =>
     json200({ ok: true, answer: "The voice sounds sure and warm at 0:20.", model: "gemini-3.5-flash-lite" });
   const out = await tool([clip(1)], {
@@ -629,7 +629,7 @@ test("listen puts Ask's question to the ear, and its answer comes back fenced as
   assert.match(photo.error, /is a photo: it has no sound/);
 });
 
-test("get says a video's length and what was heard, the ears' words fenced, and that Ask did not hear it", async () => {
+test("get says a video's length and what was heard, the ears' words fenced, and that AI did not hear it", async () => {
   const said = JSON.parse((await tool([clip(1)], { action: "get", name: "salon-tour-1" })).result);
   assert.equal(said.video, "0:24");
   assert.equal(said.sound, "Spanish, 2 voices, music");

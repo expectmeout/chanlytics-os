@@ -153,7 +153,7 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   reply_held: { ends: "send", server: "reply_gone" },
   ask_cards: {
     ends: "news",
-    why: "Ask's morning is told once, to the member it is for; its cards wait on Today, where each is approved or let go.",
+    why: "AI's morning is told once, to the member it is for; its cards wait on Today, where each is approved or let go.",
   },
   website_form: {
     ends: "news",

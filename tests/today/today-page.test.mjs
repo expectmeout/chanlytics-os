@@ -716,7 +716,7 @@ test("the foot: the last seven days in Reports' own numbers with one door; a fai
   const tree = draw(PhoneSoFar);
   const line = byTestId(tree, "today-period");
   assert.equal(textOf(line), todayPeriodLine(headline()).text);
-  assert.match(textOf(line), /^Last 7 days: 24 messages \(up from 19\), 88% answered by the receptionist, 4 calls\.$/);
+  assert.match(textOf(line), /^Last 7 days: 24 messages \(up from 19\), 88% answered by AI, 4 calls\.$/);
   // The line is the one door (the redesign of 1 Nov 2026): the period card had two, then the card's head had one.
   assert.equal(line.type, "a");
   press(line);
@@ -791,14 +791,11 @@ test("a quiet day: the tile is four zeros, and the head says nothing needs you a
   const tree = draw(PhoneSoFar);
   assert.ok(byTestId(draw(TodayHeadFigures), "today-figures"), "the tile whole: four zeros (E3), in the head");
   assert.equal(byTestId(tree, "today-quiet-line"), null, "no sentence in the card: the head says the day");
-  assert.match(
-    vm.proof,
-    /^The last message arrived yesterday at 5:39 PM, and the receptionist answered 1m 18s later\.$/,
-  );
+  assert.match(vm.proof, /^The last message arrived yesterday at 5:39 PM, and AI answered 1m 18s later\.$/);
   const said = textOf(headSentence(true));
   // What is listening, and when the last message came and how fast it was answered (the canvas of 2 Nov 2026).
   assert.equal(said, `${vm.quiet.headline} ${vm.quiet.sub}`, said);
-  assert.match(said, /The receptionist is on\. Last message yesterday 5:39 PM, answered in 1m 18s\./);
+  assert.match(said, /AI is on\. Last message yesterday 5:39 PM, answered in 1m 18s\./);
   // And says first what a quiet day means for the person reading it: nothing waits on them (7 Oct 2026).
   assert.ok(said.startsWith("Nothing needs you."), said);
   // The sentence is the whole of it (7 Oct 2026): no list of lines and their numbers under it, and no second door.
@@ -888,7 +885,7 @@ test("the queue: no count badge over the rows, its groups each with how many, on
   );
   const group = (id) => textOf(find(byTestId(queue, id), (n) => classes(n).includes("ny-group-n")));
   assert.equal(group("today-group-ok"), "1", "the run waiting for a word: a run that goes on its own waits on no word");
-  assert.equal(byTestId(queue, "queue-call"), null, "a call worth a listen waits on nobody: it is Ask found's");
+  assert.equal(byTestId(queue, "queue-call"), null, "a call worth a listen waits on nobody: it is AI found's");
   const rows = all(queue, (n) => classes(n).includes("cl-attn-row"));
   // A row's one coral is its own verb, or, on a row worked in place (decision 0071), the kit's primary in its work.
   const primary = rows.filter((r) =>
@@ -1269,7 +1266,7 @@ test("each band of Today is drawn again when a surface it draws from lands, and 
     // Need you is Today's own rows, the runs, and To do's steps (People's) and visits to mark (the Calendar's).
     ["Need you", NeedYou, ["today", "broadcasts", "people", "calendar"]],
     ["the day", DayZone, ["broadcasts", "calendar", "playbooks", "today"]],
-    ["Ask found", AskFound, ["reports_headline", "people", "today", "ask_morning"], { wide: false }],
+    ["AI found", AskFound, ["reports_headline", "people", "today", "ask_morning"], { wide: false }],
     ["the pins", PhonePins, ["people"]],
   ];
   for (const [name, Band, drawnFrom, props] of bands) {
@@ -1304,20 +1301,17 @@ const withNobodyAnswered = () =>
     calls(),
     NOW,
   );
-test("Ask found ranks what the workspace's own counts say first: each row its tag, its one door and its sentence, the arithmetic and Not today on a press, three drawn and the rest said", () => {
+test("AI found ranks what the workspace's own counts say first: each row its tag, its one door and its sentence, the arithmetic and Not today on a press, three drawn and the rest said", () => {
   clear();
   const vm = withNobodyAnswered();
   set({ today: vm, headline: headline(), __PEOPLE: people() });
   // Every rule that holds, not the old pane's two (Today in three zones, 2 Nov 2026): Ask found ranks and draws three.
   const { rows: rules } = todayLeaks(headline(), people(), vm.noReply, { max: Number.POSITIVE_INFINITY });
-  assert.ok(
-    rules.length > 3,
-    `the fixture holds more rules than Ask found draws: ${rules.map((l) => l.id).join(", ")}`,
-  );
+  assert.ok(rules.length > 3, `the fixture holds more rules than AI found draws: ${rules.map((l) => l.id).join(", ")}`);
   const ranked = [...rules.filter((l) => l.tone === "warn"), ...rules.filter((l) => l.tone !== "warn")];
   const tree = draw(AskFound, { wide: false });
   const pane = byTestId(tree, "today-ask-found");
-  assert.ok(pane, "Ask found is a zone of its own");
+  assert.ok(pane, "AI found is a zone of its own");
   const rows = foundRowsOf(pane);
   assert.equal(rows.length, 3, "three drawn");
   // The rest: the rules past three, and the calls worth a listen the day holds, ranked after them.
@@ -1361,7 +1355,7 @@ test("Ask found ranks what the workspace's own counts say first: each row its ta
   assert.equal(byTestId(draw(AskFound, { wide: false }), "today-ask-found"), null, "nothing to rank, no pane");
 });
 
-test("REGRESSION: Ask found over People's real rows -- a yes to offers with no number to send one to is not 'nobody has said yes', and there is no door to ask for it again", () => {
+test("REGRESSION: AI found over People's real rows -- a yes to offers with no number to send one to is not 'nobody has said yes', and there is no door to ask for it again", () => {
   clear();
   const at = (days) => new Date(NOW.getTime() - days * 86_400_000).toISOString();
   const row = (id, name, over = {}) =>
@@ -1445,7 +1439,7 @@ test("REGRESSION: Ask found over People's real rows -- a yes to offers with no n
   const want = todayLeaks(R, P).rows.find((l) => l.id === "unreachable");
   assert.ok(want, "nobody can be sent an offer: the rule stands");
   const reach = foundRowsOf(draw(AskFound, { wide: false })).find((r) => textOf(sentenceOf(r)) === want.text);
-  assert.ok(reach, "its row in Ask found");
+  assert.ok(reach, "its row in AI found");
   assert.ok(
     !/has said yes to offers/.test(textOf(reach)),
     `REGRESSION: Ana said yes to offers, and the row said nobody had: ${textOf(reach)}`,
@@ -1455,7 +1449,7 @@ test("REGRESSION: Ask found over People's real rows -- a yes to offers with no n
   assert.equal(went.at(-1), "clients/seg:opted_in", "the number is People's list, and the door opens it");
 });
 
-test("Ask found, in every workspace: the consultations with nothing after them are a rule's row, the count's own words, its door the Pipeline", () => {
+test("AI found, in every workspace: the consultations with nothing after them are a rule's row, the count's own words, its door the Pipeline", () => {
   clear();
   const DAY = 86_400_000;
   // The page asks contracts with the clock it runs on, so the consultations ended within the last week of now.
@@ -1536,7 +1530,7 @@ test("Ask found, in every workspace: the consultations with nothing after them a
 
 /* ------------------------------------ since you looked ------------------------------------ */
 
-test("Since you looked: one line under the head's sentence, what the receptionist answered and the bell's news since the member looked, opened in place", () => {
+test("Since you looked: one line under the head's sentence, what AI answered and the bell's news since the member looked, opened in place", () => {
   clear();
   const seen = new Date(Date.now() - 3 * 3_600_000).toISOString();
   const last = { who: "Ana Torres", text: "Saturday at 10 works.", at: new Date(Date.now() - 600_000).toISOString() };
@@ -1566,7 +1560,7 @@ test("Since you looked: one line under the head's sentence, what the receptionis
   press(line);
   const list = byTestId(headSaid()?.after ?? null, "today-since-list");
   assert.ok(list, "opened in place");
-  assert.match(textOf(list), /The receptionist answered 6/);
+  assert.match(textOf(list), /AI answered 6/);
   assert.match(textOf(list), /Last, to Ana Torres: “Saturday at 10 works\.”/);
   assert.match(textOf(list), /1 new rating on Google/);
   assert.doesNotMatch(textOf(list), /An older rating/, "before the member looked is not news");
@@ -1650,7 +1644,7 @@ test("the page is its bands and nothing seeded", () => {
   W.__DEMO_MODE = true;
   const tree = draw(TodayZones);
   const order = ["today-queue", "today-day", "today-ask-found", "today-foot"].map((id) => byTestId(tree, id));
-  assert.ok(order.every(Boolean), "every zone: Need you, the day, Ask found, and the strip under them");
+  assert.ok(order.every(Boolean), "every zone: Need you, the day, AI found, and the strip under them");
   assert.equal(byTestId(tree, "today-card"), null, "Today so far is a phone's: a desk's four figures are in the head");
   const names = all(tree, (n) => typeof n.type === "function").map((n) => n.type.name);
   for (const seeded of [
@@ -1797,7 +1791,7 @@ function speechStub() {
 }
 const settled = () => new Promise((r) => setImmediate(r));
 
-test("the head's Listen reads the brief's words in Ask's voice, says it is getting the voice until the clip plays, Stop while it does, and a second press stops it", async () => {
+test("the head's Listen reads the brief's words in AI's voice, says it is getting the voice until the clip plays, Stop while it does, and a second press stops it", async () => {
   clear();
   set({ today: busy(), headline: headline() });
   const s = speechStub();
@@ -1814,7 +1808,7 @@ test("the head's Listen reads the brief's words in Ask's voice, says it is getti
     assert.match(s.spoken[0].text, /failed to deliver/);
     assert.equal(s.spoken[0].purpose, "brief");
     const loading = headListen();
-    assert.match(loading.props["aria-label"], /Getting Ask's voice/, "getting the voice until the clip plays");
+    assert.match(loading.props["aria-label"], /Getting AI's voice/, "getting the voice until the clip plays");
     assert.equal(loading.props["aria-busy"], true);
     assert.equal(textOf(loading), textOf(listen), "its words as they were, so nothing beside it moves");
     s.land();
@@ -1949,7 +1943,7 @@ test("a quiet day: the four figures as zeros in the head, and no quiet sentence 
   );
 });
 
-test("the bento (Today in three zones, 2 Nov 2026): what cannot wait over all of it, Need you beside the day with Ask found under it, the strip under them", () => {
+test("the bento (Today in three zones, 2 Nov 2026): what cannot wait over all of it, Need you beside the day with AI found under it, the strip under them", () => {
   clear();
   set({
     today: busy(),
@@ -1971,7 +1965,7 @@ test("the bento (Today in three zones, 2 Nov 2026): what cannot wait over all of
   assert.deepEqual(
     side.props.children.filter(Boolean).map(name),
     ["DayZone", "AskFound"],
-    "the day, Ask found under it",
+    "the day, AI found under it",
   );
   assert.ok(byTestId(tree, "today-day"), "the day, with its calendar");
   // Your brief's pane, Going today, the day's card on a desk, While you were away and Worth a look are gone: what they
@@ -1980,17 +1974,17 @@ test("the bento (Today in three zones, 2 Nov 2026): what cannot wait over all of
     assert.equal(byTestId(tree, gone), null, gone);
 });
 
-test("REGRESSION (10 Nov 2026): a desk's foot stands under Ask found, so it waits for People's book as Ask found does; drawn with the week alone, it was pushed down as Ask found came", () => {
+test("REGRESSION (10 Nov 2026): a desk's foot stands under AI found, so it waits for People's book as AI found does; drawn with the week alone, it was pushed down as AI found came", () => {
   clear();
   // The week is in, People's book still on its way: Ask found, which stands over the strip, has not drawn yet.
   set({ today: busy(), headline: headline() });
   assert.equal(
     byTestId(draw(DeskFoot), "today-foot"),
     null,
-    "REGRESSION: the strip drew before Ask found and was pushed 333 px down as it landed (a quiet desk, production)",
+    "REGRESSION: the strip drew before AI found and was pushed 333 px down as it landed (a quiet desk, production)",
   );
   set({ __PEOPLE: people() });
-  assert.ok(byTestId(draw(DeskFoot), "today-period"), "the book in: the strip, under Ask found, where it stays");
+  assert.ok(byTestId(draw(DeskFoot), "today-period"), "the book in: the strip, under AI found, where it stays");
 });
 
 // LAST in the file: a surface's failure cannot be taken back (surface-status.ts has no reset), so every test above saw the headline unfailed.

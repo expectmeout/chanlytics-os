@@ -16,11 +16,11 @@ import type { MessageDto } from "./thread-dto";
  * the call view models name their own.
  */
 const AGENTS = {
-  whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
-  sms: { glyph: "T", name: "Text Receptionist" },
+  whatsapp: { glyph: "W", name: "AI on WhatsApp" },
+  sms: { glyph: "T", name: "AI by text" },
   email: { glyph: "Y", name: "Your team" },
-  instagram: { glyph: "I", name: "Instagram Receptionist" },
-  phone: { glyph: "P", name: "Phone Receptionist" },
+  instagram: { glyph: "I", name: "AI on Instagram" },
+  phone: { glyph: "P", name: "AI on the phone" },
 } as const;
 export function agentFor(channel: ThreadChannel): { glyph: string; name: string } {
   return AGENTS[channel] ?? AGENTS.whatsapp;

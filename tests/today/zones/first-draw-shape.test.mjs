@@ -113,7 +113,7 @@ const anIdea = {
   kind: "message",
   needs: "operator",
   title: "Write to Rosa",
-  summary: "Write to Rosa, as Ask would send it.",
+  summary: "Write to Rosa, as AI would send it.",
   payload: {},
   undo: null,
 };
@@ -170,7 +170,7 @@ function shapeOf(tree) {
   };
 }
 
-test("a quiet desk whose checks find something: the first draw holds Ask found and its two columns, and People's book moves nothing", async () => {
+test("a quiet desk whose checks find something: the first draw holds AI found and its two columns, and People's book moves nothing", async () => {
   const page = firstPage([personDto({ id: "p-a", display_name: "Ana Reyes" })]);
   setSurfaceValue("today", dayWith([]));
   setSurfaceValue("reports_headline", bookingGap());
@@ -180,15 +180,15 @@ test("a quiet desk whose checks find something: the first draw holds Ask found a
   assert.equal(
     first.oneColumn,
     false,
-    "REGRESSION (13 Nov 2026): the day alone in one column, split in two as Ask found came",
+    "REGRESSION (13 Nov 2026): the day alone in one column, split in two as AI found came",
   );
-  assert.ok(first.found?.rows.length, "Ask found stands in the first draw");
-  assert.equal(first.found.wide, true, "nobody waits: Ask found leads, wide");
+  assert.ok(first.found?.rows.length, "AI found stands in the first draw");
+  assert.equal(first.found.wide, true, "nobody waits: AI found leads, wide");
   W.__PEOPLE = bookOf(page);
   assert.deepEqual(shapeOf(draw()), first, "People's book landed: nothing drawn moved");
 });
 
-test("a quiet day whose one to-do is a step due: To do draws it first, Ask found stands under the day, and People's book moves nothing", async () => {
+test("a quiet day whose one to-do is a step due: To do draws it first, AI found stands under the day, and People's book moves nothing", async () => {
   const page = firstPage([stepped("p-rosa", "Rosa Diaz", -1), personDto({ id: "p-a", display_name: "Ana Reyes" })]);
   setSurfaceValue("today", dayWith([]));
   setSurfaceValue("reports_headline", bookingGap());
@@ -197,7 +197,7 @@ test("a quiet day whose one to-do is a step due: To do draws it first, Ask found
   const first = shapeOf(draw());
   assert.equal(first.todo?.length, 1, "REGRESSION (13 Nov 2026): To do drew without its step, which came after it");
   assert.match(first.todo[0], /Call Rosa Diaz/);
-  assert.equal(first.found?.wide, false, "someone's step waits: Ask found under the day, never leading then moving");
+  assert.equal(first.found?.wide, false, "someone's step waits: AI found under the day, never leading then moving");
   W.__PEOPLE = bookOf(page);
   assert.deepEqual(shapeOf(draw()), first, "People's book landed: nothing drawn moved");
 });
@@ -210,7 +210,7 @@ test("before People is read at all, the desk keeps its two columns: not read is 
   assert.equal(first.oneColumn, false, "REGRESSION (13 Nov 2026): People unread was drawn as nothing found");
 });
 
-test("Ask still writing its morning on a day nothing else was found: Ask found holds its place, and the idea comes into it", async () => {
+test("AI still writing its morning on a day nothing else was found: AI found holds its place, and the idea comes into it", async () => {
   const page = firstPage([personDto({ id: "p-a", display_name: "Ana Reyes" })]);
   setSurfaceValue("today", dayWith([]));
   setSurfaceValue("reports_headline", wellBooked());
@@ -218,17 +218,17 @@ test("Ask still writing its morning on a day nothing else was found: Ask found h
   await firstReadLands(page);
   fresh();
   const first = shapeOf(draw());
-  assert.equal(first.oneColumn, false, "the day keeps its two columns while Ask writes");
+  assert.equal(first.oneColumn, false, "the day keeps its two columns while AI writes");
   assert.ok(
     first.found,
-    "REGRESSION (13 Nov 2026): Ask found appeared only once its idea was written, and moved the day",
+    "REGRESSION (13 Nov 2026): AI found appeared only once its idea was written, and moved the day",
   );
   assert.equal(first.found.wide, true, "nobody waits: it leads, wide");
   assert.deepEqual(first.found.rows, []);
-  assert.match(first.found.line, /Ask is reading your morning/);
+  assert.match(first.found.line, /AI is reading your morning/);
   setSurfaceValue("ask_morning", morning("ready", [anIdea]));
   const after = shapeOf(draw());
-  assert.equal(after.found?.rows.length, 1, "the idea came into Ask found's place");
+  assert.equal(after.found?.rows.length, 1, "the idea came into AI found's place");
   assert.equal(after.found.line, "", "and the line it held gave way to it");
   assert.deepEqual(
     { oneColumn: after.oneColumn, columns: after.columns, wide: after.found.wide },
@@ -236,7 +236,7 @@ test("Ask still writing its morning on a day nothing else was found: Ask found h
   );
 });
 
-test("Ask's morning written with nothing to offer: the line it held says so, and stays", async () => {
+test("AI's morning written with nothing to offer: the line it held says so, and stays", async () => {
   const page = firstPage([personDto({ id: "p-a", display_name: "Ana Reyes" })]);
   setSurfaceValue("today", dayWith([]));
   setSurfaceValue("reports_headline", wellBooked());
@@ -246,8 +246,8 @@ test("Ask's morning written with nothing to offer: the line it held says so, and
   const first = shapeOf(draw());
   setSurfaceValue("ask_morning", morning("quiet"));
   const after = shapeOf(draw());
-  assert.ok(after.found, "Ask found keeps the place it held");
-  assert.match(after.found.line, /Nothing more from Ask this morning/);
+  assert.ok(after.found, "AI found keeps the place it held");
+  assert.match(after.found.line, /Nothing more from AI this morning/);
   assert.deepEqual(after.columns, first.columns);
 });
 
@@ -278,7 +278,7 @@ test("Ask writing on a day three rows were found: no line, its ideas would only 
   assert.equal(first.found?.line, "", `no line beside rows: ${JSON.stringify(first.found)}`);
 });
 
-test("someone waiting: Need you leads and Ask found stands under the day from the first draw, as before", async () => {
+test("someone waiting: Need you leads and AI found stands under the day from the first draw, as before", async () => {
   const page = firstPage([personDto({ id: "p-a", display_name: "Ana Reyes" })]);
   setSurfaceValue("today", dayWith([row("rosa", "Rosa Díaz")]));
   setSurfaceValue("reports_headline", bookingGap());
@@ -290,7 +290,7 @@ test("someone waiting: Need you leads and Ask found stands under the day from th
   assert.deepEqual(shapeOf(draw()), first);
 });
 
-test("on a phone: Ask found and To do's step stand in the first draw, and People's book moves nothing", async () => {
+test("on a phone: AI found and To do's step stand in the first draw, and People's book moves nothing", async () => {
   phoneWidth.matches = true;
   const page = firstPage([stepped("p-rosa", "Rosa Diaz", -1), personDto({ id: "p-a", display_name: "Ana Reyes" })]);
   setSurfaceValue("today", dayWith([]));
@@ -299,7 +299,7 @@ test("on a phone: Ask found and To do's step stand in the first draw, and People
   fresh();
   const first = shapeOf(draw());
   assert.equal(first.phone, true);
-  assert.ok(first.found?.rows.length, "REGRESSION (13 Nov 2026): 393 px of Ask found came 0.4 to 1.3 s after the page");
+  assert.ok(first.found?.rows.length, "REGRESSION (13 Nov 2026): 393 px of AI found came 0.4 to 1.3 s after the page");
   assert.equal(first.todo?.length, 1);
   W.__PEOPLE = bookOf(page);
   assert.deepEqual(shapeOf(draw()), first);

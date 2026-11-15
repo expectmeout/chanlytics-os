@@ -384,7 +384,7 @@ const followingMoves = async (run) => {
 // A demo's sample is fetched only in a demo session (surfaces/reports/demo.ts): fetched once here, so a demo draws it at once.
 await (await import("../../apps/dashboard/src/surfaces/reports/demo.ts")).reportsDemo();
 
-test("the headline: the receptionist's part of the answered as a meter, the period before as a tick, the view model's sentence under it", () => {
+test("the headline: AI's part of the answered as a meter, the period before as a tick, the view model's sentence under it", () => {
   const hero = card(page(), "reports-hero");
   assert.equal(textOf(cls(hero, "rpt-hero-number")), "76%");
   assert.equal(
@@ -455,7 +455,7 @@ test("the strip's figures: five counts, each named by its metric, the period bef
     ["calls", "Calls", "3none the 7 days before", "7 min on the phone · 1 to voicemail"],
     ["new_people", "New people", "2down from 3", "first got in touch in this period"],
     ["booked", "Booked", "3", "of 8 who asked"],
-    ["handovers", "Needed you", "3none the 7 days before", "times the receptionist stopped"],
+    ["handovers", "Needed you", "3none the 7 days before", "times AI stopped"],
   ]);
   assert.deepEqual(figures({ booking: { calendar: "none", days: 7, asked: 0, booked: 0 } })[3], [
     "booked",
@@ -642,7 +642,7 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
   assert.deepEqual(
     all(tree, (n) => n.type === "section" && n.props.className === "rpt-section").map((n) => n.props["aria-label"]),
     [
-      "The receptionist",
+      "AI",
       "Time between steps",
       "Stuck now",
       "Your customers",
@@ -895,7 +895,7 @@ test("a period with nothing in it: one card that says so, no Worth knowing, and 
   });
 });
 
-test("the campaign read failing leaves the receptionist's numbers standing, in the fold's words; nothing sent says so and opens Sequences", () => {
+test("the campaign read failing leaves AI's numbers standing, in the fold's words; nothing sent says so and opens Sequences", () => {
   const failed = page({ campaigns: null });
   const words = card(failed, "campaigns-failed-campaigns");
   assert.ok(textOf(words).includes("Couldn't read the campaign numbers"), textOf(words));
@@ -1025,7 +1025,7 @@ test("the head names Reports on every lens with no way back above it: a lens is 
     const said = standingSaid();
     assert.equal(said.title, "Reports", `${path}: the name`);
     assert.equal(said.back, null, `${path}: REGRESSION: "‹ Reports" stood over every lens but the Overview`);
-    assert.equal(byTestId(tree, "reports-ask"), null, `${path}: and no Ask door: the period row asks nothing`);
+    assert.equal(byTestId(tree, "reports-ask"), null, `${path}: and no AI door: the period row asks nothing`);
   }
   lensAt = LENS_PATHS[0];
 });
@@ -1494,9 +1494,9 @@ test("a review that waits is drawn once, above Latest, which keeps the ones that
     assert.equal(
       takeaway(tree, "chart-google-latest"),
       `${V.google.source} · ${V.google.reply.words}`,
-      "the source is named, and what the receptionist does under a new review beside it",
+      "the source is named, and what AI does under a new review beside it",
     );
-    assert.ok(V.google.reply.words, "which is something to say, under Ask");
+    assert.ok(V.google.reply.words, "which is something to say, under AI");
   } finally {
     setSurfaceValue("reports_reviews", undefined);
   }
@@ -2132,7 +2132,7 @@ test("REGRESSION (C26): a chart is one keyboard stop whose arrows read each day 
     tree = redraw();
     assert.equal(
       live(),
-      "Sep 4: 2 customer messages, 2 answered by the receptionist, 0 by you, 0 unanswered",
+      "Sep 4: 2 customer messages, 2 answered by AI, 0 by you, 0 unanswered",
       "focus lands on the latest day",
     );
     const key = (k) => {
@@ -2140,7 +2140,7 @@ test("REGRESSION (C26): a chart is one keyboard stop whose arrows read each day 
       tree = redraw();
     };
     key("Home");
-    assert.equal(live(), "Aug 29: 4 customer messages, 3 answered by the receptionist, 1 by you, 0 unanswered");
+    assert.equal(live(), "Aug 29: 4 customer messages, 3 answered by AI, 1 by you, 0 unanswered");
     key("ArrowLeft");
     assert.match(live(), /^Aug 29:/, "held at the first day");
     key("ArrowRight");
@@ -2303,10 +2303,7 @@ test("REGRESSION: a tile is a number, what it is and one line under it; the head
     `the period and its days: ${textOf(head)}`,
   );
   const said = textOf(tree);
-  assert.ok(
-    !said.includes("What the receptionist handled"),
-    "REGRESSION: a sub-headline under a title the top bar already says",
-  );
+  assert.ok(!said.includes("What AI handled"), "REGRESSION: a sub-headline under a title the top bar already says");
   assert.ok(!said.includes("Reports"), "and the page does not title itself");
 });
 

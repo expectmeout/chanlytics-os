@@ -201,20 +201,20 @@ function AnswerStyle({ flash }: { flash: Flash }) {
     // What the tab holds is read again, so the next visit draws these words and not the ones before them.
     void savedViewsRead.read();
     close();
-    flash({ msg: words ? <>Ask will answer you that way.</> : <>Note cleared — Ask answers as it sees fit.</> });
+    flash({ msg: words ? <>AI will answer you that way.</> : <>Note cleared — AI answers as it sees fit.</> });
   };
   return (
     <>
       {fold.open ? null : (
         <RecordRow
           id="profile-style"
-          label="How Ask answers you"
+          label="How AI answers you"
           value={stored == null ? "…" : kept || null}
           empty="As it sees fit"
-          hint="Your own note, read with each question you ask. Ask offers to keep one when you say how you like answers."
+          hint="Your own note, read with each question you ask. AI offers to keep one when you say how you like answers."
           act={{
             label: kept ? "Change" : "Add one",
-            name: kept ? "Change how Ask answers you" : "Add a note on how Ask answers you",
+            name: kept ? "Change how AI answers you" : "Add a note on how AI answers you",
             onClick: () => fold.request(),
             testid: "set-style-change",
           }}
@@ -222,7 +222,7 @@ function AnswerStyle({ flash }: { flash: Flash }) {
       )}
       <RecordInline
         id="profile-style"
-        label="How Ask answers you"
+        label="How AI answers you"
         open={fold.open}
         onSave={() => void save()}
         onCancel={close}

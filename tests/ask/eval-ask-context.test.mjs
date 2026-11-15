@@ -473,7 +473,7 @@ test("an answer that says it did something is a claim: sent, changed, approved, 
     assert.equal(claimsWrite(said), true, said);
   for (const said of [
     "The “Remember this” card is above: approve it there.",
-    "Once you've approved it, the receptionist will say so.",
+    "Once you've approved it, AI will say so.",
     "It isn't approved yet.",
     "Apruébala arriba; nada pasa hasta entonces.",
     "The card is waiting for your approval.",
@@ -496,7 +496,7 @@ const CARD = {
   kind: "settings",
   needs: "partner",
   title: "Remember this",
-  summary: "Your receptionist knows.",
+  summary: "AI knows.",
   payload: { change: { op: "add_note", title: "Parking", text: "Parking is behind the building." } },
   undo: "Put the previous settings back",
 };
@@ -1000,7 +1000,7 @@ function postgrest(tables) {
   return { rest, paths };
 }
 
-test("the usage rows are read past PostgREST's thousand, a page at a time on a whole order, and only Ask's", async () => {
+test("the usage rows are read past PostgREST's thousand, a page at a time on a whole order, and only AI's", async () => {
   const round = (i, purpose) => ({ data: { model: "claude-opus-5-5", input_tokens: i, output_tokens: 1, purpose } });
   const events = [
     ...Array.from({ length: 2400 }, (_, i) => round(i, "ask")),

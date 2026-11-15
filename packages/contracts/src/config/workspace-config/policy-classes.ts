@@ -31,7 +31,7 @@ export type PolicyClass = (typeof POLICY_CLASSES)[number];
  * the matrix called "Standing offers").
  */
 export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: string; note: string }> = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  reply: { name: "Replies to customers", short: "Replies", note: "every text AI sends" },
   faq: {
     name: "Service & pricing questions",
     short: "Questions",
@@ -40,7 +40,7 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
   booking: {
     name: "Book · reschedule",
     short: "Bookings",
-    note: "auto sends your booking link · ask has a person confirm instead, on WhatsApp and on the phone",
+    note: "sends your booking link on its own, or has a person confirm instead, on WhatsApp and on the phone",
   },
   reengage: {
     name: "Re-engage quiet customers",
@@ -55,7 +55,7 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
   reviews: {
     name: "Google reviews",
     short: "Reviews",
-    note: `replies under new reviews on Google, through the connected Business Profile · auto answers each within the hour, veto writes it and posts it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask writes one and holds it for your OK, never leaves them all to you`,
+    note: `replies under new reviews on Google, through the connected Business Profile · it answers each within the hour, or writes it and posts it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, or writes one and waits for you to approve it, or leaves them all to you`,
   },
   money: { name: "Refunds · rates · negotiation", short: "Money", note: "always goes to you" },
   // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back. 0082: a
@@ -152,7 +152,7 @@ export function policyModeRefusal(cls: PolicyClass, mode: PolicyMode): string | 
   if (policyModeOffered(cls, mode)) return null;
   if (mode === "veto") return `The ${POLICY_CLASS_WORDS[cls].short} row has nothing to hold for review.`;
   if (mode === "never" && (cls === "booking" || cls === "faq"))
-    return 'Bookings and service questions are answered by the receptionist or by you — there is no "never".';
+    return 'Bookings and service questions are answered by AI or by you — there is no "never".';
   return `The ${cls} row cannot be set to ${mode}.`;
 }
 

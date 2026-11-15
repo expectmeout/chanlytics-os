@@ -89,9 +89,9 @@ const EN: OfferWords = {
   reuseMessage: (name) => `Sends “${name}”, already in your messages, with the offer in its words.`,
   writeMessage: (name, on) =>
     `Writes a message for offers, “${name}”, for ${joinWords(on.map(versionWord))}: this offer goes in its words, and the next offer can send it too.`,
-  noteMade: (until) => `Tells the receptionist about the offer, until ${until}.`,
-  noteKnown: "The receptionist already has a note about the offer.",
-  noteLeftOut: "The receptionist is not told about the offer until an owner or a partner adds a note about it.",
+  noteMade: (until) => `Tells AI about the offer, until ${until}.`,
+  noteKnown: "AI already has a note about the offer.",
+  noteLeftOut: "AI is not told about the offer until an owner or a partner adds a note about it.",
   monthsOfferPaused: (name, until) =>
     `Pauses the month's offer, “${name}”, from when you approve it, so nobody gets two offers; resume it after ${until}.`,
   firstSend: (list, day, at) => `The offer goes to “${list}” on ${day} at ${at}.`,
@@ -106,7 +106,7 @@ const EN: OfferWords = {
   reminderAsk: (day, list) => `On ${day}, ask me to send a reminder to whoever on “${list}” has not booked by then.`,
   does: {
     keeps: "Keeps these words for your next offer.",
-    tells: (until) => `Tells your receptionist, until ${until}.`,
+    tells: (until) => `Tells AI, until ${until}.`,
     pauses: (until) => `Pauses your month's offer until ${until}, so nobody gets two.`,
     paced: (cap, at) => `Sends ${cap} a day at ${at}, each person once.`,
     once: (day, at) => `Goes to everyone on ${day} at ${at}, each person once.`,

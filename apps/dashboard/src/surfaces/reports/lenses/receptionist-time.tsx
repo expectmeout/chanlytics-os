@@ -105,7 +105,7 @@ export function speedCard(vm: ReportVM, days: number) {
       {vm.replyTime.count ? (
         replyBody(vm, days)
       ) : (
-        <EmptyState kind="line" title="No receptionist replies in this period to time." />
+        <EmptyState kind="line" title="No AI replies in this period to time." />
       )}
     </ChartCard>
   );

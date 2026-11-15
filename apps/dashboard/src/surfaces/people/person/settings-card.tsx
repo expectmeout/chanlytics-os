@@ -114,7 +114,7 @@ function setMode(c: PageCtx) {
           </>
         ) : (
           <>
-            Receptionist for <b>{first === "them" ? "this person" : first}</b>: {rmWord(mode)}
+            AI for <b>{first === "them" ? "this person" : first}</b>: {rmWord(mode)}
           </>
         ),
     });
@@ -143,19 +143,12 @@ function receptionistFold(c: PageCtx, row: ReactNode) {
   const rmEffective = rmPerson || p.receptionistMode.workspace;
   const set = setMode(c);
   return (
-    <RecordFold
-      wide
-      id="person-receptionist"
-      label="Receptionist"
-      open={folds.rm.open}
-      onCancel={folds.rm.close}
-      behind={row}
-    >
+    <RecordFold wide id="person-receptionist" label="AI" open={folds.rm.open} onCancel={folds.rm.close} behind={row}>
       <div data-testid="receptionist-mode">
         <div
           className="cl-prof-autonomy"
           role="group"
-          aria-label={`Receptionist for ${first === "them" ? "this person" : first}`}
+          aria-label={`AI for ${first === "them" ? "this person" : first}`}
         >
           {(["auto", "ask", "never"] as const).map((m) => (
             <button
@@ -344,7 +337,7 @@ function settingsCard(c: PageCtx) {
   const rmRow = (
     <RecordRow
       id="person-receptionist"
-      label="Receptionist"
+      label="AI"
       value={rmPerson ? rmWord(rmEffective) : `${rmWord(rmEffective)} · ${W.thisWorkspace}`}
       act={isOwner ? { label: W.change, onClick: folds.rm.request } : null}
       stacked

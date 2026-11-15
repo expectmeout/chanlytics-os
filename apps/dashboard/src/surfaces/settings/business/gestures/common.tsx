@@ -53,7 +53,7 @@ export const btSkipFlash: Flash = () => undefined;
 
 // What the four rows that are only words say once the server has taken a change: the canvas's Edit-Inline words. The
 // two number rows keep the sentences they have always said (PublishedNumberRow, HandoffRow).
-export const BT_SAVED = "Saved — the receptionist picks it up within a minute";
+export const BT_SAVED = "Saved — AI picks it up within a minute";
 
 export const btNoCheck = () => null;
 

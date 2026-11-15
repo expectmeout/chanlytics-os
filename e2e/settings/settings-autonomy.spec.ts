@@ -60,7 +60,7 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     await expect(replies.getByTestId("pol-phone-mode-reply")).toBeEnabled();
     // Money is said once, on Limits, and offers nothing to press.
     const money = page.getByTestId("rec-row-aut-hard-money");
-    await expect(money).toContainText("Always go to you — locked in the database");
+    await expect(money).toContainText("Always go to you");
     // Price questions are Limits' one question, its answer a menu.
     await expect(page.getByTestId("price_choice-menu")).toBeVisible();
     // Every row is one the receptionist consults now: nothing says "not enforced".
@@ -87,7 +87,7 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     // The day's budget is said in the replies it buys, or in model tokens where those would read alike (contracts
     // BUDGET_WORDS, #1709).
     await expect(page.getByTestId("aut-budget")).toBeVisible();
-    await expect(page.getByText(/^(Replies in a day, in all|Model tokens in a day)$/)).toBeVisible();
+    await expect(page.getByText(/^(Replies in a day, in all|Daily AI limit)$/)).toBeVisible();
     await expect(page.getByTestId("aut-reply-cap")).toBeVisible();
     await expect(page.getByTestId("aut-pause")).toBeVisible();
     // Each dial is a row of options with one chosen (the record kit's radios); the chosen one is the number the runtime uses.

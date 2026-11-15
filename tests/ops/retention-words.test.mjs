@@ -45,7 +45,7 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
   const words = retentionWords();
   assert.match(words, /^Call audio is kept for 90 days and then removed; transcripts stay with the conversation\./);
   assert.match(words, /Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for 30 days\./);
-  assert.match(words, /Assistant threads untouched for 90 days, and notifications after 90 days, are removed/);
+  assert.match(words, /Conversations with AI untouched for 90 days, and notifications after 90 days, are removed/);
   assert.match(words, /run history is kept for 14 days and rate-limit counters for 2 hours/);
   assert.match(
     words,
@@ -77,7 +77,7 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
   );
   assert.match(
     words,
-    /What the receptionist was shown when it wrote a reply, and what it answered, is kept for 30 days, and the instructions it was given for 400 days after they were last used\./,
+    /What AI was shown when it wrote a reply, and what it answered, is kept for 30 days, and the instructions it was given for 400 days after they were last used\./,
   );
   assert.match(words, /A workspace's settings as they stood before a change are kept for 400 days after the change\./);
   assert.match(

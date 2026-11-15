@@ -99,14 +99,12 @@ export function RptHero({ vm, phone }: { vm: ReportVM; phone: boolean }) {
         marker={a.priorShare}
         size={phone ? 96 : 112}
         thickness={10}
-        ariaLabel={
-          pct == null ? "Nothing to answer in this period" : `The receptionist answered ${pct}% of customer messages`
-        }
+        ariaLabel={pct == null ? "Nothing to answer in this period" : `AI answered ${pct}% of customer messages`}
       >
         {pct != null && <span className="rpt-hero-number">{pct}%</span>}
       </RadialChart>
       <div className="rpt-hero-copy">
-        <p className="rpt-hero-lead">answered by your receptionist</p>
+        <p className="rpt-hero-lead">answered by AI</p>
         <p className="rpt-hero-line">{vm.lines.hero}</p>
         {vm.lines.heroBefore && (
           <p className="rpt-hero-compare">

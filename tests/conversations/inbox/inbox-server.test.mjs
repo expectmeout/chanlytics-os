@@ -249,10 +249,7 @@ test("a send job that died flags the thread for a person, as a failed delivery d
     [escalations[0].tenant_id, escalations[0].conversation_id, escalations[0].reason],
     [A, uuid(1), "send_failed"],
   );
-  assert.equal(
-    escalations[0].details,
-    "The receptionist's reply never left: the job that would have sent this never ran.",
-  );
+  assert.equal(escalations[0].details, "AI's reply never left: the job that would have sent this never ran.");
   assert.deepEqual(await settleJob(db, send("m2"), false), [{ what: "message", changed: false }]);
   assert.equal(escalations.length, 1, "a message that had already gone out is not a failure");
 });

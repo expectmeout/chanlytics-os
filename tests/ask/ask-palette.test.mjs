@@ -752,7 +752,7 @@ const DUE = (id, prompt = `The ${id} search finished: pick the best leads and pr
   prompt,
 });
 
-test("a follow-up Ask kept that came due is the home's row after Right now, in its own words under Ready now; pressed, it asks what Ask said it would ask itself, with its id, as a turn for the model and never as a quick answer", async () => {
+test("a follow-up AI kept that came due is the home's row after Right now, in its own words under Ready now; pressed, it asks what AI said it would ask itself, with its id, as a turn for the model and never as a quick answer", async () => {
   const calls = ask([]);
   // What Ask will ask itself is, word for word, a question the Line answers itself: pressed from the row, it still goes
   // to the model, since only the route can clear the follow-up.
@@ -768,7 +768,7 @@ test("a follow-up Ask kept that came due is the home's row after Right now, in i
   const row = byTestId(tree, "ask-row-follow");
   assert.equal(textOf(row), due[0].said, "its own line, as the member approved it");
   assert.ok(textOf(tree).includes("Ready now"), "under its label");
-  assert.equal(byClass(row, "subtab-dot").length, 1, "the kit's dot, as on Ask's door");
+  assert.equal(byClass(row, "subtab-dot").length, 1, "the kit's dot, as on AI's door");
   press(row);
   await later(Palette, OPEN);
   assert.deepEqual(
@@ -785,7 +785,7 @@ test("a follow-up Ask kept that came due is the home's row after Right now, in i
   await closes();
 });
 
-test("REGRESSION: a row is one option and holds no control of its own -- Not now on what Ask noticed and a conversation's x are a pointer's, hidden from a reader, and Delete says each from the row the keys stand on (the nightly's axe, 10 Nov 2026: interactive controls must not be nested)", async () => {
+test("REGRESSION: a row is one option and holds no control of its own -- Not now on what AI noticed and a conversation's x are a pointer's, hidden from a reader, and Delete says each from the row the keys stand on (the nightly's axe, 10 Nov 2026: interactive controls must not be nested)", async () => {
   ask([TH(1), TH(2)]);
   const A = askCalls();
   const was = { noticed: A.noticed, restNotice: A.restNotice };
@@ -815,7 +815,7 @@ test("REGRESSION: a row is one option and holds no control of its own -- Not now
     assert.deepEqual(
       options.slice(0, 2).map((n) => n.props["data-testid"]),
       ["ask-row-now", "ask-row-follow"],
-      "Right now, then what Ask noticed",
+      "Right now, then what AI noticed",
     );
     for (const o of options) assert.deepEqual(controlsIn(o), [], `${o.props["data-testid"]} holds no control`);
 
@@ -925,7 +925,7 @@ test("the tab holds the follow-ups that came due: read once the boot is in, said
   await flush();
 });
 
-test("a follow-up of Ask's come due lights Ask's door: the top bar's capsule draws the kit's dot after its words while one is due, heard as each read lands", async () => {
+test("a follow-up of AI's come due lights AI's door: the top bar's capsule draws the kit's dot after its words while one is due, heard as each read lands", async () => {
   // The top bar, its bell and its two lines (surfaces/frame), under the names the frame draws them by.
   const topbarParts = {
     ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx")),
@@ -952,8 +952,8 @@ test("a follow-up of Ask's come due lights Ask's door: the top bar's capsule dra
     const dot = byTestId(tree, "tb-ask-due");
     assert.ok(dot, "the dot, while one is due");
     assert.ok(dot.props.className.split(" ").includes("subtab-dot"), "the kit's mark for something new to the reader");
-    assert.equal(dot.props["aria-label"], "Ask has something ready for you");
-    assert.ok(all(byTestId(tree, "tb-ask"), (n) => n === dot).length, "inside Ask's capsule");
+    assert.equal(dot.props["aria-label"], "AI has something ready for you");
+    assert.ok(all(byTestId(tree, "tb-ask"), (n) => n === dot).length, "inside AI's capsule");
     due = [];
     globalThis.window.dispatchEvent(new CustomEvent(FOLLOW_UPS_EVENT));
     tree = await later(Topbar, { crumbs: [] });
@@ -1038,7 +1038,7 @@ test("a follow-up keeps the answer above it, in full, in the thread; New ends th
   await closes();
 });
 
-test("Esc while Ask reads stops waiting: the turn says so, and what the stream sends after changes nothing; Esc again closes", async () => {
+test("Esc while AI reads stops waiting: the turn says so, and what the stream sends after changes nothing; Esc again closes", async () => {
   const calls = ask([]);
   let finish = () => {};
   askCalls().send = (input, on) =>
@@ -1059,7 +1059,7 @@ test("Esc while Ask reads stops waiting: the turn says so, and what the stream s
   keyed(tree, "Enter");
   tree = await later(Palette, props);
   assert.ok(textOf(byTestId(tree, "ask-reading")).includes("Reading the inbox…"), "reading, in the tools' words");
-  assert.ok(byTestId(tree, "ask-stop"), "the line offers Stop while Ask reads");
+  assert.ok(byTestId(tree, "ask-stop"), "the line offers Stop while AI reads");
   keyed(tree, "Escape");
   await later(Palette, props);
   assert.equal(closed, 0, "the first Esc stops the answer, and the Line stays");
@@ -1628,7 +1628,7 @@ test("a list they asked for is a real list, first in Show: bullets and lines a u
     };
     render(Palette, OPEN);
     let tree = await later(Palette, OPEN);
-    typed(tree, "what will the receptionist never do, in bullets?");
+    typed(tree, "what will AI never do, in bullets?");
     tree = await later(Palette, OPEN);
     keyed(tree, "Enter");
     for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
@@ -1760,7 +1760,7 @@ test("Space held on an empty line talks; a tap does nothing; after words, Space 
 
 /* ------------------------------ Ask's face ------------------------------ */
 
-test("the Line draws Ask's face in the line, and says Ask's mood as a turn runs", async () => {
+test("the Line draws AI's face in the line, and says AI's mood as a turn runs", async () => {
   const said = [];
   const stop = MASCOT.mood.subscribe((ev) =>
     said.push(ev.t === "state" ? ev.state : ev.t === "react" ? ev.kind : ev.t),
@@ -1804,7 +1804,7 @@ test("the Line draws Ask's face in the line, and says Ask's mood as a turn runs"
   }
 });
 
-test("the reads: what Ask has read stands under the three, the newest live; Send fills with words, Stop while a turn runs", async () => {
+test("the reads: what AI has read stands under the three, the newest live; Send fills with words, Stop while a turn runs", async () => {
   const calls = ask([]);
   const tick = () => new Promise((r) => setImmediate(r));
   let release;
@@ -2016,7 +2016,7 @@ test("on a phone a preset question answered without a model offers New in the he
   }
 });
 
-test("on a phone a place Ask goes to takes the takeover's entry: Back from there is the page Ask was opened over", async () => {
+test("on a phone a place AI goes to takes the takeover's entry: Back from there is the page AI was opened over", async () => {
   const ph = phoneWindow();
   const went = [];
   const nav = globalThis.window.CHANLY.nav;
@@ -2089,7 +2089,7 @@ test("on a desktop Ask pushes no entry of its own and focuses the field; a place
     press(byTestId(tree, "ask-row-jump"));
     assert.deepEqual(went, [["calendar", undefined]], "the shell's own push, never a replace");
     await closes();
-    assert.deepEqual(log, [], "no entry of Ask's own, and nothing taken back");
+    assert.deepEqual(log, [], "no entry of AI's own, and nothing taken back");
   } finally {
     await closes();
     globalThis.window.history = hist;
@@ -2154,7 +2154,7 @@ test("a desk's Ask closes on an Esc pressed in the page beside it: focus on a ro
   await closes();
 });
 
-test("what the page has open takes an Esc before a desk's Ask does, one press at a time", async () => {
+test("what the page has open takes an Esc before a desk's AI does, one press at a time", async () => {
   const line = await lineCounted();
   escBeside(inPage(), true);
   assert.equal(line.closed, 0, "the page took it: a peek, the plan panel, the pile, a selection (spec F7)");
@@ -2169,11 +2169,11 @@ test("what the page has open takes an Esc before a desk's Ask does, one press at
     globalThis.document.querySelector = found;
   }
   escBeside();
-  assert.equal(line.closed, 1, "with all of that gone, the next Esc is Ask's");
+  assert.equal(line.closed, 1, "with all of that gone, the next Esc is AI's");
   await closes();
 });
 
-test("the bar's search line is Ask's own door, not a field of the page's: empty, its Esc closes Ask", async () => {
+test("the bar's search line is AI's own door, not a field of the page's: empty, its Esc closes Ask", async () => {
   const line = await lineCounted();
   const barLine = inPage({ tagName: "INPUT", closest: (s) => (s === ".tb-line" ? {} : null) });
   escBeside(barLine, true);
@@ -2183,7 +2183,7 @@ test("the bar's search line is Ask's own door, not a field of the page's: empty,
   await closes();
 });
 
-test("a menu that closes itself on Esc and says nothing keeps that press from Ask, gone before the window hears it", async () => {
+test("a menu that closes itself on Esc and says nothing keeps that press from AI, gone before the window hears it", async () => {
   const line = await lineCounted();
   const found = globalThis.document.querySelector;
   let menu = {};
@@ -2197,7 +2197,7 @@ test("a menu that closes itself on Esc and says nothing keeps that press from As
     assert.equal(menu, null, "the menu closed itself");
     assert.equal(line.closed, 0, "and that press was the menu's alone");
     escBeside();
-    assert.equal(line.closed, 1, "the next one is Ask's");
+    assert.equal(line.closed, 1, "the next one is AI's");
   } finally {
     globalThis.window.removeEventListener("keydown", shut);
     globalThis.document.querySelector = found;
@@ -2213,11 +2213,11 @@ test("an Esc from the page walks Ask as one in its field does: out of Earlier fi
   await line.again();
   assert.equal(line.closed, 0, "Earlier steps back to the rows");
   escBeside();
-  assert.equal(line.closed, 1, "then Ask closes");
+  assert.equal(line.closed, 1, "then AI closes");
   await closes();
 });
 
-test("a phone's takeover covers the page, so every Esc the window hears is still Ask's", async () => {
+test("a phone's takeover covers the page, so every Esc the window hears is still AI's", async () => {
   const mm = globalThis.window.matchMedia;
   globalThis.window.matchMedia = (q) => ({
     matches: q === "(max-width: 720px)",
@@ -2261,7 +2261,7 @@ test("on a touch screen wider than a phone (a tablet at 800px) no field focuses 
     await until(() => dialogFocused > 0, "the dialog takes focus on a touch screen");
     // A focus of the field would be on the same 30ms timer, set on the first draw: one more 30ms cannot end before it.
     await new Promise((r) => setTimeout(r, 30));
-    assert.equal(focused, 0, "the field is not focused as Ask opens");
+    assert.equal(focused, 0, "the field is not focused as AI opens");
     const panel = byTestId(tree, "ask-real");
     assert.deepEqual(
       [panel.props.role, panel.props["aria-modal"]],
@@ -2335,7 +2335,7 @@ test("on a phone a conversation is one thread: an earlier answer stays drawn in 
   }
 });
 
-test("on a phone the three lead the newest answer: large while Ask reads with what it has read, the newest live; at the answer's start, speaking, while the words arrive; a still mark once it is whole; one face in the thread (D3, D11-D13)", async () => {
+test("on a phone the three lead the newest answer: large while AI reads with what it has read, the newest live; at the answer's start, speaking, while the words arrive; a still mark once it is whole; one face in the thread (D3, D11-D13)", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
   let say = () => {};
@@ -2359,7 +2359,7 @@ test("on a phone the three lead the newest answer: large while Ask reads with wh
     let tree = await later(Palette, props);
     tree = await asks(tree, props, "who wrote today?");
     const hero = (tr) => byTestId(tr, "ask-hero");
-    assert.equal(hero(tree).props.className, "ask-hero thinking", "large while Ask reads");
+    assert.equal(hero(tree).props.className, "ask-hero thinking", "large while AI reads");
     const reads = byClass(byTestId(hero(tree), "ask-reading"), "ask-read");
     assert.deepEqual(
       reads.map(textOf),
@@ -2429,7 +2429,7 @@ test("on a phone the field in use in a conversation brings the three forward ove
   }
 });
 
-test("on a phone the newest answer's next questions ride over the field, not inside it; an earlier answer shows none, and none stand while Ask reads or the field is in use (D6)", async () => {
+test("on a phone the newest answer's next questions ride over the field, not inside it; an earlier answer shows none, and none stand while AI reads or the field is in use (D6)", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
   const nexts = (tree) => all(tree, (n) => n.props?.["data-testid"] === "ask-next");
@@ -2457,7 +2457,7 @@ test("on a phone the newest answer's next questions ride over the field, not ins
     press(nexts(tree)[0]);
     tree = await later(Palette, props);
     assert.deepEqual(calls.sent, ["first?", "Follow 1 up?"], "a press asks it");
-    assert.equal(byTestId(tree, "ask-next-row"), null, "not while Ask reads");
+    assert.equal(byTestId(tree, "ask-next-row"), null, "not while AI reads");
     land();
     tree = await later(Palette, props);
     assert.deepEqual(nexts(tree).map(textOf), ["Follow 2 up?"], "the newest answer's alone; the earlier shows none");
@@ -2830,7 +2830,7 @@ test("REGRESSION: on a phone an answer read aloud stops when another question is
     press(byTestId(nowOf(tree), "ask-read"));
     s.land();
     tree = await later(Palette, props);
-    assert.deepEqual(s.spoken, [{ text: "Answer 1.", purpose: "answer" }], "the answer's say, read in Ask's voice");
+    assert.deepEqual(s.spoken, [{ text: "Answer 1.", purpose: "answer" }], "the answer's say, read in AI's voice");
     assert.equal(byTestId(nowOf(tree), "ask-read").props["aria-pressed"], true);
     let stops = s.stops;
     tree = await asks(tree, props, "second?");
@@ -2856,7 +2856,7 @@ test("REGRESSION: on a phone an answer read aloud stops when another question is
   }
 });
 
-test("Read aloud speaks the answer's say in Ask's one voice: the button says it is getting the voice until the clip plays, Stop while it does, and a press then stops it; a clip that could not be made says why, in the server's words, and nothing else speaks", async () => {
+test("Read aloud speaks the answer's say in AI's one voice: the button says it is getting the voice until the clip plays, Stop while it does, and a press then stops it; a clip that could not be made says why, in the server's words, and nothing else speaks", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
   const s = speechStub();
@@ -3049,7 +3049,7 @@ test("the thread's arithmetic: the newest question stands a breath under the thr
   assert.equal(H.latestShown({ qTop: 560, scrollTop: 0, clientHeight: 600 }), false, "its first line in sight");
 });
 
-test("a question spoken where the agent's session cannot come up (no microphone for the agent, a mint refused) is still answered aloud, by the clip: the answer's say goes to Ask's voice as it lands, with Read showing it is getting the voice then Stop; a typed question stays quiet (the spec's §3.5 as amended 4 Oct)", async () => {
+test("a question spoken where the agent's session cannot come up (no microphone for the agent, a mint refused) is still answered aloud, by the clip: the answer's say goes to AI's voice as it lands, with Read showing it is getting the voice then Stop; a typed question stays quiet (the spec's §3.5 as amended 4 Oct)", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
   const s = speechStub();
@@ -3239,7 +3239,7 @@ const heldTurns = (calls) => {
   return { turn, send };
 };
 
-test("the hold is the one mic, and its words go the typed way (the spec's §3.5 as amended 5 Oct, evening): the press stops what Ask's voice was reading, readies its element inside itself and warms the model's cache, and dictates at once, asking the voice agent for nothing; the lift asks the words as a typed turn whose reads are drawn and never said; the answer is read aloud as it lands, a ring on the mic while it is, and the next hold stops it", async () => {
+test("the hold is the one mic, and its words go the typed way (the spec's §3.5 as amended 5 Oct, evening): the press stops what AI's voice was reading, readies its element inside itself and warms the model's cache, and dictates at once, asking the voice agent for nothing; the lift asks the words as a typed turn whose reads are drawn and never said; the answer is read aloud as it lands, a ring on the mic while it is, and the next hold stops it", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
   const s = speechStub();
@@ -3277,7 +3277,7 @@ test("the hold is the one mic, and its words go the typed way (the spec's §3.5 
     const stops = s.stops;
     byTestId(tree, "ask-talk").props.onPointerDown(down());
     assert.equal(recs.length, 1, "the press dictates at once");
-    assert.ok(s.stops > stops, "what Ask's voice was reading stops");
+    assert.ok(s.stops > stops, "what AI's voice was reading stops");
     assert.equal(readied, 1, "its element readied inside the press");
     assert.equal(warmed, 1, "and the model's cache warmed for the words on their way");
     hears(recs[0], "did anybody cancel last week");
@@ -3313,7 +3313,7 @@ test("the hold is the one mic, and its words go the typed way (the spec's §3.5 
   }
 });
 
-test("a spoken question asks Ask's voice to say it is working, once, in the question's own language (ask/aloud.ts): only while the answer has not begun, so not once its Say is drawn, its turn has landed or Stop has ended it; a typed question asks nothing of the voice", async () => {
+test("a spoken question asks AI's voice to say it is working, once, in the question's own language (ask/aloud.ts): only while the answer has not begun, so not once its Say is drawn, its turn has landed or Stop has ended it; a typed question asks nothing of the voice", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
   const s = speechStub();
@@ -3386,7 +3386,7 @@ test("a spoken question asks Ask's voice to say it is working, once, in the ques
   }
 });
 
-test("a quick question spoken is answered aloud too: the Line answers it itself, with no turn, and its words go to Ask's voice; asked by typing it stays quiet", async () => {
+test("a quick question spoken is answered aloud too: the Line answers it itself, with no turn, and its words go to AI's voice; asked by typing it stays quiet", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
   const s = speechStub();
@@ -3421,7 +3421,7 @@ test("a quick question spoken is answered aloud too: the Line answers it itself,
   }
 });
 
-test("a press while Ask is still working on a spoken answer starts no recogniser and stops nothing: the recogniser cannot listen then, and the one line Ask's voice says while it works goes on", async () => {
+test("a press while AI is still working on a spoken answer starts no recogniser and stops nothing: the recogniser cannot listen then, and the one line AI's voice says while it works goes on", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
   const s = speechStub();
@@ -4002,7 +4002,7 @@ test("a person's note and a person's details (PR 4.6) are drawn by their title a
       kind: "note",
       needs: "operator",
       title: "Note on Rosa",
-      summary: "“Prefers mornings.” · The receptionist reads it before it answers Rosa",
+      summary: "“Prefers mornings.” · AI reads it before it answers Rosa",
       payload: { contact_id: "c1", body: "Prefers mornings.", team_only: false, who: "Rosa" },
       undo: "Delete it",
     },
@@ -4224,7 +4224,7 @@ const LEAD_CARD = {
   payload: { plan: LEAD_PLAN, view: { title: "Find 200 personal trainers" }, facts: LEAD_FACTS },
   undo: "Stop the search",
 };
-test("on Leads the Line is the finder: describe the businesses, Find businesses with the day's chip and the consent line; the words go as typed on the leads surface; the card is read, a change said to Ask, and its one press opens the search once approved", async () => {
+test("on Leads the Line is the finder: describe the businesses, Find businesses with the day's chip and the consent line; the words go as typed on the leads surface; the card is read, a change said to AI, and its one press opens the search once approved", async () => {
   const hash = globalThis.window.location.hash;
   const chanly = globalThis.window.CHANLY;
   const went = [];
@@ -4288,7 +4288,7 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
     // Its press commits, the receipt stays on the card, and the Line goes to the search the commit made.
     press(find);
     tree = await later(Palette, OPEN);
-    assert.deepEqual(committed, ["lead_search"], "committed through Ask's door");
+    assert.deepEqual(committed, ["lead_search"], "committed through AI's door");
     assert.ok(
       textOf(byClass(tree, "ask-card-receipt")[0]).includes("Leads shows it"),
       "the receipt stays in the thread",
@@ -4382,7 +4382,7 @@ test("a campaign card says campaign, never playbook (the moment spec, D19): the 
   }
 });
 
-test("on Leads a card that answers a search commits through Ask's door with no undo, and the Line goes to the search's question", async () => {
+test("on Leads a card that answers a search commits through AI's door with no undo, and the Line goes to the search's question", async () => {
   const hash = globalThis.window.location.hash;
   const chanly = globalThis.window.CHANLY;
   const went = [];
@@ -4757,7 +4757,7 @@ test("over the first run the Line is on the start surface: it asks about setting
     assert.deepEqual(
       all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").map(textOf),
       ["What is left to set up?", "What are our hours this week?", "What can you do for me?"],
-      "what is left first, then what Ask can do (the operator, D8); never an offer or a playbook here",
+      "what is left first, then what AI can do (the operator, D8); never an offer or a playbook here",
     );
     assert.ok(!/[↵⌘↑↓]|\bEsc\b|\bdel\b/.test(textOf(tree)), `no key is drawn (D17): ${textOf(tree)}`);
     press(byTestId(tree, "ask-row-sug"));
@@ -4921,7 +4921,7 @@ const HEAD = {
 /** A plan by email alone, so WhatsApp's review holds nothing: a note, a pause, then the send, each with its line. */
 const stampOf = (step, of, silent, after, does, id = PLAN_ID) => ({ id, step, of, silent, after, does });
 const BY_EMAIL = [
-  { ...SIX[1], id: "p-1", plan: { ...stampOf(1, 3, true, [], "Tells your receptionist."), head: HEAD } },
+  { ...SIX[1], id: "p-1", plan: { ...stampOf(1, 3, true, [], "Tells AI."), head: HEAD } },
   { ...SIX[2], id: "p-2", plan: { ...stampOf(2, 3, true, [], "Pauses your month's offer."), head: HEAD } },
   {
     ...SIX[4],
@@ -4932,7 +4932,7 @@ const BY_EMAIL = [
 ];
 const SENT = {
   results: [
-    { step: 1, id: null, result: { ok: true, receipt: "Your receptionist knows.", undo: null, made: null } },
+    { step: 1, id: null, result: { ok: true, receipt: "AI knows.", undo: null, made: null } },
     { step: 2, id: null, result: { ok: true, receipt: "Paused.", undo: null, made: null } },
     { step: 3, id: "b1", result: { ok: true, receipt: "Set to go to 12 people.", undo: null, made: null } },
   ],
@@ -4971,7 +4971,7 @@ test("a plan draws as one card where its first card stood, whatever order the mo
     assert.deepEqual(classOf(group), ["btn", "btn-sm", "btn-primary", "ask-press"], "the kit's button");
     assert.equal(group.props["aria-disabled"], undefined);
     assert.deepEqual(howOf(tree), [
-      "Tells your receptionist.",
+      "Tells AI.",
       "Pauses your month's offer.",
       "Goes on Nov 1 at 10:00 AM.",
       ...HEAD.also,
@@ -5042,7 +5042,7 @@ test("one press takes the plan's steps up to and including its send, handed the 
     assert.deepEqual(
       calls.outcomes.map(([mid, pid, o]) => [mid, pid, o.state, o.receipt]),
       [
-        [PLAN_MSG, "p-1", "done", "Your receptionist knows."],
+        [PLAN_MSG, "p-1", "done", "AI knows."],
         [PLAN_MSG, "p-2", "done", "Paused."],
         [PLAN_MSG, "p-3", "done", "Set to go to 12 people."],
       ],
@@ -5158,7 +5158,7 @@ test("a stop says why and that nothing went out, in the plan's own words, never 
       calls.plan.push(cards);
       return {
         results: [
-          { step: 1, id: null, result: { ok: true, receipt: "Your receptionist knows.", undo: null, made: null } },
+          { step: 1, id: null, result: { ok: true, receipt: "AI knows.", undo: null, made: null } },
           { step: 2, id: null, result: { ok: false, message: stopped, status: 409 } },
         ],
         done: [],
@@ -5180,7 +5180,7 @@ test("a stop says why and that nothing went out, in the plan's own words, never 
     assert.deepEqual(
       calls.outcomes.map(([, pid, o]) => [pid, o.state, o.receipt]),
       [
-        ["p-1", "done", "Your receptionist knows."],
+        ["p-1", "done", "AI knows."],
         ["p-2", "failed", stopped],
       ],
       "the stop recorded as a refused press records it",

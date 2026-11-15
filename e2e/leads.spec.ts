@@ -334,7 +334,7 @@ test.describe("Leads on a real workspace", () => {
     await expect(ask).toBeHidden();
   });
 
-  test("an Esc pressed beside Ask closes what the page has open first, then Ask: one thing a press", async ({
+  test("an Esc pressed beside Ask closes what the page has open first, then AI: one thing a press", async ({
     page,
   }) => {
     const ask = page.getByTestId("ask-line");
@@ -428,7 +428,7 @@ test.describe("Leads on a real workspace", () => {
     await expect(page.getByTestId("ask-card").getByTestId("lead-plan")).toBeVisible({ timeout: 40_000 });
   }
 
-  test("Find leads is Ask: the words become a plan card on the Line, and nothing is started when it is closed", async ({
+  test("Find leads is AI: the words become a plan card on the Line, and nothing is started when it is closed", async ({
     page,
   }) => {
     test.skip(!PAID, WHY_UNPAID);
@@ -443,7 +443,7 @@ test.describe("Leads on a real workspace", () => {
     );
   });
 
-  test("a small search runs end to end on the listed workspace from Ask's card, lands on the search, and is removed after", async ({
+  test("a small search runs end to end on the listed workspace from AI's card, lands on the search, and is removed after", async ({
     page,
   }) => {
     test.skip(!PAID, WHY_UNPAID);

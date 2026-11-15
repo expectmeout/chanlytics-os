@@ -152,7 +152,7 @@ test("a DM thread says Instagram: its wire, its receptionist, its reply box and 
   assert.equal(writtenChannelOf("instagram"), "instagram");
   assert.equal(answerWireOf(messages), "instagram");
   assert.equal(threadChannelWords(messages), "Instagram");
-  assert.equal(agentFor("instagram").name, "Instagram Receptionist");
+  assert.equal(agentFor("instagram").name, "AI on Instagram");
   const dto = (over = {}) => ({
     id: "c1",
     state: "open",
@@ -251,7 +251,7 @@ test("Connections' Instagram row: Later until the app is here, Connect once it i
   assert.equal(lapsed.verb.label, "Connect again");
 });
 
-test("the receptionist is told it answers Instagram DMs, never asks for offers there, and a START by DM is confirmed in a DM's words", () => {
+test("AI is told it answers Instagram DMs, never asks for offers there, and a START by DM is confirmed in a DM's words", () => {
   const facts = offersFacts(
     { marketingConsent: "unknown", offersAskedAt: null, optedOut: false },
     "instagram",

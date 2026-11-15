@@ -83,7 +83,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   assert.equal(activityWords("export", { what: "person" }), "Exported data · a person's records");
   assert.equal(
     activityWords("pause_agent", { receptionist_mode: "never", batch: 12 }),
-    "Paused the receptionist · never · one of 12",
+    "Paused AI · never · one of 12",
   );
   assert.equal(activityWords("end_call", {}), "Ended a call");
   assert.equal(
@@ -92,10 +92,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
     "the Inbox's verb on a call, and never the number",
   );
   assert.equal(activityWords("take_over", { paused_until: "2026-09-14T15:00:00Z" }), "Took over a thread");
-  assert.equal(
-    activityWords("resume_agent", { receptionist_mode: "inherit" }),
-    "Resumed the receptionist · follows the workspace",
-  );
+  assert.equal(activityWords("resume_agent", { receptionist_mode: "inherit" }), "Resumed AI · follows the workspace");
   assert.equal(
     activityWords("send_broadcast", { name: "Spring offer", recipients: 40, approved: true }),
     "Sent a message once · Spring offer · 40 people · approved by hand",
@@ -679,10 +676,7 @@ test("B13: every kind either ledger writes has words of its own, so no owner rea
 
 test("a lead's own receptionist (decision 0079): made for a lead, made theirs, and where a claimed workspace began", () => {
   // preview_claim (00497) files the claim on both workspaces: the sender's names the preview, the claimed one itself.
-  assert.equal(
-    activityWords("preview.made", { preview_id: "p1", by: null }),
-    "A preview of its own receptionist was made for a lead",
-  );
+  assert.equal(activityWords("preview.made", { preview_id: "p1", by: null }), "A preview was made for a lead");
   assert.equal(activityWords("preview.claimed", { preview_id: "p1" }), "A lead made their preview theirs");
   assert.equal(activityWords("preview.claimed", { by: "u1" }), "This workspace began as a preview");
 });
@@ -1162,7 +1156,7 @@ test("a row says who or what it is about by name, an event names the member its 
   assert.deepEqual(ids(hers), ["e-e9"], "narrowed to a member: what the ledgers say they did, events included");
 });
 
-test("the log is narrowed to a family, to what went wrong, to the receptionist's own, and to a span of days", async () => {
+test("the log is narrowed to a family, to what went wrong, to AI's own, and to a span of days", async () => {
   const t = tables();
   t.decisions = [
     ...t.decisions,
@@ -1195,7 +1189,7 @@ test("the log is narrowed to a family, to what went wrong, to the receptionist's
   assert.deepEqual(await run("&family=records"), ["e-e3", "e-e2"], "the kept records, under their own family alone");
   assert.deepEqual(await run("&family=team"), [], "a family with nothing to say reads nothing");
   assert.deepEqual(await run("&only=problems"), ["d-d8"], "a stop is one; a finished broadcast is not");
-  assert.deepEqual(await run("&actor=receptionist"), ["d-d7"], "the receptionist's decisions, and no event");
+  assert.deepEqual(await run("&actor=receptionist"), ["d-d7"], "AI's decisions, and no event");
   assert.deepEqual(await run("&actor=system"), []);
   assert.deepEqual(
     await run("&from=2026-09-10&to=2026-09-10"),
@@ -1284,7 +1278,7 @@ test("a thread handed to the team is on the ledger: the one writer of an escalat
   assert.deepEqual(
     world.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
     [[A, "escalation.opened", "conversation", C1, { reason: "callback" }]],
-    "REGRESSION: the activity log had no line for a thread the receptionist handed over",
+    "REGRESSION: the activity log had no line for a thread AI handed over",
   );
 });
 
@@ -1391,7 +1385,7 @@ test("the second batch of what the ledgers never kept reads in an owner's words:
   );
   assert.equal(
     activityWords("conversation.owner_replied", { until: "2026-10-08T20:00:00Z" }),
-    "The owner replied from the WhatsApp Business app, and the receptionist stepped back",
+    "The owner replied from the WhatsApp Business app, and AI stepped back",
   );
   assert.equal(
     activityWords("billing.payment_failed", { amount: 9900 }),

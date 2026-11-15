@@ -28,7 +28,7 @@ export const TRY_IT_WORDS = {
   asking: "Asking…",
   again: "Start over",
   customer: "Customer",
-  receptionist: "Your receptionist",
+  receptionist: "AI",
   /** Over the model's own words, where your rules replaced them with the line a customer would get. */
   wrote: "It wrote",
   rows: { readAs: "Read it as", sure: "How sure", leaned: "Leaned on", reason: "Its reason", then: "Then" },
@@ -42,8 +42,8 @@ export const TRY_IT_WORDS = {
 /** What a refusal to spend says a try was for (the route wrapper's requireSpend). */
 export const SPEND_TRY: SpendWords = {
   kind: "rehearse",
-  before: "trying your receptionist",
-  can: "try your receptionist",
+  before: "trying AI",
+  can: "try AI",
 };
 
 /** What the live turn would do with an answer: the eval door's `then`, as it answers it. */

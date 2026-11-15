@@ -91,7 +91,7 @@ test("a thread a teammate is answering is theirs: not Needs you, and the claim c
   assert.equal(theirs.assigneeUserId, ANA);
   assert.equal(theirs.needsYou, false);
   assert.equal(theirs.unread, false, "nothing is known of the reader here, so nothing is called new");
-  assert.equal(theirs.summary, "A teammate is answering this. The receptionist stays quiet until they hand it back.");
+  assert.equal(theirs.summary, "A teammate is answering this. AI stays quiet until they hand it back.");
   assert.equal(
     theirs.subject,
     "Customer asked for a person",

@@ -451,7 +451,7 @@ test("the sheet opens where it is asked for, reads the person, says what is wron
   assert.equal(title(tree), "Set a next step");
   tree = await until("the person is read", (t) => input(t, "step-sheet-what-input"));
   assert.equal(sub(tree), "Tove Lind · Website");
-  assert.match(textOf(byTestId(tree, "step-sheet-rule")), /Your team and Ask see it; the receptionist doesn't/);
+  assert.match(textOf(byTestId(tree, "step-sheet-rule")), /For your team\. AI never uses it with customers/);
 
   // Nothing typed, no day: each is said under its field, and nothing is sent.
   press(saveOf(tree));
@@ -501,7 +501,7 @@ test("the sheet opens where it is asked for, reads the person, says what is wron
   assert.equal(recFolds.dirty(), false);
 });
 
-test("opened as a note (a visit's Add a note), the sheet writes a note with no day, read by the receptionist unless kept from it", async () => {
+test("opened as a note (a visit's Add a note), the sheet writes a note with no day, read by AI unless kept from it", async () => {
   const now = Date.now();
   const { calls } = wire(() => personDto(now));
   open();

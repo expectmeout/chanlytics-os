@@ -80,7 +80,7 @@ test("a call knows the note it left on its thread, and says its facts as facts -
   assert.equal(call.about, "Wants to book a bridal trial on October 3 for herself and two bridesmaids");
   assert.deepEqual(
     call.facts,
-    ["Sounded positive", "Receptionist ended the call"],
+    ["Sounded positive", "AI ended the call"],
     "how it went, a few words each -- it plays, so nothing is said of the recording",
   );
 
@@ -148,7 +148,7 @@ test("each line says its moment in the call: where it starts and where it ends, 
 test("a connected call with no recording says so; a call that never connected says nothing of one", () => {
   assert.deepEqual(
     toCallVM(callDto({ recording: null }), ZONE, NOW).facts,
-    ["Sounded positive", "Receptionist ended the call", "No recording"],
+    ["Sounded positive", "AI ended the call", "No recording"],
     "REGRESSION: it said nothing, so a call with no audio (Emily's is filler, never a real call) looked like a player that failed to draw",
   );
   assert.deepEqual(
@@ -356,7 +356,7 @@ test("a call is part of its conversation: what it was on one card, its lines as 
       ["ours", "Thank you for calling Marisa's Beauty Salon. How can I help?"],
       ["theirs", "Hi! I'd like to do a bridal trial on October third."],
     ],
-    "the receptionist's words on our side, the caller's on theirs, as a written thread draws them",
+    "AI's words on our side, the caller's on theirs, as a written thread draws them",
   );
   assert.ok(
     lines.every((l) => hasClass("tl-msg")(l)),
@@ -370,7 +370,7 @@ test("a call is part of its conversation: what it was on one card, its lines as 
   assert.ok(!textOf(tree).includes("call note"), "REGRESSION: 'Phone · call note'");
   assert.equal(
     textOf(find(call, byTestId("tl-call-end"))),
-    "Call ended · Sounded positive · Receptionist ended the call",
+    "Call ended · Sounded positive · AI ended the call",
     "how it went, where it ended",
   );
   for (const gone of [
@@ -410,7 +410,7 @@ test("a call the conversation moved on from folds to what it was about, and open
   assert.equal(spoken(call).length, 2, "and open on a tap");
 });
 
-test("what the call's analysis left is on the card, in every state of it: the to-do the receptionist noted, and what the caller gave -- the card said only what they wanted (audit of 2 Oct 2026, #8)", () => {
+test("what the call's analysis left is on the card, in every state of it: the to-do AI noted, and what the caller gave -- the card said only what they wanted (audit of 2 Oct 2026, #8)", () => {
   const noted = (call) => all(call, byTestId("tl-call-noted")).map(textOf);
   const left = {
     follow_up: "Call back to confirm the bridal trial",
@@ -459,11 +459,7 @@ test("a dial that never connected is called by who dialled, in the card's one wo
     return textOf(find(cardOf(draw(emily())), hasClass("tl-call-kind")));
   };
   assert.equal(kind({ direction: "inbound" }), "Missed call", "a customer's dial that never connected");
-  assert.equal(
-    kind({ direction: "outbound" }),
-    "Call didn't connect",
-    "one the receptionist placed is not 'missed' by anyone",
-  );
+  assert.equal(kind({ direction: "outbound" }), "Call didn't connect", "one AI placed is not 'missed' by anyone");
 });
 
 test("the call plays from where it began: the recording is the route's own link, and listening floats a player over the thread", () => {
@@ -580,7 +576,7 @@ test("no recording, no play -- and the call says why there is none", () => {
   // #775 said nothing of a call never recorded; Emily's (filler, never a call) then read as a player that failed to draw.
   assert.equal(
     textOf(find(call, byTestId("tl-call-end"))),
-    "Call ended · Sounded positive · Receptionist ended the call · No recording",
+    "Call ended · Sounded positive · AI ended the call · No recording",
   );
   assert.equal(spoken(call).length, 2, "the lines are there to read");
   assert.equal(find(spoken(call)[0], hasClass("tl-spoken-t")), undefined, "nothing to play them from");
@@ -675,7 +671,7 @@ test("a whisper is the owner's own words, marked as theirs, with no moment in th
   );
   assert.deepEqual(
     spoken(call).map((l) => textOf(find(l, hasClass("tl-spoken-who")))),
-    ["Receptionist", "Emily", ""],
+    ["AI", "Emily", ""],
     "who spoke, for a screen reader: the side says it to the eye",
   );
   const file = find(call, (n) => n.type === "a" && hasClass("tl-call-file")(n));

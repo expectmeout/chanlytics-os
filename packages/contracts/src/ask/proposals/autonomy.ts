@@ -13,7 +13,7 @@ import { asText, type ProposalSpecAboveOperator } from "./spec";
  */
 export const factSuggestionSpec: ProposalSpecAboveOperator = {
   needs: "partner",
-  doing: "keep a note for the receptionist",
+  doing: "keep a note for AI",
   gate: "settings",
   commit: (p) => ({
     route: "POST fact-suggestions/[id]",

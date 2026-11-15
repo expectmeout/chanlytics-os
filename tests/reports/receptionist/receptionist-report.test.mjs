@@ -188,7 +188,7 @@ test("how calls ended, in the owner's words, the unrecorded ones said so", () =>
   const { callEndings } = vm();
   assert.deepEqual(rows(callEndings), [
     ["Customer hung up", 11],
-    ["Receptionist ended the call", 5],
+    ["AI ended the call", 5],
     ["Not recorded", 2],
   ]);
   assert.equal(callEndings.line, "18 calls that connected.");
@@ -364,7 +364,7 @@ test("while you were closed: the hours decide, and no hours is a question", () =
     metric: "answered_while_closed",
     label: "Answered while you were closed",
     value: "3 of 5",
-    meta: "5 messages came while you were closed; the receptionist answered 3.",
+    meta: "5 messages came while you were closed; AI answered 3.",
     compare: null,
     n: 5,
     minN: 5,
@@ -392,10 +392,7 @@ test("while you were closed: the hours decide, and no hours is a question", () =
 
   // A closure closes the day, whatever the hours: Friday 18 September.
   const closure = vm({ after_hours: [{ d: "2026-09-18", q: 40, n: 1, a: 0 }] }).closed;
-  assert.deepEqual(
-    [closure.value, closure.meta],
-    ["0 of 1", "1 message came while you were closed; the receptionist answered 0."],
-  );
+  assert.deepEqual([closure.value, closure.meta], ["0 of 1", "1 message came while you were closed; AI answered 0."]);
 });
 
 test("stuck: needs you, call-backs and replies held back", () => {

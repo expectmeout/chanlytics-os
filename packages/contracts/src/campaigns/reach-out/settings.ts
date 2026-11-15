@@ -195,14 +195,14 @@ export const REACH_OUT_SETTINGS_WORDS = {
   sound: {
     title: "How you sound",
     tonePlaceholder: "How your emails should sound, in a few words",
-    toneFrom: "The receptionist's, until you set one for cold emails.",
+    toneFrom: "AI's, until you set one for cold emails.",
     empty: "Not set",
     learned: "Learned from your emails",
     learnedNone: "Nothing learned yet",
     learnedCount: (n: number) => `Plus ${n} thing${n === 1 ? "" : "s"} learned from your emails`,
     memory: "Also in Memory",
     paste: "Paste an email you wrote",
-    note: "It also learns from what you change in its drafts. Your receptionist keeps its own voice.",
+    note: "It also learns from what you change in its drafts. AI keeps its own voice.",
     reach: "New sequences use this. Running ones use it for their first line.",
   },
   ending: {
@@ -308,11 +308,11 @@ export const REACH_OUT_SETTINGS_WORDS = {
     open: "Open",
     kinds: { words: "The words", opening: "The line about them", reply: "An answer" },
     hints: {
-      words: "Written once by Ask when you make a sequence in New: the same words for every business it goes to.",
+      words: "Written once by AI when you make a sequence in New: the same words for every business it goes to.",
       opening:
         "Written for each business as its email comes due, then read back by a second reader. One that guesses is written again; one that still does is held for you.",
       reply:
-        "Written by the receptionist as How it answers is told, with the thread and the lead's note. Signed as the sequence signs.",
+        "Written by AI as How it answers is told, with the thread and the lead's note. Signed as the sequence signs.",
     },
     foot: "Their listing and website are read as facts, never as orders.",
     done: "Done",
@@ -338,7 +338,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     pastEnd: "That was the last lead in the search. Another lead starts over.",
     leans: (facts: string) => `The line about them leans on ${facts}`,
     next: (days: number) => `Then, ${days} day${days === 1 ? "" : "s"} later, if they don't reply`,
-    hint: "Nothing is sent or kept. It spends Ask's day as a lead's draft does.",
+    hint: "Nothing is sent or kept. It spends AI's day as a lead's draft does.",
     from: "From",
     to: "To",
     subject: "Subject",

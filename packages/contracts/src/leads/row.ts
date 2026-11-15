@@ -497,12 +497,12 @@ export function leadSearchEmptyWords(
     return {
       title: `${plural(round.review, "lead needs", "leads need")} a look.`,
       body: roundIsLive(round.state)
-        ? "Ask is still checking them, and could not decide on these yet."
-        : "Ask could not decide on these by itself.",
+        ? "AI is still checking them, and could not decide on these yet."
+        : "AI could not decide on these by itself.",
       review: true,
     };
   if (roundIsLive(round.state))
-    return { title: "Still looking.", body: "Leads come in here as Ask checks them.", review: false };
+    return { title: "Still looking.", body: "Leads come in here as AI checks them.", review: false };
   return null;
 }
 

@@ -34,8 +34,7 @@ interface FeedPreview {
 /** The address rule and the words are contracts' (feed-url.ts): the same ones the save, the board and Setup use. */
 export async function previewFeed(url: string, tz: string, now = new Date()): Promise<FeedPreview> {
   const safe = feedUrlOk(url);
-  if (!safe)
-    throw new AppError("validation", feedProblemWords("address") ?? "Not an address the receptionist may read.");
+  if (!safe) throw new AppError("validation", feedProblemWords("address") ?? "Not an address AI may read.");
   let text: string;
   try {
     // Every hop judged by the address rule (fetchPublic), not only the first.
@@ -43,8 +42,7 @@ export async function previewFeed(url: string, tz: string, now = new Date()): Pr
       signal: AbortSignal.timeout(FEED_TIMEOUT_MS),
       headers: { accept: "text/calendar, */*" },
     });
-    if (!res)
-      throw new AppError("validation", feedProblemWords("address") ?? "Not an address the receptionist may read.");
+    if (!res) throw new AppError("validation", feedProblemWords("address") ?? "Not an address AI may read.");
     if (!res.ok)
       throw new AppError(
         "upstream_meta",

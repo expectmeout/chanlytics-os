@@ -57,6 +57,6 @@ test.describe("Receptionist mode for one person", () => {
     expect(seen[0]?.method).toBe("PUT");
     expect(seen[0]?.url).toContain("workspace=");
     expect(seen[0]?.body).toEqual({ mode: "never" });
-    await expect(page.getByText("Receptionist for")).toBeVisible();
+    await expect(page.getByText("AI for")).toBeVisible();
   });
 });

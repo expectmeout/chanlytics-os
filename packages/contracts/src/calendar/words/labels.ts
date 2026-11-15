@@ -153,7 +153,7 @@ export function feedNotes(
     notes.push({
       id: "repeats",
       title: `${repeats} repeating event${one ? " counts" : "s count"} only once.`,
-      body: `${one ? "It repeats" : "They repeat"} in a pattern the receptionist can't follow, like the second Tuesday of each month, so only the first date is treated as taken, and a caller could be offered a time on a later one. Repeating daily, weekly on set days, or monthly on one date fixes it.`,
+      body: `${one ? "It repeats" : "They repeat"} in a pattern AI can't follow, like the second Tuesday of each month, so only the first date is treated as taken, and a caller could be offered a time on a later one. Repeating daily, weekly on set days, or monthly on one date fixes it.`,
     });
   }
   const undrawn = feed.dropped || 0;
@@ -162,7 +162,7 @@ export function feedNotes(
     notes.push({
       id: "undrawn",
       title: `${undrawn} more event${one ? " isn't" : "s aren't"} drawn.`,
-      body: `${one ? "It falls" : "They fall"} on a day holding more events than the board draws; the receptionist still treats ${one ? "its time" : "their times"} as taken.`,
+      body: `${one ? "It falls" : "They fall"} on a day holding more events than the board draws; AI still treats ${one ? "its time" : "their times"} as taken.`,
     });
   }
   return notes;

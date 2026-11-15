@@ -99,7 +99,7 @@ test("an open escalation is needs_you, even for someone who opted out", () => {
       nowMs,
     ),
     "needs_you",
-    "the receptionist's own pause on a handoff is nobody's — it still needs you",
+    "AI's own pause on a handoff is nobody's — it still needs you",
   );
 });
 
@@ -107,14 +107,14 @@ test("waiting_on_you means a human owns the thread AND the last word was theirs"
   assert.equal(
     personStateFor(row({ latest_assignee_user_id: "u1", latest_paused_until: iso(-3 * H) }), nowMs, ZONE),
     "waiting_on_you",
-    "taken over: their name, and the receptionist paused for them",
+    "taken over: their name, and AI paused for them",
   );
   // A name left on a thread nobody is working is not a claim (standing.ts): the receptionist answers it, as the
   // Inbox and the person's page say ("Answering"). The list said Waiting on you over the same thread.
   assert.equal(
     personStateFor(row({ latest_assignee_user_id: "u1" }), nowMs, ZONE),
     "active",
-    "REGRESSION: a quiet thread with a name on it was waiting on you while the receptionist answered it",
+    "REGRESSION: a quiet thread with a name on it was waiting on you while AI answered it",
   );
   assert.equal(
     personStateFor(row({ latest_paused_until: iso(-3 * H) }), nowMs, ZONE),
@@ -234,7 +234,7 @@ test("last contact says who and how long ago, and the newer of message vs call w
       ZONE,
       NOW,
     ).lastContact.label,
-    "Receptionist replied · 3d ago",
+    "AI replied · 3d ago",
   );
   assert.equal(
     toPersonRowVM(
@@ -249,7 +249,7 @@ test("last contact says who and how long ago, and the newer of message vs call w
   const first = (sender) =>
     toPersonRowVM(row({ ...unheard, last_message_direction: "outbound", last_message_sender: sender }), ZONE, NOW);
   assert.equal(first("human").lastContact.label, "Your team wrote · 3d ago");
-  assert.equal(first("ai").lastContact.label, "Receptionist wrote · 3d ago");
+  assert.equal(first("ai").lastContact.label, "AI wrote · 3d ago");
   assert.equal(first("human").state, "unheard", "the pill beside it says Not heard from, by the same rule");
   // Their newest message with no words read (an email with only HTML, as the six months' import kept it before it read
   // HTML) is still them writing: the row said "Not heard from" beside "They wrote" (the live walk, 27 Oct 2026).
@@ -767,7 +767,7 @@ test("last exchange is the customer's last line and the reply that followed it, 
   const vm = toPersonVM(detail(), ZONE, NOW);
   assert.equal(vm.lastExchange.customer.text, "Can I move Saturday to 11?");
   assert.equal(vm.lastExchange.reply.text, "Of course — let me get someone.");
-  assert.equal(vm.lastExchange.reply.who, "Receptionist");
+  assert.equal(vm.lastExchange.reply.who, "AI");
 });
 
 test("right now: escalation → paused-for-you with a deep link; queued, owned, opted-out and answering each have their own shape", () => {
@@ -842,7 +842,7 @@ test("the profile's facts, about rail and thread link are measured, and a phone-
   const vm = toPersonVM(detail(), ZONE, NOW);
   assert.deepEqual(
     vm.facts.map((f) => f.label),
-    ["First contact", "Last contact", "Conversations", "Calls", "Receptionist"],
+    ["First contact", "Last contact", "Conversations", "Calls", "AI"],
   );
   assert.equal(vm.facts[3].value, 1);
   assert.equal(vm.openThread, "inbox/th-cv1");

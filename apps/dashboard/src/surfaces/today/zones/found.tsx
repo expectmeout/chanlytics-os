@@ -331,7 +331,7 @@ function CardRow(
         aria-busy={acts.busy || undefined}
         onClick={() => (card.plan ? acts.open() : void acts.approve())}
         data-testid="today-found-act"
-        {...(card.plan ? {} : gate("approve", "approve Ask's card"))}
+        {...(card.plan ? {} : gate("approve", "approve AI's card"))}
       >
         {p.row.act.label}
         <Icon name={doorGlyph()} size={11} />

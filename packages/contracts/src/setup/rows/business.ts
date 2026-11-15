@@ -32,7 +32,7 @@ export function billingRow(setupInputs: SetupInputs, ctx: SetupRowContext): Setu
       title: "Billing",
       state: "ready",
       required: true,
-      sentence: `On trial, cancelled: the receptionist answers until ${billingDayWords(billing.cancel_at ?? billing.trial_end, setupInputs.tz) || "the trial ends"}, then stops.`,
+      sentence: `On trial, cancelled: AI answers until ${billingDayWords(billing.cancel_at ?? billing.trial_end, setupInputs.tz) || "the trial ends"}, then stops.`,
       details: [...testMode, "Nothing is charged; undo the cancellation from Billing before then to keep it"],
       verb: { label: "Open Billing", to: "admin/billing" },
     };
@@ -76,7 +76,7 @@ export function billingRow(setupInputs: SetupInputs, ctx: SetupRowContext): Setu
       title: "Billing",
       state: "waiting_you",
       required: true,
-      sentence: "The last payment failed. Update the card to keep the receptionist answering.",
+      sentence: "The last payment failed. Update the card to keep AI answering.",
       details: [...testMode, "Stripe retries for a few days, then pauses the subscription"],
       verb: { label: "Update the card", to: "verb:billing-portal" },
     };
@@ -88,7 +88,7 @@ export function billingRow(setupInputs: SetupInputs, ctx: SetupRowContext): Setu
       title: "Billing",
       state: "waiting_you",
       required: true,
-      sentence: `Your receptionist is paused. ${PAUSED_WORDS}`,
+      sentence: `AI is paused. ${PAUSED_WORDS}`,
       details: [
         ...testMode,
         billing.status === "paused" ? "The trial ended without a card on file" : "Payment could not be collected",
@@ -109,7 +109,7 @@ export function billingRow(setupInputs: SetupInputs, ctx: SetupRowContext): Setu
     details: [
       ...testMode,
       ...(billing.trial_days > 0
-        ? ["Cancel any time from Billing", "The receptionist answers through the trial"]
+        ? ["Cancel any time from Billing", "AI answers through the trial"]
         : ["Cancel any time from Billing"]),
     ],
     verb: { label: billing.trial_days > 0 ? "Start the trial" : "Subscribe", to: "verb:billing-checkout" },
@@ -187,9 +187,7 @@ export function factsRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupR
       required: true,
       sentence: `${business.name} · hours set · ${plural(business.services, "service")} on record`,
       details: [
-        business.bookingLink
-          ? "Booking link on record"
-          : "No booking link — the receptionist answers, but cannot send one",
+        business.bookingLink ? "Booking link on record" : "No booking link — AI answers, but cannot send one",
         business.address ? "Address on record" : "No address yet",
       ],
       verb: { label: "Edit in Business", to: "admin/workspace" },
@@ -202,9 +200,7 @@ export function factsRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupR
     title: "Business facts",
     state: none ? "not_started" : "waiting_you",
     required: true,
-    sentence: none
-      ? "Name, hours and services are what the receptionist answers with."
-      : `Still missing: ${missing.join(" and ")}.`,
+    sentence: none ? "Name, hours and services are what AI answers with." : `Still missing: ${missing.join(" and ")}.`,
     details: [],
     verb: { label: none ? "Start in Business" : "Finish in Business", to: settingsRow(firstMissingFact(business)) },
   };
@@ -232,7 +228,7 @@ export function handoffRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft
         title: "A person to hand off to",
         state: "waiting_you",
         required: false,
-        sentence: "Give the receptionist a number to hand callers to when they insist on a person.",
+        sentence: "Give AI a number to hand callers to when they insist on a person.",
         details: [],
         verb: { label: "Add a number", to: settingsRow("handoff_number") },
       };

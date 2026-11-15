@@ -256,8 +256,8 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
         state: "connected",
         stateWords: "On",
         sentence: line?.reg_sole_prop
-          ? `Customers text ${num ?? "this number"} and the receptionist answers inside your hours. ${SOLE_PROP_CEILING_SENTENCE}`
-          : `Customers text ${num ?? "this number"}; the receptionist answers inside your hours.`,
+          ? `Customers text ${num ?? "this number"} and AI answers inside your hours. ${SOLE_PROP_CEILING_SENTENCE}`
+          : `Customers text ${num ?? "this number"}; AI answers inside your hours.`,
       };
     case "approved":
       return {
@@ -447,7 +447,7 @@ const KEEP_APP_VERB: ConnectionVerb = {
   who: "owner",
 };
 const KEEP_APP_NOTE: ConnectionNote = {
-  text: "Already answering on the WhatsApp Business app? Keep the app: you go on using it, the receptionist answers what you don't, and your contacts and last six months of chats come in if you share them in the app.",
+  text: "Already answering on the WhatsApp Business app? Keep the app: you go on using it, AI answers what you don't, and your contacts and last six months of chats come in if you share them in the app.",
 };
 
 /** The WhatsApp row's own verb: the Library, what the receptionist and the campaigns send on the number. */
@@ -521,8 +521,7 @@ function whatsappRow(connectionInputs: ConnectionInputs, { wa, own, nowMs }: Con
       detail: null,
       state: "none",
       stateWords: "Not connected",
-      sentence:
-        "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
+      sentence: "Sign in to Meta, pick the number, and AI answers on it. Nothing here touches a phone line.",
       verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" },
       ...(connectionInputs.whatsapp.keep_app ? { also: KEEP_APP_VERB } : {}),
       notes: [
@@ -590,7 +589,7 @@ function phoneRow(connectionInputs: ConnectionInputs, { voice, own, nowMs }: Con
       detail: null,
       state: "none",
       stateWords: "Not connected",
-      sentence: "Get a number the receptionist answers, or keep the one you have.",
+      sentence: "Get a number AI answers, or keep the one you have.",
       verb: { label: "Get a line", to: firstRunStepRoute("channels"), who: "owner" },
     };
   }
@@ -747,7 +746,7 @@ function depositsRow(): Draft {
     detail: null,
     state: "later",
     stateWords: "Later",
-    sentence: "Deposits and payments taken by the receptionist.",
+    sentence: "Deposits and payments taken by AI.",
     verb: null,
   };
 }

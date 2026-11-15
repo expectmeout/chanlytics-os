@@ -677,11 +677,11 @@ test("the notice's body: the summary a phone shows, their words quoted, then wha
   assert.equal(firstLine(n.body), n.push, "a phone shows the summary, never their words");
   assert.equal(lines[1], "“This sounds useful. Can you send me more details?”");
   assert.equal(lines[2], "They are Talking now, and your sequence stops for them.");
-  assert.doesNotMatch(n.body, /The receptionist drafted an answer/);
+  assert.doesNotMatch(n.body, /AI drafted an answer/);
   const drafted = notice({ draft: "Thank you for writing.\n\nWe can send details today.\n\nSam" }).body;
   assert.match(
     drafted,
-    /The receptionist drafted an answer: “Thank you for writing\. We can send details today\. Sam” Nothing is sent without you\./,
+    /AI drafted an answer: “Thank you for writing\. We can send details today\. Sam” Nothing is sent without you\./,
     "the draft's first lines, on one line",
   );
   assert.doesNotMatch(notice({ draft: "Thank you." }).redacted, /Thank you/, "never in what the platform is told");

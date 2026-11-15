@@ -358,7 +358,7 @@ export function spokenBreach(
 /** What the owner reads in the Inbox. Names the words, and what they cost. */
 export function spokenBreachDetails(spokenBreach: SpokenBreach): string {
   return (
-    "The phone receptionist said a price out loud that it may not give: none while “Never quote a price” is on, and otherwise one you haven't written. " +
+    "AI said a price out loud on a call that it may not give: none while “Never quote a price” is on, and otherwise one you haven't written. " +
     `It said: "${spokenBreach.said}" ` +
     "A call cannot be taken back the way a draft can, so check what the caller was told before confirming anything."
   );

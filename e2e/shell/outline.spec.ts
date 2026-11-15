@@ -108,7 +108,7 @@ test.describe("the outline a cold load draws first", () => {
   test.describe("on a desk", () => {
     test.use({ viewport: { width: 1440, height: 900 } });
 
-    test("the open sidebar, Ask and the bell stand where the frame stands them", async ({ page }) => {
+    test("the open sidebar, AI and the bell stand where the frame stands them", async ({ page }) => {
       const slug = await workspaceOf(page);
       await keep(page, { sidebar: "open" });
       expectSame(await outlineAndFrame(page, `/w/${slug}/today`));
@@ -160,7 +160,7 @@ test.describe("the outline a cold load draws first", () => {
   test.describe("on a phone", () => {
     test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
-    test("the tab bar, Ask's disc and the bell stand where the frame stands them", async ({ page }) => {
+    test("the tab bar, AI's disc and the bell stand where the frame stands them", async ({ page }) => {
       const slug = await workspaceOf(page);
       expectSame(await outlineAndFrame(page, `/w/${slug}/today`));
     });

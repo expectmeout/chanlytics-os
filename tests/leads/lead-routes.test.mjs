@@ -1302,9 +1302,9 @@ test("the checks read the judge's own keys: the kind and every criterion it answ
   assert.deepEqual(
     read.map((c) => [c.key, c.answer, c.source, c.reason]),
     [
-      ["kind", "yes", "Ask · the listing", "open Saturdays, per the listing"],
-      ["open_weekends", "unknown", "Ask · the listing", "open Saturdays, per the listing"],
-      ["chains", "no", "Ask · their website", "open Saturdays, per the listing"],
+      ["kind", "yes", "AI · the listing", "open Saturdays, per the listing"],
+      ["open_weekends", "unknown", "AI · the listing", "open Saturdays, per the listing"],
+      ["chains", "no", "AI · their website", "open Saturdays, per the listing"],
     ],
     "every criterion the judge answered, under the plan's key: only LEAD_CHECK_KEYS were, and no plan's keys were those",
   );
@@ -1454,7 +1454,7 @@ test("GET leads/[id] answers one lead as a row of the page, built by the list's 
   );
 });
 
-test("one lead and one search, for Ask and for the page (PR 4.3): GET leads/[id] and GET lead-searches/[id] answer their readers' payloads byte for byte, in the workspace the tab named; each reader's one row is what a citation names -- the lead at its peek on the view's search, the search on Leads at that search -- and the search, through the rail's own mapping, is the row GET lead-searches lists for it", async () => {
+test("one lead and one search, for AI and for the page (PR 4.3): GET leads/[id] and GET lead-searches/[id] answer their readers' payloads byte for byte, in the workspace the tab named; each reader's one row is what a citation names -- the lead at its peek on the view's search, the search on Leads at that search -- and the search, through the rail's own mapping, is the row GET lead-searches lists for it", async () => {
   const t = oneLeadTables();
   const doorsOf = (x) => ({ ...doors(), lead_member_of: memberOf(x) });
   const rc = () => readerContext(ctxOf(t, {}, doorsOf(t)), { tenantId: A, role: "viewer" });
@@ -1491,7 +1491,7 @@ test("one lead and one search, for Ask and for the page (PR 4.3): GET leads/[id]
   );
 });
 
-test("Ask's leads, lead and search answer what the Leads page's builders answer over the same readers (PR 4.3): each lead as toLeadRowVM says its row, handed its own search; one lead as its peek says it; one search as the rail's row and its own words; each row the reader's RowRef in the read set; the month an owner's and a partner's alone", async () => {
+test("AI's leads, lead and search answer what the Leads page's builders answer over the same readers (PR 4.3): each lead as toLeadRowVM says its row, handed its own search; one lead as its peek says it; one search as the rail's row and its own words; each row the reader's RowRef in the read set; the month an owner's and a partner's alone", async () => {
   const NOW = new Date("2026-09-20T15:00:00Z");
   const TZ = "America/Chicago";
   const t = oneLeadTables();
@@ -1877,7 +1877,7 @@ test("the ideas are written from the line and what was found, on their own route
   assert.equal(/apify|compass|anthropic|claude-/i.test(JSON.stringify(fresh)), false);
 });
 
-test("an idea pressed is a card in Ask (POST ask/idea, Ruben, 23 Oct 2026): the idea's own plan, at its first version and marked from the idea, kept with the month's facts as the first answer of a thread titled by the idea, with no model asked; pressed again while its card waits, the same thread", async () => {
+test("an idea pressed is a card in AI (POST ask/idea, Ruben, 23 Oct 2026): the idea's own plan, at its first version and marked from the idea, kept with the month's facts as the first answer of a thread titled by the idea, with no model asked; pressed again while its card waits, the same thread", async () => {
   assert.deepEqual(askIdea.POST.policy, {
     kind: "write",
     scope: "workspace",

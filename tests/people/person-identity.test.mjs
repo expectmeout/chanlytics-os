@@ -5,7 +5,7 @@
  * person with no name and no number -- an address and nothing else -- and four
  * surfaces said four different things about them:
  *
- *   Conversations and the Inbox   "Unknown", credited to "WhatsApp Receptionist"
+ *   Conversations and the Inbox   "Unknown", credited to "AI on WhatsApp"
  *   their own page                ruben@... , "Phone since Sep 17",
  *                                 "Reply window: Closed · template only" (now "Replies"),
  *                                 "Send the booking-link template"
@@ -15,7 +15,7 @@
  *
  *   the name          five copies; the one the Inbox read was fed a contact
  *                     whose address the mapper in front of it had dropped
- *   the agent         one constant, "WhatsApp Receptionist", on every row
+ *   the agent         one constant, "AI on WhatsApp", on every row
  *   the wire's words  the page's own `whatsapp ? "WhatsApp" : "Phone"`
  *   the window        WhatsApp's 24 hours, asked of everybody
  *   the button        three pages' own two-way copy of its words
@@ -122,9 +122,9 @@ test("REGRESSION: an email thread credits the team, not a WhatsApp receptionist 
     { glyph: "Y", name: "Your team" },
     "the words the thread already signs a person's reply with",
   );
-  assert.deepEqual(agentFor("whatsapp"), { glyph: "W", name: "WhatsApp Receptionist" });
-  assert.deepEqual(agentFor("sms"), { glyph: "T", name: "Text Receptionist" });
-  assert.deepEqual(agentFor("phone"), { glyph: "P", name: "Phone Receptionist" });
+  assert.deepEqual(agentFor("whatsapp"), { glyph: "W", name: "AI on WhatsApp" });
+  assert.deepEqual(agentFor("sms"), { glyph: "T", name: "AI by text" });
+  assert.deepEqual(agentFor("phone"), { glyph: "P", name: "AI on the phone" });
 
   const row = toConversationVM(dto(), null, TZ, NOW);
   assert.equal(row.channel, "email");

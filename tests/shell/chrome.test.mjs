@@ -81,7 +81,7 @@ test("the shell's one line: a newer build outranks stale surfaces, and nothing i
   const modelPaused = shellStatusLine({ stale: false, degraded: [], modelStanding: "paused" });
   assert.deepEqual(
     [modelPaused.kind, modelPaused.tone, modelPaused.text, modelPaused.action, modelPaused.cta],
-    ["paused", "danger", "Your receptionist is paused", null, null],
+    ["paused", "danger", "AI is paused", null, null],
   );
   assert.ok(!/anthropic|safety|violation|banned/i.test(modelPaused.detail), "no reason reaches a member");
   assert.equal(
@@ -92,7 +92,7 @@ test("the shell's one line: a newer build outranks stale surfaces, and nothing i
   const limited = shellStatusLine({ stale: false, degraded: [], modelStanding: "limited" });
   assert.deepEqual(
     [limited.kind, limited.tone, limited.text, limited.action, limited.cta],
-    ["degraded", "warn", "Your receptionist is limited", null, null],
+    ["degraded", "warn", "AI is limited", null, null],
   );
   assert.ok(!/anthropic|safety|violation|banned|restricted/i.test(limited.detail), "no reason reaches a member");
   assert.equal(shellStatusLine({ stale: false, degraded: [], modelStanding: null }), null);
@@ -365,7 +365,7 @@ test("the workspace row says its name, and under it how many workspaces there ar
   }
 });
 
-test("the workspace's circle wears its own logo over its initials, and its initials alone without one; never Ask's three", async () => {
+test("the workspace's circle wears its own logo over its initials, and its initials alone without one; never AI's three", async () => {
   // 00407: the circle said Ask's three for every business. The initials are contracts' rule, through the bridge.
   installStubReact({ usePPToast: () => [null, () => {}] });
   globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;

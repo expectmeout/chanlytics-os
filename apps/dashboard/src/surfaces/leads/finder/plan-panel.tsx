@@ -49,8 +49,8 @@ const answerRow = (p: PlanPanelProps, composing: boolean, thinking: boolean) => 
         type="text"
         value={p.words || ""}
         maxLength={400}
-        placeholder="Tell Claude what you meant"
-        aria-label="Tell Claude what you meant"
+        placeholder="Tell AI what you meant"
+        aria-label="Tell AI what you meant"
         data-testid="plan-answer-input"
         disabled={!composing}
         onChange={(e) => p.onWords(e.target.value)}

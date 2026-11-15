@@ -25,8 +25,8 @@ export interface PersonLastContact {
   kind: "message" | "call" | null;
   who: "they" | "receptionist" | "team" | "system" | null;
   /**
-   * Who spoke: "They wrote", "Receptionist replied", "Your team replied", "Phoned", "We called"; "No contact recorded"
-   * with none; "Receptionist wrote" and "Your team wrote" to someone never heard from, as nothing was replied to. A
+   * Who spoke: "They wrote", "AI replied", "Your team replied", "Phoned", "We called"; "No contact recorded"
+   * with none; "AI wrote" and "Your team wrote" to someone never heard from, as nothing was replied to. A
    * person's reply is the team's, never "You": the row does not say which member sent it (messageAuthor).
    */
   by: string;
@@ -109,8 +109,8 @@ export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): 
           : "Your team wrote"
         : lastContact === "receptionist"
           ? answered
-            ? "Receptionist replied"
-            : "Receptionist wrote"
+            ? "AI replied"
+            : "AI wrote"
           : "We sent";
   const when = ago(result as number, tz, nowMs);
   return {

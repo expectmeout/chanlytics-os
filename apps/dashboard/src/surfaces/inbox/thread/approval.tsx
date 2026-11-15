@@ -123,7 +123,7 @@ function approvalPlan(props: ApprovalCardProps) {
   return (
     <div className="ix-outcomes ix-one">
       <div className="ix-outcome recommended selected ix-plan">
-        <span className="ix-outcome-rec-tag">Agent's plan</span>
+        <span className="ix-outcome-rec-tag">AI's plan</span>
         <div className="ix-outcome-action-line">
           <span className="ix-outcome-action">{plan.label}</span>
           {plan.confidence !== undefined && (
@@ -369,7 +369,7 @@ export const VerdictCard = ({
       <div className="ix-approval-head">
         <div className="ix-approval-meta">
           <span className="ix-approval-kind">Meeting verdict</span>
-          <span className="ix-approval-summary">Agents stood down at meeting start.</span>
+          <span className="ix-approval-summary">AI stepped back at meeting start.</span>
         </div>
       </div>
       <div className="ix-verdict-opts">

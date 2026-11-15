@@ -225,14 +225,14 @@ export const CONTENT_WORDS = {
     title: "Nothing made yet",
     /** The first day (the content canvas, PhHome "first"): what Ask makes, then how many ideas it can make now. */
     body: (ideas: number) =>
-      `Ask makes posts from your photos and videos from your clips. ${ideasSaid(ideas)} it can make now:`,
+      `AI makes posts from your photos and videos from your clips. ${ideasSaid(ideas)} it can make now:`,
     /** Where the workspace takes no videos (features.video_preview): Ask makes no video there, so it says none. */
-    bodyPhotos: (ideas: number) => `Ask makes posts from your photos. ${ideasSaid(ideas)} it can make now:`,
+    bodyPhotos: (ideas: number) => `AI makes posts from your photos. ${ideasSaid(ideas)} it can make now:`,
     /** Nothing it could be made from yet: what Ask makes, and the one thing to do first. */
     addFirst: (videos: boolean) =>
       videos
-        ? "Ask makes posts from your photos and videos from your clips. Add a few to start."
-        : "Ask makes posts from your photos. Add a few to start.",
+        ? "AI makes posts from your photos and videos from your clips. Add a few to start."
+        : "AI makes posts from your photos. Add a few to start.",
     /** The door to the Library while it is empty. */
     addDoor: (videos: boolean) => (videos ? "Add photos and clips" : "Add photos"),
   },
@@ -315,7 +315,7 @@ export const CONTENT_WORDS = {
       tookBack: "Marked as not posted.",
       linkWrong: "Paste the post's full link, starting with https://",
       /** Said of a photo of the Library: only what Ask made is posted from here, or marked so. */
-      notMade: "Only a piece Ask made is marked as posted.",
+      notMade: "Only a piece AI made is marked as posted.",
     },
     /** Set aside while a post of it waited to go out: that post is let go with it (server files/file.ts), and said so. */
     asideStops: (places: readonly PostPlace[]) =>

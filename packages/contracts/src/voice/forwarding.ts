@@ -69,12 +69,12 @@ function national(e164: string): string {
 const code = (c: string): ForwardingCode => ({ code: c, tel: telHref(c) });
 
 const UNANSWERED_NOTE =
-  "Your phone rings first. After your carrier's timer, usually 15 to 30 seconds, the call comes to the receptionist. If voicemail picks up first, calls never arrive: ask your carrier to lengthen the ring time, or forward every call.";
+  "Your phone rings first. After your carrier's timer, usually 15 to 30 seconds, the call comes to AI. If voicemail picks up first, calls never arrive: ask your carrier to lengthen the ring time, or forward every call.";
 const DIAL_NOTE = "Dial it on the phone that has the number you keep, wait for the tone or the message, then hang up.";
 const OFFICE_NOTE =
   "An office phone system takes no code: in its settings, under forwarding or what happens when no one answers, forward the calls to the number above.";
 const OFFICE_VOICEMAIL_NOTE =
-  "If the system sends unanswered calls to voicemail, the forwarding has to come before it, or calls never reach the receptionist. Its support can set it for you.";
+  "If the system sends unanswered calls to voicemail, the forwarding has to come before it, or calls never reach AI. Its support can set it for you.";
 
 /**
  * What the owner is told to dial, or, for an office phone system, where to forward: said once, for every card.

@@ -68,8 +68,8 @@ test("a day's lines are the log's, oldest first, money and the noise left out, e
   assert.equal(lines.length, 2, "the money row and the record are no part of the day");
   assert.deepEqual(
     lines.map((l) => l.who),
-    ["Dana", "Receptionist"],
-    "oldest first: the member's reply, then the receptionist's",
+    ["Dana", "AI"],
+    "oldest first: the member's reply, then AI's",
   );
   assert.match(lines[0].at, /10:05/, "the business's clock, not the server's");
   assert.match(lines[0].what, /Rosa/, "what it was about, by name");

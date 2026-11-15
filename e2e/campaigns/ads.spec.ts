@@ -222,7 +222,7 @@ test.describe("Campaigns › Ads, a workspace's preview", () => {
     expect(errors).toEqual([]);
   });
 
-  test("Ask is told what the page shows, in a word and no row, and offers questions about ads; no model is asked", async ({
+  test("AI is told what the page shows, in a word and no row, and offers questions about ads; no model is asked", async ({
     page,
   }) => {
     const errors = thrown(page);

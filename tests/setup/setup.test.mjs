@@ -105,7 +105,7 @@ test("a receptionist answering with nothing to answer with says so, and points a
 test("an empty workspace: nothing answers, every row reads its true state, the first verb is the business facts", () => {
   const vm = setupSteps(empty(), NOW);
   assert.equal(vm.readiness.answering, false);
-  assert.equal(vm.readiness.sentence, "Your receptionist is not answering yet.");
+  assert.equal(vm.readiness.sentence, "AI is not answering yet.");
   assert.deepEqual(
     vm.rows.map((r) => r.id),
     ["facts", "handoff", "line", "receptionist", "keep", "whatsapp", "calendar", "team", "yes"],
@@ -123,12 +123,10 @@ test("an empty workspace: nothing answers, every row reads its true state, the f
       "not_started",
       "not_started",
     ],
-    "the ask is the owner's move; the receptionist is ours",
+    "the ask is the owner's move; AI is ours",
   );
   assert.equal(row(vm, "line").sentence, "We set up your phone line with you.");
-  assert.deepEqual(row(vm, "line").details, [
-    "A number, the receptionist answering it, and forwarding from the number you have",
-  ]);
+  assert.deepEqual(row(vm, "line").details, ["A number, AI answering it, and forwarding from the number you have"]);
   assert.deepEqual(
     vm.rows.map((r) => r.required),
     [true, false, true, true, false, true, false, false, false],
@@ -139,7 +137,7 @@ test("an empty workspace: nothing answers, every row reads its true state, the f
     { label: "Ask for a line", to: "verb:request-line" },
     "until lines provision themselves, the line is asked for",
   );
-  assert.equal(row(vm, "receptionist").verb, null, "the receptionist arrives with the line — nothing to press");
+  assert.equal(row(vm, "receptionist").verb, null, "AI arrives with the line — nothing to press");
   assert.deepEqual(row(vm, "whatsapp").verb, { label: "Connect", to: "admin/integrations" });
   assert.equal(vm.done, 0);
   assert.equal(vm.total, 9);
@@ -158,7 +156,7 @@ test("a workspace that answers everywhere: nine of ten — the kept number is th
   assert.equal(vm.readiness.answering, true);
   assert.equal(
     vm.readiness.sentence,
-    `Your receptionist answers calls on ${formatPhoneDisplay(VOICE)} and WhatsApp on ${formatPhoneDisplay(WA)}. Texting is not available yet.`,
+    `AI answers calls on ${formatPhoneDisplay(VOICE)} and WhatsApp on ${formatPhoneDisplay(WA)}. Texting is not available yet.`,
   );
   assert.equal(vm.done, 9);
   assert.deepEqual(vm.next, {
@@ -614,7 +612,7 @@ test("calls only: the sentence says what is missing, and WhatsApp can now wait f
   const vm = setupSteps(dto, NOW);
   assert.equal(
     vm.readiness.sentence,
-    `Your receptionist answers calls on ${formatPhoneDisplay(VOICE)}. WhatsApp is not connected. Texting is not available yet.`,
+    `AI answers calls on ${formatPhoneDisplay(VOICE)}. WhatsApp is not connected. Texting is not available yet.`,
   );
   assert.equal(row(vm, "whatsapp").required, false, "once something answers, a channel is optional");
   assert.deepEqual(vm.next, { label: "Connect", to: "admin/integrations", row: "whatsapp", title: "WhatsApp" });
@@ -631,10 +629,7 @@ test("WhatsApp only: no phone line yet, and the line row still asks", () => {
     }),
     NOW,
   );
-  assert.equal(
-    vm.readiness.sentence,
-    `Your receptionist answers WhatsApp on ${formatPhoneDisplay(WA)}. No phone line yet.`,
-  );
+  assert.equal(vm.readiness.sentence, `AI answers WhatsApp on ${formatPhoneDisplay(WA)}. No phone line yet.`);
   assert.equal(row(vm, "line").required, false);
   assert.equal(row(vm, "line").state, "waiting_you", "not asked for yet");
   assert.deepEqual(vm.tryIt, { voice: null, voiceLabel: null, whatsapp: WA, whatsappLabel: formatPhoneDisplay(WA) });
@@ -760,7 +755,7 @@ test("business facts: partly there says what is missing; a broken config is its 
   assert.equal(row(broken, "facts").state, "waiting_you");
   assert.match(row(broken, "facts").sentence, /could not be read/);
   const noLink = setupSteps(empty({ business: { ...facts, bookingLink: false } }), NOW);
-  assert.ok(row(noLink, "facts").details.includes("No booking link — the receptionist answers, but cannot send one"));
+  assert.ok(row(noLink, "facts").details.includes("No booking link — AI answers, but cannot send one"));
 });
 
 test("team and alerts: the verb goes to whichever half is missing; calendar: unreadable is waiting on you", () => {
@@ -793,7 +788,7 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
   });
   assert.equal(
     row(setupSteps(empty({ calendar: { state: "ok" } }), NOW), "calendar").sentence,
-    "The receptionist offers open times from it.",
+    "AI offers open times from it.",
   );
   assert.equal(row(feed, "calendar").sentence, "Your calendar could not be read.");
   // REGRESSION: the row read the link alone, so a business whose bookings arrive by email was asked, for good, to
@@ -860,7 +855,7 @@ test("a channel row without a number never reads a null aloud", () => {
   );
   assert.equal(
     vm.readiness.sentence,
-    "Your receptionist answers calls on your line and WhatsApp on your number. Texting is not available yet.",
+    "AI answers calls on your line and WhatsApp on your number. Texting is not available yet.",
   );
   assert.equal(row(vm, "whatsapp").sentence, "Connected on your number.");
   assert.equal(row(vm, "receptionist").sentence, "Answering on your line.");
@@ -984,7 +979,7 @@ test("the line row over the product's own line: get one when this deployment can
   assert.equal(row(can, "line").sentence, "Get a number for calls, or keep the one you have.");
   // The number is part of the plan (Ruben, 24 Sep 2026; the first run's spec): nothing bills a number fee, so nothing quotes one.
   assert.deepEqual(row(can, "line").details, [
-    "A local number, included in your plan · your receptionist answers it · texting arrives when the carriers register it",
+    "A local number, included in your plan · AI answers it · texting arrives when the carriers register it",
   ]);
   assert.ok(
     !JSON.stringify(setupSteps(empty({ lines: withLines([]) }), NOW)).includes("$"),

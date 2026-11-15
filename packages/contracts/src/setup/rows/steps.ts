@@ -41,12 +41,10 @@ function readinessSentenceOf(setupInputs: SetupInputs, ctx: SetupRowContext): st
   const { waReady, voiceReady, waNum, voiceNum, texting } = ctx;
   const seriousConflict = (setupInputs.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
   if (seriousConflict) return seriousConflict.sentence;
-  if (waReady && voiceReady)
-    return `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. ${texting.sentence}`;
-  if (voiceReady)
-    return `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. ${texting.sentence}`;
-  if (waReady) return `Your receptionist answers WhatsApp on ${waNum}. No phone line yet.`;
-  return "Your receptionist is not answering yet.";
+  if (waReady && voiceReady) return `AI answers calls on ${voiceNum} and WhatsApp on ${waNum}. ${texting.sentence}`;
+  if (voiceReady) return `AI answers calls on ${voiceNum}. WhatsApp is not connected. ${texting.sentence}`;
+  if (waReady) return `AI answers WhatsApp on ${waNum}. No phone line yet.`;
+  return "AI is not answering yet.";
 }
 
 /** Try it: the numbers that answer, to call or write from a phone; none while nothing answers. */

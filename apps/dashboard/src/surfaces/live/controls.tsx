@@ -40,9 +40,7 @@ export const LrControls = ({ c }: { c: LiveCallVM }) => {
     const rang = (r.ok && rangLine(r.data)) || line;
     if (r.ok)
       flash({
-        msg: (
-          <>Asked the receptionist to pass the call to {rang || "the business's line"} — it should ring in a moment</>
-        ),
+        msg: <>Asked AI to pass the call to {rang || "the business's line"} — it should ring in a moment</>,
       });
     else flash({ tone: "danger", msg: <>Not passed — {r.message}</> });
   };

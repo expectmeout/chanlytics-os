@@ -184,11 +184,7 @@ test("REGRESSION (S6): the hard limits say which two never change and which two 
   assert.equal(contracts.REPLY_CAP_DEFAULT, 20, "REGRESSION: the defaults lived in the page and the runtime, apart");
   assert.equal(contracts.PAUSE_HOURS_DEFAULT, 24);
   const steps = await import("../../../packages/core/src/inbound/steps.ts");
-  assert.equal(
-    steps.MAX_REPLIES_PER_DAY,
-    contracts.REPLY_CAP_DEFAULT,
-    "the receptionist stops at the number the page says",
-  );
+  assert.equal(steps.MAX_REPLIES_PER_DAY, contracts.REPLY_CAP_DEFAULT, "AI stops at the number the page says");
   assert.equal(
     contracts.pauseMsOf(null),
     contracts.PAUSE_HOURS_DEFAULT * 3600 * 1000,
@@ -525,12 +521,12 @@ test("REGRESSION (S8): the broken card asks for the repair from the card, then s
   assert.match(textOf(byTestId(tree, "settings-broken-requested")), /a person at Chanlytics will repair/);
 });
 
-test("Settings › Memory is what Ask remembers, drawn from its own read (decision 0070): it says so while the read is out, and S19's placeholder is gone", () => {
+test("Settings › Memory is what AI remembers, drawn from its own read (decision 0070): it says so while the read is out, and S19's placeholder is gone", () => {
   workspace();
   const tree = settings("memory");
   // The pane draws its read (GET ask/memory, the ask_memory surface): until it lands it says it is reading, never
   // that the memory is not built (S19's "AI memory" placeholder, which pointed at How it answers, went with it).
-  assert.match(textOf(tree), /Reading what Ask remembers|What Ask remembers/);
+  assert.match(textOf(tree), /Reading what AI remembers|What AI remembers/);
   assert.ok(!textOf(tree).includes("Not built yet"), "nothing says it is not built");
   assert.equal(buttonSaying(tree, "Open How it answers"), null, "the placeholder's door went with it");
 });

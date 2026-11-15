@@ -184,7 +184,7 @@ export function setupPutOffNext(
  * What waiting on a kept number's forwarding costs, said wherever it is put off: the phone step's "Set up forwarding
  * later" and Today's Skip of "The number you already have", for a week or for good (putOffEnds).
  */
-export const FORWARDING_WAIT_WORDS = "Until it is set up, only calls to your receptionist's own number are answered.";
+export const FORWARDING_WAIT_WORDS = "Until it is set up, only calls to AI's own number are answered.";
 
 /** Why putting a row off, or back, did not start: nothing was saved, and the rows stay as they were. */
 export const SETUP_LATER_REFUSED = {

@@ -341,7 +341,7 @@ export const LIFECYCLE_WORDS = {
     /** The chip Ask offers on the first day says the same sentence (contracts SET_UP_CAMPAIGNS). */
     setUp: SET_UP_CAMPAIGNS.en,
     /** The first day's door to it, at the list's top: what pressing it does, said as an offer. */
-    setUpDoor: "Let Ask set up your campaigns",
+    setUpDoor: "Let AI set up your campaigns",
     about: "Ask about this campaign",
   },
   reach: {
@@ -352,7 +352,7 @@ export const LIFECYCLE_WORDS = {
     // What a yes opens, in the moments' own names; the month's offer and a person's own notes are not stages.
     opensMessages: "Opens:",
     ownOffers: ["the month's offer", "your notes"],
-    asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
+    asks: "AI now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
     /**
      * The phone's line in the Moments head: who of everyone in People a message can reach now. Everyone is said as
      * everyone ("All 29 can hear you"), not as a fraction of itself; nobody in People is no line at all (the tile).

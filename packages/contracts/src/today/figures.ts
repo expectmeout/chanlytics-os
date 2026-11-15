@@ -139,7 +139,7 @@ export function todayProof(
   const lastIn = tzDayAndTime(live.last_inbound_at, tz, now, "sentence");
   if (!lastIn) return "No messages have arrived yet.";
   const gap = replyGapSeconds(live);
-  return `The last message arrived ${lastIn}${gap !== null ? `, and the receptionist answered ${secondsPhrase(gap)} later` : ""}.`;
+  return `The last message arrived ${lastIn}${gap !== null ? `, and AI answered ${secondsPhrase(gap)} later` : ""}.`;
 }
 
 /**
@@ -260,7 +260,7 @@ export function figuresOf(
   ].filter(Boolean);
   const answered: TodayFigureVM = {
     id: "answered",
-    label: "answered by the receptionist",
+    label: "answered by AI",
     value: period.answered_by_ai,
     of: period.messages_in,
     meta: answeredMeta,
@@ -404,7 +404,7 @@ export function quietFigures(
     bookedOf(bookings, now),
     {
       id: "answered",
-      label: "answered by the receptionist",
+      label: "answered by AI",
       value: 0,
       of: 0,
       meta: lastIn ? `nothing today, the last ${lastIn}` : "nothing to answer yet",

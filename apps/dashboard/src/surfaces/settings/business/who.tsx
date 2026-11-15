@@ -88,8 +88,8 @@ function btPublishedNote({ line, handoff, kept, draft }: PublishedNumbers & { dr
   if (draft.own && line)
     return (
       <>
-        <b className="tabular">{lineShown}</b> — the line your receptionist answers. It follows the line, so changing
-        your number changes nothing to keep in step.
+        <b className="tabular">{lineShown}</b> — the line AI answers. It follows the line, so changing your number
+        changes nothing to keep in step.
       </>
     );
   if (samePhone(draft.typed, line))
@@ -101,21 +101,20 @@ function btPublishedNote({ line, handoff, kept, draft }: PublishedNumbers & { dr
   if (kept && samePhone(draft.typed, kept))
     return (
       <>
-        Your own number. The calls nobody picks up there go to your receptionist on{" "}
-        <b className="tabular">{lineShown}</b>.
+        Your own number. The calls nobody picks up there go to AI on <b className="tabular">{lineShown}</b>.
       </>
     );
   if (handoff && samePhone(draft.typed, handoff))
     return (
       <>
-        This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and
-        never the receptionist answering on <b className="tabular">{lineShown}</b>.
+        This is the number AI <b>transfers</b> to, so customers who ring it reach a person directly and never AI
+        answering on <b className="tabular">{lineShown}</b>.
       </>
     );
   if (line)
     return (
       <>
-        Customers who ring this will not reach your receptionist on <b className="tabular">{lineShown}</b>.
+        Customers who ring this will not reach AI on <b className="tabular">{lineShown}</b>.
       </>
     );
   return <>The number it gives customers.</>;
@@ -513,7 +512,7 @@ const BtTransferRow = ({ shared, brain, numbers }: { shared: RowShared; brain: B
               Callers who insist on a person reach <b className="tabular">{phoneShown(v)}</b>.
             </>
           ) : (
-            <>The receptionist takes a message instead of transferring.</>
+            <>AI takes a message instead of transferring.</>
           ),
         };
       }}

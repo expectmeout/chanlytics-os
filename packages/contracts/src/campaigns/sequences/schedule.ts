@@ -70,7 +70,7 @@ export const SCHEDULE_WORDS = {
     /** A freed time's sequence (decision 0082): how many people each freed time goes to, and how far ahead it offers. */
     freedCap: "People per freed time",
     freedAhead: (n: number) => `Up to ${n} days ahead`,
-    freedAheadHint: "The days ahead your receptionist offers times: change it in Settings, under Booking rules.",
+    freedAheadHint: "The days ahead AI offers times: change it in Settings, under Booking rules.",
     save: "Save",
     cancel: "Cancel",
   },

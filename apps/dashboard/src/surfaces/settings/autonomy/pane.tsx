@@ -231,8 +231,8 @@ const AUT_MANY_ROW = {
 const AutMatrix = ({ phone, rows, put, busy, lines }: { phone: boolean } & ComponentProps<typeof PolicyTable>) => (
   <section className="rec-card set-card">
     <div className="rec-card-head">
-      <h2 className="rec-card-title">Policy matrix</h2>
-      <span className="rec-card-sub">What else it may do without you. Every row is one it consults before acting.</span>
+      <h2 className="rec-card-title">What AI does on its own</h2>
+      <span className="rec-card-sub">What else it may do without you.</span>
     </div>
     {phone ? (
       <PolPhoneRows rows={rows} put={put} busy={busy} lines={lines} />
@@ -263,7 +263,7 @@ function AskOnItsOwn({
     setBusy(false);
     flash(
       r.ok
-        ? { msg: <>{alone ? "Ask waits for you again." : "Ask now follows these rows."}</> }
+        ? { msg: <>{alone ? "AI waits for you again." : "AI now follows these choices."}</> }
         : { tone: "danger", msg: <>{r.message}</> },
     );
   };
@@ -280,21 +280,21 @@ function AskOnItsOwn({
   return (
     <section className="rec-card set-card" data-testid="aut-ask-alone">
       <div className="rec-card-head">
-        <h2 className="rec-card-title">Ask on its own</h2>
+        <h2 className="rec-card-title">What you ask for</h2>
         <span className="rec-card-sub">
-          Whether what you ask it to do needs a press. Money, new words, cold email, searches, settings and anything
+          Whether what you ask AI to do needs a press. Money, new words, cold email, searches, settings and anything
           final always wait for you.
         </span>
       </div>
       <RecordRow
         id="aut-ask-alone-row"
-        label="Follow the rows below"
+        label="Follow the choices below"
         hint="It says why under whatever it does, with a way to undo it."
         value={
           <Switch
             checked={alone}
             onCheckedChange={() => void toggle()}
-            label="Ask follows the rows below"
+            label="AI follows the choices below"
             readOnly={busy || !canDo("settings")}
             data-testid="aut-ask-alone-press"
           />
@@ -331,7 +331,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
       <FailedRead
         kind="card"
         title="Your autonomy settings couldn't be loaded"
-        body="The receptionist keeps running on the settings it already has; this page just can't show them right now."
+        body="AI keeps running on the settings it already has; this page just can't show them right now."
         surface="settings"
         testid="policies-failed"
       />
@@ -411,11 +411,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
           <span className="rec-card-sub">{hard.sub}</span>
         </div>
         <RecordRow id="aut-hard-stop" label="Asked to stop" value="Never messaged" />
-        <RecordRow
-          id="aut-hard-money"
-          label="Refunds, rates, negotiation"
-          value="Always go to you — locked in the database"
-        />
+        <RecordRow id="aut-hard-money" label="Refunds, rates, negotiation" value="Always go to you" />
         {/* The business's limits, its own rows (17 Oct 2026: a rule about prices lived on two tabs): what it says when
             someone asks a price, the rules it always keeps, and when it hands you a customer. */}
         <BusinessLimitRows flash={flash} open={row} />

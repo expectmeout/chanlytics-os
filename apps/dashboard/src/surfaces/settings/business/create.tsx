@@ -132,7 +132,7 @@ export const BtCreateCard = ({ flash = () => {} }: { flash?: (flash: FrameFlash)
   const handoff = (F?.handoff_number && F.handoff_number.value) || null;
   const kept = (F?.kept_line && F.kept_line.value) || null;
   const canEdit = btcMayChange();
-  const pressable = gate("settings", "set up the receptionist");
+  const pressable = gate("settings", "set up AI");
   return (
     <section className="rec-card" data-testid="rec-card-create" aria-labelledby="bt-create-title">
       <div className="rec-card-head">
@@ -142,11 +142,11 @@ export const BtCreateCard = ({ flash = () => {} }: { flash?: (flash: FrameFlash)
       </div>
       <BtFold<CreateDraft>
         id="receptionist"
-        label="Set up your receptionist"
+        label="Set up AI"
         hint="Name, number and booking link"
         // No preview is composed for a workspace with no receptionist, so nothing is said it will be told.
         channel={null}
-        said={<>Saved — the receptionist picks these up within a minute</>}
+        said={<>Saved — AI picks these up within a minute</>}
         canEdit={canEdit}
         gate={pressable}
         flash={flash}
@@ -159,14 +159,14 @@ export const BtCreateCard = ({ flash = () => {} }: { flash?: (flash: FrameFlash)
           <EmptyState
             kind="card"
             glyph="agents"
-            title="This workspace has no receptionist yet"
+            title="AI isn't set up for this workspace yet"
             body="Nothing has been set up for it — no business name, no phone line, no booking link — so nothing is answering your customers yet."
             // Offered only where there is something read to save onto, as a row's act is: the press would otherwise
             // open nothing, the fold having no draft to work out.
             action={
               can
                 ? {
-                    label: "Set up the receptionist",
+                    label: "Set up AI",
                     onClick: request,
                     gate: pressable,
                     recAct: "receptionist",

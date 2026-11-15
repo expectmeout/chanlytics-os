@@ -237,7 +237,7 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
     snoozed: "Snoozed",
     done: "Done",
     open: "Customer wrote last",
-    handled: "Receptionist replied",
+    handled: "AI replied",
     booked: "Booked",
     decided: "Handled",
     ...THREAD_MOVE_WORDS,

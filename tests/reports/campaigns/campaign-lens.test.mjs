@@ -524,7 +524,7 @@ test("why sends failed, in the words the Inbox's thread uses for the same row", 
       { channel: "email", code: null, kind: "unknown", n: 1 },
     ]).rows.map((r) => [r.label, r.value]),
     [
-      ["WhatsApp didn't deliver it (error 999999)", 4],
+      ["WhatsApp didn't deliver it", 4],
       ["Reason not recorded", 3],
       ["The provider didn't answer in time, so it may have gone: check the thread before sending it again", 2],
     ],

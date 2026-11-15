@@ -56,9 +56,9 @@ const REASON_OF: ReadonlyMap<string, EscalationReason> = new Map<string, Escalat
  * are the one place these are translated, so together they hold every reason its callers name.
  */
 const OWN_WORDS: ReadonlyMap<string, string> = new Map([
-  ["assistant flagged handoff", "the receptionist asked for a person"],
+  ["assistant flagged handoff", "AI asked for a person"],
   ["assistant flagged handoff (reply held for review)", "a reply is waiting for your review"],
-  ["no model", "the receptionist has no model to answer with"],
+  ["no model", "AI couldn't answer"],
   ["location", "shared a location"],
   ["contacts", "sent a contact card"],
   ["share", "shared a post"],
@@ -175,9 +175,7 @@ export function handoffMessage({
       `They wrote: “${userText}”\n` +
       `${botText}\n\n` +
       `${onDm ? where : `${where} · +${threadId}`}\n` +
-      (ctx.pausedHours
-        ? `${act.replace(/\.$/, "")} — the receptionist is paused on this thread for ${ctx.pausedHours}h.`
-        : act),
+      (ctx.pausedHours ? `${act.replace(/\.$/, "")} — AI is paused on this thread for ${ctx.pausedHours}h.` : act),
     redactedBody: `A ${where} conversation needed a person (${reasonWords}), and nobody could be told.`,
   };
 }
@@ -230,7 +228,7 @@ const UNROUTABLE_WORDS = {
   voice: {
     subject: "Calls are arriving for a voice channel that is switched off",
     what: (key: string, count: number) =>
-      `${count} call(s) just arrived for agent ${key}, which the control plane will not route (the voice channel row is missing or its status is not 'active'); the receptionist picked up without the business's facts and the call was NOT recorded.`,
+      `${count} call(s) just arrived for agent ${key}, which the control plane will not route (the voice channel row is missing or its status is not 'active'); AI picked up without the business's facts and the call was NOT recorded.`,
     fix: "Re-enable the voice channel in tenant_channels, or confirm this agent is not ours.",
   },
 } as const;

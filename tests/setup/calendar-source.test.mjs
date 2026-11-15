@@ -58,13 +58,13 @@ test("REGRESSION: bookings that arrive by email are a calendar that works, never
   assert.equal(s.words, "By email");
   assert.equal(s.lead, "Bookings arrive by email from Booksy.");
   // And it says what does not follow from emails: open times are read from a link alone.
-  assert.equal(s.rest, "The receptionist sends your booking link instead of naming open times.");
+  assert.equal(s.rest, "AI sends your booking link instead of naming open times.");
   assert.equal(s.times, false);
   assert.deepEqual(s.next, { label: "Open Calendar", to: "calendar" });
   // With no booking link to send, it does not say it sends one.
   assert.equal(
     calendarSourceOf(facts({ tool: "booksy", emails: WORKING, bookingLink: false })).rest,
-    "The receptionist does not name open times.",
+    "AI does not name open times.",
   );
 });
 
@@ -110,13 +110,13 @@ test("a calendar link that reads is what offers open times, with what the tool's
   assert.equal(link.by, "link");
   assert.equal(link.state, "ready");
   assert.equal(link.words, "Readable");
-  assert.equal(link.sentence, "The receptionist offers open times from it.");
+  assert.equal(link.sentence, "AI offers open times from it.");
   assert.equal(link.times, true);
   const both = calendarSourceOf(facts({ link: "ok", tool: "square", emails: WORKING }));
   assert.equal(both.by, "both");
   assert.equal(
     both.sentence,
-    "The receptionist offers open times from it. Booking emails from Square add the client and the service.",
+    "AI offers open times from it. Booking emails from Square add the client and the service.",
   );
   // REGRESSION: a read that could not be refreshed was said "Readable" to Setup and Connections.
   const stale = calendarSourceOf(facts({ link: "stale" }));
@@ -272,15 +272,12 @@ test("the fold draws the calendar link's box only where the answer has a link to
   );
   assert.equal(
     calendarLinkNote("booksy", true),
-    "Booksy offers no calendar link. The receptionist sends your booking link instead of naming open times.",
+    "Booksy offers no calendar link. AI sends your booking link instead of naming open times.",
   );
   assert.match(calendarLinkNote("square", true), /^Square writes your bookings into your own calendar\./);
   assert.match(calendarLinkNote("acuity", true), /^Acuity offers a calendar link of its own\./);
   assert.match(calendarLinkNote("setmore", true), /^If Setmore offers a calendar link/);
-  assert.match(
-    calendarLinkNote(BOOKS_BY_HAND, false),
-    /^Nothing to connect\. The receptionist does not name open times\.$/,
-  );
+  assert.match(calendarLinkNote(BOOKS_BY_HAND, false), /^Nothing to connect\. AI does not name open times\.$/);
   assert.equal(calendarLinkNote("", true), "");
 });
 

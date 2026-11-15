@@ -211,20 +211,13 @@ test("Ads' address says the days and what it is narrowed to, after the lens: eve
     assert.equal(reportsParamParts(no), null, no);
 });
 
-test("the palette and Ask's page routes are the registry's: no lens spelled twice", () => {
+test("the palette and AI's page routes are the registry's: no lens spelled twice", () => {
   for (const route of LENS_ROUTES) assert.ok(ASK_PAGE_ROUTES.includes(route), `${route} is a page an answer may name`);
   const labels = (has) => askPages({ platformAdmin: false, ...has }).map((e) => e.label);
   const every = labels({});
   assert.deepEqual(
     every.filter((l) => l.startsWith("Reports")),
-    [
-      "Reports",
-      "Reports › Receptionist",
-      "Reports › People",
-      "Reports › Pipeline",
-      "Reports › Campaigns",
-      "Reports › Reviews",
-    ],
+    ["Reports", "Reports › AI", "Reports › People", "Reports › Pipeline", "Reports › Campaigns", "Reports › Reviews"],
     "every workspace's lenses, Pipeline among them",
   );
   assert.ok(
@@ -233,8 +226,8 @@ test("the palette and Ask's page routes are the registry's: no lens spelled twic
   );
   assert.ok(ASK_PAGE_ROUTES.includes("reports/ads"), "but an answer may name the page, which says why it is empty");
   assert.ok(
-    askJump("receptionist", ASK_PAGES).some((e) => e.to === "reports/receptionist"),
-    "a word of the lens finds it (after the page whose name starts with it: Receptionist memory)",
+    askJump("ai", ASK_PAGES).some((e) => e.to === "reports/receptionist"),
+    "a word of the lens finds it (after the page whose name starts with it: AI's memory)",
   );
   assert.equal(askJump("reports", ASK_PAGES)[0]?.to, "reports", "and Reports itself stays first");
 });
@@ -323,11 +316,7 @@ test("the head says the lens's own sentence, from the view models that hold it",
     "3 messages over 1 run.",
     "the part's head, as the lens's read folds it",
   );
-  assert.equal(
-    lensAnswerOf("campaigns", { ...parts, vm: quiet }),
-    "3 messages over 1 run.",
-    "whatever the receptionist's period",
-  );
+  assert.equal(lensAnswerOf("campaigns", { ...parts, vm: quiet }), "3 messages over 1 run.", "whatever AI's period");
   assert.equal(lensAnswerOf("ads", parts), undefined, "Ads says nothing where its fold is not drawn");
   assert.equal(
     lensAnswerOf("ads", { ...parts, ads: { head: "6 of 14 new people from your ads have booked." } }),

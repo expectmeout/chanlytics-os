@@ -153,7 +153,7 @@ export function todayQueueEmpty(todayFacts: TodayFacts): TodayQueueEmptyVM {
           testid: "today-queue-empty-unanswered",
         }
       : {
-          title: "Nothing in the queue — no line the receptionist answers is connected.",
+          title: "Nothing in the queue — no line AI answers is connected.",
           sub: "nothing in the queue",
           glyph: "phone",
           tone: "",
@@ -161,7 +161,7 @@ export function todayQueueEmpty(todayFacts: TodayFacts): TodayQueueEmptyVM {
         };
   }
   return {
-    title: "All caught up — the receptionist is answering on its own.",
+    title: "All caught up — AI is answering on its own.",
     sub: "nothing needs you",
     glyph: "check",
     tone: "ok",
@@ -177,7 +177,7 @@ export function todayAskFacts(todayFacts: TodayFacts): TodayFactVM[] {
   const { period, callMinutes, speed } = todayFacts;
   return [
     { label: "Messages in", value: String(period.messages_in) },
-    { label: "Answered by the receptionist", value: `${period.answered_by_ai} of ${period.messages_in}` },
+    { label: "Answered by AI", value: `${period.answered_by_ai} of ${period.messages_in}` },
     speed === null
       ? { label: "Typical reply time", value: "—", hint: "Not enough replies yet" }
       : { label: "Typical reply time", value: speed.held ? speed.words : secondsPhrase(speed.seconds) },
@@ -191,7 +191,7 @@ export function todayTrafficLine(todayFacts: TodayFacts): string {
   const trafficParts: string[] = [];
   if (period.messages_in > 0) {
     trafficParts.push(
-      `${period.messages_in} message${period.messages_in === 1 ? "" : "s"} in, ${period.answered_by_ai} answered by the receptionist${
+      `${period.messages_in} message${period.messages_in === 1 ? "" : "s"} in, ${period.answered_by_ai} answered by AI${
         speed === null ? "" : `, typically ${speedIn(speed)}`
       }`,
     );
@@ -213,16 +213,16 @@ export function todayTrafficLine(todayFacts: TodayFacts): string {
  */
 function quietHead(wires: TodayFacts["wires"], last: string): { headline: string; sub: string } {
   if (wires.length === 0)
-    return { headline: "Nothing can come in yet.", sub: "Connect a line and your receptionist starts answering." };
+    return { headline: "Nothing can come in yet.", sub: "Connect a line and AI starts answering." };
   const on = wires.filter((w) => w.on);
   if (on.some((w) => CHANNEL_ANSWERED.has(w.kind)))
-    return { headline: "Nothing needs you.", sub: ["The receptionist is on.", last].filter(Boolean).join(" ") };
+    return { headline: "Nothing needs you.", sub: ["AI is on.", last].filter(Boolean).join(" ") };
   return {
     headline: "Nothing in the queue.",
     sub:
       on.length && on.every((w) => w.kind === "email")
         ? EMAIL_NOT_ANSWERED_SENTENCE
-        : "No line the receptionist answers is connected.",
+        : "No line AI answers is connected.",
   };
 }
 
@@ -362,13 +362,13 @@ function calmStanding(todayCalm: TodayCalmVM, runs: number): TodayHeadline {
     ? [...also, ...(todayCalm.traffic ? [`${todayCalm.traffic} today.`] : [])].join(" ")
     : todayCalm.traffic
       ? todayCalm.handled_all
-        ? `The receptionist handled everything — ${todayCalm.traffic} today. Nothing needs you.`
+        ? `AI handled everything — ${todayCalm.traffic} today. Nothing needs you.`
         : `${todayCalm.traffic} today. Nothing needs you right now.`
       : "Nothing needs you.";
   // "It" only after a headline that named the receptionist ("The receptionist handled everything"); after any other
   // (what still waits, or the traffic alone) the sentence names it itself.
   const named = !also.length && !!todayCalm.traffic && todayCalm.handled_all;
-  const detail = todayCalm.answered ? `${named ? "It" : "The receptionist"} ${todayCalm.answered}` : null;
+  const detail = todayCalm.answered ? `${named ? "It" : "AI"} ${todayCalm.answered}` : null;
   return { headline, detail, tone: "calm" };
 }
 
@@ -429,7 +429,7 @@ export const TODAY_PHONE_WORDS = {
   listen: {
     word: "Listen",
     named: (length: string) => `Listen to your brief, ${length}`,
-    getting: "Getting Ask's voice",
+    getting: "Getting AI's voice",
     brief: "Your brief",
     stop: "Stop your brief",
   },
@@ -444,7 +444,7 @@ export const TODAY_PHONE_WORDS = {
   link: {
     note: "No calendar linked",
     title: "Link your calendar",
-    sub: "The receptionist offers what's open, and the day fills in here",
+    sub: "AI offers what's open, and the day fills in here",
     act: "Link it",
   },
   /**
@@ -470,8 +470,8 @@ export function offerRefusedWords(reason: string, detail: string | null = null):
   if (clause) return `Nothing was offered: ${clause}.`;
   if (reason === "off" && detail === "freed_time_passed") return "That hour has begun: nobody can take it now.";
   if (reason === "gone") return "That cancellation is no longer on the calendar.";
-  if (reason === "too_soon") return "It starts too soon for the notice the receptionist gives.";
-  if (reason === "past_window") return "It is further ahead than the receptionist books.";
+  if (reason === "too_soon") return "It starts too soon for the notice AI gives.";
+  if (reason === "past_window") return "It is further ahead than AI books.";
   if (reason === "closed" || reason === "not_free" || reason === "too_short") return "That time is no longer open.";
   if (reason === "no_person" || reason === "all_day" || reason === "no_was_at" || reason === "no_hours")
     return "This one can't be offered.";
@@ -524,9 +524,7 @@ export function todayWentLine(
   const booked = figures.find((f) => f.id === "booked")?.value ?? null;
   const answered = figures.find((f) => f.id === "answered");
   const heard =
-    answered && answered.value !== null && answered.of
-      ? `${answered.value} of ${answered.of} answered by the receptionist`
-      : "";
+    answered && answered.value !== null && answered.of ? `${answered.value} of ${answered.of} answered by AI` : "";
   if (!booked && !heard) return null;
   const parts = [booked !== null ? `${booked} booked` : "", heard].filter(Boolean);
   return `Today: ${parts.join(", ")}.`;
@@ -556,7 +554,7 @@ export function todaySentences(
       // no channel predicate (00037_hygiene.sql), so an email it answered is
       // in this count. Every other sentence in this file already says just
       // "the receptionist".
-      text: `The receptionist answered ${period.answered_by_ai} message${period.answered_by_ai === 1 ? "" : "s"}${
+      text: `AI answered ${period.answered_by_ai} message${period.answered_by_ai === 1 ? "" : "s"}${
         period.conversations_active
           ? ` from ${period.conversations_active} ${period.conversations_active === 1 ? "person" : "people"}`
           : ""

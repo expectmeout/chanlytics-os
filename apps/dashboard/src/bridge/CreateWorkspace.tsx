@@ -269,7 +269,7 @@ function workspacePresses(form: WorkspaceForm, email: string | null, onCreated: 
     // Checked here so the answer is instant and names the field, and again in
     // the database, where it is the rule rather than a courtesy.
     if (trimmed.length < 2) {
-      setError("Give the workspace a name — the receptionist introduces itself with it.");
+      setError("Give the workspace a name — AI introduces itself with it.");
       return;
     }
     await create(trimmed, code.trim());
@@ -446,7 +446,7 @@ function workspaceHead(another: boolean, email: string | null) {
       <p className="cw-lede">
         {another ? (
           <>
-            Another business, another workspace: its own receptionist, conversations and team. You become its owner
+            Another business, another workspace: its own AI, conversations and team. You become its owner
             {email ? (
               <>
                 {" "}

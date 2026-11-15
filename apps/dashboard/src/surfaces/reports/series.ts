@@ -7,7 +7,7 @@ import type { ReportBarVM, ReportChannelKey, ReportVM } from "@chanlytics/contra
 import type { ChartConfig } from "../kit/charts/geometry";
 
 export const RPT_ANSWERED: ChartConfig = {
-  ai: { label: "Receptionist", color: "var(--chart-1)" },
+  ai: { label: "AI", color: "var(--chart-1)" },
   you: { label: "You", color: "var(--chart-1-soft)" },
   none: { label: "Unanswered", color: "var(--warn)", icon: "alert" },
 };

@@ -32,19 +32,19 @@ const WHY = {
   live: "it acts on a phone call that is happening, where the Live page's button is quicker than a sentence",
   erase: "it erases a person for good, which is asked for and confirmed on their page",
   team: "it changes who is on the team, which the owner does in Settings › Team",
-  draft: "Ask writes the draft itself in the conversation, so it never needs the page's drafter",
-  made: "Ask makes a sequence with its own card, from the draft it wrote in the conversation; New's Keep and Start make the one the owner shaped on the page",
+  draft: "AI writes the draft itself in the conversation, so it never needs the page's drafter",
+  made: "AI makes a sequence with its own card, from the draft it wrote in the conversation; New's Keep and Start make the one the owner shaped on the page",
   learned:
-    "a note the owner's correction suggested is kept beside what they wrote, on Settings › Autonomy; Ask adds a note of its own with a settings card",
+    "a note the owner's correction suggested is kept beside what they wrote, on Settings › Autonomy; AI adds a note of its own with a settings card",
   test: "it mails a step's message to the member who presses it, beside the step on its page",
   leadWords:
-    "a member types one lead's email in place on their sheet, reading it as it goes, and Ask writes none for them",
+    "a member types one lead's email in place on their sheet, reading it as it goes, and AI writes none for them",
   voice:
-    "it reads an email the owner pastes under New's draft to leads; told in a conversation how they write, Ask keeps a line of memory with its own card",
-  add: "Ask adds leads to a sequence with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on",
+    "it reads an email the owner pastes under New's draft to leads; told in a conversation how they write, AI keeps a line of memory with its own card",
+  add: "AI adds leads to a sequence with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on",
   stop: "it stops a reply in the minutes before it posts, under the review on Reports, where the reply and its time are",
   memory:
-    "it changes or forgets a line of what Ask remembers, which a member does on Settings › Memory where every line is listed; Ask keeps a line with its own card and its Undo",
+    "it changes or forgets a line of what AI remembers, which a member does on Settings › Memory where every line is listed; AI keeps a line with its own card and its Undo",
 } as const;
 
 export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
@@ -169,7 +169,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
       { what: "Keep or start what New drafted", why: WHY.made },
       { what: "Send yourself a test of a step's message", why: WHY.test },
       { what: "Type one lead's own email on their sheet", why: WHY.leadWords },
-      { what: "Paste an email you've sent, so Ask writes the way you do", why: WHY.voice },
+      { what: "Paste an email you've sent, so AI writes the way you do", why: WHY.voice },
     ],
   },
   {

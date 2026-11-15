@@ -165,7 +165,7 @@ test("which reviews the auto mode answers in one sync: on duty, unreplied, recen
   assert.deepEqual(autoReplyCandidates(rows, connected, NOW, 0), []);
 });
 
-test("the bell after the receptionist answered: one by name, several by count; nothing for nothing", () => {
+test("the bell after AI answered: one by name, several by count; nothing for nothing", () => {
   assert.equal(autoReplyBell([]), null);
   assert.deepEqual(autoReplyBell([{ author: "Maria Lopez", text: "Thank you, Maria." }]), {
     title: "Replied to Maria Lopez's review",
@@ -204,12 +204,9 @@ test("why a reply was held, in words: one set for each answer autoReplyHold give
 });
 
 test("the words beside the source, and the view model carrying the mode", () => {
-  assert.equal(reviewReplyWords("auto", true), "new ones are answered by the receptionist within the hour");
-  assert.equal(reviewReplyWords("ask", true), "the receptionist writes each reply and holds it for your OK");
-  assert.equal(
-    reviewReplyWords("veto", true),
-    "the receptionist writes each reply and posts it after 30 minutes unless you stop it",
-  );
+  assert.equal(reviewReplyWords("auto", true), "new ones are answered by AI within the hour");
+  assert.equal(reviewReplyWords("ask", true), "AI writes each reply and holds it for your OK");
+  assert.equal(reviewReplyWords("veto", true), "AI writes each reply and posts it after 30 minutes unless you stop it");
   assert.equal(reviewReplyWords("never", true), "");
   assert.equal(reviewReplyWords("auto", false), "", "nothing can go out until the profile is connected");
   const dto = {
@@ -235,7 +232,7 @@ test("the words beside the source, and the view model carrying the mode", () => 
     toGoogleVM({ ...dto, connection: conn, reply_mode: "auto" }, { days: 30, until: null }, NOW, "UTC").reply,
     {
       mode: "auto",
-      words: "new ones are answered by the receptionist within the hour",
+      words: "new ones are answered by AI within the hour",
     },
   );
 });

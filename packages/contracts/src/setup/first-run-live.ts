@@ -30,8 +30,7 @@ export interface FirstRunLiveVM {
 }
 
 export const FIRST_RUN_LIVE_WORDS = {
-  heading: (business: string | null) =>
-    business ? `${possessive(business)} receptionist is answering` : "Your receptionist is answering",
+  heading: (business: string | null) => (business ? `AI is answering for ${business}` : "AI is answering"),
   lead: "Every call shows up on Today and in your Inbox.",
   answers: "Answers",
   answersKept: (kept: string) => `${kept}, when nobody picks up`,
@@ -50,20 +49,20 @@ export const FIRST_RUN_LIVE_WORDS = {
   /** The "you're live" email (canvas C2, decision 4): sent once, on the workspace's first activation of its calls. */
   emailSubject: (business: string | null, calls = true) =>
     business
-      ? `Your receptionist is answering ${possessive(business)} ${calls ? "calls" : "customers"}`
-      : `Your receptionist is answering your ${calls ? "calls" : "customers"}`,
+      ? `AI is answering ${possessive(business)} ${calls ? "calls" : "customers"}`
+      : `AI is answering your ${calls ? "calls" : "customers"}`,
   /** WhatsApp answering (decision 0091: going live is any channel, calls or not). */
-  emailWhatsapp: (n: string) => `From now on, WhatsApp messages to ${n} are answered by your receptionist.`,
+  emailWhatsapp: (n: string) => `From now on, WhatsApp messages to ${n} are answered by AI.`,
   emailTest: (length: string | null, from: string | null, through: string | null) =>
     `It answered your test call${length ? ` (${length})` : ""}${from ? ` from ${from}` : ""}${through ? ` through ${through}` : ""}.`,
   emailFrom: (kept: string | null, own: string | null, always = false) =>
     kept
       ? always
-        ? `From now on, every call to ${kept} reaches your receptionist.`
-        : `From now on, calls to ${kept} that nobody picks up reach your receptionist.`
+        ? `From now on, every call to ${kept} reaches AI.`
+        : `From now on, calls to ${kept} that nobody picks up reach AI.`
       : own
-        ? `From now on, calls to ${own} reach your receptionist.`
-        : "From now on, your receptionist answers your calls.",
+        ? `From now on, calls to ${own} reach AI.`
+        : "From now on, AI answers your calls.",
   emailThrough: (to: string | null) =>
     to ? `A caller who asks for a person is put through to ${to}.` : "A caller who asks for a person leaves a message.",
   emailAlerts: "We'll email you here when someone needs you.",

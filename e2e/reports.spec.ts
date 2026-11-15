@@ -98,7 +98,7 @@ async function theReceptionistLens(page: Page, report: Locator) {
   const figures = report.getByTestId("receptionist-strip").locator(".figure");
   await expect(figures).toHaveCount(4);
   const labels = (await figures.locator(".figure-label").allInnerTexts()).map((l) => l.trim().toLowerCase());
-  expect(labels).toEqual(["customer messages", "receptionist answered", "median reply time", "needed you"]);
+  expect(labels).toEqual(["customer messages", "ai answered", "median reply time", "needed you"]);
 
   await expect(report.getByTestId("chart-reasons").locator("button.ck-barlist-row"), "no reason is a door").toHaveCount(
     0,
@@ -344,7 +344,7 @@ test.describe("Reports on a real workspace", () => {
     for (const s of INVENTED) expect(text, `invented copy: "${s}"`).not.toContain(s);
     expect(text, "revenue has no column").not.toMatch(/\$\d/);
 
-    await expect(report.getByTestId("reports-hero")).toContainText("answered by your receptionist");
+    await expect(report.getByTestId("reports-hero")).toContainText("answered by AI");
 
     const tiles = report.getByTestId("reports-tiles").locator(".figure");
     await expect(tiles).toHaveCount(5);
@@ -403,7 +403,7 @@ test.describe("Reports on a real workspace", () => {
     if (await main.locator(".empty").count()) {
       await expect(main.getByText("No customer messages in this period")).toBeVisible();
     } else {
-      for (const who of ["Receptionist", "You", "Unanswered"])
+      for (const who of ["AI", "You", "Unanswered"])
         await expect(main.locator(".ck-legend-item", { hasText: who })).toHaveCount(1);
       await expect(main.locator("svg").first()).toBeVisible();
     }

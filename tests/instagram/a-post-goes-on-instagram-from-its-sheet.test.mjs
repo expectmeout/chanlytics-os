@@ -431,7 +431,7 @@ test("a link that is no https address is refused before any door, and a photo of
   const photo = { ...w.ctx, params: { id: PHOTO_ID } };
   await assert.rejects(
     one.PATCH.run(send(w, "PATCH", { posted: {} }), photo),
-    /Only a piece Ask made is marked as posted/,
+    /Only a piece AI made is marked as posted/,
   );
   assert.deepEqual(w.doors, []);
 });

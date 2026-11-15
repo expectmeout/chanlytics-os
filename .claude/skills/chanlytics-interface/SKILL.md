@@ -1,6 +1,6 @@
 ---
 name: chanlytics-interface
-description: The dashboard's interface kit, its tokens and its looks. Use when a change draws or restyles anything in apps/dashboard (a page's markup or stylesheet; a button, tab, chip, card, sheet, field or menu; a colour, size, radius, shadow or blur; the theme or a look), or when a style measure or the kit's lint goes red.
+description: The dashboard's interface kit, its tokens and its looks. Use when a change draws or restyles anything in apps/dashboard (a page's markup or stylesheet; a button, tab, chip, card, sheet, field or menu; a colour, size, radius, shadow or blur; the theme or a look), writes or changes any words a page shows, or when a style measure or the kit's lint goes red.
 ---
 
 # The interface kit
@@ -36,6 +36,15 @@ The plan's contract (its §2.1), with what the build holds of each today.
    request's proof, not a measure (Prove a change, below).
 7. **The build holds it.** Each rule is a measure that may only fall, or a lint error, from the step that makes it
    true.
+
+## Words
+
+Every word a page shows follows `docs/words.md`: the product's AI is called AI, who did it is always named, one word
+for each thing (a campaign, a conversation, Approve), no code or provider words, what happened said exactly (a write
+that may have gone is never "Try again"), one number for each idea, the shape of each element (badge, notice, toast,
+problem, confirm, empty, tooltip, alert), the four styles of small words, and a phone first. Read it before writing or
+changing a label, a sentence, a badge, a notice, a toast, a tooltip, an error, a refusal the server writes, or the
+words AI is told to use.
 
 ## Where things are
 

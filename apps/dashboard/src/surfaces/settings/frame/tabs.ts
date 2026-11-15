@@ -48,9 +48,9 @@ export const SET_TABS: readonly SetTab[] = [
   // When people can come, and how they book: what the Calendar's "Hours and rules" shows, kept in one place.
   { id: "hours", label: "Hours & booking", icon: "calendar", group: "Business" },
   // What the receptionist says: its voice, what it knows, what it can do, and what it is told.
-  { id: "receptionist", label: "How it answers", icon: "chat", group: "Receptionist" },
+  { id: "receptionist", label: "How it answers", icon: "chat", group: "AI" },
   // What it may do without you, and every limit it keeps.
-  { id: "autonomy", label: "Autonomy", icon: "shield", group: "Receptionist" },
+  { id: "autonomy", label: "Autonomy", icon: "shield", group: "AI" },
   // What Chanlytics says when it writes to businesses for you (decisions 0113, 0116): away from the receptionist, since
   // it answers no one. Its route id stays `outreach`, as `workspace` does for Details: bells and Ask's answers name it.
   { id: "outreach", label: "Cold email", icon: "send", group: "Outreach" },

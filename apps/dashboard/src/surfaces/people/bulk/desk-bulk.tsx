@@ -102,7 +102,7 @@ function messagesMenu(b: BulkCtx, a: BulkActs) {
     !st.slips &&
     barMenu({
       words: "Messages",
-      hover: "A yes on record, and what the receptionist does for these people",
+      hover: "A yes on record, and what AI does for these people",
       busy: st.busy,
       size: "sm",
       groups: groups.map((g) => ({

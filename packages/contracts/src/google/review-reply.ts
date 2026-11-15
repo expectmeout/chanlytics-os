@@ -261,8 +261,8 @@ export function autoReplyBell(
 /** What the Reports card says beside the source of its reviews, when replies can go out from here. */
 export function reviewReplyWords(mode: ReviewReplyMode | null | undefined, canReply: boolean): string {
   if (!canReply || !mode) return "";
-  if (mode === "auto") return "new ones are answered by the receptionist within the hour";
-  if (mode === "veto") return "the receptionist writes each reply and posts it after 30 minutes unless you stop it";
-  if (mode === "ask") return "the receptionist writes each reply and holds it for your OK";
+  if (mode === "auto") return "new ones are answered by AI within the hour";
+  if (mode === "veto") return "AI writes each reply and posts it after 30 minutes unless you stop it";
+  if (mode === "ask") return "AI writes each reply and holds it for your OK";
   return "";
 }

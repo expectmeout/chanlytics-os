@@ -53,7 +53,7 @@ export const ASK_PAGES: JumpEntry[] = [
   { label: "People", to: "clients", kind: "page" },
   // Leads is the other scope of People, and it is its own place to an owner: the businesses
   // a search found, worked. `leads` was the mockup's page and is not offered.
-  { label: "Leads", to: "clients/leads", kind: "page", sub: "businesses Claude found for you" },
+  { label: "Leads", to: "clients/leads", kind: "page", sub: "businesses AI found for you" },
   // People's third scope, every workspace's (0008, amended 18 Oct 2026: deals for everyone).
   { label: "Pipeline", to: "clients/pipeline", kind: "page", sub: "your deals, by stage", also: ["deals"] },
   // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
@@ -85,7 +85,7 @@ export const ASK_PAGES: JumpEntry[] = [
     label: "Messages",
     to: MESSAGES_ROUTE,
     kind: "page",
-    sub: "the wording the receptionist and the campaigns send",
+    sub: "the wording AI and the campaigns send",
     also: ["templates", "library", "wording"],
   },
   { label: "Reports", to: "reports", kind: "page" },
@@ -110,7 +110,7 @@ export const ASK_PAGES: JumpEntry[] = [
     label: "How it answers",
     to: "admin/receptionist",
     kind: "page",
-    sub: "the receptionist's voice, languages and notes",
+    sub: "AI's voice, languages and notes",
     also: ["voice", "greeting", "languages"],
   },
   // Cold email (decisions 0113, 0116): found by what it was called too, since a jump is three words at most (askJump).
@@ -125,13 +125,13 @@ export const ASK_PAGES: JumpEntry[] = [
     label: "Setting up",
     to: "start",
     kind: "page",
-    sub: "the four steps to a receptionist that answers",
+    sub: "the four steps to AI answering",
     also: ["setup"],
   },
   { label: "Billing", to: "admin/billing", kind: "page" },
   { label: "Activity", to: "admin/activity", kind: "page", sub: "who did what, for owners" },
   { label: "Profile", to: "admin/profile", kind: "page", sub: "your name and how you sign in" },
-  { label: "Autonomy", to: "admin/autonomy", kind: "page", sub: "what the receptionist may do alone" },
+  { label: "Autonomy", to: "admin/autonomy", kind: "page", sub: "what AI may do alone" },
   { label: "Team", to: "admin/team", kind: "page", sub: "members and invitations" },
   { label: "Notifications", to: "admin/notifications", kind: "page" },
   { label: "Connections", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
@@ -140,7 +140,7 @@ export const ASK_PAGES: JumpEntry[] = [
   // What the receptionist knows beyond the business's details lives in How it answers; the AI memory pane says it is not
   // built and points here, so its name lands here too, never on that pane (#417).
   {
-    label: "Receptionist memory",
+    label: "AI's memory",
     to: "admin/receptionist",
     kind: "page",
     sub: "notes and your own words, in How it answers",

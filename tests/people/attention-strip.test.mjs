@@ -76,7 +76,7 @@ test("their words come first, in quotes, with the channel and the moment beside 
     [a.channel, a.when, a.quoted, a.sentence],
     ["WhatsApp", "2h ago", true, "Can I move Saturday to 11? My sister is coming too"],
   );
-  assert.deepEqual(a.status, ["Receptionist", "answering on WhatsApp"]);
+  assert.deepEqual(a.status, ["AI", "answering on WhatsApp"]);
   assert.deepEqual(
     a.cta,
     { label: "Open thread", kind: "ghost", to: "inbox/th-cv1" },
@@ -148,17 +148,17 @@ test("a caller with nothing in writing: the call's summary is the sentence; the 
   };
   const withSummary = rowOf({
     ...caller,
-    last_inbound_call_summary: "  Asked about a gel manicure for Saturday;\n the receptionist offered 10:00.  ",
+    last_inbound_call_summary: "  Asked about a gel manicure for Saturday;\n AI offered 10:00.  ",
   });
   assert.deepEqual([withSummary.channel, withSummary.when, withSummary.quoted], ["Phone", "2d ago", false]);
   assert.equal(
     withSummary.sentence,
-    "Asked about a gel manicure for Saturday; the receptionist offered 10:00.",
+    "Asked about a gel manicure for Saturday; AI offered 10:00.",
     "one line, whitespace collapsed",
   );
   assert.deepEqual(
     withSummary.status,
-    ["Receptionist", "takes their calls"],
+    ["AI", "takes their calls"],
     "never 'answering on WhatsApp' for someone who has only phoned",
   );
   assert.equal(withSummary.cta, null, "the row is the profile; there is no thread to open");

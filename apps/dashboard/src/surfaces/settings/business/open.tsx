@@ -121,7 +121,7 @@ export const BtHoursRow = ({
           </span>
         ) : null,
         // What the old card said of a week nobody has typed.
-        empty: "Not set — the receptionist cannot state your hours",
+        empty: "Not set — AI cannot state your hours",
         act: hoursLine ? "Change" : "Add them",
         name: hoursLine ? "Change your opening hours" : "Add them: your opening hours",
         children: note,
@@ -239,7 +239,7 @@ const BtoClosures = ({ draft: days, rows, press, problems, readOnly }: ClosureFi
   // The same cap the write schema enforces (contracts MAX_CLOSURES, LIMITS.closures), so the fold
   // stops at the number the save would refuse, instead of refusing at Save.
   const max = businessTabSave.LIMITS.closures;
-  const full = `That is the most closures the receptionist keeps (${max}). Dates that have passed can go.`;
+  const full = `That is the most closures AI keeps (${max}). Dates that have passed can go.`;
   const closed = rows({
     id: "closures",
     name: (i) => `closure-${i}`,

@@ -81,7 +81,7 @@ test("the shell's one line says the one thing that is wrong, what it means for y
   assert.deepEqual(shellStatusLine({ ...fine, paused: true }), {
     kind: "paused",
     tone: "danger",
-    text: "Your receptionist is paused",
+    text: "AI is paused",
     detail: "Calls are answered only to take a message, and new messages wait in the Inbox for you to answer.",
     action: "billing",
     cta: "Billing",
@@ -603,7 +603,7 @@ test("the line under the top bar: a live region that is always there, the words,
   win.CHANLY = { nav: (to) => went.push(to), address };
   win.__SHELL_STATUS = { stale: true, degraded: [] };
   tree = bar();
-  assert.match(textOf(tree), /Your receptionist is paused/, "and outranks a newer build");
+  assert.match(textOf(tree), /AI is paused/, "and outranks a newer build");
   cta(tree).props.onClick();
   assert.deepEqual(went, ["admin/billing"]);
 
@@ -717,7 +717,7 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   assert.equal(mount("#/clients/seg:lapsed-60").title, "List · People · Chanlytics");
 
   assert.equal(mount("#/admin").title, "Details · Settings · Chanlytics", "the pane the bare route opens, by name");
-  assert.equal(mount("#/admin/memory").title, "Memory · Settings · Chanlytics", "what Ask remembers (decision 0070)");
+  assert.equal(mount("#/admin/memory").title, "Memory · Settings · Chanlytics", "what AI remembers (decision 0070)");
   assert.equal(
     mount("#/admin/platform").title,
     "Profile · Settings · Chanlytics",
@@ -1472,7 +1472,7 @@ test("the look travels as the theme does: stamped beside it on every root the sh
   }
 });
 
-test("the first run keeps Ask: the palette is drawn over the step, closed, and the shell's ⌘K and appAsk open it and its close closes it; nothing else of the chrome, no door (Ask Rewired, Phase 7)", () => {
+test("the first run keeps AI: the palette is drawn over the step, closed, and the shell's ⌘K and appAsk open it and its close closes it; nothing else of the chrome, no door (Ask Rewired, Phase 7)", () => {
   shell.installShell(win);
   const keptState = win.__surfaceState;
   delete win.__surfaceState;
@@ -1549,7 +1549,7 @@ test("the first run keeps Ask: the palette is drawn over the step, closed, and t
   }
 });
 
-test("the frame fills the bridge's doors as it renders (a move, Ask, a person's Back, a page's Back to its opener) and publishes no door name of its own when the bridge gave it the filler; without one it publishes them as it always did (surfaces/frame-doors.ts)", () => {
+test("the frame fills the bridge's doors as it renders (a move, AI, a person's Back, a page's Back to its opener) and publishes no door name of its own when the bridge gave it the filler; without one it publishes them as it always did (surfaces/frame-doors.ts)", () => {
   shell.installShell(win);
   const keptState = win.__surfaceState;
   delete win.__surfaceState;
@@ -1902,7 +1902,7 @@ test("a person's page on a cold load is the layout's, and the frame names them b
   }
 });
 
-test("REGRESSION: the phone's drawer is a dialog while it is open, named Navigation -- with no role, the Esc that closed it cleared People's selection -- and Ask's ✦ stays in the bar's row under it", () => {
+test("REGRESSION: the phone's drawer is a dialog while it is open, named Navigation -- with no role, the Esc that closed it cleared People's selection -- and AI's ✦ stays in the bar's row under it", () => {
   // Drawn again with the state the last draw left, as React draws after a press.
   const redraw = () => {
     deep = false;

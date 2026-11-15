@@ -54,12 +54,12 @@ export async function getReceptionistFromWhatIsKnown(
     const workspace = await findWorkspaceName(ctx.supabase, tenantId);
     if (workspace.error) throw new DbFailure(workspace.error);
     brain = firstReceptionistOf({ workspaceName: workspace.data?.name ?? null, listing });
-    if (!brain) throw new AppError("validation", "This workspace has no name to give the receptionist yet.");
+    if (!brain) throw new AppError("validation", "This workspace has no name to give AI yet.");
   }
   // The rules a save has to satisfy, as the PUT holds every config to them. What is built here always passes; a
   // failure is a fault in the builder, said as one rather than stored.
   const next = TenantConfigWriteSchema.safeParse({ ...parsed.config, brain });
-  if (!next.success) throw new AppError("internal", "The receptionist could not be set up from what is known.", 500);
+  if (!next.success) throw new AppError("internal", "AI could not be set up from what is known.", 500);
   // The whole column is written: what the read left out of the stored row is kept (withStoredKeysKept).
   const kept = withStoredKeysKept(next.data, row.config);
   const put = await putTenantConfig(ctx.supabase, tenantId, kept, row.version, ctx.userId);

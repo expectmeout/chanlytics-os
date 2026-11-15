@@ -59,11 +59,11 @@ export type ReplyDraftWhy = DraftWhy | "named_money";
  * figure is the way through (his call D11, 9 Nov 2026).
  */
 export const DRAFT_CHANGE_NAMED_MONEY =
-  "It named a price you didn't give, so your draft stays. Say the figure and Ask will use it.";
+  "It named a price you didn't give, so your draft stays. Say the figure and AI will use it.";
 
 /** What each why says on the page, and whether Try again can change it. */
 const DRAFT_FAILED_WORDS: Readonly<Record<ReplyDraftWhy, { words: string; again: boolean }>> = {
-  no_receptionist: { words: "Set up your receptionist to have replies drafted.", again: false },
+  no_receptionist: { words: "Set up AI to have replies drafted.", again: false },
   off: { words: "Drafts are off for this workspace.", again: false },
   budget: { words: "Today's drafting budget is used up.", again: false },
   may_not_spend: { words: "Drafts wait while this workspace is paused.", again: false },
@@ -80,7 +80,7 @@ export function draftFailedWords(reason: string | null | undefined): { words: st
 export const REPLY_DRAFT_WORDS = {
   draftReadyRest: "use it, change it, or write your own",
   useDraft: "Use draft",
-  useDraftLabel: "Use Ask's draft",
+  useDraftLabel: "Use AI's draft",
   drafting: "Drafting a reply…",
   tryAgain: "Try again",
   /** What Use draft says it replaced, for a few seconds: what you typed, a press away. */

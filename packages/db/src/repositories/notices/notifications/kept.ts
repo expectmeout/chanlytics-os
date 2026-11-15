@@ -267,7 +267,7 @@ export async function holdFactsOf(
           .gte("created_at", theirs.created_at)
           .order("created_at", { ascending: false })
           .limit(1),
-        "the receptionist's reply",
+        "AI's reply",
       )
     : null;
   const pausedMs = thread.paused_until ? Date.parse(thread.paused_until) - nowMs : 0;
