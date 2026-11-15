@@ -1081,7 +1081,7 @@ test("a moment's starter is found among the messages the composers offer: one wh
   assert.doesNotMatch(said(hidden), /no version|starter set/);
 });
 
-test("a hidden message is refused a playbook, and a message whose WhatsApp row is pending is refused for WhatsApp, in WhatsApp's own standing", async () => {
+test("a hidden message is refused a playbook; a send of a message WhatsApp is still checking is proposed with its WhatsApp tick kept, since the send waits for it", async () => {
   // The workspace keeps it out of the composers: no playbook on it, by the id the model was given.
   const kept = { ...template(REMINDER, "visit_reminder"), hidden_at: ago(DAY) };
   const hidden = await propose(
@@ -1093,15 +1093,27 @@ test("a hidden message is refused a playbook, and a message whose WhatsApp row i
     said(hidden),
     "that template is one the workspace keeps out of the composers; sequences with action lists names the ones that may send",
   );
-  // A WhatsApp row still in review, beside an approved email: WhatsApp's tick says what WhatsApp says, alone or beside email.
+  // A WhatsApp row WhatsApp is still checking, beside an approved email. It was refused, in WhatsApp's standing; the send
+  // waits for WhatsApp now (core whatsapp-wait.ts), so the card is made as the route would make the send: the tick kept,
+  // whoever an email reaches counted there, and whoever only WhatsApp reaches counted on WhatsApp, to go once approved.
   const waiting = {
     templates: [template(REMINDER, "visit_reminder", { meta_status: "pending" }), version("email", "visit_reminder")],
   };
-  const STILL = "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.";
-  assert.equal(said(await propose({ ...BROADCAST, channels: ["whatsapp"] }, waiting)), STILL);
-  assert.equal(said(await propose({ ...BROADCAST, channels: ["whatsapp", "email"] }, waiting)), STILL);
-  // Naming none is WhatsApp alone: the same words, and the email it can go by.
-  assert.equal(said(await propose(BROADCAST, waiting)), `${STILL} Say so, and name channels among email`);
+  const cards = [];
+  for (const channels of [["whatsapp"], ["whatsapp", "email"], undefined]) {
+    const card = await propose({ ...BROADCAST, ...(channels ? { channels } : {}) }, waiting);
+    assert.equal(card.isError, false, card.result);
+    cards.push(card.proposal.summary);
+  }
+  assert.deepEqual(cards, [
+    "2 people who said yes · on WhatsApp · WhatsApp is checking the words, so it goes once approved · “visit_reminder” · now: On WhatsApp: Your visit is tomorrow.",
+    "3 people who said yes · on WhatsApp and by email (1 on WhatsApp, 2 by email) · WhatsApp is checking the words, so anyone it reaches only by WhatsApp gets it once approved · “visit_reminder” · now: On WhatsApp: Your visit is tomorrow. · By email: Your visit is tomorrow.",
+    // Naming none is WhatsApp alone, as a send always was.
+    "2 people who said yes · WhatsApp is checking the words, so it goes once approved · “visit_reminder” · now: Your visit is tomorrow.",
+  ]);
+  // One WhatsApp asked a change to is still refused, in its standing: that does not end by itself.
+  const refused = { templates: [template(REMINDER, "visit_reminder", { meta_status: "rejected" })] };
+  assert.match(said(await propose({ ...BROADCAST, channels: ["whatsapp"] }, refused)), /^WhatsApp asked for a change/);
   // By the email it holds it is made, and says only the email's words.
   const mail = await propose({ ...BROADCAST, channels: ["email"] }, waiting);
   assert.equal(mail.isError, false, mail.result);

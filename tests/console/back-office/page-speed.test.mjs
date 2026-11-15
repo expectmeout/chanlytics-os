@@ -247,6 +247,23 @@ test("a wait went on the page's own read that landed last, the chunk it waited f
     render_ms: 120,
   });
   assert.equal(waitOf(reads, 100, 500).wait, "billing", "with no read of its own, the last to land");
+  // What the read waited for its first byte, beside what the server said was its own: the rest is the network and, on the
+  // first ask of a route after a deploy, the route's code being loaded (1 to 3 s, 12 Nov 2026), which nothing recorded.
+  const slowStart = [
+    {
+      ...landed("read", "http://app/api/v1/contacts?workspace=acme", 300, 250, [
+        { name: "app", duration: 80, description: "" },
+      ]),
+      head: 231.4,
+    },
+  ];
+  assert.deepEqual(waitOf(slowStart, 100, 500), {
+    wait: "contacts",
+    wait_ms: 250,
+    head_ms: 231,
+    server_ms: 80,
+    render_ms: 200,
+  });
   assert.equal(waitOf(reads, 600, 700), undefined, "nothing landed, nothing to say");
   const router = [landed("read", "http://app/w/acme/calendar?_rsc=1x2y", 260, 210)];
   assert.deepEqual(waitOf(router, 50, 300, { own: new Set(["page"]) }), { wait: "page", wait_ms: 210, render_ms: 40 });

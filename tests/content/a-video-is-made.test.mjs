@@ -12,6 +12,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
 import { at } from "../_cron-doors-world.mjs";
+import { linesOf } from "../_log-lines.mjs";
 
 const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 Object.assign(process.env, {
@@ -571,6 +572,28 @@ test("a drawing still going after three minutes is taken for stalled, and treate
   assert.equal(row().status, "making");
   assert.deepEqual(stepsOf(tables), [["piece_make", "start", "1"]]);
   assert.equal(pieceRoundsOf(row().machine), 1);
+});
+
+test("a video's log says what its drawing took: how long its machine was kept, on how many cores, at which try", async () => {
+  // What a video costs to draw is its machine's time: one is billed for as long as it is kept and by the cores it has.
+  const begun = new Date(Date.now() - 42_000).toISOString();
+  const done = world({ piece: pieceRow({ machine: drawing({ started_at: begun }) }) });
+  done.machine.states = [{ stage: "done", bytes: 4096 }];
+  const drawn = (await linesOf(() => makePiece(done.db, job("wait"), soon()))).lines.find(
+    (line) => line.event === "piece_drawn",
+  );
+  assert.ok(drawn, "a made video writes its line");
+  assert.deepEqual([drawn.round, drawn.vcpus, drawn.frames], [1, 8, 310]);
+  assert.ok(drawn.machine_ms >= 42_000 && drawn.machine_ms < 60_000, `its machine's time: ${drawn.machine_ms}`);
+  // A try that failed kept a machine as long as it ran, and a video's cost is every try's.
+  const failed = world({ piece: pieceRow({ machine: drawing({ started_at: begun }) }) });
+  failed.machine.states = [{ stage: "failed", error: "the renderer stopped" }];
+  const ended = (await linesOf(() => makePiece(failed.db, job("wait"), soon()))).lines.find(
+    (line) => line.event === "piece_drawing_ended",
+  );
+  assert.ok(ended, "a failed try writes its line");
+  assert.deepEqual([ended.round, ended.vcpus], [1, 8]);
+  assert.ok(ended.machine_ms >= 42_000 && ended.machine_ms < 60_000, `the failed try's time: ${ended.machine_ms}`);
 });
 
 test("a video the platform will not take ends as not stored, and no row of it is left as a file", async () => {
