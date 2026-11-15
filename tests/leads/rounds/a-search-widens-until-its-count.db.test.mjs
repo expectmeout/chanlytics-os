@@ -231,7 +231,12 @@ test(
     assert.deepEqual([last.ending, last.carries_on], ["reach_searched", false]);
     assert.equal((await roundsOf(s.search_id)).length, 2, "no third leg");
     const [ring] = await rang(leg.id);
-    assert.equal(ring?.body, "2 found.", "every leg's leads, not the last leg's alone");
+    assert.match(
+      ring?.title ?? "",
+      / found 2 of 10$/,
+      "every leg's leads, not the last leg's alone, of what was asked",
+    );
+    assert.equal(ring?.body, "Every area within reach was searched, and no more that fit were found.");
   },
 );
 
