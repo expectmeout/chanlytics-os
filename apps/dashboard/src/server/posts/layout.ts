@@ -125,8 +125,90 @@ function inkOn(color: string): string {
 }
 
 /** The business's colour where it reads on this ground, else the fallback: a navy brand's name is lost on a dark scrim. */
-export const colourOn = (accent: string | null, ground: string, fallback: string): string =>
+const colourOn = (accent: string | null, ground: string, fallback: string): string =>
   accent && contrastOf(accent, ground) >= COLOUR_READS_AT ? accent : fallback;
+
+/** A colour as it is written: a hash and six hex digits. */
+const HEX_COLOUR = /^#[0-9a-f]{6}$/i;
+/** What small type must reach against its ground to be read (WCAG's 4.5 to 1), and what it reaches where it reads well. */
+const SMALL_READS_AT = 4.5;
+const SMALL_READS_WELL_AT = 7;
+/** The lightness a colour is fullest at: lighter than this, it pales towards white. */
+const FULLEST_AT = 0.5;
+/** Under this spread between its parts a colour has no hue of its own to keep: a black, a grey, a white. */
+const HUE_FROM = 0.1;
+/** How many times the lightness between two is halved to find the least that reads: past any shade a screen tells apart. */
+const HALVINGS = 16;
+
+/** A colour by its hue in degrees, how full it is and how light, each of the last two a share of one. */
+interface Shade {
+  hue: number;
+  fullness: number;
+  lightness: number;
+}
+
+/** A written colour as its shade, and the spread between its lightest part and its darkest. */
+function shadeOf(color: string): Shade & { spread: number } {
+  const part = (at: number): number => parseInt(color.slice(at, at + 2), 16) / 255;
+  const [r, g, b] = [part(1), part(3), part(5)];
+  const lightest = Math.max(r, g, b);
+  const spread = lightest - Math.min(r, g, b);
+  const lightness = lightest - spread / 2;
+  if (spread === 0) return { hue: 0, fullness: 0, lightness, spread };
+  const sixth =
+    lightest === r ? ((g - b) / spread + 6) % 6 : lightest === g ? (b - r) / spread + 2 : (r - g) / spread + 4;
+  return { hue: sixth * 60, fullness: spread / (1 - Math.abs(2 * lightness - 1)), lightness, spread };
+}
+
+/** A shade as it is written (CSS Color 4's own arithmetic). */
+function colourOf({ hue, fullness, lightness }: Shade): string {
+  const reach = fullness * Math.min(lightness, 1 - lightness);
+  const part = (n: number): string => {
+    const k = (n + hue / 30) % 12;
+    const share = lightness - reach * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(share * 255)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${part(0)}${part(8)}${part(4)}`;
+}
+
+/** The least lightness between two at which `reads` holds; it holds at the lighter, by the caller's word. */
+function leastLightness(darker: number, lighter: number, reads: (lightness: number) => boolean): number {
+  let [under, over] = [darker, lighter];
+  for (let i = 0; i < HALVINGS; i++) {
+    const between = (under + over) / 2;
+    if (reads(between)) over = between;
+    else under = between;
+  }
+  return over;
+}
+
+/**
+ * The business's colour as it is worn on a dark ground where small type is set in it (a video's end card: its name, and
+ * its street under that): the same hue, as light as it must be to be read there. It is lifted until small type reads well
+ * on it, where it gets that far with nothing paled; a colour that would have to pale to get there (a red, a violet)
+ * comes as full as it gets, and paler only as far as small type needs. One that reads well already is worn as it is, and
+ * one with no hue of its own to keep (a black, a grey), or none at all, is the fallback. A gold chosen for white pages
+ * stood at 3.97 to 1 on the end card (15 Nov 2026): the name muddy, the street lost on a phone. A post's rule is
+ * `colourOn` above: it sets one large line in the colour, and falls back where that is lost.
+ */
+export function colourOnDark(accent: string | null, ground: string, fallback: string): string {
+  if (!accent || !HEX_COLOUR.test(accent)) return fallback;
+  const own = shadeOf(accent);
+  if (own.spread < HUE_FROM) return fallback;
+  const at = (lightness: number): string => colourOf({ ...own, lightness });
+  const reads =
+    (mark: number) =>
+    (lightness: number): boolean =>
+      contrastOf(at(lightness), ground) >= mark;
+  if (contrastOf(accent, ground) >= SMALL_READS_WELL_AT) return accent;
+  if (own.lightness < FULLEST_AT && reads(SMALL_READS_WELL_AT)(FULLEST_AT))
+    return at(leastLightness(own.lightness, FULLEST_AT, reads(SMALL_READS_WELL_AT)));
+  const fullest = Math.max(own.lightness, FULLEST_AT);
+  if (reads(SMALL_READS_AT)(fullest)) return fullest === own.lightness ? accent : at(fullest);
+  return at(leastLightness(fullest, 1, reads(SMALL_READS_AT)));
+}
 
 const VOICES = {
   classic: {

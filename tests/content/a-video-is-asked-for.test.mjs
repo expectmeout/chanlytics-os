@@ -773,7 +773,8 @@ test("the press writes the video's row: its plan, the business's look as it stan
       {
         p_tenant_id: A,
         p_plan: PLAN,
-        p_look: { accent: "#336699", logo_path: null, name: "Harbor", book: "Book · (555) 010-0100", address: null },
+        // The workspace's blue (#336699), as full as a blue gets: what reads on the card's dark ground.
+        p_look: { accent: "#4080bf", logo_path: null, name: "Harbor", book: "Book · (555) 010-0100", address: null },
         p_key: "p-card-1",
         p_edition: PIECE_TEMPLATE.edition,
       },
@@ -797,13 +798,51 @@ test("a plan in blocks is written as its card sent it, every file it names read 
   assert.deepEqual(gone.knocks, []);
 });
 
-test("a brand colour that would not read on the end card's dark ground is not worn: the name is set in white", async () => {
-  // Navy on near-black is lost, as it is on a post's scrim (posts/layout.ts colourOn): the one rule, the card's own ground.
-  const navy = await pressed(PLAN, { accent: "#0b1f3a" });
-  assert.equal(navy.knocks[0][1].p_look.accent, "#ffffff");
-  // A colour that reads is the business's own; a workspace with none is white too.
-  assert.equal((await pressed(PLAN, { accent: "#e8b84a" })).knocks[0][1].p_look.accent, "#e8b84a");
-  assert.equal((await pressed(PLAN, { accent: null })).knocks[0][1].p_look.accent, "#ffffff");
+/** A colour as its three parts, each a share of one. */
+const partsOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+/** A colour's hue in degrees, and its lightness: half its lightest part and its darkest. */
+function hueOf(hex) {
+  const [r, g, b] = partsOf(hex);
+  const max = Math.max(r, g, b);
+  const spread = max - Math.min(r, g, b);
+  const sixth = max === r ? ((g - b) / spread + 6) % 6 : max === g ? (b - r) / spread + 2 : (r - g) / spread + 4;
+  return sixth * 60;
+}
+const lightnessOf = (hex) => (Math.max(...partsOf(hex)) + Math.min(...partsOf(hex))) / 2;
+/** How a colour stands against the end card's ground, as WCAG reckons it. */
+function readsAt(hex) {
+  const light = (colour) => {
+    const [r, g, b] = partsOf(colour).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  return (light(hex) + 0.05) / (light(PIECE_FRAME.ink) + 0.05);
+}
+
+test("a brand colour is worn on the end card as light as it must be to read on its dark ground, and stays the business's own", async () => {
+  const worn = async (accent) => (await pressed(PLAN, { accent })).knocks[0][1].p_look.accent;
+  // A gold chosen for white pages stands under 4 to 1 on the card (a salon's did, 15 Nov 2026): its name muddy, its
+  // street lost on a phone. It is lifted until small type reads well on it, with nothing paled: the same gold, lit.
+  const gold = await worn("#80692c");
+  assert.ok(readsAt(gold) >= 7, `the gold reads well: ${gold} stands at ${readsAt(gold).toFixed(2)}`);
+  assert.ok(readsAt(gold) < 7.3, `and no lighter than it must be: ${gold}`);
+  assert.ok(Math.abs(hueOf(gold) - hueOf("#80692c")) < 3, `it is the same gold: ${gold}`);
+  assert.ok(lightnessOf(gold) <= 0.51, `nothing paled: ${gold}`);
+  // A red is never paled to pink to get that far: it comes as full as a red gets, which small type still reads on.
+  const red = await worn("#b3001b");
+  assert.ok(readsAt(red) >= 4.5, `the red reads: ${red} stands at ${readsAt(red).toFixed(2)}`);
+  assert.ok(lightnessOf(red) <= 0.51, `the red is a red still: ${red}`);
+  assert.ok(Math.abs(hueOf(red) - hueOf("#b3001b")) < 3, `the same red: ${red}`);
+  // A navy was lost on the card and set in white. It is the business's blue, paled only as far as small type needs.
+  const navy = await worn("#0b1f3a");
+  assert.notEqual(navy, "#ffffff");
+  assert.ok(readsAt(navy) >= 4.5 && readsAt(navy) < 4.8, `the navy reads, and no paler than it must: ${navy}`);
+  assert.ok(Math.abs(hueOf(navy) - hueOf("#0b1f3a")) < 3, `the same blue: ${navy}`);
+  // One that reads well already is worn as it is.
+  assert.equal(await worn("#e8b84a"), "#e8b84a");
+  // A colour with no hue of its own (a black, a grey) has nothing to keep, and a workspace may have none: white.
+  assert.equal(await worn("#111111"), "#ffffff");
+  assert.equal(await worn("#555555"), "#ffffff");
+  assert.equal(await worn(null), "#ffffff");
 });
 
 test("a clip is this workspace's own: one the person may see in another of their workspaces is no clip of this plan", async () => {
