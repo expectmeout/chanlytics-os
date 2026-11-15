@@ -66,7 +66,13 @@ export const LEAD_PREVIEW_WORDS = {
   notRightSend: "Send",
   notRightThanks: "Thanks. You can fix it in a minute once it's yours.",
   /** After a fact is put right on the page, and where it cannot take another thing told. */
+  teachTitle: "Tell it something",
+  teachSub: "It uses it from its next answer. A price you give is yours to say.",
   teachLabel: "Tell it something a customer asks",
+  teachSend: "Tell it",
+  teachLeft: (n: number) => (n === 1 ? "1 more" : `${n} more`),
+  toldTitle: "You told it",
+  teachFailed: "It couldn't take that just now. Try again in a moment.",
   fixed: "Fixed. Try it and see.",
   taughtFull: "That's the three a preview takes. Make it yours to tell it more.",
 

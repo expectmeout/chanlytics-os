@@ -81,6 +81,8 @@ export interface PreviewPageVM {
   /** What it says first in the chat, as their business: shown, never stored or counted. */
   greeting: string;
   knows: PreviewKnowsRowVM[];
+  /** What they told it, in the order they did (previews/theirs.ts): none on a page that is not open. */
+  taught: string[];
 }
 
 /** What the page is drawn from: the row as its door keeps it, and the preview workspace's name, look and record. */
@@ -247,5 +249,6 @@ export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): Pr
       state === "ready" || state === "spent"
         ? previewKnowsOf(previewPageFacts.profile, previewPageFacts.phone_display)
         : [],
+    taught: state === "ready" || state === "spent" ? previewTheirsOf(previewPageFacts.profile).taught : [],
   };
 }

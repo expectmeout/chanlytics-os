@@ -18,6 +18,7 @@ import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   LEAD_PREVIEW_WORDS as W,
+  PREVIEW_TAUGHT,
   previewMinePath,
   type PreviewKnowsRowVM,
   type PreviewPageVM,
@@ -180,21 +181,25 @@ function PvKnown({ row, token, look }: { row: PreviewKnowsRowVM; token: string; 
   const [said, setSaid] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  // What they said is right, once its record took it: drawn in place of the listing's, as theirs.
+  const [fixed, setFixed] = useState<string | null>(null);
   const send = async (e: SyntheticEvent) => {
     e.preventDefault();
     setBusy(true);
     const r = await previewVerbs.notRight(token, row.label, said);
     setBusy(false);
-    if (r.ok) setSent(true);
+    if (!r.ok) return;
+    setSent(true);
+    if (r.data.fixed && said.trim()) setFixed(said.trim());
   };
   return (
     <div className="pv-knows-row" data-testid={`pv-knows-${row.key}`}>
       <dt>{row.label}</dt>
-      <dd>{row.value}</dd>
+      <dd data-testid={`pv-knows-value-${row.key}`}>{fixed ?? row.value}</dd>
       <dd className="pv-knows-from">
-        <span>{row.from}</span>
+        <span>{fixed ? W.from.you : row.from}</span>
         {look ? null : sent ? (
-          <span role="status">{W.notRightThanks}</span>
+          <span role="status">{fixed ? W.fixed : W.notRightThanks}</span>
         ) : open ? null : (
           <LinkButton onClick={() => setOpen(true)} data-testid={`pv-not-right-${row.key}`}>
             {W.notRight}
@@ -221,6 +226,75 @@ function PvKnown({ row, token, look }: { row: PreviewKnowsRowVM; token: string; 
         </dd>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * What they tell it (the canvas's call P4): up to three things, in its record at once, so its next answer and its next
+ * call use them. Its sender looking sees what was told and types nothing; with nothing told there is no part to show.
+ */
+function PvTeach({ vm, token, look }: { vm: PreviewPageVM; token: string; look: boolean }) {
+  const [told, setTold] = useState<readonly string[]>(vm.taught);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const left = Math.max(0, PREVIEW_TAUGHT.most - told.length);
+  if (look && told.length === 0) return null;
+  const send = async (e: SyntheticEvent) => {
+    e.preventDefault();
+    const saying = text.replace(/\s+/g, " ").trim();
+    if (!saying || busy) return;
+    setBusy(true);
+    setProblem(null);
+    const r = await previewVerbs.teach(token, saying);
+    setBusy(false);
+    if (!r.ok) {
+      setProblem(r.message ?? W.teachFailed);
+      return;
+    }
+    setTold((before) => [...before, saying]);
+    setText("");
+  };
+  return (
+    <Panel as="section" className="pv-section" data-testid="pv-teach">
+      <h2 className="pv-section-title">{W.teachTitle}</h2>
+      {look ? null : <p className="pv-quiet">{W.teachSub}</p>}
+      {told.length > 0 ? (
+        <ul className="pv-told" aria-label={W.toldTitle}>
+          {told.map((line, at) => (
+            <li key={`${at}:${line}`} data-testid={`pv-taught-${at}`}>
+              {line}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {look ? null : left === 0 ? (
+        <p className="pv-quiet" role="status">
+          {W.taughtFull}
+        </p>
+      ) : (
+        <form className="pv-ask" onSubmit={send}>
+          <Field
+            label={W.teachLabel}
+            rows={2}
+            value={text}
+            onValueChange={setText}
+            readOnly={busy}
+            maxLength={PREVIEW_TAUGHT.chars}
+            data-testid="pv-teach-text"
+            {...fieldProblem(problem)}
+          />
+          <div className="pv-ask-acts">
+            <p className="pv-quiet" data-testid="pv-teach-left">
+              {W.teachLeft(left)}
+            </p>
+            <Button type="submit" disabled={busy || !text.trim()} data-testid="pv-teach-send">
+              {W.teachSend}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Panel>
   );
 }
 
@@ -317,6 +391,7 @@ export function PreviewPage({ vm, token, look = false }: { vm: PreviewPageVM; to
       ) : null}
       {look ? null : <PvCall token={token} leftMs={vm.call_left_ms} />}
       <PvChat vm={vm} token={token} look={look} />
+      <PvTeach vm={vm} token={token} look={look} />
       <PvKnows vm={vm} token={token} look={look} />
       {look ? null : <PvFoot token={token} />}
     </main>
