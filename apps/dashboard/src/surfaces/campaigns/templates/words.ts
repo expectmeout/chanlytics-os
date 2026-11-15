@@ -221,7 +221,7 @@ export const TPL_SHEET_WORDS = {
   /** The tap on where it stands: its name to a screen reader, and what it says. */
   standing: (title: string): string => `Where ${title} stands`,
   checking: "Checking",
-  checkingSays: `WhatsApp is checking the new words (${WHATSAPP_REVIEW_TAKES}). Chanlytics tells you what it decides. If it says no, this comes back to Needs you with new words ready.`,
+  checkingSays: `WhatsApp is checking the new words (${WHATSAPP_REVIEW_TAKES}), and Chanlytics tells you what it decides. If it says no, this comes back to Needs you with new words ready.`,
   goingSays: (by: string): string => `Sent by ${by}.`,
   /** Something sends it and nothing can carry it here yet: nothing is lost, and it goes by itself. */
   waitingSays: (by: string): string =>

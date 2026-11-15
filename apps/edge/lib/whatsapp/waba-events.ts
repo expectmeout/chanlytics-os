@@ -177,7 +177,7 @@ function aboutTemplate(v: Record<string, unknown>): Partial<Pick<WabaWords, "rou
 }
 
 /** The message a notice is about, named as the Library names it (templateTitle). */
-const titleOf = (record: Record<string, unknown>): string =>
+const messageTitle = (record: Record<string, unknown>): string =>
   typeof record.message_template_name === "string" ? templateTitle(record.message_template_name) : "a message";
 
 /**
@@ -193,7 +193,7 @@ function categoryWords(record: Record<string, unknown>, number: string | null): 
   return {
     ...READY,
     ...aboutTemplate(record),
-    subject: TEMPLATE_NOTICE_TITLES.offer(titleOf(record)),
+    subject: TEMPLATE_NOTICE_TITLES.offer(messageTitle(record)),
     body: offers.why ?? "From now on it goes to people who said yes to offers.",
     alert: true,
   };
@@ -236,7 +236,7 @@ function approvedSaid(title: string, category: unknown, number: string | null): 
  * was said to end by itself, and the news closes the hold's warning (contracts NOTICE_MENDS).
  */
 function templateStatusWords(record: Record<string, unknown>, number: string | null): WabaWords | null {
-  const title = titleOf(record);
+  const title = messageTitle(record);
   const door = aboutTemplate(record);
   const event = textOrEmpty(record.event);
   if (sendsAgain(record, event))

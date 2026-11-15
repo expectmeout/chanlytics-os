@@ -11,7 +11,6 @@ import { appointmentWords, type AppointmentWord } from "../../journey/appointmen
 import { channelNeverCarries } from "../broadcasts/reach-for";
 import { enrolPurpose } from "../playbooks/purpose";
 import { triggerOf } from "../playbooks/triggers/notices";
-import type { CampaignMessage } from "../templates/campaign-message";
 import { isOneOf } from "../../shared/unknown";
 import { clockAhead, clockDate, clockTime } from "../../shared/clock";
 import { plural } from "../../shared/words";
@@ -257,6 +256,15 @@ export function scheduleEnd(
 export type StepOffer = "whatsapp" | "own";
 
 /**
+ * A step's message as far as stepAsOffer reads it: its kind, and whether it has a WhatsApp version. Said here rather than
+ * taken from campaign-message.ts, whose type would tie this module into its importers' circle (decision 0110).
+ */
+interface StepMessage {
+  category: string | null;
+  versions: { whatsapp: object | null };
+}
+
+/**
  * Whether a customer's step sends an offer though its moment is not one, and whose word that is; null where the step is
  * what its moment is, is a task for a person, or has no message in view. A run enrols by the stricter of the two
  * (playbooks/purpose.ts enrolPurpose), so such a step reaches only a yes to offers and never goes by text, and its
@@ -265,7 +273,7 @@ export type StepOffer = "whatsapp" | "own";
  */
 export function stepAsOffer(
   step: Pick<SequenceStepDto, "kind" | "hand"> & { policy_class?: string | null },
-  message: Pick<CampaignMessage, "category" | "versions"> | null,
+  message: StepMessage | null,
 ): StepOffer | null {
   if (!message || step.hand || step.kind !== "moment") return null;
   if (purposeOfPlaybook(step.policy_class) === "marketing") return null;
@@ -443,8 +451,9 @@ export function scheduleStepFacts(
         : "Email, from your connected mailboxes"
       : sequenceChannelsWords(carriedBy(step.channels, ctx.offer));
   // An offer under a moment that is not one says so here whatever its box is saying: whose word, who gets it, never by text.
-  const said = SCHEDULE_WORDS.asOffer;
-  const offer = ctx.offer && !step.hand ? `${said[ctx.offer]}, so ${said.who}, ${said.never}.` : null;
+  const asOfferWords = SCHEDULE_WORDS.asOffer;
+  const offer =
+    ctx.offer && !step.hand ? `${asOfferWords[ctx.offer]}, so ${asOfferWords.who}, ${asOfferWords.never}.` : null;
   if (by || offer)
     facts.push({ label: factWords.by, value: [by ? (offer ? `${by}.` : by) : null, offer].filter(Boolean).join(" ") });
   // What it is doing now, without the offer's line its box falls back on: the By row above has said it, once.

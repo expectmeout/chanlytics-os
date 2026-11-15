@@ -49,13 +49,14 @@ type ToldStatus = keyof typeof TEMPLATE_NOTICE_TITLES;
 const MENDED_BY_APPROVAL = ["rejected", "paused", "disabled"] as const satisfies readonly ToldStatus[];
 
 /** Where a message's name stands in a title made around it: a character no name holds. */
-const NAME = "\u0000";
+const TITLE_SLOT = "\u0000";
 
 /**
  * A message notice's title for a status, as the edge keeps it (TEMPLATE_NOTICE_TITLES, the words waba-events.ts reads):
  * its words exactly, around any name.
  */
-const toldAs = (status: ToldStatus): string => TEMPLATE_NOTICE_TITLES[status](NAME).split(NAME).map(escaped).join(".*");
+const toldAs = (status: ToldStatus): string =>
+  TEMPLATE_NOTICE_TITLES[status](TITLE_SLOT).split(TITLE_SLOT).map(escaped).join(".*");
 
 /**
  * The same notice as the edge worded it until 13 Nov 2026 (`Template “<name>” <status word>`): a warning kept then is on
