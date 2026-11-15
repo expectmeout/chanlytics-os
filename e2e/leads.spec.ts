@@ -29,7 +29,7 @@ import { WAITING_PLACES, WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, w
  * first, deliberately.
  *
  * Read-mostly: every write here is undone in the same test, and
- * e2e-workspace.mjs puts the six leads back before the next run.
+ * e2e-workspace.mjs puts every seeded lead back before the next run.
  */
 const PAID = process.env.E2E_PAID_LEADS === "1";
 const WHY_UNPAID = "a real search spends on the source and the judge: set E2E_PAID_LEADS=1 to run it";
@@ -40,7 +40,9 @@ const WHY_UNPAID = "a real search spends on the source and the judge: set E2E_PA
  * Robin: that file is ESM run by plain node, and Playwright compiles a spec to
  * CJS, so an import of it fails at load. The first test reads the workspace back
  * through the API and refuses a seed that has drifted from these names, so the
- * two copies cannot quietly disagree.
+ * two copies cannot quietly disagree. Mueller and Kettlebell (Needs review) and
+ * FitCorp (Left out) are what the finder set aside: the database holds them, and
+ * since decision 0133 the page shows the other three alone.
  */
 const LEAD_SEARCH_NAME = "Personal trainers · Austin";
 const ZILKER = "Zilker Strength Lab";
@@ -80,9 +82,11 @@ async function watch(page: Parameters<typeof signIn>[0], pattern: string): Promi
 }
 
 /**
- * Open the seeded search from the rail. The strip and the three classes belong
- * to a search -- LeadsScope draws neither while `searchId` is null -- so a test
- * that reads an ending, or a class other than Qualified, comes through here.
+ * Open the seeded search from the rail. The strip and the band belong to a
+ * search -- LeadsScope draws neither while `searchId` is null -- so a test that
+ * reads an ending comes through here. A search the finder ran shows Qualified
+ * alone (decision 0133): the left-out places an owner still opens are the ones a
+ * waiting question is about (waiting-search.ts).
  */
 async function openSeededSearch(page: Page): Promise<void> {
   await page.goto("/#/clients/leads");
@@ -128,19 +132,20 @@ test.describe("Leads on a real workspace", () => {
     await expect(rows.nth(2)).toContainText(HYDE_PARK);
 
     // The rail names the search, and its count is the members' count. The strip
-    // and the three classes are the open search's, so read them from it.
+    // and the band are the open search's, so read them from it.
     await expect(page.locator(".cl-rail-row", { hasText: LEAD_SEARCH_NAME })).toBeVisible();
     await openSeededSearch(page);
-    await expectStripEnding(page, "Found 3 personal trainers");
-    await expect(page.getByTestId("lead-strip")).toContainText("1 left out");
-
-    // Excluded is a view, and the view is the address.
-    await page.getByTestId("lead-class-excluded").click();
-    await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/leads:s-[0-9a-f-]{36}:c-excluded$/);
-    const left = page.locator(".cl-table tbody tr").first();
-    await expect(left).toContainText(FITCORP);
-    await expect(left).toContainText("Chain");
-    await expect(left).toContainText("Not checked");
+    // A search the finder ran shows its finished leads alone (decision 0133): the strip says what it found and how
+    // they can be reached, and nothing it set aside; the band is Qualified alone, with no way into Needs review or Left
+    // out. The database still holds the three it set aside (read above): they are the team's, in the Console.
+    await expectStripEnding(page, "Found 3 personal trainers · 3 you can email");
+    await expect(page.getByTestId("lead-strip")).not.toContainText(/left out|need a look|needs review/i);
+    const classes = page.getByTestId("lead-classes").getByRole("tab");
+    await expect(classes).toHaveCount(1);
+    await expect(page.getByTestId("lead-class-qualified").locator(".n")).toHaveText("3");
+    const shown = page.locator(".cl-table tbody tr[id^='lead-']");
+    await expect(shown).toHaveCount(qualified.length);
+    for (const name of qualified) await expect(shown.filter({ hasText: name })).toHaveCount(1);
   });
 
   test("a search waiting on its answer: the standing says it needs you, its door opens the pile it asks about, and the strip asks with the answer row one press away", async ({
@@ -209,14 +214,13 @@ test.describe("Leads on a real workspace", () => {
     expect(text, "a screen named the vendor").not.toMatch(/apify|compass|bounce ?verify/i);
   });
 
-  test("the peek names every check's source in two groups, and a catch-all address reads Unconfirmed", async ({
-    page,
-  }) => {
+  test("the peek names every check's source in two groups", async ({ page }) => {
+    // On a finished lead, the only kind a search shows (decision 0133). A catch-all address reading Unconfirmed is the
+    // node suite's (tests/leads/finder/leads-vm.test.mjs): a finished lead of an email search holds a checked email,
+    // so no row this page shows can hold one.
     await openSeededSearch(page);
-    await page.getByTestId("lead-class-review").click();
-    await page.locator(".cl-table tbody tr", { hasText: MUELLER }).getByTestId("lead-name").click();
+    await page.locator(".cl-table tbody tr", { hasText: ZILKER }).getByTestId("lead-name").click();
     await expectPeekSeenVersusRead(page);
-    await expect(page.getByTestId("lead-peek")).toContainText("Unconfirmed");
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("lead-peek")).toHaveCount(0);
   });
@@ -263,37 +267,38 @@ test.describe("Leads on a real workspace", () => {
     expect((after.data.rows as Array<{ business_name: string }>).map((r) => r.business_name)).toContain(HYDE_PARK);
   });
 
-  test("Put back, then Undo, leaves the left-out place as it was", async ({ page }) => {
+  /**
+   * Put back is the owner's override of a place left out, and it counts. Since decision 0133 the one pile of left-out
+   * places an owner opens is the one a waiting search's question is about (leads/page/routes.tsx, waitsOn), so it is
+   * pressed there. Put back is not an answer: refuseAnswers counts anything that would answer, and the search still
+   * waits after.
+   *
+   * Keep, Needs review's one press, has no test here: since 0133 Needs review stands only on a list of the owner's own
+   * (D4), which this workspace does not hold, and Keep with its toast and Undo is the node suite's
+   * (tests/leads/finder/leads-honest.test.mjs, "a Needs review row offers Keep and Exclude").
+   */
+  test("Put back on a place the waiting question is about, then Undo, leaves it as it was and answers nothing", async ({
+    page,
+  }) => {
+    const attempts = await refuseAnswers(page);
     const put = await watch(page, "**/api/v1/leads/*/put-back*");
     const undone = await watch(page, "**/api/v1/lead-operations/*/undo*");
-    await openSeededSearch(page);
-    await page.getByTestId("lead-class-excluded").click();
-    const row = page.locator(".cl-table tbody tr", { hasText: FITCORP });
+    await page.goto("/#/clients/leads");
+    await page.waitForLoadState("networkidle");
+    const search = await waitingSearch(page);
+    await page.getByTestId(`leads-search-${search.id}`).click();
+    await expect.poll(() => routeOf(page.url())).toBe(search.route);
+    const place = WAITING_PLACES[0];
+    const row = page.locator(".cl-table tbody tr", { hasText: place });
     const before = await leadRowWords(row);
     await row.hover();
     await row.getByTestId("lead-put-back").click();
     await expect.poll(() => put.length).toBe(1);
     await page.getByRole("button", { name: "Undo" }).click();
     await expect.poll(() => undone.length).toBe(1);
-    await expectRowUnchangedAfterUndo(page, FITCORP, before);
-  });
-
-  test("Keep on a Needs review row counts it this month, and Undo gives it back", async ({ page }) => {
-    const kept = await watch(page, "**/api/v1/leads/*/keep*");
-    const undone = await watch(page, "**/api/v1/lead-operations/*/undo*");
-    await openSeededSearch(page);
-    await page.getByTestId("lead-class-review").click();
-    const row = page.locator(".cl-table tbody tr", { hasText: KETTLEBELL });
-    const before = await leadRowWords(row);
-    await row.hover();
-    await row.getByTestId("lead-keep").click();
-    await expect.poll(() => kept.length).toBe(1);
-    // The toast, by its own class: the shell keeps a role="status" slot of its
-    // own (frame/topbar/topbar.tsx), so asking for the role alone finds two.
-    await expect(page.locator(".pp-toast").first()).toContainText("It counts as a lead this month.");
-    await page.getByRole("button", { name: "Undo" }).click();
-    await expect.poll(() => undone.length).toBe(1);
-    await expectRowUnchangedAfterUndo(page, KETTLEBELL, before);
+    await expectRowUnchangedAfterUndo(page, place, before);
+    expect(attempts, "putting a place back answers nothing").toEqual([]);
+    await waitingSearch(page);
   });
 
   test("an old #/leads bookmark lands on the Leads scope", async ({ page }) => {

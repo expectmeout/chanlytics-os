@@ -13,7 +13,7 @@ type Run = { tenantId: TenantId; broadcastId: string };
 
 /** The columns a run reads of its broadcast. */
 const RUN_COLUMNS =
-  "id, state, name, template_name, template_language, params, recipient_count, playbook_id:step_id, audience, offered_start, offered_end, offered_from";
+  "id, state, name, template_name, template_language, params, recipient_count, playbook_id:step_id, audience, scheduled_for, offered_start, offered_end, offered_from";
 
 /** The broadcast a run sends, or null. */
 export const findBroadcastRun = async (db: Db, run: Run) =>

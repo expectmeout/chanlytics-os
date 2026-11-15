@@ -136,12 +136,33 @@ const WRITE_CLAIMS = [
 ];
 
 /**
+ * A reply that already went to a customer, said with when it went: AI answers the business's customers, and says so in
+ * the first person (docs/words.md), so "I replied at 12:57 AM" or "le he enviado el enlace ayer" tells what happened
+ * before this turn, never what this chat did. The verb is a reply's alone (sent, replied), and the time is one before
+ * the turn: a time of day, a day, or how long ago.
+ */
+const A_REPLY_GONE = /\bI (?:sent|replied)\b|\bhe (?:enviado|respondido)\b/i;
+const BEFORE_THIS_TURN =
+  /\bat \d{1,2}(?::\d{2})? ?[AP]M\b|\b(?:yesterday|last night|this morning|earlier today|\d+ (?:minutes?|hours?|days?) ago)\b|\bon (?:Mon|Tue|Wed|Thu|Fri|Sat|Sun|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b|\ba las \d{1,2}(?::\d{2})?\b|(?<![\p{L}\p{N}])(?:ayer|anoche|esta mañana|hace \d+ (?:minutos?|horas?|días?))(?![\p{L}\p{N}])/iu;
+
+/** A sentence as the claims read it: a reply already gone, said with its time, set aside; the rest still claims. */
+const narrationAside = (sentence: string): string =>
+  BEFORE_THIS_TURN.test(sentence) ? sentence.replace(A_REPLY_GONE, "…") : sentence;
+
+/**
  * Whether an answer's own words claim a write (WRITE_CLAIMS): a draft it quotes claims nothing. The eval's `no_write`
  * and `names_card` read it, and the turn's loop, which says a claiming headline beside cards as the cards' own sentence
- * (apps/dashboard/src/server/ask/loop.ts).
+ * (apps/dashboard/src/server/ask/loop.ts). An answer with no card beside it may say a reply already gone, with its time
+ * (narrationAside); beside cards (`besideCards`), that is still a claim, since a card's own act is never past: the loop
+ * and `names_card` read so.
  */
-export const claimsWrite = (text: string | null | undefined): boolean =>
-  WRITE_CLAIMS.some((re) => re.test(unquoted(text)));
+export const claimsWrite = (text: string | null | undefined, { besideCards }: { besideCards: boolean }): boolean => {
+  const own = unquoted(text);
+  const sentences = besideCards ? [own] : own.split(/(?<=[.!?])\s+|\n+/);
+  return sentences.some((sentence) =>
+    WRITE_CLAIMS.some((re) => re.test(besideCards ? sentence : narrationAside(sentence))),
+  );
+};
 
 /* ------------------------------------------------------- the words' formatting */
 

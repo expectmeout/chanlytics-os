@@ -642,7 +642,6 @@ export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDra
       kind,
       channels: how.channels,
       offer: !!first?.offer,
-      review: !!first?.written?.versions.whatsapp,
     }),
     checks: [],
     twin: kind === "sequence" ? twinOf(draftWho, known.running) : null,

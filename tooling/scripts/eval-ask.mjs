@@ -436,7 +436,8 @@ export function judge(c, r) {
   if (e.tools_also_any && !usedAny(e.tools_also_any, m.tools))
     fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_also_any.join("/")}`);
   if (e.language && m.language !== e.language) fails.push(`language ${m.language} ≠ ${e.language}`);
-  if (e.no_write && claimsWrite(text)) fails.push(`the answer claims a write: “${text.slice(0, 120)}”`);
+  if (e.no_write && claimsWrite(text, { besideCards: (m.proposals ?? []).length > 0 }))
+    fails.push(`the answer claims a write: “${text.slice(0, 120)}”`);
   if (e.includes_any && !e.includes_any.some((s) => text.toLowerCase().includes(s.toLowerCase())))
     fails.push(`answer lacks all of ${e.includes_any.join("/")}`);
   // Each of them, in any order: what a setup must say first (the calendar to connect, proposals to turn on).

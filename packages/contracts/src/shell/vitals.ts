@@ -57,9 +57,11 @@ const detailMs = () => z.optional(z.number().check(z.minimum(0), z.maximum(VITAL
 
 /**
  * What a report's time went on, where the shell could tell (page_vitals.detail). For READY and SETTLED: the read that
- * landed last before the page was drawn (`wait`, its route), how long it took and how much of that the server said
- * was its own (`server_ms`, from Server-Timing, and its database calls, `db_ms` over `db_n`), a script chunk that had to
- * arrive (`chunk_ms`), and what was left for drawing (`render_ms`). For the browser's: the element (`el`), the
+ * landed last before the page was drawn (`wait`, its route), how long it took, how long it waited for its first byte
+ * (`head_ms`, from its request sent) and how much of that the server said was its own (`server_ms`, from Server-Timing,
+ * and its database calls, `db_ms` over `db_n`): a first byte long past the server's own time is the network or, on a
+ * route's first ask after a deploy, its code being loaded. A script chunk that had to arrive (`chunk_ms`), and what was
+ * left for drawing (`render_ms`). For the browser's: the element (`el`), the
  * interaction's type and its three phases, the longest script's share, the largest paint's four parts, the largest
  * shift's score, the document's state, and the phase the time went on most (`phase`). For READ_FAILED: why the reads
  * failed (`reason`: the refusal's own code, or `threw` where the read's own code did) and whether the tab was hidden
@@ -68,6 +70,7 @@ const detailMs = () => z.optional(z.number().check(z.minimum(0), z.maximum(VITAL
 const PageVitalDetail = z.object({
   wait: detailWord(),
   wait_ms: detailMs(),
+  head_ms: detailMs(),
   server_ms: detailMs(),
   db_ms: detailMs(),
   db_n: z.optional(z.int().check(z.minimum(0), z.maximum(10_000))),
