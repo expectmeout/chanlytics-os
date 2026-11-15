@@ -302,21 +302,36 @@ async function refuseBeforeFiling(
   await review?.(ctx, tenantId, check.value);
 }
 
+/**
+ * The message as this workspace writes it: without a version no one here can be sent (versionsWrittenHere, read from its
+ * number); refused, in the pause's own words, where that version was all there was.
+ */
+async function writtenHereOf(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  request: WriteMessageBody,
+): Promise<WriteMessageBody> {
+  const offers =
+    request.versions.whatsapp && purposeOfTemplate(request.category) === "marketing"
+      ? await getWhatsAppOffers(ctx, tenantId)
+      : null;
+  const body: WriteMessageBody = {
+    ...request,
+    versions: versionsWrittenHere(request.versions, request.category, offers),
+  };
+  if (!body.versions.whatsapp && !body.versions.email && !body.versions.sms)
+    throw new AppError("validation", offers?.why ?? NOT_FILED);
+  return body;
+}
+
 export async function writeMessage(
   ctx: RouteContext,
   member: Member,
-  asked: WriteMessageBody,
+  request: WriteMessageBody,
   /** A reader's look at WhatsApp's words before they are sent (whatsapp-refusals.ts), the route's to hand in. */
   review?: ReviewWords,
 ): Promise<WriteMessageAnswer> {
-  // A version no one here can be sent is never written (versionsWrittenHere); an offer that was WhatsApp's alone is refused.
-  const offers =
-    asked.versions.whatsapp && purposeOfTemplate(asked.category) === "marketing"
-      ? await getWhatsAppOffers(ctx, member.tenantId)
-      : null;
-  const body: WriteMessageBody = { ...asked, versions: versionsWrittenHere(asked.versions, asked.category, offers) };
-  if (!body.versions.whatsapp && !body.versions.email && !body.versions.sms)
-    throw new AppError("validation", offers?.why ?? NOT_FILED);
+  const body = await writtenHereOf(ctx, member.tenantId, request);
   const { name, language, category } = body;
   const slots = slotsOf(body);
   checkMessage(body);

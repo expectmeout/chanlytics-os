@@ -208,6 +208,8 @@ async function fileStarters(ctx: RouteContext, tenantId: TenantId, body: Starter
 
   const results: StarterResult[] = [];
   let synced = false;
+  // WhatsApp asked for and no number to make its version for: said on each starter skipped, never thrown.
+  const noNumber = whatsapp && !number ? { detail: SAID.no_channel } : {};
   for (const { s, l } of wanted) {
     const base = { key: s.key, title: s.title, language: l };
     const have = onFile(s.name, l);
@@ -223,7 +225,7 @@ async function fileStarters(ctx: RouteContext, tenantId: TenantId, body: Starter
         ...base,
         status: "skipped",
         meta_status: null,
-        ...(whatsapp && !number ? { detail: SAID.no_channel } : {}),
+        ...noNumber,
         versions: await versionsOf(s, l),
       });
       continue;

@@ -124,7 +124,7 @@ async function proposeMessage(toolContext: ToolContext, input: MessageAsked): Pr
   // given already as Meta takes one ("thanks_for_coming") is no title: it is read as its name made words.
   const name = slugTemplateName(input.name);
   const ownName = input.name.replace(/\s+/g, " ").trim();
-  const asked: WriteMessageBody = {
+  const draft: WriteMessageBody = {
     name,
     ...(ownName && ownName !== name ? { title: ownName } : {}),
     // The language as the product files it (English under en_US, beside the starters), never as Ask named it.
@@ -134,15 +134,15 @@ async function proposeMessage(toolContext: ToolContext, input: MessageAsked): Pr
     slots,
   };
   // The words first, which read nothing.
-  const wordsWrong = wordsRefusal(asked);
+  const wordsWrong = wordsRefusal(draft);
   if (wordsWrong) return refuse(wordsWrong);
   // An offer's WhatsApp version where no offer reaches anyone by WhatsApp (a US number) is never written: the card is
   // made, quoted and filed without it (write-message.ts versionsWrittenHere), and refused only where it was all there was.
   const offers =
-    asked.versions.whatsapp && asked.category === "marketing"
+    draft.versions.whatsapp && draft.category === "marketing"
       ? await getWhatsAppOffers(toolContext.ctx, toolContext.tenantId)
       : null;
-  const body: WriteMessageBody = { ...asked, versions: versionsWrittenHere(asked.versions, asked.category, offers) };
+  const body: WriteMessageBody = { ...draft, versions: versionsWrittenHere(draft.versions, draft.category, offers) };
   if (!body.versions.whatsapp && !body.versions.email && !body.versions.sms && offers?.why) return refuse(offers.why);
   const refused = await workspaceRefusal(toolContext, body);
   if (refused) return refuse(refused);

@@ -21,7 +21,7 @@ import { unbackedNumbers } from "./numbers";
 export const clause = (reason: string): string => reason.trim().replace(/[.!]+$/, "");
 
 /** Words as Ask wrote them, one line ending and no space around them. */
-export const cleanWords = (s: string) => s.replace(/\r\n?/g, "\n").trim();
+export const cleanWords = (text: string) => text.replace(/\r\n?/g, "\n").trim();
 
 /** A subject kept over an email left to write: one past what a subject holds is the owner's to write too. */
 export const subjectHeld = (subject: string | null): string | null =>
