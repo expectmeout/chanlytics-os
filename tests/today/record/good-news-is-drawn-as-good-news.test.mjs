@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { noticeTone, serverNotificationRows } from "@chanlytics/contracts";
+import { TEMPLATE_NOTICE_TITLES, noticeTone, serverNotificationRows } from "@chanlytics/contracts";
 import { registrationVerdict } from "@chanlytics/channels/lines";
 
 const kept = (kind, title, i) => ({
@@ -75,6 +75,30 @@ test("a carrier sending the texting registration back, or stopping it, is a warn
     drawn([["alert", "Something else the platform said"]])[0][1],
     "",
     "an alert listed nowhere keeps its look",
+  );
+});
+
+test("a message WhatsApp approves or files as an offer is plain news: neither good news's tick nor a warning", () => {
+  // A kind's look is good news (template_ready) or a warning (template_blocked), and an offer is neither: it goes to fewer
+  // people, and from a US number not by WhatsApp at all. On 14 Nov 2026 one filed as an offer was told as "Needs you" with
+  // nothing to do, and on the 15th its approval as good news. The titles are the edge's (TEMPLATE_NOTICE_TITLES).
+  const offer = TEMPLATE_NOTICE_TITLES.offer("Spring offer");
+  const approvedOffer = TEMPLATE_NOTICE_TITLES.approvedOffer("Spring offer");
+  const approved = TEMPLATE_NOTICE_TITLES.approved("Spring offer");
+  const again = TEMPLATE_NOTICE_TITLES.resumed("Spring offer");
+  assert.deepEqual(
+    drawn([
+      ["template_ready", offer],
+      ["template_ready", approvedOffer],
+      ["template_ready", approved],
+      ["template_ready", again],
+    ]),
+    [
+      [offer, "", "bell"],
+      [approvedOffer, "", "bell"],
+      [approved, "ok", "check"],
+      [again, "ok", "check"],
+    ],
   );
 });
 

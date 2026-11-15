@@ -42,6 +42,7 @@ import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import { drawPoster } from "./video-sheet.js";
 import { streamKeys } from "./video-keys.js";
+import { keepPrint, downloadPrintCopy } from "./prints.js";
 import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
@@ -146,6 +147,11 @@ export async function lookAtFile(db: Db, job: ClaimedJob, deadline: number): Pro
   const row = await findFileForWork(db, job.tenant_id, fileId);
   if (!row || row.removed_at) return;
   if (row.kind === "video") return row.media_status === "ready" ? lookAtVideo(db, job, row, deadline) : undefined;
+  // A photo not printed as it came (an upload, a file from before 00630) is printed first: a twin goes before the model is paid.
+  if (!row.picture_print) {
+    const small = await downloadPrintCopy(db, row);
+    if (small && (await keepPrint(db, row, small))) return;
+  }
   const notRead = () =>
     keepFileLook(db, {
       tenantId: job.tenant_id,

@@ -105,18 +105,18 @@ export function waitEndsWords(kind: WaitKind, at?: string | null): string {
   const item = WAIT_RULES[kind];
   if (item.ends === "at_its_time") return `Goes ${at ?? "at its time"} unless you stop it`;
   if (item.ends === "end_of_its_day")
-    return "Waits for your OK until the end of its day; then it is skipped, and you are told";
+    return "Waits for you to approve until the end of its day. Then it's skipped, and you're told";
   if (item.ends === "end_of_its_time")
-    return `Goes only if you approve it before ${at ?? "the time it offers"}; after that it is skipped`;
+    return `Goes only if you approve it before ${at ?? "the time it offers"}. After that it's skipped`;
   if (item.ends === "end_of_sending_hours") {
     const before = at ? `before ${at} by your clock` : "before the day's sending hours end";
-    return `Goes only if you approve it ${before}; after that it is skipped, and it does not reach them`;
+    return `Goes only if you approve it ${before}. After that it's skipped and doesn't reach them`;
   }
   if (item.goes === "with_your_ok" && item.reminds)
-    return "Waits for your OK, and you are reminded each morning; no new business is written to until you give it";
-  if (item.goes === "with_your_ok") return "Waits for your OK; nothing goes until you give it";
+    return "Waits for you to approve. Nothing new goes out until you do, and you're reminded each morning";
+  if (item.goes === "with_your_ok") return "Waits for you to approve. Nothing goes until you do";
   if (item.act === "send") return "Waits for you to send it from your own inbox";
-  return "Waits for you; nothing more goes until you answer";
+  return "Waits for you. Nothing more goes until you answer";
 }
 
 /** How much of a held reply the owner's notice quotes: enough to know it on a phone's lock screen. */

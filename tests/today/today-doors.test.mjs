@@ -737,7 +737,7 @@ test("REGRESSION: an email-only workspace is not told nothing can come in, nor t
     assert.ok(!/nothing can come in/i.test(said), "email comes in");
     assert.ok(!/answering on its own|receptionist is on/i.test(said), `AI does not answer email: ${said}`);
     assert.ok(!/nothing needs you/i.test(said), `the heading does not reassure over a line nobody answers: ${said}`);
-    assert.match(said, /each email waits in Need you/);
+    assert.match(said, /Each email waits in Needs you/);
   } finally {
     feedSetup(undefined);
   }
@@ -960,11 +960,11 @@ test("a batch to leads says when it goes and what the last earned, offers no App
     const said = textOf(row);
     assert.match(
       said,
-      /17 businesses. Waits for your OK; the first goes today 6:00 PM. Last batch: 20 sent, 3 replied./,
+      /17 businesses. Waits for you to approve. The first goes today 6:00 PM. Last send: 20 sent, 3 replied./,
     );
     assert.deepEqual(buttonsSaying(row, "Approve"), [], "a batch to leads is never approved from a row");
     went.length = 0;
-    buttonsSaying(row, "Decide 2")[0].props.onClick();
+    buttonsSaying(row, "Review 2")[0].props.onClick();
     assert.deepEqual(went, ["campaigns/sequences/seq-1/people"]);
   } finally {
     globalThis.window.__BROADCASTS = undefined;

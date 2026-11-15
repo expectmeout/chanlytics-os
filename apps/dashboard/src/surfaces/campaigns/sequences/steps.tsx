@@ -37,6 +37,7 @@ import {
   type SequencePeopleDto,
   type SequenceRecordDto,
   type SequenceStepDto,
+  type StepOffer,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -48,7 +49,7 @@ import { LeadSteps } from "./leads/lead-steps";
 import { RailAdd, RailBox, RailRow, RailStart, StepsRail, type RailStep } from "./place/rail";
 import { SettingsSheet } from "./settings-sheet";
 import { StepSheet, type StepSheetTarget } from "./step-sheet";
-import { StepPreviewLine, StepWords, useStepMessageRead } from "./step-words";
+import { StepPreviewLine, StepWords, stepOfferOf, useStepMessageRead } from "./step-words";
 import { useSequenceRead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";
 import type { CmOffered } from "../parts/channels";
@@ -125,10 +126,10 @@ function StartRow(p: { rec: SequenceRecordDto; flash: Flash; moved: () => void; 
 }
 
 /** How a step goes, on its box: its channels, or a task for you (a call, or a note, each by its own glyph, as New's). */
-function stepBy(step: SequenceStepDto): { glyph: string; words: string } {
+function stepBy(step: SequenceStepDto, offer: StepOffer | null): { glyph: string; words: string } {
   if (step.hand) return { glyph: step.hand.kind === "note" ? "note" : "phone", words: SW.byTask };
   const channels = step.channels;
-  return { glyph: channels[0] === "email" ? "mail" : "chat", words: scheduleChannels(channels) };
+  return { glyph: channels[0] === "email" ? "mail" : "chat", words: scheduleChannels(channels, offer) };
 }
 
 /** What a step sent and drew back in 30 days, on its box: only where it sent any (a zero is no news on every box). */
@@ -169,9 +170,11 @@ function StepRow({ rec, step, day, ctx, onOpen }: StepRowProps) {
   const { message, read } = useStepMessageRead(customer ? step.template_name : null, step.template_language);
   // A customer's message is gone only once the messages are read and hold none of it, never while they are read.
   const gone = customer && read && !message;
-  const state = scheduleStepState(rec.sequence, step, { ...ctx, gone });
+  // An offer under a moment that is not one (a ready-made follow-up WhatsApp filed as an offer): no text, and who gets it.
+  const offer = customer ? stepOfferOf(rec, step, message) : null;
+  const state = scheduleStepState(rec.sequence, step, { ...ctx, gone, offer });
   const done = state?.tone === "done";
-  const by = stepBy(step);
+  const by = stepBy(step, offer);
   // A call or a note by its kind, as New's rail calls it: the name the database gave it is the sequence's.
   const title = step.hand
     ? handTitleOf(step.hand.kind)

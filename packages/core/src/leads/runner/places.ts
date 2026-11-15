@@ -16,6 +16,7 @@
 
 import {
   LEAD_NO_SITE_KEY,
+  LEAD_UNREACHABLE_KEY,
   planNeedsASite,
   type LeadArea,
   classify,
@@ -31,7 +32,11 @@ import { inArea, haversineM, medianCenter, radiusFromSpread, type LatLng } from 
 import { nextRung } from "../ladder";
 import { JUDGE_REFUSED_REASON, factsOf } from "../judge";
 import type { CollectPlace, LeadMemberRow, LeadShare } from "../ports";
-import { CLOSED_REASON, NO_LOCATION_REASON, NO_SITE_REASON } from "./rules";
+import { CLOSED_REASON, NO_LOCATION_REASON, NO_SITE_REASON, type Phase } from "./rules";
+import { NO_EMAIL_TOKEN } from "./weighed";
+
+const NO_EMAIL_REASON = "no email found";
+const UNREACHABLE_REASON = "no phone or email found";
 
 interface Prepared {
   index: number;
@@ -195,8 +200,43 @@ export function memberOf(
 }
 
 /**
+ * A place with no address to write to, settled by code where a search made for email reads on past its probe: it can
+ * never count (decision 0132), and the judge's part in an address is picking one among those found. It is held as the
+ * judge's own read would hold it (contracts classify): with no number either, left out as unreachable; else in review
+ * for having no email. The probe's places are all judged, since the question after it is about fit. On 15 Nov 2026 a
+ * search for med spas with a checked email paid the judge for 183 places with no address, more than half it read.
+ * Null where the place has an address: the judge reads it.
+ */
+export function noEmailRule(clean: Pick<CleanPlace, "emails" | "phoneSources">): Prepared["rule"] {
+  if (clean.emails.length > 0) return null;
+  return clean.phoneSources === 0
+    ? { class: "excluded", reason: UNREACHABLE_REASON, token: LEAD_UNREACHABLE_KEY, excluded_by: LEAD_UNREACHABLE_KEY }
+    : { class: "review", reason: NO_EMAIL_REASON, token: NO_EMAIL_TOKEN, excluded_by: null };
+}
+
+/** Whether a phase of a plan shows the judge only a place with an address: a search made for email, past its probe. */
+export const judgesAddressesOnly = (plan: Pick<LeadSearchPlan, "contact">, phase: Phase): boolean =>
+  plan.contact === "email" && phase === "main";
+
+/** The rule that settles a place before any judging (closed for good, no location, no site to read, no address), or null. */
+function settledBefore(
+  mapped: NonNullable<ReturnType<LeadCardRunner["mapItem"]>>,
+  clean: CleanPlace,
+  needsASite: boolean,
+  emailOnly: boolean,
+): Prepared["rule"] {
+  if (mapped.closed) return { class: "excluded", reason: CLOSED_REASON, token: "closed", excluded_by: "closed" };
+  if (mapped.location === null)
+    return { class: "review", reason: NO_LOCATION_REASON, token: "out_of_area", excluded_by: null };
+  if (needsASite && !clean.host && !clean.bookingPage)
+    return { class: "excluded", reason: NO_SITE_REASON, token: LEAD_NO_SITE_KEY, excluded_by: LEAD_NO_SITE_KEY };
+  return emailOnly ? noEmailRule(clean) : null;
+}
+
+/**
  * The next batch of items from `cursor`: at most `judgeable` places the judge must see (the plan's batch, contracts
- * judgeBatchPlaces), with the items around them.
+ * judgeBatchPlaces), with the items around them. `emailOnly` is a search made for email past its probe: a place with no
+ * address is settled here and takes none of the batch's room (noEmailRule).
  */
 export function takeBatch(
   card: LeadCardRunner,
@@ -204,6 +244,7 @@ export function takeBatch(
   items: unknown[],
   cursor: number,
   judgeable: number,
+  emailOnly = false,
 ): { end: number; prepared: Prepared[] } {
   const needsASite = planNeedsASite(plan);
   const prepared: Prepared[] = [];
@@ -213,13 +254,7 @@ export function takeBatch(
     const mapped = card.mapItem(items[end]);
     if (mapped) {
       const clean = cleanPlace(mapped);
-      const rule: Prepared["rule"] = mapped.closed
-        ? { class: "excluded", reason: CLOSED_REASON, token: "closed", excluded_by: "closed" }
-        : mapped.location === null
-          ? { class: "review", reason: NO_LOCATION_REASON, token: "out_of_area", excluded_by: null }
-          : needsASite && !clean.host && !clean.bookingPage
-            ? { class: "excluded", reason: NO_SITE_REASON, token: LEAD_NO_SITE_KEY, excluded_by: LEAD_NO_SITE_KEY }
-            : null;
+      const rule = settledBefore(mapped, clean, needsASite, emailOnly);
       if (!rule) {
         if (toJudge >= judgeable) break;
         toJudge += 1;

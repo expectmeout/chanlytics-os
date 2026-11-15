@@ -18,6 +18,7 @@ import type { CalendarFrame } from "../types";
 import { calendar } from "../verbs";
 import { crDur, crNotesWorth, crWhen } from "../words";
 import type { VisitCtx } from "./context";
+import { nextToMarkOf } from "./next";
 import { useVisitOutcome } from "./outcome";
 import { VisitBody, VisitFoot, whenWords } from "./visit";
 import { visitWordHere } from "../../workspace-word";
@@ -36,7 +37,7 @@ interface OpenVisitProps {
   /** Every day the board holds, for their next visit after this one. */
   days: readonly CalendarFrame[];
   onClose: () => void;
-  /** Open another of the day's visits in this one's place (the desk's walk). */
+  /** Open another visit in this one's place (the desk's walk through the day, and the next to mark once one is said). */
   onWalk: (b: CalendarBlockVM) => void;
   flash: (text: string) => void;
 }
@@ -91,7 +92,18 @@ function ctxOf(p: OpenVisitProps, kept: { outcome: VisitSheetOutcome | null; set
     moments: p.moments,
     outcome: kept.outcome,
   });
-  return { block: b, vm, word, bookingLink: p.bookingLink, close: p.onClose, flash: p.flash, settle: kept.settle };
+  // The next visit to mark is offered once a word is said here, and opens in this one's place (the walk).
+  const next = kept.outcome ? nextToMarkOf(p.days, b, { nowMs: Date.now(), word, walk: p.onWalk }) : null;
+  return {
+    block: b,
+    vm,
+    word,
+    bookingLink: p.bookingLink,
+    close: p.onClose,
+    flash: p.flash,
+    settle: kept.settle,
+    next,
+  };
 }
 
 /** The open visit's context, with the word said in it kept while it stands (useVisitOutcome). */

@@ -31,6 +31,7 @@ import {
   playbookName,
   ruleNeeds,
   momentNamesVisit,
+  startersForTrigger,
   triggerOf,
   triggerWords,
   UUID,
@@ -182,9 +183,20 @@ function refuseFreedTimeWithoutWhen(trig: ReturnType<typeof triggerOf>, specs: r
     throw new AppError("validation", FREED_TIME_NEEDS_WHEN);
 }
 
-/** A moment and its message agree on the yes they need (contracts messageFitsMoment, decision 7), made or changed. */
-function refuseMessageThatDisagrees(cls: string, category: string | null): void {
-  const fit = messageFitsMoment(cls, category);
+/**
+ * A moment and its message agree on the yes they need (contracts messageFitsMoment, decision 7), made or changed. The
+ * moment's own ready-made message is its message whatever WhatsApp has filed it as: a follow-up approved as an offer
+ * (15 Nov 2026) goes on running under its moment, enrolled by the yes to offers (enrolPurpose), and made again it was
+ * refused with "Pick a reminder, a check after, or a follow-up", though it is the follow-up. Nobody is reached who
+ * the message may not reach either way: the run and the door ask the stricter of the two.
+ */
+function refuseMessageThatDisagrees(
+  cls: string,
+  trigger: string,
+  message: Pick<CampaignMessage, "name" | "category">,
+): void {
+  if (startersForTrigger(trigger).some((starter) => starter.name === message.name)) return;
+  const fit = messageFitsMoment(cls, message.category);
   if (!fit.ok) throw new AppError("validation", fit.words);
 }
 
@@ -504,7 +516,7 @@ export async function checkPlaybook(
     proposal: trig.kind === "deal",
     freed: trig.kind === "freed",
   });
-  refuseMessageThatDisagrees(cls, message.category);
+  refuseMessageThatDisagrees(cls, trig.id, message);
   const channels = channelsItMayGoBy(body?.channels, existing?.channels ?? null, cls, message);
   refuseFollowUpWithoutLink(trig, specs);
   refuseFreedTimeWithoutWhen(trig, specs);

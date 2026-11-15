@@ -16,6 +16,7 @@ import {
   clipAtWord,
   sendFailureWords,
 } from "../conversations/message-words";
+import { NEEDS_YOU_WORD } from "../conversations/standing";
 import { threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
 import { contactName, initialsOf } from "../conversations/thread-contact";
@@ -315,10 +316,10 @@ function handoffOf(escalation: EscalationRecord, todayFacts: TodayFacts): TodayQ
     // An email says what it is about before its words: "test need you — “needs you test”".
     ...(escalation.quote && escalation.subject ? { lead: escalation.subject } : {}),
     status: [
-      "Escalated",
+      NEEDS_YOU_WORD,
       reasonShort(error.reason) || error.reason,
       since,
-      ...(escalation.closes ? [`reply window closes ${escalation.closes}`] : []),
+      ...(escalation.closes ? [`reply by ${escalation.closes}`] : []),
     ],
     since,
     tone: "escalated",
@@ -369,14 +370,12 @@ function windowRow(conversation: ConversationDto, todayFacts: TodayFacts): Today
     initials: initialsOf(personName),
     channel: "WhatsApp",
     when: `closes ${tzClock(result.closesAtIso, tz, now) ?? "soon"} · in ${formatWaited(leftMs)}`,
-    sentence: last
-      ? clipAtWord(messageWords(last), QUOTE_MAX)
-      : "They wrote last, and the free reply window is closing.",
+    sentence: last ? clipAtWord(messageWords(last), QUOTE_MAX) : "They wrote last. Reply soon to write freely.",
     quoted: !!last,
-    status: ["Reply window closing", "they wrote last"],
+    status: ["Reply soon", "they wrote last"],
     tone: "warn",
     warn: leftMs < 2 * HOUR_MS,
-    cta: { label: "Open thread", to: addressOf({ kind: "conversation", id: conversation.id }) },
+    cta: { label: "Open conversation", to: addressOf({ kind: "conversation", id: conversation.id }) },
     also: null,
     writes: writesOf(conversation, todayFacts),
     said: saidOnThread(conversation),
@@ -561,7 +560,7 @@ export function todayQueue(
   const parts = [
     needN ? `${needN} ${needN === 1 ? "person" : "people"}` : "",
     searchN ? `${searchN} ${searchN === 1 ? "search" : "searches"} waiting for your answer` : "",
-    winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
+    winN ? `${winN} to reply soon` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : "",
     triedN ? NEED_YOU_WORDS.tried.part(triedN) : "",
   ].filter(Boolean);

@@ -53,6 +53,12 @@ export interface ChannelReady {
    * no, and asked again in a moment, so a reader branches on this and never on `why`'s sentence. Absent where it was read.
    */
   unchecked?: true;
+  /**
+   * True where it is closed to this message only until WhatsApp says yes: WhatsApp is checking its WhatsApp version, or
+   * holding it for a few hours, and it sends by itself after (campaign-message.ts readyForMessage). A send that waits
+   * (reachFor's `wait`) places on it the people nothing else reaches, and they go once it opens.
+   */
+  waits?: true;
 }
 export type ChannelsReady = Record<ConsentChannel, ChannelReady> & {
   /**
@@ -345,6 +351,8 @@ interface ReachOptions {
   channels: readonly string[];
   ready: ChannelsReady;
   about: MessageAbout;
+  /** The send waits for a channel that opens by itself (ChannelReady `waits`): see reachFor. */
+  wait?: boolean;
   /** Said by a step whose reply may go in an open chat (InChat, decision 0135); unsaid, nobody is picked that way. */
   inChat?: InChat | null;
 }
@@ -365,9 +373,16 @@ function inChatFor(reach: ReachRow, chat: InChat, options: ReachOptions): NotRec
 /**
  * The channel a campaign reaches this person on, or why it reaches them on none (the rules at the head of this file).
  * `channels` are the campaign's ticks; `ready` the workspace's channels now; `about` what its message is about, which
- * by email decides whether a yes is asked (consent.ts MessageAbout). Where the step says its reply may go in an open
- * chat (`inChat`), that is asked first, and a person picked so is marked (`inChat`): the send leaves the saved message's
- * name off for them. Someone their own answers hold there is held by the strictest reason of both askings.
+ * by email decides whether a yes is asked (consent.ts MessageAbout).
+ *
+ * `wait`: the send waits for a channel that opens by itself (ChannelReady `waits`: WhatsApp checking the message, or
+ * holding it). A person a channel that can go now reaches goes by it, at once; one only the waiting channel reaches is
+ * placed on it, and the send holds them until it opens (core messages/broadcast/whatsapp-wait.ts). Without it they are
+ * held, `no_channel`, as a run that cannot wait holds them.
+ *
+ * `inChat`: where the step says its reply may go in an open chat (decision 0135), that is asked first, and a person
+ * picked so is marked (`inChat`): the send leaves the saved message's name off for them. Someone their own answers hold
+ * there is held by the strictest reason of both askings.
  */
 export function reachFor(
   reach: ReachRow,
@@ -379,15 +394,30 @@ export function reachFor(
   const heldOn: HeldOn[] = chat === "closed" ? [] : [chat];
   const strictest = (): HeldOn => HELD_ON.find((w) => heldOn.includes(w)) ?? "no_channel";
   const usable = usableChannels(purpose, options);
-  if (usable.length === 0) return { channel: null, held: strictest() };
   const last = usable.find((c) => c === reach.lastChannel) ?? null;
   const order = last ? [last, ...usable.filter((c) => c !== last)] : usable;
-  for (const c of order) {
+  for (const c of [...order, ...(options.wait ? waitingChannels(purpose, options) : [])]) {
     const w = whyNotReceive(reach, purpose, c, options.about);
     if (w === null) return { channel: c, held: null };
     heldOn.push(w);
   }
   return { channel: null, held: strictest() };
+}
+
+/**
+ * The channels a campaign ticks that cannot carry its message now and will by themselves (ChannelReady `waits`), where no
+ * rule closes them to this kind of message: asked after the usable ones, by a send that waits (reachFor).
+ */
+function waitingChannels(
+  purpose: AskedPurpose,
+  options: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
+): ConsentChannel[] {
+  return CONSENT_CHANNELS.filter(
+    (c) =>
+      options.channels.includes(c) &&
+      options.ready[c].waits === true &&
+      channelRefuses(c, purpose, options.about, options.ready) === null,
+  );
 }
 
 /** How a campaign's people split: how many on each channel, and how many held, by why. */

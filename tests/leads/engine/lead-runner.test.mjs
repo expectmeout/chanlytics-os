@@ -287,12 +287,14 @@ test("a round's runs never cap more than it reserved: with $0.60 for three terms
   );
 });
 
-test("nothing left of what the round reserved: nothing is started, and the round says the budget is used", async () => {
+test("nothing left of what the round reserved: nothing is started, and the round ends at its limit, never on the month's searching", async () => {
   const { w, p } = world();
   const round = w.round();
   round.cost_usd = round.cost_reserved_usd;
   assert.deepEqual(await startRound(p(), round.id, OWNER), { kind: "spent" });
-  assert.deepEqual([w.round().state, w.round().ending], ["ended", "budget_used"]);
+  // What a round reserved is its own estimate (15 Nov 2026: a round past its $5.95 said the month's searching was
+  // used up with $24 of its $40 unspent, and stopped a search at 41 of 267).
+  assert.deepEqual([w.round().state, w.round().ending], ["ended", "few_new_matches"]);
   assert.deepEqual(
     [w.apify.calls.length, w.runs().length],
     [0, 0],
@@ -322,7 +324,7 @@ test("less left than one run's floor: nothing is started, and the round ends rat
   w.rpcs.lead_search_create({ p_tenant_id: TENANT, p_plan: PLAN, p_via: "people", p_estimate_usd: 0.33 });
   const out = await startRound(w.ports(OWNER, { db: leadDb(w.db) }), w.round().id, OWNER);
   assert.deepEqual(out, { kind: "spent" });
-  assert.deepEqual([w.round().state, w.round().ending], ["ended", "budget_used"]);
+  assert.deepEqual([w.round().state, w.round().ending], ["ended", "few_new_matches"]);
   assert.deepEqual([w.apify.calls.length, w.runs().length], [0, 0], "nothing asked of the provider, no run row");
 });
 
@@ -331,6 +333,20 @@ async function probed(over = {}) {
   await startRound(x.p(), x.w.round().id, OWNER);
   x.w.finishRuns();
   return x;
+}
+
+/**
+ * The main phase to its end, one term's turn at a time (decision 0133): its start, its run finished and read, until the
+ * round runs on no more. `before` dresses what the provider returns before it is read.
+ */
+async function mainPhase(w, p, before = () => {}) {
+  for (let turn = 0; turn < 8 && w.round().state === "running"; turn++) {
+    await startRound(p(`main-${turn}`), w.round().id, `main-${turn}`, true);
+    before(w);
+    w.finishRuns();
+    for (const r of w.runs().filter((x) => x.state === "running"))
+      await collect(p(`m-${r.id}`), r.id, "p0", `m-${r.id}`);
+  }
 }
 
 test("ACCEPTANCE: the probe fixture, 12 of 24 fitting, stops to ask from the most common exclusion; the judge was paid once per call; the closed place is left out by rule; a left-out place stores no email", async () => {
@@ -435,11 +451,9 @@ test("an answer that changed the plan keeps every term, a yes drops the one the 
     assert.deepEqual([w.round().question, w.round().waiting_since], [asked, since]);
     const plan = answer === "include" ? { ...w.round().plan, version: 2, exclusions: [] } : undefined;
     w.rpcs.lead_round_answer({ p_round_id: w.round().id, p_answer: answer, p_plan: plan });
-    await startRound(p("job-3"), w.round().id, "job-3", true);
-    const terms = w.apify.calls
-      .filter((c) => c.op === "startRun")
-      .slice(2)
-      .map((c) => c.input.searchStringsArray[0]);
+    // The terms the main phase asks, now or in their turn (decision 0133: one at a time).
+    const out = await startRound(p("job-3"), w.round().id, "job-3", true);
+    const terms = out.runs.map((r) => r.term);
     assert.equal(!terms.includes("strength coach"), dropped, `${answer}: ${terms.join(", ")}`);
   }
 });
@@ -602,17 +616,29 @@ test("a probe that fits well goes on: the round runs and the main phase is sched
   assert.equal(resume.length, 1);
   const out = await startRound(p("job-3"), w.round().id, "job-3", true);
   assert.equal(out.phase, "main");
-  assert.equal(w.runs().length, 4, "two more rows, by their main-phase ids");
+  assert.equal(w.runs().length, 3, "one more row, by its main-phase id: the widest term alone (decision 0133)");
   const starts = w.apify.calls.filter((c) => c.op === "startRun").slice(2);
-  const askedFor = starts.reduce((s, c) => s + c.input.maxCrawledPlacesPerSearch, 0);
+  assert.equal(starts.length, 1);
+  // The provider answers a term from the top, so it is asked past what its probe read, for all the phase wants.
+  const term = starts[0].input.searchStringsArray[0];
+  const read = w.runs().find((r) => r.term === term).items_seen;
+  const askedFor = starts[0].input.maxCrawledPlacesPerSearch - read;
   const remaining = 60 - w.members().filter((m) => m.counted).length;
   assert.ok(
     askedFor >= Math.ceil(remaining * 1.2) && askedFor <= remaining * 4,
     `the remainder (${remaining}) over the yield, within 1.2x and 4x: ${askedFor}`,
   );
+  assert.deepEqual(
+    out.runs,
+    [
+      { term: "personal trainer", kind: "started" },
+      { term: "strength coach", kind: "later" },
+    ],
+    "the other term waits its turn",
+  );
 });
 
-test("a term the sizing gives nothing to is never started: no row, no provider call, no charge", async () => {
+test("the main phase starts one term, for all it wants: the others have no row, no provider call and no charge until their turn", async () => {
   const { w, p } = await probed({
     plan: {
       ...PLAN,
@@ -623,7 +649,7 @@ test("a term the sizing gives nothing to is never started: no row, no provider c
   });
   for (const r of w.runs()) await collect(p(`c-${r.id}`), r.id, "p0", `c-${r.id}`);
   const round = w.round();
-  // Three terms, and one lead still wanted: the sizing has two places to give away and three terms to give them to.
+  // Three terms, and one lead still wanted: the term no start has asked goes first, the others wait their turn.
   round.plan = {
     ...round.plan,
     terms: [...PLAN.terms, "kettlebell class"],
@@ -631,11 +657,21 @@ test("a term the sizing gives nothing to is never started: no row, no provider c
   };
   const before = w.apify.calls.filter((c) => c.op === "startRun").length;
   const out = await startRound(p("job-3"), round.id, "job-3", true);
-  assert.deepEqual([out.phase, out.runs.map((r) => r.term)], ["main", ["kettlebell class", "personal trainer"]]);
+  assert.deepEqual(
+    [out.phase, out.runs],
+    [
+      "main",
+      [
+        { term: "kettlebell class", kind: "started" },
+        { term: "personal trainer", kind: "later" },
+        { term: "strength coach", kind: "later" },
+      ],
+    ],
+  );
   assert.equal(
     w.apify.calls.filter((c) => c.op === "startRun").length,
-    before + 2,
-    "the third term reached the provider not again",
+    before + 1,
+    "the other terms reached the provider not again",
   );
   assert.equal(
     w.runs().filter((r) => r.term === "strength coach").length,
@@ -1253,10 +1289,7 @@ test("a place with no phone that dials waits for its email: the checks decide it
     0,
     "nothing qualifies before its email is checked",
   );
-  await startRound(p("j2"), w.round().id, "j2", true);
-  noPhones(w);
-  w.finishRuns();
-  for (const r of w.runs().filter((x) => x.state === "running")) await collect(p(`m-${r.id}`), r.id, "p0", `m-${r.id}`);
+  await mainPhase(w, p, noPhones);
   assert.equal(w.round().state, "checking");
   w.checkerAnswers = { "hello@place0001.example": "invalid", "hello@place0002.example": "risky" };
   await check(p("k1"), w.round().id, 0, "k1");

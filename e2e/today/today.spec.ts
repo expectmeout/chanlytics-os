@@ -30,9 +30,7 @@ test.describe("Today on a real workspace", () => {
     await expect(page.getByTestId("today-head-lead")).toHaveCount(1);
     const queue = page.getByTestId("today-queue");
     if ((await queue.count()) === 0) {
-      await expect(page.getByTestId("today-head-lead")).toHaveText(
-        /^Nothing (needs you|in the queue|can come in yet)\.$/,
-      );
+      await expect(page.getByTestId("today-head-lead")).toHaveText(/^Nothing (needs you|waiting|can come in yet)\.$/);
     } else {
       await expect(queue).toBeVisible();
       const rows = queue.locator(".tq-list .cl-attn-row");

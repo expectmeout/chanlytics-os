@@ -198,10 +198,10 @@ test("an ask's follow-up that waits has no day to pass", () => {
 
 test("each occasion's waiting batch tells its owner how its wait ends", () => {
   const told = (trigger, at) => readyRunNotice("A step", 1, trigger, at).body;
-  assert.match(told("visit_soon", "Tue, Nov 10, 2:00 PM"), /before Tue, Nov 10, 2:00 PM; after that it is skipped/);
+  assert.match(told("visit_soon", "Tue, Nov 10, 2:00 PM"), /before Tue, Nov 10, 2:00 PM. After that it's skipped/);
   assert.match(told("visit_soon", null), /before the appointment begins/);
-  assert.match(told("visit_missed", null), /after that it is skipped, and it does not reach them/);
-  assert.match(told("asked_no_booking", null), /Waits for your OK; nothing goes until you give it/);
+  assert.match(told("visit_missed", null), /After that it's skipped and doesn't reach them/);
+  assert.match(told("asked_no_booking", null), /Waits for you to approve. Nothing goes until you do/);
 });
 
 test("an occasion's batch the sweep skipped says its time passed, never that someone booked late", () => {

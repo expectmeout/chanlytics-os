@@ -28,7 +28,7 @@ import type {
 } from "../../ports";
 import { markPlaces } from "../mark-places";
 import { readSitesBeforeJudge, findSiteFact, type SiteReads } from "../site-reads";
-import { centerOf, memberOf, takeBatch, type Prepared } from "../places";
+import { centerOf, judgesAddressesOnly, memberOf, noEmailRule, takeBatch, type Prepared } from "../places";
 
 /** How many places with a website, none of them read, make a page worth paging: fewer can be chance. */
 const UNREAD_SITES_PAGE = 5;
@@ -71,13 +71,19 @@ export type CollectOutcome =
   | { kind: "stopped" }
   | { kind: "polling" };
 
-/** A batch's places as the workspace holds them (decision 25): those to commit, those the judge must read, those it holds. */
+/**
+ * A batch's places as the workspace holds them (decision 25): those to commit, those the judge must read, those it holds.
+ * In a search made for email past its probe, a place left with no address once those that said stop are taken from it is
+ * settled by code, as one that came with none is (places.ts noEmailRule).
+ */
 async function identified(
   leadPorts: LeadPorts,
   round: LeadRoundRow,
   prepared: Prepared[],
   geo: { center: LatLng | null; radiusM: number },
+  phase: Phase,
 ): Promise<{ rows: BatchPlace[]; toJudge: Prepared[]; yoursAt: number[] }> {
+  const emailOnly = judgesAddressesOnly(round.plan, phase);
   const cleans = prepared.map((x) => x.clean);
   const { folded } = foldDuplicates(cleans);
   const keys = cleans.map(shareKeysOf);
@@ -111,6 +117,7 @@ async function identified(
       prep.rule = { class: "review", reason: OUT_OF_AREA_REASON, token: "out_of_area", excluded_by: null };
     // A suppressed address is not a hidden place, but the email is never offered again.
     prep.clean.emails = prep.clean.emails.filter((e) => !supp.emails.has(e));
+    if (emailOnly && !prep.rule) prep.rule = noEmailRule(prep.clean);
     rows.push({ prep, shares: [...idn.shares, ...(within.get(prep.clean.raw.placeId) ?? [])], duplicateOf: dup });
     if (!prep.rule && !dup) toJudge.push(prep);
   }
@@ -178,14 +185,14 @@ export async function collectHeld(
   let siteRead = 0;
 
   do {
-    const batch = takeBatch(card, plan, items, cursor, judgeBatchPlaces(plan));
+    const batch = takeBatch(card, plan, items, cursor, judgeBatchPlaces(plan), judgesAddressesOnly(plan, phase));
     for (const p of batch.prepared)
       if (p.clean.raw.website) {
         withSite += 1;
         if (p.clean.raw.contactsRead) siteRead += 1;
       }
     // Identity, by what the workspace already holds: place ids, suppressions, shared details (decision 25).
-    const { rows, toJudge, yoursAt } = await identified(leadPorts, round, batch.prepared, geo);
+    const { rows, toJudge, yoursAt } = await identified(leadPorts, round, batch.prepared, geo, phase);
     const { said, judgments, refused, cutAt } = await judgedBatch(leadPorts, round, run.id, from, toJudge, sites);
     if (refused) judgeRefused = refused;
     // A plan that reads sites commits only as far as they could be read: the rest is the next job's, whole.

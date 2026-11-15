@@ -273,7 +273,7 @@ test("a going run whose emails the check holds waits on you once, however many i
     audience: reach,
     held: 2,
   });
-  assert.equal(words.held.sentence, "2 emails wait for your say. The rest of the run goes as planned.");
+  assert.equal(words.held.sentence, "2 emails wait for your say. The rest goes as planned.");
   assert.equal(heldEmailsWords(1), "1 email waits for your say");
   assert.equal(
     runsWaitingSentence(2),

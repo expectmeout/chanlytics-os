@@ -38,7 +38,7 @@ import { findWorkspaceLook } from "@chanlytics/db/look";
 import { asJson } from "@chanlytics/db/shared";
 import { fileDoorRefusal } from "@/server/files/file";
 import { postBandOf, postUndrawable } from "@/server/files/post-check";
-import { colourOn } from "@/server/posts/layout";
+import { colourOnDark } from "@/server/posts/layout";
 import { postPhoneOf } from "@/server/posts/phone";
 import * as readers from "@/server/readers/facts";
 import { fileDtoOf } from "@/server/readers/files";
@@ -153,8 +153,8 @@ async function pieceLookFor(
   const facts = resolveFacts(parseTenantConfig(config)?.brain ?? null, known);
   const phone = await postPhoneOf(ctx, tenantId, config);
   return {
-    // The business's colour where it reads on the end card's ground, as a post's words wear it (posts/layout.ts).
-    accent: colourOn(look?.accent ?? null, PIECE_FRAME.ink, PIECE_FRAME.paper),
+    // The business's colour as light as it must be to read on the end card's dark ground (posts/layout.ts colourOnDark).
+    accent: colourOnDark(look?.accent ?? null, PIECE_FRAME.ink, PIECE_FRAME.paper),
     logo_path: look?.logo_path ?? null,
     name: facts.business_name.value ?? look?.name ?? "",
     book: phone ? postBandOf(phone, language) : null,

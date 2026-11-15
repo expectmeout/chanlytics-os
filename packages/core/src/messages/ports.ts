@@ -148,6 +148,8 @@ export interface BroadcastRow {
   recipient_count: number | null;
   playbook_id: string | null;
   audience: unknown;
+  /** When it was set to go, which a send by hand's wait for WhatsApp is counted from (broadcast/whatsapp-wait.ts); absent on an older read. */
+  scheduled_for?: string | null;
   /** A freed time's batch (decision 0082, 00498): the time it offers and the appointment that freed it; null otherwise. */
   offered_start?: string | null;
   offered_end?: string | null;
@@ -231,8 +233,11 @@ export interface BroadcastBatchPorts {
    * slot: a send without one never depends on the listing.
    */
   reviewLink(): Promise<string | null>;
-  /** Up to `limit` people still queued; throws when it cannot be read. */
-  batch(id: string, limit: number): Promise<RecipientRow[]>;
+  /**
+   * Up to `limit` people still queued; throws when it cannot be read. `not`: those who go another way than that channel
+   * alone, read while its people wait (broadcast/whatsapp-wait.ts), so nobody queues behind a wait that is not theirs.
+   */
+  batch(id: string, limit: number, only?: { not: "whatsapp" }): Promise<RecipientRow[]>;
   /** The people on the batch by id, one read for all of them; a row that is gone is absent. Throws when it cannot be read. */
   contacts(contactIds: ContactId[]): Promise<Map<string, ContactRow>>;
   /**

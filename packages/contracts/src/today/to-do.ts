@@ -1,6 +1,6 @@
 /**
  * To do's rows on Today (decision 0076; Today in three zones, 2 Nov 2026): the steps due (0007, amended), whose next
- * step's day has come or gone, the oldest first, as steps.ts judges them; and yesterday's visits nobody has marked (0047).
+ * step's day has come or gone, the oldest first, as steps.ts judges them; and the past week's visits nobody has marked (0047).
  * Each as rows of the queue's own grammar (0047, task 1.3 of the wiring plan), which To do draws three at most across them.
  */
 import { addressOf } from "../activity/record-address";
@@ -17,8 +17,10 @@ import { appointmentWords, type AppointmentWord } from "../journey/appointment-w
 import type { PersonRowVM } from "../people/person-row/row-facts";
 import { NOTE_WORDS } from "../notes/person-notes";
 import { TODAY_STEPS_MAX, todayStepsDue, type StepDue } from "../notes/steps";
+import { shortDate } from "../calendar/words/labels";
 import { plural } from "../shared/words";
-import type { CalendarLike, DayFrameLike } from "./day/frame";
+import { DOW, keyParts, shiftKey } from "../shared/zone/day-keys";
+import type { DayFrameLike } from "./day/frame";
 import type { TodayQueueRowVM } from "./vm";
 
 /* ------------------------------------------------ the steps due (0007, amended) */
@@ -175,12 +177,20 @@ export function withSteps(rows: TodayQueueRowVM[], steps: TodayStepsVM | null): 
   return [...rows.slice(0, at), ...mine, ...rows.slice(at)];
 }
 
-/* ------------------------------ yesterday's visits to mark (decision 0047, D1-visit-mark) ---------------------------- */
+/* ------------------------------ the past week's visits to mark (decision 0047, D1-visit-mark) ------------------------ */
 
-/** Yesterday's visits the queue names: three, as the steps due are; the rest are one row. */
+/** The visits to mark the queue names: three, as the steps due are; the rest are one row. */
 const TODAY_VISITS_MAX = 3;
 
-/** One of yesterday's visits nobody has marked, as the one visit line, with the record's row a press is said on. */
+/**
+ * How many days back the visits to mark reach, yesterday the first of them (Ruben, 15 Nov 2026: "The last 7 days"). The
+ * call of 11 Oct asked of yesterday's alone, so a visit nobody had marked by the next morning was never asked about again:
+ * its record, and a Missed's follow-up while one still goes (three days, decision 0119), waited on a word nobody was asked
+ * for. The board around today always holds a week back (contracts windowFor starts a week before the month's first Monday).
+ */
+const TODAY_VISITS_REACH_DAYS = 7;
+
+/** One of the past week's visits nobody has marked, as the one visit line, with the record's row a press is said on. */
 export interface TodayVisitAskVM {
   line: VisitLineVM;
   /** The record's row (VisitMark.id): what POST calendar/visits/[id] says Kept or Missed on. */
@@ -191,14 +201,19 @@ export interface TodayVisitAskVM {
   to: string;
 }
 
-/** Yesterday's unmarked visits: the ones Today names, how many in all, the workspace's word for one, and where the rest are. */
+/**
+ * The past week's unmarked visits: the ones Today names, how many in all, whether any is older than yesterday, the
+ * workspace's word for one, and where the rest are.
+ */
 export interface TodayVisitsAskedVM {
   items: TodayVisitAskVM[];
   count: number;
   /** Every one of them by the record's row (VisitMark.id), the ones past `items` among them: what Mark all kept says. */
   markIds: string[];
+  /** One of them is older than yesterday: a Kept said on it now thanks nobody (decision 0123), so Mark all says whose are. */
+  older: boolean;
   word: AppointmentWord;
-  /** The Calendar on yesterday, where every one of them is. */
+  /** The first of them the rows do not name (else the first): the rest row opens it, and its sheet's Next walks on. */
   to: string;
 }
 
@@ -206,10 +221,18 @@ export interface TodayVisitsAskedVM {
 const VISITS_ASKED_WORDS = {
   rest: (n: number, words: ReturnType<typeof appointmentWords>) =>
     `${n} more ${n === 1 ? words.one : words.many} to mark`,
-  restSentence: "Nobody has said whether they came, yesterday.",
+  restSentence: (older: boolean) =>
+    older ? "Nobody has said whether they came, this past week." : "Nobody has said whether they came, yesterday.",
+  yesterday: "Yesterday",
   open: "Open",
   calendar: "on the Calendar",
 } as const;
+
+/** A day of the past week as a visit line says one (calendar/people/visits.ts visitDay): "Tue, Nov 10", from its key. */
+function pastDayWord(key: string): string {
+  const { y, m, d } = keyParts(key);
+  return `${DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] ?? ""}, ${shortDate(key)}`;
+}
 
 /** Visits to mark in a count, for To do's line: "3 appointments to mark". */
 export function todayVisitsSub(count: number, word: AppointmentWord): string {
@@ -218,31 +241,43 @@ export function todayVisitsSub(count: number, word: AppointmentWord): string {
 }
 
 /**
- * Yesterday's visits nobody has said whether they came to (product call of 11 Oct 2026, approved): a visit of the day
- * before today's that has ended, that the record keeps a row for (so a word can be said on it) and that is for a person
- * the board matched. Their lines are the one visit line (visitLineOfBlock), judged at `nowMs`; the first three are named,
- * in the day's order, and the count is all of them. Null with none, and without the day before today in the calendar the
- * page holds (a board moved to another span holds none of it). An event nobody is matched to is not asked about: a lunch
- * on the owner's calendar is no visit, and the Calendar's panel says it for the rest.
+ * The past week's visits nobody has said whether they came to (the call of 11 Oct 2026 asked of yesterday's; a week back
+ * since 15 Nov 2026, TODAY_VISITS_REACH_DAYS): a visit of one of the seven days before today's that has ended, that the
+ * record keeps a row for (so a word can be said on it) and that is for a person the board matched. Their lines are the one
+ * visit line (visitLineOfBlock), judged at `nowMs`, yesterday's first and then each day further back, each day in its
+ * order; the first `max` are named and the count is all of them. Null with none, and without today in the calendar the
+ * page holds (a board moved to another span holds none of it); a day of the week the page does not hold is passed over.
+ * An event nobody is matched to is not asked about: a lunch on the owner's calendar is no visit, and the Calendar's panel
+ * says it for the rest. The Calendar's sheet walks them by the same rule (its Next), with `max` all of them.
  */
 export function todayVisitsAsked(
-  cal: CalendarLike | null,
+  cal: { days: ReadonlyArray<Pick<DayFrameLike, "key" | "today" | "blocks">> } | null,
   nowMs: number,
   word: AppointmentWord,
   max = TODAY_VISITS_MAX,
 ): TodayVisitsAskedVM | null {
   if (!cal) return null;
-  const idx = cal.days.findIndex((d) => d.today);
-  const yesterday = idx > 0 ? cal.days[idx - 1] : null;
-  if (!yesterday) return null;
-  const unmarkedVisits = unmarkedVisitsOf(yesterday, nowMs, "Yesterday");
-  if (!unmarkedVisits.length) return null;
+  const todayKey = cal.days.find((d) => d.today)?.key;
+  if (!todayKey) return null;
+  const unmarkedVisits: TodayVisitAskVM[] = [];
+  let older = false;
+  for (let back = 1; back <= TODAY_VISITS_REACH_DAYS; back++) {
+    const key = shiftKey(todayKey, -back);
+    const day = cal.days.find((d) => d.key === key);
+    if (!day) continue;
+    const found = unmarkedVisitsOf(day, nowMs, back === 1 ? VISITS_ASKED_WORDS.yesterday : pastDayWord(key));
+    if (back > 1 && found.length) older = true;
+    unmarkedVisits.push(...found);
+  }
+  const first = unmarkedVisits.at(0);
+  if (!first) return null;
   return {
     items: unmarkedVisits.slice(0, max),
     count: unmarkedVisits.length,
     markIds: unmarkedVisits.slice(0, VISITS_KEPT_MAX).map((v) => v.markId),
+    older,
     word,
-    to: `calendar/${yesterday.key}`,
+    to: (unmarkedVisits.at(max) ?? first).to,
   };
 }
 
@@ -311,7 +346,7 @@ function visitRow(todayVisitAsk: TodayVisitAskVM): TodayQueueRowVM {
   };
 }
 
-/** The row for the visits past the named ones: how many, and the door to the Calendar on yesterday. */
+/** The row for the visits past the named ones: how many, and the door to the first of them on the Calendar. */
 function visitsRestRow(todayVisitsAsked: TodayVisitsAskedVM): TodayQueueRowVM {
   const rest = todayVisitsAsked.count - todayVisitsAsked.items.length;
   const words = appointmentWords(todayVisitsAsked.word);
@@ -325,7 +360,7 @@ function visitsRestRow(todayVisitsAsked: TodayVisitsAskedVM): TodayQueueRowVM {
     initials: `+${rest}`,
     channel: "Calendar",
     when: "",
-    sentence: VISITS_ASKED_WORDS.restSentence,
+    sentence: VISITS_ASKED_WORDS.restSentence(todayVisitsAsked.older),
     quoted: false,
     status: [VISIT_ASK_WORDS.unmarked, VISITS_ASKED_WORDS.calendar],
     tone: "warn",
@@ -337,7 +372,7 @@ function visitsRestRow(todayVisitsAsked: TodayVisitsAskedVM): TodayQueueRowVM {
 }
 
 /**
- * Today's queue with yesterday's visits to mark among its rows (0047): a row for each of those named (three at most) and one
+ * Today's queue with the past week's visits to mark among its rows (0047): a row for each of those named (three at most) and one
  * for the rest, after everyone who waits on a person and the steps due, before a call worth a listen. They are the team's
  * to-do as a step is: nobody waits on them, so they never take a seat from a person (the card draws the queue in order),
  * they are not counted in the head's number (it is who needs you), and the queue the brief built, which Ask, the widget

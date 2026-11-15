@@ -7,7 +7,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FREED_TIME_NEEDS_WHEN, PEOPLE_LISTS, channelsReady, numberHealth } from "@chanlytics/contracts";
+import {
+  FREED_TIME_NEEDS_WHEN,
+  MESSAGE_MOMENT_WORDS,
+  PEOPLE_LISTS,
+  channelsReady,
+  numberHealth,
+} from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 
 const { checkPlaybook } = await importSrc("packages/core/src/campaigns/check-playbook.ts");
@@ -132,6 +138,21 @@ test("a step whose message does not say the time is refused, and only its batch 
       params: ["@freed_when"],
     }),
     "Only filling a cancellation can fill in the freed time.",
+  );
+});
+
+test("the moment's own ready-made message is kept though WhatsApp files it as an offer; any other offer on the moment is refused as before", async () => {
+  // 15 Nov 2026: WhatsApp approved a ready-made follow-up as an offer. The step that sends it goes on running, by the
+  // yes to offers (contracts enrolPurpose). Made again, it was refused with "Pick a reminder, a check after, or a
+  // follow-up", though it is the follow-up: a dead end nobody could act on.
+  const body = { trigger: "slot_opened", template_id: T1, params: ["@first_name", "@business_name", "@freed_when"] };
+  const asOffer = template({ variables: ["1", "2", "3"], category: "marketing" });
+  const made = await checkPlaybook(checkPorts({ message: (id) => (id === T1 ? [asOffer] : []) }), body);
+  assert.deepEqual([made.name, made.policy_class], ["Fill a cancellation", "follow_up"]);
+  const another = template({ variables: ["1", "2", "3"], category: "marketing", name: "month_offer" });
+  await refused(
+    checkPlaybook(checkPorts({ message: (id) => (id === T1 ? [another] : []) }), body),
+    MESSAGE_MOMENT_WORDS.offer_on_texts,
   );
 });
 
@@ -265,7 +286,7 @@ test("a batch whose words are new waits for an OK, and its notice says it ends w
   assert.equal(f.of("assemble")[0][1].state, "pending_approval");
   const [, subject, body] = f.of("notify")[0];
   assert.equal(subject, "Campaign “Fill a cancellation” is ready: 1 person");
-  assert.match(body, /Goes only if you approve it before Tue, Sep 8, 3:00 PM; after that it is skipped\.$/);
+  assert.match(body, /Goes only if you approve it before Tue, Sep 8, 3:00 PM. After that it's skipped\.$/);
   // Made the evening before, its name and its notice still say the date: kept words, read the next morning too.
   const eve = runPorts();
   const evening = new Date("2026-09-08T00:30:00Z"); // Monday 8:30 PM in New York

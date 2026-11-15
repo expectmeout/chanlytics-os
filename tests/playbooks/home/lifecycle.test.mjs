@@ -936,12 +936,15 @@ test("a run waiting on you is approved or skipped where it waits: who gets it, a
   // What Today's row says of it (contracts todayRunWords): one sentence for a waiting run, wherever it is read. It
   // promises nobody a count the month's allowance may hold part of, as "4 people get it once you approve" did.
   // How its wait ends is the wait rule's (decision 0064): a customer batch waits until its day ends, then is skipped.
-  assert.equal(live.why, "4 people. Waits for your OK until the end of its day; then it is skipped, and you are told.");
+  assert.equal(
+    live.why,
+    "4 people. Waits for you to approve until the end of its day. Then it's skipped, and you're told.",
+  );
   assert.equal(live.why, C.todayRunWords(waitingRun()).waiting.sentence);
   assert.deepEqual(live.pill, { tone: "warn", label: "Waiting for your approval" });
   assert.equal(
     row(waitingRun({ recipient_count: 1 })).why,
-    "1 person. Waits for your OK until the end of its day; then it is skipped, and you are told.",
+    "1 person. Waits for you to approve until the end of its day. Then it's skipped, and you're told.",
   );
   // Its day has passed (the board's moment is 2 October in New York): the verb refuses it (contracts runApprovalRefusal, THE
   // predicate), so the row says the verb's own sentence, with the day in words, and offers no Approve.
@@ -963,7 +966,7 @@ test("a run waiting on you is approved or skipped where it waits: who gets it, a
   assert.equal(reachOut.waiting, null);
   assert.equal(
     reachOut.why,
-    "12 businesses. Waits for your OK, and you are reminded each morning; no new business is written to until you give it.",
+    "12 businesses. Waits for you to approve. Nothing new goes out until you do, and you're reminded each morning.",
   );
   assert.deepEqual(reachOut.act, { kind: "route", label: "Open", route: "campaigns/sequences/r-w/runs/r-w" });
   // A run whose playbook the page does not hold (it was deleted): nothing here says what it sends, so it is opened too.

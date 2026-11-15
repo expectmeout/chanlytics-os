@@ -27,7 +27,7 @@
  * collect.ts, check.ts and sweep.ts.
  */
 
-import { LEAD_NO_SITE_KEY, LEAD_SCREEN_BOUND_MS, MIN_MS, SHADOW_WRITE_MS, recordOrNull } from "@chanlytics/contracts";
+import { LEAD_SCREEN_BOUND_MS, MIN_MS, SHADOW_WRITE_MS, recordOrNull } from "@chanlytics/contracts";
 import { JUDGE_TIMEOUT_MS } from "../judge";
 import type { LeadMemberRow, LeadPorts, LeadRoundRow } from "../ports";
 
@@ -116,7 +116,4 @@ async function heldBack(p: LeadPorts, tenantId: LeadRoundRow["tenant_id"]): Prom
   return null;
 }
 
-/** A member the sizing counts as looked at: one the judge answered for, or one code left out for having no site to read. */
-const wasWeighed = (m: LeadMemberRow): boolean => wasJudged(m) || m.excluded_by === LEAD_NO_SITE_KEY;
-
-export { heldBack, iso, isRefused, isRetryable, markUntil, minute, outOfTime, wasWeighed, webhookUrl, wasJudged };
+export { heldBack, iso, isRefused, isRetryable, markUntil, minute, outOfTime, webhookUrl, wasJudged };

@@ -115,7 +115,7 @@ export function useSpeech(text: string | null): Speech {
     setWhy(null);
     speech.speak(text, "brief").catch((e: unknown) => {
       if (mine !== press.current) return;
-      setWhy(e instanceof Error && e.message ? e.message : "AI's voice could not be reached just now.");
+      setWhy(e instanceof Error && e.message ? e.message : "Couldn't reach AI's voice just now.");
     });
   };
   const warm = () => {
