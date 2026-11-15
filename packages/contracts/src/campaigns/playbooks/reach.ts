@@ -425,7 +425,7 @@ export function playbookRunReach(
     ready: run.ready,
     about: messageAboutOfTrigger(run.trigger),
     // A run with no day of its own waits at the send for a channel that opens by itself (reachFor `wait`).
-    ...(run.wait ? { wait: true } : {}),
+    wait: run.wait === true,
   };
   // What each person has had of the follow-up: the latest, and the latest by what each was about (0029).
   const hadOf = (id: string): FollowUpsHad => ({

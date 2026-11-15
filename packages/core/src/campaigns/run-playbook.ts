@@ -1,4 +1,4 @@
-import { notToday, pacedRun, waitsAtTheSend, waitsOnWhatsApp } from "./paced";
+import { notToday, pacedRun, statusAtTheSend, waitsAtTheSend, waitsOnWhatsApp } from "./paced";
 import { heldContactId } from "@chanlytics/contracts";
 import {
   batchModeOf,
@@ -125,10 +125,11 @@ async function readMessage(run: Run): Promise<Message | { error: string }> {
 /**
  * Whether WhatsApp's version alone ends a run that drew `drawn` people: the run ticks WhatsApp, the message does not
  * hold a WhatsApp version to send, and nobody was drawn on email or text (a version the message does not hold draws
- * nobody on WhatsApp).
+ * nobody on WhatsApp). Never for a run that waits at the send (paced.ts waitsAtTheSend): its WhatsApp people were drawn,
+ * to wait, and a run that drew nobody is one with nobody to reach.
  */
 const templateHolds = (r: Run, m: Message, drawn: number): boolean =>
-  drawn === 0 && !m.held.whatsapp && r.channels.includes("whatsapp");
+  drawn === 0 && !m.held.whatsapp && r.channels.includes("whatsapp") && !waitsAtTheSend(r, m.m);
 
 /**
  * A moment that reads the calendar, run with none it can read. No calendar connected is a final answer: the run says so
@@ -162,8 +163,8 @@ async function allowed(
   if (waits) return { ended: await run.off(waits, { record: false }) };
   const stop = playbookStopBy({
     channels: run.channels,
-    // A version the send waits for (waitsAtTheSend) stops nothing here: the run is made, and its WhatsApp people wait.
-    templateStatus: waitsAtTheSend(run, message.m) ? "approved" : (message.m?.versions.whatsapp?.status ?? null),
+    // A version the send waits for stops nothing here (paced.ts statusAtTheSend): the run is made, and its people wait.
+    templateStatus: statusAtTheSend(run, message.m),
     numberCanSend: ctx.health.canSend,
   });
   if (stop) return { ended: await run.off(stop) };
@@ -639,14 +640,14 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     // A visit's or a follow-up's message is theirs; any other moment's, the business's news (decision D1).
     about: messageAboutOfTrigger(p.trigger),
     // A run with no day of its own places the people only WhatsApp reaches on it, to wait at the send for its yes.
-    ...(waitsAtTheSend(run, message.m) ? { wait: true } : {}),
+    wait: waitsAtTheSend(run, message.m),
   };
   const drawn = await drawOf(run, message.m, how, gate.listIds);
   if ("error" in drawn) return { outcome: "failed", error: drawn.error };
   const { eligible, reach, channelOf, dropped } = drawn;
   // A WhatsApp version Meta does not approve holds WhatsApp's people alone: none is drawn on it, and the purpose stays
   // the message's own category. A run that ticks WhatsApp and has nobody on email or text stops on it, as it always did.
-  if (!how.wait && templateHolds(run, message, eligible.length)) return off("template_not_approved");
+  if (templateHolds(run, message, eligible.length)) return off("template_not_approved");
   if (eligible.length === 0) {
     await record({ mode, eligible: 0, reach, ...(dropped ? { dropped } : {}) });
     return { outcome: "empty", eligible: 0, mode };

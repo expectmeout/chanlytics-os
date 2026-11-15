@@ -12,7 +12,9 @@ import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
 const { sendBroadcastBatch } = await importSrc("packages/core/src/messages/broadcast/batch.ts");
-const { whatsappRetryAt, whatsappWaitEnds } = await importSrc("packages/core/src/messages/broadcast/whatsapp-wait.ts");
+const { findWhatsAppRetry, whatsappWaitEnds } = await importSrc(
+  "packages/core/src/messages/broadcast/whatsapp-wait.ts",
+);
 const { refuseTicks } = await importSrc("packages/core/src/campaigns/message-channels.ts");
 const { waitsAtTheSend } = await importSrc("packages/core/src/campaigns/paced.ts");
 const {
@@ -339,19 +341,19 @@ test("a freed time's people do not wait once the time is taken, or once it has s
   });
   const pending = messageOf("pending");
   assert.deepEqual(
-    await whatsappRetryAt(ports([]), run, pending, "UTC"),
+    await findWhatsAppRetry(ports([]), run, pending, "UTC"),
     new Date(FRI_NOON + BROADCAST_HOLD_WAIT_MS),
     "still free: they wait",
   );
   const booked = [{ start: at(offered.start), end: at(offered.end), id: "a2", contactId: "k7" }];
-  assert.equal(await whatsappRetryAt(ports(booked), run, pending, "UTC"), null, "taken since: the wait ends");
+  assert.equal(await findWhatsAppRetry(ports(booked), run, pending, "UTC"), null, "taken since: the wait ends");
   assert.equal(
-    await whatsappRetryAt(ports([], at("2026-09-11T14:55:00Z")), run, pending, "UTC"),
+    await findWhatsAppRetry(ports([], at("2026-09-11T14:55:00Z")), run, pending, "UTC"),
     null,
     "about to start",
   );
   assert.equal(
-    await whatsappRetryAt(ports([]), run, messageOf("approved"), "UTC"),
+    await findWhatsAppRetry(ports([]), run, messageOf("approved"), "UTC"),
     null,
     "approved: nothing to wait for",
   );

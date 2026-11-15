@@ -395,9 +395,8 @@ test("a broadcast: the workspace must be named, a viewer is refused as a viewer,
     "not_found",
     404,
   );
-  // A version WhatsApp has not approved is no blanket refusal. With no number the workspace's own reason is the one said.
-  // With one, a version WhatsApp is still checking is no refusal at all: the send waits for it (core whatsapp-wait.ts), so
-  // the tick is kept and the send is judged on, here to its audience, where nobody has said yes.
+  // With no number the workspace's own reason is said. With one, a version WhatsApp is still checking is no refusal: the
+  // send waits for it (core whatsapp-wait.ts), so it is judged on, here to its audience, where nobody has said yes.
   await refused(
     broadcasts.POST.run(send("POST", { template_id: T2, audience: everyone }, inB), ctxFor(tables, {}, rpcs)),
     "conflict",

@@ -41,8 +41,6 @@ function hoursEnd(timezone: string, at: Date): Date {
   return sendingEndsAt(timezone, open) ?? open;
 }
 
-const momentOf = (iso: string | null | undefined): number => (iso ? Date.parse(iso) : Number.NaN);
-
 /**
  * Until when a run's WhatsApp people wait for WhatsApp's yes (Ruben, 15 Nov 2026). A sequence's run, until the day's
  * sending hours end: it is that day's run, and tomorrow's reaches whoever is due then. A send by hand, until the end of
@@ -50,13 +48,14 @@ const momentOf = (iso: string | null | undefined): number => (iso ? Date.parse(i
  * freed time's start, or the one visit a late booking's reminder or an occasion's step names, where that is still ahead.
  */
 export function whatsappWaitEnds(run: WaitingRun, timezone: string, nowMs: number): Date {
-  const set = momentOf(run.scheduled_for);
+  // A time that is absent parses to no time at all (NaN), and is left out below.
+  const set = Date.parse(run.scheduled_for ?? "");
   const today = hoursEnd(timezone, new Date(run.playbook_id || Number.isNaN(set) ? nowMs : set));
   const last = run.playbook_id ? today : hoursEnd(timezone, today);
   const visit = audienceLate(run.audience);
-  const about = [momentOf(run.offered_start), visit && !visit.behind ? momentOf(visit.start) : Number.NaN].filter(
-    (at) => !Number.isNaN(at),
-  );
+  const about = [run.offered_start, visit && !visit.behind ? visit.start : null]
+    .map((iso) => Date.parse(iso ?? ""))
+    .filter((at) => !Number.isNaN(at));
   return new Date(Math.min(last.getTime(), ...about));
 }
 
@@ -80,7 +79,7 @@ async function isOfferedTimeTaken(
  * the next sending hours where it falls outside them. Null where they do not wait: WhatsApp said yes, or no; the next try
  * would not fit before the wait ends (whatsappWaitEnds); or the freed time the run offers is taken.
  */
-export async function whatsappRetryAt(
+export async function findWhatsAppRetry(
   ports: Pick<BroadcastBatchPorts, "now" | "random" | "freedTimeFacts">,
   run: WaitingRun,
   message: Pick<CampaignMessage, "versions"> | null,
@@ -122,14 +121,14 @@ export interface WhatsAppStand {
   tpl: { body_preview: string | null };
   /** Why its WhatsApp version is not one to send now and waits for nothing more; null where it is, or where its people wait. */
   held: WhatsAppHeld | null;
-  /** When its WhatsApp people are asked for again, while they wait (whatsappRetryAt); null where they do not. */
+  /** When its WhatsApp people are asked for again, while they wait (findWhatsAppRetry); null where they do not. */
   retryAt: Date | null;
   /** Who this batch sends to: the people queued, or, while WhatsApp's people wait, those who go another way. */
   batch: RecipientRow[];
 }
 
 /** The run's message read once for the batch, how its WhatsApp version stands, and the batch that follows from it. */
-export async function whatsappStandOf(
+export async function readWhatsAppStand(
   ports: Pick<BroadcastBatchPorts, "message" | "batch" | "now" | "random" | "freedTimeFacts">,
   run: WaitingRun & Pick<BroadcastRow, "template_name" | "template_language">,
   queued: RecipientRow[],
@@ -141,7 +140,7 @@ export async function whatsappStandOf(
   const tpl = row ?? { body_preview: null };
   if (message !== null && messageHolds(message).whatsapp)
     return { rows, message, tpl, held: null, retryAt: null, batch: queued };
-  const retryAt = await whatsappRetryAt(ports, run, message, timezone);
+  const retryAt = await findWhatsAppRetry(ports, run, message, timezone);
   if (retryAt) return { rows, message, tpl, held: null, retryAt, batch: await othersOf(ports, run, queued) };
   const held = whatsappWaits(message) ? "whatsapp_wait_ended" : "template_not_approved";
   return { rows, message, tpl, held, retryAt: null, batch: queued };
@@ -153,7 +152,7 @@ export async function whatsappStandOf(
  * nobody waits, the batch has people to send to, or nobody is left queued at all (the batch then ends the run as it
  * always did).
  */
-export async function waitsForWhatsApp(
+export async function waitForWhatsApp(
   ports: Pick<BroadcastBatchPorts, "remaining" | "scheduleNext">,
   run: Pick<BroadcastRow, "id">,
   stand: Pick<WhatsAppStand, "retryAt" | "batch">,
@@ -170,7 +169,7 @@ export async function waitsForWhatsApp(
  * ended says what becomes of it too, by whose run it was (thenWhat): a send by hand is sent again once WhatsApp has
  * approved the message; a sequence's run is not, and its next run that can go reaches them.
  */
-export async function stoppedForWhatsApp(
+export async function stopForWhatsApp(
   ports: Pick<BroadcastBatchPorts, "fail" | "alert" | "byOtherChannels">,
   run: Pick<BroadcastRow, "id" | "name" | "playbook_id" | "audience">,
   { held, message }: Pick<WhatsAppStand, "held" | "message">,

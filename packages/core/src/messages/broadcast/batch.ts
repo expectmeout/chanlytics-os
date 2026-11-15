@@ -54,7 +54,7 @@ import {
   wireIsDown,
   wireIsUnbound,
 } from "./stops";
-import { stoppedForWhatsApp, waitsForWhatsApp, whatsappStandOf } from "./whatsapp-wait";
+import { stopForWhatsApp, waitForWhatsApp, readWhatsAppStand } from "./whatsapp-wait";
 import type { ContactId } from "@chanlytics/contracts";
 
 /**
@@ -230,19 +230,19 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   ];
   if (await holdBeforeAnyClaim(held)) return;
   // The message, read once: its rows on every channel, and how its WhatsApp version stands (whatsapp-wait.ts
-  // whatsappStandOf). It must be what WhatsApp approved (and whole, contracts messageHolds). While WhatsApp is still to
+  // readWhatsAppStand). It must be what WhatsApp approved (and whole, contracts messageHolds). While WhatsApp is still to
   // say yes to it, the run's WhatsApp people wait, queued, and the batch is those who go another way: with none of them
   // left, the run stays as it is and asks again (one nobody has heard from yet is not marked sending). When it is
   // neither, that holds the run's WhatsApp people alone (sendOne skips them, with which it was) and the run goes on for
   // whoever is on email or text, on their own versions; only a run with nobody else on it fails, before a single send.
   // A message with no row at all holds nobody's WhatsApp, as a missing row did.
-  const stand = await whatsappStandOf(ports, broadcast, queued, facts.timezone);
+  const stand = await readWhatsAppStand(ports, broadcast, queued, facts.timezone);
   const { rows, message, batch } = stand;
-  if (await waitsForWhatsApp(ports, broadcast, stand)) return;
+  if (await waitForWhatsApp(ports, broadcast, stand)) return;
   // Only while still scheduled: a cancel that landed between the read above
   // and this write is the row's answer, and the batch sends nothing.
   if (broadcast.state === "scheduled" && !(await ports.startSending(broadcast.id))) return;
-  if (await stoppedForWhatsApp(ports, broadcast, stand)) return;
+  if (await stopForWhatsApp(ports, broadcast, stand)) return;
 
   // WHICH yes this send needs. The message's own purpose (contracts campaignMessageOf): Meta's category is the authority
   // where it has a WhatsApp row, in any status — it can recategorise a live template — and else the category its email's

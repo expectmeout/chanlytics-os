@@ -71,3 +71,15 @@ export function waitsAtTheSend(
   const noDay = !!run.freed || !!run.late || !!run.occasion;
   return noDay && run.channels.includes("whatsapp") && whatsappWaits(message);
 }
+
+/**
+ * Where WhatsApp has the message's version, as the run's own stop reads it (contracts playbookStopBy): its status, null
+ * with none, and for a run that waits at the send (waitsAtTheSend) the one that stops nothing: the run is made, and its
+ * WhatsApp people wait for the yes.
+ */
+export function statusAtTheSend(
+  run: Parameters<typeof waitsAtTheSend>[0],
+  message: CampaignMessage | null,
+): string | null {
+  return waitsAtTheSend(run, message) ? "approved" : (message?.versions.whatsapp?.status ?? null);
+}
