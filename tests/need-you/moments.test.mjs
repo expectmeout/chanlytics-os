@@ -72,7 +72,7 @@ test("a call past a week, or from someone selling, may be let go; with no number
 test("a reply that never arrived offers what can work, in plain words, and never its error number", () => {
   const way = (code, channel = "whatsapp") => failedWayOf({ code }, channel);
   assert.equal(way(131026).way, "call", "a template cannot reach a number that is not on WhatsApp");
-  assert.match(way(131026).plain, /template wouldn't get through/);
+  assert.match(way(131026).plain, /saved message wouldn't get through/);
   assert.equal(way(131047).way, "template", "the closed window is the one a template can open");
   assert.equal(way(130429).way, "later");
   assert.equal(way(131050).way, "done", "they chose to stop: nothing more goes");

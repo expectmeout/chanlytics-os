@@ -37,7 +37,7 @@ export const ixHoldAll = async (
     real.map((t) =>
       cancelSend
         ? cancelSend(t.veto.messageId)
-        : Promise.resolve<CancelAnswer>({ ok: false, message: "The Inbox could not reach the server." }),
+        : Promise.resolve<CancelAnswer>({ ok: false, message: "Couldn't reach Chanlytics. Check your connection." }),
     ),
   );
   const refused: HoldRefusal[] = [];

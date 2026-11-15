@@ -43,7 +43,7 @@ export function emailLeftOutOf(meta: unknown): string | null {
     const listed = names.length ? `: ${names.join(", ")}${rest > 0 ? ` and ${rest} more` : ""}` : "";
     lines.push(`${total === 1 ? "1 attachment was" : `${total} attachments were`} not kept${listed}.`);
   }
-  if (email.truncated === true) lines.push("This email was longer than Chanlytics keeps; the rest was left out.");
+  if (email.truncated === true) lines.push("This email was longer than Chanlytics keeps. The rest was left out.");
   return lines.length ? lines.join(" ") : null;
 }
 

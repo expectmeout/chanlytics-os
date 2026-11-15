@@ -136,26 +136,26 @@ test("a teammate's name on a thread nobody flagged is not a claim: the thread is
 test("a quiet thread says who had the last word, in the words Conversations uses, and says when a reply didn't send", () => {
   const word = (messages, over) => vmOf(quiet(messages, over)).lastWord;
   assert.deepEqual(word([wrote("m1", "Open Sunday?", 30), ours("m2", "ai", "Closed Sundays.", 29)]), {
-    text: "Answered by AI — no one asked for you.",
+    text: "Answered by AI. No one asked for you.",
   });
   assert.deepEqual(word([wrote("m1", "Open Sunday?", 30), ours("m2", "human", "We are closed, sorry!", 20, "read")]), {
-    text: "Answered by your team — no one asked for you.",
+    text: "Answered by your team. No one asked for you.",
   });
   assert.deepEqual(
     word([ours("m1", "ai", "Welcome back!", 30, "delivered", { source: "broadcast", playbook_name: "Welcome" })]),
-    { text: "Last message: the Welcome campaign — no one asked for you." },
+    { text: "Last message: the Welcome campaign. No one asked for you." },
   );
   assert.deepEqual(word([ours("m1", "ai", "Hi", 40), wrote("m2", "Thanks!", 30)]), {
     text: "They wrote last, and nobody has answered them.",
   });
   // A reply still being worked out is not nobody answering them.
   assert.deepEqual(word([ours("m1", "ai", "Hi", 40), wrote("m2", "Thanks!", 1)]), {
-    text: "They wrote last — no reply yet.",
+    text: "They wrote last. No reply yet.",
   });
   assert.deepEqual(
     word([wrote("m1", "Can I book at 3?", 30), ours("m2", "ai", "3pm works, booked!", 29, "failed")]),
     {
-      text: "They wrote last, and the reply from AI didn't send — as far as they know, nobody answered.",
+      text: "They wrote last, and the reply from AI didn't send. As far as they know, nobody answered.",
       at: "9:31 AM",
     },
     "REGRESSION: it read 'Answered by AI — no one asked for you'",
@@ -167,13 +167,13 @@ test("a quiet thread says who had the last word, in the words Conversations uses
       ours("m3", "human", "See you Monday!", 10, "failed"),
     ]),
     {
-      text: "Answered by AI — the last message from your team didn't send.",
+      text: "Answered by AI. The last message from your team didn't send.",
       at: "9:50 AM",
     },
     "they were answered; what failed is a later word, and the line says both",
   );
   assert.deepEqual(word([ours("m1", "human", "Hi Rosa", 10, "failed")], { last_wa_inbound_at: null }), {
-    text: "Nothing has reached them — the message from your team didn't send.",
+    text: "Nothing has reached them. The message from your team didn't send.",
     at: "9:50 AM",
   });
   assert.deepEqual(
@@ -182,7 +182,7 @@ test("a quiet thread says who had the last word, in the words Conversations uses
     "a reply someone canceled is not a failure: they are simply waiting",
   );
   assert.deepEqual(word([callNote("m1", 30)], { last_wa_inbound_at: null }), {
-    text: "AI handled their call — no one asked for you.",
+    text: "AI handled their call. No one asked for you.",
   });
   assert.deepEqual(word([]), { text: "No messages yet." });
   assert.equal(
@@ -241,9 +241,9 @@ test("any other hold's details are the dock's, under its Why?, whole or cut at a
       asked({ reason: "send_failed", details }),
     );
   const vm = of("the WhatsApp number is not connected");
-  assert.equal(vm.timeline.find((e) => e.type === "event").body, "Held for you — reply failed to deliver");
-  assert.equal(vm.holdLine, "Our reply never reached them");
-  assert.match(vm.holdWhy, /^The reply never reached them/);
+  assert.equal(vm.timeline.find((e) => e.type === "event").body, "Held for you — reply didn't reach them");
+  assert.equal(vm.holdLine, "The reply never reached them");
+  assert.match(vm.holdWhy, /^The reply didn't reach them/);
   assert.equal(vm.holdNote, "the WhatsApp number is not connected");
   const long =
     "The reply could not be delivered because the WhatsApp number is not connected to this workspace any more, so reconnect it from Settings before anything else. " +
@@ -260,7 +260,7 @@ test("an email's hold says its line, and what the email claimed to be in the rea
     quiet([wrote("m1", "Your order shipped", 60)], { state: "needs_human" }),
     asked({ reason: "email_review", details: claim }),
   );
-  assert.equal(vm.holdLine, "They wrote by email — nothing sent");
+  assert.equal(vm.holdLine, "They wrote by email · nothing sent");
   assert.equal(vm.holdWhy, claim);
   assert.equal(vm.holdNote, undefined, "said once");
 });
@@ -427,7 +427,7 @@ test("the pane: a thread you have says why it was flagged, where 'Where this sta
   assert.match(textOf(owned), /^You have it\. · /, "on one line, with why it was flagged");
   assert.match(
     textOf(owned),
-    /They asked for a person\. A holding message went out — they're waiting on you\./,
+    /They asked for a person\. A holding message went out, and they're waiting on you\./,
     "the reason, now said here once",
   );
   assert.ok(!textOf(tree).includes("agents are standing down"), "one receptionist, not agents");

@@ -10,6 +10,7 @@
 import { clockInZone, dayPlusInZone, localToUtcMs } from "../shared/zone/math";
 import { shortName } from "../conversations/thread-contact";
 import { HOUR_MS } from "../shared/time";
+import { WINDOW_CLOSED_WORDS } from "../conversations/window-words";
 
 /** Seconds in a minute, for a countdown said in minutes. */
 const MINUTE_S = 60;
@@ -78,8 +79,7 @@ export const NEED_YOU_WORDS = {
   back: (when: string) => `back ${when}`,
   backSooner: (personName: string) => `Back sooner if ${personName} writes again.`,
   windowCloses: (clock: string) => `Reply by ${clock}. After that, only an approved message reaches them on WhatsApp.`,
-  windowClosed:
-    "They haven't written in 24 hours, so only an approved message reaches them on WhatsApp. Your words go with you.",
+  windowClosed: WINDOW_CLOSED_WORDS,
   viewer: "Only an owner or operator can send.",
   openThread: "Open conversation",
   /** A lead who tried their own receptionist (decision 0079): Today's row. */

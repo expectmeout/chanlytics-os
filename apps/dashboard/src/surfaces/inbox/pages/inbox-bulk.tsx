@@ -94,7 +94,7 @@ export const inboxBulkActs = (ix: InboxSoFar & InboxActs & InboxRealBulk) => {
     });
     flash(
       safe.length === 0
-        ? "None are safe to bulk-approve — all below 80% confidence"
+        ? "None is sure enough to approve all at once"
         : `${safe.length} approved · ${picks.length - safe.length} need${picks.length - safe.length === 1 ? "s" : ""} individual review`,
     );
     setSelected([]);

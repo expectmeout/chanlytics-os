@@ -57,7 +57,7 @@ test("a reply a person or AI wrote, reported failed after it was taken, flags th
   assert.deepEqual([conversation, reason], ["c1", "send_failed"]);
   assert.equal(
     details,
-    "A reply from your team was accepted for sending but did not reach them. WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now.",
+    "A reply from your team was accepted for sending but did not reach them. WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only an approved message can reach them now.",
   );
   assert.deepEqual(p.log[2], [
     "noteFailed",
@@ -191,7 +191,7 @@ test("a text's receipt is read as Twilio's: the code in its own words, and a sta
   assert.match(p.log[1][3], /The text was filtered as a possible policy violation\.$/);
   const q = ports();
   await late(q, { channel: "sms", error: { carrier: "undelivered" } });
-  assert.match(q.log[1][3], /The carrier didn't deliver it\.$/);
+  assert.match(q.log[1][3], /It wasn't delivered\.$/);
 });
 
 /* ---------------------------------------------------- the read the edge makes of the message */

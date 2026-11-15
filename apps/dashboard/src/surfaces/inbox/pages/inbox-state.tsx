@@ -424,7 +424,7 @@ export const inboxMoves = (ix: InboxState) => {
     ppFlash({
       msg: (
         <>
-          <b>{update.by}</b>'s reply is now in view — you were {behind} message behind
+          <b>{update.by}</b>'s reply is now in view · {behind} new
         </>
       ),
     });
@@ -488,7 +488,7 @@ export const inboxMoves = (ix: InboxState) => {
     ppFlash({
       msg: (
         <>
-          <b>Marked unread</b> — bumped to the top of your list
+          <b>Marked unread</b> · moved to the top of your list
         </>
       ),
     });
@@ -508,7 +508,7 @@ const stageKeeper = (lead: SeededLead) => {
 
 /** The words the verdict writes on the thread's timeline. */
 const verdictWords = (est: number, opt: VerdictOption): string =>
-  `Verdict: ${opt.label} — ${opt.verb === "interested" ? "AI stands down; any inbound reopens with context" : opt.verb === "deal" ? `tracked in Pipeline · $${(est || 0).toLocaleString()} est. — AI handles admin only` : "client record live; service comms resume"}`;
+  `Verdict: ${opt.label} · ${opt.verb === "interested" ? "AI stays out, and their next message comes to you" : opt.verb === "deal" ? `in Pipeline · about $${(est || 0).toLocaleString()} · AI handles admin only` : "now a customer · AI answers them again"}`;
 
 /** The verdict after a meeting, on the thread it spawned. */
 export const inboxVerdict = (ix: InboxState & InboxMoves) => {
@@ -544,7 +544,7 @@ export const inboxVerdict = (ix: InboxState & InboxMoves) => {
         value: verdict.est || 0,
         inStage: "now",
         agent: { glyph: "Q", name: "Qualifier" },
-        next: "Yours — AI does admin only",
+        next: "Yours · AI does admin only",
         threadId: t.id,
         source: "IG reel · verdict",
       });
@@ -557,7 +557,7 @@ export const inboxVerdict = (ix: InboxState & InboxMoves) => {
     ppFlash({
       msg: (
         <>
-          <b>{opt.label}</b> — {t.who}
+          <b>{opt.label}</b> · {t.who}
         </>
       ),
       links: [
@@ -647,7 +647,7 @@ export const useInboxVeto = (ix: InboxState & InboxMoves) => {
       window.setTimeout(() => window.dispatchEvent(new CustomEvent("inbox:focus-composer")), FOCUS_COMPOSER_MS);
     if (act === "hold")
       ppFlash({
-        msg: <>Held — the draft won't send until you act</>,
+        msg: <>Stopped · the draft won't send until you act</>,
       });
     setVetoTick((n) => n + 1);
   };

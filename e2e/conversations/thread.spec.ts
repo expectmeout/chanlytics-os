@@ -363,7 +363,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       pane = await openRobin(page, "Snoozed");
       await expect(pane.getByText(/still waiting for you/)).toBeVisible();
       await pane.getByRole("button", { name: /Wake now/ }).click();
-      await expect(page.getByText(/back in the queue/)).toBeVisible();
+      await expect(page.getByText(/back in Needs you/)).toBeVisible();
       pane = await openRobin(page, "Needs you");
       await expect(pane.getByTestId("ix-needs-you")).toBeVisible();
     });

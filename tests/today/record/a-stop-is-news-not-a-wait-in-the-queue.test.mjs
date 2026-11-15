@@ -177,6 +177,6 @@ test("People does not read a STOP hold opened before decision 0048 as a wait: th
   assert.equal(snoozedAsk({ open_escalation_reason: "opt_out", needs_human: false }), null);
   assert.equal(
     snoozedAsk({ open_escalation_reason: "deadman", needs_human: false }),
-    "Nobody picked this up — flagged after silence",
+    "Nobody picked this up · flagged after silence",
   );
 });

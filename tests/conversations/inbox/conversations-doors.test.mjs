@@ -149,14 +149,14 @@ test("REGRESSION (A7, A9, A23): a chat row opens its Inbox thread, each of our m
   const theirs = row(ours({ id: "m0", body: "Hi Rosa!", created_at: "2026-09-14T12:59:00Z" }), msg({ id: "m1" }));
   assert.deepEqual(
     [theirs.answeredBy, theirs.summary.bullets[1]],
-    [null, "They wrote last — no reply yet"],
+    [null, "They wrote last · no reply yet"],
     "REGRESSION: a customer waiting on a reply read 'Answered by AI'",
   );
 
   const paused = toConversationVM(conv([msg({ id: "m1" }), ours()], { state: "needs_human" }), null, ZONE, NOW);
   assert.equal(
     paused.summary.bullets[1],
-    "AI paused — a person has this thread",
+    "AI paused · a person has this conversation",
     "a thread a person has keeps its sentence",
   );
 });

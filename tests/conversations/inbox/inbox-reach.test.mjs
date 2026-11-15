@@ -197,7 +197,7 @@ test("the countdown is a timer; past its deadline a real draft says it is sendin
   assert.match(textOf(zero), /Sending now…/, "REGRESSION: 'Auto-sends in 0s' until something else moved");
   assert.ok(!/in 0:00/.test(textOf(zero)));
   assert.equal(said(zero), "Sending now.");
-  assert.equal(said(bar(null)), "Held — this draft will not send.");
+  assert.equal(said(bar(null)), "Stopped. This draft won't send.");
 });
 
 /* -------------------------------- the engine -------------------------------- */

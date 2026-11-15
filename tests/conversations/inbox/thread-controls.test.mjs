@@ -525,7 +525,7 @@ test("Needs you: the pill its row wears and how long they have waited, under the
   );
   // One line of what is owed (the thread canvas, 1 Nov 2026): it was the reason's sentence, up to forty words.
   assert.ok(
-    textOf(find(needs, hasClass("notice-fact"))).startsWith("They asked for a person — a holding message went out"),
+    textOf(find(needs, hasClass("notice-fact"))).startsWith("They asked for a person · a holding message went out"),
     textOf(needs),
   );
   const why = find(needs, (n) => n.type === "button" && hasClass("ix-why")(n));
@@ -628,7 +628,7 @@ test("the line under the name says where the conversation stands; the template b
     assert.ok(bar, "the box's head");
     assert.equal(
       textOf(find(bar, hasClass("ix-closed-words"))),
-      "Chat window closed — only an approved template can reach Rosa now.",
+      "Over a day since they wrote · only an approved message can reach Rosa now.",
     );
     const shut = find(bar, (n) => n.type === "button" && byTestId("ix-th-window-toggle")(n));
     assert.equal(textOf(shut).trim(), "Why?");
@@ -1296,8 +1296,8 @@ test("where a thread was held for a person is a quiet mark between the words, it
   const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
   const mark = find(tree, byTestId("tl-held"));
   assert.ok(mark, "the mark");
-  // "Held for you · 9:20 AM" (the thread canvas, 1 Nov 2026): why it was held is the dock's line, and the mark's title.
-  assert.match(textOf(mark), /^Held for you· \d{1,2}:\d{2} [AP]M$/);
+  // "Waits for you · 9:20 AM" (the thread canvas, 1 Nov 2026): why it waits is the dock's line, and the mark's title.
+  assert.match(textOf(mark), /^Waits for you· \d{1,2}:\d{2} [AP]M$/);
   assert.match(mark.props.title, /asked for a person/);
   assert.ok(!textOf(tree).includes("Flagged for a human"), "REGRESSION: the flag's label, said over the dock's");
 });

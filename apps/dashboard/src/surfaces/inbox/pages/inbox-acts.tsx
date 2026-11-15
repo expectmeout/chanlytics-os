@@ -22,7 +22,7 @@ export const inboxDecide = (ix: InboxSoFar) => {
     if (!canDo("approve")) return;
     const tReal = threads.find((x) => x.id === id);
     if (tReal && tReal.real) {
-      if (action === "__HANDBACK__") void realVerb(tReal, "hand-back", undefined, "cleared — AI is answering again");
+      if (action === "__HANDBACK__") void realVerb(tReal, "hand-back", undefined, "AI is answering again");
       return;
     }
     const t = threads.find((x) => x.id === id);
@@ -45,7 +45,7 @@ export const inboxDecide = (ix: InboxSoFar) => {
         },
       ],
     }));
-    flash(`${action}${meta.param ? ` · ${meta.param}` : ""} — ${t.who}`, prev);
+    flash(`${t.who} · ${action}${meta.param ? ` · ${meta.param}` : ""}`, prev);
     if (t.state === "needs") {
       const nxt = nextNeedsAfter(id);
       if (nxt && activeBucket === "needs") setActiveThreadId(nxt);
@@ -63,7 +63,7 @@ export const inboxDecide = (ix: InboxSoFar) => {
     const prev = snapOf(t);
     IX_STORE.set(id, { action: "Snoozed", at: IX_NOW, kind: "snoozed", wake });
     mutate(id, (x) => ({ ...x, state: "snoozed", wake, unread: false }));
-    if (!opts.silent) flash(`Snoozed until ${wake} — ${t.who}`, prev);
+    if (!opts.silent) flash(`${t.who} · snoozed until ${wake}`, prev);
     if (!opts.silent && activeBucket === "needs") {
       const nxt = nextNeedsAfter(id);
       if (nxt) setActiveThreadId(nxt);
@@ -81,7 +81,7 @@ export const inboxThreadActs = (ix: InboxSoFar) => {
     const t = threads.find((x) => x.id === id);
     if (!t || t.state !== "snoozed") return;
     if (t.real) {
-      void realVerb(t, "wake", {}, "awake — back in the queue");
+      void realVerb(t, "wake", {}, "back in Needs you");
       return;
     }
     const wakeAt = t.wake;
@@ -92,7 +92,7 @@ export const inboxThreadActs = (ix: InboxSoFar) => {
     ppFlash({
       msg: (
         <>
-          Woke <b>{t.who}</b> — back in Needs you
+          <b>{t.who}</b> · back in Needs you
         </>
       ),
       undo: () => {
@@ -113,7 +113,7 @@ export const inboxThreadActs = (ix: InboxSoFar) => {
     const prev = snapOf(t);
     IX_STORE.set(id, { action: "Archived", at: IX_NOW, kind: "decided" });
     mutate(id, (x) => ({ ...x, state: "done", unread: false, resolution: { action: "Archived", at: IX_NOW } }));
-    if (!opts.silent) flash(`Archived — ${t.who}`, prev);
+    if (!opts.silent) flash(`${t.who} · archived`, prev);
     return prev;
   };
 
@@ -121,7 +121,7 @@ export const inboxThreadActs = (ix: InboxSoFar) => {
     if (!canDo("approve")) return;
     const tReal = threads.find((x) => x.id === id);
     if (tReal && tReal.real) {
-      void realVerb(tReal, "take-over", undefined, "you have it — AI is paused");
+      void realVerb(tReal, "take-over", undefined, "you're replying, AI is paused");
       return;
     }
     if (VW.state[id] && !VW.state[id].sent) VW.state[id].held = true; // one voice — agent timer dies
@@ -130,7 +130,7 @@ export const inboxThreadActs = (ix: InboxSoFar) => {
       takenOver: true,
       timeline: [
         ...x.timeline,
-        { type: "event", kind: "takeover", at: IX_NOW, body: "You took this thread — AI steps back" },
+        { type: "event", kind: "takeover", at: IX_NOW, body: "You're replying · AI is paused here" },
       ],
     }));
     window.setTimeout(() => window.dispatchEvent(new CustomEvent("inbox:focus-composer")), FOCUS_COMPOSER_MS);
@@ -141,7 +141,7 @@ export const inboxThreadActs = (ix: InboxSoFar) => {
     const t = threads.find((x) => x.id === id);
     if (!t || !t.takenOver) return;
     if (t.real) {
-      void realVerb(t, "hand-back", undefined, "handed back — AI resumes");
+      void realVerb(t, "hand-back", undefined, "handed back to AI");
       return;
     }
     mutate(id, (x) => ({
@@ -153,14 +153,14 @@ export const inboxThreadActs = (ix: InboxSoFar) => {
           type: "event",
           kind: "takeover",
           at: IX_NOW,
-          body: `Handed back — ${x.agent.name} resumes with your replies as context`,
+          body: `Handed back to ${x.agent.name} · it carries on with your replies in mind`,
         },
       ],
     }));
     ppFlash({
       msg: (
         <>
-          Handed back to <b>{t.agent.name}</b> — it resumes with your replies as context
+          Handed back to <b>{t.agent.name}</b> · it carries on with your replies in mind
         </>
       ),
       undo: () => mutate(id, (x) => ({ ...x, takenOver: true, timeline: x.timeline.slice(0, -1) })),
