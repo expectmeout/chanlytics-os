@@ -13165,6 +13165,7 @@ CREATE FUNCTION public.lead_search_widens(p_tenant_id uuid) RETURNS boolean
     SET search_path TO 'public'
     AS $$
   select coalesce((select p.widen_on or p_tenant_id = any (p.widen_tenants) from public.lead_platform p where p.id), false)
+     and (auth.uid() is null or public.may_read_workspace(p_tenant_id))
 $$;
 
 

@@ -340,7 +340,7 @@ being read is dropped by a migration.
 | `mark_processed` | the server's | the server | code `packages/db/src/repositories/channels/ingest.ts` |  |
 | `mark_visit` | door | a signed-in person, the server | code `apps/dashboard/src/server/calendar/visits.ts`, `packages/contracts/src/need-you/groups.ts` and 2 more | A member says what became of a visit (00397, decision 0002 step 8): |
 | `marketing_consent_on_erase` | trigger | the server | trigger `contacts_erase_clears_marketing on contacts` |  |
-| `may_read_workspace` | door | a signed-in person, the server | SQL `lead_allowance`, `person_note_seen` and 1 more | Whether the caller (auth.uid(), never a parameter) may read this workspace: |
+| `may_read_workspace` | door | a signed-in person, the server | SQL `lead_allowance`, `lead_search_widens` and 2 more | Whether the caller (auth.uid(), never a parameter) may read this workspace: |
 | `member_decision` | door | a signed-in person, the server | SQL `change_playbook`, `message_call_back` and 5 more | A decision written as the caller's own (00357): |
 | `member_has_address` | the server's | the server | code `packages/db/src/repositories/calendar/notices.ts`; SQL `reach_out_booked_from` | Is this address a member's of the workspace: |
 | `member_push_off_set` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/member-alerts.ts` | Remembers which notification kinds the caller's phones are not told in one workspace: |
