@@ -32,8 +32,8 @@ export function nextToMarkOf(
   open: CalendarBlockVM,
   ask: { nowMs: number; word: AppointmentWord; walk: (b: CalendarBlockVM) => void },
 ): VisitNext | null {
-  const asked = todayVisitsAsked({ days }, ask.nowMs, ask.word, Number.POSITIVE_INFINITY);
-  const left = (asked?.items ?? []).filter((v) => v.markId !== open.visit?.id && !SAID.has(v.markId));
+  const toMark = todayVisitsAsked({ days }, ask.nowMs, ask.word, Number.POSITIVE_INFINITY);
+  const left = (toMark?.items ?? []).filter((v) => v.markId !== open.visit?.id && !SAID.has(v.markId));
   const first = left.at(0);
   if (!first) return null;
   const block = days.flatMap((d) => [...d.allDay, ...d.blocks]).find((b) => b.visit?.id === first.markId);
@@ -49,7 +49,8 @@ export function nextToMarkOf(
 /**
  * The foot's lead once a word is said and another visit waits for one: its press opens that visit in this one's place.
  * "Next" and its chevron, as wide as its words, beside the visit's own act: with a name in it, three equal presses on a
- * phone cut that act's words ("Send the booking link"). Who and when are its name to a screen reader and on hover.
+ * phone cut that act's words ("Send the booking link"). Who and when are its name to a screen reader, and its tip on hover,
+ * as the Message and Call circles' are: a phone shows no title=.
  */
 export function NextToMark({ visit }: { visit: VisitCtx }) {
   const next = visit.next;
@@ -59,7 +60,7 @@ export function NextToMark({ visit }: { visit: VisitCtx }) {
       variant="primary"
       className="cal-visit-next"
       aria-label={next.aria}
-      title={next.aria}
+      data-tip={next.aria}
       onClick={next.go}
       data-testid="cal-visit-next"
     >

@@ -8,7 +8,7 @@ import type { VisitSheetVM } from "./sheet-view";
 /** The next visit to mark, as the foot offers it (next.tsx): its words, and what a press does. */
 export interface VisitNext {
   label: string;
-  /** Who and when, and how many are left, for a screen reader and a pointer's hover. */
+  /** Who and when, and how many are left, for a screen reader and the tip a pointer's hover shows. */
   aria: string;
   go: () => void;
 }
