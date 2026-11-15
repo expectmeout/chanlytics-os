@@ -161,3 +161,12 @@ test("one being made says so for two minutes, then that it is slower than usual"
   // An answer that does not say when it was made: being made, never a guess.
   assert.equal(previewMarkOf({ preview: row({ state: "building" }), makes: true }, NOW).say, F.mark.building);
 });
+
+test("the mark says the day's limit before the email waits on it; paused and cannot are said first", () => {
+  assert.deepEqual(previewMarkOf({ preview: null, makes: true, cannot: null, full: true }, NOW), {
+    say: F.mark.full,
+    tone: "warn",
+  });
+  assert.equal(previewMarkOf({ preview: null, makes: true, paused: true, full: true }, NOW).say, F.mark.paused);
+  assert.equal(previewMarkOf({ preview: null, makes: true, cannot: "closed", full: true }, NOW).say, F.mark.cannot);
+});

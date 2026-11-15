@@ -75,6 +75,8 @@ const NOTIFICATION_DELIVERY = {
   // A post set for its time went up, or did not (00616): a line on the bell, no more; Content says the rest.
   post_up: "bell",
   post_stopped: "bell",
+  // A lead tried the preview they were sent (00632): a line on the bell as it happens, written by the database.
+  preview_tried: "bell",
   // Someone used a form on the business's website (00488): mailed as the business chooses, and the phone told.
   website_form: "email",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
@@ -333,6 +335,7 @@ export const BELL_LINE_KINDS = [
   "video_ready",
   "post_up",
   "post_stopped",
+  "preview_tried",
 ] as const satisfies readonly ServerNotificationKind[];
 
 /** The kinds the business may turn off by email: every kind of a topic whose email is a choice. */

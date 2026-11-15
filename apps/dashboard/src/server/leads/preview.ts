@@ -9,8 +9,15 @@ import "server-only";
  *   makeLeadPreviewFor  POST leads/:id/preview, Make their preview: asked of the edge's door (askPreview, the sender's
  *                       own way, its switch with it), then the line read again
  */
-import { AppError, SECOND_MS, leadCalledByOf, type LeadPreviewDto } from "@chanlytics/contracts";
-import { findLeadForPreview, findLeadPreview, doesMakePreviews, type LeadPreviewRow } from "@chanlytics/db/campaigns";
+import { AppError, PREVIEW_LIMITS, SECOND_MS, leadCalledByOf, type LeadPreviewDto } from "@chanlytics/contracts";
+import {
+  countLeadPreviewsSince,
+  findLeadForPreview,
+  findLeadPreview,
+  doesMakePreviews,
+  type LeadPreviewRow,
+} from "@chanlytics/db/campaigns";
+import { logAndGoOn } from "@chanlytics/log";
 import { callEdge, edgeRefusalWords } from "../shared/edge";
 import type { RouteContext } from "../shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
@@ -69,6 +76,20 @@ async function arePreviewsPaused(ctx: Ctx, tenantId: TenantId): Promise<boolean>
   return answer.status === 200 && answer.body?.on === false;
 }
 
+/**
+ * Whether this workspace's day of previews is all made (contracts PREVIEW_LIMITS.aDay), over the UTC day now is in, as
+ * the edge counts it (its previewDayFull): so the card says the email waits for tomorrow before it does. A count that
+ * cannot be read claims nothing.
+ */
+async function isPreviewDayFull(ctx: Ctx, tenantId: TenantId): Promise<boolean> {
+  const now = new Date();
+  const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const made = await countLeadPreviewsSince(ctx.supabase, tenantId, day.toISOString()).catch(
+    logAndGoOn("counting the day's previews for a lead's card", 0),
+  );
+  return made >= PREVIEW_LIMITS.aDay;
+}
+
 export async function getLeadPreview(ctx: Ctx, tenantId: TenantId, leadId: string): Promise<LeadPreviewDto> {
   const [row, makes] = await Promise.all([
     findLeadPreview(ctx.supabase, tenantId, leadId),
@@ -79,7 +100,9 @@ export async function getLeadPreview(ctx: Ctx, tenantId: TenantId, leadId: strin
   const cannot = lead ? previewCannotOf(lead) : null;
   // The switch is asked only where its answer changes what is said: a lead that would otherwise get one.
   const paused = lead && !cannot ? await arePreviewsPaused(ctx, tenantId) : false;
-  return { preview: row ? previewFactsOf(row) : null, makes, cannot, paused };
+  // The day's limit likewise: counted only for a lead that would get one today.
+  const full = lead && !cannot && !paused ? await isPreviewDayFull(ctx, tenantId) : false;
+  return { preview: row ? previewFactsOf(row) : null, makes, cannot, paused, full };
 }
 
 /** The edge door's refusals, said in its words: none such, not a workspace of ours, or the door's own (switched off). */

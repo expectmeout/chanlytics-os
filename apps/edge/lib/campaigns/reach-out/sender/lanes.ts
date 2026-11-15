@@ -196,6 +196,10 @@ export interface Tick {
   soon: Replan[];
   /** The holds said this tick, once each per workspace and reason. */
   said: Set<string>;
+  /** The workspaces found this tick to have made their day's previews (askPreview's limit): each is asked once a tick. */
+  capped: Set<string>;
+  /** The sends that wait on that limit: planned again an hour on, as a hold nothing mends in minutes is. */
+  cappedSends: Set<string>;
 }
 
 /**
@@ -274,8 +278,10 @@ export function claimedTurns(tick: Tick, reachOutSend: ReachOutSendRow) {
         ? "rechecked"
         : "lost",
     hold: (reason: string): Outcome => {
-      // One being made is minutes away; with the switch off none is, and it waits the hour as any hold does.
-      const made = reason === "preview_building" && env.LEAD_PREVIEWS === "on";
+      // One being made is minutes away; with the switch off none is, and with the day's all made none is until
+      // tomorrow: either waits the hour as any hold does.
+      const made =
+        reason === "preview_building" && env.LEAD_PREVIEWS === "on" && !tick.cappedSends.has(reachOutSend.id);
       (made ? tick.soon : tick.later).push({ send: reachOutSend, wrote: false });
       const key = `${reachOutSend.tenant_id}:${reason}`;
       if (!tick.said.has(key)) {
@@ -319,7 +325,8 @@ export interface Made {
  * The lead's own receptionist, for words that name {{their preview}} (decision 0079): open, with its link; being made,
  * and asked for where none is (askPreview, its build scheduled once), or held with the switch off and nothing made; or
  * gone, its door refusing one for this lead for good (not a business that takes bookings, a lead closed), which skips
- * the send as a failed or ended one does.
+ * the send as a failed or ended one does. With the day's previews all made (contracts PREVIEW_LIMITS.aDay) none is
+ * asked for: the send is held and waits the hour, until the day turns.
  */
 export async function previewForWords(
   t: Tick,
@@ -332,7 +339,22 @@ export async function previewForWords(
     const open = slot.state === "open" && row ? row : null;
     return { slot, id: open ? open.id : null, did: open ? previewDidMarkOf(open) : null };
   }
-  const otherAskPreview = await askPreview(t.db, { tenantId: s.tenant_id, leadId: s.lead_id, by: null });
+  // The day's are all made (askPreview's limit): the email is held as one being made is, never skipped, and waits the
+  // hour; tomorrow's first tick makes it. A workspace found full is not asked again this tick.
+  const waits = () => {
+    t.cappedSends.add(s.id);
+    return { slot, id: null, did: null };
+  };
+  if (t.capped.has(s.tenant_id)) return waits();
+  const otherAskPreview = await askPreview(
+    t.db,
+    { tenantId: s.tenant_id, leadId: s.lead_id, by: null, none: !row },
+    t.now,
+  );
+  if (!otherAskPreview.ok && otherAskPreview.reason === "limit") {
+    t.capped.add(s.tenant_id);
+    return waits();
+  }
   return { slot: otherAskPreview.ok ? slot : { state: "gone" }, id: null, did: null };
 }
 

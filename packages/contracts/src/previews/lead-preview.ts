@@ -33,6 +33,11 @@ export const PREVIEW_LIMITS = {
   days: 30,
   /** Lines of "not right" a preview keeps (preview_not_right). */
   notRight: 10,
+  /**
+   * Previews a workspace makes in a UTC day for what nobody pressed for: a sequence that carries the link, a reply that
+   * makes one (the edge's askPreview). The email past it waits for the next day; a member's press is never counted out.
+   */
+  aDay: 50,
   /** The longest message a preview takes, in characters: Try it's case. */
   messageChars: 500,
   /** What its calls may speak in all: the rehearsal's own preview window, three minutes at most a call (L3). */

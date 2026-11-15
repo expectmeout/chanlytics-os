@@ -8,6 +8,8 @@ import type { HealthScope } from "../health-scope";
 import { subscriberWords } from "../health-clocks";
 import { SEND_CHANNEL_WORDS, inScopeRows, latest, type HealthPartsDto } from "./sends-calls";
 import { entryOf } from "../../shared/unknown";
+import { MIN_MS, SECOND_MS } from "../../shared/time";
+import { PREVIEW_LIMITS } from "../../previews/lead-preview";
 
 // ----------------------------------------------------------------------------------------------- model calls
 
@@ -73,6 +75,35 @@ export interface ModelCallsVM {
 function failureReasonOf(f: { error_type: string | null; error_message: string | null }): string | null {
   if (!f.error_type && !f.error_message) return null;
   return [f.error_type, f.error_message].filter(Boolean).join(": ");
+}
+
+/**
+ * Leads' previews over the window, as Health's figures say them: how many were made, how many today against the day's
+ * limit, what came of them, and what the model cost on those still open. Null where it was not read: no figure, never a
+ * zero nobody counted.
+ */
+export function previewsHealthOf(parts: Pick<HealthPartsDto, "previews"> | null): {
+  made: number;
+  madeToday: number;
+  aDay: number;
+  tried: number;
+  claimed: number;
+  messages: number;
+  callMinutes: number;
+  usd: number;
+} | null {
+  const p = parts?.previews;
+  if (!p) return null;
+  return {
+    made: p.made,
+    madeToday: p.made_today,
+    aDay: PREVIEW_LIMITS.aDay,
+    tried: p.tried,
+    claimed: p.claimed,
+    messages: p.messages,
+    callMinutes: Math.round((p.call_seconds * SECOND_MS) / MIN_MS),
+    usd: p.usd,
+  };
 }
 
 /** What the drafts came to, over the window: how many of the replies sent used the thread's draft, and how. */

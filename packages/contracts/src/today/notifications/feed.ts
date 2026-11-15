@@ -330,6 +330,8 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   // A post set for its time (00616): its row opens the piece itself, so its door says what she will do there. Its mark is
   // the canvas's tick: it went up.
   post_up: { icon: "check", tone: "ok", action: "See it", to: CONTENT_ROUTE, own: true },
+  /** A lead tried the preview they were sent: good news, and its row names the lead to open, with their number. */
+  preview_tried: { icon: "users", tone: "ok", action: "Open the lead", to: "clients/leads", own: true },
   post_stopped: { icon: "image", tone: "warn", action: "Post again", to: CONTENT_NEEDS_ROUTE, own: true },
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
   alert: ALERT_LOOK,

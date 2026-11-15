@@ -190,6 +190,19 @@ export async function findLeadPreview(db: Db, tenantId: TenantId, leadId: string
   return data;
 }
 
+/**
+ * How many previews a workspace has made since `sinceIso` (00632's lead_previews_made_at): the day's count the edge's
+ * limit and the card read. A count, never the rows.
+ */
+export async function countLeadPreviewsSince(db: Db, tenantId: TenantId, sinceIso: string): Promise<number> {
+  const { count, error } = await tenantDb(db, tenantId)
+    .from("lead_previews")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", sinceIso);
+  if (error) throw new DbFailure(error);
+  return count ?? 0;
+}
+
 /** A preview in its sender's workspace by its id, or null. */
 export async function findLeadPreviewById(db: Db, tenantId: TenantId, id: string): Promise<LeadPreviewRow | null> {
   const { data, error } = await tenantDb(db, tenantId).from("lead_previews").select("*").eq("id", id).maybeSingle();

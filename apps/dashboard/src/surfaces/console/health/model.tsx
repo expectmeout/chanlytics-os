@@ -10,6 +10,7 @@ import {
   draftUsesOf,
   enforcementWords,
   modelCallsOf,
+  previewsHealthOf,
   workspaceNamer,
   type HealthScope,
 } from "@chanlytics/contracts";
@@ -53,6 +54,29 @@ function ProfilesSection({ h }: { h: ConsoleHealth }) {
   );
 }
 
+/**
+ * Leads' previews (decision 0079; 00632): how many were made in the window and today against the day's limit, what came
+ * of them, and what the model cost on those still open. Nothing where it was not read.
+ */
+function PreviewsSection({ h }: { h: ConsoleHealth }) {
+  const p = previewsHealthOf(h.parts);
+  if (!p) return null;
+  return (
+    <ScreenSection title="Leads' previews" sub={`made in ${h.days} days`} testid="console-health-previews">
+      <dl className="cs-h-figures" data-testid="console-health-previews-figures">
+        <Figure label="Made" value={n(p.made)} meta={`${n(p.madeToday)} today, of ${n(p.aDay)} a day`} />
+        <Figure
+          label="Tried"
+          value={n(p.tried)}
+          meta={`${n(p.messages)} messages · ${n(p.callMinutes)} min of calls`}
+        />
+        <Figure label="Made theirs" value={n(p.claimed)} meta="signed up from their preview" />
+        <Figure label="What the model cost" value={dollarsWords(p.usd)} meta="on the previews still open" />
+      </dl>
+    </ScreenSection>
+  );
+}
+
 export function ModelTab({ h, scope }: { h: ConsoleHealth; scope: HealthScope }) {
   if (h.parts === null)
     return (
@@ -67,6 +91,7 @@ export function ModelTab({ h, scope }: { h: ConsoleHealth; scope: HealthScope })
   return (
     <>
       <ProfilesSection h={h} />
+      <PreviewsSection h={h} />
       <dl className="cs-h-figures" data-testid="console-health-model-figures">
         <Figure label="Model calls" value={n(m.total)} meta={`in ${h.days} days`} />
         <Figure

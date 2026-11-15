@@ -132,6 +132,7 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   video_ready: ["video ready", "videos ready"],
   post_up: ["post that went up", "posts that went up"],
   post_stopped: ["post that didn't go", "posts that didn't go"],
+  preview_tried: ["lead who tried their preview", "leads who tried their preview"],
 };
 
 /**

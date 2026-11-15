@@ -46,6 +46,7 @@ export {
   claimPreview,
   doesMakePreviews,
   endPreview,
+  countLeadPreviewsSince,
   findLeadForPreview,
   findLeadOfReply,
   findLeadPreview,

@@ -23,6 +23,7 @@ import {
   getHealthPages,
   getHealthDraftUses,
   getHealthParts,
+  getHealthPreviews,
   getHealthSweeps,
   getHealthWorkspaces,
   keepClientError,
@@ -52,6 +53,7 @@ import {
   type OperatorPageDto,
   DbFailure,
   causedBy,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { readSide } from "./console";
 import { listPlatformDays } from "./day-counts";
@@ -141,7 +143,34 @@ async function partsRead(office: BackOffice, days: number): Promise<HealthPartsD
     (r) => (r.error ? [] : (r.data ?? []).map((u) => ({ ours: u.ours, use: u.use, n: Number(u.n) }))),
     () => [],
   );
-  return { ...read, draft_uses: uses, calls: read.calls.map((r) => ({ ...r, ...endingSaid(r.reason) })) };
+  // Leads' previews have theirs too (00632): unread, the figures are left out, never drawn as zeroes.
+  const previews = await getHealthPreviews(office.db, days).then(
+    (r) => (r.error ? null : previewsRead(r.data)),
+    () => null,
+  );
+  return {
+    ...read,
+    draft_uses: uses,
+    previews,
+    calls: read.calls.map((r) => ({ ...r, ...endingSaid(r.reason) })),
+  };
+}
+
+/** What platform_health_previews answered, read figure by figure: each a number, or the part is not said. */
+function previewsRead(data: unknown): NonNullable<HealthPartsDto["previews"]> | null {
+  const record = recordOrNull(data);
+  if (!record) return null;
+  const figure = (key: string) => Number(record[key] ?? 0);
+  const read = {
+    made: figure("made"),
+    made_today: figure("made_today"),
+    tried: figure("tried"),
+    claimed: figure("claimed"),
+    messages: figure("messages"),
+    call_seconds: figure("call_seconds"),
+    usd: figure("usd"),
+  };
+  return Object.values(read).every(Number.isFinite) ? read : null;
 }
 
 /** An ending as Health says it: its words in a sentence, and what mends it where it is ours. */

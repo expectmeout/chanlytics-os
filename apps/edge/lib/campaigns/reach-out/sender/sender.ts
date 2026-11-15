@@ -308,6 +308,8 @@ export async function claimAndWrite(params: ClaimParams): Promise<SenderCounts> 
     later: [],
     soon: [],
     said: new Set(),
+    capped: new Set(),
+    cappedSends: new Set(),
   };
   const late = () => Date.now() - params.started > CLAIM_YIELD_AT_MS;
   const failed = (event: LogEvent, fields: Record<string, unknown>, e: unknown) => {

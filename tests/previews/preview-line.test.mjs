@@ -198,7 +198,7 @@ test("GET leads/:id/preview: the row's facts, never its chat, and whether this w
   assert.equal("turns" in out.preview, false, "its chat stays on the row");
   assert.equal(out.cannot, null, "one made already is its own answer");
   const none = await ask("GET", ctxFor({ ours: false }).ctx);
-  assert.deepEqual(none, { preview: null, makes: false, cannot: null, paused: false });
+  assert.deepEqual(none, { preview: null, makes: false, cannot: null, paused: false, full: false });
 });
 
 test("GET leads/:id/preview says, before any email goes, where this lead can get none: as its door would refuse it", async () => {
@@ -372,4 +372,55 @@ test("on the sender's line and the lead's own page the AI is called AI, never a 
   assert.equal(LEAD_PREVIEW_WORDS.signup.title("Harbor Movers"), "AI for Harbor Movers is waiting for you");
   assert.equal(LEAD_PREVIEW_WORDS.building.title("Harbor Movers"), "Setting up AI for Harbor Movers");
   assert.equal(LEAD_PREVIEW_WORDS.it, "AI");
+});
+
+/* ---- the day's limit, said before the email waits on it (step 2) ---- */
+
+test("the day's previews all made: the line says the email waits for tomorrow, and Make it now still makes this one", () => {
+  assert.deepEqual(previewLineOf({ preview: null, makes: true, cannot: null, paused: false, full: true }, NOW), {
+    words: W.full,
+    tone: "warn",
+    said: [],
+    make: true,
+    open: null,
+    link: null,
+  });
+  assert.ok(W.full.includes("50") && W.full.includes("tomorrow"), W.full);
+  // Paused says more: nothing is made at all, so it wins; and a lead that can get none is told that first.
+  assert.equal(previewLineOf({ preview: null, makes: true, paused: true, full: true }, NOW).words, W.paused);
+  assert.equal(
+    previewLineOf({ preview: null, makes: true, cannot: "closed", full: true }, NOW).words,
+    W.cannot("closed"),
+  );
+});
+
+test("GET leads/:id/preview says the day is full only for a lead that would otherwise get one today", async () => {
+  const lead = {
+    id: LEAD,
+    tenant_id: WS,
+    kind: "place",
+    stage: "ready",
+    business_name: "Harbor Movers",
+    city: "Austin",
+    erased_at: null,
+    blanked_at: null,
+  };
+  const today = new Date().toISOString();
+  const others = (n, at = today) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `o${i}`,
+      tenant_id: WS,
+      lead_id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      state: "ready",
+      created_at: at,
+    }));
+  const full = await ask("GET", ctxFor({ leads: [lead], rows: others(50) }).ctx);
+  assert.deepEqual([full.preview, full.cannot, full.full], [null, null, true]);
+  const room = await ask("GET", ctxFor({ leads: [lead], rows: others(49) }).ctx);
+  assert.equal(room.full, false);
+  const old = await ask("GET", ctxFor({ leads: [lead], rows: others(50, "2026-01-01T12:00:00Z") }).ctx);
+  assert.equal(old.full, false, "another day's are not today's");
+  // A lead its door refuses is told that, and nothing is counted for it.
+  const company = await ask("GET", ctxFor({ leads: [{ ...lead, kind: "company" }], rows: others(50) }).ctx);
+  assert.deepEqual([company.cannot, company.full], ["not_a_business", false]);
 });

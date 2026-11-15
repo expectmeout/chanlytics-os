@@ -32,6 +32,8 @@ const tickOf = () => ({
   later: [],
   soon: [],
   said: new Set(),
+  capped: new Set(),
+  cappedSends: new Set(),
 });
 const was = process.env.LEAD_PREVIEWS;
 afterEach(() => {

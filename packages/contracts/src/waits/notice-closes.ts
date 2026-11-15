@@ -175,6 +175,10 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
     ends: "news",
     why: "A post that did not go is told once; Content's Needs you holds it, with why, until it is sent again or let go.",
   },
+  preview_tried: {
+    ends: "news",
+    why: "A lead who tried their preview is told once for their first message and once for their first call; Today holds the lead for the days it is hot.",
+  },
 };
 
 /** The kinds whose rows a source judges (for the server's close and the hold rows: kindsEndedBy("hold")). */

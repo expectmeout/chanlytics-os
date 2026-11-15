@@ -780,6 +780,16 @@ test("Health is one read for staff alone: every part read on its own, the clocks
           }),
         ),
         ...rpc("platform_metrics_read", []),
+        // Leads' previews (00632): the database answers numbers, a sum as text.
+        ...rpc("platform_health_previews", {
+          made: 3,
+          made_today: 1,
+          tried: 1,
+          claimed: 0,
+          messages: 4,
+          call_seconds: 61,
+          usd: "0.5",
+        }),
       },
     ),
   );
@@ -794,6 +804,7 @@ test("Health is one read for staff alone: every part read on its own, the clocks
       ["platform_clocks", 7],
       ["platform_metrics_read", 7],
       ["platform_health_parts", 7],
+      ["platform_health_previews", 7],
     ].sort(),
     "the window is asked of every read that takes one",
   );
@@ -821,6 +832,11 @@ test("Health is one read for staff alone: every part read on its own, the clocks
     "each ending in the platform's words, from the one table, so the page loads no table",
   );
   assert.deepEqual(h.client_errors, []);
+  assert.deepEqual(
+    h.parts.previews,
+    { made: 3, made_today: 1, tried: 1, claimed: 0, messages: 4, call_seconds: 61, usd: 0.5 },
+    "leads' previews, each figure a number",
+  );
 
   // A parts answer missing its lists is not drawn as a quiet platform: it is unread, and the rest still answer.
   const quiet = console.error;

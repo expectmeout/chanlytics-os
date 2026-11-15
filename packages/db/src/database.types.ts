@@ -10668,6 +10668,7 @@ export type Database = {
         }[]
       }
       platform_health_parts: { Args: { p_days?: number }; Returns: Json }
+      platform_health_previews: { Args: { p_days?: number }; Returns: Json }
       platform_metrics_read: {
         Args: { p_days?: number }
         Returns: {

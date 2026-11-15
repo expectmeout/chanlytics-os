@@ -233,7 +233,7 @@ export { ACT_LOG_PAGE, ACT_OUTCOMES, ACT_TARGETS, actRowOf, actsCsv, CONSOLE_SCR
 export { CLAIM_MS, claimWords, CONSOLE_GROUP_WORDS, CONSOLE_WORDS, consoleGroupOf, consoleGroups, consoleNumbersFrom, consoleNumbersOf, homeSentence, verdictPill } from "./console/console";
 export { healthAskOf } from "./console/health-ask";
 export { clocksOf, failureReadingOf, jobWords, pageKeyWords, pagesOf, scheduleWords, subscriberWords } from "./console/health-clocks";
-export { connectionsOf, deliveriesOf, draftUsesOf, modelCallsOf } from "./console/health-parts/models-connections";
+export { connectionsOf, deliveriesOf, draftUsesOf, modelCallsOf, previewsHealthOf } from "./console/health-parts/models-connections";
 export { callsOf, sendsOf, webhooksOf } from "./console/health-parts/sends-calls";
 export { promiseDaysOf } from "./console/health-promises";
 export { HEALTH_SCOPE_WORDS, HEALTH_SCOPES, inScope, oursOf, workspaceNamer } from "./console/health-scope";

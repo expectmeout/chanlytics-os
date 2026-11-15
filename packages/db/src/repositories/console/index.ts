@@ -8,6 +8,7 @@ export {
   getHealthClientErrors,
   getHealthClocks,
   getHealthDraftUses,
+  getHealthPreviews,
   getHealthFailedJobs,
   getHealthLedger,
   getHealthPages,
