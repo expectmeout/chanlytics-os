@@ -735,7 +735,7 @@ test("the signed-in person's profile rides the turn, and one Anthropic has pause
     const quiet = silent("a paused person's turn must not reach the model");
     assert.deepEqual(await answer(await knock(T(6), turn())), [
       403,
-      { ok: false, error: "model_paused", detail: "The model is paused for this account." },
+      { ok: false, error: "model_paused", detail: "AI is paused for this account." },
     ]);
     assert.equal(quiet.calls.length, 0);
     assert.equal(tables.ai_usage.length, 0, "and no round was written");
@@ -758,7 +758,7 @@ test("a count that cannot be read holds the turn (503 read_failed): the platform
   const net = model();
   assert.deepEqual(await answer(await knock(ws, turn())), [
     503,
-    { ok: false, error: "read_failed", detail: "Ask's day could not be counted just now." },
+    { ok: false, error: "read_failed", detail: "Couldn't check today's AI limit just now." },
   ]);
   assert.equal(net.calls.length, 0, "nothing reached the model");
   assert.equal(tables.events.length, 0, "and no round was written");
