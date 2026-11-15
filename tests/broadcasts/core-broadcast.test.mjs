@@ -2015,10 +2015,7 @@ test("offers by email, where the deployment names a campaigns domain the provide
   assert.equal(f.of("queueEmail").length, 0, "no email row was written for a person who cannot be sent one");
   assert.ok(f.ops().includes("finish"), "the run finishes, and says what happened to the others");
   assert.equal(call(f.log, "alert")[1].kind, "broadcast_sent");
-  assert.match(
-    call(f.log, "alert")[1].body,
-    /1 of 3 people got it; 2 held back \(.*offers and news by email can't leave yet/,
-  );
+  assert.match(call(f.log, "alert")[1].body, /1 of 3 people got it; 2 held back \(.*no offers by email for now/);
   assert.deepEqual(pages, [
     [
       "campaigns_domain_unverified",
@@ -2450,10 +2447,7 @@ test("a pause on offers and news by email, or a campaigns domain that cannot be 
     assert.ok(call(f.log, "alert")[1].body.includes(HELD_REASONS[reason]), reason);
   }
   assert.equal(HELD_REASONS.email_offers_paused, "offers and news by email are paused");
-  assert.equal(
-    HELD_REASONS.email_marketing_disabled,
-    "offers and news by email can't leave yet: the campaigns domain isn't switched on",
-  );
+  assert.equal(HELD_REASONS.email_marketing_disabled, "no offers by email for now");
 });
 
 test("a pause on offers and news by email, or a campaigns domain that cannot be used, stops a run of email alone at the first person the door refuses, who is given back: nobody is skipped for good, and a playbook's run is not told to send it again", async () => {

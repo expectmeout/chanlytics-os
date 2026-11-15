@@ -69,6 +69,12 @@ export interface DraftReads {
   who: WhoReads;
   library: LibraryReads | null;
   ready: readonly ConsentChannel[];
+  /**
+   * Why an offer cannot go by email here, in its own reason (the clean list, 14 Nov 2026: "Emails carry no offers for now."
+   * while Chanlytics' offers domain is off), or null where it can or that was not read: an offer's email is then
+   * neither ticked nor offered, as a text of an offer is not.
+   */
+  offersByEmail: string | null;
   /** The workspace is paused for billing: nothing sends, so Send and Start wait and say why first. */
   paused: boolean;
   /** Today by the business's clock ("YYYY-MM-DD"), where a one-off's day starts. */
@@ -78,6 +84,10 @@ export interface DraftReads {
   /** What a changed draft is counted again against (decision 0065 step 7): Campaigns' counts and what runs. */
   recount: M.RecountReads;
 }
+
+/** The channels a message of this kind can go by now: an offer's, without email where offers by email cannot go here. */
+const readyFor = (reads: DraftReads, offer: boolean): readonly ConsentChannel[] =>
+  offer && reads.offersByEmail ? reads.ready.filter((c) => c !== "email") : reads.ready;
 
 /** What the foot reads of the workspace now: whether it's paused, the business's day and time, what it sends on. */
 const footReadsOf = (reads: DraftReads): M.FootReads => ({
@@ -340,6 +350,7 @@ function DraftSheets(p: {
         open={sheet?.kind === "channels"}
         draft={draft}
         ready={reads.ready}
+        offersByEmail={reads.offersByEmail}
         onChannels={(c) => change(M.setChannels(draft, c))}
         onClose={close}
       />
@@ -349,7 +360,7 @@ function DraftSheets(p: {
         i={i}
         library={reads.library}
         onMessage={(m) => {
-          change(M.setMessage(draft, i, m, reads.ready));
+          change(M.setMessage(draft, i, m, readyFor(reads, m.offer)));
           close();
         }}
         onWrite={() => p.write(i)}
@@ -361,7 +372,7 @@ function DraftSheets(p: {
         i={i}
         blank={p.blank}
         opens={p.opens}
-        onMessage={(m) => change(M.setMessage(draft, i, m, reads.ready))}
+        onMessage={(m) => change(M.setMessage(draft, i, m, readyFor(reads, m.offer)))}
         onEmail={(e) => change(M.setEmail(draft, i, e))}
         onClose={close}
       />

@@ -16,8 +16,11 @@ import { isOneOf } from "../../shared/unknown";
 
 /** What a tick, a refusal and the Campaigns head say of offers by email. One owner for each sentence. */
 export const OFFERS_BY_EMAIL_WORDS = {
-  /** The deployment's campaigns domain is not set up or not verified yet. */
-  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
+  /**
+   * The deployment's campaigns domain is not set up or not verified yet: Chanlytics' own, nothing the owner can do, so it
+   * is said as a text's rule is ("Texts carry no offers."), true and asking nothing (the clean list, 14 Nov 2026).
+   */
+  noCampaignsDomain: "Emails carry no offers for now.",
   /** The business has no postal address on file, which every offer's foot names. */
   noAddress: "Add your business's address to send offers by email.",
   /** The workspace's offers are paused by a gate. */

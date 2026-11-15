@@ -482,6 +482,8 @@ export function ChannelsSheet(p: {
   open: boolean;
   draft: NewDraftDto;
   ready: readonly ConsentChannel[];
+  /** Why an offer cannot go by email here, or null where it can (DraftReads.offersByEmail). */
+  offersByEmail?: string | null;
   onChannels: (c: ConsentChannel[]) => void;
   onClose: () => void;
 }) {
@@ -511,7 +513,9 @@ export function ChannelsSheet(p: {
       <div className="sq-nw-rows">
         {rows.map(({ c, name }) => {
           const never = c === "sms" && offer;
-          const can = !never && holds.includes(c) && p.ready.includes(c);
+          // An offer's email where offers by email cannot go here: closed with its own reason, as a text of an offer is.
+          const closed = c === "email" && offer ? (p.offersByEmail ?? null) : null;
+          const can = !never && !closed && holds.includes(c) && p.ready.includes(c);
           const on = can && p.draft.channels.includes(c);
           return (
             <div key={c} className="sq-nw-switchrow" data-off={can ? undefined : "true"}>
@@ -520,6 +524,8 @@ export function ChannelsSheet(p: {
                 <small>
                   {never ? (
                     W.channels.noOffer
+                  ) : closed ? (
+                    closed
                   ) : !holds.includes(c) ? (
                     W.channels.noVersion
                   ) : !p.ready.includes(c) ? (

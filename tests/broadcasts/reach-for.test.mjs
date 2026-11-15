@@ -753,7 +753,9 @@ test("offers on WhatsApp from a US number are held while Meta's pause holds: the
     none,
     /^Offers and news have no channel right now\. WhatsApp is not delivering offers to US numbers for now/,
   );
-  assert.match(none, /offers by email wait until email is set up for them\.$/);
+  // It ends on email's own reason: here Chanlytics' own, said as a text's rule is, asking nothing of the owner.
+  assert.ok(none.endsWith(` ${channelRefuses("email", "marketing", "ours", us)}`), none);
+  assert.doesNotMatch(none, /campaigns domain|set up/);
   // The note leads with WhatsApp exactly where the WhatsApp tick is open for an offer: the ticks' own question, not a second reading.
   for (const ready of [us, usOpen, uk, READY, READY_OPEN])
     assert.equal(

@@ -126,6 +126,7 @@ function useNewReads(sources: ReachOutSourceDto[] | null | undefined): {
       who,
       library,
       ready,
+      offersByEmail: pb.ready?.email.offers && !pb.ready.email.offers.ok ? pb.ready.email.offers.why : null,
       paused: pb.ready?.paused === true,
       today: zoneDayKey(Date.now(), pb.timezone),
       timezone: pb.timezone,
