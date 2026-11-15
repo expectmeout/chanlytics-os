@@ -74,7 +74,7 @@ const CANNOT_WHY: Record<NonNullable<LeadPreviewDto["cannot"]>, string> = {
 
 /** The sheet's words. */
 export const PREVIEW_LINE_WORDS = {
-  title: "Their receptionist",
+  title: "Their preview",
   none: "Not made yet. It is made when an email that carries its link goes, and that email waits for it.",
   /** None made, and its door would refuse this lead: said before any email goes, with nothing to press. */
   cannot: (reason: NonNullable<LeadPreviewDto["cannot"]>) =>

@@ -163,9 +163,9 @@ test("the page whole: starters only on an empty chat, the count left, and an end
 });
 
 test("the page's words say the business by its name", () => {
-  assert.equal(W.title("Fixture Barbers"), "Fixture Barbers' receptionist");
-  assert.equal(W.title("Luna"), "Luna's receptionist");
-  assert.equal(W.building.title("Luna"), "Setting up Luna's receptionist");
+  assert.equal(W.title("Fixture Barbers"), "AI for Fixture Barbers");
+  assert.equal(W.title(" Luna "), "AI for Luna");
+  assert.equal(W.building.title("Luna"), "Setting up AI for Luna");
   assert.equal(W.madeFrom, "Set up by Chanlytics from your Google listing and website.");
   assert.equal(W.left(1), "1 message left");
   assert.equal(W.left(19), "19 messages left");

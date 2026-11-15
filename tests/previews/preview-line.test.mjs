@@ -8,7 +8,13 @@
  */
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
-import { PREVIEW_LINE_WORDS as W, previewLineOf, previewTriedWords } from "@chanlytics/contracts";
+import {
+  LEAD_PREVIEW_WORDS,
+  PREVIEW_LINE_WORDS as W,
+  REACH_OUT_SLOT_SET,
+  previewLineOf,
+  previewTriedWords,
+} from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -329,4 +335,41 @@ test("the edge's standing door says whether previews are made, by its switch", a
     if (was === undefined) delete process.env.LEAD_PREVIEWS;
     else process.env.LEAD_PREVIEWS = was;
   }
+});
+
+/* ---- one name, and the AI called AI (docs/words.md) ---- */
+
+/** Every sentence a table of words can say: its strings, and each function's answer for a made-up business. */
+function sentencesOf(words) {
+  const said = [];
+  const walk = (value) => {
+    if (typeof value === "string") said.push(value);
+    else if (typeof value === "function") walk(value("Harbor Movers", "Sam"));
+    else if (value && typeof value === "object") Object.values(value).forEach(walk);
+  };
+  walk(words);
+  return said;
+}
+
+test("one name: the sender's line is titled as the blank is labelled in the campaign editor", () => {
+  const label = REACH_OUT_SLOT_SET.labels[REACH_OUT_SLOT_SET.keys.indexOf("their preview")];
+  assert.equal(W.title, "Their preview");
+  assert.equal(W.title, label);
+});
+
+test("on the sender's line and the lead's own page the AI is called AI, never a receptionist, an agent or an assistant", () => {
+  // The greeting a customer hears keeps "the automated assistant" (decision 0051): words to callers, not a screen's name.
+  const { textGreeting, ...page } = LEAD_PREVIEW_WORDS;
+  assert.match(textGreeting("Harbor Movers", null), /the automated assistant/);
+  for (const sentence of [...sentencesOf(page), ...sentencesOf(W)])
+    assert.doesNotMatch(
+      sentence,
+      /receptionist|\bagent|assistant|\bbot\b|Claude|\bAsk\b|\b[Tt]he AI\b|\b[Yy]our AI\b/,
+      sentence,
+    );
+  // The lead's page names what it is by the business it answers for.
+  assert.equal(LEAD_PREVIEW_WORDS.title("Harbor Movers"), "AI for Harbor Movers");
+  assert.equal(LEAD_PREVIEW_WORDS.signup.title("Harbor Movers"), "AI for Harbor Movers is waiting for you");
+  assert.equal(LEAD_PREVIEW_WORDS.building.title("Harbor Movers"), "Setting up AI for Harbor Movers");
+  assert.equal(LEAD_PREVIEW_WORDS.it, "AI");
 });
