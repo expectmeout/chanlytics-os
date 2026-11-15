@@ -105,10 +105,11 @@ export interface Work {
   /** The words of the message's WhatsApp row as Meta has it, those who go by WhatsApp are sent; none where it has no such row. */
   tpl: { body_preview: string | null };
   /**
-   * Whether the message's WhatsApp version is one to send now (contracts messageHolds): approved by Meta and whole. When it is
-   * not, it holds the run's WhatsApp people alone (broadcast.ts): the people of the other channels go on their own versions.
+   * Why the message's WhatsApp version is not one to send now (contracts messageHolds: approved by WhatsApp and whole), as a
+   * WhatsApp person's row keeps it (broadcast/whatsapp-wait.ts whatsappHeldAs); null where it is. It holds the run's
+   * WhatsApp people alone (broadcast.ts): the people of the other channels go on their own versions.
    */
-  whatsappApproved: boolean;
+  whatsappHeld: "whatsapp_wait_ended" | "template_not_approved" | null;
   /**
    * The message's rows, read once for the batch (ports.message): the words of an email and of a text are read out of them, so
    * no person's send asks again.

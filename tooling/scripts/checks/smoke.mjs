@@ -13,6 +13,11 @@
  *                                passed while the edge still served the old build (6 Oct 2026).
  *   GET <dashboard>/api/version  200 { sha }: the build the deployment runs (apps/dashboard/app/api/version/route.ts);
  *                                --sha names the one each version door must name.
+ *   GET <dashboard>/api/warm       200 { ok: true, routes: [...] }: the routes every page opens on, loaded by the ask
+ *   GET <dashboard>/api/warm/long  (apps/dashboard/app/api/warm/route.ts). The platform's clock asks for them every five
+ *                                minutes; asked here as the deploy finishes, the first visitor after it does not wait
+ *                                1 to 3 s for a route's code. Asked of a dashboard named apart from the edge only: one
+ *                                host given for both may be the edge's, which has none.
  *
  *   node tooling/scripts/checks/smoke.mjs --edge https://<edge> --dashboard https://<dashboard> [--sha <commit>]
  *   node tooling/scripts/checks/smoke.mjs https://<one-host>     both doors on one host
@@ -69,6 +74,17 @@ export function judgeVersion(status, body, { sha = null } = {}) {
   if (status !== 200) return `answered ${status}`;
   if (!body || typeof body.sha !== "string" || !body.sha) return "answered 200 without a sha";
   if (sha && body.sha !== sha && !body.sha.startsWith(sha)) return `runs ${body.sha}, not ${sha}`;
+  return null;
+}
+
+/** The dashboard's warm-ups, by their paths (apps/dashboard/vercel.json asks for the same two). */
+const WARM_DOORS = ["warm", "warm/long"];
+
+/** What a warm-up answered, judged: null when it says the routes it holds, which is what loading them answers. */
+export function judgeWarm(status, body) {
+  if (status !== 200) return `answered ${status}`;
+  if (!body || body.ok !== true) return "answered 200 without ok: true";
+  if (!Array.isArray(body.routes) || body.routes.length === 0) return "answered 200 but holds no routes";
   return null;
 }
 
@@ -136,7 +152,14 @@ export async function smoke(args, env = process.env) {
     await version(args.edge);
   }
   // One host serving both is asked once.
-  if (args.dashboard && args.dashboard !== args.edge) await version(args.dashboard);
+  if (args.dashboard && args.dashboard !== args.edge) {
+    await version(args.dashboard);
+    for (const door of WARM_DOORS) {
+      const url = `${args.dashboard}/api/${door}`;
+      const a = await ask(url, headers);
+      out.push({ door, url, problem: a.failed ?? judgeWarm(a.status, a.body) });
+    }
+  }
   return out;
 }
 

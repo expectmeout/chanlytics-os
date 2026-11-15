@@ -389,7 +389,7 @@ function useMake({ keptId, flash, letGo, tz, onNoMailbox }: MakeOn) {
     const once = draft.kind === "once" && draft.audience === "people";
     // A one-off sent to people is a send: back on Sequences, its toast with its Stop until it goes (E2).
     if (once && done.state !== "draft") {
-      const n = M.reviewOf(draft)?.can ?? draft.reach?.can ?? null;
+      const n = draft.reach?.can ?? null;
       say({
         tone: "ok",
         msg: (

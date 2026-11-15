@@ -166,10 +166,10 @@ export function readingMomentOf(reading: RowReading | null | undefined): Reading
   switch (reading.intent) {
     case "interested":
     case "question":
-      return { did: "Your sequence has stopped for them.", tone: "ok", reply: "send", notAPerson: false };
+      return { did: "Cold email has stopped for them.", tone: "ok", reply: "send", notAPerson: false };
     case "not_now":
       return {
-        did: `Your sequence has stopped. A to-do to write again is set${on ? ` for ${on}` : ""}.`,
+        did: `Cold email has stopped. A to-do to write again is set${on ? ` for ${on}` : ""}.`,
         tone: "ok",
         reply: "door",
         notAPerson: false,
@@ -178,14 +178,14 @@ export function readingMomentOf(reading: RowReading | null | undefined): Reading
       return { did: "They're off the list. Nothing more goes to them.", tone: "ok", reply: "none", notAPerson: false };
     case "wrong_person":
       return {
-        did: `Your sequence has stopped. A to-do to write to ${reading.refer_to ? reading.refer_to : "who they named"} is on your list.`,
+        did: `Cold email has stopped. A to-do to write to ${reading.refer_to ? reading.refer_to : "who they named"} is on your list.`,
         tone: "ok",
         reply: "door",
         notAPerson: false,
       };
     case "away":
       return {
-        did: `Your sequence has stopped. A to-do comes up${on ? ` ${on}` : ""}, when they are back.`,
+        did: `Cold email has stopped. A to-do comes up${on ? ` ${on}` : ""}, when they are back.`,
         tone: "ok",
         reply: "none",
         notAPerson: false,

@@ -28,6 +28,7 @@ import {
 } from "@chanlytics/contracts";
 import { CALENDAR_VISIT_SHEET_WORDS as W, type VisitMoreAct, type VisitSheetVM } from "./sheet-view";
 import type { VisitCtx } from "./context";
+import { NextToMark } from "./next";
 import { VisitOutcome, sayHere } from "./outcome";
 import { commitVerb } from "@/bridge/verbs/commit";
 import { carryReply } from "../../inbox/carried-reply";
@@ -41,7 +42,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu, type MenuItem } from "../../kit/menu/menu";
 import { StatePill } from "../../kit/pill/state-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
-import { gate, navigate, openDealSheet, type DealSheetAsk } from "../../frame-verbs";
+import { gate, navigate, onAPhone, openDealSheet, type DealSheetAsk } from "../../frame-verbs";
 import { openStepSheet } from "../../people/deal/deal-verbs";
 import { sayVisit } from "../../visit-line";
 import { answerRequest } from "../../booking-request";
@@ -444,13 +445,23 @@ export function VisitFoot({ c }: { c: VisitCtx }) {
     setAsking(false);
     c.flash(r.ok ? VISIT_WORDS.cancelled : r.message);
   };
-  const items = vm.more.map((m) => moreItem(c, m, () => setAsking(true)));
+  const items = vm.more.map((m) => ({ item: moreItem(c, m, () => setAsking(true)), danger: m.danger }));
+  // The cancel, which cannot be taken back, stands last and apart, under a line (sheet-view.ts visitMoreOf).
+  const groups = [items.filter((x) => !x.danger), items.filter((x) => x.danger)]
+    .filter((part) => part.length)
+    .map((part) => ({ items: part.map((x) => x.item) }));
   // More is a word with a caret at the row's start, never three dots (Ruben, 20 Oct 2026): the same menu, the same items.
+  // On a phone it is a sheet, headed with who it is about, as Today's Not now is.
   const more = items.length ? (
     <Menu
       align="start"
       label={W.more}
-      groups={[{ items }]}
+      groups={groups}
+      head={
+        onAPhone()
+          ? { title: `${W.more} · ${c.block.person?.name || vm.title}`, close: <Icon name="x" size={13} /> }
+          : undefined
+      }
       trigger={
         <Button variant="quiet" className="cal-visit-more" data-testid="cal-visit-more">
           {W.more}
@@ -462,17 +473,20 @@ export function VisitFoot({ c }: { c: VisitCtx }) {
   return (
     <div className="cal-visit-foot" data-testid="cal-visit-foot">
       {asking ? (
-        <Confirm
-          question={appointmentWords(c.word).cancelAsk}
-          detail={VISIT_ASK_WORDS.cancel.detail}
-          yes={VISIT_ASK_WORDS.cancel.yes}
-          no={VISIT_ASK_WORDS.cancel.no}
-          danger
-          busy={busy}
-          onYes={() => void cancel()}
-          onNo={() => setAsking(false)}
-          testid="cal-visit-cancel"
-        />
+        // On the visit's words' column, as the ask's question is: a phone's flat foot stood it a step to their left.
+        <div className="cal-visit-asking">
+          <Confirm
+            question={appointmentWords(c.word).cancelAsk}
+            detail={VISIT_ASK_WORDS.cancel.detail}
+            yes={VISIT_ASK_WORDS.cancel.yes}
+            no={VISIT_ASK_WORDS.cancel.no}
+            danger
+            busy={busy}
+            onYes={() => void cancel()}
+            onNo={() => setAsking(false)}
+            testid="cal-visit-cancel"
+          />
+        </div>
       ) : vm.ask ? (
         <>
           <VisitAskFoot c={c} more={more} />
@@ -487,9 +501,11 @@ export function VisitFoot({ c }: { c: VisitCtx }) {
       ) : (
         <>
           <VisitOutcome visit={c} />
+          {/* Once a word is said and another visit waits for one, the next is the lead and the visit's own act quiet. */}
           <div className="cal-visit-acts" data-foot-acts="">
             {more}
-            <PrimaryAct c={c} />
+            <PrimaryAct c={c.next ? withQuietLead(c) : c} />
+            <NextToMark visit={c} />
           </div>
         </>
       )}

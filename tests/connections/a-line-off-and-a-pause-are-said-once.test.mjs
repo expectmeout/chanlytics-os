@@ -295,7 +295,7 @@ test("Today: the red alert and the empty queue say what a caller gets of a dark 
   // Two sentences a wire (Today in three zones): what is down, then the standing value's clause, capitalised.
   const said = (gets) => `${gets[0].toUpperCase()}${gets.slice(1)}.`;
   assert.equal(vm.standing.alert, `Phone line is disconnected. ${said(C.PHONE_LINE_OFF.gets)}`);
-  assert.equal(vm.queue.empty.title, `Nothing in the queue. ${vm.standing.alert}`);
+  assert.equal(vm.queue.empty.title, `Nothing waiting. ${vm.standing.alert}`);
   assert.equal(vm.queue.empty.testid, "today-queue-empty-down", "and it is still the warning, never the reassurance");
   assert.deepEqual(contradicting(words(vm)), []);
   // Two dark lines are two true sentences, each about its own wire.
@@ -322,7 +322,7 @@ test("Today: the red alert and the empty queue say what a caller gets of a dark 
 test("Today: a paused workspace says what a caller gets, in the alert and in the empty queue", () => {
   const vm = C.toTodayVM(metrics({ channels: [WA], status: "paused" }), [], [], [], NOW);
   assert.equal(vm.standing.alert, `This workspace is paused. ${C.PAUSED_WORDS}`);
-  assert.equal(vm.queue.empty.title, `Nothing in the queue — the workspace is paused. ${C.PAUSED_WORDS}`);
+  assert.equal(vm.queue.empty.title, `Nothing waiting. The workspace is paused. ${C.PAUSED_WORDS}`);
   assert.equal(vm.queue.empty.testid, "today-queue-empty-paused");
   assert.deepEqual(contradicting(words(vm)), []);
 });

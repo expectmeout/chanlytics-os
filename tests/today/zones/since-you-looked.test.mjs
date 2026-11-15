@@ -46,7 +46,8 @@ test("in the canvas's order, whatever the bell's: answered, booked, asked to sto
       },
     },
   );
-  assert.equal(vm.when, "Since 9:40 PM");
+  // A number says its time once, in words (docs/words.md): never a bare clock.
+  assert.equal(vm.when, "Since you last looked");
   assert.deepEqual(vm.bits, ["6 answered", "1 booked", "1 asked to stop", "1 review"]);
   assert.deepEqual(
     vm.rows.map((r) => [r.key, r.title, r.sub, r.at, r.to]),
@@ -116,13 +117,13 @@ test("a review To do offers to answer is To do's row, and not said again here; a
   assert.deepEqual(since(notes.slice(0, 1)).bits, ["1 review"], "with no Google read, nothing is To do's");
 });
 
-test("nothing from before the member looked; a member who never looked has no line; a time from before last night says its day", () => {
+test("nothing from before the member looked; a member who never looked has no line; a look days ago says the day on each row", () => {
   assert.equal(since([note("booking", "2026-11-03T02:39:00Z")]), null, "before 9:40 PM: seen");
   assert.equal(since([note("booking", "2026-11-03T02:40:00Z")]), null, "at it: seen");
   assert.equal(since([note("booking", "2026-11-03T11:00:00Z")], { seenAt: null }), null);
   const weekend = since([note("booking", "2026-11-01T15:30:00Z", { message: "Ana Ruiz, Sat 11 AM" })], {
     seenAt: "2026-10-31T22:00:00Z",
   });
-  assert.equal(weekend.when, "Since Sat 6:00 PM", "a look days ago says its day");
+  assert.equal(weekend.when, "Since you last looked");
   assert.equal(weekend.rows[0].at, "Sun 10:30 AM");
 });

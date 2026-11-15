@@ -335,7 +335,7 @@ test("on a phone a run waiting for your OK says so once, in its sentence, and op
     set(twoWaiting());
     const row = byTestId(draw(NeedYou), "brief-run-row");
     assert.ok(row, "the run is a row");
-    assert.ok(textOf(row).includes("Waits for your OK"), textOf(row));
+    assert.ok(textOf(row).includes("Waits for you to approve"), textOf(row));
     assert.ok(!textOf(row).includes("Waiting for your approval"), `said once: ${textOf(row)}`);
     assert.ok(
       find(row, (n) => n.type === "button" && textOf(n) === "Review"),

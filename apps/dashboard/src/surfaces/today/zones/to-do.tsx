@@ -100,12 +100,13 @@ export function useToDoRows({
     steps && steps.count > shown("step")
       ? steps.to
       : visits && visits.count > shown("visit")
-        ? visits.to
+        ? // The first visit to mark the group does not draw: its sheet's Next walks on through the rest.
+          (visits.items.at(shown("visit"))?.to ?? visits.to)
         : answering.length > shown("review")
           ? lensRoute("reviews")
           : null;
   const cut = Math.max(0, count - rows.filter(held).length);
   const walk = { rows, kept: ctx.kept, keep: ctx.keep, unkeep: ctx.unkeep, stepDone: ctx.stepDone };
-  const keptAll = visits ? <KeptAll ids={visits.markIds} word={word} ctx={ctx} /> : null;
+  const keptAll = visits ? <KeptAll ids={visits.markIds} older={visits.older} word={word} ctx={ctx} /> : null;
   return { drawn, walk, count, cut, left: cut, door, keptAll, toast: toastNode };
 }

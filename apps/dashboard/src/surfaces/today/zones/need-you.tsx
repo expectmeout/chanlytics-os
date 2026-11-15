@@ -148,7 +148,7 @@ function needYouHead(door: { to: string; label: string }, done: number, toDo: nu
   return (
     <div className="tq-head tz-head">
       <h2 className="tq-title tz-name" id="today-queue-title">
-        {toDo !== null ? W.group.todo : "Need you"}
+        {toDo !== null ? W.todoTitle : W.title}
       </h2>
       {toDo !== null ? (
         <span className="tz-fact">{toDo}</span>
@@ -172,8 +172,9 @@ type OlderHanded = { rows: readonly TodayQueueRowVM[]; handed: HandedBack };
 const QUIET: VerbKind = () => "ghost";
 
 /**
- * The groups above To do, each under its small head, in the page's order: Up next, who waits on you, and what waits for
- * your OK with its runs. Each says how many of its rows are still open, which falls as they are worked, as the head's
+ * The groups above To do, by what the owner does (docs/words.md): Reply, over the one thing to do first and then everyone
+ * else waiting on a word or a call, whose rows stand under no head of their own; and Approve, what AI prepared, with its
+ * runs. Reply and Approve each say how many of their rows are still open, which falls as they are worked, as the head's
  * count does; none once all are. Called, not drawn; a group with no rows is null.
  */
 function groupsAbove(
@@ -191,10 +192,11 @@ function groupsAbove(
   const G = W.group;
   const open = (rows: readonly TodayQueueRowVM[]) => rows.filter((r) => !ctx.kept.has(r.id)).length;
   const waiting = open(groups.waiting);
+  const reply = open(groups.next) + waiting;
   const ok = open(groups.ok) + runs.count;
   return [
     drawn.next.length ? (
-      <NeedYouGroup key="next" title={G.next} count={null} testid="today-group-next">
+      <NeedYouGroup key="next" title={G.next} count={reply || null} testid="today-group-next">
         {needYouRows(drawn.next, ctx)}
       </NeedYouGroup>
     ) : null,
@@ -202,7 +204,8 @@ function groupsAbove(
       <NeedYouGroup
         key="waiting"
         title={G.waiting}
-        count={waiting || null}
+        count={null}
+        bare
         more={cutDoor(W.cut.waiting, groups.waiting.length - drawn.waiting.length)}
         testid="today-group-waiting"
       >
@@ -220,7 +223,7 @@ function groupsAbove(
         {[...needYouRows(drawn.ok, ctx), ...runs.drawn]}
       </NeedYouGroup>
     ) : null,
-  ];
+  ] as const;
 }
 
 /** To do's group: its rows, three at most, how many there are, and the press to the rest; null with none. Called, not drawn. */
@@ -408,7 +411,8 @@ const NeedYouList = ({ vm, model }: { vm: TodayVM; model: NeedYouModel }) => {
   const olderRows = groups.old.length ? groups.old : (older?.rows ?? []);
   // Nobody waiting, only your own to-dos: the pane is To do, under "Nothing needs you", where "Need you" over them read as wrong.
   const onlyToDo = !above.some(Boolean) && todo.drawn.length > 0;
-  const workDrawn = [...above, todoGroup(todo, onlyToDo)];
+  const toDoGroup = todoGroup(todo, onlyToDo);
+  const workDrawn = [...above, toDoGroup];
   const onlyOlder = !workDrawn.some(Boolean) && vm.callsRead !== false;
   // Older never takes the coral, and has no say in how the page is laid out (the model's `draws` leaves it out): nobody
   // counts it, and an old number in it left Finish setting up quiet and Ask found under an empty day (8 Nov 2026).
@@ -422,11 +426,13 @@ const NeedYouList = ({ vm, model }: { vm: TodayVM; model: NeedYouModel }) => {
       bare={onlyOlder}
     />
   ) : null;
+  // Who has waited past a week folds at Reply's foot, before Approve (docs/words.md, "Grouped by what the owner does").
+  const [nextGroup, waitingGroup, okGroup] = above;
   return (
     <ListBody
       phone={phone}
       onlyOlder={onlyOlder}
-      groups={[...workDrawn, olderGroup]}
+      groups={[nextGroup, waitingGroup, olderGroup, okGroup, toDoGroup]}
       head={onlyOlder ? null : needYouHead(door, vm.done_today ?? 0, onlyToDo ? todo.count : null)}
       foot={<SetAsideLine nav={nav} />}
       callsUnread={vm.callsRead === false}

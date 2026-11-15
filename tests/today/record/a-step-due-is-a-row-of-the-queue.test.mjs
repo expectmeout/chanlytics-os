@@ -248,7 +248,7 @@ test("To do holds the steps due in its group under the person waiting, each in t
   const tree = draw();
   const todo = todoOf(tree);
   assert.ok(todo, "To do is a group of Need you, open on a desk as on a phone");
-  assert.match(textOf(todo), /To do\s*6/, "how many it holds, by its name");
+  assert.match(textOf(todo), /Do\s*6/, "how many it holds, by its name");
   assert.equal(
     all(queueOf(tree), (n) => n.props?.["data-testid"] === "queue-handoff").length,
     1,
@@ -369,7 +369,7 @@ test("a day with only steps due is not an empty queue; no step due draws nothing
     0,
     "To do's rows are the work; the empty state says nothing waits",
   );
-  assert.match(textOf(queueOf(tree)), /To do\s*6/, "with nobody waiting, the pane is To do, by its name");
+  assert.match(textOf(queueOf(tree)), /To-dos\s*6/, "with nobody waiting, the pane is To-dos, by its name");
   // Nothing due, or People unread: there is no To do.
   W.__PEOPLE = { rows: peopleWithSteps([["e", "Eli", 2]]), fetchedAt: nowMs };
   assert.equal(todoOf(draw()), null);
@@ -394,7 +394,7 @@ test("what To do holds is counted by its name whatever else waits, and each grou
     9,
     "Up next, the five waiting, and To do's three",
   );
-  assert.match(textOf(todoOf(queue)), /To do\s*6/, "the steps are counted, never dropped");
+  assert.match(textOf(todoOf(queue)), /Do\s*6/, "the steps are counted, never dropped");
   assert.equal(textOf(byTestId(queue, "today-group-waiting-more")).trim(), "2 more waiting");
   assert.equal(textOf(byTestId(queue, "today-group-todo-more")).trim(), "3 more to do");
   assert.match(

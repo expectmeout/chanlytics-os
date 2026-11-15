@@ -40,7 +40,7 @@ const { draftRules, draftSequenceFrom, examplesOf } =
   await import("../../apps/dashboard/src/server/drafts/sequence.ts");
 const { draftKept, stepsJudged } = await import("../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
 const M = await import("../../apps/dashboard/src/surfaces/campaigns/sequences/new/new-model.ts");
-const { onceChannelsOf, leadFirstOf } = await import("../../apps/dashboard/src/server/drafts/sequence-new.ts");
+const { leadFirstOf } = await import("../../apps/dashboard/src/server/drafts/sequence-new.ts");
 const { NEW_MAKE_BODY, LEAD_FIRST_BODY, REWRITE_BODY, VOICE_BODY } =
   await import("../../apps/dashboard/src/server/campaigns/sequences/bodies.ts");
 const { learnVoice } = await import("../../apps/dashboard/src/server/campaigns/sequences/voice.ts");
@@ -435,7 +435,7 @@ test("once to people: one step, now or a time within thirty days, everyone named
     "who can hear it of everyone it names, the week's breath, and each channel's share",
   );
   assert.ok(now.checks.some((c) => /said yes to offers/.test(c.words)));
-  assert.equal(now.reach.only_whatsapp, undefined, "a message the workspace holds waits on no review");
+  assert.equal(M.whatsappChecksOf(now), null, "a message the workspace holds waits on no check of its words");
   assert.equal(once("2026-10-23 09:00").at, "2026-10-23T09:00");
   assert.equal(once("2027-01-01 09:00").at, null, "past thirty days: now, the owner picks");
 });
@@ -466,17 +466,22 @@ test("news AI writes for everyone is an offer's kind: a yes to offers hears it, 
   const m = holiday.steps[0].message;
   assert.deepEqual([m.written.category, m.offer, m.channels], ["marketing", true, ["whatsapp", "email"]]);
   assert.deepEqual(holiday.who, { kind: "everyone", label: "everyone who said yes to offers" });
-  // 236 can hear it by WhatsApp or email; 141 by email alone, so 95 hear only WhatsApp, whose version is with Meta.
-  assert.deepEqual([holiday.reach.can, holiday.reach.only_whatsapp], [236, 95]);
-  const r = M.reviewOf(holiday);
-  assert.deepEqual(r, { others: "email", only: 95, can: 141 });
-  assert.equal(M.notReady(holiday, FOOT), null, "it can go now, by email");
-  // Scheduled for tomorrow it is still made now, and judged now: it goes by email then too; kept, it waits for Meta.
-  assert.deepEqual(M.reviewOf(M.setAt(holiday, "2026-10-21T09:00")), r);
-  // Where WhatsApp is all it goes by, sent now no one hears it.
+  // 236 can hear it by WhatsApp or email, and all of them are counted: WhatsApp is checking the new words, the send
+  // waits for it, and nobody is left out for that (the review of 15 Nov 2026: 95 who hear only WhatsApp were).
+  assert.equal(holiday.reach.can, 236);
+  assert.deepEqual(M.whatsappChecksOf(holiday), { others: true });
+  assert.equal(M.notReady(holiday, FOOT), null, "it can go now");
+  // Scheduled for tomorrow it is still made now, and waits the same.
+  assert.deepEqual(M.whatsappChecksOf(M.setAt(holiday, "2026-10-21T09:00")), { others: true });
+  // Where WhatsApp is all it goes by, it still goes: once WhatsApp approves the words.
   const waOnly = M.setChannels(holiday, ["whatsapp"]);
-  assert.deepEqual(M.reviewOf(waOnly).can, 0);
-  assert.match(M.notReady(waOnly, FOOT).lead, /No one to send to/);
+  assert.deepEqual(M.whatsappChecksOf(waOnly), { others: false });
+  assert.equal(M.notReady(waOnly, FOOT), null, "one press, and it waits by itself");
+  assert.equal(
+    NEW_WORDS.confirm.checking(true),
+    "WhatsApp is checking the words, so anyone it reaches only by WhatsApp gets it once approved",
+  );
+  assert.equal(NEW_WORDS.confirm.checking(false), "WhatsApp is checking the words, so it goes once approved");
 });
 
 test("REGRESSION: an offer AI picks that holds a text version goes by what carries it -- its text version is never ticked", () => {
@@ -1012,18 +1017,7 @@ test("a one-off kept as a draft opens as the draft it was; one whose message is 
   assert.equal(M.onceKeptOf({ name: "x", once: null }, library, "x"), null);
 });
 
-test("the make sends a one-off by what carries it then: a message AI wrote goes without its WhatsApp version until Meta approves it", () => {
-  const written = {
-    message: { written: { versions: { whatsapp: { body: "Hi" }, email: { subject: "S", body: "B" } } } },
-  };
-  assert.deepEqual(onceChannelsOf(written, ["whatsapp", "email"]), ["email"]);
-  assert.deepEqual(onceChannelsOf(written, ["whatsapp"]), [], "nothing else carries it: the make refuses in words");
-  assert.deepEqual(onceChannelsOf({ message: { written: null } }, ["whatsapp", "email"]), ["whatsapp", "email"]);
-  // A ready-made starter is filed as it is made too, its WhatsApp version sent for review then (the clean list, 14 Nov 2026).
-  assert.deepEqual(onceChannelsOf({ message: { written: null, starter: "quick_note" } }, ["whatsapp", "email"]), [
-    "email",
-  ]);
-  // A lead's step as a sequence to leads holds it: the first its subject, a later one in its thread, a call last.
+test("a lead's step is held as a sequence to leads holds it: the first its subject, a later one in its thread, a call last", () => {
   const email = (subject, body) => ({ does: "message", email: { subject, body }, after_days: 7, hand: "" });
   assert.deepEqual(leadChainStepOf(email("Hi", "Words"), 0), { subject: "Hi", body: "Words", after_days: null });
   assert.deepEqual(leadChainStepOf(email("Hi", "Again"), 1), { subject: null, body: "Again", after_days: 7 });
@@ -1070,12 +1064,12 @@ test("who said stop is no list, and a one-off's list of who said yes is everyone
   assert.equal(toOffers.who.kind, "everyone");
 });
 
-test("Meta's review holds a scheduled one-off too; late at night 'now' says when the hours open; a value is asked by its name", () => {
+test("a scheduled one-off with new words waits for WhatsApp too; late at night 'now' says when the hours open; a value is asked by its name", () => {
   const holiday = {
     ...M.draftByHand("once", "people", "x"),
     who: M.everyoneOf(true),
     channels: ["whatsapp", "email"],
-    reach: { can: 10, of: null, left: null, only_whatsapp: 4 },
+    reach: { can: 10, of: null, left: null },
     steps: [
       {
         ...M.draftByHand("once", "people", "x").steps[0],
@@ -1086,7 +1080,10 @@ test("Meta's review holds a scheduled one-off too; late at night 'now' says when
       },
     ],
   };
-  assert.deepEqual(M.reviewOf(M.setAt(holiday, "2026-10-23T09:00")), { others: "email", only: 4, can: 6 });
+  assert.deepEqual(M.whatsappChecksOf(M.setAt(holiday, "2026-10-23T09:00")), { others: true });
+  // A ready-made starter is filed as it is made too, and WhatsApp checks its words the same.
+  const starter = { ...holiday.steps[0], message: { ...held, written: null, starter: "quick_note" } };
+  assert.deepEqual(M.whatsappChecksOf({ ...holiday, steps: [starter] }), { others: true });
   // Ten minutes on, or nine the next morning past the sending hours (nextOpenMoment), by the business's clock.
   const at = (iso) => Date.parse(iso);
   assert.equal(M.goesSoonWords("UTC", at("2026-10-20T12:00:00Z")), "Goes 10 minutes after you send");

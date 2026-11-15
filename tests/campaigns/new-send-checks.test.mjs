@@ -104,7 +104,7 @@ const POOLS = {
 };
 const SEARCHES = [{ id: ID(9), ready: 2, checking: 3 }];
 const COUNTS = { pools: POOLS, searches: SEARCHES };
-const how = (over = {}) => ({ kind: "once", channels: ["whatsapp"], offer: true, review: false, ...over });
+const how = (over = {}) => ({ kind: "once", channels: ["whatsapp"], offer: true, ...over });
 
 const list = (token, label) => ({ kind: "list", token, label });
 const WALKINS = list("seg:walkins", "Walk-ins");
@@ -228,9 +228,8 @@ test("a one-off is counted by the yes it needs or not at all: a list and everyon
     null,
     "news to everyone: no count of the wrong yes",
   );
-  // Where a WhatsApp version is new, who hears it only by WhatsApp: left out until Meta approves it.
-  const review = newReachOf(everyone, COUNTS, how({ channels: ["whatsapp", "email"], review: true }));
-  assert.equal(review.only_whatsapp, 236 - 141);
+  // Where its WhatsApp words are new everyone is still counted: the send waits for WhatsApp, and leaves nobody out.
+  assert.equal("only_whatsapp" in offers, false);
   // A search counts its ready leads and the addresses still being checked; leads picked are who they are.
   assert.deepEqual(newReachOf({ kind: "search", id: ID(9), label: "Trainers" }, COUNTS, how()), {
     can: 2,

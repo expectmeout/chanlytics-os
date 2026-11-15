@@ -430,7 +430,8 @@ test("yesterday's visits nobody has marked are asked 'Did they come?': the match
     "the unmarked, matched ones with a row, in the day's order, three at most; a kept one, one the record has no row for and an event nobody is matched to are not asked",
   );
   assert.equal(asked.count, 4);
-  assert.equal(asked.to, "calendar/2026-09-17");
+  assert.equal(asked.to, "calendar/2026-09-17:a-r-g", "where the rest are: the first the rows do not name, on its day");
+  assert.equal(asked.older, false, "all of them yesterday's");
   assert.deepEqual(asked.items[0].line.asks, ["kept", "missed"]);
   assert.equal(asked.items[0].to, "calendar/2026-09-17:a-r-a", "the row's door is the visit on its day");
   assert.equal(
@@ -500,8 +501,9 @@ test("they are rows of the queue's own shape, after the steps and before a call 
   const rest = rows.find((r) => r.kind === "visits");
   assert.deepEqual(
     [rest.who, rest.initials, rest.cta],
-    ["1 more appointment to mark", "+1", { label: "Open", to: "calendar/2026-09-17" }],
+    ["1 more appointment to mark", "+1", { label: "Open", to: "calendar/2026-09-17:a-r-g" }],
   );
+  assert.equal(rest.sentence, "Nobody has said whether they came, yesterday.");
   assert.deepEqual(withVisitsAsked([handoff], null), [handoff], "none to ask: the queue as it was");
   assert.deepEqual(
     withVisitsAsked([handoff], todayVisitsAsked(cal([block("a", 14)]), NOW, "appointment")).map((r) => r.kind),

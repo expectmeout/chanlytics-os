@@ -1148,13 +1148,13 @@ test("every person is a row of their group, the run waiting for a word in To dec
   assert.deepEqual(
     all(byTestId(queue, "today-group-next"), (n) => classes(n).includes("cl-attn-who")).map(textOf),
     ["Person one"],
-    "Up next is one, and says no count",
+    "the first to answer is one row, under Reply, which counts all four; the rest stand under no head of their own",
   );
+  assert.equal(count("today-group-next"), "4");
   assert.equal(
-    find(byTestId(queue, "today-group-next"), (n) => classes(n).includes("ny-group-n")),
+    find(byTestId(queue, "today-group-waiting"), (n) => classes(n).includes("ny-group-n")),
     null,
   );
-  assert.equal(count("today-group-waiting"), "3");
   assert.equal(count("today-group-ok"), "1");
   // Nothing was cut, and no foot says so; the run about to go is the day's.
   assert.equal(
@@ -1805,7 +1805,7 @@ test("the head's Listen reads the brief's words in AI's voice, says it is gettin
     // The brief's words: who needs you first, and what the page says under the head of its own, which a voice read
     // aloud would leave out: a reply that failed to deliver (contracts todayBriefWords).
     assert.match(s.spoken[0].text, /^Ana Reyes needs you/);
-    assert.match(s.spoken[0].text, /failed to deliver/);
+    assert.match(s.spoken[0].text, /didn't reach them/);
     assert.equal(s.spoken[0].purpose, "brief");
     const loading = headListen();
     assert.match(loading.props["aria-label"], /Getting AI's voice/, "getting the voice until the clip plays");
@@ -1920,7 +1920,7 @@ test("Listen reads the brief: who needs you with the oldest wait, the calendar's
     assert.match(said, /One call is worth a listen\. 1 appointment today: next is Dulce Amaro at /, said);
     // Then what came in (the recap's line), then the run waiting for a word.
     assert.ok(said.includes(busy().recap.line), said);
-    assert.match(said, /Win-back is waiting for your approval: .*Waits for your OK until the end of its day/, said);
+    assert.match(said, /Win-back is waiting for your approval: .*Waits for you to approve until the end/, said);
   } finally {
     holdAsk(undefined);
   }

@@ -14,6 +14,7 @@ import {
   finishOf,
   judgeHealth,
   judgeVersion,
+  judgeWarm,
   newestOf,
   projectOf,
   smoke,
@@ -144,7 +145,11 @@ test("an edge still serving the build before the merge fails the smoke, though i
     "/api/health": [200, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT }],
     "/api/version": [200, { sha: "163f3678aee" }],
   });
-  const dashboard = await host({ "/api/version": [200, { sha: "de16cc2e14f" }] });
+  const dashboard = await host({
+    "/api/version": [200, { sha: "de16cc2e14f" }],
+    "/api/warm": [200, { ok: true, routes: ["open"] }],
+    "/api/warm/long": [200, { ok: true, routes: ["playbooks"] }],
+  });
   const results = await smoke(argsOf(["--edge", edge.base, "--dashboard", dashboard.base, "--sha", "de16cc2e1"]), {});
   assert.deepEqual(
     results.map((r) => [r.door, r.url.startsWith(edge.base) ? "edge" : "dashboard", r.problem]),
@@ -152,6 +157,8 @@ test("an edge still serving the build before the merge fails the smoke, though i
       ["health", "edge", null],
       ["version", "edge", "runs 163f3678aee, not de16cc2e1"],
       ["version", "dashboard", null],
+      ["warm", "dashboard", null],
+      ["warm/long", "dashboard", null],
     ],
   );
   assert.deepEqual(
@@ -340,4 +347,63 @@ test("--turn prints smoke= and why= for $GITHUB_OUTPUT, and the reason for the l
   const last = await run(["--turn"], envOf(github.base, DASHBOARD, "success", "2026-11-02T22:00:49Z"));
   assert.equal(last.code, 0);
   assert.match(last.out, /^smoke=yes$/m);
+});
+
+test("the dashboard's warm-ups are asked after its version, so the deploy just made has its routes' code loaded before a visitor asks", async () => {
+  // 13 Nov 2026 (#2292): the platform's clock asks for the warm-ups every five minutes, which left the first minutes of
+  // each deploy to whoever came first. The smoke runs as the deploy finishes, so it asks for them then.
+  const edge = await host({
+    "/api/health": [200, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT }],
+    "/api/version": [200, { sha: "de16cc2e14f" }],
+  });
+  const dashboard = await host({
+    "/api/version": [200, { sha: "de16cc2e14f" }],
+    "/api/warm": [200, { ok: true, routes: ["open", "today"] }],
+    "/api/warm/long": [200, { ok: true, routes: ["playbooks"] }],
+  });
+  const results = await smoke(argsOf(["--edge", edge.base, "--dashboard", dashboard.base, "--sha", "de16cc2e1"]), {});
+  assert.deepEqual(
+    dashboard.seen.map((s) => s.url),
+    ["/api/version", "/api/warm", "/api/warm/long"],
+  );
+  assert.deepEqual(
+    results.filter((r) => r.door.startsWith("warm")).map((r) => [r.door, r.problem]),
+    [
+      ["warm", null],
+      ["warm/long", null],
+    ],
+  );
+  assert.ok(!edge.seen.some((s) => s.url.startsWith("/api/warm")), "the edge has no warm-up: it is not asked for one");
+});
+
+test("a warm-up that does not answer with the routes it holds fails the smoke: nothing was loaded", async () => {
+  assert.equal(judgeWarm(200, { ok: true, routes: ["open"] }), null);
+  assert.match(judgeWarm(200, { ok: true, routes: [] }), /holds no routes/);
+  assert.match(judgeWarm(200, { ok: true }), /holds no routes/);
+  assert.match(judgeWarm(401, { error: "unauthorized" }), /answered 401/);
+  assert.match(judgeWarm(200, null), /without ok/);
+  const edge = await host({
+    "/api/health": [200, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT }],
+    "/api/version": [200, { sha: "abc1234" }],
+  });
+  const gated = await host({
+    "/api/version": [200, { sha: "abc1234" }],
+    "/api/warm": [401, { error: "unauthorized" }],
+  });
+  const failed = await run(["--edge", edge.base, "--dashboard", gated.base]);
+  assert.equal(failed.code, 1);
+  assert.match(failed.out, /FAIL .*\/api\/warm: answered 401/);
+  assert.match(failed.out, /FAIL .*\/api\/warm\/long: answered 404/);
+});
+
+test("one host given for both doors is asked for no warm-up: it may be the edge's", async () => {
+  const one = await host({
+    "/api/health": [200, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT }],
+    "/api/version": [200, { sha: "abc1234" }],
+  });
+  await smoke(argsOf([one.base]), {});
+  assert.deepEqual(
+    one.seen.map((s) => s.url),
+    ["/api/health", "/api/version"],
+  );
 });
