@@ -4,6 +4,7 @@
  * fingerprint out of a member's reach, a row only from its bytes proven until they are gone, one row a picture, a removed one not
  * brought back, the owner's word kept over the look's, a good look kept over a failed try, and the job each step leaves. And the
  * library searched where it is kept (00597 files_found), in two workspaces of its own, so no other test's files are counted.
+ * And one picture kept once whichever road brought it (00630), by its print, in a workspace of its own.
  *
  * Runs against the local stack `supabase start` builds, never production: it makes workspaces, users and rows.
  */
@@ -113,6 +114,12 @@ const jobsOf = async (kind, id) =>
 /** A purge due now: a removal's, not the one every upload leaves itself for a day on. */
 const purgesNow = async (id) =>
   (await jobsOf("file_purge", id)).filter((j) => Date.parse(j.due_at) < Date.now() + 3_600_000);
+/** The same, in another workspace. */
+const purgesNowIn = async (tenant, id) =>
+  ok(
+    await db.from("jobs").select("due_at").eq("tenant_id", tenant).eq("kind", "file_purge").eq("payload->>file_id", id),
+    "jobs",
+  ).filter((j) => Date.parse(j.due_at) < Date.now() + 3_600_000);
 
 before(async () => {
   if (skip) return;
@@ -767,4 +774,143 @@ test("the library answers a page, and counts them all", { skip }, async () => {
 test("the library: another workspace's member finds nothing of this one, under row security", { skip }, async () => {
   assert.deepEqual(await libFound("libStranger", { p_words: "dusk" }), { keys: [], total: 0 });
   assert.deepEqual(await libFound("libStranger", { p_words: "dusk" }, E), { keys: ["theirs"], total: 1 });
+});
+
+/* -------------------------------------------------------------- one picture is one file, by its print (00630) -- */
+
+let TW;
+
+before(async () => {
+  if (skip) return;
+  TW = ok(
+    await db
+      .from("tenants")
+      .insert({ name: `Twins ${stamp}`, slug: `files-t-${stamp}` })
+      .select("id")
+      .single(),
+    "the twins' workspace",
+  ).id;
+});
+
+after(async () => {
+  if (skip) return;
+  await db.from("jobs").delete().eq("tenant_id", TW);
+  await db.from("files").delete().eq("tenant_id", TW);
+  await db.from("tenants").delete().eq("id", TW);
+});
+
+const PRINT = "0123456789abcdef0123456789abcdef";
+/** A print `bits` bits from another, its first bits turned over from bit `from`. */
+const nearPrint = (print, bits, from = 0) => {
+  const nibbles = [...print].map((c) => Number.parseInt(c, 16));
+  for (let i = from; i < from + bits; i++) nibbles[i >> 2] ^= 8 >> (i & 3);
+  return nibbles.map((n) => n.toString(16)).join("");
+};
+const foundInTwins = (id, print, over = {}) =>
+  found(db, id, `fp-${id}`, {
+    p_tenant_id: TW,
+    p_print: print,
+    p_source_ref: `https://harbor.example/${id}.jpg`,
+    ...over,
+  });
+const printed = (id, print) => db.rpc("file_printed", { p_tenant_id: TW, p_id: id, p_print: print });
+
+test(
+  "the same picture by its look is one file: the bigger copy stays, the smaller waiting one goes, and a smaller one after is here",
+  { skip },
+  async () => {
+    const site = randomUUID();
+    const insta = randomUUID();
+    const thumb = randomUUID();
+    assert.deepEqual(ok(await foundInTwins(site, PRINT, { p_width: 640, p_height: 1136 }), "the site's"), {
+      fate: "kept",
+      file_id: site,
+    });
+    const bigger = ok(
+      await foundInTwins(insta, nearPrint(PRINT, 20), { p_source: "instagram", p_width: 1080, p_height: 1920 }),
+      "Instagram's",
+    );
+    assert.deepEqual(bigger, { fate: "kept", file_id: insta });
+    assert.ok((await rowOf(site)).removed_at, "the site's smaller copy went");
+    assert.equal((await rowOf(insta)).picture_print, nearPrint(PRINT, 20));
+    const purges = (await purgesNowIn(TW, site)).length;
+    assert.equal(purges, 1, "its purge is due now");
+    assert.deepEqual(
+      ok(await foundInTwins(thumb, nearPrint(PRINT, 8), { p_width: 320, p_height: 568 }), "a thumbnail"),
+      {
+        fate: "here",
+        file_id: insta,
+      },
+    );
+    assert.equal(await rowOf(thumb), null, "no row for what was here already");
+    const other = randomUUID();
+    const far = ok(await foundInTwins(other, nearPrint(PRINT, 30, 60)), "another picture");
+    assert.deepEqual(far, { fate: "kept", file_id: other }, "fifty bits from every other is another picture");
+  },
+);
+
+test("an upload is printed as its look starts: it stays, and a twin that only waited goes", { skip }, async () => {
+  const waiting = randomUUID();
+  const theirs = randomUUID();
+  const print = nearPrint(PRINT, 40, 80);
+  ok(await foundInTwins(waiting, print, { p_width: 2000, p_height: 2000 }), "a found photo");
+  ok(
+    await found(db, theirs, `fp-${theirs}`, {
+      p_tenant_id: TW,
+      p_status: "filed",
+      p_source: "upload",
+      p_source_ref: null,
+    }),
+    "an upload",
+  );
+  assert.equal((await rowOf(theirs)).picture_print, null, "an upload is proven by its first bytes, and printed later");
+  assert.deepEqual(ok(await printed(theirs, nearPrint(print, 5)), "its print"), { fate: "kept", twin_id: waiting });
+  assert.ok((await rowOf(waiting)).removed_at, "what only waited went, bigger as it was");
+  assert.equal((await rowOf(theirs)).removed_at, null);
+});
+
+test("a video's twin is a twin by its poster and its length; another length is another video", { skip }, async () => {
+  const video = (id, source, width, height, seconds) => ({
+    id,
+    tenant_id: TW,
+    status: "inbox",
+    source,
+    source_ref: `ref-${id}`,
+    name: `clip-${id.slice(0, 8)}`,
+    mime: "video/mp4",
+    bytes: 0,
+    fingerprint: `fp-${id}`,
+    kind: "video",
+    media_ref: `stream-${id}`,
+    media_status: "ready",
+    width,
+    height,
+    seconds,
+  });
+  const [site, insta, longer] = [randomUUID(), randomUUID(), randomUUID()];
+  ok(
+    await db
+      .from("files")
+      .insert([
+        video(site, "website", 540, 960, 16.87),
+        video(insta, "instagram", 1080, 1920, 16.9),
+        video(longer, "instagram", 1080, 1920, 30),
+      ]),
+    "three videos",
+  );
+  const poster = "f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0";
+  assert.deepEqual(ok(await printed(site, poster), "the site's"), { fate: "kept", twin_id: null });
+  assert.deepEqual(ok(await printed(longer, nearPrint(poster, 2)), "a longer one"), { fate: "kept", twin_id: null });
+  assert.deepEqual(ok(await printed(insta, nearPrint(poster, 6)), "Instagram's"), { fate: "kept", twin_id: site });
+  assert.ok((await rowOf(site)).removed_at, "the site's smaller reel went");
+  assert.deepEqual(ok(await printed(site, poster), "printed again"), { fate: "gone", twin_id: null });
+});
+
+test("a print is the service role's to keep, and only a print", { skip }, async () => {
+  const id = randomUUID();
+  ok(await foundInTwins(id, null), "a photo");
+  const member = await as.owner.client.rpc("file_printed", { p_tenant_id: TW, p_id: id, p_print: PRINT });
+  assert.ok(member.error, "a member's session is refused the door");
+  const bad = await printed(id, "not-a-print");
+  assert.equal(bad.error?.code, "22023");
 });

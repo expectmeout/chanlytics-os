@@ -31,6 +31,7 @@ import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { http } from "../shared/google/places.js";
 import { keepFoundVideo } from "./found-video.js";
+import { readPicturePrint } from "./prints.js";
 import { recordNotification } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
@@ -92,6 +93,8 @@ export async function keepFoundFile(
     return "passed";
   if (head.width * head.height > FILE_PIXELS_MAX) return "passed";
   const fingerprint = fileFingerprintOf(bytes.subarray(0, FINGERPRINT_BYTES), bytes.length);
+  // What it looks like (00630): the same picture brought by another road, smaller or recompressed, is the one already here.
+  const print = await readPicturePrint(bytes);
   const id = randomUUID();
   const request = {
     tenantId,
@@ -110,6 +113,7 @@ export async function keepFoundFile(
     shows: params.file.shows ?? null,
     edition: FILE_LOOK_EDITION,
     actor: null,
+    print,
   };
   if (await markFileSeen(db, tenantId, fingerprint)) {
     if (params.status !== "filed") return "here";

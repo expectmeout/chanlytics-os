@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 186 | 186 |
 | reader | 77 | 0 |
-| the server's | 339 | 294 |
+| the server's | 343 | 298 |
 | computed column | 3 | 0 |
 | trigger | 101 | 71 |
-| all | 706 | 551 |
+| all | 710 | 555 |
 
 ## Called by nothing
 
@@ -173,7 +173,7 @@ being read is dropped by a migration.
 | `fact_suggest` | the server's | the server | code `packages/db/src/repositories/facts/suggestions.ts` | The note sweep suggests a note for the receptionist from an owner's correction (decision 0063): |
 | `fact_suggestion_answer` | door | a signed-in person, the server | code `apps/dashboard/src/server/receptionist/fact-notes.ts`, `packages/db/src/repositories/facts/suggestions.ts` | A member answers a note suggested from an owner's correction (decision 0063): |
 | `file_change` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | What a person says of a file (00551): |
-| `file_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The one door every road keeps a file by, after the server proved its bytes (00551). |
+| `file_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The one door every road keeps a file by, after the server proved its bytes (00551), and judged by its look where it carries a print (00630). |
 | `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 5 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
 | `file_keep_many` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | The Found online list's press (00551, 00619): |
 | `file_listing_aside` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | What a public listing offered and nobody kept goes aside (00551): |
@@ -182,12 +182,16 @@ being read is dropped by a migration.
 | `file_media_failed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The video platform could not read a video (00556): |
 | `file_media_processing` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's video's bytes have all gone (00556), with the add_files permission (00596: |
 | `file_media_ready` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The video platform says a video is playable (00556): |
+| `file_printed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A picture's print kept and judged (00630): |
 | `file_purged` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A removed file's bytes and Anthropic's copy are gone (00551), so its row goes. |
 | `file_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A person removed a file (00551, 00616): |
 | `file_restore` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's Undo of a delete, with the settings permission (00616): |
 | `file_search_words` | reader | a signed-in person, the server | SQL `files_found` | The words a file is found by, as one text (00597): |
 | `file_sound_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | One part of what was heard of a video (00556): |
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
+| `file_twin_fate` | the server's | the server | SQL `file_found`, `file_printed` | Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: |
+| `file_twin_goes` | the server's | the server | SQL `file_found`, `file_printed` | A twin goes (00630): removed, its purge due now, and a file.removed event that names the file staying. |
+| `file_twin_of` | the server's | the server | SQL `file_found`, `file_printed` | The file a print finds (00630), by its id: |
 | `file_upload_lapsed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A video whose bytes never arrived, a day on (00556): |
 | `file_video_begin` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A member's video on its way (00556), once the video platform holds its reservation: |
 | `file_video_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A found video on its way (00626), once the video platform is fetching it from its address: |
