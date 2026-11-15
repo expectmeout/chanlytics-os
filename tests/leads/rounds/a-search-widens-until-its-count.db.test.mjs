@@ -173,6 +173,7 @@ async function found(searchId, roundId, n) {
       fit: "strong",
       reason: "A fixture.",
       counted: true,
+      counted_month: (await round(roundId)).month,
     }),
     "member",
   );
@@ -310,24 +311,34 @@ test(
     await widening(true);
     const s = await search(10);
     const month = (await round(s.round_id)).month;
-    // Six of the month's leads left once the first round's ten are given back: the leg is given six of the ten it wants.
-    const cap = ok(await db.rpc("lead_allowance", { p_tenant_id: A }), "allowance");
-    ok(
-      await db
-        .from("lead_counters")
-        .update({ used: cap - 6 })
-        .eq("tenant_id", A)
-        .eq("kind", "allowance")
-        .eq("period", month),
-      "the month nearly used",
-    );
-    await named(s.round_id, [ROUND_ROCK]);
-    await ended(s.round_id, "few_new_matches");
-    const [, leg] = await roundsOf(s.search_id);
-    assert.equal(leg.target, 6, "the leg is given what the month has left");
-    for (let n = 1; n <= 6; n++) await found(s.search_id, leg.id, 900 + n);
-    await ended(leg.id, "target_reached");
-    assert.equal((await round(leg.id)).ending, "month_leads_used", "six of ten: the month's leads, never found");
+    const counter = async () =>
+      ok(
+        await db
+          .from("lead_counters")
+          .select("id, used, reserved")
+          .eq("tenant_id", A)
+          .eq("kind", "allowance")
+          .eq("period", month)
+          .single(),
+        "the month's counter",
+      );
+    const cap = Number(ok(await db.rpc("lead_allowance", { p_tenant_id: A }), "allowance"));
+    const was = await counter();
+    try {
+      // Six left once this round's ten go back, whatever other cases still hold: the leg is given six of the ten it wants.
+      const used = cap - 6 - (Number(was.reserved) - 10);
+      ok(await db.from("lead_counters").update({ used }).eq("id", was.id), "the month nearly used");
+      await named(s.round_id, [ROUND_ROCK]);
+      await ended(s.round_id, "few_new_matches");
+      const [, leg] = await roundsOf(s.search_id);
+      assert.equal(leg?.target, 6, "the leg is given what the month has left");
+      for (let n = 1; n <= 6; n++) await found(s.search_id, leg.id, 900 + n);
+      await ended(leg.id, "target_reached");
+      assert.equal((await round(leg.id)).ending, "month_leads_used", "six of ten: the month's leads, never found");
+    } finally {
+      // The month as it was, so no case after this one is short of leads.
+      ok(await db.from("lead_counters").update({ used: was.used }).eq("id", was.id), "the month put back");
+    }
   },
 );
 
