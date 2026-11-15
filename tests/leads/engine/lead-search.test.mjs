@@ -786,7 +786,6 @@ test("the ending of a round follows S7: the target overrides everything else, th
     counted: 10,
     target: 200,
     termsShort: [false, false],
-    budgetLeftUsd: 5,
     allowanceLeft: 100,
     stopped: false,
     sourceFailed: false,
@@ -803,7 +802,11 @@ test("the ending of a round follows S7: the target overrides everything else, th
   assert.equal(endingOfRound({ ...base, unanswered: true }), "question_unanswered");
   assert.equal(endingOfRound({ ...base, counted: 200 }), "target_reached");
   assert.equal(endingOfRound({ ...base, allowanceLeft: 0 }), "month_leads_used");
-  assert.equal(endingOfRound({ ...base, budgetLeftUsd: 0 }), "budget_used");
+  assert.equal(
+    endingOfRound({ ...base, budgetLeftUsd: 0 }),
+    "few_new_matches",
+    "what a round reserved running out is not read: the month's searching is said by the door that refuses a reserve",
+  );
   assert.equal(
     endingOfRound({ ...base, termsShort: [true, true] }),
     "searched_everything",

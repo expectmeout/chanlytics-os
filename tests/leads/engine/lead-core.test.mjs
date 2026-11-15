@@ -339,34 +339,82 @@ test("sizing: the probe spreads 25 across the terms; the main phase divides the 
     { read: new Map(), begun: new Set() },
   );
   assert.deepEqual(
-    three.perTerm,
-    [1, 1, 0],
-    "with almost nothing left a term is asked for nothing at all, and its caller starts no run for it",
+    three,
+    {
+      terms: ["personal trainer"],
+      perTerm: [2],
+      waiting: [],
+      later: ["strength coach", "kettlebell class"],
+    },
+    "one term at a time, the widest first, for all the phase wants: the others wait their turn (decision 0133)",
   );
   const read = new Map([["personal trainer", 25]]);
   assert.deepEqual(
     mainAsk(PLAN, 5, 1, null, 1, { read, begun: new Set() }),
-    { terms: ["strength coach"], perTerm: [6], waiting: ["personal trainer"] },
-    "a term not yet asked before one that was",
+    { terms: ["strength coach"], perTerm: [6], waiting: ["personal trainer"], later: [] },
+    "a term not yet asked before one that was; a reserve that holds one run has no room for the other",
   );
   assert.deepEqual(
-    mainAsk(PLAN, 5, 1, null, 2, { read, begun: new Set() }).perTerm,
-    [3, 28],
-    "and one asked again is asked past what it read",
-  );
-  assert.deepEqual(
-    mainAsk(PLAN, 5, 1, null, 1, { read, begun: new Set(["personal trainer"]) }).terms,
+    mainAsk(PLAN, 5, 1, null, 2, { read, begun: new Set() }).later,
     ["personal trainer"],
-    "a term this phase began stays: a start tried again starts no other",
+    "with room for it too, the other waits its turn",
+  );
+  assert.deepEqual(
+    mainAsk(PLAN, 3, 1, null, 2, { read, begun: new Set(["strength coach"]) }),
+    { terms: ["personal trainer"], perTerm: [29], waiting: [], later: [] },
+    "its turn come, a term asked before is asked past what it read, for what the count still wants",
+  );
+  assert.deepEqual(
+    mainAsk(PLAN, 3, 1, null, 2, { read, begun: new Set(["strength coach"]), running: true }),
+    { terms: [], perTerm: [], waiting: [], later: ["personal trainer"] },
+    "beside a run still out no other term starts: a start tried again starts no other",
+  );
+  assert.deepEqual(
+    mainAsk(PLAN, 0, 1, null, 2, { read, begun: new Set(["strength coach"]) }).terms,
+    [],
+    "and none once what the phase holds may already deliver the count",
+  );
+  assert.deepEqual(
+    mainAsk(PLAN, 0, 1, null, 2, { read: new Map(), begun: new Set() }).perTerm,
+    [2],
+    "the phase's first term is asked for a place at least, as a main phase always was",
   );
   assert.deepEqual(
     mainAsk({ ...PLAN, terms: ["personal trainer"] }, 5, 1, null, 1, {
       // All a city's term may read (decision 0133: 600, where a ZIP's stops at 120).
       read: new Map([["personal trainer", 600]]),
       begun: new Set(),
-    }).perTerm,
-    [0],
+    }).terms,
+    [],
     "a term that read all a term may is asked for nothing",
+  );
+  const threeTermed = { ...PLAN, terms: ["personal trainer", "strength coach", "kettlebell class"] };
+  assert.deepEqual(
+    mainAsk(threeTermed, 20, 0.5, null, 3, {
+      read: new Map(),
+      begun: new Set(["personal trainer"]),
+      stale: new Set(["strength coach"]),
+    }),
+    { terms: ["kettlebell class"], perTerm: [40], waiting: [], later: [] },
+    "a synonym that mostly returned places already held is passed over",
+  );
+  assert.deepEqual(
+    mainAsk(threeTermed, 20, 0.5, null, 3, {
+      read: new Map(),
+      begun: new Set(),
+      stale: new Set(["personal trainer", "strength coach"]),
+    }).terms,
+    ["personal trainer"],
+    "never the widest term: a search with nothing else to ask still asks it",
+  );
+  assert.deepEqual(
+    mainAsk(threeTermed, 20, 0.5, null, 3, {
+      read: new Map([["strength coach", 9]]),
+      begun: new Set(),
+      again: new Set(["strength coach"]),
+    }),
+    { terms: ["strength coach"], perTerm: [49], waiting: [], later: ["personal trainer", "kettlebell class"] },
+    "a failed term due another try goes first, past what its failed run read",
   );
 });
 
@@ -455,8 +503,12 @@ test("endings: searched everything only when every term came up short; the sourc
     "month_leads_used",
   );
   assert.equal(
-    discoveryEnding({ ...round, cost_usd: 2 }, [run("a", "succeeded", 60)], { ...x, termsShort: [false] }),
-    "budget_used",
+    discoveryEnding({ ...round, cost_usd: round.cost_reserved_usd + 1 }, [run("a", "succeeded", 60)], {
+      ...x,
+      termsShort: [false],
+    }),
+    "few_new_matches",
+    "a round past what it reserved ends on what its terms say: its own estimate is never the month's searching",
   );
   assert.equal(
     discoveryEnding(round, [run("a", "succeeded", 60)], { ...x, termsShort: [false], stopped: true }),

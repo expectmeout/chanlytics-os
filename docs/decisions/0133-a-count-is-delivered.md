@@ -101,6 +101,24 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
 - **Every member is read:** the runner reads a round's and a search's members a page at a time (`pageSearchMembers`,
   read whole). One answer carries a thousand rows, which a city's round or a search of several legs passes, and the
   count, the addresses to check and the next area are all worked out from them.
+- **A round's own money is not the month's:** what a round reserved is its estimate. Run out, the round ends on what
+  its terms say of its area (`few_new_matches`, or `searched_everything`), names the next area, and its end opens the
+  next leg with a reserve of its own. `budget_used` is said only where a reservation is refused (`lead_reserve`):
+  contracts' `endingOfRound` no longer reads the round's reserve, and a start with nothing left of it ends the same way
+  (`start.ts` `endAtItsLimit`).
+- **One term at a time:** the source charges for every place it returns, one the search already holds too, and a
+  search's terms are synonyms. The main phase asks one term, the widest first, for all it still wants
+  (`sizing.ts` `mainAsk`, `runner/main-ask.ts`); the end of its run starts the next only where every term asked so far
+  came back under its ask, its area read (`round-decision.ts`, `NEXT_TERM`). A synonym whose runs returned at least 40
+  places, three in four of them already the workspace's (`lead_runs.already_yours`), is not asked again by a later
+  round; the widest term always is.
+- **An email search judges a place with an address:** past its probe, a place with no candidate email is settled by code
+  as the judge's read would settle it (`places.ts` `noEmailRule`: in review for no email, or left out with no number
+  either), and counts as looked at when a later ask is sized (`rules.ts` `wasWeighed`). The probe's places are all
+  judged: the question after it is about fit.
+- **An exclusion's bar is said:** the judge is told an exclusion is held to the kind's bar, its read of the facts
+  (`judge.ts` `judgeQuestions`), as `classify` always held it. Unsaid, it answered unknown wherever a listing did not
+  say a business was not a chain.
 - **The notice:** a round that carries on rings nothing; the round that ends a widened search counts every leg's leads.
 - **The platform's page:** `apps/edge/lib/leads/sources.ts` `recordPagePlatformDay`, from the leads sweep, once a day
   at 80% of `platform_day_usd`.
@@ -150,7 +168,7 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
    - **a top-up carries on where the search was** (the review of 14 November): a term counts only what was read in its
      own area (`readInArea`: the most its runs read there, or what was kept of it, and nothing past an area searched to
      its end), so "Find N more nearby" asks a fresh area whole, for every workspace; and a top-up with nothing left to
-     ask in its area names where the search looks next before it ends (`nothingToStart`, `findNextAreas`), so Carry on,
+     ask in its area names where the search looks next before it ends (`endAtItsLimit`, `findNextAreas`), so Carry on,
      the rest when the leads renew and Look up to 50 miles move on to the next area instead of ending where they began;
    - **a leg the month's leads held short** met the count it was given and not the search's: `lead_round_end` ends it on
      `month_leads_used` (the day the leads renew, and Find the other N), never as found;
@@ -165,7 +183,28 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
    own workspace (`widen_tenants`), each timed and costed; the switch on for everyone only once the cost and the time
    hold.
 
+6. **The first real search, and what it changed** (15 November 2026, search `b6f2d0de`, Ruben's workspace): 300 med
+   spas in New York with a checked email, bound to the 267 leads the month had left. It ended after 11 minutes at 41,
+   on `budget_used`, with no leg, for $8.67: 21 cents a lead against the plan's 4, and 11.5 places a lead against 4.
+   - It stopped because the round passed its own $5.95 reserve; the month had $24 of its $40 left, and the notice said
+     the month's searching was used up.
+   - Three terms asked side by side for 341 places each returned 1,025, of which 472 were different: $2.70 of $4.96.
+   - The judge read 348 places, 183 of them with no email to check: $1.46.
+   - 83 addresses checked out. 41 counted; the other 42 waited in review as worth a look, 21 of them on one answer,
+     unknown to "chains".
+   - Reading each place's own site for its mark cost $2.13 (426 reads at half a cent), 18 of them for a lead that
+     counted. Not changed here: which places are worth a mark, in the collect and in the sweep's second try, is its own
+     decision.
+     The four changes under Shape (a round's own money, one term at a time, an email search judges a place with an
+     address, an exclusion's bar) answer the first four. The switch stays on for one workspace until a second search
+     measures them.
+
 ## Tests
+
+- `tests/leads/rounds/a-search-asks-one-term-at-a-time.test.mjs`: the main phase asks the widest term alone, for all it
+  wants; the next only once the one before came back short; none where it came back whole; a synonym that mostly
+  returned places already held is passed over by a later round, and the widest never is; a round past its own reserve
+  ends on what its area did and names the next; an email search's main phase judges only a place with an address.
 
 - `tests/leads/rounds/where-the-next-round-looks.test.mjs`: the reach; rungs nearest first, in their own state, past
   the area and inside the reach; each rung past every area read; no two areas overlapping; the ladder running out.

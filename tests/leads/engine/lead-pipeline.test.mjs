@@ -77,11 +77,14 @@ test("lead_collect through the dispatch commits a batch; lead_check starts the c
   assert.ok(w.members().length >= 24);
   assert.equal(w.round().state, "running", "a probe that fits goes on");
   assert.equal(w.round().target, plan.count, "the target is the plan's count once the probe passed");
-  await dispatchJob(ctx(), job("lead_round_start", { round_id: made.round_id, resume: true }, "job-resume"));
-  noPhones(w);
-  w.finishRuns();
-  for (const r of w.runs().filter((x) => x.state === "running"))
-    await dispatchJob(ctx(), job("lead_collect", { run_id: r.id, seq: "p0" }, `job-m-${r.id}`));
+  // The main phase, one term's turn at a time (decision 0133), until the round runs on no more.
+  for (let turn = 0; turn < 8 && w.round().state === "running"; turn++) {
+    await dispatchJob(ctx(), job("lead_round_start", { round_id: made.round_id, resume: true }, `job-resume-${turn}`));
+    noPhones(w);
+    w.finishRuns();
+    for (const r of w.runs().filter((x) => x.state === "running"))
+      await dispatchJob(ctx(), job("lead_collect", { run_id: r.id, seq: "p0" }, `job-m-${r.id}`));
+  }
   assert.equal(w.round().state, "checking");
   await dispatchJob(ctx(), job("lead_check", { round_id: made.round_id, batch: 0 }, "job-check"));
   const checker = w.apify.calls.filter((c) => c.op === "startRun").at(-1);
