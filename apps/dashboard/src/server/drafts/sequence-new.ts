@@ -93,16 +93,6 @@ async function templateOf(
 const filedOnMake = (step: Step): boolean => !!(step.message?.written || step.message?.starter);
 
 /**
- * The channels a one-off goes by when it is sent: the draft's, but WhatsApp's where its message is filed as it is made (one
- * Ask wrote, or a ready-made starter), whose WhatsApp version goes to Meta as it is filed and is no version to send until
- * Meta approves it (the send door refuses a tick it cannot carry, core message-channels.ts refuseTicks). Its email and
- * text go; nothing waits for Meta (decision 0065, call 8).
- */
-export function onceChannelsOf(step: Step, channels: readonly ConsentChannel[]): ConsentChannel[] {
-  return filedOnMake(step) ? channels.filter((c) => c !== "whatsapp") : [...channels];
-}
-
-/**
  * A kept draft let go once what it became is made: a one-off sent, or a sequence it was drafted again as. The make stands
  * whatever this answers, so a draft that could not go is logged, never said as the make's failure (it would be made twice).
  */
@@ -217,9 +207,12 @@ function onceAudienceOf(draftWho: DraftWho): { kind: "everyone" | "list" | "save
 
 /**
  * A message sent once to people: its message filed or named, then the send screen's own verb, now (ten minutes on, with
- * a Stop) or at its time by the business's clock, by the channels that carry it then (onceChannelsOf). Kept, it waits
- * under Drafts (00465 sequence_once_keep) and sends nothing; a message Ask wrote is filed as it is kept, so Meta reviews
- * its WhatsApp version while it waits and the draft holds it by its id. A kept one sent lets its draft go.
+ * a Stop) or at its time by the business's clock, by the channels the draft ticks. A message filed as it is made (one AI
+ * wrote, or a ready-made starter) has a WhatsApp version WhatsApp is still checking: the send keeps its tick and waits
+ * for it (core create-broadcast.ts readCampaignHowOf), so whoever an email or a text reaches goes on time and whoever
+ * only WhatsApp reaches goes once it approves the words. It dropped WhatsApp and left them out (the review of 15 Nov
+ * 2026). Kept, it waits under Drafts (00465 sequence_once_keep) and sends nothing; a message AI wrote is filed as it is
+ * kept, so WhatsApp checks its words while it waits and the draft holds it by its id. A kept one sent lets its draft go.
  */
 async function makePeopleOnce(ctx: RouteContext, member: Member, newMake: NewMakeBody): Promise<NewMade> {
   const step = newMake.steps[0];
@@ -248,8 +241,6 @@ async function makePeopleOnce(ctx: RouteContext, member: Member, newMake: NewMak
     if (kept.error) throw dbRefusal(kept.error);
     return madeOf(kept.data, "once", false);
   }
-  const channels = onceChannelsOf(step, newMake.channels);
-  if (channels.length === 0) throw new AppError("conflict", NEW_WORDS.review.noneYet, 409);
   const templateId = await templateOf(ctx, member, step, newMake.channels);
   const tz = (await load(readerContext(ctx, member), facts.facts, undefined)).data.timezone;
   const at = newMake.at ? fromZonedInput(newMake.at, tz) : null;
@@ -259,7 +250,7 @@ async function makePeopleOnce(ctx: RouteContext, member: Member, newMake: NewMak
       template_id: templateId,
       params: step.message?.params ?? [],
       audience,
-      channels,
+      channels: newMake.channels,
       name: newMake.name,
       ...(at !== null ? { scheduled_for: new Date(at).toISOString() } : {}),
     },

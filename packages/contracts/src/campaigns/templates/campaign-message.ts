@@ -252,6 +252,18 @@ export function messageWhyNot(
     : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
 }
 
+/**
+ * Whether WhatsApp is still to say yes to the message's WhatsApp version, and will by itself: it is checking the words (a
+ * new message, or a change sent back), or holding the message for a few hours, and the version is whole. THE one reading
+ * of "this waits, it is not refused": a send's people wait for it (core messages/broadcast/whatsapp-wait.ts), and its
+ * channel is closed only until then (readyForMessage's `waits`). A version WhatsApp asked a change to or turned off does
+ * not come back by itself, and waits for nothing.
+ */
+export function whatsappWaits(campaignMessage: Pick<CampaignMessage, "versions"> | null): boolean {
+  const w = campaignMessage?.versions.whatsapp ?? null;
+  return w !== null && w.blocked === null && (w.status === "pending" || w.status === "paused");
+}
+
 /** A message the workspace holds no row of (it was deleted): it holds nothing, and says so on every channel. */
 const HOLDS_NOTHING: Pick<CampaignMessage, "versions"> = { versions: { whatsapp: null, email: null, sms: null } };
 
@@ -264,6 +276,7 @@ const HOLDS_NOTHING: Pick<CampaignMessage, "versions"> = { versions: { whatsapp:
  * and an offer are judged by: closing the channel for a missing version must not make it say the campaigns domain is
  * missing). The workspace's pause is the workspace's, not the message's, and rides through. `null` is a message the
  * workspace no longer holds; a page with no message in view yet hands its own stand-in (the pages' CM_NO_MESSAGE_YET).
+ * WhatsApp closed only until it says yes to the version (whatsappWaits) says so, `waits`, for a send that can wait.
  */
 export function readyForMessage(
   ready: ChannelsReady,
@@ -272,7 +285,13 @@ export function readyForMessage(
   const out: ChannelsReady = { ...ready };
   for (const c of CONSENT_CHANNELS) {
     const reason = messageWhyNot(message ?? HOLDS_NOTHING, c);
-    if (ready[c].ready && reason !== null) out[c] = { ...ready[c], ready: false, why: reason };
+    if (ready[c].ready && reason !== null)
+      out[c] = {
+        ...ready[c],
+        ready: false,
+        why: reason,
+        ...(c === "whatsapp" && whatsappWaits(message) ? { waits: true as const } : {}),
+      };
   }
   return out;
 }
@@ -316,8 +335,17 @@ export function messageStandingWords(
  * workspace no longer holds a row of (null) has no WhatsApp version either.
  */
 export function whatsappStoppedRunWords(campaignMessage: Pick<CampaignMessage, "versions"> | null): string {
+  const everyone = "Everyone on this run goes by WhatsApp, so nothing was sent.";
+  // A run that waited for WhatsApp's yes until its wait ended (whatsappWaits): said as what happened, never as a message
+  // that still "sends by itself", which this run no longer does. What becomes of it is the run's to add (core
+  // whatsapp-wait.ts stopForWhatsApp: a send by hand is sent again, a sequence's next run reaches them).
+  if (whatsappWaits(campaignMessage)) {
+    const still =
+      campaignMessage?.versions.whatsapp?.status === "paused" ? "holding this message" : "checking the words";
+    return `WhatsApp was still ${still} when this run's time to send ended. ${everyone}`;
+  }
   const reason = campaignMessage === null ? null : messageWhyNot(campaignMessage, "whatsapp");
-  return `${reason ?? noVersionWords("whatsapp")} Everyone on this run goes by WhatsApp, so nothing was sent.`;
+  return `${reason ?? noVersionWords("whatsapp")} ${everyone}`;
 }
 
 /** What a playbook says of a message none of whose versions a run can send: true on every channel, not WhatsApp's alone. */
