@@ -3,10 +3,11 @@
  * run through route() with the database in memory and the edge stubbed with the provider guard open, so a submission to
  * Meta is a call this file counts and nothing leaves the machine. The playbook is judged whole before anything is filed:
  * its moment, list and class, the starter the moment's own and with no words of its own, its numbers, its channels' purpose,
- * and a channel its message holds AT ONCE (an email or text version filed with it, or a WhatsApp version WhatsApp already
- * approved), since a WhatsApp version sent for review cannot carry a campaign until Meta approves it and cannot be taken
- * back. A card that names no channels goes by those, and on WhatsApp where there is a number, its people there held until
- * Meta approves. A refused card files nothing and asks nothing of Meta. Its slots are the starter's own sources.
+ * and a channel its message goes by once filed: one it holds at once (an email or text version filed with it, or a
+ * WhatsApp version WhatsApp already approved), or WhatsApp while WhatsApp checks its words, the campaign's people there
+ * held until WhatsApp approves (the one picker rule, contracts messageGoesBy). A card that names no channels goes by those
+ * held at once, and on WhatsApp where there is a number. A refused card files nothing and asks nothing of Meta, since a
+ * WhatsApp version sent for review cannot be taken back. Its slots are the starter's own sources.
  */
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -20,7 +21,6 @@ import {
   LIBRARY_WORDS,
   appointmentWordOf,
   channelNeverCarries,
-  channelsWords,
   defaultParamSpecs,
   startersForTrigger,
   starterText,
@@ -321,31 +321,38 @@ test("a starter not on file where there is no number: no channel named is email 
   assert.deepEqual(tables.playbooks.find((p) => p.id === made.id).channels, ["email"]);
 });
 
-test("WhatsApp named alone with no version WhatsApp approved is refused before anything is filed, in words that say what would carry it; nothing reaches Meta", async () => {
-  const words = LIBRARY_STARTER_WORDS.waitsForWhatsApp(
-    WIN_BACK.title,
-    channelsWords(["whatsapp"]),
-    channelsWords(["email"]),
-  );
-  // The starter not on file: its WhatsApp version would go to Meta and carry nothing until approved.
+test("WhatsApp named alone is a campaign that waits for WhatsApp's check, as a sequence picked in New is made (the one picker rule): its version goes to WhatsApp once and the campaign is made on it; one being checked is used as it is; one WhatsApp asked a change to is refused before anything is filed, in the message's own words", async () => {
+  // The starter not on file: its WhatsApp version goes for review, and the campaign is made by WhatsApp alone, its
+  // people held until WhatsApp approves it (core paced.ts). It was refused, and nothing could be started.
   const post = open();
-  await refused(
-    post({ trigger: "quiet_30", starter_key: WIN_BACK.key, channels: ["whatsapp"] }),
-    "validation",
-    400,
-    words,
+  const first = await post({ trigger: "quiet_30", starter_key: WIN_BACK.key, channels: ["whatsapp"] });
+  assert.equal(meta.calls.length, 1, "sent to WhatsApp once");
+  const sent = tables.templates.find((t) => t.name === WIN_BACK.name && t.channel === "whatsapp");
+  assert.equal(sent.meta_status, "pending");
+  const alone = tables.playbooks.find((p) => p.id === first.id);
+  assert.deepEqual(alone.channels, ["whatsapp"]);
+  assert.equal(
+    tables.templates.find((t) => t.id === alone.template_id).name,
+    WIN_BACK.name,
+    "the campaign goes on the starter's message",
   );
-  assert.deepEqual([tables.templates, tables.playbooks, tables.decisions, meta.calls], [[], [], [], []]);
-  // On file and still in review: the same.
+  // On file and being checked: made on it as it is, and nothing goes to WhatsApp again.
   const inReview = starterRow(T1, WIN_BACK, { meta_status: "pending" });
   const again = open({ templates: [inReview] });
+  const second = await again({ trigger: "quiet_30", starter_key: WIN_BACK.key, channels: ["whatsapp"] });
+  assert.deepEqual(tables.playbooks.find((p) => p.id === second.id).channels, ["whatsapp"]);
+  assert.deepEqual(meta.calls, []);
+  // A version WhatsApp asked a change to does not come back by itself: by WhatsApp alone the campaign goes nowhere, so
+  // it is refused before anything is filed, in the sentence the message says of that version everywhere.
+  const changed = starterRow(T1, WIN_BACK, { meta_status: "rejected" });
+  const never = open({ templates: [changed] });
   await refused(
-    again({ trigger: "quiet_30", starter_key: WIN_BACK.key, channels: ["whatsapp"] }),
-    "validation",
-    400,
-    words,
+    never({ trigger: "quiet_30", starter_key: WIN_BACK.key, channels: ["whatsapp"] }),
+    "conflict",
+    409,
+    "WhatsApp asked for a change to this message's words. AI writes new words for you to send back.",
   );
-  assert.deepEqual([tables.templates, tables.playbooks, meta.calls], [[inReview], [], []]);
+  assert.deepEqual([tables.templates, tables.playbooks, meta.calls], [[changed], [], []]);
   // Named with email, it is a campaign: email carries it at once.
   const both = open();
   const made = await both({ trigger: "quiet_30", starter_key: WIN_BACK.key, channels: ["whatsapp", "email"] });
