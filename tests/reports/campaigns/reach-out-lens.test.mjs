@@ -573,7 +573,7 @@ test("a mailbox's cells are counts under five sent, shares from five, and a dash
 test("a period that wrote nothing says so, a workspace with no reach-out draws nothing", () => {
   const empty = vm({ ...NOTHING });
   assert.deepEqual([empty.present, empty.empty, empty.days], [true, true, 30]);
-  assert.equal(empty.lines.empty, "No sequence to leads wrote in the last 30 days.");
+  assert.equal(empty.lines.empty, "No cold email campaign wrote in the last 30 days.");
   assert.deepEqual(empty.emails, { rows: [], line: null, empty: "Nothing was written in these days." });
   assert.deepEqual(empty.businesses, { rows: [], line: null, empty: "No business was written to in these days." });
   assert.deepEqual(empty.angles, {
@@ -612,7 +612,7 @@ test("a period of one day (This month so far, on the 1st) is today, and one a me
   const quiet = vm({ ...day, ...NOTHING });
   assert.deepEqual(
     [quiet.lines.empty, quiet.emails.empty, quiet.businesses.empty],
-    ["No sequence to leads wrote today.", "Nothing was written today.", "No business was written to today."],
+    ["No cold email campaign wrote today.", "Nothing was written today.", "No business was written to today."],
   );
   assert.equal(quiet.angles.empty, "No email today had an opening, so there is no angle to compare.");
   assert.doesNotMatch(JSON.stringify([quiet, today.emails, today.businesses]), /\b1 day\b|these days/);
@@ -623,7 +623,7 @@ test("a period of one day (This month so far, on the 1st) is today, and one a me
   const pickedEmpty = vm({ ...picked, ...NOTHING });
   assert.deepEqual(
     [pickedEmpty.lines.empty, pickedEmpty.emails.empty],
-    ["No sequence to leads wrote on Sep 20.", "Nothing was written on Sep 20."],
+    ["No cold email campaign wrote on Sep 20.", "Nothing was written on Sep 20."],
   );
 });
 
@@ -635,7 +635,7 @@ test("a window that ended before today is its days, said by them, with the days 
     vmEnded.strip.map((t) => t.compare),
     ["up from 30", "was 90% the 20 days before", "up from 1"],
   );
-  assert.equal(vm({ ...ended, ...NOTHING }).lines.empty, "No sequence to leads wrote in the 20 days to Sep 20.");
+  assert.equal(vm({ ...ended, ...NOTHING }).lines.empty, "No cold email campaign wrote in the 20 days to Sep 20.");
   assert.equal(vm({ ...ended, ...NOTHING }).emails.empty, "Nothing was written in these days.");
 });
 

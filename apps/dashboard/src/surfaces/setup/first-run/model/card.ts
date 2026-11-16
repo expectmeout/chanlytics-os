@@ -214,7 +214,7 @@ const CARD_REMIND = {
   nameShort: "Reminders",
   stateWords: SETUP_STATE_WORDS.not_started,
   words: "Your calendar is in. Remind each customer the day before.",
-  home: "Turn it on any time in Sequences.",
+  home: "Turn it on any time in Campaigns.",
   label: "Turn on",
   // New sequence on the day-before moment, its line written in (sequences/address.ts newSequenceRoute): the composer's
   // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).

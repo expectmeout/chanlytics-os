@@ -82,7 +82,7 @@ const gateRowAct = (kind: LeadRowActKind, canFind: boolean) =>
         ? {}
         : gate("find", "put this lead back")
       : kind === "add"
-        ? gate("approve", "add this lead to a sequence")
+        ? gate("approve", "add this lead to a campaign")
         : {};
 
 const LeadRowActions = ({ l, x }: { l: LeadRowVM; x: LeadCellCtx }) => {

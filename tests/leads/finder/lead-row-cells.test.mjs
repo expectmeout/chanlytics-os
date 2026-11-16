@@ -76,7 +76,7 @@ test("a row not contacted offers its Add in words, to the search's pick, and to 
   assert.deepEqual(picked.went, [["add", "l1"]], "the page's Add, for this lead");
   const none = ctxOf({ pickName: null });
   const choose = byTestId(drawn(lead(), none.ctx), "lead-add");
-  assert.equal(textOf(choose), "Add to a sequence");
+  assert.equal(textOf(choose), "Add to a campaign");
   press(choose);
   assert.deepEqual(none.went, [["open", "l1"]], "no pick: the lead's sheet, whose dock holds the picker");
 });
@@ -117,7 +117,7 @@ test("a member who may not press an act is told why at the press: the role gate'
   try {
     const gated = ctxOf({ canFind: false });
     const add = byTestId(drawn(lead(), gated.ctx), "lead-add");
-    assert.equal(add.props["data-gated"], "approve: add this lead to a sequence");
+    assert.equal(add.props["data-gated"], "approve: add this lead to a campaign");
     press(add);
     assert.deepEqual(gated.went, [], "a gated press adds nothing");
     const keep = byTestId(drawn(lead({ cls: "review", state: "review" }), gated.ctx), "lead-keep");
@@ -299,7 +299,7 @@ test("a heading's first press puts first what a member sorts by it for", () => {
 /* -------------------------------------------------------------------------- what a member can turn on (decision 0103) -- */
 
 const FOURTEEN = [
-  ["sequence", "Sequence", LEAD_COLUMN_GROUPS.stands],
+  ["sequence", "Campaign", LEAD_COLUMN_GROUPS.stands],
   ["contacted", "Last contacted", LEAD_COLUMN_GROUPS.stands],
   ["outcome", "Last outcome", LEAD_COLUMN_GROUPS.stands],
   ["category", "Kind", LEAD_COLUMN_GROUPS.who],
@@ -550,8 +550,8 @@ test("Stage's menu holds three switches with the view's counts and Hide column; 
     switchesIn(menus.stage).map((t) => [t.value, t.label, t.hint, t.on]),
     [
       ["needs", "Needs you", "2", false],
-      ["in", "In a sequence", "5", false],
-      ["none", "Not in a sequence", "20", false],
+      ["in", "In a campaign", "5", false],
+      ["none", "Not in a campaign", "20", false],
     ],
   );
   assert.match(menus.stage.groups[0].caption, /leads waiting on you/, "Today's Need you counts decisions, this leads");

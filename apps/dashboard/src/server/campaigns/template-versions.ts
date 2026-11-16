@@ -232,7 +232,7 @@ export async function saveVersion(
   versionRequest: VersionRequest,
 ): Promise<VersionSaved> {
   if (isReachOutRow({ name: versionRequest.name })) {
-    if (versionRequest.channel !== "email") throw new AppError("validation", "A sequence to leads sends email only.");
+    if (versionRequest.channel !== "email") throw new AppError("validation", "Cold email sends email only.");
     const saved = await saveReachOutEmail(ctx, member, versionRequest);
     return { version: saved.template, warnings: [], rechecked: saved.rechecked };
   }

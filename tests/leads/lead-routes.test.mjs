@@ -1174,7 +1174,7 @@ test("the export is a POST, the owner's, on the ledger like contacts/export, and
   );
   assert.equal(
     csv.split("\r\n")[0],
-    "Business,What they do,Street,City,State,ZIP,Phone,Email,Mailbox,Website,About,Facebook,LinkedIn,Google Maps,Rating,Reviews,Stage,Why,Search,Found,Phone checked,Sequence,Last contacted,Last outcome,Last note,Contact,Contact title,Company size,Claimed listing,Instagram,TikTok,Fit,Distance,Source,Exported",
+    "Business,What they do,Street,City,State,ZIP,Phone,Email,Mailbox,Website,About,Facebook,LinkedIn,Google Maps,Rating,Reviews,Stage,Why,Search,Found,Phone checked,Campaign,Last contacted,Last outcome,Last note,Contact,Contact title,Company size,Claimed listing,Instagram,TikTok,Fit,Distance,Source,Exported",
   );
   assert.ok(csv.includes("Travis Heights Coaching Co."));
   assert.equal(

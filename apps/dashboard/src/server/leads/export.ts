@@ -53,7 +53,7 @@ const LEAD_CSV_COLUMNS: ReadonlyArray<readonly [string, (r: LeadRowDto) => strin
   ["Found", (r) => r.found_at],
   // Added at the end, so a sheet made from the file before keeps its columns where they were.
   ["Phone checked", (r) => (!r.phone ? null : r.phone_wrong ? "Wrong" : r.phone_agrees ? "Yes" : "No")],
-  ["Sequence", (r) => r.place?.name ?? null],
+  ["Campaign", (r) => r.place?.name ?? null],
   ["Last contacted", (r) => r.contacted_at],
   ["Last outcome", (r) => leadOutcomeWord(r.last_outcome)],
   ["Last note", (r) => r.last_note],

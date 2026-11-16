@@ -29,7 +29,7 @@ export const LEAD_LINE_WORDS = {
   contact: "Contact",
   company: "Company",
   about: "About",
-  sequence: "Sequence",
+  sequence: "Campaign",
   history: "History",
   /** The verdict in a line: its word without the word the line's label says. */
   verdict: (word: string) => word.replace(/ fit$/i, ""),

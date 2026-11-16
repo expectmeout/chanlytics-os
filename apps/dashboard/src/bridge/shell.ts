@@ -210,7 +210,7 @@ export const SURFACE_LABELS: Readonly<Record<string, string>> = {
   playbooks: "Campaigns",
   reach_outs: "Cold email",
   reach_out_replies: "Replies from leads",
-  sequences: "Sequences",
+  sequences: "Campaigns",
   calendar: "Calendar",
   calendar_runs: "Campaigns on the Calendar",
   today_pins: "Lists pinned to Today",

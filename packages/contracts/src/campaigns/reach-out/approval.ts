@@ -294,10 +294,10 @@ export const TO_SEND_ALL_WORDS = {
   status: "Handed to you",
   /** "12 emails handed to you, from 3 sequences"; one sequence (its first email and its nudge) says none. */
   sub: (n: number, from: number) =>
-    `${plural(n, "email", "emails")} handed to you${from > 1 ? `, from ${from} sequences` : ""}`,
+    `${plural(n, "email", "emails")} handed to you${from > 1 ? `, from ${from} campaigns` : ""}`,
   /** Today's one row for them: what waits, and from how many sequences to leads where more than one. */
   sentence: (n: number, from: number) =>
-    `${plural(n, "email", "emails")} to send from your inbox${from > 1 ? `, from ${from} sequences` : ""}, each written and checked.`,
+    `${plural(n, "email", "emails")} to send from your inbox${from > 1 ? `, from ${from} campaigns` : ""}, each written and checked.`,
   /** Today's brief for them, as one run's line: "Your cold emails are waiting for you: …". */
   brief: (from: number) =>
     from > 1
@@ -316,7 +316,7 @@ export const TO_SEND_ALL_WORDS = {
     step === null ? `${name} · ${n}` : `${name} · ${step === 0 ? "first email" : stepLabel(step).toLowerCase()} · ${n}`,
   openRun: RUN_OPEN_WORDS,
   /** A run's own To send, where other runs hand emails over too: the door to all of them. */
-  everyRun: (n: number, from: number) => `All ${n} to send${from > 1 ? `, from ${from} sequences` : ""}`,
+  everyRun: (n: number, from: number) => `All ${n} to send${from > 1 ? `, from ${from} campaigns` : ""}`,
   reading: "Reading its emails…",
   unread: "Its emails could not be read just now. Open the run to see them.",
   /** Every email handed over is said: what the pane says once its list is empty. */
@@ -342,7 +342,7 @@ const NEEDS_YOU_ROUTE = "inbox";
 
 /** The block's own acts. */
 const REACH_OUT_RUN_LABELS = {
-  back: "Back to Sequences",
+  back: "Back to Campaigns",
   approving: "Approving…",
   skip: "Skip this run",
   skipYes: "Yes, skip it",

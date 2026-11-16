@@ -76,11 +76,11 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   quiet_now:
     "People whose last message or call to you was more than 30 days ago, as of now, whatever period is picked. Your own messages are not theirs, and a person who has never written or phoned is not counted.",
   emails_written:
-    "Emails your sequences to leads wrote in this period, one for each email that left, however many went to the same business. A call or a note handed to you, and an email that never left, are not counted.",
+    "Emails your cold email wrote in this period, one for each email that left, however many went to the same business. A call or a note handed to you, and an email that never left, are not counted.",
   emails_landed:
-    "Of the emails your sequences to leads wrote in this period, the share the email provider reports as delivered. An email with no receipt yet is not counted as delivered.",
+    "Of the emails your cold email wrote in this period, the share the email provider reports as delivered. An email with no receipt yet is not counted as delivered.",
   emails_bounced:
-    "Emails your sequences to leads wrote in this period that bounced for good: the address refused them and will go on refusing. A complaint, and an email that is only late, are not counted.",
+    "Emails your cold email wrote in this period that bounced for good: the address refused them and will go on refusing. A complaint, and an email that is only late, are not counted.",
   people_sent_to:
     "People a campaign sent a message to in this period, counted once however many it sent them. A person a run held back, a message that failed before it left and an email to a lead are not counted.",
   people_wrote_back: `Of the people sent a message in this period, how many answered in their own words ${REPLY_WINDOW_WORDS}, on any channel, counted once. A note the system wrote, an automatic reply, a booking tool's notice and an answer that came later are not counted; people sent to in the last ${REPLY_DAYS} may still answer.`,

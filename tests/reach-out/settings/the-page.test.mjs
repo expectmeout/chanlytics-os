@@ -308,7 +308,7 @@ test("the ending opened on the name a sequence signs with, saved as it stands, s
   let tree = await drawOnRead({}, { sequence: SEQUENCE_SIGNED_MAYA }, (t) => !!byTestId(t, "rec-ending-lines"));
   openFold(tree, "ending");
   tree = redrawTab();
-  assert.match(textOf(foldOf(tree, "ending")), /From your newest sequence/);
+  assert.match(textOf(foldOf(tree, "ending")), /From your newest campaign/);
   saveFoldOf(tree, "ending");
   assert.equal(sent.length, 0);
   unmount();
@@ -791,7 +791,7 @@ test("a pitch row nobody filled says what an email is written without, and one t
 test("Before each batch offers holding or asking, never sending on its own, and says it is for new sequences", async () => {
   let tree = await drawOnRead({}, {}, (t) => /Held 30 minutes/.test(textOf(byTestId(t, "rec-row-batch_mode"))));
   // On its face too, not only in its sheet: the row is what a new sequence starts as.
-  assert.match(textOf(byTestId(tree, "rec-row-batch_mode")), /Before each batch, on new sequences/);
+  assert.match(textOf(byTestId(tree, "rec-row-batch_mode")), /Before each batch, on new campaigns/);
   openFold(tree, "batch_mode");
   tree = redrawTab();
   const choice = textOf(byTestId(tree, "rec-batch-mode-choice"));
@@ -799,7 +799,7 @@ test("Before each batch offers holding or asking, never sending on its own, and 
   assert.match(choice, /Ask me/);
   assert.doesNotMatch(choice, /Send it/);
   const note = textOf(byTestId(tree, "rec-batch-note"));
-  assert.match(note, /For new sequences\. Each sequence can change its own\./);
+  assert.match(note, /For new campaigns\. Each campaign can change its own\./);
   assert.match(note, /New words always wait for your OK/);
   unmount();
 });
@@ -875,8 +875,8 @@ test("Try it with no running sequence to leads says to start one, and asks the p
   let tree = page();
   press(byTestId(tree, "rec-row-act-try_lead"));
   tree = redrawTab();
-  assert.match(textOf(byTestId(tree, "rec-try-none")), /Start a sequence to see one/);
-  assert.ok(!asked.some((u) => u.includes("reach-outs/preview")), "no sequence, no email written");
+  assert.match(textOf(byTestId(tree, "rec-try-none")), /Start a campaign to see one/);
+  assert.ok(!asked.some((u) => u.includes("reach-outs/preview")), "no campaign, no email written");
 });
 
 test("a claim's row says how many emails carried it, from the page's own read", async () => {
@@ -1180,7 +1180,7 @@ test("a sample email is written once per open: the page reading again writes no 
       () => textOf(byTestId(redrawTab(), "rec-try-lead")).includes("Lakeside Family Dental"),
       "the next business's email",
     );
-    assert.equal(door.written.length, 2, "the same sequence, read again, is no reason to write another email");
+    assert.equal(door.written.length, 2, "the same campaign, read again, is no reason to write another email");
   } finally {
     Date.now = realNow;
   }

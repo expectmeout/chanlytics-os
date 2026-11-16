@@ -106,7 +106,7 @@ export const PLACE_WORDS: Record<SequencePeopleGroup, string> = {
 };
 
 /** In it, as a row says it, where the sequence is named in the line under the word, never in the word. */
-const PLACE_IN_ROW_WORD = "In sequence";
+const PLACE_IN_ROW_WORD = "In campaign";
 
 /** A lead on a sequence's list that its next batch cannot take: the word, amber, with why in the line. */
 export const PLACE_NOT_PLANNED_WORD = "Not planned";

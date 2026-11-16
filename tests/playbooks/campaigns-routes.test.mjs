@@ -106,7 +106,7 @@ test("the home's addresses, Sent's, and the composer's land in one move on the p
   // its own; a day of History is that run, at its home.
   assert.equal(retiredRouteOf("broadcasts/run:b-1"), "campaigns/sequences/b-1/runs/b-1");
   assert.equal(retiredRouteOf("broadcasts/run:b-1/sheet"), "campaigns/sequences/b-1/runs/b-1");
-  assert.equal(retiredRouteOf("broadcasts/run:"), "campaigns/sequences", "a run named by nothing is Sequences");
+  assert.equal(retiredRouteOf("broadcasts/run:"), "campaigns/sequences", "a run named by nothing is Campaigns");
   assert.equal(retiredRouteOf("campaigns/sequences/sq-1/history/b-1"), "campaigns/sequences/sq-1/runs/b-1");
   // Sent's own views: To send is a part of the Inbox's Needs you (lane 4), Get their yes People's sheet (lane 7).
   assert.equal(retiredRouteOf("broadcasts/to-send"), TO_SEND_ROUTE);
@@ -182,7 +182,7 @@ test("Campaigns' crumbs are its first view's at every address but Ads, a sheet o
   }
   // A sequence open is named once the list holds it, and a new one says so.
   globalThis.window = { location: { pathname: "/w/acme/campaigns/sequences/q-1" } };
-  assert.deepEqual(c("sequences").crumbs, ["Campaigns"], "before the list is read no sequence is named");
+  assert.deepEqual(c("sequences").crumbs, ["Campaigns"], "before the list is read no campaign is named");
   setSurfaceValue("sequences", { sequences: [{ id: "q-1", name: "Win-back" }] });
   assert.deepEqual(c("sequences").crumbs, [HOME, "Win-back"]);
   globalThis.window = { location: { pathname: "/w/acme/campaigns/sequences/new" } };
@@ -205,7 +205,7 @@ test("Campaigns' crumbs are its first view's at every address but Ads, a sheet o
   assert.deepEqual(
     c(null).views.tabs.map((t) => [t.id, t.label, t.to]),
     [
-      ["sequences", "Sequences", "campaigns/sequences"],
+      ["sequences", "Campaigns", "campaigns/sequences"],
       ["messages", "Messages", "campaigns/messages"],
       ["content", "Content", "campaigns/content"],
     ],
@@ -214,7 +214,7 @@ test("Campaigns' crumbs are its first view's at every address but Ads, a sheet o
   for (const p of ["messages", "messages/x"]) {
     const at = c(p);
     assert.deepEqual(at.crumbs, [HOME, "Messages"], p);
-    assert.equal(at.mount, "campaigns", `${p}: one mount with Sequences, so a switch keeps both drawn`);
+    assert.equal(at.mount, "campaigns", `${p}: one mount with Campaigns, so a switch keeps both drawn`);
     assert.equal(at.views?.picked, "messages", p);
     assert.equal(at.pane, true, p);
     assert.equal(at.act, null, p);
@@ -304,9 +304,9 @@ test("the frame takes every address of Campaigns, and of its rooms: a sequence, 
   assert.equal(
     SURFACE_ROUTES.campaigns.pane,
     true,
-    "Sequences is the Inbox's two panes: the list, and a sequence beside it",
+    "Campaigns is the Inbox's two panes: the list, and a campaign beside it",
   );
-  assert.equal(SURFACE_ROUTES.campaigns.mount, "campaigns", "a sequence or a sheet opened over it is no new page");
+  assert.equal(SURFACE_ROUTES.campaigns.mount, "campaigns", "a campaign or a sheet opened over it is no new page");
   // The rooms are the Inbox's two panes (campaigns/parts/split.tsx): the list, and what is open beside it, each scrolling itself.
   assert.equal(SURFACE_ROUTES.broadcasts.pane, true);
   assert.equal(SURFACE_ROUTES.messages.pane, true);
@@ -326,7 +326,7 @@ test("a move between two addresses of Campaigns is the page's own: opening a seq
     "a message at its home is a view of the same mount",
   );
   assert.ok(onOnePage("campaigns/new:to:s1", "campaigns"));
-  assert.ok(onOnePage("campaigns/sequences", "campaigns/messages"), "Sequences and Messages are one mount's two views");
+  assert.ok(onOnePage("campaigns/sequences", "campaigns/messages"), "Campaigns and Messages are one mount's two views");
   assert.ok(onOnePage("campaigns/sequences/q-1", "campaigns/messages"));
   assert.ok(!onOnePage("campaigns", "broadcasts/get-yes"), "a room is its own page");
   assert.ok(!onOnePage("broadcasts/run:b-1", "campaigns"));

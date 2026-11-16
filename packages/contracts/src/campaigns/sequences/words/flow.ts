@@ -20,11 +20,11 @@ export const SEQUENCE_WORDS = {
   backToLeads: "Leads",
   /** A phone record's Back, where Leads opened it: the way back is the screen's only one. */
   backToLeadsLabel: "Back to Leads",
-  search: "Search sequences",
+  search: "Search campaigns",
   /** The list's views over its search (Pipeline's "All deals ⌄"): every sequence, or one of its groups. */
-  views: { label: "Which sequences", all: "All sequences" },
-  empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.",
-  failed: "The sequences couldn’t be loaded right now",
+  views: { label: "Which campaigns", all: "All campaigns" },
+  empty: "Nothing sends on its own yet. A campaign starts at a moment, when someone joins a list, or on a date.",
+  failed: "The campaigns couldn’t be loaded right now",
   filters: { all: "All", needs: "Needs you", off: "Paused or off" },
   groups: {
     needs: "Needs you",
@@ -49,7 +49,7 @@ export const SEQUENCE_WORDS = {
   approve: "Approve",
   skip: "Skip",
   skipAsk: "Skip this batch?",
-  skipDetail: "Nobody in it gets this step from this batch; the sequence goes on with its next one.",
+  skipDetail: "Nobody in it gets this step from this batch; the campaign goes on with its next one.",
   lookFirst: "Look first",
   pause: "Pause",
   resume: "Turn on",
@@ -114,7 +114,7 @@ export const SEQUENCE_FLOW_WORDS = {
   mailboxes: "Mailboxes",
   checked: "Each one is checked before it goes",
   takeAwayAsk: (place: number) => `Take step ${place} away?`,
-  takeAwayDetail: "The steps after it go with it; nobody waiting for it hears more from this sequence.",
+  takeAwayDetail: "The steps after it go with it; nobody waiting for it hears more from this campaign.",
   /** A call or a note asked away: it is always the last step, so nothing goes with it. */
   takeAwayHandDetail: "Nobody still waiting for it lands on your Today.",
   /** New words a step waits on WhatsApp for, or that WhatsApp turned down: said without the message's stored name. */
@@ -135,7 +135,7 @@ export const SEQUENCE_FLOW_WORDS = {
    * starts (decision 0119), two hours before; after the visit is its own moment.
    */
   noFollowUpOnReminder: (trigger: string | null | undefined) =>
-    `A reminder goes once, ${trigger === "visit_soon" ? "two hours before" : "the day before"}. To write to them afterwards, start a sequence that sends after it.`,
+    `A reminder goes once, ${trigger === "visit_soon" ? "two hours before" : "the day before"}. To write to them afterwards, start a campaign that sends after it.`,
   /** A step's change refused by the door (decision 0065 step 6): a message step keeps a message, a call or a note its words. */
   handOnMessage: "This step sends a message. To call them instead, add a call as the last step.",
   valuesOnHand: "A call or a note has no message to fill. Change what it says to do instead.",

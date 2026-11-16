@@ -32,7 +32,7 @@ export const sequenceStartSpec: ProposalSpec = {
       ? { route: "PUT playbooks/[id]", params: { id }, body: { state: "running" } }
       : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
-  receipt: ({ payload: pl }) => (asText(pl.name) ? `“${asText(pl.name)}” is on` : "The sequence is on"),
+  receipt: ({ payload: pl }) => (asText(pl.name) ? `“${asText(pl.name)}” is on` : "The campaign is on"),
   undo: {
     label: () => "Pause it",
     window: "ten_minutes",
@@ -122,7 +122,7 @@ export const sequenceAddSpec: ProposalSpec = {
   },
   receipt: ({ payload: pl }, data) => {
     const added = Number(rec(data).added ?? 0);
-    const name = asText(pl.name) || "the sequence";
+    const name = asText(pl.name) || "the campaign";
     const lead = asText(pl.lead_name);
     const draft = pl.draft === true ? " (draft)" : "";
     if (added === 0) return `None could be added to ${name}`;
@@ -151,7 +151,7 @@ export const sequenceMoveSpec: ProposalSpec = {
       ? { route: "POST sequences/[id]/move", params: { id }, body: { lead_id: lead } }
       : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
-  receipt: ({ payload: pl }) => `${asText(pl.lead_name) || "The lead"} moved to ${asText(pl.name) || "the sequence"}`,
+  receipt: ({ payload: pl }) => `${asText(pl.lead_name) || "The lead"} moved to ${asText(pl.name) || "the campaign"}`,
   undo: {
     label: () => "Move back",
     window: "ten_minutes",
