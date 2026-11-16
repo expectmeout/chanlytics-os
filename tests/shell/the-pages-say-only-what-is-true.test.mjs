@@ -510,7 +510,7 @@ test("REGRESSION: a link to a thread the Inbox has not loaded draws the missing 
   });
   cells = [];
   frames.begin();
-  const tree = Inbox({ initialThreadId: "th-missing", showAgentRail: false });
+  const tree = Inbox({ initialThreadId: "th-missing" });
   const missing = (() => {
     let hit = null;
     walk(tree, (n) => {
@@ -546,7 +546,7 @@ test("REGRESSION: the missing notice holds when the Inbox is read again -- on th
     });
     const render = () => {
       frames.begin();
-      return Inbox({ initialThreadId: "th-missing", showAgentRail: false });
+      return Inbox({ initialThreadId: "th-missing" });
     };
     const missingIn = (tree) => {
       let hit = null;

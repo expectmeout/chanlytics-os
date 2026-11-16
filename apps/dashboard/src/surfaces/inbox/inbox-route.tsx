@@ -65,7 +65,6 @@ export function InboxRoute() {
     <>
       <Inbox
         density={prefs.inboxDensity}
-        showAgentRail={prefs.showInboxAgentRail}
         initialThreadId={threadParam}
         replies={replies}
         toSendOpen={toSend}

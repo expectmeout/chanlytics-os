@@ -34,7 +34,6 @@ export interface Prefs {
   look?: LookPref;
   sidebar: SidebarPref;
   inboxDensity: "compact" | "medium" | "rich";
-  showInboxAgentRail: boolean;
 }
 
 /** What the shell's chrome changes: the theme and the look from the account menu, the rail from ⌘B and its button. */
@@ -47,7 +46,6 @@ const PREF_DEFAULTS: Prefs = {
   theme: DEFAULT_THEME_PREF,
   sidebar: DEFAULT_SIDEBAR_PREF,
   inboxDensity: "medium",
-  showInboxAgentRail: false,
 };
 
 /** This device's preferences, with anything unknown or stale replaced by the default, and a look only as chosen. */

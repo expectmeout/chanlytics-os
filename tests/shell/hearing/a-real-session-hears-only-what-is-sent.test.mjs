@@ -55,7 +55,6 @@ Object.assign(W, {
   SOON_META: routeTable.SOON_META,
   drawRoute: routeTable.drawRoute,
 });
-const { hearPresence } = await importSrc("apps/dashboard/src/surfaces/inbox/store.ts");
 const { SURFACE_STATES } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 
 /** The events with no sender left, and the name a patched-ahead sidebar once heard its own name change by. */
@@ -141,15 +140,6 @@ test("the strip of views hears the live feed alone, the Needs-you badge being th
   assert.deepEqual([...tabs].sort(), ["surface:live"], "the Live tab's pulse: no event feeds the Needs-you badge");
   const sheet = heardWhile(false, drawn(W.ShortcutsSheet));
   assert.deepEqual([...sheet], ["keydown"], "it opens on ? and by openShortcuts(), never by an event");
-});
-
-test("the Inbox's veto store hears the member go Away only in a demo, where the control that sets it is drawn", () => {
-  const stopped = [];
-  const real = heardWhile(false, () => stopped.push(hearPresence()));
-  assert.equal(real.has("presence:changed"), false, "a real session has no Away to hear");
-  const demo = heardWhile(true, () => stopped.push(hearPresence()));
-  assert.equal(demo.has("presence:changed"), true, "the demo's countdowns freeze and thaw with it");
-  for (const stop of stopped) stop();
 });
 
 test("SOON_META words the landing of the mockup's own pages and no others: its keys are the registry's demo pages (A3b)", () => {

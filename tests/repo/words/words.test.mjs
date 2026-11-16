@@ -206,11 +206,6 @@ test("who reads a file is said by where it lives", () => {
 const THE_DEMO_STILL_SAYS_AGENT = [
   "apps/dashboard/src/surfaces/frame/route-table.tsx",
   "apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx",
-  "apps/dashboard/src/surfaces/inbox/pages/agent-rail.tsx",
-  "apps/dashboard/src/surfaces/inbox/sample.ts",
-  "apps/dashboard/src/surfaces/inbox/sample/conversations.ts",
-  "apps/dashboard/src/surfaces/inbox/sample/threads-needing-you.ts",
-  "apps/dashboard/src/surfaces/inbox/sample/threads-watching.ts",
 ];
 
 test("outside the demo's sample screens, no page calls the product's AI by another name", () => {

@@ -18,9 +18,6 @@
   background: var(--bg);
   overflow: hidden;
 }
-.inbox.with-rail {
-  grid-template-columns: var(--rail-list) minmax(0, 1fr) 320px;
-}
 
 /* ====================================================================
    LEFT RAIL
@@ -1357,7 +1354,6 @@ html.frame-on .tl-listen-play, html.frame-on .tl-listen-speed, html.frame-on .tl
   to { box-shadow: 0 0 0 6px transparent; }
 }
 
-
 /* A call still going, drawn alone (conversations.jsx CallPane): the line, and Live to hear it. */
 .tl-call-live-acts { display: flex; justify-content: center; }
 
@@ -1473,245 +1469,6 @@ html.frame-on .tl-listen-play, html.frame-on .tl-listen-speed, html.frame-on .tl
 .ix-composer-actions { display: flex; gap: 6px; align-items: center; }
 /* A reply box that is only its acts -- a closed window, a caller with no chat -- has nothing over them to stand off. */
 .ix-composer > .ix-composer-foot:first-child { margin-top: 0; }
-
-/* ====================================================================
-   AGENT RAIL — refined
-   ==================================================================== */
-
-.ix-agent-rail {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-sunken);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
-}
-.ix-agent-rail::-webkit-scrollbar { width: 6px; }
-.ix-agent-rail::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
-
-.ix-rail-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg-sunken);
-  position: sticky; top: 0; z-index: 1;
-}
-.ix-rail-eyebrow {
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
-}
-
-.ix-rail-section {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--line);
-}
-.ix-rail-section:last-child { border-bottom: none; }
-.ix-rail-label {
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
-  margin-bottom: 10px;
-}
-
-.ix-rail-agent-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.ix-rail-agent-name { font-size: 13px; font-weight: 500; color: var(--ink); }
-.ix-rail-agent-autonomy {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-  margin-top: 2px;
-}
-.ix-rail-agent-autonomy .icon { color: var(--ink-faint); }
-
-.ix-rail-tone {
-  margin-top: 12px;
-  padding: 8px 10px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.ix-rail-tone-label {
-  font-size: 9.5px;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.ix-rail-tone-text { font-size: 11.5px; color: var(--ink-muted); line-height: 1.4; }
-
-/* Sources scanned */
-.ix-sources { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-.ix-source {
-  display: grid;
-  grid-template-columns: 50px 1fr;
-  gap: 8px;
-  align-items: center;
-  font-size: var(--text-xs);
-}
-.ix-source-kind {
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  padding: 2px 5px;
-  border-radius: 3px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  color: var(--ink-muted);
-  text-align: center;
-  line-height: 13px;
-}
-.ix-source-kind.kind-policy { color: var(--accent); border-color: var(--accent); }
-.ix-source-kind.kind-case   { color: var(--ok); border-color: var(--ok); }
-.ix-source-label { font-size: var(--text-xs); color: var(--ink); line-height: 1.4; }
-
-/* Considered */
-.ix-considered { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-.ix-cons {
-  display: grid;
-  grid-template-columns: 12px 1fr;
-  gap: 6px;
-  align-items: flex-start;
-}
-.ix-cons .icon { color: var(--ink-faint); margin-top: 3px; }
-.ix-cons-label { font-size: 11.5px; color: var(--ink); line-height: 1.4; }
-.ix-cons-why { font-size: 10.5px; color: var(--ink-dim); margin-top: 1px; line-height: 1.45; }
-
-/* Quick stats grid */
-.ix-rail-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-.ix-stat {
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.ix-stat-label {
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.ix-stat-value {
-  font-size: 14px;
-  color: var(--ink);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Ask the agent */
-.ix-ask-section { background: var(--bg); }
-.ix-ask {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ix-ask-input {
-  width: 100%;
-  resize: none;
-  font-family: var(--font-sans);
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--ink);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  outline: none;
-  transition: border-color 120ms;
-}
-.ix-ask-input:focus { border-color: var(--ink-faint); background: var(--bg); }
-.ix-ask-input::placeholder { color: var(--ink-faint); }
-
-.ix-ask-suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.ix-ask-chip {
-  font-size: 10.5px;
-  color: var(--ink-muted);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-full);
-  padding: 2px 8px;
-  cursor: pointer;
-  transition: all 120ms;
-}
-@media (hover: hover) {
-  .ix-ask-chip:hover {
-    background: var(--bg-raised);
-    color: var(--ink);
-    border-color: var(--ink-faint);
-  }
-}
-
-/* Autonomy segmented */
-.ix-autonomy-seg {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 2px;
-}
-.ix-aut-seg {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 6px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-xs);
-  font-size: 10.5px;
-  color: var(--ink-muted);
-  cursor: pointer;
-  transition: all 120ms;
-  font-weight: 500;
-  text-align: center;
-  line-height: 1.3;
-}
-@media (hover: hover) { .ix-aut-seg:hover { color: var(--ink); background: var(--bg-sunken); } }
-.ix-aut-seg.active {
-  background: var(--bg-raised);
-  color: var(--ink);
-  box-shadow: var(--shadow-sm);
-}
-.ix-aut-seg .icon { color: var(--ink-faint); }
-.ix-aut-seg.active .icon { color: var(--ink); }
-
-.ix-aut-hint {
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-  line-height: 1.5;
-  margin-top: 8px;
-  font-style: italic;
-}
 
 /* Density */
 .ix-list.compact .ix-thread {
@@ -1872,30 +1629,6 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
 @media (hover: hover) { .ix-evid.linked:hover { background: var(--bg-hover); } }
 
 /* Ask-the-agent mini log */
-.ix-ask-log { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
-.ix-ask-qa { display: flex; flex-direction: column; gap: 5px; }
-.ix-ask-q {
-  align-self: flex-end;
-  max-width: 90%;
-  font-size: var(--text-xs);
-  color: var(--ink);
-  background: var(--bg-active);
-  border-radius: 10px 10px var(--radius-xs) 10px;
-  padding: 6px 10px;
-}
-.ix-ask-a {
-  display: flex;
-  gap: 7px;
-  align-items: flex-start;
-  font-size: var(--text-xs);
-  line-height: 1.55;
-  color: var(--ink-muted);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: 10px 10px 10px var(--radius-xs);
-  padding: 7px 10px;
-}
-.ix-ask-a .agent-avatar { flex-shrink: 0; margin-top: 1px; }
 
 /* Autonomy saved flash */
 .ix-aut-saved { display: inline-flex; align-items: center; gap: 5px; color: var(--ok); }
@@ -1960,15 +1693,6 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
 
 .ix-veto.paused{border-style:dashed;background:var(--bg-raised)}
 .ix-veto.paused .ix-veto-dot{background:var(--warn);animation:none}
-
-/* Rail — policy control (charter-aware, deep-dive fix) */
-.ix-pol-seg{grid-template-columns:repeat(4,1fr)}
-.ix-pol-seg .ix-aut-seg{padding:6px 4px;flex-direction:row;justify-content:center}
-.ix-pol-locked{display:flex;gap:8px;align-items:flex-start;font-size:12px;line-height:1.5;color:var(--ink-muted);background:color-mix(in oklab,var(--warn) 8%,transparent);border:1px solid color-mix(in oklab,var(--warn) 26%,transparent);border-radius:var(--radius-sm);padding:9px 11px}
-.ix-pol-locked b{color:var(--ink);font-weight:var(--weight-medium)}
-.ix-pol-locked .icon{color:var(--warn);flex-shrink:0;margin-top:1px}
-.ix-pol-link{display:inline-flex;align-items:center;gap:3px;background:none;border:none;padding:0;margin-top:4px;color:var(--accent);font:inherit;font-size:var(--text-xs);cursor:pointer}
-@media (hover: hover) { .ix-pol-link:hover{text-decoration:underline} }
 
 /* The composer's honest state when a workspace has no approved template.
    Outside the 24-hour window WhatsApp delivers nothing else, so the operator

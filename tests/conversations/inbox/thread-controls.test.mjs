@@ -811,9 +811,9 @@ test("REGRESSION (S9-7): their visit is a door to the visit beside the head on a
       "Next appointment Tue, Sep 8 2:00 PM",
       "and the words under the name, on a desk too",
     );
-    // A demo's thread has no visit to open.
+    // A session that says it is a demo opens it as any does: the demo's own rule went with demo mode (16 Nov 2026).
     globalThis.window.__DEMO_MODE = true;
-    assert.equal(door(withVisit("calendar/visit:v1")), undefined, "a demo opens no visit");
+    assert.equal(door(withVisit("calendar/visit:v1")).type, "a", "a demo opens the visit too");
   } finally {
     peopleAre(undefined);
     globalThis.window.__DEMO_MODE = false;

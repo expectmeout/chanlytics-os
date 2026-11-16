@@ -295,7 +295,7 @@ const page = (threads) => {
       return find(tree, (n) => n.type === ThreadPane)?.props ?? null;
     },
   };
-  const render = () => (tree = again(() => Inbox({ showAgentRail: false })));
+  const render = () => (tree = again(() => Inbox({})));
   render();
   return { seen, render };
 };

@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cvPicked, cvWhose } from "../cv-rules";
-import { demoSession, type Flash } from "../shell";
+import type { Flash } from "../shell";
 import { inboxData } from "../store";
 import type { ConversationLine, Picked } from "../types";
 import { pickArchiveAsk, pickBar, pickMark, pickRun } from "./pick";
@@ -46,9 +46,7 @@ export const useCvPick = (p: {
   const archived = new Set(
     (inboxData().THREADS || []).flatMap((t) => (t.real && t.archived && t.conversationId ? [t.conversationId] : [])),
   );
-  // The mockup's seeded rows act only inside the Inbox page's demo state: nothing here is theirs to pick.
   const of = (c: ConversationLine): Picked | null => {
-    if (demoSession()) return null;
     const whole = byName.get(cvWhose(c)) ?? c;
     return cvPicked(whole, { unread: unread(whole), archived: (id) => archived.has(id) });
   };

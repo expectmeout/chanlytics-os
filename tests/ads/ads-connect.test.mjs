@@ -346,28 +346,10 @@ test("the two demo ads People and the Inbox name are the Ads page's, by id, name
   }
 });
 
-test("the four demo threads say which ad brought them, the same ad the Ads page names; no other thread says one", async () => {
-  const { NEEDING_YOU } = await importSrc("apps/dashboard/src/surfaces/inbox/sample/threads-needing-you.ts");
-  const { WATCHING } = await importSrc("apps/dashboard/src/surfaces/inbox/sample/threads-watching.ts");
+test("the Ads page's two running ads are the ones its examples name", () => {
   const read = EXAMPLE_READS.running();
-  const threads = [...NEEDING_YOU, ...WATCHING];
-  const four = ["th-jordan-discount", "th-maya-recovery", "th-david-complaint", "th-aisha-refund"];
-  for (const id of four) {
-    const person = read.people.find((p) => p.threadId === id);
-    const ad = read.ads.find((a) => a.id === person.adId);
-    const said = threads.find((t) => t.id === id).fromAd;
-    assert.deepEqual([said.id, said.name, said.platform], [ad.id, ad.name, ad.platform], id);
-  }
-  assert.deepEqual(
-    threads
-      .filter((t) => t.fromAd)
-      .map((t) => t.id)
-      .sort(),
-    [...four].sort(),
-  );
   assert.deepEqual(
     [SPRING, SATURDAY].map((id) => read.ads.find((a) => a.id === id).name),
     ["Spring offer", "Saturday video"],
   );
-  assert.ok(![WEEKEND, NEAR_ME].some((id) => threads.some((t) => t.fromAd && t.fromAd.id === id)));
 });

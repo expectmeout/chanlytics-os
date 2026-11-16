@@ -174,7 +174,6 @@ test("REGRESSION (A19): a bulk snooze asks once per thread and reads the Inbox a
 
 const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
-const { InboxAgentRail } = await import(`${S}/surfaces/inbox/pages/agent-rail.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 
 const findAll = all;
@@ -363,7 +362,7 @@ test("REGRESSION (A19): the Inbox's bulk snooze is one act -- busy while it runs
   try {
     fresh();
     let tree;
-    const render = () => (tree = again(() => Inbox({ showAgentRail: false })));
+    const render = () => (tree = again(() => Inbox({})));
     const list = () => find(tree, (n) => n.type === InboxList).props;
     render();
     list().onToggleSelect(rosa.id);
@@ -672,48 +671,17 @@ test("REGRESSION (A25): the rows are a list a keyboard can walk -- Tab lands on 
   }
 });
 
-test("REGRESSION (D11, A3, A17): no invented receptionist on a real thread -- the rail is not drawn for one, and the view model carries no autonomy or voice to invent it from", () => {
+test("REGRESSION (D11, A3, A17): no invented receptionist on a real thread -- the page draws no rail beside it, and the view model carries no autonomy or voice to invent it from", () => {
   assert.deepEqual(
     Object.keys(rosa.agent).sort(),
     ["glyph", "name"],
     "REGRESSION: 'Pauses on handoff' and 'Warm · bilingual (EN/ES)' were written into every real thread",
   );
-  // The threads the rail was drawn for: the rail's elements in what the page drew.
-  const railed = (tree) =>
-    all(tree, (n) => n.type === InboxAgentRail).map((n) => (n.props.thread ? n.props.thread.id : null));
-  const draw = (threads) => {
-    fresh();
-    inboxWith(threads);
-    return again(() => Inbox({ showAgentRail: true }));
-  };
-  const real = draw([rosa]);
-  assert.deepEqual(railed(real), [], "REGRESSION: the rail drew canned answers beside a real customer");
-  assert.ok(!String(real.props.className).includes("with-rail"), "and the page keeps no column for it");
-  const seeded = {
-    id: "t-seed",
-    real: false,
-    who: "Aisha",
-    state: "needs",
-    tags: [],
-    whoMeta: "",
-    timeline: [],
-    agent: { name: "Front Desk", glyph: "F", autonomy: "Asks first", tone: "Warm" },
-    // What the list and the pane the page draws beside it read of a seeded thread.
-    avatar: "A",
-    channels: ["whatsapp"],
-    primaryChannel: "whatsapp",
-    subject: "",
-    preview: "",
-    summary: "",
-    lastAt: "",
-    lastAtFull: "",
-    unread: false,
-    pinned: false,
-    priority: "P2",
-  };
-  const demo = draw([seeded]);
-  assert.deepEqual(railed(demo), ["t-seed"], "the demo keeps its rail");
-  assert.ok(String(demo.props.className).includes("with-rail"));
+  // The rail was the mockup's, drawn for a seeded thread alone, and went with demo mode (16 Nov 2026).
+  fresh();
+  inboxWith([rosa]);
+  const real = again(() => Inbox({}));
+  assert.ok(!String(real.props.className).includes("with-rail"), "the page keeps no column for one");
 });
 
 test("the list tells Ask what it draws (the Phase 2 plan, D3): the conversations in its bucket, in the list's order, and the bucket that chose them", () => {
@@ -845,7 +813,7 @@ test("the Inbox works the mark out by the one rule: read while anyone picked is 
   try {
     fresh();
     let tree;
-    const render = () => (tree = again(() => Inbox({ showAgentRail: false })));
+    const render = () => (tree = again(() => Inbox({})));
     const list = () => find(tree, (n) => n.type === InboxList).props;
     render();
     assert.equal(list().bulkMark, null, "nothing picked: no mark to offer");

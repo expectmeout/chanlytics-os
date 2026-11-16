@@ -9,7 +9,6 @@ import type { IdentityApi } from "@/bridge/identity";
 import type { BellApi } from "@/bridge/notifications";
 import type { LiveSurface } from "../live/surface";
 import type { SwipeOptions } from "../kit/motion/swipe";
-import type { IX_STORE } from "../inbox/store";
 import { Icon } from "../kit/icon/icon";
 import { RecordSwitch } from "../kit/record/field";
 
@@ -20,7 +19,6 @@ declare global {
     /** The bell: its rows, its read state and this device's alerts (bridge/notifications.ts). */
     __notifs?: BellApi;
     /** The session's decisions on seeded threads (surfaces/inbox/store.ts), published by seed-globals.ts. */
-    IX_STORE?: typeof IX_STORE;
     /** Calls going on and the last few, with the heartbeat rule (surfaces/live/surface.ts), for the Live tab's pulse. */
     __LIVE?: LiveSurface;
     /** What needs you, the one count (surfaces/needs-you.ts), published by seed-globals.ts for the frame's parts. */

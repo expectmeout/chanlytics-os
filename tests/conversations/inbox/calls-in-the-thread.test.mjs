@@ -677,13 +677,10 @@ test("a whisper is the owner's own words, marked as theirs, with no moment in th
   const file = find(call, (n) => n.type === "a" && hasClass("tl-call-file")(n));
   assert.equal(file.props.href, "GET calls/[id]/export|k7", "the call's own transcript, from the route that writes it");
   assert.ok("download" in file.props);
+  // A session that says it is a demo is drawn the same: the demo's own rule went with demo mode (16 Nov 2026).
   globalThis.window.__DEMO_MODE = true;
   try {
-    assert.equal(
-      find(cardOf(again(vm)), hasClass("tl-call-file")),
-      undefined,
-      "no file in a demo, where there is no route to write it",
-    );
+    assert.ok(find(cardOf(again(vm)), hasClass("tl-call-file")), "the file in a demo too");
   } finally {
     globalThis.window.__DEMO_MODE = false;
   }

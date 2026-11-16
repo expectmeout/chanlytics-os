@@ -14,7 +14,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { EmptyState } from "../../kit/empty/empty";
 import { usePartShown, useSurface } from "../../use-surface";
-import { InboxAgentRail } from "./agent-rail";
 import { ThreadContext } from "./thread-context";
 import { SequenceRepliesLine, onlyThreadsOf, type SequenceRepliesRead } from "./inbox-from";
 import { ixHoldAll } from "./hold-all";
@@ -231,10 +230,9 @@ type InboxCounts = ReturnType<typeof inboxCounts>;
 /** The whole record: what the page is drawn from. */
 type InboxRecord = AfterBulk & InboxOnScreen & InboxBucketMoves & InboxCounts;
 
-/** What the page's caller sets: how much a row draws, whether the mockup's rail is, and where a person's name goes. */
+/** What the page's caller sets: how much a row draws, and where a person's name goes. */
 interface InboxProps {
   density?: Density;
-  showAgentRail?: boolean;
   onOpenClient?: (clientId: string | null | undefined) => void;
   initialThreadId?: string | null;
   /** The thread the link names is being read by its id (use-named-record.ts): say it is on its way, never that it is not here. */
@@ -400,7 +398,6 @@ const inboxPage = (
   ix: InboxRecord,
   {
     density,
-    showAgentRail,
     onOpenClient,
     opening,
     replies,
@@ -409,7 +406,6 @@ const inboxPage = (
   }: {
     root: RefObject<HTMLDivElement | null>;
     density: Density;
-    showAgentRail: boolean;
     onOpenClient: NonNullable<InboxProps["onOpenClient"]>;
     opening: boolean;
     replies: SequenceRepliesRead | null;
@@ -444,18 +440,13 @@ const inboxPage = (
     toastNode,
     ppFlash,
   } = ix;
-  // The agent rail is the mockup's, drawn for a seeded thread only. On a real one it invented the
-  // receptionist -- an autonomy line and a voice nobody set, an Ask box answering with canned text, a
-  // menu to a page this release hides (D11; the wiring audit's A3 and A17) -- and with no thread to show
-  // it kept an empty column.
-  const railThread = showAgentRail && !requestedMissing && activeThread && !activeThread.real ? activeThread : null;
   // A real thread's person beside it on a wide desk (thread-context.tsx): who they are, from People's row. Never on a
   // phone, where the list and the thread take turns and the header's door is the way to them.
   const personThread =
     !requestedMissing && activeThread && activeThread.real && activeThread.clientId && !ixOnPhone()
       ? activeThread
       : null;
-  const columns = railThread ? "with-rail" : personThread ? "with-context" : "";
+  const columns = personThread ? "with-context" : "";
 
   return (
     <div ref={root} className={`inbox ${columns}`} data-takeover={phoneThreadOpen || undefined}>
@@ -504,7 +495,6 @@ const inboxPage = (
           : // The one thread (thread-pane.tsx): a real thread's verbs are the pane's own, the same in Conversations. A
             // seeded thread is the mockup's, and keeps this page's handlers.
             threadPane(ix, onOpenClient)}
-      {railThread && <InboxAgentRail thread={railThread} />}
       {personThread && <ThreadContext thread={personThread} onOpenClient={(id) => onOpenClient(id)} />}
 
       {sendingStrip(ix)}
@@ -532,7 +522,6 @@ const useMoveClock = (threads: Thread[]) => {
 
 export const Inbox = ({
   density = "medium",
-  showAgentRail = true,
   onOpenClient = () => {},
   initialThreadId = null,
   opening = false,
@@ -602,5 +591,5 @@ export const Inbox = ({
       going: ixGoing,
     },
   );
-  return inboxPage(full, { density, showAgentRail, onOpenClient, opening, replies, toSendOpen, root });
+  return inboxPage(full, { density, onOpenClient, opening, replies, toSendOpen, root });
 };

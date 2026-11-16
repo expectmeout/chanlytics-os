@@ -246,7 +246,7 @@ test("the countdown on screen, and the Hold that stops it, read and write the dr
       THREADS: [vm],
     });
     fresh();
-    const tree = again(() => Inbox({ showAgentRail: false }));
+    const tree = again(() => Inbox({}));
     return find(tree, (n) => n.type === InboxThread).props;
   };
   assert.equal(

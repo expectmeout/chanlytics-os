@@ -4,7 +4,7 @@
  * route names. The pages read them, and so does needs-you.ts for the parts it says apart (through `ixWaiting`): the
  * Inbox's band, and Ask's Right now. The number Needs you says is the badge's one count, Today's rows above To do
  * (0048, amended 2 Nov and 15 Nov 2026), and what its list holds is the Inbox page's own (pages/needs-you-list.ts), which
- * every page need not load; the standalone mockup gets `ixWaitsOnYou` from mockup-globals.ts.
+ * every page need not load.
  */
 import {
   HOUR_MS,

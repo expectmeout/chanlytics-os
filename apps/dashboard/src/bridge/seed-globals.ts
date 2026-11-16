@@ -15,8 +15,6 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 import { roleGate } from "@chanlytics/contracts";
-import { demoCode as inboxDemo } from "../surfaces/inbox/shell";
-import { INBOX_GLOBALS, hearPresence } from "../surfaces/inbox/mockup-globals";
 import { threadVerbs } from "../surfaces/inbox/thread/thread-verbs";
 import { KIT_GLOBALS } from "../surfaces/kit/kit-globals";
 import { useNeedsYou } from "../surfaces/needs-you";
@@ -39,8 +37,6 @@ declare global {
 }
 
 if (typeof window !== "undefined") {
-  // A session that declared itself a demo before the seeds (the standalone mockup): only it draws the demo's seeded rows.
-  const demo = window.__DEMO_MODE === true;
   // React, and the one hook a page redraws on when a surface it draws moves (surface-status.ts): a key, a list, or a
   // route's, as the registry names them. Over this React, before any page loads.
   // And the kit's components the pages that have not moved still draw, under the names they read (kit-globals.ts).
@@ -61,14 +57,12 @@ if (typeof window !== "undefined") {
     askAbout: DOOR_NAMES.askAbout,
     appAsk: DOOR_NAMES.appAsk,
     appNavigate: DOOR_NAMES.appNavigate,
-    // The Inbox's and Conversations' names for the pages that have not moved (surfaces/inbox/mockup-globals.ts), and the
-    // one thread's verbs, which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx). Their
-    // seeded rows are a demo's: a real session's are its reads', published under these names as they land
-    // (declareSurfaceValue), and nothing stands in for them before (the wiring's second audit, X6-1). A demo's are fetched
-    // below: no real session's first load carries them.
+    // The Inbox's and Conversations' rows under the names the pages that have not moved read, and the one thread's verbs,
+    // which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx). The rows are the reads',
+    // published under these names as they land (declareSurfaceValue), and nothing stands in for them before (the wiring's
+    // second audit, X6-1).
     INBOX_DATA: undefined,
     CONVERSATIONS_DATA: undefined,
-    IX_STORE: INBOX_GLOBALS.IX_STORE,
     // What needs you, the one number the sidebar's badge, the strip's tab, the phone's tab and the tab's title read, as a hook
     // (surfaces/needs-you.ts); the Inbox's rule it is made of (ixWaitsOnYou) is no page's to call by name now.
     useNeedsYou,
@@ -92,16 +86,6 @@ if (typeof window !== "undefined") {
     openDealSheet: PEOPLE_GLOBALS.openDealSheet,
     openStepSheet: PEOPLE_GLOBALS.openStepSheet,
   });
-  // A demo's seeded threads and calls, under the names the pages that have not moved read: fetched (surfaces/inbox/shell.ts demoCode),
-  // and published unless a read has published its own first.
-  if (demo)
-    void inboxDemo().then((m) => {
-      const seeded: Window & { INBOX_DATA?: unknown; CONVERSATIONS_DATA?: unknown } = window;
-      seeded.INBOX_DATA ??= m.inboxSample;
-      seeded.CONVERSATIONS_DATA ??= m.conversationsSample;
-    });
-  // Countdowns freeze while the member is Away and thaw when they are back, whichever surface is on screen.
-  hearPresence();
   // Scripted demo theater (fake leads, fabricated handoffs, live-call sims,
   // veto auto-sends, canned Ask) stays OFF outside an explicit demo session.
   if (typeof window.__DEMO_MODE === "undefined") window.__DEMO_MODE = false;
