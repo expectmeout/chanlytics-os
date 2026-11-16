@@ -308,7 +308,13 @@ test("TEST_CLOCK moves the clock whole hours on, or back; blank is the machine's
 });
 
 test("a run's tests, and every process they start, read TEST_CLOCK's clock; a date built from a number, or frozen, is as it says", () => {
-  const run = launch("tests/fixtures/clock-probe.mjs", { TEST_CLOCK: "+12h", EXPECT_AHEAD_MS: String(12 * HOUR) });
+  // The probe's zone is said here, as the zone's own tests say theirs: left to the run around it, it was Pacific/Auckland
+  // in CI's second leg, and the line below named that zone, not UTC (#2378's suite, 16 Nov 2026).
+  const run = launch("tests/fixtures/clock-probe.mjs", {
+    TEST_TZ: "UTC",
+    TEST_CLOCK: "+12h",
+    EXPECT_AHEAD_MS: String(12 * HOUR),
+  });
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
   assert.match(run.stdout, /^(?:ok 1 - |✔ )the clock the launcher set/m, "the probe ran, and passed");
   assert.match(run.stderr, /the suite runs in UTC, the clock 12 hours on \(TEST_CLOCK\)/);
