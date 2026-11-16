@@ -12,13 +12,18 @@ import assert from "node:assert/strict";
 import { channelsReady, todayPeopleOf, todaySteps } from "@chanlytics/contracts";
 import { personDto } from "../../consent/_person-row.mjs";
 import { headline } from "../_headline.mjs";
-import { W, ZONE, answerWith, json } from "./_world.mjs";
+import { until } from "../../shared/_until.mjs";
+import { W, ZONE, answerWith, json, wire } from "./_world.mjs";
 
 const { todayLeaks } = await import("../../../apps/dashboard/src/surfaces/today/leaks.ts");
 const { peopleSurfaceOf } = await import("../../../apps/dashboard/src/surfaces/people/surface-map.ts");
 const { peopleForToday } = await import("../../../apps/dashboard/src/surfaces/today/helpers.ts");
 const { readTodayPeople } = await import("../../../apps/dashboard/src/surfaces/today/people-read.ts");
 const { clearReadCaches } = await import("../../../apps/dashboard/src/bridge/read-cache.ts");
+const { arriveOnToday, readTodaySoon } = await import("../../../apps/dashboard/src/surfaces/today/first-draw-read.ts");
+const { setupCardCode } = await import("../../../apps/dashboard/src/surfaces/today/setup-card-code.ts");
+const { codeOutFor, markHydrated } = await import("../../../apps/dashboard/src/bridge/surface-status.ts");
+const { afterBoot } = await import("../../../apps/dashboard/src/bridge/workspace.ts");
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
@@ -293,4 +298,59 @@ test("People past its first page: the first read says how many, the page waits f
   const book = bookOf(page);
   W.__PEOPLE = book;
   assert.equal(peopleForToday(), book);
+});
+
+test("REGRESSION (16 Nov 2026): a move to Today waits for its read of People where the tab holds neither it nor People's book, and it is read ahead off Today; with the book in hand nothing waits and nothing is asked", async () => {
+  // Pressed a second after another page drew, Today drew before People's book had come, and its steps due and Ask found
+  // came 0.45 to 0.67 s after it (the production re-measure).
+  const page = firstPage(everyone());
+  const reach = { whole: true, total: page.page.total };
+  const dto = todayPeopleOf(page, reach, { tz: ZONE, now: new Date(NOW_MS), viewer: VIEWER });
+  const reads = () => wire.filter((w) => w.path === "/api/v1/today/people").length;
+  const offToday = { document: { readyState: "complete" }, addEventListener: () => {} };
+  let land = () => {};
+  answerWith(async (u) => {
+    if (u.pathname !== "/api/v1/today/people")
+      return json(503, { ok: false, error: { code: "unavailable", message: "not read here" } });
+    await new Promise((r) => (land = r));
+    return json(200, { ok: true, data: { people: dto } });
+  });
+  const was = W.location;
+  W.location = { pathname: "/w/studio/calendar", search: "", hash: "" };
+  // The Setup card's code, which a move waits for too, in hand: past its own hops it holds nothing.
+  const setupIn = () => setupCardCode().then(() => setupCardCode());
+  try {
+    await setupCardCode();
+    const before = reads();
+    arriveOnToday("today");
+    await setupIn();
+    assert.equal(codeOutFor("today"), true, "Today's first draw waits for it");
+    assert.equal(reads(), before + 1, "asked as the move was");
+    land();
+    await until(() => !codeOutFor("today"), "its read in");
+    await readTodayPeople();
+    assert.deepEqual(steps(peopleForToday()), steps(bookOf(page)), "the steps due stand in the first draw");
+    // Off Today with nothing held: read ahead, and a move takes that read.
+    clearReadCaches();
+    readTodaySoon(() => {}, offToday);
+    await until(() => reads() === before + 2, "read ahead off Today");
+    land();
+    arriveOnToday("today");
+    await until(() => !codeOutFor("today"), "the read ahead taken");
+    await readTodayPeople();
+    assert.equal(reads(), before + 2, "never asked twice");
+    // People's book in hand: Today draws from it, and nothing waits or is asked. (Its surface stays in: LAST in the file.)
+    clearReadCaches();
+    W.__PEOPLE = bookOf(page);
+    markHydrated(["people"]);
+    arriveOnToday("today");
+    readTodaySoon(() => {}, offToday);
+    await afterBoot("page");
+    await setupIn();
+    assert.equal(codeOutFor("today"), false, "nothing to wait for");
+    assert.equal(reads(), before + 2, "nothing asked");
+  } finally {
+    land();
+    W.location = was;
+  }
 });

@@ -49,6 +49,11 @@ interface FirstDrawReadOptions {
   heard?: string;
   /** Whether a move to Today from another page waits for it too, where the tab holds none (arriveOnToday). */
   onArrival?: boolean;
+  /**
+   * Whether what it carries is in hand another way, where a move to Today neither waits for it nor reads it ahead: People's
+   * whole book, for Today's read of People (people-read.ts).
+   */
+  servedBy?: () => boolean;
 }
 
 /** A card's read that said so (`onArrival`): as a move to Today reaches it (`arrive`, waited for), and begun before one. */
@@ -125,7 +130,7 @@ export function firstDrawRead<T>(
   key: string,
   path: string,
   ask: () => Promise<T | null>,
-  { heard, onArrival = false }: FirstDrawReadOptions = {},
+  { heard, onArrival = false, servedBy }: FirstDrawReadOptions = {},
 ): FirstDrawRead<T> {
   const held = readCache<Held<T>>(key, () => true, { tab: true });
   const askFor = (): Promise<T | null> =>
@@ -139,18 +144,20 @@ export function firstDrawRead<T>(
         () => null,
       );
   const kept = (): Held<T> | null => held.peek(getActiveWorkspace() ?? "");
+  /** Whether a move to Today has it already: kept, or in hand the other way. */
+  const inHand = (): boolean => !!kept() || !!servedBy?.();
   /** The load's own read, or the move's, while the card has not taken it: the one Today's first draw waited for. */
   let loadsRead: Promise<T | null> | null = null;
   if (onArrival)
     arrivals.add({
       // A read already out, one started ahead, is the one waited for, never asked again.
       arrive: () => {
-        if (kept()) return;
+        if (inHand()) return;
         loadsRead ??= askFor();
         firstDrawWaitsFor("today", loadsRead);
       },
       begin: () => {
-        if (!kept()) loadsRead ??= askFor();
+        if (!inHand()) loadsRead ??= askFor();
       },
     });
   return {
