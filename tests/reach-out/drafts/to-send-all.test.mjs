@@ -65,10 +65,10 @@ test("Today draws two or more as one row; one alone, or one whose check holds em
   assert.equal(toSendEveryOf([run("a", { drafted: 2 })]), null, "a run alone has no door to all of them");
   assert.equal(
     TO_SEND_ALL_WORDS.sentence(two.count, two.from),
-    "3 emails to send from your inbox, from 2 sequences, each written and checked.",
+    "3 emails to send from your inbox, from 2 campaigns, each written and checked.",
   );
   assert.equal(TO_SEND_ALL_WORDS.sub(1, 1), "1 email handed to you");
-  assert.equal(TO_SEND_ALL_WORDS.sub(5, 2), "5 emails handed to you, from 2 sequences");
+  assert.equal(TO_SEND_ALL_WORDS.sub(5, 2), "5 emails handed to you, from 2 campaigns");
 });
 
 test("a door to the waiting runs: the run at its home, To send, else Needs you, the whole list (the Campaigns wiring review's rule D)", () => {
@@ -76,7 +76,7 @@ test("a door to the waiting runs: the run at its home, To send, else Needs you, 
   assert.equal(
     waitingRunsDoor([run("a", { drafted: 2, sequence_id: "sq-1" })]),
     "campaigns/sequences/sq-1/runs/a",
-    "under the sequence it is a day of",
+    "under the campaign it is a day of",
   );
   assert.equal(waitingRunsDoor([run("a", { drafted: 2 }), run("b", { drafted: 1 })]), TO_SEND_ROUTE);
   assert.equal(
@@ -95,12 +95,12 @@ test("a first email and its nudge are one reach-out: counted once, and each part
   assert.equal(
     TO_SEND_ALL_WORDS.sentence(one.count, one.from),
     "5 emails to send from your inbox, each written and checked.",
-    "never 'from 2 sequences' for one",
+    "never 'from 2 campaigns' for one",
   );
   assert.equal(TO_SEND_ALL_WORDS.sub(5, 1), "5 emails handed to you");
   assert.deepEqual(toSendEveryOf(runs), { count: 5, from: 1 });
   assert.equal(TO_SEND_ALL_WORDS.everyRun(5, 1), "All 5 to send");
-  assert.equal(TO_SEND_ALL_WORDS.everyRun(5, 2), "All 5 to send, from 2 sequences");
+  assert.equal(TO_SEND_ALL_WORDS.everyRun(5, 2), "All 5 to send, from 2 campaigns");
   const two = toSendRunsOf([...runs, run("c", { drafted: 1, audience: { kind: "reach_out", root_id: "ro-2" } })]);
   assert.deepEqual([two.count, two.from], [6, 2]);
   assert.equal(TO_SEND_ALL_WORDS.runHead("Florists", 0, 3), "Florists · first email · 3");

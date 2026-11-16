@@ -238,7 +238,7 @@ test("Campaigns is Sequences (decision 0060): its rows are the list's in its ord
   assert.deepEqual(ctx({}, `campaigns/sequences/${U(8)}`).focus, {
     kind: "sequence",
     id: U(8),
-    label: "this sequence",
+    label: "this campaign",
   });
   // A link kept from the home still names its campaign as it lands on its sequence (contracts scopeFromRoute).
   assert.deepEqual(ctx({}, `campaigns/moment:${U(1)}`).focus, { kind: "playbook", id: U(1), label: "this campaign" });

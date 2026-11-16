@@ -676,7 +676,7 @@ test("the notice's body: the summary a phone shows, their words quoted, then wha
   assert.equal(n.push, lines[0]);
   assert.equal(firstLine(n.body), n.push, "a phone shows the summary, never their words");
   assert.equal(lines[1], "“This sounds useful. Can you send me more details?”");
-  assert.equal(lines[2], "They are Talking now, and your sequence stops for them.");
+  assert.equal(lines[2], "They are Talking now, and your campaign stops for them.");
   assert.doesNotMatch(n.body, /AI drafted an answer/);
   const drafted = notice({ draft: "Thank you for writing.\n\nWe can send details today.\n\nSam" }).body;
   assert.match(
@@ -704,9 +704,9 @@ test("the notice's redacted words name no business and no words of theirs", () =
   for (const intent of REPLY_INTENTS) {
     const n = notice({ intent });
     assert.doesNotMatch(n.redacted, /Brightwater|details|useful/i, intent);
-    assert.match(n.redacted, /^A business wrote back to a workspace's sequence/);
+    assert.match(n.redacted, /^A business wrote back to a workspace's campaign/);
   }
   assert.doesNotMatch(notice({ unread: "day_spent" }).redacted, /Brightwater/);
-  assert.equal(notice({ intent: "other" }).redacted, "A business wrote back to a workspace's sequence.");
-  assert.equal(notice({ intent: "no" }).redacted, "A business wrote back to a workspace's sequence, read as no.");
+  assert.equal(notice({ intent: "other" }).redacted, "A business wrote back to a workspace's campaign.");
+  assert.equal(notice({ intent: "no" }).redacted, "A business wrote back to a workspace's campaign, read as no.");
 });
