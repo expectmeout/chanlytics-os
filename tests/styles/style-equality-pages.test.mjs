@@ -1,9 +1,8 @@
 /**
  * What the style-equality recorder opens (tooling/scripts/checks/style-equality.mjs, PAGES) is only ever a
- * route the harness can draw. The harness is the mockup's static server: it draws the shell's own table and the kit's
- * gallery, and answers an App Router page (every route in apps/dashboard/src/surfaces/routes.ts) with "No surface at",
- * which `record` refuses. A page that leaves the shell takes its route out of the list in the same change; this holds
- * the list to it, so the recorder cannot rot into a tool that fails on its first page again (it did, on 5 Oct 2026).
+ * route the harness can draw. The harness draws the kit's gallery and Ask's states, and no App Router page (every route
+ * in apps/dashboard/src/surfaces/routes.ts), which Next alone draws. This holds the list to it, so the recorder cannot
+ * rot into a tool that fails on its first page again (it did, on 5 Oct 2026).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

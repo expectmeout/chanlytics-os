@@ -653,7 +653,7 @@ The words and states come from one place each: **tones** (`contracts/tone.ts`: a
 
 ### 11.5 The standalone harness
 
-`src/mockup/Chanlytics.html` opens the same files without Next, for design review (`node tooling/scripts/serve-mockup.mjs`, which sends `no-store`). `data/bridge-stubs.jsx` loads first and stands in for the bridge's globals only where they are absent, turning demo mode on. `mockup-harness.test.mjs` holds the harness's script list to the bridge manifest — a file on disk is a file the harness loads, nothing loaded is gone, and the order matches — because seventeen files had gone into the manifest alone and the harness booted to a blank page for as long as that took to notice (PR #564).
+Gone, with demo mode (15 Nov 2026). `Chanlytics.html` opened the shell's files without Next for design review, over stand-ins for the bridge's globals that turned demo mode on; once every page had left for the App Router it drew the frame and nothing else. The kit's gallery and Ask's states, which the harness still draws (`tooling/scripts/e2e-harness`), link the app's stylesheets themselves (`app-styles.mjs`).
 
 ## S-12 · Product surfaces
 
@@ -1401,7 +1401,7 @@ A Vercel variable reaches a running deployment only after a redeploy.
 
 ### 23.2 Scripts
 
-Every script that writes is a dry run by default, writes a JSONL backup first, is idempotent, and needs `--apply`: `ops/delete-tenant.mjs` (which refuses while the workspace still owns a number, a Google grant or Vault secrets), `ops/filler.mjs` (every scenario on a live workspace, with fictional 555-01xx numbers), `ops/optout-probe.mjs`, `ops/voice/voice-converge.mjs`, `ops/seed-memberships.mjs` and `ops/e2e-workspace.mjs` (the nightly's workspace). Beside them: `gen/schema-sets.mjs`, `gen/route-types.mjs`, `gen/db-types.mjs`, `checks/dist.mjs`, `checks/db-paths-changed.mjs`, `ops/golden-edge.mjs`, `eval-brain.mjs`, `eval-ask.mjs`, `eval-judge.mjs` and `serve-mockup.mjs`.
+Every script that writes is a dry run by default, writes a JSONL backup first, is idempotent, and needs `--apply`: `ops/delete-tenant.mjs` (which refuses while the workspace still owns a number, a Google grant or Vault secrets), `ops/filler.mjs` (every scenario on a live workspace, with fictional 555-01xx numbers), `ops/optout-probe.mjs`, `ops/voice/voice-converge.mjs`, `ops/seed-memberships.mjs` and `ops/e2e-workspace.mjs` (the nightly's workspace). Beside them: `gen/schema-sets.mjs`, `gen/route-types.mjs`, `gen/db-types.mjs`, `checks/dist.mjs`, `checks/db-paths-changed.mjs`, `ops/golden-edge.mjs`, `eval-brain.mjs`, `eval-ask.mjs` and `eval-judge.mjs`.
 
 ### 23.3 Secrets
 

@@ -1,48 +1,70 @@
 /**
  * The server a signed-in spec is run against, with no deployment, no database and no Supabase.
  *
- *   node --import tsx tooling/scripts/e2e-harness/server.mjs [port] [nightly|salon|pipeline|email-only|kit]     (from the repo root)
+ *   node --import tsx tooling/scripts/e2e-harness/server.mjs [port] [kit|ask]     (from the repo root)
  *
  * Three things, and nothing else:
  *   - the two Supabase auth calls e2e/session.ts makes, answered so `signIn()` mints a harmless local cookie;
- *   - the standalone mockup (apps/dashboard/mockup), read from disk on every request through serve-mockup.mjs's
- *     own static serving, so a change to a page or a stylesheet shows on the next load -- which is what makes a
- *     mutation run possible; for the `kit` record, the kit's gallery in its place (kit-gallery.mjs), on the same
- *     stylesheets, and at /behaves the page that runs the kit's components with behaviour of their own
- *     (kit-behaves.tsx), bundled once as the harness starts (kit-behaves.mjs);
- *   - the `/api/v1` reads the spec makes itself, answered from the same record the page was built from, in the
- *     app's own envelope (contracts `ok`/`err`).
+ *   - a page, for the two records that have one: the kit's gallery for the `kit` record (kit-gallery.mjs), with at
+ *     /behaves the page that runs the kit's components with behaviour of their own (kit-behaves.tsx, bundled once as
+ *     the harness starts: kit-behaves.mjs), and Ask's states for the `ask` record (ask-states.tsx), each over the
+ *     app's stylesheets, read from disk on every request at the paths the app has them (app-styles.mjs), so a change
+ *     to an entry or a stylesheet shows on the next load, which is what makes a mutation run possible. The other
+ *     records draw no page: the standalone mockup they were drawn in went with demo mode (15 Nov 2026), and the
+ *     app's own pages are run against the nightly's stack (decision 0106);
+ *   - the `/api/v1` reads a spec makes itself, answered from the record, in the app's own envelope (contracts
+ *     `ok`/`err`), which the node suite also draws the app's pages over (e2e/e2e-harness-campaigns.test.mjs).
  *
  * It never writes, and says so: everything but the two auth calls is answered for GET and HEAD alone, and anything
- * else is refused. There is nowhere to write to, and a spec that pressed a Save would be refused by the page's own
- * stand-in saver (fixture-src.ts) before it ever reached here.
+ * else is refused. There is nowhere to write to.
  */
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { err, ok } from "@chanlytics/contracts";
+import { appStylesheets } from "./app-styles.mjs";
 import { buildAskStates } from "./ask-states.mjs";
-import { buildFixture } from "./fixture.mjs";
 import { buildBehaves } from "./kit-behaves.mjs";
 import { askStatesDocument, behavesDocument, galleryDocument } from "./kit-gallery.mjs";
 import { OWNER, scenario, WORKSPACE } from "./scenarios.mjs";
 import { templatesRead } from "./templates-read.mjs";
-import {
-  inboxGlobalsBundle,
-  frameGlobalsBundle,
-  frameAppBundle,
-  kitGlobalsBundle,
-  askLineBundle,
-  mockupDocument,
-  peopleGlobalsHarnessBundle,
-  send,
-  serveStatic,
-  TYPES,
-} from "../serve-mockup.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const MOCKUP = path.resolve(HERE, "../../../apps/dashboard/mockup");
+const SRC = path.resolve(HERE, "../../../apps/dashboard/src");
+
+/** What each answer is served as. */
+const TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+};
+
+/**
+ * One answer, and never kept by a browser: the harness serves a check and a review, not traffic, and no file it serves
+ * carries a version, so a page read twice is the tree as it stands both times.
+ */
+export const send = (res, status, type, body) => {
+  res.writeHead(status, { "content-type": type, "cache-control": "no-store, must-revalidate" });
+  res.end(body);
+};
+
+/**
+ * One of the stylesheets the app imports, at the path from src/ a page links it by (app-styles.mjs), read from disk as
+ * it stands. Nothing else: a path that is not one of that list's is not found, however it is spelled, so no climb out
+ * of src/ (an encoded slash, a backslash) reaches a file.
+ */
+export function serveSheet(res, rel) {
+  const sheet = appStylesheets().find((s) => `/${s}` === rel);
+  if (!sheet) {
+    send(res, 404, "text/plain", "Not found");
+    return;
+  }
+  fs.readFile(path.join(SRC, sheet), (error, body) =>
+    error ? send(res, 404, "text/plain", "Not found") : send(res, 200, TYPES[".css"], body),
+  );
+}
 
 /** The two calls `signIn()` makes, which are POSTs. Every other route the harness answers is a read. */
 const AUTH = { LINK: "/auth/v1/admin/generate_link", VERIFY: "/auth/v1/verify" };
@@ -119,7 +141,7 @@ export function answer(method, pathname, params, record) {
   }
   // People's reads, where the record has people (the pipeline and email-only scenarios): the list as GET contacts pages
   // it, the member's saved lists (the record's own) and views (none), and one person as the person read hands them over. A
-  // record with no people answers none of them, so People stays the seeded page there, as it always has.
+  // record with no people answers none of them.
   if (record.people) {
     const people = peopleAnswer(pathname, params, record);
     if (people) return people;
@@ -183,59 +205,40 @@ const refused = (pathname) => ({
 });
 
 /**
- * The app's own rules beside its stylesheets: bridge/frame.css, which the app imports (app/(os)/layout.tsx),
- * is the mockup's stylesheets in their order and then rules of its own, the 44px floor under a coarse pointer among
- * them. The mockup's document already links the stylesheets, so the @imports are left out and the rest is served as
- * it stands, read on every request as the pages are. Without it, a spec on a touch phone measured a Save 26px tall
- * that the app draws at 44.
+ * The app's own rules beside its stylesheets: bridge/frame.css, which the app imports (app/(os)/layout.tsx), is the
+ * stylesheets in their order and then rules of its own, the 44px floor under a coarse pointer among them. A page here
+ * already links the stylesheets (app-styles.mjs), so the @imports are left out and the rest is served as it stands,
+ * read on every request as the pages are. Without it, a spec on a touch phone measured a Save 26px tall that the app
+ * draws at 44.
  */
-const APP_CSS = path.resolve(HERE, "../../../apps/dashboard/src/bridge/frame.css");
+const APP_CSS = path.join(SRC, "bridge/frame.css");
 export const appRules = () => fs.readFileSync(APP_CSS, "utf8").replace(/^@import[^\n]*\n/gm, "");
 
 /**
- * The mockup's document with the fixture FIRST in its head -- before data/bridge-stubs.jsx, which writes only
- * what is missing -- and the app's own rules LAST, after every stylesheet, where the app has them.
+ * The page a record's harness serves at `/`: the kit's gallery for the `kit` record and Ask's states for the `ask`
+ * record; null for every other, which draws no page.
  */
-export function documentWithFixture() {
-  return mockupDocument()
-    .replace("<head>", '<head>\n  <script src="/_hx/fixture.js"></script>')
-    .replace("</head>", '  <link rel="stylesheet" href="/_hx/app.css" />\n</head>');
-}
-
-/**
- * The page a record's harness serves at `/` and at its workspace's address: the kit's gallery for the `kit` record and
- * Ask's states for the `ask` record, neither of which runs the mockup's scripts, and the mockup with its fixture for
- * every other.
- */
-export const pageOf = (record) =>
-  record.gallery ? galleryDocument() : record.askStates ? askStatesDocument() : documentWithFixture();
+export const pageOf = (record) => (record.gallery ? galleryDocument() : record.askStates ? askStatesDocument() : null);
 
 /**
  * Start the harness. Port 0 takes a free one, which is what the runner does. Resolves once it is listening, with the
  * record it is serving and the way to stop it.
  */
-export async function startHarness({ name = "nightly", port = 0, now = Date.now() } = {}) {
+export async function startHarness({ name = "kit", port = 0, now = Date.now() } = {}) {
   const record = scenario(name, now);
-  // The gallery runs none of the mockup's scripts, so the kit record builds no fixture; it builds the page that runs
-  // the kit's components instead.
-  const fixture = record.gallery || record.askStates ? null : await buildFixture(record);
   const behaves = record.gallery ? await buildBehaves() : null;
   const askStates = record.askStates ? await buildAskStates() : null;
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", "http://localhost");
-    // The page may stand at its workspace's address (/w/<slug>/, which the fixture puts every record at in a browser),
-    // and every file it names from there is the tree's own.
+    // A page may stand at its workspace's address (/w/<slug>/, where the style-equality recorder opens every record), and
+    // every file it names from there, by a path relative to it, is the harness's own.
     const p = decodeURIComponent(url.pathname).replace(new RegExp(`^/w/${WORKSPACE.slug}(?=/|$)`), "") || "/";
     const method = (req.method || "GET").toUpperCase();
     try {
       const json = answer(method, p, url.searchParams, record);
       if (json) {
         send(res, json.status, TYPES[".json"], JSON.stringify(json.body));
-        return;
-      }
-      if (p === "/_hx/fixture.js" && fixture) {
-        send(res, 200, TYPES[".js"], fixture);
         return;
       }
       if (p === "/_hx/kit-behaves.js" && behaves) {
@@ -254,36 +257,13 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
         send(res, 200, TYPES[".css"], appRules());
         return;
       }
-      if (p === "/data/kit-globals.js") {
-        send(res, 200, TYPES[".js"], await kitGlobalsBundle());
+      if (p === "/") {
+        const page = pageOf(record);
+        if (page) send(res, 200, TYPES[".html"], page);
+        else send(res, 404, "text/plain", `The ${record.name} record draws no page here: the kit and ask records do.`);
         return;
       }
-      if (p === "/data/frame-globals.js") {
-        send(res, 200, TYPES[".js"], await frameGlobalsBundle());
-        return;
-      }
-      if (p === "/data/frame-app.js") {
-        send(res, 200, TYPES[".js"], await frameAppBundle());
-        return;
-      }
-      if (p === "/data/inbox-globals.js") {
-        send(res, 200, TYPES[".js"], await inboxGlobalsBundle());
-        return;
-      }
-      // People's shared parts, over the People the fixture boots (people-src.ts), in place of the mockup's own.
-      if (p === "/data/people-globals.js") {
-        send(res, 200, TYPES[".js"], await peopleGlobalsHarnessBundle());
-        return;
-      }
-      if (p === "/data/ask-line.js") {
-        send(res, 200, TYPES[".js"], await askLineBundle());
-        return;
-      }
-      if (p === "/" || p === "/Chanlytics.html") {
-        send(res, 200, TYPES[".html"], pageOf(record));
-        return;
-      }
-      serveStatic(res, MOCKUP, p);
+      serveSheet(res, p);
     } catch (e) {
       send(res, 500, "text/plain", String((e && e.stack) || e));
     }
@@ -300,6 +280,6 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  const started = await startHarness({ port: Number(process.argv[2] || 0), name: process.argv[3] || "nightly" });
+  const started = await startHarness({ port: Number(process.argv[2] || 0), name: process.argv[3] || "kit" });
   console.log(`the ${started.record.name} record on ${started.url}/`);
 }

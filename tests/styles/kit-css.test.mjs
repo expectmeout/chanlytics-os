@@ -12,8 +12,8 @@
  *   desk as (width > 900px). A query that names no width (reduced motion, reduced transparency: §3.1) is no breakpoint.
  * - The pages outside the shell load the kit when one of them draws it (§3.3). A module of theirs (app/ but its (os)
  *   group, which the shell draws; src/auth; src/yes) that writes a kit class in a className, or imports the kit's
- *   components, which write them, needs kit.css among app/globals.css's imports. None draws it yet, and
- *   repo/mockup-harness.test.mjs holds globals.css to the tokens alone until one does.
+ *   components, which write them, needs kit.css among app/globals.css's imports. None draws it yet, and the shell's
+ *   entry and globals.css are held below to their imports: the tokens, then the kit; and the tokens alone.
  *
  * Each check also runs on fixtures, where it must find what it looks for.
  */
@@ -160,15 +160,20 @@ function kitDrawnBy(sf, classes) {
   return { drawn: [...drawn].sort(), imports };
 }
 
-/** Whether a stylesheet imports the kit's: an @import whose path ends surfaces/kit/kit.css. */
-function importsKit(css, filename) {
+/** The paths a stylesheet's @import rules name, in its order, as it writes them. */
+function importsOf(css, filename) {
   const urls = [];
   transform({
     filename,
     code: Buffer.from(css),
     visitor: { Rule: { import: (rule) => void urls.push(rule.value.url) } },
   });
-  return urls.some((url) => /(^|\/)surfaces\/kit\/kit\.css$/.test(url));
+  return urls;
+}
+
+/** Whether a stylesheet imports the kit's: an @import whose path ends surfaces/kit/kit.css. */
+function importsKit(css, filename) {
+  return importsOf(css, filename).some((url) => /(^|\/)surfaces\/kit\/kit\.css$/.test(url));
 }
 
 /** The modules that draw the kit while globals.css imports none of it, each with what it draws. */
@@ -189,7 +194,7 @@ test("a page outside the shell that draws the kit has app/globals.css import it 
   assert.deepEqual(
     unloaded(uses, importsKit(globals, GLOBALS_CSS)),
     [],
-    "import kit.css in globals.css, right after the tokens, and let repo/mockup-harness.test.mjs say so too",
+    "import kit.css in globals.css, right after the tokens, and let the test below say so too",
   );
   // The checks, where each must find what it looks for.
   const fixture = (code) =>
@@ -223,4 +228,19 @@ test("a page outside the shell that draws the kit has app/globals.css import it 
   const tokens = '@import "../src/styles/tokens.css";';
   assert.equal(importsKit(`${tokens}\n@import "../src/surfaces/kit/kit.css";`, GLOBALS_CSS), true);
   assert.equal(importsKit(tokens, GLOBALS_CSS), false);
+});
+
+test("the shell's entry imports the tokens, then the kit (§3.3); globals.css, the other entry, the tokens alone", () => {
+  // Every stylesheet the shell draws comes through bridge/frame.css, in its order, since Next orders nothing across
+  // imports: the kit's rules right after the values they read. The pages outside the shell open on app/globals.css,
+  // which takes the kit the day one of them draws it (the test above).
+  const FRAME_CSS = "apps/dashboard/src/bridge/frame.css";
+  const frame = importsOf(fs.readFileSync(path.join(ROOT, FRAME_CSS), "utf8"), FRAME_CSS);
+  assert.deepEqual(frame.slice(0, 2), ["../styles/tokens.css", "../surfaces/kit/kit.css"], "the tokens, then the kit");
+  const globals = importsOf(fs.readFileSync(path.join(ROOT, GLOBALS_CSS), "utf8"), GLOBALS_CSS);
+  assert.deepEqual(
+    globals,
+    ["../src/styles/tokens.css"],
+    "the tokens alone, until a page outside the shell draws the kit",
+  );
 });
