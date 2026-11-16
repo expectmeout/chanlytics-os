@@ -152,7 +152,6 @@ installStubReact({
   __ACTIVE_WORKSPACE: TID,
   __chrome: { state: stateOf },
   __ME: { role: "owner" },
-  __DEMO_MODE: false,
   canDo: () => true,
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,

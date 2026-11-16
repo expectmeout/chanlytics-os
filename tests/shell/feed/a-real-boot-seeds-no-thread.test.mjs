@@ -14,8 +14,7 @@ import { importSrc } from "../../_source.mjs";
 
 installStubReact();
 const win = globalThis.window;
-// Nothing declared a demo: a signed-in tab, as the app's own page boots it.
-delete win.__DEMO_MODE;
+// A signed-in tab, as the app's own page boots it.
 await importSrc("apps/dashboard/src/bridge/seed-globals.ts");
 const { inboxData, conversationsData, REAL_CHANNEL_LABELS } = await importSrc(
   "apps/dashboard/src/surfaces/inbox/store.ts",
@@ -45,7 +44,7 @@ const storage = () => {
 };
 
 test("REGRESSION (X6-1): a real boot publishes no seeded thread, and the Inbox's store holds none before its read", () => {
-  assert.equal(win.__DEMO_MODE, false, "a session that declared nothing is real");
+  assert.equal(win.__DEMO_MODE, undefined, "the seeds set no demo flag: demo mode went (16 Nov 2026)");
   assert.equal(win.INBOX_DATA, undefined, "REGRESSION: the demo's eleven threads were published in every session");
   assert.equal(win.CONVERSATIONS_DATA, undefined);
   const inbox = inboxData();
@@ -69,16 +68,4 @@ test("REGRESSION (X6-1, X6-3): the bell over a real boot names nobody the seeds 
     ["needs:t-real"],
   );
   for (const seed of SEEDED) assert.ok(!said.includes(seed), `the bell names ${seed}, whom the seeds invent`);
-});
-
-test("a session that says it is a demo holds no seed either: the demo's went with demo mode (16 Nov 2026)", () => {
-  setSurfaceValue("inbox", undefined);
-  setSurfaceValue("conversations", undefined);
-  win.__DEMO_MODE = true;
-  try {
-    assert.deepEqual(inboxData().THREADS, []);
-    assert.deepEqual(conversationsData().CONVERSATIONS, []);
-  } finally {
-    win.__DEMO_MODE = false;
-  }
 });

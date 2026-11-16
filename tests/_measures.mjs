@@ -42,7 +42,6 @@ import {
   zoneReadersIn,
   inlineStyles,
   handRoutesIn,
-  seedReadsOutsideADemo,
   needsHumanReads,
   resumesUnasked,
   sourceReads,
@@ -447,18 +446,6 @@ export const MEASURES = [
     file: "window-publishers.json",
     measure: () => perFile(SHELL, (sf) => windowUse(sf).publishers),
     advice: "Publish nothing new on window: import it, or add the name to a component that already publishes.",
-  },
-  {
-    // The app's own code, the mockup's stand-ins left out.
-    name: "seeds read outside a demo",
-    file: "seed-reads.json",
-    measure: () =>
-      perFile(
-        SHELL.filter((f) => /.tsx?$/.test(f) && !f.startsWith("apps/dashboard/mockup/")),
-        seedReadsOutsideADemo,
-      ),
-    advice:
-      "Read a demo's seeds only where the session is one: `demoSession() ? sample() : <the real read, or nothing>`. A seed read in a real session draws invented people as customers (the wiring's second audit, X6-1).",
   },
   {
     // Every hand-written module of the apps and the packages: a server reader compared the column as readily as a page.

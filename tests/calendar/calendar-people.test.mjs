@@ -677,7 +677,7 @@ let profileWorld = null;
 async function profileUi() {
   if (profileWorld) return profileWorld;
   const LR = await import("../_stub-react.mjs");
-  LR.installStubReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
+  LR.installStubReact({ __chrome: { state: stateOf } });
   const went = moved;
   Object.assign(globalThis, {
     __WORKSPACES: [{ id: HARBOR, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],

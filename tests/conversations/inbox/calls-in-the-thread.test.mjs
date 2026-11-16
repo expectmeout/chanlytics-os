@@ -190,7 +190,6 @@ installStubReact({
     CONF: { SAFE: 0.8, MED: 0.5 },
   },
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   __href: (route, p) => `${route}|${p.id}`,
   canDo: () => true,
   gate: () => ({}),
@@ -677,13 +676,6 @@ test("a whisper is the owner's own words, marked as theirs, with no moment in th
   const file = find(call, (n) => n.type === "a" && hasClass("tl-call-file")(n));
   assert.equal(file.props.href, "GET calls/[id]/export|k7", "the call's own transcript, from the route that writes it");
   assert.ok("download" in file.props);
-  // A session that says it is a demo is drawn the same: the demo's own rule went with demo mode (16 Nov 2026).
-  globalThis.window.__DEMO_MODE = true;
-  try {
-    assert.ok(find(cardOf(again(vm)), hasClass("tl-call-file")), "the file in a demo too");
-  } finally {
-    globalThis.window.__DEMO_MODE = false;
-  }
 });
 
 test("a thread opens where a call or an email began when it is the newest thing said; at a message it was opened at; else at its newest", () => {

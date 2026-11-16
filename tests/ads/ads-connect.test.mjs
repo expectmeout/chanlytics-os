@@ -20,7 +20,7 @@ import { STANDING_CHECKS } from "../../apps/dashboard/src/surfaces/campaigns/ads
 
 const root = await import("@chanlytics/contracts");
 const { EXAMPLE_READS } = await importSrc("apps/dashboard/src/surfaces/campaigns/ads/examples.ts");
-const { SPRING, SATURDAY, WEEKEND, NEAR_ME, OLD_BOOST, notConnected } = await importSrc(
+const { SPRING, SATURDAY, OLD_BOOST, notConnected } = await importSrc(
   "apps/dashboard/src/surfaces/campaigns/ads/sample.ts",
 );
 const mock = await importSrc("apps/dashboard/src/surfaces/settings/connections/ad-accounts-mock.ts");

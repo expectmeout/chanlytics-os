@@ -26,10 +26,9 @@ import {
 } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 import { adsModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page.ts";
 import { adsResultsOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/results/view.ts";
-import { CONNECT } from "../../apps/dashboard/src/surfaces/settings/connections/model/ads-words.ts";
 import { adModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/drawer/view.ts";
 
-installStubReact({ __DEMO_MODE: false, CHANLY: { nav() {} } });
+installStubReact({ CHANLY: { nav() {} } });
 const S = "../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const ads = await import("@chanlytics/contracts");
@@ -58,19 +57,11 @@ const TODAY = "2031-03-15";
 const ALL = ads.ADS_SCOPE_ALL;
 const NOTE = "ads-preview-note";
 
-/** Draw under a session that is, or is not, a demo. */
-function session(demo, draw) {
-  const was = globalThis.__DEMO_MODE;
-  globalThis.__DEMO_MODE = demo;
-  try {
-    fresh();
-    return draw();
-  } finally {
-    globalThis.__DEMO_MODE = was;
-  }
-}
-const preview = (draw) => session(false, draw);
-const demo = (draw) => session(true, draw);
+/** Draw afresh, in a workspace's preview: the only Ads there is since the demo's went (16 Nov 2026). */
+const preview = (draw) => {
+  fresh();
+  return draw();
+};
 
 const links = (tree) => all(tree, (n) => n.type === "a" && n.props?.href);
 /** The elements a page draws with a test id: a component handed one and what it renders would each be found otherwise. */
@@ -208,14 +199,13 @@ function keeping(example, draw) {
 }
 
 for (const [name, draw] of Object.entries(surfaces)) {
-  test(`${name} says it is a preview in a workspace, in the words of contracts, and says nothing more in a demo`, () => {
+  test(`${name} says it is a preview in a workspace, in the words of contracts`, () => {
     const note = byTestId(
       keeping("running", () => preview(draw)),
       NOTE,
     );
     assert.ok(note, "the note is drawn");
     assert.equal(textOf(note), `${EXAMPLE.preview.word} ${EXAMPLE.preview.said}`);
-    assert.equal(byTestId(demo(draw), NOTE), null);
   });
 }
 
@@ -227,20 +217,14 @@ test("Connections' card says it in the note, which a phone draws, and not in its
     [],
     "REGRESSION: on a phone the sample accounts said Connected, unlabelled",
   );
-  assert.equal(textOf(sub(demo(card))[0]), CONNECT.sub, "a demo's card keeps its line");
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Its people open nothing
 
-test("Waiting on you: a demo's names are links to the demo's people; a preview's are names, on a row no press opens", () => {
+test("Waiting on you: a preview's names are names, on a row no press opens", () => {
   const tile = adsModel(read, CONFIG).tiles.waiting;
   assert.ok(tile.rows.length > 1, "the sample has people waiting");
-  const linked = demo(() => WaitingBlock({ tile }));
-  assert.deepEqual(
-    links(linked).map((a) => a.props.href),
-    tile.rows.map((r) => `#/${r.open}`),
-  );
   const plain = preview(() => WaitingBlock({ tile }));
   assert.deepEqual(links(plain), [], "REGRESSION: Amy G. opened 'This person is not in your workspace'");
   assert.deepEqual(
@@ -253,24 +237,20 @@ test("Waiting on you: a demo's names are links to the demo's people; a preview's
   }
 });
 
-test("An ad's people: a demo's rows are links and a door goes to all of them; a preview's rows are rows, and no door promises a list no page holds", () => {
+test("An ad's people: a preview's rows are rows, and no door promises a list no page holds", () => {
   const vm = adModel(
     read.ads.find((a) => a.id === SATURDAY),
     read,
     CONFIG,
   );
   const shown = (tree) => drawn(tree, "ads-person-");
-  const linked = demo(() => AdPeople({ people: vm.people }));
-  assert.ok(shown(linked).length > 0);
-  assert.ok(byTestId(linked, "ads-people-all"), "the door to all of them");
-  assert.ok(shown(linked).every((row) => row.type === "a" && row.props.href));
   const plain = preview(() => AdPeople({ people: vm.people }));
-  assert.equal(shown(plain).length, shown(linked).length, "the same people");
+  assert.ok(shown(plain).length > 0, "the ad's people");
   assert.deepEqual(links(plain), []);
   assert.equal(byTestId(plain, "ads-people-all"), null);
 });
 
-test("A phone's one amber row opens the people who wait: doors with where they go in a demo, names alone in a preview, even for one", () => {
+test("A phone's one amber row opens the people who wait: names alone in a preview, even for one", () => {
   const vm = adsModel(read, CONFIG);
   const props = { vm, ask: null, onOpen() {}, onYes() {}, onNo() {}, arrived: null };
   const opened = (draw) => {
@@ -280,9 +260,6 @@ test("A phone's one amber row opens the people who wait: doors with where they g
   const draw = () => AdsPhone(props);
   const doors = (tree) => drawn(tree, "ads-needs-door");
   const names = (tree) => drawn(tree, "ads-needs-name");
-  const inDemo = demo(() => opened(draw));
-  assert.equal(doors(inDemo).length, vm.tiles.waiting.rows.length);
-  assert.equal(names(inDemo).length, 0);
   const inPreview = preview(() => opened(draw));
   assert.equal(doors(inPreview).length, 0);
   assert.equal(names(inPreview).length, vm.tiles.waiting.rows.length);
@@ -290,13 +267,12 @@ test("A phone's one amber row opens the people who wait: doors with where they g
     assert.ok(textOf(names(inPreview)[at]).startsWith(row.name), row.name);
     assert.ok(!textOf(inPreview).includes(row.tip), "no line says where a press would go");
   }
-  // One person is a door in a demo, and in a preview still only a row that opens to their name.
+  // One person is still only a row that opens to their name.
   const one = {
     ...vm,
     tiles: { ...vm.tiles, waiting: { ...vm.tiles.waiting, rows: vm.tiles.waiting.rows.slice(0, 1) } },
   };
   const single = () => AdsPhone({ ...props, vm: one });
-  assert.ok(demo(() => byTestId(single(), "ads-needs-row")).props.href, "a demo's single row is a link");
   const alone = preview(() => opened(single));
   assert.equal(byTestId(alone, "ads-needs-row").props.href, undefined);
   assert.equal(names(alone).length, 1);
@@ -309,12 +285,10 @@ test("A phone's one amber row opens the people who wait: doors with where they g
 const R = { range: "30d", vm: { today: ads.zoneDayKey(Date.now(), "America/New_York") } };
 const NOTHING = { head: null, fact: null, draw: null };
 
-test("Reports' Overview takes no fact from a preview, cold or with the Ads already in hand; a preview's Ads lens draws, and a demo's Overview keeps its fact", async () => {
+test("Reports' Overview takes no fact from a preview, cold or with the Ads already in hand; a preview's Ads lens draws", async () => {
   const ask = (lens) => useAdsLens(lens, {}, R);
-  const was = globalThis.__DEMO_MODE;
   setSurfaceValue("settings", { settings: { config: { features: { ads_preview: true } } } });
   try {
-    globalThis.__DEMO_MODE = false;
     fresh();
     assert.deepEqual(ask("overview"), NOTHING, "REGRESSION: a sample line among real numbers");
     assert.equal(redrawWanted(), false, "and nothing is on its way for it");
@@ -329,18 +303,12 @@ test("Reports' Overview takes no fact from a preview, cold or with the Ads alrea
       NOTHING,
       "and back on the Overview, with the fold there to be asked, it is not",
     );
-    globalThis.__DEMO_MODE = true;
-    fresh();
-    ask("overview");
-    await until(redrawWanted, "the demo's chunk to land");
-    assert.ok(again(() => ask("overview")).fact, "the demo's Overview keeps its one fact");
   } finally {
-    globalThis.__DEMO_MODE = was;
     setSurfaceValue("settings", undefined);
   }
 });
 
-test("Reports' People: a real count of 'An ad' is no door into a preview's sample, which never brought those people; a demo's is", () => {
+test("Reports' People: a real count of 'An ad' is no door into a preview's sample, which never brought those people", () => {
   globalThis.__WORKSPACES = [{ id: "w1", slug: "harbor", name: "Harbor Studio", status: "active", role: "owner" }];
   globalThis.__ACTIVE_WORKSPACE = "w1";
   const report = reportsSample("30d", TODAY);
@@ -348,7 +316,6 @@ test("Reports' People: a real count of 'An ad' is no door into a preview's sampl
   const draw = () => PeopleLens({ R: report, own: { state: "current" }, fold: people });
   const onPick = (tree) =>
     find(byTestId(tree, "chart-people-first"), (n) => n.props?.onPick !== undefined)?.props.onPick;
-  assert.equal(typeof demo(() => onPick(draw())), "function", "a demo's row opens the demo's Ads");
   setSurfaceValue("settings", { settings: { config: { features: { ads_preview: true } } } });
   try {
     assert.equal(

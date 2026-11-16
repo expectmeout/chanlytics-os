@@ -28,7 +28,7 @@ const ANA = { id: "p1", name: "Ana Ruiz", via: "phone", thread: "t1", reply_wire
 
 /** The routes the sheet's presses went to, as the frame's one door receives them. */
 const routed = [];
-installStubReact({ __DEMO_MODE: false, CHANLY: { nav: (route) => routed.push(route) } });
+installStubReact({ CHANLY: { nav: (route) => routed.push(route) } });
 const { OpenVisit } = await import("../../../apps/dashboard/src/surfaces/calendar/visit/visit-sheet");
 
 /** What the wire saw (request line and body), and what it answers a word said on a visit with. */

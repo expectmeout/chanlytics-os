@@ -24,7 +24,7 @@ import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
-installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 const toasts = [];
 const went = [];

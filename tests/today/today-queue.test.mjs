@@ -431,7 +431,7 @@ test("the six are the six worth most: an ask to book from today is drawn first, 
 
 // Today's Need you is TSX (surfaces/today/zones/need-you.tsx, the runs its To decide rows), drawn by import over the day the
 // seam holds (surface-values.ts); its row is the kit's (surfaces/kit/attention/attn-row.tsx).
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 const { NeedYou } = await import("../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
 const { AttnRow } = await import("../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
 const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");

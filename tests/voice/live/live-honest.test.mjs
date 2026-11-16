@@ -127,7 +127,6 @@ const flashes = [];
 const went = [];
 const sent = [];
 installStubReact({
-  __DEMO_MODE: false,
   CHANLY: { nav: (to) => went.push(to) },
   setInterval: () => 1,
   clearInterval() {},
@@ -624,7 +623,7 @@ test("the page is drawn again when the live surface moves, and shows what the re
 });
 
 // The route draws the page whenever the surface holds a value, and nothing before. The demo's sample went with demo mode
-// (16 Nov 2026): a session that says it is a demo draws nothing until its read is in, as every session does.
+// (16 Nov 2026).
 
 test("the page draws what the surface holds, and before its first read nothing", () => {
   withLive([call()]);
@@ -632,14 +631,7 @@ test("the page draws what the surface holds, and before its first read nothing",
   setSurfaceValue("live", undefined);
   fresh();
   assert.equal(mount(), null, "before the first read the page draws nothing");
-  globalThis.window.__DEMO_MODE = true;
-  try {
-    fresh();
-    assert.equal(mount(), null, "in a demo too: no sample of its own");
-    setSurfaceValue("live", live([]));
-    fresh();
-    assert.equal(callRows(mount()).length, 0, "an empty read is an empty page");
-  } finally {
-    globalThis.window.__DEMO_MODE = false;
-  }
+  setSurfaceValue("live", live([]));
+  fresh();
+  assert.equal(callRows(mount()).length, 0, "an empty read is an empty page");
 });

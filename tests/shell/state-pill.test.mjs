@@ -291,7 +291,6 @@ globalThis.window = {
   CHANLY: { nav() {}, R: {} },
   gate: () => ({}),
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   addEventListener() {},
   removeEventListener() {},
   setTimeout: () => 1,

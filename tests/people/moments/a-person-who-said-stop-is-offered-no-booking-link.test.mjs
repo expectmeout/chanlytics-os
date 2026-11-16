@@ -328,7 +328,6 @@ test("the person's page asks the same function: the same action, and no booking 
 
 const went = [];
 installStubReact({
-  __DEMO_MODE: false,
   CHANLY: { nav: (route) => went.push(route) },
 });
 const { visitSheetOf } = await import("../../../apps/dashboard/src/surfaces/calendar/visit/sheet-view");

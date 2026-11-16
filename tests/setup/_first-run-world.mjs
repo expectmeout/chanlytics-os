@@ -108,7 +108,6 @@ globalThis.window = {
   },
   __WORKSPACES: [{ id: "w1", name: "Harbor Moving", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: "w1",
-  __DEMO_MODE: false,
   usePPToast: () => [null, () => {}],
   appNavigate: () => {},
   canDo: () => true,

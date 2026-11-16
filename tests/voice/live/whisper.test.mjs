@@ -119,7 +119,7 @@ const call = (over = {}) => ({
 });
 
 test("the page offers it only on a live call, behind the gate the server enforces", async () => {
-  installStubReact({ __DEMO_MODE: false, CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
+  installStubReact({ CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
   const S = "../../../apps/dashboard/src";
   // The role gate the buttons ask (surfaces/frame), drawn for real; the toast is this harness's own.
   (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();

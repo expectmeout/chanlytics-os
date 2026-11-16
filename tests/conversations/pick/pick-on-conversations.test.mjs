@@ -28,7 +28,6 @@ installStubReact({
   history: { replaceState() {}, back: () => went.push(["back"]) },
   setInterval: () => 1,
   clearInterval() {},
-  __DEMO_MODE: false,
   __surfaceState: () => "live",
   __chrome: { state: stateOf },
   appNavigate: (to, opts) => went.push(["app", to, opts || null]),

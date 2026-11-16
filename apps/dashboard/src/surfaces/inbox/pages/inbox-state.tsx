@@ -578,7 +578,7 @@ export const useInboxVeto = (ix: InboxState & InboxMoves) => {
   // memoisation, so an unconditional 1Hz timer re-rendered the entire Inbox
   // once a second, forever, to move a number that isn't there. Real threads
   // carry a veto draft only while one is genuinely held server-side — gated on
-  // the DATA rather than on __DEMO_MODE, because a real draft's countdown is the
+  // the DATA rather than on the session, because a real draft's countdown is the
   // server's and is drawn from its deadline.
   const hasLiveVeto = threads.some((t) => t.veto);
   useEffect(

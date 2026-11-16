@@ -55,7 +55,7 @@ const asked = (id) => ({ id: `e-${id}`, reason: "human_token", details: null, st
 
 /* -------------------------------- a browser -------------------------------- */
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",

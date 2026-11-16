@@ -69,7 +69,7 @@ const asked = (over = {}) => ({
 /* -------------------------------- a browser -------------------------------- */
 
 const address = await legacyAddress();
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",

@@ -12,7 +12,6 @@ installStubReact({
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
 });
 Object.assign(globalThis, { CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } } });
 const S = "../../../apps/dashboard/src";

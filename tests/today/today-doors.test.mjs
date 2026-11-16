@@ -113,7 +113,6 @@ installStubReact({
   CHANLY: { nav: (to) => went.push(to), R: {} },
   appNavigate: (to) => went.push(to),
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   __clock: { zone: () => "America/Chicago", dayKey: () => "2026-09-06", time: () => "9:00 AM" },
   setTimeout: () => 1,
   clearTimeout() {},

@@ -12,7 +12,7 @@ import { all, fresh, installStubReact, textOf } from "../../_stub-react.mjs";
 import { personRow } from "../../consent/_person-row.mjs";
 import { timesSaid, unmarkedTimes } from "./_unmarked-times.mjs";
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 const S = "../../../apps/dashboard/src/surfaces";
 const { threadRows } = await import(`${S}/inbox/pages/list-rows.tsx`);
 const { PL_CARD } = await import(`${S}/people/cells/columns.tsx`);

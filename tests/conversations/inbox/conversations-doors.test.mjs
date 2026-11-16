@@ -170,7 +170,6 @@ installStubReact({
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,

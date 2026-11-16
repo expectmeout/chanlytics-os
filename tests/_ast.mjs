@@ -1552,22 +1552,9 @@ export function visitsWrittenIn(sf) {
 export const SEED_MODULE =
   /(^|\/)(sample|examples|sample-[\w-]+|[\w-]+-sample|demo-[\w-]+|[\w-]+-demo|[\w-]+-mock)(\.[jt]sx?)?$|(^|\/)sample\//;
 
-/** Whether an expression asks if the session is a demo: `demoSession()`, `isDemo…()`, `….__DEMO_MODE`, or a `demo` flag. */
-function asksDemo(n) {
-  let hit = false;
-  const visit = (m) => {
-    if (hit) return;
-    if (ts.isIdentifier(m) && /^(demoSession|isDemo\w*|demo|inDemo)$/.test(m.text)) hit = true;
-    else if (ts.isPropertyAccessExpression(m) && m.name.text === "__DEMO_MODE") hit = true;
-    else ts.forEachChild(m, visit);
-  };
-  visit(n);
-  return hit;
-}
-
 /**
  * A condition's side, from what one of its parts says (`says`: +1 where the part holds on the side asked about, -1 where
- * it holds off it, else 0), read through parentheses and a negation: `!demoSession()` is the far side of a demo.
+ * it holds off it, else 0), read through parentheses and a negation: `!(act.kind === "resume")` is the far side of a Resume.
  */
 const sideBy = (says) => {
   const side = (cond) => {
@@ -1578,9 +1565,6 @@ const sideBy = (says) => {
   };
   return side;
 };
-
-/** +1 when a condition holds in a demo (`demoSession()`, `demo && x`), -1 when it holds outside one (`!demoSession()`), else 0. */
-const demoSide = sideBy((c) => (asksDemo(c) ? 1 : 0));
 
 /** Whether a statement always leaves its block: a return or a throw, or a block that ends in one. */
 const leaves = (s) =>
@@ -1597,7 +1581,7 @@ function holdsOffSide(cond, side) {
   return side(c) < 0;
 }
 
-/** A guard before `child` in its block that leaves the block off the side (`if (!demoSession() || …) return …;`). */
+/** A guard before `child` in its block that leaves the block off the side (`if (act.kind !== "resume" || …) return …;`). */
 const guardedBefore = (block, child, side) =>
   block.statements
     .slice(0, block.statements.indexOf(child))
@@ -1625,48 +1609,6 @@ function behind(n, side) {
     }
   }
   return false;
-}
-
-/** Whether `n` runs only in a demo session. */
-const behindADemo = (n) => behind(n, demoSide);
-
-/**
- * Each read of a demo's seeds outside a demo's gate (the wiring's second audit, X6-1, X6-3): a value a module imports from a
- * seed module (SEED_MODULE), named anywhere but under a condition that holds only in a demo session. A seed module's own reads
- * are its own business; a type is no read. The seeded Inbox that stood in on every real session before its read was one.
- */
-export function seedReadsOutsideADemo(sf) {
-  if (SEED_MODULE.test(sf.fileName)) return 0;
-  const seeds = new Set();
-  for (const st of sf.statements) {
-    if (
-      !ts.isImportDeclaration(st) ||
-      !ts.isStringLiteral(st.moduleSpecifier) ||
-      !SEED_MODULE.test(st.moduleSpecifier.text)
-    )
-      continue;
-    const clause = st.importClause;
-    if (!clause || clause.isTypeOnly) continue;
-    if (clause.name) seeds.add(clause.name.text);
-    const named = clause.namedBindings;
-    if (named && ts.isNamespaceImport(named)) seeds.add(named.name.text);
-    else if (named) for (const e of named.elements) if (!e.isTypeOnly) seeds.add(e.name.text);
-  }
-  if (!seeds.size) return 0;
-  let n = 0;
-  const visit = (m) => {
-    if (ts.isImportDeclaration(m) || ts.isTypeNode(m)) return;
-    if (ts.isIdentifier(m) && seeds.has(m.text) && !behindADemo(m)) {
-      const p = m.parent;
-      // A property's own name (`x.sample`, `{ sample: 1 }`) is not the binding.
-      const ownName =
-        (ts.isPropertyAccessExpression(p) && p.name === m) || (ts.isPropertyAssignment(p) && p.name === m);
-      if (!ownName) n += 1;
-    }
-    ts.forEachChild(m, visit);
-  };
-  visit(sf);
-  return n;
 }
 
 /** The standing rule's own modules, where the raw `needs_human` state is read to decide who has a thread. */

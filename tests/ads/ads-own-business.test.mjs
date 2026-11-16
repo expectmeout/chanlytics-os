@@ -19,7 +19,6 @@ import {
 import { NEW_AD } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-new.ts";
 
 installStubReact({
-  __DEMO_MODE: false,
   CHANLY: { nav() {} },
   location: {
     pathname: "/w/birch-lane",
@@ -212,7 +211,7 @@ test("an ad reads as the business's: the frame's name, the sentence's street, th
   assert.equal(newAdDefaults(read, CONFIG).serviceId, read.services[0].id, "a new ad starts from its top Service");
 });
 
-test("what it has not said reads as missing, never as the studio's; with no name the sample stands whole, and a demo always keeps it", () => {
+test("what it has not said reads as missing, never as the studio's; with no name the sample stands whole", () => {
   const own = ownNow(
     { phone_display: NO_FACT, address: NO_FACT, website: NO_FACT },
     { hours: undefined, services: [], guardrails: { never_quote_prices: false } },
@@ -235,13 +234,6 @@ test("what it has not said reads as missing, never as the studio's; with no name
     holding(null, () => adsOwnHere()),
     null,
   );
-  const was = globalThis.__DEMO_MODE;
-  globalThis.__DEMO_MODE = true;
-  try {
-    assert.equal(theirs(), null, "a demo has no business of its own");
-  } finally {
-    globalThis.__DEMO_MODE = was;
-  }
 });
 
 test("a line is what the receptionist tells customers to call, then the line it answers, and never the number it hands over to", () => {
@@ -486,24 +478,6 @@ test("the section stands alone on a preview's Meta photo; a video has no Files t
   const video = PostsSec(postsProps({ ...draft, format: "video" }));
   assert.equal(byTestId(video, "ads-new-files-door"), null);
   assert.ok(byTestId(video, "ads-new-post-add"), "a video keeps its own tile");
-
-  const was = globalThis.__DEMO_MODE;
-  globalThis.__DEMO_MODE = true;
-  try {
-    fresh();
-    const raw = exampleAt("running", NOW, null);
-    const demo = PostsSec({
-      state: { draft: { ...newAdDefaults(raw, CONFIG), door: "whatsapp", platform: "meta", format: "photo" } },
-      read: raw,
-      config: CONFIG,
-      patch() {},
-    });
-    assert.ok(byTestId(demo, "ads-new-post-add"));
-    assert.equal(byTestId(demo, "ads-new-files-door"), null);
-    assert.equal(route.asked.length, 0, "no read");
-  } finally {
-    globalThis.__DEMO_MODE = was;
-  }
 });
 
 test("the picture picked is what the preview draws and what the ad keeps: a photo sized for the frame, a post in the frame's own shape", () => {

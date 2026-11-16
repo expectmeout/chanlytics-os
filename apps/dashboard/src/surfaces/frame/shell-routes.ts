@@ -63,7 +63,7 @@ export const routeAt = (route: ShellRoute): RouteAt => {
   const soonState =
     route.page === "soon" && route.param && surfaceState ? surfaceState(route.param) || "unknown" : null;
   const { page, param } = soonState === "real" ? { page: route.param || "", param: null } : route;
-  const retiredTo = (window.__surfaceRetired && window.__surfaceRetired(page, param, false)) || null;
+  const retiredTo = (window.__surfaceRetired && window.__surfaceRetired(page, param)) || null;
   // The gate is asked per PANE, so this key must carry the param. What the surface is MOUNTED under is the route table's.
   const routeKey = `${page}/${param || ""}`;
   return { page, param, raw: route, soonState, retiredTo, routeKey };

@@ -76,7 +76,7 @@ test("the words", () => {
 });
 
 /* ---- the visit, drawn ---- */
-installStubReact({ __DEMO_MODE: false, CHANLY: { nav: () => {} } });
+installStubReact({ CHANLY: { nav: () => {} } });
 const { OpenVisit } = await import("../../apps/dashboard/src/surfaces/calendar/visit/visit-sheet");
 
 /** What the wire saw (request line and body) and what it answers a POST contacts with. */

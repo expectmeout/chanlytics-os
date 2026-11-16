@@ -9,10 +9,10 @@ import { importSrc } from "../_source.mjs";
 
 const { roleOf, installRoles } = await importSrc("apps/dashboard/src/bridge/identity.ts");
 
-/** A window with the store settings.jsx makes (its own team stands in for a demo session's member). */
-const windowWith = ({ me, demo = false, viewAs = null, demoRole = "operator" } = {}) => {
-  const store = { viewAsRole: viewAs, me: () => ({ role: demoRole }), myRole: () => "owner" };
-  const win = { ST_STORE: store, __DEMO_MODE: demo, ...(me === undefined ? {} : { __ME: me }) };
+/** A window with the store settings.jsx makes. */
+const windowWith = ({ me, viewAs = null } = {}) => {
+  const store = { viewAsRole: viewAs, myRole: () => "owner" };
+  const win = { ST_STORE: store, ...(me === undefined ? {} : { __ME: me }) };
   installRoles(win);
   return { win, store };
 };
@@ -22,14 +22,13 @@ test("the member's role is the real one, and a role nobody can read is a viewer'
   assert.equal(roleOf({ me: { role: "operator" }, viewAs: null }), "operator");
   assert.equal(roleOf({ me: {}, viewAs: null }), "viewer", "a member with no role");
   assert.equal(roleOf({ me: null, viewAs: null }), "viewer", "the workspace read failed, or has not landed");
-  assert.equal(roleOf({ me: undefined, viewAs: null, demoRole: null }), "viewer");
+  assert.equal(roleOf({ me: undefined, viewAs: null }), "viewer");
 });
 
-test("View-as previews a lower role on top of the real one, and a demo session acts as the mockup's member", () => {
+test("View-as previews a lower role on top of the real one", () => {
   assert.equal(roleOf({ me: { role: "owner" }, viewAs: "viewer" }), "viewer");
   assert.equal(roleOf({ me: { role: "owner" }, viewAs: "operator" }), "operator");
-  assert.equal(roleOf({ me: undefined, viewAs: null, demoRole: "operator" }), "operator", "the mockup's own member");
-  assert.equal(roleOf({ me: undefined, viewAs: "viewer", demoRole: "owner" }), "viewer");
+  assert.equal(roleOf({ me: undefined, viewAs: "viewer" }), "viewer");
 });
 
 test("the store answers who is acting at each ask: a change of role or of preview moves every gate together", () => {
@@ -64,12 +63,10 @@ test("the ladder is contracts': operator, the partner and the owner record; only
   }
 });
 
-test("with no workspace read the gates fail closed, and the standalone mockup keeps its own store", () => {
+test("with no workspace read the gates fail closed, and a window with no store is left alone", () => {
   const closed = windowWith({});
-  assert.equal(closed.store.myRole(), "viewer");
+  assert.equal(closed.store.myRole(), "viewer", "never the owner a demo made up, which went with demo mode");
   assert.equal(closed.store.mayAtLeast("operator"), false);
-  const demo = windowWith({ demo: true, demoRole: "owner" });
-  assert.equal(demo.store.myRole(), "owner", "a demo session acts as the mockup's member");
   // No store, as in a window the bridge does not serve: nothing to complete, nothing thrown.
   assert.doesNotThrow(() => installRoles({ __ME: { role: "owner" } }));
 });

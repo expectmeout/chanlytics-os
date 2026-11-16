@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, unmount, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 const role = { real: "owner" };
 Object.assign(W, {

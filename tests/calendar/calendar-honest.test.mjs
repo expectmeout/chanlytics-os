@@ -224,7 +224,6 @@ globalThis.window = {
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}`, thread: (id) => `inbox/${id}` } },
   appNavigate: (to) => went.push(to),
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   addEventListener: (type, fn) => {
     (listeners[type] ||= []).push(fn);
   },

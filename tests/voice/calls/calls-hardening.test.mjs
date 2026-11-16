@@ -146,7 +146,7 @@ test("Live says only what is true about a silent 'ongoing' row", async () => {
   // "No word from the provider" is the one pill's word for a stale call now: run in state-pill.test.mjs.
   // The page (surfaces/live, TSX since decision 0015), drawn on the legacy stub React over each state a call can be in as it
   // is drawn: the words are the ones it says, not the ones its source holds.
-  installStubReact({ __DEMO_MODE: false, CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
+  installStubReact({ CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
   const S = "../../../apps/dashboard/src";
   (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
   globalThis.usePPToast = () => [null, () => {}];

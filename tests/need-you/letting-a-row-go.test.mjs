@@ -15,7 +15,7 @@ import { MAILBOX_SENDERS_WORDS, NEED_YOU_WORDS, addressOf } from "@chanlytics/co
 import { installStubReact, fresh, again, all, textOf } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 
-installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
+installStubReact({ __surfaceState: () => "live", __surfaceFailed: () => false });
 Object.assign(globalThis, {
   __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: "t1",

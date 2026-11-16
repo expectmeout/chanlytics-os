@@ -65,7 +65,6 @@ installStubReact({
   },
   __WORKSPACES: [{ id: WORKSPACE.id, slug: WORKSPACE.slug, name: WORKSPACE.name, status: "active" }],
   __ACTIVE_WORKSPACE: WORKSPACE.id,
-  __DEMO_MODE: false,
   setInterval: () => 1,
   clearInterval() {},
 });

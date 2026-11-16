@@ -1245,11 +1245,6 @@ test("REGRESSION (N10): a real workspace's Calendar and Campaigns offer no prima
       null,
       "REGRESSION: Campaigns still loading, or failed, offered New campaign, which opened Ask",
     );
-    // The demo's detour (Book, which opened Ask) went with demo mode (16 Nov 2026): a session that says it is one gets none.
-    win.__DEMO_MODE = true;
-    assert.equal(right("#/calendar"), null, "no detour in a demo either");
-    assert.equal(right("#/campaigns"), null, "the demo's Campaigns draws its New message in the page's own head");
-    delete win.__DEMO_MODE;
     setSurfaceValue("calendar", { vm: { bookingLink: "https://book.example/luna" }, fetchedAt: 1 });
     // A ready Calendar has none either: its booking link is in the page's own options menu (calendar/chrome.ts).
     assert.equal(right("#/calendar"), null, "a ready Calendar keeps its link in the page's menu, not the top bar");
@@ -1259,7 +1254,6 @@ test("REGRESSION (N10): a real workspace's Calendar and Campaigns offer no prima
   } finally {
     setSurfaceValue("calendar", undefined);
     setSurfaceValue("playbooks", undefined);
-    for (const k of ["__DEMO_MODE"]) delete win[k];
     win.gate = keepGate;
   }
 });
@@ -1300,7 +1294,7 @@ test("REGRESSION (N16): an address under soon/ opens a page that has shipped, an
       "the standalone mockup, with no registry, keeps its landings",
     );
   } finally {
-    for (const k of ["__surfaceState", "__DEMO_MODE"]) delete win[k];
+    delete win.__surfaceState;
   }
 });
 
@@ -1615,15 +1609,6 @@ test("People has no tab strip -- its one real tab is People, and Lists and Leads
   };
   for (const param of [null, "seg:opted_in", "list:regulars", "state:needs", "p-9"])
     assert.equal(tabsAt(param), null, `nothing to switch to at ${param}: one real tab is no strip`);
-  // The demo's seeded Deal board tab, the one other tab a demo had, went with demo mode (16 Nov 2026): a session that says
-  // it is one draws the same, the same over every view (N24).
-  win.__DEMO_MODE = true;
-  try {
-    for (const param of [null, "list:regulars", "state:needs", "p-9"])
-      assert.equal(tabsAt(param), null, `a demo draws no strip either at ${param}`);
-  } finally {
-    delete win.__DEMO_MODE;
-  }
 });
 
 /* ------------------------------ the live-call bar ------------------------------ */

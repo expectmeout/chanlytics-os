@@ -764,7 +764,6 @@ installStubReact({
   canDo: () => true,
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-  __DEMO_MODE: false,
 });
 const SRC = "../../apps/dashboard/src";
 // What the shell still owns and the page draws by name: Confirm, StatePill.

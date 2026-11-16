@@ -18,7 +18,6 @@ import { NOW, ZONE, escalation, metrics, msg, peopleWithSteps, thread, waiting }
 
 const went = [];
 installStubReact({
-  __DEMO_MODE: false,
   __surfaceState: () => "live",
   appNavigate: (to) => went.push(to),
   usePPToast: () => [null, () => {}],

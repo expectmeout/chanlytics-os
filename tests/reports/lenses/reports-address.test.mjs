@@ -12,6 +12,7 @@ import { importSrc } from "../../_source.mjs";
 
 installStubReact();
 const { SURFACE_ROUTES, routeHasPage, onOnePage } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
+const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
 /** The workspace list the shell holds, with the active one: every workspace has the Pipeline (0008, amended 18 Oct 2026). */
 const hold = (role = "owner") => {
@@ -112,13 +113,12 @@ test("on days a member picked every tab keeps them, so another lens is the same 
   );
 });
 
-test("Ads is a tab in a demo session and nowhere else, between Campaigns and Reviews; its scope is its own and the days ride every tab", () => {
+test("Ads is a tab where the workspace's Ads preview is on and nowhere else, between Campaigns and Reviews; its scope is its own and the days ride every tab", () => {
   hold();
-  const demo = globalThis.__DEMO_MODE;
   try {
-    globalThis.__DEMO_MODE = false;
+    setSurfaceValue("settings", undefined);
     assert.ok(!chromeAt(null).views.tabs.some((t) => t.id === "ads"), "a workspace without ads has no tab");
-    globalThis.__DEMO_MODE = true;
+    setSurfaceValue("settings", { settings: { config: { features: { ads_preview: true } } } });
     assert.deepEqual(
       chromeAt(null).views.tabs.map((t) => t.id),
       ["overview", "receptionist", "people", "pipeline", "campaigns", "ads", "reviews"],
@@ -142,7 +142,7 @@ test("Ads is a tab in a demo session and nowhere else, between Campaigns and Rev
     // Ads' own tab, with no days in the address, is the lens on the period kept.
     assert.equal(chromeAt("ads").views.tabs.find((t) => t.id === "ads")?.to, "reports/ads");
   } finally {
-    globalThis.__DEMO_MODE = demo;
+    setSurfaceValue("settings", undefined);
   }
 });
 

@@ -90,7 +90,6 @@ globalThis.window = {
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   gate: () => ({}),
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent() {},
@@ -708,7 +707,6 @@ test("REGRESSION: a template the route refuses says why under the form as a fiel
   for (const k of ["gate", "canDo", "gateTitle", "mayAtLeast", "gatedProps", "ST_STORE", "__roleGate"])
     doors[k] = globalThis.window[k];
   installStubReact({
-    __DEMO_MODE: false,
     __surfaceState: () => "live",
     __ME: { role: "owner" },
     ...doors,

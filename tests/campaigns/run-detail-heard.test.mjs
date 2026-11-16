@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact } from "../_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false });
+installStubReact();
 const S = "../../apps/dashboard/src/surfaces/campaigns/broadcasts";
 const { runDetail, hearRunDetail, peekRunDetail } = await import(`${S}/detail-read.ts`);
 const { rememberedRun } = await import(`${S}/run-names.ts`);

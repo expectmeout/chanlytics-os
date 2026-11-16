@@ -23,7 +23,7 @@ import { again, byTestId, installStubReact, press, textOf, unmount } from "../..
 import { importSrc } from "../../_source.mjs";
 import { until } from "../../shared/_until.mjs";
 
-installStubReact({ __DEMO_MODE: false });
+installStubReact();
 const { goToRoute, guardLeaving } = await importSrc("apps/dashboard/src/bridge/workspace.ts");
 const { recFolds } = await importSrc("apps/dashboard/src/surfaces/kit/record/registry.ts");
 const { holdMove } = await importSrc("apps/dashboard/src/surfaces/kit/record/held-move.ts");

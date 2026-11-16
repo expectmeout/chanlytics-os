@@ -273,7 +273,6 @@ installStubReact({
   __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,

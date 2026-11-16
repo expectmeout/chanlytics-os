@@ -38,7 +38,6 @@ import { PLAN } from "../../_lead-fixtures.mjs";
 import { NOW as DAY, ZONE, handoffDay, metrics, msg, thread } from "./_world.mjs";
 
 installStubReact({
-  __DEMO_MODE: false,
   __surfaceState: () => "live",
   appNavigate() {},
   usePPToast: () => [null, () => {}],
@@ -517,16 +516,6 @@ test("Need you's rows above To do and the runs waiting are one number, and a row
   needsYouActed([{ id: "kept-elsewhere", conversationId: hana.conversationId }]);
   assert.equal(needsYouNow(nowMs), 2, "Hana's conversation was worked here: Sam and the runs remain");
   reset();
-});
-
-test("a session that says it is a demo counts as any session does: nothing read is no count, the demo's seed went with demo mode", () => {
-  reset();
-  W.__DEMO_MODE = true;
-  try {
-    assert.equal(needsYouNow(nowMs), null, "no seeded threads to count");
-  } finally {
-    W.__DEMO_MODE = false;
-  }
 });
 
 test("the readers are told when what the count is made of moves, and not when something else does", () => {

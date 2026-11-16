@@ -6,8 +6,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-// A window of a session that says it is a demo: it names nobody from a sample (the demo's went with demo mode, 16 Nov 2026).
-globalThis.window = Object.assign(new EventTarget(), { __DEMO_MODE: true });
+// A window that hears its own events.
+globalThis.window = new EventTarget();
 const { isPersonParam, peopleChrome, peopleTakes } =
   await import("../../../apps/dashboard/src/surfaces/people/chrome.ts");
 const { routeHasPage } = await import("../../../apps/dashboard/src/surfaces/routes.ts");

@@ -90,7 +90,6 @@ installStubReact({
     CONF: { SAFE: 0.8, MED: 0.5 },
   },
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   __href: (_route, p) => `/api/v1/messages/${p.id}/media?workspace=marisas`,
   gate: () => ({}),
   setTimeout: () => 1,

@@ -71,7 +71,6 @@ installStubReact({
   __chrome: { state: stateOf },
   CHANLY: { nav() {}, R: {} },
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   appNavigate() {},
   setTimeout: () => 1,
   clearTimeout() {},
@@ -342,7 +341,6 @@ test("REGRESSION (C17, C21): a viewer on Templates finds New message where it al
   asRole("viewer");
   const listening = [];
   installStubReact({
-    __DEMO_MODE: false,
     __surfaceState: () => "live",
     __ME: { role: "viewer" },
     ...shellDoors,

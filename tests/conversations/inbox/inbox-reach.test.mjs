@@ -96,7 +96,7 @@ const vmOf = (dto, esc = null) => toInboxThreadVM(dto, esc, ZONE, NOW);
 
 /* -------------------------------- a browser -------------------------------- */
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 const S = "../../../apps/dashboard/src";
 const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);

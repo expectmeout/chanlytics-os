@@ -135,23 +135,6 @@ test("the installed store answers from real rows, and writes only through the co
   ]);
 });
 
-test("in a session that declared itself a demo, with no rows read, the store is the seeded one, untouched", () => {
-  const calls = [];
-  const seed = {
-    MODES: ["Auto", "Veto", "Ask", "Never"],
-    ROWS: [{ id: "reply", def: "Auto" }],
-    modeOf: (id) => `seed:${id}`,
-    set: (id, m) => calls.push([id, m]),
-  };
-  const win = { POLICY: seed, __DEMO_MODE: true };
-  installPolicyStore(win, () => undefined);
-  assert.equal(win.POLICY.real(), false);
-  assert.equal(win.POLICY.modeOf("reply"), "seed:reply");
-  assert.deepEqual(win.POLICY.ROWS, seed.ROWS);
-  win.POLICY.set("reply", "Ask");
-  assert.deepEqual(calls, [["reply", "Ask"]]);
-});
-
 test("REGRESSION: a workspace whose policies are not read yet has no modes -- its chips said the mockup's seeded ones until settings landed, and all visit when it never did", () => {
   const calls = [];
   const seed = {
@@ -161,7 +144,7 @@ test("REGRESSION: a workspace whose policies are not read yet has no modes -- it
     set: (id, m) => calls.push([id, m]),
   };
   // A cold tab before GET settings lands, or after it failed twice: the app's window, no demo, no rows.
-  const win = { POLICY: seed, __DEMO_MODE: false };
+  const win = { POLICY: seed };
   let held;
   installPolicyStore(win, () => held);
   const S = win.POLICY;

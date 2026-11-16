@@ -31,7 +31,6 @@ declare global {
     React: typeof React;
     ReactDOM: typeof ReactDOM;
     useSurface: (names: SurfaceNames) => number;
-    __DEMO_MODE: boolean;
     __roleGate: typeof roleGate;
   }
 }
@@ -86,9 +85,6 @@ if (typeof window !== "undefined") {
     openDealSheet: PEOPLE_GLOBALS.openDealSheet,
     openStepSheet: PEOPLE_GLOBALS.openStepSheet,
   });
-  // Scripted demo theater (fake leads, fabricated handoffs, live-call sims,
-  // veto auto-sends, canned Ask) stays OFF outside an explicit demo session.
-  if (typeof window.__DEMO_MODE === "undefined") window.__DEMO_MODE = false;
   // The gate's sentence, from the same table: a control a role may not press
   // says who may before the press, in the words the server's refusal gives
   // after it (contracts refusal.ts roleGate). frame/gate.ts reads it.

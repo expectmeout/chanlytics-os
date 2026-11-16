@@ -184,7 +184,6 @@ installStubReact({
   },
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
-  __DEMO_MODE: false,
   // The ledger's minute ticker (a run under an hour away counts down) is a timer this file never lets tick: nothing
   // here unmounts a page, and a real interval would keep the process alive.
   setInterval: () => 1,

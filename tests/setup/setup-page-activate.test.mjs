@@ -125,7 +125,6 @@ globalThis.window = {
       return { ok: true, read: true, message: "" };
     },
   },
-  __DEMO_MODE: false,
   usePPToast: () => [null, (m) => calls.flash.push(m)],
   // The frame's own move, which the rows go through (frame-verbs navigate): `CHANLY.nav`.
   CHANLY: { nav: (to) => calls.nav.push(to), R: {} },

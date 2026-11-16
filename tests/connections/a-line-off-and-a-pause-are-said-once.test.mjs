@@ -192,7 +192,7 @@ test("Live: the line note says what a caller gets, and the page draws the view m
   assert.equal(vm.line.offWords, `The line is switched off — ${C.PHONE_LINE_OFF.gets}.`);
   assert.deepEqual(contradicting(words(vm)), []);
 
-  installStubReact({ __DEMO_MODE: false });
+  installStubReact();
   const { LrList } = await import(at("apps/dashboard/src/surfaces/live/list.tsx"));
   fresh();
   const drawn = textOf(

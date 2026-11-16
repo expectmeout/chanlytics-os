@@ -9,7 +9,7 @@ import { useEffect } from "react";
 import { routeOfPath } from "@chanlytics/contracts";
 import { surfaceRetiredTo } from "@/bridge/surface-registry";
 import { goToRoute } from "@/bridge/workspace";
-import { demoSession, navigate } from "../../frame-verbs";
+import { navigate } from "../../frame-verbs";
 import { SettingsPage } from "./page";
 import { settingsAddressNow } from "./tabs";
 
@@ -27,6 +27,6 @@ export function SettingsRoute({ pathname }: { pathname: string | null }) {
   useEffect(() => {
     if (now !== param) goToRoute(`admin/${now}`, { replace: true });
   }, [now, param]);
-  if (surfaceRetiredTo("admin", param || null, demoSession())) return null;
+  if (surfaceRetiredTo("admin", param || null)) return null;
   return <SettingsPage tab={param} onTab={(t) => navigate(`admin/${t}`)} />;
 }

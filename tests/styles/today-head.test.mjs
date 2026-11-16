@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact } from "../_stub-react.mjs";
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 const { todayGreeting } = await import("../../apps/dashboard/src/surfaces/today/chrome.ts");
 const { PageHead } = await import("../../apps/dashboard/src/surfaces/kit/head/page-head.tsx");
 

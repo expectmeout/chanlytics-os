@@ -209,8 +209,7 @@ input was validated three different ways, and **no test ran a handler**.
 ## Layer 6 — The operator surfaces
 
 `surface-registry.ts` is the authoritative classification: 31 rows, and anything
-marked `demo` renders the honest "not in this release" card outside an explicit
-demo session. A test fails CI if the shell declares a route this table does not
+marked `demo` renders the honest "not in this release" card. A test fails CI if the shell declares a route this table does not
 classify, so a fabrication cannot ship by forgetting.
 
 |                                                           | Count  |                                                                                                                                                       |

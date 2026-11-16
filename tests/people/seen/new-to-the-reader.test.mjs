@@ -198,7 +198,7 @@ test("a bell row is about a person by what it says it is about, else by where it
 
 /* -------------------------------- the tab's store -------------------------------- */
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 Object.assign(globalThis, {
   location: { pathname: "/w/marisas", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
   __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's", status: "active", timezone: ZONE }],

@@ -15,7 +15,6 @@ import { timesSaid } from "../../shell/views/_unmarked-times.mjs";
 import { NOW, ZONE, escalation, metrics, waiting } from "./_world.mjs";
 
 installStubReact({
-  __DEMO_MODE: false,
   __surfaceState: () => "live",
   appNavigate() {},
   usePPToast: () => [null, () => {}],

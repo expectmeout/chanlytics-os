@@ -28,7 +28,7 @@ import { RecordField } from "../../kit/record/field";
 import { useRecordFold } from "../../kit/record/hooks";
 import { RecordInline } from "../../kit/record/inline";
 import { RecordRow } from "../../kit/record/row";
-import { demoSession, meNow, navigate, shellSignOut, type FrameFlash } from "../../frame-verbs";
+import { meNow, navigate, shellSignOut, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { savedViewsRead } from "../frame/pane-reads";
 import { partnerVerbs } from "../partner/surface";
@@ -251,15 +251,11 @@ function AnswerStyle({ flash }: { flash: Flash }) {
  * what stays, then the one button; the door's refusal (the only owner of a workspace with other members) said where it
  * happened. Drawn on the web and in the app alike: a rule that only the app needs is still the account's.
  */
-function DeleteAccountRow({ flash }: { flash: Flash }) {
+function DeleteAccountRow() {
   const [armed, setArmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState("");
   const go = async () => {
-    if (demoSession()) {
-      flash({ msg: <>Nothing to delete in the demo.</> });
-      return;
-    }
     setBusy(true);
     const r = await meVerbs.deleteAccount();
     setBusy(false);
@@ -332,7 +328,7 @@ export const PaneProfile = ({ flash }: { flash: Flash }) => {
   const words = identityWords(me ? { ...me, email: me.email ?? null } : null);
   const role = me && me.role && Object.hasOwn(ROLE_SAYS, me.role) ? roleSays(me.role) : null;
   const signOut = () => {
-    if (demoSession() || !shellSignOut()) flash({ msg: <>Nothing to sign out of in the demo.</> });
+    if (!shellSignOut()) flash({ msg: <>Nothing to sign out of in the demo.</> });
   };
   // One card of the record kit's rows (24 Sep): the name, edited on its row; the address you signed in with, whose act
   // goes to the sign-in page's password reset; your role, with what it may do as the row's hint (a desktop's; a phone
@@ -392,7 +388,7 @@ export const PaneProfile = ({ flash }: { flash: Flash }) => {
         }
         hint="Ends your session on every device, this one included."
       />
-      <DeleteAccountRow flash={flash} />
+      <DeleteAccountRow />
     </section>
   );
 };

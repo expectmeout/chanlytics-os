@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact } from "../_stub-react.mjs";
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 const { inboxStanding } = await import("../../apps/dashboard/src/surfaces/inbox/pages/inbox-head.tsx");
 const { pageDateline, pageDatelineParts, pageDatelineShort } =
   await import("../../apps/dashboard/src/surfaces/kit/head/dateline.ts");

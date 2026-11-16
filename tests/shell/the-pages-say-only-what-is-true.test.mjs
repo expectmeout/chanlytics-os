@@ -285,7 +285,6 @@ globalThis.window = {
   CHANLY: { nav() {}, R: {} },
   gate: () => ({}),
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   addEventListener() {},
   removeEventListener() {},
   setTimeout: () => 1,
@@ -1017,7 +1016,6 @@ const campaignsWorld = async () => {
   if (campaigns) return campaigns;
   const toasts = [];
   installStubReact({
-    __DEMO_MODE: false,
     __surfaceState: () => "live",
     __ME: { role: "owner" },
     ...shellDoors,

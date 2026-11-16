@@ -54,7 +54,6 @@ const flashes = [];
 const failed = new Set();
 const refreshed = [];
 installStubReact({
-  __DEMO_MODE: false,
   __surfaceState: () => "live",
   __surfaceFailed: (k) => failed.has(k),
   __refreshSurface: (k) => refreshed.push(k),
@@ -503,7 +502,6 @@ const clear = () => {
   went.length = 0;
   asked.length = 0;
   flashes.length = 0;
-  W.__DEMO_MODE = false;
 };
 const draw = (Comp, props = {}) => {
   fresh();
@@ -1603,11 +1601,10 @@ test("the mockup no longer draws Today: a demo session's sample is not read, the
       __notifs: bell,
     },
   });
-  W.__DEMO_MODE = true;
-  const demo = draw(TodayZones);
-  assert.ok(byTestId(demo, "today-queue"), "today-queue: its own view model still draws");
+  const drawn = draw(TodayZones);
+  assert.ok(byTestId(drawn, "today-queue"), "today-queue: its own view model still draws");
   for (const id of ["today-day", "today-period", "brief-run-row", "today-day-went", "today-pin", "today-found-rule"])
-    assert.equal(byTestId(demo, id), null, `${id}: not drawn from the sample, which nothing reads any more`);
+    assert.equal(byTestId(drawn, id), null, `${id}: not drawn from the sample, which nothing reads any more`);
   for (const name of ["__PEOPLE", "__BROADCASTS", "__CALENDAR", "__PLAYBOOKS", "__notifs"])
     assert.equal(
       W[name],
@@ -1615,7 +1612,6 @@ test("the mockup no longer draws Today: a demo session's sample is not read, the
       `${name}: the mockup's other pages switch to their real variants on the bridge's names`,
     );
   // A workspace never reads the sample: the same globals outside a demo session draw nothing borrowed.
-  W.__DEMO_MODE = false;
   const real = draw(TodayZones);
   for (const id of ["today-day", "today-period", "brief-run-row", "today-pin", "today-found-rule"])
     assert.equal(byTestId(real, id), null, `${id}: never from the sample outside a demo`);
@@ -1643,7 +1639,6 @@ test("the page is its bands and nothing seeded", () => {
       older: () => 0,
     },
   });
-  W.__DEMO_MODE = true;
   const tree = draw(TodayZones);
   const order = ["today-queue", "today-day", "today-ask-found", "today-foot"].map((id) => byTestId(tree, id));
   assert.ok(order.every(Boolean), "every zone: Need you, the day, AI found, and the strip under them");
@@ -1689,7 +1684,6 @@ test("the page is its bands and nothing seeded", () => {
     0,
     "what is not a number is said where it is acted on: under the head, in the day, never a list of its own",
   );
-  W.__DEMO_MODE = false;
 });
 
 /* ------------------------------------ Glass (canvas E3) ------------------------------------ */

@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, byTestId, find, press, settle, textOf } from "../../_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false });
+installStubReact();
 const S = "../../../apps/dashboard/src";
 // A path written out, so the dead-exports check (knip) sees what the test reads of the module.
 const { PeriodPicker, loadPeriodPopover } =

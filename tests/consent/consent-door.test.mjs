@@ -217,7 +217,7 @@ test("the front desk's consent changes take one bucket: sixty a minute", () => {
  * one line that mattered wrote `contacts.consent`. Only running it and watching
  * where the write goes catches that.
  * -------------------------------------------------------------------------- */
-installStubReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
+installStubReact({ __chrome: { state: stateOf } });
 const W = globalThis;
 const PEOPLE = "../../apps/dashboard/src/surfaces/people";
 const BRIDGE = "../../apps/dashboard/src/bridge";

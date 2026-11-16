@@ -28,7 +28,7 @@ import { readCode, readRaw } from "../_source.mjs";
 import { installStubReact, fresh, all, byTestId, find, textOf } from "../_stub-react.mjs";
 
 // The pages the wiring test draws are the TSX surface's (apps/dashboard/src/surfaces/today, decision 0015), on the stub React.
-installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
+installStubReact({ __surfaceState: () => "live" });
 const { TODAY_HELPERS } = await import("../../apps/dashboard/src/surfaces/today/helpers.ts");
 const { TodayAlertBand } = await import("../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
 const { TodayHeadFigures } = await import("../../apps/dashboard/src/surfaces/today/zones/figures.tsx");

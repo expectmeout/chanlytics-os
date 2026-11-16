@@ -66,7 +66,7 @@ import { until } from "../shared/_until.mjs";
 
 const went = [];
 const flashed = [];
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 globalThis.__WORKSPACES = [
   {
     id: "w1",
@@ -1997,17 +1997,10 @@ test("over the tests' sample as its reads, the Campaigns lens draws every part o
   }
 });
 
-test("with nothing read the page says what Reports reads, in a session that says it is a demo too; over a read it is the one page", () => {
+test("with nothing read the page says what Reports reads; over a read it is the one page", () => {
   offSample();
   fresh();
   assert.ok(byTestId(draw(), "reports-none"), "nothing read: the page says what Reports reads");
-  globalThis.__DEMO_MODE = true;
-  try {
-    fresh();
-    assert.ok(byTestId(draw(), "reports-none"), "no sample of its own in a demo: the demo's went with demo mode");
-  } finally {
-    globalThis.__DEMO_MODE = false;
-  }
   try {
     const tree = overSample(0);
     assert.ok(byTestId(tree, "reports-real") && byTestId(tree, "reports-hero"), "the one Reports page, over the read");

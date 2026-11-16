@@ -16,7 +16,7 @@ import { NEW_SINCE_WORDS, newSinceOf } from "../../../apps/dashboard/src/surface
 import { installStubReact, fresh, all, find, byTestId, classes } from "../../_stub-react.mjs";
 import { personDto } from "../../consent/_person-row.mjs";
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 const S = "../../../apps/dashboard/src";
 const { PersonTimeline } = await import(`${S}/surfaces/people/person/timeline.tsx`);
 const { SubTabs } = await import(`${S}/surfaces/kit/sub-tabs/sub-tabs.tsx`);

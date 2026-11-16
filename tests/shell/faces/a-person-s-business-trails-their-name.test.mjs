@@ -32,7 +32,7 @@ import { installStubReact, fresh, again, all, find, byTestId, classes, textOf } 
 import { personDto, personRow, daysAgo, ROW_NOW, ROW_TZ } from "../../consent/_person-row.mjs";
 
 const opened = [];
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false, CHANLY: { nav: (to) => opened.push(to) } });
+installStubReact({ __surfaceState: () => "live", CHANLY: { nav: (to) => opened.push(to) } });
 const S = "../../../apps/dashboard/src";
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { businessTrailFor } = await import(`${S}/surfaces/people/business-trail.ts`);

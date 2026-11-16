@@ -16,7 +16,6 @@ import { installStubReact, fresh } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
 installStubReact({
-  __DEMO_MODE: false,
   usePPToast: () => [null, () => {}],
   // The demo's presence menu is the kit's, drawn by name: a host element is enough to see which listeners the top bar made.
   MoreMenu: "MoreMenu",
@@ -80,13 +79,11 @@ const THE_DEMOS = [
  * Every event the window was asked to be told of while `draw` ran, in a session that is a demo or is not. The demo's scripted
  * lead waits 18 seconds on a timer, which a draw does not run.
  */
-const heardWhile = (demo, draw) => {
+const heardWhile = (draw) => {
   const heard = [];
   const add = W.addEventListener;
   const timer = globalThis.setTimeout;
-  const was = W.__DEMO_MODE;
   fresh();
-  W.__DEMO_MODE = demo;
   W.addEventListener = (type, fn) => {
     heard.push(type);
     add(type, fn);
@@ -97,7 +94,6 @@ const heardWhile = (demo, draw) => {
   } finally {
     W.addEventListener = add;
     globalThis.setTimeout = timer;
-    W.__DEMO_MODE = was;
   }
   return new Set(heard);
 };
@@ -108,37 +104,30 @@ const drawn =
 const missing = (heard, names) => names.filter((n) => !heard.has(n));
 const present = (heard, names) => names.filter((n) => heard.has(n));
 
-test("the top bar listens for none of the mockup's bell rows, in a session that says it is a demo too", () => {
-  const real = heardWhile(false, drawn(W.Topbar, { crumbs: [] }));
-  assert.deepEqual(present(real, [...NO_SENDER, ...THE_DEMOS]), [], "a real session registers none of them");
-  // The demo's bell and its presence control went with demo mode (16 Nov 2026): the switch changes nothing here now.
-  const demo = heardWhile(true, drawn(W.Topbar, { crumbs: [] }));
-  assert.deepEqual(present(demo, [...NO_SENDER, ...THE_DEMOS]), [], "nor does a session that says it is a demo");
+test("the top bar listens for none of the mockup's bell rows: the demo's bell and its presence control went with demo mode", () => {
+  const real = heardWhile(drawn(W.Topbar, { crumbs: [] }));
+  assert.deepEqual(present(real, [...NO_SENDER, ...THE_DEMOS]), [], "a session registers none of them");
 });
 
 test("the live bar redraws on the live feed alone: a call that ends is a row on it, and no event says so", () => {
-  const heard = heardWhile(false, drawn(W.LiveCallBar));
+  const heard = heardWhile(drawn(W.LiveCallBar));
   assert.equal(heard.has("live:ended"), false);
 });
 
 test("the sidebar hears the workspace read; the count of what needs you is handed in, not heard, and a fleet pause, the credits, the call ends and a patched-ahead name left", () => {
-  const real = heardWhile(false, drawn(W.Sidebar, { onNavigate() {} }));
+  const real = heardWhile(drawn(W.Sidebar, { onNavigate() {} }));
   assert.deepEqual(missing(real, ["surface:workspace"]), [], "what redraws it in a workspace");
   assert.deepEqual(
     present(real, [...NO_SENDER, "fleet:status", "inbox:counts", "inbox:decisions"]),
     [],
     "and nothing a real session never hears, nor a number the Inbox and Today once sent over each other's (decision 0048)",
   );
-  // The demo's strip of agents went with demo mode (16 Nov 2026): a session that says it is one hears no pause either.
-  const demo = heardWhile(true, drawn(W.Sidebar, { onNavigate() {} }));
-  assert.equal(demo.has("fleet:status"), false, "no strip of agents to follow a pause");
-  assert.deepEqual(present(demo, NO_SENDER), []);
 });
 
 test("the strip of views hears the live feed alone, the Needs-you badge being the count's own hook, and the sheet of keys hears the keyboard alone", () => {
-  const tabs = heardWhile(false, drawn(W.SurfaceTabs, { page: "clients", param: null, views: null, onNavigate() {} }));
+  const tabs = heardWhile(drawn(W.SurfaceTabs, { page: "clients", param: null, views: null, onNavigate() {} }));
   assert.deepEqual([...tabs].sort(), ["surface:live"], "the Live tab's pulse: no event feeds the Needs-you badge");
-  const sheet = heardWhile(false, drawn(W.ShortcutsSheet));
+  const sheet = heardWhile(drawn(W.ShortcutsSheet));
   assert.deepEqual([...sheet], ["keydown"], "it opens on ? and by openShortcuts(), never by an event");
 });
 

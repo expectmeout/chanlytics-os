@@ -23,7 +23,7 @@ const storage = () => {
     peek: (k) => m.get(k),
   };
 };
-installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
+installStubReact({ __surfaceState: () => "live" });
 globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
 globalThis.__ACTIVE_WORKSPACE = "t-salon";
@@ -98,7 +98,6 @@ test("an address under the Calendar: a whole date opens that day, a visit's id n
 
 test("the frame's chrome for the Calendar: one mount, the four views as the frame's strip, and no act", () => {
   const chrome = (param = null) => calendarChrome({ param });
-  globalThis.__DEMO_MODE = false;
   values.setSurfaceValue("calendar", undefined);
   const before = chrome();
   assert.deepEqual(
@@ -125,10 +124,6 @@ test("the frame's chrome for the Calendar: one mount, the four views as the fram
   values.setSurfaceValue("calendar", { vm: { bookingLink: null }, fetchedAt: 1 });
   assert.equal(chrome().act, null, "and one with no link offers none");
   values.setSurfaceValue("calendar", undefined);
-  // The demo's detour (Book, which opened Ask) went with demo mode (16 Nov 2026): a session that says it is one gets none.
-  globalThis.__DEMO_MODE = true;
-  assert.equal(chrome().act, null, "no detour in a demo either");
-  globalThis.__DEMO_MODE = false;
   assert.deepEqual(SURFACE_ROUTES.calendar.crumbs, ["Calendar"]);
   assert.equal(SURFACE_ROUTES.calendar.activeNav, "calendar");
   assert.equal(SURFACE_ROUTES.calendar.pane, true);
@@ -197,7 +192,6 @@ test("the page draws what the seam holds, and with nothing read the board's fram
       globalThis.clearInterval = ci;
     }
   };
-  globalThis.__DEMO_MODE = false;
   values.setSurfaceValue("calendar", undefined);
   // Nothing read: the board's frame, still, saying it is reading (CAL-25). It drew nothing, and the strip of
   // views stood over an empty page until the weeks landed.
@@ -260,7 +254,6 @@ test("on a phone the bar is the frame's, under its row of views, and the page dr
   globalThis.clearInterval = () => {};
   globalThis.window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
   try {
-    globalThis.__DEMO_MODE = false;
     values.setSurfaceValue("calendar", undefined);
     fresh();
     const cold = CalendarPage({});
