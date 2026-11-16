@@ -1299,7 +1299,7 @@ test("a leg's strip counts the whole search and names the area it reads, after t
   );
 });
 
-test("a leg the day's searching could not hold says what it found so far and that it carries on tomorrow by itself, with Stop (00634)", () => {
+test("a leg the day's searching could not hold says what it found so far and that it carries on tomorrow by itself, with Stop (00635)", () => {
   const waiting = withRound({
     purpose: "widen",
     state: "queued",

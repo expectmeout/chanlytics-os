@@ -122,13 +122,13 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
 - **An exclusion's bar is said:** the judge is told an exclusion is held to the kind's bar, its read of the facts
   (`judge.ts` `judgeQuestions`), as `classify` always held it. Unsaid, it answered unknown wherever a listing did not
   say a business was not a chain.
-- **How many legs, and how a guard stops it** (00634): a search may read `lead_leg_cap` legs, one for every ten leads
+- **How many legs, and how a guard stops it** (00635): a search may read `lead_leg_cap` legs, one for every ten leads
   of its count, eight at least, forty at most; a dense niche's leg adds about nine. Stopped by that cap, or by its last
   two legs adding fewer than three, with an area still within reach, the round ends on what its area did, its nearby
   kept, so the strip says "Found N of M in and near <area>" and offers the next area (contracts `leadEndingLine`,
   `widened`), and the bell says how many of how many. `reach_searched`, "every area within reach was searched", is said
   only when the ladder has no area left.
-- **The day's searching used** (00634): a leg the day cannot hold is reserved from tomorrow's day and starts at midnight
+- **The day's searching used** (00635): a leg the day cannot hold is reserved from tomorrow's day and starts at midnight
   in the workspace's zone (`lead_rounds.starts_at`, its start job due then); the strip says it carries on tomorrow by
   itself, with Stop. Never into the next month, whose leads the owner has not given: that stops on `day_used`, with
   Carry on. A leg the count's estimate cannot be reserved for asks for a page's first (`lead_estimate_ceiling` of 48

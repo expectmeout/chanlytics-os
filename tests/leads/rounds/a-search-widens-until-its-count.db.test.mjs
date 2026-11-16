@@ -256,7 +256,7 @@ test(
     await named(leg3.id, [MANOR]);
     await ended(leg3.id, "few_new_matches");
     const last = await round(leg3.id);
-    // An area is still within reach: "every area within reach was searched" would not be true (00634). It said so on
+    // An area is still within reach: "every area within reach was searched" would not be true (00635). It said so on
     // 15 Nov 2026, at 99 of 100.
     assert.deepEqual(
       [last.ending, last.carries_on, last.nearby.map((a) => a.zip)],
@@ -304,7 +304,7 @@ test(
     const r = await round(s.round_id);
     const [, leg] = await roundsOf(s.search_id);
     if (!leg) {
-      // Its tomorrow is the next month, whose leads the owner has not given: it stops, with Carry on (00634).
+      // Its tomorrow is the next month, whose leads the owner has not given: it stops, with Carry on (00635).
       assert.deepEqual([r.ending, r.carries_on], ["day_used", false]);
       const [ring] = await rang(s.round_id);
       assert.match(ring?.title ?? "", /stopped: today's searching is used up$/);

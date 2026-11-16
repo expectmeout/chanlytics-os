@@ -108,7 +108,7 @@ const ldEndingFacts = (s: PlacesSearch, nearby: readonly string[], renewsOn: str
 };
 
 /**
- * A leg the day's searching could not hold (decision 0133, 00634): reserved from tomorrow's day, it starts by itself at
+ * A leg the day's searching could not hold (decision 0133, 00635): reserved from tomorrow's day, it starts by itself at
  * midnight in the workspace's zone. What it found so far, and Stop, which ends it and gives back what it held.
  */
 const dayWaitStrip = (counted: number, goal: number, audience: string): StripVM => ({

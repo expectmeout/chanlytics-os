@@ -79,7 +79,8 @@
     "00601": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00602": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00603": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
-    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)"
+    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
+    "00634": "the database calls cold email cold email (cm-words), applied on production 16 Nov 2026 before its push; a search reaches its count or says why landed as 00635"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -636,6 +637,6 @@
     "00631_a_lead_is_named_by_its_owner.sql": "5adfb8b80c622d2a141074d1192fce52d82491d17cd14f2eb549569c44df067e",
     "00632_a_lead_who_tries_their_preview_rings_the_bell.sql": "ed228d7f3fa582d27c8104343ad1256075ab1dae3bc99760a9d3e5f246f7f8de",
     "00633_the_database_s_own_sentences_say_today_s_words.sql": "256d3e008b6621d75bef65029d7cea68569090584990aef36b97d6cc14690faf",
-    "00634_a_search_reaches_its_count_or_says_why.sql": "d98b9a3f4c10dcb5d711b138e0c045e019f20968ae1dabcd085ba6bb9dc23bbb"
+    "00635_a_search_reaches_its_count_or_says_why.sql": "80bdda332ec11d9972f164dc537fc72913a7b336d608cb9dbd35a17d4c013404"
   }
 }

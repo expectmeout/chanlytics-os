@@ -214,7 +214,7 @@ export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEnd
   const mark = LEAD_ENDING_WORDS[ending];
   const yours = `the ${leadEndingFacts.counted} found are yours`;
   const one = leadEndingFacts.name.replace(/s$/, "");
-  // A widened search stopped by its own guards with areas still within reach (00634) found what it found in and near its
+  // A widened search stopped by its own guards with areas still within reach (00635) found what it found in and near its
   // area, and the next area is the owner's to open: one sentence for both of the endings it may stop on.
   if (leadEndingFacts.widened && (ending === "few_new_matches" || ending === "searched_everything"))
     return widenedEnding(mark, leadEndingFacts, yours);
