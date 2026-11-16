@@ -215,7 +215,7 @@ test("waitsOf counts the holds, the held sends and the runs waiting; needsYouCou
   assert.deepEqual(
     w,
     { holds: 3, sends: 1, runs: 2 },
-    "two holds and the one whose thread could not be read; one send; two runs",
+    "two holds and the one whose conversation couldn't be read; one send; two runs",
   );
   assert.equal(needsYouCount(w), 6);
   // A visit's run made for a day that has passed waits on nobody: the verb would refuse it (contracts runApprovalRefusal).
@@ -273,11 +273,11 @@ test("a going run whose emails the check holds waits on you once, however many i
     audience: reach,
     held: 2,
   });
-  assert.equal(words.held.sentence, "2 emails wait for your say. The rest goes as planned.");
-  assert.equal(heldEmailsWords(1), "1 email waits for your say");
+  assert.equal(words.held.sentence, "2 emails wait for your approval. The rest goes as planned.");
+  assert.equal(heldEmailsWords(1), "1 email waits for your approval");
   assert.equal(
     runsWaitingSentence(2),
-    "2 campaign runs are waiting for your say.",
+    "2 campaign runs are waiting for your approval.",
     "one sentence for both kinds of wait",
   );
 });
@@ -403,7 +403,7 @@ test("nobody answered them, or a reply never reached them: a row of Need you, on
   assert.deepEqual(
     [row("c-un").kind, row("c-un").act, row("c-un").also, row("c-un").closes],
     ["handoff", "reply", null, "archive"],
-    "a reply to write, and with no hold to give back, letting it go archives the thread",
+    "a reply to write, and with no hold to give back, letting it go archives the conversation",
   );
   assert.equal(row("c-un").sentence, "Anyone there?", "their own words");
   assert.ok(row("c-fail").failed, "the words that never left, to send again");
@@ -465,7 +465,7 @@ test("the badge's number is none before Today has been read: a count of what not
   reset();
   assert.equal(needsYouNow(nowMs), null);
   setSurfaceValue("inbox", inboxOf(viewModels()));
-  assert.equal(needsYouNow(nowMs), null, "the Inbox's threads are not the count: Need you's rows are");
+  assert.equal(needsYouNow(nowMs), null, "the Inbox's conversations are not the count: Need you's rows are");
   setSurfaceValue("today", toTodayVM(metrics(), [], [], [], NOW));
   assert.equal(needsYouNow(nowMs), 0, "a zero is shown once Today has been read");
   reset();
@@ -517,7 +517,7 @@ test("Need you's rows above To do and the runs waiting are one number, and a row
   assert.equal(needsYouNow(sam.held.sends_at_ms + 1), 2, "Sam's reply is gone; Hana and the runs remain");
   // A thread acted on stands for itself: the read's other row of it is not counted either, as the list does not draw it.
   needsYouActed([{ id: "kept-elsewhere", conversationId: hana.conversationId }]);
-  assert.equal(needsYouNow(nowMs), 2, "Hana's thread was worked here: Sam and the runs remain");
+  assert.equal(needsYouNow(nowMs), 2, "Hana's conversation was worked here: Sam and the runs remain");
   reset();
 });
 
@@ -527,7 +527,7 @@ test("a demo session counts its seeded threads by the mockup's rule, less the de
   await demoCode();
   try {
     const seeded = needsYouNow(nowMs);
-    assert.ok(seeded > 0, "the demo's Inbox has threads that wait");
+    assert.ok(seeded > 0, "the demo's Inbox has conversations that wait");
     assert.deepEqual(Object.values(IX_STORE.decisions), [], "no decision yet");
     // A decision on a seeded thread that waits takes it out of the count, the way it leaves the Inbox's Needs you.
     const waiting = inboxData().THREADS.find(
@@ -553,7 +553,7 @@ test("the readers are told when what the count is made of moves, and not when so
   assert.equal(
     told.length,
     4,
-    "Today's rows, the Inbox's threads (its parts), the campaigns' runs, and what only the Inbox's page knows",
+    "Today's rows, the Inbox's conversations (its parts), the campaigns' runs, and what only the Inbox's page knows",
   );
   needsYouActed([{ id: "q-1", conversationId: "c-1" }]);
   assert.equal(told.length, 5, "a row Need you acted on");

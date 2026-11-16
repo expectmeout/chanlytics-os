@@ -121,7 +121,7 @@ export function PaneActivity({ family = null }: { family?: string | null } = {})
       const r = await activity.list({ ...readOf(n, today), ...(cursor ? { cursor } : {}) });
       if (mine !== asked.current) return;
       if (!r.ok) {
-        setSt((c) => ({ ...c, loading: false, error: r.message || "Could not be read right now." }));
+        setSt((c) => ({ ...c, loading: false, error: r.message || "Couldn't be read right now." }));
         return;
       }
       setSt((c) => stateOf(r.data, c, append));

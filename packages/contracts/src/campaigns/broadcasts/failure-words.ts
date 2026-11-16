@@ -64,9 +64,9 @@ export const BROADCAST_FAILURE_WORDS: Record<BroadcastFailure, Words> = {
   // WhatsApp was still checking the message, or holding it, when the run's wait for it ended (core whatsapp-wait.ts).
   whatsapp_wait_ended: "WhatsApp had not approved its message in time",
   wire_unavailable: {
-    whatsapp: "WhatsApp could not be reached",
-    sms: "the texting provider could not be reached",
-    email: "the mail provider could not be reached",
+    whatsapp: "WhatsApp couldn't be reached",
+    sms: "the texting provider couldn't be reached",
+    email: "the mail provider couldn't be reached",
   },
   run_interrupted: "its send stopped partway and did not start again",
   throttled: {
@@ -75,11 +75,11 @@ export const BROADCAST_FAILURE_WORDS: Record<BroadcastFailure, Words> = {
     email: "the mail provider kept limiting how fast this workspace may send",
   },
   stalled: {
-    whatsapp: "its people or its number's credentials could not be read for half an hour",
-    sms: "its line's credentials could not be read for half an hour",
-    email: "its mailbox could not be read for half an hour",
+    whatsapp: "its people or its number's credentials couldn't be read for half an hour",
+    sms: "its line's credentials couldn't be read for half an hour",
+    email: "its mailbox couldn't be read for half an hour",
   },
-  people_unreadable: "its people could not be read for half an hour",
+  people_unreadable: "its people couldn't be read for half an hour",
   after_hours: "the day's sending hours ran out before it was done",
   provider_limit: "the mail provider's limit for the day or the month was reached",
   campaigns_domain_unverified: "the domain offers by email leave from is not verified with the mail provider",
@@ -90,5 +90,5 @@ export const BROADCAST_FAILURE_WORDS: Record<BroadcastFailure, Words> = {
 export function broadcastFailureWords(failure: string | null | undefined): string {
   if (!failure) return "no reason was recorded";
   const read = readFailure(failure);
-  return read ? wordsFor(BROADCAST_FAILURE_WORDS[read.code], read.channel) : "it could not finish";
+  return read ? wordsFor(BROADCAST_FAILURE_WORDS[read.code], read.channel) : "it couldn't finish";
 }

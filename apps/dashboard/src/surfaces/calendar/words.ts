@@ -50,7 +50,7 @@ export const CR_WARM_MS = 1000;
  * one): a last good read that could not be refreshed, and a calendar that could not be read.
  */
 export const CR_FEED_WORDS = {
-  stale: "The calendar could not be refreshed.",
+  stale: "The calendar couldn't be refreshed.",
   unavailable: "The address is saved; check it in Settings › Hours & booking if this keeps happening.",
 };
 

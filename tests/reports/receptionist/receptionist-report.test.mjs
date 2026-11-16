@@ -238,7 +238,7 @@ test("the link and what came of it, said by what the calendar could say", () => 
   );
   assert.equal(
     linkOf({ sent: 7, booked: null, calendar: "unavailable" }).line,
-    "7 people were sent the booking link. Your calendar could not be read.",
+    "7 people were sent the booking link. Your calendar couldn't be read.",
   );
   assert.equal(
     linkOf({ sent: 0, booked: null, calendar: "none" }).line,
@@ -382,7 +382,7 @@ test("while you were closed: the hours decide, and no hours is a question", () =
     door: "admin/hours",
     unset: true,
   });
-  assert.equal(vm({}, null).closed, null, "the hours could not be read: nothing is said of them");
+  assert.equal(vm({}, null).closed, null, "the hours couldn't be read: nothing is said of them");
 
   const open = vm({ after_hours: [{ d: "2026-09-14", q: 40, n: 4, a: 4 }] }).closed;
   assert.equal(open.value, "0");
@@ -410,13 +410,13 @@ test("stuck: needs you, call-backs and replies held back", () => {
     [
       "the oldest has waited 2h 10m",
       "people to ring, counted in Needs you",
-      "a person had the thread 3 · asked to stop 1",
+      "a person had the conversation 3 · asked to stop 1",
     ],
   );
   assert.deepEqual(
     v.heldBack.slice(0, 2).map((r) => [r.label, r.value]),
     [
-      ["A person had the thread", 3],
+      ["A person had the conversation", 3],
       ["Asked to stop", 1],
     ],
   );
@@ -606,7 +606,7 @@ test("the DTO folds into the same view model the page draws", () => {
     [
       ["2", "the oldest has waited 2h 10m"],
       ["1", "people to ring, counted in Needs you"],
-      ["4", "a person had the thread 3 · asked to stop 1"],
+      ["4", "a person had the conversation 3 · asked to stop 1"],
     ],
   );
   assert.equal(v.closed.value, "3 of 5");

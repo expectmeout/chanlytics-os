@@ -174,7 +174,7 @@ test("a sent reply that went from the mailbox says so; one that went as frozen s
   });
   assert.equal(
     replyLeftAsOf(meta("mailbox")),
-    "Went from hello@mail.example.com: sam@owndomain.example.com could not send it.",
+    "Went from hello@mail.example.com: sam@owndomain.example.com couldn't send it.",
   );
   assert.equal(
     replyLeftAsOf(meta("mailbox", "own_not_sending")),
@@ -198,7 +198,7 @@ test("the notice for a no says it can be undone on the thread, and nothing else 
       automatic: false,
       reread: false,
     });
-  assert.match(n("no").body, /If that's a misreading, undo it on the thread within seven days\./);
+  assert.match(n("no").body, /If that's a misreading, undo it in the conversation within seven days\./);
   assert.doesNotMatch(n("interested").body, /undo/);
   assert.doesNotMatch(n("no").redacted, /undo/);
 });

@@ -103,7 +103,7 @@ function listNameOf(p: AnswerPlaybook, pb: LifecycleAnswer): string | null {
 /** A card's trigger in words: its list's name for one on a list (unread is not deleted), else its trigger's, in the word. */
 function triggerLabelOf(p: AnswerPlaybook, pb: LifecycleAnswer, word: AppointmentWord): string {
   if (p.trigger === "saved_list")
-    return listNameOf(p, pb) ?? (pb.lists === null ? "A list that could not be read" : "A list that was deleted");
+    return listNameOf(p, pb) ?? (pb.lists === null ? "A list that couldn't be read" : "A list that was deleted");
   const t = triggerOf(p.trigger);
   return t ? triggerWords(t, word).label : p.trigger;
 }

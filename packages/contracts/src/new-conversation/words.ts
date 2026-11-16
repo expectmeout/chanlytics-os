@@ -30,10 +30,10 @@ export const NEW_CONVERSATION_WORDS = {
     search: "Search people",
     none: "No one matches.",
   },
-  thread: "Open their thread",
+  thread: "Open their conversation",
   page: "Open their page",
   reading: "Reading how they can be reached…",
-  unread: "This could not be read just now.",
+  unread: "This couldn't be read just now.",
   how: { label: "Message or call", message: "Message", call: "Call" },
   about: {
     label: "What is it about?",
@@ -101,7 +101,8 @@ export const NEW_CONVERSATION_WORDS = {
   /** What gets a message to someone with no yes on record: their page is where a yes is recorded, in their words. */
   recordYes: "Record their yes on their page",
   noteLost: "It was sent. The note for AI was not kept: add it on their page.",
-  stillYours: "It was sent. The thread is still yours: hand it back from the thread when you want AI to answer.",
+  stillYours:
+    "It was sent. The conversation is still yours: hand it back from the conversation when you want AI to answer.",
   noWay: (personName: string) => `No message can go to ${personName} yet.`,
   call: {
     from: "Call from your phone",

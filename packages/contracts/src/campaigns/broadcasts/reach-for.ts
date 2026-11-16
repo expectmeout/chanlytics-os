@@ -112,7 +112,7 @@ export const CHANNEL_WORDS = {
   noMailbox: "Set up email in Settings › Connections first.",
   noEmailDomain: "Email is not switched on for this deployment yet.",
   /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
-  unchecked: "This could not be checked just now.",
+  unchecked: "This couldn't be checked just now.",
 } as const;
 
 /**

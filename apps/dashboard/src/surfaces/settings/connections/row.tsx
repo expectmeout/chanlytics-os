@@ -425,7 +425,7 @@ function rowAsk(
       <Confirm
         className="set-row-ask"
         question="Disconnect Instagram?"
-        detail="Its DMs stop being answered here until you connect it again. Its threads stay."
+        detail="Its DMs stop being answered here until you connect it again. Its conversations stay."
         yes="Yes, disconnect"
         danger
         busy={busy}

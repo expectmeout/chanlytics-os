@@ -92,7 +92,7 @@ test("Can't hands the door the line the thread's hold will say, in the business'
     {
       p_appointment_id: ROW,
       p_booked: false,
-      p_reply_words: "Could not book Sat, Oct 17, 2:00 PM · Balayage: reply to them",
+      p_reply_words: "Couldn't book Sat, Oct 17, 2:00 PM · Balayage: reply to them",
     },
   ]);
 });

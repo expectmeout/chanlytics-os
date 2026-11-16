@@ -91,7 +91,7 @@ export const CONTENT_SOURCE_WORDS = {
   },
   body: {
     unknown: "Paste your Instagram or website, and AI brings them in.",
-    looking: "What AI finds waits in the Library for your OK.",
+    looking: "What AI finds waits in the Library for your approval.",
     found: "Keep the ones that are yours.",
     tooSmall: "The photos there are too small to post.",
     embeddedOnly: "Its videos play from YouTube or Vimeo, which AI can't bring in.",

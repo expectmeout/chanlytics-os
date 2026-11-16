@@ -139,7 +139,7 @@ const ROWS = [
     name: "a first run waiting",
     facts: facts({ waitingRun: { id: "run-1", planned: 10, name: "Dental clinics · Austin", first: true } }),
     kind: "waiting_ok",
-    headline: "Your first 10 emails are ready for your OK",
+    headline: "Your first 10 emails are ready for your approval",
     act: "Read and approve",
     to: "runs/run-1",
     needs_you: true,
@@ -148,7 +148,7 @@ const ROWS = [
     name: "a later run waiting",
     facts: facts({ waitingRun: { id: "run-2", planned: 8, name: "Dental clinics · Austin", first: false } }),
     kind: "waiting_ok",
-    headline: "Your next 8 emails are ready for your OK",
+    headline: "Your next 8 emails are ready for your approval",
     act: "Read and approve",
     to: "runs/run-2",
     needs_you: true,
@@ -157,7 +157,7 @@ const ROWS = [
     name: "a run waiting whose size was not read",
     facts: facts({ waitingRun: { id: "run-3", planned: null, name: "Dental clinics · Austin", first: true } }),
     kind: "waiting_ok",
-    headline: "Your first emails are ready for your OK",
+    headline: "Your first emails are ready for your approval",
     act: "Read and approve",
     to: "runs/run-3",
     needs_you: true,
@@ -281,11 +281,11 @@ test("a paused mailbox with a batch waiting says the batch, since an OK alone wo
   const paused = [{ state: "paused", held_why: null }];
   const run = { id: "run-1", name: "Dental clinics · Austin", first: false };
   const some = coldEmailStandingOf(facts({ mailboxes: paused, waitingRun: { ...run, planned: 25 } }));
-  assert.equal(some.detail, "25 emails are ready for your OK. Nothing goes out until you resume it.");
+  assert.equal(some.detail, "25 emails are ready for your approval. Nothing goes out until you resume it.");
   const one = coldEmailStandingOf(facts({ mailboxes: paused, waitingRun: { ...run, planned: 1 } }));
-  assert.equal(one.detail, "1 email is ready for your OK. Nothing goes out until you resume it.");
+  assert.equal(one.detail, "1 email is ready for your approval. Nothing goes out until you resume it.");
   const unread = coldEmailStandingOf(facts({ mailboxes: paused, waitingRun: { ...run, planned: null } }));
-  assert.equal(unread.detail, "Emails are ready for your OK. Nothing goes out until you resume it.");
+  assert.equal(unread.detail, "Emails are ready for your approval. Nothing goes out until you resume it.");
   const none = coldEmailStandingOf(facts({ mailboxes: paused }));
   assert.equal(none.detail, "Nothing goes out until you resume it.");
 });

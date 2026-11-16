@@ -319,6 +319,6 @@ export function bookedTileOf(booking: BookingReportVM | null): ReportStripTile {
   return {
     ...tile,
     value: "—",
-    meta: booking && booking.calendar === "unavailable" ? "the calendar could not be read" : "no calendar link",
+    meta: booking && booking.calendar === "unavailable" ? "the calendar couldn't be read" : "no calendar link",
   };
 }

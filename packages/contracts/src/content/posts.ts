@@ -193,7 +193,7 @@ export const ON_INSTAGRAM = {
   /** What a refusal says, by what Instagram answered (decision 0121): the sheet's line and the bell's. */
   refused: {
     limit: "Instagram allows only so many posts a day, and this account has used them. Post it again tomorrow.",
-    picture: "Instagram could not take this picture. Make a new version and post that.",
+    picture: "Instagram couldn't take this picture. Make a new version and post that.",
     token: "Instagram no longer accepts the connection. Connect Meta again, then post it again.",
     busy: "Instagram is busy right now. Post it again in a few minutes.",
     other: "Instagram did not take the post.",

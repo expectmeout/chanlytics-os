@@ -107,7 +107,7 @@ function serviceWordsOf(item: CalendarItemDto): string {
  */
 function feedLineOf(state: CalendarFeedDto["state"], feedDetail: string, noticesLine: string): string {
   if (state === "ok") return feedDetail;
-  if (state === "unavailable") return `Your calendar could not be read${feedDetail ? ` · ${feedDetail}` : ""}`;
+  if (state === "unavailable") return `Your calendar couldn't be read${feedDetail ? ` · ${feedDetail}` : ""}`;
   return noticesLine || "No calendar connected";
 }
 
@@ -451,7 +451,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   // act on; the line said it again as "2 repeating rules read once · 3 more not shown", unexplained (C1).
   const feedDetail =
     dto.feed.state === "ok"
-      ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"}${stale ? ` · could not be refreshed${tried ? ` ${tried}` : ""}` : ""} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}`
+      ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"}${stale ? ` · couldn't be refreshed${tried ? ` ${tried}` : ""}` : ""} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}`
       : dto.feed.state === "unavailable"
         ? [tried ? `tried ${tried}` : "", ago ? `last read ${ago}` : ""].filter(Boolean).join(" · ")
         : "";

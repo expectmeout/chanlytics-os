@@ -44,7 +44,7 @@ test("two cold email runs that wait are one row: what is held, what an OK would 
   assert.equal(WAIT_ROW_WORDS.cold.meta(row.from), "2 sequences");
   assert.equal(
     WAIT_ROW_WORDS.cold.sentence(row),
-    "3 held for a look. 19 emails wait for your OK. Each one you answer opens the next.",
+    "3 held for a look. 19 emails wait for your approval. Each one you answer opens the next.",
   );
   assert.deepEqual(WAIT_ROW_WORDS.cold.status(row), ["Held for a look"]);
 });
@@ -60,7 +60,10 @@ test("with nothing to OK it says the rest go as planned, and with nothing held i
     cold("r-02", "pending_approval", MOVERS, { recipient_count: 0 }),
   ])[0];
   assert.equal(asks.kind, "cold_email");
-  assert.equal(WAIT_ROW_WORDS.cold.sentence(asks), "1 email waits for your OK. Each one you answer opens the next.");
+  assert.equal(
+    WAIT_ROW_WORDS.cold.sentence(asks),
+    "1 email waits for your approval. Each one you answer opens the next.",
+  );
   assert.equal(WAIT_ROW_WORDS.cold.meta(asks.from), "1 sequence");
   assert.notDeepEqual(WAIT_ROW_WORDS.cold.status(asks), ["Held for a look"]);
 });

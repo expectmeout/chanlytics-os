@@ -1554,7 +1554,7 @@ test("a change said to Ask makes the search card again (Ruben, 23 Oct 2026): the
     const again = { text: "Make it 40", thread_id: made, surface: "leads" };
     const answer = (await linesOf(await ask.POST.run(send("POST", again, inA), ctxFor(tables)))).at(-1).message;
     const told = JSON.stringify(asked.at(-1).messages);
-    assert.ok(told.includes("A search card waits in this thread for their press"), "the waiting card is told");
+    assert.ok(told.includes("A search card waits in this conversation for their press"), "the waiting card is told");
     assert.ok(told.includes('\\"terms\\":[\\"personal trainer\\",\\"strength coach\\"]'), "its plan whole");
     assert.equal(answer.proposals[0].payload.plan.from, "idea", "the idea's mark goes with the change");
     const [firstCard] = tables.ask_messages[1].content.proposals;

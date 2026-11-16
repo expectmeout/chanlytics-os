@@ -62,6 +62,21 @@ export interface PreviewMade {
   made: boolean;
 }
 
+/**
+ * The lead a reply's thread is about: the newest reading on that conversation names it (sequence_replies), or null where
+ * the thread holds no lead's reply. For a preview made when a business answers (the edge's reply drafter).
+ */
+export async function findLeadOfReply(db: Db, tenantId: TenantId, conversationId: string): Promise<string | null> {
+  const { data, error } = await tenantDb(db, tenantId)
+    .from("sequence_replies")
+    .select("lead_id")
+    .eq("conversation_id", conversationId)
+    .order("read_at", { ascending: false })
+    .limit(1);
+  if (error) throw new DbFailure(error, "cannot read whose reply this is");
+  return data[0]?.lead_id ?? null;
+}
+
 /** A lead's preview made, or the one that stands (the service role's). */
 export async function makeLeadPreview(
   db: Db,
@@ -175,6 +190,19 @@ export async function findLeadPreview(db: Db, tenantId: TenantId, leadId: string
   return data;
 }
 
+/**
+ * How many previews a workspace has made since `sinceIso` (00632's lead_previews_made_at): the day's count the edge's
+ * limit and the card read. A count, never the rows.
+ */
+export async function countLeadPreviewsSince(db: Db, tenantId: TenantId, sinceIso: string): Promise<number> {
+  const { count, error } = await tenantDb(db, tenantId)
+    .from("lead_previews")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", sinceIso);
+  if (error) throw new DbFailure(error);
+  return count ?? 0;
+}
+
 /** A preview in its sender's workspace by its id, or null. */
 export async function findLeadPreviewById(db: Db, tenantId: TenantId, id: string): Promise<LeadPreviewRow | null> {
   const { data, error } = await tenantDb(db, tenantId).from("lead_previews").select("*").eq("id", id).maybeSingle();
@@ -202,6 +230,8 @@ export interface LeadForPreview {
   hours: Json;
   /** Its Google photo, as the finder kept it: its preview's page shows it. */
   image_url: string | null;
+  /** What is its owner's own word (00631 lead_named, facts.own): a name they typed is the preview's, as typed. */
+  facts: Json;
 }
 
 /** The lead a preview is built from, or null where it is gone. */
@@ -209,7 +239,7 @@ export async function findLeadForPreview(db: Db, tenantId: TenantId, leadId: str
   const { data, error } = await tenantDb(db, tenantId)
     .from("leads")
     .select(
-      "id, kind, stage, erased_at, blanked_at, business_name, category, street, city, region, postal_code, phone_e164, email, website_host, hours, image_url",
+      "id, kind, stage, erased_at, blanked_at, business_name, category, street, city, region, postal_code, phone_e164, email, website_host, hours, image_url, facts",
     )
     .eq("id", leadId)
     .maybeSingle();

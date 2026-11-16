@@ -119,7 +119,7 @@ const approvalsSentence = (names: readonly string[]) =>
 /** Cold email's row in a sentence: what is held for a look, then what waits for an OK, and what happens to the rest. */
 function coldEmailSentence(c: ColdEmailCount): string {
   const held = c.held > 0 ? `${c.held} held for a look.` : null;
-  const asks = c.asks > 0 ? `${plural(c.asks, "email waits", "emails wait")} for your OK.` : null;
+  const asks = c.asks > 0 ? `${plural(c.asks, "email waits", "emails wait")} for your approval.` : null;
   // With nothing to OK, the rest is already going; with something, each answer opens the next, as the runs' row says.
   const tail = c.asks > 0 ? "Each one you answer opens the next." : "The rest go as planned.";
   return [held, asks, tail].filter(Boolean).join(" ");
@@ -135,7 +135,7 @@ export const WAIT_ROW_WORDS = {
   /** A batch waiting for an OK that holds emails an OK does not send: each is decided on the sequence's People. */
   decide: (n: number) => `Review ${n}`,
   approvals: {
-    name: (n: number) => `${plural(n, "run waits", "runs wait")} for your OK`,
+    name: (n: number) => `${plural(n, "run waits", "runs wait")} for your approval`,
     meta: "Campaigns · ready",
     sentence: approvalsSentence,
     status: [RUN_WAITING_WORDS],
@@ -143,7 +143,7 @@ export const WAIT_ROW_WORDS = {
     /** Today's brief, saying the folded row once (contracts todayBriefWords): "4 runs wait for your OK: …". */
     brief: (names: readonly string[]) => ({
       label: plural(names.length, "run", "runs"),
-      says: names.length === 1 ? "waits for your OK" : "wait for your OK",
+      says: names.length === 1 ? "waits for your approval" : "wait for your approval",
       sentence: approvalsSentence(names),
     }),
   },

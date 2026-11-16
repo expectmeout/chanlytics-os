@@ -34,13 +34,13 @@ export const STEP_SHEET_WORDS = {
   gone: "This person is not in your workspace.",
   noStep: "This step is no longer here.",
   done: { add: "Next step set", edit: "Step saved", note: "Note added", editNote: "Note saved" },
-  failed: "Could not save this step.",
+  failed: "Couldn't save this step.",
   /** Many people at once: one line, each of them given it as a note of their own. */
   many: {
     sub: (n: number) => `${n} ${n === 1 ? "person" : "people"}`,
     placeholder: "One line, under each of their notes",
     rule: "Each of them gets it as a note of their own, signed by you.",
-    failed: "Could not add the note.",
+    failed: "Couldn't add the note.",
   },
   // The limit is passed in rather than read here: a literal that reads another module's constant is kept by every
   // package that bundles contracts, as tone.ts's tables were (people.ts NOTE_MAX is the one spelling of it).

@@ -226,7 +226,7 @@ export function oneDoor(
 
 const KIND_WORDS: Record<"en" | "es", Record<AskCitationKind, string>> = {
   en: {
-    thread: "Thread",
+    thread: "Conversation",
     conversation: "Conversation",
     call: "Call",
     person: "Profile",

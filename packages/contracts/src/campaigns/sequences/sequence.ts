@@ -44,12 +44,12 @@ export const SEQUENCE_MODE_WORDS: Record<SequenceMode, { line: string; choice: s
     choice: `Hold it ${PLAYBOOK_VETO_DELAY_WORDS} so I can stop it`,
     does: `each batch waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it, then goes`,
   },
-  ask: { line: "asks you before each batch", choice: "Ask me", does: "each batch waits for your OK" },
+  ask: { line: "asks you before each batch", choice: "Ask me", does: "each batch waits for your approval" },
 };
 
 /** What How it runs calls the mode, and what it says of a step's new words (decision 0064). */
 export const SEQUENCE_MODE_LABEL = "Before each batch";
-export const SEQUENCE_NEW_WORDS_ASK = "A batch of new words waits for your OK first, whatever this says.";
+export const SEQUENCE_NEW_WORDS_ASK = "A batch of new words waits for your approval first, whatever this says.";
 
 /** The modes a sequence an occasion starts takes (decision 0119): it sends each message, or holds each for a stop. */
 const OWN_TIME_MODES: readonly SequenceMode[] = ["auto", "veto"];

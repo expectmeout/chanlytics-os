@@ -73,6 +73,11 @@ export async function getHealthParts(db: Db, days: number) {
   return db.rpc("platform_health_parts", { p_days: days });
 }
 
+/** Leads' previews over the last `days`: made, tried, made theirs, and what the model cost on them (00632). */
+export async function getHealthPreviews(db: Db, days: number) {
+  return db.rpc("platform_health_previews", { p_days: days });
+}
+
 /** What the replies sent over the last `days` did with the thread's draft (00539 reply_draft_uses). */
 export async function getHealthDraftUses(db: Db, days: number) {
   return db.rpc("reply_draft_uses", { p_days: days });

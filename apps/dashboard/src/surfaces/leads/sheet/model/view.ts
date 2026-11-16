@@ -164,7 +164,7 @@ export const LEAD_SHEET_WORDS = {
     approve: runApproveWords,
     write: "Write the emails in Campaigns",
     writeNote: (n: number) => `Next: one set of emails for the ${n}, in the draft's record. Back brings you here.`,
-    approveNote: "Their first batch waits for your OK: it carries leads you added.",
+    approveNote: "Their first batch waits for your approval: it carries leads you added.",
   },
   /** The pile's line over the card. */
   of: (at: number, of: number, search: string) => `${at} of ${of} · ${search}`,

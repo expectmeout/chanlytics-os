@@ -625,7 +625,7 @@ test("the connection in words, and the view model that says replies are possible
   );
   assert.equal(
     connectionWords(conn({ sync_error: "PERMISSION_DENIED" }), NOW),
-    "Connected as owner@example.com · could not sync since 3h ago — read again once a day",
+    "Connected as owner@example.com · couldn't sync since 3h ago — read again once a day",
   );
   assert.equal(connectionWords(conn({ google_email: null, last_synced_at: null }), NOW), "Connected · not synced yet");
   const listing = {

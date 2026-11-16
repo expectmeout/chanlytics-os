@@ -280,7 +280,7 @@ export function ConsentAsk(props: AskProps) {
     setSt({ ...ASK_CLOSED, busy: true });
     const r = await onRecord(consent, source, evidence);
     if (!r || !r.ok) {
-      setSt({ ...ASK_CLOSED, error: (r && r.message) || "Could not record this." });
+      setSt({ ...ASK_CLOSED, error: (r && r.message) || "Couldn't record this." });
       return;
     }
     setSt({ ...ASK_CLOSED });

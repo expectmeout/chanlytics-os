@@ -697,3 +697,56 @@ test("the business is named as every email names it, and a listing with no name 
   assert.equal(f.opening, "Harbor Auto Repair has a 4.6 rating across 120 reviews.");
   assert.equal(leadFactOf({ ...FACT_LISTING, business_name: " ", rating: 4.6, reviews: 120 }), null);
 });
+
+/* ---- an email that carries their preview: the line is about it (the sprint's step 4) ---- */
+
+const WITH_PREVIEW = {
+  ...RECORD,
+  preview_knows: "hours: Mon–Fri 8–6; address: 12 Main St; 22 services (Local moves, Packing, Storage, and more)",
+  preview_tried: "4 messages · a call of 2 minutes",
+  preview_said: "Says the hours aren't right: “Saturday we close at 1”",
+};
+const FOLLOW_UP = { subject: null, body: "{{opening}}\n\nIt is still here: {{their preview}}" };
+const SENDER = { name: "Harbor Moving Co", what_we_do: null, tone: null };
+
+test("an email that carries their preview: the writer and the reader are both shown what it knows and what they did", () => {
+  const told = openingUserContent({ record: WITH_PREVIEW, workspace: SENDER, words: FOLLOW_UP });
+  const inRecord = told.slice(told.indexOf("<record>"), told.indexOf("</record>"));
+  for (const line of ["preview_knows: hours: Mon–Fri 8–6", "preview_tried: 4 messages", "preview_said: Says the hours"])
+    assert.ok(inRecord.includes(line), line);
+  // The reader checks the line against the same record, so a thing they did not do cannot be said.
+  const read = readingUserContent({ record: WITH_PREVIEW, opening: "You asked it 4 questions." });
+  assert.ok(read.includes("preview_tried: 4 messages · a call of 2 minutes"));
+  // What the writer may and may not do with it: never that it knows they opened anything.
+  assert.match(told, /Write the sentence about that preview/);
+  assert.match(told, /Never say or imply that you know whether they opened/);
+  assert.match(told, /Never say it has been put right/);
+});
+
+test("a first email's writer is told nothing of a preview: its input is what it always was", () => {
+  const words = { subject: "Hello", body: "{{opening}}\n\nI run Harbor." };
+  const told = openingUserContent({ record: RECORD, workspace: SENDER, words });
+  assert.doesNotMatch(told, /preview/);
+  assert.doesNotMatch(readingUserContent({ record: RECORD, opening: SAID }), /preview/);
+});
+
+test("a line about their preview is read by code as any line: its facts are the record's, its numbers too", () => {
+  const line = (text, facts) => ({ opening: text, angle: "their preview", facts_used: facts });
+  assert.equal(
+    checkOpening(line("It already knows your hours and 22 of your services.", ["preview_knows"]), WITH_PREVIEW),
+    null,
+  );
+  assert.equal(
+    checkOpening(line("You asked it 4 questions and called it for 2 minutes.", ["preview_tried"]), WITH_PREVIEW),
+    null,
+  );
+  // A number their preview does not hold, and a fact a record without one does not have.
+  assert.equal(
+    checkOpening(line("It already knows 30 of your services.", ["preview_knows"]), WITH_PREVIEW),
+    "unbacked_number",
+  );
+  assert.equal(checkOpening(line("It already knows your hours.", ["preview_knows"]), RECORD), "unnamed_fact");
+  // They have not tried it: no line may lean on what they did.
+  const untried = { ...WITH_PREVIEW, preview_tried: null };
+  assert.equal(checkOpening(line("You tried it yesterday.", ["preview_tried"]), untried), "unnamed_fact");
+});

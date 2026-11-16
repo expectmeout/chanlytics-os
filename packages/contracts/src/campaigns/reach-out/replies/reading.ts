@@ -300,7 +300,7 @@ function subjectOf(p: { intent: ReplyIntent; business: string; automatic: boolea
 
 /** What the platform may be told of a reading: its intent, never the business or their words. */
 function redactedReadAs(intent: ReplyIntent, unread: Unread | null): string {
-  if (unread) return "; the reply could not be read yet";
+  if (unread) return "; the reply couldn't be read yet";
   return intent === "other" ? "" : `, read as ${REPLY_INTENT_WORDS[intent]}`;
 }
 
@@ -330,17 +330,17 @@ export function replyNoticeWords(params: {
   const push = summary
     ? `${(summary[0] ?? "").toUpperCase()}${summary.slice(1)}${/[.!?]$/.test(summary) ? "" : "."}`
     : params.unread
-      ? "Their reply could not be read yet."
+      ? "Their reply couldn't be read yet."
       : "They wrote back.";
   const quote = params.quote.replace(/\s+/g, " ").trim();
   const body = [
     push,
     quote ? `“${withinChars(quote, REPLY_QUOTE_MAX)}”` : null,
     doneWords(intent),
-    intent === "no" ? "If that's a misreading, undo it on the thread within seven days." : null,
-    params.unread ? `It could not be read (${UNREAD_WORDS[params.unread]}), so it is read again later.` : null,
+    intent === "no" ? "If that's a misreading, undo it in the conversation within seven days." : null,
+    params.unread ? `It couldn't be read (${UNREAD_WORDS[params.unread]}), so it is read again later.` : null,
     params.draft ? `AI drafted an answer: “${draftExcerpt(params.draft)}” Nothing is sent without you.` : null,
-    params.signer ? `Signed ${params.signer} · Use this name on the thread.` : null,
+    params.signer ? `Signed ${params.signer} · Use this name in the conversation.` : null,
   ].filter((l): l is string => l !== null);
   return {
     subject: `${subjectOf({ intent, business, automatic: params.automatic })}${params.reread ? " (read again later)" : ""}`,

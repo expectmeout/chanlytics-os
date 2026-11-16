@@ -712,7 +712,7 @@ test("retry resumes only the named row of the named workspace at its own step, r
     assert.equal(b3.error, "line_not_retryable");
     assert.match(
       b3.detail,
-      /credentials could not be kept/,
+      /credentials couldn't be kept/,
       "a retry cannot help until a person restores them, and the button says so",
     );
     assert.equal(tables.jobs.length, 0, "no refusal scheduled anything");

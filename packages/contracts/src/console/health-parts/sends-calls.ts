@@ -26,6 +26,22 @@ export interface HealthPartsDto {
   model: Array<Keyed & { purpose: string; outcome: string; n: number; usd: number }>;
   /** What the replies sent did with the thread's draft (00539 reply_draft_uses, decision 0093). */
   draft_uses?: Array<Keyed & { use: string; n: number }>;
+  /**
+   * Leads' previews over the window (00632 platform_health_previews): how many were made, and made this UTC day; how
+   * many were tried and made theirs; their messages and call seconds; and what the model cost on the preview
+   * workspaces that still stand. Null: it could not be read. Absent: an answer from before it was read.
+   */
+  previews?: {
+    made: number;
+    made_today: number;
+    /** The day's limit as the server holds it (PREVIEW_LIMITS.aDay), so the page that draws it loads no preview module. */
+    a_day: number;
+    tried: number;
+    claimed: number;
+    messages: number;
+    call_seconds: number;
+    usd: number;
+  } | null;
   model_by_workspace: Array<Keyed & { tenant_id: string; purpose: string; n: number; usd: number }>;
   model_failures: Array<
     Keyed & {

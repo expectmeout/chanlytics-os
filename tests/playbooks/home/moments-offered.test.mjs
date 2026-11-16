@@ -714,7 +714,7 @@ test("the home's input from GET playbooks is the one reading it was: the shape, 
     calendar: "none",
     countsRead: false,
     rows: [
-      ["pb-own", false, "A list that could not be read", "today, within the hour", null],
+      ["pb-own", false, "A list that couldn't be read", "today, within the hour", null],
       ["pb-quiet", false, "Win-back", "tomorrow 9:00 AM", null],
     ],
     offered: ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting"],

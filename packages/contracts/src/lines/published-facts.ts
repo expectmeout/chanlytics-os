@@ -136,7 +136,7 @@ export const RENAME_WORDS = {
   held: (filed: string) =>
     `The carriers still hold “${filed}” as you filed it, and the text confirming a START says it until it is changed with them.`,
   ask: "Request a name change",
-  kept: "Saved. The workspace could not be renamed, so your sign-up page and your sign still say its old name.",
+  kept: "Saved. The workspace couldn't be renamed, so your sign-up page and your sign still say its old name.",
   requested: "Requested: a person at Chanlytics changes the name with the carriers and writes to you.",
   already: "Already asked: a person at Chanlytics is changing the name with the carriers.",
 } as const;

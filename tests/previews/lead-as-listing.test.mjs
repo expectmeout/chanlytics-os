@@ -101,6 +101,17 @@ test("the receptionist the first run would give it: its week as listed, and no p
   assert.equal(weekless.profile.hours, undefined, "no week is said where the listing's does not read");
 });
 
+test("a name its owner typed is the preview's name, as typed; a listing's title is still tidied", () => {
+  const shouted = { ...LEAD, business_name: "FIXTURE BARBERS LLC" };
+  assert.equal(leadAsListing(shouted).name, "Fixture Barbers", "a listing that shouts, with its company form");
+  const typed = { ...shouted, facts: { own: { name: true } } };
+  assert.equal(leadAsListing(typed).name, "FIXTURE BARBERS LLC");
+  assert.equal(
+    firstReceptionistOf({ workspaceName: "x", listing: leadAsListing(typed) }).business_name,
+    "FIXTURE BARBERS LLC",
+  );
+});
+
 test("a preview's states and limits are the doors' own", () => {
   assert.deepEqual(PREVIEW_STATES, ["building", "ready", "failed", "claimed", "ended"]);
   assert.deepEqual([PREVIEW_LIMITS.messages, PREVIEW_LIMITS.days, PREVIEW_LIMITS.notRight], [20, 30, 10]);

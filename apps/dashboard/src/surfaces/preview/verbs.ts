@@ -1,5 +1,5 @@
 /**
- * What a lead's own receptionist's page asks (decision 0079): its four public doors, by the link's token
+ * What a lead's own preview's page asks (decision 0079): its five public doors, by the link's token
  * (app/api/v1/previews/[token]/…). No session, no workspace and no 401, as the sign-up page's door has none, so these
  * are posts of their own rather than the typed client's, which owns all three.
  */
@@ -55,5 +55,8 @@ export const previewVerbs = {
   /** A call in the browser: what the client joins, how long it may run, and the minutes left after it. */
   call: (token: string) => post<CallStarted & { max_ms: number; left_ms: number }>(token, "call", {}),
   /** A fact said not to be right, and what is, kept for the person who wrote to them. */
-  notRight: (token: string, fact: string, said: string) => post<{ kept: number }>(token, "not-right", { fact, said }),
+  notRight: (token: string, fact: string, said: string) =>
+    post<{ kept: number; fixed: boolean }>(token, "not-right", { fact, said }),
+  /** A thing they tell it: in its record at once, with how many it holds and how many more it takes. */
+  tell: (token: string, text: string) => post<{ taught: number; left: number }>(token, "tell", { text }),
 };

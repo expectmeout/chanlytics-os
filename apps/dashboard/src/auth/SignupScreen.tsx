@@ -155,7 +155,8 @@ function submitFor(s: SignupState) {
     // Checked here so the answer is instant and names the field, and again by
     // the route and by Supabase, where it is the rule rather than a courtesy.
     // One function, so the browser's rule and the server's cannot drift.
-    const weak = s.posture === "waitlist" ? null : passwordProblem(s.password);
+    // No password is asked from a preview's link: the emailed code is the way in (the canvas's call P10).
+    const weak = s.posture === "waitlist" || s.preview ? null : passwordProblem(s.password);
     if (weak) {
       s.setError(weak);
       s.setBusy(false);
@@ -183,8 +184,8 @@ function signupBody({ name, email, password, code, posture, tz, preview }: Signu
     name: name.trim(),
     email: email.trim(),
     // A waitlist takes details and creates no account, so it is sent no
-    // credential at all.
-    ...(posture === "waitlist" ? {} : { password }),
+    // credential at all; nor is one sent from a preview's link, whose account is kept by its emailed code.
+    ...(posture === "waitlist" || preview ? {} : { password }),
     ...(tz ? { timezone: tz } : {}),
     ...(posture === "invite" ? { code: code.trim() } : {}),
     ...(preview ? { preview: preview.token } : {}),
@@ -442,8 +443,8 @@ function detailsForm(s: SignupState, submit: (e: React.SyntheticEvent) => Promis
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@business.com"
       />
-      {/* Not on the waitlist, which makes no account to hold one. */}
-      {!waiting && passwordFields(s)}
+      {/* Not on the waitlist, which makes no account to hold one; nor from a preview's link, kept by its emailed code. */}
+      {!waiting && !preview && passwordFields(s)}
       {posture === "invite" && (
         <>
           <label htmlFor="code">Invite code</label>
