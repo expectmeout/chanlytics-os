@@ -72,7 +72,7 @@ test("a call past a week, or from someone selling, may be let go; with no number
 test("a reply that never arrived offers what can work, in plain words, and never its error number", () => {
   const way = (code, channel = "whatsapp") => failedWayOf({ code }, channel);
   assert.equal(way(131026).way, "call", "a template cannot reach a number that is not on WhatsApp");
-  assert.match(way(131026).plain, /template wouldn't get through/);
+  assert.match(way(131026).plain, /saved message wouldn't get through/);
   assert.equal(way(131047).way, "template", "the closed window is the one a template can open");
   assert.equal(way(130429).way, "later");
   assert.equal(way(131050).way, "done", "they chose to stop: nothing more goes");
@@ -95,9 +95,9 @@ test("a reach-out's reply says what was done and offers only what is left", () =
   });
   const moment = (over) => readingMomentOf(read(over));
   assert.equal(moment({ intent: "interested" }).reply, "send");
-  assert.equal(moment({ intent: "question" }).did, "Your sequence has stopped for them.");
+  assert.equal(moment({ intent: "question" }).did, "Cold email has stopped for them.");
   const later = moment({ intent: "not_now", step_day: "2027-01-05" });
-  assert.equal(later.did, "Your sequence has stopped. A to-do to write again is set for Jan 5.");
+  assert.equal(later.did, "Cold email has stopped. A to-do to write again is set for Jan 5.");
   assert.equal(later.reply, "door", "Reply now, quiet: letting it go leads");
   assert.equal(moment({ intent: "no" }).reply, "none", "REGRESSION: Send under someone who said no");
   assert.match(moment({ intent: "wrong_person", refer_to: "Dana" }).did, /write to Dana/);

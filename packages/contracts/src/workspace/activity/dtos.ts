@@ -205,10 +205,10 @@ export const WORDS: Record<string, string> = {
   // Meta's own news of the account (contracts WABA_FIELDS), one kind per field: said as what Meta did, never as its field.
   "channel.phone_number_quality_update": "Meta changed a WhatsApp number's quality",
   "channel.account_update": "Meta updated the WhatsApp account",
-  "channel.message_template_status_update": "Meta reviewed a message",
+  "channel.message_template_status_update": "WhatsApp reviewed a message",
   "channel.account_review_update": "Meta reviewed the WhatsApp account",
-  "channel.message_template_quality_update": "Meta changed a message's quality",
-  "channel.template_category_update": "Meta changed a message's category",
+  "channel.message_template_quality_update": "WhatsApp changed a message's quality",
+  "channel.template_category_update": "WhatsApp changed a message's kind",
   "channel.phone_number_name_update": "Meta reviewed a WhatsApp number's name",
   "channel.standing": "A WhatsApp number's standing with Meta changed",
   "setup.requested": "Setup was requested",

@@ -9,6 +9,9 @@ import type { NewAudience, NewKind, NewStepDoes } from "./new-draft/steps";
 import type { NewNobody } from "./new-draft/checks";
 import type { SequenceMode } from "./sequence";
 
+/** What WhatsApp is doing with words it has not said yes to yet, as docs/words.md says it: one sentence, said by a check, a pick and the question before a send. */
+const CHECKING_WORDS = "WhatsApp is checking the words";
+
 export const NEW_WORDS = {
   title: CAMPAIGN_ROOMS.new,
   /** The head's act on Sequences, its noun said where the row has room for it. */
@@ -186,21 +189,17 @@ export const NEW_WORDS = {
     titleNow: (name: string) => `Send “${name}” now?`,
     at: (time: string) => `It goes at ${time}, in 10 minutes. Until then, Stop takes it back`,
     opens: (time: string) => `It goes at ${time}, when your sending hours open. Until then, Stop takes it back`,
+    /**
+     * Its WhatsApp words are new, and WhatsApp checks them first (the send waits for it): who gets it when, where it
+     * also goes another way (`others`) and where WhatsApp is all it goes by.
+     */
+    checking: (others: boolean) =>
+      others
+        ? `${CHECKING_WORDS}, so anyone it reaches only by WhatsApp gets it once approved`
+        : `${CHECKING_WORDS}, so it goes once approved`,
     after: "Once delivered, it can’t be taken back",
     no: "Not yet",
     yes: "Yes, send it",
-  },
-  /** A WhatsApp version Ask wrote goes to Meta first. */
-  review: {
-    title: "WhatsApp needs Meta’s review first",
-    /** What can go now (its other versions, "email and text"), and who hears it only by WhatsApp. */
-    words: (others: string, only: number) =>
-      `AI wrote this message new, and Meta reviews its WhatsApp version first, in about a day. ${others ? `Sent before then, it goes by ${others}${only > 0 ? `, and the ${only} who ${only === 1 ? "hears" : "hear"} only WhatsApp ${only === 1 ? "is" : "are"} left out` : ""}` : "Nothing else carries it yet"}. Keep it, and it waits for you under Drafts.`,
-    /** None of its other channels can carry it: nothing goes until Meta approves WhatsApp's. */
-    noneYet: "WhatsApp’s version is with Meta, and no other way carries this message yet. Keep it until it’s approved.",
-    keep: "Keep it until it’s approved",
-    goes: (n: number, by: string) => `${n} ${n === 1 ? "person" : "people"}, by ${by}`,
-    leftOut: (n: number) => `${n} who ${n === 1 ? "hears" : "hear"} only WhatsApp ${n === 1 ? "is" : "are"} left out`,
   },
   twin: { open: "Open it" },
   reach: {
@@ -373,6 +372,9 @@ export const NEW_WORDS = {
     // Several said once: "Steps 1 and 2 are new messages" (Ruben, 14 Nov 2026: the same amber row stood once a step).
     newMessages: (ns: readonly number[]) => `Steps ${joinWords(ns.map(String))} are new messages`,
     newMessageDetail: "Email now, WhatsApp once it approves the words",
+    /** One of the workspace's own messages whose WhatsApp words WhatsApp is still checking: picked all the same. */
+    checking: CHECKING_WORDS,
+    checkingStep: (n: number) => `WhatsApp is checking step ${n}’s words`,
     canGo: (n: number, by: string) => `Step ${n} can go by ${by} today`,
     stops: "Stops when they book",
     stopsDetail: "Never to anyone who said stop",

@@ -351,7 +351,9 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
   const people = readCode("packages/db/src/repositories/campaigns/broadcast-run.ts");
   // The batch is db's read now (campaigns/channels.ts listQueuedRecipients, run against the database in memory by
   // before-the-channel-columns.test.mjs), a page of the chunk's size.
-  assert.ok(h.includes("batch: (id, limit) => listQueuedRecipients(db, { tenantId, broadcastId: id, limit })"));
+  assert.ok(
+    h.includes("batch: (id, limit, only) => listQueuedRecipients(db, { tenantId, broadcastId: id, limit, ...only })"),
+  );
   assert.ok(BROADCAST_CHUNK === 25);
   assert.ok(
     // The message is db's read too (templates.ts listMessageVersionRows, run against the database in memory by
@@ -865,7 +867,8 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   );
   // What the surface offers is made of the settings read by one function (parts/channels.ts cmOfferedFrom), run here: the purpose is
   // stamped there, from the message's own category (contracts), never decided in the page, and a message is offered by the channels
-  // it holds -- an email version alone is a message, a version WhatsApp has not approved is not one.
+  // it goes by -- an email version alone is a message; one WhatsApp is still checking is one too, since what sends it
+  // waits for that (the one picker rule); one WhatsApp refused, alone, is not.
   const { cmOfferedFrom } = await importSrc("apps/dashboard/src/surfaces/campaigns/parts/channels.ts");
   const version = (channel, over = {}) => ({
     id: `t-${channel}`,
@@ -895,9 +898,15 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
     "a message with an email version and no WhatsApp row is offered",
   );
   assert.deepEqual(
-    offeredOf(version("whatsapp", { meta_status: "pending" })),
+    offeredOf(version("whatsapp", { meta_status: "pending" })).map((t) => [t.id, t.channels, t.checking]),
+    [["t-whatsapp", ["whatsapp"], true]],
+    "one WhatsApp is still checking is offered, and says so",
+  );
+  assert.deepEqual(offeredOf(version("whatsapp", { meta_status: "rejected" })), [], "one WhatsApp refused is not");
+  assert.deepEqual(
+    offeredOf(version("whatsapp", { blocked: "a picture for a heading" })),
     [],
-    "one WhatsApp has not approved is not",
+    "nor one it approved in a shape this product cannot send whole, which the Messages list does not show",
   );
   assert.ok(readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installBroadcasts();"));
   // The shell mounts the page on its route (surfaces/routes.ts): it once imported the script.
@@ -1076,7 +1085,8 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
   const READ_TOOLS = toApiTools("viewer", true);
   const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
   assert.ok(READ_TOOLS.some((t) => t.name === "sequences"));
-  // Only an approved template: a pending one is refused before anyone is counted.
+  // Only a template WhatsApp approves, or is still checking (the send waits for that one: ask-campaign-channels.test.mjs):
+  // one it asked a change to is refused before anyone is counted.
   const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const PENDING = "dddddddd-dddd-4ddd-8ddd-ddddddddddd9";
   const supabase = fakeDb(
@@ -1088,7 +1098,7 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
           channel: "whatsapp",
           name: "soon",
           language: "en",
-          meta_status: "pending",
+          meta_status: "rejected",
           category: "MARKETING",
           variables: [],
           body_preview: "See you soon.",
@@ -1114,7 +1124,7 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
   assert.deepEqual([pending.proposal, pending.isError], [null, true]);
   assert.match(
     JSON.parse(pending.result).error,
-    /^WhatsApp is checking this message\./,
+    /^WhatsApp asked for a change to this message's words\./,
     "the standing of the one version it has, in contracts' words",
   );
   // The card commits through the broadcast route, the same door the page uses, and its undo is the cancel route:

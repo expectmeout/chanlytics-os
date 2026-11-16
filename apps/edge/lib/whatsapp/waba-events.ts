@@ -22,7 +22,7 @@ import { mapCategory, mapQuality, mapStatus } from "./meta-templates.js";
 import type { Database, Json } from "@chanlytics/db/types";
 import { emitEvent } from "@chanlytics/db/events";
 import { keepChannelStanding } from "@chanlytics/db/jobs";
-import { patchWhatsAppTemplate, patchWhatsAppTemplateBack, setTemplateQuality } from "@chanlytics/db/campaigns";
+import { patchWhatsAppTemplateBack, setTemplateQuality } from "@chanlytics/db/campaigns";
 import { mendWarnings, notify, type NotifyTarget } from "../shared/alerts/notify.js";
 import { syncTemplates } from "./template-admin.js";
 import {
@@ -33,8 +33,10 @@ import {
   standingAfterNameDecision,
   standingFromConfig,
   refusedWords,
+  TEMPLATE_NOTICE_TITLES,
   templateTitle,
   WABA_FIELDS as WABA_FIELD_LIST,
+  whatsappOffersOpen,
   type NotificationsConfig,
   type ServerNotificationKind,
   type WabaEventKind,
@@ -154,7 +156,7 @@ interface WabaWords {
 export const NUM = { kind: "number" as const, route: "admin/integrations" };
 /** A template can be sent now. */
 const READY = { kind: "template_ready" as const, route: MESSAGES_ROUTE };
-/** A template cannot be sent, or can no longer be sent freely. */
+/** A message cannot be sent as it stands: WhatsApp asked for a change, holds it for a few hours, or turned it off. */
 const BLOCKED = { kind: "template_blocked" as const, route: MESSAGES_ROUTE };
 
 /**
@@ -174,39 +176,83 @@ function aboutTemplate(v: Record<string, unknown>): Partial<Pick<WabaWords, "rou
   };
 }
 
+/** The message a notice is about, named as the Library names it (templateTitle). */
+const messageTitle = (record: Record<string, unknown>): string =>
+  typeof record.message_template_name === "string" ? templateTitle(record.message_template_name) : "a message";
+
 /**
- * A template moved to another category. Moved to marketing is a restriction, not a failure: it can still be sent, but only to a
- * recorded yes. It reads with the ones it cannot.
+ * WhatsApp files a message as an offer from now on: news, with where an offer can go from this number, and nothing to do.
+ * It was told as a warning ("Template “x” is now marketing", Needs you) with the provider's words for it, 14 Nov 2026.
+ * Null for any other kind: a message filed back as a notice goes where it went, and nobody needs a word. Whether anyone
+ * is told at all is the row's to say (keepTemplateCategory): a message WhatsApp has not decided yet says its kind with
+ * its verdict.
  */
-function categoryWords(record: Record<string, unknown>): WabaWords {
-  const name = typeof record.message_template_name === "string" ? record.message_template_name : "a template";
-  const to = typeof record.new_category === "string" ? record.new_category.toLowerCase() : "another category";
+function categoryWords(record: Record<string, unknown>, number: string | null): WabaWords | null {
+  if (mapCategory(typeof record.new_category === "string" ? record.new_category : null) !== "marketing") return null;
+  const offers = whatsappOffersOpen(number);
   return {
-    ...(to === "marketing" ? BLOCKED : READY),
+    ...READY,
     ...aboutTemplate(record),
-    subject: `Template “${name}” is now ${to}`,
-    body: `Meta moved the template “${name}” to ${to}.${to === "marketing" ? " Sends that use it now need the customer's recorded yes." : ""}`,
-    alert: to === "marketing",
+    subject: TEMPLATE_NOTICE_TITLES.offer(messageTitle(record)),
+    body: offers.why ?? "From now on it goes to people who said yes to offers.",
+    alert: true,
   };
 }
 
 /**
- * A message's status at Meta moved: it asked for a change, is holding the message for a few hours, turned it off, or
- * approved it; null for a status nobody is told of. Said as an owner can act on it (Ruben, 12 Nov 2026: "Template x
- * paused. Sends that use it will fail until it is restored" read as a system error): what happened, whether it mends
- * itself, and the one thing to do. The message is named as the Library names it (templateTitle).
+ * Whether WhatsApp's news is that a message goes out again: a hold that ended, which comes as the status it returns to
+ * with the word UNPAUSE beside it (Meta, message_template_status_update: other_info.title), or a message turned back on
+ * (REINSTATED: "no longer flagged or disabled").
  */
-function templateStatusWords(record: Record<string, unknown>): WabaWords | null {
-  const title =
-    typeof record.message_template_name === "string" ? templateTitle(record.message_template_name) : "a message";
+function sendsAgain(record: Record<string, unknown>, event: string): boolean {
+  if (event === "REINSTATED") return true;
+  const info = record.other_info;
+  return (
+    event === "APPROVED" && typeof info === "object" && info !== null && "title" in info && info.title === "UNPAUSE"
+  );
+}
+
+/**
+ * What an approval is told as, by the kind WhatsApp approved the message as (the notice's own message_template_category).
+ * A notice is ready, under the approval's own title. An offer says so in its title, and under it where it goes: to people
+ * who said yes to offers, and from a US number not by WhatsApp at all, which the workspace's pages say in the same sentence
+ * (contracts whatsappOffersOpen). Both were told "can be sent now", a day after a mail that the same message was "now
+ * marketing" (14 and 15 Nov 2026).
+ */
+function approvedSaid(title: string, category: unknown, number: string | null): Pick<WabaWords, "subject" | "body"> {
+  if (mapCategory(typeof category === "string" ? category : null) !== "marketing")
+    return { subject: TEMPLATE_NOTICE_TITLES.approved(title), body: `“${title}” is ready to send.` };
+  return {
+    subject: TEMPLATE_NOTICE_TITLES.approvedOffer(title),
+    body: whatsappOffersOpen(number).why ?? "It goes to people who said yes to offers.",
+  };
+}
+
+/**
+ * A message's status at Meta moved: it asked for a change, is holding the message for a few hours, turned it off,
+ * approved it, or sends it again; null for a status nobody is told of. Said as an owner can act on it (Ruben, 12 Nov
+ * 2026: "Template x paused. Sends that use it will fail until it is restored" read as a system error): what happened,
+ * whether it mends itself, and the one thing to do. A message that goes out again is kept and told to nobody: its hold
+ * was said to end by itself, and the news closes the hold's warning (contracts NOTICE_MENDS).
+ */
+function templateStatusWords(record: Record<string, unknown>, number: string | null): WabaWords | null {
+  const title = messageTitle(record);
   const door = aboutTemplate(record);
   const event = textOrEmpty(record.event);
+  if (sendsAgain(record, event))
+    return {
+      ...READY,
+      ...door,
+      subject: TEMPLATE_NOTICE_TITLES.resumed(title),
+      body: `“${title}” can be sent again. What was waiting on it goes out by itself.`,
+      alert: false,
+    };
   if (event === "REJECTED") {
     const reason = refusedWords(typeof record.reason === "string" ? record.reason : null);
     return {
       ...BLOCKED,
       ...door,
-      subject: `WhatsApp asked for a change to “${title}”`,
+      subject: TEMPLATE_NOTICE_TITLES.rejected(title),
       body: `${reason ?? "WhatsApp asked for a change to its words. AI writes new words for you to send back."} Open “${title}” in Messages to send them.`,
       alert: true,
     };
@@ -215,7 +261,7 @@ function templateStatusWords(record: Record<string, unknown>): WabaWords | null 
     return {
       ...BLOCKED,
       ...door,
-      subject: `WhatsApp is holding “${title}” for a few hours`,
+      subject: TEMPLATE_NOTICE_TITLES.paused(title),
       body: `Some people who got “${title}” marked it as unwanted, so WhatsApp is holding it for a few hours. It comes back by itself, and what sends it waits until then.`,
       alert: true,
     };
@@ -223,7 +269,7 @@ function templateStatusWords(record: Record<string, unknown>): WabaWords | null 
     return {
       ...BLOCKED,
       ...door,
-      subject: `WhatsApp turned “${title}” off`,
+      subject: TEMPLATE_NOTICE_TITLES.disabled(title),
       body: `People kept marking “${title}” as unwanted, so WhatsApp turned it off. Write a new message in its place.`,
       alert: true,
     };
@@ -231,8 +277,7 @@ function templateStatusWords(record: Record<string, unknown>): WabaWords | null 
     return {
       ...READY,
       ...door,
-      subject: `WhatsApp approved “${title}”`,
-      body: `“${title}” can be sent now, from Campaigns, or from the Inbox outside the 24-hour window.`,
+      ...approvedSaid(title, record.message_template_category, number),
       alert: true,
     };
   return null;
@@ -300,9 +345,9 @@ export function describeWabaChange(wabaChange: WabaChange, number: string | null
       return null;
     }
     case "message_template_status_update":
-      return templateStatusWords(value);
+      return templateStatusWords(value, number);
     case "template_category_update":
-      return categoryWords(value);
+      return categoryWords(value, number);
     case "phone_number_name_update":
       return nameNotice(value);
     case "account_review_update": {
@@ -409,7 +454,16 @@ async function keepRating(
  * did, for the log; never throws — the webhook has already been acknowledged.
  * "unclaimed" is a partner's notice for an account no workspace holds (unheld).
  */
-const TEMPLATE_STATUS_EVENTS = new Set(["APPROVED", "REJECTED", "PAUSED", "DISABLED", "PENDING_DELETION", "IN_APPEAL"]);
+const TEMPLATE_STATUS_EVENTS = new Set([
+  "APPROVED",
+  "REJECTED",
+  "PAUSED",
+  "DISABLED",
+  "PENDING_DELETION",
+  "IN_APPEAL",
+  // A message turned back on can be sent again: its row said held or off until the next sync.
+  "REINSTATED",
+]);
 
 /**
  * How long a status that found no row waits before it looks again: Meta can decide a template before the request that
@@ -450,6 +504,27 @@ async function keepTemplateStatus(
   if (!synced.ok) log.error("template_status_sync_failed", { code: synced.code, error: synced.detail ?? null });
 }
 
+/**
+ * WhatsApp's kind on the message's row, by name and language, and whether anyone is told of it: only where the row is
+ * a message a person could already send (approved, or held for a few hours). A message WhatsApp is still checking says
+ * its kind with its verdict, once (approvedSaid); one refused or turned off, or with no row on file, goes nowhere, so
+ * its kind is news to nobody. On 14 Nov 2026 a message filed as an offer eight minutes after it was written was told as
+ * "Needs you", a day before WhatsApp decided it. Best effort: a write that fails is a line, and tells nobody.
+ */
+async function keepTemplateCategory(
+  db: SupabaseClient<Database>,
+  tenantId: TenantId,
+  key: { name: string; language: string },
+  category: unknown,
+  log: Logger,
+): Promise<boolean> {
+  const { data, error } = await patchWhatsAppTemplateBack(db, tenantId, key, {
+    category: mapCategory(typeof category === "string" ? category : null),
+  });
+  if (error) log.error("template_category_write_failed", { error: error.message });
+  return (data ?? []).some((row) => row.meta_status === "approved" || row.meta_status === "paused");
+}
+
 export async function handleWabaChange(
   db: SupabaseClient<Database>,
   entryId: string,
@@ -476,6 +551,8 @@ export async function handleWabaChange(
   // lands on the row the sync keeps, by name and language. Only the events
   // that change whether a template can be sent move the status; a quality
   // flag on an approved template leaves it approved.
+  // A message's kind is told only where its row says a person could already send it (keepTemplateCategory).
+  let unsaid = change.field === "template_category_update";
   if (change.field === "message_template_status_update" || change.field === "template_category_update") {
     const name = typeof change.value.message_template_name === "string" ? change.value.message_template_name : null;
     const language =
@@ -495,20 +572,21 @@ export async function handleWabaChange(
           );
         }
       } else {
-        const { error } = await patchWhatsAppTemplate(
+        const sendable = await keepTemplateCategory(
           db,
           routed.tenantId,
           { name, language },
-          { category: mapCategory(typeof change.value.new_category === "string" ? change.value.new_category : null) },
+          change.value.new_category,
+          log,
         );
-        if (error) log.error("template_category_write_failed", { error: error.message });
+        unsaid = !sendable;
       }
     }
   }
   if (change.field === "message_template_quality_update")
     await applyTemplateQuality(db, routed.tenantId, change.value, log);
   if (change.field === "phone_number_name_update") await keepNameDecision(db, routed, change.value, log);
-  if (!described) return "kept";
+  if (!described || unsaid) return "kept";
   return tellWabaChange(db, routed, change.field, described, loadNotifications);
 }
 

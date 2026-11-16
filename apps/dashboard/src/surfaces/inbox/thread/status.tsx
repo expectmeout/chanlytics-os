@@ -105,8 +105,8 @@ function staleBar(p: StatusProps) {
             {stale.update.by} {stale.update.note} while you were reading
           </div>
           <div className="ix-stale-sub">
-            Your view is {stale.update.append.filter((e) => e.type === "msg").length} message behind — nothing was
-            changed for you.
+            {stale.update.append.filter((e) => e.type === "msg").length} new message to see. Nothing was changed for
+            you.
           </div>
         </div>
         <Button variant="primary" size="sm" onClick={onReconcile}>
@@ -126,7 +126,7 @@ function resolvedBar(p: StatusProps) {
   const res = thread.resolution;
   if (!decided || !res) return false;
   const now = thread.real ? (
-    <>{thread.agent.name} is back on this thread.</>
+    <>{thread.agent.name} is back on this conversation.</>
   ) : res.declined ? (
     <>
       {thread.agent.name} is handling the fallback
@@ -139,7 +139,7 @@ function resolvedBar(p: StatusProps) {
     <div className={`ix-resolved ${res.declined ? "declined" : ""}`}>
       <Icon name={res.declined ? "x" : "check"} size={13} />
       <span>
-        You chose <b>“{res.action}”</b> at {res.at} — {now}
+        You chose <b>“{res.action}”</b> at {res.at} · {now}
       </span>
       <LinkButton onClick={() => navigate("conversations")}>
         Transcript <Icon name="arrow-right" size={10} />
@@ -502,7 +502,7 @@ function SetAsideBar({ thread }: { thread: Thread }) {
               disabled={busy}
               onClick={() => void act(() => replyAnywayVerb(id))}
               data-testid="ix-dock-reply-anyway"
-              {...gate("approve", "reply to a thread set aside")}
+              {...gate("approve", "reply to a conversation set aside")}
             >
               {W.replyAnyway}
             </Button>
@@ -519,7 +519,7 @@ function dockLine({ lead, rest }: { lead: string; rest: string | null }) {
     <span className="ix-dock-line">
       <span className="ix-dock-dot" aria-hidden="true" />
       <b>{lead}</b>
-      {rest ? <span className="ix-dock-rest"> — {rest}</span> : null}
+      {rest ? <span className="ix-dock-rest"> · {rest}</span> : null}
     </span>
   );
 }
@@ -536,7 +536,7 @@ function needsYouState(p: DockProps, thread: Thread) {
   const drafted = boxAnswers(thread) && threadDraftNow(thread).state === "ready";
   const said = dockLineOf((thread.real && thread.holdLine) || thread.summary);
   const line = drafted ? { lead: THREAD_PANE_WORDS.checkDraft, rest: THREAD_PANE_WORDS.draftReadyRest } : said;
-  const label = line.rest ? `${line.lead} — ${line.rest}` : line.lead;
+  const label = line.rest ? `${line.lead} · ${line.rest}` : line.lead;
   // A request its card draws (RequestCard) answers there; one whose time the hold does not carry keeps its two words.
   const card = thread.holdAct === "confirm" && thread.real && !!thread.request;
   const acts = card ? null : thread.holdAct === "confirm" ? (
@@ -551,7 +551,7 @@ function needsYouState(p: DockProps, thread: Thread) {
           variant="quiet"
           size="sm"
           onClick={guardedHandBack(p, handBack)}
-          aria-label="Nothing needed — hand it back to AI"
+          aria-label="Nothing needed. Hand it back to AI"
           data-testid="ix-hand-back"
           {...gate("approve", "hand a conversation back")}
         >
@@ -590,9 +590,9 @@ function needsYouSeeded(p: StatusProps) {
     <div className="ix-take">
       <Icon name="flag" size={13} />
       <div className="ix-take-body">
-        <div className="ix-take-title">Escalated — needs a human voice</div>
+        <div className="ix-take-title">Needs a person's voice</div>
         <div className="ix-take-sub">
-          {thread.agent.name} stopped drafting. HR-sensitive threads never get suggested replies.
+          {thread.agent.name} stopped drafting. Sensitive conversations never get suggested replies.
         </div>
       </div>
       {/* The buttons beneath the words, wrapping: they shared the words' row, and at 1024 the words were 0px wide (I3). */}
@@ -710,7 +710,7 @@ function yoursBar(p: DockProps) {
     <div className="ix-resolved ix-owned">
       <Icon name="users" size={13} />
       <div className="ix-take-body">
-        <span>You own this thread — AI is paused here. Reply below in your own voice.</span>
+        <span>You're replying · AI is paused here</span>
       </div>
       <LinkButton onClick={() => onHandBack(thread.id)} {...gate("approve", "hand a conversation back")}>
         Hand back to {thread.agent.name} <Icon name="arrow-right" size={10} />

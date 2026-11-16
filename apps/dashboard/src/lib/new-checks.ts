@@ -106,13 +106,11 @@ function nobodyOf(r: Reading): { nobody: NewNobody; said_yes?: number } {
   return r.saidYes > 0 ? { nobody: "no_reach", ...said } : { nobody: "no_yes" };
 }
 
-/** How a draft goes, as its reach is counted for: what it is, its channels, and its first message's yes and review. */
+/** How a draft goes, as its reach is counted for: what it is, its channels, and its first message's yes. */
 interface ReachHow {
   kind: NewKind;
   channels: readonly ConsentChannel[];
   offer: boolean;
-  /** Its WhatsApp version is new (Ask wrote it): who hears only WhatsApp is left out until Meta approves it. */
-  review: boolean;
 }
 
 /**
@@ -120,9 +118,9 @@ interface ReachHow {
  * how many can hear it of how many it names, who it leaves out, who the week's breath holds back, each channel's share,
  * and, where nobody can, why. Everyone is counted for what a yes to offers hears (the month's offer's pool), and a list by
  * its yes to offers too (GET playbooks counts a list as a campaign's), so a message about their visit sent to everyone, or
- * news sent once to a list, is not counted here: no number is said rather than the wrong yes's. Where its WhatsApp
- * version is new, who hears it only by WhatsApp, whom a send before Meta approves it leaves out. A search counts its
- * ready leads, and the addresses still being checked.
+ * news sent once to a list, is not counted here: no number is said rather than the wrong yes's. Where its WhatsApp words
+ * are new, everyone is still counted: the send waits for WhatsApp's yes (core whatsapp-wait.ts), and nobody is left out
+ * for it. A search counts its ready leads, and the addresses still being checked.
  */
 export function newReachOf(who: DraftWho | null, counts: NewCounts, how: ReachHow): NewReach | null {
   if (!who) return null;
@@ -138,31 +136,22 @@ export function newReachOf(who: DraftWho | null, counts: NewCounts, how: ReachHo
   // The channels it goes by: none is none (no channel can carry it here), never a playbook's WhatsApp alone.
   const r = readingFor(pool, how.channels);
   if (!r) return null;
-  const others = how.channels.filter((c) => c !== "whatsapp");
-  const without = others.length ? (readingFor(pool, others)?.candidates ?? r.candidates) : 0;
-  const only = how.review && how.channels.includes("whatsapp") ? Math.max(0, r.candidates - without) : 0;
   return {
     can: r.candidates,
     of: r.pool > r.candidates ? r.pool : null,
     left: leftOf(r),
     ...(r.held > 0 ? { held: r.held } : {}),
     ...(r.by_channel ? { by: r.by_channel } : {}),
-    ...(only > 0 ? { only_whatsapp: only } : {}),
     ...(r.candidates === 0 ? nobodyOf(r) : {}),
   };
 }
 
-/** How a draft goes, read off the draft: what it is, its channels, and its first message's yes and review. */
-export const reachHowOf = (d: Pick<NewDraftDto, "kind" | "channels" | "steps">): ReachHow => {
-  const first = d.steps[0]?.message ?? null;
-  // A ready-made starter files its WhatsApp version as it is made, as one Ask wrote does: both wait on its review.
-  return {
-    kind: d.kind,
-    channels: d.channels,
-    offer: !!first?.offer,
-    review: !!first?.written?.versions.whatsapp || !!first?.starter,
-  };
-};
+/** How a draft goes, read off the draft: what it is, its channels, and its first message's yes. */
+export const reachHowOf = (d: Pick<NewDraftDto, "kind" | "channels" | "steps">): ReachHow => ({
+  kind: d.kind,
+  channels: d.channels,
+  offer: !!d.steps[0]?.message?.offer,
+});
 
 /** A message's purpose, as consent reads it: an offer is marketing, anything else a conversation. */
 export const messagePurposeOf = (m: Pick<NewMessage, "offer"> | null | undefined): AskedPurpose =>
@@ -288,6 +277,9 @@ function stepChecks(
     if (s.does !== "message") return [{ tone: "ok", words: C.hand(n), detail: null }];
     const m = s.message;
     if (m?.written) return n === written[0] ? [writtenRow] : [];
+    // One of the workspace's own WhatsApp is still checking: it goes by its other channels now, by WhatsApp once approved.
+    if (m?.checking && d.channels.includes("whatsapp"))
+      return [{ tone: "warn", words: C.checkingStep(n), detail: C.newMessageDetail }];
     // A person's first step goes by the channels the draft ticks (what can carry it), those the workspace sends on now.
     const goes = d.channels.filter((c) => ready.includes(c));
     return d.audience === "people" && i === 0 && goes.length

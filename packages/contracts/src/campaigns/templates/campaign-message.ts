@@ -43,7 +43,7 @@ import { CAMPAIGN_ROOMS } from "../../shell/campaign-rooms";
 import { VERSION_CHANNEL_WORDS, noVersionWords, type VersionChannel } from "./message-versions/channels";
 import { isReachOutRow, versionsOf } from "./message-versions/email-rules";
 import { refusedWords, templateBlocked } from "./parts";
-import { TEMPLATE_STATUS_WORDS } from "./templates";
+import { TEMPLATE_STATUS_WORDS, WHATSAPP_REVIEW_TAKES } from "./templates";
 import type { VariableLike } from "./slots";
 import { templateTitle } from "./titles";
 
@@ -84,7 +84,11 @@ export interface CampaignMessage {
   purpose: AskedPurpose;
   /** The workspace hid it (the anchor's `hidden_at`). */
   hidden: boolean;
-  /** A picker may list it: not hidden, and at least one channel held. */
+  /**
+   * A picker may list it (the one picker rule, 15 Nov 2026): not hidden, and it goes by at least one channel, now or once
+   * WhatsApp has checked its words (messageGoesBy). What the Messages list shows as Ready, Sending or Being checked,
+   * and nothing it hides.
+   */
   offered: boolean;
   versions: {
     /** WhatsApp's row with its standing: `blocked` is why this product cannot send it whole, `reason` why Meta refused it. */
@@ -152,7 +156,6 @@ function messageFrom(name: string, language: string, rows: readonly CampaignMess
     email: e ? { id: e.id } : null,
     sms: s ? { id: s.id } : null,
   };
-  const held = messageHolds({ versions });
   const hidden = Boolean(anchorRow.hidden_at);
   // The title is the message's, not the anchor's: one written with the first email version stays once a WhatsApp row of
   // no title comes, and a row's blank title says none.
@@ -166,7 +169,7 @@ function messageFrom(name: string, language: string, rows: readonly CampaignMess
     category,
     purpose: purposeOfTemplate(category),
     hidden,
-    offered: !hidden && CONSENT_CHANNELS.some((c) => held[c]),
+    offered: !hidden && messageGoesBy({ versions }).length > 0,
     versions,
   };
 }
@@ -220,13 +223,28 @@ export function messageHolds(campaignMessage: Pick<CampaignMessage, "versions">)
 }
 
 /**
+ * The channels a message goes by, as a picker reads it (THE one picker rule, 15 Nov 2026): those it can be sent on now
+ * (messageHolds), and WhatsApp while WhatsApp is still checking its WhatsApp version, which is whole. A send and a
+ * sequence's run wait for that check and go by themselves after (core messages/broadcast/whatsapp-wait.ts,
+ * campaigns/paced.ts), so a message being checked is one to pick. One WhatsApp is holding, asked a change to or turned
+ * off is not picked by WhatsApp: it goes by what else it has. A message that goes by none is one no picker lists
+ * (`offered`), as the Messages list shows none of them as Ready, Sending or Being checked.
+ */
+export function messageGoesBy(campaignMessage: Pick<CampaignMessage, "versions">): ConsentChannel[] {
+  const held = messageHolds(campaignMessage);
+  const w = campaignMessage.versions.whatsapp;
+  const checking = w !== null && w.status === "pending" && w.blocked === null;
+  return CONSENT_CHANNELS.filter((c) => held[c] || (c === "whatsapp" && checking));
+}
+
+/**
  * What WhatsApp's standing says of a version that is not approved, in the owner's words: what is happening, whether it
  * mends itself, and the one thing to do where there is one (Ruben, 12 Nov 2026: "WhatsApp has paused this message's
  * WhatsApp version" read as a system error nobody could act on). A hold is WhatsApp's own, for hours, after people marked
  * the message as unwanted, and lifts by itself; a message it turned off does not come back.
  */
 const NOT_APPROVED_WORDS: Record<Exclude<TemplateStatus, "approved">, string> = {
-  pending: "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+  pending: `WhatsApp is checking this message. It sends by itself once approved (${WHATSAPP_REVIEW_TAKES}).`,
   rejected: "WhatsApp asked for a change to this message's words. AI writes new words for you to send back.",
   paused:
     "WhatsApp is holding this message for a few hours, because some people marked it as unwanted. It comes back by itself.",
@@ -252,18 +270,32 @@ export function messageWhyNot(
     : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
 }
 
+/**
+ * Whether WhatsApp is still to say yes to the message's WhatsApp version, and will by itself: it is checking the words (a
+ * new message, or a change sent back), or holding the message for a few hours, and the version is whole. THE one reading
+ * of "this waits, it is not refused": a send's people wait for it (core messages/broadcast/whatsapp-wait.ts), and its
+ * channel is closed only until then (readyForMessage's `waits`). A version WhatsApp asked a change to or turned off does
+ * not come back by itself, and waits for nothing.
+ */
+export function whatsappWaits(campaignMessage: Pick<CampaignMessage, "versions"> | null): boolean {
+  const w = campaignMessage?.versions.whatsapp ?? null;
+  return w !== null && w.blocked === null && (w.status === "pending" || w.status === "paused");
+}
+
 /** A message the workspace holds no row of (it was deleted): it holds nothing, and says so on every channel. */
 const HOLDS_NOTHING: Pick<CampaignMessage, "versions"> = { versions: { whatsapp: null, email: null, sms: null } };
 
 /**
  * The workspace's channels with the message in them: a channel the workspace is ready on whose version the message does
  * not hold is not ready, and says so in the message's own sentence for it (messageWhyNot: "This message has no email
- * version yet.", "WhatsApp is checking this message. It sends by itself once approved, usually within minutes."), so every reader of "can this go by
+ * version yet.", "WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a
+ * day)."), so every reader of "can this go by
  * email" asks one answer, and `reachFor` never enrols a person on a channel the message cannot be said on. A channel the
  * workspace is not ready on keeps its own reason, and what else it carries stays (email's `offers`, which the news by email
  * and an offer are judged by: closing the channel for a missing version must not make it say the campaigns domain is
  * missing). The workspace's pause is the workspace's, not the message's, and rides through. `null` is a message the
  * workspace no longer holds; a page with no message in view yet hands its own stand-in (the pages' CM_NO_MESSAGE_YET).
+ * WhatsApp closed only until it says yes to the version (whatsappWaits) says so, `waits`, for a send that can wait.
  */
 export function readyForMessage(
   ready: ChannelsReady,
@@ -272,7 +304,13 @@ export function readyForMessage(
   const out: ChannelsReady = { ...ready };
   for (const c of CONSENT_CHANNELS) {
     const reason = messageWhyNot(message ?? HOLDS_NOTHING, c);
-    if (ready[c].ready && reason !== null) out[c] = { ...ready[c], ready: false, why: reason };
+    if (ready[c].ready && reason !== null)
+      out[c] = {
+        ...ready[c],
+        ready: false,
+        why: reason,
+        ...(c === "whatsapp" && whatsappWaits(message) ? { waits: true as const } : {}),
+      };
   }
   return out;
 }
@@ -316,8 +354,17 @@ export function messageStandingWords(
  * workspace no longer holds a row of (null) has no WhatsApp version either.
  */
 export function whatsappStoppedRunWords(campaignMessage: Pick<CampaignMessage, "versions"> | null): string {
+  const everyone = "Everyone on this run goes by WhatsApp, so nothing was sent.";
+  // A run that waited for WhatsApp's yes until its wait ended (whatsappWaits): said as what happened, never as a message
+  // that still "sends by itself", which this run no longer does. What becomes of it is the run's to add (core
+  // whatsapp-wait.ts stopForWhatsApp: a send by hand is sent again, a sequence's next run reaches them).
+  if (whatsappWaits(campaignMessage)) {
+    const still =
+      campaignMessage?.versions.whatsapp?.status === "paused" ? "holding this message" : "checking the words";
+    return `WhatsApp was still ${still} when this run's time to send ended. ${everyone}`;
+  }
   const reason = campaignMessage === null ? null : messageWhyNot(campaignMessage, "whatsapp");
-  return `${reason ?? noVersionWords("whatsapp")} Everyone on this run goes by WhatsApp, so nothing was sent.`;
+  return `${reason ?? noVersionWords("whatsapp")} ${everyone}`;
 }
 
 /** What a playbook says of a message none of whose versions a run can send: true on every channel, not WhatsApp's alone. */
@@ -350,12 +397,12 @@ export const RUN_NOW_WITHOUT_VERSION_WORDS =
 export const STARTER_LINE_WORDS = {
   /** The send screen, with no message it can send yet: how many starters' WhatsApp versions WhatsApp is still reviewing. */
   reviewing: (n: number): string =>
-    `Your starter messages' WhatsApp versions are in review (${n}) — they appear here once approved, usually within minutes.`,
+    `Your starter messages' WhatsApp versions are in review (${n}) — they appear here once approved (${WHATSAPP_REVIEW_TAKES}).`,
   /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
   standing: (status: string | null | undefined): string => {
     const at = metaStatusOf(status);
     return at === "pending"
-      ? "has its WhatsApp version in review — it appears here once approved, usually within minutes."
+      ? `has its WhatsApp version in review — it appears here once approved (${WHATSAPP_REVIEW_TAKES}).`
       : `has its WhatsApp version ${whatsappStandingWord(at)} — see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}.`;
   },
   /**

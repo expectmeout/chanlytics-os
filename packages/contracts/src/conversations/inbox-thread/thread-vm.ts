@@ -461,21 +461,21 @@ function lastWordOf(dto: ConversationDto, tz: string, now: Date): NonNullable<In
   // When they were written, which the bar says beside "Didn't send" (the phone thread's canvas, A1).
   const at = failed ? shortTime(messageAt(failed), tz, now) : "";
   if (!last) {
-    if (failedBy) return { text: `Nothing has reached them — the message from ${failedBy} didn't send.`, at };
+    if (failedBy) return { text: `Nothing has reached them. The message from ${failedBy} didn't send.`, at };
     return dto.messages.some((m) => m.type === "call_summary")
-      ? { text: "AI handled their call — no one asked for you." }
+      ? { text: "AI handled their call. No one asked for you." }
       : { text: "No messages yet." };
   }
   if (last.direction === "inbound") {
     return failedBy
       ? {
-          text: `They wrote last, and the reply from ${failedBy} didn't send — as far as they know, nobody answered.`,
+          text: `They wrote last, and the reply from ${failedBy} didn't send. As far as they know, nobody answered.`,
           at,
         }
-      : { text: "They wrote last — no reply yet." };
+      : { text: "They wrote last. No reply yet." };
   }
   const sentence = lastWordLine(false, last, messageAuthor(last));
   return failedBy
-    ? { text: `${sentence} — the last message from ${failedBy} didn't send.`, at }
-    : { text: `${sentence} — no one asked for you.` };
+    ? { text: `${sentence}. The last message from ${failedBy} didn't send.`, at }
+    : { text: `${sentence}. No one asked for you.` };
 }

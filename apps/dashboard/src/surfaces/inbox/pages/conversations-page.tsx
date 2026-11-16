@@ -419,7 +419,7 @@ function listPane(p: {
         <FailedRead
           kind="line"
           what="the calls"
-          body="The chats below are current; the phone's rows are missing until it reads."
+          body="The conversations below are up to date. Calls show once they load."
           surface="conversations"
           testid="cv-calls-failed"
         />
@@ -521,7 +521,7 @@ function openedRow(p: { selected: ConversationLine; closeRow: () => void; flash:
       kind="page"
       glyph="inbox"
       title="This conversation is answered in the Inbox"
-      body="Its thread is there, with the reply box and everything it needs from you."
+      body="Its conversation is there, with the reply box and everything it needs from you."
       action={{
         label: "Open it in the Inbox",
         to: selected.threadId ? ROUTES.thread(selected.threadId) : "inbox",
@@ -581,7 +581,7 @@ function readingPane(p: {
         kind="page"
         glyph="chat"
         title="That conversation isn't among the newest shown here"
-        body={`Conversations shows the newest ${CONVERSATIONS.length}. Open the person in People to find this one — no other conversation opens in its place.`}
+        body={`Conversations shows the newest ${CONVERSATIONS.length}. Open the person in People to find this one.`}
         action={{ label: "Open People", to: "clients" }}
         testid="cv-missing-thread"
       />

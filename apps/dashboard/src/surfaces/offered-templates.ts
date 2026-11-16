@@ -18,6 +18,7 @@ import {
   type LifecycleTemplate,
   type TemplateHolds,
 } from "@chanlytics/contracts";
+import { pickerRows } from "@/lib/pickable-messages";
 import { surfaceMoved } from "@/bridge/surface-status";
 import type { SettingsSurface } from "@/bridge/surfaces/settings";
 import type { TemplateDto } from "./inbox/types";
@@ -37,14 +38,20 @@ export function offeredWhatsApp(settings: SettingsTemplates | undefined): Templa
 }
 
 /**
- * The rows of every channel a composer may offer, as GET templates answered them for the composers: the WhatsApp rows that
- * may go, and the email and text versions that are approved the moment they are written. The composers make their messages of
- * them (campaigns/parts/channels.ts cmOfferedMessages), beside the settings read's `messages`, made of every row.
+ * The rows of every channel a campaign's picker draws its messages from, as GET templates answers them for the
+ * composers (lib/pickable-messages.ts pickerRows, the one rule the templates reader keeps its composers' rows by): the
+ * WhatsApp rows that may go, the email and text versions, which are approved the moment they are written, and the
+ * WhatsApp rows WhatsApp is still checking of the messages a picker lists, since what sends one waits for that check.
+ * The composers make their messages of them (campaigns/parts/channels.ts cmOfferedMessages), beside the settings read's
+ * `messages`, made of every row. The Inbox's pickers send now, and keep to offeredWhatsApp.
  */
-export function offeredRows(settings: SettingsTemplates | undefined): TemplateDto[] | null | undefined {
-  const whatsapp = offeredWhatsApp(settings);
-  if (!whatsapp) return whatsapp;
-  return [...whatsapp, ...(settings?.templateVersions ?? []).filter(templateOffered)];
+export function offeredRows(
+  settings: (SettingsTemplates & Partial<Pick<SettingsSurface, "messages">>) | undefined,
+): TemplateDto[] | null | undefined {
+  if (!settings) return undefined;
+  if (settings.templatesAll === null) return null;
+  const every = [...settings.templatesAll, ...(settings.templateVersions ?? [])];
+  return pickerRows(every, settings.messages ?? undefined);
 }
 
 /**

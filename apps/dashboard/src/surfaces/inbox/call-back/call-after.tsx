@@ -133,7 +133,7 @@ export function CallAfter({ thread, onHandBack }: { thread: Thread; onHandBack: 
                 onHandBack(thread.id);
                 forgetCalled(thread.id);
               }}
-              {...gate("approve", "hand the thread back")}
+              {...gate("approve", "hand the conversation back")}
             >
               {W.call.reached}
             </Button>

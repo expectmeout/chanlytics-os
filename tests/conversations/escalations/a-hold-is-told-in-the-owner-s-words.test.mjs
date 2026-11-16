@@ -58,7 +58,7 @@ test("a reason has one vocabulary: the notice says what the Inbox says, and 'nob
   assert.equal(holdNotice(facts({ reason: "manual" })).subject, "Rosa Diaz needs a person — flagged by hand");
   assert.equal(
     holdNotice(facts({ reason: "person_hold" })).subject,
-    "Rosa Diaz needs a person — you handle this person",
+    "Rosa Diaz needs a person — you answer this person",
   );
   // A reason the set does not know is a person needed, with no raw token said and no empty parenthesis.
   const odd = holdNotice(facts({ reason: "from_a_newer_deploy" }));
@@ -100,7 +100,7 @@ test("the notice: who, their words, AI's, the hold's own, where to answer, the p
       { type: "conversation", id: "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0" },
     ],
   );
-  assert.equal(n.subject, "Rosa Diaz needs a person — too late for an automatic reply");
+  assert.equal(n.subject, "Rosa Diaz needs a person — too late for AI to answer");
   assert.equal(
     n.body,
     [
@@ -114,7 +114,7 @@ test("the notice: who, their words, AI's, the hold's own, where to answer, the p
   );
   assert.equal(
     n.redactedBody,
-    "A Text conversation needed a person (too late for an automatic reply), and nobody could be told.",
+    "A Text conversation needed a person (too late for AI to answer), and nobody could be told.",
   );
   assert.match(
     holdNotice(facts({ who: null })).subject,
@@ -129,7 +129,7 @@ test("the notice: who, their words, AI's, the hold's own, where to answer, the p
 
 test("someone erased is a customer: no name, no words, no number, no hold's words", () => {
   const n = holdNotice(facts({ erased: true, replyWords: "We open at 10." }));
-  assert.equal(n.subject, "A customer needs a person — too late for an automatic reply");
+  assert.equal(n.subject, "A customer needs a person — too late for AI to answer");
   assert.equal(n.body, "Text conversation\nReply from the Inbox.");
 });
 

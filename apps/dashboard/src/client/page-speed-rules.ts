@@ -224,6 +224,8 @@ export interface Landed {
   name: string;
   end: number;
   duration: number;
+  /** From the request sent to the answer's first byte (requestStart to responseStart), where the browser says both. */
+  head?: number;
   /** Server-Timing's parts, by name: `app`, `auth`, `db` (with its calls), `read.<reader>`. */
   server: ReadonlyArray<{ name: string; duration: number; description: string }>;
 }
@@ -328,6 +330,7 @@ export function waitOf(
     const key = waitKeyOf(read.name, page.here);
     if (key) detail.wait = key;
     detail.wait_ms = shareMs(read.duration);
+    if (read.head !== undefined) detail.head_ms = shareMs(read.head);
     Object.assign(detail, serverShareOf(read));
   }
   if (chunk) detail.chunk_ms = shareMs(chunk.duration);

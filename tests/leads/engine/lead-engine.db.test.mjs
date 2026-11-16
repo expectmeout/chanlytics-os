@@ -2332,15 +2332,15 @@ test("A2: Stop during the checks: the round ends 'stopped' only after the last c
     }),
   );
   const w = a2World(140);
-  await startRound(w.ports("s1"), made.round_id, "s1");
-  w.finishRuns();
-  const runs = ok(await db.from("lead_runs").select("id").eq("round_id", made.round_id));
-  for (const r of runs) await collect(w.ports(`c-${r.id}`), r.id, "p0", `c-${r.id}`);
-  await startRound(w.ports("s2"), made.round_id, "s2", true);
-  w.finishRuns();
-  for (const r of ok(await db.from("lead_runs").select("id").eq("round_id", made.round_id).eq("state", "running")))
-    await collect(w.ports(`m-${r.id}`), r.id, "p0", `m-${r.id}`);
-  let round = ok(await db.from("lead_rounds").select("state, ending_pending").eq("id", made.round_id).single());
+  // The probe, then the main phase one term's turn at a time (decision 0133), until the round is at its checks.
+  let round = { state: "queued" };
+  for (let turn = 0; turn < 8 && round.state !== "checking"; turn++) {
+    await startRound(w.ports(`s${turn}`), made.round_id, `s${turn}`, turn > 0);
+    w.finishRuns();
+    for (const r of ok(await db.from("lead_runs").select("id").eq("round_id", made.round_id).eq("state", "running")))
+      await collect(w.ports(`c-${r.id}`), r.id, "p0", `c-${r.id}`);
+    round = ok(await db.from("lead_rounds").select("state, ending_pending").eq("id", made.round_id).single());
+  }
   assert.equal(round.state, "checking", JSON.stringify(round));
   await check(w.ports("k1"), made.round_id, 0, "k1");
   ok(await owner.client.rpc("lead_round_stop", { p_search_id: made.search_id }));

@@ -130,7 +130,7 @@ test("the Inbox offers the rewrite only on a real draft that is still counting d
     ),
   );
   assert.ok(box.includes('data-testid="steer-box"'));
-  assert.ok(box.includes("Rewritten — the new draft waits its turn like the first one"));
+  assert.ok(box.includes("Rewritten · the new draft waits its turn"));
   assert.ok(box.includes('{...gate("approve")}'), "same door as Approve and Hold");
   assert.ok(readRaw("apps/dashboard/src/styles/components.css").includes(".ix-steer-input {"));
 });

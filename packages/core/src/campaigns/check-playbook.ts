@@ -23,7 +23,7 @@ import {
   isWinBack,
   localDate,
   messageFitsMoment,
-  messageHolds,
+  messageGoesBy,
   messageWhyNot,
   momentOffered,
   momentReadsCalendar,
@@ -31,6 +31,7 @@ import {
   playbookName,
   ruleNeeds,
   momentNamesVisit,
+  startersForTrigger,
   triggerOf,
   triggerWords,
   UUID,
@@ -182,22 +183,37 @@ function refuseFreedTimeWithoutWhen(trig: ReturnType<typeof triggerOf>, specs: r
     throw new AppError("validation", FREED_TIME_NEEDS_WHEN);
 }
 
-/** A moment and its message agree on the yes they need (contracts messageFitsMoment, decision 7), made or changed. */
-function refuseMessageThatDisagrees(cls: string, category: string | null): void {
-  const fit = messageFitsMoment(cls, category);
+/**
+ * A moment and its message agree on the yes they need (contracts messageFitsMoment, decision 7), made or changed. The
+ * moment's own ready-made message is its message whatever WhatsApp has filed it as: a follow-up approved as an offer
+ * (15 Nov 2026) goes on running under its moment, enrolled by the yes to offers (enrolPurpose), and made again it was
+ * refused with "Pick a reminder, a check after, or a follow-up", though it is the follow-up. Nobody is reached who
+ * the message may not reach either way: the run and the door ask the stricter of the two.
+ */
+function refuseMessageThatDisagrees(
+  cls: string,
+  trigger: string,
+  message: Pick<CampaignMessage, "name" | "category">,
+): void {
+  if (startersForTrigger(trigger).some((starter) => starter.name === message.name)) return;
+  const fit = messageFitsMoment(cls, message.category);
   if (!fit.ok) throw new AppError("validation", fit.words);
 }
 
 /**
  * A playbook keeps a tick that cannot send yet (its runs hold those people), but never goes by a message none of whose
- * ticks it holds: a broadcast of it could not be sent, and a playbook can never name a message a broadcast could not
- * send. Refused in each ticked channel's sentence for the version the message lacks (contracts messageWhyNot, one after
- * another), so a message with an email and no WhatsApp version is kept on WhatsApp and email, and is refused on WhatsApp
- * alone with WhatsApp's standing.
+ * ticks it goes by: a broadcast of it could not be sent, and a playbook can never name a message a broadcast could not
+ * send. It goes by a channel it holds a version for, and by WhatsApp while WhatsApp is still checking its words (the one
+ * picker rule, contracts messageGoesBy): a picker lists such a message, a send of it waits for the check
+ * (messages/broadcast/whatsapp-wait.ts) and so does the day's run (paced.ts waitsOnWhatsApp), so the playbook it is
+ * picked for is made. It was refused, and a message a picker listed could not be started. Refused in each ticked
+ * channel's sentence for the version the message lacks (contracts messageWhyNot, one after another), so a message with
+ * an email and no WhatsApp version is kept on WhatsApp and email, and is refused on WhatsApp alone with WhatsApp's
+ * standing.
  */
 function refuseMessageNoTickHolds(message: CampaignMessage, channels: readonly ConsentChannel[]): void {
-  const held = messageHolds(message);
-  if (channels.some((c) => held[c])) return;
+  const goes = messageGoesBy(message);
+  if (channels.some((c) => goes.includes(c))) return;
   const words = channels.flatMap((c) => messageWhyNot(message, c) ?? []);
   throw new AppError("conflict", words.join(" "), 409);
 }
@@ -504,7 +520,7 @@ export async function checkPlaybook(
     proposal: trig.kind === "deal",
     freed: trig.kind === "freed",
   });
-  refuseMessageThatDisagrees(cls, message.category);
+  refuseMessageThatDisagrees(cls, trig.id, message);
   const channels = channelsItMayGoBy(body?.channels, existing?.channels ?? null, cls, message);
   refuseFollowUpWithoutLink(trig, specs);
   refuseFreedTimeWithoutWhen(trig, specs);

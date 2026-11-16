@@ -138,8 +138,13 @@ export function judgeQuestions(plan: LeadSearchPlan): Record<string, string> {
         : "Claude's read of the facts is enough (likely)";
     out[c.key] = `${c.text} [${c.required ? "required" : "preferred"}; ${bar}]`;
   }
+  // An exclusion is held to the kind's own bar (search/class.ts classify: likely). Left unsaid, the judge kept it to the
+  // rule for every answer, "unknown when the facts do not say", and a listing never says a business is not a chain: on
+  // 15 Nov 2026 it answered unknown to "chains" for 156 of 394 med spas, and 21 with a checked email waited in review
+  // on that one answer alone.
   for (const e of plan.exclusions)
-    out[e.key] = `the place is NOT ${e.text} [required; fail when the place is what is left out]`;
+    out[e.key] =
+      `the place is NOT ${e.text} [required; fail when the place is what is left out; Claude's read of the facts is enough (likely): pass when nothing in them suggests it is]`;
   return out;
 }
 

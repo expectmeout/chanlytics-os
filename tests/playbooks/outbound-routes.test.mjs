@@ -395,8 +395,8 @@ test("a broadcast: the workspace must be named, a viewer is refused as a viewer,
     "not_found",
     404,
   );
-  // A version WhatsApp has not approved is no blanket refusal: it is WhatsApp's tick refused, in its standing. With no number
-  // the workspace's own reason is the one said; with one, the message's.
+  // With no number the workspace's own reason is said. With one, a version WhatsApp is still checking is no refusal: the
+  // send waits for it (core whatsapp-wait.ts), so it is judged on, here to its audience, where nobody has said yes.
   await refused(
     broadcasts.POST.run(send("POST", { template_id: T2, audience: everyone }, inB), ctxFor(tables, {}, rpcs)),
     "conflict",
@@ -410,7 +410,7 @@ test("a broadcast: the workspace must be named, a viewer is refused as a viewer,
     ),
     "conflict",
     409,
-    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+    "Nobody there has said yes to messages yet.",
   );
   await refused(
     broadcasts.POST.run(
@@ -822,7 +822,7 @@ test("templates: the composers see the approved and unhidden, Settings sees ever
   };
   assert.deepEqual(
     (await templates.GET.run(get(inB), ctxFor(tables))).templates.map((t) => t.name),
-    ["visit_reminder"],
+    ["visit_reminder", "offer"], // and the one WhatsApp is still checking, which a picker lists (the one picker rule)
   );
   // What it left out is counted by why, in this workspace alone, so an empty picker can say it (noTemplateWords).
   assert.deepEqual(

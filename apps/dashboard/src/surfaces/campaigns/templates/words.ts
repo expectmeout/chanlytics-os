@@ -5,7 +5,7 @@
  * All of it is pure but for the two reads of the settings surface (`brainOf` of what it is given, `tplOwn` of what the
  * surface holds now).
  */
-import { CAMPAIGN_ROOMS, DAY_MS, HOUR_MS, MIN_MS, stateOf } from "@chanlytics/contracts";
+import { CAMPAIGN_ROOMS, DAY_MS, HOUR_MS, MIN_MS, WHATSAPP_REVIEW_TAKES, stateOf } from "@chanlytics/contracts";
 import type { SettingsRecord, WorkspaceSettings } from "@/bridge/surfaces/settings";
 import { surfaceValue } from "../../surface-values";
 import { starters } from "./verbs";
@@ -110,7 +110,7 @@ export const TPL_NEW_WORDS = {
   label: "What the message is for",
   hint: "What should it say, and to whom?",
   send: "Ask",
-  note: "You read it before anything is saved. WhatsApp looks at its version first, usually within minutes.",
+  note: `You read it before anything is saved. WhatsApp looks at its version first (${WHATSAPP_REVIEW_TAKES}).`,
   /**
    * What Ask is asked, the owner's words inside it: a new message for Messages with a version on every channel its kind
    * may go by (an offer never by text), the email kept even where email is not set up yet (the door keeps it).
@@ -164,8 +164,7 @@ export const TPL_VERSION_WORDS = {
     `${reason} Write the words again so WhatsApp takes them, saying the same thing.`,
   fixing: "AI is writing words WhatsApp can take…",
   /** WhatsApp's own words, under its editor: what sending them back does. */
-  whatsappNote:
-    "WhatsApp looks at new words before they go out, usually within minutes. It takes a change to an approved message once a day.",
+  whatsappNote: `WhatsApp looks at new words before they go out (${WHATSAPP_REVIEW_TAKES}). It takes a change to an approved message once a day.`,
   sendBack: "Send to WhatsApp",
   sendingBack: "Sending…",
   /**
@@ -180,7 +179,7 @@ export const TPL_VERSION_WORDS = {
    */
   languageAdded: (title: string, language: string, toWhatsApp: boolean): string =>
     toWhatsApp
-      ? `${title} in ${language} is added. WhatsApp checks its words, usually within minutes.`
+      ? `${title} in ${language} is added. WhatsApp checks its words (${WHATSAPP_REVIEW_TAKES}).`
       : `${title} in ${language} is added.`,
   translated: (title: string, language: string, saved: readonly string[]): string =>
     `${title} in ${language}: its ${saved.join(" and ")} ${saved.length === 1 ? "version is" : "versions are"} saved`,
@@ -191,7 +190,7 @@ export const TPL_VERSION_WORDS = {
   whatsappEmpty: "Write the message.",
   whatsappLong: "WhatsApp takes 1,024 characters at most.",
   sentBack: (title: string): string =>
-    `${title} went back to WhatsApp — it looks at the new words, usually within minutes`,
+    `${title} went back to WhatsApp — it looks at the new words (${WHATSAPP_REVIEW_TAKES})`,
   /** How long the subject is, against what an inbox shows. */
   subjectCount: (n: number, max: number): string => `${n} of ${max}`,
   /** What a text comes to on the wire, STOP line included. */
@@ -222,8 +221,7 @@ export const TPL_SHEET_WORDS = {
   /** The tap on where it stands: its name to a screen reader, and what it says. */
   standing: (title: string): string => `Where ${title} stands`,
   checking: "Checking",
-  checkingSays:
-    "WhatsApp is checking the new words, usually within minutes. If it says no, this comes back to Needs you with new words ready.",
+  checkingSays: `WhatsApp is checking the new words (${WHATSAPP_REVIEW_TAKES}), and Chanlytics tells you what it decides. If it says no, this comes back to Needs you with new words ready.`,
   goingSays: (by: string): string => `Sent by ${by}.`,
   /** Something sends it and nothing can carry it here yet: nothing is lost, and it goes by itself. */
   waitingSays: (by: string): string =>

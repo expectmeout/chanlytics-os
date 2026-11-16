@@ -14,12 +14,19 @@ checked) and what to leave out. Nothing is searched or spent before Approve. A s
 1. **The probe.** 25 places across the terms the reserve holds a run for, judged, so the round learns its yield and
    can ask the owner whether what it is finding is what they meant (the question after 25). A probe that leaves no
    run's room goes to the checks on what it found.
-2. **The main phase.** What the count still needs, over the probe's yield: a term not yet asked before one that was,
-   and one asked again past what it read, since the provider answers a term from its top (`mainAsk`).
+2. **The main phase.** What the count still needs, over the probe's yield, asked of one term at a time: the provider
+   charges for every place it returns, and a search's terms are synonyms that mostly return the same places
+   (decision 0133). A term not yet asked goes before one that was, and one asked again is asked past what it read,
+   since the provider answers a term from its top (`mainAsk`). The next term starts only once every term before it
+   came back under its ask (`runner/main-ask.ts`, `round-decision.ts`), and a synonym that mostly returned places the
+   workspace already held is passed over by the search's later rounds. Past its probe, a search made for email shows
+   the judge only a place with a candidate email (`places.ts` `noEmailRule`).
 3. **The checks.** Every email found goes through the mailbox checker, so an address counts only once it is proved.
 
-A round ends with one of nine endings (`packages/contracts/src/leads/search/endings.ts`). A later round of the same
-search (Find new ones, Carry on, Try again) is a top-up or a renewal, sized from what the search found before.
+A round ends with one of its endings (`packages/contracts/src/leads/search/endings.ts`). What a round reserved is its
+own estimate: run out, the round ends on what its area did, and "this month's searching budget is used" is said only
+where a reservation is refused. A later round of the same search (Find new ones, Carry on, Try again) is a top-up or a
+renewal, sized from what the search found before.
 
 A second card, **people at companies**, finds named people by title at companies (00430). It has no probe: one run,
 its companies judged against what was asked (00474), each kept as a company lead with its people, waiting in Needs
@@ -53,11 +60,11 @@ States: `queued → probing → waiting_on_owner → running → checking → en
 
 The jobs (`packages/jobs/src/handlers/handlers.ts`), each a verb in `packages/core/src/leads/runner/`:
 
-| Job                | Verb                    | What it does                                                                      |
-| ------------------ | ----------------------- | --------------------------------------------------------------------------------- |
-| `lead_round_start` | `start.ts` `startRound` | A run row per term by its deterministic id, claimed, then started at the provider |
-| `lead_collect`     | `collect.ts` `collect`  | One page of a run: clean, identity, the judge, the class, one commit              |
-| `lead_check`       | `check.ts` `check`      | A batch of 500 addresses to the mailbox checker                                   |
+| Job                | Verb                    | What it does                                                                                                                           |
+| ------------------ | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `lead_round_start` | `start.ts` `startRound` | A run row per term by its deterministic id, claimed, then started at the provider: every term of the probe, one term of the main phase |
+| `lead_collect`     | `collect.ts` `collect`  | One page of a run: clean, identity, the judge, the class, one commit                                                                   |
+| `lead_check`       | `check.ts` `check`      | A batch of 500 addresses to the mailbox checker                                                                                        |
 
 **Each page is one commit, with its next job.** `lead_collect_commit` inserts the leads and members, counts, settles
 the provider's usage, moves the offset, moves the round and writes the job that follows, all in one transaction: the

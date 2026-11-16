@@ -1291,7 +1291,7 @@ test("report says the Campaigns lens as the page does (C4): the sentence, the fi
     },
     failed_sends: {
       rows: [
-        "WhatsApp held it back: Meta limits marketing messages to each person, and isn't delivering marketing messages to US numbers at all for now: 4",
+        "WhatsApp held it back: offers to each person are limited, and offers to US numbers aren't delivered for now: 4",
         "The email bounced: their address didn't accept it: 2",
       ],
       line: "6 messages failed after they were sent, for the provider's own reason.",
@@ -5128,7 +5128,7 @@ test("REGRESSION: Today's reply-window rows are the opposite of drafts -- the cu
     [[C2, `inbox/th-${C2}`]],
     "the row names the thread and where it opens",
   );
-  assert.match(today.reply_window_closing.rows[0].text, /window closes/);
+  assert.match(today.reply_window_closing.rows[0].text, /reply by \d/);
   assert.ok(tc.read.thread.has(C2), "a row this read returned may be cited and navigated to");
 
   // inbox.list: the count is of everything that matched, not of what the cap kept, and every row names its wire.
@@ -6717,7 +6717,7 @@ test("campaigns.audiences offers the templates the composer offers (ledger #9): 
   });
   assert.equal(out.isError, false, out.result);
   const offered = JSON.parse(out.result).templates.map((x) => x.template_id);
-  assert.deepEqual(offered, [TPL], "REGRESSION: the hidden summer_offer was offered to the model");
+  assert.deepEqual(offered, [TPL, T3], "the approved one and the one WhatsApp is still checking; never the hidden one");
   const composer = await templatesRoute.GET.run(new Request(`http://localhost/api/v1/templates?workspace=${A}`), {
     ...ctxFor(t),
     params: {},

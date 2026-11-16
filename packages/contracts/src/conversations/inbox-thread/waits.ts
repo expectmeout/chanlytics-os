@@ -162,7 +162,7 @@ export function replyFacts(
  * second dash.
  */
 export function snoozedThreadWords(openRequest: string | null): string {
-  const hidden = "Hidden from your queue. AI still answers, and a new message brings it back.";
+  const hidden = "Hidden from your list. AI still answers, and a new message brings it back.";
   return openRequest ? `${hidden} ${openRequest}. That's still waiting for you.` : hidden;
 }
 
@@ -173,16 +173,16 @@ export function snoozedThreadWords(openRequest: string | null): string {
  */
 export const THREAD_PANE_WORDS = {
   /** WhatsApp's window, shut: the bar's one quiet fact, and why a press away. */
-  chatClosed: "Chat closed",
+  chatClosed: "Approved messages only",
   chatClosedWhy:
     "A day after their last message, WhatsApp delivers only an approved message. Sending one reopens the chat.",
   /** The closed chat's line at the dock's head (the thread canvas, 1 Nov 2026), and its press for why. */
-  chatClosedLead: "Chat window closed",
-  chatClosedRest: (first: string) => `only an approved template can reach ${first} now.`,
+  chatClosedLead: "Over a day since they wrote",
+  chatClosedRest: (first: string) => `only an approved message can reach ${first} now.`,
   why: "Why?",
   /** The template box: its choices' name to a screen reader, its send, and the call beside it. */
-  templateChoices: "Template",
-  sendTemplate: "Send template",
+  templateChoices: "Saved messages",
+  sendTemplate: "Send",
   /** Instagram's window, shut: a business may not write at all, and has no approved message to write with. */
   dmClosedWhy: "A day after their last message, Instagram lets you reply only once they write again.",
   /** The dock's acts on a thread left unanswered (THREAD_PANE_WORDS.unanswered). "No reply needed" archives it. */
@@ -202,9 +202,9 @@ export const THREAD_PANE_WORDS = {
   sendAgain: "Send again",
   edit: "Edit",
   /** The template box: what sending one does, what it is filled with, and its picker's head and groups. */
-  reopens: "Reopens the chat",
+  reopens: "Lets you write freely again",
   blank: (label: string) => label.toLowerCase(),
-  pickTitle: (first: string) => `Reopen the chat with ${first}`,
+  pickTitle: (first: string) => `Write to ${first} again`,
   pickSub: "After a day, WhatsApp delivers only an approved message.",
   fitsNow: "Fits now",
   others: "Others",
@@ -222,7 +222,7 @@ export const THREAD_PANE_WORDS = {
   emailLess: "Show less",
   emailSignature: "Signature",
   emailFooter: "Footer & unsubscribe link",
-  emailEarlier: "Earlier in the thread",
+  emailEarlier: "Earlier in this conversation",
   /** Who an email of theirs went to, after their name at its head ("Maya Chen to you"). */
   emailToYou: "to you",
   /** The files an email came with, whose names alone were kept: counted on a fold of their own, why on a pointer. */
@@ -234,7 +234,7 @@ export const THREAD_PANE_WORDS = {
   /** The dock's lead where the receptionist's draft found what they wrote was not a customer's: what it is follows. */
   pitchLead: "Not someone you serve?",
   /** The quiet mark where the receptionist held the thread for a person, with its time (the reason is the dock's). */
-  heldForYou: "Held for you",
+  heldForYou: "Waits for you",
   /** A head's state while a draft counts down to send ("Sends in 0:42"), and the draft's own line over it. */
   sendsIn: "Sends in",
   notSentYet: "Not sent yet",
@@ -243,12 +243,12 @@ export const THREAD_PANE_WORDS = {
   /** The draft's line while it does not count: paused while you are away, going, or held. */
   heldPaused: "paused while you're away",
   sendingNow: "Sending now…",
-  heldStopped: "Held — it won't send",
+  heldStopped: "Stopped · it won't send",
   hold: "Hold",
   /** What its meter says to a screen reader, as it says the time left. */
   untilSends: (clock: string) => `${clock} until it sends`,
   /** The tip on the draft's line: what stops it. */
-  heldTip: "This draft sends itself at zero. Edit, Hold or starting to type a reply stops it; Send now lets it go.",
+  heldTip: "This draft sends itself at zero unless you press Edit or Hold, or start typing. Send now lets it go.",
   /** Under the reply box while a draft counts down: what typing does to it. */
   typingHolds: "Typing here holds the draft.",
   /** A draft's two tools: why it says what it says, and the receptionist writing it again as you ask. */
@@ -257,7 +257,7 @@ export const THREAD_PANE_WORDS = {
   rewriting: "Rewriting…",
   rewriteAsk: "Tell it what to change…",
   rewriteLabel: "Tell AI what to change",
-  rewritten: "Rewritten — check it before you send",
+  rewritten: "Rewritten · check it before you send",
   /** The reply box's send, said for its wire: an email's words, a chat's arrow alone. */
   sendEmail: "Send email",
   send: "Send",

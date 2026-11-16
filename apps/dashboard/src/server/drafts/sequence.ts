@@ -27,7 +27,6 @@ import {
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
   SEQUENCE_DRAFT_MAX_TOKENS,
-  defaultSlotKinds,
   fenced,
   fencedInline,
   parseTenantConfig,
@@ -35,14 +34,11 @@ import {
   toldPart,
   type ToldPart,
   mailboxIsLive,
-  messageHolds,
   momentOffered,
   newListOf,
-  slotLabels,
   momentNamesVisit,
   triggerWords,
   zonedInputValue,
-  type CampaignMessage,
   type ConsentChannel,
   type NewDraftAsk,
   type NewDraftDto,
@@ -79,6 +75,7 @@ import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 import { LEFT_OUT_ASKED_MAX } from "../campaigns/sequences/left-out";
 import { CHANGE_RULE, standsAsked } from "./sequence-change";
+import { knownMessagesOf, type KnownMessagesRead } from "./known-messages";
 import { knownStartersOf } from "./known-starters";
 import { profileLanguagesOf } from "@/lib/starter-message";
 
@@ -125,43 +122,16 @@ const RULES = [
 export const PREVIEW_RULE =
   'This business sets up each business it writes to a receptionist of their own to try: a step to leads after the first may name {{their preview}}, its link, once, as that email\'s only link (never with {{booking link}}), said as theirs to try ("I set one up for {{business}}. Try it: {{their preview}}"). Only for a search of businesses that take bookings, never an agency.';
 
-/** The messages a step may send now, each keyed for the model: offered, with a channel it can go by. */
-function offeredOf(read: {
-  templates: { id: string; name: string; variables: unknown; body_preview?: string | null }[];
-  messages: CampaignMessage[];
-}): KnownMessage[] {
-  const rows = new Map(read.templates.map((t) => [t.id, t]));
-  const out: KnownMessage[] = [];
-  for (const message of read.messages) {
-    if (!message.offered) continue;
-    const holds = messageHolds(message);
-    const channels = (["whatsapp", "email", "sms"] as const).filter((c) => holds[c]);
-    const id = message.versions.whatsapp?.id ?? message.anchor.id;
-    const row = rows.get(id) ?? rows.get(message.anchor.id);
-    if (!row || channels.length === 0) continue;
-    out.push({
-      key: `k${out.length + 1}`,
-      templateId: row.id,
-      title: message.title,
-      body: (row.body_preview ?? "").trim(),
-      offer: message.purpose === "marketing",
-      channels,
-      slots: defaultSlotKinds(row),
-      labels: slotLabels(row),
-    });
-  }
-  return out;
-}
-
 /**
- * The messages a step may send, as the drafter is told them: the business's own first (offeredOf), then the ready-made
- * starters none of them is, in its customers' language (drafts/known-starters.ts).
+ * The messages a step may send, as the drafter is told them: the business's own first, by the one picker rule
+ * (drafts/known-messages.ts), then the ready-made starters none of them is, in its customers' language
+ * (drafts/known-starters.ts).
  */
 function messagesKnownOf(
-  read: Parameters<typeof offeredOf>[0],
+  read: KnownMessagesRead,
   here: { reviewLink: boolean; config: { brain?: { profile?: { languages?: string[] } } } | null },
 ): KnownMessage[] {
-  const onFile = offeredOf(read);
+  const onFile = knownMessagesOf(read);
   const languages = profileLanguagesOf(here.config);
   return [
     ...onFile,
@@ -284,7 +254,7 @@ export function draftAskedParts(known: DraftKnown, ask: NewDraftAsk): ToldPart[]
           "The business's messages",
           known.messages.map(
             (m) =>
-              `- ${m.key}: "${m.title}"${m.starter ? " (ready-made)" : ""}, ${m.offer ? "an offer" : "news or about their booking"}, goes by ${m.channels.join(" or ")}; its values: ${m.slots.join(", ") || "none"}\n${fenced("record", m.body.slice(0, BODY_CHARS))}`,
+              `- ${m.key}: "${m.title}"${m.starter ? " (ready-made)" : ""}, ${m.offer ? "an offer" : "news or about their booking"}, goes by ${m.channels.join(" or ")}${m.beingChecked ? " (WhatsApp is still checking its words: it goes there once approved)" : ""}; its values: ${m.slots.join(", ") || "none"}\n${fenced("record", m.body.slice(0, BODY_CHARS))}`,
           ),
         )
       : "The business has no message it can send yet: write the ones its steps need.",

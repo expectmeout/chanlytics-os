@@ -10,7 +10,7 @@ import { firstLine } from "../push";
 import type { JobKind } from "../../shared/enums";
 import { RUN_OPEN_WORDS } from "../../shell/campaign-rooms";
 import { invitationExpired } from "../../shell/identity";
-import { noticeTone } from "../../waits/notice-tones";
+import { noticeTone, type NoticeTone } from "../../waits/notice-tones";
 import { SEQUENCES_ROUTE } from "../../campaigns/sequences/address";
 import { MESSAGES_ROUTE } from "../../shell/address";
 import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, contentRouteOf } from "../../content/address";
@@ -474,6 +474,13 @@ export function callOfKey(key: string): string | null {
 }
 
 /**
+ * A kept row's icon: good news's tick; plain news under a kind whose look is good news wears the plain alert's bell, never
+ * good news's tick (waits/notice-tones.ts); else its kind's own.
+ */
+const rowIconOf = (tone: NoticeTone | null, look: ServerLook): string =>
+  tone === "ok" ? "check" : tone === "" ? ALERT_LOOK.icon : look.icon;
+
+/**
  * The kept rows as the bell shows them: dismissed ones gone, unread decided by how far the person has read
  * (bellReadThroughMs) and their own read mark on the row, the same on every device because both live on the server. A
  * look at the bell reads no row: it moves the number alone (contracts unreadFor), decision 0124.
@@ -498,7 +505,7 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
         title: job ? job.title : otherRow.title,
         message: job ? job.message : firstLine(otherRow.body),
         to: noticeRoute(otherRow.kind, route),
-        icon: tone === "ok" ? "check" : look.icon,
+        icon: rowIconOf(tone, look),
         tone: tone ?? look.tone,
         action: look.own ? look.action : (verbForRoute(route) ?? look.action),
         unread: at > readMs && !otherRow.read,

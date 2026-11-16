@@ -88,8 +88,8 @@ export interface TodayQueueRowVM {
    * `reply`: a reply to a reach-out, read (Reach out Part 5), in place of its thread's handoff (withReplies). `step`: a
    * person's next step come due (0007), and `steps` the one row for the rest, to People's Steps due (withSteps): both are
    * the team's own to-do and nobody waiting on a person, so neither is a person row (isPersonRow). `visit`: a visit of
-   * yesterday's nobody has marked, asking "Did they come?" with Kept and Missed, and `visits` the one row for the rest, to
-   * the Calendar on yesterday (withVisitsAsked, 0047): the team's to-do as a step is, and no person waiting either.
+   * the past week's nobody has marked, asking "Did they come?" with Kept and Missed, and `visits` the one row for the rest, to
+   * the first of them on the Calendar (withVisitsAsked, 0047): the team's to-do as a step is, and no person waiting either.
    */
   kind:
     | "handoff"
@@ -250,7 +250,7 @@ export interface TodayQueueRowVM {
 export interface TodayQueueEmptyVM {
   title: string;
   /** The queue heading's own words when nothing is waiting: "nothing needs you" only where the receptionist is holding the floor. */
-  sub: "nothing in the queue" | "nothing needs you";
+  sub: "nothing waiting" | "nothing needs you";
   glyph: "alert" | "phone" | "mail" | "check";
   tone: "warn" | "ok" | "";
   testid: string;

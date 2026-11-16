@@ -8,9 +8,10 @@ import { MEDIA_LABEL, mediaKind } from "./message-media";
 import { emailFromNameOf, emailPartsOf, emailSubjectOf } from "./message-email";
 import { isChatMessage, writtenChannelOf } from "./thread-channel";
 import { recordOrNull } from "../shared/unknown";
+import { WINDOW_CLOSED_WORDS } from "./window-words";
 
 /** What an email's `delivered` receipt says: their mail server took it, which is as far as an email can be followed. */
-const EMAIL_DELIVERED = "Reached their mail server";
+const EMAIL_DELIVERED = "Handed to their email";
 
 /**
  * What happened to a message we tried to send, in the operator's words.
@@ -53,23 +54,22 @@ const WHATSAPP_FAILURES: Readonly<Record<number, string>> = {
   130429: "Your number has reached WhatsApp's message limit for now",
   131026:
     "WhatsApp couldn't deliver it: their number may not be on WhatsApp, or they haven't accepted its latest terms or updated the app",
-  131031: "Your WhatsApp Business account is restricted or disabled, or WhatsApp couldn't verify its details",
+  131031: "Your WhatsApp Business account is restricted or turned off, or WhatsApp couldn't verify its details",
   131042: "WhatsApp reports a problem with your payment method",
   131047:
-    "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now",
+    "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only an approved message can reach them now",
   131048:
     "WhatsApp is limiting how many messages your number can send, because earlier ones were blocked or flagged as spam",
-  131049:
-    "WhatsApp held it back: Meta limits marketing messages to each person, and isn't delivering marketing messages to US numbers at all for now",
+  131049: "WhatsApp held it back: offers to each person are limited, and offers to US numbers aren't delivered for now",
   131050: "They've chosen to stop receiving marketing messages from your business on WhatsApp",
   131053: "WhatsApp couldn't upload the attachment, for a reason such as a file type it doesn't support",
   131056:
     "Your number sent them too many messages in a short while, and WhatsApp asks you to wait before sending more to them",
-  132000: "The template's variable values didn't match the ones it defines",
-  132001: "That template doesn't exist in this language, or hasn't been approved",
-  132012: "The template's variable values were formatted wrongly",
-  132015: "That template is paused because of its low quality",
-  132016: "That template was permanently disabled for low quality",
+  132000: "The words filled into the saved message didn't fit it",
+  132001: "That saved message isn't approved in this language",
+  132012: "The words filled into the saved message weren't in the right form",
+  132015: "WhatsApp paused that saved message for low quality",
+  132016: "WhatsApp stopped that saved message for good, for low quality",
 };
 
 /**
@@ -84,16 +84,16 @@ const SMS_FAILURES: Readonly<Record<number, string>> = {
   21614: "That number isn't a valid mobile number",
   30003: "Their phone couldn't be reached: it may be off, out of signal, or unable to receive texts",
   30004: "The text was blocked from reaching this number",
-  30005: "The carrier says this number is unknown and may no longer exist",
+  30005: "This number is unknown and may no longer exist",
   30006: "This number can't receive texts, which is typical of a landline",
   30007: "The text was filtered as a possible policy violation",
-  30008: "The carrier gave no reason for not delivering it",
-  30034: "Your texting line isn't registered with the carriers yet, so they blocked it",
+  30008: "It wasn't delivered, and no reason was given",
+  30034: "Texting isn't approved for your number yet, so it was blocked",
 };
 
 /** The provider's own word for a text's fate when it gives no code (Twilio's message statuses). */
 const SMS_STATUS_WORDS: Readonly<Record<string, string>> = {
-  undelivered: "The carrier didn't deliver it.",
+  undelivered: "It wasn't delivered.",
   failed: "The text couldn't be sent.",
   canceled: "The text was canceled before it left.",
 };
@@ -180,11 +180,11 @@ const FAILURE_WAYS: Readonly<Record<number, { way: FailedWay; plain: string }>> 
   131026: {
     way: "call",
     plain:
-      "WhatsApp couldn't deliver it. Their number may not be on WhatsApp, so a template wouldn't get through either.",
+      "WhatsApp couldn't deliver it. Their number may not be on WhatsApp, so a saved message wouldn't get through either.",
   },
   131047: {
     way: "template",
-    plain: "WhatsApp's 24-hour window has closed. Only a template reaches them now, and your words go with you.",
+    plain: WINDOW_CLOSED_WORDS,
   },
   130429: { way: "later", plain: "WhatsApp is limiting how fast your number can send. It will take this again soon." },
   131048: { way: "later", plain: "WhatsApp is limiting how many messages your number can send right now." },
@@ -195,7 +195,7 @@ const FAILURE_WAYS: Readonly<Record<number, { way: FailedWay; plain: string }>> 
   131050: { way: "done", plain: "They've chosen to stop getting marketing messages from you on WhatsApp." },
   21610: { way: "done", plain: "They've opted out of texts from your number." },
   30003: { way: "call", plain: "Their phone couldn't be reached by text. It may be off or out of signal." },
-  30005: { way: "call", plain: "The carrier says this number may no longer exist for texts." },
+  30005: { way: "call", plain: "This number may no longer take texts." },
   30006: { way: "call", plain: "This number can't receive texts, which is typical of a landline." },
   21614: { way: "call", plain: "That number can't receive texts." },
 };
@@ -267,7 +267,7 @@ function settledWords(e: Record<string, unknown>): string | null {
   const settled = typeof e.reason === "string" ? tableWord(SETTLED_FAILURES, e.reason) : undefined;
   if (settled) return settled;
   return e.outcome === "unknown"
-    ? "The provider didn't answer in time, so it may have gone: check the thread before sending it again."
+    ? "Couldn't confirm it went through. Check the conversation before sending it again."
     : null;
 }
 

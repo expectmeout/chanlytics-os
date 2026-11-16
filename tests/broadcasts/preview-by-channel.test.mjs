@@ -487,9 +487,13 @@ const rowOf = (channel, over = {}) => ({
   body_preview: channel === "whatsapp" ? "Hi {{1}}, we are open late." : "Hi {{1}}, we are open late on Thursdays.",
   ...over,
 });
-/** What GET templates answers for these rows: the composers' (approved, not hidden) and every row's messages, as the reader makes them. */
+/**
+ * What a page hands its picker for these rows (surfaces/offered-templates.ts offeredRows): every WhatsApp row the
+ * workspace has not hidden, whatever its standing, the email and text versions, and every row's messages. Which row a
+ * message is drawn from is the one picker rule's to say.
+ */
 const readOf = (rows) => ({
-  templates: rows.filter((r) => r.meta_status === "approved" && !r.hidden_at),
+  templates: rows.filter((r) => !r.hidden_at && (r.channel === "whatsapp" || r.meta_status === "approved")),
   messages: contracts.campaignMessagesOf(rows),
 });
 /** The workspace as a page has it: a number or none, a texting line, a mailbox that sends the business's news. */
@@ -647,24 +651,24 @@ test("the opening ticks are the first channel, in the product's order, that the 
   );
 });
 
-test("a WhatsApp version still in review with an email beside it is an offered message, and WhatsApp's tick says it is being reviewed", () => {
+test("the one picker rule: a message WhatsApp is still checking is offered, by WhatsApp too and drawn from its WhatsApp words, with an email beside it or alone; one WhatsApp refused, holds or turned off goes by what else it has, and alone is not offered", () => {
   const rows = [rowOf("whatsapp", { meta_status: "pending" }), rowOf("email")];
   const [offered, ...rest] = cmOfferedMessages(readOf(rows));
   assert.equal(rest.length, 0);
   assert.deepEqual(
-    [offered.id, offered.channel, offered.channels, offered.message.versions.whatsapp.status],
-    ["t-whatsapp", "email", ["email"], "pending"],
-    "its id is its anchor's, the WhatsApp row in review, which the read does not return: its words are the email's",
+    [offered.id, offered.channel, offered.channels, offered.checking, offered.message.versions.whatsapp.status],
+    ["t-whatsapp", "whatsapp", ["whatsapp", "email"], true, "pending"],
+    "its id is its anchor's, and its words the WhatsApp version's, which what sends it waits for",
   );
   assert.equal(offered.message.anchor.channel, "whatsapp");
   const by = sendByOf(offered, WORKSPACE());
   assert.deepEqual(by.ticked, ["email"]);
   assert.equal(
     by.ticks.whatsapp.why,
-    "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.",
+    "WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day).",
   );
   assert.equal(by.ticks.whatsapp.on, false);
-  // Refused, paused and disabled each say their own; a message whose only version is one not approved is not offered at all.
+  // Refused, paused and disabled each say their own, go by the email alone, and alone are not offered at all.
   for (const [status, words] of [
     ["rejected", "WhatsApp asked for a change to this message's words. AI writes new words for you to send back."],
     [
@@ -678,31 +682,33 @@ test("a WhatsApp version still in review with an email beside it is an offered m
   ]) {
     const [m] = cmOfferedMessages(readOf([rowOf("whatsapp", { meta_status: status }), rowOf("email")]));
     assert.equal(sendByOf(m, WORKSPACE()).ticks.whatsapp.why, words, status);
+    assert.deepEqual([m.channel, m.channels, m.checking], ["email", ["email"], undefined], status);
+    assert.deepEqual(cmOfferedMessages(readOf([rowOf("whatsapp", { meta_status: status })])), [], `${status} alone`);
   }
+  // One that is only being checked is offered too (it was in no picker): a send and a sequence's run wait for the check.
+  const [alone, ...others] = cmOfferedMessages(readOf([rowOf("whatsapp", { meta_status: "pending" })]));
+  assert.equal(others.length, 0);
   assert.deepEqual(
-    cmOfferedMessages(readOf([rowOf("whatsapp", { meta_status: "pending" })])),
-    [],
-    "as before: not offered",
+    [alone.id, alone.channel, alone.channels, alone.checking],
+    ["t-whatsapp", "whatsapp", ["whatsapp"], true],
   );
   // The same message as a cached read made it, with no `messages` in it: made of the rows the read holds, which leave the version in review out.
   const bare = cmOfferedMessages({ templates: [rowOf("email")] });
   assert.deepEqual([bare[0].id, bare[0].channels, bare[0].message.versions.whatsapp], ["t-email", ["email"], null]);
 });
 
-test("a WhatsApp version that cannot be put on the wire whole closes WhatsApp's tick in its own words, and the message is listed as blocked only when nothing else of it can go", () => {
+test("a WhatsApp version that cannot be put on the wire whole closes WhatsApp's tick in its own words; with an email beside it the message goes by the email, and alone it is in no picker, as the Messages list does not show it", () => {
   const picture = { blocked: "a picture for a heading" };
-  // With an email beside it the message is offered, not blocked: the email goes, WhatsApp's tick says why not.
+  // With an email beside it the message is offered, drawn from the email it goes by: WhatsApp's tick says why not.
   const [both] = cmOfferedMessages(readOf([rowOf("whatsapp", picture), rowOf("email")]));
-  assert.deepEqual([both.id, both.channel, both.channels, both.blocked], ["t-whatsapp", "whatsapp", ["email"], null]);
+  assert.deepEqual([both.id, both.channel, both.channels, both.blocked], ["t-whatsapp", "email", ["email"], null]);
   assert.equal(
     sendByOf(both, WORKSPACE()).ticks.whatsapp.why,
     "This message's WhatsApp version has a picture for a heading, so it cannot be sent from here.",
   );
-  // Alone it is listed with the reason, so a picker says why it is not offered (contracts sendableTemplates), as it did.
-  const [alone, ...rest] = cmOfferedMessages(readOf([rowOf("whatsapp", picture)]));
-  assert.equal(rest.length, 0);
-  assert.deepEqual([alone.channels, alone.blocked], [[], "a picture for a heading"]);
-  assert.deepEqual(contracts.sendableTemplates([alone]).blocked, [alone]);
+  // Alone it was listed with its reason, though the Messages list hides it (the review of 15 Nov 2026): no picker lists it.
+  assert.deepEqual(cmOfferedMessages(readOf([rowOf("whatsapp", picture)])), []);
+  assert.deepEqual(cmOfferedMessages(readOf([rowOf("whatsapp", { ...picture, meta_status: "pending" })])), []);
   // A hidden message is offered to nobody, whatever its versions.
   assert.deepEqual(
     cmOfferedMessages(readOf([rowOf("whatsapp", { hidden_at: "2026-10-01T00:00:00.000Z" }), rowOf("email")])),

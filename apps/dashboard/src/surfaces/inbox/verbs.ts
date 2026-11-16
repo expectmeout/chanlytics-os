@@ -200,7 +200,7 @@ async function runVerb(
     case "resolve":
       result = thread.escalationId
         ? await api()("POST escalations/[id]/resolve", { params: { id: thread.escalationId }, refresh, onAccepted })
-        : local("No open escalation on this thread.");
+        : local("Nothing is waiting on this conversation.");
       break;
     case "reply":
       // `emailTo` is the operator's yes to where an email reply goes, when the server asked (Refusal.confirmEmailTo).
@@ -226,7 +226,7 @@ async function runVerb(
             refresh,
             onAccepted,
           })
-        : local("This workspace has no approved template yet, so nothing can be sent outside the 24-hour window.");
+        : local("No WhatsApp message is approved yet, so nothing can reach them until they write again.");
       break;
     default:
       result = local(`Unknown verb ${verb as string}.`);

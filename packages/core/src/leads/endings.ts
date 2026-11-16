@@ -68,7 +68,6 @@ export function discoveryEnding(
     counted: input.counted,
     target: input.target,
     termsShort: input.termsShort,
-    budgetLeftUsd: round.cost_reserved_usd - round.cost_usd,
     allowanceLeft: round.allowance_reserved - round.allowance_used,
     stopped: input.stopped,
     // Any run that failed or timed out, and was not tried again, stopped the search short of what it asked: "the source

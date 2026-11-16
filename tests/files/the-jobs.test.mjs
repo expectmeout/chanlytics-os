@@ -89,6 +89,7 @@ const fileRow = (over = {}) => ({
   seconds: null,
   sound: null,
   sound_said: null,
+  picture_print: null,
   ...over,
 });
 
@@ -112,6 +113,7 @@ function world({ files = [fileRow()], upload = null, posts = [] } = {}) {
   const purged = [];
   const found = [];
   const notes = [];
+  const printed = [];
   const db = fakeDb(
     tables,
     {},
@@ -126,6 +128,14 @@ function world({ files = [fileRow()], upload = null, posts = [] } = {}) {
         if (!post || !p_from.includes(post.status)) return false;
         Object.assign(post, p_patch, { status: p_to });
         return true;
+      },
+      // 00630: a print kept; the twin rule is the database's (one-picture-is-one-file.db.test.mjs), here nothing twins.
+      file_printed: (a) => {
+        printed.push(a);
+        const row = tables.files.find((f) => f.id === a.p_id && !f.removed_at);
+        if (!row) return { fate: "gone", twin_id: null };
+        row.picture_print = a.p_print;
+        return { fate: "kept", twin_id: null };
       },
       file_purged: (a) => {
         purged.push(a);
@@ -205,6 +215,8 @@ function world({ files = [fileRow()], upload = null, posts = [] } = {}) {
   db.storage = {
     from: () => ({
       createSignedUrl: async (path) => ({ data: { signedUrl: `https://storage.example/${path}` }, error: null }),
+      // The small copy a photo is printed from (00630), as Storage shrinks it.
+      download: async () => ({ data: new Blob([PICTURE]), error: null }),
       upload: async (path, bytes) => {
         if (upload) return upload(path, bytes);
         bucket.uploaded.push(path);
@@ -221,7 +233,7 @@ function world({ files = [fileRow()], upload = null, posts = [] } = {}) {
     }),
   };
   setPg(db);
-  return { db, tables, kept, purged, found, notes, bucket };
+  return { db, tables, kept, purged, found, notes, printed, bucket };
 }
 
 /** The web the copy goes through: Storage's resize, Anthropic's Files API. `on` may step in before a call answers. */
@@ -295,7 +307,8 @@ test("a look is on the ledger under who added the file and about that file, and 
 });
 
 test("the copy the model reads is asked for a little sharper than Storage's default, so small print can be read", async () => {
-  const w = world();
+  // Printed already (00630), so the only read of Storage is the copy's.
+  const w = world({ files: [fileRow({ picture_print: "9c9890669498a0c29c9890669498a0c2" })] });
   const asked = [];
   const sign = w.db.storage.from().createSignedUrl;
   w.db.storage = { from: () => ({ createSignedUrl: (path, s, o) => (asked.push(o), sign(path, s, o)) }) };
@@ -696,12 +709,13 @@ const photosJob = () => job("history_import", { source: "google_photos", seq: "1
 test("a profile's photos come in a page at a time, filed, on Google's shelves, and the source says how many", async () => {
   const w = profile([{ mediaItems: [media(1), media(2, "TEAMS")], nextPageToken: "more" }, { mediaItems: [media(3)] }]);
   await historyImports(w.db).part(photosJob(), Date.now() + 40_000);
+  // A page's photos are kept side by side, each printed as it goes (00630), so they reach the door in any order.
   assert.deepEqual(
-    w.found.map((f) => [f.p_source, f.p_status, f.p_shows]),
+    w.found.map((f) => [f.p_source_ref, f.p_source, f.p_status, f.p_shows]).sort(([a], [b]) => a.localeCompare(b)),
     [
-      ["google_profile", "filed", "storefront"],
-      ["google_profile", "filed", "team"],
-      ["google_profile", "filed", "storefront"],
+      ["m/1", "google_profile", "filed", "storefront"],
+      ["m/2", "google_profile", "filed", "team"],
+      ["m/3", "google_profile", "filed", "storefront"],
     ],
   );
   const last = w.notes.at(-1);

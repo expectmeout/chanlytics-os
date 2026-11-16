@@ -1166,7 +1166,7 @@ test("the sheet opens where it is asked for, reads the person through the profil
   assert.ok(writes[1].key, "the Inbox's own send, with its idempotency key");
   // One toast, the send's own: its receipt and its Undo.
   assert.equal(toasts.length, 1);
-  assert.match(textOf(toasts[0].msg), /^Daniela — proposal recorded and on its way · sends in \d+ s unless you undo$/);
+  assert.match(textOf(toasts[0].msg), /^Daniela · proposal recorded and on its way · sends in \d+ s unless you undo$/);
   assert.equal(typeof toasts[0].undo, "function");
   // And which deal it moved (0029: the Pipeline gives the focus back to its row); a new proposal has none yet.
   assert.deepEqual(recorded, [{ personId: "p1", dealId: null }], "the page is told, and reads them again");
@@ -1177,7 +1177,7 @@ test("the sheet opens where it is asked for, reads the person through the profil
   toasts[0].undo();
   await until("the send is canceled", () => toasts.length === 2);
   assert.equal(calls.at(-1).path, "/api/v1/messages/msg9/cancel-send");
-  assert.equal(textOf(toasts[1].msg), "Send canceled — nothing was delivered");
+  assert.equal(textOf(toasts[1].msg), "Send canceled · nothing went");
   assert.equal(calls.filter((c) => c.path === "/api/v1/contacts/p1/deal").length, 1);
 });
 

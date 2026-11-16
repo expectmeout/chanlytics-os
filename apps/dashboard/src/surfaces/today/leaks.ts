@@ -225,7 +225,7 @@ function unansweredLeak({ reports, noReply }: LeakFacts): TodayLeakVM | null {
     math,
     people: noReply
       .slice(0, 2)
-      .map((r) => ({ id: r.conversationId, name: r.who, to: r.to, title: `Open ${r.who}'s thread` })),
+      .map((r) => ({ id: r.conversationId, name: r.who, to: r.to, title: `Open ${r.who}'s conversation` })),
     peopleLead: "Waiting now",
     ask: askWhy(text, math),
     cta: { label: "See the report", to: "reports" },

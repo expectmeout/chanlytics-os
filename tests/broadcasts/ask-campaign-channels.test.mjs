@@ -1081,7 +1081,7 @@ test("a moment's starter is found among the messages the composers offer: one wh
   assert.doesNotMatch(said(hidden), /no version|starter set/);
 });
 
-test("a hidden message is refused a playbook, and a message whose WhatsApp row is pending is refused for WhatsApp, in WhatsApp's own standing", async () => {
+test("a hidden message is refused a playbook; a send of a message WhatsApp is still checking is proposed with its WhatsApp tick kept, since the send waits for it", async () => {
   // The workspace keeps it out of the composers: no playbook on it, by the id the model was given.
   const kept = { ...template(REMINDER, "visit_reminder"), hidden_at: ago(DAY) };
   const hidden = await propose(
@@ -1093,29 +1093,41 @@ test("a hidden message is refused a playbook, and a message whose WhatsApp row i
     said(hidden),
     "that template is one the workspace keeps out of the composers; sequences with action lists names the ones that may send",
   );
-  // A WhatsApp row still in review, beside an approved email: WhatsApp's tick says what WhatsApp says, alone or beside email.
+  // A WhatsApp row WhatsApp is still checking, beside an approved email. It was refused, in WhatsApp's standing; the send
+  // waits for WhatsApp now (core whatsapp-wait.ts), so the card is made as the route would make the send: the tick kept,
+  // whoever an email reaches counted there, and whoever only WhatsApp reaches counted on WhatsApp, to go once approved.
   const waiting = {
     templates: [template(REMINDER, "visit_reminder", { meta_status: "pending" }), version("email", "visit_reminder")],
   };
-  const STILL = "WhatsApp is checking this message. It sends by itself once approved, usually within minutes.";
-  assert.equal(said(await propose({ ...BROADCAST, channels: ["whatsapp"] }, waiting)), STILL);
-  assert.equal(said(await propose({ ...BROADCAST, channels: ["whatsapp", "email"] }, waiting)), STILL);
-  // Naming none is WhatsApp alone: the same words, and the email it can go by.
-  assert.equal(said(await propose(BROADCAST, waiting)), `${STILL} Say so, and name channels among email`);
+  const cards = [];
+  for (const channels of [["whatsapp"], ["whatsapp", "email"], undefined]) {
+    const card = await propose({ ...BROADCAST, ...(channels ? { channels } : {}) }, waiting);
+    assert.equal(card.isError, false, card.result);
+    cards.push(card.proposal.summary);
+  }
+  assert.deepEqual(cards, [
+    "2 people who said yes · on WhatsApp · WhatsApp is checking the words, so it goes once approved · “visit_reminder” · now: On WhatsApp: Your visit is tomorrow.",
+    "3 people who said yes · on WhatsApp and by email (1 on WhatsApp, 2 by email) · WhatsApp is checking the words, so anyone it reaches only by WhatsApp gets it once approved · “visit_reminder” · now: On WhatsApp: Your visit is tomorrow. · By email: Your visit is tomorrow.",
+    // Naming none is WhatsApp alone, as a send always was.
+    "2 people who said yes · WhatsApp is checking the words, so it goes once approved · “visit_reminder” · now: Your visit is tomorrow.",
+  ]);
+  // One WhatsApp asked a change to is still refused, in its standing: that does not end by itself.
+  const refused = { templates: [template(REMINDER, "visit_reminder", { meta_status: "rejected" })] };
+  assert.match(said(await propose({ ...BROADCAST, channels: ["whatsapp"] }, refused)), /^WhatsApp asked for a change/);
   // By the email it holds it is made, and says only the email's words.
   const mail = await propose({ ...BROADCAST, channels: ["email"] }, waiting);
   assert.equal(mail.isError, false, mail.result);
   assert.doesNotMatch(mail.proposal.summary, /On WhatsApp/);
 });
 
-test("a WhatsApp version in review is no longer lost to Ask: its message is listed by the channels it holds now, and a starter whose WhatsApp row is in review is held by its email", async () => {
+test("a message WhatsApp is still checking is listed to the AI, with an email beside it or alone, and said to be with WhatsApp still; a starter whose WhatsApp row is being checked is held by its email, and alone the card adds what it needs", async () => {
   // The composers' read answers the messages made of every row (readers/templates.ts), so a version still in review keeps
   // its standing inside its message: it is among the message's versions, and what holds the message is the email.
   const EMAIL = "ffffffff-ffff-4fff-8fff-ffffffffff31";
   const reviewing = [
     template(REMINDER, "visit_reminder", { meta_status: "pending" }),
     own("email", "visit_reminder", EMAIL, "Your visit", "Your visit is tomorrow."),
-    // A message whose only version is in review is not one the composers offer, as it never was.
+    // A message whose only version WhatsApp is still checking: in no picker before, listed now (the one picker rule).
     template(OFFER, "month_offer", { meta_status: "pending", category: "marketing" }),
     // A message the workspace hid is hidden whole: its WhatsApp row anchors it, and an email beside it does not list it again.
     template(NUDGE, "nudge_note", { hidden_at: ago(DAY) }),
@@ -1126,12 +1138,18 @@ test("a WhatsApp version in review is no longer lost to Ask: its message is list
   const out = await runTool(t, { name: "sequences", input: { action: "lists" } });
   assert.equal(out.isError, false, out.result);
   const { templates } = JSON.parse(out.result);
+  // The one picker rule: both are listed, each under the id of the WhatsApp row its words are read from, by the channels
+  // it can be sent on now, and said to be with WhatsApp still (what sends one waits for that). The one in review alone
+  // was in no picker; the one the workspace hid is still listed by none.
+  const CHECKING = "being checked: it goes by WhatsApp once WhatsApp approves the words";
   assert.deepEqual(
-    templates.map((x) => [x.name, x.template_id, x.channels]),
-    [["visit_reminder", EMAIL, { whatsapp: false, email: true, sms: false }]],
-    "listed by the email it can go by, under the id of the row its words are read from; the one in review alone and the one the workspace hid are not listed",
+    templates.map((x) => [x.name, x.template_id, x.channels, x.whatsapp]),
+    [
+      ["visit_reminder", REMINDER, { whatsapp: false, email: true, sms: false }, CHECKING],
+      ["month_offer", OFFER, { whatsapp: false, email: false, sms: false }, CHECKING],
+    ],
   );
-  assert.ok(t.read.template.has(EMAIL), "and the id it lists is a row an answer may cite");
+  assert.ok(t.read.template.has(REMINDER), "and the id it lists is a row an answer may cite");
   // The starter the quiet moment's playbook is written on: held by the email, its anchor the WhatsApp row in review.
   const starter = "winback_reply";
   const WAITING = "dddddddd-dddd-4ddd-8ddd-ddddddddddd6";

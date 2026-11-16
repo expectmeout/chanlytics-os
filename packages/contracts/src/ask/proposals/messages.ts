@@ -12,6 +12,7 @@
  */
 import { messageRoute } from "../../campaigns/sequences/address";
 import { MESSAGES_ROUTE } from "../../shell/address";
+import { WHATSAPP_REVIEW_TAKES } from "../../campaigns/templates/templates";
 import {
   OWN_VERSION_CHANNELS,
   VERSION_CHANNELS,
@@ -32,7 +33,7 @@ export const MESSAGE_CHANGE_WORDS = {
   wordsTitle: (title: string, channel: string): string => `New ${channel} words for ${title}`,
   wordsSaid: (now: string, was: string | null): string => (was ? `Now: “${now}” · It said: “${was}”` : `Now: “${now}”`),
   /** WhatsApp's look, said where nothing that sends it waits on it. */
-  wordsReview: "WhatsApp looks at new words before they go out, usually within minutes.",
+  wordsReview: `WhatsApp looks at new words before they go out (${WHATSAPP_REVIEW_TAKES}).`,
   /**
    * What waits while WhatsApp looks at an approved message's new words: the running sequences that send it wait for its
    * answer and send by themselves once it says yes (core campaigns/paced.ts waitsOnWhatsApp: the day's run asks again each hour,
@@ -67,7 +68,7 @@ export const MESSAGE_CHANGE_WORDS = {
     `Its ${namesInWords(channels)} ${channels.length === 1 ? "version goes" : "versions go"}, and sends that use it fail from now on.${others ? " Its other languages stay." : ""}`,
   /** WhatsApp's words, sent back: in review again until WhatsApp answers. */
   sentBack: (title: string): string =>
-    `${title} went back to WhatsApp with the new words: it looks at them, usually within minutes`,
+    `${title} went back to WhatsApp with the new words: it looks at them (${WHATSAPP_REVIEW_TAKES})`,
   saved: (title: string, channel: string): string => `${title}: the new ${channel} words are saved`,
   wordsBack: "The old words are back",
   putBack: "Put the old words back",

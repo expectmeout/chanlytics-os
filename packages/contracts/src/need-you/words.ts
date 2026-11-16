@@ -10,6 +10,7 @@
 import { clockInZone, dayPlusInZone, localToUtcMs } from "../shared/zone/math";
 import { shortName } from "../conversations/thread-contact";
 import { HOUR_MS } from "../shared/time";
+import { WINDOW_CLOSED_WORDS } from "../conversations/window-words";
 
 /** Seconds in a minute, for a countdown said in minutes. */
 const MINUTE_S = 60;
@@ -65,7 +66,7 @@ export const NEED_YOU_WORDS = {
   cancel: "Cancel",
   send: "Send",
   sendTo: (address: string) => `Send to ${address}`,
-  pickTemplate: "Choose a template",
+  pickTemplate: "Choose a saved message",
   notNow: "Not now",
   notNowFor: (personName: string) => `Not now: when ${personName} comes back`,
   sendingIn: (seconds: number) => `Sending in ${leftWords(seconds)}`,
@@ -77,10 +78,10 @@ export const NEED_YOU_WORDS = {
   canceled: "Not sent. Your words are kept.",
   back: (when: string) => `back ${when}`,
   backSooner: (personName: string) => `Back sooner if ${personName} writes again.`,
-  windowCloses: (clock: string) => `Their WhatsApp window closes at ${clock}; after it only a template reaches them.`,
-  windowClosed: "Their WhatsApp window has closed: only an approved template reaches them now. Your words go with you.",
+  windowCloses: (clock: string) => `Reply by ${clock}. After that, only an approved message reaches them on WhatsApp.`,
+  windowClosed: WINDOW_CLOSED_WORDS,
   viewer: "Only an owner or operator can send.",
-  openThread: "Open thread",
+  openThread: "Open conversation",
   /** A lead who tried their own receptionist (decision 0079): Today's row. */
   tried: {
     status: "Tried their preview",
@@ -97,14 +98,19 @@ export const NEED_YOU_WORDS = {
    */
   cut: {
     waiting: (n: number) => `${n} more waiting`,
-    ok: (n: number) => `${n} more to decide`,
+    ok: (n: number) => `${n} more to approve`,
     todo: (n: number) => `${n} more to do`,
   },
+  /** The pane's name: the one phrase for what waits on the owner (docs/words.md, "Needs you"). */
+  title: "Needs you",
+  /** The pane's name when only the owner's own to-dos are left, under "Nothing needs you". */
+  todoTitle: "To-dos",
   /**
-   * Need you's groups (Today in three zones, 2 Nov 2026, need-you/groups.ts): the one thing to do first, who waits on you,
-   * what waits for your OK or your answer, your own to-dos, and who has waited past a week, one row at the end.
+   * Needs you's groups, by what the owner does (docs/words.md, "Grouped by what the owner does"; need-you/groups.ts): Reply
+   * over the one thing to do first and everyone waiting on a word or a call, the rest of them under no head of their own;
+   * Approve over what AI prepared; Do over the owner's own to-dos. Who has waited past a week folds at Reply's foot.
    */
-  group: { next: "Up next", waiting: "Waiting on you", ok: "To decide", todo: "To do", old: "Older" },
+  group: { next: "Reply", waiting: "Reply", ok: "Approve", todo: "Do", old: "Waiting over a week" },
   /** Need you's foot, where threads were set aside as not a customer's (decision 0093): what one was, or how many. */
   setAside: (n: number, about: string | null) =>
     n === 1 ? `Set aside · ${about ?? "1 not a customer's"}` : `Set aside · ${n} not customers'`,
@@ -123,7 +129,7 @@ export const NEED_YOU_WORDS = {
   failed: {
     sentence: "Your reply didn't reach them.",
     on: (wire: string) => `Your reply didn't reach them on ${wire}.`,
-    wire: "The line didn't take it.",
+    wire: "Your number couldn't send it.",
     why: "your reply didn't reach them",
     notReached: "Didn't reach them",
     retry: "Try again",
@@ -227,7 +233,7 @@ export const NEED_YOU_WORDS = {
     sendsIn: (seconds: number) => `Sends in ${leftWords(seconds)}`,
     by: (wire: string) => `AI · ${wire}`,
     stopIt: "Stop it",
-    held: "Held for you",
+    held: "Waits for you",
     heldReply: "Written by AI",
     goesIn: (seconds: number) => `Going by itself in ${leftWords(seconds)}`,
     rewritten: "Rewritten. The new draft waits its turn.",
@@ -260,15 +266,17 @@ export const NEED_YOU_WORDS = {
       `They missed their ${word} ${when}. Say sorry we missed them, and ask whether they would like another time. Use the booking link where one helps.`,
     rebookSent: "Missed · rebook sent",
     /**
-     * Every one of yesterday's left to mark, said kept at once (Today's Mark all kept, decision 0123's loose end): the
+     * Every one of the past week's left to mark, said kept at once (Today's Mark all kept, decision 0123's loose end): the
      * press, its question, and what it came to. A Kept cannot be taken back to unmarked, only changed to Missed, so the
-     * question says so, and what follows.
+     * question says so, and what follows: a thank-you says "yesterday", so where one of them is older (`older`), only
+     * yesterday's are thanked.
      */
     allKept: {
       act: (n: number) => `Mark all ${n} kept`,
-      ask: (n: number, many: string) => `Did all ${n} of yesterday's ${many} come?`,
-      detail:
-        "Each one marked kept is thanked, where a thank-you runs. Any of them can be changed to Missed afterwards, on the Calendar.",
+      ask: (n: number, many: string, older: boolean) =>
+        older ? `Did all ${n} ${many} of the past week come?` : `Did all ${n} of yesterday's ${many} come?`,
+      detail: (older: boolean) =>
+        `${older ? "Yesterday's are thanked, where a thank-you runs. Older ones are only marked." : "Each one marked kept is thanked, where a thank-you runs."} Any of them can be changed to Missed afterwards, on the Calendar.`,
       yes: "Mark them kept",
       no: "Not yet",
       done: (n: number) => (n === 1 ? "Marked kept" : `${n} marked kept`),

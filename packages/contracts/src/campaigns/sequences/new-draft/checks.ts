@@ -37,8 +37,6 @@ export interface NewReach {
   left: string | null;
   held?: number;
   by?: Partial<Record<ConsentChannel, number>>;
-  /** Who hears it only by WhatsApp, where its WhatsApp version is new: left out of a send before Meta approves it. */
-  only_whatsapp?: number;
   /**
    * Why nobody can hear it, said only where nobody can (decision 0065 step 7, what the send screen said): everyone it
    * reaches heard from you this week, no channel it goes by can carry it, those who said yes can't be reached (no number

@@ -5,7 +5,7 @@
  * - Rosa's Needs-you banner was a red-outlined card 262px tall over her conversation, with a boxed quote inside it;
  *   her first message started at 427px and the reply box took 185px, so about one bubble fitted between them;
  * - the states stacked as cards at the top of the scroller and scrolled away with the words;
- * - a draft about to send read "They wrote last — no reply yet" over "Auto-sends in 72s".
+ * - a draft about to send read "They wrote last · no reply yet" over "Auto-sends in 72s".
  * Here, on a stub React: where the status sits, one state at a time, its one signal, and the demo left as it was.
  * How it looks is measured in the harness and by the nightly (thread.spec.ts).
  */
@@ -192,7 +192,7 @@ test("REGRESSION: on a real thread what it needs from you sits under the convers
     assert.equal(find(scroller, hasClass(cls)), undefined, `REGRESSION: ${cls} scrolled away with the words`);
   const take = find(find(pane, byTestId("ix-th-status")), byTestId("ix-needs-you"));
   assert.ok(take, "what Needs you asks is by the reply box");
-  assert.match(textOf(take), /^They asked for a person — a holding message went out/);
+  assert.match(textOf(take), /^They asked for a person · a holding message went out/);
   assert.doesNotMatch(textOf(take), /I'll answer this/, "the reply box under it answers, and takes it");
   // Its name and its wait are the head's, under the name (the thread canvas, 1 Nov 2026): "Needs you" lit, then "40m".
   const standing = find(pane, byTestId("ix-th-standing"));
@@ -224,7 +224,7 @@ test("every state of a real thread is named in the bar under the header, and wha
       chat({ state: "snoozed", snooze_until: later, paused_until: later }),
       null,
       /^Snoozedback /,
-      /Hidden from your queue/,
+      /Hidden from your list/,
     ],
     archived: [chat({ state: "archived" }), null, /^Archived$/, /Their request is closed/],
     // Answered and nothing owed: Handled in the head and no dock (the thread canvas, 1 Nov 2026). Who had the last word
@@ -251,10 +251,10 @@ test("every state of a real thread is named in the bar under the header, and wha
   }
 });
 
-test("REGRESSION: a draft waiting to go out is the thread's one state -- 'They wrote last — no reply yet' sat over 'Auto-sends in 72s'", (t) => {
+test("REGRESSION: a draft waiting to go out is the thread's one state -- 'They wrote last · no reply yet' sat over 'Auto-sends in 72s'", (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: NOW.getTime() });
   const vm = vmOf(chat({ state: "open", messages: [wrote("m1", "Can I move my appointment to Friday?", 2), draft] }));
-  assert.equal(vm.lastWord.text, "They wrote last — no reply yet.", "the view model still knows who wrote last");
+  assert.equal(vm.lastWord.text, "They wrote last. No reply yet.", "the view model still knows who wrote last");
   const pane = paneOf(vm, { veto: 72 });
   const status = find(pane, byTestId("ix-th-status"));
   // Under the draft's own bubble, in the conversation (the thread canvas, 1 Nov 2026): it stood by a reply box filled
@@ -656,7 +656,7 @@ test("a snoozed thread's band names the request still standing in its own words,
   const band = find(pane, byTestId("ix-snoozed"));
   assert.ok(band, "the snoozed band is drawn");
   const said = textOf(band);
-  assert.match(said, /Reply failed to deliver\. That's still waiting for you\./);
+  assert.match(said, /Reply didn't reach them\. That's still waiting for you\./);
   assert.doesNotMatch(said, /asked for a person/i);
   // With nothing open, nothing is said to be waiting.
   const quiet = textOf(find(paneOf(vmOf(snoozed, null)), byTestId("ix-snoozed")));
@@ -664,8 +664,8 @@ test("a snoozed thread's band names the request still standing in its own words,
   // A reason whose label says two things says them once, not under a second dash: the band read "The receptionist hit
   // an error — a holding message went out — that's still waiting for you."
   const errored = textOf(find(paneOf(vmOf(snoozed, { ...failed, reason: "brain_error" })), byTestId("ix-snoozed")));
-  assert.match(errored, /AI hit an error — a holding message went out\. That's still waiting for you\./);
-  assert.equal(errored.split("—").length - 1, 1, "REGRESSION: one dash, the label's own");
+  assert.match(errored, /AI couldn't answer · a holding message went out\. That's still waiting for you\./);
+  assert.equal(errored.split("—").length - 1, 0, "no dash: the label's own clause is joined with a dot");
 });
 
 test("a thread set aside as not a customer's: the dock asks with what it is, Not a customer and Reply anyway go to their doors (decision 0093)", async () => {
@@ -700,7 +700,7 @@ test("a thread set aside as not a customer's: the dock asks with what it is, Not
     const dock = find(pane, byTestId("ix-set-aside"));
     assert.match(
       textOf(dock),
-      /^Not someone you serve\? — A Reddit ad rep pitching holiday ad space\./,
+      /^Not someone you serve\? · A Reddit ad rep pitching holiday ad space\./,
       "what it is, first",
     );
     assert.equal(find(pane, byTestId("ix-needs-you")), undefined, "no hold: it waits on nobody");

@@ -138,7 +138,14 @@ test("the rubric lists each criterion with its standard and every exclusion as a
   );
   assert.match(s, /- website: With a website \[required; Claude's read of the facts is enough \(likely\)\]/);
   assert.match(s, /- otc: Already sell OTC medicine \[preferred; must be SEEN in the facts/);
-  assert.match(s, /- chain: the place is NOT Chain gyms \[required; fail when the place is what is left out\]/);
+  // An exclusion is held to the kind's own bar, and says so: unsaid, the judge answered unknown wherever a listing did
+  // not say a business was not a chain, which no listing does (15 Nov 2026: 156 of 394 places).
+  assert.ok(
+    s.includes(
+      "- chain: the place is NOT Chain gyms [required; fail when the place is what is left out; Claude's read of the facts is enough (likely): pass when nothing in them suggests it is]",
+    ),
+    "an exclusion says the bar its answer is held to",
+  );
   assert.match(s, /Answer only from those facts/);
   assert.match(s, /unknown when the facts do not say/);
   assert.match(s, /12 words or fewer/);

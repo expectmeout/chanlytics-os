@@ -33,21 +33,21 @@ test("a code whose meaning is documented is said in plain words, and its number 
   const wa = (code) => sendFailureWords({ errors: [{ code, title: "x" }] }, "whatsapp");
   assert.equal(
     wa(131047),
-    "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now.",
+    "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only an approved message can reach them now.",
   );
   assert.match(wa(131026), /^WhatsApp couldn't deliver it: their number may not be on WhatsApp/);
   assert.match(
     wa(131049),
-    /^WhatsApp held it back: Meta limits marketing messages to each person, and isn't delivering marketing messages to US numbers at all for now/,
+    /^WhatsApp held it back: offers to each person are limited, and offers to US numbers aren't delivered for now/,
   );
 
   const sms = (code) => sendFailureWords({ carrier: "undelivered", code: String(code) }, "sms");
   assert.equal(sms(21610), "They've opted out of texts from your number.");
   assert.equal(sms(30007), "The text was filtered as a possible policy violation.");
   assert.match(sms(30003), /^Their phone couldn't be reached/);
-  assert.match(sms(30005), /^The carrier says this number is unknown/);
+  assert.match(sms(30005), /^This number is unknown/);
   assert.match(sms(30006), /^This number can't receive texts/);
-  assert.match(sms(30034), /^Your texting line isn't registered with the carriers yet/);
+  assert.match(sms(30034), /^Texting isn't approved for your number yet/);
 });
 
 test("a code nobody here can explain is said as not delivered, and never given a meaning, a number or a provider's name", () => {
@@ -87,13 +87,13 @@ test("the code is found wherever the writer put it: a receipt, a status callback
   // A text's send names Twilio's code in its body.
   assert.match(
     sendFailureWords({ http_status: 400, body: "Twilio 30034" }, "sms"),
-    /^Your texting line isn't registered/,
+    /^Texting isn't approved for your number yet/,
   );
   assert.equal(sendFailureWords({ http_status: 400, body: "Twilio 400" }, "sms"), null, "a status is not a code");
 });
 
 test("without a code the words say what the provider's status said, or what the ledger settled it with, or nothing", () => {
-  assert.equal(sendFailureWords({ carrier: "undelivered" }, "sms"), "The carrier didn't deliver it.");
+  assert.equal(sendFailureWords({ carrier: "undelivered" }, "sms"), "It wasn't delivered.");
   assert.equal(sendFailureWords({ carrier: "failed" }, "sms"), "The text couldn't be sent.");
   assert.equal(
     sendFailureWords({ provider: "bounced", kind: "Permanent", sub_kind: "General", message: null }, "email"),
@@ -107,7 +107,10 @@ test("without a code the words say what the provider's status said, or what the 
   );
   assert.match(sendFailureWords({ reason: "run_interrupted", outcome: "unknown" }, "email"), /^It may not have gone/);
   assert.match(sendFailureWords({ reason: "orphaned" }, "sms"), /^It was never sent: no job was left/);
-  assert.match(sendFailureWords({ http_status: 0, body: "timeout", outcome: "unknown" }, "email"), /may have gone/);
+  assert.match(
+    sendFailureWords({ http_status: 0, body: "timeout", outcome: "unknown" }, "email"),
+    /Couldn't confirm it went through/,
+  );
   for (const nothing of [null, undefined, "boom", 7, [], {}, { http_status: 503, body: "no_credentials" }])
     assert.equal(sendFailureWords(nothing, "whatsapp"), null, JSON.stringify(nothing));
 });

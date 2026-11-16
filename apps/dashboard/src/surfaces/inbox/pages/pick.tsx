@@ -307,7 +307,7 @@ export const pickRun = (p: {
                 <b>
                   {r.done.length} of {snoozed.length}
                 </b>{" "}
-                woken — {ixRefusedWords(r.refused)}
+                woken · {ixRefusedWords(r.refused)}
               </>
             ),
           }
@@ -353,7 +353,7 @@ export const pickRun = (p: {
             ) : (
               <>Nothing was {past}</>
             )}{" "}
-            — {ixRefusedWords(r.refused)}
+            · {ixRefusedWords(r.refused)}
           </>
         ),
         undo,
@@ -367,7 +367,7 @@ export const pickRun = (p: {
             </>
           ) : (
             <>
-              <b>{r.done.length}</b> archived — if they write again, they come back
+              <b>{r.done.length}</b> archived · if they write again, they come back
             </>
           ),
         undo,
