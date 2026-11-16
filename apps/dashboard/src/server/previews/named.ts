@@ -25,7 +25,7 @@ import { changePreviewBrain } from "./theirs";
  * own prompt written under it. A prompt somebody wrote is theirs and stays. Null where it answers by that name already,
  * or the name is none.
  */
-export function withPreviewNamed(brain: BrainConfig, name: string): BrainConfig | null {
+function withPreviewNamed(brain: BrainConfig, name: string): BrainConfig | null {
   const next = name
     .replace(/\s+/g, " ")
     .trim()

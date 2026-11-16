@@ -15,7 +15,7 @@ import { PREVIEW_LIMITS } from "@chanlytics/contracts";
 import { fakeDb, fakeLog } from "../_fake-db.mjs";
 import { importSrc } from "../_source.mjs";
 
-const { askPreview, previewDayFull } = await importSrc("apps/edge/lib/previews/make.ts");
+const { askPreview } = await importSrc("apps/edge/lib/previews/make.ts");
 const { claimedTurns } = await importSrc("apps/edge/lib/campaigns/reach-out/sender/lanes.ts");
 const { previewForWords } = await importSrc("apps/edge/lib/campaigns/reach-out/sender/their-preview.ts");
 
@@ -77,10 +77,12 @@ afterEach(() => {
 
 test("the limit is fifty a day, and a day is the UTC day", async () => {
   assert.equal(PREVIEW_LIMITS.aDay, 50);
-  assert.equal(await previewDayFull(world(made(49)).db, WS, NOW), false);
-  assert.equal(await previewDayFull(world(made(50)).db, WS, NOW), true);
-  assert.equal(await previewDayFull(world(made(50, "2026-11-14T23:59:59Z")).db, WS, NOW), false, "yesterday's");
-  assert.equal(await previewDayFull(world(made(50, "2026-11-15T00:00:00Z")).db, WS, NOW), true, "from midnight UTC");
+  const refused = async (previews) =>
+    !(await askPreview(world(previews).db, { tenantId: WS, leadId: LEAD, by: null }, NOW)).ok;
+  assert.equal(await refused(made(49)), false);
+  assert.equal(await refused(made(50)), true);
+  assert.equal(await refused(made(50, "2026-11-14T23:59:59Z")), false, "yesterday's");
+  assert.equal(await refused(made(50, "2026-11-15T00:00:00Z")), true, "from midnight UTC");
 });
 
 test("what nobody pressed for is refused once the day's are made, and nothing is made", async () => {

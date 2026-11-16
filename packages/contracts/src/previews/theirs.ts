@@ -26,7 +26,7 @@ export const PREVIEW_TAUGHT = {
 /** How long what is right may be: the line the sender is given holds as much (00497 preview_not_right). */
 const FIX_CHARS = 300;
 
-export type PreviewFact = keyof typeof PREVIEW_FACT_NAMES;
+type PreviewFact = keyof typeof PREVIEW_FACT_NAMES;
 
 const FACTS = keysOf(PREVIEW_FACT_NAMES);
 

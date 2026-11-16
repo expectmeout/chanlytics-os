@@ -21,7 +21,7 @@ import type { linkPageDb } from "../public/link-page";
 type Db = NonNullable<ReturnType<typeof linkPageDb>>;
 
 /** What a change came to: kept, refused by the rule itself ("full", or nothing to change), or a record that would not take it. */
-export type PreviewChange = "changed" | "full" | "nothing" | "unwritten";
+type PreviewChange = "changed" | "full" | "nothing" | "unwritten";
 
 /** How often a write that lost its race is tried again: a second press landing between the read and the write. */
 const WRITE_TRIES = 2;

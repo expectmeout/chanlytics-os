@@ -31,7 +31,7 @@ type Db = SupabaseClient<Database>;
  * Whether this workspace has made its day's previews (contracts PREVIEW_LIMITS.aDay), counted over the UTC day `now` is
  * in: the limit on what nobody pressed for, so a sequence that carries the link to thousands makes fifty a day.
  */
-export async function previewDayFull(db: Db, tenantId: TenantId, now: Date): Promise<boolean> {
+async function previewDayFull(db: Db, tenantId: TenantId, now: Date): Promise<boolean> {
   const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   return (await countLeadPreviewsSince(db, tenantId, day.toISOString())) >= PREVIEW_LIMITS.aDay;
 }

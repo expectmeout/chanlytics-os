@@ -32,7 +32,6 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setLinkPageClient } = await import(at("apps/dashboard/src/server/public/link-page.ts"));
 const named = await import(at("apps/dashboard/app/api/v1/leads/[id]/name/route.ts"));
-const { withPreviewNamed } = await import(at("apps/dashboard/src/server/previews/named.ts"));
 const {
   LEAD_FILL_WORDS: F,
   fillInFixOf,
@@ -88,21 +87,29 @@ test("what is the owner's own is read off the lead's facts, and anything else sa
 
 const brainOf = (name, over = {}) => ({ business_name: name, ...newReceptionistDefaults(name), ...over });
 
-test("a preview answers by the new name, and the product's own prompt is written under it", () => {
-  const was = brainOf("Harbor Movers Austin", { profile: { website: "https://harbormovers.example" } });
-  const now = withPreviewNamed(was, "  Harbor   Movers ");
-  assert.equal(now.business_name, "Harbor Movers");
-  assert.equal(now.system_prompt, newReceptionistDefaults("Harbor Movers").system_prompt);
+test("a preview answers by the new name, and the product's own prompt is written under it; one somebody wrote stays", async () => {
+  const d = door(said);
+  const press = (name) =>
+    named.POST.run(send({ business_name: name }), ctxFor(tables("owner", { state: "ready" }), d.rpcs));
+  const product = previewWorld(brainOf("Iron Works Gym", { profile: { website: "https://ironworks.example" } }));
+  await press("  Iron   Works ");
+  const now = product.tenant_config[0].config.brain;
+  assert.equal(now.business_name, "Iron Works");
+  assert.equal(now.system_prompt, newReceptionistDefaults("Iron Works").system_prompt);
   assert.ok(isBaselinePrompt(now.system_prompt));
-  assert.deepEqual(now.profile, was.profile, "what it knows does not move");
-  assert.deepEqual(now.fallbacks, was.fallbacks);
+  assert.deepEqual(now.profile, { website: "https://ironworks.example" }, "what it knows does not move");
   // A prompt somebody wrote is theirs: the name changes, their words stay.
-  const written = brainOf("Harbor Movers Austin", {
-    system_prompt: "You answer customers for a made-up moving company, kindly and briefly.",
-  });
-  assert.equal(withPreviewNamed(written, "Harbor Movers").system_prompt, written.system_prompt);
-  assert.equal(withPreviewNamed(was, "Harbor Movers Austin"), null, "the name it has is no change");
-  assert.equal(withPreviewNamed(was, "   "), null);
+  const written = "You answer customers for a made-up gym, kindly and briefly, and never promise a price.";
+  const theirs = previewWorld(brainOf("Iron Works Gym", { system_prompt: written }));
+  await press("Iron Works");
+  assert.deepEqual(
+    [theirs.tenant_config[0].config.brain.business_name, theirs.tenant_config[0].config.brain.system_prompt],
+    ["Iron Works", written],
+  );
+  // The name it answers by already is no write at all.
+  const same = previewWorld(brainOf("Iron Works"));
+  await press("Iron Works");
+  assert.equal(same.tenant_config[0].version, 1);
 });
 
 /* ---- the route ---- */
