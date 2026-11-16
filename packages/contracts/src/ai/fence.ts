@@ -104,3 +104,14 @@ export function promptSafeName(name: string | null | undefined): string | null {
   if (!flat) return null;
   return flat.length > PROFILE_NAME_MAX ? `${flat.slice(0, PROFILE_NAME_MAX - 1).trimEnd()}…` : flat;
 }
+
+/**
+ * One line per field, whatever the field holds: a line break in a listing's about text never starts a line of our own,
+ * and a tag in a website's title closes no fence (defang). The one fence rule for what others wrote: a reach-out check's
+ * record (campaigns/reach-out/opening.ts) and a reply's words (campaigns/reach-out/replies/words.ts). Here, apart from
+ * both, so a page that draws a reply's words loads none of the check's prompts.
+ */
+export const fenceLine = (key: string, value: string | number | null | undefined): string | null => {
+  const v = value === null || value === undefined ? "" : defang(String(value)).replace(/\s+/g, " ").trim();
+  return v ? `${key}: ${v}` : null;
+};

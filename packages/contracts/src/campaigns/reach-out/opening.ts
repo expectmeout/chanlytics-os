@@ -21,7 +21,7 @@ import {
 import { OPENING_CLAIM_KINDS, heldClaimDetail, type OpeningClaimKind } from "./words/claims";
 import { languageBase } from "../templates/languages";
 import { leadCalledByOf } from "../../leads/search/called-by";
-import { DATA_NOT_INSTRUCTIONS, defang, fencedInline } from "../../ai/fence";
+import { DATA_NOT_INSTRUCTIONS, defang, fenceLine, fencedInline } from "../../ai/fence";
 import { MODEL_ROUTES } from "../../ai/models/routes";
 import { isOneOf } from "../../shared/unknown";
 
@@ -121,16 +121,6 @@ export interface OpeningLine {
 /** Lines of one part, with those that say nothing (null) left out. */
 const partLines = (part: OpeningPart, ...texts: readonly (string | null)[]): OpeningLine[] =>
   texts.flatMap((text) => (text === null ? [] : [{ part, text }]));
-
-/**
- * One line per field, whatever the field holds: a line break in a listing's about text never starts a line of our own,
- * and a tag in a website's title closes no fence (defang). The one fence rule for what others wrote: the check's record
- * here, and a reply's words (reach-out/replies.ts).
- */
-export const fenceLine = (key: string, value: string | number | null | undefined): string | null => {
-  const v = value === null || value === undefined ? "" : defang(String(value)).replace(/\s+/g, " ").trim();
-  return v ? `${key}: ${v}` : null;
-};
 
 /**
  * The business's record, fenced: everything inside is data written by others. Its name is the one it is called by
