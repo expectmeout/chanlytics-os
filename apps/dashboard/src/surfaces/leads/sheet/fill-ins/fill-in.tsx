@@ -28,28 +28,28 @@ import { useLeadPreview } from "./preview-read";
  * A lead's name or city put right on the lead itself (00631 lead_named): every email to them says it from then on. The
  * box opens on what the email says now; Save waits for something else to be typed, so nothing is sent to be refused.
  */
-function FixForEvery({ leadId, what, said }: { leadId: string; what: "name" | "city"; said: string }) {
-  const W = LEAD_FILL_WORDS.every;
+function FixForEvery({ leadId, field, shown }: { leadId: string; field: "name" | "city"; shown: string }) {
+  const words = LEAD_FILL_WORDS.every;
   const [open, setOpen] = useState(false);
-  const [text, setText] = useState(said);
+  const [text, setText] = useState(shown);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const typed = text.replace(/\s+/g, " ").trim();
-  const fits = what === "name" ? typed.length >= LEAD_NAMED.name.min : typed.length > 0;
-  const save = async (e: SyntheticEvent) => {
-    e.preventDefault();
-    if (busy || !fits || typed === said) return;
+  const fits = field === "name" ? typed.length >= LEAD_NAMED.name.min : typed.length > 0;
+  const save = async (event: SyntheticEvent) => {
+    event.preventDefault();
+    if (busy || !fits || typed === shown) return;
     setBusy(true);
     setProblem(null);
-    const r = await nameLead(leadId, what === "name" ? { business_name: typed } : { city: typed }).finally(() =>
+    const answer = await nameLead(leadId, field === "name" ? { business_name: typed } : { city: typed }).finally(() =>
       setBusy(false),
     );
-    if (!r.ok) {
-      setProblem(r.message || W.failed);
+    if (!answer.ok) {
+      setProblem(answer.message || words.failed);
       return;
     }
-    setDone(W.saved(r.data.again));
+    setDone(words.saved(answer.data.again));
     setOpen(false);
   };
   if (done)
@@ -61,28 +61,28 @@ function FixForEvery({ leadId, what, said }: { leadId: string; what: "name" | "c
   if (!open)
     return (
       <Button size="sm" variant="secondary" onClick={() => setOpen(true)} data-testid="lead-card-fill-every">
-        {W.open}
+        {words.open}
       </Button>
     );
   return (
     <form className="lw-fill-fix" onSubmit={save}>
       <Field
-        label={what === "name" ? W.name : W.city}
+        label={field === "name" ? words.name : words.city}
         value={text}
         onValueChange={setText}
         readOnly={busy}
-        maxLength={what === "name" ? LEAD_NAMED.name.max : LEAD_NAMED.city.max}
+        maxLength={field === "name" ? LEAD_NAMED.name.max : LEAD_NAMED.city.max}
         data-testid="lead-card-fill-every-text"
         {...fieldProblem(problem)}
       />
-      <p className="lw-note">{W.note}</p>
+      <p className="lw-note">{words.note}</p>
       <Button
         type="submit"
         size="sm"
-        disabled={busy || !fits || typed === said}
+        disabled={busy || !fits || typed === shown}
         data-testid="lead-card-fill-every-save"
       >
-        {W.save}
+        {words.save}
       </Button>
     </form>
   );
@@ -131,7 +131,7 @@ export function FillIn({
           {LEAD_FILL_WORDS.change}
         </Button>
       ) : null}
-      {fix && leadId ? <FixForEvery leadId={leadId} what={fix} said={piece.text} /> : null}
+      {fix && leadId ? <FixForEvery leadId={leadId} field={fix} shown={piece.text} /> : null}
     </Popover>
   );
 }

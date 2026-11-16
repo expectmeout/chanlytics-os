@@ -10,7 +10,7 @@
  * What a lead's trying came to, and what it said is not right, are previews/tried.ts's, which Today shares.
  */
 import { DAY_MS, MIN_MS } from "../shared/time";
-import { PREVIEW_LIMITS, previewClaimable, previewStateOf } from "./lead-preview";
+import { PREVIEW_LIMITS, previewClaimable, previewStateOf } from "./standing";
 import { previewSaidOf, previewTriedWords } from "./tried";
 
 /** A lead's preview as its sender's workspace reads it: the row's facts the line says, never its chat. */

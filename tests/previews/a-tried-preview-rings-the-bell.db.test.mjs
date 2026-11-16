@@ -5,7 +5,7 @@
  *      lead's number, opening the lead. A second message says nothing more.
  *   2. The first call rings once too, apart from the message's line.
  *   3. The number: none on the listing, or one marked wrong, says none is on file; one of another country is said as kept.
- *   4. A lead blanked takes its lines with it: they hold its name and its number.
+ *   4. A lead blanked leaves its lines without its name and its number, and closed.
  *   5. Health's read: what was made, tried, said and called, and what the model cost on a preview's workspace.
  *
  * Local stack only: it makes workspaces and leads with the service key, and removes them.
@@ -77,7 +77,7 @@ const linesOf = async (leadId) =>
   ok(
     await db
       .from("notifications")
-      .select("kind, title, body, route, subject_type, subject_id")
+      .select("kind, title, body, route, subject_type, subject_id, closed_at")
       .eq("tenant_id", A)
       .eq("kind", "preview_tried")
       .eq("subject_id", leadId)
@@ -119,6 +119,7 @@ test(
         route: `clients/leads:p-${p.leadId}`,
         subject_type: "lead",
         subject_id: p.leadId,
+        closed_at: null,
       },
     ]);
     assert.equal(ok(await say(p, "And Mondays?")), 2);
@@ -159,14 +160,17 @@ test(
   },
 );
 
-test("a lead blanked takes its lines with it", { skip }, async () => {
+test("a lead blanked leaves its lines without its name and its number, and closed", { skip }, async () => {
   const p = await ready();
   const kept = await ready();
   ok(await say(p));
   ok(await say(kept));
   ok(await db.rpc("lead_blank", { p_lead_id: p.leadId }));
-  assert.deepEqual(await linesOf(p.leadId), []);
-  assert.equal((await linesOf(kept.leadId)).length, 1, "another lead's line stays");
+  const [scrubbed] = await linesOf(p.leadId);
+  assert.deepEqual([scrubbed.title, scrubbed.body, scrubbed.route], ["A lead tried their preview", "", null]);
+  assert.ok(scrubbed.closed_at, "and closed");
+  const [other] = await linesOf(kept.leadId);
+  assert.deepEqual([other.title, other.closed_at], ["Fixture Barbers texted their preview", null]);
 });
 
 test(

@@ -11,6 +11,7 @@
  *
  * An open of the page is never among them: a mail scanner opens a link too, and the writer is told nothing it must not say.
  */
+import { logAndGoOn } from "@chanlytics/log";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   parseTenantConfig,
@@ -81,7 +82,9 @@ export function previewFactsOf(
 /** The preview workspace's record, or none where it cannot be read: the writer is told only what it knows. */
 async function profileOf(db: Db, tenantId: TenantId | null): Promise<Profile> {
   if (!tenantId) return null;
-  const config = await getTenantConfig(db, tenantId).catch(() => null);
+  const config = await getTenantConfig(db, tenantId).catch(
+    logAndGoOn("reading a preview's record for the line of the email that carries it", null),
+  );
   return parseTenantConfig(config?.config ?? null)?.brain?.profile ?? null;
 }
 

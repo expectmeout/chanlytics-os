@@ -58,5 +58,5 @@ export const previewVerbs = {
   notRight: (token: string, fact: string, said: string) =>
     post<{ kept: number; fixed: boolean }>(token, "not-right", { fact, said }),
   /** A thing they tell it: in its record at once, with how many it holds and how many more it takes. */
-  teach: (token: string, text: string) => post<{ taught: number; left: number }>(token, "teach", { text }),
+  tell: (token: string, text: string) => post<{ taught: number; left: number }>(token, "tell", { text }),
 };

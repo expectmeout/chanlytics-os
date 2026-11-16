@@ -28,8 +28,8 @@ type Draft = NonNullable<JobContext["replies"]>["draft"];
 export async function previewLinkFor(db: Db, tenantId: TenantId, conversationId: string): Promise<string | null> {
   const leadId = await findLeadOfReply(db, tenantId, conversationId);
   if (!leadId) return null;
-  const made = await askPreview(db, { tenantId, leadId, by: null });
-  return made.ok ? `${dashboardOrigin()}/preview/${encodeURIComponent(made.value.token)}` : null;
+  const answer = await askPreview(db, { tenantId, leadId, by: null });
+  return answer.ok ? `${dashboardOrigin()}/preview/${encodeURIComponent(answer.value.token)}` : null;
 }
 
 /** The drafter's note with their preview's link and what to say of it; the note as it was where there is none. */

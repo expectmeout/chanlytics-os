@@ -42,7 +42,16 @@ test("Health's figures: what was made, what came of it and what it cost, or noth
   assert.equal(previewsHealthOf(null), null);
   assert.equal(previewsHealthOf({ previews: null }), null);
   const said = previewsHealthOf({
-    previews: { made: 31, made_today: 4, tried: 6, claimed: 1, messages: 22, call_seconds: 400, usd: 1.2345 },
+    previews: {
+      made: 31,
+      made_today: 4,
+      a_day: 50,
+      tried: 6,
+      claimed: 1,
+      messages: 22,
+      call_seconds: 400,
+      usd: 1.2345,
+    },
   });
   assert.deepEqual(said, {
     made: 31,

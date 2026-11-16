@@ -88,7 +88,7 @@ test("the sender's line says what they told it apart from what they said is not 
 
 /* ---- the two public doors, over a database in memory ---- */
 
-const { recordPreviewNotRightBy, teachPreviewBy } = await importSrc("apps/dashboard/src/server/previews/doors.ts");
+const { recordPreviewNotRightBy, tellPreviewBy } = await importSrc("apps/dashboard/src/server/previews/doors.ts");
 const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
 const { setLinkPageClient } = await importSrc("apps/dashboard/src/server/public/link-page.ts");
 
@@ -155,18 +155,18 @@ function world(over = {}) {
 
 test("the teach door: what they told it is in its record at once, the sender gets the line, and a fourth is refused", async () => {
   const w = world();
-  assert.deepEqual(await teachPreviewBy(TOKEN, "We answer emergency calls all night."), { taught: 1, left: 2 });
+  assert.deepEqual(await tellPreviewBy(TOKEN, "We answer emergency calls all night."), { taught: 1, left: 2 });
   assert.deepEqual(w.profile().notes, [{ title: PREVIEW_TAUGHT.title, text: "We answer emergency calls all night." }]);
   assert.equal(w.tables.tenant_config[0].version, 2, "through the settings' compare-and-swap");
   assert.deepEqual(
     w.tables.lead_previews[0].not_right.map((line) => [line.fact, line.said]),
     [[PREVIEW_TAUGHT.fact, "We answer emergency calls all night."]],
   );
-  await teachPreviewBy(TOKEN, "Two");
-  await teachPreviewBy(TOKEN, "Three");
-  await assert.rejects(teachPreviewBy(TOKEN, "Four"), (e) => e.status === 409);
+  await tellPreviewBy(TOKEN, "Two");
+  await tellPreviewBy(TOKEN, "Three");
+  await assert.rejects(tellPreviewBy(TOKEN, "Four"), (e) => e.status === 409);
   assert.equal(w.profile().notes.length, 3);
-  await assert.rejects(teachPreviewBy(TOKEN, "   "), (e) => e.status === 400);
+  await assert.rejects(tellPreviewBy(TOKEN, "   "), (e) => e.status === 400);
 });
 
 test("the not-right door puts it right where they say what is right, and only notes it where they do not", async () => {
@@ -184,7 +184,7 @@ test("the not-right door puts it right where they say what is right, and only no
 
 test("a preview that has ended, or is someone's own, takes neither", async () => {
   world({ state: "claimed" });
-  await assert.rejects(teachPreviewBy(TOKEN, "Anything"), (e) => e.status === 409);
+  await assert.rejects(tellPreviewBy(TOKEN, "Anything"), (e) => e.status === 409);
   world({ ends_at: "2026-01-01T00:00:00Z" });
   await assert.rejects(recordPreviewNotRightBy(TOKEN, "Hours", "Closed"), (e) => e.status === 409);
 });

@@ -240,16 +240,16 @@ function PvTeach({ vm, token, look }: { vm: PreviewPageVM; token: string; look: 
   const [problem, setProblem] = useState<string | null>(null);
   const left = Math.max(0, PREVIEW_TAUGHT.most - told.length);
   if (look && told.length === 0) return null;
-  const send = async (e: SyntheticEvent) => {
-    e.preventDefault();
+  const send = async (event: SyntheticEvent) => {
+    event.preventDefault();
     const saying = text.replace(/\s+/g, " ").trim();
     if (!saying || busy) return;
     setBusy(true);
     setProblem(null);
-    const r = await previewVerbs.teach(token, saying);
+    const answer = await previewVerbs.tell(token, saying);
     setBusy(false);
-    if (!r.ok) {
-      setProblem(r.message ?? W.teachFailed);
+    if (!answer.ok) {
+      setProblem(answer.message ?? W.teachFailed);
       return;
     }
     setTold((before) => [...before, saying]);

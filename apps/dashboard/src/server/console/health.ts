@@ -52,6 +52,7 @@ import {
   type LedgerNowDto,
   type OperatorPageDto,
   DbFailure,
+  PREVIEW_LIMITS,
   causedBy,
   recordOrNull,
 } from "@chanlytics/contracts";
@@ -164,6 +165,7 @@ function previewsRead(data: unknown): NonNullable<HealthPartsDto["previews"]> | 
   const read = {
     made: figure("made"),
     made_today: figure("made_today"),
+    a_day: PREVIEW_LIMITS.aDay,
     tried: figure("tried"),
     claimed: figure("claimed"),
     messages: figure("messages"),

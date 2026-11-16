@@ -84,10 +84,10 @@ async function arePreviewsPaused(ctx: Ctx, tenantId: TenantId): Promise<boolean>
 async function isPreviewDayFull(ctx: Ctx, tenantId: TenantId): Promise<boolean> {
   const now = new Date();
   const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const made = await countLeadPreviewsSince(ctx.supabase, tenantId, day.toISOString()).catch(
+  const madeToday = await countLeadPreviewsSince(ctx.supabase, tenantId, day.toISOString()).catch(
     logAndGoOn("counting the day's previews for a lead's card", 0),
   );
-  return made >= PREVIEW_LIMITS.aDay;
+  return madeToday >= PREVIEW_LIMITS.aDay;
 }
 
 export async function getLeadPreview(ctx: Ctx, tenantId: TenantId, leadId: string): Promise<LeadPreviewDto> {

@@ -16,7 +16,8 @@ import { fakeDb, fakeLog } from "../_fake-db.mjs";
 import { importSrc } from "../_source.mjs";
 
 const { askPreview, previewDayFull } = await importSrc("apps/edge/lib/previews/make.ts");
-const { claimedTurns, previewForWords } = await importSrc("apps/edge/lib/campaigns/reach-out/sender/lanes.ts");
+const { claimedTurns } = await importSrc("apps/edge/lib/campaigns/reach-out/sender/lanes.ts");
+const { previewForWords } = await importSrc("apps/edge/lib/campaigns/reach-out/sender/their-preview.ts");
 
 const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const LEAD = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";

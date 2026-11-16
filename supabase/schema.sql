@@ -14218,7 +14218,8 @@ CREATE FUNCTION public.lead_tried_notes_forget() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 begin
-  delete from public.notifications n
+  update public.notifications n
+     set title = 'A lead tried their preview', body = '', route = null, closed_at = coalesce(n.closed_at, now())
    where n.tenant_id = NEW.tenant_id and n.kind = 'preview_tried'
      and n.subject_type = 'lead' and n.subject_id = NEW.id::text;
   return null;
@@ -14229,7 +14230,7 @@ end $$;
 -- Name: FUNCTION lead_tried_notes_forget(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_tried_notes_forget() IS 'A lead blanked or erased takes the bell''s lines about its preview with it (00632): they hold its name and its number.';
+COMMENT ON FUNCTION public.lead_tried_notes_forget() IS 'A lead blanked or erased leaves the bell''s lines about its preview without its name and its number, and closed (00632): written as an update, which an open bell hears.';
 
 
 --

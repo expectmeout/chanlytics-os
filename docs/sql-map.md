@@ -268,7 +268,7 @@ being read is dropped by a migration.
 | `lead_month` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 12 more | The workspace's calendar month of an instant, YYYY-MM, in tenants.timezone: |
 | `lead_month_used` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | What this workspace has used and reserved of the month's two ceilings, as {allowance: |
 | `lead_name_key` | the server's | the server | SQL `reach_out_record` |  |
-| `lead_named` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | The owner's own name or city for a lead (permission find; |
+| `lead_named` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/named.ts` | The owner's own name or city for a lead (permission find; |
 | `lead_niche_prior` | door | a signed-in person, the server | code `apps/dashboard/src/server/leads/plan-facts.ts`, `packages/db/src/repositories/leads/workbench.ts` | The platform-wide prior for a kind of business ({places, matched, with_email}), or null when the kind was never searched. |
 | `lead_people_search_create` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | Owner (find). A people search (00430), as lead_search_create is a places one: |
 | `lead_person_forget` | the server's | the server | SQL `leads_erase_on_contact` | Erasure of a person named at companies (00430): |
@@ -318,7 +318,7 @@ being read is dropped by a migration.
 | `lead_suggestions_write` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | The one writer of lead_suggestions (00400, 00470, 00473), by act: |
 | `lead_suppression_hash` | the server's | the server | SQL `email_marketing_on_erase`, `lead_addresses_suppressed` and 12 more | The erasure digest (00263 erasure_digest): |
 | `lead_tells_its_person` | trigger | the server | trigger `leads_tell_their_person on leads` | Decision 0052: a lead that names a person (leads.contact_id: |
-| `lead_tried_notes_forget` | trigger | the server | trigger `lead_tried_notes_forget on leads` | A lead blanked or erased takes the bell's lines about its preview with it (00632): |
+| `lead_tried_notes_forget` | trigger | the server | trigger `lead_tried_notes_forget on leads` | A lead blanked or erased leaves the bell's lines about its preview without its name and its number, and closed (00632): |
 | `lead_undo` | door | a signed-in person, the server | code `packages/contracts/src/ask/proposals/lead-work.ts`, `packages/db/src/repositories/leads/search-acts.ts` | Undoes one operation by its id and the version the client saw: |
 | `lead_view_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | What a view of Leads holds (lead_view_rows, each lead once as the page draws it and lead_bulk acts on it): |
 | `lead_view_rows` | reader | a signed-in person, the server | code `packages/contracts/src/leads/plan-schema.ts`; SQL `lead_bulk`, `lead_view_counts` and 1 more | Which leads a view of Leads holds, the one door leads_page, lead_view_counts and lead_bulk read it through (00554): |

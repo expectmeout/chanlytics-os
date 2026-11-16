@@ -126,7 +126,7 @@ export async function recordPreviewOpenedBy(token: string): Promise<{ opened: nu
  * A thing the business tells its preview (the canvas's call P4): in its record at once, so the next answer and the next
  * call use it, and a line for the sender as what they said is not right is. Three at most; the rule is contracts'.
  */
-export async function teachPreviewBy(token: string, raw: unknown): Promise<{ taught: number; left: number }> {
+export async function tellPreviewBy(token: string, raw: unknown): Promise<{ taught: number; left: number }> {
   const text = typeof raw === "string" ? raw.replace(/\s+/g, " ").trim() : "";
   if (!text || text.length > PREVIEW_TAUGHT.chars) throw new AppError("validation", W.teachLabel, 400);
   // Its door's bucket a network and its three at most are its limits: it asks no model, so it takes no turn of the chat's.

@@ -44,12 +44,12 @@ const fixTitle = (fact: PreviewFact): string => `${PREVIEW_FACT_NAMES[fact]}, as
  * there is nothing to add, or too much.
  */
 export function withPreviewTaught(profile: BusinessProfile, text: string): BusinessProfile | "full" | null {
-  const told = text.replace(/\s+/g, " ").trim();
-  if (!told || told.length > PREVIEW_TAUGHT.chars) return null;
+  const sentence = text.replace(/\s+/g, " ").trim();
+  if (!sentence || sentence.length > PREVIEW_TAUGHT.chars) return null;
   const notes = profile.notes ?? [];
   const taught = notes.filter((note) => note.title === PREVIEW_TAUGHT.title).length;
   if (taught >= PREVIEW_TAUGHT.most || notes.length >= PROFILE_LIMITS.notes) return "full";
-  return { ...profile, notes: [...notes, { title: PREVIEW_TAUGHT.title, text: told }] };
+  return { ...profile, notes: [...notes, { title: PREVIEW_TAUGHT.title, text: sentence }] };
 }
 
 /** The record without what the listing said of a fact a sentence replaces whole: its address, its hours, its website. */
@@ -67,12 +67,12 @@ function withoutListed(profile: BusinessProfile, fact: PreviewFact): BusinessPro
  * number is the line's own, told beside it too. Null where nothing was said, or the record's notes have no room.
  */
 export function withPreviewFix(profile: BusinessProfile, fact: PreviewFact, right: string): BusinessProfile | null {
-  const said = right.replace(/\s+/g, " ").trim().slice(0, FIX_CHARS);
-  if (!said) return null;
+  const words = right.replace(/\s+/g, " ").trim().slice(0, FIX_CHARS);
+  if (!words) return null;
   const title = fixTitle(fact);
   const others = (profile.notes ?? []).filter((note) => note.title !== title);
   if (others.length >= PROFILE_LIMITS.notes) return null;
-  return { ...withoutListed(profile, fact), notes: [...others, { title, text: said }] };
+  return { ...withoutListed(profile, fact), notes: [...others, { title, text: words }] };
 }
 
 /** What a record holds of theirs: what they told it, in order, and each fact as they put it right. */

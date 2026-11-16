@@ -41,7 +41,6 @@ import {
   adopt,
   claimedTurns,
   handOver,
-  previewForWords,
   sendFromMailbox,
   tickReads,
   type Db,
@@ -51,6 +50,7 @@ import {
   type SenderCounts,
   type Tick,
 } from "./lanes.js";
+import { previewForWords } from "./their-preview.js";
 import type { TenantId } from "@chanlytics/contracts";
 
 /** One claimed send, written: its email and its job, then its move. Only from `claimed`, as it was read. */

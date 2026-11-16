@@ -834,7 +834,7 @@ test("Health is one read for staff alone: every part read on its own, the clocks
   assert.deepEqual(h.client_errors, []);
   assert.deepEqual(
     h.parts.previews,
-    { made: 3, made_today: 1, tried: 1, claimed: 0, messages: 4, call_seconds: 61, usd: 0.5 },
+    { made: 3, made_today: 1, a_day: 50, tried: 1, claimed: 0, messages: 4, call_seconds: 61, usd: 0.5 },
     "leads' previews, each figure a number",
   );
 

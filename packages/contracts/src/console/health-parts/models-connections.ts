@@ -9,7 +9,6 @@ import { subscriberWords } from "../health-clocks";
 import { SEND_CHANNEL_WORDS, inScopeRows, latest, type HealthPartsDto } from "./sends-calls";
 import { entryOf } from "../../shared/unknown";
 import { MIN_MS, SECOND_MS } from "../../shared/time";
-import { PREVIEW_LIMITS } from "../../previews/lead-preview";
 
 // ----------------------------------------------------------------------------------------------- model calls
 
@@ -92,17 +91,17 @@ export function previewsHealthOf(parts: Pick<HealthPartsDto, "previews"> | null)
   callMinutes: number;
   usd: number;
 } | null {
-  const p = parts?.previews;
-  if (!p) return null;
+  const read = parts?.previews;
+  if (!read) return null;
   return {
-    made: p.made,
-    madeToday: p.made_today,
-    aDay: PREVIEW_LIMITS.aDay,
-    tried: p.tried,
-    claimed: p.claimed,
-    messages: p.messages,
-    callMinutes: Math.round((p.call_seconds * SECOND_MS) / MIN_MS),
-    usd: p.usd,
+    made: read.made,
+    madeToday: read.made_today,
+    aDay: read.a_day,
+    tried: read.tried,
+    claimed: read.claimed,
+    messages: read.messages,
+    callMinutes: Math.round((read.call_seconds * SECOND_MS) / MIN_MS),
+    usd: read.usd,
   };
 }
 

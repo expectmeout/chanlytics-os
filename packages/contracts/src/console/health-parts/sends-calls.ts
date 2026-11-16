@@ -34,6 +34,8 @@ export interface HealthPartsDto {
   previews?: {
     made: number;
     made_today: number;
+    /** The day's limit as the server holds it (PREVIEW_LIMITS.aDay), so the page that draws it loads no preview module. */
+    a_day: number;
     tried: number;
     claimed: number;
     messages: number;

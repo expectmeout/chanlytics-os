@@ -66,7 +66,7 @@ import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "
 import type { REPLY_INTENTS, REPLY_UNREADS } from "../campaigns/reach-out/replies/intents";
 import type { SEQUENCE_MODES, SEQUENCE_STARTS, SEQUENCE_STATES } from "../campaigns/sequences/sequence";
 import type { CALL_OUTCOMES } from "../voice/call-words";
-import type { PREVIEW_STATES } from "../previews/lead-preview";
+import type { PREVIEW_STATES } from "../previews/standing";
 import type { POLICY_CLASSES, POLICY_MODES } from "../config/workspace-config/policy-classes";
 import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/words";
 import type { APPOINTMENT_WORDS } from "../journey/appointment-word";

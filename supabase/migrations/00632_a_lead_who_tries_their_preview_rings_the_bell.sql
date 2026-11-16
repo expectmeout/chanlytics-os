@@ -10,7 +10,8 @@
 --                              once for the first call. It names the business as its preview does and gives the lead's
 --                              number where its listing has one nobody marked wrong. It never fails the lead's message
 --                              or call: a line that could not be written is a warning in the log.
---   lead_tried_notes_forget    A lead blanked or erased takes those lines with it: they hold its name and its number.
+--   lead_tried_notes_forget    A lead blanked or erased leaves those lines without its name and its number, and closed:
+--                              an update, which an open bell hears, where a delete is a change nothing is told of.
 --   lead_previews_made_at      An index for "how many did this workspace make today" (the edge's daily limit, the card).
 --   platform_health_previews   Health's read (service role): previews made in the window and today, how many were tried
 --                              and made theirs, their messages and call seconds, and what the model cost on the preview
@@ -85,7 +86,7 @@ create trigger lead_previews_notify
   after update of asked_count, call_count on public.lead_previews
   for each row execute function public.lead_previews_notify();
 
--- Those lines hold a business's name and its number: a lead blanked or erased takes them with it.
+-- Those lines hold a business's name and its number: a lead blanked or erased leaves them without either, and closed.
 create or replace function public.lead_tried_notes_forget()
 returns trigger
 language plpgsql
@@ -93,14 +94,15 @@ security definer
 set search_path = public
 as $$
 begin
-  delete from public.notifications n
+  update public.notifications n
+     set title = 'A lead tried their preview', body = '', route = null, closed_at = coalesce(n.closed_at, now())
    where n.tenant_id = NEW.tenant_id and n.kind = 'preview_tried'
      and n.subject_type = 'lead' and n.subject_id = NEW.id::text;
   return null;
 end $$;
 revoke execute on function public.lead_tried_notes_forget() from public, anon, authenticated;
 comment on function public.lead_tried_notes_forget() is
-  'A lead blanked or erased takes the bell''s lines about its preview with it (00632): they hold its name and its number.';
+  'A lead blanked or erased leaves the bell''s lines about its preview without its name and its number, and closed (00632): written as an update, which an open bell hears.';
 
 drop trigger if exists lead_tried_notes_forget on public.leads;
 create trigger lead_tried_notes_forget

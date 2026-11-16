@@ -3,6 +3,7 @@ import { LEAD_NAMED } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { nameLeadFor } from "@/server/leads/named";
+import { namePreviewOf } from "@/server/previews/named";
 
 const Body = z
   .object({
@@ -23,5 +24,10 @@ export const POST = write({
   role: "partner",
   rate: "lead_member",
   input: Body,
-  handle: ({ ctx, member, input }) => nameLeadFor(ctx, member.tenantId, requireUuid(ctx.params.id, "lead"), input),
+  handle: async ({ ctx, member, input }) => {
+    const leadId = requireUuid(ctx.params.id, "lead");
+    const named = await nameLeadFor(ctx, leadId, input);
+    if (input.business_name !== undefined) await namePreviewOf(ctx, member.tenantId, leadId, named.business_name);
+    return named;
+  },
 });

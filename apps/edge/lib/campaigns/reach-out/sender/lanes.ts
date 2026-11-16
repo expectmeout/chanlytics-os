@@ -6,7 +6,6 @@ import {
   draftFactsOf,
   findEmailWords,
   insertQueuedEmail,
-  findLeadPreview,
   moveSend,
   recordPreviewSent,
   recheckSends,
@@ -35,14 +34,10 @@ import {
   mailboxSendsNow,
   parseTenantConfig,
   reachOutSignatureOf,
-  previewSlotOf,
-  type LeadPreviewSlot,
   type SlotLead,
 } from "@chanlytics/contracts";
-import { dashboardOrigin, unsubscribeOrigin } from "../../../shared/dashboard-origin.js";
+import { unsubscribeOrigin } from "../../../shared/dashboard-origin.js";
 import { env } from "../../../shared/env.js";
-import { previewDidMarkOf } from "../../../previews/for-opening.js";
-import { askPreview } from "../../../previews/make.js";
 import { reachOutDraft, reachOutRequest, reachOutWords } from "@chanlytics/channels/email";
 import { REPLAN_GIVE_UP_MS, type Replan } from "../replan.js";
 import type { Logger } from "../../../shared/log.js";
@@ -280,9 +275,9 @@ export function claimedTurns(tick: Tick, reachOutSend: ReachOutSendRow) {
     hold: (reason: string): Outcome => {
       // One being made is minutes away; with the switch off none is, and with the day's all made none is until
       // tomorrow: either waits the hour as any hold does.
-      const made =
+      const inMinutes =
         reason === "preview_building" && env.LEAD_PREVIEWS === "on" && !tick.cappedSends.has(reachOutSend.id);
-      (made ? tick.soon : tick.later).push({ send: reachOutSend, wrote: false });
+      (inMinutes ? tick.soon : tick.later).push({ send: reachOutSend, wrote: false });
       const key = `${reachOutSend.tenant_id}:${reason}`;
       if (!tick.said.has(key)) {
         tick.said.add(key);
@@ -319,43 +314,6 @@ export interface Made {
   own: string | null;
   /** The lead's preview its words carry as {{their preview}} (decision 0079): its first send starts its thirty days. */
   previewId: string | null;
-}
-
-/**
- * The lead's own receptionist, for words that name {{their preview}} (decision 0079): open, with its link; being made,
- * and asked for where none is (askPreview, its build scheduled once), or held with the switch off and nothing made; or
- * gone, its door refusing one for this lead for good (not a business that takes bookings, a lead closed), which skips
- * the send as a failed or ended one does. With the day's previews all made (contracts PREVIEW_LIMITS.aDay) none is
- * asked for: the send is held and waits the hour, until the day turns.
- */
-export async function previewForWords(
-  t: Tick,
-  s: ReachOutSendRow,
-): Promise<{ slot: LeadPreviewSlot; id: string | null; did: string | null }> {
-  const row = await findLeadPreview(t.db, s.tenant_id, s.lead_id);
-  const slot = previewSlotOf(row, t.now, dashboardOrigin());
-  if (slot.state !== "building" || row?.state === "building" || env.LEAD_PREVIEWS !== "on") {
-    // An open one says how far they have used it (previews/for-opening.ts): the mark a line written from it was stamped with.
-    const open = slot.state === "open" && row ? row : null;
-    return { slot, id: open ? open.id : null, did: open ? previewDidMarkOf(open) : null };
-  }
-  // The day's are all made (askPreview's limit): the email is held as one being made is, never skipped, and waits the
-  // hour; tomorrow's first tick makes it. A workspace found full is not asked again this tick.
-  const waits = () => {
-    t.cappedSends.add(s.id);
-    return { slot, id: null, did: null };
-  };
-  if (t.capped.has(s.tenant_id)) return waits();
-  const otherAskPreview = await askPreview(
-    t.db,
-    { tenantId: s.tenant_id, leadId: s.lead_id, by: null, none: !row },
-    t.now,
-  );
-  if (!otherAskPreview.ok && otherAskPreview.reason === "limit") {
-    t.capped.add(s.tenant_id);
-    return waits();
-  }
-  return { slot: otherAskPreview.ok ? slot : { state: "gone" }, id: null, did: null };
 }
 
 /**

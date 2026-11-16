@@ -39,7 +39,6 @@ export {
   keepLeadPrices,
   listLeadCardsLive,
   listLeadsUnmarked,
-  nameLead,
   readIdeaHistory,
   readLeadOne,
   recordLeadSiteReadsSpent,
@@ -47,6 +46,7 @@ export {
   upsertLeadCompany,
 } from "./leads";
 export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember, LeadPricesSeen } from "./leads";
+export { nameLead } from "./named";
 export {
   answerSearchRound,
   askSearchForMore,

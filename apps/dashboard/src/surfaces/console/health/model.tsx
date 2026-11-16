@@ -59,19 +59,23 @@ function ProfilesSection({ h }: { h: ConsoleHealth }) {
  * of them, and what the model cost on those still open. Nothing where it was not read.
  */
 function PreviewsSection({ h }: { h: ConsoleHealth }) {
-  const p = previewsHealthOf(h.parts);
-  if (!p) return null;
+  const figures = previewsHealthOf(h.parts);
+  if (!figures) return null;
   return (
     <ScreenSection title="Leads' previews" sub={`made in ${h.days} days`} testid="console-health-previews">
       <dl className="cs-h-figures" data-testid="console-health-previews-figures">
-        <Figure label="Made" value={n(p.made)} meta={`${n(p.madeToday)} today, of ${n(p.aDay)} a day`} />
+        <Figure
+          label="Made"
+          value={n(figures.made)}
+          meta={`${n(figures.madeToday)} today, of ${n(figures.aDay)} a day`}
+        />
         <Figure
           label="Tried"
-          value={n(p.tried)}
-          meta={`${n(p.messages)} messages · ${n(p.callMinutes)} min of calls`}
+          value={n(figures.tried)}
+          meta={`${n(figures.messages)} messages · ${n(figures.callMinutes)} min of calls`}
         />
-        <Figure label="Made theirs" value={n(p.claimed)} meta="signed up from their preview" />
-        <Figure label="What the model cost" value={dollarsWords(p.usd)} meta="on the previews still open" />
+        <Figure label="Made theirs" value={n(figures.claimed)} meta="signed up from their preview" />
+        <Figure label="What the model cost" value={dollarsWords(figures.usd)} meta="on the previews still open" />
       </dl>
     </ScreenSection>
   );
