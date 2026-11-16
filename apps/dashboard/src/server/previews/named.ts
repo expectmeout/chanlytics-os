@@ -6,12 +6,38 @@ import "server-only";
  * with the service role, as its build wrote it. One made theirs is theirs to name. It never throws: the lead is right
  * already, and a record that could not be written is logged.
  */
-import { heldTenantId, withPreviewNamed, type TenantId } from "@chanlytics/contracts";
+import {
+  BrainConfigSchema,
+  heldTenantId,
+  isBaselinePrompt,
+  newReceptionistDefaults,
+  type BrainConfig,
+  type TenantId,
+} from "@chanlytics/contracts";
 import { findLeadPreview } from "@chanlytics/db/campaigns";
 import { logAndGoOn } from "@chanlytics/log";
 import { linkPageDb } from "../public/link-page";
 import type { RouteContext } from "../shared/with-route";
 import { changePreviewBrain } from "./theirs";
+
+/**
+ * The same receptionist under `name`: the name it answers by, as long as the settings let a name be, and the product's
+ * own prompt written under it. A prompt somebody wrote is theirs and stays. Null where it answers by that name already,
+ * or the name is none.
+ */
+export function withPreviewNamed(brain: BrainConfig, name: string): BrainConfig | null {
+  const next = name
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, BrainConfigSchema.shape.business_name.maxLength ?? Infinity)
+    .trim();
+  if (!next || next === brain.business_name) return null;
+  return {
+    ...brain,
+    business_name: next,
+    ...(isBaselinePrompt(brain.system_prompt) ? { system_prompt: newReceptionistDefaults(next).system_prompt } : {}),
+  };
+}
 
 /** Their preview's receptionist, read and written under `name`, while it is still a preview. */
 async function writePreviewName(

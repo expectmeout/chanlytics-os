@@ -718,7 +718,7 @@ test("an email that carries their preview: the writer and the reader are both sh
   const read = readingUserContent({ record: WITH_PREVIEW, opening: "You asked it 4 questions." });
   assert.ok(read.includes("preview_tried: 4 messages · a call of 2 minutes"));
   // What the writer may and may not do with it: never that it knows they opened anything.
-  assert.match(told, /is about that preview/);
+  assert.match(told, /Write the sentence about that preview/);
   assert.match(told, /Never say or imply that you know whether they opened/);
   assert.match(told, /Never say it has been put right/);
 });

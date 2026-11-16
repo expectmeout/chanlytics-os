@@ -230,6 +230,34 @@ function sendInputOf(
 }
 
 /**
+ * A send's input, with their preview where its email carries one. A line in such an email is written from what the
+ * preview knows and what they did with it, once one is open (previews/for-opening.ts); `mark` is what that line is
+ * stamped with, and the sender sends it back here once the preview's own mark is another. A read that fails says
+ * nothing of it, and the line is written as any other. `onStep` hears each step the check takes, by its send.
+ */
+async function lineInputFor(
+  db: Parameters<typeof previewForOpening>[0],
+  uncheckedSend: UncheckedSend,
+  words: { subject: string | null; body: string },
+  about: { ws: CheckWorkspace; country: string | null; now: Date },
+  onStep?: (sendId: string, step: RewriteStep) => void,
+): Promise<{ input: CheckInput; mark: string | null }> {
+  const { send } = uncheckedSend;
+  const carries = wordsNeedOpening(words) && slotCount(`${words.subject ?? ""}\n${words.body}`, "their preview") > 0;
+  const preview =
+    carries && send.lead_id
+      ? await previewForOpening(db, { tenantId: send.tenant_id, leadId: send.lead_id }, about.now).catch(
+          logAndGoOn("reading a lead's preview for the line of the email that carries it", null),
+        )
+      : null;
+  const heard = onStep && ((step: RewriteStep) => onStep(send.id, step));
+  return {
+    input: sendInputOf(uncheckedSend, words, about.ws, about.country, heard, preview),
+    mark: preview?.mark ?? null,
+  };
+}
+
+/**
  * One tick of the check: the holds to check again, then the sends leased to this tick, each workspace's gates asked
  * before any call, then each send's check, a few at once, until the budget. `ask` is the model (tests give their own).
  * With `sendIds` (a person pressed them: Rewrite the opening, 00505), those sends alone, whatever their day, and nothing
@@ -383,24 +411,7 @@ export async function checkSends(params: {
         return;
       }
       const ws = await once(workspaces, send.tenant_id, () => checkWorkspaceOf(db, send.tenant_id));
-      // A line in an email that carries their preview is written from what the preview knows and what they did with it,
-      // once one is open (previews/for-opening.ts). A read that fails says nothing of it, and the line is written as
-      // any other; the sender sends it back here once the preview's own mark is not the one stamped below.
-      const carries = wordsNeedOpening(item) && slotCount(`${item.subject ?? ""}\n${item.body}`, "their preview") > 0;
-      const preview =
-        carries && send.lead_id
-          ? await previewForOpening(db, { tenantId: send.tenant_id, leadId: send.lead_id }, now).catch(
-              logAndGoOn("reading a lead's preview for the line of the email that carries it", null),
-            )
-          : null;
-      const input = sendInputOf(
-        uncheckedSend,
-        item,
-        ws,
-        country,
-        params.onStep && ((step) => params.onStep?.(send.id, step)),
-        preview,
-      );
+      const { input, mark } = await lineInputFor(db, uncheckedSend, item, { ws, country, now }, params.onStep);
       // One attempt of the workspace's UTC day, taken before the model is asked (a rewrite is the same attempt, a
       // failure spends it): words that name no opening cost nothing and take none.
       const cap = dayShareOf(uncheckedSend, pressed);
@@ -444,7 +455,7 @@ export async function checkSends(params: {
         ...(result.site && result.site !== send.website_says
           ? { website_says: result.site.slice(0, WEBSITE_SAYS_KEPT_MAX) }
           : {}),
-        checked_words: checkedWordsOf(item, uncheckedSend.signed_by, ws.bookingLink !== null, preview?.mark ?? null),
+        checked_words: checkedWordsOf(item, uncheckedSend.signed_by, ws.bookingLink !== null, mark),
         check_after: null,
         ...(result.hold ? { state: "held", reason: result.hold } : {}),
       };

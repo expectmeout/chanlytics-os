@@ -80,7 +80,7 @@ export function previewFactsOf(
 }
 
 /** The preview workspace's record, or none where it cannot be read: the writer is told only what it knows. */
-async function profileOf(db: Db, tenantId: TenantId | null): Promise<Profile> {
+async function previewRecordOf(db: Db, tenantId: TenantId | null): Promise<Profile> {
   if (!tenantId) return null;
   const config = await getTenantConfig(db, tenantId).catch(
     logAndGoOn("reading a preview's record for the line of the email that carries it", null),
@@ -96,5 +96,5 @@ export async function previewForOpening(
 ): Promise<PreviewForOpening | null> {
   const row = await findLeadPreview(db, params.tenantId, params.leadId);
   if (!row || row.state !== "ready" || !previewClaimable(previewStateOf(row, now))) return null;
-  return previewFactsOf(row, await profileOf(db, row.preview_tenant_id));
+  return previewFactsOf(row, await previewRecordOf(db, row.preview_tenant_id));
 }

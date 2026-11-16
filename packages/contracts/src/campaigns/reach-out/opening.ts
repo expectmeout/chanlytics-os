@@ -175,10 +175,13 @@ const hasPreview = (opening: OpeningRecord): boolean =>
  * and being watched is no way to be written to.
  */
 const PREVIEW_RULES: readonly string[] = [
-  "This email carries the link to the business's own preview: AI set up for them from their listing and website, free to try. Your sentence is about that preview, in the owner's voice; it is not a first hello.",
+  "This email carries the link to the business's own preview: AI set up from their listing and website, free to try.",
+  "Write the sentence about that preview, in the owner's voice. It is not a first hello.",
   "preview_knows is what it already knows about them: you may name two or three of those things.",
-  "preview_tried is what they did with it. With no preview_tried line they have not tried it yet: you may say how little trying it takes. Never say that they have not tried it.",
-  "preview_said is what they told it is not right: you may say they can put that right once it is theirs. Never say it has been put right.",
+  "preview_tried is what they did with it. With no preview_tried line they have not tried it yet.",
+  "Where they have not tried it you may say how little trying it takes. Never say that they have not tried it.",
+  "preview_said is what they told it is not right: you may say they can put that right once it is theirs.",
+  "Never say it has been put right.",
   "Never say or imply that you know whether they opened the email, the link or the page.",
 ];
 

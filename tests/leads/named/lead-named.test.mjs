@@ -22,7 +22,6 @@ import {
   leadOwnOf,
   leadWordsPieces,
   newReceptionistDefaults,
-  withPreviewNamed,
 } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -33,6 +32,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setLinkPageClient } = await import(at("apps/dashboard/src/server/public/link-page.ts"));
 const named = await import(at("apps/dashboard/app/api/v1/leads/[id]/name/route.ts"));
+const { withPreviewNamed } = await import(at("apps/dashboard/src/server/previews/named.ts"));
 const {
   LEAD_FILL_WORDS: F,
   fillInFixOf,

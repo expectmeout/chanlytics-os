@@ -130,10 +130,10 @@ export async function tellPreviewBy(token: string, raw: unknown): Promise<{ taug
   const text = typeof raw === "string" ? raw.replace(/\s+/g, " ").trim() : "";
   if (!text || text.length > PREVIEW_TAUGHT.chars) throw new AppError("validation", W.teachLabel, 400);
   // Its door's bucket a network and its three at most are its limits: it asks no model, so it takes no turn of the chat's.
-  const p = await openPreview(token, { calls: true });
+  const preview = await openPreview(token, { calls: true });
   const db = dbOrFail();
   let taught = 0;
-  const outcome = await changePreviewRecord(db, heldTenantId(p.preview_tenant_id), (profile) => {
+  const outcome = await changePreviewRecord(db, heldTenantId(preview.preview_tenant_id), (profile) => {
     const next = withPreviewTaught(profile, text);
     if (next !== "full" && next !== null) taught = previewTheirsOf(next).taught.length;
     return next;
@@ -142,7 +142,7 @@ export async function tellPreviewBy(token: string, raw: unknown): Promise<{ taug
   if (outcome !== "changed") throw new AppError("unavailable", W.failed);
   // The sender's line. One that could not be kept (its ten lines are said) costs the sender the line, never the
   // business what it just told its preview.
-  await recordPreviewNotRight(db, p.id, PREVIEW_TAUGHT.fact, text).catch(
+  await recordPreviewNotRight(db, preview.id, PREVIEW_TAUGHT.fact, text).catch(
     logAndGoOn("keeping what a business told its preview for its sender", null),
   );
   return { taught, left: Math.max(0, PREVIEW_TAUGHT.most - taught) };
@@ -161,14 +161,14 @@ export async function recordPreviewNotRightBy(
   const named = typeof fact === "string" ? fact.trim().slice(0, 80) : "";
   if (!named) throw new AppError("validation", W.notRight, 400);
   const right = typeof sentence === "string" && sentence.trim() ? sentence.trim().slice(0, 300) : null;
-  const p = await openPreview(token, { calls: false });
+  const preview = await openPreview(token, { calls: false });
   const db = dbOrFail();
-  const kept = await recordPreviewNotRight(db, p.id, named, right);
+  const kept = await recordPreviewNotRight(db, preview.id, named, right);
   if (!kept.ok) throw doorRefused(kept.reason);
   const which = previewFactOf(named);
   const fixed =
     right && which
-      ? await changePreviewRecord(db, heldTenantId(p.preview_tenant_id), (profile) =>
+      ? await changePreviewRecord(db, heldTenantId(preview.preview_tenant_id), (profile) =>
           withPreviewFix(profile, which, right),
         ).catch(logAndGoOn("putting a preview's fact right", "unwritten" as const))
       : "nothing";

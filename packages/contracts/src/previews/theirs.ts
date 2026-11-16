@@ -12,7 +12,7 @@
  */
 import type { BusinessProfile } from "../config/workspace-config/business-profile";
 import { PROFILE_LIMITS } from "../config/workspace-config/config-rules";
-import { entryOf } from "../shared/unknown";
+import { entryOf, keysOf } from "../shared/unknown";
 import { PREVIEW_FACT_NAMES } from "./tried";
 
 /** What a business teaches its preview: how the sender's line files it, its note's title, how many and how long. */
@@ -28,7 +28,7 @@ const FIX_CHARS = 300;
 
 export type PreviewFact = keyof typeof PREVIEW_FACT_NAMES;
 
-const FACTS = Object.keys(PREVIEW_FACT_NAMES) as PreviewFact[];
+const FACTS = keysOf(PREVIEW_FACT_NAMES);
 
 /** The fact a row names, by its key ("hours") or its label ("Hours"); null for anything else. */
 export function previewFactOf(named: string): PreviewFact | null {

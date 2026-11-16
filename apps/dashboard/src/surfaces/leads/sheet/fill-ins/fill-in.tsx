@@ -20,7 +20,7 @@ import { Button } from "../../../kit/button/button";
 import { Field, fieldProblem } from "../../../kit/field/field";
 import { Popover } from "../../../kit/popover/popover";
 import { LEAD_FILL_WORDS, fillInFixOf, fillInSaysOf, previewMarkOf } from "../model/fill-ins";
-import { nameLead } from "../../surface";
+import { nameLead } from "./name-lead";
 import { PreviewLine } from "../preview";
 import { useLeadPreview } from "./preview-read";
 

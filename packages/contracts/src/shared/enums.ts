@@ -555,10 +555,7 @@ export const EVENT_KINDS = [
    * its source named, and whether their address is being checked first), on the lead (00430 lead_addressee_choose).
    */
   "lead.addressee_chosen",
-  /**
-   * A lead's name or city put right by its owner ({ name, city, again, by }: which of the two changed, and how many of
-   * its waiting emails are written again), on the lead (00631 lead_named). Never the words themselves.
-   */
+  /** A lead's name or city put right by its owner ({ name, city, again, by }, never the words), on the lead. */
   "lead.named",
   /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
   "lead.search_renamed",

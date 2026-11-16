@@ -118,7 +118,7 @@ async function writeOne(tick: Tick, reachOutSend: ReachOutSendRow): Promise<Outc
   // line written before their preview stood or before they last used it: the check reads it again before it goes (R5),
   // and writes that line from what the preview says now. Never a skip: nothing about the lead changed. Read after
   // their preview is, since its mark is part of what the line was checked against.
-  const did = wordsNeedOpening(words) ? (preview?.did ?? null) : null;
+  const did = lineMarkOf(words, preview);
   if (reachOutSend.checked_words !== checkedWordsOf(words, standing.signedBy, workspace.bookingLink !== null, did))
     return recheck();
   const created: Made = {
@@ -364,4 +364,12 @@ export async function claimAndWrite(params: ClaimParams): Promise<SenderCounts> 
     }
   }
   return out;
+}
+
+/** The mark of their preview a written line was checked against: only words that hold the line carry one. */
+function lineMarkOf(
+  words: { subject: string | null; body: string },
+  preview: { did: string | null } | null,
+): string | null {
+  return wordsNeedOpening(words) ? (preview?.did ?? null) : null;
 }

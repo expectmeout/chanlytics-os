@@ -1230,7 +1230,7 @@ test("an email that carries their preview: its line is written from what they di
   assert.deepEqual([out.checked, out.held, out.calls_failed], [2, 0, 0]);
   const toldTried = m.calls.find((user) => user.includes("name: Tried Movers"));
   assert.match(toldTried, /preview_tried: 4 messages · a call of 2 minutes/);
-  assert.match(toldTried, /Your sentence is about that preview/);
+  assert.match(toldTried, /Write the sentence about that preview/);
   assert.ok(
     m.calls.filter((user) => user.includes("name: None Movers")).every((user) => !/preview_/.test(user)),
     "a lead with no preview yet is written to as any other",

@@ -177,7 +177,7 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   },
   preview_tried: {
     ends: "news",
-    why: "A lead who tried their preview is told once for their first message and once for their first call; Today holds the lead for the days it is hot.",
+    why: "A lead who tried their preview is told at their first message and at their first call. Today keeps the lead.",
   },
 };
 

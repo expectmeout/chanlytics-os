@@ -10,7 +10,6 @@ export {
 export type { PreviewKnowsRowVM, PreviewPageFacts, PreviewPageVM, PreviewTurnVM } from "./lead-preview";
 export { PREVIEW_LINE_WORDS, previewBuildSlow, previewLineOf } from "./line";
 export type { LeadPreviewDto, LeadPreviewFacts, LeadPreviewLineVM } from "./line";
-export { withPreviewNamed } from "./named";
 export { PREVIEW_LIMITS, PREVIEW_STATES, previewClaimable, previewSlotOf, previewStateOf } from "./standing";
 export type { LeadPreviewSlot, PreviewFailure, PreviewPageState, PreviewState } from "./standing";
 export { PREVIEW_TAUGHT, previewFactOf, previewTheirsOf, withPreviewFix, withPreviewTaught } from "./theirs";

@@ -3,7 +3,7 @@ import "server-only";
 /**
  * A preview's own receptionist changed: by the business it is for (decision 0079; contracts previews/theirs.ts: what it
  * teaches it and what it puts right, both in its record), and by its sender, who put the lead's name right (00631
- * lead_named; contracts withPreviewNamed). The one write to what AI is told on a preview. Through the settings' write
+ * lead_named; previews/named.ts withPreviewNamed). The one write to what AI is told on a preview. Through the settings' write
  * schema and its compare-and-swap, as its build writes it (the edge's previews/build.ts), so a receptionist the settings
  * would refuse is never kept, and two presses at once lose nothing: the one that lost reads again and writes once more.
  */
