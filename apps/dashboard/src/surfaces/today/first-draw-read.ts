@@ -51,10 +51,10 @@ interface FirstDrawReadOptions {
   onArrival?: boolean;
 }
 
-/** A card's read that said so (`onArrival`), as a move to Today reaches it (`arrive`: waited for) and a read ahead (`ahead`). */
+/** A card's read that said so (`onArrival`): as a move to Today reaches it (`arrive`, waited for), and begun before one. */
 interface Arriving {
   arrive: () => void;
-  ahead: () => void;
+  begin: () => void;
 }
 
 /** What a move to Today waits for beside its Setup card's code, and reads ahead of one. */
@@ -79,7 +79,7 @@ export function arriveOnToday(route: string): void {
 }
 
 /** What Today's first draw waits for that is read ahead of a move to it: all of it but Ask's morning (readTodaySoon). */
-const readAheadOfToday = (): string[] =>
+const todayWaitsToRead = (): string[] =>
   (ROUTE_WAITS.today ?? []).filter((k) => k !== "ask_morning" && !isSurfaceReady(k) && !isSurfaceFailed(k));
 
 /**
@@ -94,9 +94,9 @@ export function readTodaySoon(read: (keys: string[]) => void, at?: Window): void
   if (!win || !warmsOnItsOwn()) return;
   const go = () => {
     if (todayOnScreen()) return;
-    const keys = readAheadOfToday();
+    const keys = todayWaitsToRead();
     if (keys.length) read(keys);
-    for (const card of arrivals) card.ahead();
+    for (const card of arrivals) card.begin();
   };
   const soon = () => void afterBoot().then(go);
   if (win.document.readyState === "complete") soon();
@@ -148,7 +148,7 @@ export function firstDrawRead<T>(
         loadsRead ??= askFor();
         firstDrawWaitsFor("today", loadsRead);
       },
-      ahead: () => {
+      begin: () => {
         if (!kept()) loadsRead ??= askFor();
       },
     });

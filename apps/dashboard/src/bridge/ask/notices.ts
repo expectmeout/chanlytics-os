@@ -39,7 +39,7 @@ interface Noticed {
 }
 
 /** The last answer for each language, kept in the tab by workspace (read-cache.ts `tab`). */
-const held = readCache<Noticed>("ask_notices", () => true, { tab: true });
+const noticedInTab = readCache<Noticed>("ask_notices", () => true, { tab: true });
 
 /** Whether this device opened Ask lately: what a read ahead waits on. Storage blocked is a device that never did. */
 function opensAsk(win: Window): boolean {
@@ -63,10 +63,10 @@ function openedAsk(win: Window): void {
 export function askNotices(win: Window, language: () => string = () => "en") {
   const said = () => win.dispatchEvent(new CustomEvent(FOLLOW_UPS_EVENT));
   const asking = new Map<string, Promise<void>>();
-  const keep = (lang: string, value: Noticed) => held.through(lang, () => Promise.resolve(value));
+  const keep = (lang: string, value: Noticed) => noticedInTab.through(lang, () => Promise.resolve(value));
   /** Read them for a language, unless what is held was read in the last few minutes; one read at a time. */
   const read = (lang: string): Promise<void> => {
-    const was = held.peek(lang);
+    const was = noticedInTab.peek(lang);
     if (was && Date.now() - was.at < READ_AGAIN_MS) return Promise.resolve();
     const out = asking.get(lang);
     if (out) return out;
@@ -89,7 +89,7 @@ export function askNotices(win: Window, language: () => string = () => "en") {
   const shown = () => openedIn ?? language();
   return {
     /** The one thing worth saying first, or nothing. */
-    noticed: (): AskNotice | null => held.peek(shown())?.notices[0] ?? null,
+    noticed: (): AskNotice | null => noticedInTab.peek(shown())?.notices[0] ?? null,
     /** Read them again (Ask opening), and say this device opens Ask. */
     readNotices: (lang: string): Promise<void> => {
       openedIn = lang;
@@ -99,7 +99,7 @@ export function askNotices(win: Window, language: () => string = () => "en") {
     /** Not now: it rests a week, for this member, and the next one worth saying takes its place. */
     restNotice: async (key: string): Promise<void> => {
       const lang = shown();
-      const was = held.peek(lang);
+      const was = noticedInTab.peek(lang);
       if (!was) return;
       const rested = restedWith(was.rested, noticeRestId(key), was.day);
       await keep(lang, { ...was, notices: was.notices.filter((n) => n.key !== key), rested });
