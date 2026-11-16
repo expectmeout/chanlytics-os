@@ -73,8 +73,8 @@ export const LEAD_STAGE_WORDS: Record<LeadStage, string> = {
 /** The status groups in the owner's words: a heading's menu and the group heads say these. */
 export const LEAD_STATUS_GROUP_WORDS: Record<LeadStatusGroup, string> = {
   needs: "Needs you",
-  in: "In a sequence",
-  none: "Not in a sequence",
+  in: "In a campaign",
+  none: "Not in a campaign",
 };
 
 /**

@@ -132,13 +132,13 @@ export const LEAD_CARD_WORDS = {
   greets: (fallback: string) => `Nobody is named here, so it greets them as “${fallback}”.`,
   checking: "once their address checks out",
   holes: (labels: string[]) =>
-    `Its words need ${labels.join(" and ")}, which this lead doesn't have, so Add is off. Type it in the email, or change the words in the sequence.`,
+    `Its words need ${labels.join(" and ")}, which this lead doesn't have, so Add is off. Type it in the email, or change the words in the campaign.`,
   firstPile: "You write their email once, when you write to them all at the end.",
   after: (days: number | null) => `${days ?? "?"} days after, if nothing comes back`,
   emailsTitle: "What they would get",
-  noEmails: "This sequence has no email to show yet.",
+  noEmails: "This campaign has no email to show yet.",
   elsewhere: (name: string) =>
-    `They're with “${name}” already, and a lead is in one sequence at a time, so Add is off.`,
+    `They're with “${name}” already, and a lead is in one campaign at a time, so Add is off.`,
   callTip: "No email can go to them, so the yes here is a call from your phone.",
   choose: "Someone else named there can be written to instead: choose them on Reach.",
   slotsTitle: "What fills their words",
@@ -154,12 +154,12 @@ const LEAD_CARD_WHY_NOT: Record<ReachOutWhyNot, string> = {
   shared: "They share a number or a site with another lead, and a business is written to once, so Add is off.",
   no_email: "No address to write to, so Add is off.",
   checking: "Their address is still being checked.",
-  unconfirmed: "Their address can't be confirmed, and this sequence writes only to confirmed ones, so Add is off.",
+  unconfirmed: "Their address can't be confirmed, and this campaign writes only to confirmed ones, so Add is off.",
   invalid: "Their address bounced, so Add is off.",
   unchecked: "Their address couldn't be checked, so Add is off until it checks out.",
-  already: "They're on this sequence's list already.",
+  already: "They're on this campaign's list already.",
   not_counted: "They're still in Needs review: keep them first.",
-  elsewhere: "They're in another sequence already, and a lead is in one sequence at a time, so Add is off.",
+  elsewhere: "They're in another campaign already, and a lead is in one campaign at a time, so Add is off.",
 };
 
 /** The reasons that are an address: where the card offers the door that is left (a call, someone else there). */
@@ -174,7 +174,7 @@ const ADDRESS_WHYS: ReadonlySet<ReachOutWhyNot> = new Set(["no_email", "invalid"
 export const LEAD_CARD_TABS = [
   { id: "why", label: "Why" },
   { id: "contact", label: "Contact" },
-  { id: "sequence", label: "Sequence" },
+  { id: "sequence", label: "Campaign" },
 ] as const;
 export type LeadCardTab = (typeof LEAD_CARD_TABS)[number]["id"];
 
@@ -365,7 +365,7 @@ const LEAD_CARD_SLOT_FROM = {
   company: "From their source",
   person: "Of the person it writes to, from their source",
   workspace: "Your workspace's name, in Settings",
-  signs: "The name this sequence signs with",
+  signs: "The name this campaign signs with",
   booking: "Your booking link, in Settings",
   opening: "Written for them before it goes",
   preview: "Their own preview, made when the first email that names it goes",
@@ -443,7 +443,7 @@ const LEAD_CARD_BULK_WORDS = {
   goes: "Go as they are",
   there: "Greeted as “there”: nobody is named",
   checking: "Go once their address checks out",
-  elsewhere: "In another sequence already",
+  elsewhere: "In another campaign already",
   cant: "Can't be written to",
   holes: "missing what its words need",
   press: (n: number) => (n ? `Add the ${n}` : "None can be added"),

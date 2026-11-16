@@ -96,7 +96,7 @@ export const MAILBOX_CARD_WORDS = {
   sending: "Sending",
   /** The switch's name in the Sending group, which says "Sending" once already. */
   sendsNow: "Sends now",
-  sendingOn: (address: string) => `Replies, first emails and sequence steps leave from ${address}.`,
+  sendingOn: (address: string) => `Replies, first emails and campaign steps leave from ${address}.`,
   sendingOff: (address: string) => `Paused: nothing leaves from ${address}. What people write still comes in.`,
   signature: "Signature",
   preview: "How it ends their email",

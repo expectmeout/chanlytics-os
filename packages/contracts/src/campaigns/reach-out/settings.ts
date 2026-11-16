@@ -173,10 +173,10 @@ export const REACH_OUT_SETTINGS_WORDS = {
       fixes: "The problem they have that you solve",
     },
     /** What a change reaches, said at the moment it matters: what is true of a running sequence today. */
-    reachSell: "New sequences use this. Running ones use it for their first line.",
-    reachWords: "New sequences use this. Running ones keep their words.",
+    reachSell: "New campaigns use this. Running ones use it for their first line.",
+    reachWords: "New campaigns use this. Running ones keep their words.",
     whoForNote:
-      "This tells the writer who it's talking to. Who actually gets an email is the search you pick for each sequence.",
+      "This tells the writer who it's talking to. Who actually gets an email is the search you pick for each campaign.",
     bookingOn: (link: string) => `Your booking link is on Hours & booking: ${link}`,
     bookingNone: "You have no booking link yet. Add it on Hours & booking.",
   },
@@ -184,7 +184,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     title: "Facts your emails can use",
     add: "Add a fact",
     foot: "Emails can only use numbers and results listed here, one per email, exactly as written.",
-    reach: "New sequences use these. Running ones keep their words.",
+    reach: "New campaigns use these. Running ones keep their words.",
     placeholder: "Something true you can back up: a result, a number, a client",
     fact: (n: number) => `Fact ${n}`,
     /** What a screen reader says of a fact's Change: which fact, since every one says the same word. */
@@ -203,7 +203,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     memory: "Also in Memory",
     paste: "Paste an email you wrote",
     note: "It also learns from what you change in its drafts. AI keeps its own voice.",
-    reach: "New sequences use this. Running ones use it for their first line.",
+    reach: "New campaigns use this. Running ones use it for their first line.",
   },
   ending: {
     title: "How your emails end",
@@ -211,7 +211,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     foot: "Then why they're hearing from you, your address, and a way to say no. The law asks for them.",
     noAddress: "No address yet, and every email needs one.",
     name: "Your name",
-    nameFrom: "From your newest sequence, until you set it here.",
+    nameFrom: "From your newest campaign, until you set it here.",
     under: "Under your name",
     underRule: `Up to ${REACH_OUT_LIMITS.signatureLines} lines, no links.`,
     phone: "Phone",
@@ -220,7 +220,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
       under: "Your name, your role, your business",
       phone: "A number people can reach you on",
     },
-    reach: "New sequences sign with this name. Signature and phone reach every email as soon as you save.",
+    reach: "New campaigns sign with this name. Signature and phone reach every email as soon as you save.",
     address: "Your address comes from Details.",
   },
   sending: {
@@ -229,7 +229,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     pace: "Pace",
     month: "This month",
     // The row is what a NEW sequence starts as; one that exists keeps its own on its page.
-    batch: "Before each batch, on new sequences",
+    batch: "Before each batch, on new campaigns",
     none: "Not connected",
     /** The page's read came back without its mailboxes: not known, which is neither connected nor not. */
     unread: "Couldn't check just now",
@@ -254,9 +254,9 @@ export const REACH_OUT_SETTINGS_WORDS = {
     connect: "Connect",
     batchAutonomy: "See this for every kind of message on Autonomy",
     batchNote:
-      "You approve a sequence's first run. After that, this is what happens each day. A sequence sends on its own only where you set that on the sequence itself.",
+      "You approve a campaign's first run. After that, this is what happens each day. A campaign sends on its own only where you set that on the campaign itself.",
     batchNew: "New words always wait for your OK, whichever you pick.",
-    batchWhich: "For new sequences. Each sequence can change its own.",
+    batchWhich: "For new campaigns. Each campaign can change its own.",
     batchAt: { veto: "Held 30 minutes so you can stop it", ask: "Waits for your OK" },
     batchDoes: {
       veto: "You're told it's ready. It goes unless you stop it.",
@@ -271,7 +271,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     /** A mailbox on a second domain, which no customer writes to, so it climbs to the most a mailbox sends. */
     each: (perDay: number) => `Each mailbox on it rises to ${perDay} a day`,
     eachLimits: `Up to ${MAILBOXES_PER_DOMAIN_MAX} mailboxes on a domain, ${MAILBOX_CONNECTIONS_MAX} in all`,
-    share: "Sequences share them out",
+    share: "Campaigns share them out",
     shareBack: "Replies still come back to your Inbox here",
     stays: (host: string, perDay: number) =>
       `Your customers write to ${host}, so this mailbox stays at ${perDay} a day, to keep their mail and bookings safe.`,
@@ -289,7 +289,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     title: "Who never hears from you",
     row: "Your customers, and anyone who said no",
     soFar: (n: number) => `${n} so far.`,
-    sheetSub: "Chanlytics checks this before every email, in every sequence.",
+    sheetSub: "Chanlytics checks this before every email, in every campaign.",
     customers: "Your customers",
     customersValue: "Always, on its own",
     saidNo: "Said no",
@@ -308,11 +308,11 @@ export const REACH_OUT_SETTINGS_WORDS = {
     open: "Open",
     kinds: { words: "The words", opening: "The line about them", reply: "An answer" },
     hints: {
-      words: "Written once by AI when you make a sequence in New: the same words for every business it goes to.",
+      words: "Written once by AI when you make a campaign in New: the same words for every business it goes to.",
       opening:
         "Written for each business as its email comes due, then read back by a second reader. One that guesses is written again; one that still does is held for you.",
       reply:
-        "Written by AI as How it answers is told, with the thread and the lead's note. Signed as the sequence signs.",
+        "Written by AI as How it answers is told, with the thread and the lead's note. Signed as the campaign signs.",
     },
     foot: "Their listing and website are read as facts, never as orders.",
     done: "Done",
@@ -327,9 +327,9 @@ export const REACH_OUT_SETTINGS_WORDS = {
     act: "Write one",
     another: "Another lead",
     rewrite: "Write another",
-    open: "Open the sequence",
-    none: "Start a sequence to see one: its first email is what this writes.",
-    noneAct: "Start a sequence",
+    open: "Open the campaign",
+    none: "Start a campaign to see one: its first email is what this writes.",
+    noneAct: "Start a campaign",
     legend: { them: "Their listing", proof: "Your facts", words: "Your pitch" },
     checked: "Checked: nothing guessed, no link, no price",
     held: (reason: string) => `Held for you: ${reason}`,

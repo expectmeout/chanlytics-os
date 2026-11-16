@@ -15,7 +15,7 @@ const CHECKING_WORDS = "WhatsApp is checking the words";
 export const NEW_WORDS = {
   title: CAMPAIGN_ROOMS.new,
   /** The head's act on Sequences, its noun said where the row has room for it. */
-  act: "New sequence",
+  act: "New campaign",
   /** A one-off built by hand, before it is named. */
   actOnce: "New message",
   say: {
@@ -38,8 +38,8 @@ export const NEW_WORDS = {
     >,
   },
   starts: {
-    noMessages: "No messages yet. AI writes the first with your sequence.",
-    kind: { sequence: "Sequence", once: "Once" } satisfies Record<NewKind, string>,
+    noMessages: "No messages yet. AI writes the first with your campaign.",
+    kind: { sequence: "Campaign", once: "Once" } satisfies Record<NewKind, string>,
     thank: "Thank people after they come in",
     thankSaid: (n: number) => `${n} this week, none thanked yet`,
     winBack: (n: number) => `Win back ${n} who’ve gone quiet`,
@@ -67,7 +67,7 @@ export const NEW_WORDS = {
     discard: "Discard",
     who: "Who and when",
     audience: { people: "To people", leads: "To leads" } satisfies Record<NewAudience, string>,
-    kind: { sequence: "A sequence", once: "Once" } satisfies Record<NewKind, string>,
+    kind: { sequence: "A campaign", once: "Once" } satisfies Record<NewKind, string>,
     toEveryone: "to everyone",
     everyoneOffers: "everyone who said yes to offers",
     everyoneNews: "everyone who said yes to messages",
@@ -271,7 +271,7 @@ export const NEW_WORDS = {
     joinsAList: "When someone joins a list",
     aList: "A list",
     aSearch: "A search on Leads",
-    hasItsSequence: "Has its sequence already",
+    hasItsSequence: "Has its campaign already",
     noneChecked: "None checked yet",
     foundNone: (n: number) => `${n} found, none checked yet`,
     leadsYouPick: "Leads you pick",
@@ -388,7 +388,7 @@ export const NEW_WORDS = {
     pace: (minutes: number) => `One email every ${minutes} minutes, in their hours`,
     hand: (n: number) => `Step ${n} is yours: on your Today`,
     oneEmail: "One email, no follow-up",
-    oneEmailDetail: "Add one any time: it becomes a sequence",
+    oneEmailDetail: "Add one any time: it becomes a campaign",
   },
   cannot: {
     nothingFits: "AI couldn’t find who and what for this. Say it another way.",
@@ -417,18 +417,18 @@ export const NEW_WORDS = {
     /** A change that rewrote a step in words that cannot be kept: the step stands as it did, with why. */
     stepStays: (place: number, reason: string) =>
       `Step ${place} stays as it was. AI’s new words for it couldn’t be kept: ${reason}.`,
-    handNotLast: "A call or a note ends a sequence, so it is the last step.",
+    handNotLast: "A call or a note ends a campaign, so it is the last step.",
     /** Ask answered with more steps than a draft holds: the first are kept, and the rest said. */
     stepsPast: (most: number) =>
       most === 1
         ? "A message sent once is one step, so the rest are left out."
-        : `A sequence holds up to ${most} steps, so the rest are left out.`,
+        : `A campaign holds up to ${most} steps, so the rest are left out.`,
     leftOut: (text: string) => `Left out: “${text}”`,
   },
   /** Nothing here can start on what the line asks (D3): the closest ways, then the line again. */
   noFit: {
     closest: "The closest AI can do:",
-    list: { lead: "When someone joins a list", sub: "Keep a list for it in People, and start a sequence on it" },
+    list: { lead: "When someone joins a list", sub: "Keep a list for it in People, and start a campaign on it" },
     once: { lead: "Once, to people you pick", sub: "One message, sent when it comes up" },
     again: "Or change the line and draft it again.",
   },

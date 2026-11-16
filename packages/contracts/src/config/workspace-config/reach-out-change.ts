@@ -124,7 +124,7 @@ export function describeReachOutChange(change: AskReachOutChange): string {
     case "set_signed_by":
       return change.name.trim()
         ? `Cold emails sign as ${change.name.trim()}`
-        : "Cold emails sign as each sequence says";
+        : "Cold emails sign as each campaign says";
     case "set_signature":
       return change.signature.trim() ? `Signature: ${quoted(change.signature)}` : "No signature";
     case "set_reply_offer":

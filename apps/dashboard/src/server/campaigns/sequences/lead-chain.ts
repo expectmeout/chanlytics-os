@@ -29,7 +29,7 @@ export async function saveLeadChainNow(
 ) {
   const [row] = await listSequenceOverview(ctx.supabase, seq.tenant_id, seq.id);
   const list = row && row.starts === "leads" ? row.first?.search_id : null;
-  if (!row || !list) throw new AppError("not_found", "Sequence not found.", 404);
+  if (!row || !list) throw new AppError("not_found", "Campaign not found.", 404);
   const { source_search_id: source, ...chain } = input;
   const saved = await saveChain(ctx, member, { ...chain, search_id: list }, seq.id, {
     unwritten: row.state === "draft",
@@ -44,7 +44,7 @@ export async function saveLeadChainNow(
 /** A sequence to leads, or not found: what try again is set on (its first step, whose id is the sequence's). */
 async function leadSequenceOf(ctx: RouteContext, seq: { id: string; tenant_id: TenantId }) {
   const [row] = await listSequenceOverview(ctx.supabase, seq.tenant_id, seq.id);
-  if (!row || row.starts !== "leads") throw new AppError("not_found", "Sequence not found.", 404);
+  if (!row || row.starts !== "leads") throw new AppError("not_found", "Campaign not found.", 404);
   return row;
 }
 

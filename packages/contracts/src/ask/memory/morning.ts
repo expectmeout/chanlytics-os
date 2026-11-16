@@ -36,7 +36,7 @@ export const ASK_MORNING_QUESTION = `${MORNING_HEAD} ${MORNING_TAIL}`;
  * changed in Ask's drafts shows a lasting habit Ask does not already remember, in any words, one card may be a line about
  * how they write, which waits for their press (act/remember.ts). A morning with nothing edited asks nothing of it.
  */
-export const ASK_MORNING_EDITED_QUESTION = `${MORNING_HEAD} I edited cold emails since yesterday: read them (the sequences tool's edited). Where what I changed in your drafts shows a lasting habit in how I write them that you don't already remember, in any words, one card may be a line to remember about it, starting "In cold emails:". ${MORNING_TAIL}`;
+export const ASK_MORNING_EDITED_QUESTION = `${MORNING_HEAD} I edited cold emails since yesterday: read them (the campaigns tool's edited). Where what I changed in your drafts shows a lasting habit in how I write them that you don't already remember, in any words, one card may be a line to remember about it, starting "In cold emails:". ${MORNING_TAIL}`;
 
 /** Whether a turn is the morning's, asked either way: a turn Ask asks itself, which holds no words of the member's. */
 export const isAskMorningQuestion = (question: string | null | undefined): boolean =>

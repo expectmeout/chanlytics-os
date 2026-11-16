@@ -472,7 +472,7 @@ function periodLines(dto: ReachOutReportDto, when: WhenWords): ReachOutLensVM["l
   return {
     written: handed ? `${plural(handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
     mailboxes: MAILBOXES_LINE,
-    empty: `No sequence to leads wrote ${withinWords(dto.days, when.until)}.`,
+    empty: `No cold email campaign wrote ${withinWords(dto.days, when.until)}.`,
     sources: SOURCES_LINE,
   };
 }
