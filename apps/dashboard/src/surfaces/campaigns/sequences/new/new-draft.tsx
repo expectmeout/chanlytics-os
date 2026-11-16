@@ -286,7 +286,7 @@ function DraftSheets(p: {
         draft={draft}
         reads={reads.who}
         onWho={(w) => {
-          change(M.setWho(draft, w));
+          change(M.setWho(draft, w, reads.channels));
           close();
         }}
         onAudience={(a) => {

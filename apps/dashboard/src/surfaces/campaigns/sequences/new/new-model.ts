@@ -462,8 +462,24 @@ export function addStep(d: NewDraftDto, does: NewStepDoes): NewDraftDto {
 export const removeStep = (d: NewDraftDto, i: number): NewDraftDto =>
   i === 0 ? d : { ...stepsNowTheOwners(d), steps: d.steps.filter((_, j) => j !== i) };
 
-/** Who and when, changed in place. */
-export const setWho = (d: NewDraftDto, who: DraftWho): NewDraftDto => ({ ...d, who, twin: null });
+/**
+ * Who it goes to, changed in place, with its ticks read again (the review of 15 Nov 2026, C6): what a channel carries
+ * depends on what the message is about, which a sequence's moment says (a booking's message is theirs, a list's the
+ * business's news, the one rule: new-checks.ts draftOpenOf), so a moment or a list changed after the message was picked
+ * kept the ticks of the old one. A tick the new one closes goes; one it opens that the old one held closed is ticked, as a
+ * message picked now would be; one open to both stays as the owner left it. `workspace`: the channels it is read over,
+ * none before they are read (the ticks then stay).
+ */
+export function setWho(d: NewDraftDto, who: DraftWho, workspace: ChannelsReady | null = null): NewDraftDto {
+  const next = { ...d, who, twin: null };
+  const first = d.steps[0]?.message;
+  if (!workspace || !first || d.audience !== "people") return next;
+  const was = draftOpenOf(d, first, workspace);
+  const now = draftOpenOf(next, first, workspace);
+  return { ...next, channels: now.filter((c) => d.channels.includes(c) || !was.includes(c)) };
+}
+
+/** When, changed in place. */
 export const setHour = (d: NewDraftDto, hour: number): NewDraftDto => ({ ...d, run_hour: hour });
 export const setAt = (d: NewDraftDto, at: string | null): NewDraftDto => ({ ...d, at });
 export const setChannels = (d: NewDraftDto, channels: readonly ConsentChannel[]): NewDraftDto => ({

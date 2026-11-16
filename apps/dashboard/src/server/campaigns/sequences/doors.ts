@@ -25,11 +25,11 @@ import {
   type SequenceDoorAnswer,
 } from "@chanlytics/db/campaigns";
 import type { Json } from "@chanlytics/db/types";
-import { checkPlaybookInput } from "@/server/campaigns/playbooks";
+import { checkPlaybookBeforeFiling, checkPlaybookInput } from "@/server/campaigns/playbooks";
 import { findVisitTwinRefusal } from "@/server/campaigns/playbook-row";
 import { removeChain } from "@/server/campaigns/reach-outs/chain-acts";
 import { requireUuid } from "@/server/shared/request-guards";
-import { templateValuePorts } from "@/server/campaigns/ports";
+import { templateValuePorts, withStandIns, type StandIns } from "@/server/campaigns/ports";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import {
   LEAD_FIRST_BODY,
@@ -69,21 +69,24 @@ const decided = (ctx: RouteContext, decision: { [key: string]: Json }) => ({
   undoOf: ctx.undoOf ?? null,
 });
 
+/** No message standing in: every message is read as the workspace holds it. */
+const NONE_STANDING_IN: StandIns = new Map();
+
 /**
  * The values a step's message takes, judged as a playbook's are (core getTemplateValues): as many as its slots, each typed
  * words or a value a run can fill. A step after the first knows no visit, no proposal and no freed time (0082) of the
- * person it reaches.
+ * person it reaches. `standIns`: messages not filed yet, read as their filing will leave them (judgeSequenceNow).
  */
 async function valuesOf(
   ctx: RouteContext,
   tenantId: TenantId,
-  templateId: string,
-  params: unknown,
+  step: { template_id: string; params: unknown },
+  standIns: StandIns = NONE_STANDING_IN,
 ): Promise<ParamSpec[]> {
-  const ports = templateValuePorts(ctx, tenantId);
+  const ports = withStandIns(templateValuePorts(ctx, tenantId), standIns);
   const { specs } = await getTemplateValues(ports, {
-    templateId,
-    params: params ?? [],
+    templateId: step.template_id,
+    params: step.params ?? [],
     visits: false,
     proposal: false,
     freed: false,
@@ -107,14 +110,22 @@ async function laterStepOf(ctx: RouteContext, seq: Sequence, stepId: string) {
 }
 
 /**
- * A new customer's sequence made whole (S4, New): its first step judged as every campaign's is (checkPlaybookInput, the
- * check POST playbooks makes: its moment offered here, its message, values, class, hour and channels), each step after it
- * against its message, then all of it written in one transaction with its decision, kept as a draft or started.
+ * A new customer's sequence judged whole, nothing written: its first step as every campaign's is (checkPlaybookInput, the
+ * check POST playbooks makes: its moment offered here, its message, values, class, hour and channels), refused where it
+ * is started on a visit moment another sequence already runs on (a draft is kept; its start meets this again), and each
+ * step after it against its message. `standIns`: messages not filed yet, read as their filing will leave them, which New
+ * judges a sequence against before it files them (drafts/sequence-new.ts): a refusal then files nothing.
  */
-export async function makeSequenceNow(ctx: RouteContext, tenantId: TenantId, input: NewSequenceBody) {
-  if (input.first.starts === "leads") return makeLeadSequenceNow(ctx, tenantId, input);
-  const result = await checkPlaybookInput(ctx, tenantId, input.first, null);
-  // Started on a visit moment another sequence already runs on: refused (a draft is kept; its start meets this again).
+export async function judgeSequenceNow(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  input: NewSequenceBody,
+  standIns: StandIns = NONE_STANDING_IN,
+) {
+  const result =
+    standIns.size > 0
+      ? await checkPlaybookBeforeFiling(ctx, tenantId, input.first, standIns)
+      : await checkPlaybookInput(ctx, tenantId, input.first, null);
   const twin = input.start ? await findVisitTwinRefusal(ctx, tenantId, { trigger: result.trigger }) : null;
   if (twin) throw new AppError("conflict", twin, 409);
   // A message step's values judged against its message; a call or a note (decision 0065) hands them over, the last step.
@@ -125,12 +136,22 @@ export async function makeSequenceNow(ctx: RouteContext, tenantId: TenantId, inp
         : {
             after_days: t.after_days,
             template_id: t.template_id,
-            params: await valuesOf(ctx, tenantId, t.template_id ?? "", t.params),
+            params: await valuesOf(ctx, tenantId, { template_id: t.template_id ?? "", params: t.params }, standIns),
             only_if: t.only_if ?? [],
             ...(t.name ? { name: t.name } : {}),
           },
     ),
   );
+  return { result, then };
+}
+
+/**
+ * A new customer's sequence made whole (S4, New): judged whole (judgeSequenceNow), then all of it written in one
+ * transaction with its decision, kept as a draft or started.
+ */
+export async function makeSequenceNow(ctx: RouteContext, tenantId: TenantId, input: NewSequenceBody) {
+  if (input.first.starts === "leads") return makeLeadSequenceNow(ctx, tenantId, input);
+  const { result, then } = await judgeSequenceNow(ctx, tenantId, input);
   return doorAnswer(
     await makeSequence(ctx.supabase, {
       tenantId,
@@ -247,7 +268,7 @@ export async function addSequenceStep(ctx: RouteContext, seq: Sequence, input: N
     ? { hand: input.hand }
     : {
         template_id: input.template_id,
-        params: await valuesOf(ctx, seq.tenant_id, input.template_id ?? "", input.params),
+        params: await valuesOf(ctx, seq.tenant_id, { template_id: input.template_id ?? "", params: input.params }),
         ...(input.channels ? { channels: input.channels } : {}),
       };
   const step = {
@@ -276,7 +297,9 @@ export async function changeSequenceStep(ctx: RouteContext, seq: Sequence, stepI
   if (input.params !== undefined && step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.valuesOnHand);
   if (input.channels && step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.channelsOnHand);
   const params =
-    input.params === undefined ? undefined : await valuesOf(ctx, seq.tenant_id, step.template_id ?? "", input.params);
+    input.params === undefined
+      ? undefined
+      : await valuesOf(ctx, seq.tenant_id, { template_id: step.template_id ?? "", params: input.params });
   const change = {
     id: step.id,
     ...(input.after_days !== undefined ? { after_days: input.after_days } : {}),
@@ -309,7 +332,7 @@ export async function changeSequenceWords(ctx: RouteContext, seq: Sequence, step
   const step = await stepOfSequence(ctx, seq, stepId);
   // A call or a note sends no message: its words are its own (the step door), never a message's.
   if (step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.valuesOnHand);
-  const params = await valuesOf(ctx, seq.tenant_id, input.template_id, input.params);
+  const params = await valuesOf(ctx, seq.tenant_id, { template_id: input.template_id, params: input.params });
   return doorAnswer(
     await setSequenceStepWords(ctx.supabase, {
       tenantId: seq.tenant_id,
