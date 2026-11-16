@@ -10,10 +10,11 @@
  * run's end starts a next term only where the start will find one to make.
  */
 
-import { LEAD_CARDS } from "@chanlytics/contracts";
+import { DAY_MS, LEAD_CARDS } from "@chanlytics/contracts";
 import { FINAL_RUN_STATES, failedRun } from "../endings";
 import { runIdFor } from "../ids";
 import { areaKey } from "../ladder";
+import type { LatLng } from "../geo";
 import type { LeadMemberRow, LeadPorts, LeadRoundRow, LeadRunRow } from "../ports";
 import { UNMEASURED_YIELD, finishedYield, mainAsk, probeYield, type TermsAsk, type TermsTried } from "../sizing";
 import { targetOf } from "./rules";
@@ -55,20 +56,58 @@ function runningYield(round: LeadRoundRow, searched: LeadMemberRow[]): number {
   return round.purpose === "widen" ? finishedYield(judged) : probeYield(judged, round.plan.contact);
 }
 
+/** How far back the workspace's searches of the same kind are read: past this, a place's listing may have moved on. */
+const LIKE_SINCE_DAYS = 90;
+/** The most of them read: the newest. */
+const LIKE_MOST = 10;
+
+/** The workspace's other searches of this round's kind (any of its terms), the newest first (decision 0133). */
+async function findSimilarSearches(leadPorts: LeadPorts, round: LeadRoundRow): Promise<string[]> {
+  const since = new Date(leadPorts.now().getTime() - LIKE_SINCE_DAYS * DAY_MS).toISOString();
+  const like = await leadPorts.db.searchesLike(round.tenant_id, round.plan.terms, since, LIKE_MOST);
+  return like.filter((id) => id !== round.search_id);
+}
+
+/**
+ * Where the places a search of this kind already holds are: this search's (`own`, its members) and the workspace's
+ * searches like it. The ladder skips an area thick with them (ladder.ts HELD_IN_AN_AREA): on 15 Nov 2026 a search's legs
+ * read Brooklyn and Manhattan again after two earlier searches had, and paid for 434 places the workspace held.
+ */
+export async function findHeldPlaces(
+  leadPorts: LeadPorts,
+  round: LeadRoundRow,
+  own: readonly LeadMemberRow[],
+): Promise<LatLng[]> {
+  const theirs = [];
+  for (const id of await findSimilarSearches(leadPorts, round))
+    theirs.push(...(await leadPorts.db.membersOfSearch(id)));
+  return [...own, ...theirs].flatMap((m) => (m.lat !== null && m.lng !== null ? [{ lat: m.lat, lng: m.lng }] : []));
+}
+
 /** A round of the search as its other rounds are read: its area and how it ended. */
 type SearchRound = Awaited<ReturnType<LeadPorts["db"]["roundsOfSearch"]>>[number];
 
-/** The search's other rounds, each with its runs, and every member the search holds. */
+/**
+ * The search's other rounds, each with its runs, and every member the search holds; and `elsewhere`, the rounds of the
+ * workspace's searches like it that read this round's own area, each with its runs.
+ */
 interface Searched {
   others: { round: SearchRound; runs: LeadRunRow[] }[];
   members: LeadMemberRow[];
+  elsewhere: { round: SearchRound; runs: LeadRunRow[] }[];
 }
 
 async function searchedOf(leadPorts: LeadPorts, round: LeadRoundRow): Promise<Searched> {
   const rounds = (await leadPorts.db.roundsOfSearch(round.search_id)).filter((r) => r.id !== round.id);
   const others: Searched["others"] = [];
   for (const other of rounds) others.push({ round: other, runs: await leadPorts.db.runsOfRound(other.id) });
-  return { others, members: await leadPorts.db.membersOfSearch(round.search_id) };
+  const here = areaKey(round.plan.area);
+  const elsewhere: Searched["elsewhere"] = [];
+  for (const id of await findSimilarSearches(leadPorts, round))
+    for (const other of await leadPorts.db.roundsOfSearch(id))
+      if (areaKey(other.plan.area) === here)
+        elsewhere.push({ round: other, runs: await leadPorts.db.runsOfRound(other.id) });
+  return { others, members: await leadPorts.db.membersOfSearch(round.search_id), elsewhere };
 }
 
 /**
@@ -86,7 +125,9 @@ function readInArea(round: LeadRoundRow, searched: Searched): Map<string, number
   const ids = new Set(sameArea.map((o) => o.round.id));
   for (const m of searched.members)
     if (m.term !== null && ids.has(m.round_id ?? "")) read.set(m.term, (read.get(m.term) ?? 0) + 1);
-  for (const other of sameArea)
+  // The workspace's searches like it that read this same area: the source answers a term there from the same top, so
+  // what their runs of a term read is read for this one too (decision 0133). Their ending says nothing of this plan's.
+  for (const other of [...sameArea, ...searched.elsewhere])
     for (const r of other.runs)
       if (r.purpose === "discover" && r.term !== null) read.set(r.term, Math.max(read.get(r.term) ?? 0, r.items_seen));
   return read;

@@ -820,7 +820,7 @@ const PLAN_FACTS = {
 
 test("the plan card's facts are the PRD's three, in leads, with no dollar meter", () => {
   assert.deepEqual(leadPlanFacts(CARD_PLAN, PLAN_FACTS), [
-    "About 40 to 80 minutes · leave the page if you like",
+    "About 72 to 144 minutes · leave the page if you like",
     // No number: the card cannot know how many of THIS search's places are already here until it has looked.
     "Anything already yours is skipped",
     "Counts only matches with a checked email · 486 left this month",

@@ -29,7 +29,7 @@ import {
   outOfTime,
   wasJudged,
 } from "./rules";
-import { wasWeighed } from "./weighed";
+import { mayCount, wasWeighed } from "./weighed";
 import { readSitesBeforeJudge, settleSiteReads, findSiteFact, siteReadsOf, type SiteReads } from "./site-reads";
 
 /* ------------------------------------------------- an answer re-judges -- */
@@ -160,7 +160,7 @@ async function rejudged(leadPorts: LeadPorts, round: LeadRoundRow, sites: SiteRe
     await markPlaces(
       leadPorts,
       sites,
-      places.filter((pl, i) => xs[i]?.m.class === "excluded" && pl.member.class !== "excluded").map((pl) => pl.place),
+      places.filter((pl, i) => xs[i]?.m.class === "excluded" && mayCount(pl.member)).map((pl) => pl.place),
       markUntil(leadPorts, false),
     );
     const res = await leadPorts.db.roundRejudge(round.id, round.plan_version, places, judgment);

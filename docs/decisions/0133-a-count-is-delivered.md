@@ -122,6 +122,27 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
 - **An exclusion's bar is said:** the judge is told an exclusion is held to the kind's bar, its read of the facts
   (`judge.ts` `judgeQuestions`), as `classify` always held it. Unsaid, it answered unknown wherever a listing did not
   say a business was not a chain.
+- **How many legs, and how a guard stops it** (00635): a search may read `lead_leg_cap` legs, one for every ten leads
+  of its count, eight at least, forty at most; a dense niche's leg adds about nine. Stopped by that cap, or by its last
+  two legs adding fewer than three, with an area still within reach, the round ends on what its area did, its nearby
+  kept, so the strip says "Found N of M in and near <area>" and offers the next area (contracts `leadEndingLine`,
+  `widened`), and the bell says how many of how many. `reach_searched`, "every area within reach was searched", is said
+  only when the ladder has no area left.
+- **The day's searching used** (00635): a leg the day cannot hold is reserved from tomorrow's day and starts at midnight
+  in the workspace's zone (`lead_rounds.starts_at`, its start job due then); the strip says it carries on tomorrow by
+  itself, with Stop. Never into the next month, whose leads the owner has not given: that stops on `day_used`, with
+  Carry on. A leg the count's estimate cannot be reserved for asks for a page's first (`lead_estimate_ceiling` of 48
+  leads and one term).
+- **Ground already held:** the ladder passes an area whose circle holds 40 places a search of its kind already holds
+  (`ladder.ts` `HELD_IN_AN_AREA`): this search's, and the workspace's searches of the same terms in the last 90 days
+  (`runner/main-ask.ts` `findHeldPlaces`, the port's `searchesLike`). A round in an area such a search read asks each
+  term past what that search's runs read (`readInArea`).
+- **A mark is read for a place that may count:** a place's own site is read for its mark only where it counts or will
+  once its address checks out (`weighed.ts` `mayCount`), or where the judge's read already brought the page; the leads
+  sweep's second try the same (`listLeadsUnmarked`).
+- **The card's time and money for a search made for email:** 0.48 minutes and 8 cents a lead, as the second real search
+  measured whole (`caps.ts` `LEAD_EMAIL_MINUTES_PER_LEAD`; the 8 cents is the price the month's caps are sized to, $40 for 500); where the month's searching covers
+  fewer leads than the count, the card says how many, in leads.
 - **The notice:** a round that carries on rings nothing; the round that ends a widened search counts every leg's leads.
 - **The platform's page:** `apps/edge/lib/leads/sources.ts` `recordPagePlatformDay`, from the leads sweep, once a day
   at 80% of `platform_day_usd`.
@@ -212,6 +233,17 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
    - About 409 of the 1,048 places it paid for were already the workspace's: the ladder passes the areas this search
      read, not those its other searches read. Not changed here.
    - Reading each place's site for its mark was $1.96 of the $7.97. Not changed here.
+
+8. **On for everyone** (16 November 2026, Ruben's word): `lead_platform.widen_on` true; every workspace that may
+   search widens. The first twenty searches are read for their time, their cents a lead, their legs and their endings.
+
+9. **What the second search found, changed** (16 November 2026, Ruben's "continue all batches"): a search's legs grow
+   with its count and a guard's stop offers the next area (eight legs held a search of 300 near 100, and said every area
+   was searched with areas left); the day's searching used waits for tomorrow instead of the owner's Carry on; the
+   ladder passes ground the workspace's like searches hold, and a round asks past what they read (434 of 1,073 places
+   paid for again); a mark is read only for a place that may count (about 300 of 391 reads); the card says a search
+   made for email's measured time, and how many leads the month's searching covers where that binds. Reading a page
+   for its mark stays the page reader's (31 Oct 2026: "we are not a website reading software").
 
 ## Tests
 

@@ -496,12 +496,14 @@ interface LeadToMark {
  * The leads found in [`from`, `until`) with a site and no copy of their mark, still untouched, the oldest first and at
  * most `limit`: what a collect's mark step, the first thing it gives up, left for the leads sweep to try again. Every
  * workspace's, on purpose: the sweep's, each tick, so its filters are those of the partial index on `found_at`
- * (leads_untouched_purge). A lead someone has already acted on waits for the next round that finds its place.
+ * (leads_untouched_purge). A lead someone has already acted on waits for the next round that finds its place. Of those,
+ * only one that counts or may: an address checking or checked, or a membership Qualified or counted. A read is a credit,
+ * and a place with no address or one left out is never worked (15 Nov 2026: about 300 of a search's 391 reads).
  */
 export async function listLeadsUnmarked(db: Db, from: Date, until: Date, limit: number): Promise<LeadToMark[]> {
   const { data, error } = await platformWide(db)
     .from("leads")
-    .select("id, tenant_id, website_host, logo_url")
+    .select("id, tenant_id, website_host, logo_url, email_state")
     .eq("stage", "ready")
     .is("contact_id", null)
     .is("contacted_at", null)
@@ -515,7 +517,20 @@ export async function listLeadsUnmarked(db: Db, from: Date, until: Date, limit: 
     .order("found_at", { ascending: true })
     .limit(limit);
   if (error) throw new DbFailure(error, "leads");
-  return (data ?? []).flatMap((r) => (r.website_host ? [{ ...r, website_host: r.website_host }] : []));
+  const rows = (data ?? []).flatMap((r) => (r.website_host ? [{ ...r, website_host: r.website_host }] : []));
+  const ids = rows.filter((r) => r.email_state !== "checking" && r.email_state !== "ok").map((r) => r.id);
+  const counting = new Set<string>();
+  if (ids.length) {
+    const members = await platformWide(db)
+      .from("lead_search_members")
+      .select("lead_id, class, counted")
+      .in("lead_id", ids);
+    if (members.error) throw new DbFailure(members.error, "lead_search_members");
+    for (const m of members.data) if (m.counted || m.class === "qualified") counting.add(m.lead_id);
+  }
+  return rows
+    .filter((r) => r.email_state === "checking" || r.email_state === "ok" || counting.has(r.id))
+    .map(({ email_state: _state, ...r }) => r);
 }
 
 /**

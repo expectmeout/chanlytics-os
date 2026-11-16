@@ -636,6 +636,7 @@
     "00631_a_lead_is_named_by_its_owner.sql": "5adfb8b80c622d2a141074d1192fce52d82491d17cd14f2eb549569c44df067e",
     "00632_a_lead_who_tries_their_preview_rings_the_bell.sql": "ed228d7f3fa582d27c8104343ad1256075ab1dae3bc99760a9d3e5f246f7f8de",
     "00633_the_database_s_own_sentences_say_today_s_words.sql": "256d3e008b6621d75bef65029d7cea68569090584990aef36b97d6cc14690faf",
-    "00634_the_database_calls_cold_email_cold_email.sql": "5fbfc4f0b6d0c81e2198767d2ce1591280b66e09d4cf905d1b73103173c982fe"
+    "00634_the_database_calls_cold_email_cold_email.sql": "5fbfc4f0b6d0c81e2198767d2ce1591280b66e09d4cf905d1b73103173c982fe",
+    "00635_a_search_reaches_its_count_or_says_why.sql": "80bdda332ec11d9972f164dc537fc72913a7b336d608cb9dbd35a17d4c013404"
   }
 }

@@ -22,6 +22,7 @@ import {
   listPlacesSuppressed,
   listRoundsOfSearch,
   listRunsOfRound,
+  listSearchesSince,
   pageSearchMembers,
   recordRoundNearby,
   recordLeadSiteReadsSpent,
@@ -37,6 +38,7 @@ import {
   asTenantId,
   type LeadRoundEnding,
   type LeadSearchPlan,
+  type TenantId,
   recordOrNull,
   shaped,
   DbFailure,
@@ -168,6 +170,26 @@ async function membersWhere(db: Db, col: "round_id" | "search_id", id: string): 
   });
 }
 
+/** The workspace's searches since `since` that ask any of `terms` (decision 0133): what a search of that kind holds. */
+async function searchesWhere(
+  db: Db,
+  tenantId: TenantId,
+  terms: readonly string[],
+  since: string,
+  limit: number,
+): Promise<string[]> {
+  const wanted = new Set(terms);
+  const rows = must<Pick<Database["public"]["Tables"]["lead_searches"]["Row"], "id" | "plan">[]>(
+    "lead_searches since",
+    await listSearchesSince(db, tenantId, since, limit),
+  );
+  const asks = (plan: unknown): boolean => {
+    const planTerms = recordOrNull(plan)?.terms;
+    return Array.isArray(planTerms) && planTerms.some((t) => typeof t === "string" && wanted.has(t));
+  };
+  return rows.filter((row) => asks(row.plan)).map((row) => row.id);
+}
+
 export function leadDb(db: Db): LeadDb {
   const { bool, json } = callsOn(db);
   return {
@@ -288,6 +310,7 @@ export function leadDb(db: Db): LeadDb {
     },
     membersOfRound: (roundId) => membersWhere(db, "round_id", roundId),
     membersOfSearch: (searchId) => membersWhere(db, "search_id", searchId),
+    searchesLike: (tenantId, terms, since, limit) => searchesWhere(db, tenantId, terms, since, limit),
     async roundsOfSearch(searchId) {
       const rows = must<
         Pick<Database["public"]["Tables"]["lead_rounds"]["Row"], "id" | "seq" | "purpose" | "plan" | "ending">[]
