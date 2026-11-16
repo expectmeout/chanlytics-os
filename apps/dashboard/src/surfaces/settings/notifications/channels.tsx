@@ -69,7 +69,7 @@ function addressChips(addresses: AlertAddress[]): ReactNode {
 
 /** One address in the editor: whose it is, and its Remove for a role that may. The last one cannot go, and says why. */
 function addressLine(a: AlertAddress, o: EmailRowProps, last: boolean): ReactNode {
-  const why = last ? "At least one address must stay — AI has to be able to reach someone" : o.locked;
+  const why = last ? "Keep at least one address, so AI can always reach someone" : o.locked;
   return (
     <li key={a.email} className="ntf-addr" data-testid="ntf-address">
       <Face initials={a.teammate ? a.initials : "@"} size="sm" />
@@ -83,7 +83,7 @@ function addressLine(a: AlertAddress, o: EmailRowProps, last: boolean): ReactNod
         <LinkButton
           aria-label={`Remove ${a.email}`}
           onClick={() => o.remove(a.email)}
-          {...(why || o.busy ? heldPress(why || "Saving — wait for this one to land.") : {})}
+          {...(why || o.busy ? heldPress(why || W.saving) : {})}
         >
           Remove
         </LinkButton>
@@ -143,7 +143,7 @@ function EmailEditor(o: EmailRowProps) {
                   key={t.email}
                   aria-label={`Email ${t.name} too`}
                   onClick={() => o.add(t.email)}
-                  {...(shut ? heldPress(o.locked || "Saving — wait for this one to land.") : {})}
+                  {...(shut ? heldPress(o.locked || W.saving) : {})}
                 >
                   + {t.name}
                 </LinkButton>
@@ -225,7 +225,7 @@ function BrowserRow({ flash }: { flash: (f: FrameFlash) => void }) {
     const next = api.alerts();
     setAlerts(next);
     if (on && !next.on)
-      flash({ tone: "warn", msg: <>Alerts are blocked in your browser&apos;s settings for this site.</> });
+      flash({ tone: "warn", msg: <>{"Alerts are blocked in your browser's settings for this site."}</> });
   };
   return (
     <RecordRow

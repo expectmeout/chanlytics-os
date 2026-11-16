@@ -1327,7 +1327,7 @@ test("F32: a config the parser refuses closes every notifications write, and say
   alertsRead(null);
   // Nothing was read, so no address: the email row is open by itself, and says nobody is emailed.
   const tree = settings("notifications");
-  const why = "This workspace's settings can't be read — Chanlytics has to repair them before anything here can change";
+  const why = "Couldn't load this workspace's settings. Chanlytics has to fix them before anything here can change.";
   const add = buttonSaying(tree, "Add");
   const box = labelled(tree, "input", ALERT_PANE_WORDS.addLabel);
   assert.equal(box.props.disabled, true, "nothing can be typed to save over the broken row");
@@ -1560,7 +1560,7 @@ test("one save at a time (review round, 0040): while one is out every other tick
     for (const id of ["ntf-email-sweep", "ntf-phone-review"]) {
       const tick = byTestId(out, id);
       assert.equal(tick.props["aria-disabled"], true, `${id} waits`);
-      assert.equal(tick.props["data-tip"], "Saving — wait for this one to land.");
+      assert.equal(tick.props["data-tip"], "Still saving the last change.");
       press(tick);
     }
     assert.equal(saved.length, 1, "the second press sent nothing");

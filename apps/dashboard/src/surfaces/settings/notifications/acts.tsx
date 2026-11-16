@@ -96,7 +96,7 @@ export function businessActs(save: SaveSection, notif: Section, flash: Flash) {
     save("address", (n) => withAddress(n, v, false), {
       msg: (
         <>
-          <b>{v}</b> removed — no more alerts to that address
+          <b>{v}</b> removed · no more alerts to that address
         </>
       ),
       undo: () =>

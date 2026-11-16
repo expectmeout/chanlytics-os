@@ -1117,7 +1117,7 @@ test("a waiting run whose day has passed is no row of Need you: nobody is asked 
   const { verbForRoute } = await import("@chanlytics/contracts");
   assert.deepEqual(
     [verbForRoute("campaigns/sequences/b-wait/runs/b-wait"), verbForRoute("broadcasts")],
-    ["Open the run", "Open Sequences"],
+    ["Open the run", "Open Campaigns"],
   );
 });
 

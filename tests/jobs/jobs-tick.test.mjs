@@ -160,7 +160,7 @@ test("a handler that throws is failed, settled as an unknown outcome and reporte
   assert.equal(calls.alert.length, 1);
   assert.equal(calls.alert[0].subject, "A message may not have been sent", "the owner's words, never the job's name");
   assert.equal(calls.alert[0].route, "inbox", "on the page the message lives on");
-  assert.match(calls.alert[0].body, /^It stopped and will not start again on its own\./, "the bell's line comes first");
+  assert.match(calls.alert[0].body, /^It stopped and won't start again on its own\./, "the bell's line comes first");
   assert.match(calls.alert[0].body, /Reference: job b \(outbound_send\): boom b\.$/, "the id and the error close it");
   assert.match(
     calls.alert[0].body,
@@ -192,7 +192,7 @@ test("a throw that says its work provably never happened is failed and settled a
   assert.deepEqual(calls.fail, [["a", reason]]);
   assert.deepEqual(calls.settle, [["a", true, why]], "nothing left, so that much is certain, and the row says why");
   assert.equal(calls.alert.length, 1, "the owner is told once, as of any job that will not run again");
-  assert.match(calls.alert[0].body, /^It stopped and will not start again on its own\./);
+  assert.match(calls.alert[0].body, /^It stopped and won't start again on its own\./);
   assert.deepEqual([counts.failed, counts.done, counts.deferred], [1, 1, 0]);
   assert.deepEqual(calls.defer, [], "and it is not kept to be tried again");
 });
@@ -277,7 +277,7 @@ test("a broadcast the ledger handed to a fresh run carries on and tells nobody; 
   ]) {
     const { ports, calls } = fakes([job("b", "broadcast_send", 1)], { throwOn: new Set(["b"]), settled });
     await runTick(ports, OPTS);
-    assert.match(calls.alert[0].body, /^It stopped and will not start again on its own\./, what);
+    assert.match(calls.alert[0].body, /^It stopped and won't start again on its own\./, what);
   }
 });
 
@@ -285,7 +285,7 @@ test("a job whose settling threw is told as neither carrying on nor not starting
   // The bell and the phone show the first line alone. Settling threw, so nobody knows whether a fresh run was handed the rest:
   // "will not start again on its own" over a body that said the outcome could not be checked was a claim with nothing behind it.
   for (const [what, attempts, first] of [
-    ["a broadcast that failed", 1, /^It stopped, and whether it carries on in a fresh run could not be checked\./],
+    ["a broadcast that failed", 1, /^It stopped\. Whether it carries on in a fresh run couldn't be checked\./],
     [
       "one that never reported back",
       MAX_ATTEMPTS,
@@ -313,7 +313,7 @@ test("a job whose settling threw is told as neither carrying on nor not starting
     settled: [{ what: "message", changed: true }],
   });
   await runTick(settled.ports, OPTS);
-  assert.match(settled.calls.alert[0].body, /^It stopped and will not start again on its own\./);
+  assert.match(settled.calls.alert[0].body, /^It stopped and won't start again on its own\./);
 });
 
 test("the last try of an intake fails it for good and tells the owner how many tries it took", async () => {
@@ -328,9 +328,9 @@ test("the last try of an intake fails it for good and tells the owner how many t
   );
   assert.match(
     calls.alert[0].body,
-    new RegExp(`^It stopped after ${MAX_ATTEMPTS} tries and will not start again on its own`),
+    new RegExp(`^It stopped after ${MAX_ATTEMPTS} tries and won't start again on its own`),
   );
-  assert.equal(calls.alert[0].subject, "An email could not be taken in");
+  assert.equal(calls.alert[0].subject, "Couldn't take in an email");
   assert.deepEqual(tally(counts), {
     claimed: 1,
     done: 0,
@@ -368,7 +368,7 @@ test("internal work not written to be run again still fails on its first throw",
     calls.fail.map(([id]) => id),
     ["a", "b"],
   );
-  assert.match(calls.alert[0].body, /^It stopped and will not start again on its own\./, "a first try says no count");
+  assert.match(calls.alert[0].body, /^It stopped and won't start again on its own\./, "a first try says no count");
   assert.equal(counts.failed, 2);
 });
 
@@ -490,7 +490,7 @@ test("a kind nobody has known for a day is failed as never run, and never record
   assert.deepEqual(calls.complete, []);
   assert.deepEqual(calls.fail, [["a", "unknown job kind made_up"]]);
   assert.deepEqual(calls.settle, [["a", true]], "nothing ran, so that much is certain");
-  assert.equal(calls.alert[0].subject, "Something in the background did not finish");
+  assert.equal(calls.alert[0].subject, "Something in the background didn't finish");
   assert.equal(calls.alert[0].route, "today", "a job with no words of its own says so on Today");
 });
 
@@ -648,7 +648,7 @@ test("a send whose run died is never run a second time", async () => {
       [calls.alert[0].kind, calls.alert[0].subject, calls.alert[0].route],
       kind === "outbound_send"
         ? ["job_failed", "A message may not have been sent", "inbox"]
-        : ["job_failed", "A run stopped partway", "campaigns/sequences"],
+        : ["job_failed", "A campaign send stopped partway", "campaigns/sequences"],
       "the one alert that IS a job not finishing says so itself, in the owner's words, on the work's own page",
     );
     assert.equal(counts.gaveUp, 1);
@@ -657,7 +657,7 @@ test("a send whose run died is never run a second time", async () => {
   await runTick(ports, OPTS);
   assert.match(
     calls.alert[0].body,
-    /may or may not have reached the customer/,
+    /Couldn't confirm it reached them/,
     "the owner is told to look before sending again",
   );
 });

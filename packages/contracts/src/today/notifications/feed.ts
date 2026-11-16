@@ -85,7 +85,7 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
       kind: "missed_call",
       at: item.startedAtMs,
       title: `${callAttemptWords(item.direction)} · ${item.who}`,
-      message: item.number ? `${item.number} — the call never connected.` : "The call never connected.",
+      message: item.number ? `${item.number} · the call never connected.` : "The call never connected.",
       to: `conversations/${item.cvId}`,
       icon: "phone",
       tone: "warn",
@@ -102,7 +102,7 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
       kind: "invite",
       at: Number.isNaN(at) ? now : at,
       title: `${expired ? "Invitation expired" : "Invitation pending"} · ${row.email}`,
-      message: expired ? "They did not accept in time. Send it again from Team." : "They have not accepted yet.",
+      message: expired ? "They didn't accept in time. Send it again from Team." : "They haven't accepted yet.",
       // Invitations live on the Team pane since Team split from Workspace;
       // the row's own button says "Team", so its door must open Team.
       to: "admin/team",
@@ -128,64 +128,64 @@ export type JobEnd = "failed" | "unfinished" | "unknown_kind";
  */
 const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
-  broadcast_send: { stopped: "A run stopped partway", to: "campaigns/sequences" },
+  broadcast_send: { stopped: "A campaign send stopped partway", to: "campaigns/sequences" },
   line_provision: { stopped: "Setting up a phone line stopped", to: "admin/integrations" },
-  email_ingest: { stopped: "An email could not be taken in", to: "inbox" },
-  lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
+  email_ingest: { stopped: "Couldn't take in an email", to: "inbox" },
+  lead_round_start: { stopped: "Couldn't start a search", to: "clients/leads" },
   lead_collect: { stopped: "A search stopped partway", to: "clients/leads" }, // not sent: jobs TOLD_ELSEWHERE (00491)
   lead_check: { stopped: "Checking a search's emails stopped", to: "clients/leads" },
-  push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" },
-  push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
+  push_send: { stopped: "An alert to your phone didn't go", to: "admin/notifications" },
+  push_receipts: { stopped: "Couldn't check that your phone got an alert", to: "admin/notifications" },
   // Read, applied or told: the job's last try did not finish one of them, and the thread is where the reply is.
-  reply_read: { stopped: "A reply from a lead could not be read or told", to: "inbox" },
+  reply_read: { stopped: "Couldn't read a lead's reply", to: "inbox" },
   // A thread's draft. Not sent (packages/jobs TOLD_ELSEWHERE): its row says it could not be written, on the thread itself.
-  reply_draft: { stopped: "A reply could not be drafted", to: "inbox" },
+  reply_draft: { stopped: "Couldn't draft a reply", to: "inbox" },
   // A booking tool's email about a visit (docs/plans/2026-10-07-bookings-arrive-by-email.md): the board is where the
   // visit would be, and Settings › Business where the notices are counted.
-  booking_read: { stopped: "A booking emailed by your booking tool could not be read", to: "calendar" },
+  booking_read: { stopped: "Couldn't read a booking your booking tool emailed", to: "calendar" },
   // A fact's delivery to a subscriber (00334). Not sent (packages/jobs TOLD_ELSEWHERE): a subscriber that fails is the
   // platform's fault, nothing an owner can act on, and the operator is paged instead (PAGES_THE_PLATFORM); these are
   // the words should it ever be, and its door opens Activity, where the fact is.
-  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/activity" },
+  event_deliver: { stopped: "Couldn't pass a change on", to: "admin/activity" },
   // A text the door kept and the receptionist could not answer. Not sent (packages/jobs TOLD_ELSEWHERE): the deadman
   // sweep flags the thread and tells the owner with the customer's words, so these are the words should it ever be.
-  inbound_answer: { stopped: "A text could not be answered", to: "inbox" },
+  inbound_answer: { stopped: "Couldn't answer a text", to: "inbox" },
   history_import: { stopped: "Bringing your history in stopped partway", to: "admin/integrations" },
-  website_read: { stopped: "Your website could not be read", to: "admin/receptionist" },
-  preview_build: { stopped: "A lead's preview could not be made", to: "clients/leads" },
-  erasure_finish: { stopped: "Erasing a person stopped partway: delete them again", to: "clients" },
+  website_read: { stopped: "Couldn't read your website", to: "admin/receptionist" },
+  preview_build: { stopped: "Couldn't make a lead's preview", to: "clients/leads" },
+  erasure_finish: { stopped: "Deleting a person stopped partway. Delete them again", to: "clients" },
   // A file's look. Not sent (packages/jobs TOLD_ELSEWHERE): its row says it could not be read, on the page that holds it.
-  file_look: { stopped: "A photo could not be looked at", to: CONTENT_LIBRARY_ROUTE },
+  file_look: { stopped: "Couldn't look at a photo", to: CONTENT_LIBRARY_ROUTE },
   // Not sent: Inbox simply holds what came, and nothing an owner did is waiting on it.
-  file_fetch: { stopped: "Photos from your website could not all be brought in", to: CONTENT_LIBRARY_ROUTE },
+  file_fetch: { stopped: "Couldn't bring in every photo from your website", to: CONTENT_LIBRARY_ROUTE },
   // Not sent: the Library's card says the read stopped, from the ledger's line, where the owner pasted the link.
-  instagram_read: { stopped: "Your Instagram could not be read", to: CONTENT_LIBRARY_ROUTE },
+  instagram_read: { stopped: "Couldn't read your Instagram", to: CONTENT_LIBRARY_ROUTE },
   // Not sent: a removed file already looks gone, and nothing is the owner's to do. Health counts it.
-  file_purge: { stopped: "A removed photo could not be let go", to: CONTENT_LIBRARY_ROUTE },
+  file_purge: { stopped: "Couldn't finish removing a photo", to: CONTENT_LIBRARY_ROUTE },
   // A video's digest. Not sent (packages/jobs TOLD_ELSEWHERE): its tile says what it has, and the sweep tries the step again.
-  video_digest: { stopped: "A video could not be made ready", to: CONTENT_LIBRARY_ROUTE },
+  video_digest: { stopped: "Couldn't get a video ready", to: CONTENT_LIBRARY_ROUTE },
   // A post on its way to Instagram (00611): Content's Needs you holds it, and its piece says why, under the post.
-  post_prepare: { stopped: "A post could not go on Instagram", to: CONTENT_NEEDS_ROUTE },
-  post_publish: { stopped: "A post could not go on Instagram", to: CONTENT_NEEDS_ROUTE },
-  post_reconcile: { stopped: "Instagram did not say whether a post went up", to: CONTENT_NEEDS_ROUTE },
+  post_prepare: { stopped: "Couldn't post to Instagram", to: CONTENT_NEEDS_ROUTE },
+  post_publish: { stopped: "Couldn't post to Instagram", to: CONTENT_NEEDS_ROUTE },
+  post_reconcile: { stopped: "Instagram didn't say whether a post went up", to: CONTENT_NEEDS_ROUTE },
   // A video being made (00613). Its own failures say why on the bell (contracts PIECE_WORDS.failed); this is the ledger's
   // word for one that ended with nothing known.
-  piece_make: { stopped: "A video could not be made", to: CONTENT_ROUTE },
+  piece_make: { stopped: "Couldn't make a video", to: CONTENT_ROUTE },
   // A post on its way to Google at its time (00616): Content's Needs you holds it, and its piece says why.
-  post_google: { stopped: "A post could not go on Google", to: CONTENT_NEEDS_ROUTE },
+  post_google: { stopped: "Couldn't post to Google", to: CONTENT_NEEDS_ROUTE },
   // A workspace's hourly work (00569). Not sent (kinds.ts: the platform's to mend), and the next hour tries again.
-  campaign_moments: { stopped: "A campaign could not run this hour", to: "today" },
-  reach_out_steps: { stopped: "A reach-out could not run this hour", to: "today" },
-  calendar_read: { stopped: "Your calendar could not be read this hour", to: "today" },
-  google_read: { stopped: "Your Google listing could not be read this hour", to: "today" },
-  texts_read: { stopped: "Texts that arrived while we were away could not be checked just now", to: "inbox" },
+  campaign_moments: { stopped: "Couldn't run a campaign this hour", to: "today" },
+  reach_out_steps: { stopped: "Couldn't run cold email this hour", to: "today" },
+  calendar_read: { stopped: "Couldn't read your calendar this hour", to: "today" },
+  google_read: { stopped: "Couldn't read your Google listing this hour", to: "today" },
+  texts_read: { stopped: "Couldn't check the texts that came in while Chanlytics was away", to: "inbox" },
   // A workspace's occasions (00598). Not sent (kinds.ts: the platform's to mend), and the next minute tries again.
-  sequence_occasions: { stopped: "A message due to one person could not be made", to: "today" },
-  canary: { stopped: "The background work's own check did not finish", to: "today" },
+  sequence_occasions: { stopped: "Couldn't prepare a message for one person", to: "today" },
+  canary: { stopped: "The background work's own check didn't finish", to: "today" },
 };
 
 /** A job this runner has no words for: said as what it is, on the page that says what happened today. */
-const JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
+const JOB_WORK_OTHER = { stopped: "Something in the background didn't finish", to: "today" };
 
 /**
  * A job's news: its title, the one line under it, and its door. The job's id and kind are for whoever reads the
@@ -209,13 +209,13 @@ export function jobNewsWords(
   const lead =
     end === "unfinished"
       ? jobKind === "outbound_send"
-        ? "It started and never reported back, so it may or may not have reached the customer. Check the conversation before sending it again."
+        ? "Couldn't confirm it reached them. Check the conversation before sending it again."
         : `It started and never reported back, so how it ended is unknown${resumed ? ", and the rest carries on in a fresh run" : ""}.`
       : end === "unknown_kind"
-        ? "Nothing ran: this is work the app does not know how to do."
+        ? "Nothing ran. The app doesn't know how to do this work."
         : resumed === null
-          ? `It stopped${tries}, and whether it carries on in a fresh run could not be checked.`
-          : `It stopped${tries} and ${resumed ? "carries on in a fresh run" : "will not start again on its own"}.`;
+          ? `It stopped${tries}. Whether it carries on in a fresh run couldn't be checked.`
+          : `It stopped${tries} and ${resumed ? "carries on in a fresh run" : "won't start again on its own"}.`;
   return { title: item.stopped, lead, to: item.to };
 }
 
@@ -284,9 +284,9 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   /** A JOB that did not finish, and nothing else. See JobNewsKind. */
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   /** A broadcast that ran to completion: good news, on the page it happened on. */
-  broadcast_sent: { icon: "check", tone: "ok", action: "Open Sequences", to: "campaigns/sequences" },
+  broadcast_sent: { icon: "check", tone: "ok", action: "Open Campaigns", to: "campaigns/sequences" },
   /** A broadcast that did not go out, or stopped partway. */
-  broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Sequences", to: "campaigns/sequences" },
+  broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Campaigns", to: "campaigns/sequences" },
   /**
    * A run waits for the owner's word, or a reach-out holds an email for their call: a decision, so a warning, as the topic
    * says it ("needs you", ALERT_TOPICS playbook), never good news sorted below the warnings. Once the run is settled the
@@ -309,7 +309,7 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   /** A note a teammate left for you on a person (0007): its row names them and opens their page, where the note is. */
   note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
   /** A business wrote back to a reach-out: its row names the thread, where the reply and what was read are. */
-  reach_out_replied: { icon: "mail", tone: "", action: "Open the thread", to: "inbox", own: true },
+  reach_out_replied: { icon: "mail", tone: "", action: "Open the conversation", to: "inbox", own: true },
   /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Campaigns, at its Reach-outs. */
   reach_out_day: { icon: "mail", tone: "", action: "Open Campaigns", to: REACH_OUT_DAY_ROUTE },
   /** A customer asked to stop: news, not a warning (STOP_WORDS.tone is plain), on their page, where the answer is kept. */
@@ -397,7 +397,7 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^broadcasts\/to-send$/, "Open To send"],
   [/^broadcasts\/get-yes/, "Open Get their yes"],
   // Sent's list went to each sequence's History (decision 0060, D3): its address, and a row kept before, land on Sequences.
-  [/^broadcasts/, "Open Sequences"],
+  [/^broadcasts/, "Open Campaigns"],
   // The route is still `messages`; the page is Messages (a room of Campaigns), and the door says the page's name.
   [/^messages/, "Open Messages"],
   [/^calendar/, "Open Calendar"],
