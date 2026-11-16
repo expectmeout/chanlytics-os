@@ -210,7 +210,7 @@ test(
     assert.match(unknown.error.message, /Message not found/);
     const reach = await save(owner, { p_name: "reach_out_0123456789abcdef" });
     assert.equal(reach.error?.code, "22023");
-    assert.match(reach.error.message, /edited in the reach-out/);
+    assert.match(reach.error.message, /edited in its cold email/);
     await seedTemplate({
       tenant_id: B,
       channel: "whatsapp",
@@ -615,7 +615,7 @@ test(
     };
     await say({ p_name: "" }, "P0002", /Message not found/);
     await say({ p_name: "x".repeat(61) }, "22023", /name is at most 60/);
-    await say({ p_name: "reach_out_0123456789abcdef" }, "22023", /edited in the reach-out/);
+    await say({ p_name: "reach_out_0123456789abcdef" }, "22023", /edited in its cold email/);
     await say({ p_channel: "whatsapp" }, "22023", /email or text/);
     await say({ p_channel: "voice" }, "22023", /email or text/);
     await say({ p_language: "english" }, "22023", /language/);
