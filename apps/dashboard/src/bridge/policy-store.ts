@@ -282,7 +282,9 @@ export function installPolicyStore(win: PolicyWindow, held: () => PoliciesSurfac
   // Not read yet is no modes, as a failed read is (the header above).
   const surface = (): PoliciesSurface | null => held() ?? null;
   const store = {
-    MODES: UI_MODES as readonly string[],
+    get MODES(): readonly string[] {
+      return UI_MODES;
+    },
     // Contracts' words: what a mode does is the same fact whatever rows are behind it.
     WORDS: UI_MODE_WORDS,
     get ROWS(): unknown[] {

@@ -168,7 +168,7 @@ export function seededDeals(): SeededDeal[] | null {
   return d && Array.isArray(d.PIPELINE_DEALS) ? d.PIPELINE_DEALS : null;
 }
 
-/** The demo's agent registry: a name to its id (`CHANLY.agentIdFor`), and to its row. */
+/** The demo's agent registry: a name to its id (`CHANLY.agentIdFor`). */
 export function agentIdFor(name: string): string {
   const c = object<{ agentIdFor?: (n: string) => string }>("CHANLY");
   return c && c.agentIdFor
@@ -176,36 +176,4 @@ export function agentIdFor(name: string): string {
     : String(name || "")
         .toLowerCase()
         .replace(/\s+/g, "-");
-}
-
-/** The demo's agent by name, for its voice. */
-export function agentByName(name: string): { tone?: string } | null {
-  const c = object<{ agentByName?: (n: string) => { tone?: string } | null }>("CHANLY");
-  return c && c.agentByName ? c.agentByName(name) : null;
-}
-
-/** A policy row (`POLICY.row`) as the rail reads it. */
-export interface PolicyRow {
-  id: string;
-  chip: string;
-  locked?: boolean;
-  note?: string;
-}
-
-/** The workspace policy the rail edits directly (`POLICY`): its rows, modes and setter. */
-export function policy():
-  | {
-      MODES: readonly string[];
-      row: (id: string) => PolicyRow | null;
-      modeOf: (id: string) => string | null;
-      set: (id: string, mode: string) => void;
-    }
-  | undefined {
-  const p = object<{
-    MODES: readonly string[];
-    row: (id: string) => PolicyRow | null;
-    modeOf: (id: string) => string | null;
-    set: (id: string, mode: string) => void;
-  }>("POLICY");
-  return p;
 }
