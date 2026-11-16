@@ -17,7 +17,9 @@ import {
   addressOf,
   exampleParams,
   handTitleOf,
+  inChatPurposeOfMessage,
   parseParamSpecs,
+  replyInChatOf,
   stepApprovalOf,
   stepAsOffer,
   type HandKind,
@@ -35,34 +37,39 @@ import { MessagePreview, mpParts } from "../parts/message-preview";
 
 /**
  * The offered message a step sends, and whether the messages are read at all: a step's message is gone only once the
- * settings read has answered and holds none of it, never while it is still being read.
+ * settings read has answered and holds none of it, never while it is still being read. And whether the workspace's
+ * reply in the open chat is on (decision 0135, contracts replyInChatOf), off until the read says so.
  */
 export function useStepMessageRead(
   name: string | null,
   language: string | null,
-): { message: CmOffered | null; read: boolean } {
+): { message: CmOffered | null; read: boolean; repliesInChat: boolean } {
   const settings = useSurface("settings");
   const offered = useMemo(() => cmOfferedFrom(settings), [settings]);
   return {
     message: name && offered ? cmOfferedBy(offered, name, language ?? "en_US") : null,
     read: Array.isArray(offered),
+    repliesInChat: replyInChatOf(settings?.settings?.config),
   };
 }
 
 /**
  * Whether a step's message is an offer though its sequence's moment is not, and whose word that is (contracts
  * stepAsOffer): the class a sequence runs under is its first step's, and every step after carries it. Its box and its
- * sheet then name no channel an offer never goes by, and say who gets it.
+ * sheet then name no channel an offer never goes by, and say who gets it. Where the workspace's reply in the open chat
+ * is on (`repliesInChat`) and the message is one it applies to (contracts inChatPurposeOfMessage), they say who gets it
+ * there as a reply, and who gets it otherwise.
  */
-export const stepOfferOf = (
+export function stepOfferOf(
   rec: SequenceRecordDto,
   step: SequenceStepDto,
-  message: CmOffered | null,
-): StepOffer | null =>
-  stepAsOffer(
-    { kind: step.kind, hand: step.hand, policy_class: rec.sequence.first?.policy_class ?? null },
-    message?.message ?? null,
-  );
+  read: { message: CmOffered | null; repliesInChat: boolean },
+): StepOffer | null {
+  const policyClass = rec.sequence.first?.policy_class ?? null;
+  const message = read.message?.message ?? null;
+  const inChat = read.repliesInChat && inChatPurposeOfMessage(policyClass, message) !== null;
+  return stepAsOffer({ kind: step.kind, hand: step.hand, policy_class: policyClass }, message, inChat);
+}
 
 /** The business's name as a message fills it: an example's words say it. */
 function useBusinessName(): string {

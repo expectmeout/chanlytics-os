@@ -69,6 +69,14 @@ export const SCHEDULE_WORDS = {
     own: "This message is an offer",
     who: "only people who said yes to offers get it",
     never: "and never by text",
+    /**
+     * Where the workspace's reply in the open chat is on (decision 0135, `in_chat`): who gets it there, then who gets it
+     * otherwise, its box short and its sheet in full (Ruben approved the words, 16 Nov 2026).
+     */
+    inChat: "A reply on WhatsApp if they wrote in the last 24 hours",
+    inChatFull:
+      "If they wrote on WhatsApp in the 24 hours before it goes, it goes there as a reply, to anyone who said yes to messages.",
+    otherwise: "Otherwise",
   },
   /** Start's Change: how a customer's sequence runs (the loop review's item 7), changed through the campaign's own verb. */
   settings: {
@@ -251,9 +259,10 @@ export function scheduleEnd(
 
 /**
  * Whose word makes a step's message an offer where its moment is not one: WhatsApp's, where the message has a WhatsApp
- * version (its kind is the one WhatsApp filed it as), else its own versions'.
+ * version (its kind is the one WhatsApp filed it as), else its own versions'. `in_chat`: WhatsApp's, in a workspace whose
+ * reply in the open chat is on (decision 0135), where the step goes there first as a reply and as the offer otherwise.
  */
-export type StepOffer = "whatsapp" | "own";
+export type StepOffer = "whatsapp" | "own" | "in_chat";
 
 /**
  * A step's message as far as stepAsOffer reads it: its kind, and whether it has a WhatsApp version. Said here rather than
@@ -269,16 +278,32 @@ interface StepMessage {
  * what its moment is, is a task for a person, or has no message in view. A run enrols by the stricter of the two
  * (playbooks/purpose.ts enrolPurpose), so such a step reaches only a yes to offers and never goes by text, and its
  * page must say so: the ready-made booking follow-up, filed with WhatsApp as a notice and approved as an offer, went
- * on saying "WhatsApp, else text, else email" with nothing under it (15 Nov 2026).
+ * on saying "WhatsApp, else text, else email" with nothing under it (15 Nov 2026). `inChat`: the step replies in the open
+ * chat (playbooks/in-chat.ts: the workspace's switch on, and inChatPurposeOfMessage of the message), said by the page.
  */
 export function stepAsOffer(
   step: Pick<SequenceStepDto, "kind" | "hand"> & { policy_class?: string | null },
   message: StepMessage | null,
+  inChat: boolean,
 ): StepOffer | null {
   if (!message || step.hand || step.kind !== "moment") return null;
   if (purposeOfPlaybook(step.policy_class) === "marketing") return null;
   if (enrolPurpose(step.policy_class, { category: message.category }) !== "marketing") return null;
-  return message.versions.whatsapp ? "whatsapp" : "own";
+  if (!message.versions.whatsapp) return "own";
+  return inChat ? "in_chat" : "whatsapp";
+}
+
+/** A step's offer as its box says it, short, when nothing else is said: whose word, or where it replies, then who gets it. */
+function offerLine(offer: StepOffer): string {
+  const words = SCHEDULE_WORDS.asOffer;
+  return offer === "in_chat" ? `${words.inChat} · else ${words.who}` : `${words[offer]} · ${words.who}`;
+}
+
+/** The same, in full, as the sheet's By row says it after the channels: an offer never goes by text. */
+function offerSentence(offer: StepOffer): string {
+  const words = SCHEDULE_WORDS.asOffer;
+  const asOffer = (kind: "whatsapp" | "own") => `${words[kind]}, so ${words.who}, ${words.never}.`;
+  return offer === "in_chat" ? `${words.inChatFull} ${words.otherwise} ${asOffer("whatsapp")}` : asOffer(offer);
 }
 
 /** The channels a step names that its message may ever go by: all of them, but text for an offer (channelNeverCarries). */
@@ -401,10 +426,7 @@ export function scheduleStepState(row: SequenceRowDto, step: SequenceStepDto, ct
   if (next) return next;
   const line = scheduleInLine(ctx.people, step.place);
   // Nothing coming to say: where its message is an offer though its moment is not, who gets it, quietly.
-  if (!line)
-    return ctx.offer
-      ? { tone: "next", words: `${SCHEDULE_WORDS.asOffer[ctx.offer]} · ${SCHEDULE_WORDS.asOffer.who}` }
-      : null;
+  if (!line) return ctx.offer ? { tone: "next", words: offerLine(ctx.offer) } : null;
   // Someone whose wait is over waits on the step itself (a step that could not reach them keeps them due): due now.
   const first = line.first ? Date.parse(line.first) : null;
   const day =
@@ -451,9 +473,7 @@ export function scheduleStepFacts(
         : "Email, from your connected mailboxes"
       : sequenceChannelsWords(carriedBy(step.channels, ctx.offer));
   // An offer under a moment that is not one says so here whatever its box is saying: whose word, who gets it, never by text.
-  const asOfferWords = SCHEDULE_WORDS.asOffer;
-  const offer =
-    ctx.offer && !step.hand ? `${asOfferWords[ctx.offer]}, so ${asOfferWords.who}, ${asOfferWords.never}.` : null;
+  const offer = ctx.offer && !step.hand ? offerSentence(ctx.offer) : null;
   if (by || offer)
     facts.push({ label: factWords.by, value: [by ? (offer ? `${by}.` : by) : null, offer].filter(Boolean).join(" ") });
   // What it is doing now, without the offer's line its box falls back on: the By row above has said it, once.
