@@ -4,12 +4,13 @@
  * A person the run reached in their open WhatsApp chat is marked on their row (`in_chat`, contracts IN_CHAT_FACT). At the
  * send their chat is asked again, at the moment it goes, from their thread's own clock: still open, the reply goes as the
  * message's words with its values filled, naming no saved message, under the moment's own yes (to messages); closed by
- * then, nothing goes in the chat, and the row says why (`chat_closed`). A person not marked goes as every send does.
+ * then, nothing goes in it (decision 0135, its sixth rule as amended 16 Nov 2026), and the row says why (`chat_closed`). A
+ * person not marked goes as every send does.
  * Over fakes that log their calls, as the batch's own tests (core messages/broadcast/batch.ts sendBroadcastBatch).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { HELD_REASONS } from "@chanlytics/contracts";
+import { finishedRunHeldWhy, HELD_REASONS, HELD_WHEN_COUNTED } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 
 const { sendBroadcastBatch } = await importSrc("packages/core/src/messages/broadcast/batch.ts");
@@ -115,7 +116,12 @@ test("a chat closed by the time it goes gets nothing in it, and the row says why
   assert.equal(f.of("deliver").length, 0);
   const marks = f.of("mark").map(([, , , patch]) => patch);
   assert.deepEqual(marks, [{ state: "skipped", reason: "chat_closed" }]);
-  assert.equal(HELD_REASONS.chat_closed, "their WhatsApp chat had closed");
+  // Said as the app says the 24 hours everywhere (contracts window-words.ts), with no "chat": docs/words.md's word for one is
+  // conversation (Ruben approved the line, 16 Nov 2026).
+  assert.equal(HELD_REASONS.chat_closed, "more than 24 hours since they last wrote on WhatsApp");
+  assert.ok(HELD_WHEN_COUNTED.includes("chat_closed"), "a finished run's notice names it where anyone was held for it");
+  assert.match(finishedRunHeldWhy(["chat_closed"]), /more than 24 hours since they last wrote on WhatsApp/);
+  assert.doesNotMatch(finishedRunHeldWhy([]), /24 hours/, "and only then");
 });
 
 test("a person not marked for the chat goes as every send does: the saved message, judged as an offer", async () => {

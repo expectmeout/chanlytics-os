@@ -167,11 +167,12 @@ function StepPre({ step, message, gone }: { step: SequenceStepDto; message: CmOf
 /** A step on its day: one box, the whole of it the press that opens its sheet. */
 function StepRow({ rec, step, day, ctx, onOpen }: StepRowProps) {
   const customer = step.kind === "moment" && !step.hand;
-  const { message, read } = useStepMessageRead(customer ? step.template_name : null, step.template_language);
+  const stepRead = useStepMessageRead(customer ? step.template_name : null, step.template_language);
+  const { message, read } = stepRead;
   // A customer's message is gone only once the messages are read and hold none of it, never while they are read.
   const gone = customer && read && !message;
   // An offer under a moment that is not one (a ready-made follow-up WhatsApp filed as an offer): no text, and who gets it.
-  const offer = customer ? stepOfferOf(rec, step, message) : null;
+  const offer = customer ? stepOfferOf(rec, step, stepRead) : null;
   const state = scheduleStepState(rec.sequence, step, { ...ctx, gone, offer });
   const done = state?.tone === "done";
   const by = stepBy(step, offer);

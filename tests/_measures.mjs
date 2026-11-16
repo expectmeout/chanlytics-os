@@ -820,7 +820,6 @@ export const SOURCE_SCAN_EXEMPT = [
   "repo/env-manifest.test.mjs",
   "repo/event-kinds.test.mjs",
   "repo/hygiene.test.mjs",
-  "repo/mockup-harness.test.mjs",
   "repo/ops-hygiene.test.mjs",
   "routes/workspace-scoping.test.mjs",
 ];

@@ -112,8 +112,8 @@ card outside a declared demo session) and `surface-runner.ts` (when each surface
 single-page shell of hand-written JSX, imported in a fixed order by `src/bridge/manifest.ts` and talking through
 `window` globals; its surfaces were made real one at a time by _branching inside the existing components_, never by
 redesigning them, and then each left for TSX in the order decision 0015 gives, the frame after them. The
-stylesheets are in `src/styles`, and the standalone mockup (`Chanlytics.html`) and its stand-ins for what the bridge
-publishes are in `apps/dashboard/mockup`. The `window-globals` and `window-publishers` measures count what remains and may only fall (`docs/debt.md`). The unbuilt surfaces (agent
+stylesheets are in `src/styles`; the standalone mockup that drew the shell without Next went with demo mode (15 Nov
+2026). The `window-globals` and `window-publishers` measures count what remains and may only fall (`docs/debt.md`). The unbuilt surfaces (agent
 fleet, store, studio, tasks, content) are parked by decision: each address draws that card, in a demo session too; the
 shared report viewer opens only in a demo session, and the retired deal board's address lands on People. The mockup's
 own prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.

@@ -1,9 +1,10 @@
 /**
  * The Inbox's rules, said once (moved from pages/inbox.jsx and pages/thread-pane.jsx, decision 0015, step 3): what waits
- * on you, the bucket a thread sits in, the order a bucket stands in, a draft's own key in the veto store, and the
- * thread a route names. The pages read them, and so does needs-you.ts for the parts it says apart (through `ixWaiting`):
- * the Inbox's band and head, and Ask's Right now, so no two of them can say different numbers (the badge's one count is
- * Today's rows above To do, 0048 amended 2 Nov 2026); the standalone mockup gets `ixWaitsOnYou` from mockup-globals.ts.
+ * on you, the bucket a thread sits in, the order a bucket stands in, a draft's own key in the veto store, and the thread a
+ * route names. The pages read them, and so does needs-you.ts for the parts it says apart (through `ixWaiting`): the
+ * Inbox's band, and Ask's Right now. The number Needs you says is the badge's one count, Today's rows above To do
+ * (0048, amended 2 Nov and 15 Nov 2026), and what its list holds is the Inbox page's own (pages/needs-you-list.ts), which
+ * every page need not load; the standalone mockup gets `ixWaitsOnYou` from mockup-globals.ts.
  */
 import {
   HOUR_MS,
@@ -154,16 +155,22 @@ export const ixOnPhone = (): boolean => !!(window.matchMedia && window.matchMedi
 interface IxOpeningAt {
   /** The bucket the member had (the Inbox's place, place.ts ixPlace), which comes back with a refresh. */
   had: unknown;
-  /** Whether a campaign run waits for your say (needs-you.ts waitingRunsNow): a row of Needs you. */
-  runsWaiting: boolean;
+  /**
+   * Whether the one count holds anything, or a campaign run waits for your say (needs-you.ts needsYouWaitsNow): a row of
+   * Needs you, a search's question or a run among them.
+   */
+  waiting: boolean;
+  /** The conversations Needs you folds at its foot, by id, where Today has been read: never the one it opens on. */
+  older?: ReadonlySet<string>;
   toSendOpen?: boolean;
 }
 
-// The bucket a thread is IN, never the state it holds: one whose own reply is on its way out is in Needs you. A campaign
-// run waiting for your say is a row of Needs you too (inbox-runs.tsx): with one, Needs you is where the Inbox opens, as the
-// badge over it says. It opened on Handled, and the run waited unseen under a tab that said no number.
-export const ixFirstBucket = (list: Thread[], runsWaiting: boolean): string => {
-  if (runsWaiting) return "escalated";
+// The bucket a thread is IN, never the state it holds: one whose own reply is on its way out is in Needs you. Anything the
+// one count holds is a row of Needs you too (a campaign run, a search's question, inbox-runs.tsx): with one, Needs you is
+// where the Inbox opens, as the badge over it says. It opened on Handled, and the run waited unseen under a tab that said
+// no number.
+export const ixFirstBucket = (list: Thread[], waiting: boolean): string => {
+  if (waiting) return "escalated";
   for (const s of ["escalated", "needs", "waiting", "snoozed", "done"]) {
     if (list.some((x) => ixBucketOf(x) === s)) return s;
   }
@@ -184,7 +191,7 @@ export const ixOpeningBucket = (threads: Thread[], initialThreadId: string | nul
     if (own === "out") return kept ?? "done";
     return kept && (kept === "all" || own === kept) ? kept : (own ?? "");
   }
-  return kept ?? ixFirstBucket(threads, at.runsWaiting);
+  return kept ?? ixFirstBucket(threads, at.waiting);
 };
 
 /**
@@ -199,8 +206,10 @@ export function ixOpeningThread(
 ): Thread | undefined {
   if (initialThreadId) return threads.find((t) => t.id === initialThreadId);
   const bucket = ixOpeningBucket(threads, null, at);
+  // Never one folded at Needs you's foot: the page opens it only when it is asked for (pages/needs-you-list.ts).
+  const folded = (t: Thread) => bucket === "escalated" && t.real && !!at.older?.has(t.conversationId);
   return threads
-    .filter((t) => bucket === "all" || ixBucketOf(t) === bucket)
+    .filter((t) => (bucket === "all" || ixBucketOf(t) === bucket) && !folded(t))
     .sort((a, b) => ixRank(a) - ixRank(b))
     .at(0);
 }

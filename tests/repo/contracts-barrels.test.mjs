@@ -227,8 +227,8 @@ const everySource = repoFiles(["apps", "packages"], {
   drop: /(^|\/)(dist|node_modules|\.next)\/|^apps\/[^/]+\/public\//,
 }).filter((f) => f.startsWith("apps/") || /^packages\/[^/]+\/src\//.test(f));
 
-test("the measure sees every package's and app's source, the shell and the phone app included", () => {
-  for (const tree of ["apps/dashboard/mockup/", "apps/dashboard/app/", "apps/edge/api/", "apps/mobile/"])
+test("the measure sees every package's and app's source, the phone app included", () => {
+  for (const tree of ["apps/dashboard/src/", "apps/dashboard/app/", "apps/edge/api/", "apps/mobile/"])
     assert.ok(
       everySource.some((f) => f.startsWith(tree)),
       `${tree} is read`,

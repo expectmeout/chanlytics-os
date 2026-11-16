@@ -684,6 +684,184 @@ test("the bulk snooze's Undo says they are back in the Inbox -- a snooze lets go
   }
 });
 
+/* ---- one number: the badge, the phone's tab and Needs you's tab, drawn from the same rows (docs/words.md, 15 Nov 2026) ---- */
+
+/**
+ * A salon on the real clock, since the count and the Inbox both judge a wait by Date.now() (needs-you.ts, rules.ts): Rosa
+ * asked for a person an hour and a half ago; Olga asked ten days ago; Sam is snoozed, and his WhatsApp window shuts in four
+ * hours; a hold whose conversation neither read holds; a lead search asking its question; a campaign run waiting for an OK.
+ */
+const HOUR = 60;
+const DAY_MIN = 24 * HOUR;
+const nowConv = (id, name, wroteMin, over = {}) => {
+  const at = realAgo(wroteMin);
+  return conv(id, name, {
+    last_wa_inbound_at: at.created_at,
+    last_message_at: at.created_at,
+    last_inbound_at: at.created_at,
+    messages: [{ ...wrote(`m-${id}`, "Can I move my appointment?", 0), ...at, channel: "whatsapp" }],
+    ...over,
+  });
+};
+const nowHold = (id, min) => ({ ...asked(id, 0), created_at: realAgo(min).created_at });
+const ONE_NUMBER = () => ({
+  rosa: [nowConv("n1", "Rosa Díaz", 90), nowHold("n1", 85)],
+  olga: [nowConv("n2", "Olga Reyes", 10 * DAY_MIN), nowHold("n2", 10 * DAY_MIN - 5)],
+  sam: [
+    nowConv("n3", "Sam Lee", 20 * HOUR, {
+      state: "snoozed",
+      snooze_until: new Date(Date.now() + DAY_MIN * 60_000).toISOString(),
+    }),
+    null,
+  ],
+  // A hold whose conversation the Inbox's read does not hold: Today names it as it can, and counts it.
+  gone: nowHold("n9", 30),
+});
+/** A lead search stopped to ask its owner (GET lead-searches' shape, its latest round waiting), two hours ago. */
+const askingSearch = async () => {
+  const { PLAN } = await import("../../_lead-fixtures.mjs");
+  return {
+    id: "s1",
+    name: "Dentists in Austin",
+    asked: PLAN.asked,
+    asked_on: realAgo(3 * HOUR).created_at,
+    plan: PLAN,
+    plan_version: 1,
+    round: {
+      id: "rd1",
+      seq: 1,
+      purpose: "find",
+      state: "waiting_on_owner",
+      ending: null,
+      question: { sentence: "Most of the first 25 are chain clinics. Include them?", criterion_key: "chains" },
+      target: 20,
+      counted: 25,
+      qualified: 12,
+      review: 3,
+      excluded: 0,
+      emails_checked: 0,
+      with_phone: 9,
+      ending_pending: false,
+      waiting_since: realAgo(2 * HOUR).created_at,
+      cost_usd: 1.2,
+      ended_at: null,
+      undo_op_id: null,
+      undo_version: null,
+      nearby: [],
+    },
+  };
+};
+/** Today's read over these, on the real clock, with the searches it read. */
+const todayNow = (pairs, holds, searches) =>
+  toTodayVM(
+    wireMetrics,
+    pairs.map(([dto]) => dto),
+    holds,
+    [],
+    new Date(),
+    searches,
+  );
+const vmNow = ([dto, esc]) => toInboxThreadVM(dto, esc, ZONE, new Date());
+
+test("one number: Needs you's tab says the badge's number, and its list holds exactly what that number counts -- whoever waited past a week folded at its foot, uncounted", async () => {
+  const w = ONE_NUMBER();
+  const holds = [w.rosa, w.olga]
+    .map(([dto, esc]) => ({ ...esc, conversation_id: dto.id }))
+    .concat({ ...w.gone, conversation_id: "n9" });
+  setSurfaceValue("today", todayNow([w.rosa, w.olga, w.sam], holds, [await askingSearch()]));
+  setSurfaceValue("broadcasts", { rows: [waitingRun()] });
+  const [rosaNow, olgaNow, samNow] = [w.rosa, w.olga, w.sam].map(vmNow);
+  try {
+    const { seen } = page([rosaNow, olgaNow, samNow, answered]);
+    const chip = (id) => seen.list.buckets.find((b) => b.id === id)?.count;
+    assert.equal(
+      needsYouNow(),
+      5,
+      "Rosa, Sam whose window shuts, the hold nobody could read, the search's question and the run; never Olga",
+    );
+    assert.equal(
+      chip("escalated"),
+      needsYouNow(),
+      "REGRESSION: Needs you's tab said 1 under a badge of 2, and 40 under a badge of 26",
+    );
+    assert.equal(seen.list.activeBucket, "escalated");
+    // The list under the tab: the conversations it holds, the rows of what it does not (the hold it could not read, the
+    // search's question), and the run.
+    assert.deepEqual(
+      seen.list.threads.map((t) => t.who),
+      ["Rosa Díaz", "Sam Lee"],
+      "Sam's window shuts in four hours: the count holds him, so Needs you does, snoozed as he is",
+    );
+    assert.deepEqual(
+      seen.list.needsYou.rows.map((r) => r.who),
+      ["Unknown", "Dentists in Austin"],
+      "REGRESSION: the search waiting for an answer was counted by the badge and drawn nowhere in the Inbox",
+    );
+    assert.equal(
+      seen.list.threads.length + seen.list.needsYou.rows.length + 1,
+      chip("escalated"),
+      "every row under the tab is one it counts, the run among them, and nothing it counts is missing",
+    );
+    assert.deepEqual(
+      seen.list.needsYou.older.map((t) => t.who),
+      ["Olga Reyes"],
+      "REGRESSION: Olga, ten days on, was in the tab's number and none of Today's",
+    );
+    assert.equal(chip("snoozed"), 1, "Sam is still in Snoozed, where his snooze puts him");
+
+    // Drawn: the search is a row with its one door, the week-old wait one folded row, opened in place.
+    fresh();
+    const draw = () => again(() => InboxList({ ...seen.list }));
+    let tree = draw();
+    const search = all(tree, (n) => n.props?.testid === "queue-search");
+    assert.equal(search.length, 1, "the search's question is a row of Needs you, as on Today");
+    assert.equal(search[0].props.cta.label, "Answer");
+    const fold = all(tree, (n) => n.props?.testid === "inbox-older-row");
+    assert.equal(fold.length, 1, "one row folds whoever waited past a week");
+    assert.equal(fold[0].props.name, "1 waiting over a week", "in Today's words for them");
+    const option = (who) => find(tree, (n) => n.props?.role === "option" && textOf(n).includes(who));
+    assert.equal(option("Olga Reyes"), null, "folded: her conversation is not drawn until it is opened");
+    assert.equal(
+      textOf(byTestId(option("Sam Lee"), "thread-todo") ?? ""),
+      "Reply soon",
+      "a row Needs you holds by the count says why, as Today's row does",
+    );
+    fold[0].props.onOpen();
+    tree = draw();
+    assert.ok(option("Olga Reyes"), "opened in place: her conversation's own row, under the fold");
+    assert.equal(
+      find(tree, (n) => n.props?.role === "listbox" && n.props?.["aria-label"] === "Waiting over a week") !== null,
+      true,
+      "in a list of its own, named for a screen reader",
+    );
+  } finally {
+    setSurfaceValue("today", undefined);
+    setSurfaceValue("broadcasts", undefined);
+  }
+});
+
+test("one number: a search waiting for its answer, alone, opens the Inbox on Needs you, as the badge over it says", async () => {
+  const place = {};
+  const had = globalThis.window.__tabMemory;
+  globalThis.window.__tabMemory = {
+    place: () => place,
+    keepPlace: (_p, _k, v) => Object.assign(place, v),
+    draft: () => null,
+    keepDraft() {},
+    dropDraft() {},
+  };
+  setSurfaceValue("today", todayNow([], [], [await askingSearch()]));
+  try {
+    const { seen } = page([answered]);
+    assert.equal(needsYouNow(), 1);
+    assert.equal(seen.list.activeBucket, "escalated", "REGRESSION: it opened on Handled, under a badge of one");
+    assert.equal(seen.list.buckets.find((b) => b.id === "escalated").count, 1);
+  } finally {
+    setSurfaceValue("today", undefined);
+    globalThis.window.__tabMemory = had;
+  }
+});
+
 /* --------------------------------- the list --------------------------------- */
 
 test("each row says whose it is -- nothing more where the bucket already says Needs you, 'You have it', 'Ana García has it' -- and asks something of you only where the wait is on you", () => {

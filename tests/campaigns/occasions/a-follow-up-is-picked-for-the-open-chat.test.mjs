@@ -9,7 +9,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelsReady, inChatPurposeOf, numberHealth, replyInChatOf, toPersonRowVM } from "@chanlytics/contracts";
+import {
+  channelsReady,
+  inChatPurposeOf,
+  inChatPurposeOfMessage,
+  numberHealth,
+  replyInChatOf,
+  toPersonRowVM,
+} from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 
 const { runPlaybook } = await importSrc("packages/core/src/campaigns/run-playbook.ts");
@@ -30,6 +37,20 @@ test("only a step about their own request whose message WhatsApp approved as an 
   assert.equal(inChatPurposeOf("campaign", offer), null);
   assert.equal(inChatPurposeOf("follow_up", { ...offer, category: "utility" }), null, "a notice goes as it always did");
   assert.equal(inChatPurposeOf("follow_up", { ...offer, whatsappApproved: false }), null, "no approved words to send");
+});
+
+test("asked of a saved message as it stands, where its WhatsApp version is approved and whole, and nowhere else", () => {
+  const ok = { id: "v", status: "approved", hidden: false, blocked: null, reason: null };
+  const of = (whatsapp, category = "marketing") => ({ category, versions: { whatsapp, email: null, sms: null } });
+  assert.equal(inChatPurposeOfMessage("follow_up", of(ok)), "conversational");
+  assert.equal(
+    inChatPurposeOfMessage("follow_up", of({ ...ok, status: "pending" })),
+    null,
+    "WhatsApp is still checking",
+  );
+  assert.equal(inChatPurposeOfMessage("follow_up", of(null)), null, "no WhatsApp version");
+  assert.equal(inChatPurposeOfMessage("follow_up", null), null, "no message in view");
+  assert.equal(inChatPurposeOfMessage("reengage", of(ok)), null);
 });
 
 test("the switch is the workspace's, off unless its config says true", () => {

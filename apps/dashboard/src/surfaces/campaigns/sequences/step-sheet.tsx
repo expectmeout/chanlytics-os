@@ -264,7 +264,7 @@ function SheetBody(p: {
   step: SequenceStepDto | null;
   ctx: StepsCtx;
   flash: Flash;
-  message: { message: CmOffered | null; read: boolean };
+  message: ReturnType<typeof useStepMessageRead>;
   onPick: (does: NewStepDoes) => void;
   onEdit: () => void;
   onDone: () => void;
@@ -321,7 +321,7 @@ function SheetBody(p: {
         step={face.step}
         ctx={p.ctx}
         gone={sendsMessage(face.step) && p.message.read && !p.message.message}
-        offer={sendsMessage(face.step) ? stepOfferOf(rec, face.step, p.message.message) : null}
+        offer={sendsMessage(face.step) ? stepOfferOf(rec, face.step, p.message) : null}
       />
     </div>
   );

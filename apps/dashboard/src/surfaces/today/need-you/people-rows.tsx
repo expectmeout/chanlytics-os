@@ -9,26 +9,15 @@
  * for the visit; every other row is drawn short and opens itself with its verb.
  */
 import type { ReactElement } from "react";
-import {
-  NEED_YOU_WORDS as W,
-  NOTE_WORDS,
-  answerWithinMsOf,
-  namesAPerson,
-  needYouVerbOf,
-  needYouWaitOf,
-  type AppointmentWord,
-  type TodayQueueRowVM,
-} from "@chanlytics/contracts";
+import { NOTE_WORDS, needYouVerbOf, type AppointmentWord, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { Icon } from "../../kit/icon/icon";
-import { businessTrailFor } from "../../people/business-trail";
-import { surfaceValue } from "../../surface-values";
 import type { Nav } from "../../waits/wait-rows";
 import { gate, type Flash } from "../shell";
 import { useDraft } from "./drafts";
 import { draftWantOf, opensToWork, shortLabel, workOf, worksInPlace } from "./rows";
+import { doorRow, rowWords } from "./sheet/row-words";
 import { stepNoteOf } from "./step-note";
-import { needYouLineOf, reviewStars } from "./sheet/row-line";
 
 /** What the section hands its rows. */
 export interface NeedYouRowsCtx {
@@ -70,19 +59,6 @@ export interface NeedYouRowsCtx {
 const actKindOf = (r: { id: string }, c: NeedYouRowsCtx): "primary" | "ghost" =>
   r.id === c.coral ? "primary" : "ghost";
 
-/** The glyph of the wire a row came by, before what they want: the kit's Icon by the words a row shows. */
-const VIA_GLYPH: Record<TodayQueueRowVM["channel"], string> = {
-  WhatsApp: "chat",
-  Text: "chat",
-  Phone: "phone",
-  Email: "mail",
-  Instagram: "instagram",
-  Leads: "search",
-  "Next step": "check",
-  Calendar: "calendar",
-  Google: "star",
-};
-
 /**
  * A row's verb as a short row draws it: Ask's mark first where its words for the row are ready (a reply drafted, a call's
  * notes), then the verb. Drawn, since it hears the row's draft as it lands.
@@ -97,54 +73,6 @@ function VerbWords({ row, words }: { row: TodayQueueRowVM; words: string }) {
       {words}
     </>
   );
-}
-
-/**
- * The business's own target for answering people (Settings › Autonomy, "Answer people within"), from the settings read
- * the page borrows: a wait past it is the amber. A day until that read lands, as before an owner could set it.
- */
-function answerWithin(): number {
-  const reply = surfaceValue("settings")?.policies?.rows.find((r) => r.class === "reply");
-  return answerWithinMsOf(reply?.limits);
-}
-
-/** How long, or a review's stars where a wait would stand. */
-function waitOf(row: TodayQueueRowVM) {
-  if (row.kind === "review") {
-    const rating = row.review?.rating;
-    return { words: [row.channel, rating ? reviewStars(rating) : ""].filter(Boolean).join(" · "), long: false };
-  }
-  return needYouWaitOf(row, W.held.goesAlone, answerWithin());
-}
-
-/**
- * What a row says whatever it asks: who or what, the wire for a screen reader, how long, what it is about (contracts
- * needYouLineOf, which says a to-do by its job). Someone waiting on you says no state line: how long is beside the name, and
- * why it was handed over is said beside it once the row is open (row.why), never behind a mark nobody could read (the 10/10
- * read, 2 Nov 2026). A search waiting for your OK keeps its line, as the runs beside it do ("nothing is spent while it
- * waits").
- */
-export function rowWords(row: TodayQueueRowVM) {
-  const face = namesAPerson(row) ? { person: { name: row.who, initials: row.initials } } : { initials: row.initials };
-  const verb = needYouVerbOf(row);
-  const waits = verb === "reply" || verb === "call";
-  const line = needYouLineOf(row);
-  return {
-    ...face,
-    name: line.name,
-    trail: namesAPerson(row) && row.kind !== "step" ? businessTrailFor(row.person_id) : null,
-    // No glyph is drawn (his call D2, 9 Nov 2026): a screen reader still hears the wire.
-    via: { glyph: VIA_GLYPH[row.channel], words: [row.channel, row.via].filter(Boolean).join(", ") },
-    wait: waitOf(row),
-    sentence: line.sentence,
-    saidTone: line.tone,
-    quoted: line.quoted,
-    lead: row.lead,
-    status: waits ? [] : row.status,
-    note: "",
-    tone: row.tone,
-    testid: `queue-${row.kind}`,
-  };
 }
 
 /**
@@ -182,21 +110,11 @@ function shortRow(r: TodayQueueRowVM, c: NeedYouRowsCtx): ReactElement {
 export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx): ReactElement[] {
   const phone = c.phone ?? null;
   return rows.map((r) => {
+    // A row of no work of its own keeps its one door: a call worth a listen, a search's question, a lead who tried.
+    if (!worksInPlace(r)) return doorRow(r, c.nav);
     const verb = needYouVerbOf(r);
     const waits = verb === "reply" || verb === "call";
     const common = rowWords(r);
-    // A row of no work of its own keeps its one door: a call worth a listen, a search's question, a lead who tried.
-    if (!worksInPlace(r)) {
-      return (
-        <AttnRow
-          key={r.id}
-          {...common}
-          cta={{ label: r.cta.label, kind: "ghost", onClick: () => c.nav(r.cta.to) }}
-          also={null}
-          onOpen={() => c.nav(r.cta.to)}
-        />
-      );
-    }
     const kept = c.kept.has(r.id);
     // Short until opened: a row that opens to be worked and is not the focus, nor acted on this visit.
     if (opensToWork(r) && r.id !== c.focus && !kept) return shortRow(r, c);

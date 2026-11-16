@@ -1,22 +1,19 @@
 /**
- * The records the local harness shows a signed-in spec, and the one place each is spelled.
+ * The records the local harness answers a spec's reads from, and the one place each is spelled.
  *
- * The server answers the spec's own `/api/v1/settings` read from a scenario, and the page's fixture publishes the
- * tab's globals from the SAME scenario object (the server injects it into the bundle), so the spec and the page
- * cannot disagree the way two hand-built copies would.
- *
- * Settings left the standalone mockup (decision 0015 step 11; Ruben, 4 Oct 2026), so no record is drawn as the Business
- * tab any more: the nightly and the salon survive as the data the pipeline and the kit are built on, and as the
- * workspaces the mockup's other pages are drawn for (the style-equality recorder's).
+ * The server answers a spec's own `/api/v1` reads from a scenario, and the node suite draws the app's pages over the
+ * same object (e2e-harness-campaigns.test.mjs), so a spec and a page cannot disagree the way two hand-built copies
+ * would. Only the kit and ask records draw a page of the harness's own; the standalone mockup the others were drawn in
+ * went with demo mode (15 Nov 2026), and the nightly and the salon survive as the data the others are built on.
  *
  *   nightly -- the seeded `chanlytics-e2e` workspace, DERIVED from tooling/scripts/ops/e2e-workspace.mjs rather than
  *              copied: the WHOLE config that converge writes (its notifications included, so what the read hands
  *              over is what the nightly's row holds), the line it provisions and the clock it sets. When the seed
  *              changes, this changes with it, which is the whole reason it imports rather than restates. No profile
  *              at all: every list is empty and every fold opens on nothing.
- *   pipeline -- a studio that sends proposals (deals on, 0008) with People REAL over it: eight people across the
- *              Pipeline's four groups, in people_list's row shape and the person read's own, so e2e/people/people.spec.ts's
- *              Pipeline walk runs here -- the list, the peek, the person's page. Fictional, as the salon is.
+ *   pipeline -- a studio that sends proposals (deals on, 0008): eight people across the Pipeline's four groups, in
+ *              people_list's row shape and the person read's own, which the server answers People's reads from.
+ *              Fictional, as the salon is.
  *   salon    -- a fuller record, for the branches the nightly's data cannot reach: a week of hours, closures AT the
  *              cap, services, and one language short of the cap so a single Add fills it (the Business tab's folds,
  *              which were drawn here, are the app's own now). A FICTIONAL business: this
@@ -26,7 +23,7 @@
  *              three people who wrote by email. For the Library and the composers a workspace with no number draws, which
  *              the nightly's line hides. DERIVED from the nightly's record and from the starter registry, as they are.
  *   kit      -- no workspace of its own: the nightly's record, whose page is the kit's gallery
- *              (e2e-harness/kit-gallery.mjs) instead of the mockup, for e2e/kit/kit.spec.ts and for a person reviewing
+ *              (e2e-harness/kit-gallery.mjs), for e2e/kit/kit.spec.ts and for a person reviewing
  *              the kit. Never served in production (decision 7).
  *
  * Every cap comes from contracts (`PROFILE_LIMITS`, `MAX_CLOSURES`), so a cap that moves moves the record with it.
@@ -50,7 +47,7 @@ import { NAME, SLUG, TIMEZONE, workspaceChannel, workspaceConfig } from "../ops/
 
 /** The workspace the harness signs into. The id is the harness's own: nothing here reaches a database. */
 export const WORKSPACE = { id: "t-e2e", slug: SLUG, name: NAME };
-/** Who the harness signs in as: the server's session, the runner's address and the fixture's __ME are this one. */
+/** Who the harness signs in as: the server's session and the runner's address are this one. */
 export const OWNER = { id: "u-e2e-owner", name: "E2E Owner", email: "e2e-owner@example.com" };
 
 export const SCENARIOS = ["nightly", "salon", "pipeline", "email-only", "kit", "ask"];
