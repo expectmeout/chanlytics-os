@@ -12,7 +12,7 @@
  */
 import type { BusinessProfile } from "../config/workspace-config/business-profile";
 import { PROFILE_LIMITS } from "../config/workspace-config/config-rules";
-import { entryOf, keysOf } from "../shared/unknown";
+import { keysOf } from "../shared/unknown";
 import { PREVIEW_FACT_NAMES } from "./tried";
 
 /** What a business teaches its preview: how the sender's line files it, its note's title, how many and how long. */
