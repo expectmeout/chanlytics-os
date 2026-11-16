@@ -97,7 +97,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
   card: "the day's card",
   look: "Worth a look",
   list: "the list",
-  thread: "a thread opened",
+  thread: "a conversation opened",
   call: "a call opened",
   table: "the table",
   board: "the board",
@@ -449,7 +449,7 @@ export function pageSpeedWords(
     deferredSentence: DEFERRED_SAID,
     deferred: [],
   };
-  if (speed === null) return { sentence: "Where the pages' time goes could not be read just now.", ...none };
+  if (speed === null) return { sentence: "Where the pages' time goes couldn't be read just now.", ...none };
   const at = indexOf(speed.rows);
   const named = [...new Set(speed.rows.map((r) => r.page).filter((p): p is string => p !== null))];
   const pages = named

@@ -34,7 +34,7 @@ export const TRY_IT_WORDS = {
   rows: { readAs: "Read it as", sure: "How sure", leaned: "Leaned on", reason: "Its reason", then: "Then" },
   noFacts: "Nothing it was given",
   full: `That's ${TRY_IT_MAX_EXCHANGES} messages. Start over to try another conversation.`,
-  failed: "It could not answer just now. Nothing was sent; try again in a moment.",
+  failed: "It couldn't answer just now. Nothing was sent; try again in a moment.",
   notLive: "Try it answers on the live app only: this one asks no model.",
   noPersona: "There is nothing for it to answer from yet: fill in Details first.",
 } as const;

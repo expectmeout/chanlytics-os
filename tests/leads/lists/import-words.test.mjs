@@ -188,7 +188,7 @@ test("a list's strip: its check while it runs, what checked out once it ends; a 
       state: "ended",
       alert: false,
       title: "130 of 140 on your list are ready",
-      parts: ["10 could not be confirmed and wait in Needs review"],
+      parts: ["10 couldn't be confirmed and wait in Needs review"],
       progress: null,
       actions: [{ id: "review", label: "10 need a look", arg: "review", pile: true }],
     },

@@ -1697,7 +1697,7 @@ test("a save of the name says what the sign-up page and sign say now, and where 
   answering({ kept: null, refused: true });
   const kept = rename("Marisa's Salon & Spa");
   assert.equal(kept.tone, "warn");
-  assert.match(textOf(kept.msg), /could not be renamed/);
+  assert.match(textOf(kept.msg), /couldn't be renamed/);
 
   // A save that renamed nothing says what every row says.
   answering(null);

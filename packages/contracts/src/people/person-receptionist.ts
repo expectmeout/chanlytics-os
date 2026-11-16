@@ -122,9 +122,9 @@ const HELD_THREAD: Record<ThreadHolder, { tone: ReceptionistTone; label: string;
   },
   someone: {
     tone: "paused",
-    label: "Paused, a person owns the thread",
-    title: "Paused, a person owns this thread",
-    detail: "A person owns this thread; automatic replies resume when it is handed back.",
+    label: "Paused, a person owns the conversation",
+    title: "Paused, a person owns this conversation",
+    detail: "A person owns this conversation; automatic replies resume when it is handed back.",
   },
 };
 

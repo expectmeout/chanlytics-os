@@ -269,7 +269,7 @@ async function fetchForSignup(win: Window): Promise<InHand | Refused> {
     return {
       ok: false,
       reason: "sdk",
-      message: "Meta's sign-up window could not be loaded. Check that the browser allows facebook.com.",
+      message: "Meta's sign-up window couldn't be loaded. Check that the browser allows facebook.com.",
     };
   }
 }

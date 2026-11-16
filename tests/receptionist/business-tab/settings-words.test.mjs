@@ -133,7 +133,7 @@ test("REGRESSION (S8): a broken configuration is said once, the same on Setup an
   const vm = setupSteps(empty({ business: { ...empty().business, broken: true } }), NOW);
   const f = row(vm, "facts");
   assert.equal(f.sentence, W.clause);
-  assert.match(f.sentence, /could not be read/);
+  assert.match(f.sentence, /couldn't be read/);
   assert.match(f.sentence, /Chanlytics/, "who repairs it");
   assert.ok(
     !/repair them before anything else|Open Workspace/.test(JSON.stringify(f)),

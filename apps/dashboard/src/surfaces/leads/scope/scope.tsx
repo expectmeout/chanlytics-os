@@ -13,10 +13,9 @@ import { Icon } from "../../kit/icon/icon";
 import { PeopleListsSheet } from "../../people/rail/lists-sheet";
 import { PL_TABLE_CLASSES } from "../../people/words";
 import { PeopleRail } from "../../people/rail/people-rail";
-import { LeadsStandingRow, PeopleStanding } from "../../people/rail/standing";
+import { PeopleStanding } from "../../people/rail/standing";
 import { DataTable } from "../../kit/table/data-table";
 import type { TableSection } from "../../kit/table/groups";
-import { LeadBand } from "../bench/band";
 import { LeadsBackToday } from "../pile/back-today";
 import { LeadReviewBench } from "../bench/bench";
 import { LeadExcludedChips, LeadReviewGroups, ldExcludedChips } from "../bench/chips";
@@ -27,7 +26,6 @@ import { LeadsFirstDay } from "../finder/first-day";
 import { planPickTitle } from "../finder/plan-card";
 import { LeadPlanPanel } from "../finder/plan-panel";
 import { jobBack } from "../../people/sheets/phone-sheet";
-import { LeadStrip } from "../finder/strip-view";
 import { LeadMap } from "../map/map";
 import { LeadPeekActions } from "../peek/acts";
 import { LeadLightbox } from "../peek/lightbox";
@@ -43,6 +41,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { LeadsRailRows } from "./rail";
 import { ldReviewSections } from "./review";
 import { RowsLand } from "./rows-land";
+import { addsAloneOf, phoneStandingOf, searchHeadOf } from "./search-head";
 
 type P = LeadsScopeProps;
 /** The rail's own pick is People's: under Leads it draws the rows it is handed, and picks nothing itself. */
@@ -260,11 +259,6 @@ const listHeadOf = (p: P) => (
   </div>
 );
 
-const bandOf = (p: P) =>
-  p.band ? (
-    <LeadBand band={p.band} cls={p.view.cls} onPick={p.onPickClass} fit={p.fit} onPickFit={p.onPickFit} />
-  ) : null;
-
 /**
  * The first day: the question, the door to Ask (Find leads is Ask on this surface, spec F1) and the ideas, each a ready
  * plan the plan sheet opens (00398); and the door for a list the owner already has, which is the rail's on every other
@@ -475,10 +469,6 @@ const backTodayOf = (p: P) => (!p.search && !p.firstDay && !p.surface.readFailed
 /** While a lead's sheet is open beside the rows, a row's hover card would say again what the sheet says (leads.css). */
 const sheetMarkOf = (p: P) => (p.peek || p.pileSheet ? "" : undefined);
 
-/** A phone's count on a line under the bar, as People's: the bar names the list alone. */
-const phoneStandingOf = (p: P, phone: boolean) =>
-  phone && !p.firstDay && !p.newSearch ? <LeadsStandingRow leads={p.standing} onNeeds={p.onNeedsYou} /> : null;
-
 /** What a running search found, taken in by itself under a reader at the top with no lead open (rows-land.tsx). */
 const rowsLandOf = (p: P) => (
   <RowsLand
@@ -514,16 +504,9 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
             {!search && !phone && !p.firstDay && !L.readFailed ? listHeadOf(p) : null}
             {backTodayOf(p)}
 
-            {/* One line for the open search: what happened, its three piles as the tabs that open them, and the one next step.
-            The band rides inside the strip; with no strip to hold it, it stands alone as it did. */}
-            {search && p.strip ? (
-              <LeadStrip vm={p.strip} onAction={p.onStripAction}>
-                {bandOf(p)}
-              </LeadStrip>
-            ) : null}
-            {search && !p.strip && p.band && bandOf(p)}
+            {searchHeadOf(p)}
             {p.pileDoor}
-            {p.addsGoTo}
+            {addsAloneOf(p)}
             {p.view.cls === "excluded" && (
               <LeadExcludedChips
                 chips={ldExcludedChips(L.rows, L.viewCounts ? L.viewCounts.excluded_by : null)}

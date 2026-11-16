@@ -136,7 +136,7 @@ export const ASK_MEMORY_WORDS = {
   addHint: "One fact about your business, in a sentence or two: who your best customers are, how you like things done.",
   keptByYou: "kept by you",
   reading: "Reading what AI remembers…",
-  unread: "What AI remembers could not be read just now.",
+  unread: "What AI remembers couldn't be read just now.",
   retry: "Try again",
   forgotten: (text: string) => `Forgotten: ${text}`,
   changed: "Changed",

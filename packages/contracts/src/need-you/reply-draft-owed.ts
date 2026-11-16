@@ -66,7 +66,7 @@ export const DRAFT_USED_WORDS = {
   facts: "your facts",
   hours: "your hours",
   link: "your booking link",
-  thread: "the thread",
+  thread: "the conversation",
   notes: "your notes on them",
 } as const;
 

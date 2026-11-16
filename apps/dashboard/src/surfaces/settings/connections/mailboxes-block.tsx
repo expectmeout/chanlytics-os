@@ -149,7 +149,7 @@ function mailboxQuestions(m: MailboxConnectionDto, fix: string | null, ctx: RowC
       {armed("remove") && (
         <Confirm
           question={`Remove ${m.address}?`}
-          detail="Nothing more leaves from it and its replies are no longer read here; what it sent stays in its threads, and a business it was writing to hears nothing more from that chain."
+          detail="Nothing more leaves from it and its replies are no longer read here; what it sent stays in its conversations, and a business it was writing to hears nothing more from that chain."
           yes="Yes, remove"
           danger
           busy={busy === m.id}

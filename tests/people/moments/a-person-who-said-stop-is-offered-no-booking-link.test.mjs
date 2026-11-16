@@ -165,7 +165,7 @@ test("a person who texted STOP or is on do-not-contact: the People row's action 
       assert.equal(
         action.ready,
         false,
-        `${wire}, ${stop}: was ready, and carried the link to a thread that sends nothing`,
+        `${wire}, ${stop}: was ready, and carried the link to a conversation that sends nothing`,
       );
       assert.equal(action.offered, false, `${wire}, ${stop}: a page does not draw the act`);
       assert.equal(action.title, optOutWords("Ana Reyes"), `${wire}, ${stop}: the reason`);
@@ -209,7 +209,7 @@ test("the Calendar's block carries the same action as the row, for every wire an
   const texts = blockOf(row(WIRES["a text"])).block.person.bookingLinkAction;
   assert.deepEqual(
     [texts.label, texts.ready, texts.title],
-    ["Text the booking link", true, "Opens the thread with the link ready to send as a text"],
+    ["Text the booking link", true, "Opens the conversation with the link ready to send as a text"],
     "someone who texts: the panel said 'Send the link' and that only an approved message reaches them",
   );
   const mails = blockOf(row(WIRES["an email"])).block.person.bookingLinkAction;
@@ -234,7 +234,7 @@ test("the Calendar's block carries the same action as the row, for every wire an
   assert.deepEqual(
     [shut.label, shut.ready, shut.offered],
     ["Send the booking link", false, true],
-    "the thread offers the approved message",
+    "the conversation offers the approved message",
   );
 });
 
@@ -321,7 +321,7 @@ test("the person's page asks the same function: the same action, and no booking 
   assert.deepEqual([fine.bookingLinkAction.label, fine.bookingLinkAction.ready], ["Text the booking link", true]);
   const act = fine.acts.find((a) => a.id === "booking");
   assert.ok(act, "someone who may be reached is offered it");
-  assert.equal(act.hint, "Opens their thread with it ready to send as a text");
+  assert.equal(act.hint, "Opens their conversation with it ready to send as a text");
 });
 
 /* ------------------------------ the Calendar's visit sheet ------------------------------ */
@@ -375,7 +375,7 @@ test("the Calendar's visit sheet leads with the booking link by the person's own
   assert.deepEqual([texting.primary?.act, texting.shut], ["link", null]);
   const shut = sheetOf(row(WIRES["WhatsApp, its window shut"]));
   assert.equal(shut.primary?.act, "link");
-  assert.ok(shut.shut, "a shut window says so: the thread offers the approved message");
+  assert.ok(shut.shut, "a shut window says so: the conversation offers the approved message");
 });
 
 const { PL_COLUMNS } = await import("../../../apps/dashboard/src/surfaces/people/cells/columns.tsx");

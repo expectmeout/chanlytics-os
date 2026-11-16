@@ -327,7 +327,7 @@ test("the send is one rule -- a conversation, no stop, free text on their wire -
   );
   assert.equal(
     DEAL_SEND_WHY.window,
-    "Their WhatsApp window has closed. Record it now, and send it from their thread when they write next.",
+    "Their WhatsApp window has closed. Record it now, and send it from their conversation when they write next.",
   );
   const s = dealSheetFor("propose", shut, NOW, ZONE);
   assert.deepEqual([s.draft.send, s.save.withSend], [false, null], "off where it cannot go, and Save says Record");
@@ -499,7 +499,7 @@ test("what the sheet opened with is what 'changed' is judged by, the words follo
   });
   assert.deepEqual(dealSheetRefusal(DEAL_REFUSALS.bad_link), { field: "link", words: DEAL_REFUSALS.bad_link });
   assert.deepEqual(dealSheetRefusal(DEAL_REFUSALS.moved), { field: null, words: DEAL_REFUSALS.moved });
-  assert.deepEqual(dealSheetRefusal(""), { field: null, words: "Could not record this." });
+  assert.deepEqual(dealSheetRefusal(""), { field: null, words: "Couldn't record this." });
   assert.equal(proposalFollowUp(LINK), `Just checking the proposal reached you. Here it is again: ${LINK}`);
 });
 
@@ -572,7 +572,7 @@ test("the card's one next act follows the stage: the proposal's link, its send, 
   });
   assert.equal(
     DEAL_ACT_HINTS.approved,
-    "Only an approved message reaches them until they write again; their thread offers those",
+    "Only an approved message reaches them until they write again; their conversation offers those",
   );
   // On its way (a send still in the seconds it can be undone): the yes, and no second send.
   const sending = person({ deals: [dealDto()], messages: [msg("m1", 3 * H), sentMsg(0, { status: "queued" })] });

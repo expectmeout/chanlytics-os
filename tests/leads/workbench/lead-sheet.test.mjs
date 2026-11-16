@@ -252,7 +252,11 @@ test("where they stand, the same words in every window: what needs you by its wo
   const seq = { name: "Bookstore intro", state: "on" };
   const word = (group, row = {}, named = true, s = seq) =>
     placeWordOf({ group, place: 1, at: null, why: null, ...row }, s, clock, named);
-  assert.deepEqual(word("waiting"), { word: "Waits for your OK", tone: "warn", line: "Step 1 · Bookstore intro" });
+  assert.deepEqual(word("waiting"), {
+    word: "Waits for your approval",
+    tone: "warn",
+    line: "Step 1 · Bookstore intro",
+  });
   assert.deepEqual(word("held", { place: 2 }), { word: "Held", tone: "warn", line: "Step 2 · Bookstore intro" });
   assert.equal(word("to_send").word, "Yours to send");
   assert.equal(word("replied").tone, "warn");
@@ -271,7 +275,7 @@ test("a row's one status: the place's short word, the sequence named in the line
   const seq = { name: "Bookstore intro", state: "on" };
   const row = (group, extra = {}) =>
     placeWordOf({ group, place: 1, at: null, why: null, ...extra }, seq, clock, "line");
-  assert.deepEqual(row("waiting"), { word: "Waits for your OK", tone: "warn", line: "Step 1 · Bookstore intro" });
+  assert.deepEqual(row("waiting"), { word: "Waits for your approval", tone: "warn", line: "Step 1 · Bookstore intro" });
   assert.deepEqual(row("queued"), { word: "In campaign", tone: "ok", line: "In its next batch · Bookstore intro" });
   assert.deepEqual(row("in"), { word: "In campaign", tone: "ok", line: "Between steps · Bookstore intro" });
   assert.equal(row("next").line, "Step 1 · Bookstore intro");
@@ -316,7 +320,7 @@ test("the rail for one lead: when they joined, what each send did, the next by w
   const titles = new Map([[1, "A quick one for Persida"]]);
   const preview = placeRailOf({ lens: "preview", steps, titles, seq: "on", place: null, readsReplies: false, clock });
   assert.equal(preview.start.head, R.joinsWhenAdded);
-  assert.deepEqual(preview.steps[0].state, { tone: "next", words: R.afterOk }, "step 1 goes after your OK");
+  assert.deepEqual(preview.steps[0].state, { tone: "next", words: R.afterOk }, "step 1 goes after your approval");
   assert.equal(preview.steps[0].how, R.asTheyGet);
   assert.equal(preview.steps[2].how, R.task, "the call is a task for you");
   assert.equal(preview.end.sub, R.toldBy, "no mailbox reads replies: they are told");
@@ -428,7 +432,7 @@ test("the card while a sequence has them: one status word, what it needs of you,
   const waiting = nowOf({ place: placeOf("waiting", { checked: true, opening: "Saw your weekend chair." }) });
   assert.deepEqual(
     [waiting.word, waiting.tone, waiting.need, waiting.end, waiting.say, waiting.mail],
-    ["Waits for your OK", "warn", true, "Step 1 of 3", N.batch(17), "step"],
+    ["Waits for your approval", "warn", true, "Step 1 of 3", N.batch(17), "step"],
   );
   assert.equal(
     nowOf({ place: placeOf("waiting", { checked: false }) }).say,

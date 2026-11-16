@@ -3,6 +3,9 @@
  * after 25 in the accent with role="alert", or one of the nine endings (sections 8.4, 8.5, 8.8). Every word it says is
  * leadStrip's (strip.ts), so nothing is spelled here; every button hands its id and its argument back through the one
  * onAction the page gives it, and presses nothing itself.
+ *
+ * Two lines at most (Ruben, 16 Nov 2026, "cleaner, less redundant"): what is happening and its one act, then what it has
+ * counted beside where its adds go (`foot`, the page's Adds go to), so a running search is one block, not four lines.
  */
 import type { ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
@@ -20,20 +23,51 @@ const QUIET = [
   "not_on_renewal",
 ];
 
+/** The strip's classes: its tone (a question asks, a round that ended is done), whether it holds the band and a second line. */
+const stripClassOf = (vm: StripVM, band: boolean, second: boolean): string => {
+  const tone = vm.state === "question" ? "ask" : vm.state === "found" || vm.state === "ended" ? "done" : "";
+  return `lf-strip ${tone}${band ? " has-band" : ""}${second ? " has-foot" : ""}`;
+};
+
+/**
+ * The strip's second line: the count a phone reads from across a room (D9 of the answers canvas; a desk's parts say it),
+ * then where the search's adds go. Nothing where it has neither.
+ */
+const StripFoot = ({ count, foot }: { count: StripVM["count"]; foot: ReactNode }) => {
+  if (!count && !foot) return null;
+  return (
+    <span className="lf-strip-foot" data-testid="strip-foot">
+      {count ? (
+        <span className="lf-strip-count" data-testid="strip-count">
+          <b>{count.n}</b> of {count.of}
+        </span>
+      ) : null}
+      {count && foot ? (
+        <span className="lf-strip-sep" aria-hidden="true">
+          ·
+        </span>
+      ) : null}
+      {foot}
+    </span>
+  );
+};
+
 export const LeadStrip = ({
   vm,
   onAction,
   children = null,
   act = null,
+  foot = null,
 }: {
   vm: StripVM | null;
   onAction: (id: string, arg?: unknown) => unknown;
   children?: ReactNode;
   /** The page's own act at the end of the strip's actions: the search's door to a reach-out, on a phone (scope.tsx). */
   act?: ReactNode;
+  /** The second line's end: where the search's adds go (scope.tsx), beside what it has counted. */
+  foot?: ReactNode;
 }) => {
   if (!vm) return null;
-  const tone = vm.state === "question" ? "ask" : vm.state === "found" || vm.state === "ended" ? "done" : "";
   // With the band inside, its tabs ARE the ways into each pile: the strip's own "14 need a look" link beside a tab saying
   // "14 need a look" was the same door twice, and so was an ending's step that only opens a pile ("1 left out" beside the
   // tab saying it, Ruben, 10 Oct 2026): the tab is that door.
@@ -41,16 +75,12 @@ export const LeadStrip = ({
   const parts = vm.parts.map((t) => ` · ${t}`).join("");
   return (
     <div
-      className={`lf-strip ${tone}${children ? " has-band" : ""}`}
+      className={stripClassOf(vm, !!children, !!(vm.count || foot))}
       role={vm.alert ? "alert" : "status"}
+      data-state={vm.state}
       data-testid="lead-strip"
     >
       {vm.state === "running" ? <span className="live-dot" aria-hidden="true" /> : null}
-      {vm.count ? (
-        <span className="lf-strip-count" data-testid="strip-count">
-          <b>{vm.count.n}</b> of {vm.count.of}
-        </span>
-      ) : null}
       {vm.state === "question" ? (
         <span className="qmark" aria-hidden="true">
           ?
@@ -108,6 +138,7 @@ export const LeadStrip = ({
           {act}
         </span>
       ) : null}
+      <StripFoot count={vm.count} foot={foot} />
       {vm.progress === null ? null : (
         <span className="lf-strip-bar" style={{ width: `${Math.round(vm.progress * 100)}%` }} aria-hidden="true" />
       )}

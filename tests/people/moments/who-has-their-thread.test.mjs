@@ -124,12 +124,16 @@ const receptionistFact = (p) => p.facts.find((f) => f.label === "AI");
 test("a thread a teammate has reads, on the person's page, as the Inbox says it: A teammate has it", () => {
   const p = personFor(FLAGGED, ME);
   const inbox = inboxFor(FLAGGED, ME);
-  assert.equal(inbox.claimedByOther, true, "the Inbox's own verdict, for the same thread and the same member");
+  assert.equal(inbox.claimedByOther, true, "the Inbox's own verdict, for the same conversation and the same member");
 
   assert.equal(p.rightNow.tone, "theirs");
-  assert.equal(p.rightNow.title, stateLabel("thread", "theirs"), "was 'Paused, a person owns this thread'");
+  assert.equal(p.rightNow.title, stateLabel("thread", "theirs"), "was 'Paused, a person owns this conversation'");
   assert.equal(p.rightNow.title, "A teammate has it");
-  assert.equal(p.rightNow.detail, inbox.summary, "the Inbox's own sentence for the thread a teammate is answering");
+  assert.equal(
+    p.rightNow.detail,
+    inbox.summary,
+    "the Inbox's own sentence for the conversation a teammate is answering",
+  );
   assert.equal(p.receptionist.tone, "theirs");
   assert.equal(p.receptionist.label, "A teammate has it");
   assert.equal(stateOf("standing", p.rightNow.tone).label, "A teammate has it", "the head pill says it too");
@@ -165,10 +169,13 @@ test("with no member looking the page cannot say whose, and says only that a per
   for (const thread of [FLAGGED, { state: "open", assignee: null, paused_until: "2026-09-19T02:00:00Z" }]) {
     const p = personFor(thread, null);
     assert.equal(p.rightNow.tone, "paused");
-    assert.equal(p.rightNow.title, "Paused, a person owns this thread");
-    assert.equal(p.rightNow.detail, "A person owns this thread; automatic replies resume when it is handed back.");
-    assert.equal(p.receptionist.label, "Paused, a person owns the thread");
-    assert.equal(receptionistFact(p).meta, "a person owns the thread");
+    assert.equal(p.rightNow.title, "Paused, a person owns this conversation");
+    assert.equal(
+      p.rightNow.detail,
+      "A person owns this conversation; automatic replies resume when it is handed back.",
+    );
+    assert.equal(p.receptionist.label, "Paused, a person owns the conversation");
+    assert.equal(receptionistFact(p).meta, "a person owns the conversation");
   }
 });
 

@@ -86,9 +86,9 @@ export const SIGNUP_WORDS = {
    * and waiting for ever. Nothing is lost because nothing was made: the name they
    * typed waits on their account for the sign-in that makes the workspace.
    */
-  notSentTitle: "We could not send your code",
+  notSentTitle: "We couldn't send your code",
   notSent:
-    "We could not send the sign-in code just now. Wait a few minutes and ask for it again from the sign-in page — nothing is lost.",
+    "We couldn't send the sign-in code just now. Wait a few minutes and ask for it again from the sign-in page — nothing is lost.",
   /* ---------------------------------------------------------- the waitlist
    * Said the way a person would say it: what is true, when they will hear,
    * and no apology. "We are onboarding businesses in small groups" is the
@@ -106,7 +106,7 @@ export const SIGNUP_WORDS = {
   /** The list answered, but not with a place on it. */
   waitlistNotJoined: "You are not on the list yet. Refresh this page and try again.",
   /** No answer came back at all: said the same on the sign-up page and the first-workspace screen. */
-  unreachable: "Could not reach Chanlytics just now. Try again.",
+  unreachable: "Couldn't reach Chanlytics just now. Try again.",
   codeWrong: "That invite code is not right.",
   crossSite: "That request did not come from this site.",
   haveOne: "Already have a workspace?",

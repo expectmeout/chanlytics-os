@@ -380,3 +380,13 @@ test("a step that names their preview ends with the mailbox's signature less its
   );
   assert.equal(plain.signature, "Sam Rivera\nhttps://getharbor.example", "a nudge naming no preview keeps its link");
 });
+
+test("a line written from their preview is marked with what the preview said then; an email with none keeps its mark", () => {
+  const words = { subject: null, body: "{{opening}} Try it: {{their preview}}" };
+  const mark = checkedWordsOf(words, "Sam", false);
+  assert.equal(checkedWordsOf(words, "Sam", false, null), mark, "no preview read: the mark it always was");
+  const then = checkedWordsOf(words, "Sam", false, "p1:0:0:0");
+  assert.match(then, /^[0-9a-f]{64}$/);
+  assert.notEqual(then, mark, "written before the preview stood, it is checked again once it does");
+  assert.notEqual(checkedWordsOf(words, "Sam", false, "p1:4:1:0"), then, "and again once they have used it");
+});

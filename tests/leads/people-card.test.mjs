@@ -383,10 +383,10 @@ test("a draft's refusal is the door's, and a customer's address; Sent says what 
     /^Acme was left out already: they /,
     "a skip the clock or a reply made is said with why, never as another member's word",
   );
-  assert.doesNotMatch(toSendSaidWords("Acme", { said: true, state: "sent", since: "already_yours" }), /thread/);
+  assert.doesNotMatch(toSendSaidWords("Acme", { said: true, state: "sent", since: "already_yours" }), /conversation/);
   assert.match(
     toSendSaidWords("Acme", { said: true, state: "sent", since: "already_yours", on_thread: true }),
-    /thread/,
+    /conversation/,
   );
 });
 

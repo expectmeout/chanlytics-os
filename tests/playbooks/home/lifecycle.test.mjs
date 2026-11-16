@@ -550,10 +550,10 @@ test("the library's count is the Library page's own: a message for each language
   assert.equal(
     home({ library: rows, messages, reachOuts: null }).head.library.count,
     3,
-    "chains that could not be read list no emails, as the page has it",
+    "chains that couldn't be read list no emails, as the page has it",
   );
   assert.equal(home({ library: rows, messages, reachOuts: undefined }).head.library.count, 3);
-  assert.equal(home({ messages: null }).head.library.count, null, "messages that could not be read are no zero");
+  assert.equal(home({ messages: null }).head.library.count, null, "messages that couldn't be read are no zero");
 });
 
 test("the toasts Campaigns raises are contracts' words: a name in the page's emphasis, a new campaign said running as its sequence opens, a phrase a browser would not copy said whole", () => {
@@ -648,7 +648,7 @@ test("who can hear you draws no ladder before the broadcasts are read, or when t
     surface: "broadcasts",
   });
   const uncounted = home({ broadcasts: broadcasts({ reach: null }) });
-  assert.deepEqual([uncounted.reach.read, uncounted.reach.rungs], ["failed", null], "its people could not be counted");
+  assert.deepEqual([uncounted.reach.read, uncounted.reach.rungs], ["failed", null], "its people couldn't be counted");
   assert.equal(uncounted.failed.reach.surface, "broadcasts", "and its Retry reads the broadcasts again");
   assert.equal(uncounted.failed.coming, null, "the runs were read: only the ladder failed");
   assert.equal(home().reach.read, "read");
@@ -808,7 +808,7 @@ test("a moment that reaches people says how many, and who waits out the week; a 
   });
   assert.equal(one.rows[0].why, "1 hears from you within a week of today and waits");
   const unread = coming({ playbooks: playbooks({ rows: [playbook({ candidates: null, held: null, named: null })] }) });
-  assert.deepEqual([unread.rows[0].why, unread.rows[0].pill], ["Who it reaches could not be counted", null]);
+  assert.deepEqual([unread.rows[0].why, unread.rows[0].pill], ["Who it reaches couldn't be counted", null]);
   const nobodyOn = coming({ playbooks: playbooks({ rows: [playbook({ named: { pool: 0, saidYes: 0 } })] }) });
   assert.equal(nobodyOn.rows[0].why, "Nobody is on it yet");
 });
@@ -1186,7 +1186,7 @@ test("a report that could not be read leaves its numbers out and the runs stand;
   const t = results({ report: null });
   assert.deepEqual([t.headline, t.funnel, t.yes, t.quiet], [null, null, null, false]);
   assert.equal(t.runs.length, 2);
-  assert.equal(t.read, "read", "the tile was read: only its numbers could not be");
+  assert.equal(t.read, "read", "the tile was read: only its numbers couldn't be");
   assert.equal(home({ report: null }).failed.results, null, "the broadcasts were read");
   // Campaigns' own 30 days not read yet: the runs stand, the numbers are not said, and nothing failed.
   const coming = results({ report: undefined });
@@ -1199,7 +1199,7 @@ test("what came back says it is reading before the broadcasts are read, and that
   assert.deepEqual(
     [out.read, out.note, out.days, out.headline, out.funnel, out.yes, out.runs, out.quiet],
     ["reading", "30 days", 30, null, null, null, [], false],
-    "never 'nothing went out' for a period it could not see",
+    "never 'nothing went out' for a period it couldn't see",
   );
   const failed = results({ broadcasts: null });
   assert.deepEqual([failed.read, failed.headline, failed.quiet, failed.runs], ["failed", null, false, []]);

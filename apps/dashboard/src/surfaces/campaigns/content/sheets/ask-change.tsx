@@ -10,7 +10,7 @@
  * until there are words), with Ask's three before it, so it reads as Ask wherever it stands. No note under it: what asking
  * does is Ask's card's to say, once there is something to say.
  */
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { CONTENT_SHEET_WORDS, type AskScope } from "@chanlytics/contracts";
 import { askAbout } from "../../../frame-verbs";
 import { Icon } from "../../../kit/icon/icon";
@@ -27,17 +27,21 @@ export interface ChangeAbout extends AskScope {
  * The line. Return asks, as its press does (Shift and Return for a second line); `alone` is the line with nothing of the piece
  * to change by hand above it, which takes the keys as it opens, since typing is all there is to do there. It asks about a
  * piece, or about the page (Make's "Or say what you want", sheets/make.tsx), which says what it waits for (`placeholder`).
+ * `lead` stands where AI's three does, at the line's start, where a card that already wears the three has a press of its
+ * own there (Content's empty state: the + that adds from the phone).
  */
 export function AskLine({
   about,
   onAsked,
   alone = false,
   placeholder,
+  lead = null,
 }: {
   about: AskScope;
   onAsked: () => void;
   alone?: boolean;
   placeholder?: string;
+  lead?: ReactNode;
 }) {
   const [words, setWords] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
@@ -56,10 +60,12 @@ export function AskLine({
     ask();
   };
   return (
-    <div className="cnv-ask-line" data-testid="cnv-ask-line">
-      <span className="cnv-ask-mark" aria-hidden="true">
-        <Icon name="three" size={15} />
-      </span>
+    <div className="cnv-ask-line" data-lead={lead ? "" : undefined} data-testid="cnv-ask-line">
+      {lead ?? (
+        <span className="cnv-ask-mark" aria-hidden="true">
+          <Icon name="three" size={15} />
+        </span>
+      )}
       <LineField
         ref={field}
         className="cnv-ask-words"

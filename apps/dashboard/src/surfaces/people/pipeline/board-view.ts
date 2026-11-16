@@ -214,7 +214,7 @@ export function pipelinePassDone(
     parts.push(
       changed === 1 ? "1 had changed, and was left as it is" : `${changed} had changed, and were left as they are`,
     );
-  if (failed) parts.push(failed === 1 ? "1 could not be marked" : `${failed} could not be marked`);
+  if (failed) parts.push(failed === 1 ? "1 couldn't be marked" : `${failed} couldn't be marked`);
   return { words: parts.join(" · "), tone: failed && !done ? "danger" : changed || failed ? "warn" : "ok" };
 }
 

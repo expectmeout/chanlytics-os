@@ -44,9 +44,11 @@ export { findFreedTimeBatch, findFreedTimeFacts, findFreedTimeStep, getCancellat
 export { findBookingForReminder, findReminderOfVisit, findReminderStep } from "./late-reminders";
 export {
   claimPreview,
+  countLeadPreviewsSince,
   doesMakePreviews,
   endPreview,
   findLeadForPreview,
+  findLeadOfReply,
   findLeadPreview,
   findLeadPreviewById,
   findLeadPreviewByToken,

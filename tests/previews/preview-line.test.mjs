@@ -8,7 +8,13 @@
  */
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
-import { PREVIEW_LINE_WORDS as W, previewLineOf, previewTriedWords } from "@chanlytics/contracts";
+import {
+  LEAD_PREVIEW_WORDS,
+  PREVIEW_LINE_WORDS as W,
+  REACH_OUT_SLOT_SET,
+  previewLineOf,
+  previewTriedWords,
+} from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -130,7 +136,7 @@ beforeEach(() => {
   edge = [];
   globalThis.fetch = async (url, init = {}) => {
     edge.push({ path: new URL(String(url)).pathname, body: init.body ? JSON.parse(init.body) : null });
-    const [status, body] = edgeAnswer();
+    const [status, body] = edgeAnswer(new URL(String(url)).pathname);
     return Response.json(body, { status });
   };
 });
@@ -192,7 +198,7 @@ test("GET leads/:id/preview: the row's facts, never its chat, and whether this w
   assert.equal("turns" in out.preview, false, "its chat stays on the row");
   assert.equal(out.cannot, null, "one made already is its own answer");
   const none = await ask("GET", ctxFor({ ours: false }).ctx);
-  assert.deepEqual(none, { preview: null, makes: false, cannot: null });
+  assert.deepEqual(none, { preview: null, makes: false, cannot: null, paused: false, full: false });
 });
 
 test("GET leads/:id/preview says, before any email goes, where this lead can get none: as its door would refuse it", async () => {
@@ -260,4 +266,161 @@ test("the edge's Make their preview door: switched off, refused in words and not
     else process.env.LEAD_PREVIEWS = was;
     setPg(null);
   }
+});
+
+/* ---- the edge's switch, said before the email waits on it ---- */
+
+test("previews switched off on the edge: the line says they are paused and the email waits, with nothing to press", () => {
+  assert.deepEqual(previewLineOf({ preview: null, makes: true, cannot: null, paused: true }, NOW), {
+    words: W.paused,
+    tone: "warn",
+    said: [],
+    make: false,
+    open: null,
+    link: null,
+  });
+  // A lead that can get none is told that first: its email is skipped, whatever the switch says.
+  const both = previewLineOf({ preview: null, makes: true, cannot: "closed", paused: true }, NOW);
+  assert.equal(both.words, W.cannot("closed"));
+});
+
+test("GET leads/:id/preview asks the edge whether previews are made, only for a lead that could get one", async () => {
+  const lead = (over = {}) => ({
+    id: LEAD,
+    tenant_id: WS,
+    kind: "place",
+    stage: "ready",
+    business_name: "Harbor Movers",
+    city: "Austin",
+    erased_at: null,
+    blanked_at: null,
+    ...over,
+  });
+  const STANDING = "/api/admin/previews/standing";
+  const was = edgeAnswer;
+  try {
+    edgeAnswer = (path) => (path === STANDING ? [200, { ok: true, on: false }] : was());
+    const off = await ask("GET", ctxFor({ leads: [lead()] }).ctx);
+    assert.deepEqual([off.cannot, off.paused], [null, true]);
+    assert.deepEqual(
+      edge.map((e) => e.path),
+      [STANDING],
+    );
+    edgeAnswer = (path) => (path === STANDING ? [200, { ok: true, on: true }] : was());
+    assert.equal((await ask("GET", ctxFor({ leads: [lead()] }).ctx)).paused, false);
+    // An older edge has no such door, and one that says nothing of it: nothing is claimed either way.
+    edgeAnswer = () => [404, { ok: false, error: "not_found" }];
+    assert.equal((await ask("GET", ctxFor({ leads: [lead()] }).ctx)).paused, false);
+    edgeAnswer = () => [200, { ok: true }];
+    assert.equal((await ask("GET", ctxFor({ leads: [lead()] }).ctx)).paused, false);
+    // Not asked where its answer would change nothing: a lead its door refuses, a workspace that makes none.
+    edge = [];
+    await ask("GET", ctxFor({ leads: [lead({ kind: "company" })] }).ctx);
+    await ask("GET", ctxFor({ leads: [lead()], ours: false }).ctx);
+    assert.deepEqual(edge, []);
+  } finally {
+    edgeAnswer = was;
+  }
+});
+
+test("the edge's standing door says whether previews are made, by its switch", async () => {
+  const { previewsStanding } = await importSrc("apps/edge/lib/previews/make.ts");
+  const was = process.env.LEAD_PREVIEWS;
+  try {
+    process.env.LEAD_PREVIEWS = "on";
+    assert.deepEqual(await previewsStanding().json(), { ok: true, on: true });
+    delete process.env.LEAD_PREVIEWS;
+    assert.deepEqual(await previewsStanding().json(), { ok: true, on: false });
+  } finally {
+    if (was === undefined) delete process.env.LEAD_PREVIEWS;
+    else process.env.LEAD_PREVIEWS = was;
+  }
+});
+
+/* ---- one name, and the AI called AI (docs/words.md) ---- */
+
+/** Every sentence a table of words can say: its strings, and each function's answer for a made-up business. */
+function sentencesOf(words) {
+  const said = [];
+  const walk = (value) => {
+    if (typeof value === "string") said.push(value);
+    else if (typeof value === "function") walk(value("Harbor Movers", "Sam"));
+    else if (value && typeof value === "object") Object.values(value).forEach(walk);
+  };
+  walk(words);
+  return said;
+}
+
+test("one name: the sender's line is titled as the blank is labelled in the campaign editor", () => {
+  const label = REACH_OUT_SLOT_SET.labels[REACH_OUT_SLOT_SET.keys.indexOf("their preview")];
+  assert.equal(W.title, "Their preview");
+  assert.equal(W.title, label);
+});
+
+test("on the sender's line and the lead's own page the AI is called AI, never a receptionist, an agent or an assistant", () => {
+  // The greeting a customer hears keeps "the automated assistant" (decision 0051): words to callers, not a screen's name.
+  const { textGreeting, ...page } = LEAD_PREVIEW_WORDS;
+  assert.match(textGreeting("Harbor Movers", null), /the automated assistant/);
+  for (const sentence of [...sentencesOf(page), ...sentencesOf(W)])
+    assert.doesNotMatch(
+      sentence,
+      /receptionist|\bagent|assistant|\bbot\b|Claude|\bAsk\b|\b[Tt]he AI\b|\b[Yy]our AI\b/,
+      sentence,
+    );
+  // The lead's page names what it is by the business it answers for.
+  assert.equal(LEAD_PREVIEW_WORDS.title("Harbor Movers"), "AI for Harbor Movers");
+  assert.equal(LEAD_PREVIEW_WORDS.signup.title("Harbor Movers"), "AI for Harbor Movers is waiting for you");
+  assert.equal(LEAD_PREVIEW_WORDS.building.title("Harbor Movers"), "Setting up AI for Harbor Movers");
+  assert.equal(LEAD_PREVIEW_WORDS.it, "AI");
+});
+
+/* ---- the day's limit, said before the email waits on it (step 2) ---- */
+
+test("the day's previews all made: the line says the email waits for tomorrow, and Make it now still makes this one", () => {
+  assert.deepEqual(previewLineOf({ preview: null, makes: true, cannot: null, paused: false, full: true }, NOW), {
+    words: W.full,
+    tone: "warn",
+    said: [],
+    make: true,
+    open: null,
+    link: null,
+  });
+  assert.ok(W.full.includes("50") && W.full.includes("tomorrow"), W.full);
+  // Paused says more: nothing is made at all, so it wins; and a lead that can get none is told that first.
+  assert.equal(previewLineOf({ preview: null, makes: true, paused: true, full: true }, NOW).words, W.paused);
+  assert.equal(
+    previewLineOf({ preview: null, makes: true, cannot: "closed", full: true }, NOW).words,
+    W.cannot("closed"),
+  );
+});
+
+test("GET leads/:id/preview says the day is full only for a lead that would otherwise get one today", async () => {
+  const lead = {
+    id: LEAD,
+    tenant_id: WS,
+    kind: "place",
+    stage: "ready",
+    business_name: "Harbor Movers",
+    city: "Austin",
+    erased_at: null,
+    blanked_at: null,
+  };
+  const today = new Date().toISOString();
+  const others = (n, at = today) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `o${i}`,
+      tenant_id: WS,
+      lead_id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      state: "ready",
+      created_at: at,
+    }));
+  const full = await ask("GET", ctxFor({ leads: [lead], rows: others(50) }).ctx);
+  assert.deepEqual([full.preview, full.cannot, full.full], [null, null, true]);
+  const room = await ask("GET", ctxFor({ leads: [lead], rows: others(49) }).ctx);
+  assert.equal(room.full, false);
+  const old = await ask("GET", ctxFor({ leads: [lead], rows: others(50, "2026-01-01T12:00:00Z") }).ctx);
+  assert.equal(old.full, false, "another day's are not today's");
+  // A lead its door refuses is told that, and nothing is counted for it.
+  const company = await ask("GET", ctxFor({ leads: [{ ...lead, kind: "company" }], rows: others(50) }).ctx);
+  assert.deepEqual([company.cannot, company.full], ["not_a_business", false]);
 });

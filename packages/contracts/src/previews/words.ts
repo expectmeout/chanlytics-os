@@ -1,19 +1,19 @@
 /**
- * Every word a lead's own receptionist's page says (decision 0079), in the owner's voice: its head, the chat, what it
+ * Every word a lead's own preview's page says (decision 0079), in the owner's voice, the AI called AI as every screen
+ * calls it (docs/words.md; the greeting a customer hears keeps decision 0051's own words): its head, the chat, what it
  * knows, its foot, and its states. A module of words alone, so the page that draws them carries nothing else of
  * contracts' (leads/preview.ts says which state is which, on the server).
  */
 import { MIN_MS } from "../shared/time";
-import { possessive } from "../shared/words";
 import { PREVIEW_FACT_NAMES } from "./tried";
 
 export const LEAD_PREVIEW_WORDS = {
   /** The tab's title and the page's heading. */
-  title: (business: string) => `${possessive(business.trim())} receptionist`,
+  title: (business: string) => `AI for ${business.trim()}`,
   /** The tab's title where the business has no name to give it. */
   chip: "Preview",
   /** Under their name: what this is and what to do. */
-  ready: "Your receptionist is ready. Call it or text it the way a customer would.",
+  ready: "AI is ready to answer for you. Call it or text it the way a customer would.",
   madeFrom: "Set up by Chanlytics from your Google listing and website.",
 
   textTitle: "Or text it",
@@ -30,7 +30,7 @@ export const LEAD_PREVIEW_WORDS = {
   send: "Send",
   writing: "Writing…",
   you: "You",
-  it: "Your receptionist",
+  it: "AI",
   /** Over what the live turn would do with an answer (Try it's `then`). */
   onRealChat: "On a real chat",
   left: (n: number) => (n === 1 ? "1 message left" : `${n} messages left`),
@@ -59,12 +59,22 @@ export const LEAD_PREVIEW_WORDS = {
   },
 
   knowsTitle: "What it knows",
-  from: { google: "From Google", site: "From your site" },
+  from: { google: "From Google", site: "From your site", you: "From you" },
   rows: PREVIEW_FACT_NAMES,
   notRight: "Not right",
   notRightLabel: "What's right? (optional)",
   notRightSend: "Send",
   notRightThanks: "Thanks. You can fix it in a minute once it's yours.",
+  /** After a fact is put right on the page, and where it cannot take another thing told. */
+  teachTitle: "Tell it something",
+  teachSub: "It uses it from its next answer. A price you give is yours to say.",
+  teachLabel: "Tell it something a customer asks",
+  teachSend: "Tell it",
+  teachLeft: (n: number) => (n === 1 ? "1 more" : `${n} more`),
+  toldTitle: "You told it",
+  teachFailed: "It couldn't take that just now. Try again in a moment.",
+  fixed: "Fixed. Try it and see.",
+  taughtFull: "That's the three a preview takes. Make it yours to tell it more.",
 
   /** Over the page its sender opens to look at (Open it, `?look=1`): it counts nothing, so it answers nothing. */
   look: "You're looking as Chanlytics. Nothing here counts, so it answers nothing and can't be made yours.",
@@ -73,8 +83,9 @@ export const LEAD_PREVIEW_WORDS = {
 
   /** Sign-up, from Make it mine (L4): whose receptionist waits, and the one press of someone already signed in. */
   signup: {
-    title: (business: string) => `${possessive(business.trim())} receptionist is waiting for you`,
-    lead: "Make an account to keep it. Everything it knows comes with it.",
+    title: (business: string) => `AI for ${business.trim()} is waiting for you`,
+    // No password is asked from a preview's link (the canvas's call P10): the code that proves the address is the way in.
+    lead: "A code is emailed to you, so there is no password to choose. Everything it knows comes with it.",
     signedIn: (email: string) =>
       `You're signed in as ${email}. It becomes a workspace of yours, with everything it knows.`,
     claim: "Make it mine",
@@ -85,7 +96,7 @@ export const LEAD_PREVIEW_WORDS = {
   },
 
   building: {
-    title: (business: string) => `Setting up ${possessive(business.trim())} receptionist`,
+    title: (business: string) => `Setting up AI for ${business.trim()}`,
     sub: "This takes about half a minute.",
   },
   ended: { title: "This preview has ended.", body: "You can set one up yourself in a few minutes.", start: "Start" },

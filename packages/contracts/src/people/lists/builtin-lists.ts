@@ -52,7 +52,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "needs_you",
     label: NEEDS_YOU_WORD,
-    tip: "An open escalation, or a thread waiting for a person",
+    tip: "An open escalation, or a conversation waiting for a person",
     group: "attention",
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "needs_you" }),
@@ -61,7 +61,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "waiting_on_you",
     label: HELD_WORDS.yours.pill,
-    tip: "Threads you have: you took them over, or your reply paused AI. A teammate's waits on them",
+    tip: "Conversations you have: you took them over, or your reply paused AI. A teammate's waits on them",
     group: "attention",
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "waiting_on_you" }),
@@ -168,7 +168,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "phoned_only",
     label: "Phoned only",
-    tip: "Only ever phoned — no WhatsApp thread",
+    tip: "Only ever phoned — no WhatsApp conversation",
     group: "reach",
     rule: r({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 }),
   },

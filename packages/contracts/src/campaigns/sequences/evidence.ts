@@ -33,9 +33,9 @@ const batches = (n: number) => plural(n, "batch", "batches");
 /** How the batches that went went: each after your OK, on their own, or some of each. */
 function wentWords(e: SequenceEvidence): string {
   const own = e.went - e.approved;
-  if (e.approved === e.went) return `${batches(e.went)} went, ${e.went === 1 ? "after" : "each after"} your OK`;
+  if (e.approved === e.went) return `${batches(e.went)} went, ${e.went === 1 ? "after" : "each after"} your approval`;
   if (e.approved === 0) return `${batches(e.went)} went on ${e.went === 1 ? "its" : "their"} own`;
-  return `${batches(e.went)} went: ${e.approved} after your OK, ${own} on ${own === 1 ? "its" : "their"} own`;
+  return `${batches(e.went)} went: ${e.approved} after your approval, ${own} on ${own === 1 ? "its" : "their"} own`;
 }
 
 /**

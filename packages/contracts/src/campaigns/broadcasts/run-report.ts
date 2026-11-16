@@ -194,7 +194,7 @@ const channelOf = (r: Pick<ReportRecipient, "channel">): ConsentChannel | null =
 
 /** Why a message that left was never delivered, for the channel it left by. */
 const NOT_DELIVERED_WORDS: Record<ConsentChannel, string> = {
-  whatsapp: "WhatsApp could not deliver it",
+  whatsapp: "WhatsApp couldn't deliver it",
   sms: "the text was not delivered",
   email: "the email was not delivered",
 };
@@ -371,7 +371,7 @@ function personWordsOf(
 function personDoorOf(r: ReportRecipient, { out, hiThere }: PersonCase): RunPersonVM["door"] {
   if (r.consent_after === "opted_out" && out) return { label: "See consent", to: `clients/${r.contact_id}` };
   if (hiThere) return { label: "Add a name", to: `clients/${r.contact_id}` };
-  if (r.replied && r.conversation_id) return { label: "Open the thread", to: `inbox/th-${r.conversation_id}` };
+  if (r.replied && r.conversation_id) return { label: "Open the conversation", to: `inbox/th-${r.conversation_id}` };
   return null;
 }
 
@@ -538,7 +538,7 @@ const repliedFigure: RunFigureOf = (item) => ({
     item.waiting > 0
       ? `${item.waiting} ${item.waiting === 1 ? "needs" : "need"} you in the Inbox`
       : item.replied.length > 0
-        ? "each one is a thread in the Inbox"
+        ? "each one is a conversation in the Inbox"
         : "nobody has written back yet",
   tone: item.replied.length > 0 ? "ok" : "plain",
   bars: barsOf(

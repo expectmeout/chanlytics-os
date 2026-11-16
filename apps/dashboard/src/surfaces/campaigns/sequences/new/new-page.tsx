@@ -48,6 +48,7 @@ import { useCampaignsToast } from "../../home/route-toast";
 import { reachOuts } from "../../reach-out/surface";
 import { CHANGE_WORDS, changedFrom, changesOf, draftedAfter, leftNothing, placesByAsk, standsOf } from "./change";
 import { DraftView, type DraftReads } from "./new-draft";
+import { newKeptKeyOf, useDraftOnOpen, type KeptHere } from "./first-line";
 import type { KeptSend } from "./kept-send";
 import * as M from "./new-model";
 import { StartView, type StartReads } from "./new-start";
@@ -447,16 +448,6 @@ function shownDraftOf(
   return held ?? (opened ? M.recounted(null, M.onReadyChannels(opened, reads.draft.channels), k) : null);
 }
 
-/**
- * What New keeps in the tab while it holds a draft: the draft, the line, and the draft as Ask answered it (decision 0078
- * step 2: what a make keeps beside the owner's words), under the address it was opened on.
- */
-interface KeptHere {
-  draft: NewDraftDto | null;
-  line: string | null;
-  drafted?: NewDraftDto | null;
-}
-
 interface NewSequenceProps {
   /** The moment its address names (`new:moment:<trigger>`) where a door asked for one. */
   moment?: string | null;
@@ -497,7 +488,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   const [toast, flash] = useFrameToast();
   const { door, seed, notice } = useDoor(moment, who, to, reads);
   // What this address held when New last closed over it, kept in the tab: the draft, and the line.
-  const here = [moment, who, to, kept].map((x) => x ?? "").join("|");
+  const here = newKeptKeyOf({ moment, who, to, kept });
   const [back] = useState(() => tabDraft("new", here) as KeptHere | null);
   const [typed, setTyped] = useState<string | null>(back?.line ?? null);
   const line = typed ?? seed;
@@ -533,6 +524,10 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     change.forget();
   };
   const redo = useRedraft({ draft, asking, took, byHand: built });
+  // A line, with its choices where a start made them, drafted by Ask: from New's own line, or one said before New opened.
+  const draftWords = (words: string, fixed?: Omit<NewDraftAsk, "words">) =>
+    void asking.ask(words, fixed ?? {}, false).then((d) => (d ? took(d) : undefined));
+  useDraftOnOpen(back, { reads, held }, draftWords);
   const tz = reads?.draft.timezone ?? "UTC";
   const made = useMake({ keptId: kept, flash, letGo, tz, onNoMailbox: () => setDraft(withoutMailbox) });
   const busy = made.busy;
@@ -607,7 +602,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
       <StartView
         line={line}
         onLine={setTyped}
-        onDraft={(words, fixed) => void asking.ask(words, fixed ?? {}, false).then((d) => (d ? took(d) : undefined))}
+        onDraft={draftWords}
         drafting={asking.drafting !== null}
         onStop={asking.stop}
         failed={asking.failed}

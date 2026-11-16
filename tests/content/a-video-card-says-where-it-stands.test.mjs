@@ -172,7 +172,7 @@ test("ready: said once, where it is, and Open", () => {
 
 test("not made: why, once, and Try again for whoever may press", () => {
   const { html, read } = drawn(held({ stands: { is: "failed", why: "draw" } }));
-  assert.equal(read, `Couldn't make it It could not be drawn this time. Try again ${SUMMARY}`);
+  assert.equal(read, `Couldn't make it It couldn't be drawn this time. Try again ${SUMMARY}`);
   assert.equal(times(read, "Try again"), 1, "the press says it, and the line does not say it too");
   assert.ok(html.includes('data-dim=""') && !html.includes("ask-piece-working"), "amber and still, never Ask's three");
   // A member who may not press reads why, with nothing dead to press.

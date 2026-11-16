@@ -93,7 +93,7 @@ function useLoad(id: string, vm: PersonVM | null, setSt: Dispatch<SetStateAction
     );
     readPerson(id).then(
       (vm) => setSt({ loading: false, vm, missing: vm === null, error: null }),
-      (e: unknown) => setSt((s) => ({ ...s, loading: false, error: saidBy(e) || "could not load this person" })),
+      (e: unknown) => setSt((s) => ({ ...s, loading: false, error: saidBy(e) || "couldn't load this person" })),
     );
   }, [id, setSt]);
   useEffect(() => {

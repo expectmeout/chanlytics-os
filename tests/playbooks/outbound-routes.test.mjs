@@ -1453,7 +1453,7 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
       post(tablesFor(), { channels: ["email"] }).run,
       "conflict",
       409,
-      "This could not be checked just now.",
+      "This couldn't be checked just now.",
     );
     // The campaigns domain verified: then the business's address, the mailbox, the message's version, and the people.
     await edgeSays({ ok: true, ready: true, offers: true });

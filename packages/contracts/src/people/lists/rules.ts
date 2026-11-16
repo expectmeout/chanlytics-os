@@ -283,7 +283,7 @@ export function listFactWords(listFact: ListFact, listName: (token: string) => s
     case "standing":
       return listFact.op === "is" ? STANDING_WORDS[listFact.value] : `Not: ${lower(STANDING_WORDS[listFact.value])}`;
     case "assigned":
-      return `${listFact.op === "is" ? label : "Thread is not with"} ${ASSIGNED_WORDS[listFact.value]}`;
+      return `${listFact.op === "is" ? label : "Conversation is not with"} ${ASSIGNED_WORDS[listFact.value]}`;
     case "deal_stage":
       return `${listFact.op === "is" ? label : "Deal is not"}: ${DEAL_STAGE_LIST_WORDS[listFact.value]}`;
     case "in_list": {

@@ -101,7 +101,7 @@ function setMode(c: PageCtx) {
     setRm({ busy: true, error: null });
     const r = await setPersonReceptionist(p.id, mode);
     if (!r.ok) {
-      setRm({ busy: false, error: r.message || "Could not change this." });
+      setRm({ busy: false, error: r.message || "Couldn't change this." });
       return;
     }
     setRm({ busy: false, error: null });
@@ -132,7 +132,7 @@ function modeHint(c: PageCtx): string {
   if (!rmPerson)
     return `Following the workspace${p.receptionistMode.workspace ? ` (${rmWord(p.receptionistMode.workspace)})` : ""}.`;
   if (rmPerson === "auto") return "Answers them by itself. Set for them alone.";
-  if (rmPerson === "ask") return "Each reply waits for your OK.";
+  if (rmPerson === "ask") return "Each reply waits for your approval.";
   return "Stays out of their messages, which come to you. It still answers the phone.";
 }
 

@@ -354,7 +354,7 @@ export function composerActs({ st, facts, canEdit, work, onDone, onBegin }: Acts
     const r = await templates.draft({ brief: brief.trim(), category, language });
     setDrafting(false);
     if (!r.ok) {
-      setError(r.message || "The draft could not be written.");
+      setError(r.message || "The draft couldn't be written.");
       return;
     }
     const d = r.data.draft;
@@ -375,7 +375,7 @@ export function composerActs({ st, facts, canEdit, work, onDone, onBegin }: Acts
     const r = await templates.draft({ language: translate.language, translate: translate.ref });
     setDrafting(false);
     if (!r.ok) {
-      setError(r.message || `It could not be written in ${toLabel} just now.`);
+      setError(r.message || `It couldn't be written in ${toLabel} just now.`);
       setFailed(true);
       return;
     }

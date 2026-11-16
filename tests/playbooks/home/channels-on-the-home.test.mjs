@@ -61,8 +61,8 @@ test("the head's channel line: the open channels as one clause, each closed one 
   assert.deepEqual(
     unchecked.slice(1).map((p) => [p.words, p.door]),
     [
-      ["Text: This could not be checked just now", null],
-      ["Email: This could not be checked just now", null],
+      ["Text: This couldn't be checked just now", null],
+      ["Email: This couldn't be checked just now", null],
     ],
   );
   const noWire = C.channelsStandingParts(

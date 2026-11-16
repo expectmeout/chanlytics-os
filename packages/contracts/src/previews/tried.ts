@@ -25,6 +25,9 @@ export interface PreviewTriedDto {
   business: string | null;
 }
 
+/** How a thing the business told its preview is filed among these lines: the one word theirs.ts files it under too. */
+const TAUGHT_FACT = "taught";
+
 /** The facts the page shows and the business may say are not right, each by its row's name (the page's own rows). */
 export const PREVIEW_FACT_NAMES = {
   hours: "Hours",
@@ -63,5 +66,9 @@ export function previewSaidOf(notRight: unknown): string[] {
         !!n && typeof n === "object" && typeof (n as { fact?: unknown }).fact === "string",
     )
     .slice(-3)
-    .map((n) => previewNotRightWords(n.fact, typeof n.said === "string" ? n.said : null));
+    .map((n) => {
+      const sentence = typeof n.said === "string" ? n.said : null;
+      // A thing they told it (previews/theirs.ts PREVIEW_TAUGHT.fact), filed with these so the sender is given both.
+      return n.fact === TAUGHT_FACT && sentence ? `Told it: “${sentence}”` : previewNotRightWords(n.fact, sentence);
+    });
 }

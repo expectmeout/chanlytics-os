@@ -202,7 +202,7 @@ test("a preview is the last thing that actually happened, never a cancelled or q
     }),
   ];
   const vm = toConversationVM(conv(messages), null, ZONE, NOW);
-  assert.equal(vm.outcome, "open", "REGRESSION: a cancelled draft made the thread read 'handled'");
+  assert.equal(vm.outcome, "open", "REGRESSION: a cancelled draft made the conversation read 'handled'");
   assert.match(vm.snippet, /how much is a haircut/);
   const inbox = toInboxThreadVM(conv(messages), null, ZONE, NOW);
   assert.doesNotMatch(inbox.preview, /DRAFT/);
@@ -271,7 +271,7 @@ test("Needs you follows the Inbox's rule: a thread someone took over, or snoozed
   assert.equal(
     personStateFor(row({ needs_human: true, latest_assignee_user_id: "u1" }), nowMs, ZONE),
     "waiting_on_you",
-    "REGRESSION: a taken-over thread still counted under Needs you",
+    "REGRESSION: a taken-over conversation still counted under Needs you",
   );
   assert.equal(
     personStateFor(
@@ -283,7 +283,7 @@ test("Needs you follows the Inbox's rule: a thread someone took over, or snoozed
   assert.equal(
     toPersonRowVM(row({ open_escalation_reason: "human_token", latest_assignee_user_id: "u1" }), ZONE, NOW).receptionist
       .label,
-    "Paused, a person owns the thread",
+    "Paused, a person owns the conversation",
   );
 });
 

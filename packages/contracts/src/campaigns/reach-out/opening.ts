@@ -21,7 +21,7 @@ import {
 import { OPENING_CLAIM_KINDS, heldClaimDetail, type OpeningClaimKind } from "./words/claims";
 import { languageBase } from "../templates/languages";
 import { leadCalledByOf } from "../../leads/search/called-by";
-import { DATA_NOT_INSTRUCTIONS, defang, fencedInline } from "../../ai/fence";
+import { DATA_NOT_INSTRUCTIONS, defang, fenceLine, fencedInline } from "../../ai/fence";
 import { MODEL_ROUTES } from "../../ai/models/routes";
 import { isOneOf } from "../../shared/unknown";
 
@@ -123,16 +123,6 @@ const partLines = (part: OpeningPart, ...texts: readonly (string | null)[]): Ope
   texts.flatMap((text) => (text === null ? [] : [{ part, text }]));
 
 /**
- * One line per field, whatever the field holds: a line break in a listing's about text never starts a line of our own,
- * and a tag in a website's title closes no fence (defang). The one fence rule for what others wrote: the check's record
- * here, and a reply's words (reach-out/replies.ts).
- */
-export const fenceLine = (key: string, value: string | number | null | undefined): string | null => {
-  const v = value === null || value === undefined ? "" : defang(String(value)).replace(/\s+/g, " ").trim();
-  return v ? `${key}: ${v}` : null;
-};
-
-/**
  * The business's record, fenced: everything inside is data written by others. Its name is the one it is called by
  * (leadCalledByOf), as every email says it; how its listing writes it follows where that is more, since those words are
  * the business's own about itself.
@@ -155,9 +145,35 @@ function recordLines(opening: OpeningRecord): OpeningLine[] {
     ),
     ...partLines("reason", fenceLine("why_it_fits", opening.why_it_fits)),
     ...partLines("website", fenceLine("website_says", opening.website_says)),
-    ...partLines("listing", "</record>"),
+    ...partLines(
+      "listing",
+      fenceLine("preview_knows", opening.preview_knows),
+      fenceLine("preview_tried", opening.preview_tried),
+      fenceLine("preview_said", opening.preview_said),
+      "</record>",
+    ),
   ];
 }
+
+/** Whether a record holds anything of the business's own preview: an email that carries its link, once one is open. */
+const hasPreview = (opening: OpeningRecord): boolean =>
+  [opening.preview_knows, opening.preview_tried, opening.preview_said].some((line) => !!line?.trim());
+
+/**
+ * What the writer is told where the email carries the business's own preview (decision 0079): the sentence is about it,
+ * from what the record says it knows and what they did with it. An open is never said: a mail scanner opens a link too,
+ * and being watched is no way to be written to.
+ */
+const PREVIEW_RULES: readonly string[] = [
+  "This email carries the link to the business's own preview: AI set up from their listing and website, free to try.",
+  "Write the sentence about that preview, in the owner's voice. It is not a first hello.",
+  "preview_knows is what it already knows about them: you may name two or three of those things.",
+  "preview_tried is what they did with it. With no preview_tried line they have not tried it yet.",
+  "Where they have not tried it you may say how little trying it takes. Never say that they have not tried it.",
+  "preview_said is what they told it is not right: you may say they can put that right once it is theirs.",
+  "Never say it has been put right.",
+  "Never say or imply that you know whether they opened the email, the link or the page.",
+];
 
 /**
  * What an owner asked when they pressed Rewrite the opening (00505 sequence_sends.rewrite_asked): the opening they turned
@@ -203,7 +219,7 @@ export function openingUserLines(params: OpeningInput): OpeningLine[] {
   return [
     ...partLines("listing", "The business's record:"),
     ...recordLines(record),
-    ...partLines("listing", ""),
+    ...partLines("listing", ...(hasPreview(record) ? PREVIEW_RULES : []), ""),
     ...partLines("searched", fenceLine("What the owner searched for (not about this business)", record.what_you_asked)),
     ...partLines(
       "business",

@@ -6,7 +6,6 @@ import {
   draftFactsOf,
   findEmailWords,
   insertQueuedEmail,
-  findLeadPreview,
   moveSend,
   recordPreviewSent,
   recheckSends,
@@ -29,18 +28,16 @@ import type { Database, Json } from "@chanlytics/db/types";
 import { logAndGoOn } from "@chanlytics/log";
 import { scheduleJob } from "@chanlytics/jobs";
 import {
+  MIN_MS,
   draftRefusalOf,
   hasFootAddress,
   mailboxSendsNow,
   parseTenantConfig,
   reachOutSignatureOf,
-  previewSlotOf,
-  type LeadPreviewSlot,
   type SlotLead,
 } from "@chanlytics/contracts";
-import { dashboardOrigin, unsubscribeOrigin } from "../../../shared/dashboard-origin.js";
+import { unsubscribeOrigin } from "../../../shared/dashboard-origin.js";
 import { env } from "../../../shared/env.js";
-import { askPreview } from "../../../previews/make.js";
 import { reachOutDraft, reachOutRequest, reachOutWords } from "@chanlytics/channels/email";
 import { REPLAN_GIVE_UP_MS, type Replan } from "../replan.js";
 import type { Logger } from "../../../shared/log.js";
@@ -69,6 +66,13 @@ export const REWRITE_AFTER_MS = 5 * 60_000;
 
 /** How far on a held send, or one waiting for the email before it to be stamped, is planned again (in its lead's hours). */
 export const HOLD_MS = 3_600_000;
+
+/**
+ * How far on a send held for its lead's own receptionist is planned again while one is being made (decision 0079): a
+ * build takes about half a minute, and one that throws is tried once more, so a few minutes and never the hour a hold
+ * its owner must mend waits. The review of 12 November 2026 found every email that carries the link going an hour late.
+ */
+export const PREVIEW_HOLD_MS = 3 * MIN_MS;
 
 export const REWRITE_PAGE = 100;
 
@@ -183,8 +187,14 @@ export interface Tick {
   replan: Replan[];
   /** Planned again an hour on, in their lead's hours, at the tick's end: held, or waiting for the email before. */
   later: Replan[];
+  /** Planned again a few minutes on (PREVIEW_HOLD_MS), in their lead's hours: held for a receptionist being made. */
+  soon: Replan[];
   /** The holds said this tick, once each per workspace and reason. */
   said: Set<string>;
+  /** The workspaces found this tick to have made their day's previews (askPreview's limit): each is asked once a tick. */
+  capped: Set<string>;
+  /** The sends that wait on that limit: planned again an hour on, as a hold nothing mends in minutes is. */
+  cappedSends: Set<string>;
 }
 
 /**
@@ -263,7 +273,11 @@ export function claimedTurns(tick: Tick, reachOutSend: ReachOutSendRow) {
         ? "rechecked"
         : "lost",
     hold: (reason: string): Outcome => {
-      tick.later.push({ send: reachOutSend, wrote: false });
+      // One being made is minutes away; with the switch off none is, and with the day's all made none is until
+      // tomorrow: either waits the hour as any hold does.
+      const inMinutes =
+        reason === "preview_building" && env.LEAD_PREVIEWS === "on" && !tick.cappedSends.has(reachOutSend.id);
+      (inMinutes ? tick.soon : tick.later).push({ send: reachOutSend, wrote: false });
       const key = `${reachOutSend.tenant_id}:${reason}`;
       if (!tick.said.has(key)) {
         tick.said.add(key);
@@ -300,24 +314,6 @@ export interface Made {
   own: string | null;
   /** The lead's preview its words carry as {{their preview}} (decision 0079): its first send starts its thirty days. */
   previewId: string | null;
-}
-
-/**
- * The lead's own receptionist, for words that name {{their preview}} (decision 0079): open, with its link; being made,
- * and asked for where none is (askPreview, its build scheduled once), or held with the switch off and nothing made; or
- * gone, its door refusing one for this lead for good (not a business that takes bookings, a lead closed), which skips
- * the send as a failed or ended one does.
- */
-export async function previewForWords(
-  t: Tick,
-  s: ReachOutSendRow,
-): Promise<{ slot: LeadPreviewSlot; id: string | null }> {
-  const row = await findLeadPreview(t.db, s.tenant_id, s.lead_id);
-  const slot = previewSlotOf(row, t.now, dashboardOrigin());
-  if (slot.state !== "building" || row?.state === "building" || env.LEAD_PREVIEWS !== "on")
-    return { slot, id: slot.state === "open" ? (row?.id ?? null) : null };
-  const otherAskPreview = await askPreview(t.db, { tenantId: s.tenant_id, leadId: s.lead_id, by: null });
-  return { slot: otherAskPreview.ok ? slot : { state: "gone" }, id: null };
 }
 
 /**

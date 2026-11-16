@@ -198,10 +198,10 @@ test("an edge that could not be asked leaves email 'This could not be checked ju
   const r = await ready(db);
   assert.deepEqual(
     { ready: r.email.ready, why: r.email.why },
-    { ready: false, why: "This could not be checked just now." },
+    { ready: false, why: "This couldn't be checked just now." },
   );
   assert.equal(r.email.why, CHANNEL_WORDS.unchecked);
-  assert.equal(r.email.offers.why, CHANNEL_WORDS.unchecked, "offers by email could not be checked either: no guess");
+  assert.equal(r.email.offers.why, CHANNEL_WORDS.unchecked, "offers by email couldn't be checked either: no guess");
   assert.deepEqual(
     db.seen.map((q) => q.table),
     ["tenant_channels", "lines"],
@@ -229,7 +229,7 @@ test("the edge's answer about offers is read with the other, and kept as long: t
   assert.deepEqual(
     await getEmailWire({ now: u, fresh: true }),
     { ready: true, offers: null },
-    "the provider could not be asked: no answer",
+    "the provider couldn't be asked: no answer",
   );
   edge = () => ({ status: 200, body: { ok: true, ready: true, offers: true } });
   assert.deepEqual(

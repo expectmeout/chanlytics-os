@@ -264,8 +264,8 @@ export const REVIEW_WORDS = {
   you: "You",
   it: "It",
   none: "Nothing to judge yet: a conversation needs a question and an answer.",
-  failed: "It could not read this conversation just now. Try again in a moment.",
-  dropped: (n: number) => `${n} answer${n === 1 ? "" : "s"} could not be judged.`,
+  failed: "It couldn't read this conversation just now. Try again in a moment.",
+  dropped: (n: number) => `${n} answer${n === 1 ? "" : "s"} couldn't be judged.`,
   now: "Your settings changed since this conversation: it was judged against what it reads now.",
   /** A call from before its settings were kept with it (00476): what it ran on is not known. */
   unversioned: "This call has no record of the settings it ran on, so it was judged against what it reads now.",

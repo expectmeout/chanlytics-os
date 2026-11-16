@@ -232,6 +232,10 @@
     border-color var(--duration-fast) var(--ease-out),
     box-shadow var(--duration-fast) var(--ease-out);
 }
+/* A press of its own at the line's start (Content's empty state's +), where AI's three stands otherwise: its own room. */
+.cnv-ask-line[data-lead] {
+  padding-left: 6px;
+}
 .cnv-ask-line:focus-within {
   border-color: var(--accent);
   box-shadow: var(--focus-field);

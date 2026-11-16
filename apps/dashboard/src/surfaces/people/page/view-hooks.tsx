@@ -259,7 +259,7 @@ export function usePeoplePin({
               </>
             ),
           }
-        : { tone: "danger", msg: <>{r.message || "Could not change Today's lists."}</> },
+        : { tone: "danger", msg: <>{r.message || "Couldn't change Today's lists."}</> },
     );
   };
   return { canPin, pinBusy, pinned, togglePin };

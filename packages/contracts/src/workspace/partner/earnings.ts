@@ -235,7 +235,7 @@ export function partnerWorkspacesVM(
           : status === "closed"
             ? "Your partner account is closed. Its details are its owner's."
             : row.on_team
-              ? "Its details could not be read just now."
+              ? "Its details couldn't be read just now."
               : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
       facts: null,
       standing: standingOf(row.tenant_id),

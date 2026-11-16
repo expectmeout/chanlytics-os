@@ -24,7 +24,7 @@ export const COMBINE_WORDS = {
     `${other} and the person who answered are one person, so they keep their own record and take everything under ${other}.`,
   keeps: "Keeps their own name, number and address",
   keepsNoName: "Keeps their own number and address, and no name until they give one",
-  takesThread: (other: string) => `Takes the messages and calls on ${other}'s record, in one thread`,
+  takesThread: (other: string) => `Takes the messages and calls on ${other}'s record, in one conversation`,
   /** In the workspace's word for its appointments: "Takes its notes, deals, appointments and lists". */
   takesRecords: (many: string) => `Takes its notes, deals, ${many} and lists`,
   takesReachOut: "Takes the emails we sent it, the replies, and the lead's link to it",
@@ -38,7 +38,7 @@ export const COMBINE_WORDS = {
   busy: "Combining…",
   close: "Close",
   done: (kept: string) => `Combined into ${kept}`,
-  failed: "Could not combine these records.",
+  failed: "Couldn't combine these records.",
 } as const;
 
 export interface CombineVM {

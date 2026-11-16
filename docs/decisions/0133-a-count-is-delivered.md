@@ -93,7 +93,10 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
   A refused reservation ends on `month_leads_used`, `budget_used` or `day_used`.
 
 - **A leg's start:** it reads only its own runs as read (`termsTried`), and sizes from what the search's earlier rounds
-  delivered, every one ended and checked (`sizing.ts` `finishedYield`), never a candidate email.
+  delivered, every one ended and checked (`sizing.ts` `finishedYield`), never a candidate email. It asks each term for
+  a page at least, the card's 120 (`runner/main-ask.ts` `legPageOf`): the source answers a term near a place from its top,
+  and the top of an area beside ones the search read is mostly what it already holds, so a leg sized for the few a count
+  nearly met still wants found none of its own.
 - **The first round's size:** the probe's yield counts what the search's standard counts (`sizing.ts` `hasContact`). A
   search made for email counts a checked email alone (decision 0132), so it sizes from the places with a candidate
   email, never from a phone: counted by phones, it asked the card's area for about half the places its count needed
@@ -198,6 +201,17 @@ was read (`packages/contracts/src/leads/search/class.ts:134`).
      The four changes under Shape (a round's own money, one term at a time, an email search judges a place with an
      address, an exclusion's bar) answer the first four. The switch stays on for one workspace until a second search
      measures them.
+
+7. **The second real search** (15 November 2026, search `46a77c1e`, after #2344): 100 med spas in Queens with a checked
+   email. It found 99 in 47 minutes for $7.97: 8 cents a lead, 6.5 places a lead, the rate the month's $40 is held to.
+   The first round carried on past its own $2.40, and eight legs read Brooklyn, upper Manhattan, the Bronx, the
+   Rockaways, Long Island and two areas of New Jersey, each term in its turn.
+   - It ended one short. The last three legs were asked for 16, 8 and 4 places, the few the count still wanted over
+     the yield; the top of those areas was mostly what the search held, so they found 2, 1 and 0, and the guard said
+     every area within reach was searched. A leg now asks each term for a page at least (Shape, a leg's start).
+   - About 409 of the 1,048 places it paid for were already the workspace's: the ladder passes the areas this search
+     read, not those its other searches read. Not changed here.
+   - Reading each place's site for its mark was $1.96 of the $7.97. Not changed here.
 
 ## Tests
 

@@ -209,9 +209,13 @@ function refuseMessageThatDisagrees(
  * picked for is made. It was refused, and a message a picker listed could not be started. Refused in each ticked
  * channel's sentence for the version the message lacks (contracts messageWhyNot, one after another), so a message with
  * an email and no WhatsApp version is kept on WhatsApp and email, and is refused on WhatsApp alone with WhatsApp's
- * standing.
+ * standing. A campaign named by a ready-made starter asks it of the message as its filing will leave it, before anything
+ * is filed (the dashboard's starter-templates.ts starterChannels): one refusal, in one set of words.
  */
-function refuseMessageNoTickHolds(message: CampaignMessage, channels: readonly ConsentChannel[]): void {
+export function refuseMessageNoTickHolds(
+  message: Pick<CampaignMessage, "versions">,
+  channels: readonly ConsentChannel[],
+): void {
   const goes = messageGoesBy(message);
   if (channels.some((c) => goes.includes(c))) return;
   const words = channels.flatMap((c) => messageWhyNot(message, c) ?? []);

@@ -35,7 +35,7 @@ export const DELETE_MANY_WORDS = {
   yes: (n: number) => `Delete ${n}`,
   busy: "Deleting…",
   cancel: "Cancel",
-  failed: "Could not delete these people.",
+  failed: "Couldn't delete these people.",
   /** What a press did: who is going, who is not and why, and who was gone already. */
   said: (r: DeletedMany) =>
     [

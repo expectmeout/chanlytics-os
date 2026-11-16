@@ -47,7 +47,7 @@ export const heldReasonWords = (key: string): string => capitalize(ownWord(HELD_
 
 /** How many of those planned were held back: the messages sent and the people held make the messages planned. */
 export const heldBackLine = (held: number, sent: number): string =>
-  `${held} of the ${plural(sent + held, "message")} planned ${wasWere(held)} held back or could not be sent.`;
+  `${held} of the ${plural(sent + held, "message")} planned ${wasWere(held)} held back or couldn't be sent.`;
 
 /** Under the Runs that stopped card: the window counts a campaign's and a broadcast's runs; a reach-out's are its own part's (00405). */
 const REACH_OUTS_UNDER = "Runs to leads are not counted here.";

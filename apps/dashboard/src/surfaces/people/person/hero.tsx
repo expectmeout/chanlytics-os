@@ -364,7 +364,7 @@ function mergeAsk(c: PageCtx): SheetAsk {
     setMerge((m) => ({ ...m, busy: true, error: null }));
     const r = await mergePerson(p.id, other.id);
     if (!r.ok) {
-      setMerge((m) => ({ ...m, busy: false, error: r.message || "Could not merge these records." }));
+      setMerge((m) => ({ ...m, busy: false, error: r.message || "Couldn't merge these records." }));
       return;
     }
     const kept = keptOf(r.data, p.id);
@@ -517,7 +517,7 @@ function toTheNote(c: PageCtx) {
  */
 export function threadCtaOf(c: Pick<PageCtx, "p">): { label: string; to: string } | null {
   const { p } = c;
-  return p.rightNow.cta || (p.openThread ? { label: "Open the thread", to: p.openThread } : null);
+  return p.rightNow.cta || (p.openThread ? { label: "Open the conversation", to: p.openThread } : null);
 }
 
 /**

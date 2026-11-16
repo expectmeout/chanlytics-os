@@ -471,7 +471,7 @@ export function BusinessRecordForm({ line, flash }: { line?: LineDto | null; fla
     RECORD.read().then((r) => {
       if (!isOn()) return;
       if (!r.ok) {
-        setReadFailed(r.message || "The record could not be read.");
+        setReadFailed(r.message || "The record couldn't be read.");
         return;
       }
       setReadFailed(null);

@@ -62,7 +62,7 @@ test("one status: left out and review say why, a standing place is the sequence'
       null,
       { word: LEAD_REVIEW_WORD, tone: "warn", line: "The mailbox would not say" },
     ],
-    [lead(), place("waiting"), { word: "Waits for your OK", tone: "warn", line: `Step 1 · ${SEQ}` }],
+    [lead(), place("waiting"), { word: "Waits for your approval", tone: "warn", line: `Step 1 · ${SEQ}` }],
     [
       lead(),
       place("queued", { why: "unchecked" }),
@@ -191,7 +191,7 @@ test("under a head that says it, a row stops repeating it: Not contacted with no
   assert.equal(step.tone, "ok");
   assert.equal(
     leadStatusOf(lead(), placed("waiting"), CLOCK, true).word,
-    "Waits for your OK",
+    "Waits for your approval",
     "what needs you says what",
   );
   const barred = placed("queued", { why: "unchecked" });

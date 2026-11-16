@@ -952,7 +952,7 @@ test("a reach-out's run waiting on Today is opened, never approved from the row 
   const folded = byTestId(queue, "brief-runs-row");
   assert.ok(folded, "two runs waiting for an OK are one row");
   assert.equal(all(queue, (n) => n.props?.["data-testid"] === "brief-run-row").length, 0, "and no row a run");
-  assert.ok(textOf(folded).includes("2 runs wait for your OK"), textOf(folded));
+  assert.ok(textOf(folded).includes("2 runs wait for your approval"), textOf(folded));
   assert.equal(buttons(folded, "Approve").length, 0, "the folded row opens, and sends nothing by itself");
   went.length = 0;
   press(buttons(folded, "Open")[0]);
@@ -982,7 +982,9 @@ test("a reach-out's run waiting on Today is opened, never approved from the row 
   assert.ok(textOf(coldRow).includes("Cold email"), textOf(coldRow));
   assert.ok(textOf(coldRow).includes("1 sequence"), "a first email and its nudge are one sequence");
   assert.ok(
-    textOf(coldRow).includes("2 held for a look. 12 emails wait for your OK. Each one you answer opens the next."),
+    textOf(coldRow).includes(
+      "2 held for a look. 12 emails wait for your approval. Each one you answer opens the next.",
+    ),
     textOf(coldRow),
   );
   assert.equal(buttons(coldRow, "Approve").length, 0, "no one-tap send of a cold email from Today, folded or not");
@@ -1108,7 +1110,7 @@ test("a waiting run whose day has passed is no row of Need you: nobody is asked 
   const queue = byTestId(draw(NeedYou), "today-queue");
   assert.equal(byTestId(queue, "brief-run-row"), null, "REGRESSION: a row over a run the verb refuses");
   assert.equal(buttons(queue, "Approve").length, 0);
-  assert.equal(byTestId(queue, "today-group-ok"), null, "nothing waits for your OK");
+  assert.equal(byTestId(queue, "today-group-ok"), null, "nothing waits for your approval");
   // The words the runs' own pages say it in are contracts' still.
   const w = todayRunWords(rows[0]);
   assert.deepEqual([w.late.meta, w.late.status], ["Campaign · too late to approve", ["Too late to approve"]]);
@@ -1220,7 +1222,7 @@ test("a search waiting on you is a row of the queue like a person: its name, its
   assert.ok(textOf(row).includes(waiting.round.question.sentence), "the question, as the search asked it");
   assert.ok(
     find(byTestId(queue, "today-group-ok"), (n) => n === row),
-    "a question waits for your OK, as a run does",
+    "a question waits for your approval, as a run does",
   );
   // Answered where it stands (his call D8, 9 Nov 2026), and its words still go to the search, open on its question.
   press(buttons(row, "Answer")[0]);
