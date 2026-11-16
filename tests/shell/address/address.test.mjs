@@ -23,7 +23,7 @@ const inPath = (route) => {
   return Object.hasOwn(WORDS, head) ? WORDS[head] + route.slice(head.length) : route;
 };
 
-/** Every kind of route the shell draws (mockup/CLAUDE.md, "Routes"), each as it is written after the slug. */
+/** Every kind of route the shell draws (.claude/skills/chanlytics-interface/shell.md, "Routes"), each as written after the slug. */
 const ROUTES = [
   "today",
   "inbox",
@@ -127,9 +127,9 @@ test("a route is read from the path, else the hash, else it is Today", () => {
   assert.equal(routeOfAddress({ pathname: "/w/acme", hash: "#error=x" }), "today", "a refusal is not a page");
   assert.equal(routeOfAddress({}), "today");
   assert.equal(routeOfAddress({ pathname: null, hash: null }), "today");
-  // The standalone mockup has no workspace path, and its route is the hash's.
+  // Off a workspace's path the route is the hash's, as an old link wrote it.
   assert.equal(routeOfAddress({ pathname: "/", hash: "#/clients/leads" }), "clients/leads");
-  assert.equal(routeOfAddress({ pathname: "/Chanlytics.html", hash: "#/inbox" }), "inbox");
+  assert.equal(routeOfAddress({ pathname: "/index.html", hash: "#/inbox" }), "inbox");
 });
 
 test("routeOfPath names a workspace's route and nothing else's; routeOfHash takes only what begins #/", () => {

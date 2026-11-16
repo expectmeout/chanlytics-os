@@ -8,8 +8,7 @@
  * the shortcuts sheet's opener, which the sidebar's account menu calls. The frame's own parts are TypeScript and imported
  * (wave 2, steps 7a to 7e), so no name of theirs is published.
  *
- * What is shared moves once (decision 0015): the app publishes them from seed-globals.ts before any page loads, the
- * standalone mockup from a bundle its server builds (tooling/scripts/serve-mockup.mjs, `data/frame-globals.js`), and a
+ * What is shared moves once (decision 0015): the app publishes them from seed-globals.ts before any page loads, and a
  * node test that draws a page reading them installs them where it imported the JSX. Each name goes with its last reader:
  * the frame's and Ask's JSX (wave 2), then the adapters, which read the window so a test can stand in (step 9).
  *

@@ -40,8 +40,8 @@
  *   stripe       the first run's Go live pays in the page (decision 0073, R16): Stripe.js from js.stripe.com, and the
  *                origins Stripe's own CSP guide names for it and for embedded Checkout (script, frame, connect, img).
  *   fonts        self-hosted by next/font, so no font host is named; only the
- *                standalone harness (Chanlytics.html, never served by the app)
- *                still reaches Google Fonts.
+ *                harness's pages (the kit's gallery, never served by the app)
+ *                still reach Google Fonts.
  *
  * Enforced since 17 September 2026. It rode the report-only header first,
  * until the nightly, which walks every page signed in, ran clean of

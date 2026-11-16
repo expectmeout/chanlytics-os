@@ -58,11 +58,12 @@ words AI is told to use.
 | The gallery | `tooling/scripts/e2e-harness/kit-gallery.mjs`: `node --import tsx tooling/scripts/e2e-harness/server.mjs 3210 kit`, then http://localhost:3210/ (`t` turns the theme, `l` the look), and the page that runs the Base UI components at http://localhost:3210/behaves (`tooling/scripts/e2e-harness/kit-behaves-entries.tsx`); `docs/runbook.md`, "See the kit" |
 | Its checks | `e2e/kit/kit.spec.ts` and `e2e/kit/kit-behaves.spec.ts` in a browser; `tests/styles/kit-*.test.mjs` in `corepack pnpm test`. A pull request that changes the kit's own files runs the first spec's four quick checks (`.github/workflows/ci.yml`, the `kit` job, in no gate); `.github/workflows/nightly-kit.yml` runs both specs whole, so its red is an issue, not a blocked merge |
 | The measures | `tests/_measures.mjs`, reading the stylesheets through `tests/_css.mjs` and the markup through `tests/_ast.mjs`; `tooling/scripts/checks/debt.mjs` holds each change to what it adds; the register, `docs/debt.md` |
+| The frame's and the pages' conventions | `.claude/skills/chanlytics-interface/shell.md`: addresses and the route table, the few names and events on the window, and the patterns every page keeps (the toast, a switch holds still, a door is a link, the role gates, the keys, where a page keeps its place, the table) |
 
 ## Draw with the kit
 
 1. Find the primitive in the gallery: its family, and the entry whose markup is what the page needs.
-2. On a shell page (`apps/dashboard/mockup/`), draw the house component where one exists (`MoreMenu` for a menu,
+2. On a page that has not moved onto the kit, draw the house component where one exists (`MoreMenu` for a menu,
    never its markup typed again), and otherwise write the entry's classes (a button, a chip, a panel). On a surface
    under `apps/dashboard/src/surfaces/`, import the component from the kit's `index.ts`: a press that opens a page
    takes `href` and is drawn as a link, and `className` carries layout alone. A surface cannot import the house's JSX:
@@ -167,7 +168,7 @@ A new token says, in a comment beside it, what it is for.
 | --- | --- |
 | the `style-values` measure (`corepack pnpm check:debt`) | a type size, radius, shadow, colour or blur written as a literal, counted per stylesheet: every stylesheet of the dashboard but the tokens, the kit's among them. The charts' validated palette in `apps/dashboard/src/styles/charts.css` is counted, and kept |
 | the `kit-primitives` measure (`corepack pnpm check:debt`) | in every stylesheet but the tokens' and the kit's: each selector naming a class the registry lists, even one that only places it (`.cal-tools > .btn`), or a class whose name holds a primitive's word (`btn`, `chip`, `tab`, `card`, `sheet`, `field`, `face`, `menu`, `pop`, `tip`, `toast`…, so `.pl-card-slot` counts). Not a row, nor a page's own count |
-| the `inline-styles` measure (`corepack pnpm check:debt`) | a `style` prop under `apps/dashboard/mockup` or `apps/dashboard/src/surfaces`, counted per file |
+| the `inline-styles` measure (`corepack pnpm check:debt`) | a `style` prop in the dashboard's markup under `apps/dashboard/src`, counted per file |
 | the raw-element lint (`eslint.config.mjs`) | a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<dialog>` in `apps/dashboard/src/surfaces` outside the kit; a surface moved before its kit step waits in `KIT_PENDING` |
 | `tests/styles/kit-css.test.mjs` | a class the kit's stylesheet declares and the registry lacks; an `@media` width in it other than 900px; a page outside the shell drawing a kit class while `apps/dashboard/app/globals.css` does not import the kit |
 | `tests/styles/kit-gallery.test.mjs` | a registry name no entry draws |
