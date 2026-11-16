@@ -3,10 +3,12 @@
  * as it opens, and what stands over the page. Pure of its state.
  */
 import type { AskMessageVM, AskScope } from "@chanlytics/contracts";
+import { askOnScreenKey } from "@/bridge/ask/on-screen";
 import { AH_OPEN_OVER } from "../hooks";
 import { askKindGlyph } from "../card-parts";
 import { inboxThreads, liveCalls, mediaSays, routeNow } from "../shell";
 import type { Conversation, Line, LineRoute, QuickTurn } from "./types";
+import type { LineWords } from "../words";
 
 // A hold's lift that makes no click on the button (the finger let go elsewhere) is forgotten after this.
 export const AR_LIFT_MS = 400;
@@ -77,4 +79,14 @@ export const arEscape = ({
   if (live) stop();
   else if (view === "earlier") setView("rows");
   else onClose();
+};
+
+/**
+ * Campaigns' field asks for what should go out; on Content, where Ask makes posts and videos, for what to make; on its Ads
+ * page, which sends nothing yet, for nothing of the kind.
+ */
+export const campaignsAskOf = (words: LineWords): string => {
+  const on = askOnScreenKey();
+  if (on === "content") return words.describeContent;
+  return on === "ads" ? words.placeholder : words.describeCampaigns;
 };

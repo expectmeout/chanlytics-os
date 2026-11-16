@@ -26,6 +26,7 @@ import {
   type CalendarRunMark,
   type CalendarRunsDto,
 } from "@chanlytics/contracts";
+import { ROUTE_WAIT_MS } from "@/bridge/surface-registry";
 import { useStanding } from "../kit/head/standing";
 import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";
@@ -101,10 +102,12 @@ function ColdFrame() {
 }
 
 /**
- * The longest a board whose weeks have just landed waits for its campaigns before it draws without them: the field's gap
- * between the two on a cold load (page_vitals, 14-21 Oct 2026: 0 to 840 ms, about 450 at the middle).
+ * How lately weeks must have landed for a board to count as cold (`justLanded`): the field's gap between the weeks and the
+ * campaigns on a cold load (page_vitals, 14-21 Oct 2026: 0 to 840 ms, about 450 at the middle). It was the hold's bound
+ * too, and on production a press to the Calendar the moment Today drew waited out its 600 ms for campaigns read in 1.5 s,
+ * drew the meetings, and the campaigns came after them (the phone re-measure of 16 Nov 2026): the hold is the route's wait.
  */
-const RUNS_WAIT_MS = 600;
+const JUST_LANDED_MS = 600;
 
 /**
  * Whether the weeks' read landed only a moment ago, within the wait a cold board gives its campaigns. A load whose two
@@ -113,7 +116,8 @@ const RUNS_WAIT_MS = 600;
  * the speed (10 Nov 2026, production: 450 to 640 ms apart, the grid 21 px down). Weeks held from an earlier read (a move
  * between pages, a return visit's kept copy) are older than this, and draw at once.
  */
-const justLanded = (live: CalendarSurface | undefined): boolean => !!live && Date.now() - live.fetchedAt < RUNS_WAIT_MS;
+const justLanded = (live: CalendarSurface | undefined): boolean =>
+  !!live && Date.now() - live.fetchedAt < JUST_LANDED_MS;
 
 /**
  * Whether a board holds its first draw for its campaigns, so the two come in as one and no row of campaigns lands between
@@ -121,9 +125,10 @@ const justLanded = (live: CalendarSurface | undefined): boolean => !!live && Dat
  * (a load, or a tab that had not read the weeks), whose weeks had only just landed (`justLanded`), or whose campaigns were
  * being read as it came (`runsReading`): a press from Today finds the weeks in hand, Today draws them, and its campaigns
  * still out, and the meetings drew, then the campaigns 0.2 to 0.3 s after, 48 px a row (the phone review of 15 Nov 2026).
- * Only while Show draws campaigns, only while their read is out (not failed), and never past RUNS_WAIT_MS from when it
- * began to wait (`live`: the real read). A page that drew at once (weeks and campaigns it held from before, or a demo's
- * sample a read then replaces) draws at once, as it always did, and never goes back to its frame.
+ * Only while Show draws campaigns, only while their read is out (not failed), and never past the route's wait
+ * (ROUTE_WAIT_MS, the bound every page's first draw has for what stands beside it) from when it began to wait (`live`:
+ * the real read). A page that drew at once (weeks and campaigns it held from before, or a demo's sample a read then
+ * replaces) draws at once, as it always did, and never goes back to its frame.
  */
 function useRunsHold(live: CalendarSurface | undefined, drewAtStart: boolean): boolean {
   const boardIn = !!live;
@@ -141,7 +146,8 @@ function useRunsHold(live: CalendarSurface | undefined, drewAtStart: boolean): b
     !waited;
   useEffect(() => {
     if (!holding) return undefined;
-    const t = setTimeout(() => setWaited(true), RUNS_WAIT_MS);
+    // The route's wait as the shell is told it (surface-registry installRouteGate), as the shell's own gate reads it.
+    const t = setTimeout(() => setWaited(true), window.__routeWaitMs ?? ROUTE_WAIT_MS);
     return () => clearTimeout(t);
   }, [holding]);
   return holding;

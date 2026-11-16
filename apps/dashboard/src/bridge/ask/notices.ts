@@ -5,8 +5,8 @@
  * In hand before Ask opens. Read only as it opened, the line came 0.7 to 1.8 s after the home had drawn (the read works out
  * everything Ask knows of the business, 3.5 s on a first ask), and the three, the pills and Brief me jumped up as it took
  * its place (the phone review of 15 Nov 2026). So the last answer is kept in the tab, as a surface is, and a reload opens Ask
- * with it; and on a device that opens Ask, it is read once the boot is in, before Ask is reached for. A device that never
- * opens it never reads it ahead: the read is a page's worth of the server's.
+ * with it; and on a device that opens Ask, it is read once the page on screen has its own reads (afterBoot("page")), before
+ * Ask is reached for. A device that never opens it never reads it ahead: the read is a page's worth of the server's.
  */
 import {
   ASK_FOUND_VIEW,
@@ -83,13 +83,19 @@ export function askNotices(win: Window, language: () => string = () => "en") {
     return go;
   };
   if (typeof win.addEventListener === "function" && warmsOnItsOwn() && opensAsk(win))
-    void afterBoot().then(() => read(language()));
+    void afterBoot("page").then(() => read(language()));
   /** The language Ask last opened in, whose answer it says; Ask's own until it has opened. */
   let openedIn: string | null = null;
   const shown = () => openedIn ?? language();
   return {
     /** The one thing worth saying first, or nothing. */
     noticed: (): AskNotice | null => noticedInTab.peek(shown())?.notices[0] ?? null,
+    /**
+     * Whether what the AI noticed is held for a language: where it is not, the home waits for its read as it opens
+     * (surfaces/ask/line/hooks.tsx arNoticeWait). Drawn before it, its line came in 0.8 s later and moved the three and
+     * every row 17 px (the phone re-measure of 16 Nov 2026).
+     */
+    holdsNotice: (lang: string): boolean => !!noticedInTab.peek(lang),
     /** Read them again (Ask opening), and say this device opens Ask. */
     readNotices: (lang: string): Promise<void> => {
       openedIn = lang;

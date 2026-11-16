@@ -337,7 +337,7 @@ test("a move to Today from another page holds its first draw for the note, where
   }
 });
 
-test("off Today, what its first draw waits for is read once the boot is in, never Ask's morning, and a press to Today takes the note read so: asked once", async () => {
+test("off Today, what its first draw waits for is read once the page has its own reads, the AI's morning among them, and a press to Today takes the note read so: asked once", async () => {
   const was = globalThis.window.location;
   const page = { document: { readyState: "complete" }, addEventListener: () => {} };
   try {
@@ -345,19 +345,19 @@ test("off Today, what its first draw waits for is read once the boot is in, neve
     api().forget();
     const before = reads();
     assert.ok(ROUTE_WAITS.today.includes("ask_morning") && !isSurfaceReady("ask_morning"), "Ask's morning is out");
-    // On Today itself: nothing is read ahead, Today reads its own. (What waits for the boot after it runs after it.)
+    // On Today itself: nothing is read ahead, Today reads its own. (What waits for the page's own after it runs after it.)
     const onToday = [];
     readTodaySoon((keys) => onToday.push(...keys), page);
-    await afterBoot();
-    // On another page: read once the boot is in.
+    await afterBoot("page");
+    // On another page: read once the page has its own reads.
     globalThis.window.location = { ...was, pathname: "/w/harbor/calendar" };
     const ahead = [];
     readTodaySoon((keys) => ahead.push(...keys), page);
     await until(() => ahead.length > 0 && reads() === before + 1, "Today's waits and the note, read ahead");
     assert.deepEqual(onToday, [], "on Today nothing is read ahead");
     assert.ok(
-      !ahead.includes("ask_morning"),
-      "never Ask's morning: where none is written yet its read asks Ask to write one",
+      ahead.includes("ask_morning"),
+      "the AI's morning too, whose read asks for none off Today (tests/today/zones/morning-read-ahead.test.mjs)",
     );
     // A press to Today: the note is in hand, and nothing more is asked for it.
     arriveOnToday("today");

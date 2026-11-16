@@ -22,7 +22,6 @@ import { CellLines } from "../../kit/table/lines";
 import type { View } from "../../kit/table/view";
 import type { ColCtx } from "../../people/types";
 import { reachOuts } from "../../campaigns/reach-out/surface";
-import { leadDtoFor } from "../surface";
 import { LeadRowCall } from "./call-menu";
 import { LeadHover, LeadTip, ldPlacePop } from "./hover";
 import {
@@ -86,8 +85,7 @@ const gateRowAct = (kind: LeadRowActKind, canFind: boolean) =>
         : {};
 
 const LeadRowActions = ({ l, x }: { l: LeadRowVM; x: LeadCellCtx }) => {
-  const place = l.cls === "excluded" ? null : (leadDtoFor(l.id)?.place ?? null);
-  const act = leadRowActOf(l, place, x.pickName ? { name: x.pickName } : null);
+  const act = leadRowActOf(l, l.place ?? null, x.pickName ? { name: x.pickName } : null);
   return (
     <span className="cl-row-actions ld-row-actions">
       {act && act.kind !== "call" && (
@@ -148,14 +146,7 @@ const LeadRowActions = ({ l, x }: { l: LeadRowVM; x: LeadCellCtx }) => {
  * marks are the ones that need you.
  */
 const stageCell = (l: LeadRowVM, x: LeadCellCtx) => {
-  // What the read holds of the lead beside its row: its place in a sequence, and when it was contacted.
-  const read = l.cls === "excluded" ? null : leadDtoFor(l.id);
-  const said = leadStatusOf(
-    { ...l, contactedAt: read?.contacted_at ?? null },
-    read?.place ?? null,
-    { tz: reachOuts.zone(), nowMs: Date.now() },
-    x.grouped,
-  );
+  const said = leadStatusOf(l, l.place ?? null, { tz: reachOuts.zone(), nowMs: Date.now() }, x.grouped);
   const client = ldClientOf(l, x);
   const word = client ? (
     ldClientPill(l, x)

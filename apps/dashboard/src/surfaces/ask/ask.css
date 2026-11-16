@@ -1348,6 +1348,11 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-line-body {
   position: relative;
 }
+/* The home while what the AI noticed is read with nothing held (line/hooks.tsx arNoticeWait): laid out, never shown, so it
+   comes in whole and nothing in it moves as the line takes its place. */
+.ask-now.waiting {
+  visibility: hidden;
+}
 .ask-line-body.thread .ask-now {
   display: flex;
   flex-direction: column;

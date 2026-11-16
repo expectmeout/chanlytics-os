@@ -860,6 +860,29 @@ test("REGRESSION: a row is one option and holds no control of its own -- Not now
   }
 });
 
+test("REGRESSION (16 Nov 2026): opened while what AI noticed is read with nothing held, the home is laid out but not shown until it is in -- drawn first, its line came 0.8 s later and moved the three and every row 17 px", async () => {
+  ask([]);
+  const A = askCalls();
+  const was = { readNotices: A.readNotices, holdsNotice: A.holdsNotice, noticed: A.noticed };
+  const NOTICE = { key: "room_and_yes", says: "Thursday has room.", ask: "Who has room?" };
+  let land = () => {};
+  let held = false;
+  A.readNotices = () => new Promise((r) => (land = () => r((held = true))));
+  A.holdsNotice = () => held;
+  A.noticed = () => (held ? NOTICE : null);
+  const waiting = (tree) => byClass(tree, "ask-now")[0].props.className.split(" ").includes("waiting");
+  try {
+    render(Palette, OPEN);
+    assert.ok(waiting(await later(Palette, OPEN)), "laid out, not shown, while it is read");
+    land();
+    const tree = await later(Palette, OPEN);
+    assert.ok(!waiting(tree) && byTestId(tree, "ask-row-follow"), "shown whole once it is in, its line in its place");
+    await closes();
+  } finally {
+    Object.assign(A, was);
+  }
+});
+
 test("the tab holds the follow-ups that came due: read once the boot is in, said on the window each read; the newest read wins; one a question comes back to leaves at once; Leads or Sequences landing reads again only while one still waits; a tab coming back reads again past a minute", async () => {
   const win = new EventTarget();
   win.document = new EventTarget();

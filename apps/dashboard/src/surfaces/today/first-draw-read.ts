@@ -78,16 +78,17 @@ export function arriveOnToday(route: string): void {
   for (const card of arrivals) card.arrive();
 }
 
-/** What Today's first draw waits for that is read ahead of a move to it: all of it but Ask's morning (readTodaySoon). */
+/** What Today's first draw waits for that is read ahead of a move to it (readTodaySoon): what is not in yet. */
 const todayWaitsToRead = (): string[] =>
-  (ROUTE_WAITS.today ?? []).filter((k) => k !== "ask_morning" && !isSurfaceReady(k) && !isSurfaceFailed(k));
+  (ROUTE_WAITS.today ?? []).filter((k) => !isSurfaceReady(k) && !isSurfaceFailed(k));
 
 /**
- * What Today's first draw waits for, read once the boot is in on any other page (`read`: the runner's read of those
- * surfaces, FrameApp.tsx), with each card's read the tab holds none of, so a press to Today draws at once. Asked only as
- * Today was reached, its first draw came 1.6 to 2.0 s after the press (the phone review of 15 Nov 2026). Never Ask's
- * morning: where none is written yet, its read asks Ask to write it, which is a visit to Today's to start. Never where the
- * page may not warm on its own (warmsOnItsOwn).
+ * What Today's first draw waits for, read on any other page once that page has its own reads (afterBoot("page"); `read`: the
+ * runner's read of those surfaces, FrameApp.tsx), with each card's read the tab holds none of, so a press to Today draws at
+ * once. Asked only as Today was reached, its first draw came 1.6 to 2.0 s after the press (the phone review of 15 Nov
+ * 2026); asked once the whole boot was in, 1.3 to 2.4 s on production, where that was three seconds on (16 Nov). The AI's
+ * morning among them, whose read asks for none off Today (ask-morning-surface.ts). Never where the page may not warm on its
+ * own (warmsOnItsOwn).
  */
 export function readTodaySoon(read: (keys: string[]) => void, at?: Window): void {
   const win = at ?? (typeof window === "undefined" ? null : window);
@@ -98,7 +99,7 @@ export function readTodaySoon(read: (keys: string[]) => void, at?: Window): void
     if (keys.length) read(keys);
     for (const card of arrivals) card.begin();
   };
-  const soon = () => void afterBoot().then(go);
+  const soon = () => void afterBoot("page").then(go);
   if (win.document.readyState === "complete") soon();
   else win.addEventListener("load", soon, { once: true });
 }

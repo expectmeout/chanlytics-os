@@ -542,6 +542,36 @@ test("under a head that says the fit, the name wears no fit pill; a lead with a 
   assert.equal(pill(NAMED, { mixedFits: false }), null, "every fit alike: nothing to tell apart");
 });
 
+test("REGRESSION (16 Nov 2026): a row says where it stands in a sequence from the row alone, as a row the tab kept is drawn -- looked up in the page's records, which come with its read, each status came 0.6 s after the rows on a return to Leads", () => {
+  // No page of leads is loaded here: the records a cell looked its place up in are not in hand.
+  const waits = {
+    lead_id: "l1",
+    sequence_id: "s1",
+    name: SEQ,
+    state: "on",
+    group: "waiting",
+    place: 1,
+    at: null,
+    why: null,
+  };
+  const PLACED = { ...NAMED, place: waits, contactedAt: null };
+  const status = byTestId(cellOf("stage", PLACED, nameCtx().ctx), "lead-status");
+  assert.ok(status, "the Stage cell says it");
+  assert.match(textOf(status), /Waits for your approval/);
+  assert.equal(
+    textOf(byTestId(businessOf(PLACED, nameCtx({ stageShown: false }).ctx), "lead-state-tag")),
+    textOf(status),
+    "and the name says it where no Stage column does",
+  );
+  const { ctx } = ctxOf();
+  assert.match(textOf(drawn(PLACED, ctx)), /Review/, "and the row's act is the one its place asks for");
+  assert.doesNotMatch(
+    textOf(cellOf("stage", NAMED, nameCtx().ctx)),
+    /Waits for your approval/,
+    "a row in none says none",
+  );
+});
+
 test("Stage's menu holds three switches with the view's counts and Hide column; Reach's the two the Filter held", () => {
   const { p, went } = menuPage();
   const menus = leadHeadMenus(p);
