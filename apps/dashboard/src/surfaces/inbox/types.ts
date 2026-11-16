@@ -323,6 +323,8 @@ export interface TemplateDto extends ApprovedTemplate {
   title?: string | null;
   /** WhatsApp holds this row (Meta gave it an id): only such a one has its words changed and sent back. */
   at_meta?: boolean;
+  /** When the row last changed: for a version in review, when it went to WhatsApp (contracts reviewSinceOf). */
+  updated_at?: string | null;
   /** A refused WhatsApp version's words WhatsApp approved before they were changed, which its editor can go back to. */
   approved_before?: string | null;
   /** Ask's new words for this refusal, kept once written: its editor opens on them with no second wait. */

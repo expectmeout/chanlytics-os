@@ -42,7 +42,7 @@ export interface PlaybookMessage {
  */
 export const WHATSAPP_VERSION_ALONE: Pick<CampaignMessage, "versions"> = {
   versions: {
-    whatsapp: { id: "", status: "approved", hidden: false, blocked: null, reason: null },
+    whatsapp: { id: "", status: "approved", hidden: false, blocked: null, reason: null, since: null },
     email: null,
     sms: null,
   },

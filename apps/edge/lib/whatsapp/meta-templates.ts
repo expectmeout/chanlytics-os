@@ -14,7 +14,7 @@
 import type { SchemaSet, TemplateStatus, TenantId } from "@chanlytics/contracts";
 import { GRAPH_TIMEOUT_MS, GRAPH_VERSION } from "./meta-graph.js";
 import { answerObject, fetchFromProvider } from "@chanlytics/channels/shared";
-import { NUMBERED_SLOT } from "@chanlytics/contracts";
+import { NUMBERED_SLOT, recordOrNull, textOrEmpty } from "@chanlytics/contracts";
 
 export interface MetaTemplateComponent {
   type: string;
@@ -76,6 +76,38 @@ export async function listTemplates(
     url = body.paging?.next ?? null;
   }
   return { ok: true, templates: out };
+}
+
+/** What WhatsApp says of one template now (getTemplate): its status word, its kind and its reason as Meta spells them. */
+export interface MetaTemplateNow {
+  id: string;
+  status: string;
+  category: string | null;
+  rejected_reason: string | null;
+}
+
+/**
+ * One template as WhatsApp holds it now, by its id: what a review that went quiet past a day is asked again
+ * (slow-reviews.ts), one read, bounded by Graph's own time, never tried twice inside the visit's time.
+ */
+export async function getTemplate(
+  token: string,
+  templateId: string,
+): Promise<{ ok: true; template: MetaTemplateNow } | { ok: false; error: string; status: number }> {
+  const res = await fetchFromProvider(
+    "meta",
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(templateId)}?fields=id,status,category,rejected_reason`,
+    { headers: { authorization: `Bearer ${token}` }, timeoutMs: GRAPH_TIMEOUT_MS, idempotent: true, tries: 1 },
+  );
+  if (res.status === 0) return { ok: false, error: String(res.error), status: 0 };
+  const body = answerObject(res);
+  const id = textOrEmpty(body?.id);
+  const status = textOrEmpty(body?.status);
+  const failure = recordOrNull(body?.error);
+  if (res.outcome !== "ok" || !id || !status)
+    return { ok: false, error: textOrEmpty(failure?.message) || `HTTP ${res.status}`, status: res.status };
+  const category = textOrEmpty(body?.category) || null;
+  return { ok: true, template: { id, status, category, rejected_reason: textOrEmpty(body?.rejected_reason) || null } };
 }
 
 /**

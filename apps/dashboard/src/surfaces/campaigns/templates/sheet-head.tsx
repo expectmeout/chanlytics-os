@@ -5,7 +5,7 @@
  * who said yes to offers"), and two rows under the words, one of which said "None yet". The words' own pencil is here
  * too, which WhatsApp's words and an email's or a text's version wear alike.
  */
-import { MESSAGE_CHANGE_WORDS } from "@chanlytics/contracts";
+import { MESSAGE_CHANGE_WORDS, SLOW_REVIEW_WORDS, reviewIsSlow, reviewSinceOf } from "@chanlytics/contracts";
 import { SEQUENCES_ROUTE, sequenceRoute } from "@chanlytics/contracts";
 import { navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -114,7 +114,9 @@ export function standingTap(g: TemplateGroup, facts: Facts, setting: Setting) {
       ? TPL_LIST_WORDS.waiting
       : TPL_LIST_WORDS.placeWord[setting.place];
   const tone = checking ? "warn" : setting.waiting ? "plain" : PLACE_TONES[setting.place];
-  const says = checking ? WORDS.checkingSays : placeSays(facts, setting);
+  // Past a day in review, the tap says WhatsApp is taking longer than usual and that Chanlytics was told (slow-reviews.ts).
+  const slow = checking && facts.lang.row !== null && reviewIsSlow(reviewSinceOf(facts.lang.row), Date.now());
+  const says = slow ? SLOW_REVIEW_WORDS.sheet : checking ? WORDS.checkingSays : placeSays(facts, setting);
   return (
     <Popover
       label={WORDS.standing(g.title)}

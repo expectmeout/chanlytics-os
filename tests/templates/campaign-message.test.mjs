@@ -101,7 +101,9 @@ for (const set of SETS) {
       assert.equal(m.anchor.channel, ANCHORS[key]);
       assert.equal(m.anchor.id, IDS[ANCHORS[key]]);
       assert.deepEqual(m.versions, {
-        whatsapp: has.whatsapp ? { id: "w-row", status: standing, hidden: false, blocked: null, reason: null } : null,
+        whatsapp: has.whatsapp
+          ? { id: "w-row", status: standing, hidden: false, blocked: null, reason: null, since: null }
+          : null,
         email: has.email ? { id: "e-row" } : null,
         sms: has.sms ? { id: "s-row" } : null,
       });
@@ -352,12 +354,12 @@ test("a message is the workspace's rows of one name and language, however the ro
   ];
   const m = campaignMessageOf(rows, NAME, LANGUAGE);
   assert.deepEqual(m.versions, {
-    whatsapp: { id: "w-row", status: "approved", hidden: false, blocked: null, reason: null },
+    whatsapp: { id: "w-row", status: "approved", hidden: false, blocked: null, reason: null, since: null },
     email: { id: "e-row" },
     sms: { id: "s-row" },
   });
   assert.deepEqual(campaignMessageOf(rows, NAME, "es").versions, {
-    whatsapp: { id: "w-es", status: "approved", hidden: false, blocked: null, reason: null },
+    whatsapp: { id: "w-es", status: "approved", hidden: false, blocked: null, reason: null, since: null },
     email: null,
     sms: { id: "s-es" },
   });
@@ -573,7 +575,7 @@ test("a message whole, as a page reads it: every field it carries and no other",
     hidden: false,
     offered: true,
     versions: {
-      whatsapp: { id: "w-row", status: "pending", hidden: false, blocked: null, reason: null },
+      whatsapp: { id: "w-row", status: "pending", hidden: false, blocked: null, reason: null, since: null },
       email: { id: "e-row" },
       sms: { id: "s-row" },
     },
