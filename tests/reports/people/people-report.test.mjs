@@ -262,7 +262,7 @@ test("the mix says its rows and its line", () => {
   // How the stops came.
   assert.deepEqual(rows(v.stops), [
     ["Their own STOP", 2],
-    ["The carrier", 1],
+    ["Their phone company", 1],
     ["An unsubscribe", 1],
   ]);
   assert.equal(v.stops.line, "Each person is counted once for each kind of message they stopped.");
@@ -286,7 +286,7 @@ test("the mix says its rows and its line", () => {
   assert.deepEqual(rows(every), [
     ["Recorded by a member", 4],
     ["Their own STOP", 2],
-    ["The carrier", 1],
+    ["Their phone company", 1],
     ["An unsubscribe", 1],
     ["A complaint", 1],
     ["A reply", 1],

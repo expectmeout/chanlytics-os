@@ -45,7 +45,7 @@ export function refusalSaid(
     default:
       return es
         ? "Algo falló de nuestro lado, no con tu pregunta. Inténtalo de nuevo."
-        : "Something went wrong on our side, not with your question. Try again.";
+        : "AI couldn't answer this time. Nothing was wrong with your question. Try again.";
   }
 }
 

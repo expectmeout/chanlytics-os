@@ -46,8 +46,8 @@ function listIsAnAudience(
 /** What a saved list's chip says under its name: kept by hand, or keeping itself current. */
 function savedHint(byHand: boolean): string {
   return byHand
-    ? "A list kept by hand — of those whose yes covers this message"
-    : "A list that keeps itself current — of those whose yes covers this message";
+    ? "A list kept by hand · of those whose yes covers this message"
+    : "A list that keeps itself current · of those whose yes covers this message";
 }
 
 /**
@@ -135,7 +135,7 @@ export function audiencesOf({ bc, heard, people, saved, tz, everyone }: Read): A
       id: l.id,
       label: l.label,
       ...optionFor("list", l.id, null),
-      hint: `${l.label} — of those whose yes covers this message`,
+      hint: `${l.label} · of those whose yes covers this message`,
     })),
     ...(saved instanceof Error
       ? []

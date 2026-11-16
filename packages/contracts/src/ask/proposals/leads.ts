@@ -50,7 +50,7 @@ export const leadSearchSpec: ProposalSpecAboveOperator = {
     // The month cut it short: how many more were asked, and the day they can follow.
     const rest =
       started && countAsked > started && typeof door.renews_on === "string"
-        ? ` That is all your leads left this month; the other ${countAsked - started} can follow once they renew on ${door.renews_on}.`
+        ? ` That is all your leads left this month · the other ${countAsked - started} can follow once they renew on ${door.renews_on}.`
         : "";
     return `Finding ${started ?? ""} ${personName ?? "businesses"}. It keeps going if you leave.${rest}`.replace(
       /\s+/g,

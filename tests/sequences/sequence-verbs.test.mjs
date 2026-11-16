@@ -435,8 +435,8 @@ test("Run now runs the first step through the campaign's own door, says what cam
     run.receipt(c, { outcome: "sent", eligible: 12, broadcast_id: RUN, scheduled_for: at, moved_from: null }),
     /^Welcome — 12 people, /,
   );
-  assert.equal(run.receipt(c, { outcome: "held", eligible: 1 }), "Welcome — 1 person waiting for your approval");
-  assert.equal(run.receipt(c, { outcome: "empty", eligible: 0 }), "Welcome — nobody new to send to right now");
+  assert.equal(run.receipt(c, { outcome: "held", eligible: 1 }), "Welcome · 1 person waiting for your approval");
+  assert.equal(run.receipt(c, { outcome: "empty", eligible: 0 }), "Welcome · nobody new to send to right now");
   // A run that sends is canceled as an approved one is; one that waits, or found nobody, keeps no undo.
   const kept = run.undo.record(c, { outcome: "sent", broadcast_id: RUN, decision_id: "d6" }, TAB);
   assert.deepEqual(run.undo.call(kept, TAB), { route: "POST broadcasts/[id]/cancel", params: { id: RUN } });

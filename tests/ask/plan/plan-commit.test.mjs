@@ -259,7 +259,7 @@ test("a step refused or failed stops the run there: later steps are not sent, st
   assert.equal(coldRun.stoppedAt, 2);
   assert.equal(
     coldRun.results[1].result.message,
-    C.PROPOSAL_WORDS.planStopped("Settings are not loaded yet — open Settings once and try again."),
+    C.PROPOSAL_WORDS.planStopped("Settings are not loaded yet · open Settings once and try again."),
   );
 });
 

@@ -17,7 +17,7 @@ export const TEMPLATE_STATUS_WORDS: Record<TemplateStatus, string> = {
   pending: "In review",
   rejected: "Refused",
   paused: "Paused",
-  disabled: "Disabled",
+  disabled: "Turned off",
 };
 
 /**
@@ -229,7 +229,7 @@ export function validateTemplateDraft(templateDraftInput: TemplateDraftInput): T
   if (!TEMPLATE_LANGUAGES.some((l) => l.id === templateDraftInput.language))
     return { ok: false, error: "Pick a language from the list." };
   if (!isOneOf(TEMPLATE_CATEGORIES, templateDraftInput.category))
-    return { ok: false, error: "A template is marketing or utility." };
+    return { ok: false, error: "Pick marketing or utility." };
   const body = bodyAsReviewed(templateDraftInput.body);
   if (!body) return { ok: false, error: "Write the message." };
   if (templateBodyTooLong(body)) return { ok: false, error: TEMPLATE_BODY_WORDS };
@@ -243,7 +243,7 @@ export function validateTemplateDraft(templateDraftInput: TemplateDraftInput): T
       error:
         slots.length === 0
           ? "This message takes no values, so it needs no examples."
-          : `Give one example for each of the ${slots.length} value${slots.length === 1 ? "" : "s"} — WhatsApp's reviewers read them.`,
+          : `Give one example for each of the ${slots.length} value${slots.length === 1 ? "" : "s"} · WhatsApp's reviewers read them.`,
     };
   if (examples.some((e) => !e || e.length > TEMPLATE_EXAMPLE_MAX))
     return { ok: false, error: `Every example needs words, under ${TEMPLATE_EXAMPLE_MAX} characters.` };

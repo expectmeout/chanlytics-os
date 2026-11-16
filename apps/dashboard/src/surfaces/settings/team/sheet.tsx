@@ -111,7 +111,7 @@ export function PersonSheet({ person: p, k, onClose }: { person: TeamPerson; k: 
           }}
           data-testid="team-sheet-resend"
         >
-          {p.expired ? "Send again" : "Resend invitation"}
+          {p.expired ? "Send again" : "Send the invitation again"}
         </Button>
       )}
       {end && (

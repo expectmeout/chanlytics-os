@@ -187,7 +187,7 @@ test("one reading says the card's words for why there are no days yet", async ()
   const ctx = world({ google_listings: [listing], google_listing_days: readings(1) });
   const said = (await report(ctx, { period: "30d", lenses: ["reviews"] })).reviews;
   assert.deepEqual(said.gained, {
-    empty: "The count is read once a day; the first difference shows after the second read.",
+    empty: "The count is read once a day · the first difference shows after the second read.",
   });
 });
 

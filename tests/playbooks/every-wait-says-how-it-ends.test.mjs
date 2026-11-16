@@ -348,7 +348,7 @@ test("a message sent once, pressed for now, goes ten minutes on with a Stop: eve
   );
   assert.match(
     whenItGoes({ scheduled_for: iso(NOW + 15 * HOUR), moved_from: iso(goesAt), pressed_now: true }, when, NOW),
-    /^scheduled for .* — messages go out /,
+    /^scheduled for .* · messages go out /,
   );
   // Ask's card says it too, and its Undo is that Stop.
   const card = { payload: { name: "Saturday hours", count: 3 } };

@@ -329,8 +329,8 @@ export function checkedWords(
   nowMs: number,
 ): string {
   if (googleListing.check_error && googleListing.checked_at)
-    return `Google couldn't be read since ${agoWords(Date.parse(googleListing.checked_at), nowMs)} — read again once a day`;
-  if (googleListing.check_error) return "Google couldn't be read yet — read again once a day";
+    return `Google couldn't be read since ${agoWords(Date.parse(googleListing.checked_at), nowMs)} · read again once a day`;
+  if (googleListing.check_error) return "Google couldn't be read yet · read again once a day";
   if (googleListing.checked_at) return `Checked ${agoWords(Date.parse(googleListing.checked_at), nowMs)}`;
   return "Not read yet";
 }
@@ -343,9 +343,9 @@ export function connectionWords(
   const person = googleConnection.google_email ? `Connected as ${googleConnection.google_email}` : "Connected";
   if (!googleConnection.location_name) return `${person} · choose the location to finish`;
   if (googleConnection.sync_error && googleConnection.last_synced_at)
-    return `${person} · couldn't sync since ${agoWords(Date.parse(googleConnection.last_synced_at), nowMs)} — read again once a day`;
-  if (googleConnection.sync_error) return `${person} · couldn't sync yet — read again once a day`;
+    return `${person} · couldn't update since ${agoWords(Date.parse(googleConnection.last_synced_at), nowMs)} · read again once a day`;
+  if (googleConnection.sync_error) return `${person} · couldn't update yet · read again once a day`;
   if (googleConnection.last_synced_at)
     return `${person} · synced ${agoWords(Date.parse(googleConnection.last_synced_at), nowMs)}`;
-  return `${person} · not synced yet`;
+  return `${person} · not updated yet`;
 }

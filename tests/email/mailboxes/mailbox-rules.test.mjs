@@ -155,7 +155,7 @@ test("a mailbox's own mail holds it: any complaint, or hard bounces and refusals
   assert.equal(mailboxHealthWords(c(250, 1, 0, 2)), "0.4% bounced · 2 unsubscribed · none marked as spam");
   assert.equal(
     mailboxHealthWords(c(250, 1, 1, 2, 3, 4)),
-    "0.4% bounced · 3 refused by the server · 2 unsubscribed · 4 said no · 1 marked as spam",
+    "0.4% bounced · 3 refused by the email provider · 2 unsubscribed · 4 said no · 1 marked as spam",
   );
 });
 
@@ -204,7 +204,7 @@ test("SPF: the record the domain has, with the provider put in before its all; t
   assert.equal(two.value, "v=spf1 include:mailgun.org a include:_spf.google.com ~all");
   assert.match(two.note, /2 SPF records, and with more than one none of them counts/);
   // The edge counts the record with the provider in it (Google's include spends four: itself and three netblocks).
-  assert.match(spf("google", "v=spf1 a -all", 11).note, /spend 11 of SPF's 10 lookups and fail/);
+  assert.match(spf("google", "v=spf1 a -all", 11).note, /spend 11 of SPF's 10 lookups and stop working/);
   assert.doesNotMatch(spf("google", "v=spf1 a -all", 10).note, /lookups/, "ten is SPF's own limit, not past it");
   assert.equal(mailboxRecordRows({ provider: "google", dns: { spf: "found" }, spf_record: "v=spf1 a" })[0].note, null);
 });

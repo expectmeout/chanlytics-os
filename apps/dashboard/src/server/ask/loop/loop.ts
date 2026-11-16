@@ -279,7 +279,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     log.error("ask_turn_failed", { error: e, tenant_id: input.tenantId });
     return fail(
       turn,
-      es ? "Algo falló al responder. Inténtalo de nuevo." : "Something went wrong while answering. Try again.",
+      es ? "Algo falló al responder. Inténtalo de nuevo." : "AI couldn't finish answering. Try again.",
       e instanceof Error ? e.message : String(e),
       0,
     );

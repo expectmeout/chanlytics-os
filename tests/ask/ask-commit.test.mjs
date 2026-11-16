@@ -524,7 +524,7 @@ test("a deal with its next step: the deal first, then the step as a note of the 
   const bare = tab((key) => (key === deal ? envelope({ from: "proposed", decision_id: "x" }) : null));
   assert.deepEqual(await commitProposal(bare.win, withStep, bare.client), {
     ok: true,
-    receipt: "Maria · Client · the next step was not saved: the deal came back without its id; set it on their page",
+    receipt: "Maria · Client · the next step was not saved: the deal came back without its id · set it on their page",
     undo: null,
     made: null,
   });
@@ -616,7 +616,7 @@ test("a policy: the class with the mode or the dial, whichever the card carries;
       { state: "done", receipt: "", atMs: 1, undo: { class: "reply", mode: null, min_confidence: null } },
       t.client,
     ),
-    { ok: false, message: "The previous setting is unknown; change it in Settings." },
+    { ok: false, message: "The previous setting is unknown · change it in Settings." },
   );
 });
 
@@ -643,7 +643,7 @@ test("a settings change: applied to the loaded config and sent with its version;
   );
   assert.deepEqual(
     stale,
-    { ok: false, message: "Settings have changed since this card — change them in Settings." },
+    { ok: false, message: "Settings have changed since this card · change them in Settings." },
     "REGRESSION: the undo wrote the whole earlier config over a later save",
   );
   assert.equal(t.sent.filter((c) => !c.key.startsWith("GET ")).length, 1, "and nothing was written");
@@ -661,7 +661,7 @@ test("a settings change: applied to the loaded config and sent with its version;
   landSettings(null);
   assert.deepEqual(await commitProposal(cold.win, card("settings", { change }), cold.client), {
     ok: false,
-    message: "Settings are not loaded yet — open Settings once and try again.",
+    message: "Settings are not loaded yet · open Settings once and try again.",
   });
   assert.deepEqual(
     await undoProposal(
@@ -970,13 +970,13 @@ test("every kind, committed and undone: each call marked as a card's, each re-re
         [r.receipt, t.sent.map((s) => [s.key, s.undoOf ?? null])],
         p.payload.verb === "approve"
           ? [
-              "Win-back · 2026-09-12 approved — 12 people, sending now",
+              "Win-back · 2026-09-12 approved · 12 people, sending now",
               [
                 [`POST /api/v1/broadcasts/${R1}/approve`, null],
                 [`POST /api/v1/broadcasts/${R1}/cancel`, D(9)],
               ],
             ]
-          : ["Win-back · 2026-09-11 skipped — nothing will send", [[`POST /api/v1/broadcasts/${R2}/cancel`, null]]],
+          : ["Win-back · 2026-09-11 skipped · nothing will send", [[`POST /api/v1/broadcasts/${R2}/cancel`, null]]],
       );
   }
   assert.deepEqual(undone, [

@@ -61,6 +61,7 @@ export function clientErrorOf(
   return {
     boundary,
     page: PAGE.test(first) ? first : null,
+    // screen-word: an error's own name, sent to the log and never shown
     name: (asError.name || "Error").slice(0, CLIENT_ERROR_LIMITS.name),
     message: (asError.message || "").slice(0, CLIENT_ERROR_LIMITS.message),
     stack: asError.stack ? asError.stack.slice(0, CLIENT_ERROR_LIMITS.stack) : null,

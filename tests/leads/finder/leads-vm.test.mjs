@@ -449,7 +449,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
         state: "ok",
         value: "+15125550101",
         word: "Checked",
-        tip: "(512) 555-0101 — the same number on Google Maps and on their website",
+        tip: "(512) 555-0101 · the same number on Google Maps and on their website",
         copy: true,
       },
       mailbox: {
@@ -820,7 +820,7 @@ const PLAN_FACTS = {
 
 test("the plan card's facts are the PRD's three, in leads, with no dollar meter", () => {
   assert.deepEqual(leadPlanFacts(CARD_PLAN, PLAN_FACTS), [
-    "About 40 to 80 minutes — leave the page if you like",
+    "About 40 to 80 minutes · leave the page if you like",
     // No number: the card cannot know how many of THIS search's places are already here until it has looked.
     "Anything already yours is skipped",
     "Counts only matches with a checked email · 486 left this month",
@@ -832,7 +832,7 @@ test("Likely says what past searches found, and a kind never searched says the s
   assert.deepEqual(leadPlanLikely(CARD_PLAN, PLAN_FACTS), {
     emailPct: 58,
     phonePct: 42,
-    line: "About 116 will have an email; the rest you call · from past searches for trainers",
+    line: "About 116 will have an email · the rest you call · from past searches for trainers",
   });
   const fresh = leadPlanLikely(CARD_PLAN, { ...PLAN_FACTS, prior: null });
   assert.deepEqual(fresh, {
@@ -890,12 +890,12 @@ test("Needs review is grouped by what resolves it, in the order an owner would w
     [
       ["mailbox_waiting", "Waiting on the mailbox check", ["a"], []],
       ["checks_out", "Their email checks out", ["j"], ["keep", "exclude"]],
-      ["mailbox_silent", "Their mail server wouldn't answer", ["b", "h"], ["check_again", "keep", "exclude"]],
+      ["mailbox_silent", "Their email provider wouldn't answer", ["b", "h"], ["check_again", "keep", "exclude"]],
       ["bad_email", "Their email bounces", ["i"], ["keep", "exclude"]],
       ["no_email", "No email on their site", ["c"], ["keep", "exclude"]],
       ["site_unread", "Their site couldn't be read", ["u"], ["keep", "exclude"]],
       ["no_phone", "No phone on their listing", ["p"], ["keep", "exclude"]],
-      ["catch_all", "Unconfirmed — the mailbox accepts any address", ["d"], ["keep", "exclude"]],
+      ["catch_all", "Unconfirmed · the mailbox accepts any address", ["d"], ["keep", "exclude"]],
       ["unsure", "Couldn't tell if — with a website", ["e", "k"], ["keep", "exclude"]],
       ["read_only", "Only the listing says so — with a website", ["f"], ["keep", "exclude"]],
       ["out_of_area", "Just outside the area you asked for", ["g"], ["keep", "exclude"]],
@@ -990,12 +990,12 @@ test("D5: the row reads a sub-line, two reach slots, the tile, what it waits on,
   );
   assert.match(
     slot({ email_state: "unknown" }).mailbox.tip,
-    /mail server wouldn't answer/,
+    /email provider wouldn't answer/,
     "the same shape as a catch-all, its own sentence",
   );
   assert.equal(
     slot({ email: null, email_state: "none" }).mailbox.tip,
-    "No email found on their site — home, contact and about pages checked",
+    "No email found on their site · home, contact and about pages checked",
     "says what was looked at, never just the word none",
   );
   // A lead from a source that rates nothing, shows no photo and names no ZIP still reads cleanly.
@@ -1036,7 +1036,7 @@ test("D5: the row reads a sub-line, two reach slots, the tile, what it waits on,
   assert.deepEqual(st({ member: { ...row().member, class: "review", fit: "look", reasons: ["email:unknown"] } }), [
     "review",
     "Needs review",
-    "Their mail server wouldn't answer",
+    "Their email provider wouldn't answer",
   ]);
   assert.deepEqual(st({ member: { ...row().member, class: "excluded", fit: null, excluded_by: "chain" } }), [
     "out",

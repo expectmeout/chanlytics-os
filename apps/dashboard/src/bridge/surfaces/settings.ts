@@ -222,11 +222,11 @@ export const settingsOverride: SurfaceOverride = {
       },
       {
         tables: ["mailboxes", "mailbox_connections", "capability_activations", "business_records"],
-        why: "the settings read resolves its facts from the channel rows and the line; a mailbox, a connected mailbox, an activation and the carriers' record are Setup's read",
+        why: "the settings read resolves its facts from the channel rows and the line · a mailbox, a connected mailbox, an activation and the phone networks' record are Setup's read",
       },
       {
         tables: ["google_reviews", "google_connections"],
-        why: "the facts and the review link are the listing's; a review seen and the profile's connection are Google's own read",
+        why: "the facts and the review link are the listing's · a review seen and the profile's connection are Google's own read",
       },
     ],
   }),

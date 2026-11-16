@@ -300,7 +300,7 @@ test("problems found before saving: nothing is sent, each box says what it needs
   const tree = m.render();
   assert.equal(sent, 0, "nothing sent");
   assert.equal(m.flashes.at(-1).tone, "warn");
-  assert.equal(say(m.flashes.at(-1).msg), "Not saved — 2 fields need a look.");
+  assert.equal(say(m.flashes.at(-1).msg), "Not saved · 2 fields need a look.");
   assert.ok(byTestId(tree, "biz-legal_name-problem") && byTestId(tree, "biz-ein-problem"), "both boxes say it");
 });
 
@@ -661,7 +661,7 @@ test("REGRESSION: a refused question says why -- a gateway's page read 'Ask fail
   };
   assert.deepEqual(
     await said(new Response("<html>", { status: 502 })),
-    [{ t: "error", text: "Chanlytics didn't answer — ask again in a moment." }],
+    [{ t: "error", text: "Chanlytics didn't answer · ask again in a moment." }],
     "REGRESSION: 'Ask failed (502).'",
   );
   const limited = new Response(
@@ -687,14 +687,14 @@ test("REGRESSION: a refused question says why -- a gateway's page read 'Ask fail
   };
   assert.deepEqual(
     await said(slow),
-    [{ t: "error", text: "Chanlytics took too long to answer — ask again in a moment." }],
+    [{ t: "error", text: "Chanlytics took too long to answer · ask again in a moment." }],
     "a timeout is not 'nothing was asked'",
   );
   assert.deepEqual(
     await said(() => {
       throw new TypeError("fetch failed");
     }),
-    [{ t: "error", text: "Network error — nothing was asked." }],
+    [{ t: "error", text: "Couldn't reach Chanlytics. Nothing was asked." }],
   );
 });
 

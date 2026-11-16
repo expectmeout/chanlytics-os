@@ -43,13 +43,13 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
   assert.equal(RATE_HITS_RETENTION_HOURS, 2);
   assert.equal(RECORDING_RETENTION_DAYS, 90);
   const words = retentionWords();
-  assert.match(words, /^Call audio is kept for 90 days and then removed; transcripts stay with the conversation\./);
-  assert.match(words, /Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for 30 days\./);
+  assert.match(words, /^Call audio is kept for 90 days and then removed · transcripts stay with the conversation\./);
+  assert.match(words, /Providers' receipts, delivery records, unplaced messages and AI usage are kept for 30 days\./);
   assert.match(words, /Conversations with AI untouched for 90 days, and notifications after 90 days, are removed/);
   assert.match(words, /run history is kept for 14 days and rate-limit counters for 2 hours/);
   assert.match(
     words,
-    /Leads nobody has worked are set aside after 90 days and their details removed after 180; places a search left out lose their details after 30 days, and the finder's reasons for a batch of places are removed after 180\./,
+    /Leads nobody has worked are set aside after 90 days and their details removed after 180 · places a search left out lose their details after 30 days, and the finder's reasons for each set of places are removed after 180\./,
   );
   assert.match(
     words,
@@ -61,7 +61,7 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
   );
   assert.match(
     words,
-    /Background jobs, which carry a message while it is sent, are removed 7 days after they finish, or 90 days after they fail\./,
+    /Background jobs, which carry a message while it is sent, are removed 7 days after they finish, or 90 days after they stop on a problem./,
   );
   assert.match(
     words,

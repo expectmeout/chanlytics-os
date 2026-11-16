@@ -45,11 +45,11 @@ const fieldsOf = (pl: Record<string, unknown>, keys: readonly string[]): Record<
 export function answerSaidOf(purpose: AnswerPurpose, consent: Answer): string {
   if (purpose === "marketing") {
     if (consent === "opted_in") return "said yes to offers and news";
-    if (consent === "opted_out") return "said no to offers — other messages still reach them";
+    if (consent === "opted_out") return "said no to offers · other messages still reach them";
     return "has not been asked about offers";
   }
   if (consent === "opted_in") return "said yes to messages";
-  if (consent === "opted_out") return "said stop — nothing goes out to them at all";
+  if (consent === "opted_out") return "said stop · nothing goes out to them at all";
   return 'is back to "not asked"';
 }
 
@@ -61,7 +61,7 @@ function manySaid(data: unknown, verb: string): { done: number; failed: number; 
   const skipped = Array.isArray(d.skipped) ? (d.skipped as unknown[]) : [];
   const failed = failedRows.length + skipped.length;
   const reason = asText(rec(failedRows[0]).message) || (skipped.length ? "no longer in this workspace" : "");
-  return { done, failed, said: failed ? `${failed} couldn't be ${verb}${reason ? ` — ${reason}` : ""}` : "" };
+  return { done, failed, said: failed ? `${failed} couldn't be ${verb}${reason ? ` · ${reason}` : ""}` : "" };
 }
 
 /**
@@ -184,7 +184,7 @@ export const personAddSpec: ProposalSpec = {
   }),
   receipt: ({ payload: pl }, data) => {
     const personName = asText(pl.name).trim() || asText(pl.phone).trim() || asText(pl.email).trim();
-    return `${personName} ${rec(data).existed === true ? "was already here — opened" : "added"}`;
+    return `${personName} ${rec(data).existed === true ? "was already here · opened" : "added"}`;
   },
   made: (_p, data) => idIn(rec(data), "contact_id"),
   open: () => "clients",
@@ -231,7 +231,7 @@ export const personMessageSpec: ProposalSpec = {
       events: [PEOPLE_CHANGED],
     };
   },
-  receipt: ({ payload: pl }) => `On its way to ${asText(pl.who)} — sends in 15 seconds unless you cancel`,
+  receipt: ({ payload: pl }) => `On its way to ${asText(pl.who)} · sends in 15 seconds unless you cancel`,
   undo: {
     label: () => "Sends 15 seconds after you approve; cancel within them",
     window: "cancelable",

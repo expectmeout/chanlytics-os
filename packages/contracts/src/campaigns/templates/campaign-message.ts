@@ -425,13 +425,13 @@ export const RUN_NOW_WITHOUT_VERSION_WORDS =
 export const STARTER_LINE_WORDS = {
   /** The send screen, with no message it can send yet: how many starters' WhatsApp versions WhatsApp is still reviewing. */
   reviewing: (n: number): string =>
-    `Your starter messages' WhatsApp versions are in review (${n}) — they appear here once approved (${WHATSAPP_REVIEW_TAKES}).`,
+    `Your starter messages' WhatsApp versions are in review (${n}) · they appear here once approved (${WHATSAPP_REVIEW_TAKES}).`,
   /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
   standing: (status: string | null | undefined): string => {
     const at = metaStatusOf(status);
     return at === "pending"
-      ? `has its WhatsApp version in review — it appears here once approved (${WHATSAPP_REVIEW_TAKES}).`
-      : `has its WhatsApp version ${whatsappStandingWord(at)} — see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}.`;
+      ? `has its WhatsApp version in review · it appears here once approved (${WHATSAPP_REVIEW_TAKES}).`
+      : `has its WhatsApp version ${whatsappStandingWord(at)} · see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}.`;
   },
   /**
    * The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number

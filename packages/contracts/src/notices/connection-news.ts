@@ -15,13 +15,18 @@ import { DAY_MS, agoWords } from "../shared/time";
  */
 export const GOOGLE_SYNC_TOLD_AFTER_MS = 2 * DAY_MS;
 
-/** The Business Profile's notice. The title is what its mend matches, so it is said here once. */
+/**
+ * The Business Profile's notice. The title is what its mend matches, so it is said here once. `before` is the title kept
+ * until the words pass of 16 Nov 2026, which the bell still holds: the mend matches both, and it can go after 16 Dec 2026.
+ */
 export const GOOGLE_SYNC_NOTICE_WORDS = {
-  title: "Google Business Profile stopped syncing",
+  title: "Google Business Profile stopped updating",
+  // screen-word: the title of rows kept before 16 Nov 2026, matched and never written
+  before: "Google Business Profile stopped syncing",
   body: (f: { lasting: boolean; lastSyncedMs: number | null; nowMs: number }): string =>
     (f.lasting
       ? "Google stopped letting Chanlytics read your Business Profile, so new reviews no longer arrive here."
-      : `Your Business Profile ${f.lastSyncedMs === null ? "has not synced since it was connected" : `last synced ${agoWords(f.lastSyncedMs, f.nowMs)}`}, and every try since has failed, so new reviews no longer arrive here.`) +
+      : `Your Business Profile ${f.lastSyncedMs === null ? "hasn't updated since it was connected" : `last updated ${agoWords(f.lastSyncedMs, f.nowMs)}`}, and every try since didn't work, so new reviews no longer arrive here.`) +
     " Connections says what Google answered. Reconnecting it there, under Google, mends most causes.",
 } as const;
 

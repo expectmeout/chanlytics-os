@@ -93,7 +93,7 @@ export const PLAYBOOK_PATCH_WORDS = {
   nameLong: (max: number): string => `A name is at most ${max} characters.`,
   /** Only the month's offer runs every N days; every other playbook runs as people reach its moment. */
   cadenceOffer: (name: string): string =>
-    `Only the month's offer runs on a cadence; “${name}” runs as people reach its moment.`,
+    `Only the month's offer runs on a cadence · “${name}” runs as people reach its moment.`,
   /** An end that is no day. */
   untilDay: "An end is a day, written YYYY-MM-DD.",
   /** An end before the business's today (`today` in campaignDayWords). */

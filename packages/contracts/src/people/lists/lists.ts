@@ -279,7 +279,7 @@ export function savedListTip(list: {
   unknown: string | null;
 }): string {
   if (list.unknown) return list.unknown;
-  if (list.byHand) return "A list kept by hand — add people from their profile";
+  if (list.byHand) return "A list kept by hand · add people from their profile";
   return `Keeps itself current: ${(list.rule ?? []).join(" · ")}`;
 }
 

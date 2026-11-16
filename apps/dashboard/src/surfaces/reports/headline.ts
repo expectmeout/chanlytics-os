@@ -53,7 +53,7 @@ export const headline = periodSurface({
       { tables: ["conversations"], why: "it counts the messages, not the conversations they are in" },
       {
         tables: ["appointment_notices"],
-        why: "its booking line reads the appointments; a held booking email is not one",
+        why: "its booking line reads the appointments · a held booking email is not one",
       },
     ],
     when: (change) => !isLiveCallTurn(change),

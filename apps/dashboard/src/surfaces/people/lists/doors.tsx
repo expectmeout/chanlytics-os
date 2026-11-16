@@ -98,7 +98,7 @@ export async function plMakeRuleList(
 }
 export const plRuleMadeWords = (name: string) => (
   <>
-    <b>{name}</b> made. It keeps itself current — change who is on it any time.
+    <b>{name}</b> made. It keeps itself current · change who is on it any time.
   </>
 );
 
@@ -164,7 +164,7 @@ export const plAddedWords = (
   const who = name.trim() || phone.trim() || email.trim();
   return (
     <>
-      <b>{who}</b> {existed ? "was already here — opened" : "added"}
+      <b>{who}</b> {existed ? "was already here · opened" : "added"}
       {missed.length ? ` · ${missed.join(" and ")} did not save` : ""}
     </>
   );

@@ -78,7 +78,7 @@ export const SECOND_FACTOR_WORDS = {
   resetLabel: "Reset two-step sign-in",
   resetQuestion: (code: string) => `Remove ${code}'s authenticator?`,
   resetDetail:
-    "They can sign in with their password or an email code, and set up a new authenticator on their partner pane. Check it's them before you do this.",
+    "They can sign in with their password or an email code, and set up a new authenticator on their partner page. Check it's them before you do this.",
   resetYes: "Yes, reset it",
   resetTyped: "why, and how you checked it's them",
   /** The refusal (M3): a partner's seat, or the partner account itself, on a session that has not shown its code. */

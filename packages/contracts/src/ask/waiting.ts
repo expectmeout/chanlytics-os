@@ -48,7 +48,7 @@ const names = (list: string[], total: number, es: boolean) => {
 
 /** Words a person reads when the queue has not been read: nobody is claimed to be waiting. */
 const unreadQueueWords = (es: boolean) =>
-  es ? "La cola de hoy aún no se ha leído." : "Today's queue hasn't been read yet.";
+  es ? "La cola de hoy aún no se ha leído." : "Today's list hasn't loaded yet.";
 
 /** The runs clause, in the words Today's head and the Inbox's band say (runsWaitingSentence), as a clause. */
 function runsClause(n: number, es: boolean): string {

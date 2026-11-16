@@ -52,7 +52,7 @@ export const heldBackLine = (held: number, sent: number): string =>
 /** Under the Runs that stopped card: the window counts a campaign's and a broadcast's runs; a reach-out's are its own part's (00405). */
 const REACH_OUTS_UNDER = "Runs to leads are not counted here.";
 
-export const STOPPED_EMPTY = `No run failed or was canceled in this period. ${REACH_OUTS_UNDER}`;
+export const STOPPED_EMPTY = `No run stopped on a problem or was canceled in this period. ${REACH_OUTS_UNDER}`;
 
 export const CANCELED_KEY = "canceled";
 
@@ -63,9 +63,9 @@ export const stoppedWords = (key: string): string =>
   key === CANCELED_KEY ? "Canceled" : capitalize(broadcastFailureWords(key));
 
 export const stoppedLine = (failed: number, canceled: number): string =>
-  `${plural(failed, "run")} failed and ${canceled} ${wasWere(canceled)} canceled. ${REACH_OUTS_UNDER}`;
+  `${plural(failed, "run")} stopped on a problem and ${canceled} ${wasWere(canceled)} canceled. ${REACH_OUTS_UNDER}`;
 
-export const FAILED_WHY_EMPTY = "No sent message failed in this period.";
+export const FAILED_WHY_EMPTY = "No message sent in this period came back.";
 
 const UNRECORDED_REASON = "Reason not recorded";
 
@@ -79,7 +79,7 @@ export function failedReasonWords(row: { channel: string; code: number | null; k
 }
 
 export const failedWhyLine = (total: number): string =>
-  `${plural(total, "message")} failed after ${total === 1 ? "it was" : "they were"} sent, for the provider's own reason.`;
+  `${plural(total, "message")} left and didn't reach them, for ${total === 1 ? "the reason" : "the reasons"} below.`;
 
 /* ------------------------------------------------------------------------------------------------ by message, by run */
 

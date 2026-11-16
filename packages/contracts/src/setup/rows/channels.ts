@@ -187,7 +187,7 @@ function yesRow(setupInputs: SetupInputs): SetupRowDraft {
           title: "The first yes",
           state: "waiting_you",
           required: false,
-          sentence: `${plural(sentence, "person", "people")} said yes to offers, but nobody can be sent one yet — ${NO_NUMBER_REACH}.`,
+          sentence: `${plural(sentence, "person", "people")} said yes to offers, but nobody can be sent one yet · ${NO_NUMBER_REACH}.`,
           details: alsoTalk,
           verb: { label: "Open People", to: "clients" },
         }
@@ -214,7 +214,7 @@ function googleRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowDraf
   const title = "Your Google listing";
   const connected = setupInputs.google.connected === true;
   const reach = connected
-    ? "Business Profile connected — every review, replies from Reports"
+    ? "Business Profile connected · every review, replies from Reports"
     : "New reviews reach your bell and Reports";
   // A Business Profile that stopped syncing (an authorisation lapsed, access withdrawn): new reviews stop and their
   // replies with them, and Setup said "connected" while only Connections, if opened, said otherwise (R11 S11-4). Said
@@ -240,7 +240,7 @@ function googleRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowDraf
       state: "waiting_them",
       stateWords: "Waiting on Google",
       required: false,
-      sentence: `${listing.name} is on record, but Google couldn't be read${listing.checked_at ? ` since ${agoWords(Date.parse(listing.checked_at), nowMs)}` : " yet"} — it is read again once a day.`,
+      sentence: `${listing.name} is on record, but Google couldn't be read${listing.checked_at ? ` since ${agoWords(Date.parse(listing.checked_at), nowMs)}` : " yet"} · it is read again once a day.`,
       details: [],
       verb: { label: "Open Reports", to: lensRoute("reviews") },
     };

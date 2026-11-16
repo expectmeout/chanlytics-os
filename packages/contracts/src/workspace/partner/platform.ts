@@ -161,8 +161,8 @@ export function partnerStandingOutcomeWords(row: { standing: string; voided: num
   const label = standingLabel(row.standing).toLowerCase();
   if (row.standing === "disqualified")
     return row.voided
-      ? `Disqualified. What it still held (${row.voided} ${row.voided === 1 ? "share" : "shares"}) is void; what was paid stays paid.`
-      : "Disqualified. It earns nothing from now on; what was paid stays paid.";
+      ? `Disqualified. What it still held (${row.voided} ${row.voided === 1 ? "share" : "shares"}) is void · what was paid stays paid.`
+      : "Disqualified. It earns nothing from now on · what was paid stays paid.";
   if (row.standing === "qualified")
     return row.matured
       ? `Qualified. ${row.matured} ${row.matured === 1 ? "share" : "shares"} past the hold ${row.matured === 1 ? "is" : "are"} payable now.`

@@ -42,7 +42,7 @@ export const DOUBT_WORDS = {
   merge: "Merge",
   mergeHint: "Two records of one person become one (the owner's act)",
   apart: "Not the same",
-  apartHint: "Keep both records; this pair is not asked about again",
+  apartHint: "Keep both records · this pair is not asked about again",
   apartBusy: "Keeping both…",
   apartDone: (other: string) => `Kept apart from ${other}`,
   apartFailed: "Couldn't settle this pair.",

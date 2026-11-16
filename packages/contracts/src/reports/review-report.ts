@@ -124,7 +124,7 @@ const CONNECT_WORDS = "Connect your Business Profile to see every review, who an
 const UNAVAILABLE_WORDS = "Google reviews are not available here yet.";
 
 const NOTHING_WRITTEN = "No review written in this period.";
-const GAINED_EMPTY_WORDS = "The count is read once a day; the first difference shows after the second read.";
+const GAINED_EMPTY_WORDS = "The count is read once a day · the first difference shows after the second read.";
 const WAITING_EMPTY_WORDS = "Nothing is waiting for a reply.";
 const LATEST_ALL_WAIT_WORDS = "The latest reviews are the ones waiting for a reply, above.";
 const LATEST_NONE_WORDS = "Google shows no written reviews for this listing yet.";
@@ -175,7 +175,7 @@ function whoAnsweredWords(answered: number, receptionist: number): string {
 /** The Time to reply figure's line: the replies it stands on, and why there is no middle yet. */
 function replyTimeMeta(p: Extract<ReviewsPeriod, { exact: true }>): string {
   if (p.replySeconds !== null) return `the middle of ${plural(p.timed, "reply", "replies")}`;
-  if (p.timed > 0) return `${plural(p.timed, "reply", "replies")} so far; the middle needs ${REVIEW_REPLY_TIME_MIN}`;
+  if (p.timed > 0) return `${plural(p.timed, "reply", "replies")} so far · the middle needs ${REVIEW_REPLY_TIME_MIN}`;
   return p.answered ? "no reply has a time on record" : "no replies yet";
 }
 

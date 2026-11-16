@@ -765,7 +765,7 @@ test("every refusal of the gateway ends the turn in its sentence, in the person'
     ],
     [
       { kind: "bad_request", message: "400 messages: too long" },
-      "Something went wrong on our side, not with your question. Try again.",
+      "AI couldn't answer this time. Nothing was wrong with your question. Try again.",
       "Algo falló de nuestro lado, no con tu pregunta. Inténtalo de nuevo.",
     ],
   ];
@@ -941,7 +941,7 @@ test("a format the API refuses is dropped and the same round asked again: words 
   const always = await refusing(["400 schema too complex", "400 schema too complex"], answer("Never read."));
   assert.deepEqual(
     [always.r.text, always.r.failed, always.r.failure, always.requests.length],
-    ["Something went wrong on our side, not with your question. Try again.", true, "bad_request", 2],
+    ["AI couldn't answer this time. Nothing was wrong with your question. Try again.", true, "bad_request", 2],
     "with nothing left to drop, the refusal is the turn's",
   );
   const other = await refusing(["400 messages: too long"], answer("Never read."));
@@ -1140,7 +1140,7 @@ test("a page's context or a shape that fails costs its block, never the turn; a 
   );
   assert.deepEqual(
     [broken.text, broken.failed, broken.failure, broken.rounds],
-    ["Something went wrong while answering. Try again.", true, "blocks is not iterable", 0],
+    ["AI couldn't finish answering. Try again.", true, "blocks is not iterable", 0],
   );
 });
 
@@ -1287,14 +1287,14 @@ test("report says the Campaigns lens as the page does (C4): the sentence, the fi
     runs_stopped: {
       rows: ["Canceled: 1", "The workspace was paused: 1", "The texting provider couldn't be reached: 1"],
       // The window's card counts a campaign's and a broadcast's runs; a reach-out's are under Reach-outs (the stuck figure counts them).
-      line: "2 runs failed and 1 was canceled. Runs to leads are not counted here.",
+      line: "2 runs stopped on a problem and 1 was canceled. Runs to leads are not counted here.",
     },
     failed_sends: {
       rows: [
         "WhatsApp held it back: offers to each person are limited, and offers to US numbers aren't delivered for now: 4",
         "The email bounced: their address didn't accept it: 2",
       ],
-      line: "6 messages failed after they were sent, for the provider's own reason.",
+      line: "6 messages left and didn't reach them, for the reasons below.",
     },
     by_message: {
       rows: ["Win-back (earlier): 30 of 110 were answered  27%", "Spring note: 18 of 120 were answered  15%"],
@@ -1323,7 +1323,7 @@ test("report says the Campaigns lens as the page does (C4): the sentence, the fi
       change: null,
     },
     {
-      label: "Failed runs",
+      label: "Runs with a problem",
       value: "1",
       meta: "the latest: Spring note, the workspace was paused · a step to leads counts too",
       change: null,
@@ -1588,9 +1588,9 @@ test("report says an empty period in the lens's own words, with no share and no 
   assert.deepEqual(said.window, {
     held: { empty: "Nobody was held back in this period." },
     runs_stopped: {
-      empty: "No run failed or was canceled in this period. Runs to leads are not counted here.",
+      empty: "No run stopped on a problem or was canceled in this period. Runs to leads are not counted here.",
     },
-    failed_sends: { empty: "No sent message failed in this period." },
+    failed_sends: { empty: "No message sent in this period came back." },
     by_message: { empty: "No message went out in this period." },
     send_to_first_reply: { empty: "No message was answered in this period." },
     wait_for_your_ok: { empty: "No run waited for your approval in this period." },
@@ -1599,7 +1599,7 @@ test("report says an empty period in the lens's own words, with no share and no 
     said.stuck.map((f) => [f.label, f.value, f.meta]),
     [
       ["Runs waiting for you", "0", "nothing is waiting for your approval"],
-      ["Failed runs", "0", "no run failed in the last 30 days"],
+      ["Runs with a problem", "0", "no run stopped on a problem in the last 30 days"],
       ["Replies that need you", "0", "nobody who answered a campaign is waiting"],
       ["Messages Meta stopped", "0", "every WhatsApp message is approved"],
       ["Your WhatsApp number", "Good", "Number quality: good · up to 1,000 new conversations a day · checked today"],
@@ -1776,7 +1776,7 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
       { label: "Reviews on Google", value: "4", meta: "as Google counts them, with or without words", change: null },
       { label: "New in 7 days", value: "2", meta: "with words or without", change: "up from 1" },
       { label: "Answered", value: "1 of 2", meta: "1 by AI", change: null },
-      { label: "Time to reply", value: "—", meta: "1 reply so far; the middle needs 3", change: null },
+      { label: "Time to reply", value: "—", meta: "1 reply so far · the middle needs 3", change: null },
     ],
     stars: {
       line: "1 of the 2 reviews written in the last 7 days are 4 or 5 stars.",
@@ -2395,7 +2395,7 @@ test("report says the People lens as the page does (Reports C3, the People lens)
         line: "Each person is counted once for each kind of message they said yes to.",
       },
       stops: {
-        rows: ["Their own STOP: 2", "The carrier: 1", "An unsubscribe: 1"],
+        rows: ["Their own STOP: 2", "Their phone company: 1", "An unsubscribe: 1"],
         line: "Each person is counted once for each kind of message they stopped.",
       },
       steps_done: {
@@ -2654,7 +2654,7 @@ test("report says the Reach-outs section as the page does (the Campaigns lens, C
     },
     businesses: {
       rows: ["Written to: 25", "Wrote back: 6", "Interested: 3", "Booked: 1", "Said no: 2"],
-      line: "Of 25 businesses written to in these 7 days: 24% wrote back and 12% were interested. Each counts once, at the last email that wrote to it; a question counts as interested. Who wrote back, was interested, booked or said no is as it stands now.",
+      line: "Of 25 businesses written to in these 7 days: 24% wrote back and 12% were interested. Each counts once, at the last email that wrote to it · a question counts as interested. Who wrote back, was interested, booked or said no is as it stands now.",
     },
     angles: {
       rows: ["their rating: 2 of 8  25%", "mid-session calls: 2 of 4"],
@@ -2695,8 +2695,8 @@ test("report says the Reach-outs section as the page does (the Campaigns lens, C
       return beforeIt;
     },
   });
-  assert.deepEqual(old.reach_outs.businesses, { empty: "This database does not count businesses yet." });
-  assert.deepEqual(old.reach_outs.angles, { empty: "This database does not count businesses yet." });
+  assert.deepEqual(old.reach_outs.businesses, { empty: "Chanlytics doesn't count businesses here yet." });
+  assert.deepEqual(old.reach_outs.angles, { empty: "Chanlytics doesn't count businesses here yet." });
   assert.equal(old.reach_outs.emails.rows[0], "Written: 40");
   assert.equal(old.reach_outs.strip[0].meta, "40 emails");
 
@@ -3540,7 +3540,7 @@ test("the proposal builders run against the database in memory: each kind is a c
   assert.equal(noted.isError, false, noted.result);
   assert.deepEqual(
     [noted.proposal.title, noted.proposal.summary, noted.proposal.payload.change],
-    ["Holiday hours note", "Note for AI: “Holiday hours”, until 2026-12-31 — “Open 10 to 2 this week.”", ending],
+    ["Holiday hours note", "Note for AI: “Holiday hours”, until 2026-12-31 · “Open 10 to 2 this week.”", ending],
   );
   assert.match(
     (await p("propose_settings", { action: "change", change: { ...ending, until: "New Year's Eve" } })).result,
@@ -7111,7 +7111,7 @@ test("campaigns.audiences offers what the composer offers (ledger #14): a templa
   );
   assert.equal(
     read.cannot_send,
-    "One of your messages can't go out from here — it has a button that takes a value. It still works in WhatsApp Manager.",
+    "One of your messages can't go out from here · it has a button that takes a value. It still works in WhatsApp Manager.",
   );
   // The composer's own split, over the composers' own read: the same templates, the same sentence.
   const composer = await templatesRoute.GET.run(new Request(`http://localhost/api/v1/templates?workspace=${A}`), {
@@ -9266,12 +9266,12 @@ test("an earlier answer, as a cold turn's history says it (the Phase 5 plan, D4)
   // A turn that failed says so first, and keeps the cards it made before it failed.
   const failed = answered({
     failed: true,
-    answer: failedAnswer("Something went wrong on our side, not with your question. Try again.", "en"),
+    answer: failedAnswer("AI couldn't answer this time. Nothing was wrong with your question. Try again.", "en"),
     proposals: [cardOf("p-1", "Reply to Rosa")],
   });
   assert.equal(
     answerLine(failed, TURN_CHARS),
-    "(This turn failed.) Something went wrong on our side, not with your question. Try again. Cards: p-1 · reply · Reply to Rosa · not pressed yet.",
+    "(This turn failed.) AI couldn't answer this time. Nothing was wrong with your question. Try again. Cards: p-1 · reply · Reply to Rosa · not pressed yet.",
   );
   // A turn the person stopped says it was stopped before its answer, and never the half it had written.
   const halfSaid = { headline: "Three people wrote this week.", detail: "Rosa asked about" };

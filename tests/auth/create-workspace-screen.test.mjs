@@ -433,7 +433,7 @@ test("a name under two characters is refused on the form, before anything is sen
   tree = draw(props);
   assert.equal(
     textOf(find(tree, (n) => n.props?.role === "alert")),
-    "Give the workspace a name — AI introduces itself with it.",
+    "Give the workspace a name · AI introduces itself with it.",
   );
   assert.deepEqual(w.asked, [], "nothing went out");
 

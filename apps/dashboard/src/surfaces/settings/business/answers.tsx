@@ -148,7 +148,7 @@ const BtaNote = ({
         label={`Note ${i + 1}, what it says`}
         rows={2}
         value={note && typeof note.text === "string" ? note.text : ""}
-        placeholder="Gift cards are sold at the front desk, any amount — ask for the owner."
+        placeholder="Gift cards are sold at the front desk, any amount · ask for the owner."
         onChange={(v) => notes.setAt(i, { text: v })}
         invalid={bad ? problemId : null}
         readOnly={readOnly}
@@ -329,9 +329,9 @@ const btaReads = (d: FallbacksDraft, brain: PreviewBrain, link: string) => {
 const BtaWrittenOut = ({ messageKey, written }: { messageKey: FallbackKey; written: "link" | "number" }) => (
   <span className="bt-fold-note" data-testid={`rec-fallback-${messageKey}-written`}>
     {written === "link" ? (
-      <>Your booking link is written out here — {"{booking link}"} keeps it current.</>
+      <>Your booking link is written out here · {"{booking link}"} keeps it current.</>
     ) : (
-      <>A number is written out here — {"{phone}"} gives the one you publish.</>
+      <>A number is written out here · {"{phone}"} gives the one you publish.</>
     )}
   </span>
 );

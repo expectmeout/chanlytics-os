@@ -767,7 +767,7 @@ test("D1-run-words: a run still to come is stopped on Today's day as Sent cancel
     await press(byTestId(band, "today-day-stop-yes"));
     await settle();
     assert.deepEqual(cancelled, ["b-soon"]);
-    assert.equal(textOf(toasts.at(-1).msg), "Offers canceled — nothing will send");
+    assert.equal(textOf(toasts.at(-1).msg), "Offers canceled · nothing will send");
   } finally {
     globalThis.window.__broadcasts = keep.verbs;
     globalThis.window.usePPToast = keep.toast;

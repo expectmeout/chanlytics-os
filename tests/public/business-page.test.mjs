@@ -134,7 +134,7 @@ test("what they do, from what they already told the receptionist", () => {
 test("the page is on the same domain as the opt-in page, which is what 30907 wanted", () => {
   // Relative, so it is the same site by construction rather than by a constant somebody has to keep correct: the reader's
   // links are run in a-paused-workspace-asks-nobody-for-a-yes.test.mjs (/yes/<slug>, /b/<slug>, /b/<slug>/terms).
-  // And the ABSOLUTE form the carriers are handed is built the same way the
+  // And the ABSOLUTE form the phone networks are handed is built the same way the
   // opt-in URL is, from one origin, at the one moment a filing is composed.
   // The door's filing is run in lines-door.test.mjs, and the sweep that finishes
   // a filing in cron-doors-b.test.mjs: in both, the captured campaign names
@@ -144,7 +144,7 @@ test("the page is on the same domain as the opt-in page, which is what 30907 wan
 
 test("a business with no website of its own files the page we publish", () => {
   const a2p = readCode("apps/edge/lib/lines/a2p-register.ts");
-  // The privacy policy the carriers are given identifies the BUSINESS. Ours
+  // The privacy policy the phone networks are given identifies the BUSINESS. Ours
   // identifies Chanlytics, which is the wrong answer to 30919's question.
   const privacyFiled = (hostedUrl) =>
     campaignFactsFor({
@@ -241,7 +241,7 @@ test("a workspace that is ready has nothing to fix", () => {
   assert.deepEqual(registrationPreflight(ready({ websiteUrl: "https://marisas.example" })), []);
 });
 
-test("the name the carriers are told, against the name the brand registers", () => {
+test("the name the phone networks are told, against the name the brand registers", () => {
   // THE ONE THAT BIT US. The campaign states `tenants.name`; the brand registers
   // `business_records.legal_name`. A live campaign went to the carriers
   // describing a business called "Billing probe" — a workspace name from a
@@ -382,7 +382,7 @@ test("what the program keeps and what for, on the page filed as the privacy poli
   assert.equal(vm.yourData.length, 2);
   assert.match(
     vm.yourData[0],
-    /Marisa's Beauty Salon keeps your mobile number, the messages you and it exchange, and your yes to messages/,
+    /Marisa's Beauty Salon keeps your mobile number, the messages you and it exchange, and your consent to messages/,
   );
   assert.match(vm.yourData[1], /not shared with third parties or affiliates for marketing or promotional purposes/);
   assert.equal(vm.termsUrl, "/b/marisas-beauty-salon/terms", "and the program's own terms are beside it");

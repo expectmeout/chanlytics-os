@@ -205,7 +205,7 @@ function keptSearchActs(a: SearchActsArgs) {
     }
     const d = r.data;
     if (!d.removed) {
-      plFlash({ msg: <>Nothing to remove — you have worked every one of them.</> });
+      plFlash({ msg: <>Nothing to remove · you have worked every one of them.</> });
       return;
     }
     plFlash({

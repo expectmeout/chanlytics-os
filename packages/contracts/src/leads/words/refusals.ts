@@ -8,7 +8,7 @@ import type { LeadNotAFitWhy } from "./lists";
 export const LEAD_SOURCE_WORD = "Google Maps listing";
 
 export const LEAD_LOCKED_LINE =
-  "Wait for their yes. Once they write back, they're in People and your sign-up page works for them.";
+  "Wait for their yes. Once they write back, they're in People and Get their yes works for them.";
 
 /** An address on the never-again list: no email is written to it here, as no sequence writes to it. */
 export const LEAD_ASKED_NOT_WRITTEN = "They asked not to be written to, so no email is written here.";
@@ -126,13 +126,13 @@ export const LEAD_CHECK_WORDS: Record<LeadCheckKey | "kind", Record<"yes" | "no"
 
 /** Erasing one lead, from the peek's ⋯ menu (Reach out Part 4, PR 9): the owner's alone, asked first, for good. */
 export const LEAD_ERASE_WORDS = {
-  act: "Erase this lead",
-  ask: (name: string) => `Erase ${name}? Its record and every trace of it go for good.`,
-  yes: "Yes, erase",
+  act: "Delete this lead",
+  ask: (name: string) => `Delete ${name}? Its record and every trace of it go for good.`,
+  yes: "Yes, delete",
   no: "No",
-  busy: "Erasing…",
-  done: (name: string) => `${name} is erased. It won't be found again.`,
-  refused: "Not erased",
+  busy: "Deleting…",
+  done: (name: string) => `${name} is deleted. It won't be found again.`,
+  refused: "Not deleted",
 } as const;
 
 /** The mailbox check says the state it saw, never a word for it (§10.4, S12). */
@@ -140,8 +140,8 @@ export const LEAD_MAILBOX_WORDS: Record<LeadEmailState, string> = {
   none: "No email found on their site",
   checking: "Checking the mailbox",
   ok: "Mailbox exists",
-  catch_all: "Their server accepts every address, so the check can't tell",
-  unknown: "Their mail server wouldn't answer",
+  catch_all: "Their email provider accepts every address, so the check can't tell",
+  unknown: "Their email provider wouldn't answer",
   invalid: "That mailbox doesn't exist",
 };
 

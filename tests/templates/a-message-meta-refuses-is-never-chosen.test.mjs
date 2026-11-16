@@ -162,7 +162,7 @@ test("an empty picker says why: the messages left out are counted by their statu
   );
   assert.equal(
     noTemplateWords({ paused: 1, disabled: 1, hidden: 3 }),
-    "No approved message yet (1 paused by WhatsApp, 1 disabled by WhatsApp, 3 hidden by you). Nothing can be sent until one is.",
+    "No approved message yet (1 paused by WhatsApp, 1 turned off by WhatsApp, 3 hidden by you). Nothing can be sent until one is.",
     "a partial count, in the one order",
   );
 

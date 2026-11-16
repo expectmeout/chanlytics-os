@@ -1535,7 +1535,7 @@ test("a person's own copy: its sections follow the workspace's order, and each i
       "The business's own details",
       "The team",
       "The campaigns",
-      "The templates",
+      "Saved messages",
       "Google reviews",
       "Which lists made by a rule they are on",
       "Call audio",

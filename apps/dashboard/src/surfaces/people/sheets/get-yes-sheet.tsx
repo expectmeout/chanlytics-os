@@ -110,7 +110,7 @@ function TheCode({
             <a className="cl-bucket-link" href={optIn.pageUrl} target="_blank" rel="noreferrer">
               {optIn.pageUrl.replace("https://", "")}
             </a>
-            , has the same code with the wording the phone carriers ask for. On paper, print{" "}
+            , has the same code with the wording the phone networks ask for. On paper, print{" "}
             <a
               className="cl-bucket-link"
               href={`${optIn.pageUrl}/form`}

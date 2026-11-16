@@ -194,9 +194,9 @@ export function templateUseNote(use: TemplateUse | null | undefined): string | n
   if (only && url.playbooks.length === 1) return only.paused || only.ended ? null : only.runs;
   if (url.playbooks.length > 1)
     return url.playbooks.every((p) => p.paused)
-      ? "all paused — nothing goes out"
+      ? "all paused · nothing goes out"
       : url.playbooks.every((p) => p.paused || p.ended)
-        ? "none runs — nothing goes out"
+        ? "none runs · nothing goes out"
         : null;
   if (url.booking && url.broadcasts === 0) return "what AI sends to book";
   return null;

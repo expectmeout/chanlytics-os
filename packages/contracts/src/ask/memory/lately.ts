@@ -109,7 +109,7 @@ const LATELY_WORDS: Record<AskIdeaSeen["state"], string> = {
   dismissed: "set aside",
   done: "approved",
   undone: "approved, then undone",
-  failed: "tried, and it failed",
+  failed: "tried, and it didn't work",
 };
 
 /** What a morning is told of the mornings before it and of a teammate's today, or "" where there were none. */

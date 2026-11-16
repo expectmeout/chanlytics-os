@@ -653,7 +653,7 @@ export default function FrameApp({ routePage, route }: { routePage?: ReactNode; 
       >
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: "#333" }}>Chanlytics didn&apos;t finish loading</div>
-          <div style={{ fontSize: 13, marginTop: 6 }}>Missing: {missing.join(", ")} — refresh to retry.</div>
+          <div style={{ fontSize: 13, marginTop: 6 }}>Missing: {missing.join(", ")} · refresh to retry.</div>
         </div>
       </div>
     );

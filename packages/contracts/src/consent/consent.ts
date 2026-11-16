@@ -326,9 +326,9 @@ export const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, 
   // after the fourth refusal (30896, 11 Sep 2026). A promotion by text would
   // go out under a consent the carriers were never told about.
   sms_carries_no_promotions:
-    "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there.",
+    "Offers and news do not go by text: the line is registered with the phone networks for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there.",
   sms_line_not_active:
-    "The texting line is not approved by the carriers yet, or is a test filing, so nothing goes out by text until it is.",
+    "Texting isn't approved for this number yet, or is a test filing, so nothing goes out by text until it is.",
   // Email's, at the wire (deliver.ts). An offer by email leaves only once the deployment has its campaigns domain
   // verified and the workspace's offers are not paused; a suppression is a fact about the address.
   email_marketing_disabled:

@@ -159,7 +159,7 @@ export function numberNotice(p: { channels: readonly { kind: string }[] | null |
     <FailedRead
       kind="card"
       what="your WhatsApp number"
-      body="What is on file is below; adding and syncing wait until the number can be read."
+      body="What is on file is below. Adding and updating wait until the number can be read."
       surface="channels"
       testid="messages-channels-failed"
     />

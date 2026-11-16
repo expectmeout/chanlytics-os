@@ -842,22 +842,22 @@ test("problemsOf says the old form's sentences, but for what an empty box means,
       "lead_hours",
       ["-1", "169", "soon"],
       ["0", "168"],
-      "Least notice is 0 to 168 hours; leave it empty to use 2 hours.",
+      "Least notice is 0 to 168 hours · leave it empty to use 2 hours.",
     ],
     [
       "slot_min",
       ["14", "241"],
       ["15", "240"],
-      "A slot is 15 to 240 minutes; leave it empty for the calendar’s 30 minutes.",
+      "A slot is 15 to 240 minutes · leave it empty for the calendar’s 30 minutes.",
     ],
-    ["buffer_min", ["-1", "121"], ["0", "120"], "The gap is 0 to 120 minutes; leave it empty for none."],
+    ["buffer_min", ["-1", "121"], ["0", "120"], "The gap is 0 to 120 minutes · leave it empty for none."],
     [
       "max_days_ahead",
       ["0", "91"],
       ["1", "90"],
-      "Times are offered 1 to 90 days ahead; leave it empty to use 14 days.",
+      "Times are offered 1 to 90 days ahead · leave it empty to use 14 days.",
     ],
-    ["party_max", ["0", "21"], ["1", "20"], "A booking is for 1 to 20 people; leave it empty for no rule."],
+    ["party_max", ["0", "21"], ["1", "20"], "A booking is for 1 to 20 people · leave it empty for no rule."],
   ];
   for (const [key, bad, good, words] of ranges) {
     for (const v of bad)
@@ -903,7 +903,7 @@ test("problemsOf says the old form's sentences, but for what an empty box means,
     greeting: profileRefusal("message", tooLong),
   });
   assert.deepEqual(S.problemsOf("fallbacks", { ...messages, non_text: "Call us at {phone number}." }), {
-    non_text: "Only {business}, {booking link} and {phone} are filled in — {phone number} would be sent as written.",
+    non_text: "Only {business}, {booking link} and {phone} are filled in · {phone number} would be sent as written.",
   });
   assert.deepEqual(S.problemsOf("fallbacks", { greeting: "", error: "", non_text: "" }), {
     greeting: "Write this message, or use the default wording.",
@@ -1357,7 +1357,7 @@ test("a booking rule typed as anything but a whole number is refused with its ru
   const draft = S.draftOf("booking_rules", stored());
   for (const typed of ["2.5", "30min", "1e2", "-1"]) {
     const found = S.problemsOf("booking_rules", { ...draft, lead_hours: typed });
-    assert.equal(found.lead_hours, "Least notice is 0 to 168 hours; leave it empty to use 2 hours.", typed);
+    assert.equal(found.lead_hours, "Least notice is 0 to 168 hours · leave it empty to use 2 hours.", typed);
   }
   assert.deepEqual(S.problemsOf("booking_rules", { ...draft, lead_hours: " 24 " }), {});
 });

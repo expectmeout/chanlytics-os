@@ -76,7 +76,7 @@ export const EXPORT_OF = {
   channel: {
     not_exported: {
       what: "The business's numbers, mailboxes and connections",
-      why: "They hold the providers' credentials, and each provider keeps its own record of them; Settings › Connections lists them.",
+      why: "They hold the keys to your connected services, and each service keeps its own record of them. Settings › Connections lists them.",
     },
   },
   team: { section: "team" },
@@ -96,7 +96,7 @@ export const EXPORT_OF = {
   brought: {
     not_exported: {
       what: "How far bringing your history in has come, and what your Business Profile and website said",
-      why: "What was brought is in the file's people, conversations and bookings, and what you kept of the profile and the website is in its business section; the rest is a progress record and a copy of what is public.",
+      why: "What was brought is in the file's people, conversations and bookings, and what you kept of the profile and the website is in its business section · the rest is a progress record and a copy of what is public.",
     },
   },
   file: {
@@ -108,13 +108,13 @@ export const EXPORT_OF = {
   draft: {
     not_exported: {
       what: "The replies AI drafted and you did not send",
-      why: "They are suggestions, never sent and written again when someone writes; what you sent is in the file's conversations.",
+      why: "They are suggestions, never sent and written again when someone writes · what you sent is in the file's conversations.",
     },
   },
   rehearsal: {
     not_exported: {
       what: "Your rehearsals with AI",
-      why: "They are you playing a customer, not a customer's record; what you kept from them is in the file's business section.",
+      why: "They are you playing a customer, not a customer's record · what you kept from them is in the file's business section.",
     },
   },
 } as const satisfies Record<RecordKind, ExportOf>;
@@ -123,7 +123,7 @@ export const EXPORT_OF = {
 const LEFT_OUT_BESIDE_THE_KINDS: readonly ExportLeftOut[] = [
   {
     what: "Call audio",
-    why: "It is removed on the schedule the privacy policy states; each call's transcript is in calls.",
+    why: "It is removed on the schedule the privacy policy states · each call's transcript is in calls.",
   },
   {
     what: "The activity log",
@@ -136,7 +136,7 @@ const LEFT_OUT_BESIDE_THE_KINDS: readonly ExportLeftOut[] = [
  * kind of record EXPORT_OF exports, in the file's order.
  */
 export const EXPORT_HOLDS_WORDS =
-  "People, conversations with their messages and a link to each file a customer sent, which opens for a day, calls with their transcripts, every consent change with who recorded it, notes and steps, deals, your business details, the team, bookings, lists, campaigns and what each sent, templates, holds, AI's rules, Google reviews, leads, and how each reply from a lead was read.";
+  "People, conversations with their messages and a link to each file a customer sent, which opens for a day, calls with their transcripts, every consent change with who recorded it, notes and steps, deals, your business details, the team, bookings, lists, campaigns and what each sent, saved messages, holds, AI's rules, Google reviews, leads, and how each reply from a lead was read.";
 
 /** What the owner's copy leaves out, as the card says it: each `what` of exportLeftOut, the why at the file's end. */
 export function exportLeftOutWords(): string {
@@ -196,19 +196,19 @@ export type PersonExportSection = (typeof PERSON_EXPORT_SECTIONS)[number];
 const PERSON_LEAVES_OUT = {
   business: {
     what: "The business's own details",
-    why: "They are the workspace's, not this person's; the workspace's own copy holds them.",
+    why: "They are the workspace's, not this person's · the workspace's own copy holds them.",
   },
   team: {
     what: "The team",
-    why: "Each member is the workspace's; who did something to their record is said on it, as `author_user_id`, `created_by` or `added_by`.",
+    why: "Each member is the workspace's · who did something to their record is said on it, as `author_user_id`, `created_by` or `added_by`.",
   },
   campaigns: {
     what: "The campaigns",
-    why: "A campaign is the workspace's; what each of its runs sent them is in sends, and each message as they received it is in conversations.",
+    why: "A campaign is the workspace's · what each of its runs sent them is in sends, and each message as they received it is in conversations.",
   },
   templates: {
-    what: "The templates",
-    why: "A template is the workspace's; each message written from one is in conversations, as they received it.",
+    what: "Saved messages",
+    why: "A saved message is the workspace's. Each message written from one is in conversations, as they received it.",
   },
   reviews: {
     what: "Google reviews",
@@ -220,7 +220,7 @@ const PERSON_LEAVES_OUT = {
 const PERSON_LEFT_OUT_BESIDE: readonly ExportLeftOut[] = [
   {
     what: "Which lists made by a rule they are on",
-    why: "A list made by a rule holds whoever its rule matches as the record stands; lists holds the lists they were put on by hand, and the workspace's own copy holds each rule.",
+    why: "A list made by a rule holds whoever its rule matches as the record stands · lists holds the lists they were put on by hand, and the workspace's own copy holds each rule.",
   },
 ];
 

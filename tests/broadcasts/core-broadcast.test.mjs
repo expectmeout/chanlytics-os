@@ -951,7 +951,7 @@ test("a playbook's run that stops is never told to send it again: every stop say
   // page sends a run again. The stops for the workspace said so (stoppedRunFix); the wire's, the limit's and the day's
   // hours' told its owner to "send it again later".
   const NEXT =
-    "It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.";
+    "It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.";
   const moment = () =>
     broadcast({
       playbook_id: "p1",
@@ -980,7 +980,7 @@ test("a playbook's run that stops is never told to send it again: every stop say
   const { BROADCAST_FAILURES } = await import("@chanlytics/contracts");
   // A stop that may outlast tomorrow and is nobody's to end promises no tomorrow: the month's limit met tomorrow's run too.
   const LATER =
-    "It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
+    "It does not run again today · the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
   assert.equal(playbookRunNext({ playbook_id: "p1", trigger: "everyone_monthly" }, "when_it_can"), LATER);
   const outlasts = new Set(["provider_limit", "template_not_approved", "whatsapp_wait_ended"]);
   for (const code of BROADCAST_FAILURES) {
@@ -1799,11 +1799,11 @@ test("the mail provider's day or month used up gives the claim back and stops th
   for (const [limit, end] of [
     [
       "daily",
-      "It resets on its own. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
+      "It resets on its own. It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
     ],
     [
       "monthly",
-      "It resets with the new month. It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.",
+      "It resets with the new month. It does not run again today · the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.",
     ],
   ]) {
     const { f } = world({
@@ -2381,7 +2381,7 @@ test("a billing pause the door meets stops the run, once, and gives the person b
   // the whole list. Tomorrow's run reaches who this one did not (a stopped run touched only the people it had sent to).
   assert.match(
     await stopped(forMoment("quiet_30")),
-    /Resume from Settings › Billing\. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice\.$/,
+    /Resume from Settings › Billing\. It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice\.$/,
   );
   assert.doesNotMatch(await stopped(forMoment("everyone_monthly")), /send it again/i);
   // A visit's message belongs to the day of the visit: tomorrow's run is for tomorrow's visits, so these are not reached later.
@@ -2396,7 +2396,7 @@ test("a billing pause the door meets stops the run, once, and gives the person b
   assert.deepEqual(head.ops(), ["fail", "alert"]);
   assert.match(
     call(head.log, "alert")[1].body,
-    /^The workspace is paused until billing resumes, so nothing went out\. Resume from Settings › Billing\. It does not run again today;/,
+    /^The workspace is paused until billing resumes, so nothing went out\. Resume from Settings › Billing\. It does not run again today ·/,
   );
 });
 
@@ -2492,7 +2492,7 @@ test("a pause on offers and news by email, or a campaigns domain that cannot be 
   assert.equal(paused.failure, "email_offers_paused");
   assert.equal(
     paused.body,
-    "Offers by email are paused while complaints and bounces settle, so the rest was not sent. 2 people got it. Check your list for old or wrong addresses; offers by email come back on once it looks right. Send it again then.",
+    "Offers by email are paused while complaints and bounces settle, so the rest was not sent. 2 people got it. Check your list for old or wrong addresses · offers by email come back on once it looks right. Send it again then.",
   );
   assert.equal(paused.pages.length, 0, "a gate's pause was paged where it tripped");
   const closed = await stopped("email_marketing_disabled");
@@ -2512,14 +2512,14 @@ test("a pause on offers and news by email, or a campaigns domain that cannot be 
   const playbook = await stopped("email_offers_paused", forMoment("everyone_monthly"));
   assert.match(
     playbook.body,
-    /offers by email come back on once it looks right\. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice\.$/,
+    /offers by email come back on once it looks right\. It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice\.$/,
   );
   assert.doesNotMatch(playbook.body, /send it again/i);
   // The run's own page says the same next step.
   const { broadcastFailureFix } = await import("@chanlytics/contracts");
   assert.equal(
     broadcastFailureFix("email_offers_paused", 2, { playbook_id: "p1", trigger: "everyone_monthly" }),
-    "Check your list for old or wrong addresses; offers by email come back on once it looks right. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
+    "Check your list for old or wrong addresses · offers by email come back on once it looks right. It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
   );
   assert.match(
     broadcastFailureFix("email_offers_paused", 2, { playbook_id: null, trigger: null }),

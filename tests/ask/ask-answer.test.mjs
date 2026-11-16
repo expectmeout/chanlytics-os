@@ -261,7 +261,7 @@ test("Right now is Today's queue in a sentence: the people waiting, then the run
   );
   assert.equal(
     rightNowLine(null, "en"),
-    "Today's queue hasn't been read yet.",
+    "Today's list hasn't loaded yet.",
     "REGRESSION: a queue not read yet said nobody was waiting",
   );
   assert.equal(rightNowLine(null, "es"), "La cola de hoy aún no se ha leído.");
@@ -364,7 +364,7 @@ test("who needs me: the sentence, then the people, the searches and the runs as 
   const unread = needsAnswer(null, "en");
   assert.deepEqual(
     [unread.say.headline, unread.show.items.length, unread.do.open],
-    ["Today's queue hasn't been read yet.", 0, { to: "today", label: "Open Today", now: false }],
+    ["Today's list hasn't loaded yet.", 0, { to: "today", label: "Open Today", now: false }],
   );
 });
 

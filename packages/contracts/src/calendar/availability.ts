@@ -262,17 +262,17 @@ export function describeOpenings(
   const confirms = held || !hasLink;
   if (opts.requests === true && confirms)
     return (
-      `Open times (from the calendar, checked just now — these change as bookings come in):\n${lines.join("\n")}\n` +
+      `Open times (from the calendar, checked just now · these change as bookings come in):\n${lines.join("\n")}\n` +
       `Offer up to three of these that fit what they want. ${BOOKING_REQUEST_INSTRUCTION}` +
       (held ? " This business confirms its own bookings: never send or promise the booking link." : "")
     );
   return (
-    `Open times (from the calendar, checked just now — these change as bookings come in):\n${lines.join("\n")}\n` +
+    `Open times (from the calendar, checked just now · these change as bookings come in):\n${lines.join("\n")}\n` +
     (held
       ? "Offer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name. This business confirms its own bookings: never send or promise the booking link, and never confirm a slot yourself."
       : hasLink
-        ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides."
-        : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`)
+        ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself · the calendar decides."
+        : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself · the calendar decides.`)
   );
 }
 

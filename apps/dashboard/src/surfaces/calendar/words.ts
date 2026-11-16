@@ -51,7 +51,7 @@ export const CR_WARM_MS = 1000;
  */
 export const CR_FEED_WORDS = {
   stale: "The calendar couldn't be refreshed.",
-  unavailable: "The address is saved; check it in Settings › Hours & booking if this keeps happening.",
+  unavailable: "The address is saved · check it in Settings › Hours & booking if this keeps happening.",
 };
 
 /** The card's door where nothing is connected, beside "No calendar connected.", which says the rest (Ruben, 21 Oct 2026). */

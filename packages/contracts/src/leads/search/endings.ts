@@ -13,7 +13,7 @@ export const LEAD_ENDING_WORDS: Record<LeadRoundEnding, string> = {
   budget_used: "This month's searching budget is used",
   few_new_matches: "Few new matches",
   stopped: "Stopped by you",
-  source_failed: "The source failed",
+  source_failed: "The source stopped answering",
   question_unanswered: "Question unanswered",
   paused: "Paused for everyone",
   reach_searched: "Searched everywhere within reach",

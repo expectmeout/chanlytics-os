@@ -176,10 +176,10 @@ export function campaignsOf(personDetail: PersonDetailDto, tz: string, nowMs: nu
           ? "Replied"
           : "Sent"
         : item.state === "skipped"
-          ? `Held — ${reason ?? "held back"}`
+          ? `Held · ${reason ?? "held back"}`
           : item.state === "failed"
             ? reason
-              ? `Didn't send — ${reason}`
+              ? `Didn't send · ${reason}`
               : "Didn't send"
             : "Waiting to send";
     return {

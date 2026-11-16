@@ -108,7 +108,7 @@ interface WhenWords {
   these: string;
 }
 
-const NO_BUSINESSES = "This database does not count businesses yet.";
+const NO_BUSINESSES = "Chanlytics doesn't count businesses here yet.";
 const MAILBOXES_LINE = "Where it left from, and how it landed. Past 3% bounced, a mailbox holds itself.";
 /** Who answered, was interested, booked or said no is state now; the cards that show it by angle and by step say so. */
 const STANDS_NOW = "as they stand now";
@@ -260,7 +260,7 @@ function businessesPart(dto: ReachOutReportDto, when: WhenWords): MixPartVM {
     businesses >= REPORT_MIN_N
       ? `: ${pct(wrote_back, businesses)}% wrote back and ${pct(interested, businesses)}% were interested`
       : "";
-  const line = `Of ${plural(businesses, "business", "businesses")} written to ${when.within}${shares}. Each counts once, at the last email that wrote to it; a question counts as interested. Who wrote back, was interested, booked${isCount(won) ? ", won" : ""} or said no is as it stands now.`;
+  const line = `Of ${plural(businesses, "business", "businesses")} written to ${when.within}${shares}. Each counts once, at the last email that wrote to it · a question counts as interested. Who wrote back, was interested, booked${isCount(won) ? ", won" : ""} or said no is as it stands now.`;
   return mixOf(entries, line);
 }
 

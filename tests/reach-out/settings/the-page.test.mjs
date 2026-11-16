@@ -841,7 +841,7 @@ test("the rail lists it as Cold email, in a group of its own after Autonomy, and
   assert.equal(ids[ids.indexOf("autonomy") + 1], "outreach");
   const tab = SET_TABS.find((t) => t.id === "outreach");
   assert.equal(tab.label, "Cold email");
-  assert.equal(tab.group, "Outreach");
+  assert.equal(tab.group, "Cold email");
   assert.equal(SET_TAB("outreach").label, "Cold email", "the old address lands, under its new name");
   for (const row of ["offer", "proof", "cold_tone", "signed_by", "signature", "sign_phone", "reply_offer"])
     assert.equal(paneOfRow(row), "outreach", row);

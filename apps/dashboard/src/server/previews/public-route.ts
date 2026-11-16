@@ -60,7 +60,7 @@ export function previewRoute<T>(
           },
         );
       log.error("preview_route_failed", { error: error });
-      return NextResponse.json(err("internal", "Something went wrong. Try again in a moment."), {
+      return NextResponse.json(err("internal", "Couldn't finish that. Try again in a moment."), {
         status: 500,
         headers: PRIVATE,
       });

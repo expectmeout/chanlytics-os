@@ -354,7 +354,7 @@ const CANNOT_ROWS: readonly CannotRowVM[] = [
     id: "sms",
     title: "Send a text message",
     detail:
-      "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when. Once it does, a caller whose WhatsApp can't take the booking link is sent it by text.",
+      "Not part of what is sold yet. It arrives with a line the phone networks have approved, and Connections will say when. Once it does, a caller whose WhatsApp can't take the booking link is sent it by text.",
     soon: true,
   },
 ];
@@ -362,7 +362,7 @@ const CANNOT_ROWS: readonly CannotRowVM[] = [
 /** The two rows whose words lean on a booking link, as said where there is none (the first run's decision 2). */
 const CANNOT_NO_LINK: Partial<Record<CannotRowVM["id"], string>> = {
   book: "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking. Your team does that, from the details it takes.",
-  sms: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when.",
+  sms: "Not part of what is sold yet. It arrives with a line the phone networks have approved, and Connections will say when.",
 };
 
 /**

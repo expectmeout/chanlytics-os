@@ -141,7 +141,7 @@ test("with no hours stored, the row is empty in the old card's words, and its ac
   const tree = drawTab({ profile: without(marisa, "hours") });
   const row = byTestId(tree, "rec-row-hours");
   assert.equal(row.props["data-empty"], "true");
-  assert.match(textOf(row), /Not set — AI cannot state your hours/);
+  assert.match(textOf(row), /Not set · AI cannot state your hours/);
   const act = byTestId(tree, "rec-row-act-hours");
   assert.equal(textOf(act), "Add them");
   assert.ok(act.props["aria-label"].startsWith("Add them"), "a person who says the words on it reaches it");
@@ -229,7 +229,7 @@ test("an hours save sends the stored config with the week changed, and everythin
       profile: { ...stored.brain.profile, hours: { ...marisa.hours, mon: { open: "09:30", close: "17:00" } } },
     },
   });
-  assert.equal(textOf(flashes.at(-1).msg), "Saved — AI picks it up within a minute");
+  assert.equal(textOf(flashes.at(-1).msg), "Saved · AI picks it up within a minute");
   assert.deepEqual(openFolds(redrawTab(flash)), [], "accepted, the fold closes");
 });
 
@@ -286,7 +286,7 @@ test("a closed day keeps its shifts until Save, which is what decides a closed d
   press(byTestId(tree, "rec-hours-switch-sat"));
   tree = redrawTab();
   assert.equal(byTestId(tree, "rec-hours-switch-sat").props["aria-checked"], false);
-  assert.match(textOf(dayOf(tree, "sat")), /Closed — times kept/);
+  assert.match(textOf(dayOf(tree, "sat")), /Closed · times kept/);
   assert.equal(dayOf(tree, "sat").props["data-open"], "false", "shut, and says it");
   // An accidental tap costs nothing: the times are there when the day opens again.
   press(byTestId(tree, "rec-hours-switch-sat"));
@@ -447,7 +447,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
   );
   assert.equal(labelled(tree, "Saturday closes").props.value, "19:00", "Saturday is no weekday");
   copyTo(tree, flash, "Tuesday");
-  assert.equal(textOf({ props: { children: flashes.at(-1).msg } }), "Copied Mon's hours — nothing else changed");
+  assert.equal(textOf({ props: { children: flashes.at(-1).msg } }), "Copied Mon's hours · nothing else changed");
 
   // A business shut on Mondays copies the first day it is open.
   tree = drawTab({ flash, profile: { ...marisa, hours: { ...marisa.hours, mon: {} } } });
@@ -470,7 +470,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
   assert.deepEqual([openFolds(tree), W.__settingsUnsaved()], [[], false]);
   assert.deepEqual(
     [flashes.at(-1).tone, textOf({ props: { children: flashes.at(-1).msg } })],
-    ["warn", "Not put back — the editor it was in has closed. Open it again to change it."],
+    ["warn", "Not put back · the editor it was in has closed. Open it again to change it."],
   );
   // And one pressed while the fold's save is out: nothing is typed into a save on its way, and that is said too.
   W.__saveSettings = () => new Promise(() => {});
@@ -490,7 +490,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
   );
   assert.deepEqual(
     [flashes.at(-1).tone, textOf({ props: { children: flashes.at(-1).msg } })],
-    ["warn", "Not put back — this is being saved."],
+    ["warn", "Not put back · this is being saved."],
   );
 });
 
@@ -885,7 +885,7 @@ test("the closures fold adds, edits and removes a closed day, puts a removed one
       profile: { ...stored.brain.profile, closures: [XMAS, { date: "2100-07-04", note: "Independence Day" }] },
     },
   });
-  assert.equal(textOf(flashes.at(-1).msg), "Saved — AI picks it up within a minute");
+  assert.equal(textOf(flashes.at(-1).msg), "Saved · AI picks it up within a minute");
 });
 
 test("what stops a closures save is said under its own box, and at the cap the fold says so and offers no more", () => {
@@ -898,7 +898,7 @@ test("what stops a closures save is said under its own box, and at the cap the f
   tree = redrawTab();
   saveFoldOf(tree, "closures");
   tree = redrawTab();
-  assert.match(textOf(problemUnder(tree, "rec-closure-0-note")), /At most 200 characters — this is 201\./);
+  assert.match(textOf(problemUnder(tree, "rec-closure-0-note")), /At most 200 characters · this is 201\./);
   assert.deepEqual(
     [boxes()[2].props["aria-invalid"], boxes()[0].props["aria-invalid"]],
     [true, undefined],
@@ -1405,7 +1405,7 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
     setSurfaceValue("calendar", undefined);
     W.__surfaceFailed = (key) => key === "calendar";
     row = byTestId(drawTab(), "rec-row-calendar");
-    assert.match(textOf(byTestId(row, "rec-calendar-unread")), /Couldn't read what its last read found/);
+    assert.match(textOf(byTestId(row, "rec-calendar-unread")), /Couldn't read what it found when it last updated/);
   } finally {
     setSurfaceValue("calendar", undefined);
     if (was.calendar) W.__calendar = was.calendar;
@@ -1666,7 +1666,7 @@ test("a refusal that is not the fold's to fix is said once in the fold, and neve
   assert.deepEqual([sent.length, openFolds(tree)], [0, ["hours"]]);
   assert.match(
     textOf(byTestId(tree, "rec-fold-hours-elsewhere")),
-    /^Something else in your settings stops this save — /,
+    /^Something else in your settings stops this save · /,
     "said where the owner is looking, naming where it is",
   );
   assert.equal(byTestId(tree, "rec-hours-problem-mon"), null, "and under no day, since no day is wrong");
@@ -2094,7 +2094,7 @@ test("a stale read whose refresh failed says so where the read would be, with a 
     tree = redrawTab();
     const row = byTestId(tree, "rec-row-calendar");
     assert.equal(byTestId(row, "rec-calendar-read"), null, "the old read is not stated as if it were the latest");
-    assert.match(textOf(byTestId(row, "rec-calendar-unread")), /Couldn't read what its last read found/);
+    assert.match(textOf(byTestId(row, "rec-calendar-unread")), /Couldn't read what it found when it last updated/);
     assert.doesNotMatch(textOf(row), /12 events|read 4m ago/);
     assert.match(textOf(row), /app\.chanlytics\.com/, "where it reads is still the settings read's, and still said");
     // Its Retry asks again, the last read comes back dimmed meanwhile, and a read that lands is stated.
@@ -2191,7 +2191,7 @@ test("a list inside a fold keeps its cap through an Undo too: a removed row is p
   );
   assert.deepEqual(
     [flashes.at(-1).tone, textOf({ props: { children: flashes.at(-1).msg } })],
-    ["warn", "Not put back — Monday already has the most shifts a day takes. Remove one first."],
+    ["warn", "Not put back · Monday already has the most shifts a day takes. Remove one first."],
     "and the Undo says why it did nothing",
   );
   saveFoldOf(tree, "hours");
@@ -2384,7 +2384,7 @@ test("a re-read after the calendar's address is saved that fails says so, with i
     tree = redrawTab();
     assert.match(
       textOf(byTestId(tree, "rec-calendar-unread")),
-      /Couldn't read what its last read found/,
+      /Couldn't read what it found when it last updated/,
       "REGRESSION: the row was blank for good",
     );
     assert.equal(
@@ -2502,7 +2502,7 @@ test("a day's hours replaced whole by a copy leave its waiting shift nowhere to 
   assert.deepEqual(opens("tue"), ["09:00"], "REGRESSION: the old shift went back into the copied hours");
   assert.deepEqual(
     [flashes.at(-1).tone, textOf({ props: { children: flashes.at(-1).msg } })],
-    ["warn", "Not put back — the list it came from was replaced since, so it has no place to go."],
+    ["warn", "Not put back · the list it came from was replaced since, so it has no place to go."],
   );
   // A shift taken out after the copy goes back as any does.
   press(byTestId(tree, "rec-hours-add-tue"));

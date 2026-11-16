@@ -32,7 +32,7 @@ export function refreshAct(p: { refreshing: boolean; setRefreshing: (on: boolean
     }
     const f = surfaceValue("calendar")?.vm.feed ?? null;
     if (!landed || !f) {
-      flash({ tone: "warn", msg: <>Couldn't reach Chanlytics — the board is as it was.</> });
+      flash({ tone: "warn", msg: <>Couldn&apos;t reach Chanlytics · the board is as it was.</> });
       return;
     }
     if (f.state === "ok" && !f.stale) {
@@ -44,7 +44,7 @@ export function refreshAct(p: { refreshing: boolean; setRefreshing: (on: boolean
       tone: "warn",
       msg:
         f.state === "ok" ? (
-          <>Couldn't refresh your calendar — showing the last good read.{why}</>
+          <>Couldn&apos;t refresh your calendar · showing the last good read.{why}</>
         ) : (
           <>Still couldn't read your calendar.{why}</>
         ),

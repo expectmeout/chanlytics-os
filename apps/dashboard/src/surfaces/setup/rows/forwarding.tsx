@@ -78,7 +78,7 @@ function codeCard(
           </span>
         ) : o.testing ? (
           <span className="setup-fw-ok">
-            The window is open — call {W.display(fw.e164)} from another phone. This page updates by itself.
+            The window is open · call {W.display(fw.e164)} from another phone. This page updates by itself.
           </span>
         ) : (
           <button
@@ -185,7 +185,7 @@ export const ForwardingCard = ({ S, flash, onDone }: ForwardingProps) => {
     flash({
       tone: r.ok ? "ok" : "danger",
       msg: r.ok ? (
-        <>The window is open for 30 minutes — call {W.display(fw.e164)} from another phone.</>
+        <>The window is open for 30 minutes · call {W.display(fw.e164)} from another phone.</>
       ) : (
         <>{r.message}</>
       ),
@@ -197,7 +197,7 @@ export const ForwardingCard = ({ S, flash, onDone }: ForwardingProps) => {
   const testing = !!(f && W.testOpen(f));
   return (
     <section className="setup-chooser setup-fw" data-testid="setup-forwarding">
-      {!dest && <p className="setup-fw-note">AI needs a line first — get a new number from the row above.</p>}
+      {!dest && <p className="setup-fw-note">AI needs a line first · get a new number from the row above.</p>}
       <div className="setup-fw-form">
         <div className="rec-field">
           <label>
@@ -216,7 +216,7 @@ export const ForwardingCard = ({ S, flash, onDone }: ForwardingProps) => {
         {/* One of five: the browser's own select (a phone draws its picker), in the kit's box, named by its label. */}
         <div className="rec-field">
           <label>
-            <span className="rec-field-label">Carrier</span>
+            <span className="rec-field-label">Phone company</span>
             <select
               className="rec-input"
               value={carrier}

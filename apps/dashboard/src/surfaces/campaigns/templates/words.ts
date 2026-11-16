@@ -184,13 +184,13 @@ export const TPL_VERSION_WORDS = {
   translated: (title: string, language: string, saved: readonly string[]): string =>
     `${title} in ${language}: its ${saved.join(" and ")} ${saved.length === 1 ? "version is" : "versions are"} saved`,
   translatedPart: (saved: readonly string[], reason: string): string =>
-    `Its ${saved.join(" and ")} ${saved.length === 1 ? "version is" : "versions are"} saved; the rest is not: ${reason}`,
+    `Its ${saved.join(" and ")} ${saved.length === 1 ? "version is" : "versions are"} saved · the rest is not: ${reason}`,
   /** A refused change's way back: the words WhatsApp had approved, put in the box to send again. */
   goBack: "Go back to the words WhatsApp approved",
   whatsappEmpty: "Write the message.",
   whatsappLong: "WhatsApp takes 1,024 characters at most.",
   sentBack: (title: string): string =>
-    `${title} went back to WhatsApp — it looks at the new words (${WHATSAPP_REVIEW_TAKES})`,
+    `${title} went back to WhatsApp · it looks at the new words (${WHATSAPP_REVIEW_TAKES})`,
   /** How long the subject is, against what an inbox shows. */
   subjectCount: (n: number, max: number): string => `${n} of ${max}`,
   /** What a text comes to on the wire, STOP line included. */
@@ -242,7 +242,7 @@ export const TPL_SHEET_WORDS = {
     `Delete “${title}”${language ? ` in ${language}` : ""}?`,
   /** A delete that stopped part-way: what already went, and why the rest did not. */
   deletedPart: (gone: readonly string[], reason: string): string =>
-    `Its ${gone.join(" and ")} ${gone.length === 1 ? "version is" : "versions are"} deleted; the rest is not: ${reason}`,
+    `Its ${gone.join(" and ")} ${gone.length === 1 ? "version is" : "versions are"} deleted · the rest is not: ${reason}`,
   done: "Done",
   undo: "Undo",
   write: (channel: string): string => `Write the ${channel.toLowerCase()}`,

@@ -511,7 +511,7 @@ test("REGRESSION (one gate): the business record shows Save and File to a role t
   assert.ok(press(save).prevented);
   const file = find(tree, (n) => n.type === "button" && n.props["data-testid"] === "biz-file");
   assert.ok(file, "REGRESSION: File was not on the page");
-  assert.equal(file.props["data-tip"], "Only an owner can file with the carriers.");
+  assert.equal(file.props["data-tip"], "Only an owner can file with the phone networks.");
   assert.ok(press(file).prevented);
   await flush();
   tree = settle(Form, props);
@@ -836,7 +836,7 @@ const noteLinks = (tree, kind) =>
   ).map((n) => [textOf(n), n.props.href, n.props.target, n.props.rel]);
 /** What WhatsApp costs, said last under the Connect row (contracts WHATSAPP_COST_WORDS): one line, with Meta's prices after it. */
 const COST = [
-  "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill, so add one when Meta asks: replies within 24 hours of a customer's message are free; reminders sent after that, and campaigns, are charged for each one Meta delivers.",
+  "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill, so add one when Meta asks: replies within 24 hours of a customer's message are free · reminders sent after that, and campaigns, are charged for each one Meta delivers.",
 ];
 const PRICES = [
   "Meta's current prices",
@@ -1243,7 +1243,7 @@ test("the WhatsApp row draws what Meta holds: a number whose account has no paym
   const open = byTestId(opened, "connection-whatsapp");
   assert.equal(
     textOf(byTestId(open, "connection-whatsapp-says")),
-    "WhatsApp needs a card on file before it delivers reminders and campaigns; they wait and go once one is added.",
+    "WhatsApp needs a card on file before it delivers reminders and campaigns · they wait and go once one is added.",
   );
   assert.equal(
     byTestId(open, "connection-whatsapp-fix").props.variant,

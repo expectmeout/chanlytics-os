@@ -105,7 +105,7 @@ function describeBox(p: {
         <input
           autoFocus={focusAsDrawn()}
           value={words}
-          placeholder={`Describe who — “no ${visitWordHere()} in two months”`}
+          placeholder={`Describe who · “no ${visitWordHere()} in two months”`}
           maxLength={300}
           disabled={busy}
           aria-label="Describe who is on the list"

@@ -978,7 +978,7 @@ test("the Google sweep reaches the seed only a day on, and then writes its failu
   assert.equal(kept(), before, "no review, day or event was written");
   assert.deepEqual(
     bells(),
-    [...rang, ["sweep", "google_connection", "Google Business Profile stopped syncing"]],
+    [...rang, ["sweep", "google_connection", "Google Business Profile stopped updating"]],
     "the owner is told once: a profile with no credentials is a cause only they can mend (R11 S11-4)",
   );
 

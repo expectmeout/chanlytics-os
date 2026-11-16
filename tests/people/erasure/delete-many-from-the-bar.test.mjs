@@ -126,7 +126,7 @@ test("Not a person… sends the batch with its address said, says what it did, a
   assert.deepEqual(sent, [["POST", "/api/v1/contacts/erase", { ids: ["p1", "p2", "p3"], not_a_person: true }]]);
   assert.equal(b.seen.toasts.length, 1);
   assert.equal(b.seen.toasts[0].tone, "danger", "someone was not handed over");
-  assert.equal(textOf(b.seen.toasts[0].msg), "Deleting 2 people · 1 not deleted — Could not delete them.");
+  assert.equal(textOf(b.seen.toasts[0].msg), "Deleting 2 people · 1 not deleted · Could not delete them.");
   assert.deepEqual(b.seen.kept, ["p2"], "who could not go");
   assert.equal(sheetOf(b.redraw()).props.open, false, "the question is closed");
 });

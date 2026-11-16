@@ -171,11 +171,11 @@ export const FIRST_RUN_PHONE_WORDS = {
   startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
   buyingIn: (area: string | null) => (area ? `Getting AI's number in ${area}…` : "Getting AI's number…"),
   buyingNew: (number: string) => `Getting ${number}…`,
-  usually: "Usually a minute or two; this page updates by itself",
+  usually: "Usually a minute or two · this page updates by itself",
   /** What the page says when a buy or a search is refused, over the door's own sentence. */
   notBought: "No number yet",
   moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
-  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
+  moveNotAsked: "The move wasn't asked for. Ask again from Settings later · your number forwards meanwhile.",
   cancelled: CHECKOUT_OUTCOME_WORDS.cancel,
   /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
   ringsLabel: (display: string | null) =>

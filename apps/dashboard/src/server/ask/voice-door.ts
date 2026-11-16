@@ -91,7 +91,7 @@ const VOICE_LINES = {
   missed: { en: "I did not catch that. Say it again?", es: "No te escuché bien. ¿Lo repites?" },
   busy: { en: "Give me a moment before the next question.", es: "Dame un momento antes de la siguiente pregunta." },
   failed: {
-    en: "Something went wrong on my side. Try again in a moment.",
+    en: "I couldn't finish that. Try again in a moment.",
     es: "Algo falló de mi lado. Inténtalo de nuevo en un momento.",
   },
   /** More words than a turn takes (ASK_MAX_CHARS): the typed Line's 400, spoken. */

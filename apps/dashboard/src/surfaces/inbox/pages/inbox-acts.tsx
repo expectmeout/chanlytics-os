@@ -41,7 +41,7 @@ export const inboxDecide = (ix: InboxSoFar) => {
           type: "event",
           kind: "decision",
           at: IX_NOW,
-          body: `You chose “${action}”${meta.param ? ` · ${meta.param}` : ""} — ${declined ? `${x.agent.name} is handling the fallback${x.approval && x.approval.fallback ? `: ${x.approval.fallback}` : ""}` : `${x.agent.name} is executing`}`,
+          body: `You chose “${action}”${meta.param ? ` · ${meta.param}` : ""} · ${declined ? `${x.agent.name} is handling the fallback${x.approval && x.approval.fallback ? `: ${x.approval.fallback}` : ""}` : `${x.agent.name} is executing`}`,
         },
       ],
     }));

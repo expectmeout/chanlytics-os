@@ -121,7 +121,7 @@ export const BtHoursRow = ({
           </span>
         ) : null,
         // What the old card said of a week nobody has typed.
-        empty: "Not set — AI cannot state your hours",
+        empty: "Not set · AI cannot state your hours",
         act: hoursLine ? "Change" : "Add them",
         name: hoursLine ? "Change your opening hours" : "Add them: your opening hours",
         children: note,

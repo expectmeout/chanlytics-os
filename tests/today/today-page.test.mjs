@@ -1047,7 +1047,7 @@ test("a run's Approve from the queue is said the moment the server takes it, wit
   await flashes[0].action.onClick();
   await new Promise((r) => setTimeout(r, 0));
   assert.deepEqual(canceled, ["b-wait"], "the run just approved");
-  assert.match(textOf(flashes.at(-1).msg), /canceled — nothing will send/);
+  assert.match(textOf(flashes.at(-1).msg), /canceled · nothing will send/);
 });
 
 test("REGRESSION (S9-10): a run's Approve on Today waits while it is on its way -- a second press approved again, as Sent's once did", async () => {

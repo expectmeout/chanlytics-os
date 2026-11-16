@@ -136,12 +136,12 @@ test("a rate limit says when to try again, from the details the server sends or 
   );
   assert.equal(
     refusalOf({ code: "rate_limited", status: 429, message: "", details: { retry_after_s: 125 }, write: true }).message,
-    "Too many at once — try again in 3 minutes.",
+    "Too many at once · try again in 3 minutes.",
     "no sentence from the server: ours, with the wait",
   );
   assert.equal(
     refusalOf({ code: "rate_limited", status: 429, message: "", details: { retry_after_s: 1 }, write: true }).message,
-    "Too many at once — try again in 1 second.",
+    "Too many at once · try again in 1 second.",
   );
 });
 
@@ -175,20 +175,20 @@ test("an answer that was not an envelope says what the owner can do: a write may
   assert.deepEqual([w.code, w.status, w.title], ["internal", 502, "No answer"]);
   assert.equal(
     w.message,
-    "Chanlytics didn't answer properly, so this may or may not have gone through — check before trying again.",
+    "Chanlytics didn't answer properly, so this may or may not have gone through · check before trying again.",
   );
   assert.ok(!/[0-9]{3}/.test(w.message), "REGRESSION: 'Request failed (502).' put a status code on screen");
   assert.equal(
     refusalOf({ status: 504, write: false }).message,
-    "Chanlytics couldn't read this just now — try again in a moment.",
+    "Chanlytics couldn't read this just now · try again in a moment.",
   );
   const stale = refusalOf({ status: 404, write: false });
   assert.deepEqual(
     [stale.title, stale.message],
-    ["Out of date", "This page is out of date — reload it and try again."],
+    ["Out of date", "This page is out of date · reload it and try again."],
     "a route this page no longer has: a deploy since it loaded",
   );
-  assert.equal(refusalOf({ status: 405, write: true }).message, "This page is out of date — reload it and try again.");
+  assert.equal(refusalOf({ status: 405, write: true }).message, "This page is out of date · reload it and try again.");
   assert.deepEqual(
     [refusalOf({ status: 413, write: true }).title, refusalOf({ status: 413, write: true }).message],
     ["Too large", "That was too large to send."],
@@ -196,15 +196,15 @@ test("an answer that was not an envelope says what the owner can do: a write may
 });
 
 test("the server's catch-all becomes a sentence an owner can act on; a specific sentence stays as the server wrote it", () => {
-  const w = refusalOf({ code: "internal", status: 500, message: "Something went wrong.", write: true });
-  assert.equal(w.title, "Something went wrong");
+  const w = refusalOf({ code: "internal", status: 500, message: "Couldn't finish that.", write: true });
+  assert.equal(w.title, "Couldn't finish that");
   assert.equal(
     w.message,
-    "Chanlytics hit a problem and couldn't confirm this — check whether it went through before trying again.",
+    "Chanlytics hit a problem and couldn't confirm this · check whether it went through before trying again.",
   );
   assert.equal(
-    refusalOf({ code: "internal", status: 500, message: "Something went wrong.", write: false }).message,
-    "Chanlytics couldn't read this just now — try again in a moment.",
+    refusalOf({ code: "internal", status: 500, message: "Couldn't finish that.", write: false }).message,
+    "Chanlytics couldn't read this just now · try again in a moment.",
   );
   const specific =
     "The shared count couldn't be read just now (the shared store did not answer) — try again in a moment.";
@@ -216,7 +216,7 @@ test("no answer at all: offline changed nothing, a timeout may still go through,
     code: "network",
     status: 0,
     title: "No connection",
-    message: "Network error — nothing was changed.",
+    message: "Couldn't reach Chanlytics. Nothing was changed.",
     retryAfterS: null,
     fields: null,
   });
@@ -225,12 +225,12 @@ test("no answer at all: offline changed nothing, a timeout may still go through,
   assert.equal(slow.title, "No answer in time");
   assert.equal(
     slow.message,
-    "Chanlytics took too long to answer — this may still go through, so check before trying again.",
+    "Chanlytics took too long to answer · this may still go through, so check before trying again.",
     "REGRESSION: a timeout said 'nothing was changed' of a write still being made",
   );
   assert.equal(
     refusalOf({ code: "timeout", status: 0, write: false }).message,
-    "Chanlytics took too long to answer — try again in a moment.",
+    "Chanlytics took too long to answer · try again in a moment.",
   );
   assert.deepEqual(
     refusalOf({ code: "client", status: 0, message: "No open escalation in this conversation.", write: true }),

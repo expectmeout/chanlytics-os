@@ -448,7 +448,7 @@ export function bcPreviewOf({
     : person.refusal
       ? person.refusal
       : noName
-        ? "No first name on file, only a number — the message opens “Hi there”."
+        ? "No first name on file, only a number · the message opens “Hi there”."
         : null;
   // When the message really lands, for the stamp on it: the box's time, or now,
   // moved to the next nine o'clock exactly as the route moves it (bcWhenNote).

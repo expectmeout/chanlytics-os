@@ -82,8 +82,8 @@ const PAGE_LABELS: Readonly<Record<string, string>> = {
   reports: "Reports",
   campaigns: "Campaigns",
   broadcasts: "Sent",
-  playbooks: "Playbooks",
-  templates: "Templates",
+  playbooks: "Campaigns",
+  templates: "Messages",
   settings: "Settings",
   start: "Getting started",
   other: "Other pages",
@@ -91,7 +91,7 @@ const PAGE_LABELS: Readonly<Record<string, string>> = {
 
 /** Each part's name on the card, by the name its page gives it (usePartShown). */
 const PART_LABELS: Readonly<Record<string, string>> = {
-  queue: "the queue",
+  queue: "the list",
   setup: "what is left to set up",
   strip: "the strip",
   card: "the day's card",
@@ -371,7 +371,7 @@ const PHASE_WORDS: Readonly<Record<string, string>> = {
   input: "waiting for the page to be free",
   processing: "in the page's own handlers",
   presentation: "drawing what changed",
-  ttfb: "waiting for the server",
+  ttfb: "waiting for Chanlytics",
   load_delay: "before its file was asked for",
   load: "loading its file",
   render_delay: "waiting to be drawn",

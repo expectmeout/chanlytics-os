@@ -180,7 +180,12 @@ test("every row, line and title a card draws is the fold's, and each offers its 
     ["chart-funnel", v.funnel, "Messages, from sent to answered", ["What happened", "Messages"]],
     ["chart-campaigns-held", v.held, "Held back", ["Why", "People"]],
     ["chart-campaigns-stopped", v.stopped, "Runs that stopped", ["How it stopped", "Runs"]],
-    ["chart-campaigns-failed-why", v.failedWhy, "Sends that failed", ["Why it failed", "Messages"]],
+    [
+      "chart-campaigns-failed-why",
+      v.failedWhy,
+      "Messages that didn't reach them",
+      ["Why it didn't reach them", "Messages"],
+    ],
   ];
   for (const [id, part, title, columns] of cards) {
     const wanted = part.rows.map((r) => [r.label, r.value]);
@@ -845,7 +850,13 @@ test("what is stuck wears its tone and opens its door; with every count at 0 no 
   assert.deepEqual(metricsOf(strip), STUCK_METRICS);
   assert.deepEqual(
     metricsOf(strip).map((m) => figureProps(tree, m).label),
-    ["Runs waiting for you", "Failed runs", "Replies that need you", "Messages Meta stopped", "Your WhatsApp number"],
+    [
+      "Runs waiting for you",
+      "Runs with a problem",
+      "Replies that need you",
+      "Messages Meta stopped",
+      "Your WhatsApp number",
+    ],
   );
   assert.deepEqual(
     metricsOf(strip).map((m) => valueOf(tree, m)),
@@ -1173,14 +1184,14 @@ test("a share of fewer than five businesses or emails is a count on the reach-ou
 test("a database before 00404 says it does not count businesses and draws the emails", () => {
   const tree = draw({ own: held(dtoWith(), "7d", { reachOuts: beforeBusinesses() }) });
   const v = liveFoldOf({ reachOuts: beforeBusinesses() }).reachOuts;
-  assert.equal(v.businesses.empty, "This database does not count businesses yet.");
+  assert.equal(v.businesses.empty, "Chanlytics doesn't count businesses here yet.");
   assert.ok(textOf(byTestId(tree, "ro-funnel")).includes(v.businesses.empty), "the words, in the businesses' card");
   assert.equal(
     find(byTestId(tree, "ro-funnel"), (n) => n.type === BarList),
     null,
     "no bars of a unit it does not count",
   );
-  assert.ok(textOf(byTestId(tree, "ro-angles")).includes("This database does not count businesses yet."));
+  assert.ok(textOf(byTestId(tree, "ro-angles")).includes("Chanlytics doesn't count businesses here yet."));
   assert.equal(
     find(byTestId(tree, "ro-angles"), (n) => n.type === BarList),
     null,
