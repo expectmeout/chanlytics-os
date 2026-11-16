@@ -30,12 +30,12 @@ interface NewAddress {
 }
 
 /** Where the tab keeps what New held, by the choices its address made: the plain New's is "|||". */
-export const hereOf = (address: NewAddress): string =>
+export const newKeptKeyOf = (address: NewAddress): string =>
   [address.moment, address.who, address.to, address.kept].map((x) => x ?? "").join("|");
 
 /** Kept for the plain New, marked to be drafted as it opens, and New opened. */
 export function sayToNew(line: string): void {
-  const here = hereOf({ moment: null, who: null, to: null, kept: null });
+  const here = newKeptKeyOf({ moment: null, who: null, to: null, kept: null });
   keepTabDraft("new", { draft: null, line, drafted: null, draftOnOpen: true } satisfies KeptHere, here);
   navigate(newSequenceRoute());
 }

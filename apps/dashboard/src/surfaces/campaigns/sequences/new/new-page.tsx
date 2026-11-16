@@ -48,7 +48,7 @@ import { useCampaignsToast } from "../../home/route-toast";
 import { reachOuts } from "../../reach-out/surface";
 import { CHANGE_WORDS, changedFrom, changesOf, draftedAfter, leftNothing, placesByAsk, standsOf } from "./change";
 import { DraftView, type DraftReads } from "./new-draft";
-import { hereOf, useDraftOnOpen, type KeptHere } from "./first-line";
+import { newKeptKeyOf, useDraftOnOpen, type KeptHere } from "./first-line";
 import type { KeptSend } from "./kept-send";
 import * as M from "./new-model";
 import { StartView, type StartReads } from "./new-start";
@@ -488,7 +488,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   const [toast, flash] = useFrameToast();
   const { door, seed, notice } = useDoor(moment, who, to, reads);
   // What this address held when New last closed over it, kept in the tab: the draft, and the line.
-  const here = hereOf({ moment, who, to, kept });
+  const here = newKeptKeyOf({ moment, who, to, kept });
   const [back] = useState(() => tabDraft("new", here) as KeptHere | null);
   const [typed, setTyped] = useState<string | null>(back?.line ?? null);
   const line = typed ?? seed;
