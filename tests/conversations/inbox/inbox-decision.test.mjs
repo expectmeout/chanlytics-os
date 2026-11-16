@@ -364,7 +364,7 @@ test("the countdown's tip says what stops a real draft -- Edit, Hold, or startin
   const says = find(paneOf(vm), byTestId("ix-held-says"));
   assert.equal(
     says.props.title,
-    "This draft sends itself at zero. Edit, Hold or starting to type a reply stops it; Send now lets it go.",
+    "This draft sends itself at zero unless you press Edit or Hold, or start typing. Send now lets it go.",
   );
 });
 

@@ -526,7 +526,7 @@ test("why sends failed, in the words the Inbox's thread uses for the same row", 
     [
       ["WhatsApp didn't deliver it", 4],
       ["Reason not recorded", 3],
-      ["The provider didn't answer in time, so it may have gone: check the thread before sending it again", 2],
+      ["Couldn't confirm it went through. Check the conversation before sending it again", 2],
     ],
   );
   // The same words from two channels are one row, summed: a settled send is said alike on every wire.

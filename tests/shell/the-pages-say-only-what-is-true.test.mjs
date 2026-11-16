@@ -9,7 +9,7 @@
  * - Conversations pilled a call "Receptionist handled it" directly above its own
  *   "Needs a call back" and "To do: Call Emily back" -- the pill only knew
  *   live, missed and everything else.
- * - The same call's notes said "Noted on Emily's WhatsApp thread" of a caller
+ * - The same call's notes said "Noted in Emily's WhatsApp thread" of a caller
  *   who has no WhatsApp thread at all.
  *
  * Each is pinned here as behaviour, run against the contracts that decide it.
@@ -208,7 +208,7 @@ test("a call that neither asked for anything nor ended early is still handled", 
 
 test("a call's note names the thread it went to, never a channel the caller may not have", () => {
   const bullets = toCallVM(call(), ZONE, NOW).summary.bullets;
-  assert.ok(bullets.includes("Noted on Emily's thread in the Inbox"), JSON.stringify(bullets));
+  assert.ok(bullets.includes("Noted in Emily's conversation in the Inbox"), JSON.stringify(bullets));
   assert.ok(!bullets.some((b) => b.includes("WhatsApp thread")), "a phone-only caller has no WhatsApp thread");
 });
 

@@ -253,7 +253,7 @@ function missingThread({ setActiveThreadId, setPhoneThreadOpen }: InboxRecord) {
       kind="page"
       glyph="inbox"
       title="That conversation isn't among the newest shown here"
-      body="The Inbox loads the newest threads first. Open the person in People to find this one — no other conversation opens in its place."
+      body="The Inbox loads the newest conversations first. Open the person in People to find this one."
       action={{ label: "Open People", to: "clients" }}
       also={{
         label: "Show the Inbox",
@@ -348,14 +348,14 @@ function sendingStrip(ix: InboxRecord) {
                 <b>
                   {r.held} of {vetoLive.length} drafts
                 </b>{" "}
-                held — {r.refused.map((x) => x.who).join(", ")} may already have gone out
+                stopped. {r.refused.map((x) => x.who).join(", ")} may already have gone out
               </>
             ),
           }
         : {
             msg: (
               <>
-                <b>{r.held} drafts</b> held — nothing sends until you act
+                <b>{r.held} drafts</b> stopped · nothing sends until you act
               </>
             ),
           },
@@ -369,7 +369,7 @@ function sendingStrip(ix: InboxRecord) {
                 opened the row above it. */}
       {presenceAway() ? (
         <span>
-          <b>{vetoLive.length} drafts</b> paused — you're away
+          <b>{vetoLive.length} drafts</b> paused · you're away
         </span>
       ) : (
         <span>

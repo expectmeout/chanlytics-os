@@ -433,7 +433,7 @@ test("a read says ahead of it what the clock brings: the dock is there the momen
   const coming = toInboxThreadVM(dto({ messages: [inb(1)] }), null, "America/New_York", new Date(NOW));
   assert.equal(coming.move.move, "replying");
   assert.ok(coming.unanswered, "its words, for when the clock brings it");
-  assert.equal(coming.lastWord.text, "They wrote last — no reply yet.", "and not said yet");
+  assert.equal(coming.lastWord.text, "They wrote last. No reply yet.", "and not said yet");
   assert.ok(moveComesTo(coming.move, "unanswered"));
   const answered = threadMoveOf(dto({ messages: [inb(60), m({ created_at: ago(59) })] }), null, NOW);
   assert.equal(moveComesTo(answered, "unanswered"), false);

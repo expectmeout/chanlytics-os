@@ -175,7 +175,7 @@ test("an email's quoted chain is behind a tap, and the bubble says what they wro
   const toggle = one(shut, byTestId("tl-msg-quote-toggle"));
   assert.ok(toggle, "there is a way to see it");
   // A line under their words that says what it folds, as the signature's does (the thread canvas, 1 Nov 2026).
-  assert.equal(textOf(toggle).trim(), "Earlier in the thread", "it says what it opens");
+  assert.equal(textOf(toggle).trim(), "Earlier in this conversation", "it says what it opens");
   assert.equal(toggle.props["aria-expanded"], false);
 
   toggle.props.onClick();

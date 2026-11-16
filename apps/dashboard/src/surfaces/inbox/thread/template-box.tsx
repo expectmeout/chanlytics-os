@@ -116,8 +116,8 @@ function templateGap(p: {
     return quiet ? null : (
       <FailedRead
         kind="line"
-        title="Couldn't read your approved templates"
-        body="Outside the 24-hour window only an approved template sends, so none can be offered until they're read."
+        title="Couldn't load your approved messages"
+        body="After a day without a reply from them, only an approved message reaches them, so none can be offered until these load."
         surface="settings"
         testid="ix-tpl-failed"
       />
@@ -457,8 +457,8 @@ export const TemplateComposer = ({
       disabled={sending || (!!blank && !said)}
       title={
         chosen
-          ? `Sends your approved template "${chosenTitle || chosen.name}" — the only message WhatsApp delivers outside the 24-hour window`
-          : "Sends your approved booking-link template — the only message WhatsApp delivers outside the 24-hour window"
+          ? `Sends your approved message "${chosenTitle || chosen.name}", which WhatsApp delivers after a day without a reply`
+          : "Sends your approved booking-link message, which WhatsApp delivers after a day without a reply"
       }
       {...gate("approve")}
     >
@@ -503,7 +503,7 @@ export function ChatClosed({ dm, who }: { dm: boolean; who: string }) {
         <Icon name="lock" size={14} className="ix-closed-lock" />
         <span className="ix-closed-words">
           <b>{W.chatClosedLead}</b>
-          <span className="ix-dock-rest"> — {W.chatClosedRest(shortName(who))}</span>
+          <span className="ix-dock-rest"> · {W.chatClosedRest(shortName(who))}</span>
         </span>
         <Button
           variant="quiet"

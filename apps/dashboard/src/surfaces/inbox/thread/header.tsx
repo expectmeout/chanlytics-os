@@ -277,11 +277,7 @@ function alsoInLeads(thread: Thread) {
   };
   const label = ld ? words[ld.stage] || ld.stage : null;
   return (
-    <button
-      className="ix-xlink"
-      title="This decision also sits in your Leads queue"
-      onClick={() => navigate(ROUTES.lead())}
-    >
+    <button className="ix-xlink" title="This also waits in Leads" onClick={() => navigate(ROUTES.lead())}>
       <Icon name="bolt" size={9} /> Also in Leads{label ? ` · ${label}` : ""}
     </button>
   );

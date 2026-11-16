@@ -151,7 +151,7 @@ test("escalation reasons are labelled in the owner's words, largest first", () =
     vm.reasons.map((r) => [r.label, r.value, r.share]),
     [
       ["Asked for a person", 2, 1],
-      ["Held by your reply setting", 1, 0.5],
+      ["Your reply setting keeps it for you", 1, 0.5],
     ],
   );
 });

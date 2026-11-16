@@ -39,28 +39,28 @@ export interface BookingRequestDto {
 export const ESCALATION_REASON_LABELS: Record<EscalationReason, string> = {
   human_token: "Customer asked for a person",
   refusal: "AI declined to answer",
-  brain_error: "AI hit an error — a holding message went out",
-  non_text: "Sent a voice note / photo",
-  send_failed: "Reply failed to deliver",
-  policy_block: "Held by your reply setting — nothing was sent",
-  policy_ask: "Set to Ask me first — a person answers this one",
-  person_hold: "You handle this person — AI stays out",
-  rate_cap: "Too many replies too fast — AI paused itself",
-  deadman: "Nobody picked this up — flagged after silence",
-  manual: "Flagged manually",
+  brain_error: "AI couldn't answer · a holding message went out",
+  non_text: "Sent a voice note or photo",
+  send_failed: "Reply didn't reach them",
+  policy_block: "Your reply setting keeps it for you · nothing was sent",
+  policy_ask: "Set to ask you first · a person answers this one",
+  person_hold: "You answer this person · AI stays out",
+  rate_cap: "Too many replies too fast · AI paused itself",
+  deadman: "Nobody picked this up · flagged after silence",
+  manual: "Flagged by hand",
   opt_out: STOP_WORDS.said(),
-  state_unavailable: "AI could not read this thread — needs a human",
+  state_unavailable: "AI couldn't read this conversation · needs a person",
   // True of both ways a reply comes too late: their message reached us hours after they sent it (the inbound gate), or
   // the receptionist's held reply could not leave until then (the send door's too_late). The hold's details say which.
-  stale: "Too late for an automatic reply — hours passed before one could go out",
-  budget: "The daily AI limit is reached — AI paused itself",
-  callback: "Needs a call back — they phoned and are still owed a call",
-  paused: "Held — the workspace is paused until billing resumes",
-  carriers: "Held — the carriers have not approved this line for texting yet",
-  email_review: "Wrote by email — a person answers",
-  booking_request: "Asked to book a time — confirm it or say you can't",
-  booking_reply: "Asked to book a time — reply to them",
-  wrote_while_held: "Wrote again while your team had the thread — AI stays out",
+  stale: "Too late for AI to answer · hours passed before a reply could go",
+  budget: "The daily AI limit is reached · AI paused itself",
+  callback: "Needs a call back · they phoned and are still owed a call",
+  paused: "The workspace is paused until billing resumes",
+  carriers: "Texting isn't approved for this number yet",
+  email_review: "Wrote by email · a person answers",
+  booking_request: "Asked to book a time · confirm it or say you can't",
+  booking_reply: "Asked to book a time · reply to them",
+  wrote_while_held: "Wrote again while your team had it · AI stays out",
 };
 
 /**
@@ -71,26 +71,26 @@ export const ESCALATION_REASON_LABELS: Record<EscalationReason, string> = {
 export const ESCALATION_REASON_SHORT: Record<EscalationReason, string> = {
   human_token: "asked for a person",
   refusal: "AI declined to answer",
-  brain_error: "AI hit an error",
+  brain_error: "AI couldn't answer",
   non_text: "sent a voice note or photo",
-  send_failed: "reply failed to deliver",
-  policy_block: "held by your reply setting",
-  policy_ask: "set to Ask me first",
-  person_hold: "you handle this person",
+  send_failed: "reply didn't reach them",
+  policy_block: "your reply setting keeps it for you",
+  policy_ask: "set to ask you first",
+  person_hold: "you answer this person",
   rate_cap: "too many replies too fast",
   deadman: "nobody picked this up",
   manual: "flagged by hand",
   opt_out: STOP_WORDS.short,
-  state_unavailable: "AI could not read this thread",
-  stale: "too late for an automatic reply",
+  state_unavailable: "AI couldn't read this conversation",
+  stale: "too late for AI to answer",
   budget: "the daily AI limit is reached",
   callback: "needs a call back",
   paused: "the workspace is paused until billing resumes",
-  carriers: "the carriers have not approved this line",
+  carriers: "texting isn't approved for this number yet",
   email_review: "wrote by email",
   booking_request: "asked to book a time",
   booking_reply: "asked to book a time",
-  wrote_while_held: "wrote while your team had the thread",
+  wrote_while_held: "wrote while your team had it",
 };
 
 /** The clause for a reason, or the reason's own words for one the set does not know; nothing for none. */
@@ -108,26 +108,26 @@ export function reasonShort(reason: string | null | undefined): string {
 const ESCALATION_REASON_WHY: Record<EscalationReason, string> = {
   human_token: "because a customer asked for a person",
   refusal: "because it declined to answer",
-  brain_error: "because it hit an error",
+  brain_error: "because it couldn't answer",
   non_text: "for something it can't read",
-  send_failed: "because a reply failed to send",
-  policy_block: "because your reply setting held it",
-  policy_ask: "for a booking or a question set to Ask me first",
-  person_hold: "because you handle this person",
+  send_failed: "because a reply didn't reach them",
+  policy_block: "because your reply setting keeps it for you",
+  policy_ask: "for a booking or a question set to ask you first",
+  person_hold: "because you answer this person",
   rate_cap: "because the reply limit was reached",
   deadman: "because no answer came in time",
   manual: "because it was flagged by hand",
   opt_out: `because they ${STOP_WORDS.short}`,
-  state_unavailable: "because it could not read the thread",
+  state_unavailable: "because it couldn't read the conversation",
   stale: "because hours passed before a reply could go",
   budget: "because the daily AI limit was reached",
   callback: "because they need a call back",
   paused: "because the workspace is paused",
-  carriers: "while waiting on carriers",
+  carriers: "while texting waits for approval",
   email_review: "because they wrote by email",
   booking_request: "because they asked to book a time",
   booking_reply: "because they asked to book a time",
-  wrote_while_held: "because they wrote while your team had the thread",
+  wrote_while_held: "because they wrote while your team had it",
 };
 
 /** Why a reason handed a conversation over; a reason the set does not know is said by its clause. */
@@ -150,36 +150,36 @@ export function reasonWhy(reason: string): string {
  * an answer.
  */
 export const ESCALATION_SUMMARIES: Record<EscalationReason, string> = {
-  human_token: "They asked for a person. A holding message went out — they're waiting on you.",
+  human_token: "They asked for a person. A holding message went out, and they're waiting on you.",
   refusal: "AI wouldn't answer this one. A holding message went out.",
-  brain_error: "AI errored and sent a holding message. They're waiting on a real answer.",
+  brain_error: "AI couldn't answer and sent a holding message. They're waiting on a real answer.",
   non_text: "They sent a voice note or photo AI can't read. Open it and reply yourself.",
-  send_failed: "The reply never reached them — as far as the customer knows, nobody answered.",
-  policy_block: "Your reply setting holds every message for a person. Nothing was sent — answer them yourself.",
+  send_failed: "The reply didn't reach them. As far as they know, nobody answered.",
+  policy_block: "Your reply setting keeps every message for a person. Nothing was sent, so answer them yourself.",
   policy_ask:
-    "Your Autonomy setting hands bookings or service questions to a person. AI told them someone will follow up — that someone is you.",
-  person_hold: "You set AI to stay out of this person's thread. Nothing was sent — answer them yourself.",
-  rate_cap: "AI hit its daily reply limit and stopped. Nothing was sent — they're waiting in silence.",
+    "Your setting hands bookings or service questions to a person. AI told them someone will follow up, and that someone is you.",
+  person_hold: "You set AI to stay out of this person's conversations. Nothing was sent, so answer them yourself.",
+  rate_cap: "AI hit its daily reply limit and stopped. Nothing was sent, and they're waiting.",
   deadman: "This sat unanswered long enough to flag. Nobody has replied.",
-  manual: "Flagged by hand for a human.",
+  manual: "Flagged by hand for a person.",
   opt_out: `${STOP_WORDS.said("They")}. Nothing was sent, and nothing may be.`,
-  state_unavailable: "AI couldn't read this thread, so it stayed quiet. No reply went out.",
+  state_unavailable: "AI couldn't read this conversation, so it stayed quiet. No reply went out.",
   stale:
-    "Hours passed between their message and any reply we could send, so AI did not answer. Nothing was sent — they have been waiting since they wrote.",
+    "Hours passed between their message and any reply AI could send, so AI didn't answer. Nothing was sent, and they've been waiting since they wrote.",
   budget:
-    "The daily AI limit is reached, so AI paused itself. Nothing was sent — answer them yourself, or raise the limit under Settings › Autonomy.",
+    "The daily AI limit is reached, so AI paused itself and sent nothing. Answer them yourself, or raise the limit in Settings › Autonomy.",
   callback:
     "They phoned and are still owed a call: the call didn't connect, they hung up without a word, or AI couldn't finish it.",
   paused:
     "The workspace is paused because billing stopped, so AI did not answer. Resume from Settings › Billing, or answer this one yourself.",
   carriers:
-    "This text arrived before the carriers approved your line for texting, so AI did not answer. Answer it yourself, or wait for the approval on Setup.",
+    "This text came in before texting was approved for your number, so AI didn't answer. Answer it yourself, or wait for the approval on Setup.",
   email_review: "They wrote by email. Nothing was sent: email is always yours to answer.",
   booking_request:
     "They picked a time the calendar shows open, and AI told them the team will confirm it. That's you: Booked it, or Can't and reply.",
   booking_reply: "They asked to book a time, and AI told them the team will confirm. Reply with a time that works.",
   wrote_while_held:
-    "They wrote again while your team had this thread, so AI stayed out. Nothing was sent — answer them yourself, or hand the thread back.",
+    "They wrote again while your team had this conversation, so AI stayed out and sent nothing. Answer them yourself, or hand it back.",
 };
 
 /** The label for a reason, or the reason's own words for one the set does not know: a row never reads as nothing. */
@@ -201,28 +201,28 @@ export function reasonSummaryOf(reason: string): string {
  * named only where one went out, and a draft only where the reply box holds one (it says so itself).
  */
 const ESCALATION_LINES: Record<EscalationReason, string> = {
-  human_token: "They asked for a person — a holding message went out",
-  refusal: "AI wouldn't answer this — a holding message went out",
-  brain_error: "AI hit an error — a holding message went out",
+  human_token: "They asked for a person · a holding message went out",
+  refusal: "AI wouldn't answer this · a holding message went out",
+  brain_error: "AI couldn't answer · a holding message went out",
   non_text: "They sent something AI can't read",
-  send_failed: "Our reply never reached them",
-  policy_block: "Held by your reply setting — nothing sent",
-  policy_ask: "Set to Ask me first — they were told someone will follow up",
-  person_hold: "You handle this person — nothing sent",
-  rate_cap: "The daily reply limit was reached — nothing sent",
+  send_failed: "The reply never reached them",
+  policy_block: "Your reply setting kept it for you · nothing sent",
+  policy_ask: "Set to ask you first · they were told someone will follow up",
+  person_hold: "You answer this person · nothing sent",
+  rate_cap: "The daily reply limit was reached · nothing sent",
   deadman: "Nobody has replied yet",
   manual: "Flagged by hand",
-  opt_out: `${STOP_WORDS.said("They")} — nothing may be sent`,
-  state_unavailable: "AI couldn't read this thread — nothing sent",
-  stale: "Too late for an automatic reply — nothing sent",
-  budget: "The daily AI limit is reached — nothing sent",
+  opt_out: `${STOP_WORDS.said("They")} · nothing may be sent`,
+  state_unavailable: "AI couldn't read this conversation · nothing sent",
+  stale: "Too late for AI to answer · nothing sent",
+  budget: "The daily AI limit is reached · nothing sent",
   callback: "They're owed a call back",
-  paused: "The workspace is paused — nothing sent",
-  carriers: "Texting isn't approved for this line yet — nothing sent",
-  email_review: "They wrote by email — nothing sent",
-  booking_request: "Confirm the time — they're waiting to hear",
-  booking_reply: "They asked to book — reply with a time that works",
-  wrote_while_held: "They wrote while your team had the thread — nothing sent",
+  paused: "The workspace is paused · nothing sent",
+  carriers: "Texting isn't approved for this number yet · nothing sent",
+  email_review: "They wrote by email · nothing sent",
+  booking_request: "Confirm the time · they're waiting to hear",
+  booking_reply: "They asked to book · reply with a time that works",
+  wrote_while_held: "They wrote while your team had it · nothing sent",
 };
 
 /** The dock's line for a reason, or the reason's label for one the set does not know. */
@@ -232,10 +232,10 @@ export function reasonLineOf(reason: string): string {
 
 /**
  * A dock's line as the thread canvas draws it (1 Nov 2026): what is owed in the ink at 600, and the clause after its dash
- * in the muted ink ("Check the draft — nothing sent"). A line with no clause is all lead.
+ * in the muted ink ("Check the draft · nothing sent"). A line with no clause is all lead.
  */
 export function dockLineOf(line: string): { lead: string; rest: string | null } {
-  const at = line.indexOf(" — ");
+  const at = line.indexOf(" · ");
   return at < 0 ? { lead: line, rest: null } : { lead: line.slice(0, at), rest: line.slice(at + 3) };
 }
 
@@ -332,7 +332,7 @@ export function holdWaits(hold: OpenHold): boolean {
 export const HOLD_ACT_WORDS: Record<HoldAct, { cta: string; take: string | null; notice: string; todo: string }> = {
   reply: { cta: "Open and reply", take: "I'll answer this", notice: "Reply from the Inbox.", todo: "Reply" },
   call_back: { cta: "Open the call", take: "Call back", notice: "Call them back.", todo: "Call back" },
-  hand_back: { cta: "Open the thread", take: null, notice: "Nothing can be sent to them.", todo: "Hand it back" },
+  hand_back: { cta: "Open the conversation", take: null, notice: "Nothing can be sent to them.", todo: "Hand it back" },
   // A booking request (decision 0061): Booked it confirms it; Can't is its second button, and leaves the thread to a reply.
   confirm: { cta: "Booked it", take: "Booked it", notice: "Confirm it or say you can't.", todo: "Confirm a time" },
 };

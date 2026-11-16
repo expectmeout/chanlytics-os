@@ -11,11 +11,11 @@ const contracts = await import("@chanlytics/contracts");
 
 test("a dock's line is what is owed at 600 and the clause after its dash, and a line with no dash is all lead", () => {
   const { dockLineOf } = contracts;
-  assert.deepEqual(dockLineOf("They wrote by email — nothing sent"), {
+  assert.deepEqual(dockLineOf("They wrote by email · nothing sent"), {
     lead: "They wrote by email",
     rest: "nothing sent",
   });
-  assert.deepEqual(dockLineOf("Confirm the time — they're waiting to hear"), {
+  assert.deepEqual(dockLineOf("Confirm the time · they're waiting to hear"), {
     lead: "Confirm the time",
     rest: "they're waiting to hear",
   });
@@ -90,7 +90,7 @@ test("a request hold carries its card onto the thread, and any other hold none",
   };
   const vm = toInboxThreadVM(dto, hold, "America/New_York", now);
   assert.equal(vm.request?.hours, "3:00 – 4:00 PM");
-  assert.equal(vm.holdLine, "Confirm the time — they're waiting to hear");
+  assert.equal(vm.holdLine, "Confirm the time · they're waiting to hear");
   assert.equal(toInboxThreadVM(dto, { ...hold, reason: "human_token" }, "America/New_York", now).request, undefined);
   assert.equal(toInboxThreadVM(dto, { ...hold, request: undefined }, "America/New_York", now).request, undefined);
 });

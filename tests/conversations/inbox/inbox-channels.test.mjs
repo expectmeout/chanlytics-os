@@ -260,7 +260,7 @@ test("the wiring: the page branches on the channel and reads the reason's senten
     "the call back is a door",
   );
   assert.ok(
-    find(phone, (n) => n.props?.["aria-label"] === "Nothing needed — hand it back to AI"),
+    find(phone, (n) => n.props?.["aria-label"] === "Nothing needed. Hand it back to AI"),
     "the hand back says its whole sentence to a screen reader",
   );
   // The band's Call back is the one way to them, so nothing is drawn where a reply box would be: an empty box stood under
@@ -355,11 +355,11 @@ test("an email says what it carried that the thread does not show: files by name
   );
   assert.equal(
     said({ attachments: [], truncated: true }),
-    "This email was longer than Chanlytics keeps; the rest was left out.",
+    "This email was longer than Chanlytics keeps. The rest was left out.",
   );
   assert.equal(
     said({ attachments: [file("a.pdf")], truncated: true }),
-    "1 attachment was not kept: a.pdf. This email was longer than Chanlytics keeps; the rest was left out.",
+    "1 attachment was not kept: a.pdf. This email was longer than Chanlytics keeps. The rest was left out.",
   );
   assert.equal(
     said({ attachments: "nonsense", more_attachments: -2, truncated: "yes" }),

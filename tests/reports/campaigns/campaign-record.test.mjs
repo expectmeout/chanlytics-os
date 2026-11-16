@@ -655,7 +655,10 @@ test("failureWordsOf says what the Inbox's thread says", () => {
       `${channel}: a code in no table is said as not delivered, with no number`,
     );
   }
-  assert.match(failureWordsOf("whatsapp", { code: 131049, kind: null }), /^WhatsApp held it back.* at all for now\.$/);
+  assert.match(
+    failureWordsOf("whatsapp", { code: 131049, kind: null }),
+    /^WhatsApp held it back.* aren't delivered for now\.$/,
+  );
   assert.match(failureWordsOf("sms", { code: 30003, kind: null }), /^Their phone couldn't be reached/);
   assert.equal(
     failureWordsOf(null, { code: 131049, kind: null }),
@@ -702,7 +705,7 @@ test("failureWordsOf says what the Inbox's thread says", () => {
   for (const channel of ["whatsapp", "sms", "email", null]) {
     const words = failureWordsOf(channel, { code: null, kind: "outcome_unknown" });
     assert.equal(words, sendFailureWords({ outcome: "unknown" }, channel), `${channel} outcome_unknown`);
-    assert.match(words, /^The provider didn't answer in time, so it may have gone/, `${channel} says it may have gone`);
+    assert.match(words, /^Couldn't confirm it went through/, `${channel} says it may have gone`);
   }
   assert.equal(
     failureWordsOf("email", { code: null, kind: "outcome_unknown" }),
@@ -763,7 +766,7 @@ test("sendFailureWords finds a word only in its own tables, not on the prototype
   }
   // The tables still say what they say.
   assert.match(sendFailureWords({ provider: "bounced" }, "email"), /^The email bounced/);
-  assert.equal(sendFailureWords({ carrier: "undelivered" }, "sms"), "The carrier didn't deliver it.");
+  assert.equal(sendFailureWords({ carrier: "undelivered" }, "sms"), "It wasn't delivered.");
   assert.match(sendFailureWords({ reason: "orphaned" }, "whatsapp"), /^It was never sent/);
   assert.match(sendFailureWords({ code: 131049 }, "whatsapp"), /^WhatsApp held it back/);
 });

@@ -29,9 +29,9 @@ export const SteerBox = ({ messageId }: { messageId: string }) => {
     setBusy(false);
     if (r.ok) {
       setText("");
-      flash({ msg: <>Rewritten — the new draft waits its turn like the first one</> });
+      flash({ msg: <>Rewritten · the new draft waits its turn</> });
     } else {
-      flash({ tone: "danger", msg: <>Not rewritten — {r.message}</> });
+      flash({ tone: "danger", msg: <>Not rewritten · {r.message}</> });
     }
   };
   return (
@@ -94,7 +94,7 @@ function vetoSays(thread: VetoThread, remaining: number | null | undefined, paus
       </>
     )
   ) : (
-    <>Held — manual send</>
+    <>Stopped · send it yourself</>
   );
 }
 
@@ -131,7 +131,7 @@ export const VetoBar = ({
     {/* What a screen reader hears: the hold and the send, not a number every second (I3). */}
     <span className="ix-veto-said" role="status">
       {remaining == null
-        ? "Held — this draft will not send."
+        ? "Stopped. This draft won't send."
         : thread.real && remaining === 0 && !paused
           ? "Sending now."
           : ""}
@@ -214,7 +214,7 @@ export function HeldDraft({ thread, text, remaining, paused = false, onAct = () 
       </div>
       {/* What a screen reader hears: the hold and the send, not a number every second (I3). */}
       <span className="ix-veto-said" role="status">
-        {remaining == null ? "Held — this draft will not send." : remaining === 0 && !paused ? "Sending now." : ""}
+        {remaining == null ? "Stopped. This draft won't send." : remaining === 0 && !paused ? "Sending now." : ""}
       </span>
       <div className="ix-held-words" data-testid="ix-held-words">
         {text}

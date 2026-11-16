@@ -1291,7 +1291,7 @@ test("report says the Campaigns lens as the page does (C4): the sentence, the fi
     },
     failed_sends: {
       rows: [
-        "WhatsApp held it back: Meta limits marketing messages to each person, and isn't delivering marketing messages to US numbers at all for now: 4",
+        "WhatsApp held it back: offers to each person are limited, and offers to US numbers aren't delivered for now: 4",
         "The email bounced: their address didn't accept it: 2",
       ],
       line: "6 messages failed after they were sent, for the provider's own reason.",
