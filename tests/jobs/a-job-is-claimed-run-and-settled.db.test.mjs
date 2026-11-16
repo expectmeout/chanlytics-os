@@ -417,7 +417,7 @@ test(
       told.map((a) => a.kind),
       ["job_failed"],
     );
-    assert.match(told[0].body, /marked failed/);
+    assert.match(told[0].body, /marked as not sent/);
   },
 );
 
