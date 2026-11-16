@@ -51,7 +51,7 @@ export async function sequenceOnCard(
   const id = str(sequenceId, 40);
   if (!UUID.test(id)) return { refusal: "sequence_id must be an id sequences with action list returned" };
   const read = await readUnlessNotFound(load(t.rc, sequenceReader, { id }));
-  if (!read) return { refusal: "no such sequence in this workspace" };
+  if (!read) return { refusal: "no such campaign in this workspace" };
   noteRow(t, "playbook", id, read.data.sequence.name, sequenceRoute(id));
   return read.data;
 }
@@ -74,7 +74,7 @@ const INSTEAD: Record<SequenceAct, string> = {
 
 /** What the model is told to do where a refusal offers no act in its place. */
 const NEXT: Partial<Record<SequenceActReason, string>> = {
-  batch_waiting: "approve or skip that batch with action batch",
+  batch_waiting: "approve or skip that send with action batch",
   email_to_write: "its email is written on its page first: say so, and open it",
   unread: "say so, and ask again in a moment",
 };
@@ -93,11 +93,11 @@ export function refusedAct(rec: SequenceRecordDto, act: SequenceAct, now: Date):
 /** A step after the first, by its id, in a sequence's record; or the refusal. The first step is the campaign's own. */
 function laterStep(rec: SequenceRecordDto, stepId: string) {
   const step = rec.steps.find((s) => s.id === str(stepId, 40));
-  if (!step) return { refusal: "step_id must be a step of this sequence (sequences with action sequence lists them)" };
+  if (!step) return { refusal: "step_id must be a step of this campaign (sequences with action sequence lists them)" };
   if (step.place <= 1)
     return {
       refusal:
-        "the first step is the sequence's own: change its message, clock or name with action change, its channels with action channels",
+        "the first step is the campaign's own: change its message, clock or name with action change, its channels with action channels",
     };
   return step;
 }
@@ -136,13 +136,13 @@ export async function proposeMake(
   input: { first: unknown; then: ThenStep[]; start: boolean },
 ): Promise<ProposalOutcome> {
   if (input.then.length > SEQUENCE_DRAFT_THEN_MAX)
-    return refuse(`a sequence takes at most ${SEQUENCE_DRAFT_THEN_MAX} steps after the first`);
+    return refuse(`a campaign takes at most ${SEQUENCE_DRAFT_THEN_MAX} steps after the first`);
   // The first step is a campaign's own, judged by the moment's own builder (its moment, list, message, channels, clock).
   const first = playbookAction.input.safeParse(input.first);
   if (!first.success)
     return refuse(`first: ${first.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
   if (!first.data.template_id)
-    return refuse("first names its message by template_id: a sequence's first step sends a message the Library holds");
+    return refuse("first names its message by template_id: a campaign's first step sends a message the Library holds");
   const created = await playbookAction.build(toolContext, first.data);
   const card = created.proposal;
   if (!card) return created;
@@ -173,7 +173,7 @@ export async function proposeMake(
   const name = typeof card.payload.name === "string" ? card.payload.name : "";
   return propose({
     kind: "sequence_make",
-    title: `Sequence: ${name}`,
+    title: `Campaign: ${name}`,
     summary: `${card.summary}${sentence.length ? ` · Then ${sentence.join("; ")}` : ""} · ${input.start ? "Starts once approved" : "Kept as a draft: nothing goes until it is started"}`,
     payload: { first: (call as { body: Record<string, unknown> }).body, then, start: input.start, name },
   });
@@ -257,7 +257,7 @@ export async function proposeWords(
   const rec = await sequenceOnCard(toolContext, input.sequence_id);
   if (isRefusal(rec)) return refuse(rec.refusal);
   const step = rec.steps.find((s) => s.id === str(input.step_id, 40));
-  if (!step) return refuse("step_id must be a step of this sequence (sequences with action sequence lists them)");
+  if (!step) return refuse("step_id must be a step of this campaign (sequences with action sequence lists them)");
   if (step.hand) return refuse("that step is a call or a note: it sends no message");
   const msg = await stepMessage(toolContext, input.template_id);
   if (isRefusal(msg)) return refuse(msg.refusal);
@@ -280,7 +280,7 @@ export async function proposeStart(toolContext: ToolContext, input: { sequence_i
   if (token !== null)
     return propose({
       kind: "sequence_start",
-      title: `Start the sequence step ${token} makes`,
+      title: `Start the campaign step ${token} makes`,
       summary: `Its first step runs from its next run: ${PLAYBOOK_CARD_WORDS.asksFirst}.`,
       payload: { sequence_id: id },
     });

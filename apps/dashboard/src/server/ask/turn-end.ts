@@ -316,7 +316,7 @@ export function notAgain(
   const titles = cards.map((c) => `“${c.title}”`).join(", ");
   return {
     proposal: null,
-    result: `Already above in this thread, waiting for their press: ${titles}. Nothing new was made: name each by its title and say it is one press above, with what still comes first.`,
+    result: `Already above in this conversation, waiting for their press: ${titles}. Nothing new was made: name each by its title and say it is one press above, with what still comes first.`,
     isError: false,
   };
 }
@@ -460,7 +460,7 @@ export const planFallback = (owed: PlanOwed, input: TurnInput, rounds: number): 
 
 /** The model's stream broke: the connection's, never the question's. */
 export const DROPPED_WORDS = {
-  en: "The connection to the model dropped. Try again.",
+  en: "The connection dropped before I finished. Try again.",
   es: "Se cortó la conexión con el modelo. Inténtalo de nuevo.",
 };
 

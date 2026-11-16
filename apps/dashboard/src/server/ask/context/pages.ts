@@ -203,7 +203,7 @@ async function broadcastRows(rc: ReaderContext, ids: string[]) {
     });
   }
   const open = [...vms.values()].filter((b) => b.open).length;
-  return { rows, aggregate: `broadcasts: ${vms.size}${list.more ? " recent" : ""}, ${open} still to come` };
+  return { rows, aggregate: `sends: ${vms.size}${list.more ? " recent" : ""}, ${open} still to come` };
 }
 
 /**
@@ -246,7 +246,7 @@ async function templateRows(rc: ReaderContext, ids: string[]) {
   const count = libraryCount(read.data.messages, chains ? emailTemplateRowsOf(chains).length : 0);
   return {
     rows,
-    aggregate: `templates: ${count}${chains ? "" : " (a reach-out's emails, which the Library counts too, could not be read)"}, ${approved} approved by WhatsApp`,
+    aggregate: `saved messages: ${count}${chains ? "" : " (a reach-out's emails, which the Library counts too, could not be read)"}, ${approved} approved by WhatsApp`,
   };
 }
 

@@ -1,5 +1,5 @@
 /**
- * Ask proposes a campaign by the channels it names (review item 11, 3 Oct 2026): propose_campaign's broadcast and its
+ * Ask proposes a campaign by the channels it names (review item 11, 3 Oct 2026): propose_campaign's send and its
  * playbook take an optional `channels` (whatsapp, sms, email; WhatsApp alone when none is named, as a campaign goes by
  * default), held to the same rules the composers' routes hold them to, never a second one:
  *
@@ -666,9 +666,9 @@ test("a playbook's channels are held to what its own class and message may go by
   // refused in words, no card.
   const step = playbookRow({ kind: "reach_out", trigger: "lead_first", name: "Dentists · step 1" });
   for (const [id, words, db] of [
-    ["the visit reminder", /^playbook_id must be a playbook's id/, {}],
-    ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9", /^no such playbook in this workspace/, {}],
-    [VISIT_PB, /^no such playbook in this workspace/, { playbooks: [step] }],
+    ["the visit reminder", /^playbook_id must be a campaign's id/, {}],
+    ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9", /^no such campaign in this workspace/, {}],
+    [VISIT_PB, /^no such campaign in this workspace/, { playbooks: [step] }],
   ]) {
     const no = await goesBy(["whatsapp", "email"], db, id);
     assert.equal(no.isError, true);
@@ -947,7 +947,7 @@ test("campaigns.audiences says its counts are by WhatsApp: with no number a mess
   // who said yes is People's count, by no channel, and only who can be sent is by WhatsApp.
   assert.ok(
     read.note.startsWith(
-      "Two consents, two counts each. can_be_sent_offers is who a promotional template reaches on WhatsApp and can_be_sent_messages who a utility or authentication one reaches,",
+      "Two consents, two counts each. can_be_sent_offers is who a promotional message reaches on WhatsApp and can_be_sent_messages who a utility or authentication one reaches,",
     ),
     read.note,
   );
@@ -988,7 +988,7 @@ test("a message with no WhatsApp row is proposed by the channels it holds on a w
   assert.doesNotMatch(ok.proposal.summary, /WhatsApp/, "no WhatsApp preview that does not exist");
   // The values are counted by the message's slots, which a message with no WhatsApp row takes from its anchor.
   const few = await propose({ ...NOTE_BROADCAST, params: [], channels: ["email"] }, world);
-  assert.equal(said(few), "this template takes 1 value, in order");
+  assert.equal(said(few), "this saved message takes 1 value, in order");
   // Naming no channel is WhatsApp alone, which the message has no version for: WhatsApp's words, and the channels it can go
   // by, for the model to name. No card, and nothing counted.
   const none = await propose(NOTE_BROADCAST, world);
@@ -1206,13 +1206,13 @@ test("Ask is told what a message is: a name with a version on each channel it is
   // model is told so, where it was told WhatsApp alone.
   assert.ok(
     proposing.includes(
-      "when none is named it goes by every one the workspace can send on now that the message holds, as a new playbook opens in Campaigns",
+      "when none is named it goes by every one the workspace can send on now that the message holds, as a new campaign opens in Campaigns",
     ),
-    "the playbook's default is said",
+    "the campaign's default is said",
   );
 
   // And an existing playbook's channels are changed by their own action, which says each person is still reached once.
-  assert.ok(proposing.includes("Action channels takes playbook_id, a playbook that exists,"));
+  assert.ok(proposing.includes("Action channels takes playbook_id, a campaign that exists,"));
   assert.ok(proposing.includes("one more channel widens who it reaches and never sends a person two messages"));
   for (const text of [ASK_DEFINITIONS.broadcast, ASK_DEFINITIONS.playbook, listing, proposing])
     assert.ok(!/approved (WhatsApp )?templates?/i.test(text), text.slice(0, 120));

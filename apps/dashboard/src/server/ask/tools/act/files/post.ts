@@ -119,7 +119,7 @@ const postInput = z.object({
   people_agreed: z
     .boolean()
     .optional()
-    .describe("Only when the owner said in this thread that the people in the photo agreed to be shown."),
+    .describe("Only when the owner said in this conversation that the people in the photo agreed to be shown."),
   looked: z
     .string()
     .optional()

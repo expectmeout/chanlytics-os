@@ -147,7 +147,7 @@ export const readInbox: Provider = async (rc, ctx) => {
   return {
     rows,
     aggregate: aggregateOf([
-      `${pageWithView(ctx)}: ${rows.length} threads on screen`,
+      `${pageWithView(ctx)}: ${rows.length} conversations on screen`,
       `needs you: ${waits.holds + waits.sends}${waits.sends ? ` (${waits.sends} of them a reply on its way)` : ""}`,
       `held: ${countWhere((v) => heldDraftWaits(v, rc.now.getTime()))}`,
       `you have it: ${countWhere((v) => v.takenOver)}`,

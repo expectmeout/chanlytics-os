@@ -15,7 +15,7 @@ const { ASK_SECTIONS } = await import(
 );
 
 const rules = ASK_SECTIONS.find((s) => s.title.startsWith("Cards")).rules;
-const setup = rules.find((r) => r.startsWith("Setting up sequences is a few cards"));
+const setup = rules.find((r) => r.startsWith("Setting up campaigns is a few cards"));
 
 test("what holds a card is the card's to say: the answer beside it leaves that out, the setup rule's last word", () => {
   assert.match(

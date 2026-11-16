@@ -215,8 +215,8 @@ export function shapeBlock(shape: WorkspaceShape): string {
       `Google ${yes(shape.google, "connected")}`,
     ].join(" · "),
     `Lists: ${lists.length ? lists.map((l) => `${oneLine(l.name)}${l.archived ? " (archived)" : ""}`).join(", ") : "none"}`,
-    `Playbooks: ${playbooks.length ? playbooks.map((p) => `${oneLine(p.name)} (${p.trigger})`).join("; ") : "none"}`,
-    "Whether a line is live and whether a playbook runs move by the minute and are not kept here: read them before you say them.",
+    `Campaigns: ${playbooks.length ? playbooks.map((p) => `${oneLine(p.name)} (${p.trigger})`).join("; ") : "none"}`,
+    "Whether a line is live and whether a campaign runs move by the minute and are not kept here: read them before you say them.",
   ].join("\n");
   return clip(text, SHAPE_MAX);
 }

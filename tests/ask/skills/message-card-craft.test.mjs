@@ -286,7 +286,7 @@ test("in a turn the writer reads the owner's own words, and ends before the turn
   assert.equal(made.isError, false, made.result);
   assert.match(
     calls[0].request.messages[0].content,
-    new RegExp(`What the owner asked Ask, in their own words: "${question}"`),
+    new RegExp(`What the owner asked AI, in their own words: "${question}"`),
   );
 
   readerCache.clear();

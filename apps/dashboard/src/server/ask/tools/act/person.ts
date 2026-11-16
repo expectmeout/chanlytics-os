@@ -89,7 +89,7 @@ async function proposePersonMode(
   };
   // A mode they have already is no change: said, never a card that changes nothing (the operator stress run).
   if ((pol?.mode ?? "inherit") === mode)
-    return refuse(`for ${person.who} the receptionist already ${LABEL[mode]}: say so, and change nothing`);
+    return refuse(`for ${person.who} AI already ${LABEL[mode]}: say so, and change nothing`);
   return propose({
     kind: "person_mode",
     title: `AI for ${person.who}`,
@@ -393,7 +393,7 @@ async function proposeMessage(toolContext: ToolContext, input: MessageAsk): Prom
   return propose({
     kind: "person_message",
     title: `Message ${person.who}`,
-    summary: `${template ? `“${template.name}” (approved message)` : text} · by ${wire}${subject ? `, subject “${subject}”` : ""} · then ${then === "me" ? "you have the thread" : "AI has it"}${firstText}`,
+    summary: `${template ? `“${template.name}” (approved message)` : text} · by ${wire}${subject ? `, subject “${subject}”` : ""} · then ${then === "me" ? "you have the conversation" : "AI has it"}${firstText}`,
     payload: {
       contact_id: person.id,
       who: person.who,
@@ -426,7 +426,7 @@ const modeAction = actAction({
   examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", mode: "never" }],
   label: "Preparing a change to AI",
   // Its card's role clause, its own (approvalWords, one derivation): an action beside it may need another role.
-  words: `Action mode takes contact_id, the id a read returned, and mode, how the receptionist treats them: auto (answers them), ask (asks a person first), never (stays silent with them) or inherit (follows the workspace's rule). Call it when they want the receptionist to stop, resume or check first with one person; propose_settings with action autonomy changes a whole class, and propose_thread_verb acts on one thread. ${approvalWords("person_mode")}.`,
+  words: `Action mode takes contact_id, the id a read returned, and mode, how AI treats them: auto (answers them), ask (asks a person first), never (stays silent with them) or inherit (follows the workspace's rule). Call it when they want AI to stop, resume or check first with one person; propose_settings with action autonomy changes a whole class, and propose_thread_verb acts on one conversation. ${approvalWords("person_mode")}.`,
   build: proposePersonMode,
 });
 
@@ -438,7 +438,7 @@ const modeAction = actAction({
 export const propose_person = defineActions({
   name: "propose_person",
   description:
-    "Propose an act on one person in People, by action: how the receptionist treats them, a note, a next step with its day, their name or email, their answer to messages or offers, a new person, two records merged, or a first message, as a card the person asking approves; nothing changes until they do.",
+    "Propose an act on one person in People, by action: how AI treats them, a note, a next step with its day, their name or email, their answer to messages or offers, a new person, two records merged, or a first message, as a card the person asking approves; nothing changes until they do.",
   actions: {
     mode: modeAction,
     note: actAction({
@@ -452,7 +452,7 @@ export const propose_person = defineActions({
         },
       ],
       label: "Preparing a note",
-      words: `Action note takes contact_id, the id a read returned, body, the note to keep (at most ${NOTE_MAX} characters), and for, who reads it: receptionist, for what should shape how it answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, a preference or what to remember next time; a fact about the business itself (parking, a policy) is a settings change, and a next step with a day is action step.`,
+      words: `Action note takes contact_id, the id a read returned, body, the note to keep (at most ${NOTE_MAX} characters), and for, who reads it: receptionist, for what should shape how it answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (AI never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, a preference or what to remember next time; a fact about the business itself (parking, a policy) is a settings change, and a next step with a day is action step.`,
       build: proposePersonNote,
     }),
     step: actAction({
@@ -468,7 +468,7 @@ export const propose_person = defineActions({
         { contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", what: "Call about the timeline", due_on: "2026-10-24" },
       ],
       label: "Preparing a next step",
-      words: `Action step sets one person's next step: what to do (at most ${NOTE_MAX} characters) and the day it is due, today or later, for anyone on the team or the member asking. It is the team's, shown on their row, the Pipeline and their page and read back by you; the receptionist never reads it. It stands on their open deal (the one whose service is named where they have two), else on them. Call it for a reminder or a follow-up with a day ("call Ethan back Friday"); a step that comes with a deal's move rides on propose_deal.`,
+      words: `Action step sets one person's next step: what to do (at most ${NOTE_MAX} characters) and the day it is due, today or later, for anyone on the team or the member asking. It is the team's, shown on their row, the Pipeline and their page and read back by you; AI never reads it. It stands on their open deal (the one whose service is named where they have two), else on them. Call it for a reminder or a follow-up with a day ("call Ethan back Friday"); a step that comes with a deal's move rides on propose_deal.`,
       build: proposePersonStep,
     }),
     details: actAction({
@@ -477,7 +477,7 @@ export const propose_person = defineActions({
       examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", name: "Rosa Diaz", email: "rosa@example.com" }],
       label: "Preparing a profile change",
       words:
-        "Action details takes contact_id, the id a read returned, and name, email or both: what the business calls them and the address they can be written to, the two fields of their profile. Call it when a customer gave a name or an email in a message and their profile lacks it or says otherwise; read it first (people with action get), since an address a customer writes back when the receptionist asks is kept already, and never propose what the profile holds. It never touches their notes; the card shows each field as it was and as it becomes.",
+        "Action details takes contact_id, the id a read returned, and name, email or both: what the business calls them and the address they can be written to, the two fields of their profile. Call it when a customer gave a name or an email in a message and their profile lacks it or says otherwise; read it first (people with action get), since an address a customer writes back when AI asks is kept already, and never propose what the profile holds. It never touches their notes; the card shows each field as it was and as it becomes.",
       build: proposePersonDetails,
     }),
     answer: actAction({
@@ -529,15 +529,15 @@ export const propose_person = defineActions({
         then: z
           .enum(["receptionist", "me"])
           .optional()
-          .describe("Who has the thread after: the receptionist (the default) or the member."),
-        note: z.string().optional().describe("A note the receptionist reads before it answers them."),
+          .describe("Who has the conversation after: AI (the default) or the member."),
+        note: z.string().optional().describe("A note AI reads before it answers them."),
       }),
       examples: [
         { contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", text: "Hi Rosa, your order is ready to pick up." },
       ],
       label: "Preparing a message",
       words:
-        "Action message writes first to someone in People: a new conversation on a channel their answers allow now, in the member's words or, where only a WhatsApp-approved message can go, that message by name; propose_reply answers a thread that waits. The card says the channel and who has the thread after; it leaves 15 seconds after approval and can be cancelled within them.",
+        "Action message writes first to someone in People: a new conversation on a channel their answers allow now, in the member's words or, where only a WhatsApp-approved message can go, that message by name; propose_reply answers a conversation that waits. The card says the channel and who has the conversation after; it leaves 15 seconds after approval and can be cancelled within them.",
       build: proposeMessage,
     }),
   },

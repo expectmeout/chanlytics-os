@@ -184,7 +184,7 @@ test("an English text is told its one part in plain characters, with no word of 
 test("the owner's own words ride in the brief, and a figure they gave may be said though the draft left it out", () => {
   const asked = "Send our regulars 20% off the autumn package, this October only";
   const b = brief({ message: { asked } });
-  assert.match(C.messageBriefText(b), new RegExp(`What the owner asked Ask, in their own words: "${asked}"`));
+  assert.match(C.messageBriefText(b), new RegExp(`What the owner asked AI, in their own words: "${asked}"`));
   assert.doesNotMatch(C.messageBriefText(brief()), /What the owner asked Ask/, "no words, no line");
   const withTheirs = {
     ...GOOD,

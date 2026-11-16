@@ -247,10 +247,10 @@ test("a sequence to leads takes its mode here as its state: held or asked, said 
 });
 
 test("a change is refused in words before any card: not an id, not this workspace's, a sequence to leads past its state, a value out of bounds, a cadence off the month's offer, and nothing that would change", async () => {
-  assert.match(said(await change({ playbook_id: "nope", state: "paused" })), /^playbook_id must be a playbook's id/);
+  assert.match(said(await change({ playbook_id: "nope", state: "paused" })), /^playbook_id must be a campaign's id/);
   assert.match(
     said(await change({ playbook_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9", state: "paused" })),
-    /^no such playbook in this workspace/,
+    /^no such campaign in this workspace/,
   );
   const step = tables({
     playbooks: [playbookRow({ id: STEP, kind: "reach_out", trigger: "lead_first", name: "Movers" })],

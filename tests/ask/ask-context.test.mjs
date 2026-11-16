@@ -401,7 +401,10 @@ test("the Inbox: the threads in the bucket the page drew, each in inbox.list's w
     ],
     "in the page's order, bayside's thread left out",
   );
-  assert.match(textOf(inbox.blocks[0]), /^Inbox, all: 2 threads on screen · needs you: 1 · held: 0 · you have it: 0/);
+  assert.match(
+    textOf(inbox.blocks[0]),
+    /^Inbox, all: 2 conversations on screen · needs you: 1 · held: 0 · you have it: 0/,
+  );
   assert.match(textOf(inbox.blocks[1]), /^Rosa · answering · Are you open Saturday\?/);
   assert.match(textOf(inbox.blocks[2]), /^Quinn · needs you · /);
 
@@ -1518,7 +1521,7 @@ test("the shape block: sorted and byte-stable -- the same workspace read in anot
   // By name and trigger: whether each runs moves, and is the campaigns' read (R13 X5-6).
   assert.match(
     one,
-    /Playbooks: Reminder \(visit_tomorrow\); Win-back \(quiet_30\)\nWhether a line is live and whether a playbook runs move by the minute and are not kept here: read them before you say them\.$/,
+    /Campaigns: Reminder \(visit_tomorrow\); Win-back \(quiet_30\)\nWhether a line is live and whether a campaign runs move by the minute and are not kept here: read them before you say them\.$/,
   );
   // A campaign paused, or a line that dropped, changes not a byte of the kept block.
   const moved = shapeTables();

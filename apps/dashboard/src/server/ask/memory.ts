@@ -297,7 +297,7 @@ export async function findThreadForTurn(
       sinceLastMs = lastAt ? Math.max(0, Date.now() - lastAt) : null;
       if (scope === undefined) scope = found.thread.scope;
       chain = await chainFor(ctx, tenantId, found.messages, found.replays);
-    } else if (!answering) throw new AppError("not_found", "That thread is not yours.", 404);
+    } else if (!answering) throw new AppError("not_found", "That conversation is not yours.", 404);
   }
   if (!thread) {
     // A thread keeps its first question as its title (the Line's spec, D9); an answer's is the search's name, never

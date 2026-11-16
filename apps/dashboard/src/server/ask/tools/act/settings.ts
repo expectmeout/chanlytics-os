@@ -287,7 +287,7 @@ const goalAction = actAction({
   }),
   examples: [{ goal: "Twenty new clients a month" }],
   label: "Preparing your goal",
-  words: `Action goal keeps the owner's goal in one line (at most ${ASK_GOAL_MAX} characters), which you read on every question and weigh every suggestion and plan against; empty clears it. Call it when they say what they want the business to reach, or ask you to aim for something; the receptionist never reads it. ${approvalWords("settings")}.`,
+  words: `Action goal keeps the owner's goal in one line (at most ${ASK_GOAL_MAX} characters), which you read on every question and weigh every suggestion and plan against; empty clears it. Call it when they say what they want the business to reach, or ask you to aim for something; AI never reads it. ${approvalWords("settings")}.`,
   build: (t, input) => proposeSettings(t, { change: { op: "set_goal", goal: input.goal } }),
 });
 
@@ -326,11 +326,11 @@ const answerStyleAction = actAction({
 export const propose_settings = defineActions({
   name: "propose_settings",
   description:
-    "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), how it answers (voice, name, languages, what callers hear, its pace and who they reach, walk-ins, your own words, the messages when it can't answer, photos), cold email (what its emails are written from), what it may do alone for a class of message (autonomy), or the business's goal for you.",
+    "Propose a settings change as a card the person approves, by action: what AI knows (closed days, hours, a note, a service), how it answers (voice, name, languages, what callers hear, its pace and who they reach, walk-ins, your own words, the messages when it can't answer, photos), cold email (what its emails are written from), what it may do alone for a class of message (autonomy), or the business's goal for you.",
   actions: {
     change: actAction({
       ...settingsAct,
-      words: `Action change takes one change object: add_closure (date, an optional until for a range, an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (title, the text the receptionist reads, an optional until, its last day) or add_service (name, an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service. ${approvalWords("settings")}.`,
+      words: `Action change takes one change object: add_closure (date, an optional until for a range, an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (title, the text AI reads, an optional until, its last day) or add_service (name, an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, AI should know something, or they offer a new service. ${approvalWords("settings")}.`,
     }),
     answers: answersAction,
     autonomy: autonomyAction,

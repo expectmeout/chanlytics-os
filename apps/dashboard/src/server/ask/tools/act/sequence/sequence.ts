@@ -37,15 +37,16 @@ import {
 } from "./steps";
 import { COLD_STEP, proposeColdEmail, proposeEnd } from "./cold-email";
 
-const SEQUENCE_ID = z.string().describe("A sequence's id, from sequences with action list.");
+const SEQUENCE_ID = z.string().describe("A campaign's id, from sequences with action list.");
 
 const STEP_ID = z.string().describe("A step's id, from sequences with action sequence.");
 
 export const propose_sequence = defineActions({
   name: "propose_sequence",
   description:
-    "Propose what sends on its own, as a card the person approves (every such thing is a sequence): a message sent once, a sequence at a journey moment or on a list, a new sequence with its steps, a step added, changed, removed or reworded, a draft started, a sequence let go of or ended, people taken out, a waiting batch approved or skipped, a sequence paused, resumed, renamed or retimed, its channels, a new saved message, and cold email to leads.",
-  tail: `For an offer, a promotion or a whole setup, call propose_plan with action offer instead. Read sequences first: action list and action sequence for what exists and its ids, action lists for who can be sent and the messages a send may use, action moments for the moments offered. When nobody can be sent a message, say why: nobody said yes (point to their profiles) or the ones who did have no number to send to, or no channel that can carry it now (the lists read says which); never propose a send to nobody. A starter the workspace lacks is added at Approve, a typed value left blank is refused in words, and a second running sequence on the same moment, list and message is refused unless they name it apart. A person reads campaign or sequence, never playbook or broadcast; the fields keep those names.`,
+    "Propose what sends on its own, as a card the person approves (every such thing is a campaign): a message sent once, a campaign at a journey moment or on a list, a new campaign with its steps, a step added, changed, removed or reworded, a draft started, a campaign let go of or ended, people taken out, a waiting send approved or skipped, a campaign paused, resumed, renamed or retimed, its channels, a new saved message, and cold email to leads.",
+  // screen-word: the code's names, said so it never says them
+  tail: `For an offer, a promotion or a whole setup, call propose_plan with action offer instead. Read campaigns first: action list and action sequence for what exists and its ids, action lists for who can be sent and the messages a send may use, action moments for the moments offered. When nobody can be sent a message, say why: nobody said yes (point to their profiles) or the ones who did have no number to send to, or no channel that can carry it now (the lists read says which); never propose a send to nobody. A starter the workspace lacks is added at Approve, a typed value left blank is refused in words, and a second running campaign on the same moment, list and message is refused unless they name it apart. A person reads campaign, never sequence, playbook or broadcast; the fields keep those names.`,
   actions: {
     once: broadcastAction,
     moment: playbookAction,
@@ -65,8 +66,8 @@ export const propose_sequence = defineActions({
           start: false,
         },
       ],
-      label: "Preparing a sequence",
-      words: `Action make proposes a whole new sequence to customers: first, its first step exactly as action moment takes it (a moment or a list, its message by template_id, its clock and channels), then up to ${SEQUENCE_DRAFT_THEN_MAX} steps after it (each a wait, what must still hold, its message), and start (true starts it once approved, false keeps it a draft). Where the Library lacks a message, write it first with action message, in a plan.`,
+      label: "Preparing a campaign",
+      words: `Action make proposes a whole new campaign to customers: first, its first step exactly as action moment takes it (a moment or a list, its message by template_id, its clock and channels), then up to ${SEQUENCE_DRAFT_THEN_MAX} steps after it (each a wait, what must still hold, its message), and start (true starts it once approved, false keeps it a draft). Where the Library lacks a message, write it first with action message, in a plan.`,
       build: proposeMake,
     }),
     step: actAction({
@@ -138,7 +139,7 @@ export const propose_sequence = defineActions({
       examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Preparing the run",
       words:
-        "Action run_now runs a sequence's first step now, as its hourly run would: it waits for an OK where its class asks.",
+        "Action run_now runs a campaign's first step now, as its hourly run would: it waits for an OK where its class asks.",
       build: proposeRunNow,
     }),
     change: playbookChangeAction,
@@ -156,7 +157,7 @@ export const propose_sequence = defineActions({
       ],
       label: "Preparing who leaves",
       words:
-        "Action leave takes people or leads out of a sequence; a send of theirs not yet gone is skipped with them.",
+        "Action leave takes people or leads out of a campaign; a send of theirs not yet gone is skipped with them.",
       build: proposeLeave,
     }),
     decide: actAction({
@@ -182,7 +183,7 @@ export const propose_sequence = defineActions({
       ],
       label: "Preparing the held email",
       words:
-        "Action decide answers an email the check held: include lets it go as it is, rewrite writes its opening again at once (as the person says, with change), skip leaves it out of this batch, not_a_fit sets its business aside. Only a rewrite is undone.",
+        "Action decide answers an email the check held: include lets it go as it is, rewrite writes its opening again at once (as the person says, with change), skip leaves it out of this send, not_a_fit sets its business aside. Only a rewrite is undone.",
       build: proposeSendDecide,
     }),
     sent_by_hand: actAction({
@@ -210,7 +211,7 @@ export const propose_sequence = defineActions({
       examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Preparing to let it go",
       words:
-        "Action discard takes away a sequence that never ran, whatever its state, or a sequence to leads that never wrote; one that ran is ended with action end, a sequence to leads that wrote paused with action change.",
+        "Action discard takes away a campaign that never ran, whatever its state, or a cold email that never wrote; one that ran is ended with action end, a cold email that wrote paused with action change.",
       build: proposeDiscard,
     }),
     end: actAction({
@@ -219,7 +220,7 @@ export const propose_sequence = defineActions({
       examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Preparing the end",
       words:
-        "Action end ends a customer's sequence that has run, for good: it sends nothing more and nobody is added; what it sent stays in its History, and nothing undoes it. One that never ran is let go of with action discard; a sequence to leads is paused with action change.",
+        "Action end ends a customer's campaign that has run, for good: it sends nothing more and nobody is added; what it sent stays in its History, and nothing undoes it. One that never ran is let go of with action discard; a cold email is paused with action change.",
       build: proposeEnd,
     }),
     message: messageAction,
@@ -254,9 +255,9 @@ export const propose_sequence = defineActions({
           ],
         },
       ],
-      label: "Preparing a cold email sequence",
+      label: "Preparing a cold email",
       words:
-        "Action cold_email proposes a cold email sequence to the businesses of a search or a list of chosen leads (propose_leads with action list makes one): its emails, their waits and its pace, sent from the workspace's connected mailboxes: with none that can send, it is refused in words that say why (connect one in Settings › Cold email), and nothing is ever handed over to send by hand. Its first run is planned once approved and waits for their say before an email goes. Write like a person to one business; never claim a relationship that does not exist.",
+        "Action cold_email proposes a cold email to the businesses of a search or a list of chosen leads (propose_leads with action list makes one): its emails, their waits and its pace, sent from the workspace's connected mailboxes: with none that can send, it is refused in words that say why (connect one in Settings › Cold email), and nothing is ever handed over to send by hand. Its first run is planned once approved and waits for their say before an email goes. Write like a person to one business; never claim a relationship that does not exist.",
       build: proposeColdEmail,
     }),
     leads: reachOutAddAction,

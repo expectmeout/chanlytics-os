@@ -77,7 +77,7 @@ async function proposeKeep(
     // An earlier plan step's token (a search it starts) stands in for its id, filled at the commit.
     if (!UUID.test(subject) && stepNamed(toolContext, subject) === null)
       return refuse(
-        "subject is the search's, the sequence's or the cold email's id a read returned, or a plan step's token",
+        "subject is the search's, the campaign's or the cold email's id a read returned, or a plan step's token",
       );
   }
   const held = await heldNow(toolContext);
@@ -118,8 +118,8 @@ async function proposeClear(toolContext: ToolContext, input: { ids: string[] }):
 
 export const propose_follow_up = defineActions({
   name: "propose_follow_up",
-  description: `Propose a follow-up of your own, as a card the person approves: a note to come back when something happens (a lead search finishing or stopping to ask, replies on a sequence or a cold email, or a day), or clearing one you came back to. They hold at most ${ASK_FOLLOW_UPS_MAX}; signals says a due one first.`,
-  tail: "Offer one after a card whose result comes later (a lead search, a sequence or a cold email started), in the same plan. When a due one is read, do what its prompt says, and clear it beside the cards you make.",
+  description: `Propose a follow-up of your own, as a card the person approves: a note to come back when something happens (a lead search finishing or stopping to ask, replies on a campaign or a cold email, or a day), or clearing one you came back to. They hold at most ${ASK_FOLLOW_UPS_MAX}; signals says a due one first.`,
+  tail: "Offer one after a card whose result comes later (a lead search, a campaign or a cold email started), in the same plan. When a due one is read, do what its prompt says, and clear it beside the cards you make.",
   actions: {
     keep: actAction({
       kind: "follow_up",
@@ -131,13 +131,13 @@ export const propose_follow_up = defineActions({
           .string()
           .describe(`What you will ask yourself when it is due, at most ${FOLLOW_UP_PROMPT_MAX} characters.`),
         wake: z.enum(FOLLOW_UP_WAKES),
-        subject: z.string().optional().describe("The search's, sequence's or cold email's id, or a plan step's token."),
+        subject: z.string().optional().describe("The search's, campaign's or cold email's id, or a plan step's token."),
         on: z.string().optional().describe("For date, the day, YYYY-MM-DD."),
       }),
       examples: [
         {
           said: "When the plumbers search finishes, I'll pick the best and draft the emails",
-          prompt: "The plumbers search finished: pick the best leads and propose a cold email sequence to them.",
+          prompt: "The plumbers search finished: pick the best leads and propose a cold email to them.",
           wake: "search_done",
           subject: "@step:1",
         },

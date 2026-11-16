@@ -624,7 +624,7 @@ test("Ask's own read of what stands out (the signals tool) says what it said, wi
     {
       key: "nothing_sends_on_its_own",
       says: "29 people are in People (4 new in the last 30 days) and nothing sends on its own.",
-      next: "propose_plan with action steps: lists that group them (propose_list make), then a sequence for the strongest group (propose_sequence make); or propose_plan with action offer, intent cover_journey",
+      next: "propose_plan with action steps: lists that group them (propose_list make), then a campaign for the strongest group (propose_sequence make); or propose_plan with action offer, intent cover_journey",
     },
     {
       key: "leads_not_written_to",
@@ -638,17 +638,17 @@ test("Ask's own read of what stands out (the signals tool) says what it said, wi
     },
     {
       key: "replies_waiting",
-      says: "2 replies wait in the sequences.",
+      says: "2 replies wait in the campaigns.",
       next: "inbox with action list, then propose_reply for each; for a business that wrote back interested, propose_leads with action said and propose_deal",
     },
     {
       key: "batches_waiting",
-      says: "1 batch waits for an OK before it sends.",
+      says: "1 send waits for an OK before it sends.",
       next: "sequences with action sent, then propose_sequence with action batch (approve or skip)",
     },
     {
       key: "lists_feed_nothing",
-      says: "2 lists feed no sequence: Regulars, Spring brides.",
+      says: "2 lists feed no campaign: Regulars, Spring brides.",
       next: "propose_sequence with action moment on the list (trigger saved_list), after sequences with action lists counts who it reaches",
     },
     {
@@ -664,7 +664,7 @@ test("Ask's own read of what stands out (the signals tool) says what it said, wi
     {
       key: "offers_never_asked",
       says: "4 people on WhatsApp have never been asked for the yes to offers (3 said yes so far).",
-      next: "never a message whose purpose is the ask: the receptionist asks once at the natural end of a conversation they started; offer the sign-up link and its QR for the counter, and sequences after a booking to people with a messages yes (propose_sequence with action moment)",
+      next: "never a message whose purpose is the ask: AI asks once at the natural end of a conversation they started; offer the sign-up link and its QR for the counter, and campaigns after a booking to people with a messages yes (propose_sequence with action moment)",
     },
   ]);
 });

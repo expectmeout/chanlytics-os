@@ -9,6 +9,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { taughtToday } from "./_taught-words.mjs";
 
 const AI_NAMED = [
   ["Answered by the receptionist", "Answered by AI"],
@@ -24,8 +25,11 @@ const AI_NAMED = [
   ['"Receptionist"', '"AI"'],
 ];
 
+/** And in the words its tools say since 16 Nov 2026 (_taught-words.mjs): campaign, conversation, AI, send. */
 const aiNamed = (said) =>
-  typeof said === "string" ? AI_NAMED.reduce((words, [was, is]) => words.replaceAll(was, is), said) : said;
+  typeof said === "string"
+    ? taughtToday(AI_NAMED.reduce((words, [was, is]) => words.replaceAll(was, is), said))
+    : taughtToday(said);
 
 /** Every frozen answer, its result and its card's words with AI named; everything else as it was frozen. */
 export const frozenAnswers = (root) =>

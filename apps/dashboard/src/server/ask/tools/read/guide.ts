@@ -84,7 +84,7 @@ async function readGuide(toolContext: ToolContext, input: { skill?: string | und
       missing.push("A booking link or a calendar: nobody can be booked by AI (Settings › Hours & booking).");
     if (!setup.channels.whatsapp.active)
       missing.push(
-        "WhatsApp: no customer can write to you there, and no WhatsApp sequence can send (Settings › Connections).",
+        "WhatsApp: no customer can write to you there, and no WhatsApp campaign can send (Settings › Connections).",
       );
     if (!setup.channels.voice.active) missing.push("A phone line: no call reaches AI (Setup › Your phone).");
     if (setup.email && !setup.email.sending?.mailboxes?.length)

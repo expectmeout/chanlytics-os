@@ -440,11 +440,11 @@ test("the glossary the model reads: a missed call is a customer's dial that neve
 
 test("a card names the person as People and the Inbox do: the saved name, else their number as it is printed, else Unknown -- never the raw E.164 or 'this person'", async () => {
   const verb = (conversation_id) => card("propose_thread_verb", { conversation_id, verb: "take_over" });
-  assert.equal((await verb(C_WAITS)).title, "Take over Rosa's thread");
+  assert.equal((await verb(C_WAITS)).title, "Take over Rosa's conversation");
   const phone = await verb(C_PAST);
-  assert.equal(phone.title, "Take over +1 (555) 555-0103's thread");
+  assert.equal(phone.title, "Take over +1 (555) 555-0103's conversation");
   assert.equal(phone.payload.who, "+1 (555) 555-0103");
-  assert.equal((await verb(C_NOBODY)).title, "Take over Unknown's thread");
+  assert.equal((await verb(C_NOBODY)).title, "Take over Unknown's conversation");
 
   const deal = (contact_id) => card("propose_deal", { contact_id, stage: "proposed" });
   const out = DEAL_STAGE_WORDS.proposed;

@@ -114,7 +114,7 @@ test("one door: an item keeps its door, Open goes when an item has its route, a 
     a,
     cards.map((c) => ({ id: c.id, open: cardOpenRoute(c) })),
   );
-  assert.equal(answer.do.open, null, "the item is already the door to the thread");
+  assert.equal(answer.do.open, null, "the item is already the door to the conversation");
   assert.deepEqual(
     cardOpen,
     { p1: false, p2: true, p3: false },
@@ -845,7 +845,10 @@ test("fifteen names: the format's kinds are a page and fourteen rows, and a run 
   // A source is a row read this turn, or one an earlier answer in this thread named (the Phase 5 plan, D5), as the
   // rules say: a model that followed "read this turn" alone would read the row again, or write kind none and lose it.
   const said = at("show", "items", "[]", "source").description;
-  assert.match(said, /^A row or a page read this turn \(.*\), or a row an earlier answer in this thread named, with/);
+  assert.match(
+    said,
+    /^A row or a page read this turn \(.*\), or a row an earlier answer in this conversation named, with/,
+  );
   assert.match(said, /kind none when it rests on nothing read or named\.$/);
   for (const part of [
     ["show", "figures", "[]"],
@@ -898,7 +901,7 @@ test("a row of each new kind a reader returned is kept and opens where the reade
   assert.deepEqual(
     item({ kind: "broadcast", id: `campaigns/sequences/${PLAYBOOK}/runs/${RUN}`, label: "Monday offer" }).source,
     home,
-    "a run spelled by its address is the broadcast",
+    "a run spelled by its address is the send",
   );
   assert.deepEqual(item({ kind: "broadcast", id: `broadcasts/run:${RUN}`, label: "Monday offer" }).source, home);
   assert.deepEqual(
@@ -984,7 +987,11 @@ test("REGRESSION (PR 4.2 review): a lead cited by its route on a search's view i
   assert.equal(grounded({ kind: "lead", id: leadRoute, label: "x" }, reads(search)), null, "a lead not read goes");
   assert.equal(grounded({ kind: "search", id: `clients/leads:s-${SEARCH}`, label: "x" }).kind, "search");
   assert.equal(grounded({ kind: "page", id: `clients/leads:s-${SEARCH}:l-ready`, label: "x" }).kind, "search");
-  assert.equal(grounded({ kind: "thread", id: PERSON, label: "x" }).kind, "person", "a person written as a thread");
+  assert.equal(
+    grounded({ kind: "thread", id: PERSON, label: "x" }).kind,
+    "person",
+    "a person written as a conversation",
+  );
   assert.equal(grounded({ kind: "page", id: "reports", label: "Reports" }).to, "reports");
   assert.equal(grounded({ kind: "page", id: "outbound/1234", label: "x" }), null, "a playbook's route cut short");
 });

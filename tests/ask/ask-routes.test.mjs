@@ -177,7 +177,7 @@ test("a question: the workspace must be named, something must be asked and not t
     ask.POST.run(send("POST", { text: "And then?", thread_id: T1 }, inB), elsewhere),
     "not_found",
     404,
-    "That thread is not yours.",
+    "That conversation is not yours.",
   );
   assert.equal(writes(elsewhere), 0, "no turn is saved for a question that was refused");
   assert.deepEqual([tables.ask_threads.length, tables.ask_messages.length], [1, 0]);
@@ -358,7 +358,12 @@ test("a quick answer kept (POST ask/quick): every member's and counted as a ques
     404,
     "That thread does not exist.",
   );
-  await refused(keep({ text: "who needs me?", answer, thread_id: T1 }), "not_found", 404, "That thread is not yours.");
+  await refused(
+    keep({ text: "who needs me?", answer, thread_id: T1 }),
+    "not_found",
+    404,
+    "That conversation is not yours.",
+  );
   assert.equal(writes(ctx), 0, "nothing is saved for a refusal");
   assert.deepEqual([tables.ask_threads.length, tables.ask_messages.length], [1, 0]);
 });
@@ -1431,7 +1436,7 @@ test("an answer whose thread is not the caller's -- a teammate's, which RLS hide
       const body = { text: "Yes, include them", thread_id: PLANNED, answering: { search_id: SEARCH } };
       const lines = await linesOf(await ask.POST.run(send("POST", body, inA), ctxFor(tables)));
       const made = tables.ask_threads.find((t) => t.tenant_id === A);
-      assert.ok(made && made.id !== PLANNED, `${why}: a new thread`);
+      assert.ok(made && made.id !== PLANNED, `${why}: a new conversation`);
       assert.deepEqual(
         [lines[0].id, lines[0].title, made.title],
         [made.id, "Pilates studios · Denver", "Pilates studios · Denver"],
@@ -1460,7 +1465,7 @@ test("an answer whose thread is not the caller's -- a teammate's, which RLS hide
       ask.POST.run(send("POST", { text: "And then?", thread_id: PLANNED }, inA), ctxFor(plain)),
       "not_found",
       404,
-      "That thread is not yours.",
+      "That conversation is not yours.",
     );
     assert.equal(plain.ask_messages.length, 0);
     // A search that is not this workspace's is refused before anything is saved.
@@ -2044,7 +2049,7 @@ test("what happened since, through the route (the Phase 5 plan, D8): a card appr
       isError: false,
     }),
   });
-  const SINCE = "Since the last answer, the person acted on cards from earlier in this thread:";
+  const SINCE = "Since the last answer, the person acted on cards from earlier in this conversation:";
   /** The words of a request's question: the text block that says who is asking, line by line. */
   const wordsOf = (req) =>
     req.messages
@@ -2152,7 +2157,7 @@ test("a cold follow-up through the route (the Phase 5 plan, PR 5.5): turn 1 -- a
     }),
   });
   const onInbox = { v: 1, surface: "inbox", route: "inbox", view: null, focus: null, rows: [], askedAt: 1 };
-  const SINCE = "Since the last answer, the person acted on cards from earlier in this thread:";
+  const SINCE = "Since the last answer, the person acted on cards from earlier in this conversation:";
   const wordsOf = (req) =>
     req.messages
       .at(-1)

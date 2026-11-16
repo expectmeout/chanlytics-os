@@ -286,13 +286,13 @@ const modesAction = actAction({
   }),
   examples: [{ list: "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b", mode: "ask" }],
   label: "Preparing a change to AI",
-  words: `Action mode sets how the receptionist treats everyone in a selection. ${approvalWords("person_mode_many")}.`,
+  words: `Action mode sets how AI treats everyone in a selection. ${approvalWords("person_mode_many")}.`,
   build: proposeModes,
 });
 
 export const propose_people = defineActions({
   name: "propose_people",
-  description: `Propose one act for many people in People at once, as one card the person approves: their answers, the receptionist for them, a note line under each, or putting them on or off a list kept by hand. Name who by exactly one of all (conditions in the lists' vocabulary, as propose_list takes them), list (a list's token) or ids; the card counts them first, at most ${ASK_SELECTION_MAX}, and goes in parts of fifty.`,
+  description: `Propose one act for many people in People at once, as one card the person approves: their answers, AI for them, a note line under each, or putting them on or off a list kept by hand. Name who by exactly one of all (conditions in the lists' vocabulary, as propose_list takes them), list (a list's token) or ids; the card counts them first, at most ${ASK_SELECTION_MAX}, and goes in parts of fifty.`,
   tail: "Read people with action search with the same all or list first, to say who and how many. For one person, propose_person.",
   actions: {
     answer: actAction({

@@ -47,7 +47,7 @@ const nothingSends: Spot = ({ people, seqs, fresh }) => {
     key: "nothing_sends_on_its_own",
     facts: { people: people.listed },
     says: `${plural(people.listed, "person is", "people are")} in People${isNew} and nothing sends on its own.`,
-    next: "propose_plan with action steps: lists that group them (propose_list make), then a sequence for the strongest group (propose_sequence make); or propose_plan with action offer, intent cover_journey",
+    next: "propose_plan with action steps: lists that group them (propose_list make), then a campaign for the strongest group (propose_sequence make); or propose_plan with action offer, intent cover_journey",
     weight: 1,
   };
 };
@@ -62,7 +62,7 @@ const listsFeedNothing: Spot = ({ kept, steps }) => {
   return {
     key: "lists_feed_nothing",
     facts: { lists: idle.length, names },
-    says: `${plural(idle.length, "list feeds", "lists feed")} no sequence: ${names.join(", ")}${idle.length > 4 ? "…" : ""}.`,
+    says: `${plural(idle.length, "list feeds", "lists feed")} no campaign: ${names.join(", ")}${idle.length > 4 ? "…" : ""}.`,
     next: "propose_sequence with action moment on the list (trigger saved_list), after sequences with action lists counts who it reaches",
     weight: 2,
   };
@@ -108,7 +108,7 @@ const repliesWaiting: Spot = ({ seqs }) => {
   return {
     key: "replies_waiting",
     facts: { replies: n },
-    says: `${plural(n, "reply waits", "replies wait")} in the sequences.`,
+    says: `${plural(n, "reply waits", "replies wait")} in the campaigns.`,
     next: "inbox with action list, then propose_reply for each; for a business that wrote back interested, propose_leads with action said and propose_deal",
     weight: 1,
   };
@@ -120,7 +120,7 @@ const batchesWaiting: Spot = ({ seqs }) => {
   return {
     key: "batches_waiting",
     facts: { sends: n },
-    says: `${plural(n, "batch waits", "batches wait")} for an OK before it sends.`,
+    says: `${plural(n, "send waits", "sends wait")} for an OK before it sends.`,
     next: "sequences with action sent, then propose_sequence with action batch (approve or skip)",
     weight: 1,
   };
@@ -135,7 +135,7 @@ const offersNeverAsked: Spot = ({ people, saidYes }) => {
     key: "offers_never_asked",
     facts: { never },
     says: `${plural(never, "person on WhatsApp has", "people on WhatsApp have")} never been asked for the yes to offers${yesSoFar}.`,
-    next: "never a message whose purpose is the ask: the receptionist asks once at the natural end of a conversation they started; offer the sign-up link and its QR for the counter, and sequences after a booking to people with a messages yes (propose_sequence with action moment)",
+    next: "never a message whose purpose is the ask: AI asks once at the natural end of a conversation they started; offer the sign-up link and its QR for the counter, and campaigns after a booking to people with a messages yes (propose_sequence with action moment)",
     weight: 3,
   };
 };
@@ -257,7 +257,7 @@ async function readSignals(toolContext: ToolContext): Promise<unknown> {
 export const signalsTool = defineRead({
   name: "signals",
   description:
-    "What stands out across the workspace now, from its pages, each with its numbers and the cards that fit it: a follow-up of yours that is due, people with nothing sending on its own, lists that feed nothing, leads nobody writes to, a search that asks a question, replies and batches waiting, people never asked for the yes to offers, deals with no next step, cancellations whose time nothing offered; and the owner's goal. Read it at the start of a conversation, when they ask what to do next or how to get more customers, and before proposing a plan of your own. It takes nothing and changes nothing.",
+    "What stands out across the workspace now, from its pages, each with its numbers and the cards that fit it: a follow-up of yours that is due, people with nothing sending on its own, lists that feed nothing, leads nobody writes to, a search that asks a question, replies and sends waiting, people never asked for the yes to offers, deals with no next step, cancellations whose time nothing offered; and the owner's goal. Read it at the start of a conversation, when they ask what to do next or how to get more customers, and before proposing a plan of your own. It takes nothing and changes nothing.",
   input: z.object({}),
   label: "Looking across the workspace",
   run: readSignals,

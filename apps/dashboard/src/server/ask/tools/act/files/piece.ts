@@ -173,11 +173,11 @@ const pieceInput = z.object({
   people_agreed: z
     .boolean()
     .optional()
-    .describe("Only when the owner said in this thread that the people shown agreed to be."),
+    .describe("Only when the owner said in this conversation that the people shown agreed to be."),
   client_said: z
     .boolean()
     .optional()
-    .describe("Only when the owner said in this thread that a client wrote the quote they typed here."),
+    .describe("Only when the owner said in this conversation that a client wrote the quote they typed here."),
   caption: z
     .string()
     .optional()

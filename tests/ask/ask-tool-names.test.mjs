@@ -1042,8 +1042,8 @@ function withChannels(frozen) {
   const note =
     typeof said.note === "string"
       ? `${said.note.replace(
-          "Two consents, two counts each. can_be_sent_offers is who a promotional template reaches and",
-          "Two consents, two counts each, all by WhatsApp. can_be_sent_offers is who a promotional template reaches on WhatsApp and",
+          "Two consents, two counts each. can_be_sent_offers is who a promotional message reaches and",
+          "Two consents, two counts each, all by WhatsApp. can_be_sent_offers is who a promotional message reaches on WhatsApp and",
         )} A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.`
       : null;
   const held = { whatsapp: true, email: false, sms: false };
@@ -1302,7 +1302,7 @@ function withEachSequencesMode(frozen) {
     veto: SEQUENCE_MODE_WORDS.veto.does,
     ask: SEQUENCE_MODE_WORDS.ask.does,
     new_words:
-      "a batch of a step whose words are new to the owner (next_batch_asks_first) waits for their OK first, whatever the mode",
+      "a send of a step whose words are new to the owner (next_batch_asks_first) waits for their OK first, whatever the mode",
   };
   return JSON.stringify(
     Object.fromEntries(

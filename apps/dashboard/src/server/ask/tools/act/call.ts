@@ -67,19 +67,19 @@ const CALL_ID = z
 export const propose_call = defineActions({
   name: "propose_call",
   description:
-    "Propose an act on a phone call in progress, as a card the person approves: a whisper to the phone receptionist, or the call handed to the business's own line.",
+    "Propose an act on a phone call in progress, as a card the person approves: a whisper to AI on the phone, or the call handed to the business's own line.",
   tail: "A call that has ended is notLive in words, since there is nobody on the line. Ending a call is the Live page's own button.",
   actions: {
     whisper: actAction({
       kind: "whisper",
       input: z.object({
         call_id: CALL_ID,
-        text: z.string().describe("The sentence only the receptionist hears, such as: offer Saturday at 10."),
+        text: z.string().describe("The sentence only AI on the phone hears, such as: offer Saturday at 10."),
       }),
       examples: [{ call_id: "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", text: "Offer Saturday at 10." }],
       label: "Preparing a whisper",
       words:
-        "Action whisper takes call_id and text, a sentence only the phone receptionist hears, worked into its next answer to the caller; it never reaches the caller as written.",
+        "Action whisper takes call_id and text, a sentence only AI on the phone hears, worked into its next answer to the caller; it never reaches the caller as written.",
       build: proposeWhisper,
     }),
     hand_over: actAction({
@@ -88,7 +88,7 @@ export const propose_call = defineActions({
       examples: [{ call_id: "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e" }],
       label: "Preparing the hand-over",
       words:
-        "Action hand_over takes call_id and passes the call to the business's own phone: the receptionist tells the caller someone is picking up and transfers them. Call it when they want to take the call themselves.",
+        "Action hand_over takes call_id and passes the call to the business's own phone: AI tells the caller someone is picking up and transfers them. Call it when they want to take the call themselves.",
       build: proposeHandOver,
     }),
   },

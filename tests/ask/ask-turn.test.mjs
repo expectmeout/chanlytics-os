@@ -760,7 +760,7 @@ test("every refusal of the gateway ends the turn in its sentence, in the person'
     [{ kind: "no_key" }, "AI is not connected yet.", "AI no está conectado todavía."],
     [
       { kind: "unreachable", message: "ECONNREFUSED" },
-      "I could not reach the model. Try again in a moment.",
+      "I couldn't answer just now. Try again in a moment.",
       "No pude llegar al modelo. Inténtalo de nuevo en un momento.",
     ],
     [
@@ -959,7 +959,7 @@ test("a stream that broke before any block ends the turn; one that broke after t
   );
   assert.deepEqual(
     [empty.text, empty.failed, empty.failure],
-    ["The connection to the model dropped. Try again.", true, "socket hang up"],
+    ["The connection dropped before I finished. Try again.", true, "socket hang up"],
   );
   const late = await runAskTurn(
     turn(ctxFor()).input,
@@ -977,7 +977,7 @@ test("a stream that broke before any block ends the turn; one that broke after t
   );
   assert.deepEqual(
     [midway.text, midway.failed, midway.failure],
-    ["The connection to the model dropped. Try again.", true, "terminated"],
+    ["The connection dropped before I finished. Try again.", true, "terminated"],
     "an answer cut off by a broken stream says the connection dropped, not that the answer had no shape",
   );
   const refused = await runAskTurn(
@@ -2133,7 +2133,7 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
     // the report's own numbers stand.
     const failed = await logged("ask_tool_read_failed", () => run({}));
     assert.deepEqual(failed.result.said.receptionist, {
-      error: "the receptionist numbers could not be read just now",
+      error: "AI's numbers could not be read just now",
     });
     assert.deepEqual(
       failed.lines.map((l) => JSON.parse(l).read).filter((read) => read === "receptionist"),
@@ -2146,7 +2146,7 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
         throw new Error("connection refused");
       },
     });
-    assert.deepEqual(down.said.receptionist, { error: "the receptionist numbers could not be read just now" });
+    assert.deepEqual(down.said.receptionist, { error: "AI's numbers could not be read just now" });
 
     // A period with nothing in it: the page's words for each part, and no zero said for what has no source.
     const quiet = await run({ receptionist_series: (a) => quietSeries(a) });
@@ -3474,7 +3474,7 @@ test("the proposal builders run against the database in memory: each kind is a c
   assert.equal((await p("propose_thread_verb", { conversation_id: C2, verb: "wake" })).isError, false);
   assert.equal(
     (await p("propose_thread_verb", { conversation_id: C2, verb: "hand_back" })).proposal.title,
-    "Hand Rosa's thread back to AI",
+    "Hand Rosa's conversation back to AI",
   );
   assert.match((await p("propose_thread_verb", { conversation_id: C1, verb: "hand_back" })).result, /nobody has taken/);
   const resolve = await p("propose_thread_verb", { conversation_id: C1, verb: "resolve" });
@@ -4375,7 +4375,7 @@ test("calendar.week reads the people it names: a person on the calendar enters t
     assert.equal(out.isError, false, out.result);
     assert.equal(
       JSON.parse(out.result).note,
-      "Taken is the owner's own calendar; open is what the receptionist would offer a caller.",
+      "Taken is the owner's own calendar; open is what AI would offer a caller.",
       "the note keeps the rows' facts; that nothing is booked from here is the tool's description now (PR 3.3)",
     );
     assert.ok(
@@ -4802,7 +4802,7 @@ test("REGRESSION: campaigns.playbooks tells who said yes from who a run can reac
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
   assert.ok(
-    read.note.startsWith("A run is a broadcast, and ") && !read.note.includes("say so"),
+    read.note.startsWith("A run is a send, and ") && !read.note.includes("say so"),
     "the note keeps the rows' facts; what to say of a zero, and that nothing ran, are the description's now (PR 3.3)",
   );
   assert.ok(
@@ -6613,7 +6613,7 @@ test("people.search reads what the People page reads (ledger #7): one SQL page f
     ["Needs you", "Quiet"],
     "Rosa was 'Active' in the tool's own three states: the page says Quiet",
   );
-  assert.ok(tc.read.person.has(ROSA) && tc.read.thread.has(C2), "a person found is a row read, and their thread");
+  assert.ok(tc.read.person.has(ROSA) && tc.read.thread.has(C2), "a person found is a row read, and their conversation");
   assert.deepEqual(
     ctx.supabase.seen.filter((q) => q.rpc === "people_list").map((q) => q.args.p_query ?? null),
     ["Rosi", "018", null],
@@ -7240,7 +7240,7 @@ test("a read the page tolerates, AI tolerates as the page does and says so: a fa
   assert.equal(noTemplates.out["sequences.lists"].isError, false, noTemplates.out["sequences.lists"].result);
   assert.deepEqual(
     [t.templates, t.cannot_send, t.could_not_read],
-    [null, null, ["The messages could not be read just now: say so, and propose no broadcast until they can."]],
+    [null, null, ["The messages could not be read just now: say so, and propose no send until they can."]],
     "the templates' own state, never 'no template yet'",
   );
   assert.deepEqual(
@@ -7604,7 +7604,7 @@ test("fifteen names move five spans of the request (PR 4.2; a visit and a review
   const rules = req.system[0].text;
   assert.ok(rules.includes(`items for the rows it names (${every})`), "the rules' items list says the same words");
   assert.ok(
-    rules.includes("A batch that went out is kind broadcast; a list is kind list, with the audience_id it came with."),
+    rules.includes("A send that went out is kind broadcast; a list is kind list, with the audience_id it came with."),
     "the source rule says how the two rows whose word differs are cited",
   );
   assert.ok(!rules.includes("items for the rows it names (people, threads, calls),"), "the three-kind list is gone");
@@ -8781,7 +8781,7 @@ const proposing = (...cards) => {
   };
 };
 const draft = tool("propose_reply", { action: "draft", conversation_id: C1, text: "We open at nine on Saturday." });
-const SINCE = "Since the last answer, the person acted on cards from earlier in this thread:";
+const SINCE = "Since the last answer, the person acted on cards from earlier in this conversation:";
 /** The words a request's question carries, line by line. */
 const wordsLines = (req) =>
   req.messages
@@ -8954,7 +8954,7 @@ test("a card waiting in this thread is pressed by their yes (the answers canvas,
     "say what its result says",
     "With several waiting and no way to tell which, ask which",
     // REGRESSION (decision 0132): a yes reached a card an hour and forty minutes up the thread.
-    "A card further up the thread is out of their view: when they mean one, propose it again with the same terms",
+    "A card further up the conversation is out of their view: when they mean one, propose it again with the same terms",
     "Propose a card of your latest answer again only when it was dismissed or failed",
   ])
     assert.ok(rule.includes(words), words);
@@ -8974,7 +8974,7 @@ test("AI answers the question asked (the end-to-end review, 15 Oct: today's reca
   const [rule] = said;
   for (const words of [
     "not a list to report",
-    "only when it is urgent and no earlier turn in this thread has said it",
+    "only when it is urgent and no earlier turn in this conversation has said it",
     "in one short clause after the answer",
     "do.next follows from this answer, never from something they did not ask about",
   ])
@@ -9750,8 +9750,8 @@ test("the act tools look a row up in the turn's workspace, whatever the session 
   );
   assert.match(
     (await p("propose_thread_verb", { conversation_id: C1, verb: "resolve" })).result,
-    /no open escalation on that thread/,
-    "an escalation of another workspace's is not this thread's",
+    /no open escalation on that conversation/,
+    "an escalation of another workspace's is not this conversation's",
   );
   assert.match(
     (await p("propose_reply", { action: "draft", conversation_id: C2, text: "Hello", voice: "you" })).result,

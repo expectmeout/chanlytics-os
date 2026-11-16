@@ -238,7 +238,7 @@ test("campaigns.broadcast answers one run as its opened page draws it over the s
   assert.deepEqual(tc.read.broadcast.get(BC1).route, `campaigns/sequences/${BC1}/runs/${BC1}`);
   assert.deepEqual(tc.read.person.get(P1), { kind: "person", id: P1, route: `clients/${P1}`, label: "Ana Ruiz" });
   const other = await ask({ action: "batch", broadcast_id: BCB });
-  assert.deepEqual([other.isError, other.out.error], [true, "no such broadcast in this workspace"]);
+  assert.deepEqual([other.isError, other.out.error], [true, "no such send in this workspace"]);
   const typo = await ask({ action: "batch", broadcast_id: "nope" });
   assert.deepEqual(
     [typo.isError, typo.out.error],

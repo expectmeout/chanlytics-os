@@ -197,10 +197,10 @@ export function messageBriefText(messageBrief: MessageBrief): string {
     message.join("\n"),
     ...(owner
       ? [
-          `What the owner asked Ask, in their own words: "${owner}"\nA fact they give here may be said though the draft left it out, and how they want it to sound is theirs to ask.`,
+          `What the owner asked AI, in their own words: "${owner}"\nA fact they give here may be said though the draft left it out, and how they want it to sound is theirs to ask.`,
         ]
       : []),
-    `The first draft, written by Ask from what the owner asked:\n${fenced("record", craftDraftLines(m.draft))}`,
+    `The first draft, written by AI from what the owner asked:\n${fenced("record", craftDraftLines(m.draft))}`,
     `Write every version the draft has (${channels.join(", ")}), and leave the others empty.`,
   ].join("\n\n");
 }
