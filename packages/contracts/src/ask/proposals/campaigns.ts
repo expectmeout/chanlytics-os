@@ -65,7 +65,7 @@ export function proposalChannelsWords(
 export const PLAYBOOK_CARD_REFUSALS = {
   /** A typed slot the proposal gave no words for: a question for the person. */
   typedSlot: (label: string): string =>
-    `this template takes typed words for “${label}”; ask the person what to say there, then propose again with params`,
+    `this template takes typed words for “${label}” · ask the person what to say there, then propose again with params`,
   value:
     "each value is text, or @first_name, @business_name, @booking_link or @review_link, or @visit_when or @visit_service on a reminder or a check after an appointment, @proposal_link on the proposal follow-up, or @freed_when when a cancellation frees a time",
   plainText: "every typed value must be plain text under 1024 characters, without line breaks",
@@ -73,7 +73,7 @@ export const PLAYBOOK_CARD_REFUSALS = {
   starterHidden: (title: string, from: string): string =>
     `${LIBRARY_STARTER_WORDS.hiddenInLibrary(title)} Say so; ${from} names the messages that may send.`,
   starterUnsent: (title: string, from: string): string =>
-    `the “${title}” starter has no version this workspace can send yet; say so and suggest adding the starter set under ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}, or name a message from ${from}`,
+    `the “${title}” starter has no version this workspace can send yet · say so and suggest adding the starter set under ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}, or name a message from ${from}`,
   hiddenTemplate: (from: string): string =>
     `that template is one the workspace keeps out of the composers; ${from} names the ones that may send`,
   noList: (from: string): string => `no such list; ${from} names them`,
@@ -84,19 +84,19 @@ export const PLAYBOOK_CARD_REFUSALS = {
    */
   twin: (name: string): string =>
     `“${name}” already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`,
-  followUpsUnread: "who already had a proposal follow-up couldn't be read just now; say so, and try again in a moment",
+  followUpsUnread: "who already had a proposal follow-up couldn't be read just now · say so, and try again in a moment",
   /**
    * The week's breath: every message sent or due within a week of a run, a member's own too, holds its person, so the
    * count waits on it. The stem a broadcast's door says it in (core createBroadcast).
    */
   weekUnread:
-    "who has had a message from you lately, or has one due, couldn't be read just now; say so, and try again in a moment",
+    "who has had a message from you lately, or has one due, couldn't be read just now · say so, and try again in a moment",
   /**
    * The autonomy modes, unread: what a card says of its runs after the first is what its class's row says a new sequence
    * starts as (decision 0064), so no card is made on a guess.
    */
   modeUnread:
-    "the sending mode of this campaign's class couldn't be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
+    "the sending mode of this campaign's class couldn't be read just now, so the card cannot say what its runs would do · say so, and try again in a moment",
   /** The action named a message and a starter both: a campaign sends one. */
   starterOrMessage:
     "name template_id for a message the workspace holds, or starter for the moment's starter to file at Approve, never both",
@@ -469,8 +469,8 @@ const skipped = (data: unknown): string => {
   return was === "sending"
     ? "stops after this send"
     : was === "pending_approval"
-      ? "skipped — nothing will send"
-      : "canceled — nothing will send";
+      ? "skipped · nothing will send"
+      : "canceled · nothing will send";
 };
 
 export const runSpec: ProposalSpec = {
@@ -528,8 +528,8 @@ export const playbookRunSpec: ProposalSpec = {
     const n = Number(d.eligible) || 0;
     const people = `${n} ${n === 1 ? "person" : "people"}`;
     if (d.outcome === "sent") return `${name} — ${people}, ${runGoes(pl, data)}`;
-    if (d.outcome === "held") return `${name} — ${people} waiting for your approval`;
-    return `${name} — nobody new to send to right now`;
+    if (d.outcome === "held") return `${name} · ${people} waiting for your approval`;
+    return `${name} · nobody new to send to right now`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -642,7 +642,7 @@ export const MESSAGE_WORDS = {
   partlyUndone: (gone: readonly OwnVersionChannel[], left: readonly OwnVersionChannel[], refused: string): string =>
     gone.length === 0
       ? refused
-      : `Its ${versionsWords(gone)} ${gone.length === 1 ? "is" : "are"} deleted; its ${versionsWords(left)} ${left.length === 1 ? "is" : "are"} not: ${refused}`,
+      : `Its ${versionsWords(gone)} ${gone.length === 1 ? "is" : "are"} deleted · its ${versionsWords(left)} ${left.length === 1 ? "is" : "are"} not: ${refused}`,
 } as const;
 
 /** A version the door filed, as its answer and the undo's record say it: its channel, its id and its state. */

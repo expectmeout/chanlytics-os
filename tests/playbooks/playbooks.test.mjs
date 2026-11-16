@@ -585,7 +585,7 @@ test("REGRESSION: on a US WhatsApp number a playbook's card says how many said y
   assert.equal(playbookReachDoor("nobody", named), null, "the QR would ask for an answer they gave");
   assert.equal(
     playbookNoNumberWords(card, named),
-    `26 people on the list said yes to offers, none can be sent an offer — ${NO_CHANNEL_REACH}`,
+    `26 people on the list said yes to offers, none can be sent an offer · ${NO_CHANNEL_REACH}`,
     "a channel is missing, never a number",
   );
 });

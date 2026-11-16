@@ -25,7 +25,7 @@ import type { PersonAboutFact, PersonCardContext, PersonFact, PersonReply } from
 const TONE_WORD: Record<ReceptionistTone, string> = {
   answering: "Answering",
   escalated: "Waiting",
-  queued: "Queued",
+  queued: "Waiting to go",
   snoozed: "Snoozed",
   paused: "Held for you",
   yours: "Held for you",

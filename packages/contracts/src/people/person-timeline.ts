@@ -111,7 +111,7 @@ function howKnown(consentChange: ConsentChange): string {
   if (consentChange.source === CARRIER_CONSENT_SOURCE) {
     // The carrier's report of a STOP we never heard (a text refused with Twilio 21610): the person's own no, said
     // by the carrier -- neither their words to us nor a member's record.
-    return "Reported by the carrier: they had texted STOP to your number, so a text to them was not sent";
+    return "Reported by their phone company: they had texted STOP to your number, so a text to them was not sent";
   }
   if (consentChange.source === WHATSAPP_CONSENT_SOURCE) {
     // WhatsApp's report of a no to offers we never heard (131050 on a message Meta counts as marketing): their own
@@ -181,7 +181,7 @@ export function consentChangeWords(consentChange: ConsentChange): { who: string;
       : consentChange.consent === "opted_out"
         ? offers
           ? "Said no to offers"
-          : `${STOP_WORDS.said()} — nothing goes out to them`
+          : `${STOP_WORDS.said()} · nothing goes out to them`
         : offers
           ? "Offers: back to not asked"
           : "Back to not asked";

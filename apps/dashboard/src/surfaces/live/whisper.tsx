@@ -32,7 +32,7 @@ function talkButton({ listening, busy, startTalking, stopTalking }: TalkProps) {
       data-own-drag
       aria-pressed={listening}
       aria-label={listening ? "Listening… let go to send" : "Hold to talk"}
-      title="Hold and say the whisper; it is sent when you let go"
+      title="Hold and say the whisper · it is sent when you let go"
       onPointerDown={startTalking}
       onPointerUp={stopTalking}
       onPointerLeave={stopTalking}
@@ -112,7 +112,7 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
       setText("");
       flash({ msg: <>Whispered. It uses it when it fits.</> });
     } else {
-      flash({ tone: "danger", msg: <>Not whispered — {r.message}</> });
+      flash({ tone: "danger", msg: <>Not whispered · {r.message}</> });
     }
   };
 
@@ -125,7 +125,7 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
       else if (problem === "not-allowed" || problem === "blocked")
         flash({ tone: "warn", msg: <>The browser needs microphone permission to whisper by voice.</> });
       else if (problem && problem !== "aborted" && problem !== "no-speech")
-        flash({ tone: "warn", msg: <>Couldn&rsquo;t hear you — try again or type it.</> });
+        flash({ tone: "warn", msg: <>Couldn&rsquo;t hear you · try again or type it.</> });
     },
     disabled: busy,
   });

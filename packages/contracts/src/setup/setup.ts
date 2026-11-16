@@ -161,9 +161,9 @@ export type SetupRowBuilder = (i: SetupInputs, ctx: SetupRowContext) => SetupRow
  * because they are three things (PRD ON-02).
  */
 export function activationWords(cap: CapabilityStatus, nowMs: number): string {
-  if (cap.live && cap.activated) return `Activated ${agoWords(Date.parse(cap.activated.at), nowMs)}`;
-  if (cap.tested) return "Tested — activate it to say it is yours";
-  return "Not tested yet — try it from your own phone";
+  if (cap.live && cap.activated) return `Turned on ${agoWords(Date.parse(cap.activated.at), nowMs)}`;
+  if (cap.tested) return "Tested · turn it on to say it is yours";
+  return "Not tested yet · try it from your own phone";
 }
 
 /** The facts the rows share, read once (SetupRowContext). */

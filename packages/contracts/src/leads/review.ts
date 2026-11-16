@@ -19,12 +19,12 @@ export const leadLowerFirst = (text: string): string =>
 export const LEAD_REVIEW_GROUP_WORDS = {
   mailbox_waiting: "Waiting on the mailbox check",
   checks_out: "Their email checks out",
-  mailbox_silent: "Their mail server wouldn't answer",
+  mailbox_silent: "Their email provider wouldn't answer",
   bad_email: "Their email bounces",
   no_email: "No email on their site",
   site_unread: "Their site couldn't be read",
   no_phone: "No phone on their listing",
-  catch_all: "Unconfirmed — the mailbox accepts any address",
+  catch_all: "Unconfirmed · the mailbox accepts any address",
   unsure: "Couldn't tell if",
   read_only: "Only the listing says so",
   out_of_area: "Just outside the area you asked for",
@@ -95,17 +95,17 @@ export const LEAD_REVIEW_ACT_WORDS: Record<LeadReviewAct, string> = {
 
 /** Why a pile is waiting, in a sentence: what was looked at, and what is true of every lead in it. */
 export const LEAD_REVIEW_GROUP_WHY: Record<LeadReviewGroupId, string> = {
-  mailbox_waiting: "The mailbox check is still running on these. Nothing to press — they move on their own.",
+  mailbox_waiting: "The mailbox check is still running on these. Nothing to press · they move on their own.",
   checks_out:
     "Their address answered after this month's leads were spoken for, so they are waiting for you to keep them.",
-  mailbox_silent: "Their mail server did not answer the check. Asking again settles most of them.",
+  mailbox_silent: "Their email provider didn't answer the check. Asking again settles most of them.",
   bad_email: "The address on their site does not exist, so an email would bounce. Their number may still be good.",
   no_email: "Their home, contact and about pages were read, and no address was on any of them.",
   site_unread:
     "Their site couldn't be read when the search ran, so whether it shows an email isn't known. Their phone may still be good.",
   no_phone:
     "This search counts a phone as enough, and no number on the listing could be matched against their site. An email may still reach them.",
-  catch_all: "Their server accepts every address, so the check cannot tell whether this one is real.",
+  catch_all: "Their email provider accepts every address, so the check can't tell whether this one is real.",
   unsure: "AI couldn't tell from the listing or from their site.",
   read_only: "Only the listing says so, and this search asked to see it for itself.",
   out_of_area: "They sit outside the area you asked for, so they were not counted.",

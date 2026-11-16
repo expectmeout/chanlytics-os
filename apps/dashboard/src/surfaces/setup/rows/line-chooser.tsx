@@ -74,8 +74,8 @@ function newNumber(o: {
       {chosen && (
         <div className="setup-confirm" data-testid="setup-confirm">
           <span className="setup-confirm-text">
-            <b className="tabular">{chosen.friendly}</b> · included in your plan · AI answers it; texting arrives when
-            the carriers register it
+            <b className="tabular">{chosen.friendly}</b> · included in your plan · AI answers it · texting arrives when
+            the phone networks register it
           </span>
           <button
             className="btn btn-primary btn-sm"
@@ -112,7 +112,7 @@ function paths(path: string, setPath: (p: string) => void) {
         <b>Keep my number</b>
         <span>
           Keep the number your customers know: forward the calls you don&rsquo;t answer to AI. You keep your phone, your
-          carrier and your texts.
+          phone company and your texts.
         </span>
       </button>
       <button
@@ -122,7 +122,7 @@ function paths(path: string, setPath: (p: string) => void) {
       >
         <b>Bring my number</b>
         <span>
-          Move the number you have onto Chanlytics. The carriers take 7 to 14 business days; we file it for you.
+          Move the number you have onto Chanlytics. It takes 7 to 14 business days, and Chanlytics files it for you.
         </span>
       </button>
     </div>
@@ -153,7 +153,7 @@ export const LineChooser = ({ S, flash, onDone, onKeep }: ChooserProps) => {
     }
     setNumbers(r.numbers || []);
     if (!(r.numbers || []).length)
-      flash({ tone: "info", msg: <>Nothing free in {area} right now — try a nearby area code.</> });
+      flash({ tone: "info", msg: <>Nothing free in {area} right now · try a nearby area code.</> });
   };
   const buy = async () => {
     if (!owner) return;
@@ -170,12 +170,12 @@ export const LineChooser = ({ S, flash, onDone, onKeep }: ChooserProps) => {
       tone: r.ok ? "ok" : "warn",
       msg: r.ok ? (
         r.queued ? (
-          <>{chosen.friendly} is yours — setting it up now, usually a minute or two. This page updates by itself.</>
+          <>{chosen.friendly} is yours · setting it up now, usually a minute or two. This page updates by itself.</>
         ) : (
-          <>{chosen.friendly} is yours — AI answers it. Call it from your phone.</>
+          <>{chosen.friendly} is yours · AI answers it. Call it from your phone.</>
         )
       ) : (
-        <>Setting up {chosen.friendly} stopped part-way — a person at Chanlytics has it, and Retry is on the row.</>
+        <>Setting up {chosen.friendly} stopped part-way · a person at Chanlytics has it, and Retry is on the row.</>
       ),
     });
     onDone();
@@ -188,9 +188,9 @@ export const LineChooser = ({ S, flash, onDone, onKeep }: ChooserProps) => {
       r.ok
         ? {
             msg: r.already ? (
-              <>Already asked — a person at Chanlytics has it.</>
+              <>Already asked · a person at Chanlytics has it.</>
             ) : (
-              <>We got it — a person at Chanlytics will move your number with you and reach you by email.</>
+              <>We got it · a person at Chanlytics will move your number with you and reach you by email.</>
             ),
           }
         : refusalToast(r, "Request not sent"),
@@ -208,7 +208,7 @@ export const LineChooser = ({ S, flash, onDone, onKeep }: ChooserProps) => {
           <span className="setup-ask-text">
             {voice.active
               ? `AI answers on ${S.vm.tryIt && S.vm.tryIt.voiceLabel ? S.vm.tryIt.voiceLabel : "its line"}. Forward the number you have to it from the row "The number you already have" below.`
-              : "First, a line for AI to answer on — get a new number here. Then forward the number you have to it from the row below."}
+              : "First, a line for AI to answer on · get a new number here. Then forward the number you have to it from the row below."}
           </span>
           {voice.active && (
             <button
@@ -226,8 +226,8 @@ export const LineChooser = ({ S, flash, onDone, onKeep }: ChooserProps) => {
       ) : (
         <div className="setup-ask">
           <span className="setup-ask-text">
-            A person at Chanlytics files the move with your carrier. Ask, and we reach you by email for what your
-            carrier needs.
+            A person at Chanlytics files the move with your phone company. Ask, and we reach you by email for what your
+            phone company needs.
           </span>
           <button
             className="btn btn-sm"

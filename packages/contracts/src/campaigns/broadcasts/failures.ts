@@ -40,7 +40,7 @@ export function emailRunStop(reason: DeliveryRefusal): EmailRunStop | null {
 /** What the owner does about each stop, before what becomes of the run (stoppedRunFix). */
 const RUN_STOP_REMEDY: Record<RunStop, string> = {
   paused: "Resume from Settings › Billing",
-  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  email_offers_paused: "Check your list for old or wrong addresses · offers by email come back on once it looks right",
   campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told",
 };
 
@@ -92,8 +92,8 @@ export function playbookRunNext(
   if (triggerOf(run.trigger ?? "")?.kind === "visit")
     return "It does not run again today, and a reminder belongs to its day, so the people it did not reach will not be sent it later.";
   return by === "tomorrow"
-    ? "It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice."
-    : "It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
+    ? "It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice."
+    : "It does not run again today · the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
 }
 
 /** The failures that may outlast tomorrow and are not the owner's to end, as a run's page knows them (playbookRunNext). */
@@ -118,7 +118,7 @@ export function wireFailure(code: WireFailure, channel: ConsentChannel): string 
  * or a text, which needs no review.
  */
 const WHATSAPP_VERSION_FIX_WORDS =
-  "Open it in Messages — its WhatsApp version can be resubmitted, or the message written as an email or a text.";
+  "Open it in Messages · its WhatsApp version can be resubmitted, or the message written as an email or a text.";
 
 /**
  * How to get past each reason a run stops, in one sentence: a failed run says
@@ -132,22 +132,22 @@ export const BROADCAST_FAILURE_FIX: Record<BroadcastFailure, Words> = {
   wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
   run_interrupted: "Nobody got it, so sending it again reaches nobody twice.",
   throttled: {
-    whatsapp: "Nobody got it. WhatsApp lifts these limits on its own; send it again later.",
-    sms: "Nobody got it. The texting provider lifts these limits on its own; send it again later.",
-    email: "Nobody got it. The mail provider lifts these limits on its own; send it again later.",
+    whatsapp: "Nobody got it. WhatsApp lifts these limits on its own · send it again later.",
+    sms: "Nobody got it. The texting provider lifts these limits on its own · send it again later.",
+    email: "Nobody got it. The mail provider lifts these limits on its own · send it again later.",
   },
   stalled: {
-    whatsapp: "Nobody got it. Nothing is wrong with the number; send it again later.",
-    sms: "Nobody got it. Nothing is wrong with the line; send it again later.",
-    email: "Nobody got it. Nothing is wrong with the mailbox; send it again later.",
+    whatsapp: "Nobody got it. Nothing is wrong with the number · send it again later.",
+    sms: "Nobody got it. Nothing is wrong with the line · send it again later.",
+    email: "Nobody got it. Nothing is wrong with the mailbox · send it again later.",
   },
-  people_unreadable: "Nobody got it. Nothing is wrong with your channels; send it again later.",
+  people_unreadable: "Nobody got it. Nothing is wrong with your channels · send it again later.",
   after_hours: "Nobody got it. Send it again tomorrow, inside the day's sending hours.",
-  provider_limit: "Nobody got it. The mail provider's limit resets on its own; send it again once it has.",
+  provider_limit: "Nobody got it. The mail provider's limit resets on its own · send it again once it has.",
   campaigns_domain_unverified:
     "Nobody got it. Nothing is wrong with your mailbox: the platform has been told. Send it again once the domain is verified.",
   email_offers_paused:
-    "Nobody got it. Check your list for old or wrong addresses; offers by email come back on once it looks right. Send it again then.",
+    "Nobody got it. Check your list for old or wrong addresses · offers by email come back on once it looks right. Send it again then.",
 };
 
 /** The wire's own name in the sentences of BROADCAST_FAILURE_FIX_AFTER: who stopped answering, and what they limited. */

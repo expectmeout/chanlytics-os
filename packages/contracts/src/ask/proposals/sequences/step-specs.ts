@@ -190,7 +190,7 @@ export const sequenceWordsSpec: ProposalSpec = {
   },
   receipt: (_p, data) =>
     rec(data).waits === true
-      ? "The new words wait for WhatsApp; the step sends its own until then"
+      ? "The new words wait for WhatsApp · the step sends its own until then"
       : "The step sends the new words",
   undo: {
     label: () => "Put the old words back",

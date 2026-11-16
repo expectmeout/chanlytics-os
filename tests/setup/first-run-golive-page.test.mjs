@@ -150,7 +150,7 @@ test("Go live: back from Stripe before the plan lands is confirming with the ban
   assert.equal(byTestId(buying, "fr-number").props["data-stage"], "buying");
   assert.equal(
     textOf(byTestId(buying, "fr-phone-status")),
-    "Waiting on usGetting AI's number in 305…Usually a minute or two; this page updates by itself",
+    "Waiting on usGetting AI's number in 305…Usually a minute or two · this page updates by itself",
   );
   assert.deepEqual(asked.search, ["305"]);
   assert.deepEqual(asked.buy, [["+13055550142", "305"]], "the first number offered: customers never see it");
@@ -204,7 +204,7 @@ test("Go live: Stripe closed before finishing says so, and the choice waits for 
   open("live");
   const tree = mount();
   assert.equal(draftOf("first-run-phone").pending, false);
-  assert.equal(textOf(flashes.at(-1).msg), "Checkout was closed before finishing; nothing was charged.");
+  assert.equal(textOf(flashes.at(-1).msg), "Checkout was closed before finishing · nothing was charged.");
   assert.ok(byTestId(tree, "fr-pay-go"), "Pay again");
 });
 
@@ -231,7 +231,7 @@ test("Go live with no line provider here (canvas 5A·d): a person sets the line 
   let tree = open();
   const none = byTestId(tree, "fr-no-provider");
   assert.match(textOf(none), /^We set up your line with you/);
-  assert.match(textOf(none), /WhatsApp goes live now; emails keep coming to the Inbox/);
+  assert.match(textOf(none), /WhatsApp goes live now · emails keep coming to the Inbox/);
   await byTestId(tree, "fr-no-provider-ask").props.onClick();
   assert.deepEqual(asked.request, ["line"]);
   assert.match(textOf(flashes.at(-1).msg), /^Phone lines aren't automatic here yet\./);
@@ -457,7 +457,7 @@ test("Switch it on: asked again with the answers lost, the questions are about t
   setSetup(atLive(answeringLine([row])));
   let tree = open();
   assert.equal(
-    textOf(byTestId(tree, "fr-phone-code")).startsWith("Another carrier or a landline"),
+    textOf(byTestId(tree, "fr-phone-code")).startsWith("Another phone company or a landline"),
     true,
     "neither said",
   );

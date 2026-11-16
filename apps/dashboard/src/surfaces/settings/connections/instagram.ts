@@ -29,7 +29,7 @@ export const CONNECT_WORDS: Readonly<Record<string, string>> = {
 /** The words the row says for what came back from Instagram, by the outcome or its reason. */
 const OUTCOME_WORDS: Readonly<Record<string, string>> = {
   ...CONNECT_WORDS,
-  connected: "Instagram is connected — AI answers its DMs now.",
+  connected: "Instagram is connected · AI answers its DMs now.",
   declined: "Instagram did not connect: the sign-in was declined.",
   state_expired: "The way back from Instagram took too long. Start the connection again.",
   state_signature: "The way back from Instagram couldn't be verified. Start the connection again.",

@@ -26,13 +26,13 @@ const { library } = CAMPAIGN_ROOMS;
  */
 export const LIBRARY_WORDS = {
   title: library,
-  demo: `${library} reads a real workspace — the messages it holds, by email, text and WhatsApp.`,
+  demo: `${library} reads a real workspace · the messages it holds, by email, text and WhatsApp.`,
   reading: "Reading your messages…",
   failed: "Your messages couldn’t be loaded right now",
   failedWhat: "your messages",
-  failedBody: "AI keeps sending; this page just can't show what it holds at the moment.",
+  failedBody: "AI keeps sending · this page just can't show what it holds at the moment.",
   /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
-  headTip: `What AI and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp (${WHATSAPP_REVIEW_TAKES}), whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.`,
+  headTip: `What AI and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp (${WHATSAPP_REVIEW_TAKES}), whether it is written here or in WhatsApp Manager · an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.`,
   noNumber:
     "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
   /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
@@ -52,7 +52,7 @@ export const NEW_MESSAGE_WORDS = {
   /** The first choice's name: Email, Text or WhatsApp. */
   where: "Where is it sent",
   /** Under the pane's name while the message is an email's or a text's: what is not WhatsApp's. */
-  sub: "Email is written here and ready the moment it is saved; no one reviews it first.",
+  sub: "Email is written here and ready the moment it is saved · no one reviews it first.",
   /** The one quiet line over the form: what a message written here is, and where the other kind comes from. */
   own: "A message you write here is an offer or news. Reminders and follow-ups come from the starter set.",
   /** What a text says after the carriers' sentence: the way out. */
@@ -130,7 +130,7 @@ export const BROADCAST_WORDS = {
  */
 export function runStoppedWords(was: string | null | undefined): string {
   if (was === "sending") return "stops after this send";
-  return was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send";
+  return was === "pending_approval" ? "skipped · nothing will send" : "canceled · nothing will send";
 }
 
 /**
@@ -139,7 +139,7 @@ export function runStoppedWords(was: string | null | undefined): string {
  * wiring's second audit, S9-9): Today's said "approved: 7 people" where every other said "approved — 7 people".
  */
 export function runApprovedTail(people: number, when: string): string {
-  return `approved — ${people} ${people === 1 ? "person" : "people"}, ${when}`;
+  return `approved · ${people} ${people === 1 ? "person" : "people"}, ${when}`;
 }
 
 /**
@@ -223,7 +223,7 @@ const RUN_STOP_WORDS: Record<"sending" | "pending_approval" | "scheduled", RunSt
   sending: {
     verb: "Stop",
     question: (row) => `Stop ${row.name}?`,
-    detail: "Messages already out stay out; the rest do not go.",
+    detail: "Messages already out stay out · the rest do not go.",
     yes: "Yes, stop it",
   },
   pending_approval: {
@@ -250,6 +250,6 @@ export function runStopWords(state: string): RunStopWords {
  * under Get their yes. The link opens it (GET_YES_ROUTE).
  */
 export const OFFERS_IN_WRITING_WORDS = {
-  lead: "The carriers require it: their own message, or a sign-up form they signed — ",
+  lead: "The phone networks require it: their own message, or a sign-up form they signed · ",
   link: "print one from Get their yes",
 } as const;

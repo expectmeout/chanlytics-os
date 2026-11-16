@@ -365,7 +365,7 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
       kind: "number",
       route: "admin/integrations",
       subject: "WhatsApp display name declined",
-      body: "Meta declined the display name “Harbor Moving” — change it in WhatsApp Manager. Meta's reason: name format unacceptable.",
+      body: "Meta declined the display name “Harbor Moving” · change it in WhatsApp Manager. Meta's reason: name format unacceptable.",
       alert: true,
     },
   );
@@ -430,7 +430,7 @@ test("the Integrations pane offers the connection to an owner or says exactly wh
   );
   assert.ok(
     whatsapp({ whatsapp: { ready: false, reason: "no_config_id" } }).sentence.includes(
-      "the Embedded Signup configuration is missing on the Chanlytics side",
+      "WhatsApp sign-up isn't set up on Chanlytics' side",
     ),
     "the missing piece is named, not hidden",
   );
@@ -676,7 +676,7 @@ test("a window the browser refuses is said at once and the sign-up ends, so the 
     assert.deepEqual([refused.ok, refused.reason], [false, "blocked"]);
     assert.equal(
       refused.message,
-      "Meta's window was blocked. Press Connect WhatsApp again; if it still does not open, allow pop-ups for Chanlytics.",
+      "Meta's window was blocked. Press Connect WhatsApp again · if it still does not open, allow pop-ups for Chanlytics.",
     );
     assert.equal(b.asked.length, 1);
     assert.equal(b.listeners.size, 0, "nobody is left listening for Meta's window");

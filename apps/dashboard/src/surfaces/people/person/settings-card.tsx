@@ -182,12 +182,12 @@ function receptionistFold(c: PageCtx, row: ReactNode) {
 function visitHint(c: PageCtx): string {
   const { consent, word } = c.p;
   if (consent.state === "opted_in")
-    return `Yes — ${consent.sub}. Reminders about their ${appointmentWords(word).many} may go to them.`;
+    return `Yes · ${consent.sub}. Reminders about their ${appointmentWords(word).many} may go to them.`;
   if (consent.state === "opted_out")
     return consent.source === "customer_message"
       ? `${consent.sub}. Nothing goes out. Record a yes only if they ask again.`
-      : `No — ${consent.sub}. Nothing goes out to them.`;
-  return "No answer yet. Replying to them is fine; anything we start needs their yes.";
+      : `No · ${consent.sub}. Nothing goes out to them.`;
+  return "No answer yet. Replying to them is fine · anything we start needs their yes.";
 }
 
 /** Messages: the ask, with the words a yes is asked for in person. */
@@ -227,10 +227,10 @@ function visitFold(c: PageCtx, row: ReactNode) {
 function offersHint(c: PageCtx): string {
   const { consent } = c.p;
   if (consent.state === "opted_out") return `${STOP_WORDS.said("They")}, offers included.`;
-  if (consent.marketing === "opted_in") return `Yes — ${consent.marketingSub}.`;
-  if (consent.marketing === "opted_out") return `No — ${consent.marketingSub}. Other messages still reach them.`;
+  if (consent.marketing === "opted_in") return `Yes · ${consent.marketingSub}.`;
+  if (consent.marketing === "opted_out") return `No · ${consent.marketingSub}. Other messages still reach them.`;
   if (consent.marketingSource === STOP_ENDED_OFFERS_SOURCE)
-    return `Not asked — ${consent.marketingSub}. A new yes must come in writing.`;
+    return `Not asked · ${consent.marketingSub}. A new yes must come in writing.`;
   return "Not asked. Offers go only to a yes in writing.";
 }
 

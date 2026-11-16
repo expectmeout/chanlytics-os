@@ -298,7 +298,7 @@ test("the states whose next move is the owner's say the words the owner is being
     sms_state: "rejected",
     line_error: "invalid campaign description (30886 · USE_CASE_DESCRIPTION)",
   });
-  assert.match(refused.sentence, /refused the texting registration\. — invalid campaign description \(30886/);
+  assert.match(refused.sentence, /Texting wasn't approved\. — invalid campaign description \(30886/);
 });
 
 test("quiet means answering with nobody reaching them, and says for how long", () => {
@@ -1833,7 +1833,7 @@ test("marking somebody invited is conditional on them still waiting, records who
   const office = { db, session: db, role: "support", userId: "u-admin", email: "ruben@rjcapital.example" };
 
   assert.equal(await getPlatformWaitlistInvited(office, "w1", FOUND), "marked");
-  assert.ok(rows[0].invited_at, "the stamp that takes them out of the queue");
+  assert.ok(rows[0].invited_at, "the stamp that takes them out of the list");
   assert.equal(rows[0].invited_by, "u-admin", "the column the table was given for exactly this");
   // Two admins working down the same list is how this is used. The second one is owed the truth, not a failure and
   // not a second stamp; and the log says that too.
@@ -1919,7 +1919,7 @@ test("marking somebody invited is never one click, asks why, and says what it do
   assert.equal(byId(view.tree, "platform-queue-mark"), null, "the button is gone while the question stands");
   await view.press(byId(view.tree, "platform-queue-invited-yes").props.onClick);
   assert.deepEqual(calls, ["invited:w1:found"]);
-  assert.equal(reloaded, 1, "the queue on screen is a row out of date, so the page reads again");
+  assert.equal(reloaded, 1, "the list on screen is a row out of date, so the page reads again");
   assert.equal(said.length, 1, "and the person who pressed it is told what happened");
   // Billing is shown who is waiting, and no button.
   const billing = mount(PlatformWaitingRow, { row, P: backOffice.verbs, role: "billing", onDone() {}, flash() {} });

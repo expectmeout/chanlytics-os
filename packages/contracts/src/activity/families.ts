@@ -219,7 +219,7 @@ export const ACTIVITY_PAGE_WORDS = {
   sub: "What happened, and who did it · newest first",
   narrow: "Narrow it",
   /** The first box: every part of the product, or what went wrong. The second, once a part is picked: its kinds. */
-  area: { label: "Part of the product", any: "All activity", problems: "What went wrong or was stopped" },
+  area: { label: "Part of the product", any: "All activity", problems: "What didn't work or was stopped" },
   kind: { label: "Kind of activity", any: "All kinds" },
   who: { label: "Who did it", any: "Anyone", receptionist: "AI", system: "System" },
   when: {
@@ -264,7 +264,7 @@ export const ACTIVITY_PAGE_WORDS = {
   since: (time: string): string => `since ${time}`,
   /** Who did a row whose member the roster does not know (they have left the team): memberWords' word for it. */
   member: UNKNOWN_MEMBER_WORD,
-  foot: "Model usage, webhook receipts and unplaced messages are kept out of the log. Pick Kept records to see them.",
+  foot: "AI usage, providers' receipts and unplaced messages are kept out of the log. Pick Kept records to see them.",
   ownerOnly:
     "Only an owner can read the activity log: it is the whole record of the workspace, including what every member did.",
 } as const;

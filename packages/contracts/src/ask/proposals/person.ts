@@ -117,7 +117,7 @@ export const dealSpec: ProposalSpec = {
   then: (item, data) => {
     if (!item.step) return null;
     const dealId = idIn(rec(rec(data).deal), "id");
-    if (!dealId) return refuseWith("the deal came back without its id; set it on their page");
+    if (!dealId) return refuseWith("the deal came back without its id · set it on their page");
     return {
       route: "POST contacts/[id]/notes",
       params: { id: asText(item.payload.contact_id) },

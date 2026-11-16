@@ -21,7 +21,7 @@ export interface RowActs {
   openForwarding: () => void;
 }
 
-const ALREADY = <>Already asked — a person at Chanlytics has it.</>;
+const ALREADY = <>Already asked · a person at Chanlytics has it.</>;
 
 /** A person at Chanlytics asked for a line, or for a repair only Chanlytics can make (S8): gated as the line's is. */
 async function askPerson(what: "line" | "repair", to: string, k: RowActs): Promise<void> {
@@ -34,9 +34,9 @@ async function askPerson(what: "line" | "repair", to: string, k: RowActs): Promi
             msg: r.already ? (
               ALREADY
             ) : what === "line" ? (
-              <>We got it — a person at Chanlytics will set up your line with you.</>
+              <>We got it · a person at Chanlytics will set up your line with you.</>
             ) : (
-              <>We got it — a person at Chanlytics will repair your settings and reach you by email.</>
+              <>We got it · a person at Chanlytics will repair your settings and reach you by email.</>
             ),
           }
         : refusalToast(r, "Request not sent"),
@@ -62,7 +62,7 @@ async function forwardingTest(to: string, k: RowActs): Promise<void> {
     k.flash({
       tone: r.ok ? "ok" : "danger",
       msg: r.ok ? (
-        <>The window is open for 30 minutes — call the number you keep from another phone.</>
+        <>The window is open for 30 minutes · call the number you keep from another phone.</>
       ) : (
         <>{r.message}</>
       ),
@@ -92,11 +92,11 @@ async function activation(on: boolean, to: string, k: RowActs): Promise<void> {
       msg: !r.ok ? (
         <>{r.message}</>
       ) : on ? (
-        <>Activated — it is yours to use, and Setup says so.</>
+        <>Turned on. It is yours to use, and Setup says so.</>
       ) : (
         <>
-          Activation withdrawn — nothing stops answering; Setup no longer marks it as yours. Activate it again whenever
-          you like.
+          Activation withdrawn. Nothing stops answering, and Setup no longer marks it as yours. Turn it on again
+          whenever you like.
         </>
       ),
     });

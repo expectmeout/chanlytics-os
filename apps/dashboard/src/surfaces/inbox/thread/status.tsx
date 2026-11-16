@@ -182,7 +182,7 @@ function snoozedBar(p: StatusProps) {
       <div className="ix-resolved">
         <Icon name="clock" size={13} />
         <span>
-          Snoozed — back <b>{thread.wake || "tomorrow 10:00"}</b>. Nothing happens until then.
+          Snoozed · back <b>{thread.wake || "tomorrow 10:00"}</b>. Nothing happens until then.
         </span>
         <LinkButton onClick={() => onWake(thread.id)} {...gate("approve", "wake a conversation")}>
           Wake now <Icon name="arrow-right" size={10} />
@@ -429,7 +429,7 @@ function handBackButton(p: DockProps, go: () => void) {
       size="sm"
       className="ix-composer-handback"
       onClick={guardedHandBack(p, go)}
-      aria-label="Nothing needed — hand it back to AI"
+      aria-label="Nothing needed · hand it back to AI"
       data-testid="ix-hand-back"
       {...gate("approve", "hand a conversation back")}
     >

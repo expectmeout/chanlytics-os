@@ -238,7 +238,7 @@ test("What you offer draws two rows under its title, and Booking the rules, in o
     drawTab({ profile: { ...marisa, booking_rules: { consult_first: ["Extensions"] } } }),
     "rec-row-booking_rules",
   );
-  assert.match(textOf(bare), /The calendar's own — at least 2 hours' notice, up to 14 days ahead, in 30-minute slots/);
+  assert.match(textOf(bare), /The calendar's own · at least 2 hours' notice, up to 14 days ahead, in 30-minute slots/);
   assert.equal(textOf(byTestId(bare, "rec-row-act-booking_rules")).trim(), "Change");
 });
 
@@ -404,7 +404,7 @@ test("a word picked goes through the workspace's courier as { appointment_word }
     assert.deepEqual(c.sent, [{ appointment_word: "session" }], "the word alone: the zone is not sent with it");
     assert.equal(sent.length, 0, "never the settings save");
     assert.deepEqual(told(flashes.at(-1)), ["ok", appointmentWordSaved("session")]);
-    assert.equal(told(flashes.at(-1))[1], "Saved — it says “session” now.");
+    assert.equal(told(flashes.at(-1))[1], "Saved · it says “session” now.");
     assert.equal(
       textOf(byTestId(redrawTab(flash), "appointment_word-menu")).trim(),
       "Session",
@@ -648,7 +648,7 @@ test("a toast's Undo pressed after the sheet has closed puts nothing back, and s
   undo();
   assert.deepEqual(
     [flashes.at(-1).tone, said(flashes.at(-1))],
-    ["warn", "Not put back — the editor it was in has closed. Open it again to change it."],
+    ["warn", "Not put back · the editor it was in has closed. Open it again to change it."],
   );
   tree = openSheet(tree, flash);
   assert.equal(rowsOf(tree).length, 33, "it opens on what is stored");
@@ -683,7 +683,7 @@ test("the list keeps its cap of sixty through Add and through both Undos", () =>
   assert.equal(rowsOf(tree).length, LIMIT, "REGRESSION: the toast's Undo put a sixty-first back");
   assert.deepEqual(
     [flashes.at(-1).tone, said(flashes.at(-1))],
-    ["warn", "Not put back — That is the most services AI keeps (60). Remove one first."],
+    ["warn", "Not put back · That is the most services AI keeps (60). Remove one first."],
   );
   press(undoFor(tree, "Service 1"));
   tree = redrawTab(flash);
@@ -726,7 +726,7 @@ test("a save sends the stored config with the services changed, and nothing else
     "the whole config, with one service changed and every other key as it was",
   );
   assert.equal(sheetOf(tree), null, "taken, the sheet closes");
-  assert.equal(said(flashes.at(-1)), "Saved — AI picks it up within a minute");
+  assert.equal(said(flashes.at(-1)), "Saved · AI picks it up within a minute");
 });
 
 test("an unchanged Save sends nothing and closes, and so does one typed and typed back", () => {
@@ -759,7 +759,7 @@ test("what stops a save is said under its box, and nothing is sent", () => {
   assert.equal(sent.length, 0);
   assert.ok(sheetOf(tree), "the sheet stays open with what was typed");
   assert.equal(problemOf(tree, "svc-1-minutes"), "Minutes are a whole number, like 45.");
-  assert.equal(problemOf(tree, "svc-3-name"), "At most 80 characters — this is 81.");
+  assert.equal(problemOf(tree, "svc-3-name"), "At most 80 characters · this is 81.");
   assert.equal(labelled(tree, "Service 2 takes (min)").props["aria-invalid"], true);
   // Put right, its sentence goes with the change, and the save goes.
   typeAt(tree, "Service 2 takes (min)", "15");
@@ -1214,7 +1214,7 @@ test("consult-first saves one service to a line, under its own name, and says wh
   saveFoldOf(tree, "consult_first");
   tree = redrawTab();
   assert.equal(sent.length, 1);
-  assert.equal(problemOf(tree, "bt-consult-first"), "At most 20 services, one to a line — this is 21.");
+  assert.equal(problemOf(tree, "bt-consult-first"), "At most 20 services, one to a line · this is 21.");
 });
 
 test("consult-first and the booking rules share one stored object, and saved one after the other, both land", () => {
@@ -1478,7 +1478,7 @@ test("an Undo from an earlier opening says the editor it was in has closed, even
   old();
   assert.deepEqual(
     [flashes.at(-1).tone, said(flashes.at(-1))],
-    ["warn", "Not put back — the editor it was in has closed. Open it again to change it."],
+    ["warn", "Not put back · the editor it was in has closed. Open it again to change it."],
     "REGRESSION: it said the list was full",
   );
   assert.equal(rowsOf(redrawTab(flash)).length, LIMIT);

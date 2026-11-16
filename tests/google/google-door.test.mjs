@@ -1523,7 +1523,7 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   // A grant Google refused lasts until its owner reconnects: they are told, once, with the door to Connections (R11 S11-4).
   assert.deepEqual(
     tables.notifications.map((n) => [n.kind, n.title, n.route]),
-    [["sweep", "Google Business Profile stopped syncing", "admin/integrations"]],
+    [["sweep", "Google Business Profile stopped updating", "admin/integrations"]],
   );
   assert.deepEqual(tables.events, []);
   const stopped = tables.notifications[0];

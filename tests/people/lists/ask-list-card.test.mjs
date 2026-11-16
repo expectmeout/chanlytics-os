@@ -590,7 +590,7 @@ test("a list kept by hand whose people the route refused: the list stands, and t
     events: [{ type: "surface:clients" }],
   });
   assert.deepEqual(spec.then(family, {}), {
-    refused: "the list came back without its id; put them on it from People",
+    refused: "the list came back without its id · put them on it from People",
   });
   assert.equal(spec.receipt(family, { name: "Family" }, { ok: true }), "Family made, with Rosa on it.");
   assert.equal(

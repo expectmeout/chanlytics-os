@@ -78,7 +78,7 @@ export const MESSAGE_CHANGE_WORDS = {
   renamed: (title: string, was: string): string => `${was} is now called ${title}`,
   renameBack: "Give it its old name",
   nameBack: "It has its old name again",
-  away: (title: string): string => `${title} is put away — still on file`,
+  away: (title: string): string => `${title} is put away · still on file`,
   back: (title: string): string => `${title} is back in the list and the composers`,
   awayBack: "Put it back as it was",
   awayAsWas: "It is as it was",

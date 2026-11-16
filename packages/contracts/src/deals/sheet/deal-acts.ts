@@ -135,7 +135,7 @@ export function proposalFollowUp(url: string): string {
 /** What an act does, said on hover where it needs saying. Its label is DEAL_ACT_WORDS' (deals.ts). */
 export const DEAL_ACT_HINTS = {
   /** A send where only an approved message can go: it opens their thread, which offers those. */
-  approved: "Only an approved message reaches them until they write again; their conversation offers those",
+  approved: "Only an approved message reaches them until they write again · their conversation offers those",
 } as const;
 
 export interface DealAct {

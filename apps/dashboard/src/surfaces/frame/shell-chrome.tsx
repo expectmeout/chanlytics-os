@@ -82,7 +82,7 @@ function SurfaceUnavailable({ onNavigate }: { onNavigate: (to: string) => void }
     <Failed
       kind="page"
       title="Can't reach your workspace"
-      body="This isn't a quiet day — the connection failed. Nothing here would be your real data, so we're not showing anything. Your messages are still being received and answered."
+      body="This isn't a quiet day. Chanlytics couldn't connect, so nothing is shown rather than the wrong numbers. Your messages are still being received and answered."
       onRetry={() => window.location.reload()}
       also={{ label: "Back to Today", onClick: () => onNavigate("today") }}
       testid="surface-unavailable"
@@ -118,7 +118,7 @@ export const sharedViewer = ({
     <div className="shared-root" data-theme={theme} data-look={look}>
       <div className="shared-banner">
         <span className="sidebar-brand-mark">C</span>
-        <span className="shared-banner-title">Serenity Spa — Reports</span>
+        <span className="shared-banner-title">Serenity Spa · Reports</span>
         <span className="pill">Read-only</span>
         <span className="shared-banner-meta">Shared link · expires in 7 days</span>
         <span className="cal-sync-spacer" />

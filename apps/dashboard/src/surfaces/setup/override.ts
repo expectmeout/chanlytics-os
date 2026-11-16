@@ -79,7 +79,7 @@ export const setupOverride: SurfaceOverride = {
     omit: [
       {
         tables: ["google_reviews"],
-        why: "the Google row says the listing's count of reviews, which the listing carries; a review seen is no row of its",
+        why: "the Google row says the listing's count of reviews, which the listing carries · a review seen is no row of its",
       },
     ],
     when: (c) => {

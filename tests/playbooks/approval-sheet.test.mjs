@@ -118,13 +118,13 @@ test("the act says how many, and the line beside it when the send goes -- now, o
   assert.equal(expired.approve, null, "REGRESSION-IN-WAITING: a button approveRun refuses");
   assert.equal(
     expired.expired,
-    "This run was made for day 2026-09-20 and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.",
+    "This run was made for day 2026-09-20 and that day has passed: its people and its words were that day's. Skip it · the next run reads the calendar again.",
     "the verb's own sentence, with the day said as the page says days",
   );
   assert.equal(expired.goes, "made for day 2026-09-20");
   assert.equal(
     C.toApprovalVM({ broadcast: run(), recipients: people }, opts()).skip,
-    "Skipping loses this run only — the campaign keeps running.",
+    "Skipping loses this run only · the campaign keeps running.",
   );
 });
 
@@ -162,7 +162,7 @@ test("the verb's refusal and the sheet's are one predicate: a run made for a day
   const day = (today, sendsOn) => ({ today, sendsOn });
   const visit = { playbook_id: "pb1", run_for: "2026-09-21", audience: { trigger: "visit_tomorrow" } };
   const sentence = (d) =>
-    `This run was made for ${d} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`;
+    `This run was made for ${d} and that day has passed: its people and its words were that day's. Skip it · the next run reads the calendar again.`;
   // The day has passed: runDayPassed's sentence, for every kind of run.
   assert.equal(
     C.runApprovalRefusal({ ...visit, run_for: "2026-09-20" }, day("2026-09-21", "2026-09-21")),
@@ -314,7 +314,7 @@ test("a run that kept who it left out says the board's card: 186 of 312, the wai
       "3 asked you to stop",
       "3 are past what the number may start today",
       "2 have no number on file",
-      "1 waits for the next run — 8 a run, the longest unheard first",
+      "1 waits for the next run · 8 a run, the longest unheard first",
     ],
   );
   assert.equal(all.of.held, 7, "the playbook's gap and the number's day are waits; the cap is a turn, drawn grey");

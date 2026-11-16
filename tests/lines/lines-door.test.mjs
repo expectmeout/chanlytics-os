@@ -712,7 +712,7 @@ test("retry resumes only the named row of the named workspace at its own step, r
     assert.equal(b3.error, "line_not_retryable");
     assert.match(
       b3.detail,
-      /credentials couldn't be kept/,
+      /keys couldn't be kept/,
       "a retry cannot help until a person restores them, and the button says so",
     );
     assert.equal(tables.jobs.length, 0, "no refusal scheduled anything");
@@ -1023,7 +1023,7 @@ test("record validates the row it is about to write and reports the first proble
     {
       ok: false,
       error: "record_incomplete",
-      detail: "The carriers register US and Canadian businesses only. Ours is not a door we can open.",
+      detail: "The phone networks register US and Canadian businesses only. Ours is not a door we can open.",
     },
   ]);
   assert.equal(writes(db, "business_records").length, 0, "nothing written until it validates");
@@ -1142,7 +1142,7 @@ test("record: which registration is said, not inferred — a sole proprietor is 
   );
   assert.equal(ours, 400);
   assert.equal(why.error, "sole_proprietor_incomplete");
-  assert.match(why.detail, /This is the number Chanlytics answers for you\. The carriers need YOUR handset/);
+  assert.match(why.detail, /This is the number Chanlytics answers for you\. The phone networks need YOUR handset/);
   assert.deepEqual(
     await answer(await knock({ op: "record", path: "sole_proprietor", record: { ...FORM, contact_phone: "" } })),
     [400, { ok: false, error: "sole_proprietor_incomplete", detail: "Your mobile is needed." }],

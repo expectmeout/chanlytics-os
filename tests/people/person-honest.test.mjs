@@ -1898,7 +1898,7 @@ test("a person's page names the runs that reached them and what came of each -- 
       [
         "b-held",
         "Summer offer",
-        "Sent once · Text · Held — no yes to offers",
+        "Sent once · Text · Held · no yes to offers",
         "warn",
         "campaigns/sequences/b-held/runs/b-held",
       ],
@@ -1906,7 +1906,7 @@ test("a person's page names the runs that reached them and what came of each -- 
       [
         "b-refused",
         "May offer",
-        "Sent once · WhatsApp · Didn't send — the provider refused it",
+        "Sent once · WhatsApp · Didn't send · the provider refused it",
         "warn",
         "campaigns/sequences/b-refused/runs/b-refused",
       ],
@@ -2272,7 +2272,7 @@ test("REGRESSION: a reply counting down to send waits on you on People as in the
   const quiet = { needs_human: false, open_escalation_reason: null, open_escalation_since: null };
   const queued = toPersonRowVM(row({ ...quiet, queued_reply_at: iso(10_000) }), ZONE, new Date(NOW));
   assert.equal(queued.state, "needs_you", "REGRESSION: 'active' while the Inbox counted them in Needs you");
-  assert.equal(queued.stateDetail, "a reply is about to send — you can still stop it");
+  assert.equal(queued.stateDetail, "a reply is about to send · you can still stop it");
   assert.equal(
     toPersonRowVM(row(quiet), ZONE, new Date(NOW)).state === "needs_you",
     false,

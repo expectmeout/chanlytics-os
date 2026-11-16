@@ -316,7 +316,7 @@ export const pickRun = (p: {
           {
             msg: (
               <>
-                Snooze undone — <b>{r.done.length}</b> back in the Inbox
+                Snooze undone · <b>{r.done.length}</b> back in the Inbox
               </>
             ),
           },

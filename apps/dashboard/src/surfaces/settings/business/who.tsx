@@ -88,7 +88,7 @@ function btPublishedNote({ line, handoff, kept, draft }: PublishedNumbers & { dr
   if (draft.own && line)
     return (
       <>
-        <b className="tabular">{lineShown}</b> — the line AI answers. It follows the line, so changing your number
+        <b className="tabular">{lineShown}</b> · the line AI answers. It follows the line, so changing your number
         changes nothing to keep in step.
       </>
     );

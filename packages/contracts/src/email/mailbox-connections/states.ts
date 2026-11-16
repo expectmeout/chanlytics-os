@@ -284,7 +284,7 @@ export function mailboxHealthWords(mailboxCounts: MailboxCounts | null): string 
   const pct = Math.round((mailboxCounts.bounced / mailboxCounts.sent) * 1000) / 10;
   const parts = [
     `${pct}% bounced`,
-    mailboxCounts.blocked ? `${mailboxCounts.blocked} refused by the server` : null,
+    mailboxCounts.blocked ? `${mailboxCounts.blocked} refused by the email provider` : null,
     mailboxCounts.unsubscribed ? `${mailboxCounts.unsubscribed} unsubscribed` : null,
     mailboxCounts.said_no ? `${mailboxCounts.said_no} said no` : null,
     mailboxCounts.complained ? `${mailboxCounts.complained} marked as spam` : "none marked as spam",

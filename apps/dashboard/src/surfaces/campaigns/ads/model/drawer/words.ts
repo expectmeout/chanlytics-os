@@ -382,7 +382,7 @@ export const DRAWER = {
   },
   /** An ad the owner made on the platform itself: Chanlytics can pause and resume it, and nothing else. */
   adopted: (p: AdPlatform) =>
-    `Made in ${MADE_IN[p]}. Chanlytics can pause and resume it; change it in ${CHANGE_IN[p]}.`,
+    `Made in ${MADE_IN[p]}. Chanlytics can pause and resume it · change it in ${CHANGE_IN[p]}.`,
   callout: {
     review: (p: AdPlatform) =>
       `${PLATFORM_OWNER[p]} is checking your ad, ${REVIEW_WITHIN[p]}. Nothing is spent until it is approved. We'll tell you here.`,
@@ -441,7 +441,7 @@ export const PREVIEW = {
   receptionistWrites: "AI writes the real reply when someone writes.",
   replyLabel: "Example reply, written from your Services and Hours:",
   googleCaption: (line: string) =>
-    `Google shows its own number on the ad and passes the call to ${line}. On phones the button calls; on computers it shows the number.`,
+    `Google shows its own number on the ad and passes the call to ${line}. On phones the button calls · on computers it shows the number.`,
   answers: (business: string) => `AI answers, starting with: ${business}, how can I help?`,
   formFilled: "Filled in for them",
   formName: "Name",

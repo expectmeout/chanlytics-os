@@ -363,7 +363,7 @@ function personWordsOf(
   if (quote) return quote;
   if (reportRecipient.consent_after === "opted_in") return answer ?? "";
   if (reportRecipient.message_status === "failed") return NOT_DELIVERED_WORDS[via];
-  if (hiThere) return "greeted “Hi there” — no name on file";
+  if (hiThere) return "greeted “Hi there” · no name on file";
   return receiptWords(reportRecipient, clock);
 }
 

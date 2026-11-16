@@ -368,7 +368,7 @@ test("an empty website says what empty means, and claims no page it cannot back"
   assert.equal(row.props["data-empty"], "true");
   // "Not set" and nothing under it (Ruben, 10 Oct 2026: a row says its value and stops). Never that the receptionist
   // has none to give -- the owner's own words may name one -- nor the page we publish, which no receptionist is told
-  // and the carriers are filed only from the business record's own website.
+  // and the phone networks are filed only from the business record's own website.
   assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-empty"))), "Not set");
   assert.equal(
     find(row, (n) => classes(n).includes("rec-row-hint")),
@@ -442,7 +442,7 @@ test("an inline save sends the stored config with its one key changed, and every
     ...stored,
     brain: { ...stored.brain, profile: { ...stored.brain.profile, address: "10 Pier St, Brooklyn, NY 11201" } },
   });
-  assert.equal(textOf(flashes.at(-1).msg), "Saved — AI picks it up within a minute");
+  assert.equal(textOf(flashes.at(-1).msg), "Saved · AI picks it up within a minute");
   assert.deepEqual(openRows(redrawTab(flash)), [], "accepted, the editor closes");
 
   // A key of the brain itself, beside the profile.
@@ -1674,7 +1674,10 @@ test("a save of the name says what the sign-up page and sign say now, and where 
 
   answering({ from: "Marisa's Beauty Salon", to: "Marisa's Salon & Spa", carriers_hold: "Marisa's Beauty Salon" });
   const held = rename("Marisa's Salon & Spa");
-  assert.match(textOf(held.msg), /say “Marisa's Salon & Spa” now\. The carriers still hold “Marisa's Beauty Salon”/);
+  assert.match(
+    textOf(held.msg),
+    /say “Marisa's Salon & Spa” now\. The phone networks still hold “Marisa's Beauty Salon”/,
+  );
   assert.equal(held.action.label, "Request a name change");
 
   // The press asks a person at Chanlytics (setup_request 'name') through Setup's verb, which the card imports
@@ -1686,7 +1689,10 @@ test("a save of the name says what the sign-up page and sign say now, and where 
   try {
     await held.action.onClick();
     assert.deepEqual(asked, ["name"], "one request, for one press");
-    assert.match(textOf(flashes.at(-1).msg), /^Requested: a person at Chanlytics changes the name with the carriers/);
+    assert.match(
+      textOf(flashes.at(-1).msg),
+      /^Requested: a person at Chanlytics changes the name with the phone networks/,
+    );
     await held.action.onClick();
     assert.match(textOf(flashes.at(-1).msg), /^Already asked/, "a second press the same day is said as the one before");
   } finally {
@@ -1701,7 +1707,7 @@ test("a save of the name says what the sign-up page and sign say now, and where 
 
   // A save that renamed nothing says what every row says.
   answering(null);
-  assert.equal(textOf(rename("Marisa's Salon").msg), "Saved — AI picks it up within a minute");
+  assert.equal(textOf(rename("Marisa's Salon").msg), "Saved · AI picks it up within a minute");
 });
 
 test("a save the server refuses is said in its words, and the editor stays open with what was typed", async () => {
@@ -1771,7 +1777,7 @@ test("the number it gives out: your line stores nothing, and a different number 
       ["A different number", false],
     ],
   );
-  assert.match(textOf(byTestId(tree, "rec-inline-phone_display-note")), /\+1 \(305\) 555-0123 — the line AI answers/);
+  assert.match(textOf(byTestId(tree, "rec-inline-phone_display-note")), /\+1 \(305\) 555-0123 · the line AI answers/);
   press(radios(tree)[1]);
   tree = redrawTab(flash);
   assert.equal(
@@ -2262,7 +2268,7 @@ test("a fold whose own part of the settings moved after it was typed in is refus
   assert.equal(sent.length, 0, "nothing sent");
   assert.deepEqual(
     [flashes.at(-1).tone, textOf({ props: { children: flashes.at(-1).msg } })],
-    ["danger", "Not saved — this changed after you opened it. Close it and open it again to see what is there now."],
+    ["danger", "Not saved · this changed after you opened it. Close it and open it again to see what is there now."],
   );
   assert.deepEqual(
     [openFolds(tree), foldOf(tree, "hours").props["aria-busy"]],

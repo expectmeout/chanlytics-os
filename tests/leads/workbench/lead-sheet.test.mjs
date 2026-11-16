@@ -974,14 +974,14 @@ test("many at once say who can't join, and what an add left out stays selected",
   assert.equal(W.bulk.noEmail(2), "2 have no email");
   assert.equal(W.bulk.addTo(5, "Bookstore intro"), "Add 5 to Bookstore intro");
   assert.equal(W.bulk.stay(1), "1 couldn't join and stays selected");
-  assert.equal(W.picker.newLineMany(5), "Name it; the 5 wait in it as a draft");
+  assert.equal(W.picker.newLineMany(5), "Name it · the 5 wait in it as a draft");
 });
 
 test("the picker says when its emails are written in the owner's words, never the code's (30 Oct 2026)", () => {
   // REGRESSION: "Name it now; write the emails after the pile": the pile is the code's name for the leads being decided.
   const W = LEAD_SHEET_WORDS.picker;
   for (const line of [W.none, W.newLine]) assert.doesNotMatch(line, /pile/i, line);
-  assert.equal(W.newLine, "Name it now; write its emails when you're done here");
+  assert.equal(W.newLine, "Name it now · write its emails when you're done here");
 });
 
 test("REGRESSION (the live run of 14 Nov 2026): New says before its press that leads with no email won't be written to, and makes nothing where none has one", () => {

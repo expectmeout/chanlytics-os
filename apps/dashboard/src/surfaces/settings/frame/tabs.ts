@@ -53,7 +53,7 @@ export const SET_TABS: readonly SetTab[] = [
   { id: "autonomy", label: "Autonomy", icon: "shield", group: "AI" },
   // What Chanlytics says when it writes to businesses for you (decisions 0113, 0116): away from the receptionist, since
   // it answers no one. Its route id stays `outreach`, as `workspace` does for Details: bells and Ask's answers name it.
-  { id: "outreach", label: "Cold email", icon: "send", group: "Outreach" },
+  { id: "outreach", label: "Cold email", icon: "send", group: "Cold email" },
   { id: "team", label: "Team", icon: "users", group: "Workspace" },
   // The tab reads Connections; its ROUTE id stays "integrations". Notification rows written before today carry route
   // "admin/integrations" in the database, and a rename would turn every one of those bells into a dead link. The word

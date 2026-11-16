@@ -15,28 +15,28 @@ import { labRgb, type Palette } from "./colour";
 import { tilesOf } from "./draw";
 
 const VERT = `#version 300 es
-in vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }`;
+in vec2 p · void main(){ gl_Position = vec4(p, 0.0, 1.0); }`;
 const FRAG = `#version 300 es
 precision highp float;
-uniform vec2 uRes; uniform float uK; uniform float uLiq; uniform vec3 uSh;
+uniform vec2 uRes · uniform float uK; uniform float uLiq · uniform vec3 uSh;
 uniform vec4 uA[3]; uniform vec4 uS[3]; uniform vec4 uC[3]; uniform float uR[3];
 out vec4 o;
-vec2 rot(vec2 q, float a){ float c = cos(a), s = sin(a); return vec2(c*q.x + s*q.y, -s*q.x + c*q.y); }
-float box(vec2 q, float h, float r){ vec2 d = abs(q) - vec2(h - r); return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - r; }
-float tile(int i, vec2 P, float grow){ vec4 a = uA[i]; if (a.z < 0.5) return 1e5; return box(rot(P - a.xy, a.w), a.z * 0.5 + grow, max(0.0, uR[i] + grow)); }
-float smin(float a, float b, float k){ if (k <= 0.0) return min(a, b); float h = max(k - abs(a - b), 0.0) / k; return min(a, b) - h * h * k * 0.25; }
+vec2 rot(vec2 q, float a){ float c = cos(a), s = sin(a) · return vec2(c*q.x + s*q.y, -s*q.x + c*q.y); }
+float box(vec2 q, float h, float r){ vec2 d = abs(q) - vec2(h - r) · return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - r; }
+float tile(int i, vec2 P, float grow){ vec4 a = uA[i]; if (a.z < 0.5) return 1e5 · return box(rot(P - a.xy, a.w), a.z * 0.5 + grow, max(0.0, uR[i] + grow)); }
+float smin(float a, float b, float k){ if (k <= 0.0) return min(a, b) · float h = max(k - abs(a - b), 0.0) / k · return min(a, b) - h * h * k * 0.25; }
 vec4 over(vec4 dst, vec4 src){ return src + dst * (1.0 - src.a); }
 float soft(float d, float sigma){ return 1.0 / (1.0 + exp(1.702 * d / sigma)); }
 void main(){
   vec2 P = vec2(gl_FragCoord.x - uRes.x * 0.5, (uRes.y - gl_FragCoord.y) - uRes.y * 0.5);
   vec4 acc = vec4(0.0);
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0 · i < 3 · i++) {
     float sa = uC[i].a * soft(tile(i, P - uS[i].xy, uS[i].w), max(uS[i].z, 0.5));
     acc = over(acc, vec4(uSh * sa, sa));
     float ta = clamp(0.5 - tile(i, P, 0.0), 0.0, 1.0);
     acc = over(acc, vec4(uC[i].rgb * ta, ta));
   }
-  if (uLiq <= 0.001) { o = acc; return; }
+  if (uLiq <= 0.001) { o = acc · return; }
   float d0 = tile(0, P, 0.0), d1 = tile(1, P, 0.0), d2 = tile(2, P, 0.0);
   float du = smin(smin(d0, d1, uK), d2, uK);
   float s0 = tile(0, P - uS[0].xy, uS[0].w), s1 = tile(1, P - uS[1].xy, uS[1].w), s2 = tile(2, P - uS[2].xy, uS[2].w);

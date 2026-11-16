@@ -104,9 +104,9 @@ function BrokenConfig({ issues, flash }: { issues: readonly string[]; flash: Fla
       r.ok
         ? {
             msg: r.already ? (
-              <>Already asked — a person at Chanlytics has it.</>
+              <>Already asked · a person at Chanlytics has it.</>
             ) : (
-              <>We got it — a person at Chanlytics will repair your settings and reach you by email.</>
+              <>We got it · a person at Chanlytics will repair your settings and reach you by email.</>
             ),
           }
         : refusalToast(r, "Request not sent"),

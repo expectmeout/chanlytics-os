@@ -322,7 +322,7 @@ test("a starter card on a number WhatsApp flagged keeps the workspace's own reas
   const s = r.proposal.summary;
   assert.match(
     s,
-    / · WhatsApp waits: WhatsApp flagged this number's quality[^·]* Its runs hold those people until it can\./,
+    / · WhatsApp waits: WhatsApp flagged this number's quality.*? Its runs hold those people until it can\./,
   );
   assert.ok(!s.includes(LIBRARY_STARTER_WORDS.whatsappForReview), s);
   assert.ok(!s.includes("until WhatsApp approves it"), s);

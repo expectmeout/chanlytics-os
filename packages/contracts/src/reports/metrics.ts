@@ -16,7 +16,7 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   customer_messages:
     "Messages your customers sent you, on every channel. A call, a message sent to them, and history brought in from before Chanlytics are not counted.",
   answered_share:
-    "Of the customer messages that came in, the share whose first reply was AI's. A message you answered first, and one nobody answered, are not AI's; a campaign message is nobody's answer.",
+    "Of the customer messages that came in, the share whose first reply was AI's. A message you answered first, and one nobody answered, are not AI's · a campaign message is nobody's answer.",
   reply_median:
     "The middle time from a customer's message to AI's first reply, including the hold you set before replies go out. A message you answered first, or that nobody answered, is not counted.",
   handovers:
@@ -28,7 +28,7 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
     "Of the people who wrote or called in this period, how many have a booking on your calendar, ahead or begun no more than a day before they asked. It is a dash where no calendar is connected or it couldn't be read.",
   delivered_share: `Of the messages sent, the share the channel reports as delivered or read (${DELIVERY_RECEIPTS_WORDS}). A message with no receipt yet is not counted as delivered.`,
   said_yes: `People who said yes to being messaged ${REPLY_WINDOW_WORDS} of a campaign reaching them, in their own words or recorded at the desk, counted once in the period. A yes with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
-  asked_to_stop: `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign reaching them, by STOP, a carrier's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
+  asked_to_stop: `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign reaching them, by STOP, a phone company's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
   rating:
     "Your Google rating as of the last check: the average of every rating Google holds for your listing, not only this period's.",
   reviews: "How many ratings Google counts for your listing as of the last check, with words or without.",
@@ -39,14 +39,14 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   reviews_written:
     "Reviews written in this period, with words or without, by the day Google dates them, from your Business Profile. A review Google later removes stays on record and is still counted.",
   reviews_answered:
-    "Of the reviews written in this period, how many have a reply on Google, from you or AI. A review with no reply yet is not answered. A reply counts as AI's where the last reply Chanlytics recorded under the review was its own; every other reply is yours, written here or on Google.",
+    "Of the reviews written in this period, how many have a reply on Google, from you or AI. A review with no reply yet is not answered. A reply counts as AI's where the last reply Chanlytics recorded under the review was its own · every other reply is yours, written here or on Google.",
   review_reply_time:
     "The middle time from a review being written to its reply, over this period's reviews that have one. A reply you changed later counts from the change. It needs three replies to be said.",
   handover_first_reply:
     "The middle time from AI handing a conversation to you, over the handovers that wanted a message, to the first message a person sent in it that went out. A handover for an opt-out or a call-back (which wants none), one nobody has replied to yet, and a message the system sent are not counted.",
   handover_settled:
     "The middle time from AI handing a conversation to you to its being settled, over this period's handovers that have been. A handover for an opt-out or a call-back, one still open, and one settled before settling was recorded are not counted.",
-  missed_calls_answered: `Of the people who rang in this period and found nobody (the call never connected, or reached voicemail), how many you or AI reached within ${MISSED_CALL_TOUCH_WORDS}, by a message that went out or a call that got through. A person counts once, at their first such call; a call AI placed, a person whose call is under ${MISSED_CALL_TOUCH_WORDS} old, and a call with no caller on record are not counted.`,
+  missed_calls_answered: `Of the people who rang in this period and found nobody (the call never connected, or reached voicemail), how many you or AI reached within ${MISSED_CALL_TOUCH_WORDS}, by a message that went out or a call that got through. A person counts once, at their first such call · a call AI placed, a person whose call is under ${MISSED_CALL_TOUCH_WORDS} old, and a call with no caller on record are not counted.`,
   answered_while_closed:
     "Of the customer messages that came in while your opening hours and closures say you were closed, how many AI answered first. A message that came while you were open, one you answered first, and one nobody answered are not counted as answered. It is a dash until you set your opening hours.",
   waiting_on_you:
@@ -60,7 +60,7 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   yeses_won:
     "The yeses people gave in this period, one for each person and each kind of message (messages, offers, offers by email), in their own words or recorded at the desk. A merge restating a yes, a client list imported, which never records a yes, a person who asked to be forgotten, and a record merged into another are not counted.",
   stops_recorded:
-    "The stops people gave in this period, one for each person and each kind of message they stopped, by their own STOP, an unsubscribe link, a complaint, the carrier or at the desk. A merge restating a stop, the end of a yes to offers that a STOP brings with it, a person who asked to be forgotten, and a record merged into another are not counted.",
+    "The stops people gave in this period, one for each person and each kind of message they stopped, by their own STOP, an unsubscribe link, a complaint, their phone company or at the desk. A merge restating a stop, the end of a yes to offers that a STOP brings with it, a person who asked to be forgotten, and a record merged into another are not counted.",
   steps_overdue:
     "People whose earliest open step has a day before today, as of now, whatever period is picked. A step with no day, a step already done, and a later step of the same person are not counted.",
   steps_due_today:
@@ -82,11 +82,11 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   emails_bounced:
     "Emails your cold email wrote in this period that bounced for good: the address refused them and will go on refusing. A complaint, and an email that is only late, are not counted.",
   people_sent_to:
-    "People a campaign sent a message to in this period, counted once however many it sent them. A person a run held back, a message that failed before it left and an email to a lead are not counted.",
-  people_wrote_back: `Of the people sent a message in this period, how many answered in their own words ${REPLY_WINDOW_WORDS}, on any channel, counted once. A note the system wrote, an automatic reply, a booking tool's notice and an answer that came later are not counted; people sent to in the last ${REPLY_DAYS} may still answer.`,
+    "People a campaign sent a message to in this period, counted once however many it sent them. A person a run held back, a message that didn't send and an email to a lead are not counted.",
+  people_wrote_back: `Of the people sent a message in this period, how many answered in their own words ${REPLY_WINDOW_WORDS}, on any channel, counted once. A note the system wrote, an automatic reply, a booking tool's notice and an answer that came later are not counted · people sent to in the last ${REPLY_DAYS} may still answer.`,
   runs_waiting:
-    "Runs waiting for your approval, as of now, whatever period is picked: a campaign's, a one-off send's or a step to leads. A run you approved, skipped or that already went is not counted; one whose day has passed is counted, and can only be skipped.",
-  runs_failed: `Runs that ended as failed in the last ${STUCK_DAYS}, as of now, whatever period is picked: a campaign's, a one-off send's or a step to leads. A run you canceled or skipped, and a person held back from a run that went, are not counted.`,
+    "Runs waiting for your approval, as of now, whatever period is picked: a campaign's, a one-off send's or a step to leads. A run you approved, skipped or that already went is not counted · one whose day has passed is counted, and can only be skipped.",
+  runs_failed: `Runs that stopped on a problem in the last ${STUCK_DAYS}, as of now, whatever period is picked: a campaign's, a one-off send's or a step to leads. A run you canceled or skipped, and a person held back from a run that went, are not counted.`,
   campaign_replies_waiting: `People who answered a campaign in the last ${STUCK_DAYS} whose conversation waits for a person, as of now, whatever period is picked. One a teammate or you have taken over, and one put aside until later, are not counted.`,
   templates_paused:
     "WhatsApp messages Meta paused, turned off or rejected, as of now, whatever period is picked. A message hidden from the library and one only waiting for review are not counted.",

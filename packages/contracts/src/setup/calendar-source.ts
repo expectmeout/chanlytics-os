@@ -200,7 +200,7 @@ function readLink(sourceFacts: CalendarSourceFacts, step: BookingEmailsStep | nu
       state: "ready",
       tone: "ok",
       words: CALENDAR_FEED_WORDS.stale,
-      ...leadAndRest("The latest read failed, so this is the last good one."),
+      ...leadAndRest("The latest update didn't work, so this is the last good one."),
       times: true,
       next: TO_THE_BOARD,
     };

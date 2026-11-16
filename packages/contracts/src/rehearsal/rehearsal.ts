@@ -187,7 +187,7 @@ export const REHEARSE_WORDS = {
     mic: "Allow the microphone when your browser asks: it's how it hears you.",
     micBlocked: "Your browser blocked the microphone. Allow it in the address bar, or type instead.",
     dropped: "The call dropped. What was said is kept: see how it did, or call again.",
-    failed: "The call couldn't start. Nothing was spent; try again, or type instead.",
+    failed: "The call couldn't start. Nothing was spent · try again, or type instead.",
     ended: "Call ended",
     listening: "It's listening",
     notLive: "Calls in the browser answer on the live app only.",
@@ -210,7 +210,7 @@ export const REHEARSE_WORDS = {
     window === "preview"
       ? "That's all a preview calls. Make it yours to keep talking."
       : window === "before_plan"
-        ? "Your free minutes are used. Go live to keep talking; typing is still free."
+        ? "Your free minutes are used. Go live to keep talking · typing is still free."
         : "This month's minutes are used. Typing is still free.",
   running: "A call is still running. End it first, or wait a minute.",
   /** On a test call, what a transfer would have done (D4): a rehearsal dials nobody. */

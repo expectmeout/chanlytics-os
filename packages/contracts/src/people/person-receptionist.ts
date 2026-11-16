@@ -124,7 +124,7 @@ const HELD_THREAD: Record<ThreadHolder, { tone: ReceptionistTone; label: string;
     tone: "paused",
     label: "Paused, a person owns the conversation",
     title: "Paused, a person owns this conversation",
-    detail: "A person owns this conversation; automatic replies resume when it is handed back.",
+    detail: "A person owns this conversation · automatic replies resume when it is handed back.",
   },
 };
 
@@ -152,7 +152,7 @@ export function heldThreadOf(
 /** A person who asked to stop, in the receptionist's words (STOP_WORDS says the stop): the row's fact and the Right now card. */
 export const SILENT_STOP = {
   label: `Silent, ${STOP_WORDS.pill.toLowerCase()}`,
-  detail: `${STOP_WORDS.said("They")} — nothing goes out to them until they ask again.`,
+  detail: `${STOP_WORDS.said("They")} · nothing goes out to them until they ask again.`,
 } as const;
 
 /**
@@ -214,7 +214,9 @@ export function personReceptionistOf(
   // One verdict, read once (standing.ts): a snooze puts the thread aside whatever else is open on it. A reply counting down
   // to send is still the thing to say (the receptionist keeps answering a snoozed thread, and People counts it as Needs you).
   if (personStanding(person, nowMs, viewerId).standing === "snoozed")
-    return person.queued_reply_at ? { tone: "queued", label: "Reply queued" } : snoozedReceptionist(person, tz, nowMs);
+    return person.queued_reply_at
+      ? { tone: "queued", label: "Reply waiting to go" }
+      : snoozedReceptionist(person, tz, nowMs);
   // A thread a person has is theirs, whatever flagged it — the Inbox says "You have it" or "Ruben has it" for the
   // same row, and the two must not disagree.
   const held = holderOf(person, nowMs, viewerId);
@@ -226,7 +228,7 @@ export function personReceptionistOf(
   const request = askedFor(person);
   if (request) return { tone: "escalated", label: `Escalated, ${reasonShort(request)}` };
   if (person.needs_human) return { tone: "escalated", label: "Waiting for a person" };
-  if (person.queued_reply_at) return { tone: "queued", label: "Reply queued" };
+  if (person.queued_reply_at) return { tone: "queued", label: "Reply waiting to go" };
   if (person.consent === "opted_out" || person.dnc) return { tone: "silent", label: SILENT_STOP.label };
   // "Answering" was shown for a person the owner had set to Never.
   if (person.effective_reply_mode === "never")

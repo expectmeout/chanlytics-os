@@ -62,7 +62,7 @@ export function isCheckoutReturn(value: unknown): value is CheckoutReturn {
 /** The words the pages say for what came back from Stripe (the query the card reads once). */
 export const CHECKOUT_OUTCOME_WORDS: Record<string, string> = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
-  cancel: "Checkout was closed before finishing; nothing was charged.",
+  cancel: "Checkout was closed before finishing · nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute.",
 };
 

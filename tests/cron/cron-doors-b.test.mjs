@@ -408,7 +408,7 @@ test("calls: a call left 'ongoing' is asked about once nobody has heard from it 
   assert.deepEqual(
     [body.ok, body.candidates, body.closed, body.stillLive, body.unknown],
     [true, 4, 2, 1, 1],
-    "two ended, one still up, one the provider does not know: each counter is the provider's word, not the row's place in the queue",
+    "two ended, one still up, one the provider does not know: each counter is the provider's word, not the row's place in the list",
   );
   assert.deepEqual(
     net.calls.map((c) => c.url),
@@ -1886,7 +1886,7 @@ test("google: a connected profile not synced for twenty hours is synced as the o
     tables.notifications.filter((n) => n.tenant_id === T2).map((n) => [n.kind, n.title, n.route, n.subject_type]);
   assert.deepEqual(
     toldT2(),
-    [["sweep", "Google Business Profile stopped syncing", "admin/integrations", "google_connection"]],
+    [["sweep", "Google Business Profile stopped updating", "admin/integrations", "google_connection"]],
     "a grant Google refused lasts until its owner reconnects: they are told at once, on the bell, with the door to Connections (R11 S11-4)",
   );
 
@@ -3062,7 +3062,7 @@ test("registrations: a line the vault holds no token for is written to (last_err
     assert.equal(
       l.last_error,
       "could not read the registration: the line has no credentials on file",
-      "the reason on the row, and a write that moves it down the queue",
+      "the reason on the row, and a write that moves it down the list",
     );
     assert.equal(l.sms_state, "registering", "the state is not guessed at");
     assert.equal(l.state_since, ago(3 * DAY));

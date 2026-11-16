@@ -65,7 +65,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
   },
   card: "Your card",
   /** Stripe's checkout could not be mounted in the page (Stripe.js refused, or blocked). */
-  checkoutFailed: "Stripe's checkout couldn't open here. Try again in a moment; nothing was charged.",
+  checkoutFailed: "Stripe's checkout couldn't open here. Try again in a moment · nothing was charged.",
   secured: (days: number) => (days ? "Nothing is charged today · secured by Stripe" : "Secured by Stripe"),
   confirming: "Confirming with your bank…",
   confirmingLead: "Some banks ask you to approve in their app. This page moves on by itself.",
@@ -76,7 +76,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
     /** What goes live now without the line, of what is connected: WhatsApp's number, a mailbox's mail; null for none. */
     now: (whatsapp: boolean, email: boolean): string | null =>
       whatsapp && email
-        ? "WhatsApp goes live now; emails keep coming to the Inbox"
+        ? "WhatsApp goes live now · emails keep coming to the Inbox"
         : whatsapp
           ? "WhatsApp goes live now"
           : email
@@ -120,12 +120,12 @@ export const FIRST_RUN_GOLIVE_WORDS = {
       "Paste the code in Meta's window. Done.",
     ],
     keepAppAfter:
-      "You keep using the app. AI answers what you don't; your replies from the app show in Inbox too, and your WhatsApp contacts come into People.",
+      "You keep using the app. AI answers what you don't · your replies from the app show in Inbox too, and your WhatsApp contacts come into People.",
     ifNot: "If you'd rather not share your chats",
     ifNotSays: [
       "WhatsApp still connects, and you keep the app.",
       "Every chat from now on comes into Inbox, and AI answers what you don't.",
-      "Your older chats stay only in the app. Meta offers the history once, while the number connects; to bring it later, WhatsApp has to be connected again from Settings.",
+      "Your older chats stay only in the app. Meta offers the history once, while the number connects · to bring it later, WhatsApp has to be connected again from Settings.",
     ],
     openMeta: "Open Meta's window",
     skipWhatsapp: "Skip WhatsApp for now",
@@ -157,7 +157,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
     /** The way on to writing to businesses: Settings' Cold email, where a business that wants it starts. */
     coldEmail: "Write to businesses too: Cold email",
     coldEmailTo: "admin/outreach",
-    movesLead: "Drafted from what's connected; each waits for your yes",
+    movesLead: "Drafted from what's connected. Each waits for your approval",
     yes: {
       title: "Ask your customers for their yes",
       says: (yes: number, of: number | null) =>
@@ -185,7 +185,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
       "Usually a few minutes, sometimes a day. Nothing to do: it switches on by itself, and your chat history comes in with it.",
     whatsappLater: "WhatsApp · later",
     whatsappLaterSays:
-      "Without WhatsApp it can't send a caller your booking link: it takes their details for you, or points them to your website. Connect any time from Today; your last six months of chats come in then.",
+      "Without WhatsApp it can't send a caller your booking link: it takes their details for you, or points them to your website. Connect any time from Today · your last six months of chats come in then.",
     whatsappConnect: "Connect WhatsApp now",
     /** Chosen at Where it answers and not connected yet: everything else answers, and WhatsApp joins once approved. */
     whatsappConnectSays:

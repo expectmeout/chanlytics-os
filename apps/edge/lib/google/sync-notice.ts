@@ -66,7 +66,7 @@ export async function tellSyncStopped(
           lastSyncedMs: conn.last_synced_at ? Date.parse(conn.last_synced_at) : null,
           nowMs,
         }),
-        redactedBody: "A workspace's Google Business Profile stopped syncing.",
+        redactedBody: "A workspace's Google Business Profile stopped updating.",
         onceKey: `google_sync_stopped:${conn.tenant_id}:${lastGood}`,
       },
       { db },

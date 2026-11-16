@@ -248,7 +248,7 @@ test("a campaign whose only channel cannot deliver is a card of what to fix: Wha
   const world = { tenant_channels: whatsapp(PAYMENT_FAILING), lines: [], mailboxes: [], templates: [offer] };
   const { made, rows } = propose({ trigger: "quiet_30", template_id: OFFER }, world);
   const PAYMENT =
-    "The card on your WhatsApp account has a problem, so reminders and campaigns wait; they go once it is fixed.";
+    "The card on your WhatsApp account has a problem, so reminders and campaigns wait · they go once it is fixed.";
   assert.deepEqual(fixOf(await made), {
     kind: "fix",
     title: "Fix WhatsApp first",

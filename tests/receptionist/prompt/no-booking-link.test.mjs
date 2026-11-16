@@ -181,7 +181,7 @@ test("the openings, a caller's appointment and a correction on a call each end i
   ];
   assert.ok(
     describeOpenings(openings, TZ, { daysAhead: 14, hasBookingLink: false }).endsWith(
-      `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`,
+      `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself · the calendar decides.`,
     ),
   );
   assert.equal(
@@ -193,7 +193,7 @@ test("the openings, a caller's appointment and a correction on a call each end i
     last: null,
   };
   const said = describeVisits(visits, TZ, monday - 86_400_000, { hasBookingLink: false });
-  assert.ok(said.includes("to change or cancel it, say the team will follow up — nothing is changed from here."));
+  assert.ok(said.includes("to change or cancel it, say the team will follow up · nothing is changed from here."));
   assert.doesNotMatch(said, /booking link/);
   const corrected = frameGuardrail("price", { hasBookingLink: false });
   assert.ok(
