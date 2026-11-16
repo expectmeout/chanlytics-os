@@ -75,3 +75,20 @@ copy smaller and recompressed, Instagram's at full size. A file's fingerprint is
    and nothing added to `files_let_go`, so a person may still add it. The page hears it as any file's change.
 5. Files that came before carry no print: `tooling/scripts/ops/files/file-prints-backfill.mjs` prints them (dry run by default, a
    backup first, `--apply`), the same door judging each.
+
+## Amended, 16 Nov 2026: a website is read again on its own, once a month
+
+Written against main `ea622ab1db`. A site read once shows what it showed that day; a business adds photos and videos to its
+site long after. Saving a new website in Settings already reads it at once (the dashboard's settings write). Now:
+
+1. **Once a month on its own.** The health sweep's pass (edge `imports/sites-again.ts`), every half hour, asks for a read of
+   up to ten active workspaces' sites last tried a month ago or more, the longest waiting first, thirty seconds apart: 480 a
+   day, 14,400 a month, past which the month stretches until the number is raised. Last tried is the start of the site's run
+   on the ledger (`imports`, `website_media`), which every read stamps, found or failed; a site read before the ledger kept
+   its run is timed by its read (`business_reads`). Paused, test and lead's preview workspaces are never read on their own.
+2. **A failed monthly read keeps nothing.** The job carries `again`; a read that fails then leaves the last good one standing
+   (`readWebsite`), so a site down for a day does not take the facts Check offers or the shots to film. Its try is on the
+   ledger, so it waits another month.
+3. **A workspace that names no website now** has that kept on the ledger as its try, and nothing is read.
+4. What it brings is judged as any read's is: a photo or video already here, let go, or the twin of one here is not brought
+   again (00551, 00630). Each read is a few pages and one small model call, platform-spent.

@@ -31,7 +31,7 @@ what the script writes.
 | [`billing_accounts`](#billing_accounts) | `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/billing/ended.ts`, `packages/db/src/repositories/billing/plan.ts`, `packages/db/src/repositories/campaigns/reach-out/checks.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts` | on, 1 policy |
 | [`billing_card_marks`](#billing_card_marks) | none | on, no policy, so only the service role reaches it |
 | [`billing_events`](#billing_events) | `packages/db/src/repositories/billing/events.ts` | on, no policy, so only the service role reaches it |
-| [`business_reads`](#business_reads) | `packages/db/src/repositories/imports/business-reads.ts` | on, 1 policy |
+| [`business_reads`](#business_reads) | `packages/db/src/repositories/imports/business-reads.ts`, `packages/db/src/repositories/imports/sites-again.ts` | on, 1 policy |
 | [`business_records`](#business_records) | `packages/db/src/repositories/campaigns/reach-out/checks.ts`, `packages/db/src/repositories/lines/lines.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts` | on, 1 policy |
 | [`calls`](#calls) | `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/reports/activity.ts`, `packages/db/src/repositories/voice/call-rows.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/voice/sweeps.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | `packages/db/src/repositories/workspace/setup-rows.ts` | on, 4 policies |
@@ -59,7 +59,7 @@ what the script writes.
 | [`google_listings`](#google_listings) | `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/google/listing.ts`, `packages/db/src/repositories/imports/business-reads.ts` | on, 1 policy |
 | [`google_reviews`](#google_reviews) | `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/google/reviews.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/conversations/idempotency.ts` | on, 1 policy |
-| [`imports`](#imports) | `packages/db/src/repositories/imports/ledger.ts` | on, 1 policy |
+| [`imports`](#imports) | `packages/db/src/repositories/imports/ledger.ts`, `packages/db/src/repositories/imports/sites-again.ts` | on, 1 policy |
 | [`invitations`](#invitations) | `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts` | on, 1 policy |
 | [`job_kinds`](#job_kinds) | `packages/db/src/repositories/jobs/jobs.ts` | on, no policy, so only the service role reaches it |
 | [`jobs`](#jobs) | `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/jobs/jobs.ts`, `packages/db/src/repositories/jobs/ledger.ts`, `packages/db/src/repositories/leads/sweep.ts` | on, no policy, so only the service role reaches it |
@@ -623,7 +623,7 @@ Foreign keys:
 
 What the Business Profile and the website say, one row per workspace and source (decision 0073, R10, R17): services and prices, hours and days closed, booking rules, questions answered, words, for the owner to check at Check. Nothing here reaches a customer until the owner taps it into the record. Members read their workspace's; the edge writes.
 
-- Owned by: `packages/db/src/repositories/imports/business-reads.ts`
+- Owned by: `packages/db/src/repositories/imports/business-reads.ts`, `packages/db/src/repositories/imports/sites-again.ts`
 - Primary key: `tenant_id`, `source`
 - Row-level security: on, 1 policy
 
@@ -1506,7 +1506,7 @@ Foreign keys:
 
 What was brought in (decision 0073, R23; 0086): one row a mailbox for what a mailbox brings (mailbox, contacts), one a workspace for every other source; its state, counts, reach, parts, last error and the run that holds it. Everything it counts is before Chanlytics: shown, never counted as today's, never answered, never a yes. Members read their workspace's; the jobs and the clients' file import write through import_ledger_note.
 
-- Owned by: `packages/db/src/repositories/imports/ledger.ts`
+- Owned by: `packages/db/src/repositories/imports/ledger.ts`, `packages/db/src/repositories/imports/sites-again.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
