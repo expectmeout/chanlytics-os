@@ -12,7 +12,9 @@
  *                            leaves, and so does a missed visit's message once the word is taken back.
  *   the booking link sent    Each sequence on `asked_no_booking` takes the person in for the next day (askFollowUpAt),
  *                            unless they already hold a visit ahead, or the message was a campaign's own: a follow-up
- *                            that carries the link is not someone asking.
+ *                            that carries the link is not someone asking. Where the workspace's switch for the reply
+ *                            in the open chat is on (decision 0135), earlier that day if that keeps it inside their
+ *                            WhatsApp chat (chatClosesAt).
  *
  * Nothing is sent here. A row is kept once per sequence, person and occasion, for good (sequence_occasion_enrol), so a
  * second delivery of the event enrols nobody twice; the sequences' clock finds each row at its time and the job runs or
@@ -30,6 +32,8 @@ import {
   missedFollowUpAt,
   missedOccasion,
   occasionIsSingle,
+  replyInChatOf,
+  replyWindow,
   visitOccasion,
   visitOccasionsOf,
   visitSoonAt,
@@ -43,13 +47,14 @@ import {
   findBookedSince,
   findMessageSentTo,
   findOccasionAppointment,
+  findWhatsAppClock,
   leaveOccasions,
   listOccasionSteps,
   type OccasionAppointment,
   type OccasionStep,
 } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
-import { findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
+import { findConfigRow, findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
 
 type Db = SupabaseClient<Database>;
 
@@ -65,6 +70,20 @@ async function zoneOf({ db, tenantId }: Asked): Promise<string> {
   const { data, error } = await findWorkspaceZoneStatus(db, tenantId);
   if (error) throw new DbFailure(error, "occasions: the workspace's zone");
   return data?.timezone || DEFAULT_TIMEZONE;
+}
+
+/**
+ * When the person's open WhatsApp chat on the thread the link went to closes (replyWindow), which their follow-up's
+ * hour keeps inside (decision 0135): only where the workspace's switch for the reply in the chat is on (contracts
+ * replyInChatOf), and null elsewhere, and for someone who never wrote on WhatsApp there, so the hour is the sequence's as
+ * before. A read that fails throws.
+ */
+async function chatClosesAt({ db, tenantId, now }: Asked, conversationId: string | null): Promise<number | null> {
+  const { data, error } = await findConfigRow(db, tenantId);
+  if (error) throw new DbFailure(error, "occasions: the workspace's switch for the open chat");
+  if (!replyInChatOf(data?.config) || !conversationId) return null;
+  const closes = replyWindow("whatsapp", await findWhatsAppClock(db, tenantId, conversationId), now).closesAtIso;
+  return closes === null ? null : Date.parse(closes);
 }
 
 /** Each of these sequences takes the person in for the occasion: how many did. */
@@ -189,14 +208,14 @@ async function enrolFromAsk(asked: Asked, messageId: string): Promise<OccasionEn
   });
   // The link went to someone who already holds a visit (to move it, or for a friend): nobody to follow up with.
   if (booked.ahead || booked.since) return { enrolled: 0, left: 0, why: "not_owed" };
-  const tz = await zoneOf(asked);
+  const [tz, closes] = await Promise.all([zoneOf(asked), chatClosesAt(asked, sent.conversationId)]);
   const enrolled = await enrolIn(
     asked,
     steps,
     {
       contactId: sent.contactId,
       occasion: askOccasion(messageId),
-      dueAt: (step) => askFollowUpAt({ askedAt, tz, runHour: step.runHour }),
+      dueAt: (step) => askFollowUpAt({ askedAt, tz, runHour: step.runHour, chatClosesAt: closes }),
     },
     ASK_REST_DAYS,
   );
