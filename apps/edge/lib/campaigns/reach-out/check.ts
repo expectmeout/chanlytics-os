@@ -35,15 +35,16 @@ import {
   REACH_OUT_CHECKS_AHEAD_PER_DAY,
   REACH_OUT_CHECKS_PER_DAY,
   REACH_OUT_MONTH_EMAILS,
+  DbFailure,
   openingAskedOf,
   reachOutCountryOf,
   slotCount,
   wordsNeedOpening,
   type RewriteStep,
-  type SequenceMode,
   type WrittenOpening,
 } from "@chanlytics/contracts";
 import {
+  findBroadcastState,
   findEmailWords,
   leadStepKey,
   getLeadWordsOfLeads,
@@ -81,7 +82,6 @@ import {
   lineMarkOf,
   previewForLine,
   previewForOpening,
-  sequenceModeOf,
   type PreviewForLine,
   type PreviewForOpening,
 } from "../../previews/for-opening.js";
@@ -250,17 +250,24 @@ function sendInputOf(
 /**
  * A send's input, with their preview where its email carries one. A line in such an email is written from what the
  * preview knows and what they did with it, once one is open (previews/for-opening.ts); `mark` is what that line is
- * stamped with (lineMarkOf), and the sender sends it back here once the preview's own mark is another. Where its owner
- * reads it first (its run waits for them, or its sequence asks first) or it is due soon, the preview is made before the
- * line is written, and the send `wait`s until it may be (previewForLine), so the line its owner approves is written from
- * the preview it goes with; one days off, or a press, is written from what stands. A read that fails says nothing of
- * it, and the line is written as any other. `onStep` hears each step the check takes, by its send.
+ * stamped with (lineMarkOf), and the sender sends it back here once the preview's own mark is another, unless its owner
+ * read it first (`ownerReads`: its run waits for their OK). Where its owner reads it first or it is due soon (due_soon
+ * says both), the preview is made before the line is written, and the send `wait`s until it may be (previewForLine), so
+ * the line its owner approves is written from the preview it goes with; one days off, or a press, is written from what
+ * stands. A read that fails says nothing of it, and the line is written as any other. `onStep` hears each step the
+ * check takes, by its send.
  */
 async function lineInputFor(
   db: Parameters<typeof previewForOpening>[0],
   uncheckedSend: UncheckedSend,
   words: { subject: string | null; body: string },
-  about: { ws: CheckWorkspace; country: string | null; now: Date; pressed: boolean; mode: () => Promise<SequenceMode> },
+  about: {
+    ws: CheckWorkspace;
+    country: string | null;
+    now: Date;
+    pressed: boolean;
+    ownerReads: () => Promise<boolean>;
+  },
   onStep?: (sendId: string, step: RewriteStep) => void,
 ): Promise<{ input: CheckInput; mark: string | null } | { wait: string }> {
   const { send } = uncheckedSend;
@@ -268,11 +275,10 @@ async function lineInputFor(
   const carries = wordsNeedOpening(words) && slotCount(`${words.subject ?? ""}\n${words.body}`, "their preview") > 0;
   if (!carries || !send.lead_id)
     return { input: sendInputOf(uncheckedSend, words, about.ws, about.country, heard), mark: null };
-  const mode = await about.mode();
   const lead = { tenantId: send.tenant_id, leadId: send.lead_id };
   const unread = "reading a lead's preview for the line of the email that carries it";
   const found: PreviewForLine =
-    !about.pressed && (uncheckedSend.due_soon || mode === "ask")
+    !about.pressed && uncheckedSend.due_soon
       ? await previewForLine(db, lead, about.now).catch(logAndGoOn(unread, { preview: null }))
       : { preview: await previewForOpening(db, lead, about.now).catch(logAndGoOn(unread, null)) };
   if ("wait" in found) {
@@ -281,8 +287,15 @@ async function lineInputFor(
   }
   return {
     input: sendInputOf(uncheckedSend, words, about.ws, about.country, heard, found.preview),
-    mark: lineMarkOf(words, found.preview?.mark ?? null, mode),
+    mark: found.preview ? lineMarkOf(words, found.preview, await about.ownerReads()) : null,
   };
+}
+
+/** Whether a send's run waits for its owner's OK (pending_approval): what they read now is what they approve. */
+async function isRunAwaitingOwner(db: Db, send: ReachOutSendRow): Promise<boolean> {
+  const run = await findBroadcastState(db, { tenantId: send.tenant_id, broadcastId: send.batch_id });
+  if (run.error) throw new DbFailure(run.error, "cannot read whether the send's run waits for its owner");
+  return run.data?.state === "pending_approval";
 }
 
 /**
@@ -399,7 +412,7 @@ export async function checkSends(params: {
   /* each send's check, a few at once */
   const words = new Map<string, Promise<{ subject: string | null; body: string } | null>>();
   const workspaces = new Map<string, Promise<CheckWorkspace>>();
-  const modes = new Map<string, Promise<SequenceMode>>();
+  const runs = new Map<string, Promise<boolean>>();
   const one = async (uncheckedSend: UncheckedSend) => {
     const send = uncheckedSend.send;
     try {
@@ -416,8 +429,9 @@ export async function checkSends(params: {
       // No words to check: marked checked, so the sender holds it as it always has (no_template).
       if (!item) return tally(uncheckedSend, { checked_at: at, checked_words: null, check_after: null }, "checked");
       const ws = await once(workspaces, send.tenant_id, () => checkWorkspaceOf(db, send.tenant_id));
-      const mode = () => once(modes, send.sequence_id, () => sequenceModeOf(db, send.tenant_id, send.sequence_id));
-      const lineInput = await lineInputFor(db, uncheckedSend, item, { ws, country, now, pressed, mode }, params.onStep);
+      const ownerReads = () => once(runs, send.batch_id, () => isRunAwaitingOwner(db, send));
+      const about = { ws, country, now, pressed, ownerReads };
+      const lineInput = await lineInputFor(db, uncheckedSend, item, about, params.onStep);
       // Its line not yet written, until their preview may be: no model is asked meanwhile.
       if ("wait" in lineInput) return tally(uncheckedSend, { check_after: lineInput.wait }, "waited");
       const { input, mark } = lineInput;

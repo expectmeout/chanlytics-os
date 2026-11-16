@@ -3,7 +3,7 @@
  * workspaces, the step's words, the sends and their records, 00197's lease, spend and release as the SQL makes them, a
  * lead's preview and how one is made (00497 preview_make), and a model that answers by the business the record names.
  */
-import { fakeDb } from "../_fake-db.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 
 const MIN = 60_000;
 const DAY = 86_400_000;
@@ -80,7 +80,7 @@ export function world({
   own = [],
   previews = [],
   leads = [],
-  mode = "veto",
+  run = "scheduled",
 } = {}) {
   const tables = {
     tenants: [
@@ -105,10 +105,10 @@ export function world({
     reach_out_sends: sends,
     sequence_lead_words: own,
     // A lead's own preview (decision 0079), read for the line of an email that carries its link, and the leads one is
-    // made for; the chain's sequence and how it is decided (decision 0064), and the jobs a preview's build is.
+    // made for; the run its sends are in, waiting for its owner or going ahead, and the jobs a preview's build is.
     lead_previews: previews,
     leads,
-    sequences: [{ id: "root-1", tenant_id: T, mode }],
+    sequence_batches: [{ id: "run-1", tenant_id: T, state: run }],
     jobs: [],
     // What the workspace's model attempts spent this UTC day (00197), counted against its ceiling.
     reach_out_check_spend: [{ tenant_id: T, day: new Date().toISOString().slice(0, 10), attempts: spentToday }],

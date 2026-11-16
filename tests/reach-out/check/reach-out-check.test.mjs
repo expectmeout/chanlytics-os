@@ -15,9 +15,9 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { setSitePageReader } from "@chanlytics/channels/website";
-import { fakeLog } from "../_fake-db.mjs";
-import { T, T2, WORDS, ago, ahead, send, record, world, HOUR_AGO, byBusiness } from "./_check-world.mjs";
-import { at } from "../_cron-doors-world.mjs";
+import { fakeLog } from "../../_fake-db.mjs";
+import { T, T2, WORDS, ago, ahead, send, record, world, HOUR_AGO, byBusiness } from "./_world.mjs";
+import { at } from "../../_cron-doors-world.mjs";
 
 const { checkOne, checkSends, checkBudget, backoffMs, CHECK_CALLS_UNTIL_MS, CHECK_CALL_MS, CHECK_GIVE_UP_MS } =
   await import(at("apps/edge/lib/campaigns/reach-out/check.ts"));

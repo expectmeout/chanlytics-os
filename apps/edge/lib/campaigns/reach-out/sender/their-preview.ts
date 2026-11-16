@@ -1,8 +1,8 @@
 /** Sender: the preview an email's words carry. Apart from the lanes, which are at their length. */
 
-import { previewSlotOf, wordsNeedOpening, type LeadPreviewSlot } from "@chanlytics/contracts";
+import { previewSlotOf, type LeadPreviewSlot } from "@chanlytics/contracts";
 import { findLeadPreview, type ReachOutSendRow } from "@chanlytics/db/campaigns";
-import { lineMarkOf, previewDidMarkOf, sequenceModeOf } from "../../../previews/for-opening.js";
+import { lineMarkOf, previewDidMarkOf } from "../../../previews/for-opening.js";
 import { askPreview } from "../../../previews/make.js";
 import { dashboardOrigin } from "../../../shared/dashboard-origin.js";
 import { env } from "../../../shared/env.js";
@@ -46,16 +46,17 @@ export async function previewForWords(
 }
 
 /**
- * The mark the email's line is read against before it goes, as the check stamped it (previews/for-opening.ts
- * lineMarkOf): none where its sequence asks first, so the line its owner approved goes as approved. The sequence is read
- * only where there is a mark to keep.
+ * Whether the email's line still stands for the preview it goes with (previews/for-opening.ts lineMarkOf): stamped with
+ * the preview as it is now, or, where its owner read the line before it went, with which preview alone, so what the
+ * lead did with it after their OK never writes the line they approved again. A line written before the preview stood,
+ * or for another preview, stands for neither. `stampOf` is these words stamped with a mark (channels checkedWordsOf).
  */
-export async function lineMarkFor(
-  pass: Pick<Tick, "db">,
-  send: Pick<ReachOutSendRow, "tenant_id" | "sequence_id">,
+export function lineStands(
+  checked: string | null,
   words: { subject: string | null; body: string },
-  preview: { did: string | null } | null,
-): Promise<string | null> {
-  if (!preview?.did || !wordsNeedOpening(words)) return null;
-  return lineMarkOf(words, preview.did, await sequenceModeOf(pass.db, send.tenant_id, send.sequence_id));
+  preview: { id: string | null; did: string | null } | null,
+  stampOf: (mark: string | null) => string,
+): boolean {
+  const open = preview?.id && preview.did ? { id: preview.id, mark: preview.did } : null;
+  return checked === stampOf(lineMarkOf(words, open, false)) || checked === stampOf(lineMarkOf(words, open, true));
 }

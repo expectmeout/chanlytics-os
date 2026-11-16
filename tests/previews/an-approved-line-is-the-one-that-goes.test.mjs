@@ -4,27 +4,27 @@
  * the email went; once made, the sender saw a mark the line was not stamped with, and the line was written again, from
  * the preview, and went unread. Now:
  *
- *   the check    an email its owner reads first (its run waits for them, or its campaign asks first), or one due soon,
- *                has its preview made before its line is written: none is asked for and it waits the minutes a build
- *                takes; the day's all made, it waits the hour; with none to make (the switch off, a lead the door
- *                refuses) its line is written as any other, now. An email days off that nobody reads first, and a
- *                press, write now from what stands.
- *   the stamp    in a campaign that asks first, the line is stamped without the preview's mark, and the sender reads it
- *                so: what the lead does with their preview after the approval never writes the approved line again. A
- *                campaign that goes unless stopped keeps the mark, and its line follows what they did.
+ *   the check    an email its owner reads first (its run waits for their OK), or one due soon, has its preview made
+ *                before its line is written: it is asked for, and the line waits the minutes a build takes; the day's
+ *                all made, it waits the hour; with none to make (the switch off, a lead the door refuses) its line is
+ *                written as any other, now. An email days off that nobody reads first, and a press, write now from
+ *                what stands.
+ *   the stamp    a line its owner reads first is stamped with which preview alone, and the sender takes that as it
+ *                stands: what the lead does with their preview after the OK never writes the approved line again. A
+ *                line in a run that goes without an OK keeps the preview's whole mark, and follows what they did.
  *
  * Made-up businesses only.
  */
 import { test, after, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { fakeDb, fakeLog } from "../_fake-db.mjs";
+import { fakeLog } from "../_fake-db.mjs";
 import { at } from "../_cron-doors-world.mjs";
 import { importSrc } from "../_source.mjs";
-import { T, ago, ahead, send, record, world, byBusiness } from "../reach-out/_check-world.mjs";
+import { T, ago, ahead, send, record, world, byBusiness } from "../reach-out/check/_world.mjs";
 
 const { checkSends } = await import(at("apps/edge/lib/campaigns/reach-out/check.ts"));
 const { lineMarkOf } = await importSrc("apps/edge/lib/previews/for-opening.ts");
-const { lineMarkFor } = await importSrc("apps/edge/lib/campaigns/reach-out/sender/their-preview.ts");
+const { lineStands } = await importSrc("apps/edge/lib/campaigns/reach-out/sender/their-preview.ts");
 const { checkedWordsOf } = await import("@chanlytics/channels/email");
 
 const MIN = 60_000;
@@ -97,7 +97,7 @@ test("an email its owner reads first has its preview made before its line is wri
     records: { kvitka: record("Kvitka Salon") },
     body: CARRIES,
     leads: [leadRow("kvitka", "Kvitka Salon")],
-    mode: "ask",
+    run: "pending_approval",
   });
   const m = byBusiness({ "Kvitka Salon": [WROTE("It already knows you do gel nails."), READ()] });
   const first = await tick(w, m.ask);
@@ -128,7 +128,7 @@ test("an email its owner reads first has its preview made before its line is wri
   assert.deepEqual([written.checked, written.waited], [1, 0]);
   assert.match(m.calls[0], /preview_knows: 1 service \(Gel nails\)/, "the writer is told what the preview knows");
   assert.equal(w.row(waiting.id).opening, "It already knows you do gel nails.");
-  assert.equal(w.row(waiting.id).checked_words, checkedWordsOf(CARRIES, "Sam", false), "approved, it goes as approved");
+  assert.equal(w.row(waiting.id).checked_words, checkedWordsOf(CARRIES, "Sam", false, made.id), "which preview alone");
 });
 
 test("the day's previews all made, the line waits the hour; with none to make, it is written now, as any other's", async () => {
@@ -138,7 +138,7 @@ test("the day's previews all made, the line waits the hour; with none to make, i
     body: CARRIES,
     leads: [leadRow("late", "Late Barbers")],
     previews: Array.from({ length: 50 }, (_, i) => openPreview(`other-${i}`, { created_at: new Date().toISOString() })),
-    mode: "ask",
+    run: "pending_approval",
   });
   const none = byBusiness({});
   assert.equal((await tick(full, none.ask)).waited, 1);
@@ -154,7 +154,7 @@ test("the day's previews all made, the line waits the hour; with none to make, i
     records: { off: record("Off Barbers") },
     body: CARRIES,
     leads: [leadRow("off", "Off Barbers")],
-    mode: "ask",
+    run: "pending_approval",
   });
   const m = byBusiness({ "Off Barbers": [WROTE("A 4.9 across 16 reviews says people find you."), READ()] });
   const out = await tick(off, m.ask);
@@ -180,15 +180,15 @@ test("an email days off that nobody reads first, and a press, are written now fr
     records: { pressed: record("Pressed Movers") },
     body: CARRIES,
     leads: [leadRow("pressed", "Pressed Movers")],
-    mode: "ask",
+    run: "pending_approval",
   });
   const asked = byBusiness({ "Pressed Movers": [WROTE("A 4.9 across 16 reviews says people find you."), READ()] });
   const out = await tick(p, asked.ask, { sendIds: [pressed.id] });
   assert.deepEqual([out.checked, out.waited, p.tables.lead_previews.length], [1, 0, 0], "a person waits on a press");
 });
 
-test("in a campaign that asks first, the line is stamped without the preview's mark; one that goes unless stopped keeps it", async () => {
-  const stamped = async (mode) => {
+test("a line its owner reads first is stamped with which preview alone; one in a run that goes without an OK, with how far they used it", async () => {
+  const stamped = async (run) => {
     const s = send({ lead_id: "used" });
     const w = world({
       sends: [s],
@@ -196,7 +196,7 @@ test("in a campaign that asks first, the line is stamped without the preview's m
       body: CARRIES,
       leads: [leadRow("used", "Used Movers")],
       previews: [openPreview("used", { asked_count: 4, call_count: 1, call_seconds: 130 })],
-      mode,
+      run,
     });
     const m = byBusiness({
       "Used Movers": [WROTE("You asked it 4 questions.", { facts_used: ["preview_tried"] }), READ()],
@@ -204,42 +204,28 @@ test("in a campaign that asks first, the line is stamped without the preview's m
     assert.equal((await tick(w, m.ask)).checked, 1);
     return w.row(s.id).checked_words;
   };
-  assert.equal(await stamped("ask"), checkedWordsOf(CARRIES, "Sam", false), "approved, it goes as approved");
-  assert.equal(await stamped("veto"), checkedWordsOf(CARRIES, "Sam", false, "pv-used:4:1:0"));
+  assert.equal(await stamped("pending_approval"), checkedWordsOf(CARRIES, "Sam", false, "pv-used"));
+  assert.equal(await stamped("scheduled"), checkedWordsOf(CARRIES, "Sam", false, "pv-used:4:1:0"));
 });
 
-test("the sender reads the mark as the check stamped it: none in a campaign that asks first, the preview's otherwise", async () => {
-  assert.equal(lineMarkOf(CARRIES, "pv-1:4:1:0", "ask"), null);
-  assert.equal(lineMarkOf(CARRIES, "pv-1:4:1:0", "veto"), "pv-1:4:1:0");
-  assert.equal(lineMarkOf(CARRIES, "pv-1:4:1:0", "auto"), "pv-1:4:1:0");
-  assert.equal(lineMarkOf({ subject: null, body: "Here it is: {{their preview}}" }, "pv-1:4:1:0", "veto"), null);
+test("the sender takes a line as the check stamped it: approved, whatever the lead did since; otherwise, as they stand", () => {
+  const preview = { id: "pv-1", mark: "pv-1:4:1:0" };
+  assert.equal(lineMarkOf(CARRIES, preview, false), "pv-1:4:1:0");
+  assert.equal(lineMarkOf(CARRIES, preview, true), "pv-1", "read first: which preview alone");
+  assert.equal(lineMarkOf(CARRIES, null, true), null);
+  assert.equal(lineMarkOf({ subject: null, body: "Here it is: {{their preview}}" }, preview, false), null, "no line");
 
-  const reads = [];
-  const passOf = (mode) => {
-    const tables = { sequences: [{ id: "root-1", tenant_id: T, mode }] };
-    const db = fakeDb(tables);
-    const from = db.from.bind(db);
-    db.from = (name) => {
-      reads.push(name);
-      return from(name);
-    };
-    return { db };
-  };
-  const theirs = { tenant_id: T, sequence_id: "root-1", lead_id: "used" };
-  assert.equal(await lineMarkFor(passOf("ask"), theirs, CARRIES, { did: "pv-1:4:1:0" }), null);
-  assert.equal(await lineMarkFor(passOf("veto"), theirs, CARRIES, { did: "pv-1:4:1:0" }), "pv-1:4:1:0");
-  // A campaign that has no sequence row (none this build knows) asks first, as its runs do.
-  assert.equal(await lineMarkFor({ db: fakeDb({ sequences: [] }) }, theirs, CARRIES, { did: "pv-1:4:1:0" }), null);
-  reads.length = 0;
-  assert.equal(await lineMarkFor(passOf("veto"), theirs, CARRIES, null), null);
-  assert.equal(
-    await lineMarkFor(passOf("veto"), theirs, CARRIES, { did: null }),
-    null,
-    "a preview not open has no mark",
-  );
-  assert.equal(
-    await lineMarkFor(passOf("veto"), theirs, { subject: null, body: "{{their preview}}" }, { did: "x" }),
-    null,
-  );
-  assert.deepEqual(reads, [], "with no mark to keep, the campaign is not read");
+  const stampOf = (mark) => checkedWordsOf(CARRIES, "Sam", false, mark);
+  const now = { id: "pv-1", did: "pv-1:6:2:1" };
+  // Approved when they had used it four times: they used it since, and the approved line still goes.
+  assert.equal(lineStands(stampOf("pv-1"), CARRIES, now, stampOf), true);
+  // Written in a run that went without an OK: the line is written again from what they did since.
+  assert.equal(lineStands(stampOf("pv-1:4:1:0"), CARRIES, now, stampOf), false);
+  assert.equal(lineStands(stampOf("pv-1:6:2:1"), CARRIES, now, stampOf), true);
+  // Written before the preview stood, or for another preview: written again either way.
+  assert.equal(lineStands(stampOf(null), CARRIES, now, stampOf), false);
+  assert.equal(lineStands(stampOf("pv-0"), CARRIES, now, stampOf), false);
+  // No preview open, or words with no line: the words alone.
+  assert.equal(lineStands(stampOf(null), CARRIES, { id: null, did: null }, stampOf), true);
+  assert.equal(lineStands(stampOf(null), CARRIES, null, stampOf), true);
 });

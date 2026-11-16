@@ -9,8 +9,9 @@
  *                       or before they last used it, is written again
  *   previewForOpening   the two for a lead, or null: only an open preview says anything
  *   previewForLine      the same, asked for ahead of the email where the lead has none, or what the line waits for
- *   lineMarkOf          the mark a line is stamped with and read against: none where its owner approves each run, so
- *                       the line they approved is the one that goes (the review of 16 November 2026)
+ *   lineMarkOf          the mark a line is stamped with and read against: which preview alone where its owner reads
+ *                       the line before it goes, so the line they approved is the one that goes (the review of 16
+ *                       November 2026)
  *
  * An open of the page is never among them: a mail scanner opens a link too, and the writer is told nothing it must not say.
  */
@@ -25,10 +26,9 @@ import {
   previewTriedWords,
   wordsNeedOpening,
   type PreviewPageFacts,
-  type SequenceMode,
   type TenantId,
 } from "@chanlytics/contracts";
-import { findLeadPreview, getSequenceModes, type LeadPreviewRow } from "@chanlytics/db/campaigns";
+import { findLeadPreview, type LeadPreviewRow } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { askPreview } from "./make.js";
@@ -38,6 +38,7 @@ type Profile = PreviewPageFacts["profile"];
 
 /** A preview as the writer is told it; each line null where there is nothing to say. */
 export interface PreviewForOpening {
+  id: string;
   mark: string;
   knows: string | null;
   tried: string | null;
@@ -78,6 +79,7 @@ export function previewFactsOf(
   profile: Profile,
 ): PreviewForOpening {
   return {
+    id: row.id,
     mark: previewDidMarkOf(row),
     knows: knowsLine(profile),
     tried: previewTriedWords(row) || null,
@@ -128,26 +130,23 @@ export async function previewForLine(
   const row = await findLeadPreview(db, params.tenantId, params.leadId);
   if (row?.state === "building") return { wait: "making" };
   if (row) return { preview: await openFactsOf(db, row, now) };
-  const asked = await askPreview(db, { ...params, by: null, none: true }, now);
-  if (asked.ok) return { wait: "making" };
-  return asked.reason === "limit" ? { wait: "limit" } : { preview: null };
+  const answer = await askPreview(db, { ...params, by: null, none: true }, now);
+  if (answer.ok) return { wait: "making" };
+  return answer.reason === "limit" ? { wait: "limit" } : { preview: null };
 }
 
 /**
- * The mark a line is stamped with and read against before it goes (channels checkedWordsOf): its preview's, where the
- * words write a line, so a line written before they last used it is written again; none where they write none, or where
- * its owner approves each run (a sequence that asks, decision 0064): the line they approved is the one that goes,
- * whatever the lead does with their preview before it does.
+ * The mark a line is stamped with, and read against before it goes (channels checkedWordsOf). Where its words write a
+ * line from an open preview, the preview's (previewDidMarkOf), so a line written before they last used it is written
+ * again; where its owner reads the line before it goes (its run waits for their OK, `ownerReads`), which preview alone, so
+ * what the lead does with it after the OK never writes the line they approved again. None where there is no line or no
+ * open preview.
  */
 export function lineMarkOf(
   words: { subject: string | null; body: string },
-  did: string | null,
-  mode: SequenceMode,
+  preview: Pick<PreviewForOpening, "id" | "mark"> | null,
+  ownerReads: boolean,
 ): string | null {
-  return wordsNeedOpening(words) && mode !== "ask" ? did : null;
-}
-
-/** How a send's sequence decides its runs (decision 0064), as its runs read it: one this build knows no mode of asks. */
-export async function sequenceModeOf(db: Db, tenantId: TenantId, sequenceId: string): Promise<SequenceMode> {
-  return (await getSequenceModes(db, tenantId, [sequenceId])).get(sequenceId) ?? "ask";
+  if (!preview || !wordsNeedOpening(words)) return null;
+  return ownerReads ? preview.id : preview.mark;
 }

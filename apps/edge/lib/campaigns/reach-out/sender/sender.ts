@@ -43,7 +43,7 @@ import {
   type SenderCounts,
   type Tick,
 } from "./lanes.js";
-import { lineMarkFor, previewForWords } from "./their-preview.js";
+import { lineStands, previewForWords } from "./their-preview.js";
 import type { TenantId } from "@chanlytics/contracts";
 
 /** One claimed send, written: its email and its job, then its move. Only from `claimed`, as it was read. */
@@ -112,9 +112,9 @@ async function writeOne(tick: Tick, reachOutSend: ReachOutSendRow): Promise<Outc
   // and writes that line from what the preview says now; where its owner approved it, it goes as approved. Never a
   // skip: nothing about the lead changed. Read after their preview is, since its mark is part of what the line was
   // checked against.
-  const did = await lineMarkFor(tick, reachOutSend, words, preview);
-  if (reachOutSend.checked_words !== checkedWordsOf(words, standing.signedBy, workspace.bookingLink !== null, did))
-    return recheck();
+  const stampOf = (mark: string | null) =>
+    checkedWordsOf(words, standing.signedBy, workspace.bookingLink !== null, mark);
+  if (!lineStands(reachOutSend.checked_words, words, preview, stampOf)) return recheck();
   const created: Made = {
     afterStep: after,
     lead,
