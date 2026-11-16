@@ -19,8 +19,8 @@ nothing calls is neither named below with why nor dropped.
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
 | door | 187 | 187 |
-| reader | 78 | 0 |
-| the server's | 344 | 299 |
+| reader | 77 | 0 |
+| the server's | 345 | 299 |
 | computed column | 3 | 0 |
 | trigger | 103 | 73 |
 | all | 715 | 559 |
@@ -257,7 +257,7 @@ being read is dropped by a migration.
 | `lead_export_mark` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | Owner (permission export). |
 | `lead_in_list` | reader | a signed-in person, the server | SQL `lead_list_counts`, `lead_view_rows` | The rail's lists as one rule (§6.1): |
 | `lead_is_set_aside` | reader | a signed-in person, the server | trigger `leads_note_set_aside on leads` | A lead is set aside when it is archived and closed stale: |
-| `lead_leg_cap` | reader | a signed-in person, the server | SQL `lead_round_end` | How many legs a search of p_count may read (decision 0133, 00635): |
+| `lead_leg_cap` | the server's | the server | SQL `lead_round_end` | How many legs a search of p_count may read (decision 0133, 00635): |
 | `lead_list_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | The six numbers under Leads in the rail: |
 | `lead_member_exclude` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/search-acts.ts` | Owner (permission find). |
 | `lead_member_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/search-acts.ts` | Owner (permission find). |
