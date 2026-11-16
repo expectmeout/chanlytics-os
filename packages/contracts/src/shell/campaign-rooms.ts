@@ -21,6 +21,20 @@ export const CAMPAIGN_ROOMS = {
 const { library } = CAMPAIGN_ROOMS;
 
 /**
+ * What a page says of a message WhatsApp has been checking for over a day (campaign-message.ts reviewIsSlow), in the
+ * words Ruben approved for the WhatsApp notices plan's step 4 (16 Nov 2026): its list's line, its sheet's sentence, and a
+ * campaign step's pill. Chanlytics asks WhatsApp again and its own people are told (edge whatsapp/slow-reviews.ts), so
+ * the sheet says so; the owner is not emailed. Said here, beside the review's own time (WHATSAPP_REVIEW_TAKES), which
+ * every Campaigns room that shows a message's standing already reads.
+ */
+export const SLOW_REVIEW_WORDS = {
+  list: "Taking longer than usual",
+  sheet:
+    "WhatsApp is taking longer than usual to check this message. Chanlytics has been told and is looking into it. It sends by itself once approved.",
+  pill: "Taking longer",
+} as const;
+
+/**
  * The Library page's own lines: the waiting line, the read that failed, what a workspace with no WhatsApp number is told
  * (a message needs none: only its WhatsApp version waits for one) and what writing a WhatsApp version asks of a number.
  */

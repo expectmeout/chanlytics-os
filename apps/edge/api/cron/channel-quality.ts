@@ -11,6 +11,11 @@
  * (00338) and tells the owner once when a number turns BLOCKED (lib/whatsapp/number-standing.ts). The tick's answer counts them as
  * `standing_*`, and the sum its limit must hold grows by one notice (ops-hygiene.test.mjs).
  *
+ * Then, in what is left of the same time, each message WhatsApp has been checking for over a day is asked of WhatsApp
+ * again, and a decision it made reaches the row through the webhook's own door, or Chanlytics' own people are told once
+ * that it is still in review (lib/whatsapp/slow-reviews.ts, the WhatsApp notices plan's step 4): its answer's `reviews`.
+ * Each is one Graph read and one notice or page, started before YIELD_AT_MS as a number's is, so the sum still holds.
+ *
  * The work is bounded by time: up to MAX_DUE numbers are listed, the ones never read and then the longest unread, each
  * read once in five hours and AT_ONCE at a time, and no read starts after YIELD_AT_MS from the door's first line, so
  * what is left is first in line next tick.
@@ -28,6 +33,8 @@ import { json, refuse } from "../../lib/shared/http.js";
 import { errField } from "../../lib/shared/log.js";
 import { sweepDoor } from "../../lib/ops/sweep-door.js";
 import { readNumberQualities } from "../../lib/whatsapp/number-quality.js";
+import { askSlowReviews } from "../../lib/whatsapp/slow-reviews.js";
+import { pageOperator } from "../../lib/shared/alerts/page-operator.js";
 
 /**
  * No read starts after this, counted from the door's first line: the last one may start just before it and run
@@ -41,9 +48,22 @@ export const POST = sweepDoor(
     try {
       const out = await readNumberQualities({ db, log, now: Date.now, started, yieldAtMs: YIELD_AT_MS });
       // The count the answer calls no_token is logged as `tokenless`: the logger redacts a key that ends in `token`.
+      // The messages still in review past a day, in what is left of the visit's time; a list that cannot be read is a
+      // line, and the numbers' answer stands.
+      const reviews = await askSlowReviews({
+        db,
+        log,
+        now: Date.now,
+        started,
+        yieldAtMs: YIELD_AT_MS,
+        page: (key, subject, body) => pageOperator({ db }, key, subject, body),
+      }).catch((e: unknown) => {
+        log.error("channel_quality_row_failed", { part: "reviews", error: errField(e) });
+        return null;
+      });
       const { no_token: tokenless, ...counts } = out;
-      log.info("channel_quality_swept", { ...counts, tokenless });
-      return json(200, { ok: true, ...out });
+      log.info("channel_quality_swept", { ...counts, tokenless, reviews });
+      return json(200, { ok: true, ...out, reviews });
     } catch (e) {
       // The channels could not be read: nothing was asked of Meta, and sweep_health turns the 503 red.
       log.error("channel_quality_unreadable", { error: errField(e) });

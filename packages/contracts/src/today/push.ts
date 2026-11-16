@@ -62,6 +62,9 @@ export const PUSH_KINDS = [
   // A playbook's run that waits for a word, or goes by itself unless it is stopped: the one notice with a deadline (a
   // waiting run is refused once its day has passed, contracts runApprovalRefusal), and the phone never heard it.
   "playbook",
+  // A message WhatsApp asked a change to, held, or turned off: what sends it stops until the owner acts (the WhatsApp
+  // notices plan, step 4, 16 Nov 2026). Its good news (template_ready) stays in the bell and the mail.
+  "template_blocked",
   "job_failed",
   "billing",
   "number",

@@ -467,6 +467,13 @@ const TEMPLATE_STATUS_EVENTS = new Set([
 ]);
 
 /**
+ * Whether WhatsApp's word for a template is a decision this door writes on its row: one of the status events it takes,
+ * and not one that leaves it in review (IN_APPEAL). What a review asked again past a day hands here (slow-reviews.ts).
+ */
+export const decidesTemplate = (event: string): boolean =>
+  TEMPLATE_STATUS_EVENTS.has(event) && mapStatus(event) !== "pending";
+
+/**
  * How long a status that found no row waits before it looks again: Meta can decide a template before the request that
  * made it has written its row, and the notice would then say "approved" of a row still pending (R11 S11-6).
  */
