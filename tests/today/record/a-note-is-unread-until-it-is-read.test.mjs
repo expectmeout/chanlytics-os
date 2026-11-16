@@ -152,7 +152,7 @@ test("the bell's words for what is read: what a press did, the check, the closed
   assert.equal(BELL_READ_WORDS.name(6, 8), "Notifications, 6 new");
   assert.equal(BELL_READ_WORDS.name(0, 3), "Notifications, 3 unread");
   assert.equal(BELL_READ_WORDS.name(0, 0), "Notifications");
-  assert.equal(BELL_READ_WORDS.tip(6, 8), "6 new — what needs you");
+  assert.equal(BELL_READ_WORDS.tip(6, 8), "6 new");
   assert.equal(BELL_READ_WORDS.tip(0, 3), "3 unread");
   assert.equal(BELL_READ_WORDS.tip(0, 0), undefined, "nothing to say over a bell with nothing in it");
   // A save that failed says what happened, where the notes stand now, and the one thing to do.

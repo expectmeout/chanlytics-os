@@ -26,10 +26,7 @@ function heldProps(why: string): GateProps {
 /** The props that hold an email tick: the role's gate, or a sentence for a config that cannot be read or no address. */
 function emailHold(cell: Extract<AlertCell, { kind: "tick" }>): GateProps | null {
   if (cell.held === "role") return gate("settings", "change what the business is emailed");
-  if (cell.held === "broken")
-    return heldProps(
-      "This workspace's settings can't be read — Chanlytics has to repair them before anything here can change",
-    );
+  if (cell.held === "broken") return heldProps(W.broken);
   if (cell.held === "no_address") return heldProps(W.addFirst);
   return null;
 }
@@ -68,7 +65,7 @@ function Cell({
       </Press>
     );
   const hold = channel === "email" ? emailHold(cell) : null;
-  const held = busy ? heldProps("Saving — wait for this one to land.") : hold;
+  const held = busy ? heldProps(W.saving) : hold;
   return (
     <Press
       className={`pol-dot ${cell.on ? "on" : ""}`}

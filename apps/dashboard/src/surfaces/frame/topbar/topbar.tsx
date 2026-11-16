@@ -354,8 +354,8 @@ const bellTip = (real: Bell | null, unread: number, dots: number) =>
   real
     ? BELL_READ_WORDS.tip(unread, dots)
     : unread > 0
-      ? `${unread} unread — what AI did while you weren't looking`
-      : "What AI did while you weren't looking";
+      ? `${unread} unread · what AI did while you were away`
+      : "What AI did while you were away";
 
 // The theme button steps through the preference, System included, and says which is on and what a press makes it (N19).
 // The shell's words decide; the standalone mockup, without them, keeps its light and dark flip.

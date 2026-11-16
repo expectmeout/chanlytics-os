@@ -1367,7 +1367,7 @@ test("team_notice tells the workspace that a teammate joined once, on the bell, 
   assert.equal(n.subject, "ada@example.com joined your team");
   assert.equal(
     n.body,
-    "They accepted your invitation and joined as Operator.\nTheir role can be changed, or the seat removed, under Settings > Team.",
+    "They accepted your invitation and joined as Operator.\nYou can change their role, or take them off the team, under Settings › Team.",
   );
   assert.doesNotMatch(n.redactedBody, /ada/, "the platform's copy holds no address");
   assert.equal(await dispatchJob(w.ctx, w.job), "done");

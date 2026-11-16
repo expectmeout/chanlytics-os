@@ -168,7 +168,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   });
   assert.deepEqual(
     [done[0].icon, done[0].tone, done[0].action, done[0].to],
-    ["check", "ok", "Open Sequences", "broadcasts"],
+    ["check", "ok", "Open Campaigns", "broadcasts"],
   );
   const stopped = serverNotificationRows({
     seen_at: null,
@@ -176,7 +176,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   });
   assert.deepEqual(
     [stopped[0].icon, stopped[0].tone, stopped[0].action, stopped[0].to],
-    ["alert", "warn", "Open Sequences", "broadcasts"],
+    ["alert", "warn", "Open Campaigns", "broadcasts"],
   );
   assert.ok(
     readCode("apps/edge/lib/campaigns/playbooks/playbooks.ts").includes('kind: "playbook",') &&

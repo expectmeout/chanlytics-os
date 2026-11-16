@@ -135,7 +135,7 @@ test("F36/F37: no alert the workspace is offered is Chanlytics' own; switching a
   // A campaign's run, to the person choosing what reaches them, never a playbook's (decision 19).
   const runs = ALERT_TOPICS.find((t) => t.kinds.includes("playbook"));
   assert.equal(runs.title, "A campaign waits for your approval");
-  assert.match(runs.what, /or a campaign could not run today/);
+  assert.match(runs.what, /or a campaign couldn't run today/);
   for (const t of ALERT_TOPICS) assert.doesNotMatch(`${t.title} ${t.what}`, /playbook/i, t.title);
   assert.ok(
     !Object.values(frame).some((t) => t.includes("emails you every message instead")),
