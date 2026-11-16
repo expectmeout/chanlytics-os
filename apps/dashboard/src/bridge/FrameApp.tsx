@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The Phase-A bridge (Blueprint §7): replaces Chanlytics.html's inline boot
+ * The Phase-A bridge (Blueprint §7): replaces the standalone mockup's inline boot
  * script. Seeds globals, evaluates the ordered manifest, enforces the boot
  * gate, and renders ChanlyticsApp inside OUR React tree with the exact props
  * the original App wrapper passed. Prefs (theme/look/density/rail) live in

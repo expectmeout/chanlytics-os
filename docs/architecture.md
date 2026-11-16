@@ -439,9 +439,9 @@ It began as a design mockup, a single-page shell of classic scripts imported in 
 frame after them, and Ask's Line last: TSX in `apps/dashboard/src/surfaces/ask/`, a chunk of its own that
 `apps/dashboard/src/bridge/ask/line.tsx` fetches, and its face in the kit
 (`apps/dashboard/src/surfaces/kit/face/ask-face.tsx`), which the frame imports. The stylesheets are in
-`apps/dashboard/src/styles` (`apps/dashboard/src/styles/tokens.css` among them), and `apps/dashboard/mockup` keeps
-only the tree's old conventions (`apps/dashboard/mockup/CLAUDE.md`); the standalone mockup that drew the shell without
-Next went with demo mode (15 Nov 2026). A surface still asks the shell for a few names that the bridge, the frame
+`apps/dashboard/src/styles` (`apps/dashboard/src/styles/tokens.css` among them), and the frame's and the pages'
+conventions in `.claude/skills/chanlytics-interface/shell.md`; the standalone mockup that drew the shell without Next
+went with demo mode (15 and 16 Nov 2026). A surface still asks the shell for a few names that the bridge, the frame
 (`apps/dashboard/src/surfaces/frame/frame-globals.ts`) and the overrides publish on `window`, through
 `apps/dashboard/src/surfaces/frame-verbs.ts` and its own `shell.ts`
 (`apps/dashboard/src/surfaces/ask/shell.ts`, Ask's). Every

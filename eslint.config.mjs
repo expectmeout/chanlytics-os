@@ -15,11 +15,6 @@ import globals from "globals";
  *
  * Scope is deliberately graded rather than uniform:
  *   our own TS          the recommended set; this is code we wrote and maintain
- *   the ported mockup   hooks rules ONLY. 29 hand-written files that predate
- *                       this repo and use `/* global *​/` headers instead of
- *                       imports. Linting them for style yields hundreds of
- *                       findings nobody reads, which teaches everyone to ignore
- *                       the output — and the output is the point.
  *   generated / built   not linted at all.
  *
  * The rule that earns this config on its own is react-hooks/exhaustive-deps: a
@@ -195,7 +190,6 @@ const DASHBOARD_MARKUP = [
   "apps/dashboard/src/auth/**/*.tsx",
   "apps/dashboard/src/yes/**/*.tsx",
   "apps/dashboard/src/surfaces/**/*.tsx",
-  "apps/dashboard/mockup/**/*.jsx",
 ];
 
 /**
@@ -527,7 +521,7 @@ export const WIDE_PARAMS = [
 const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);
 
 /**
- * The dashboard's own code, as the TypeScript blocks below read it: everything but the ported mockup.
+ * The dashboard's own code, as the TypeScript blocks below read it.
  */
 const DASHBOARD_CODE = [
   "apps/dashboard/app/**/*.{ts,tsx}",
@@ -682,7 +676,7 @@ export default [
     rules: OUR_TYPED_TS_RULES,
   },
 
-  // The dashboard's own code (not the ported mockup).
+  // The dashboard's own code.
   {
     files: DASHBOARD_CODE,
     languageOptions: {
@@ -697,8 +691,8 @@ export default [
       ...OUR_TYPED_TS_RULES,
       // The two rules by name, not the plugin's `recommended`: from v7 that
       // preset also carries the React Compiler's lints (set-state-in-effect,
-      // purity, refs, immutability), which read the ported mockup's patterns as
-      // errors. Adopting those is a decision about the mockup, not a bump.
+      // purity, refs, immutability), which read the patterns the pages brought
+      // from the shell as errors. Adopting those is a decision of its own, not a bump.
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
     },
@@ -801,24 +795,6 @@ export default [
   {
     files: treeFiles(LIMITED_TREES.filter((tree) => !WIDE_PARAMS.includes(tree))),
     rules: { "max-params": ["error", FUNCTION_LIMITS.params] },
-  },
-
-  // The ported mockup: hooks correctness only. Its bare names are checked by
-  // repo/shell-names-are-published.test.mjs against what the shell publishes on
-  // the window; no-undef here would believe the files' `/* global */` headers.
-  {
-    files: ["apps/dashboard/mockup/**/*.jsx"],
-    languageOptions: {
-      ecmaVersion: 2023,
-      sourceType: "script",
-      globals: { ...globals.browser, React: "readonly" },
-      parserOptions: { ecmaFeatures: { jsx: true } },
-    },
-    plugins: { "react-hooks": reactHooks },
-    rules: {
-      "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
-    },
   },
 
   // Accessibility, over all of the dashboard's markup (A11Y_RULES).

@@ -15,8 +15,7 @@
    A page's stylesheet holds its layout only: display, grid, flex, gap, position, size and overflow.
 
    Loaded right after tokens.css, before every other stylesheet those entries import: by the shell's entry file
-   (bridge/frame.css) and by the standalone document (mockup/Chanlytics.html, at the one path outside its tree
-   that tooling/scripts/serve-mockup.mjs serves). In the built app the root layout's app/globals.css comes first, the
+   (bridge/frame.css), whose list the harness's pages link too (tooling/scripts/e2e-harness/app-styles.mjs). In the built app the root layout's app/globals.css comes first, the
    tokens at its head, so its own rules, the pages' outside the shell, stand between the tokens and the kit; none of
    them names a kit class. It imports the kit in the change that first draws a kit class on a page outside the shell
    (the plan's §3.3), which styles/kit-css.test.mjs holds: none does yet.

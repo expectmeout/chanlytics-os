@@ -1,7 +1,7 @@
 /* The tokens, the kit and the shell's stylesheets, in their order — Next.js does
-   not guarantee cross-import CSS order, so one entry file does. The standalone
-   harness links the same list (tooling/scripts/serve-mockup.mjs writes
-   Chanlytics.html's links from these imports). */
+   not guarantee cross-import CSS order, so one entry file does. The harness's
+   pages link the same list (tooling/scripts/e2e-harness/app-styles.mjs reads
+   these imports). */
 @import "../styles/tokens.css";
 @import "../surfaces/kit/kit.css";
 @import "../styles/components.css";
@@ -30,7 +30,7 @@
 @import "../surfaces/files/post.css";
 @import "../surfaces/frame/outline.css";
 
-/* Chanlytics.html's inline viewport rules, scoped so they only apply while
+/* The standalone mockup's inline viewport rules, scoped so they only apply while
    the frame is mounted (login and other pages keep normal scrolling).
    Wider than a phone only: on a phone the window scrolls the page (mobile.css,
    "The window scrolls"). */
