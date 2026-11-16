@@ -18,11 +18,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   HOLDS_INCLUDED_FOR_CHAIN,
+  OPENING_FACT_KEYS,
   OPENING_SCHEMA,
   READING_SCHEMA,
   chainOf,
   checkOpening,
   customerDomainOf,
+  factValue,
   leadFactOf,
   openingSystemPrompt,
   openingUserContent,
@@ -113,6 +115,17 @@ export const askReachOutModel: AskModel = (system, user, schema, maxTokens, sign
     signal,
     for: forWhom,
   });
+
+/**
+ * The writer's answer as structured outputs hold it, its facts_used offered only the fields this record holds (16 Nov
+ * 2026: two true lines written from a preview were held, each naming the listing's about, which neither listing had).
+ * Code still holds a fact named that the record lacks (checkOpening, unnamed_fact), where a model is asked for plain JSON.
+ */
+function writerSchemaOf(record: OpeningRecord) {
+  const held = OPENING_FACT_KEYS.filter((key) => factValue(record, key) !== null);
+  const facts = { type: "array", items: { type: "string", enum: held.length > 0 ? held : [...OPENING_FACT_KEYS] } };
+  return { ...OPENING_SCHEMA, properties: { ...OPENING_SCHEMA.properties, facts_used: facts } };
+}
 
 /** When a caller's calls stop, and each call's deadline. */
 export interface CheckBudget {
@@ -287,7 +300,7 @@ export async function checkOne(
           asked: checkInput.asked,
           retry,
         }),
-        OPENING_SCHEMA,
+        writerSchemaOf(record),
         400,
       );
       if (result === "late") return late();

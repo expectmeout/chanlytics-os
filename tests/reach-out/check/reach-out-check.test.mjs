@@ -92,6 +92,21 @@ test("an opening written, read by code and by the reader, and sendable", async (
   );
 });
 
+test("the writer may name only the facts its record holds: one it does not hold is never offered (16 Nov 2026)", async () => {
+  // Two lines written from a preview were held: true, but each named the listing's about, which neither listing has.
+  const offered = (m) => m.asked[0].schema.properties.facts_used.items.enum;
+  const bare = scripted(WROTE("A 4.9 from 16 reviews says people find you."), READ());
+  await checkOne(input({ record: { ...RECORD, about: null, hours: null } }), bare.ask, open);
+  assert.deepEqual(offered(bare), ["category", "city", "rating", "reviews", "website", "why_it_fits"]);
+  const withPreview = scripted(WROTE("It already knows your hours.", { facts_used: ["preview_knows"] }), READ());
+  const preview = { preview_knows: "hours: Mon–Fri 8–6; 3 services (Packing, Storage, Pianos)", preview_tried: null };
+  await checkOne(input({ record: { ...RECORD, about: null, ...preview } }), withPreview.ask, open);
+  assert.ok(offered(withPreview).includes("preview_knows"));
+  assert.ok(!offered(withPreview).includes("about") && !offered(withPreview).includes("preview_tried"));
+  // The reader is asked as before, and what code holds is unchanged: a fact named that the record lacks is still held.
+  assert.equal(withPreview.asked[1].schema.properties.facts_used, undefined);
+});
+
 test("a claim the record does not hold is written again once, told why; then held with what it said", async () => {
   const again = scripted(
     WROTE("Loved by locals."),
