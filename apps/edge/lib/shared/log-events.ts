@@ -678,6 +678,7 @@ export const LOG_EVENTS = [
   "site_read_refused",
   "site_reader_credits",
   "site_reader_unreadable",
+  "sites_again_failed",
   "sms_answer_taken_up",
   "sms_answer_unscheduled",
   "sms_bad_signature",

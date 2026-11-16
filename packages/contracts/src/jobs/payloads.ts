@@ -81,7 +81,8 @@ export const JOB_PAYLOADS = {
     wire: z.string().optional(),
   }),
   history_import: carrying({ source: z.string(), seq: z.string(), connection_id: z.string().optional() }),
-  website_read: carrying({ url: z.string() }),
+  // `again`: the monthly read on its own (edge sites-again.ts), which leaves the last good read standing where it fails.
+  website_read: carrying({ url: z.string(), again: z.boolean().optional() }),
   preview_build: carrying({ preview_id: z.string() }),
   erasure_finish: carrying({ contact_id: z.string(), by: z.string().nullable().optional() }),
   reply_draft: carrying({

@@ -38,6 +38,7 @@ import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
 import { keepAnthropicProfiles } from "../ai/anthropic-profiles/keep.js";
 import { keepFilesMoving } from "../files/upkeep.js";
+import { readSitesAgain } from "../imports/sites-again.js";
 import { watchStream } from "../files/video-watch.js";
 import { watchSiteReader } from "../imports/site-reader-watch.js";
 import { errField } from "../shared/log.js";
@@ -176,6 +177,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   // A business's files (decision 0099): a look worth trying again, a removal that has not finished, and a video Stream has
   // not answered for, or whose digest stopped short.
   const files = await keepFilesMoving(db);
+  // A business's website read again on its own once a month, so what it shows since comes in (decision 0134, E4).
+  const sitesAgain = await readSitesAgain(db);
   // Stream's stored minutes against the account's allowance, paged from 80% (stage B).
   const streamMinutes = await watchStream(db).catch((e: unknown) => {
     L.error("stream_usage_unreadable", { error: errField(e) });
@@ -210,6 +213,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     files_looked_again: files.looks,
     files_purged_again: files.purges,
     videos_moved_again: files.videos,
+    sites_read_again: sitesAgain,
     stream_minutes: streamMinutes,
     lead_pins_gone: pinsGone,
     lead_prices_paged: pricesPaged,

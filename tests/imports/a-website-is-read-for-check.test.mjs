@@ -538,6 +538,41 @@ test("a read that could not be made keeps why, as Check says it: not a public ad
   assert.equal(page.calls.filter((c) => c.url.includes("anthropic")).length, 0, "nothing asked of the model");
 });
 
+test("a read on its own that fails keeps nothing, so the last good read stands; one that reads well replaces it", async () => {
+  const w = world();
+  const again = () =>
+    websiteReader(w.db).read(
+      { id: "job-2", tenant_id: A, kind: "website_read", payload: { url: SITE, again: true } },
+      Date.now() + 60_000,
+    );
+  const good = web({ [`${SITE}/`]: HOME, [`${SITE}/services`]: SERVICES, [`${SITE}/faq`]: FAQ }, READ);
+  try {
+    await read(w);
+  } finally {
+    good.restore();
+  }
+  assert.deepEqual(w.tables.business_reads[0].facts.services, READ.services);
+  // The site is down the day the month comes round: nothing is kept, and Check still offers what it read before.
+  const down = web({}, READ);
+  try {
+    await again();
+  } finally {
+    down.restore();
+  }
+  assert.equal(w.tables.business_reads.length, 1);
+  assert.equal(w.tables.business_reads[0].error, null);
+  assert.deepEqual(w.tables.business_reads[0].facts.services, READ.services);
+  // A month on it answers, with a new price: the read stands as the site does now.
+  const moved = { ...READ, services: [{ name: "Local moves", price_note: "From $350", duration_min: null }] };
+  const back = web({ [`${SITE}/`]: HOME, [`${SITE}/services`]: SERVICES, [`${SITE}/faq`]: FAQ }, moved);
+  try {
+    await again();
+  } finally {
+    back.restore();
+  }
+  assert.deepEqual(w.tables.business_reads[0].facts.services, moved.services);
+});
+
 test("a website read asked for is one job while one waits, and nothing is asked of an address that is not public", async () => {
   const w = world();
   await scheduleWebsiteRead(w.db, A, SITE);
