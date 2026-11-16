@@ -15,6 +15,7 @@ import {
   type ChannelsReady,
   channelNeverCarries,
   type HeldOn,
+  type InChat,
   reachFor,
   type ReachSplit,
   reachSplit,
@@ -150,6 +151,11 @@ export interface CampaignHow {
    * day of its own to wait in. Absent, nobody is placed on a channel that cannot carry the message now.
    */
   wait?: boolean;
+  /**
+   * A step whose reply may go in a person's open WhatsApp chat (reach-for.ts InChat, decision 0135): said only by a run
+   * in a workspace whose switch is on, for a step of that kind. Absent, nobody is picked for the chat.
+   */
+  inChat?: InChat | null;
 }
 
 /**

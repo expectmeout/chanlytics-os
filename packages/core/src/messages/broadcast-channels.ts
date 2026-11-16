@@ -23,6 +23,7 @@ import {
   type AppointmentState,
   type AskedPurpose,
   type FeedNames,
+  IN_CHAT_FACT,
   RECIPIENT_REASON_HEARD,
   allowanceRoom,
   customerEmailFoot,
@@ -35,6 +36,7 @@ import {
   purposeOfTemplate,
   renderOwnVersion,
   renderTemplate,
+  replyWindow,
   triggerOf,
   versionWords,
   versionsOf,
@@ -102,6 +104,11 @@ export interface Work {
    * has a WhatsApp row), and for a playbook's run the stricter of that and its moment's class.
    */
   purpose: SendPurpose;
+  /**
+   * The yes a reply in a person's open WhatsApp chat goes under (decision 0135, campaigns/paced.ts inChatPurposeAt), for
+   * those the run marked for it; null where this run's message is not one to answer there now, and they go as everybody does.
+   */
+  inChat: AskedPurpose | null;
   /** The words of the message's WhatsApp row as Meta has it, those who go by WhatsApp are sent; none where it has no such row. */
   tpl: { body_preview: string | null };
   /**
@@ -187,6 +194,20 @@ export async function batchSlots(
 export function rowHold(recipient: Pick<RecipientRow, "facts">, visitStands: () => boolean): string | null {
   if (leftOutByFacts(rowFacts(recipient))) return RECIPIENT_REASON_HEARD;
   return visitStands() ? null : "appointment_changed";
+}
+
+/**
+ * How one person is reached in their open WhatsApp chat (decision 0135): under the run's yes for it where the run marked
+ * them (contracts IN_CHAT_FACT) and their chat is still open now, by their thread's own clock; "closed" where its day has
+ * passed since, and nothing goes in it; null for anyone else, who goes as everybody does.
+ */
+export function chatReplyOf(
+  work: Pick<Work, "inChat" | "ports">,
+  recipient: Pick<RecipientRow, "facts">,
+  waInboundAt: string | null,
+): AskedPurpose | "closed" | null {
+  if (!work.inChat || rowFacts(recipient)[IN_CHAT_FACT] !== "yes") return null;
+  return replyWindow("whatsapp", waInboundAt, new Date(work.ports.now())).open ? work.inChat : "closed";
 }
 
 /** What a run's messages record: that a broadcast sent them, which, and for a run, its playbook (a thread reads "by the Win-back playbook"). */
@@ -323,11 +344,20 @@ export async function queueEmailRow(work: Work, created: { queue?: QueuedEmail }
 
 /**
  * One person's delivery on their channel, or why they are held. `params` are the values of the message's slots for
- * them, which every version of the message fills the same way.
+ * them, which every version of the message fills the same way. `waInboundAt` is when they last wrote on WhatsApp in
+ * their thread, which a reply in their open chat is asked by (chatReplyOf).
  */
 export async function prepare(
   work: Work,
-  input: { r: RecipientRow; c: ContactRow; channel: Channel; to: string; conversationId: string; params: string[] },
+  input: {
+    r: RecipientRow;
+    c: ContactRow;
+    channel: Channel;
+    to: string;
+    conversationId: string;
+    waInboundAt: string | null;
+    params: string[];
+  },
 ): Promise<Prepared> {
   const { b, cmd } = work;
   const base = {
@@ -352,14 +382,14 @@ export async function prepare(
     meta: metaOf(b),
   };
   if (input.channel === "whatsapp") {
-    return {
-      delivery: {
-        ...base,
-        channel: "whatsapp",
-        body: renderTemplate(work.tpl.body_preview, input.params),
-        template: { name: b.template_name, language: b.template_language, params: input.params },
-      },
-    };
+    const body = renderTemplate(work.tpl.body_preview, input.params);
+    // A person the run reached in their open chat (decision 0135) is replied to in it while it is still open, by their
+    // thread's clock now: the message's words, naming no saved message, under the moment's yes. Closed since, nothing goes.
+    const inChat = chatReplyOf(work, input.r, input.waInboundAt);
+    if (inChat === "closed") return { held: "chat_closed" };
+    if (inChat) return { delivery: { ...base, channel: "whatsapp", body, purpose: inChat } };
+    const template = { name: b.template_name, language: b.template_language, params: input.params };
+    return { delivery: { ...base, channel: "whatsapp", body, template } };
   }
   if (input.channel === "email") return emailDelivery(work, input, base);
   const version = versionOf(work, "sms");

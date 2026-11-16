@@ -294,10 +294,23 @@ export function channelChoices(ready: ChannelsReady, purpose: AskedPurpose, abou
 export type HeldOn = NotReceived | "no_channel";
 
 /**
- * A person as the pick reads them: their answers, where to send, and the channel they last wrote on (an Instagram DM among
- * them, which no campaign goes by: the pick then keeps its own order).
+ * A person as the pick reads them: their answers, where to send, the channel they last wrote on (an Instagram DM among
+ * them, which no campaign goes by: the pick then keeps its own order), and when they last wrote on WhatsApp, where the
+ * read carries it (People's row does: `latest_wa_inbound_at`), which a reply in their open chat is judged by (InChat).
  */
-export type ReachRow = ReceiveRow & { lastChannel?: WrittenChannel | null };
+export type ReachRow = ReceiveRow & { lastChannel?: WrittenChannel | null; waInboundAt?: string | null };
+
+/**
+ * A step whose reply may go in a person's open WhatsApp chat (decision 0135): a follow-up about their own request whose
+ * message WhatsApp approved as an offer. `purpose` is the moment's own, the yes the open chat asks, where the message's
+ * is the offer's; `open` says whether a person's chat is still open at the moment the send is for, as the run asks it
+ * (core campaigns/paced.ts inChatOf, by replyWindow), so this pick, which every page that counts a run loads, carries
+ * no clock of its own.
+ */
+export interface InChat {
+  purpose: AskedPurpose;
+  open: (reach: ReachRow) => boolean;
+}
 
 /**
  * How far each reason is from being the owner's to fix: first the one that ends everything, then the person's own no to
@@ -335,6 +348,23 @@ export function usableChannels(
 }
 
 /**
+ * Whether a step's reply goes in this person's open WhatsApp chat (decision 0135): null where it does. "closed" where
+ * there is no chat to reply in, which holds nobody, and they are picked as they always were: the step does not go by
+ * WhatsApp, the number cannot send, or their 24 hours since they last wrote there are over at the moment the send is for
+ * (InChat `open`). Else the person's own reason under the moment's yes: a stop, no yes to messages,
+ * no number. Meta's pause on offers to US numbers is not asked: words in an open chat are no saved message of Meta's.
+ */
+function inChatFor(
+  reach: ReachRow,
+  chat: InChat,
+  options: Parameters<typeof usableChannels>[1],
+): NotReceived | "closed" | null {
+  if (!options.channels.includes("whatsapp") || !options.ready.whatsapp.ready) return "closed";
+  if (!chat.open(reach)) return "closed";
+  return whyNotReceive(reach, chat.purpose, "whatsapp", options.about);
+}
+
+/**
  * The channel a campaign reaches this person on, or why it reaches them on none (the rules at the head of this file).
  * `channels` are the campaign's ticks; `ready` the workspace's channels now; `about` what its message is about, which
  * by email decides whether a yes is asked (consent.ts MessageAbout).
@@ -343,22 +373,35 @@ export function usableChannels(
  * holding it). A person a channel that can go now reaches goes by it, at once; one only the waiting channel reaches is
  * placed on it, and the send holds them until it opens (core messages/broadcast/whatsapp-wait.ts). Without it they are
  * held, `no_channel`, as a run that cannot wait holds them.
+ *
+ * `inChat`: where the step says its reply may go in an open chat (decision 0135), that is asked first, and a person
+ * picked so is marked (`inChat`): the send leaves the saved message's name off for them. Someone their own answers hold
+ * there is held by the strictest reason of both askings. Unsaid, nobody is picked that way.
  */
 export function reachFor(
   reach: ReachRow,
   purpose: AskedPurpose,
-  options: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout; wait?: boolean },
-): { channel: ConsentChannel; held: null } | { channel: null; held: HeldOn } {
+  options: {
+    channels: readonly string[];
+    ready: ChannelsReady;
+    about: MessageAbout;
+    wait?: boolean;
+    inChat?: InChat | null;
+  },
+): { channel: ConsentChannel; held: null; inChat?: true } | { channel: null; held: HeldOn } {
+  const chat = options.inChat ? inChatFor(reach, options.inChat, options) : "closed";
+  if (chat === null) return { channel: "whatsapp", held: null, inChat: true };
+  const heldOn: HeldOn[] = chat === "closed" ? [] : [chat];
+  const strictest = (): HeldOn => HELD_ON.find((w) => heldOn.includes(w)) ?? "no_channel";
   const usable = usableChannels(purpose, options);
   const last = usable.find((c) => c === reach.lastChannel) ?? null;
   const order = last ? [last, ...usable.filter((c) => c !== last)] : usable;
-  const heldOn: HeldOn[] = [];
   for (const c of [...order, ...(options.wait ? waitingChannels(purpose, options) : [])]) {
     const w = whyNotReceive(reach, purpose, c, options.about);
     if (w === null) return { channel: c, held: null };
     heldOn.push(w);
   }
-  return { channel: null, held: HELD_ON.find((w) => heldOn.includes(w)) ?? "no_channel" };
+  return { channel: null, held: strictest() };
 }
 
 /**

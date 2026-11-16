@@ -3,6 +3,7 @@ export { campaignChannelsOf, playbookChannelsRead, WHATSAPP_VERSION_ALONE } from
 export type { ChannelStand, PlaybookChannelsRead, PlaybookMessage } from "./channels";
 export { PLAYBOOK_RUN_DOOR } from "./edge-doors";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./failed";
+export { IN_CHAT_FACT, inChatPurposeOf, replyInChatOf } from "./in-chat";
 export { keptThanksAt, lateReminderAt } from "./late-reminder";
 export type { LateReminder, LateThanks } from "./late-reminder";
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./lifecycle/inputs";

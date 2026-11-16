@@ -230,7 +230,7 @@ being read is dropped by a migration.
 | `jobs_take_their_kind` | trigger | the server | trigger `jobs_take_their_kind on jobs` |  |
 | `jobs_wake` | trigger | the server | trigger `jobs_wake on jobs` | After a statement writes jobs: |
 | `last_inbound_on_instagram` | computed column | a signed-in person, the server | code `apps/dashboard/src/server/conversations/dto.ts`, `packages/contracts/src/conversations/thread-dto.ts` and 5 more | When a thread's person last wrote by Instagram DM (decision 0001, step 8): |
-| `last_inbound_on_whatsapp` | computed column | a signed-in person, the server | code `apps/dashboard/src/server/conversations/dto.ts`; SQL `people_list` | When a thread's person last wrote on WhatsApp (decision 0001, step 5): |
+| `last_inbound_on_whatsapp` | computed column | a signed-in person, the server | code `apps/dashboard/src/server/conversations/dto.ts`, `packages/db/src/repositories/channels/ingest.ts` and 1 more; SQL `people_list` | When a thread's person last wrote on WhatsApp (decision 0001, step 5): |
 | `lead_address_in_people` | the server's | the server | SQL `lead_addressee_choose`, `lead_company_upsert` and 2 more | Whether a person in People holds the address (lower-cased and trimmed), as theirs or as one they wrote from (00429): |
 | `lead_address_suppressed` | the server's | the server | SQL `lead_addressee_choose`, `lead_company_upsert` and 5 more | Whether one address is on the never-again list: |
 | `lead_addressee_choose` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | The owner's choice (permission find) of who a company lead's reach-out writes to (00430, 0057's call 8): |
