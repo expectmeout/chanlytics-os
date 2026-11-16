@@ -126,7 +126,7 @@ export const FeaturesConfigSchema = z
     booking_requests: z.boolean().optional(),
     /**
      * A follow-up WhatsApp files as an offer goes as a reply in the person's open WhatsApp chat (decision 0135):
-     * contracts playbooks/purpose.ts replyInChatOf. Off, it goes as an offer goes, as before.
+     * contracts playbooks/in-chat.ts replyInChatOf. Off, it goes as an offer goes, as before.
      */
     reply_in_chat: z.boolean().optional(),
   })

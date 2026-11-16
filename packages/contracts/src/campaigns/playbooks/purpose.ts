@@ -58,36 +58,6 @@ export function enrolPurpose(policyClass: string | null | undefined, message: Ru
   return purposeOfTemplate(message.category);
 }
 
-/**
- * The yes a step's reply in a person's open WhatsApp chat asks (decision 0135), or null for a step that never replies
- * there: one whose moment is about something of theirs (its class's yes is to messages) and whose message WhatsApp
- * approved as an offer. The ready-made booking follow-up, filed as a notice and approved as an offer, then reached
- * nobody from a US number (15 Nov 2026), though the person it is for wrote within the day. An offer's own moment is an
- * offer wherever it goes, a message WhatsApp approved as a notice goes as it always did, and one with no approved
- * WhatsApp version has no words to send in the chat.
- */
-export function inChatPurposeOf(
-  policyClass: string | null | undefined,
-  message: { category: string | null; whatsappApproved: boolean },
-): AskedPurpose | null {
-  const byClass = purposeOfPlaybook(policyClass);
-  if (byClass === "marketing" || !message.whatsappApproved) return null;
-  return purposeOfTemplate(message.category) === "marketing" ? byClass : null;
-}
-
-/**
- * Whether a workspace's config turns on the reply in the open chat (`features.reply_in_chat`, the flag registry's
- * `reply_in_chat`, decision 0135). Read off the config as stored, so anything but `true` is off. The one reader of the
- * flag: the run's context asks it.
- */
-export function replyInChatOf(config: unknown): boolean {
-  if (typeof config !== "object" || config === null || !("features" in config)) return false;
-  const features: unknown = config.features;
-  return (
-    typeof features === "object" && features !== null && "reply_in_chat" in features && features.reply_in_chat === true
-  );
-}
-
 /** The two ways a moment and its message disagree, and what each says. */
 export const MESSAGE_MOMENT_WORDS = {
   offer_on_texts:

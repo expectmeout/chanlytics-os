@@ -312,12 +312,6 @@ export interface InChat {
 }
 
 /**
- * The fact a run keeps on the row of a person it reaches in their open WhatsApp chat (decision 0135): the send goes by
- * it, asks their chat again, and replies in it with the message's words, naming no saved message.
- */
-export const IN_CHAT_FACT = "in_chat";
-
-/**
  * How far each reason is from being the owner's to fix: first the one that ends everything, then the person's own no to
  * email, their missing yes, and last what the owner can mend on the person's page (a number, an address, one that stopped)
  * or in the workspace (no channel). A Record, so a reason added to HeldOn cannot be left out of the order.

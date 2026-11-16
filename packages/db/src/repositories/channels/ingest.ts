@@ -294,7 +294,10 @@ export interface OutboundTarget extends PurposeBearing {
   /** A human has this thread until then. Carried for the same reason consent
    *  is: a sender that is not handed the fact cannot honour it. */
   pausedUntil: string | null;
-  /** When the person last wrote on WhatsApp in this thread (null: never): their open chat's clock (contracts replyWindow). */
+  /**
+   * When the person last wrote on WhatsApp in this thread (null: never), read through its one accessor
+   * (`last_inbound_on_whatsapp`, 00485): their open chat's clock (contracts replyWindow).
+   */
   waInboundAt: string | null;
 }
 
@@ -381,7 +384,7 @@ async function threadOf(
     // and the answer is not consent alone: a human who took this thread over is
     // mid-conversation, and an automated message landing underneath them is
     // indistinguishable, to the customer, from the person they are talking to.
-    .select("id, paused_until, last_wa_inbound_at")
+    .select("id, paused_until, last_inbound_on_whatsapp")
     .single();
   if (cErr || !conv) throw new Error(`resolve_outbound_target conversation: ${cErr?.message}`);
 
@@ -389,7 +392,7 @@ async function threadOf(
     contactId: contact.id,
     conversationId: conv.id,
     pausedUntil: conv.paused_until ?? null,
-    waInboundAt: conv.last_wa_inbound_at ?? null,
+    waInboundAt: conv.last_inbound_on_whatsapp ?? null,
     consent: contact.consent ?? null,
     dnc: contact.dnc ?? false,
     marketing_consent: contact.marketing_consent ?? null,

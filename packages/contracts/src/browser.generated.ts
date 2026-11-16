@@ -94,7 +94,7 @@ export { dailyLimit, LIMIT_TIERS, numberHealth, overLimitRefusal } from "./campa
 export { OFFER_PLAN_WORDS } from "./campaigns/broadcasts/offer-plan-words";
 export { PREVIEW_CHANNEL_WORDS, PREVIEW_WORDS, previewOn, previewParts, previewSays, previewVersionsOf, reachBarParts, reachBarWords, reachByWords } from "./campaigns/broadcasts/preview-by-channel";
 export { answeredYes, personReachOf, READY_WHATSAPP_ALONE, readyOrWhatsApp } from "./campaigns/broadcasts/reach-any";
-export { CHANNEL_WORDS, channelChoices, channelNeverCarries, channelRefuses, channelsReady, DEFAULT_CAMPAIGN_CHANNELS, HELD_ON, NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, newCampaignChannels, offersNote, reachFor, reachSplit, reachSplitWords, channelRuledOut, IN_CHAT_FACT, usableChannels } from "./campaigns/broadcasts/reach-for";
+export { CHANNEL_WORDS, channelChoices, channelNeverCarries, channelRefuses, channelsReady, DEFAULT_CAMPAIGN_CHANNELS, HELD_ON, NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, newCampaignChannels, offersNote, reachFor, reachSplit, reachSplitWords, channelRuledOut, usableChannels } from "./campaigns/broadcasts/reach-for";
 export { answersToRuns } from "./campaigns/broadcasts/run-answers";
 export { consentAnswerWords, receiptWords, RUN_FILTERS, RUN_REPORT_STEPS, toRunReportVM } from "./campaigns/broadcasts/run-report";
 export { allLeftOutWords, BREATH_WHY, breathSplit, breathTouchOf, breathWaitWords, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, finishedRunHeldWhy, goesToOf, HEARD_UNREAD_WORDS, heardFor, heardTooWords, heardWithin, heardWords, HELD_REASONS, HELD_WHEN_COUNTED, isReplyTo, LEFT_OUT_FACTS, leftOutBy, leftOutByFacts, reachAfterBreath, RECIPIENT_REASON_HEARD, REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, runStillMoving } from "./campaigns/broadcasts/run-words";
@@ -104,6 +104,7 @@ export { FREED_TIME_PASSED_WORDS, poolWords, reachLines, runApprovalRefusal, run
 export { campaignChannelsOf, playbookChannelsRead, WHATSAPP_VERSION_ALONE } from "./campaigns/playbooks/channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./campaigns/playbooks/failed";
 export { FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, followUpIsFor, followUpKey, followUpNames, followUpRunAt, followUpStandOf, followUpWords, PLAYBOOK_TOUCH_WINDOW_MS, playbookRunStop, playbookStopBy } from "./campaigns/playbooks/follow-ups";
+export { IN_CHAT_FACT, inChatPurposeOf, replyInChatOf } from "./campaigns/playbooks/in-chat";
 export { keptThanksAt, lateReminderAt } from "./campaigns/playbooks/late-reminder";
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./campaigns/playbooks/lifecycle/inputs";
 export { reachCountsOf, lifecycleComing, lifecycleReach, lifecycleResults, nextRunLine, resumeDetailOf, waitingOffer, workspacePausedOf } from "./campaigns/playbooks/lifecycle/tiles";
@@ -111,7 +112,7 @@ export { channelsGoesByWords, LIFECYCLE_TOAST, LIFECYCLE_WORDS, lifecycleChainSt
 export { ASK_REST_DAYS, askFollowUpAt, askOccasion, missedFollowUpAt, missedOccasion, OCCASION_LATE_MS, occasionAppointment, occasionEventOf, occasionGone, visitOccasion, visitOccasionsOf, visitSoonAt } from "./campaigns/playbooks/occasions";
 export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./campaigns/playbooks/patch";
 export { FREED_TIME_NEEDS_WHEN, freedTimeFactsFor, LIST_PLAYBOOK_CLASSES, playbookListRef, proposalFactsFor, visitDayWord, visitFactsFor } from "./campaigns/playbooks/playbooks";
-export { enrolPurpose, inChatPurposeOf, MESSAGE_MOMENT_WORDS, messageAboutOfTrigger, messageFitsMoment, passesHandoverPause, replyInChatOf } from "./campaigns/playbooks/purpose";
+export { enrolPurpose, MESSAGE_MOMENT_WORDS, messageAboutOfTrigger, messageFitsMoment, passesHandoverPause } from "./campaigns/playbooks/purpose";
 export { eligibleForPlaybook, PLAYBOOK_CLASS_LABEL, PLAYBOOK_REACH_WORDS, playbookNoNumberWords, playbookPoolKey, playbookReach, playbookReachDoor, playbookRunReach, theirVisitTest, touchesAfterRun, visitMomentDay, visitOnDay } from "./campaigns/playbooks/reach";
 export { heldBackOfOneRun, runReadingOf } from "./campaigns/playbooks/run-split";
 export { inLastSendingHour, localDate, localHour, nextOpenMoment, nextRunLabel, nextRunOf, planRun, runDueNow, runsWords, scheduleLine, campaignDayWords, campaignEnded, campaignRunsOn, sendingEndsAt } from "./campaigns/playbooks/schedule";
