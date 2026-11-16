@@ -261,6 +261,8 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   template_not_approved: "its WhatsApp version is no longer approved",
   // They waited for WhatsApp to say yes to the message, and the wait ended first (core whatsapp-wait.ts).
   whatsapp_wait_ended: "WhatsApp had not approved the message in time",
+  // A follow-up to go as a reply in their open WhatsApp chat (decision 0135), whose day had passed by the time it went.
+  chat_closed: "their WhatsApp chat had closed",
   // The number is on file but no thread answers to it on this line: a stored
   // number that does not normalise, or one no contact row matches.
   no_thread: "no thread for that number",

@@ -239,6 +239,11 @@ export interface RunContext {
   /** The workspace's pace (contracts dealPaceOf): when a proposal waits, for the follow-up; null without one. */
   pace: DealPaceVM | null;
   /**
+   * The workspace's switch for a reply in the open WhatsApp chat (contracts replyInChatOf, decision 0135): a step of
+   * that kind (inChatPurposeOf) picks a person whose chat is open on WhatsApp. Absent or false, nobody is.
+   */
+  repliesInChat?: boolean;
+  /**
    * The other steps running on the same visit moment as this one (a second "day before" reminder): a run reaches nobody
    * one of them reached for the same visit (contracts playbookRunReach `byTwin`). Absent where the runtime reads none.
    */

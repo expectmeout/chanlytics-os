@@ -254,10 +254,13 @@ export interface BroadcastBatchPorts {
    * next batch, as every read the send cannot make does (broadcast.ts readPeople), and is never sent on a guess.
    */
   feed?(): Promise<FeedNames | null>;
-  /** The thread this send belongs to, never created here. */
-  target(phoneE164: string): Promise<{ conversationId: string } | null>;
+  /**
+   * The thread this send belongs to, never created here, and when its person last wrote on WhatsApp in it (null: never),
+   * which a reply in their open chat is asked by at the send (decision 0135).
+   */
+  target(phoneE164: string): Promise<{ conversationId: string; waInboundAt: string | null } | null>;
   /** The same thread by the person, for an email, which reaches them by an address rather than a number; null for one that is gone. */
-  targetOfContact(contactId: ContactId): Promise<{ conversationId: string } | null>;
+  targetOfContact(contactId: ContactId): Promise<{ conversationId: string; waInboundAt: string | null } | null>;
   /**
    * The request one person's email leaves as, frozen (channels buildEmailRequest) from the hosted mailbox: From the
    * workspace's address, Reply-To its reply route, To `to`, the subject and body, and `footer` after them, under

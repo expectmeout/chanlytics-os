@@ -52,6 +52,7 @@ import {
   ownAddressesOf,
   numberHealthOfConfig,
   parseTenantConfig,
+  replyInChatOf,
   calendarFeedKeyOf,
   peopleVisitsOf,
   feedMarksOf,
@@ -370,6 +371,8 @@ export async function loadTenantRunContext(
     ready,
     touches: { byThis, byAny, followUps, followUpKeys },
     pace: yeses ? dealPaceOf(dealPaceFrom(yeses, now.getTime())) : null,
+    // The switch for a follow-up's reply in the open WhatsApp chat (decision 0135), off unless the config says so.
+    repliesInChat: replyInChatOf(cfgRow?.config),
     twinsOf: (stepId, trigger) =>
       (onMoments.data ?? []).filter((s) => s.trigger === trigger && s.id !== stepId).map((s) => s.id),
   };
@@ -441,6 +444,8 @@ export async function loadOccasionRunContext(
     ready,
     touches: { byThis: new Map(), byAny: new Map(), followUps: new Map(), followUpKeys: new Map() },
     pace: null,
+    // The switch for a follow-up's reply in the open WhatsApp chat (decision 0135), off unless the config says so.
+    repliesInChat: replyInChatOf(cfgRow?.config),
   };
 }
 

@@ -369,6 +369,16 @@ function reachOrder(recentFirst: boolean): (a: PersonRowVM, b: PersonRowVM) => n
   return recentFirst ? (a, b) => at(b) - at(a) : (a, b) => at(a) - at(b);
 }
 
+/** What a run draws (playbookRunReach): who, its reach, how many said yes, each one's channel, who in their open chat. */
+interface DrawnRun {
+  eligible: PersonRowVM[];
+  reach: RunReach;
+  saidYes: number;
+  channelOf: Record<string, ConsentChannel>;
+  /** Who of them it reaches as a reply in their open WhatsApp chat (reachFor `inChat`, decision 0135), by id. */
+  inChat: string[];
+}
+
 /**
  * The run as drawn: who it reaches, its reach, and `saidYes` -- how many the
  * moment names who said the yes its messages need, a number to send to or not,
@@ -394,7 +404,7 @@ export function playbookRunReach(
   pace: Pick<DealPaceVM, "waitDays"> | null,
   /** Who is on the list a saved_list playbook runs on (lists/rules.ts savedListIds); none when it names no list. */
   listIds: ReadonlySet<string> | null = null,
-): { eligible: PersonRowVM[]; reach: RunReach; saidYes: number; channelOf: Record<string, ConsentChannel> } {
+): DrawnRun {
   const reach: RunReach = {
     pool: 0,
     will: 0,
@@ -411,7 +421,8 @@ export function playbookRunReach(
   };
   const byChannel: Record<ConsentChannel, number> = { whatsapp: 0, sms: 0, email: 0 };
   const channelOf: Record<string, ConsentChannel> = {};
-  const none = { eligible: [], reach, saidYes: 0, channelOf };
+  const inChat = new Map<string, boolean>();
+  const none = { eligible: [], reach, saidYes: 0, channelOf, inChat: [] };
   const trigger = triggerOf(run.trigger);
   if (!trigger) return none;
   // A reach-out writes to leads, never to People: its run is its own (core campaigns/run-reach-out.ts), and its
@@ -426,6 +437,8 @@ export function playbookRunReach(
     about: messageAboutOfTrigger(run.trigger),
     // A run with no day of its own waits at the send for a channel that opens by itself (reachFor `wait`).
     wait: run.wait === true,
+    // A step whose reply may go in an open WhatsApp chat (decision 0135): said by the run, never assumed here.
+    inChat: run.inChat,
   };
   // What each person has had of the follow-up: the latest, and the latest by what each was about (0029).
   const hadOf = (id: string): FollowUpsHad => ({
@@ -447,7 +460,8 @@ export function playbookRunReach(
     }
     reach.by_channel = byChannel;
     reach.will = eligible.length;
-    return { eligible, reach, saidYes, channelOf: kept };
+    const chatIds = eligible.filter((r) => inChat.get(r.id) === true).map((r) => r.id);
+    return { eligible, reach, saidYes, channelOf: kept, inChat: chatIds };
   };
   const allowed: PersonRowVM[] = [];
   // A thank-you waits for the word that they came (decision 0123): a visit nobody marked kept is named and left out.
@@ -458,6 +472,7 @@ export function playbookRunReach(
     const pick = reachFor(item, purpose, how);
     if (pick.channel) {
       channelOf[item.id] = pick.channel;
+      inChat.set(item.id, pick.inChat === true);
       allowed.push(item);
     } else if (pick.held === "no_number") reach.noNumber += 1;
     // Their own no to email counts with the other noes: they asked us to stop, and the run leaves them out.
