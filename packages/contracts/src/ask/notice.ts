@@ -75,12 +75,12 @@ const EN: Readonly<Record<string, Row>> = {
   },
   search_asks: { says: () => "A search waits for your answer.", ask: () => "What is my search asking me?" },
   replies_waiting: {
-    says: (f) => `${s(n(f.replies), "reply waits", "replies wait")} in your sequences.`,
-    ask: () => "Draft answers to the replies waiting in my sequences.",
+    says: (f) => `${s(n(f.replies), "reply waits", "replies wait")} from your cold email.`,
+    ask: () => "Draft answers to the replies to my cold email.",
   },
   batches_waiting: {
-    says: (f) => `${s(n(f.sends), "send waits", "sends wait")} for your OK.`,
-    ask: () => "Show me what is waiting for my OK before it sends.",
+    says: (f) => `${s(n(f.sends), "send waits", "sends wait")} for your approval.`,
+    ask: () => "Show me what is waiting for my approval before it sends.",
   },
   freed_times_unoffered: {
     says: (f) =>
@@ -96,7 +96,7 @@ const EN: Readonly<Record<string, Row>> = {
   lists_feed_nothing: {
     says: (f) =>
       `${s(n(f.lists), "list feeds", "lists feed")} nothing: ${joinWords([...(f.names ?? [])].slice(0, 3))}.`,
-    ask: () => "Start a sequence on the best of my lists.",
+    ask: () => "Start a campaign on the best of my lists.",
   },
   offers_never_asked: {
     says: (f) => `${s(n(f.never), "person was", "people were")} never asked about offers.`,

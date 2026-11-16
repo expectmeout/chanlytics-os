@@ -287,6 +287,13 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2027-01-31",
   },
   {
+    name: "reply_in_chat",
+    mechanism: "workspace_feature",
+    does: "A follow-up about the person's own request that WhatsApp approved as an offer goes as a reply in their open WhatsApp chat, under their yes to messages (decision 0135); off, it goes as an offer goes.",
+    owner: "Ruben",
+    sunset: "2027-01-31",
+  },
+  {
     name: "ads_preview",
     mechanism: "workspace_feature",
     does: "Campaigns › Ads (its page, its Reports lens, Ad accounts in Connections) drawn in this workspace before the Ads read is wired (0049): it opens on what is true, nothing connected and its own counts, and its sample is a press away.",

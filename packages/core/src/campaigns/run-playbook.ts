@@ -1,4 +1,14 @@
-import { notToday, pacedRun, statusAtTheSend, waitsAtTheSend, waitsOnWhatsApp } from "./paced";
+import {
+  inChatFacts,
+  inChatOf,
+  notToday,
+  pacedRun,
+  statusAtTheSend,
+  waitsAtTheSend,
+  waitsOnWhatsApp,
+  withinTheNumbersDay,
+  type Drawn,
+} from "./paced";
 import { heldContactId } from "@chanlytics/contracts";
 import {
   batchModeOf,
@@ -37,7 +47,6 @@ import {
   type ConsentChannel,
   type PersonRowVM,
   type PlaybookTrigger,
-  type RunReach,
   type SequenceMode,
   type StepHand,
 } from "@chanlytics/contracts";
@@ -218,7 +227,7 @@ function draw(
   message: Message["m"],
   how: CampaignHow,
   among: { listIds: ReadonlySet<string> | null; reached: ReadonlySet<string> },
-): { eligible: PersonRowVM[]; reach: RunReach; channelOf: Record<string, ConsentChannel>; dropped: number } {
+): Drawn & { dropped: number } {
   const { listIds, reached } = among;
   const { p, ctx } = run;
   const byTwin = twinTouches(run);
@@ -250,7 +259,7 @@ function draw(
     ctx.pace,
     listIds,
   );
-  return withinTheNumbersDay(run, drawn);
+  return withinTheNumbersDay(ctx.health, drawn);
 }
 
 /**
@@ -266,33 +275,6 @@ function twinTouches(r: Run): Map<string, number> {
     for (const [person, at] of ctx.touches.byThis.get(id) ?? []) out.set(person, Math.max(out.get(person) ?? 0, at));
   }
   return out;
-}
-
-/**
- * The number's daily limit as a ceiling on WhatsApp's people (Meta's: an email or a text is never held for it), the
- * people past it named in the run's record, never dropped in silence. A moment's run and a step after the first both.
- */
-function withinTheNumbersDay(
-  run: Run,
-  drawn: { eligible: PersonRowVM[]; reach: RunReach; channelOf: Record<string, ConsentChannel> },
-): { eligible: PersonRowVM[]; reach: RunReach; channelOf: Record<string, ConsentChannel>; dropped: number } {
-  const { ctx } = run;
-  const reach: RunReach = { ...drawn.reach };
-  const room =
-    ctx.health.limitPerDay === null ? Number.POSITIVE_INFINITY : Math.max(0, Math.floor(ctx.health.limitPerDay));
-  let onWhatsApp = 0;
-  const eligible = drawn.eligible.filter((person) => {
-    if (drawn.channelOf[person.id] !== "whatsapp") return true;
-    onWhatsApp += 1;
-    return onWhatsApp <= room;
-  });
-  const dropped = drawn.eligible.length - eligible.length;
-  if (dropped > 0) {
-    reach.overLimit = dropped;
-    reach.will = eligible.length;
-    if (reach.by_channel) reach.by_channel = { ...reach.by_channel, whatsapp: reach.by_channel.whatsapp - dropped };
-  }
-  return { eligible, reach, channelOf: drawn.channelOf, dropped };
 }
 
 /**
@@ -341,7 +323,7 @@ async function drawFollowUp(
     // The cap holds the rest to tomorrow: they stay in their sequence, due, the longest waiting first (the due order).
     const capped = drawn.eligible.slice(0, Math.max(1, run.p.cap_per_run));
     for (const [why, ids] of leaving) await run.ports.leave(ids, why);
-    return withinTheNumbersDay(run, {
+    return withinTheNumbersDay(run.ctx.health, {
       eligible: capped,
       reach: { ...drawn.reach, overCap: drawn.eligible.length - capped.length, will: capped.length },
       channelOf: drawn.channelOf,
@@ -641,10 +623,12 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     about: messageAboutOfTrigger(p.trigger),
     // A run with no day of its own places the people only WhatsApp reaches on it, to wait at the send for its yes.
     wait: waitsAtTheSend(run, message.m),
+    // A follow-up WhatsApp files as an offer replies in an open chat, where the workspace says so (decision 0135).
+    inChat: inChatOf(run, message.m, goesAt),
   };
   const drawn = await drawOf(run, message.m, how, gate.listIds);
   if ("error" in drawn) return { outcome: "failed", error: drawn.error };
-  const { eligible, reach, channelOf, dropped } = drawn;
+  const { eligible, reach, channelOf, dropped, inChat } = drawn;
   // A WhatsApp version Meta does not approve holds WhatsApp's people alone: none is drawn on it, and the purpose stays
   // the message's own category. A run that ticks WhatsApp and has nobody on email or text stops on it, as it always did.
   if (templateHolds(run, message, eligible.length)) return off("template_not_approved");
@@ -677,7 +661,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     // Each person on the channel the pick gave them (reachFor): written on their row, which the sender goes by.
     recipients: eligible.map((person) => ({
       contact_id: heldContactId(person.id),
-      facts: facts(person),
+      facts: inChatFacts(facts(person), inChat, person.id),
       channel: channelOf[person.id] ?? "whatsapp",
     })),
     sendAt: open ? open.at : null,

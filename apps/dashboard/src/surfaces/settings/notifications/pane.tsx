@@ -17,8 +17,7 @@ import { addressesOf, ChannelsCard } from "./channels";
 import { AlertGrid, type PutTick } from "./grid";
 import { alertVerbs } from "./verbs";
 
-const BROKEN =
-  "This workspace's settings can't be read — Chanlytics has to repair them before anything here can change";
+const BROKEN = W.broken;
 
 /**
  * This browser told, or not (D12 of the answers canvas): a press asks the browser's own question, and nothing is drawn where

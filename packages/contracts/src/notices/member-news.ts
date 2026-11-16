@@ -45,7 +45,7 @@ export function memberJoinedNotice(memberJoined: MemberJoined): Omit<JobNews, "s
     subject: `${memberJoined.email} joined your team`.slice(0, 200),
     body: [
       `They accepted your invitation and joined as ${role}.`,
-      "Their role can be changed, or the seat removed, under Settings > Team.",
+      "You can change their role, or take them off the team, under Settings › Team.",
     ].join("\n"),
     redactedBody: "A teammate joined a workspace, and nobody could be told.",
   };
@@ -88,7 +88,7 @@ export function memberLeftNotice(message: {
     ),
     body: [
       message.how === "account_deleted"
-        ? "Their account is gone, and their seat with it."
+        ? "Their account was deleted, and they're off the team."
         : `They left the workspace${role ? `, where they were ${role}` : ""}.`,
       "Settings > Team has who is left, and an invitation brings someone back.",
     ].join("\n"),

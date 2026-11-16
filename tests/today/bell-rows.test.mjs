@@ -64,7 +64,7 @@ test("every job kind has the owner's words and a page of its own, and none of th
   );
   assert.equal(
     jobNewsWords("made_up", "failed", { attempts: 1, resumed: false }).title,
-    "Something in the background did not finish",
+    "Something in the background didn't finish",
   );
 });
 
@@ -81,7 +81,7 @@ test("a job's first line is worded from how the ledger settled it: carrying on i
   );
   assert.equal(
     lead("broadcast_send", "failed", { attempts: 1, resumed: false }),
-    "It stopped and will not start again on its own.",
+    "It stopped and won't start again on its own.",
   );
   // Never started again: not carried on, and not claimed to be.
   assert.doesNotMatch(lead("broadcast_send", "failed", { attempts: 1, resumed: true }), /will not start again/);
@@ -89,11 +89,11 @@ test("a job's first line is worded from how the ledger settled it: carrying on i
   // Settling threw (resumed null): nobody knows whether anything carries on, and the line says neither.
   assert.equal(
     lead("broadcast_send", "failed", { attempts: 1, resumed: null }),
-    "It stopped, and whether it carries on in a fresh run could not be checked.",
+    "It stopped. Whether it carries on in a fresh run couldn't be checked.",
   );
   assert.equal(
     lead("broadcast_send", "failed", { attempts: 4, resumed: null }),
-    "It stopped after 4 tries, and whether it carries on in a fresh run could not be checked.",
+    "It stopped after 4 tries. Whether it carries on in a fresh run couldn't be checked.",
   );
   assert.doesNotMatch(lead("broadcast_send", "failed", { attempts: 1, resumed: null }), /will not start again/);
   assert.equal(
@@ -117,7 +117,7 @@ test("a job's first line is worded from how the ledger settled it: carrying on i
   // Work the app does not know how to do is never carried on.
   assert.equal(
     lead("made_up", "unknown_kind", { attempts: 1, resumed: true }),
-    "Nothing ran: this is work the app does not know how to do.",
+    "Nothing ran. The app doesn't know how to do this work.",
   );
 });
 
@@ -152,11 +152,11 @@ test("a job's row the runner wrote before these words is said in them, on its wo
   });
   const by = Object.fromEntries(rows.map((r) => [r.key, r]));
   assert.equal(by["n:j1"].title, "A search stopped partway");
-  assert.equal(by["n:j1"].message, "It stopped and will not start again on its own.", "never the uuid");
+  assert.equal(by["n:j1"].message, "It stopped and won't start again on its own.", "never the uuid");
   assert.equal(by["n:j1"].to, "clients/leads");
   assert.equal(by["n:j1"].action, "Open Leads", "its button says the page it opens");
   assert.equal(by["n:j2"].title, "A message may not have been sent");
-  assert.match(by["n:j2"].message, /may or may not have reached the customer/);
+  assert.match(by["n:j2"].message, /Couldn't confirm it reached them/);
   assert.equal(by["n:j2"].to, "inbox");
   assert.equal(by["n:j3"].title, "Setting up stopped");
   assert.equal(by["n:j3"].to, "start");
@@ -788,7 +788,7 @@ test("Mark all read is its own press: it reads the notes through the bell, says 
       "Notifications, 3 new",
       "the bell's own number, and REGRESSION: it called what is new since the look unread",
     );
-    assert.equal(bellOf(closed).props["data-tip"], "3 new — what needs you");
+    assert.equal(bellOf(closed).props["data-tip"], "3 new");
     assert.equal(
       find(closed, (n) => classes(n).includes("tb-bell-unread")),
       null,

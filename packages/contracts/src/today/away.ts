@@ -388,7 +388,7 @@ export const BELL_READ_WORDS = {
     fresh > 0 ? `Notifications, ${fresh} new` : unread > 0 ? `Notifications, ${unread} unread` : "Notifications",
   /** The closed bell, to a pointer: none where nothing is new or unread. */
   tip: (fresh: number, unread: number): string | undefined =>
-    fresh > 0 ? `${fresh} new — what needs you` : unread > 0 ? `${unread} unread` : undefined,
+    fresh > 0 ? `${fresh} new` : unread > 0 ? `${unread} unread` : undefined,
   /** Mark all read was not taken, after its second try: the dots are back by the time this is said. */
   readFailed: "Mark all read didn't save, so your notes are unread again. Press it once more.",
   /** Its Undo was not taken: the notes stay read. */

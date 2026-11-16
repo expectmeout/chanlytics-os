@@ -266,7 +266,7 @@ function bellAlerts(alerts: BellAlerts, onAlerts: (on: boolean) => void) {
   return (
     <footer className="tbn-foot" data-testid="notif-alerts">
       {!alerts.can ? (
-        <span className="tbn-foot-note">This browser can&apos;t show alerts.</span>
+        <span className="tbn-foot-note">{"This browser can't show alerts."}</span>
       ) : alerts.permission === "denied" ? (
         <span className="tbn-foot-note">Alerts are blocked in your browser settings.</span>
       ) : (

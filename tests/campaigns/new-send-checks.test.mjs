@@ -783,3 +783,23 @@ test("REGRESSION (the live run of 14 Nov 2026): the steps whose message Ask wrot
     "by email alone nothing waits: no amber",
   );
 });
+
+test("who it goes to, changed after its message was picked, reads its ticks again: a tick the new one closes goes, one it opens that the old held closed is ticked, and one open to both stays as the owner left it (the review of 15 Nov 2026, C6)", () => {
+  // Offers by email are off: a visit's email is about their booking and goes, a list's is the business's news and waits.
+  const workspace = ws(ALL, { offers: OFFERS_OFF });
+  const note = { ...NEWS, channels: ["whatsapp", "email", "sms"] };
+  const visit = { kind: "moment", trigger: "visit_tomorrow", label: "The day before their visit" };
+  let d = M.setMessage(M.setWho(M.draftByHand("sequence", "people", "x"), visit), 0, note, workspace);
+  assert.deepEqual(d.channels, ["whatsapp", "sms", "email"], "on the visit's moment, every way");
+  d = M.setChannels(d, ["whatsapp", "email"]);
+  // To a list: its email is news, which waits with offers by email; the text the owner unticked stays unticked.
+  d = M.setWho(d, REGULARS, workspace);
+  assert.deepEqual(d.channels, ["whatsapp"]);
+  // Back to the visit: email opens again and is ticked, as a message picked now would be; the text stays as left.
+  d = M.setWho(d, visit, workspace);
+  assert.deepEqual(d.channels, ["whatsapp", "email"]);
+  // With the workspace's channels not read yet, or no message picked, the ticks are left as they are.
+  assert.deepEqual(M.setWho(d, REGULARS).channels, ["whatsapp", "email"]);
+  const none = M.setChannels(M.draftByHand("sequence", "people", "x"), ["email"]);
+  assert.deepEqual(M.setWho(none, REGULARS, workspace).channels, ["email"]);
+});

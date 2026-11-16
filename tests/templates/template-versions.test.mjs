@@ -1331,3 +1331,90 @@ test("the starter set holds the review ask only where the workspace's Google lis
     ["after_visit_review", "en_US", "skipped", NO_CHANNEL, ["email:saved", "sms:saved"]],
   );
 });
+
+test("Start judges a sequence whole before it files a ready-made starter or the AI's words: refused for what its message takes, nothing is filed and nothing reaches WhatsApp; mended, it is filed and made (the review of 15 Nov 2026, C6)", async () => {
+  const { makeFromNew } = await import(at("apps/dashboard/src/server/drafts/sequence-new.ts"));
+  const made = [];
+  const doors = { sequence_create: (a) => (made.push(a), { id: id(80), state: "on" }) };
+  const step = (message, params) => ({
+    name: "",
+    after_days: null,
+    only_if: [],
+    does: "message",
+    message: { template_id: null, params, written: null, starter: null, ...message },
+    email: null,
+    hand: "",
+  });
+  // This month's offer takes the booking link; so do the AI's words below.
+  const starter = step({ starter: "this_months_offer" }, [
+    { kind: "first_name" },
+    { kind: "business_name" },
+    { kind: "text", value: "20% off colour" },
+    { kind: "booking_link" },
+  ]);
+  const written = step(
+    {
+      written: {
+        name: "spring_colour",
+        category: "marketing",
+        versions: { email: { subject: "Spring colour", body: "Hi {{1}}, book your colour here: {{2}} this week." } },
+        slots: [
+          { position: 1, label: "First name", example: "Dani", kind: "first_name" },
+          { position: 2, label: "Booking link", example: "https://book.example/luna", kind: "booking_link" },
+        ],
+      },
+    },
+    [{ kind: "first_name" }, { kind: "booking_link" }],
+  );
+  const start = (steps, bookingLink) => {
+    const config = configIn(["English"]);
+    if (bookingLink) config.config.brain.booking_link = bookingLink;
+    const tables = { memberships: both("viewer", "operator"), templates: [], tenant_config: [config] };
+    const w = world(tables, doors);
+    const sequence = {
+      kind: "sequence",
+      audience: "people",
+      name: "This month's offer",
+      who: { kind: "moment", trigger: "everyone_monthly", label: "Everyone, once a month" },
+      run_hour: 10,
+      at: null,
+      channels: ["email"],
+      mode: null,
+      adds_new: false,
+      steps,
+      start: true,
+    };
+    return { tables, w, made: makeFromNew(w.ctx(), { tenantId: B, role: "operator" }, sequence) };
+  };
+  const NO_LINK = "This message takes the booking link, and none is on file.";
+  for (const [what, steps] of [
+    ["a ready-made starter", [starter]],
+    ["the AI's words", [written]],
+    [
+      "a later step's",
+      [
+        step({ template_id: null, starter: "winback_reply" }, [{ kind: "first_name" }, { kind: "business_name" }]),
+        { ...written, after_days: 7 },
+      ],
+    ],
+  ]) {
+    const { tables, w, made: refusedMake } = start(steps, null);
+    await refused(refusedMake, "conflict", 409, NO_LINK);
+    assert.deepEqual(w.calls, [], `${what}: nothing filed, nothing sent to WhatsApp`);
+    assert.deepEqual(tables.templates, [], what);
+  }
+  assert.equal(made.length, 0, "and no sequence made");
+  // The link on file: the starter is filed (its email, the channel the sequence goes by), then the sequence is made on it.
+  const { tables, w, made: ok } = start([starter], "https://book.example/luna");
+  assert.deepEqual(await ok, { made: id(80), kind: "sequence", state: "on" });
+  assert.deepEqual(
+    w.calls.map(([door, a]) => `${door}:${a.p_name}/${a.p_channel}`),
+    ["create:this_months_offer/email"],
+  );
+  const filed = tables.templates.find((t) => t.name === "this_months_offer");
+  assert.equal(
+    made[0].p_first.template_id,
+    filed.id,
+    "made on the message filed, never the stand-in it was judged against",
+  );
+});

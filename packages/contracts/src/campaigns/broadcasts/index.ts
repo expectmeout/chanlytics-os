@@ -160,6 +160,7 @@ export type { PreviewOn, PreviewPart, PreviewVersions, ReachBarPart } from "./pr
 export { answeredYes, personReachOf, READY_WHATSAPP_ALONE, readyOrWhatsApp } from "./reach-any";
 export type { PersonReach } from "./reach-any";
 export { channelRuledOut, usableChannels } from "./reach-for";
+export type { InChat } from "./reach-for";
 export { answersToRuns } from "./run-answers";
 export type { AnswerEvent, AnswerPurpose, AnswerSend, RunAnswer } from "./run-answers";
 export {
