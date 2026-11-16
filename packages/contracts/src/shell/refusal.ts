@@ -92,9 +92,9 @@ const TITLES: ReadonlyMap<string, string> = new Map([
   ["upstream_anthropic", "AI didn't answer"],
   ["upstream_email", "The email didn't go"],
   ["upstream_auth", "Couldn't check your sign-in"],
-  ["internal", "Something went wrong"],
-  ["unavailable", "Something went wrong"],
-  ["upstream_provider", "Something went wrong"],
+  ["internal", "Couldn't finish that"],
+  ["unavailable", "Couldn't finish that"],
+  ["upstream_provider", "Couldn't finish that"],
   ["network", "No connection"],
   ["timeout", "No answer in time"],
   ["client", "Not sent"],
@@ -108,29 +108,29 @@ const REASON_WORDS: ReadonlyMap<string, string> = new Map([
   ["choose_workspace", "Choose which workspace first."],
   ["mfa_required", "Enter the code from your authenticator app first."],
   ["conflict", "That isn't possible right now."],
-  ["payment_required", "This needs a subscription — see Billing."],
-  ["window_closed", "WhatsApp's 24 hours have passed — send an approved message instead."],
-  ["upstream_meta", "WhatsApp didn't accept it — try again in a moment."],
-  ["upstream_retell", "The phone line didn't answer — try again in a moment."],
-  ["upstream_anthropic", "AI didn't answer — try again in a moment."],
-  ["upstream_email", "The email didn't go — try again in a moment."],
-  ["upstream_auth", "Couldn't check your sign-in just now — try again."],
+  ["payment_required", "This needs a subscription · see Billing."],
+  ["window_closed", "WhatsApp's 24 hours have passed · send an approved message instead."],
+  ["upstream_meta", "WhatsApp didn't accept it · try again in a moment."],
+  ["upstream_retell", "The phone line didn't answer · try again in a moment."],
+  ["upstream_anthropic", "AI didn't answer · try again in a moment."],
+  ["upstream_email", "The email didn't go · try again in a moment."],
+  ["upstream_auth", "Couldn't check your sign-in just now · try again."],
   ["client", "Not sent."],
 ]);
 
 /** The server's own catch-all (with-route.ts): true, and nothing an owner can act on. */
-const SERVER_CATCH_ALL = "Something went wrong.";
+const SERVER_CATCH_ALL = "Couldn't finish that.";
 
-const NETWORK_WRITE = "Network error — nothing was changed.";
+const NETWORK_WRITE = "Couldn't reach Chanlytics. Nothing was changed.";
 const NETWORK_READ = "Chanlytics couldn't be reached.";
-const TIMEOUT_WRITE = "Chanlytics took too long to answer — this may still go through, so check before trying again.";
-const TIMEOUT_READ = "Chanlytics took too long to answer — try again in a moment.";
+const TIMEOUT_WRITE = "Chanlytics took too long to answer · this may still go through, so check before trying again.";
+const TIMEOUT_READ = "Chanlytics took too long to answer · try again in a moment.";
 const NO_ANSWER_WRITE =
-  "Chanlytics didn't answer properly, so this may or may not have gone through — check before trying again.";
+  "Chanlytics didn't answer properly, so this may or may not have gone through · check before trying again.";
 const UNCONFIRMED_WRITE =
-  "Chanlytics hit a problem and couldn't confirm this — check whether it went through before trying again.";
-const READ_AGAIN = "Chanlytics couldn't read this just now — try again in a moment.";
-const OUT_OF_DATE = "This page is out of date — reload it and try again.";
+  "Chanlytics hit a problem and couldn't confirm this · check whether it went through before trying again.";
+const READ_AGAIN = "Chanlytics couldn't read this just now · try again in a moment.";
+const OUT_OF_DATE = "This page is out of date · reload it and try again.";
 
 /** A wait, in words: "40 seconds", "2 minutes". The rate limiter's refusal says it, and so does its retry hint here. */
 export function waitWords(seconds: number): string {
@@ -251,14 +251,14 @@ export function refusalOf(input: RefusalInput): Refusal {
     case "internal":
       return refusal(
         code,
-        "Something went wrong",
+        "Couldn't finish that",
         sentence && sentence !== SERVER_CATCH_ALL ? sentence : input.write ? UNCONFIRMED_WRITE : READ_AGAIN,
       );
     case "rate_limited":
       return refusal(
         code,
         "Too many at once",
-        sentence || `Too many at once — try again in ${retryAfterS ? waitWords(retryAfterS) : "a moment"}.`,
+        sentence || `Too many at once · try again in ${retryAfterS ? waitWords(retryAfterS) : "a moment"}.`,
       );
     case "forbidden": {
       const needs =

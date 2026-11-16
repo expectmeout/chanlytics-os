@@ -495,11 +495,11 @@ test("the words: a rating, its stars, the listing's line, when it was read", () 
   assert.equal(checkedWords(listing(), NOW), "Checked 3h ago");
   assert.equal(
     checkedWords(listing({ check_error: "PERMISSION_DENIED" }), NOW),
-    "Google couldn't be read since 3h ago — read again once a day",
+    "Google couldn't be read since 3h ago · read again once a day",
   );
   assert.equal(
     checkedWords(listing({ checked_at: null, check_error: "x" }), NOW),
-    "Google couldn't be read yet — read again once a day",
+    "Google couldn't be read yet · read again once a day",
   );
   assert.equal(checkedWords(listing({ checked_at: null }), NOW), "Not read yet");
   assert.equal(reviewSnippet("  a   b  "), "a b");
@@ -818,7 +818,7 @@ test("Setup's Google row: absent until the platform can look listings up; then F
   });
   assert.deepEqual(row(connected, "google").details, [
     "Checked 3h ago",
-    "Business Profile connected — every review, replies from Reports",
+    "Business Profile connected · every review, replies from Reports",
   ]);
   assert.deepEqual(row(noAddress, "google").details, ["Add your address in Settings › Details for a surer match"]);
   const linked = setup({
@@ -849,7 +849,7 @@ test("Setup's Google row: absent until the platform can look listings up; then F
   assert.equal(row(trouble, "google").stateWords, "Waiting on Google");
   assert.equal(
     row(trouble, "google").sentence,
-    "Northside Movers is on record, but Google couldn't be read since 1d ago — it is read again once a day.",
+    "Northside Movers is on record, but Google couldn't be read since 1d ago · it is read again once a day.",
   );
   assert.deepEqual(
     row(trouble, "google").verb,

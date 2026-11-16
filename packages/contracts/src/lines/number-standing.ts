@@ -203,9 +203,9 @@ function whatsappManagerLink(ownerBusinessId: string | null, wabaId: string | nu
  */
 const PAYMENT_SENTENCE: Record<PaymentTrouble, string> = {
   missing:
-    "WhatsApp needs a card on file before it delivers reminders and campaigns; they wait and go once one is added.",
+    "WhatsApp needs a card on file before it delivers reminders and campaigns · they wait and go once one is added.",
   failing:
-    "The card on your WhatsApp account has a problem, so reminders and campaigns wait; they go once it is fixed.",
+    "The card on your WhatsApp account has a problem, so reminders and campaigns wait · they go once it is fixed.",
 };
 /**
  * What still goes out without one, said only where Meta itself says the number may send: a BLOCKED number is Meta's word that
@@ -282,9 +282,9 @@ function nameWords(status: string | null, name: string | null): string | null {
   const personName = displayNameWords(name);
   switch (status) {
     case "DECLINED":
-      return `Meta declined ${personName} — change it in WhatsApp Manager.`;
+      return `Meta declined ${personName} · change it in WhatsApp Manager.`;
     case "EXPIRED":
-      return `The request for ${personName} expired — submit it again in WhatsApp Manager.`;
+      return `The request for ${personName} expired · submit it again in WhatsApp Manager.`;
     default:
       return null;
   }
@@ -423,7 +423,7 @@ export function standingAlertWords(
   const first = messagingProblems(numberStanding).at(0);
   const body = first
     ? `WhatsApp can't send from ${which}: ${problemWords(first)}`
-    : `WhatsApp can't send from ${which}. Meta did not say why; open Connections to read what it holds.`;
+    : `WhatsApp can't send from ${which}. Meta did not say why · open Connections to read what it holds.`;
   return { subject: "WhatsApp can't send from your number", body };
 }
 

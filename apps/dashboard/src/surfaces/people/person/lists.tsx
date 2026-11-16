@@ -35,7 +35,7 @@ function whyTip(s: SavedList, personId: string): string | undefined {
 /** A chip's title: its rule's line, or where it opens. */
 function whyTitle(s: SavedList, personId: string): string {
   const tip = whyTip(s, personId);
-  return tip ? `${tip} — open it on People` : `Open ${s.name} on People`;
+  return tip ? `${tip} · open it on People` : `Open ${s.name} on People`;
 }
 
 /** The lists that keep themselves current and have them on today (contracts PersonVM.smartLists): each opens on People. */
@@ -44,7 +44,7 @@ function smartChipsOf(smart: SmartChip[]): ReactNode[] {
     <span key={l.id} className="chip chip-wrap" data-testid="person-smart-chip">
       <a
         {...routeDoor(clientSegRoute(l.id))}
-        title={l.why ? `Because: ${l.why} — open it on People` : `${l.label} keeps itself current — open it on People`}
+        title={l.why ? `Because: ${l.why} · open it on People` : `${l.label} keeps itself current · open it on People`}
         data-tip={l.why ? `Because: ${l.why}` : undefined}
       >
         {l.label}

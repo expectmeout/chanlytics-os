@@ -134,11 +134,11 @@ export const LINE_FILED_NAMES = { brand: "a2p_filed_name", campaign: "a2p_campai
 export const RENAME_WORDS = {
   pages: (name: string) => `Your sign-up page, its paper form and your desk sign say “${name}” now.`,
   held: (filed: string) =>
-    `The carriers still hold “${filed}” as you filed it, and the text confirming a START says it until it is changed with them.`,
+    `The phone networks still hold “${filed}” as you filed it, and the text confirming a START says it until it is changed with them.`,
   ask: "Request a name change",
   kept: "Saved. The workspace couldn't be renamed, so your sign-up page and your sign still say its old name.",
-  requested: "Requested: a person at Chanlytics changes the name with the carriers and writes to you.",
-  already: "Already asked: a person at Chanlytics is changing the name with the carriers.",
+  requested: "Requested: a person at Chanlytics changes the name with the phone networks and writes to you.",
+  already: "Already asked: a person at Chanlytics is changing the name with the phone networks.",
 } as const;
 
 /** What the save door answers beside the record: what moved, and what the carriers hold of it. */
@@ -173,27 +173,27 @@ export function recordSavedOf(raw: unknown): RecordSavedDto | null {
 export function recordSavedWords(recordSaved: RecordSavedDto | null): string {
   if (!recordSaved) return "Saved.";
   const page = "Your public page shows it now";
-  if (recordSaved.first) return `Saved. ${page}, and the carriers see it when you file.`;
+  if (recordSaved.first) return `Saved. ${page}, and the phone networks see it when you file.`;
   if (!recordSaved.changed.length) return "Saved. Nothing in it had changed.";
   const published = recordSaved.changed.some(isPublishedFact);
   const filed = recordSaved.filed_name ? `“${recordSaved.filed_name}” as you filed it` : "what you filed";
   switch (recordSaved.filing) {
     case "none":
       return published
-        ? `Saved. ${page}, and the carriers see it when you file.`
-        : "Saved. The carriers see it when you file.";
+        ? `Saved. ${page}, and the phone networks see it when you file.`
+        : "Saved. The phone networks see it when you file.";
     case "in_review":
       return published
-        ? `Saved. ${page}; the carriers are still reviewing ${filed}.`
-        : `Saved. The carriers are still reviewing ${filed}.`;
+        ? `Saved. ${page}; the phone networks are still reviewing ${filed}.`
+        : `Saved. The phone networks are still reviewing ${filed}.`;
     case "on_file":
       return published
-        ? `Saved. ${page}; the carriers still hold ${filed}.`
-        : `Saved. The carriers still hold ${filed}.`;
+        ? `Saved. ${page}; the phone networks still hold ${filed}.`
+        : `Saved. The phone networks still hold ${filed}.`;
     case "sent_back":
       return published
-        ? `Saved. ${page}, and Chanlytics sends your corrections to the carriers for you, at no cost.`
-        : "Saved. Chanlytics sends your corrections to the carriers for you, at no cost.";
+        ? `Saved. ${page}, and Chanlytics sends your corrections to the phone networks for you, at no cost.`
+        : "Saved. Chanlytics sends your corrections to the phone networks for you, at no cost.";
     case "stopped":
       return published ? `Saved. ${page}.` : "Saved.";
   }
@@ -205,7 +205,7 @@ export function recordSavedWords(recordSaved: RecordSavedDto | null): string {
  * (the edge's registrations sweep).
  */
 export const RECORD_REVIEW_CONFIRM = {
-  question: "Change what the carriers are reviewing?",
+  question: "Change what the phone networks are reviewing?",
   detail:
     "They check your registration against your public page, which changes as soon as you save, and a campaign still waiting on them is sent with the record as you save it. A page that no longer matches what you filed can send the registration back.",
   yes: "Save it anyway",

@@ -42,7 +42,7 @@ export const CALL_ENDINGS_FOR_OWNERS = {
   error_user_not_joined: { owner: "The caller never joined", needsEar: false },
   registered_call_timeout: { owner: "The caller never joined", needsEar: false },
   inactivity: { owner: "Ended after silence", needsEar: true },
-  marked_as_spam: { owner: "Flagged as spam by the carrier", needsEar: true },
+  marked_as_spam: { owner: "Flagged as spam by their phone company", needsEar: true },
   scam_detected: { owner: "Ended as a likely scam", needsEar: false },
   max_duration_reached: { owner: "Hit the call length limit", needsEar: false },
   manual_stopped: { owner: "Ended from the dashboard", needsEar: false },

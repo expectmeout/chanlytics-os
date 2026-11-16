@@ -287,7 +287,7 @@ test("the line: number and switch from the voice channel; null when there is non
   assert.deepEqual(vm.line, {
     number: "+1 (305) 555-0123",
     on: true,
-    offWords: "The line is switched off — calls are picked up without your facts and are not recorded.",
+    offWords: "The line is switched off · calls are picked up without your facts and are not recorded.",
     lastCallLabel: vm.line.lastCallLabel,
   });
   assert.ok(vm.line.lastCallLabel);

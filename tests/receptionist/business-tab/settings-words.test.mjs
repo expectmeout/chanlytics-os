@@ -106,7 +106,7 @@ test("REGRESSION (S7): a line that answers calls with nothing filed says texting
     "REGRESSION: the two pages had no sentence in common",
   );
   assert.equal(connections.sentence, contracts.TEXTING_NEEDS_RECORD_SENTENCE, "Connections says the shared sentence");
-  const opening = "Texting needs your business on record for the carriers";
+  const opening = "Texting needs your business on record for the phone networks";
   assert.ok(connections.sentence.startsWith(opening));
   assert.ok(setupLine.sentence.includes(opening), `REGRESSION: ${setupLine.sentence}`);
   assert.ok(vm.readiness.sentence.includes(opening), `and Setup's top line: ${vm.readiness.sentence}`);

@@ -73,7 +73,7 @@ import {
 after(() => unmount());
 
 const ROWS = ["tone", "languages", "guardrails", "escalate_when", "notes", "extra_instructions", "fallbacks"];
-const SAVED = "Saved — AI picks it up within a minute";
+const SAVED = "Saved · AI picks it up within a minute";
 const said = (f) => textOf({ props: { children: f.msg } });
 const cardOf = (tree) => byTestId(tree, "rec-card-answers");
 /** The box a fold's field draws, by the fold it is in: the kit's RecordField, an input or a textarea. */
@@ -286,7 +286,7 @@ test("a voice past what the profile keeps is refused under its box, and nothing 
   saveFoldOf(tree, "tone");
   tree = redrawTab();
   assert.equal(sent.length, 0);
-  assert.equal(problemOf(tree, "bt-tone"), "At most 200 characters — this is 201.");
+  assert.equal(problemOf(tree, "bt-tone"), "At most 200 characters · this is 201.");
   assert.equal(boxIn(tree, "tone").props["aria-invalid"], true);
   assert.deepEqual(openFolds(tree), ["tone"], "the fold stays open with what was typed");
 });
@@ -464,7 +464,7 @@ test("the languages stop at what the profile keeps, through Add and through an U
   assert.equal(tokensOf(tree).length, 8);
   assert.deepEqual(
     [flashes.at(-1).tone, said(flashes.at(-1))],
-    ["warn", "Not put back — That is the most languages it keeps. Remove one to add another."],
+    ["warn", "Not put back · That is the most languages it keeps. Remove one to add another."],
   );
 });
 
@@ -947,7 +947,7 @@ test("more reasons than the profile keeps are refused under the reasons' box", (
   saveFoldOf(tree, "escalate_when");
   tree = redrawTab();
   assert.equal(sent.length, 0);
-  assert.equal(problemOf(tree, "bt-escalate-when"), "At most 20 reasons, one to a line — this is 21.");
+  assert.equal(problemOf(tree, "bt-escalate-when"), "At most 20 reasons, one to a line · this is 21.");
   assert.equal(
     labelled(tree, "Your reasons"),
     null,
@@ -1032,7 +1032,7 @@ test("the notes stop at ten through Add and through an Undo, and half a note is 
   press(byTestId(tree, "rec-notes-add"));
   tree = redrawTab(flash);
   assert.equal(undo(), false, "full again, nothing is put back");
-  assert.equal(said(flashes.at(-1)), "Not put back — That is the most notes it keeps. Remove one to add another.");
+  assert.equal(said(flashes.at(-1)), "Not put back · That is the most notes it keeps. Remove one to add another.");
   // The new row has a title and no text: half a note, said once under its row, both its boxes wrong by it, and its
   // Until box, which half a note says nothing of, not.
   const sent = saving();
@@ -1247,7 +1247,7 @@ test("emptying the only words a record composes from says it stops composing, an
   assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords(over).limit, "counted as it is typed");
   saveFoldOf(tree, "extra_instructions");
   tree = redrawTab();
-  assert.equal(problemOf(tree, "bt-own-words"), "At most 20,000 characters — this is 20,001.");
+  assert.equal(problemOf(tree, "bt-own-words"), "At most 20,000 characters · this is 20,001.");
   assert.equal(byTestId(tree, "rec-own-count"), null, "and the count gives way to the refusal under the box");
   // With nothing written, the row says None.
   const none = byTestId(
@@ -1343,13 +1343,13 @@ test("each message shows what a customer reads, points at a link or a number wri
   tree = redrawTab();
   assert.match(
     textOf(byTestId(tree, "rec-fallback-non_text-written")),
-    /^Your booking link is written out here — \{booking link\} keeps it current\./,
+    /^Your booking link is written out here · \{booking link\} keeps it current\./,
   );
   labelled(tree, "It got something it can't read").props.onChange({ target: { value: "Call (212) 555-0142." } });
   tree = redrawTab();
   assert.match(
     textOf(byTestId(tree, "rec-fallback-non_text-written")),
-    /^A number is written out here — \{phone\} gives the one you publish\./,
+    /^A number is written out here · \{phone\} gives the one you publish\./,
   );
   // The default wording, in one press, heard with the message it is for; gone once the message is it.
   const back = byTestId(tree, "rec-fallback-greeting-default");
@@ -1389,9 +1389,9 @@ test("what stops a message is said under its own box, each at once, and nothing 
   assert.equal(problemOf(tree, "bt-fallback-error"), "Write this message, or use the default wording.");
   assert.equal(
     problemOf(tree, "bt-fallback-non_text"),
-    "Only {business}, {booking link} and {phone} are filled in — {phone number} would be sent as written.",
+    "Only {business}, {booking link} and {phone} are filled in · {phone number} would be sent as written.",
   );
-  assert.equal(problemOf(tree, "bt-fallback-greeting"), "At most 2,000 characters — this is 2,001.");
+  assert.equal(problemOf(tree, "bt-fallback-greeting"), "At most 2,000 characters · this is 2,001.");
   assert.equal(byTestId(tree, "rec-fallback-non_text-reads"), null, "a message that is refused shows no reading of it");
   // A message that stops the save stands open, marked, so the sentence under its box is seen.
   for (const k of ["error", "non_text", "greeting"]) {

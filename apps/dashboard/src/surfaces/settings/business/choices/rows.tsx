@@ -87,7 +87,7 @@ interface ChoiceRowProps<C extends string> {
 export function ChoiceRow<C extends string>(p: ChoiceRowProps<C>) {
   const [busy, setBusy] = useState(false);
   const g = gate("settings", p.gateWords);
-  const gated = busy ? "Saving — wait for this one to land." : g["aria-disabled"] ? String(g["data-tip"]) : null;
+  const gated = busy ? "Saving · wait for this one to land." : g["aria-disabled"] ? String(g["data-tip"]) : null;
   const items: MenuItem[] = [
     { header: p.label },
     ...p.choices.map((c) => {

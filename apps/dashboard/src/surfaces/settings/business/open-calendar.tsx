@@ -212,7 +212,7 @@ export const BtoFeedRead = ({ stored, whole = false }: { stored: boolean; whole?
     return (
       <FailedRead
         kind="line"
-        what="what its last read found"
+        what="what it found when it last updated"
         onRetry={s.canAsk ? s.ask : null}
         busy={s.flight.current.out}
         surface="calendar"

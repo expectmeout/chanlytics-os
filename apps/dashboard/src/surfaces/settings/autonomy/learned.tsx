@@ -35,7 +35,7 @@ export function LearnedFromYou({
         tone: "danger",
         msg: (
           <>
-            <b>Not changed</b> — {r.message}
+            <b>Not changed</b> · {r.message}
           </>
         ),
       });

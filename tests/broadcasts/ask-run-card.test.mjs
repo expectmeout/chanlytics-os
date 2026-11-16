@@ -360,7 +360,7 @@ const RUN_CALLS = [
     {},
     {
       error:
-        "This run was made for 2026-09-19 and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.",
+        "This run was made for 2026-09-19 and that day has passed: its people and its words were that day's. Skip it · the next run reads the calendar again.",
     },
     RUN_READ,
   ],
@@ -372,7 +372,7 @@ const RUN_CALLS = [
       kind: "run",
       needs: "operator",
       title: "Skip the run: Win-back · 2026-09-19",
-      summary: "2 people · Skipping loses this run only — the campaign keeps running.",
+      summary: "2 people · Skipping loses this run only · the campaign keeps running.",
       payload: payload(OLD, "skip", "Win-back · 2026-09-19", 2),
       undo: null,
     },
@@ -414,7 +414,7 @@ const RUN_CALLS = [
       kind: "run",
       needs: "operator",
       title: `Skip the run: Win-back · ${TODAY}`,
-      summary: "3 people · Skipping loses this run only — the campaign keeps running.",
+      summary: "3 people · Skipping loses this run only · the campaign keeps running.",
       payload: payload(RUN, "skip", `Win-back · ${TODAY}`, 3),
       undo: null,
     },
@@ -614,9 +614,9 @@ test("a run card approved, walked end to end: Approve sends it through the run's
     done.receipt,
     moved
       ? new RegExp(
-          `^Win-back · ${run().run_for} approved — 3 people, scheduled for .+ — messages go out between 9:00 and 20:59 by your clock$`,
+          `^Win-back · ${run().run_for} approved · 3 people, scheduled for .+ · messages go out between 9:00 and 20:59 by your clock$`,
         )
-      : new RegExp(`^Win-back · ${run().run_for} approved — 3 people, sending now$`),
+      : new RegExp(`^Win-back · ${run().run_for} approved · 3 people, sending now$`),
   );
   assert.ok(tab.events.includes("refresh POST broadcasts/[id]/approve"), "Broadcasts, Playbooks and Today read again");
   const undone = await undoProposal(tab.win, card, doneWith(done), tab.client);
@@ -645,7 +645,7 @@ test("a run card skipped, walked end to end: Skip ends the run unsent through it
     .proposal;
   const done = await commitProposal(tab.win, card, tab.client);
   const run = tables.broadcasts.find((b) => b.id === RUN);
-  assert.deepEqual(done, { ok: true, receipt: `${run.name} skipped — nothing will send`, undo: null, made: null });
+  assert.deepEqual(done, { ok: true, receipt: `${run.name} skipped · nothing will send`, undo: null, made: null });
   assert.equal(run.state, "canceled");
   assert.deepEqual(tables.jobs, [], "nothing scheduled");
   assert.deepEqual(

@@ -548,7 +548,7 @@ test("REGRESSION: an empty audience says which of its two causes it has -- a yes
   // Where a yes is got: in Sent, the ledger's card since #758. Not "on this page" -- these words are read in a
   // toast on the send screen, which has no QR, and in Ask, which is no page at all.
   const noYesToOffers =
-    "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional send. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and the QR in Sent.";
+    "Nobody there has said yes to offers yet · that is a separate answer from saying yes to messages, and only it puts somebody on a promotional send. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and the QR in Sent.";
   const noYesToMessages =
     "Nobody there has said yes to messages yet. Even a reminder needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
   /** The route's refusal of one list, for a message of this category: its status and its words, whole. */
@@ -840,7 +840,7 @@ test("a tick the send cannot keep is refused at create, in the words the compose
     tick(visit({ channels: workspace({ textLine: { sms_state: "pending", reg_mock: false } }) }), ["sms"]),
     "conflict",
     409,
-    "Your texting line is not approved by the carriers yet.",
+    "Texting isn't approved for your number yet.",
   );
   await refused(
     tick(visit({ channels: workspace({ textLine: { sms_state: "active", reg_mock: true } }) }), ["sms"]),
@@ -1091,7 +1091,7 @@ test("approve: a playbook's run is a day's run: approved on a later day it is re
     approveRun(f.ports, { row: stale, now: NOW }),
     "conflict",
     409,
-    "This run was made for 2026-09-05 and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.",
+    "This run was made for 2026-09-05 and that day has passed: its people and its words were that day's. Skip it · the next run reads the calendar again.",
   );
   assert.deepEqual(f.ops(), [], "nothing moved");
   const fresh = fakes();
@@ -1118,7 +1118,7 @@ test("approve: a visit's run made for today is refused when approving would send
     audience: { kind: "playbook", trigger: "visit_tomorrow" },
   };
   const words =
-    "This run was made for 2026-09-06 and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.";
+    "This run was made for 2026-09-06 and that day has passed: its people and its words were that day's. Skip it · the next run reads the calendar again.";
   for (const trigger of ["visit_tomorrow", "visited"]) {
     const f = fakes();
     await refused(

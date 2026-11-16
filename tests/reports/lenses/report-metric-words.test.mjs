@@ -236,7 +236,7 @@ test("the words that cite a window cite the constant the report counts by, not a
   // Said once and read twice, in the words the figure's own line uses ("under an hour old"): the definition, character for character.
   assert.equal(
     metricWordsOf("missed_calls_answered"),
-    `Of the people who rang in this period and found nobody (the call never connected, or reached voicemail), how many you or AI reached within ${MISSED_CALL_TOUCH_WORDS}, by a message that went out or a call that got through. A person counts once, at their first such call; a call AI placed, a person whose call is under ${MISSED_CALL_TOUCH_WORDS} old, and a call with no caller on record are not counted.`,
+    `Of the people who rang in this period and found nobody (the call never connected, or reached voicemail), how many you or AI reached within ${MISSED_CALL_TOUCH_WORDS}, by a message that went out or a call that got through. A person counts once, at their first such call · a call AI placed, a person whose call is under ${MISSED_CALL_TOUCH_WORDS} old, and a call with no caller on record are not counted.`,
   );
 });
 
@@ -400,12 +400,12 @@ test("the Campaigns lens's seven new figures name a metric each, each metric say
   assert.equal(new Set(every.map(metricWordsOf)).size, every.length, "each says what only it counts");
   assert.equal(
     metricWordsOf("people_sent_to"),
-    "People a campaign sent a message to in this period, counted once however many it sent them. A person a run held back, a message that failed before it left and an email to a lead are not counted.",
+    "People a campaign sent a message to in this period, counted once however many it sent them. A person a run held back, a message that didn't send and an email to a lead are not counted.",
   );
   // The window it cites is the constant the report counts by.
   assert.equal(
     metricWordsOf("people_wrote_back"),
-    `Of the people sent a message in this period, how many answered in their own words ${REPLY_WINDOW_WORDS}, on any channel, counted once. A note the system wrote, an automatic reply, a booking tool's notice and an answer that came later are not counted; people sent to in the last 3 days may still answer.`,
+    `Of the people sent a message in this period, how many answered in their own words ${REPLY_WINDOW_WORDS}, on any channel, counted once. A note the system wrote, an automatic reply, a booking tool's notice and an answer that came later are not counted · people sent to in the last 3 days may still answer.`,
   );
   // The yes and the stop of a campaign are a person once in the period, within the reply window of the message that reached them.
   assert.equal(
@@ -414,7 +414,7 @@ test("the Campaigns lens's seven new figures name a metric each, each metric say
   );
   assert.equal(
     metricWordsOf("asked_to_stop"),
-    `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign reaching them, by STOP, a carrier's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
+    `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign reaching them, by STOP, a phone company's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
   );
   for (const id of ["said_yes", "asked_to_stop"])
     assert.doesNotMatch(metricWordsOf(id), /once a day each/, `${id}: a person once in the period, not once a day`);

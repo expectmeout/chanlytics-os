@@ -160,7 +160,7 @@ const YES_ROWS: Words = {
 
 const STOP_ROWS: Words = {
   customer_message: "Their own STOP",
-  carrier: "The carrier",
+  carrier: "Their phone company",
   unsubscribe: "An unsubscribe",
   complaint: "A complaint",
   reply: "A reply",

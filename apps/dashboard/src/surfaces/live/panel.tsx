@@ -251,7 +251,7 @@ function panelSummary({ c, open }: SummaryProps) {
           {c.lengthWords ? ` · ${c.lengthWords}` : ""}
         </span>
         {c.endedHow && <span>Ended: {c.endedHow}</span>}
-        {c.sentiment && <span>Caller mood: {c.sentiment} — the voice provider's own read</span>}
+        {c.sentiment && <span>Caller mood: {c.sentiment} · the voice provider&apos;s own read</span>}
         {!c.missed && <span>{lrRecordingLine(c)}</span>}
       </div>
       {!c.missed && (
@@ -276,7 +276,7 @@ function panelFoot({ c, open }: SummaryProps) {
         {c.missed ? (
           "Nothing to review."
         ) : c.stale ? (
-          "Marked live by the phone provider, but silent — it is checked within five minutes."
+          "Marked live by the phone provider, but silent · it is checked within five minutes."
         ) : (
           <>
             Call ended ·{" "}
@@ -352,7 +352,7 @@ export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null, onBack 
       {c.live && c.checking && (
         <div className="lm-banner" data-testid="live-checking">
           <span className="live-dot" style={{ width: 6, height: 6, background: "var(--warn)" }} />
-          Still marked live — {c.checkingWhy}. It is checked with the phone provider within five minutes.
+          Still marked live · {c.checkingWhy}. It is checked with the phone provider within five minutes.
         </div>
       )}
 

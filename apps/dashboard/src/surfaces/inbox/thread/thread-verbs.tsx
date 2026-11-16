@@ -173,7 +173,7 @@ export const threadVerbs = (flash: (flash: Flash) => void) => {
         flash({
           msg: (
             <>
-              Held — <b>{t.who}</b> was not sent the draft
+              Held · <b>{t.who}</b> was not sent the draft
             </>
           ),
         });

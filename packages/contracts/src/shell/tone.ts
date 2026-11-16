@@ -246,7 +246,7 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
   },
   standing: {
     escalated: NEEDS_YOU_WORD,
-    queued: "Reply queued",
+    queued: "Reply waiting to go",
     snoozed: "Snoozed",
     paused: "Paused",
     // A thread somebody has says what the Inbox's pill says of it (standing.ts HELD_WORDS).

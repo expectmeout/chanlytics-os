@@ -118,7 +118,7 @@ export const NEW_WORDS = {
     /** A one-off set further ahead than a send may wait (the send door's BROADCAST_SCHEDULE_MAX_DAYS). */
     tooFar: (days: number) => `Pick a time within ${days} days`,
     lineFirst: (n: number | null) =>
-      `${n === null ? "The people" : `The ${n}`} on it now get step 1 at its first run; anyone who joins later, the day they join`,
+      `${n === null ? "The people" : `The ${n}`} on it now get step 1 at its first run · anyone who joins later, the day they join`,
     subSchedule: "Draft · nothing goes until you schedule it",
     toWrite: "Its words are still to write",
     pickMessage: "Pick a message for it",
@@ -282,7 +282,7 @@ export const NEW_WORDS = {
     peopleNote: "No one who said stop is ever counted.",
     makeList: "Make a list in People",
     countsOffer: "Counts are who can hear an offer",
-    onceWhoNote: "An offer reaches only those who said yes to offers; news, everyone who said yes to messages.",
+    onceWhoNote: "An offer reaches only those who said yes to offers · news, everyone who said yes to messages.",
     listSaid: { rule: "A list, kept by a rule", hand: "A list, kept by hand" },
     peoplePick: "People you pick",
     peoplePickSaid: "Tick them in People, then come back",

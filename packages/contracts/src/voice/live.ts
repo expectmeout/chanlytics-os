@@ -422,7 +422,7 @@ export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, tz: st
     ? {
         number: formatPhoneDisplay(voice.number_e164),
         on: voice.status === "active",
-        offWords: `The line is switched off — ${PHONE_LINE_OFF.gets}.`,
+        offWords: `The line is switched off · ${PHONE_LINE_OFF.gets}.`,
         lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, tz, now) : null,
       }
     : null;

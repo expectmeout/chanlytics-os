@@ -13,7 +13,7 @@
  * Titles are matched here, never in SQL, so the rule stays in one place.
  */
 import { OFFERS_NOTICE_WORDS } from "../campaigns/broadcasts/email-offers";
-import { TEMPLATE_NOTICE_TITLES, TEMPLATE_STATUS_WORDS } from "../campaigns/templates/templates";
+import { TEMPLATE_NOTICE_TITLES } from "../campaigns/templates/templates";
 import { CALENDAR_UNREADABLE_WORDS, GOOGLE_SYNC_NOTICE_WORDS, NUMBER_FLAG_TITLES } from "../notices/connection-news";
 import type { ServerNotificationKind } from "../today/notifications/feed-input";
 
@@ -58,12 +58,16 @@ const TITLE_SLOT = "\u0000";
 const toldAs = (status: ToldStatus): string =>
   TEMPLATE_NOTICE_TITLES[status](TITLE_SLOT).split(TITLE_SLOT).map(escaped).join(".*");
 
+/** The status words those titles were written in, which the page has since reworded (Disabled is Turned off now). */
+// screen-word: the words of rows kept before 13 Nov 2026, matched and never written
+const TOLD_BEFORE_WORDS = { rejected: "refused", paused: "paused", disabled: "disabled" } as const;
+
 /**
  * The same notice as the edge worded it until 13 Nov 2026 (`Template “<name>” <status word>`): a warning kept then is on
  * the bell for its thirty days, and its approval closes it too. Nothing is kept under these after 13 Dec 2026.
  */
 const toldBefore = (status: (typeof MENDED_BY_APPROVAL)[number]): string =>
-  `Template “.*” ${TEMPLATE_STATUS_WORDS[status].toLowerCase()}`;
+  `Template “.*” ${TOLD_BEFORE_WORDS[status]}`;
 
 const anyOf = (patterns: readonly string[]): RegExp => new RegExp(`^(?:${patterns.join("|")})$`, "u");
 
@@ -150,12 +154,18 @@ export const NOTICE_MENDS: readonly NoticeMend[] = [
   // A Business Profile that stopped syncing is mended by a sync that works, or by the connection's removal; a calendar
   // link that stopped answering by a read that works (the edge's sweeps record each). One of each per workspace.
   {
-    warns: { kind: "sweep", title: exactly(GOOGLE_SYNC_NOTICE_WORDS.title) },
+    warns: {
+      kind: "sweep",
+      title: anyOf([GOOGLE_SYNC_NOTICE_WORDS.title, GOOGLE_SYNC_NOTICE_WORDS.before].map(escaped)),
+    },
     by: { change: "google_connection.synced" },
     sameSubject: false,
   },
   {
-    warns: { kind: "sweep", title: exactly(GOOGLE_SYNC_NOTICE_WORDS.title) },
+    warns: {
+      kind: "sweep",
+      title: anyOf([GOOGLE_SYNC_NOTICE_WORDS.title, GOOGLE_SYNC_NOTICE_WORDS.before].map(escaped)),
+    },
     by: { change: "google_connection.removed" },
     sameSubject: false,
   },

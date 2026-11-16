@@ -35,7 +35,7 @@ const call = (id, days, recording) => ({ id, tenant_id: T, status: "ended", star
 test("one number: the page's, the sweep's, and the call's own words", () => {
   assert.equal(RETENTION_DAYS.call_recordings, 90);
   assert.equal(RECORDING_RETENTION_DAYS, 90);
-  assert.equal(RECORDING_PURGED_WORDS, "Recording removed after 90 days; the transcript is kept");
+  assert.equal(RECORDING_PURGED_WORDS, "Recording removed after 90 days · the transcript is kept");
 });
 
 test("past the retention the audio goes and the row says so; younger, failed and already-purged rows are left alone", async () => {

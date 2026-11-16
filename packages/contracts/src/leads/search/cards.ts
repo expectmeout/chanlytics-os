@@ -91,7 +91,7 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
       "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
       "100 family law firms within 15 km of downtown Denver, email checked, leaving out referral networks",
     ],
-    rights: "Public Google Maps listings, and contacts from each business's own site; no reviewer's data, no photos.",
+    rights: "Public Google Maps listings, and contacts from each business's own site · no reviewer's data, no photos.",
     approved: true,
   },
   {
@@ -116,7 +116,7 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
       "seniority (owners, founders, the C-suite, partners, VPs, heads, directors, managers, senior staff, entry level)",
       "industries (up to five, in the directory's own names: Marketing & Advertising, Accounting, Construction, Real Estate…)",
       "company sizes (employee ranges)",
-      "states (up to ten; none is the whole US)",
+      "states (up to ten · none is the whole US)",
       "count (1 to 500)",
     ],
     costPerPlaceUsd: 0.002,
@@ -136,7 +136,7 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
       "200 office managers at dental practices in California",
     ],
     rights:
-      "From a B2B contact database built from public professional profiles and company sites; we never sign in anywhere to read them, keep a person's name, title, work address and profile link only, check each address before anything is sent, and never write again to anyone who says no.",
+      "From a B2B contact list built from public professional profiles and company sites. Chanlytics never signs in anywhere to read them, keeps a person's name, title, work address and profile link only, checks each address before anything is sent, and never writes again to anyone who says no.",
     approved: true,
     // Run once on 14 Oct 2026 (marketing managers at Marketing & Advertising companies of 11 - 50 in Texas, $0.17): 82
     // items, the first the provider's note to read its log; the mapper read 80 (the other a company in India, which the

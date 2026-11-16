@@ -62,9 +62,9 @@ export type ProfileRefusalKey =
 export function profileRefusal(key: ProfileRefusalKey, seen?: number, of?: string): string {
   const log = PROFILE_LIMITS;
   const chars = (max: number): string =>
-    `At most ${count(max)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`;
+    `At most ${count(max)} characters${seen === undefined ? "." : ` · this is ${count(seen)}.`}`;
   const lines = (max: number, one: string, many: string): string =>
-    `At most ${pluralGrouped(max, one, many)}, one to a line${seen === undefined ? "." : ` — this is ${count(seen)}.`}`;
+    `At most ${pluralGrouped(max, one, many)}, one to a line${seen === undefined ? "." : ` · this is ${count(seen)}.`}`;
   const words: Record<ProfileRefusalKey, () => string> = {
     tone: () => chars(log.tone),
     // The name it goes by (decision 0073), said beside "the automated assistant", never instead of it.
@@ -83,14 +83,14 @@ export function profileRefusal(key: ProfileRefusalKey, seen?: number, of?: strin
     ruleNote: () => `Each note is at most ${count(log.ruleNote)} characters.`,
     notes: () => `At most ${pluralGrouped(log.notes, "note", "notes")}.`,
     noteTitle: () =>
-      `A note's title is at most ${count(log.noteTitle)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`,
+      `A note's title is at most ${count(log.noteTitle)} characters${seen === undefined ? "." : ` · this is ${count(seen)}.`}`,
     noteText: () =>
-      `A note's text is at most ${count(log.noteText)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`,
+      `A note's text is at most ${count(log.noteText)} characters${seen === undefined ? "." : ` · this is ${count(seen)}.`}`,
     closures: () =>
       `At most ${pluralGrouped(log.closures, "closed day", "closed days")}. Dates that have passed can go.`,
     closureNote: () => chars(log.closureNote),
     shifts: () =>
-      `At most ${pluralGrouped(log.shifts, "shift", "shifts")} in a day — ${of ?? "that day"} has ${count(seen ?? 0)}.`,
+      `At most ${pluralGrouped(log.shifts, "shift", "shifts")} in a day · ${of ?? "that day"} has ${count(seen ?? 0)}.`,
     instructions: () => chars(log.instructions),
     message: () => chars(log.message),
   };

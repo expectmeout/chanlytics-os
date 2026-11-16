@@ -134,10 +134,10 @@ export function bcWhenNote(at: number | null, maxDays: number): WhenNote {
   const city = C.city();
   const now = Date.now();
   if (at === null) return { ok: false, tone: "", words: `By ${city} time · within ${maxDays} days` };
-  if (at <= now) return { ok: false, tone: "warn", words: "That time has passed — pick a later one, or Send now" };
+  if (at <= now) return { ok: false, tone: "warn", words: "That time has passed · pick a later one, or Send now" };
   const open = C.nextOpen(at);
   if (open.at > now + maxDays * DAY_MS) return { ok: false, tone: "warn", words: `Pick a time within ${maxDays} days` };
   return open.moved
-    ? { ok: true, tone: "", words: `Goes out ${C.when(open.at)}, ${city} time — ${sendsWaitWords(C.hours)}` }
+    ? { ok: true, tone: "", words: `Goes out ${C.when(open.at)}, ${city} time · ${sendsWaitWords(C.hours)}` }
     : { ok: true, tone: "", words: `Goes out ${C.when(at)}, ${city} time` };
 }

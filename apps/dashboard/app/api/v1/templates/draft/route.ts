@@ -14,7 +14,7 @@ import { translateTemplate, getTranslationSource, type SourceRef } from "@/serve
 const Body = z
   .object({
     brief: z.string().trim().optional(),
-    category: z.enum(TEMPLATE_CATEGORIES, { error: "A template is marketing or utility." }).optional(),
+    category: z.enum(TEMPLATE_CATEGORIES, { error: "Pick marketing or utility." }).optional(),
     language: z.string().optional(),
     translate: z
       .object({
@@ -47,7 +47,7 @@ const Body = z
         message: "Say what you want to tell customers — one line is enough.",
       });
     if (!(TEMPLATE_CATEGORIES as readonly (string | undefined)[]).includes(second.category))
-      ctx.addIssue({ code: "custom", path: ["category"], message: "A template is marketing or utility." });
+      ctx.addIssue({ code: "custom", path: ["category"], message: "Pick marketing or utility." });
   });
 
 /**

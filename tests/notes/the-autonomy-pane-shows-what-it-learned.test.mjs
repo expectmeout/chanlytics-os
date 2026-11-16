@@ -116,7 +116,7 @@ test("a refusal is said in its own words and the row stays; nothing is drawn whe
   await new Promise((r) => setTimeout(r, 0));
   assert.match(said(draw(), "rec-card-learned"), /Threading/, "the row stays");
   assert.equal(flashes.at(-1).tone, "danger");
-  assert.match(textOf(flashes.at(-1).msg), /Not changed — Your notes are full \(10\)\./);
+  assert.match(textOf(flashes.at(-1).msg), /Not changed · Your notes are full \(10\)\./);
   for (const suggestions of [[], null, undefined]) {
     fresh();
     assert.equal(

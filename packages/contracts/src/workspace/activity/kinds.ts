@@ -148,7 +148,7 @@ function sendBlockedWords(p: Record<string, unknown>, base: string): string {
 /** Why a send failed that is not the provider's own answer, by the reason the send door (or a receipt) filed. */
 const SEND_FAILED_WHY: Record<string, string> = {
   receipt: "the provider reported it as not delivered, after taking it",
-  no_credentials: "the channel has no credentials to send with",
+  no_credentials: "the channel isn't connected to send with",
   no_sender_for_channel: "nothing is set up to send on that channel",
 };
 

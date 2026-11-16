@@ -36,7 +36,7 @@ const Body: z.ZodType<WriteMessageBody> = z.object({
   name: z.string({ message: "Say which message." }),
   title: z.string().max(200).optional(),
   language: z.string({ message: "Pick a language from the list." }),
-  category: z.enum(TEMPLATE_CATEGORIES, { message: "A template is marketing or utility." }),
+  category: z.enum(TEMPLATE_CATEGORIES, { message: "Pick marketing or utility." }),
   versions: z.object({
     whatsapp: z.object({ body: z.string(), footer: z.string().optional() }).optional(),
     email: z.object({ subject: z.string(), body: z.string() }).optional(),

@@ -53,7 +53,7 @@ test("a failure no door raises on purpose stays a fault, and its text stays out 
   assert.equal(failure.code, "22P02", "invalid_text_representation: Postgres's own");
   const { status, body } = answered(failure);
   assert.equal(status, 500);
-  assert.deepEqual(body.error, { code: "internal", message: "Something went wrong." });
+  assert.deepEqual(body.error, { code: "internal", message: "Couldn't finish that." });
   assert.equal(JSON.stringify(body).includes("not-a-uuid"), false);
 });
 

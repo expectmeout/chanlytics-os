@@ -31,8 +31,8 @@ const polWords = (m: string | null | undefined) => {
 function policyTip(r: PolicyRow) {
   const trust = policiesRead() ? undefined : trustTable();
   const t = trust && trust.cls(r.id);
-  if (!trust || !t) return "Workspace policy — Settings · Autonomy";
-  return `${r.chip} · ${polWords(policyStore()?.modeOf(r.id))} — ${t.sent.toLocaleString()} auto-sent · ${trust.rate(t)}% edited (30d)`;
+  if (!trust || !t) return "Workspace policy · Settings · Autonomy";
+  return `${r.chip} · ${polWords(policyStore()?.modeOf(r.id))} · ${t.sent.toLocaleString()} auto-sent · ${trust.rate(t)}% edited (30d)`;
 }
 
 export function PolicyChip({ cls, className = "" }: PolicyChipProps) {

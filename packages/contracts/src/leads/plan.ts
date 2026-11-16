@@ -259,7 +259,7 @@ export function leadPlanLikely(
   const emailPct = Math.round(share * 100);
   const withEmail = Math.round(plan.count * share);
   const of = facts.priorOf ? ` · from past searches for ${facts.priorOf}` : "";
-  return { emailPct, phonePct: 100 - emailPct, line: `About ${withEmail} will have an email; the rest you call${of}` };
+  return { emailPct, phonePct: 100 - emailPct, line: `About ${withEmail} will have an email · the rest you call${of}` };
 }
 
 /**
@@ -277,7 +277,7 @@ export function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts | null)
   // when it runs out, with the month's searching used up (decision 0133).
   const covers = plan.contact === "email" ? (facts?.searchingCovers ?? null) : null;
   return [
-    `About ${planMinutesSaid(plan, "minutes")} — leave the page if you like`,
+    `About ${planMinutesSaid(plan, "minutes")} · leave the page if you like`,
     // No number: the card cannot know how many of THIS search's places are already here until it has looked.
     "Anything already yours is skipped",
     facts ? `${counts} · ${leadAllowanceFact(facts.leadsLeft)}` : counts,

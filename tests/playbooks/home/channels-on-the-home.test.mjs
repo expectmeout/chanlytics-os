@@ -78,7 +78,7 @@ test("the head's channel line: the open channels as one clause, each closed one 
       .filter((p) => p.channel === "sms")
       .map((p) => [p.words, p.door]);
   assert.deepEqual(line({ sms_state: "pending", reg_mock: false }), [
-    ["Text: Your texting line is not approved by the carriers yet", null],
+    ["Text: Texting isn't approved for your number yet", null],
   ]);
   assert.deepEqual(line({ sms_state: "active", reg_mock: true }), [
     ["Text: Your texting line is a test filing: it sends nothing", null],

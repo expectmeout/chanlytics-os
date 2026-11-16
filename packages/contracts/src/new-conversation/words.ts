@@ -92,7 +92,7 @@ export const NEW_CONVERSATION_WORDS = {
   sending: "Sending…",
   /** Said with the time it can still be stopped in, as a reply's is; with none left, it is on its way. */
   sent: (personName: string, secs: number | null) =>
-    secs ? `Message to ${personName} queued · sends in ${secs} s unless you undo` : `On its way to ${personName}.`,
+    secs ? `Message to ${personName} waiting · sends in ${secs} s unless you undo` : `On its way to ${personName}.`,
   undone: "Send canceled. Nothing was delivered.",
   /** After an undo: the way back to what was written, which the tab kept. */
   again: "Open it again",

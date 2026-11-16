@@ -326,7 +326,7 @@ export const PEOPLE_FIND_WORDS = {
   more: "Find more like these",
   closed: "Finding people at companies opens once it has been checked. Nothing was started.",
   done: "Looking now. They land on Leads as each address checks out.",
-  failed: "Couldn't start the search. Nothing was spent; try again.",
+  failed: "Couldn't start the search. Nothing was spent · try again.",
   tick: "Chosen",
 } as const;
 
@@ -357,7 +357,7 @@ export const PEOPLE_STRIP_WORDS = {
       return `Stopped with ${plural(count, "company", "companies")} found. Their addresses were checked.`;
     // Ended before it searched, or before its companies were checked: said as it is, never as a search that found none.
     if (ending === "paused")
-      return `Lead searches are paused for now. ${plural(count, "company", "companies")} counted; nothing more is being counted.`;
+      return `Lead searches are paused for now. ${plural(count, "company", "companies")} counted · nothing more is being counted.`;
     if (ending === "budget_used" || ending === "month_leads_used")
       return `Stopped at ${plural(count, "company", "companies")}: this month's searching is used up. It renews next month.`;
     if (count === 0) return "No company that fits what you asked had an address that checked out.";

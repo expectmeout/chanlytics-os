@@ -194,7 +194,7 @@ function useTab(
 function railGroups(c: PageCtx) {
   const { canRecord } = c;
   // The role, said once for the rail: every locked control used to say it again under itself.
-  const roleNote = !canRecord ? "You can read this page; an owner or operator changes it." : null;
+  const roleNote = !canRecord ? "You can read this page · an owner or operator changes it." : null;
   return (
     <>
       {roleNote && (

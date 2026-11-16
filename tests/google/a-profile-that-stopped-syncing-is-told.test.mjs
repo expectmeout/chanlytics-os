@@ -33,7 +33,7 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const at = (ms) => new Date(ms).toISOString();
 const T = "aaaaaaaa-0000-4000-8000-000000000001";
-const TITLE = "Google Business Profile stopped syncing";
+const TITLE = "Google Business Profile stopped updating";
 
 /** The workspace's connection, last synced `syncedAgo` before NOW. */
 const connection = (syncedAgo) => ({
@@ -163,7 +163,7 @@ test("a passing failure (Google answering 500) is told only once the profile has
   const old = world(connection(3 * DAY));
   await old.sync(google({ reviews: 500 }).net);
   assert.equal(old.told().length, 1, "three days: told");
-  assert.match(old.told()[0].body, /^Your Business Profile last synced 3d ago, and every try since has failed/);
+  assert.match(old.told()[0].body, /^Your Business Profile last updated 3d ago, and every try since didn't work/);
 });
 
 test("a location Google no longer gives the account (404) is the owner's to mend: told at once", async () => {

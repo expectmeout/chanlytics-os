@@ -93,7 +93,7 @@ test("a part is normalised before the door sees it, the unreadable are skipped i
   assert.equal(out.emails_set, 1);
   assert.deepEqual(out.skipped, [
     { line: 3, reason: "No number and no address." },
-    { line: 4, reason: "That is a short code, not a phone number — nobody can be reached on one." },
+    { line: 4, reason: "That is a short code, not a phone number · nobody can be reached on one." },
   ]);
   assert.deepEqual(out.failed, []);
   assert.equal(out.stopped, false);

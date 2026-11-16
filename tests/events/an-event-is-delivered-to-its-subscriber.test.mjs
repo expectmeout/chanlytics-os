@@ -708,7 +708,7 @@ test("consent_notice tells every door's no in the same one kind: an unsubscribe,
     [
       { consent: "opted_out", source: "carrier", channel: "sms" },
       "Rosa Diaz asked to stop receiving messages",
-      /Their carrier told us they replied STOP to your number\./,
+      /Their phone company told Chanlytics they replied STOP to your number\./,
     ],
     [
       { purpose: "email_marketing", consent: "opted_out", source: "unsubscribe", channel: "email" },

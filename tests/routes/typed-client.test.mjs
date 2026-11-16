@@ -162,7 +162,7 @@ test("a refusal is the server's words and code, with the kind of no as a title; 
     code: "network",
     status: 0,
     title: "No connection",
-    message: "Network error — nothing was changed.",
+    message: "Couldn't reach Chanlytics. Nothing was changed.",
     retryAfterS: null,
     fields: null,
   });
@@ -182,7 +182,7 @@ test("a refusal is the server's words and code, with the kind of no as a title; 
     code: "internal",
     status: 502,
     title: "No answer",
-    message: "Chanlytics couldn't read this just now — try again in a moment.",
+    message: "Chanlytics couldn't read this just now · try again in a moment.",
     retryAfterS: null,
     fields: null,
   });
@@ -246,20 +246,20 @@ test("A5: a refusal carries what the server counted and named -- the wait, a for
     [
       "timeout",
       "No answer in time",
-      "Chanlytics took too long to answer — this may still go through, so check before trying again.",
+      "Chanlytics took too long to answer · this may still go through, so check before trying again.",
     ],
-    "REGRESSION: a timeout said 'Network error — nothing was changed.' of a write the server may still be making",
+    "REGRESSION: a timeout said 'Couldn't reach Chanlytics. Nothing was changed.' of a write the server may still be making",
   );
   const stale = harness(new Response("<html>Not found</html>", { status: 404 }));
   assert.equal(
     (await stale.api("GET conversations")).message,
-    "This page is out of date — reload it and try again.",
+    "This page is out of date · reload it and try again.",
     "a route the deployed app no longer has",
   );
-  const catchAll = harness(refusal(500, "internal", "Something went wrong."));
+  const catchAll = harness(refusal(500, "internal", "Couldn't finish that."));
   assert.equal(
     (await catchAll.api("POST billing/sync")).message,
-    "Chanlytics hit a problem and couldn't confirm this — check whether it went through before trying again.",
+    "Chanlytics hit a problem and couldn't confirm this · check whether it went through before trying again.",
   );
 });
 

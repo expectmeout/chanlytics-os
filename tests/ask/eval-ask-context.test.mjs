@@ -860,7 +860,7 @@ test("a put back that fails says what to put back by hand, and offers the whole 
   teammate(d.state);
   const back = await putBack(d.io, a.approval);
   assert.equal(back.ok, false);
-  assert.equal(back.why, "Settings have changed since this card — change them in Settings.");
+  assert.equal(back.why, "Settings have changed since this card · change them in Settings.");
   assert.deepEqual(back.byHand, {
     note: NOTE,
     config: SEED,

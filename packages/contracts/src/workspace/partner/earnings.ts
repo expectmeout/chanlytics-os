@@ -236,7 +236,7 @@ export function partnerWorkspacesVM(
             ? "Your partner account is closed. Its details are its owner's."
             : row.on_team
               ? "Its details couldn't be read just now."
-              : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
+              : "Its owner took you off its team. Your share goes on while it pays · its details are theirs.",
       facts: null,
       standing: standingOf(row.tenant_id),
       money: moneyLine(moneyOf(row.tenant_id)),
@@ -340,11 +340,11 @@ export function partnerStatusOutcomeWords(code: string, row: { status: string; s
   if (row.status === "active")
     return row.seats
       ? `${code} is restored, and a partner again on ${seats}.`
-      : `${code} is restored. No seat was waiting to be given back.`;
+      : `${code} is restored. Nothing was waiting to be given back.`;
   const subject = row.status === "closed" ? "closed" : "paused";
   return row.seats
     ? `${code} is ${subject}: a viewer on ${seats} now, and what they held there is released.`
-    : `${code} is ${subject}. They held no partner seat to take.`;
+    : `${code} is ${subject}. They had no partner access to take.`;
 }
 
 /** The back office's partner list: one row per partner and currency, what is owed first. */

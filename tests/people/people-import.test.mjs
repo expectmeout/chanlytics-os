@@ -216,7 +216,7 @@ test("a part refused after others went through ends the import at the line it be
   const parts = importWire((_body, n) =>
     n === 1
       ? json(200, { ok: true, data: went({ added: 49, existed: 1, emails_set: 50 }) })
-      : json(500, { ok: false, error: { code: "internal", message: "Something went wrong." } }),
+      : json(500, { ok: false, error: { code: "internal", message: "Couldn't finish that." } }),
   );
   let { draw, tree } = readSixty({ onClose() {}, flash() {} });
   press(byTestId(tree, SAVE));
@@ -225,7 +225,7 @@ test("a part refused after others went through ends the import at the line it be
   // The second part began at P50, which is the file's line 52 (the header is line 1, P0 line 2).
   assert.equal(
     textOf(byTestId(tree, "import-error")),
-    "Stopped at line 52: Chanlytics hit a problem and couldn't confirm this — check whether it went through before trying again.",
+    "Stopped at line 52: Chanlytics hit a problem and couldn't confirm this · check whether it went through before trying again.",
   );
   const summary = textOf(byTestId(tree, "import-summary"));
   for (const words of ["49 people added", "1 already here", "50 emails added", "10 not tried yet"]) {

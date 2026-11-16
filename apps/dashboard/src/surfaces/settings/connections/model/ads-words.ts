@@ -64,7 +64,7 @@ export const CONNECT = {
   facts: (currency: string, zone: string) => `${currency} · ${zoneCity(zone)} time · set by the account`,
   read: (time: string) => `Read ${time}`,
   reading: "Reading now",
-  readFailed: (when: string) => `Couldn't be read · last read ${when}`,
+  readFailed: (when: string) => `Couldn't update · Updated ${when}`,
   ready: "What's ready",
   allReady: "all in order",
   needYou: (n: number) => `${n} ${n === 1 ? "needs" : "need"} you`,

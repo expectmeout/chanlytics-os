@@ -38,7 +38,7 @@ export const GoogleChoose = ({ busy, setBusy, flash, onDisconnect }: GoogleChoos
       msg: r.ok ? (
         <>
           <b>{p.title}</b> is your listing on Google
-          {r.read ? " — every review is on Reports now" : " — the reviews follow within the hour"}.
+          {r.read ? " · every review is on Reports now" : " · the reviews follow within the hour"}.
         </>
       ) : (
         <>{r.message}</>
@@ -55,7 +55,7 @@ export const GoogleChoose = ({ busy, setBusy, flash, onDisconnect }: GoogleChoos
             ? "Reading the locations…"
             : places.length === 0
               ? "No location on Google Maps could be read. Try again, or disconnect and connect the right account."
-              : "Pick one; every review of it follows."}
+              : "Pick one · every review of it follows."}
         </span>
       </div>
       {places && places.length > 0 && (

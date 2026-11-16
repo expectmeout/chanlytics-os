@@ -112,7 +112,7 @@ export const LOGO_WORDS = {
   saving: "Saving…",
   saved: "Saved",
   removed: "Removed",
-  notSaved: "Not saved — it didn't go through. Try again.",
+  notSaved: "Not saved · it didn't go through. Try again.",
   lookFailed: "We couldn't look on your website just now. Try again, or choose a picture.",
   unusable: "We couldn't use that picture. Try another.",
   wide: "This one is wide, so it will look small in the circle. A square version fits best.",

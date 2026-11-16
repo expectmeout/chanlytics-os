@@ -177,7 +177,7 @@ export async function draftReply(
 
 /** The words the card says for what came back from Google. */
 export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
-  connected: "Your Business Profile is connected — every review is on Reports now, and replies go through it.",
+  connected: "Your Business Profile is connected · every review is on Reports now, and replies go through it.",
   choose: "Google is connected. Choose the location this workspace is, and the reviews follow.",
   declined: "Google did not connect: the sign-in was declined.",
   state_expired: "The way back from Google took too long. Start the connection again.",
@@ -191,8 +191,7 @@ export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
   scope_missing: "Google connected without access to the Business Profile. Start again and allow it.",
   no_refresh_token:
     "Google did not hand over a lasting connection. Remove Chanlytics at myaccount.google.com/permissions and connect again.",
-  accounts_unreadable:
-    "Google connected but the Business Profile couldn't be read. Is the Business Profile API enabled and approved for this project?",
+  accounts_unreadable: "Google connected, but the Business Profile couldn't be read yet. Try again in a minute.",
   no_locations:
     "That Google account manages no business locations. Sign in with the account that owns the Business Profile.",
   not_on_maps: "None of that account's locations is on Google Maps yet. Verify one in the Business Profile first.",

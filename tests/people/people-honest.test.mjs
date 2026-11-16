@@ -2291,7 +2291,7 @@ test("every list's tip is the surface's, from contracts: a built-in's line, and 
   assert.ok(P.lists.length > 0 && P.lists.every((l) => typeof l.tip === "string" && l.tip.length > 10));
   assert.deepEqual(
     P.saved.map((l) => l.tip),
-    ["A list kept by hand — add people from their profile", "Keeps itself current: Reaches you by WhatsApp"],
+    ["A list kept by hand · add people from their profile", "Keeps itself current: Reaches you by WhatsApp"],
   );
   const tree = draw();
   const tips = all(tree, (n) => n.type === "button" && typeof n.props?.["data-tip"] === "string").map(
@@ -2585,7 +2585,7 @@ test("AI's word is beside the state whether or not its column shows, marked when
   let mark = markOf(tree);
   assert.equal(
     mark && textOf(mark),
-    "reply queued",
+    "reply waiting to go",
     "the Receptionist column is off by default (Ruben, 8 Oct 2026), and the word is beside the state",
   );
   assert.equal(inColumn(mark), false, "unmarked: this is where it is said");
@@ -2599,7 +2599,7 @@ test("AI's word is beside the state whether or not its column shows, marked when
   );
   assert.equal(
     textOf(byTestId(rowOf(tree, "p1"), "row-receptionist")).trim(),
-    "Reply queued",
+    "Reply waiting to go",
     "the column says AI's standing as the one pill, in its own words",
   );
   assert.ok(
@@ -2610,7 +2610,7 @@ test("AI's word is beside the state whether or not its column shows, marked when
   mark = markOf(draw());
   assert.equal(
     mark && textOf(mark),
-    "reply queued",
+    "reply waiting to go",
     "with a calendar the Receptionist column is hidden, and the word is beside the state",
   );
   assert.equal(inColumn(mark), false, "unmarked: this is where it is said");
@@ -3187,7 +3187,7 @@ test("with a calendar AI's word sits beside the state until its own column is sh
   await freshPage({ people: [person(1, { queued_reply_at: iso(H) })], calendar: "ok" });
   const stateCell = (t) => find(t, (n) => n.type === "td" && /\bcl-state-cell\b/.test(n.props?.className || ""));
   let tree = draw();
-  assert.match(textOf(stateCell(tree)), /reply queued/, "beside the state");
+  assert.match(textOf(stateCell(tree)), /reply waiting to go/, "beside the state");
   tree = draw();
   flipColumn(tree, "receptionist");
   tree = draw();
@@ -3963,7 +3963,11 @@ test("REGRESSION: a person's cell is who they are and what they said -- the chan
     null,
     'REGRESSION: "Needs you  escalated" -- the escalation is why they need you, said twice',
   );
-  assert.equal(mark("p3") && textOf(mark("p3")), "reply queued", "a reply queued is news the pill does not carry");
+  assert.equal(
+    mark("p3") && textOf(mark("p3")),
+    "reply waiting to go",
+    "a reply waiting to go is news the pill does not carry",
+  );
 });
 
 test("a heading that sorts is a button a keyboard reaches; one that does not is words", async () => {

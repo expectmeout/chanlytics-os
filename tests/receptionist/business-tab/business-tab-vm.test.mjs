@@ -171,7 +171,7 @@ test("a price nobody wrote is caught whatever the switch says, and the rule says
   // those. The detector -- priceBreach on a chat reply, spokenBreach on a call -- reads every reply either way.
   const s = ruleStrength("never_quote_prices").sentence;
   assert.match(s, /Every reply is checked for a price/);
-  assert.match(s, /On, it says none; off, it may say the ones you've written, and any other is swapped out\./);
+  assert.match(s, /On, it says none · off, it may say the ones you've written, and any other is swapped out\./);
   // What the detector actually knows (policy.ts PRICE_PATTERNS): euros and pounds pass it.
   assert.match(s, /dollars or pesos/);
   assert.doesNotMatch(s, /WhatsApp|call/i, "the channels are checkedOn's to say");
@@ -1064,7 +1064,7 @@ test("the booking rules are one sentence of the rules that are set, in the fold'
   }
   assert.equal(
     bookingRulesWords({}).none,
-    "The calendar's own — at least 2 hours' notice, up to 14 days ahead, in 30-minute slots",
+    "The calendar's own · at least 2 hours' notice, up to 14 days ahead, in 30-minute slots",
   );
   assert.deepEqual(
     BOOKING_DEFAULTS,
@@ -1090,19 +1090,19 @@ test("a booking rule's box shows what empty means as its placeholder; the one fa
 test("a booking rule's refusal says its range and what an empty box uses, each with its unit, from the schema and the defaults", () => {
   // The quality review: "leave it empty to use 2" named no unit, and the sentences were the page's.
   assert.deepEqual(["lead_hours", "slot_min", "buffer_min", "max_days_ahead", "party_max"].map(bookingRuleRefusal), [
-    "Least notice is 0 to 168 hours; leave it empty to use 2 hours.",
-    "A slot is 15 to 240 minutes; leave it empty for the calendar’s 30 minutes.",
-    "The gap is 0 to 120 minutes; leave it empty for none.",
-    "Times are offered 1 to 90 days ahead; leave it empty to use 14 days.",
+    "Least notice is 0 to 168 hours · leave it empty to use 2 hours.",
+    "A slot is 15 to 240 minutes · leave it empty for the calendar’s 30 minutes.",
+    "The gap is 0 to 120 minutes · leave it empty for none.",
+    "Times are offered 1 to 90 days ahead · leave it empty to use 14 days.",
     // No default: a party of any size is booked when none is set, and the composer says nothing of one.
-    "A booking is for 1 to 20 people; leave it empty for no rule.",
+    "A booking is for 1 to 20 people · leave it empty for no rule.",
   ]);
   // Its range is the save's own schema's, and what empty uses is the one BOOKING_DEFAULTS, which the hint reads too.
   const lead = BookingRulesSchema.shape.lead_hours.unwrap();
   assert.match(
     bookingRuleRefusal("lead_hours"),
     new RegExp(
-      `^Least notice is ${lead.minValue} to ${lead.maxValue} hours; leave it empty to use ${BOOKING_DEFAULTS.lead_hours} hours\\.$`,
+      `^Least notice is ${lead.minValue} to ${lead.maxValue} hours · leave it empty to use ${BOOKING_DEFAULTS.lead_hours} hours\\.$`,
     ),
   );
   for (const bad of ["notes", "consult_first", "", undefined])
@@ -1446,17 +1446,17 @@ test("a refusal that names a cap is written from that same cap, and says back wh
   // The sentence and the check cannot disagree, because the sentence is built from the number the check uses.
   assert.equal(
     profileRefusal("message", 2345),
-    `At most ${L.message.toLocaleString("en-US")} characters — this is 2,345.`,
+    `At most ${L.message.toLocaleString("en-US")} characters · this is 2,345.`,
   );
   assert.equal(
     profileRefusal("instructions", 20_001),
-    `At most ${L.instructions.toLocaleString("en-US")} characters — this is 20,001.`,
+    `At most ${L.instructions.toLocaleString("en-US")} characters · this is 20,001.`,
   );
-  assert.equal(profileRefusal("tone", 201), `At most ${L.tone} characters — this is 201.`);
-  assert.equal(profileRefusal("noteTitle", 90), `A note's title is at most ${L.noteTitle} characters — this is 90.`);
+  assert.equal(profileRefusal("tone", 201), `At most ${L.tone} characters · this is 201.`);
+  assert.equal(profileRefusal("noteTitle", 90), `A note's title is at most ${L.noteTitle} characters · this is 90.`);
   assert.equal(
     profileRefusal("noteText", 1300),
-    `A note's text is at most ${L.noteText.toLocaleString("en-US")} characters — this is 1,300.`,
+    `A note's text is at most ${L.noteText.toLocaleString("en-US")} characters · this is 1,300.`,
   );
   assert.equal(
     profileRefusal("serviceMinutes"),
@@ -1465,13 +1465,13 @@ test("a refusal that names a cap is written from that same cap, and says back wh
   assert.equal(profileRefusal("closures"), `At most ${L.closures} closed days. Dates that have passed can go.`);
   // What was measured is said back only where the sentence has a place for it.
   assert.equal(profileRefusal("services"), `At most ${L.services} services.`);
-  assert.equal(profileRefusal("reasons", 21), `At most ${L.reasons} reasons, one to a line — this is 21.`);
+  assert.equal(profileRefusal("reasons", 21), `At most ${L.reasons} reasons, one to a line · this is 21.`);
   assert.equal(profileRefusal("reason"), `Each reason is at most ${L.reason} characters.`);
-  assert.equal(profileRefusal("consultFirst", 21), `At most ${L.consultFirst} services, one to a line — this is 21.`);
-  assert.equal(profileRefusal("ruleNotes", 11), `At most ${L.ruleNotes} notes, one to a line — this is 11.`);
+  assert.equal(profileRefusal("consultFirst", 21), `At most ${L.consultFirst} services, one to a line · this is 21.`);
+  assert.equal(profileRefusal("ruleNotes", 11), `At most ${L.ruleNotes} notes, one to a line · this is 11.`);
   assert.equal(profileRefusal("notes"), `At most ${L.notes} notes.`);
   // The two that name what they were measured ON.
-  assert.equal(profileRefusal("shifts", 5, "Monday"), `At most ${L.shifts} shifts in a day — Monday has 5.`);
+  assert.equal(profileRefusal("shifts", 5, "Monday"), `At most ${L.shifts} shifts in a day · Monday has 5.`);
   assert.equal(profileRefusal("languages"), `At most ${L.languages} languages.`);
   assert.equal(
     profileRefusal("language", undefined, "Q"),
@@ -1557,7 +1557,7 @@ test("with no booking link, the two rows that lean on one say what does the work
   );
   assert.equal(
     none.sms,
-    "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when.",
+    "Not part of what is sold yet. It arrives with a line the phone networks have approved, and Connections will say when.",
   );
   assert.equal(none.outbound_call, linked.outbound_call, "a row that leans on no link is as it was");
   assert.throws(() => cannotRows({ smsLive: false }), TypeError, "whether there is a link is required, as smsLive is");

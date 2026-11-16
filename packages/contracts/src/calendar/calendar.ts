@@ -190,7 +190,7 @@ function noticeRowOf(
 
 /** When the feed was read, on its own: a row that says only that is saying the one part an owner acts on ("is it current?"). */
 const feedReadWords = (state: CalendarFeedDto["state"], ago: string | null): string =>
-  state === "ok" ? `read ${ago ?? "just now"}` : state === "unavailable" && ago ? `last read ${ago}` : "";
+  state === "ok" ? `read ${ago ?? "just now"}` : state === "unavailable" && ago ? `updated ${ago}` : "";
 
 /** What the calendar is fed by, said once (setup/calendar-source.ts): Setup, Connections, the board's card and Ask say the same. */
 const sourceOfWeek = (dto: CalendarWeekDto, link: CalendarFeedHealth, forwarding: boolean): CalendarVM["source"] =>
@@ -453,7 +453,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     dto.feed.state === "ok"
       ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"}${stale ? ` · couldn't be refreshed${tried ? ` ${tried}` : ""}` : ""} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}`
       : dto.feed.state === "unavailable"
-        ? [tried ? `tried ${tried}` : "", ago ? `last read ${ago}` : ""].filter(Boolean).join(" · ")
+        ? [tried ? `tried ${tried}` : "", ago ? `updated ${ago}` : ""].filter(Boolean).join(" · ")
         : "";
   // The bookings that arrived by email (00345): said whole once, for the board's card, Settings' row and Ask alike.
   const notices = noticesVM(dto.feed.notices, now);

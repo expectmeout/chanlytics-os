@@ -94,7 +94,7 @@ function forkView(opts: ForkOptions) {
         {filedPath && (
           <span className="set-row-hint">
             A registration is already filed as {RECORD.pathWords[filedPath].filed.toLowerCase()}. It cannot be withdrawn
-            — changing this answer means a second filing, and a second fee.
+            · changing this answer means a second filing, and a second fee.
           </span>
         )}
         {asking && (
@@ -252,7 +252,7 @@ function recordActs(opts: ActsOptions): RecordActs {
     // Each box says what it needs; the toast only counts them.
     const count = Object.keys(found).length;
     if (count) {
-      flash({ tone: "warn", msg: <>Not saved — {count === 1 ? "1 field needs" : `${count} fields need`} a look.</> });
+      flash({ tone: "warn", msg: <>Not saved · {count === 1 ? "1 field needs" : `${count} fields need`} a look.</> });
       return;
     }
     if (!reviewed && asksBeforeSaving(line, saved, record)) {
@@ -337,19 +337,19 @@ function actsRow(opts: ActsRowOptions) {
           onClick={() => onArm(true)}
           disabled={busy}
           data-testid="biz-file"
-          {...gate("team", "file with the carriers")}
+          {...gate("team", "file with the phone networks")}
         >
-          File with the carriers
+          File with the phone networks
         </Button>
       )}
       {line && line.sms_state === "rejected" && (
         <span className="set-row-hint" data-testid="biz-rejected">
-          Save your corrections here — Chanlytics sends the registration back to the carriers for you, at no cost.
+          Save your corrections here · Chanlytics sends the registration back to the phone networks for you, at no cost.
         </span>
       )}
       {arm && (
         <Confirm
-          question="File with the carriers?"
+          question="File with the phone networks?"
           detail={RECORD.costWords[path]}
           yes="Yes, file it"
           no="Not yet"
@@ -533,9 +533,9 @@ export function BusinessRecordForm({ line, flash }: { line?: LineDto | null; fla
 
   const head = (
     <div className="set-row-info">
-      <span className="set-row-label">Your business, as the carriers need it</span>
+      <span className="set-row-label">Your business, as the phone networks need it</span>
       <span className="set-row-hint">
-        {RECORD.line(record.legal_name ? record : null)} The phone carriers ask this of every business before they let a
+        {RECORD.line(record.legal_name ? record : null)} The phone networks ask this of every business before they let a
         number send texts. It is asked once and reused.
       </span>
     </div>

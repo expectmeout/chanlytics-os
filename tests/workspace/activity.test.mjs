@@ -112,7 +112,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
       error: "provided Opt-in information (30896 · MESSAGE_FLOW)",
       e164: "+19296566623",
     }),
-    "The carriers sent the registration back · provided Opt-in information (30896 · MESSAGE_FLOW)",
+    "Texting approval needs a correction · provided Opt-in information (30896 · MESSAGE_FLOW)",
   );
   assert.equal(
     activityWords("lead.round", { search_id: "s1", seq: 1, state: "queued", purpose: "probe", target: 12, by: "u1" }),
@@ -175,7 +175,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   assert.equal(isActivityNoise("booking_link.sent"), true);
   assert.equal(
     activityWords("channel.quality_rating", { from: "GREEN", to: "YELLOW" }),
-    "A WhatsApp number's quality rating changed",
+    "WhatsApp changed how it rates a number",
   );
   assert.equal(
     isActivityNoise("channel.quality_rating"),
@@ -901,7 +901,7 @@ test("a message held at the wire, or that failed, says why where its event carri
   );
   assert.equal(
     activityWords("message.send_failed", { http_status: 503, body: "no_credentials", reason: "no_credentials" }),
-    "A message couldn't be sent · the channel has no credentials to send with",
+    "A message couldn't be sent · the channel isn't connected to send with",
   );
   assert.equal(activityWords("message.send_failed", { reason: "something_new" }), "A message couldn't be sent");
 });
