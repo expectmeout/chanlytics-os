@@ -79,8 +79,8 @@ test("their words come first, in quotes, with the channel and the moment beside 
   assert.deepEqual(a.status, ["AI", "answering on WhatsApp"]);
   assert.deepEqual(
     a.cta,
-    { label: "Open thread", kind: "ghost", to: "inbox/th-cv1" },
-    "an active thread is a quiet button",
+    { label: "Open conversation", kind: "ghost", to: "inbox/th-cv1" },
+    "an active conversation is a quiet button",
   );
 });
 
@@ -101,7 +101,7 @@ test("waiting on you: the state's own words, and the same primary button", () =>
   );
   assert.equal(vm.state, "waiting_on_you");
   const a = attentionRow(vm, ZONE, nowMs, "appointment");
-  assert.deepEqual(a.status, ["You have it", "they wrote last"], "the Inbox's own pill for a thread you have");
+  assert.deepEqual(a.status, ["You have it", "they wrote last"], "the Inbox's own pill for a conversation you have");
   assert.equal(vm.stateLabel, "You have it", "the pill says it, so the detail says only whose turn it is");
   assert.equal(vm.stateDetail, "they wrote last");
   assert.equal(a.cta.label, "Open in Inbox");
@@ -161,7 +161,7 @@ test("a caller with nothing in writing: the call's summary is the sentence; the 
     ["AI", "takes their calls"],
     "never 'answering on WhatsApp' for someone who has only phoned",
   );
-  assert.equal(withSummary.cta, null, "the row is the profile; there is no thread to open");
+  assert.equal(withSummary.cta, null, "the row is the profile; there is no conversation to open");
   const bare = rowOf(caller);
   assert.equal(bare.sentence, "Phoned once; nothing in writing yet");
   assert.equal(rowOf({ ...caller, call_count: 3 }).sentence, "Phoned 3 times; nothing in writing yet");

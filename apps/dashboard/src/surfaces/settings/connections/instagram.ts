@@ -21,8 +21,8 @@ export const CONNECT_WORDS: Readonly<Record<string, string>> = {
   someone_else: "That connection was started by a different account. Start it again from here.",
   no_workspace: "The workspace the connection was started for is not one of yours.",
   instagram_account_taken: "That Instagram account is already connected to another workspace.",
-  credentials_failed: "The connection could not be saved safely, so it was not kept. Try again.",
-  channel_write_failed: "The connection could not be saved. Try again.",
+  credentials_failed: "The connection couldn't be saved safely, so it was not kept. Try again.",
+  channel_write_failed: "The connection couldn't be saved. Try again.",
   preview: "Connecting only works on the production dashboard.",
 };
 
@@ -32,7 +32,7 @@ const OUTCOME_WORDS: Readonly<Record<string, string>> = {
   connected: "Instagram is connected — AI answers its DMs now.",
   declined: "Instagram did not connect: the sign-in was declined.",
   state_expired: "The way back from Instagram took too long. Start the connection again.",
-  state_signature: "The way back from Instagram could not be verified. Start the connection again.",
+  state_signature: "The way back from Instagram couldn't be verified. Start the connection again.",
   state_missing: "The way back from Instagram was incomplete. Start the connection again.",
   state_malformed: "The way back from Instagram was incomplete. Start the connection again.",
   not_owner: "Only an owner or a manager can connect Instagram.",
@@ -42,7 +42,7 @@ const OUTCOME_WORDS: Readonly<Record<string, string>> = {
     "Instagram connected without its messages. Start again and allow Chanlytics to manage them.",
   instagram_account_unreadable:
     "Instagram did not say which account signed in. Use your professional (business or creator) account and try again.",
-  subscribe_failed: "Chanlytics could not subscribe to the account's DMs. Try again in a moment.",
+  subscribe_failed: "Chanlytics couldn't subscribe to the account's DMs. Try again in a moment.",
   not_available: "Connecting Instagram is not available here yet.",
 };
 

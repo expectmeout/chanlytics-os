@@ -79,7 +79,7 @@ export const CONTENT_SOURCE_WORDS = {
       videos
         ? "Paste a link and AI brings them in. It looks at each photo, and watches and listens to each video."
         : "Paste a link and AI brings them in, and looks at each one.",
-    looking: "What AI finds waits in the Library for your OK.",
+    looking: "What AI finds waits in the Library for your approval.",
     found: "Keep the ones that are yours in the Library.",
     tooSmall: "The photos there are too small to post.",
     embeddedOnly: "Its videos play from YouTube or Vimeo, which AI can't bring in.",

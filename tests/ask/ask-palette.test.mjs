@@ -614,7 +614,7 @@ test("a seed that names a thread opens that thread, its last answer under the li
   // Any caller may hand a conversation over as Ask opens: askAbout({ thread }) stays on the shell.
   sent("ask:seed", { thread: TH(2).id });
   const tree = await opens();
-  assert.deepEqual(calls.opened, [TH(2).id], "the thread was read");
+  assert.deepEqual(calls.opened, [TH(2).id], "the conversation was read");
   assert.equal(textOf(byTestId(tree, "ask-say")), "The answer to Question 2.", "and its conversation is open");
   assert.deepEqual(calls.sent, [], "nothing was asked");
   await closes();
@@ -649,7 +649,7 @@ test("a question asked in an open thread hands the page's context the thread it 
         ["user", "Question 2"],
         ["assistant", "The answer to Question 2."],
       ],
-      "the thread it joins: its messages before this question",
+      "the conversation it joins: its messages before this question",
     );
     assert.equal(calls.inputs.at(-1).threadId, TH(2).id);
     press(byTestId(tree, "ask-clear-head"));
@@ -1172,7 +1172,7 @@ test("REGRESSION: a Stop before the turn's thread is named keeps the conversatio
   keyed(tree, "Enter");
   await later(Palette, OPEN);
   assert.deepEqual(calls.sent, ["summarize every conversation", "never mind, how many calls this week?"]);
-  assert.equal(turns[1].sent.threadId, TH(7).id, "the next question carries on in the stopped turn's thread");
+  assert.equal(turns[1].sent.threadId, TH(7).id, "the next question carries on in the stopped turn's conversation");
   turns[1].res();
   await closes();
 });
@@ -1191,7 +1191,7 @@ test("REGRESSION: a thread stored question, question, answer, answer pairs each 
       ["q1", "a1"],
       ["q2", "a2"],
     ],
-    "an ordinary thread as it always paired",
+    "an ordinary conversation as it always paired",
   );
   assert.deepEqual(
     pairs([m("q1", "user"), m("q2", "user"), m("a2", "assistant")]),
@@ -2385,7 +2385,7 @@ test("on a phone the three lead the newest answer: large while AI reads with wha
     assert.deepEqual(
       faces.map((n) => n.props["data-testid"]),
       ["ask-line-face"],
-      "one face in the thread, the hero's",
+      "one face in the conversation, the hero's",
     );
   } finally {
     await closes();
@@ -2410,17 +2410,20 @@ test("on a phone the field in use in a conversation brings the three forward ove
     inputOf(tree).props.onFocus();
     tree = await later(Palette, props);
     assert.ok(byTestId(byTestId(tree, "ask-listen"), "ask-listen-face"), "the three come forward over the field");
-    assert.ok(byClass(tree, "dim").length, "the thread dims");
+    assert.ok(byClass(tree, "dim").length, "the conversation dims");
     assert.ok(textOf(nowOf(tree)).includes("Answer 1."), "and stays drawn");
     typed(tree, "and last");
     tree = await later(Palette, props);
     assert.ok(byTestId(tree, "ask-listen"), "typing keeps them listening");
-    assert.ok(textOf(nowOf(tree)).includes("Answer 1."), "the words typed do not take the thread's place");
+    assert.ok(textOf(nowOf(tree)).includes("Answer 1."), "the words typed do not take the conversation's place");
     inputOf(tree).props.onBlur();
     tree = await later(Palette, props);
     assert.equal(byTestId(tree, "ask-listen"), null, "let go: the band goes");
     assert.equal(inputOf(tree).props.value, "and last", "the words stay in the field");
-    assert.ok(textOf(nowOf(tree)).includes("Answer 1."), "REGRESSION: a draft let go hid the thread behind its rows");
+    assert.ok(
+      textOf(nowOf(tree)).includes("Answer 1."),
+      "REGRESSION: a draft let go hid the conversation behind its rows",
+    );
     assert.equal(byClass(tree, "ask-rows").length, 0, "no rows for the words over a conversation");
     assert.equal(byTestId(tree, "ask-hero").props.className, "ask-hero sig", "the Answered state: the still mark");
   } finally {
@@ -2552,14 +2555,14 @@ test("on a phone the newest question stands at the top once per question, never 
     body.scrollTop = 1500;
     press(byTestId(tree, "ask-earlier"));
     tree = await later(Palette, props);
-    assert.equal(body.scrollTop, 0, "REGRESSION: Earlier opened at the thread's old offset");
+    assert.equal(body.scrollTop, 0, "REGRESSION: Earlier opened at the conversation's old offset");
     press(byTestId(tree, "ask-earlier"));
     tree = await later(Palette, props);
     assert.equal(pins.length, 3, "back from Earlier, the newest question stands at the top again");
     body.scrollTop = 1500;
     press(byTestId(tree, "ask-clear-head"));
     tree = await later(Palette, props);
-    assert.equal(body.scrollTop, 0, "REGRESSION: New opened the home at the thread's old offset");
+    assert.equal(body.scrollTop, 0, "REGRESSION: New opened the home at the conversation's old offset");
   } finally {
     await closes();
     ph.restore();
@@ -3042,7 +3045,7 @@ test("the reads say Thinking before the first and a repeat once, at its newest; 
 
 test("the thread's arithmetic: the newest question stands a breath under the thread's top edge, the first at the very top; Latest is offered once the newest question is below what the thread shows (D5, D7)", () => {
   const H = AskHooks;
-  assert.equal(H.pinTop(14), 0, "the first question: the thread's own top");
+  assert.equal(H.pinTop(14), 0, "the first question: the conversation's own top");
   assert.equal(H.pinTop(620), 606, "a later one, 14px under the edge");
   assert.equal(H.latestShown({ qTop: 900, scrollTop: 0, clientHeight: 600 }), true, "scrolled up: below");
   assert.equal(H.latestShown({ qTop: 900, scrollTop: 600, clientHeight: 600 }), false, "in sight");
@@ -3714,7 +3717,7 @@ test("REGRESSION (the review's A1): a quick answer is a turn of a conversation -
     assert.ok(said1.startsWith("Nora needs you"), said1);
     assert.equal(calls.kept.length, 1);
     const [kept] = calls.kept;
-    assert.deepEqual([kept.text, kept.threadId], ["who needs me?", null], "a new thread, titled by the question");
+    assert.deepEqual([kept.text, kept.threadId], ["who needs me?", null], "a new conversation, titled by the question");
     assert.equal(kept.answer.say.headline, said1, "the answer kept is the answer drawn");
     assert.equal(kept.answer.show.items[0].title, "Nora", "its rows with it, so the model reads who they were");
     tree = await asks(tree, OPEN, "what did the first one want?");
@@ -3722,7 +3725,7 @@ test("REGRESSION (the review's A1): a quick answer is a turn of a conversation -
     assert.equal(
       calls.inputs[0].threadId,
       "cccccccc-cccc-4ccc-8ccc-000000000001",
-      "asked in the quick answer's thread",
+      "asked in the quick answer's conversation",
     );
     const above = byTestId(tree, "ask-thread");
     assert.equal(all(above, (n) => n.props?.["data-testid"] === "ask-turn").length, 1, "above it, as any answer is");
@@ -3746,7 +3749,7 @@ test("a quick question asked again resumes its thread, as a model's does; one th
   render(Palette, OPEN);
   let tree = await later(Palette, OPEN);
   tree = await asks(tree, OPEN, "who needs me?");
-  assert.equal(calls.kept[0].threadId, TH(1).id, "kept in the thread whose first question it repeats");
+  assert.equal(calls.kept[0].threadId, TH(1).id, "kept in the conversation whose first question it repeats");
   assert.deepEqual(calls.opened, [], "drawn at once: nothing read first");
   tree = await asks(tree, OPEN, "and the second one?");
   assert.equal(calls.inputs[0].threadId, TH(1).id);
@@ -3761,7 +3764,7 @@ test("a quick question asked again resumes its thread, as a model's does; one th
   assert.ok(textOf(byTestId(tree, "ask-say")).includes("No missed calls today"), textOf(tree));
   await asks(tree, OPEN, "and this week?");
   assert.deepEqual(calls.sent, ["and the second one?", "and this week?"]);
-  assert.equal(calls.inputs[1].threadId, null, "no thread to join: the turn opens its own");
+  assert.equal(calls.inputs[1].threadId, null, "no conversation to join: the turn opens its own");
   await closes();
 });
 
@@ -4291,7 +4294,7 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
     assert.deepEqual(committed, ["lead_search"], "committed through AI's door");
     assert.ok(
       textOf(byClass(tree, "ask-card-receipt")[0]).includes("Leads shows it"),
-      "the receipt stays in the thread",
+      "the receipt stays in the conversation",
     );
     assert.deepEqual(went, ["clients/leads:s-s1"], "the Line went to the new search");
     assert.equal(went[0], leadsRoute({ searchId: "s1", list: "all", cls: null }), "which is contracts' route for it");
@@ -4434,7 +4437,10 @@ test("on Leads a card that answers a search commits through AI's door with no un
     press(byTestId(tree, "ask-card-approve"));
     tree = await later(Palette, OPEN);
     assert.deepEqual(committed, [answering.payload.amends], "the card commits as it came, its amends intact");
-    assert.ok(textOf(byClass(tree, "ask-card-receipt")[0]).includes("Answered."), "the receipt stays in the thread");
+    assert.ok(
+      textOf(byClass(tree, "ask-card-receipt")[0]).includes("Answered."),
+      "the receipt stays in the conversation",
+    );
     assert.deepEqual(
       went,
       [leadQuestionRoute("s1")],
@@ -4592,7 +4598,7 @@ test("the scope per turn (the Phase 5 plan, D9): a question goes with the scope 
   const hash = globalThis.window.location.hash;
   const ROW1 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000b1";
   const ROW2 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000b2";
-  const row = (id) => ({ kind: "thread", id, label: "this thread" });
+  const row = (id) => ({ kind: "thread", id, label: "this conversation" });
   // An older conversation whose first question is asked again (the twin), kept with a scope of its own.
   const TWIN = { ...TH(1), title: "Where did we leave it?", scope: { kind: "thread", id: ROW1, label: "Rosa" } };
   const calls = ask([TWIN]);
@@ -4633,12 +4639,12 @@ test("the scope per turn (the Phase 5 plan, D9): a question goes with the scope 
     assert.deepEqual(sent(), row(ROW2), "(c) no chip: the conversation's own, which its last turn gave it");
     assert.equal(chip(tree), null, "and the send moved no chip: Today has none");
     tree = await over(`#/inbox/th-${ROW1}`);
-    assert.equal(chip(tree), "this thread", "the chip is the row's again");
+    assert.equal(chip(tree), "this conversation", "the chip is the row's again");
     press(find(byTestId(tree, "ask-scope"), (n) => n.type === "button"));
     tree = await later(Palette, OPEN);
     assert.equal(chip(tree), null, "the × empties the chip");
     tree = await asked(tree, "Anything else?");
-    assert.equal(sent(), null, "(a) a cleared chip sends none, said as null, so the server clears the thread's");
+    assert.equal(sent(), null, "(a) a cleared chip sends none, said as null, so the server clears the conversation's");
     tree = await asked(await over("#/today"), "And now?");
     assert.equal(sent(), null, "(c) and the conversation holds none after it");
     press(byTestId(tree, "ask-clear-head"));
@@ -4648,7 +4654,11 @@ test("the scope per turn (the Phase 5 plan, D9): a question goes with the scope 
     press(byTestId(tree, "ask-clear-head"));
     tree = await asked(await over(`#/inbox/th-${ROW2}`), TWIN.title);
     assert.deepEqual([calls.opened.at(-1), sent()], [TWIN.id, row(ROW2)], "the twin resumed, with the chip's scope");
-    assert.equal(chip(tree), "this thread", "REGRESSION: the twin's stored scope took the chip the question went with");
+    assert.equal(
+      chip(tree),
+      "this conversation",
+      "REGRESSION: the twin's stored scope took the chip the question went with",
+    );
     tree = await asked(tree, "And after that?");
     assert.deepEqual(sent(), row(ROW2), "so the next question goes with it too");
     assert.deepEqual(
@@ -4680,7 +4690,7 @@ test("a question the shell seeds as it opens the Line goes with the chip that op
   };
   const ROW1 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000c1";
   const ROW2 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000c2";
-  const row = (id) => ({ kind: "thread", id, label: "this thread" });
+  const row = (id) => ({ kind: "thread", id, label: "this conversation" });
   const over = async (route) => {
     await closes();
     globalThis.window.location.hash = route;
@@ -4725,7 +4735,7 @@ test("a question the shell seeds as it opens the Line goes with the chip that op
       ["And this one?", row(ROW2)],
       "a question seeded over a row goes with that row, never the chip before it",
     );
-    assert.equal(chip(tree), "this thread", "the chip the question went with");
+    assert.equal(chip(tree), "this conversation", "the chip the question went with");
     await closes();
   } finally {
     globalThis.window.location.hash = hash;
@@ -4958,7 +4968,13 @@ test("a plan draws as one card where its first card stood, whatever order the mo
     payload: { conversation_id: "c1" },
     undo: null,
   };
-  const close = { ...reply, id: "p-c", kind: "thread_verb", title: "Close Sam's thread", payload: { verb: "resolve" } };
+  const close = {
+    ...reply,
+    id: "p-c",
+    kind: "thread_verb",
+    title: "Close Sam's conversation",
+    payload: { verb: "resolve" },
+  };
   try {
     const [s1, s2, s3] = BY_EMAIL;
     const tree = render(AskAnswer, planProps([reply, s3, close, s1, s2]));
@@ -5684,7 +5700,7 @@ test("a question asked again resumes its thread, not a twin, even before the lis
   land([TWIN]);
   await later(Palette, OPEN);
   await until(() => calls.inputs.length === 1, "the question goes once the list lands");
-  assert.deepEqual(calls.opened, [TWIN.id], "its thread opened");
+  assert.deepEqual(calls.opened, [TWIN.id], "its conversation opened");
   assert.equal(calls.inputs[0].threadId, TWIN.id, "and the question joined it");
 });
 

@@ -704,7 +704,7 @@ test("REGRESSION: a playbook's list that could not be read is not called deleted
     const label = (id) => surfaceValue("playbooks").rows.find((p) => p.id === id).triggerLabel;
     assert.equal(
       label("pb-own"),
-      "A list that could not be read",
+      "A list that couldn't be read",
       "REGRESSION: a failed read said the list was deleted",
     );
     assert.equal(label("pb-people"), "Lapsed", "a built-in is never deleted: contracts names it");

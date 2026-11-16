@@ -246,7 +246,7 @@ test("Booked is a tile of contracts', with its figure: a count where the calenda
   };
   assert.deepEqual(why(toBookingReportVM({ calendar: "unavailable", days: 7, asked: 4, booked: 0 })), [
     "—",
-    "the calendar could not be read",
+    "the calendar couldn't be read",
   ]);
   assert.deepEqual(why(toBookingReportVM({ calendar: "none", days: 7, asked: 0, booked: 0 })), [
     "—",

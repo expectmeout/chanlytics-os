@@ -443,7 +443,7 @@ test("with both lines and no approved message, the link that follows the times i
 
 test("on WhatsApp alone, the link goes in the thread", () => {
   const b = idOf(abilityRows({ ...live, voiceLive: false })).booking_link;
-  assert.equal(b.detail, "It sends it in the thread.");
+  assert.equal(b.detail, "It sends it in the conversation.");
   assert.equal(b.ready, true);
   assert.deepEqual(b.channels, { voice: false, whatsapp: true });
 });
@@ -491,14 +491,14 @@ test("with a texting line, a call sends the link by text where WhatsApp cannot c
   assert.deepEqual(noTemplate.channels, { voice: true, whatsapp: true });
   assert.equal(
     noTemplate.detail,
-    "In chat it sends it in the thread. On a call it sends it by text, until you have an approved booking-link WhatsApp message.",
+    "In chat it sends it in the conversation. On a call it sends it by text, until you have an approved booking-link WhatsApp message.",
   );
   // So the openings row may promise the link after the times without "in chat".
   assert.match(idOf(abilityRows({ ...texting, hasBookingTemplate: false })).open_times.detail, /then the link\.$/);
 
   assert.equal(
     idOf(abilityRows(texting)).booking_link.detail,
-    "On a call it sends it to the caller's WhatsApp, or by text when their number has none, and says which. In chat it sends it in the thread.",
+    "On a call it sends it to the caller's WhatsApp, or by text when their number has none, and says which. In chat it sends it in the conversation.",
   );
 
   // The Autonomy tab's holds stop a text as they stop WhatsApp: the same gate, whatever carries it.
@@ -1175,7 +1175,7 @@ test("the hand-off sentences are the ability card's own, written once", () => {
   }
   assert.match(
     handoffChatWords({ hasEscalateWhen: true, pauseHours: undefined }),
-    /the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed\. It holds off for a day, then answers/,
+    /the conversation turns Needs you in the Inbox, and anyone set to be alerted is emailed\. It holds off for a day, then answers/,
   );
   assert.doesNotMatch(
     handoffChatWords({ hasEscalateWhen: true, pauseHours: 24 }),

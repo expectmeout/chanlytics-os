@@ -17,7 +17,7 @@ export async function plRenameList(
   name: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const r = await lists.rename(list.id, name);
-  return r.ok ? { ok: true } : { ok: false, error: r.message || "Could not rename the list." };
+  return r.ok ? { ok: true } : { ok: false, error: r.message || "Couldn't rename the list." };
 }
 
 /** What a delete answered when it took: whether it archived instead, what paused, and what reads the list. */
@@ -34,7 +34,7 @@ export interface DeleteAnswer {
  */
 export async function plDeleteList(list: { id: string }): Promise<DeleteAnswer | { ok: false; error: string }> {
   const r = await lists.remove(list.id);
-  if (!r.ok) return { ok: false, error: r.message || "The list could not be deleted." };
+  if (!r.ok) return { ok: false, error: r.message || "The list couldn't be deleted." };
   const d = (r.data || {}) as { archived?: boolean; paused?: string[]; read_by?: string[] };
   return { ok: true, archived: !!d.archived, paused: d.paused || [], readBy: d.read_by || [] };
 }
@@ -94,7 +94,7 @@ export async function plMakeRuleList(
   const made = await lists.create(name, rule);
   return made.ok
     ? { ok: true, id: plMadeId(made, name) }
-    : { ok: false, error: made.message || "Could not make the list." };
+    : { ok: false, error: made.message || "Couldn't make the list." };
 }
 export const plRuleMadeWords = (name: string) => (
   <>
@@ -123,7 +123,7 @@ export async function plAddPerson({
   });
   if (r.ok) return { ok: true, id: r.data.contact_id, existed: !!r.data.existed };
   // The field's own sentence where the route named one, else the refusal's.
-  return { ok: false, error: (r.fields && Object.values(r.fields)[0]) || r.message || "Could not add them." };
+  return { ok: false, error: (r.fields && Object.values(r.fields)[0]) || r.message || "Couldn't add them." };
 }
 
 /**

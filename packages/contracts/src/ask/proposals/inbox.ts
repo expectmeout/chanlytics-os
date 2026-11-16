@@ -112,7 +112,9 @@ export const threadVerbSpec: ProposalSpec = {
   },
   receipt: (p) => {
     const verb = asText(p.payload.verb);
-    return verb === "take_over" ? `You have ${asText(p.payload.who)}'s thread` : (ownEntry(RECEIPT, verb) ?? "Done");
+    return verb === "take_over"
+      ? `You have ${asText(p.payload.who)}'s conversation`
+      : (ownEntry(RECEIPT, verb) ?? "Done");
   },
   undo: {
     label: ({ payload }) => ownEntry(UNDO_LABEL, asText(payload.verb)) ?? null,

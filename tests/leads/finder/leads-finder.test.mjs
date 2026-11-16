@@ -528,7 +528,7 @@ test("answering: the panel says the question, sends the owner's words as one tur
       surface: "leads",
     },
     "the owner's words and nothing else as the text; the search by id for the route to read and tell the model " +
-      "(ask-routes.test.mjs); the thread the search was planned in; and no scope, so the planning thread keeps its " +
+      "(ask-routes.test.mjs); the conversation the search was planned in; and no scope, so the planning conversation keeps its " +
       "own (a null would clear it: the Phase 5 plan, D9)",
   );
   assert.deepEqual(
@@ -1332,12 +1332,12 @@ test("a search's empty view counts no pile of ours and opens none; a list of the
   assert.equal(leadSearchEmptyWords(ended("stopped")), null, "one that counted some: the page's own words");
   assert.deepEqual(leadSearchEmptyWords(list({ counted: 0, review: 67 })), {
     title: "67 leads need a look.",
-    body: "AI is still checking them, and could not decide on these yet.",
+    body: "AI is still checking them, and couldn't decide on these yet.",
     review: true,
   });
   const listEnded = list({ state: "ended", ending: "target_reached", counted: 0, review: 1 });
   assert.equal(leadSearchEmptyWords(listEnded).title, "1 lead needs a look.");
-  assert.equal(leadSearchEmptyWords(listEnded).body, "AI could not decide on these by itself.");
+  assert.equal(leadSearchEmptyWords(listEnded).body, "AI couldn't decide on these by itself.");
   assert.equal(leadSearchEmptyWords(list({ state: "ended", counted: 0, review: 0 })), null);
   assert.equal(leadSearchEmptyWords(null), null);
   assert.equal(leadSearchEmptyWords({ ...SEARCH, round: null }), null);

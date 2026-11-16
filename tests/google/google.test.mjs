@@ -495,11 +495,11 @@ test("the words: a rating, its stars, the listing's line, when it was read", () 
   assert.equal(checkedWords(listing(), NOW), "Checked 3h ago");
   assert.equal(
     checkedWords(listing({ check_error: "PERMISSION_DENIED" }), NOW),
-    "Google could not be read since 3h ago — read again once a day",
+    "Google couldn't be read since 3h ago — read again once a day",
   );
   assert.equal(
     checkedWords(listing({ checked_at: null, check_error: "x" }), NOW),
-    "Google could not be read yet — read again once a day",
+    "Google couldn't be read yet — read again once a day",
   );
   assert.equal(checkedWords(listing({ checked_at: null }), NOW), "Not read yet");
   assert.equal(reviewSnippet("  a   b  "), "a b");
@@ -682,7 +682,7 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
   assert.equal(none.todayLine, null);
   const trouble = toGoogleVM(dto({ listing: listing({ check_error: "boom" }) }), { days: 7, until: null }, NOW, "UTC");
   assert.equal(trouble.listing.trouble, true);
-  assert.match(trouble.listing.checked, /could not be read since 3h ago/);
+  assert.match(trouble.listing.checked, /couldn't be read since 3h ago/);
   assert.ok(!JSON.stringify(vm).includes("null."), "no null read aloud");
 });
 
@@ -849,7 +849,7 @@ test("Setup's Google row: absent until the platform can look listings up; then F
   assert.equal(row(trouble, "google").stateWords, "Waiting on Google");
   assert.equal(
     row(trouble, "google").sentence,
-    "Northside Movers is on record, but Google could not be read since 1d ago — it is read again once a day.",
+    "Northside Movers is on record, but Google couldn't be read since 1d ago — it is read again once a day.",
   );
   assert.deepEqual(
     row(trouble, "google").verb,

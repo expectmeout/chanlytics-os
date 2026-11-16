@@ -62,7 +62,7 @@ export function firstReplyCard(v: CampaignLensVM, className: string) {
 /** How long the runs that needed your OK waited for it, in four steps, each step kept. */
 export function approvalCard(v: CampaignLensVM, className: string) {
   return mixCard(v.approval, {
-    title: "Waiting for your OK",
+    title: "Waiting for your approval",
     testid: "chart-campaigns-approval",
     className,
     columns: ["How long it waited", "Runs"],

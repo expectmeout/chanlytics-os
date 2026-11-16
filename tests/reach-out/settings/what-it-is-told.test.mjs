@@ -141,7 +141,7 @@ test("what Try it says under the email: the check's verdict, a hold, that it cou
   );
   assert.equal(
     tryCheckLine({ refused: null, preview: preview({ unavailable: true }) }),
-    "It could not be written just now. Write another.",
+    "It couldn't be written just now. Write another.",
   );
   assert.equal(tryCheckLine({ refused: "The search is gone", preview: null }), "The search is gone");
   // Past the search's last lead the door answers no lead at all: never "checked", since nothing was written.

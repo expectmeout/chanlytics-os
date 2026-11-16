@@ -161,7 +161,7 @@ export const BOOKING_REQUEST_WORDS = {
   hold: (when: string, service: string | null) => `Asked for ${when}${service ? ` · ${service}` : ""}`,
   /** The line Can't leaves on the thread, which now waits on a reply. */
   cant: (when: string, service: string | null) =>
-    `Could not book ${when}${service ? ` · ${service}` : ""}: reply to them`,
+    `Couldn't book ${when}${service ? ` · ${service}` : ""}: reply to them`,
   /** The reply Booked it drafts, for the owner to send: the row's own words. */
   booked: (when: string, service: string | null) =>
     `You're booked for ${when}${service ? ` for ${articled(service)}` : ""}.`,
@@ -179,13 +179,13 @@ export const BOOKING_REQUEST_WORDS = {
   requested: "Requested",
   foot: "Requested by text · Booked it or Can't",
   /** Its sheet's foot once answered: it is on no calendar, so it is changed with them, in their thread. */
-  footBooked: "Booked by text · change it with them in their thread",
+  footBooked: "Booked by text · change it with them in their conversation",
   footCant: "Asked for by text · you couldn't take it",
   /** What the role gate says the two presses are, to a member who may not press them. */
   gate: "confirm a booking",
   /** What a page says once a press is taken: booked, and the reply waiting in the thread; or theirs to answer. */
   said: {
-    booked: (personName: string) => `Booked. Tell ${personName} in the thread.`,
+    booked: (personName: string) => `Booked. Tell ${personName} in the conversation.`,
     cant: (personName: string) => `${personName} is waiting on your reply`,
   },
 } as const;

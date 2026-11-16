@@ -33,7 +33,7 @@ export const FACT_SUGGEST_WORDS = {
   dismiss: "Dismiss",
   wrote: (source: CorrectionSource, quote: string) =>
     `${source === "steer" ? "You asked for a rewrite" : "You replied"}: “${quote}”`,
-  thread: "Open the thread",
+  thread: "Open the conversation",
   kept: (title: string) => `Kept as a note: “${title}”`,
   alreadyKept: (title: string) => `Your notes already say this: “${title}”`,
   dismissed: "Dismissed",

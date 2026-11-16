@@ -1242,7 +1242,7 @@ test("a calendar that could not be read loses no day: nothing is recorded, the h
     const failed = said.lines.filter((l) => l.event === "playbook_run_failed");
     assert.deepEqual(
       failed.map((l) => [l.playbook_id, l.error]),
-      [["pb-v", "calendar: could not be read"]],
+      [["pb-v", "calendar: couldn't be read"]],
     );
 
     // The next hour it answers: the same sweep runs it, and the day is recorded as a run's.
@@ -1321,7 +1321,7 @@ test("a playbook that cannot run is told: the platform is paged once per workspa
       assert.deepEqual(
         [notice.kind, notice.title, notice.route, notice.subject_type, notice.subject_id],
         // Its sequence's own address (#1737: campaigns/moment:<id> is a retired one that lands there).
-        ["playbook", "“Win-back” could not run today", sequenceRoute("pb-a"), "playbook_day", `pb-a:${today}`],
+        ["playbook", "“Win-back” couldn't run today", sequenceRoute("pb-a"), "playbook_day", `pb-a:${today}`],
       );
       assert.equal(
         canonicalRoute(notice.route),
@@ -1329,7 +1329,7 @@ test("a playbook that cannot run is told: the platform is paged once per workspa
         "the bell opens the playbook itself, at its own address",
       );
       assert.ok(
-        notice.body.startsWith("“Win-back” could not run today, so nobody was sent it. Tomorrow's run will try again."),
+        notice.body.startsWith("“Win-back” couldn't run today, so nobody was sent it. Tomorrow's run will try again."),
         notice.body,
       );
       const told = mailTo(line, OWNER);
@@ -1372,7 +1372,7 @@ test("a workspace that names nobody to tell hears of its failed campaign as a fa
     line.restore();
   }
   // A campaign with a blank name is still said as one to its owner.
-  assert.equal(playbookFailedWords("  ", "other").title, "“A campaign” could not run today");
+  assert.equal(playbookFailedWords("  ", "other").title, "“A campaign” couldn't run today");
 });
 
 test("a calendar that could not be read all day tells the owner what failed and where to look, and pages nobody: the link is the owner's to mend", async () => {
@@ -1396,7 +1396,7 @@ test("a calendar that could not be read all day tells the owner what failed and 
       assert.equal(mailTo(line, PLATFORM).length, 0);
       const [notice] = bellOf(w, A);
       const name = w.tables.playbooks[0].name;
-      assert.equal(notice.title, `“${name}” could not read your calendar today`);
+      assert.equal(notice.title, `“${name}” couldn't read your calendar today`);
       assert.ok(notice.body.includes("Settings › Hours & booking"), `it says where the link is: ${notice.body}`);
       assert.equal(mailTo(line, OWNER).length, 1, "and the owner has it by mail too");
     });
@@ -1444,8 +1444,8 @@ test("a workspace whose context cannot be read pages once and tells each due pla
           .map((n) => [n.title, n.subject_id])
           .sort(),
         [
-          ["“Second chance” could not run today", `pb-2:${today}`],
-          ["“Win-back” could not run today", `pb-1:${today}`],
+          ["“Second chance” couldn't run today", `pb-2:${today}`],
+          ["“Win-back” couldn't run today", `pb-1:${today}`],
         ],
       );
       assert.equal(mailTo(line, OWNER).length, 2);

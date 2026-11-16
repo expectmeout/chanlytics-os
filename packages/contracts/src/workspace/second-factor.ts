@@ -110,7 +110,7 @@ export function secondFactorAsked(forWhom: string | null | undefined): { require
 export function enrolRefusalWords(message: string | null | undefined): { unavailable: boolean; words: string } {
   const m = String(message ?? "");
   if (/disabled|not enabled|not allowed/i.test(m)) return { unavailable: true, words: SECOND_FACTOR_WORDS.unavailable };
-  return { unavailable: false, words: "We could not start the setup just now. Try again in a minute." };
+  return { unavailable: false, words: "We couldn't start the setup just now. Try again in a minute." };
 }
 
 /** How a refused code reads: a wrong or stale code is the person's to try again; anything else is ours. */
@@ -119,7 +119,7 @@ export function factorCodeWords(message: string | null | undefined): string {
   if (/invalid|expired|mismatch|incorrect|wrong/i.test(m))
     return "That code didn't match. Open the app and type the code it shows now.";
   if (/rate|too many/i.test(m)) return "Too many tries. Wait a minute, then type the code the app shows now.";
-  return "We could not check that code just now. Try again in a minute.";
+  return "We couldn't check that code just now. Try again in a minute.";
 }
 
 /** A six-digit code, as typed: spaces dropped. */

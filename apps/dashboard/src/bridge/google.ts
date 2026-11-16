@@ -181,7 +181,7 @@ export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
   choose: "Google is connected. Choose the location this workspace is, and the reviews follow.",
   declined: "Google did not connect: the sign-in was declined.",
   state_expired: "The way back from Google took too long. Start the connection again.",
-  state_signature: "The way back from Google could not be verified. Start the connection again.",
+  state_signature: "The way back from Google couldn't be verified. Start the connection again.",
   state_missing: "The way back from Google was incomplete. Start the connection again.",
   state_malformed: "The way back from Google was incomplete. Start the connection again.",
   someone_else: "That connection was started by a different account. Start it again from here.",
@@ -192,12 +192,12 @@ export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
   no_refresh_token:
     "Google did not hand over a lasting connection. Remove Chanlytics at myaccount.google.com/permissions and connect again.",
   accounts_unreadable:
-    "Google connected but the Business Profile could not be read. Is the Business Profile API enabled and approved for this project?",
+    "Google connected but the Business Profile couldn't be read. Is the Business Profile API enabled and approved for this project?",
   no_locations:
     "That Google account manages no business locations. Sign in with the account that owns the Business Profile.",
   not_on_maps: "None of that account's locations is on Google Maps yet. Verify one in the Business Profile first.",
   exchange_failed: "Google did not accept the sign-in code. Start the connection again.",
-  credentials_failed: "The connection could not be saved safely, so it was not kept. Try again.",
+  credentials_failed: "The connection couldn't be saved safely, so it was not kept. Try again.",
   not_available: "Connecting a Business Profile is not available here yet.",
 };
 

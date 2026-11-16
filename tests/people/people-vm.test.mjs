@@ -114,7 +114,7 @@ test("waiting_on_you means a human owns the thread AND the last word was theirs"
   assert.equal(
     personStateFor(row({ latest_assignee_user_id: "u1" }), nowMs, ZONE),
     "active",
-    "REGRESSION: a quiet thread with a name on it was waiting on you while AI answered it",
+    "REGRESSION: a quiet conversation with a name on it was waiting on you while AI answered it",
   );
   assert.equal(
     personStateFor(row({ latest_paused_until: iso(-3 * H) }), nowMs, ZONE),
@@ -378,7 +378,7 @@ test("REGRESSION: a person reached only by email is not held by WhatsApp's windo
   assert.deepEqual(emailOnly.bookingLinkAction, {
     label: "Email the booking link",
     short: "Email the link",
-    title: "Opens the thread with the link ready to send by email",
+    title: "Opens the conversation with the link ready to send by email",
     ready: true,
     offered: true,
   });
@@ -431,7 +431,7 @@ test("REGRESSION: a row replies on the wire they last wrote on (00320), so a tex
   assert.deepEqual(texter.bookingLinkAction, {
     label: "Text the booking link",
     short: "Text the link",
-    title: "Opens the thread with the link ready to send as a text",
+    title: "Opens the conversation with the link ready to send as a text",
     ready: true,
     offered: true,
   });
@@ -855,7 +855,7 @@ test("the profile's facts, about rail and thread link are measured, and a phone-
     NOW,
   );
   assert.equal(phoneOnly.openThread, null);
-  assert.ok(!phoneOnly.about.some((a) => a.k === "Replies"), "no WhatsApp thread, no reply window");
+  assert.ok(!phoneOnly.about.some((a) => a.k === "Replies"), "no WhatsApp conversation, no reply window");
 });
 
 test("the view model never carries a number the schema does not hold", () => {
@@ -975,17 +975,17 @@ test("proposalAction: the send-the-proposal button's words by the wire, 'again' 
   const f = (via, window, sent) => contracts.proposalAction({ via, window, emailStopped: false }, sent);
   assert.deepEqual(f("Email", { open: true, hoursLeft: 0 }, null), {
     label: "Email the proposal",
-    title: "Opens the thread with the proposal link ready to send by email",
+    title: "Opens the conversation with the proposal link ready to send by email",
     ready: true,
   });
   assert.deepEqual(f("Text", { open: true, hoursLeft: 0 }, "Sep 22, 2026 · Text"), {
     label: "Text the proposal again",
-    title: "Opens the thread with the proposal link ready to send as a text · sent Sep 22, 2026 · Text",
+    title: "Opens the conversation with the proposal link ready to send as a text · sent Sep 22, 2026 · Text",
     ready: true,
   });
   assert.deepEqual(f("WhatsApp", { open: true, hoursLeft: 5 }, null), {
     label: "Send the proposal",
-    title: "Opens the thread with the proposal link ready to send · any message for 5h more",
+    title: "Opens the conversation with the proposal link ready to send · any message for 5h more",
     ready: true,
   });
   assert.equal(f("WhatsApp", { open: false, hoursLeft: 0 }, null).ready, false);

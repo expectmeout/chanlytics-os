@@ -364,6 +364,6 @@ export const EXAMPLE = {
     choose: "Choosing an ad account",
     v0: "Today, nothing connected (v0)",
     reading: "Reading the accounts",
-    failed: "Could not read Meta",
+    failed: "Couldn't read Meta",
   } satisfies Record<AdsExample, string>,
 };

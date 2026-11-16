@@ -94,7 +94,7 @@ const dto = () =>
 test("REGRESSION: the conversation keeps the address the database gave it", () => {
   // The select asked for it; the mapper threw it away.
   assert.equal(dto().contact.email, ADDRESS);
-  assert.equal(contactName(dto()), ADDRESS, 'so the thread names them by it, not "Unknown"');
+  assert.equal(contactName(dto()), ADDRESS, 'so the conversation names them by it, not "Unknown"');
 });
 
 test("one rule names a person, whatever surface asks and whichever fields it has", () => {
@@ -120,7 +120,7 @@ test("REGRESSION: an email thread credits the team, not a WhatsApp receptionist 
   assert.deepEqual(
     agentFor("email"),
     { glyph: "Y", name: "Your team" },
-    "the words the thread already signs a person's reply with",
+    "the words the conversation already signs a person's reply with",
   );
   assert.deepEqual(agentFor("whatsapp"), { glyph: "W", name: "AI on WhatsApp" });
   assert.deepEqual(agentFor("sms"), { glyph: "T", name: "AI by text" });
@@ -218,7 +218,7 @@ test("REGRESSION: their page does not hold a reply behind a window email does no
     {
       label: "Email the booking link",
       short: "Email the link",
-      title: "Opens the thread with the link ready to send by email",
+      title: "Opens the conversation with the link ready to send by email",
       ready: true,
       offered: true,
     },

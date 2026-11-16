@@ -154,7 +154,11 @@ test("History's rows say their day by name and their time; the batch to come say
   assert.equal(historyStamp(at("2026-10-16T13:00:00Z"), TZ, NOW), "Tomorrow · 9:00 AM");
   assert.match(historyStamp(at("2026-10-11T13:00:00Z"), TZ, NOW), /^Sun.* · 9:00 AM$/);
   assert.deepEqual(historyUpcomingWords(3, "auto"), { end: "3 people", said: "Next · goes on its own" });
-  assert.deepEqual(historyUpcomingWords(null, null), { end: "", said: "Next · waits for your OK" }, "none set asks");
+  assert.deepEqual(
+    historyUpcomingWords(null, null),
+    { end: "", said: "Next · waits for your approval" },
+    "none set asks",
+  );
 });
 
 test("Send N as written covers the held that judge the lead, never words the check could not back", () => {
@@ -240,7 +244,7 @@ test("who wrote back is listed by name with their thread; a server before 00455 
         to: "clients/p1",
       },
     ],
-    "each by name, what they said, its thread to answer in, and their page",
+    "each by name, what they said, its conversation to answer in, and their page",
   );
   const before = peopleNeedsOf([{ group: "in", lead_id: "l2", enrollment_id: "e2", name: "x", place: 1 }], {
     timezone: TZ,

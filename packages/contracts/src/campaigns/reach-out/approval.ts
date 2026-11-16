@@ -60,7 +60,7 @@ export function skippedReasonWords(reason: string): string {
     case "already_yours":
       return "are already yours, in People";
     default:
-      return HELD_REASONS[reason] ?? "could not be written to";
+      return HELD_REASONS[reason] ?? "couldn't be written to";
   }
 }
 
@@ -73,7 +73,7 @@ function skippedWordsOf(skipped: Record<string, number>): string[] {
 }
 
 /** What a run to leads waiting on you says in its head (the run-to-leads canvas): its OK is what it waits for. */
-const RUN_WAITING_WORDS_OK = "Waits for your OK";
+const RUN_WAITING_WORDS_OK = "Waits for your approval";
 
 /** A live run's state as its head says it. */
 const STATE_WORDS: Record<string, string> = {
@@ -318,7 +318,7 @@ export const TO_SEND_ALL_WORDS = {
   /** A run's own To send, where other runs hand emails over too: the door to all of them. */
   everyRun: (n: number, from: number) => `All ${n} to send${from > 1 ? `, from ${from} campaigns` : ""}`,
   reading: "Reading its emails…",
-  unread: "Its emails could not be read just now. Open the run to see them.",
+  unread: "Its emails couldn't be read just now. Open the run to see them.",
   /** Every email handed over is said: what the pane says once its list is empty. */
   none: "Nothing left to send: every email handed to you is said.",
   /** What a role that may not is told it cannot do here (gateTitle): the run's own list's words. */
@@ -387,7 +387,7 @@ export function toSendSaidWords(
   if (args.state !== "sent") return REACH_OUT_TO_SEND_LABELS.skippedDone(name);
   if (!args.since) return REACH_OUT_TO_SEND_LABELS.sentDone(name);
   const sentence = REACH_OUT_TO_SEND_LABELS.sentSince(name, args.since);
-  return args.since === "already_yours" && args.on_thread ? `${sentence} It is on their thread.` : sentence;
+  return args.since === "already_yours" && args.on_thread ? `${sentence} It is in their conversation.` : sentence;
 }
 
 /** The notice the check sends the first time it holds a send in a run that is not waiting on its owner (R20). */
@@ -400,6 +400,6 @@ export function heldNoticeWords(params: { name: string; held: number; reasons: R
   const say = doors.length > 1 ? `${doors.slice(0, -1).join(", ")} or ${doors[doors.length - 1]}` : (doors[0] ?? "");
   return {
     subject: `The check held ${plural(params.held, "email", "emails")} in ${params.name}`,
-    body: `${params.held === 1 ? "It waits" : "They wait"} for your say on its run${say ? `: ${say}` : ""}. The rest of the run goes as planned.`,
+    body: `${params.held === 1 ? "It waits" : "They wait"} for your approval on its run${say ? `: ${say}` : ""}. The rest of the run goes as planned.`,
   };
 }

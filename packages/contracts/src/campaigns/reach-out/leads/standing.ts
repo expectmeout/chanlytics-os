@@ -54,7 +54,7 @@ export function reachOutLineOf(reachOutLeadLine: ReachOutLeadLineDto, nowMs: num
   if (reachOutLeadLine.sent > 0 && away !== null && away > nowMs)
     return `Written ${near(reachOutLeadLine.first_sent_at, tz, nowMs)} · away until ${clockDate(away, tz, nowMs)}`;
   if (reachOutLeadLine.sent > 0) return writtenWords(reachOutLeadLine, tz, nowMs);
-  if (reachOutLeadLine.held) return "Held for your OK";
+  if (reachOutLeadLine.held) return "Held for your approval";
   // Handed to its owner, written and checked (00429): it waits for them to send it from their inbox.
   if ((reachOutLeadLine.drafted ?? 0) > 0) return "Drafted for you · to send from your inbox";
   const next = at(reachOutLeadLine.next_at);
@@ -141,12 +141,12 @@ const standing = (words: string, tone: ReachOutStandingVM["tone"], stop: boolean
  * then, 00426), or tomorrow's (today's made, or the day's last hour gone). A sequence whose batches ask says so.
  */
 export function reachOutWhenOf(timelineChain: ReachOutTimelineChainDto, nowMs: number, tz: string): string {
-  if (timelineChain.waiting_run_id) return "waits for your OK";
+  if (timelineChain.waiting_run_id) return "waits for your approval";
   if (timelineChain.state !== "running") return "nothing goes while it is paused";
   const hour = timelineChain.run_hour ?? PLAYBOOK_HOURS.min;
   const now = new Date(nowMs);
   const result = localHour(tz, now);
-  const say = timelineChain.asks ? ", after your OK" : "";
+  const say = timelineChain.asks ? ", after your approval" : "";
   if (timelineChain.last_run_for === localDate(tz, now) || result > PLAYBOOK_HOURS.max)
     return `goes tomorrow from ${clockHour(hour)}${say}`;
   if (result < hour) return `goes today from ${clockHour(hour)}${say}`;
@@ -190,7 +190,7 @@ function writtenStanding(leadTimeline: ReachOutLeadTimelineDto, tz: string, nowM
   const drafted = leadTimeline.sends.some((s) => s.state === "drafted");
   const planned = nextPlanned(leadTimeline);
   if (left.length === 0) {
-    if (held) return standing("email 1 waits for your OK", "warn", false);
+    if (held) return standing("email 1 waits for your approval", "warn", false);
     if (drafted) return standing("email 1 is handed to you to send", "warn", false);
     if (planned !== null) return standing(`email 1 goes ${clockNearWhen(planned, tz, nowMs)}`, "plain", false);
     return null;
@@ -200,7 +200,7 @@ function writtenStanding(leadTimeline: ReachOutLeadTimelineDto, tz: string, nowM
   const parts = [
     `${steps >= key ? `email ${key} of ${steps} sent` : "written"} ${near(last?.sent_at ?? null, tz, nowMs)}`,
   ];
-  if (held) parts.push("the next waits for your OK");
+  if (held) parts.push("the next waits for your approval");
   else if (drafted) parts.push("the next is handed to you to send");
   else if (planned !== null) parts.push(`next ${clockNearWhen(planned, tz, nowMs)}`);
   else if (steps > key) parts.push("the next if nothing comes back");

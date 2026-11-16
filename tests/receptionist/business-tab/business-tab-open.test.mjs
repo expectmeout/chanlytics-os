@@ -1359,17 +1359,17 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
     // A last good read, shown as that.
     setSurfaceValue(
       "calendar",
-      calendarRead(readOk({ stale: true, reason: "unreachable", problem: "The calendar could not be reached." })),
+      calendarRead(readOk({ stale: true, reason: "unreachable", problem: "The calendar couldn't be reached." })),
     );
     row = byTestId(drawTab(), "rec-row-calendar");
     assert.equal(byTestId(row, "rec-calendar-state").props["aria-label"], CALENDAR_FEED_WORDS.stale);
-    assert.match(textOf(row), /The calendar could not be reached\./);
+    assert.match(textOf(row), /The calendar couldn't be reached\./);
     // With no reason given, each state is said in the Calendar page's own words for it, from where that page keeps
     // them: a last good read could not be REFRESHED, which is not the sentence for a calendar that could not be read.
     setSurfaceValue("calendar", calendarRead(readOk({ stale: true, reason: "unreachable", problem: null })));
     row = byTestId(drawTab(), "rec-row-calendar");
     assert.equal(textOf(find(row, (n) => classes(n).includes("bt-feed-problem"))), CALENDAR_PAGE.words.stale);
-    assert.equal(CALENDAR_PAGE.words.stale, "The calendar could not be refreshed.");
+    assert.equal(CALENDAR_PAGE.words.stale, "The calendar couldn't be refreshed.");
     setSurfaceValue(
       "calendar",
       calendarRead(readOk({ state: "unavailable", read_at: null, events: 0, reason: null, problem: null })),

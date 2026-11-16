@@ -826,7 +826,7 @@ test("the profile: a Next appointment fact and About rows when the calendar is c
     TZ,
     now,
   );
-  assert.equal(down.about.find((a) => a.k === "Next appointment").v, "Calendar could not be read");
+  assert.equal(down.about.find((a) => a.k === "Next appointment").v, "Calendar couldn't be read");
   const byName = toPersonVM(
     detail({ timezone: TZ, source: "Google Calendar", state: "ok", next: { ...next, via: "name" }, last: null }),
     TZ,
@@ -836,7 +836,7 @@ test("the profile: a Next appointment fact and About rows when the calendar is c
     byName.facts.find((f) => f.label === "Next appointment").meta.endsWith("· matched by name"),
     "a name is a guess, and says so in the one set of words every page says a match in",
   );
-  assert.equal(down.facts.find((f) => f.label === "Next appointment").meta, "could not be read");
+  assert.equal(down.facts.find((f) => f.label === "Next appointment").meta, "couldn't be read");
 });
 
 test("the wiring: the board and the profile read one match; both receptionists are told; the panel says who it is for and where it comes from", async () => {
@@ -1432,7 +1432,7 @@ test("asked, then booked: the report's one conversion line, in words that say wh
   assert.equal(toBookingReportVM(null).sub, "Add a calendar link under Settings › Hours & booking to see who booked.");
   assert.equal(
     toBookingReportVM({ calendar: "unavailable", days: 30, asked: 5, booked: 0 }).sub,
-    "Your calendar could not be read.",
+    "Your calendar couldn't be read.",
   );
 });
 
@@ -2250,16 +2250,16 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   assert.deepEqual(
     JSON.parse(globalThis.sessionStorage.getItem("chanlytics-compose")),
     { threadId: "th-1", text: "Here is the link" },
-    "the send carries the link into the thread",
+    "the send carries the link into the conversation",
   );
   assert.deepEqual(ui.went, ["inbox/th-1"]);
   assert.ok(
     personActs({ ...chat, openThread: "inbox/th-1", bookingLink: "https://book.example.com/marisas" }).some(
       (a) => a.id === "booking" && a.label === "Send booking link",
     ),
-    "the page's More menu offers it, in plain words, once there is a thread to open (personActs)",
+    "the page's More menu offers it, in plain words, once there is a conversation to open (personActs)",
   );
-  assert.ok(!chat.acts.some((a) => a.id === "booking"), "and none without a thread to open it in");
+  assert.ok(!chat.acts.some((a) => a.id === "booking"), "and none without a conversation to open it in");
   // The words are the contract's now (people bookingLinkAction), not the page's:
   // inside the window a reply is carried in, outside it the thread offers the approved message.
   assert.deepEqual([chat.bookingLinkAction.label, chat.bookingLinkAction.ready], ["Text the booking link", true]);
@@ -2281,8 +2281,12 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   // composer reads). Run.
   const carriedReply = await importSrc("apps/dashboard/src/surfaces/inbox/carried-reply.ts");
   carriedReply.carryReply("inbox/th-c9", "Hello");
-  assert.equal(carriedReply.takeCarriedReply("th-other"), null, "another thread takes nothing");
-  assert.equal(carriedReply.takeCarriedReply("th-c9"), "Hello", "the thread it names takes it, by its route or its id");
+  assert.equal(carriedReply.takeCarriedReply("th-other"), null, "another conversation takes nothing");
+  assert.equal(
+    carriedReply.takeCarriedReply("th-c9"),
+    "Hello",
+    "the conversation it names takes it, by its route or its id",
+  );
   assert.equal(carriedReply.takeCarriedReply("th-c9"), null, "and only once");
   const composer = readCode("apps/dashboard/src/surfaces/inbox/thread/composer.tsx");
   assert.ok(
@@ -2394,7 +2398,7 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   assert.deepEqual(
     JSON.parse(globalThis.sessionStorage.getItem("chanlytics-compose")),
     { threadId: talking.threadId, text: `Here's the link to book your appointment: ${link}` },
-    "the link is carried into the thread's composer",
+    "the link is carried into the conversation's composer",
   );
   assert.deepEqual(went, [`inbox/${talking.threadId}`]);
   assert.equal(byTestId(cellOf("actions", talking, { bookingLink: null, drop: null }), "row-booking-link"), null);

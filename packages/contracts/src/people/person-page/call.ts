@@ -63,7 +63,7 @@ export const PERSON_CALL_WORDS = {
   /** Save before an outcome is picked, when it cannot be pressed yet. */
   saveBare: "Save",
   saved: "Call logged",
-  couldNot: "Could not log this call.",
+  couldNot: "Couldn't log this call.",
   notNow: "Not now",
   /** The step a call back writes beside a note the receptionist reads (a step is always the team's own). */
   stepBody: "Call back",

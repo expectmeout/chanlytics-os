@@ -210,7 +210,7 @@ export const capOf = (room: Room): number =>
 
 /** A plan refused for a read that failed: what could not be read, that nothing was proposed, and to ask again. */
 const unreadWords = (text: string): string =>
-  `${text} could not be read just now, so nothing was proposed: say so, and ask again in a moment.`;
+  `${text} couldn't be read just now, so nothing was proposed: say so, and ask again in a moment.`;
 
 /**
  * What a plan says in English: its refusals, the model's to say back in the question's language (each ends on what to

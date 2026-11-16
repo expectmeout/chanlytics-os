@@ -187,7 +187,7 @@ export function PersonLists({
     const r = await fn();
     setBusy(false);
     if (!r.ok) {
-      flash({ tone: "danger", msg: <>{r.message || "Could not change the list."}</> });
+      flash({ tone: "danger", msg: <>{r.message || "Couldn't change the list."}</> });
       return;
     }
     flash({ msg });

@@ -64,9 +64,9 @@ export const BRING_IN_WORDS = {
     b.place === "website" ? `Bring in what ${siteHostOf(b.url)} shows` : `Bring in @${b.handle}'s posts and reels`,
   summary: (b: Exclude<BringIn, { place: "none" }>, videos: boolean) =>
     b.place === "website"
-      ? `AI reads ${siteHostOf(b.url)} for its photos${videos ? " and videos" : ""}. They wait in the Library for your OK.`
-      : `AI brings in the newest posts${videos ? " and reels" : ""} of @${b.handle}. Only your own account: they wait in the Library for your OK.`,
-  receipt: "AI is bringing them in. They wait in the Library for your OK.",
+      ? `AI reads ${siteHostOf(b.url)} for its photos${videos ? " and videos" : ""}. They wait in the Library for your approval.`
+      : `AI brings in the newest posts${videos ? " and reels" : ""} of @${b.handle}. Only your own account: they wait in the Library for your approval.`,
+  receipt: "AI is bringing them in. They wait in the Library for your approval.",
   /** Why a link is not brought in, for Ask to say in its own words. */
   refused: {
     player:

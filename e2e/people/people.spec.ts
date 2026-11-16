@@ -160,7 +160,9 @@ test.describe("People on a real workspace", () => {
 
     // One button to the thread: the header's Open thread and Right now's Open in Inbox went to the same place.
     expect(
-      await page.locator(".cl-profile button", { hasText: /^(Open thread|Open in Inbox|Open the thread)$/ }).count(),
+      await page
+        .locator(".cl-profile button", { hasText: /^(Open conversation|Open in Inbox|Open the conversation)$/ })
+        .count(),
     ).toBeLessThanOrEqual(1);
 
     // The History tab is the timeline, at the person's address with its word; the tab replaces the entry, so Back

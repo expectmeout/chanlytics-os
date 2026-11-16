@@ -263,7 +263,7 @@ function DeleteAccountRow({ flash }: { flash: Flash }) {
     setBusy(true);
     const r = await meVerbs.deleteAccount();
     setBusy(false);
-    if (!r.ok) setRefused(r.message || "Your account could not be deleted.");
+    if (!r.ok) setRefused(r.message || "Your account couldn't be deleted.");
   };
   return (
     <RecordRow
