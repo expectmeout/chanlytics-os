@@ -268,6 +268,7 @@ globalThis.window.__chrome = { state: stateOf };
 const S = "../../apps/dashboard/src/surfaces";
 const { calendar } = await import(`${S}/calendar/verbs.ts`);
 const { CalendarPage } = await import(`${S}/calendar/calendar-page.tsx`);
+const { calendarRunsOverride } = await import(`${S}/calendar/runs-surface.ts`);
 const { CALENDAR_PAGE, CR_WARM_MS, fitDeskHourPx, fitHourPx } = await import(`${S}/calendar/words.ts`);
 // The floor an hour never goes under on a phone: what the fit answers for no room at all (words.ts keeps the number).
 const CR_HOUR_MIN_PX = fitHourPx(0, 1);
@@ -1319,7 +1320,7 @@ test("REGRESSION (21 Oct 2026): a cold board waits for its campaigns, never past
   }
 });
 
-test("REGRESSION (10 Nov 2026): a load whose weeks landed a moment before the page came on screen still waits for its campaigns, never past 600 ms; weeks held from an earlier read never wait", async () => {
+test("REGRESSION (10 Nov 2026): a load whose weeks landed a moment before the page came on screen still waits for its campaigns, never past 600 ms; weeks held from an earlier read wait only while the campaigns are being read (15 Nov 2026)", async () => {
   const runs = {
     dto: { timezone: "America/New_York", from: "2026-09-07", days: 63, paused: false, runs: [], moments: [] },
     fetchedAt: 1,
@@ -1351,7 +1352,31 @@ test("REGRESSION (10 Nov 2026): a load whose weeks landed a moment before the pa
     fresh();
     setSurfaceValue("calendar", { vm: toCalendarVM(dto(), NOW), fetchedAt: Date.now() - 5_000 });
     setSurfaceValue("calendar_runs", undefined);
-    assert.ok(byTestId(page(), "calendar-real"), "weeks held from before never wait");
+    assert.ok(byTestId(page(), "calendar-real"), "weeks held from before, and nothing reading the campaigns: no wait");
+    // The same weeks, and the campaigns being read as the page comes on screen: a press from Today, which reads the weeks
+    // for its day. It waits for them as a load does.
+    fresh();
+    setSurfaceValue("calendar", { vm: toCalendarVM(dto(), NOW), fetchedAt: Date.now() - 5_000 });
+    setSurfaceValue("calendar_runs", undefined);
+    const was = globalThis.window.fetch;
+    let answer = () => {};
+    globalThis.window.fetch = () =>
+      new Promise((r) => {
+        const body = JSON.stringify({ ok: true, data: { runs: runs.dto } });
+        answer = () => r(new Response(body, { status: 200, headers: { "content-type": "application/json" } }));
+      });
+    try {
+      const reading = calendarRunsOverride.apply();
+      assert.ok(
+        byTestId(page(), "calendar-cold"),
+        "REGRESSION (15 Nov 2026): a press from Today drew the meetings, then the campaigns 0.2 to 0.3 s after, 48 px a row",
+      );
+      await until(() => (answer(), surfaceValue("calendar_runs")), "the campaigns' read, answered");
+      await reading;
+      assert.ok(byTestId(page(), "calendar-real"), "both in: the board, drawn once, with its campaigns");
+    } finally {
+      globalThis.window.fetch = was;
+    }
   } finally {
     honourDeps = false;
     setSurfaceValue("calendar_runs", undefined);

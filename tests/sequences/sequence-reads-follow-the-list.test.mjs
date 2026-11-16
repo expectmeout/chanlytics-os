@@ -289,14 +289,15 @@ describe("the list's sequences, read ahead", () => {
     assert.deepEqual(asked, ["record ahead-d-1"], "the two it holds paint at once and are read again as they open");
   });
 
-  test("twelve at most, and none once it is stopped or the tab is put away", async () => {
+  test("the first screen's four at most, and none once it is stopped or the tab is put away", async () => {
     const many = Array.from({ length: 14 }, (_, i) => `many-${i}-1`);
     warmRecordsAhead(many);
-    await until(() => asked.length === 12);
+    await until(() => asked.length === 4);
     await new Promise((r) => setTimeout(r, 400));
     assert.deepEqual(
       asked,
-      many.slice(0, 12).map((id) => `record ${id}`),
+      many.slice(0, 4).map((id) => `record ${id}`),
+      "REGRESSION (15 Nov 2026): twelve records, the heaviest read a list asks for, at every visit to Campaigns and Leads",
     );
     asked = [];
     const stop = warmRecordsAhead(["stop-a-1", "stop-b-1"]);
