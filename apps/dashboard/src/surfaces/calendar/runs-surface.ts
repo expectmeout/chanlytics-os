@@ -44,14 +44,15 @@ export function keptShow(): CalendarShow {
 }
 
 /**
- * The Calendar's campaigns read once the boot is in on any other page (`read`: the runner's read of this surface,
- * FrameApp.tsx), where Show draws them and the tab holds none, so a move to the Calendar finds them in hand with its
- * weeks, which every boot reads (Today draws them). Read only as the Calendar came on screen, they arrived about half a
- * second after its meetings in 66 of 294 moves there (page_vitals, 14-21 Oct 2026), the campaign rows pushing the
- * meetings down as they came (Ruben, 21 Oct 2026). Read once the page was idle too, they were still out a second or two
- * after Today had drawn, longest where the browser has no idle callback and waits 2 s (Safari), and a press to the
- * Calendar then drew the meetings and the campaigns 0.2 to 0.3 s after (the phone review of 15 Nov 2026): one small read
- * after the boot's own stands in nobody's way. Never where the page may not warm on its own (warmsOnItsOwn).
+ * The Calendar's campaigns read on any other page once that page has its own reads (afterBoot("page"); `read`: the runner's
+ * read of this surface, FrameApp.tsx), where Show draws them and the tab holds none, so a move to the Calendar finds them
+ * in hand with its weeks, which every boot reads (Today draws them). Read only as the Calendar came on screen, they arrived
+ * about half a second after its meetings in 66 of 294 moves there (page_vitals, 14-21 Oct 2026), the campaign rows pushing
+ * the meetings down as they came (Ruben, 21 Oct 2026). Read once the page was idle, they were still out a second or two
+ * after Today had drawn, longest where the browser has no idle callback and waits 2 s (Safari), and a press to the Calendar
+ * then drew the meetings and the campaigns 0.2 to 0.3 s after (the phone review of 15 Nov 2026); read once the whole boot
+ * was in, about three seconds after a phone's page had drawn on production (the re-measure of 16 Nov 2026). One small read
+ * beside the other pages' stands in nobody's way. Never where the page may not warm on its own (warmsOnItsOwn).
  */
 export function readRunsSoon(read: () => void, at?: Window): void {
   const win = at ?? (typeof window === "undefined" ? null : window);
@@ -62,7 +63,7 @@ export function readRunsSoon(read: () => void, at?: Window): void {
     if (/^calendar(\/|$)/.test(routeOnScreen(win))) return;
     read();
   };
-  const soon = () => void afterBoot().then(go);
+  const soon = () => void afterBoot("page").then(go);
   if (win.document.readyState === "complete") soon();
   else win.addEventListener("load", soon, { once: true });
 }

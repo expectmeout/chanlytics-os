@@ -385,6 +385,10 @@ export function warmsOnItsOwn(): boolean {
 let boot: Promise<void> = Promise.resolve();
 /** What settles the boot the shell said is coming, until the runner starts it (bootComing). */
 let bootDue: (() => void) | null = null;
+/** The boot's first pass, the page's own surfaces and its own read (surface-runner.ts): what afterBoot("page") answers. */
+let pagesOwn: Promise<void> = Promise.resolve();
+/** What settles the first pass the shell said is coming, until the runner starts it. */
+let pagesOwnDue: (() => void) | null = null;
 
 /**
  * Said at the shell's module scope, before anything asks afterBoot: a boot is coming. What waits for the boot then waits
@@ -396,27 +400,46 @@ let bootDue: (() => void) | null = null;
 export function bootComing(): void {
   if (bootDue) return;
   boot = new Promise<void>((settle) => (bootDue = settle));
+  pagesOwn = new Promise<void>((settle) => (pagesOwnDue = settle));
 }
 
-/** The runner's boot, from its start to its last surface in (surface-runner.ts): what afterBoot answers from now on. */
-export function bootStarted(booted: Promise<unknown>): void {
-  const settled = booted.then(
+/** A promise's settling, landed or not. */
+const settledOf = (p: Promise<unknown>): Promise<void> =>
+  p.then(
     () => undefined,
     () => undefined,
   );
+
+/**
+ * The runner's boot, from its start to its last surface in (surface-runner.ts): what afterBoot answers from now on; and its
+ * first pass, the page's own (`pageIn`), what afterBoot("page") answers. A boot with no first pass of its own says the whole.
+ */
+export function bootStarted(booted: Promise<unknown>, pageIn: Promise<unknown> = booted): void {
+  const settled = settledOf(booted);
   const due = bootDue;
   bootDue = null;
   boot = settled;
   if (due) void settled.then(due);
+  const ownIn = settledOf(pageIn);
+  const ownDue = pagesOwnDue;
+  pagesOwnDue = null;
+  pagesOwn = ownIn;
+  if (ownDue) void ownIn.then(ownDue);
 }
 
 /**
  * Once the boot is in: when work nobody is waiting for may start (people.ts reading a list's people ahead, Ask's
  * follow-ups, a page's next chunk) without standing in the lanes the page's own surfaces boot through -- twenty-three reads
  * at once is what made a cold load take 7.8 s. Settled at once where no boot is coming (bootComing).
+ *
+ * Or, with `"page"`, once its first pass is in, the page on screen's own reads: when a read for where a press goes next
+ * may start (what Today's first draw waits for, the Calendar's campaigns, what the AI noticed), beside the other pages'
+ * reads and never in the way of this page's own. Waiting for the whole boot left them out until about three seconds after
+ * a phone's page had drawn on production, and a press in that time waited for them or drew without them (the phone
+ * re-measure of 16 Nov 2026).
  */
-export function afterBoot(): Promise<void> {
-  return boot;
+export function afterBoot(part: "all" | "page" = "all"): Promise<void> {
+  return part === "page" ? pagesOwn : boot;
 }
 
 /** How long an idle page may wait before something is fetched ahead of need: after the page's own reads and code. */

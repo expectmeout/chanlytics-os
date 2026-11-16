@@ -7,6 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
+import { until } from "../shared/_until.mjs";
 
 const {
   pathWorkspace,
@@ -527,6 +528,37 @@ test("REGRESSION: what waits for the boot waits for the runner's, once the shell
   } finally {
     globalThis.requestIdleCallback = was;
   }
+});
+
+test("REGRESSION (16 Nov 2026): a read for where a press goes next waits for the page's own reads, never the whole boot -- read once the boot was in, three seconds after a phone's page had drawn, a press in that time drew without them", async () => {
+  // No boot coming: nothing waits.
+  await afterBoot("page");
+  /** A boot the shell says is coming, what waits for each part of it, and what lands each. */
+  const boot = () => {
+    const done = [];
+    const land = {};
+    bootComing();
+    void afterBoot("page").then(() => done.push("page's own"));
+    void afterBoot().then(() => done.push("all"));
+    bootStarted(new Promise((r) => (land.all = r)), new Promise((r) => (land.page = r)));
+    return { done, land };
+  };
+  const first = boot();
+  first.land.page();
+  await until(() => first.done.length === 1, "the page's own in");
+  assert.deepEqual(first.done, ["page's own"], "once the page's own are in, while the strangers are still being read");
+  first.land.all();
+  await until(() => first.done.length === 2, "the boot in");
+  // Each waits for its own: the boot's end is not the page's.
+  const second = boot();
+  second.land.all();
+  await until(() => second.done.length === 1, "the boot in");
+  assert.deepEqual(second.done, ["all"], "the page's own wait on their own pass");
+  second.land.page();
+  await until(() => second.done.length === 2, "the page's own in");
+  // A first pass that failed is in all the same.
+  bootStarted(Promise.resolve(), Promise.reject(new Error("page")));
+  await afterBoot("page");
 });
 
 test("a phone's tab pages, and the pages a swipe walks to from them, are asked for at once, with no idle wait; never on a desk, in the native app, or where a person has asked to save data", () => {

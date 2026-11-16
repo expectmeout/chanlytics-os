@@ -9,6 +9,7 @@
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { until } from "../../shared/_until.mjs";
 
 const win = {
   __ACTIVE_WORKSPACE: undefined,
@@ -951,6 +952,50 @@ test("a cold boot is two passes: the page's own surfaces, then the rest once the
   stop();
   assert.equal(new Set(order).size, keys.length, "then every other surface boots");
   assert.deepEqual(order.slice(0, 2), ["workspace", "people"]);
+});
+
+test("REGRESSION (16 Nov 2026): a move asked while the boot is out reads what the page moved to waits for first among what is left", async () => {
+  // The order was the first page's: a press to Today a second after the Calendar drew waited for Today's own behind
+  // Leads, People and the rest of the Calendar's boot, and Today drew 1.3 to 2.4 s after the press (the phone re-measure).
+  const { goToRoute } = await importSrc("apps/dashboard/src/bridge/workspace.ts");
+  const keys = [
+    "conversations",
+    "inbox",
+    "leads",
+    "people",
+    "reports",
+    "settings",
+    "calendar",
+    "today",
+    "setup",
+    "broadcasts",
+    "notifications",
+  ];
+  const { order, overrides } = crowd(keys, { hash: "#/calendar" });
+  win.history = { pushState() {}, replaceState() {} };
+  let landed = () => {};
+  bootWaitsFor(
+    new Promise((r) => {
+      landed = r;
+    }),
+  );
+  try {
+    const stop = startSurfaces(overrides);
+    await until(() => order.length > 0, "the Calendar's own asked");
+    assert.deepEqual(order, ["calendar"], "the Calendar's own, and nobody else's while its read is out");
+    goToRoute("today", {}, win);
+    landed();
+    await until(() => new Set(order).size === keys.length, "every surface asked");
+    stop();
+    assert.deepEqual(
+      order.slice(1, 5),
+      ["today", "setup", "broadcasts", "notifications"],
+      "Today's own surface and what its first draw waits for, ahead of the Calendar's strangers",
+    );
+    assert.equal(new Set(order).size, keys.length, "and every other surface still boots, once");
+  } finally {
+    delete win.history;
+  }
 });
 
 test("a page read that never lands holds the rest for the route's wait at most, and only this boot's", async () => {

@@ -39,7 +39,7 @@ import {
   type FeedWatch,
   type RealtimeChange,
 } from "./surface-realtime";
-import { bootStarted, getActiveWorkspace, routeOnScreen, signInHref } from "./workspace";
+import { bootStarted, getActiveWorkspace, onRouteAsked, routeOnScreen, signInHref } from "./workspace";
 import { watchTheClock } from "./hearing/clock";
 import { watchTheDayTurn } from "./hearing/day-turn";
 import { pageHidden } from "./hearing/front";
@@ -137,9 +137,8 @@ export async function refreshAllSurfaces(): Promise<void> {
  */
 const BOOT_LANES = 4;
 
-/** Run `work` over `items`, at most `lanes` at a time, in order. */
-async function inLanes<T>(items: readonly T[], lanes: number, work: (item: T) => Promise<void>): Promise<void> {
-  const queue = items.slice();
+/** Run `work` over `queue`, at most `lanes` at a time, in its order as it stands when each lane comes free. */
+async function inLanes<T>(queue: T[], lanes: number, work: (item: T) => Promise<void>): Promise<void> {
   const lane = async (): Promise<void> => {
     for (;;) {
       const next = queue.shift();
@@ -151,26 +150,23 @@ async function inLanes<T>(items: readonly T[], lanes: number, work: (item: T) =>
 }
 
 /**
- * The order a pass reads surfaces in: the surface the address is asking for
- * first, then the ones its page draws beside it in the page's own order
- * (surface-registry.ts ROUTE_DRAWS), then the rest.
+ * The order a pass reads surfaces in, for a route (the address's, or one a move asks for): the surface it asks for first,
+ * then the ones its page draws beside it in the page's own order (surface-registry.ts ROUTE_DRAWS), then the rest.
  *
- * Loading twelve surfaces nobody is looking at ahead of the one they are is
- * backwards; so was reading Settings, People and Leads ahead of the calendar
- * Today's day card is drawn from, which landed 1.6 s after the queue beside it.
- * Parsed the way the shell parses it (surfaces/frame/shell-routes.ts parseRoute). A route that
- * owns no surface ranks nothing first, which costs nothing: the order is only
- * a preference.
+ * Loading twelve surfaces nobody is looking at ahead of the one they are is backwards; so was reading Settings, People and
+ * Leads ahead of the calendar Today's day card is drawn from, which landed 1.6 s after the queue beside it. Parsed the way
+ * the shell parses it (surfaces/frame/shell-routes.ts parseRoute). A route that owns no surface ranks nothing first, which
+ * costs nothing: the order is only a preference.
  */
-function screenRank(win: Window): (o: SurfaceOverride) => number {
-  const { page, param } = routePartsOf(routeOnScreen(win));
+function routeRank(route: string): (o: SurfaceOverride) => number {
+  const { page, param } = routePartsOf(route);
   const wanted = routeSurfaceFor(page, param);
   const drawn = routeDrawsFor(page, param);
   return (o) => (o.key === wanted ? 0 : drawn.includes(o.key) ? 1 + drawn.indexOf(o.key) : 1 + drawn.length);
 }
 /** Whether the page on screen is drawn from this surface: its own, or one it names (ROUTE_DRAWS). A stranger is not. */
 function screenOwn(win: Window): (o: SurfaceOverride) => boolean {
-  const rank = screenRank(win);
+  const rank = routeRank(routeOnScreen(win));
   const { page, param } = routePartsOf(routeOnScreen(win));
   const strangers = 1 + routeDrawsFor(page, param).length;
   return (o) => rank(o) < strangers;
@@ -620,7 +616,7 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
   // among them: measured on production, a cold person page's read took 3,236 ms in that crowd and 773 ms alone, with
   // 26 reads of 520 KB out for a page that draws one person. The shell's badge and bell come a beat later than they
   // did; the page comes seconds sooner.
-  const screen = screenRank(window);
+  const screen = routeRank(routeOnScreen(window));
   const own = screenOwn(window);
   const rank = (o: SurfaceOverride) => (o.key === "workspace" ? 0 : 1 + screen(o));
   const queued = [...overrides].sort((x, y) => rank(x) - rank(y));
@@ -640,16 +636,22 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
           boot,
         ),
       )
-    : inLanes(pagesOwn, BOOT_LANES, boot);
-  const booted = firstPass
-    .then(() => (run.cancelled ? undefined : pageReadsIn(window)))
-    .then(() => {
-      // The page's own reads are in: what the document's head started for them and they did not take is nobody's.
-      dropPrefetched(window);
-      return run.cancelled ? undefined : inLanes(strangers, BOOT_LANES, boot);
-    });
+    : inLanes(pagesOwn.slice(), BOOT_LANES, boot);
+  // A move while the boot is out reads what the page moved to draws first of what is left: in the first page's order, Today
+  // waited behind the Calendar's strangers and drew 1.3 to 2.4 s after the press (the phone re-measure of 16 Nov 2026).
+  const stopFollowing = onRouteAsked((route) => {
+    const next = routeRank(route);
+    strangers.sort((x, y) => next(x) - next(y));
+  });
+  const pageIn = firstPass.then(() => (run.cancelled ? undefined : pageReadsIn(window)));
+  const booted = pageIn.then(() => {
+    // The page's own reads are in: what the document's head started for them and they did not take is nobody's.
+    dropPrefetched(window);
+    return run.cancelled ? undefined : inLanes(strangers, BOOT_LANES, boot);
+  });
+  void booted.then(stopFollowing, stopFollowing);
   // What waits for the boot (workspace.ts afterBoot: Ask's follow-ups, a list's people ahead, the warms) waits for this one.
-  bootStarted(booted);
+  bootStarted(booted, pageIn);
   // A run with no workspace surface (a test's) knows who is looking when its boot is in, as every run once did.
   if (!overrides.some((o) => o.key === "workspace")) void booted.finally(knowWho);
   return { booted, releaseAnswers, whoIsLooking };
@@ -761,7 +763,7 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
     readFrom: (o) => run.readFrom.get(readSlot(o)),
     here: (list) => readHere(list),
     drawn: (o) => screenOwn(window)(o),
-    order: () => screenRank(window),
+    order: () => routeRank(routeOnScreen(window)),
     stopped: () => run.cancelled,
   });
   run.passes = passes;

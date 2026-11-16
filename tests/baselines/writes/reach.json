@@ -2168,7 +2168,7 @@
     },
     "POST reach-out-sends/check": {
       "changes": "",
-      "doors": "notifications · sequence_batches · sequence_enrollments · sequence_sends · sequences",
+      "doors": "billing_accounts · lead_previews · notifications · policies · sequence_batches · sequence_enrollments · sequence_sends · sequences · tenant_config · tenants",
       "door": {
         "broadcasts": "every page",
         "leads": "every page",

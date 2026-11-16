@@ -1278,7 +1278,7 @@ test("(A1) a window the tab held does not decide for a visit it lacks: the fresh
   }
 });
 
-test("REGRESSION (21 Oct 2026): a cold board waits for its campaigns, never past 600 ms from its weeks' landing, so their rows never come in between the meetings after them; a board in hand never waits", async () => {
+test("REGRESSION (21 Oct 2026): a cold board waits for its campaigns, never past the route's wait from its weeks' landing, so their rows never come in between the meetings after them; a board in hand never waits", async () => {
   // The campaigns' read, here answering no runs: what the board draws its marks from (runs-surface.ts).
   const runs = {
     dto: { timezone: "America/New_York", from: "2026-09-07", days: 63, paused: false, runs: [], moments: [] },
@@ -1293,16 +1293,18 @@ test("REGRESSION (21 Oct 2026): a cold board waits for its campaigns, never past
     setSurfaceValue("calendar", { vm: toCalendarVM(dto(), NOW), fetchedAt: 1 });
   };
   honourDeps = true;
+  globalThis.window.__routeWaitMs = 900;
   try {
     cold();
     assert.ok(byTestId(page(), "calendar-cold"), "the weeks in and the campaigns still out: still the frame");
     setSurfaceValue("calendar_runs", runs);
     assert.ok(byTestId(page(), "calendar-real"), "both in: the board, drawn once, with its campaigns");
-    // The campaigns slow to come: the board draws without them once 600 ms have passed.
+    // The campaigns slow to come: the board waits for them as long as the route's wait, then draws without them.
     cold();
     assert.ok(byTestId(page(), "calendar-cold"));
     await new Promise((r) => setTimeout(r, 650));
-    assert.ok(byTestId(page(), "calendar-real"), "REGRESSION: a board that waited for its campaigns for ever");
+    assert.ok(byTestId(page(), "calendar-cold"), "REGRESSION (16 Nov 2026): it gave up on them at 600 ms");
+    await until(() => byTestId(page(), "calendar-real"), "REGRESSION: a board that waited for its campaigns for ever");
     // Their read failed: there is nothing to wait for, and the board draws at once.
     cold();
     setStatus("calendar_runs", "seeded");
@@ -1314,12 +1316,13 @@ test("REGRESSION (21 Oct 2026): a cold board waits for its campaigns, never past
     assert.ok(byTestId(page(), "calendar-real"), "a board in hand never waits");
   } finally {
     honourDeps = false;
+    delete globalThis.window.__routeWaitMs;
     setSurfaceValue("calendar_runs", undefined);
     setStatus("calendar_runs", "live");
   }
 });
 
-test("REGRESSION (10 Nov 2026): a load whose weeks landed a moment before the page came on screen still waits for its campaigns, never past 600 ms; weeks held from an earlier read wait only while the campaigns are being read (15 Nov 2026)", async () => {
+test("REGRESSION (10 Nov 2026): a load whose weeks landed a moment before the page came on screen still waits for its campaigns, never past the route's wait; weeks held from an earlier read wait only while the campaigns are being read (15 Nov 2026)", async () => {
   const runs = {
     dto: { timezone: "America/New_York", from: "2026-09-07", days: 63, paused: false, runs: [], moments: [] },
     fetchedAt: 1,
@@ -1334,6 +1337,7 @@ test("REGRESSION (10 Nov 2026): a load whose weeks landed a moment before the pa
     setSurfaceValue("calendar_runs", undefined);
   };
   honourDeps = true;
+  globalThis.window.__routeWaitMs = 900;
   try {
     justLanded();
     assert.ok(
@@ -1342,7 +1346,7 @@ test("REGRESSION (10 Nov 2026): a load whose weeks landed a moment before the pa
     );
     setSurfaceValue("calendar_runs", runs);
     assert.ok(byTestId(page(), "calendar-real"), "both in: the board, drawn once, with its campaigns");
-    // The campaigns slow to come: the board draws without them once 600 ms have passed.
+    // The campaigns slow to come: the board draws without them once the route's wait has passed.
     justLanded();
     assert.ok(byTestId(page(), "calendar-cold"));
     await until(() => byTestId(page(), "calendar-real"), "the board, once its wait for the campaigns has passed");
@@ -1378,6 +1382,7 @@ test("REGRESSION (10 Nov 2026): a load whose weeks landed a moment before the pa
     }
   } finally {
     honourDeps = false;
+    delete globalThis.window.__routeWaitMs;
     setSurfaceValue("calendar_runs", undefined);
   }
 });

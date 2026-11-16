@@ -3,6 +3,7 @@
  * re-exports it.
  */
 import { clockDate, clockDateYear, clockTime } from "../shared/clock";
+import type { SequencePlaceOfDto } from "../campaigns/sequences/place";
 import type { LeadCounts, LeadRowDto, LeadSearchDto } from "./dtos";
 import { leadSlots, leadTileSrc, leadTodayLine, leadUndoable, leadWhere } from "./facts";
 import { clockIn, milesLabel } from "./labels";
@@ -173,6 +174,15 @@ export interface LeadRowVM {
   /** The pile's facts (00426): the reach-out it goes with (lead_chain_of) and when it was put off (Later). */
   chainId?: string | null;
   laterAt?: string | null;
+  /**
+   * Where it stands in a sequence, as the read said, for its status, its name's tag and its button; null in none, and for a
+   * lead the finder left out. Kept with the row, so a row the tab kept draws where it stands as Leads opens: looked up in
+   * the page's records, which come with its read, each status came 0.6 s after the rows on a return to Leads (the phone
+   * re-measure of 16 Nov 2026).
+   */
+  place?: SequencePlaceOfDto | null;
+  /** When it was contacted, for the line under Contacted; null for never. */
+  contactedAt?: string | null;
 }
 
 /** A key from a plan ("chain", "wrong_kind") as a person would read it: a row's left-out reason, and its chip. */
@@ -369,13 +379,15 @@ export function toLeadRowVM(lead: LeadRowDto, tz: string, now: Date, search: Lea
 }
 
 /** A row as Leads publishes it: its words (toLeadRowVM), the pile's facts (00426), the reach-out it goes with and when it
- * was put off in this pass, and where it stands in the queue, where the read asked (00552). */
+ * was put off in this pass, where it stands in the queue, where the read asked (00552), and in a sequence. */
 export function leadRowOf(lead: LeadRowDto, tz: string, now: Date, search: LeadSearchDto | null = null): LeadRowVM {
   return {
     ...toLeadRowVM(lead, tz, now, search),
     chainId: lead.chain_id ?? null,
     laterAt: lead.member.later_at ?? null,
     statusGroup: lead.status_group ?? null,
+    place: lead.member.class === "excluded" ? null : (lead.place ?? null),
+    contactedAt: lead.contacted_at ?? null,
   };
 }
 
