@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { haversineM } from "../../../packages/core/src/leads/geo.ts";
 import { LEAD_REACH_MILE_M } from "../../../packages/contracts/src/leads/search/caps.ts";
 import { reachOf } from "../../../packages/contracts/src/leads/search/plan.ts";
-import { nextRung } from "../../../packages/core/src/leads/ladder.ts";
+import { HELD_IN_AN_AREA, nextRung } from "../../../packages/core/src/leads/ladder.ts";
 
 const BROOKLYN = { lat: 40.6782, lng: -73.9442 };
 const city = {
@@ -120,4 +120,28 @@ test("no area of a rung lies within its own radius of an area read before or of 
   for (const a of second)
     for (const b of first)
       assert.ok(haversineM(a.center, b.center) >= a.radius_m, `${a.zip} reads no ground ${b.zip} read`);
+});
+
+test("an area thick with places a search of its kind already holds is passed over: its top is what the workspace has (15 Nov 2026)", () => {
+  const first = nextRung({ plan: { area: city }, center: BROOKLYN, areaRadiusM: 12_000, read: [] });
+  const [near] = first;
+  // Forty places already held inside the nearest area's circle, as an earlier search of the same kind left them.
+  const held = Array.from({ length: HELD_IN_AN_AREA }, (_, i) => ({
+    lat: near.center.lat + (i % 5) * 0.002,
+    lng: near.center.lng + Math.floor(i / 5) * 0.002,
+  }));
+  const rung = nextRung({ plan: { area: city }, center: BROOKLYN, areaRadiusM: 12_000, read: [], held });
+  assert.ok(
+    !rung.some((a) => a.zip === near.zip),
+    `${near.zip} holds ${HELD_IN_AN_AREA} places already held: on 15 Nov a leg there paid for 80 of its 120 again`,
+  );
+  assert.equal(rung.length, 3, "the rung takes the next area instead");
+  const fewer = nextRung({
+    plan: { area: city },
+    center: BROOKLYN,
+    areaRadiusM: 12_000,
+    read: [],
+    held: held.slice(1),
+  });
+  assert.equal(fewer[0]?.zip, near.zip, "fewer than that, the area is read: a few held places do not make it read");
 });

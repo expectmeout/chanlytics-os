@@ -27,7 +27,9 @@ checked) and what to leave out. Nothing is searched or spent before Approve. A s
 
 A round ends with one of its endings (`packages/contracts/src/leads/search/endings.ts`). What a round reserved is its
 own estimate: run out, the round ends on what its area did, and "this month's searching budget is used" is said only
-where a reservation is refused. A later round of the same search (Find new ones, Carry on, Try again) is a top-up or a
+where a reservation is refused. A search's legs grow with its count (`lead_leg_cap`), a leg the day's searching cannot
+hold waits for tomorrow, and the ladder passes ground the workspace's searches of the same kind already hold
+(decision 0133). A later round of the same search (Find new ones, Carry on, Try again) is a top-up or a
 renewal, sized from what the search found before.
 
 A second card, **people at companies**, finds named people by title at companies (00430). It has no probe: one run,

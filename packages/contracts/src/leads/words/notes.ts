@@ -115,6 +115,11 @@ export interface LeadEndingFacts {
   renewsOn?: string;
   /** reach_searched: how far, in miles, the round found areas past the reach (decision 0133); absent, none was found. */
   further?: number;
+  /**
+   * The search read nearby areas past the one on its card (decision 0133): what it found is in and near that area, and a
+   * leg that stopped with areas left says where next, never that the card's area held everything.
+   */
+  widened?: boolean;
 }
 
 export interface LeadEndingLine {
@@ -192,10 +197,27 @@ const renewalStep = (f: LeadEndingFacts): LeadEndingLine["step"] =>
  * No dollar amount: the month's allowance and the searching budget are both
  * spoken as leads (§0.2), and no line here names what any of it is bought from.
  */
+/** A widened search that stopped short with areas still within reach: how many of how many, in and near where. */
+function widenedEnding(mark: string, facts: LeadEndingFacts, yours: string): LeadEndingLine {
+  return {
+    mark,
+    title: `Found ${facts.counted} of ${facts.target} ${facts.name} in and near ${facts.area}`,
+    parts: [
+      ...(facts.counted > 0 ? [yours] : []),
+      ...(facts.nearby.length ? [`Look further out, ${leadNearWhere(facts.nearby)}?`] : []),
+    ],
+    step: facts.nearby.length ? { id: "look_further", label: "Widen" } : null,
+  };
+}
+
 export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEndingFacts): LeadEndingLine {
   const mark = LEAD_ENDING_WORDS[ending];
   const yours = `the ${leadEndingFacts.counted} found are yours`;
   const one = leadEndingFacts.name.replace(/s$/, "");
+  // A widened search stopped by its own guards with areas still within reach (00635) found what it found in and near its
+  // area, and the next area is the owner's to open: one sentence for both of the endings it may stop on.
+  if (leadEndingFacts.widened && (ending === "few_new_matches" || ending === "searched_everything"))
+    return widenedEnding(mark, leadEndingFacts, yours);
   switch (ending) {
     case "target_reached":
       return {

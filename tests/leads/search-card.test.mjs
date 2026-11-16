@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   SEARCH_CARD_REPLACED,
+  leadPlanFacts,
   peoplePlanFrom,
   searchCardView,
   searchCardsReplaced,
@@ -70,7 +71,7 @@ test("a places card is rows to read, the line under them and one press, which po
   );
   const row = (label) => v.sheet.rows.find((r) => r.label === label).value;
   assert.equal(row("Searched as"), "personal trainer · strength coach", "the words Google Maps is searched with");
-  assert.equal(row("Where"), "Austin, TX, about 25 km around");
+  assert.equal(row("Where"), "Austin, TX", "a city is read whole, and said by its name");
   assert.equal(row("Leave out"), "Chain gyms · Anyone already yours", "and anyone already the owner's, always");
   assert.match(row("Must have"), /^A personal trainer or coaching studio · Independent/);
   assert.deepEqual(v.sheet.holds, [], "nothing holds it");
@@ -86,7 +87,7 @@ test("a places card is rows to read, the line under them and one press, which po
       { plan: { ...PLAN, area: { ...PLAN.area, kind: "zip", label: "near 78704", zip: "78704", radius_m: 8000 } } },
     ),
   );
-  assert.equal(zip.sheet.rows.find((r) => r.label === "Where").value, "Near 78704, about 8 km around");
+  assert.equal(zip.sheet.rows.find((r) => r.label === "Where").value, "Near 78704, about 5 miles around");
 });
 
 test("the press asks for what the month has room for, says why first, and posts that count with nothing else changed", () => {
@@ -179,4 +180,17 @@ test("the waiting search card is told to the turn whole, as find takes it, so a 
     [told.looking_for, told.region, told.keywords, told.industries, told.company_sizes],
     ["people_at_companies", "US", ["plumbing", "HVAC"], ["Construction"], ["1 - 10", "11 - 50"]],
   );
+});
+
+test("where the month's searching cannot pay for the count, the card says how many it covers, in leads, before the press", () => {
+  const plan = { ...PLAN, contact: "email", count: 200 };
+  const facts = { ...FACTS, leadsLeft: 486, searchingCovers: 56 };
+  assert.equal(
+    leadPlanFacts(plan, facts).at(-1),
+    "This month's searching covers about 56 more",
+    "$4.50 left, at the 8 cents a checked-email lead measured on 15 Nov 2026",
+  );
+  assert.equal(leadPlanFacts({ ...plan, count: 50 }, facts).length, 3, "it covers the 50: nothing said");
+  assert.equal(leadPlanFacts({ ...plan, contact: "phone" }, facts).length, 3, "a search made for calls: nothing said");
+  assert.equal(/\$/.test(leadPlanFacts(plan, facts).join(" ")), false, "in leads, never dollars");
 });

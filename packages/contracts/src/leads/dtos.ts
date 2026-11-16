@@ -304,4 +304,10 @@ export interface LeadPlanFacts {
    * lead_search_widens): the card says how far, and offers to change it, only then. Absent reads as no.
    */
   widens?: boolean;
+  /**
+   * The leads the month's searching still pays for, at the price a lead the month's caps are sized to ($40 for 500,
+   * 8 cents: what a checked-email lead measured, 15 Nov 2026): present only where that is fewer than the leads left, and
+   * said by a search made for email that asks for more.
+   */
+  searchingCovers?: number;
 }

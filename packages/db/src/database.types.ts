@@ -9407,6 +9407,7 @@ export type Database = {
         Args: { p_closed_reason: string; p_stage: string }
         Returns: boolean
       }
+      lead_leg_cap: { Args: { p_count: number }; Returns: number }
       lead_list_counts: { Args: { p_tenant_id: string }; Returns: Json }
       lead_member_exclude: {
         Args: { p_lead_id: string; p_search_id: string }

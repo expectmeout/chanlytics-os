@@ -361,6 +361,11 @@ export interface LeadDb {
   membersOfSearch(searchId: string): Promise<LeadMemberRow[]>;
   /** The search's rounds in order, each with its plan: where its legs read (decision 0133), and the area on its card. */
   roundsOfSearch(searchId: string): Promise<Pick<LeadRoundRow, "id" | "seq" | "purpose" | "plan" | "ending">[]>;
+  /**
+   * The workspace's searches since `since` that ask any of `terms`, the newest first and at most `limit` (decision 0133):
+   * the source answers a term from its top, so what they read is what a search of the same kind already holds.
+   */
+  searchesLike(tenantId: TenantId, terms: readonly string[], since: string, limit: number): Promise<string[]>;
   /** Where a round that ran out of its area looks next (decision 0133): written before it ends, as a collect writes it. */
   roundNearby(roundId: string, nearby: LeadArea[]): Promise<void>;
   /** place id -> lead id, for the place ids this workspace already holds (leads and folded listings). */

@@ -29,6 +29,7 @@ import type {
 import { markPlaces } from "../mark-places";
 import { readSitesBeforeJudge, findSiteFact, type SiteReads } from "../site-reads";
 import { centerOf, judgesAddressesOnly, memberOf, noEmailRule, takeBatch, type Prepared } from "../places";
+import { mayCount } from "../weighed";
 
 /** How many places with a website, none of them read, make a page worth paging: fewer can be chance. */
 const UNREAD_SITES_PAGE = 5;
@@ -225,7 +226,7 @@ export async function collectHeld(
     await markPlaces(
       leadPorts,
       sites,
-      places.filter((x) => x.member.class !== "excluded").map((x) => x.place),
+      marksDue(places, sites),
       markUntil(leadPorts, isLastOfPage || cutAt !== null || outOfTime(leadPorts, JUDGE_MARGIN_MS)),
     );
     newMembers.push(...places);
@@ -296,6 +297,16 @@ export async function collectHeld(
     judgeRefused,
     siteReads: sites.count(),
   };
+}
+
+/**
+ * The places of a page whose own site is read for their mark: one that counts or may, since each read is a credit
+ * (weighed.ts mayCount), and one whose page the judge's read already brought, which costs nothing more.
+ */
+function marksDue(places: readonly CollectPlace[], sites: SiteReads): CollectPlace["place"][] {
+  return places
+    .filter((x) => mayCount(x.member) || (x.place.website_host !== null && sites.asked(x.place.website_host)))
+    .map((x) => x.place);
 }
 
 /** A place of a batch that is committed: what it is, what it shares with those the workspace holds, and whose copy it is. */
