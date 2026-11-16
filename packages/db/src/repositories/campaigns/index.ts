@@ -303,6 +303,7 @@ export {
   listSequenceEvidence,
   listSequenceNames,
   listSequenceOverview,
+  listSequenceRows,
   listSequencesAtAGlance,
   listSequencesOfPerson,
   listSequenceSteps,

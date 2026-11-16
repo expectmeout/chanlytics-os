@@ -159,6 +159,18 @@ test("a clip to film keeps its seconds where they are a clip's, and a read befor
   );
 });
 
+test("a clip's line that runs long ends at its last whole word, never mid-word, and a short one is kept whole", () => {
+  const long = "Hold the phone flat on a desk, screen facing up, and film the screen over the table slowly ".repeat(3);
+  const [shot] = filmShotsOf({ film: [{ what: "Phone showing an automated reply", how: long, seconds: 10 }] });
+  assert.ok(shot.how.length <= 160, `at most 160 characters: ${shot.how.length}`);
+  assert.match(shot.how, /\b(table|slowly|over|the|screen|film|and|up|facing|desk|flat|on|a|phone|Hold)…$/, shot.how);
+  assert.ok(long.startsWith(shot.how.slice(0, -1)), "what it keeps is the line's own start");
+  const [short] = filmShotsOf({
+    film: [{ what: "Need you approval screen", how: "Rest the phone on a stand.", seconds: 8 }],
+  });
+  assert.equal(short.how, "Rest the phone on a stand.");
+});
+
 test("Check offers what the reads found that the record does not hold: the profile's first, each thing once", () => {
   const profile = read("google_profile", {
     services: [{ name: "Local moves", price_note: "from $300" }, { name: "Packing" }],

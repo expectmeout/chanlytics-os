@@ -56,12 +56,24 @@ import type { TenantId } from "@chanlytics/contracts";
  * The chains of a workspace, without their reports (R23: a report is read when its row is opened), each with what feeds
  * it and who is in it now (00426: the ledger's People cell, counted by the drawer's one rule).
  */
+/** Each chain's root (its first step, trigger lead_first), the oldest first: one chain each. */
+const chainRootsOf = <S extends { trigger: string; created_at: string }>(steps: readonly S[]): S[] =>
+  steps.filter((s) => s.trigger === "lead_first").sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+/**
+ * The searches a cold email writes to: each chain's root's search (a chain's `search`), read off the steps alone, without
+ * the chains' words, mailboxes and counts. What Ask notices of the leads found (ask/tools/read/seen.ts).
+ */
+export async function listSearchesWrittenTo(ctx: RouteContext, tenantId: TenantId): Promise<string[]> {
+  return chainRootsOf(await listReachOutSteps(ctx.supabase, tenantId)).flatMap((r) =>
+    r.lead_search_id ? [r.lead_search_id] : [],
+  );
+}
+
 export async function listChains(ctx: RouteContext, tenantId: TenantId): Promise<ReachOutChainDto[]> {
   const sb = ctx.supabase;
   const steps = await listReachOutSteps(sb, tenantId);
-  const roots = steps
-    .filter((s) => s.trigger === "lead_first")
-    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const roots = chainRootsOf(steps);
   if (roots.length === 0) return [];
   const templateIds = steps.map((s) => s.template_id).filter((x): x is string => !!x);
   const searchIds = roots.map((r) => r.lead_search_id).filter((x): x is string => !!x);
