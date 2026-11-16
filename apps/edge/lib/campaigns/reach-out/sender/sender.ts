@@ -17,14 +17,7 @@ import {
 } from "@chanlytics/db/campaigns";
 import { findMailboxConnection } from "@chanlytics/db/email";
 import { sendMessageId } from "@chanlytics/core";
-import {
-  MIN_MS,
-  REACH_OUT_MONTH_EMAILS,
-  mailboxDailyCap,
-  mailboxSendsNow,
-  slotCount,
-  wordsNeedOpening,
-} from "@chanlytics/contracts";
+import { MIN_MS, REACH_OUT_MONTH_EMAILS, mailboxDailyCap, mailboxSendsNow, slotCount } from "@chanlytics/contracts";
 import { checkedWordsOf } from "@chanlytics/channels/email";
 import { replanSends, type Replan } from "../replan.js";
 import type { LogEvent, Logger } from "../../../shared/log.js";
@@ -50,7 +43,7 @@ import {
   type SenderCounts,
   type Tick,
 } from "./lanes.js";
-import { previewForWords } from "./their-preview.js";
+import { lineMarkFor, previewForWords } from "./their-preview.js";
 import type { TenantId } from "@chanlytics/contracts";
 
 /** One claimed send, written: its email and its job, then its move. Only from `claimed`, as it was read. */
@@ -116,9 +109,10 @@ async function writeOne(tick: Tick, reachOutSend: ReachOutSendRow): Promise<Outc
       : null;
   // Checked against other words than these (its step's, the name it signs with, whether a booking link exists), or its
   // line written before their preview stood or before they last used it: the check reads it again before it goes (R5),
-  // and writes that line from what the preview says now. Never a skip: nothing about the lead changed. Read after
-  // their preview is, since its mark is part of what the line was checked against.
-  const did = lineMarkOf(words, preview);
+  // and writes that line from what the preview says now; where its owner approved it, it goes as approved. Never a
+  // skip: nothing about the lead changed. Read after their preview is, since its mark is part of what the line was
+  // checked against.
+  const did = await lineMarkFor(tick, reachOutSend, words, preview);
   if (reachOutSend.checked_words !== checkedWordsOf(words, standing.signedBy, workspace.bookingLink !== null, did))
     return recheck();
   const created: Made = {
@@ -364,12 +358,4 @@ export async function claimAndWrite(params: ClaimParams): Promise<SenderCounts> 
     }
   }
   return out;
-}
-
-/** The mark of their preview a written line was checked against: only words that hold the line carry one. */
-function lineMarkOf(
-  words: { subject: string | null; body: string },
-  preview: { did: string | null } | null,
-): string | null {
-  return wordsNeedOpening(words) ? (preview?.did ?? null) : null;
 }

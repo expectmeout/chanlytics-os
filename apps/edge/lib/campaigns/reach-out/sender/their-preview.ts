@@ -1,8 +1,8 @@
 /** Sender: the preview an email's words carry. Apart from the lanes, which are at their length. */
 
-import { previewSlotOf, type LeadPreviewSlot } from "@chanlytics/contracts";
+import { previewSlotOf, wordsNeedOpening, type LeadPreviewSlot } from "@chanlytics/contracts";
 import { findLeadPreview, type ReachOutSendRow } from "@chanlytics/db/campaigns";
-import { previewDidMarkOf } from "../../../previews/for-opening.js";
+import { lineMarkOf, previewDidMarkOf, sequenceModeOf } from "../../../previews/for-opening.js";
 import { askPreview } from "../../../previews/make.js";
 import { dashboardOrigin } from "../../../shared/dashboard-origin.js";
 import { env } from "../../../shared/env.js";
@@ -43,4 +43,19 @@ export async function previewForWords(
     return waits();
   }
   return { slot: otherAskPreview.ok ? slot : { state: "gone" }, id: null, did: null };
+}
+
+/**
+ * The mark the email's line is read against before it goes, as the check stamped it (previews/for-opening.ts
+ * lineMarkOf): none where its sequence asks first, so the line its owner approved goes as approved. The sequence is read
+ * only where there is a mark to keep.
+ */
+export async function lineMarkFor(
+  pass: Pick<Tick, "db">,
+  send: Pick<ReachOutSendRow, "tenant_id" | "sequence_id">,
+  words: { subject: string | null; body: string },
+  preview: { did: string | null } | null,
+): Promise<string | null> {
+  if (!preview?.did || !wordsNeedOpening(words)) return null;
+  return lineMarkOf(words, preview.did, await sequenceModeOf(pass.db, send.tenant_id, send.sequence_id));
 }
