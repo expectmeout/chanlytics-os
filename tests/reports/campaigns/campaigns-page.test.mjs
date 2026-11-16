@@ -8,7 +8,7 @@
  * days card; and a share of too few is greyed and says so. The rest of the page is the second half of this file: the time between
  * steps (how soon a message was answered, how long a run waited for your OK), what is stuck now (five figures, each in its tone and
  * with its door), and the reach-outs in businesses over businesses, every one of them absent, or a failed read of its own, where
- * its read is missing, failed or empty; and the demo, which draws the same page from the sample and no reach-outs.
+ * its read is missing, failed or empty; and the tests' sample, drawn as the lens's read, with no reach-outs.
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
@@ -139,9 +139,6 @@ const spanOf = (card) =>
 /** Every grid of cards the page draws, in order, as the columns each of its cards takes. */
 const rowsOfSpans = (tree) =>
   all(tree, (n) => n.type === "div" && classes(n).includes("rpt-grid")).map((grid) => cardsOfGrid(grid).map(spanOf));
-
-// A demo's sample is fetched only in a demo session (surfaces/reports/demo.ts): fetched once here, so a demo draws it at once.
-await (await import("../../../apps/dashboard/src/surfaces/reports/demo.ts")).reportsDemo();
 
 test("the window's cards, in order, for a workspace that has everything", () => {
   const tree = draw();
@@ -1321,12 +1318,12 @@ test("a reach-out period that wrote nothing is the old card with the fold's word
   navigated.length = 0;
   press(find(card, (n) => n.type === "button"));
   assert.deepEqual(navigated, ["campaigns/sequences"]);
-  // A workspace with no reach-out, and a demo that reads none, draw nothing.
+  // A workspace with no reach-out, and a read that holds none, draw nothing.
   const none = draw({ own: held(dtoWith(), "7d", { reachOuts: reachOuts({ has_reach_out: false }) }) });
   assert.equal(byTestId(none, "rpt-reach-outs"), null);
   assert.deepEqual(sectionsOf(none), ["Campaigns", "Time between steps", "Stuck now"]);
-  const demo = draw({ own: held(dtoWith(), "7d") });
-  assert.equal(byTestId(demo, "rpt-reach-outs"), null);
+  const absent = draw({ own: held(dtoWith(), "7d") });
+  assert.equal(byTestId(absent, "rpt-reach-outs"), null);
 });
 
 test("the time cards and the stuck strip are absent where their functions are; a failed read is one failed card, and the rest stands", () => {
@@ -1376,35 +1373,26 @@ test("the time cards and the stuck strip are absent where their functions are; a
   assert.equal(find(roFailed, (n) => n.props?.testid === "ro-failed")?.props.surface, "reports_campaigns");
 });
 
-test("the demo draws the same page from the sample through the real fold, the waits and what is stuck included, and no reach-outs", () => {
-  setSurfaceValue("reports", undefined);
-  setSurfaceValue("reports_campaigns", undefined);
-  globalThis.__DEMO_MODE = true;
-  try {
-    fresh();
-    navigated.length = 0;
-    const tree = ReportsPage({ pathname: "/w/harbor/reports/campaigns" });
-    assert.ok(byTestId(tree, "reports-sample"), "the sample's page");
-    assert.deepEqual(
-      present(tree, [...ORDER, ...TIME_IDS, "campaigns-stuck"]),
-      yes([...ORDER, ...TIME_IDS, "campaigns-stuck"]),
-    );
-    assert.equal(byTestId(tree, "rpt-reach-outs"), null, "nothing reads the reach-outs in a demo");
-    assert.deepEqual(sectionsOf(tree), ["Campaigns", "Time between steps", "Stuck now"]);
-    assert.deepEqual(metricsOf(byTestId(tree, "campaigns-stuck-strip")), STUCK_METRICS);
-    const s = campaignsSample("30d");
-    const v = toCampaignLensVM({ campaigns: s.campaigns, ledger: s.ledger, reachOuts: s.reachOuts }, Date.now());
-    assert.equal(
-      lineOf(tree, "chart-campaigns-first-reply"),
-      v.firstReply.line,
-      "the fold's line, of the sample's numbers",
-    );
-    assert.equal(figureProps(tree, "runs_waiting").value, v.stuck.at(0).value);
-    assert.deepEqual(
-      present(tree, ["campaigns-failed-campaigns", "campaigns-failed-ledger", "campaigns-failed-stuck", "ro-failed"]),
-      no(["campaigns-failed-campaigns", "campaigns-failed-ledger", "campaigns-failed-stuck", "ro-failed"]),
-    );
-  } finally {
-    globalThis.__DEMO_MODE = false;
-  }
+test("over the tests' sample as its read, the lens draws every part through the real fold, the waits and what is stuck included, and no reach-outs", () => {
+  const s = campaignsSample("7d");
+  const tree = draw({ own: s });
+  assert.ok(byTestId(tree, "reports-real"), "the one page");
+  assert.deepEqual(
+    present(tree, [...ORDER, ...TIME_IDS, "campaigns-stuck"]),
+    yes([...ORDER, ...TIME_IDS, "campaigns-stuck"]),
+  );
+  assert.equal(byTestId(tree, "rpt-reach-outs"), null, "a read with no reach-outs draws none");
+  assert.deepEqual(sectionsOf(tree), ["Campaigns", "Time between steps", "Stuck now"]);
+  assert.deepEqual(metricsOf(byTestId(tree, "campaigns-stuck-strip")), STUCK_METRICS);
+  const v = toCampaignLensVM({ campaigns: s.campaigns, ledger: s.ledger, reachOuts: s.reachOuts }, Date.now());
+  assert.equal(
+    lineOf(tree, "chart-campaigns-first-reply"),
+    v.firstReply.line,
+    "the fold's line, of the sample's numbers",
+  );
+  assert.equal(figureProps(tree, "runs_waiting").value, v.stuck.at(0).value);
+  assert.deepEqual(
+    present(tree, ["campaigns-failed-campaigns", "campaigns-failed-ledger", "campaigns-failed-stuck", "ro-failed"]),
+    no(["campaigns-failed-campaigns", "campaigns-failed-ledger", "campaigns-failed-stuck", "ro-failed"]),
+  );
 });

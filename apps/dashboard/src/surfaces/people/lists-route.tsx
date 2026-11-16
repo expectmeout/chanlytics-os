@@ -4,7 +4,7 @@
  * (plListRoute: `clients/list:<id>` for a kept one, `clients/seg:<id>` for a smart one, its own address for one People
  * doesn't have), so Playbooks' list, an answer's jump and a kept address still arrive. Replaced, not pushed, so Back leaves
  * People rather than bouncing through the old route. A cold load draws the shell's own reading pane until People's surface
- * has landed, which says which list an id names; a demo session keeps the mockup's seeded Lists page (the frame's table).
+ * has landed, which says which list an id names.
  */
 import { useEffect, useRef } from "react";
 import { routeOfPath } from "@chanlytics/contracts";

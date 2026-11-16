@@ -1,5 +1,5 @@
 /**
- * The demo's Reports (surfaces/reports/sample.ts, which the page imports and draws in a demo session), EXECUTED: a
+ * The tests' Reports (surfaces/reports/sample.ts, which reports-page.test.mjs draws the page over as its read), EXECUTED: a
  * sample business through the contracts functions a real workspace's numbers go through. The same day gives the same numbers, and every total agrees with its parts, because a demo that adds up
  * wrong teaches the viewer to distrust the real page. The Reviews lens's sample is the listing Google shows with no Business Profile
  * behind it, through the Reviews fold.

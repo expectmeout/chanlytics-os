@@ -1,13 +1,13 @@
 /**
- * The demo's People (surfaces/people/sample.ts): a sample business through the mapping a real workspace's people go
- * through (surface-map.ts), so a demo session draws the one People page there is. Nobody in it is real, its counts are the
+ * The tests' People (surfaces/people/sample.ts): a sample business through the mapping a workspace's people go through
+ * (surface-map.ts), so a test draws the one People page there is over it. Nobody in it is real, its counts are the
  * mapping's own, and it is relative to the day it is drawn.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 
-const { peopleSample, demoPeople } = await import("../../../apps/dashboard/src/surfaces/people/sample.ts");
+const { peopleSample } = await import("../../../apps/dashboard/src/surfaces/people/sample.ts");
 const { peopleSurfaceOf } = await importSrc("apps/dashboard/src/surfaces/people/surface-map.ts");
 
 const NOW = new Date("2026-09-28T18:00:00.000Z");
@@ -51,8 +51,4 @@ test("relative to the day it is drawn: a later day moves every last contact with
   assert.equal(today.rows.length, later.rows.length);
   const said = (P) => P.rows.map((r) => r.lastContact.label).join("|");
   assert.notEqual(said(today), said(later), "a person who wrote an hour ago wrote three days and an hour ago");
-});
-
-test("the session's copy is made once: the same object every draw, so a redraw sees no change", () => {
-  assert.equal(demoPeople(), demoPeople());
 });
