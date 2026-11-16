@@ -579,8 +579,8 @@ test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits 
 test("a settings control is named by the row it sits in: what the row hands it lands on its element, and what the control takes for itself does not", () => {
   // SetRow mints an id for its label and hands it to its control as aria-labelledby. The dials each
   // take their own props and give the rest to their element -- spelled out with window.propsWithout, because in the
-  // standalone harness an object rest's excluded keys are a `var _excluded` every file shares, and one loaded later
-  // put another file's keys in force (mockup-harness.test.mjs). This stub draws a component when it is created, before
+  // standalone harness an object rest's excluded keys were a `var _excluded` every file shared, and one loaded later
+  // put another file's keys in force. This stub draws a component when it is created, before
   // the row clones it; the row's clone is drawn here, as React draws it.
   workspace();
   const wasGate = globalThis.window.gate;

@@ -68,9 +68,8 @@ corepack pnpm gen:sorted-lists                # every package's barrels in one o
 `pnpm` is corepack-only. Node 24 (`.nvmrc`; `engines` is `24.x`, as Vercel runs).
 
 **To look at a page you changed, run the app** -- `corepack pnpm --filter @chanlytics/dashboard dev`, then
-`/w/<workspace-slug>/`. The standalone mockup (`Chanlytics.html`) stubs the bridge, so Today, the Calendar,
-People, Leads and Live do not mount in it and a screenshot of it proves nothing about them. docs/runbook.md,
-"See a real page", has the three things that trip it up.
+`/w/<workspace-slug>/`. Every page is an App Router page that only the app draws. docs/runbook.md, "See a real
+page", has the three things that trip it up.
 
 ## The rules
 

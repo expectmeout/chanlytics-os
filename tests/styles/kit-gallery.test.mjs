@@ -11,7 +11,7 @@
  *   stylesheets its `source` names declare the classes it draws, but the kit's own (read with _css.mjs; the line is
  *   for the reader); a width, a stage and a list of exceptions are ones the spec knows.
  * - The page links the fonts, then the stylesheets the app imports in the app's order, then the app's own rules, and
- *   loads no script by its src (repo/mockup-harness.test.mjs holds Chanlytics.html to the same list).
+ *   loads no script by its src (e2e/e2e-harness.test.mjs holds the harness to serving each of those stylesheets).
  * Each check runs on fixtures too, where it must find what it looks for.
  */
 import { test } from "node:test";
@@ -174,7 +174,7 @@ test("each entry is its own, a twin names a source, a source is a twin's and dra
   );
 });
 
-/** The stylesheets a stylesheet @imports, from the repository's root (repo/mockup-harness.test.mjs reads them so too). */
+/** The stylesheets a stylesheet @imports, from the repository's root (styles/kit-css.test.mjs reads them so too). */
 function cssImports(sheet) {
   const urls = [];
   transform({
@@ -185,7 +185,7 @@ function cssImports(sheet) {
   return urls.map((url) => path.posix.join(path.posix.dirname(sheet), url));
 }
 
-/** The stylesheets the app imports (bridge/frame.css), each where the harness serves it (serve-mockup.mjs). */
+/** The stylesheets the app imports (bridge/frame.css), each where the harness serves it (e2e-harness/server.mjs). */
 const APP_SHEETS = cssImports("apps/dashboard/src/bridge/frame.css").map((p) =>
   p.replace(/^apps\/dashboard\/src\/(legacy\/)?/, ""),
 );

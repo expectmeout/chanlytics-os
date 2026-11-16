@@ -99,8 +99,6 @@ apps/dashboard/src/bridge/
   rehearse/
   surfaces/
   verbs/
-apps/dashboard/mockup/
-  data/
 apps/mobile/src/
   app/
   shell/

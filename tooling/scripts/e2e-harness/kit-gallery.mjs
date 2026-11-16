@@ -3354,8 +3354,8 @@ const APP_RULES = '<link rel="stylesheet" href="/_hx/app.css" />';
 /**
  * The gallery's own layout, under gx-* and on tokens, so it reads in both themes. The shell holds the page to the
  * window with nothing to scroll (html.frame-on, frame.css); the gallery scrolls, so a full-page shot takes it all.
- * The faces are named as the harness's fixture names them on the mockup's page (fixture-src.ts, `fonts`), which the
- * gallery does not run: the app names them through next/font (app/layout.tsx), and --font-sans and --font-mono read it.
+ * The faces are named by the names Google Fonts gives them (app-styles.mjs links them): the app names them through
+ * next/font (app/layout.tsx), and --font-sans and --font-mono read it.
  */
 const GALLERY_CSS = `
     :root { --font-geist: "Geist"; --font-geist-mono: "Geist Mono"; }
@@ -3387,8 +3387,8 @@ const GALLERY_CSS = `
 
 /**
  * The theme from `?theme=light|dark` (dark otherwise), and the look stamped as the app stamps it (Glass, the one look
- * since Classic retired: contracts LOOK_OPTIONS); `t` turns the theme, as the mockup's document does
- * (style-equality.mjs presses it). And an entry bound to
+ * since Classic retired: contracts LOOK_OPTIONS); `t` turns the theme (style-equality.mjs presses it). And an entry
+ * bound to
  * a width leaves the page at the other, as it loads, at the kit's one breakpoint; a box marked
  * `data-gx-indeterminate` is put in the state between on and off, which no attribute says (a table's head box with
  * some of its rows picked).

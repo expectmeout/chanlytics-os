@@ -46,15 +46,12 @@ const FORMAT = 2;
 export const FIXED_NOW = Date.UTC(2026, 8, 28, 20, 2, 0);
 
 /**
- * The harness's records and the routes each is opened at (the address after `#/`). The harness is the standalone mockup's
- * static server (e2e-harness/server.mjs): it draws the shell's own table and the kit's gallery, and nothing else. A page that
- * has left the shell (an App Router page, src/surfaces/routes.ts: Today, the Inbox, People, Leads, the Calendar, Reports,
- * Campaigns, Settings, the first run) is drawn by Next alone, so the harness answers it with "No surface at", which `record`
- * refuses. What is left to record is the kit's gallery, which draws every class of the kit (e2e-harness/kit-gallery.mjs) and has
- * no routes, so its one is a name. A page that leaves the shell takes its route out of this list in the same change, and
- * styles/style-equality-pages.test.mjs fails the one that does not. A change to a page that has left is proved elsewhere
- * (docs/runbook.md, "Prove a style change"), but for Ask's Line, which every page draws over itself and which the harness
- * draws for itself: the `ask` record's routes are its states (e2e-harness/ask-states.tsx), each a thing a person sees.
+ * The harness's records and the routes each is opened at (the address after `#/`). The harness (e2e-harness/server.mjs)
+ * draws two pages and nothing else: the kit's gallery, which draws every class of the kit (e2e-harness/kit-gallery.mjs) and
+ * has no routes, so its one is a name; and Ask's Line, which every page draws over itself, whose states are the `ask`
+ * record's routes (e2e-harness/ask-states.tsx), each a thing a person sees. Every page of the app is an App Router page
+ * (src/surfaces/routes.ts), drawn by Next alone, and a change to one is proved elsewhere (docs/runbook.md, "Prove a style
+ * change"); styles/style-equality-pages.test.mjs fails a route here that is one of them.
  */
 export const PAGES = {
   kit: ["kit"],
@@ -395,7 +392,7 @@ async function recordContext(browser, job) {
       timeout: LOAD_TIMEOUT_MS,
     });
     await settle(page, quiet, where);
-    // The standalone document starts dark and turns on the `t` key (mockup/Chanlytics.html).
+    // A record's page starts dark and turns on the `t` key (kit-gallery.mjs; Ask's states, ask-states.tsx).
     if (theme !== "dark") {
       await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" })));
       await page.clock.fastForward(THEME_MS);
