@@ -5,8 +5,7 @@
  * dashboard has all three; its API has two -- a sentence into the call, and an end -- and keeps the audio and the
  * microphone to itself. So this page shows what is true: the calls in progress under the heartbeat rule, a clock
  * running from each call's real start, the transcript when the provider sends turns and an honest wait when it does
- * not, and the calls that just ended with their summary as it arrives. A demo session draws the same page from the
- * sample (sample.ts).
+ * not, and the calls that just ended with their summary as it arrives.
  *
  * Reads the live surface (`useSurface("live")`, written by liveOverride in the bridge). Three writes: a whisper -- a
  * sentence only the receptionist hears -- an end, and a hand-over, which is the transfer a caller gets when they ask
@@ -21,8 +20,6 @@ import { usePartShown, useSurface } from "../use-surface";
 import { LrList } from "./list";
 import { lmPhone, LrPanel } from "./panel";
 import { carriedOver, useHeldList } from "../kit/motion/held-list";
-import { useLiveDemo } from "./demo";
-import type { LiveSurface } from "./surface";
 
 // The clock ticks once a second while a call is up; a call's calls are read again every eight.
 const CLOCK_MS = 1000;
@@ -32,13 +29,8 @@ interface LivePageProps {
   initialCallId?: string | null;
 }
 
-interface LiveMonitorProps extends LivePageProps {
-  /** What a demo session draws where the surface holds nothing. */
-  sample?: LiveSurface | null;
-}
-
-const LiveMonitorReal = ({ initialCallId = null, sample = null }: LiveMonitorProps) => {
-  const L = useSurface("live") || sample;
+const LiveMonitorReal = ({ initialCallId = null }: LivePageProps) => {
+  const L = useSurface("live");
   const [nowMs, setNowMs] = useState(Date.now());
   // live/<callId> opens the call a door names (Today's, a bell's) rather than the one on the line, and the call open is
   // the address's: a row writes it (replaced -- Back leaves Live rather than replaying every call looked at), so a
@@ -149,13 +141,10 @@ const LiveMonitorReal = ({ initialCallId = null, sample = null }: LiveMonitorPro
   );
 };
 
-// The route renders the real page whenever the surface holds a value; a demo session draws the same page over the
-// sample, and a session with neither draws nothing.
+// The route renders the page whenever the surface holds a value, and nothing before.
 export function LivePage(props: LivePageProps) {
   const live = useSurface("live");
-  const demo = useLiveDemo();
   // The page's first part: drawn once Live's read is in (client/page-speed.ts). Live is never kept in the tab, so a load waits for it.
   usePartShown("live", "list", live !== undefined);
-  if (live !== undefined) return <LiveMonitorReal {...props} />;
-  return demo ? <LiveMonitorReal {...props} sample={demo.liveSample()} /> : null;
+  return live !== undefined ? <LiveMonitorReal {...props} /> : null;
 }

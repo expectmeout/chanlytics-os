@@ -76,9 +76,6 @@ const person = (over = {}) => ({
   ...over,
 });
 
-// A demo's sample is fetched only in a demo session (surfaces/campaigns/broadcasts/demo.ts): fetched once here, so a demo draws it at once.
-await (await import("../../apps/dashboard/src/surfaces/campaigns/broadcasts/demo.ts")).broadcastsDemo();
-
 test("the tables: the workspace's, members read, acting members enrol, only the state moves by session, nobody deletes; the ledger knows the verbs", () => {
   const m = readRaw("supabase/migrations/00046_broadcasts.sql");
   assert.ok(m.includes("create table public.broadcasts (") && m.includes("create table public.broadcast_recipients ("));
@@ -838,7 +835,7 @@ const yesSheet = (over = {}) => {
   return globalThis.React.createElement(GetYesSheet, { open: true, onClose() {} });
 };
 
-test("the surface and the page: Broadcasts is real, fed by the same rules, and the demo draws the sample", async () => {
+test("the surface and the page: Broadcasts is real, and fed by the same rules", async () => {
   const reg = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/surface-registry.ts")).href);
   assert.equal(reg.SURFACE_STATES.broadcasts, "real");
   assert.equal(reg.ROUTE_SURFACE.broadcasts, "broadcasts");

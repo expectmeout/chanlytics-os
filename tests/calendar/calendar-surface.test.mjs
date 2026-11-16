@@ -44,9 +44,6 @@ const { SURFACE_ROUTES, routeHasPage } = await import(`${S}/surfaces/routes.ts`)
 const NOW = Date.parse("2026-09-08T16:00:00.000Z");
 const CALENDAR = { vm: { bookingLink: "https://book.example/luna" }, fetchedAt: 1 };
 
-// A demo's sample is fetched only in a demo session (surfaces/calendar/demo.ts): fetched once here, so a demo draws it at once.
-await (await import("../../apps/dashboard/src/surfaces/calendar/demo.ts")).calendarDemo();
-
 test("the Calendar's read is one typed value in the seam, and nothing of it is on the window: Today and the Business tab read it there", () => {
   assert.equal(calendarOverride.value, "calendar", "the cache keeps the typed value beside the surface's snapshot");
   assert.equal(calendarOverride.globals, undefined, "and there is no window global the surface owns any more");
@@ -99,7 +96,7 @@ test("an address under the Calendar: a whole date opens that day, a visit's id n
   assert.equal(routeHasPage("calendar"), true);
 });
 
-test("the frame's chrome for the Calendar: one mount, the four views as the frame's strip, no act on a real workspace, and a demo's Ask door", () => {
+test("the frame's chrome for the Calendar: one mount, the four views as the frame's strip, and no act", () => {
   const chrome = (param = null) => calendarChrome({ param });
   globalThis.__DEMO_MODE = false;
   values.setSurfaceValue("calendar", undefined);
@@ -128,22 +125,16 @@ test("the frame's chrome for the Calendar: one mount, the four views as the fram
   values.setSurfaceValue("calendar", { vm: { bookingLink: null }, fetchedAt: 1 });
   assert.equal(chrome().act, null, "and one with no link offers none");
   values.setSurfaceValue("calendar", undefined);
+  // The demo's detour (Book, which opened Ask) went with demo mode (16 Nov 2026): a session that says it is one gets none.
   globalThis.__DEMO_MODE = true;
-  assert.deepEqual(
-    chrome().act,
-    { ask: true, label: "Book", glyph: "plus", primary: true },
-    "the demo keeps its detour",
-  );
-  values.setSurfaceValue("calendar", CALENDAR);
-  assert.equal(chrome().act, null, "a read wins over the demo");
-  values.setSurfaceValue("calendar", undefined);
+  assert.equal(chrome().act, null, "no detour in a demo either");
   globalThis.__DEMO_MODE = false;
   assert.deepEqual(SURFACE_ROUTES.calendar.crumbs, ["Calendar"]);
   assert.equal(SURFACE_ROUTES.calendar.activeNav, "calendar");
   assert.equal(SURFACE_ROUTES.calendar.pane, true);
 });
 
-test("the demo's sample: the weeks around today, so every view reads without a request, in the sample day's own words", () => {
+test("the tests' sample: the weeks around today, so every view reads without a request, in the sample day's own words", () => {
   const s = calendarSample(NOW);
   assert.equal(calendarSample(NOW), s, "the same minute is the same value, kept rather than rebuilt on every draw");
   assert.notEqual(calendarSample(NOW + 61_000), s, "and a later minute is built again");
@@ -191,7 +182,7 @@ test("the demo's sample: the weeks around today, so every view reads without a r
   assert.match(vm.bookingLink, /^https:\/\/book\.example\.com\//, "a made-up booking link, so its acts are drawn");
 });
 
-test("the page draws what the seam holds; a demo session with none draws the sample; no read and no demo draws the board's frame", () => {
+test("the page draws what the seam holds, and with nothing read the board's frame", () => {
   // The board keeps itself current with a five-minute clock while it is open: it is not started for real here, and the tree is
   // let go of after each draw, as React lets go of it.
   const draw = (props = {}) => {
@@ -208,26 +199,25 @@ test("the page draws what the seam holds; a demo session with none draws the sam
   };
   globalThis.__DEMO_MODE = false;
   values.setSurfaceValue("calendar", undefined);
-  // Nothing read, no demo: the board's frame, still, saying it is reading (CAL-25). It drew nothing, and the strip of
+  // Nothing read: the board's frame, still, saying it is reading (CAL-25). It drew nothing, and the strip of
   // views stood over an empty page until the weeks landed.
   const cold = draw();
   assert.ok(byTestId(cold, "calendar-cold"), "the board's frame while the weeks are read");
   assert.equal(byTestId(cold, "calendar-real"), null, "and no board drawn over days it has not read");
   // On a desk the bar is the act on the frame's row of views (board-parts.tsx calendarAct), so the reading is said there.
   assert.match(textOf(standingSaid()?.act), /Reading…/);
-  // A demo session draws the one Calendar there is, over the sample.
-  // The sample covers what the page draws, so a demo session asks for no read (there is nothing to read from).
+  // A read draws the one Calendar there is: here, the tests' sample, which covers what the page draws, so no more is read.
   const realEnsure = calendar.ensure;
   const asked = [];
   calendar.ensure = (view, anchor) => {
     asked.push([view, anchor]);
     return Promise.resolve(true);
   };
-  globalThis.__DEMO_MODE = true;
-  const demo = draw();
-  assert.deepEqual(asked, [], "the demo reads nothing");
-  const board = byTestId(demo, "calendar-real");
-  assert.ok(board, "a demo draws the page over the sample");
+  values.setSurfaceValue("calendar", calendarSample(NOW));
+  const read = draw();
+  assert.deepEqual(asked, [], "the weeks it holds are all it draws");
+  const board = byTestId(read, "calendar-real");
+  assert.ok(board, "the page over the read");
   // The range is the control that opens the kit's date picker, which holds it as a prop (Base UI draws it), in the bar the
   // page hands the frame's row of views.
   const pick = find(
@@ -236,11 +226,10 @@ test("the page draws what the seam holds; a demo session with none draws the sam
   );
   assert.match(textOf(byTestId(pick.props.trigger, "cal-range")), /\d+ – .*\d+/, "the range names the days on screen");
   assert.ok(
-    find(demo, (n) => n.props?.["data-testid"] === "cal-block"),
-    "with the sample's appointments on it",
+    find(read, (n) => n.props?.["data-testid"] === "cal-block"),
+    "with the read's appointments on it",
   );
-  // A read of its own wins over the sample, and the page draws it again as it moves.
-  values.setSurfaceValue("calendar", calendarSample(NOW));
+  // The page draws it again as it moves.
   assert.ok(
     byTestId(
       again(() => CalendarPage({})),
@@ -248,10 +237,13 @@ test("the page draws what the seam holds; a demo session with none draws the sam
     ),
   );
   values.setSurfaceValue("calendar", undefined);
-  globalThis.__DEMO_MODE = false;
   calendar.ensure = realEnsure;
   unmount();
 });
+
+// The tests' sample around the real minute, read a minute ago: a read that has only just landed holds the board for its
+// campaigns a beat (calendar-page.tsx useRunsHold), which none of these tests hands it.
+const heldSample = () => ({ ...calendarSample(Date.now()), fetchedAt: Date.now() - 60_000 });
 
 test("on a phone the bar is the frame's, under its row of views, and the page draws none of its own, its frame neither", () => {
   // Stuck in the page under the frame's top, the range and the steps stepped a pixel or two under the thumb as the window
@@ -275,7 +267,7 @@ test("on a phone the bar is the frame's, under its row of views, and the page dr
     assert.ok(byTestId(cold, "calendar-cold"));
     assert.equal(heads(cold), null, "no bar in the board's frame");
     assert.match(textOf(standingSaid()?.under), /Reading…/, "it reads under the frame's views");
-    globalThis.__DEMO_MODE = true;
+    values.setSurfaceValue("calendar", heldSample());
     fresh();
     const board = CalendarPage({});
     assert.ok(byTestId(board, "calendar-real"));
@@ -292,7 +284,7 @@ test("on a phone the bar is the frame's, under its row of views, and the page dr
     delete globalThis.window.matchMedia;
     globalThis.setInterval = si;
     globalThis.clearInterval = ci;
-    globalThis.__DEMO_MODE = false;
+    values.setSurfaceValue("calendar", undefined);
     unmount();
   }
 });
@@ -306,10 +298,10 @@ test("each visit opens a sheet of its own: the cancel's question asked of one is
   globalThis.clearInterval = () => {};
   globalThis.window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
   try {
-    // A demo's board draws the sample around the real minute. On its tomorrow every visit is still ahead, so each may be
-    // cancelled; the sample covers what the page draws, so nothing is read.
-    globalThis.__DEMO_MODE = true;
-    const sample = calendarSample(Date.now());
+    // The board over the tests' sample around the real minute. On its tomorrow every visit is still ahead, so each may be
+    // cancelled; the sample covers what the page draws, so nothing more is read.
+    const sample = heldSample();
+    values.setSurfaceValue("calendar", sample);
     const days = sample.vm.days;
     const tomorrow = days[days.findIndex((d) => d.key === sample.vm.today) + 1].key;
     const at = { param: tomorrow, ...calendarAddress(tomorrow) };
@@ -342,7 +334,7 @@ test("each visit opens a sheet of its own: the cancel's question asked of one is
     delete globalThis.window.matchMedia;
     globalThis.setInterval = si;
     globalThis.clearInterval = ci;
-    globalThis.__DEMO_MODE = false;
+    values.setSurfaceValue("calendar", undefined);
     unmount();
   }
 });

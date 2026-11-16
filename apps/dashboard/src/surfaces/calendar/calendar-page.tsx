@@ -12,8 +12,8 @@
  * campaigns over the same days (runs-surface.ts), which are marks and never blocks. Nothing is booked, moved or cancelled
  * here: the calendar or the booking tool does that, as an open visit's footnote says.
  *
- * A real workspace draws what the seam gives (`useSurface("calendar")`); a demo session draws the same page from the sample
- * (sample.ts); before either, the board's frame, still, so the page has its shape while the weeks are read (CAL-25).
+ * The page draws what the seam gives (`useSurface("calendar")`); before it, the board's frame, still, so the page has its
+ * shape while the weeks are read (CAL-25).
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
@@ -39,7 +39,6 @@ import { calendarAct, calendarHead, heldEmailsSheet, noticeSlot, rulesSheet } fr
 import { crPhone, standAfter, type DaysChange } from "./board-dom";
 import { RunSheet } from "./marks";
 import { keptShow, runsReading, wantRuns } from "./runs-surface";
-import { useCalendarDemo } from "./demo";
 import type { CalendarSurface } from "./surface";
 import type { CalendarFrame } from "./types";
 import {
@@ -122,8 +121,8 @@ const justLanded = (live: CalendarSurface | undefined): boolean => !!live && Dat
  * being read as it came (`runsReading`): a press from Today finds the weeks in hand, Today draws them, and its campaigns
  * still out, and the meetings drew, then the campaigns 0.2 to 0.3 s after, 48 px a row (the phone review of 15 Nov 2026).
  * Only while Show draws campaigns, only while their read is out (not failed), and never past RUNS_WAIT_MS from when it
- * began to wait (`live`: the real read). A page that drew at once (weeks and campaigns it held from before, or a demo's
- * sample a read then replaces) draws at once, as it always did, and never goes back to its frame.
+ * began to wait (`live`: the real read). A page that drew at once (weeks and campaigns it held from before) draws at once,
+ * as it always did, and never goes back to its frame.
  */
 function useRunsHold(live: CalendarSurface | undefined, drewAtStart: boolean): boolean {
   const boardIn = !!live;
@@ -147,13 +146,10 @@ function useRunsHold(live: CalendarSurface | undefined, drewAtStart: boolean): b
   return holding;
 }
 
-/** The Calendar: what a real workspace's read gives, else a demo's sample, else its frame while the read is out. */
+/** The Calendar: what the workspace's read gives, else its frame while the read is out. */
 export function CalendarPage(props: CalendarAddress) {
-  const live = useSurface("calendar");
-  const demo = useCalendarDemo();
-  const C = live ?? (demo ? demo.calendarSample() : undefined);
-  // Only a real read is waited for: a demo's runs are the sample's, in hand with its weeks.
-  const hold = useRunsHold(live, !!C);
+  const C = useSurface("calendar");
+  const hold = useRunsHold(C, !!C);
   // The Calendar's first part (client/page-speed.ts): its board, drawn once the weeks are in (and, cold, its campaigns).
   usePartShown("calendar", "board", !!C && !hold);
   if (!C || hold) return <ColdFrame />;
@@ -199,7 +195,7 @@ const NO_MARKS: readonly CalendarRunMark[] = [];
 /**
  * The campaigns over the board's days, under Show (lane C): read only while Show draws campaigns or cold email (the
  * surface follows the board's span, runs-surface.ts), made into each day's marks at the board's minute, and its own part
- * of the page's speed (decision 0053). A demo session draws the sample's runs.
+ * of the page's speed (decision 0053).
  */
 function useCalendarRuns(show: CalendarShow, nowMs: number) {
   const wanted = show.campaigns || show.cold || show.posts;
@@ -208,8 +204,7 @@ function useCalendarRuns(show: CalendarShow, nowMs: number) {
     return () => wantRuns(false);
   }, [wanted]);
   const live = useSurface("calendar_runs");
-  const demo = useCalendarDemo();
-  const dto: CalendarRunsDto | null = live?.dto ?? (demo ? demo.sampleRuns() : null);
+  const dto: CalendarRunsDto | null = live?.dto ?? null;
   usePartShown("calendar", "campaigns", !!dto, wanted ? "" : null);
   const minute = Math.floor(nowMs / MIN_MS);
   const marks = useMemo(() => (dto ? calendarRunMarksOf(dto, new Date(minute * MIN_MS)) : null), [dto, minute]);

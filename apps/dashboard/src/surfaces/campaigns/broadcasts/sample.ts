@@ -1,9 +1,9 @@
 /**
- * The demo's Broadcasts: a sample business's sends and audiences, passed through the same contracts functions a real
- * workspace's go through (the broadcast view model, the number's health, the words for a held reason), so a demo session
- * draws the one Broadcasts page there is. Three broadcasts (one sent, one scheduled, one waiting for its owner) and three
- * audiences over the approved starters. Deterministic: the same moment is the same page. Nothing counted here is a
- * customer's: the twin it replaces was the mockup's own page, with its own invented campaigns and figures.
+ * Sent for the tests: a sample business's sends and audiences, passed through the same contracts functions a workspace's
+ * go through (the broadcast view model, the number's health, the words for a held reason), so a test draws the one page
+ * there is over it. Three broadcasts (one sent, one scheduled, one waiting for its owner) and three audiences over the
+ * approved starters. Deterministic: the same moment is the same page. Nothing counted here is a customer's. No page
+ * imports it: the demo session that drew it went with demo mode (16 Nov 2026).
  */
 import {
   BROADCAST_CHUNK,

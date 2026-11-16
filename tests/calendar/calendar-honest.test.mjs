@@ -2172,7 +2172,7 @@ test("a read ahead that fails costs nothing: the move reads the window when it i
   }
 });
 
-test("the board reads the weeks beside it once it has stood still for a second: not as it draws, not in a demo, not after it has gone", () => {
+test("the board reads the weeks beside it once it has stood still for a second: not as it draws, not after it has gone", () => {
   const timers = [];
   const real = { set: globalThis.setTimeout, clear: globalThis.clearTimeout };
   globalThis.setTimeout = (fn, ms) => {
@@ -2192,14 +2192,7 @@ test("the board reads the weeks beside it once it has stood still for a second: 
     assert.deepEqual(warmed, [["week", "2026-09-08"]], "then asks for the weeks round the view on screen");
     leave();
     assert.equal(warmTimers()[0].cleared, true, "a board that goes first reads nothing");
-    // A demo has no calendar to read from.
-    timers.length = 0;
-    globalThis.window.__DEMO_MODE = true;
-    fresh();
-    page();
-    assert.equal(warmTimers().length, 0, "a demo asks for no read");
   } finally {
-    globalThis.window.__DEMO_MODE = false;
     globalThis.setTimeout = real.set;
     globalThis.clearTimeout = real.clear;
   }
