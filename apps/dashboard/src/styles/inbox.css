@@ -2506,8 +2506,9 @@ html.frame-on .ix-dock .ix-why { position: relative; min-height: 0; }
 }
 /* The runs waiting, a line over the rows: the list has no sides of its own (each row brings its 8px and its 12px), so the
    line stood on the pane's edge, its door wrapped under it there (the sample walk, 18 Oct 2026). Its glyph stands where a
-   row's face does, and its words end where a row's do. */
-.ix-threads > [data-testid="inbox-runs-waiting"] {
+   row's face does, and its words end where a row's do. The fold of whoever has waited past a week, at Needs you's foot
+   (inbox-list.tsx olderFold), stands in the same place. */
+.ix-threads > :is([data-testid="inbox-runs-waiting"], [data-testid="inbox-older"]) {
   padding: 12px 18px 4px 20px;
 }
 /* ---- A row is one person on the pane itself; the open one is the lozenge (I1) ---- */

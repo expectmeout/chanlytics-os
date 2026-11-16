@@ -12,7 +12,8 @@ import { AttnRow } from "../../kit/attention/attn-row";
 import { gate } from "../shell";
 import { NeedYouGroup, handBackAll, handedBackWords, type HandedBack } from "./groups";
 import { Done } from "./parts";
-import { needYouRows, rowWords, type NeedYouRowsCtx } from "./people-rows";
+import { needYouRows, type NeedYouRowsCtx } from "./people-rows";
+import { rowWords } from "./sheet/row-words";
 import { opensToWork } from "./rows";
 import { useRowState } from "./row-state";
 

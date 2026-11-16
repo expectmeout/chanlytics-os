@@ -116,7 +116,7 @@ test("the head says the badge's other parts: a hold whose thread was not read ne
   );
   assert.equal(
     inboxStanding([sending("c")], NOW, ZONE, { runs: 1, unreadHolds: 0 }),
-    "1 need you · 1 draft on its way · 1 to approve",
+    "1 needs you · 1 draft on its way · 1 to approve",
   );
   assert.equal(inboxStanding([], NOW, ZONE, { runs: 0, unreadHolds: 0 }), "Nothing needs you");
 });
@@ -124,7 +124,22 @@ test("the head says the badge's other parts: a hold whose thread was not read ne
 test("nothing waiting is said plainly, and a thread with no wait yet says no hour", () => {
   assert.equal(inboxStanding([handled("e")], NOW, ZONE), "Nothing needs you");
   assert.equal(inboxStanding([], NOW, ZONE), "Nothing needs you");
-  assert.equal(inboxStanding([waiting("a", 0)], NOW, ZONE), "1 need you");
+  assert.equal(inboxStanding([waiting("a", 0)], NOW, ZONE), "1 needs you", "REGRESSION: '1 need you'");
+});
+
+test("one number: the head says the badge's one count first, and the oldest's hour of the conversations Needs you draws (0048, amended 15 Nov 2026)", () => {
+  // Two people under a week, a search's question and a run: the count is four, two of them to approve.
+  assert.equal(
+    inboxStanding([waiting("a", 96), waiting("b", 42)], NOW, ZONE, { runs: 2, unreadHolds: 0, counted: 4 }),
+    "4 need you · the oldest since 2:26 PM · 2 to approve",
+    "REGRESSION: the head counted the threads and said 2 under a badge of 4",
+  );
+  assert.equal(
+    inboxStanding([], NOW, ZONE, { runs: 1, unreadHolds: 0, counted: 1 }),
+    "1 needs you · 1 to approve",
+    "a search's question alone is one who needs you, as the badge says",
+  );
+  assert.equal(inboxStanding([], NOW, ZONE, { runs: 0, unreadHolds: 0, counted: 0 }), "Nothing needs you");
 });
 
 test("the page head is its date, its name as the page's heading and its sentence, and only what it has", () => {
@@ -173,18 +188,18 @@ test("the oldest's time says its day when it is not today, as Today's headline s
     "2 need you · the oldest since yesterday 10:02 AM",
   );
   // Four days: the weekday, and past a week the date, in the one spelling Today's headline uses (tzSince).
-  assert.equal(inboxStanding([waiting("a", 4 * 1440)], NOW, ZONE), "1 need you · the oldest since Mon 4:02 PM");
-  assert.equal(inboxStanding([waiting("a", 20 * 1440)], NOW, ZONE), "1 need you · the oldest since Sep 12, 4:02 PM");
+  assert.equal(inboxStanding([waiting("a", 4 * 1440)], NOW, ZONE), "1 needs you · the oldest since Mon 4:02 PM");
+  assert.equal(inboxStanding([waiting("a", 20 * 1440)], NOW, ZONE), "1 needs you · the oldest since Sep 12, 4:02 PM");
 });
 
 test("the oldest's time is the escalation's own: it stays put as the minutes go by, where a count of minutes drifted later", () => {
   const since = NOW - 96 * MIN;
   const real = (id) => ({ ...waiting(id, 96), escalatedAtMs: since });
-  assert.equal(inboxStanding([real("a")], NOW, ZONE), "1 need you · the oldest since 2:26 PM");
+  assert.equal(inboxStanding([real("a")], NOW, ZONE), "1 needs you · the oldest since 2:26 PM");
   // Eleven minutes on, the page has not read again: waitingMin is still the 96 it was built with.
   assert.equal(
     inboxStanding([real("a")], NOW + 11 * MIN, ZONE),
-    "1 need you · the oldest since 2:26 PM",
+    "1 needs you · the oldest since 2:26 PM",
     "REGRESSION: it said 2:37 PM, eleven minutes after the wait began",
   );
   // The oldest of several, by its own time; a thread with no wait yet gives none.

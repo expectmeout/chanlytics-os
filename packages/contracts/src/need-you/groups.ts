@@ -151,9 +151,9 @@ export function needYouGroupsOf<T extends GroupRow>(rows: readonly T[]): NeedYou
 /**
  * How many need you: every row above To do, drawn or past its group's cap (Up next, who waits on you, what waits for your
  * OK with the runs waiting for a word beside it), and nothing Older (the canvas of 2 Nov 2026, D2: one count, the rows you
- * can see). The badge, the strip's Inbox tab, the phone's tab, the title and Today's head say this one number (the
- * dashboard's needs-you.ts needsYouNow); the Inbox page's own Needs you chip counts the rows its list holds (0048, amended
- * 2 Nov 2026), so a week-old hold and a run not folded are in it and not in this.
+ * can see). The badge, the strip's Inbox tab, the phone's tab, the title, Today's head and the Inbox's own Needs you say
+ * this one number (the dashboard's needs-you.ts needsYouNow), and the Inbox's list under it holds these rows, a week-old
+ * wait folded at its foot (0048, amended 15 Nov 2026: its chip counted its own list and said 1 under a badge of 2).
  */
 export function needYouCountOf(groups: Pick<NeedYouGroups<unknown>, "next" | "waiting" | "ok">, runs: number): number {
   return groups.next.length + groups.waiting.length + groups.ok.length + runs;

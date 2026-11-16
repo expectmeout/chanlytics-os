@@ -239,9 +239,12 @@ function rowLine1(L: ListCtx, t: Thread) {
  * stood over their words as the reason's label, a sentence over a sentence. A flagged thread you or a teammate have says
  * the reason there instead, quietly: the pill beside the name says whose it is.
  */
-function rowToDo(t: Thread) {
+function rowToDo(ctx: ListCtx, t: Thread) {
   if (!t.real) return null;
   const { move, list } = ixMoveOf(t);
+  // A conversation Needs you holds because the one count holds its person, where the rule puts it elsewhere (a WhatsApp
+  // window shutting on a snoozed one): what its row on Today says it asks ("Reply soon").
+  const counted = ctx.activeBucket === "escalated" ? (ctx.needsYou?.why(t) ?? null) : null;
   // A thread's one draft says whether its reply is ready to use; set aside, it is asked whether they are a customer at all;
   // words that never left go again as they were, and whoever nobody has answered is owed a reply. A campaign's send that
   // failed stands in Handled, and asks nothing: its run reports it.
@@ -254,7 +257,7 @@ function rowToDo(t: Thread) {
         ? holdToDoOf("reply", drafted())
         : move === "needs_you"
           ? holdToDoOf(t.holdAct, drafted())
-          : null;
+          : counted;
   if (todo)
     return (
       <div className="ix-thread-todo" data-testid="thread-todo">
@@ -283,7 +286,7 @@ function rowBody(L: ListCtx, t: Thread, words: { text: string }) {
           <span className="ix-thread-preview">{words.text}</span>
         </div>
       )}
-      {rowToDo(t)}
+      {rowToDo(L, t)}
       {rowFoot(L, t)}
     </div>
   );
@@ -291,14 +294,20 @@ function rowBody(L: ListCtx, t: Thread, words: { text: string }) {
 
 /**
  * The Inbox's rows drawn: the ones on screen and a few either side (kit/rows/shown-rows.ts), and the open one and its
- * neighbours wherever they are, so the arrows and J/K that walk them find each (pick.tsx pickKeys).
+ * neighbours wherever they are, so the arrows and J/K that walk them find each (pick.tsx pickKeys). `name` is which list:
+ * the bucket's, or Needs you's fold of whoever has waited past a week, a list of its own under it.
  */
-export function useShownThreads(visible: readonly Thread[], openId: string | null, density: string): ShownRows {
+export function useShownThreads(
+  visible: readonly Thread[],
+  openId: string | null,
+  density: string,
+  name = "inbox",
+): ShownRows {
   // A row's last line reads its thread's draft (rowToDo), so the rows are drawn again as one lands.
   useDraftsMoved();
   const open = visible.findIndex((t) => t.id === openId);
   return useShownRows({
-    name: "inbox",
+    name,
     count: visible.length,
     estimate: density === "compact" ? 56 : 76,
     keyOf: (i) => visible[i]?.id ?? String(i),
