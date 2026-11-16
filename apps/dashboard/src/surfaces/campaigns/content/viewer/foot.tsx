@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import {
   CONTENT_SHEET_WORDS as SHEET,
   CONTENT_WORDS as W,
+  FILE_WORDS,
   type FileDto,
   type PostDto,
   type PostPlace,
@@ -50,6 +51,8 @@ export function viewerLeadOf(file: Pick<FileDto, "kind" | "source">, next: Piece
   if (next.is === "post_to") return { words: step.postTo(next.place), glyph: PLACE_GLYPH[next.place] };
   if (next.is === "again") return { words: step.again, glyph: null };
   if (next.is === "keep") return { words: step.keep, glyph: "check" };
+  // The word More says for it on a piece set aside (viewer/more.tsx), so the press reads the same in both places.
+  if (next.is === "put_back") return { words: FILE_WORDS.putBack, glyph: null };
   if (next.is === "make") return { words: step.make, glyph: "three" };
   return null;
 }

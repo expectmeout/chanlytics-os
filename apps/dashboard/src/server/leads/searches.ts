@@ -341,6 +341,17 @@ async function roundExtrasOf(
   );
 }
 
+/**
+ * Every kept search with its latest round, as lead_searches_view says it, without the rail's counts or what a widening or
+ * queued round reads (getSearches' extras): what Ask notices of them (a search that asks, leads nobody writes to). One read.
+ */
+export async function listFoundSearches(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: TenantId,
+): Promise<LeadSearchDto[]> {
+  return (await listSearches(ctx, tenantId)).map(toSearchDto);
+}
+
 /** Every kept search with its latest round, and the rail's counts: one read of each. */
 export async function getSearches(
   ctx: Pick<RouteContext, "supabase">,

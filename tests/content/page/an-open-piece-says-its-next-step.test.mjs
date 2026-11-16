@@ -59,6 +59,17 @@ test("what needs the owner comes before what is done", () => {
   assert.deepEqual(pieceNextOf(picture, posts, BOTH), { is: "again", place: "instagram" });
 });
 
+test("set aside, it leads with putting it back: never a post of it, nor one tried again", () => {
+  const aside = { ...picture, status: "set_aside" };
+  assert.deepEqual(pieceNextOf(aside, [], BOTH), { is: "put_back" });
+  assert.deepEqual(pieceNextOf(aside, [post("instagram", "failed")], BOTH), { is: "put_back" });
+  assert.deepEqual(pieceNextOf(aside, [post("instagram", "published")], BOTH), { is: "put_back" });
+  // A video posts nothing from here: its one act stays Save video.
+  assert.deepEqual(pieceNextOf({ ...aside, kind: "video" }, [], BOTH), { is: "save" });
+  // Put back, it is a post again, and Post leads.
+  assert.deepEqual(pieceNextOf({ ...aside, status: "filed" }, [], BOTH), { is: "post" });
+});
+
 test("one on its way says so, and whether it can still be stopped", () => {
   assert.deepEqual(pieceNextOf(picture, [post("instagram", "queued")], BOTH), {
     is: "going",
