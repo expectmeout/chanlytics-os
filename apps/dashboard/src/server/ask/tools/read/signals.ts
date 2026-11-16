@@ -8,28 +8,21 @@ import {
   plural,
   type AskNoticeFacts,
 } from "@chanlytics/contracts";
-import { getCancellationsSince } from "@chanlytics/db/campaigns";
 import { load } from "../../../shared/reader";
-import { audiencePool } from "../../../readers/audience-pool";
-import { config as configReader, facts as factsReader } from "../../../readers/facts";
-import { lists as listsReader } from "../../../readers/lists";
+import { config as configReader } from "../../../readers/facts";
+import { everyone } from "../../../readers/everyone";
 import { followUpsNow, memberViews } from "../../../readers/notifications";
-import { playbooks, reachOutChains } from "../../../readers/playbooks";
-import { searches as searchesReader } from "../../../readers/searches";
-import { sequences as sequencesReader } from "../../../readers/sequences";
 import { defineRead, type ToolContext } from "../context/tool-defs";
 import { unread } from "../context/tool-reads";
+import { NEW_DAYS, seeAll, type Seen } from "./seen";
 
 /**
  * What Ask notices (the operator, 15 Oct 2026, D6): the workspace read across its pages, each thing that stands out said
  * with its numbers and the cards that fit it, computed here by code -- Ask decides how to say them and in what order, and
  * never computes them from rows. A follow-up of the member's that is due comes first; the owner's goal rides on top, so
- * every signal is weighed against it. Each part is read as its page reads it; a read that fails leaves its signal out,
- * said in `unread`, never as nothing to notice.
+ * every signal is weighed against it. Each part is read as narrow as the spot that reads it (seen.ts), the same read the
+ * notices make; a read that fails leaves its signal out, said in `unread`, never as nothing to notice.
  */
-
-/** Who counts as new: first heard from within this many days. */
-const NEW_DAYS = 30;
 
 export interface Signal {
   key: string;
@@ -43,52 +36,26 @@ export interface Signal {
   weight: 1 | 2 | 3;
 }
 
-/** The workspace as the signals read it: each part as its page reads it, null where its read failed. */
-export async function seeAll(toolContext: ToolContext) {
-  const failed = (read: string) => unread(toolContext, "signals", read);
-  const since = new Date(toolContext.now.getTime() - NEW_DAYS * DAY_MS).toISOString();
-  const [pool, kept, seqs, pb, chains, finder, cfg, zone, views, cancellations] = await Promise.all([
-    load(toolContext.rc, audiencePool, undefined).then((r) => r.data, failed("people")),
-    load(toolContext.rc, listsReader, undefined).then((r) => r.data.lists, failed("lists")),
-    load(toolContext.rc, sequencesReader, undefined).then((r) => r.data, failed("sequences")),
-    load(toolContext.rc, playbooks, undefined).then((r) => r.data, failed("moments")),
-    load(toolContext.rc, reachOutChains, undefined).then((r) => r.data.chains, failed("cold emails")),
-    load(toolContext.rc, searchesReader, undefined).then((r) => r.data, failed("searches")),
-    load(toolContext.rc, configReader, undefined).then((r) => r.data, failed("settings")),
-    load(toolContext.rc, factsReader, undefined).then((r) => r.data.timezone, failed("facts")),
-    toolContext.ctx.userId
-      ? load(toolContext.rc, memberViews, undefined).then((r) => r.data, failed("follow-ups"))
-      : Promise.resolve(null),
-    // The cancellations whose time a freed time's step would have offered (decision 0082), in the same window.
-    getCancellationsSince(toolContext.rc.ctx.supabase, toolContext.rc.tenantId, since).then(
-      (n) => n,
-      failed("cancellations"),
-    ),
-  ]);
-  return { pool, kept, seqs, pb, chains, finder, cfg, zone, views, cancellations, nowMs: toolContext.now.getTime() };
-}
-type Seen = Awaited<ReturnType<typeof seeAll>>;
 /** One thing that may stand out, read off what was seen; null where it does not, or its parts could not be read. */
 type Spot = (s: Seen) => Signal | null;
 
 /** Many people and nothing that sends on its own. */
-const nothingSends: Spot = ({ pool, seqs, nowMs }) => {
-  const people = pool?.people ?? [];
-  if (!pool || !seqs || people.length < 20 || seqs.sequences.some((s) => s.state === "on")) return null;
-  const fresh = people.filter((r) => r.first_contact_at && nowMs - Date.parse(r.first_contact_at) <= NEW_DAYS * DAY_MS);
+const nothingSends: Spot = ({ people, seqs, fresh }) => {
+  if (!people || !seqs || people.listed < 20 || seqs.sequences.some((s) => s.state === "on")) return null;
+  const isNew = fresh === undefined ? "" : ` (${fresh} new in the last ${NEW_DAYS} days)`;
   return {
     key: "nothing_sends_on_its_own",
-    facts: { people: people.length },
-    says: `${plural(people.length, "person is", "people are")} in People (${fresh.length} new in the last ${NEW_DAYS} days) and nothing sends on its own.`,
+    facts: { people: people.listed },
+    says: `${plural(people.listed, "person is", "people are")} in People${isNew} and nothing sends on its own.`,
     next: "propose_plan with action steps: lists that group them (propose_list make), then a sequence for the strongest group (propose_sequence make); or propose_plan with action offer, intent cover_journey",
     weight: 1,
   };
 };
 
 /** Lists of the workspace's own that no sequence runs on. */
-const listsFeedNothing: Spot = ({ kept, pb }) => {
-  if (!kept || !pb) return null;
-  const used = new Set(pb.playbooks.flatMap((p) => [p.list_id, p.list_key].filter((x): x is string => !!x)));
+const listsFeedNothing: Spot = ({ kept, steps }) => {
+  if (!kept || !steps) return null;
+  const used = new Set(steps.flatMap((p) => [p.list_id, p.list_key].filter((x): x is string => !!x)));
   const idle = kept.filter((l) => !l.archived_at && !used.has(l.id));
   if (!idle.length) return null;
   const names = idle.slice(0, 4).map((l) => l.name);
@@ -102,11 +69,11 @@ const listsFeedNothing: Spot = ({ kept, pb }) => {
 };
 
 /** Leads found that no cold email writes to: each search's qualified leads, as its latest round counts them. */
-const leadsNotWrittenTo: Spot = ({ finder, chains }) => {
-  if (!finder || !chains) return null;
-  const written = new Set(chains.flatMap((c) => (c.search ? [c.search.id] : [])));
+const leadsNotWrittenTo: Spot = ({ finder, written }) => {
+  if (!finder || !written) return null;
+  const writtenTo = new Set(written);
   const found = (s: (typeof finder.searches)[number]) => s.round?.qualified ?? 0;
-  const unwritten = finder.searches.filter((s) => found(s) > 0 && !written.has(s.id));
+  const unwritten = finder.searches.filter((s) => found(s) > 0 && !writtenTo.has(s.id));
   if (!unwritten.length) return null;
   const leads = unwritten.reduce((n, s) => n + found(s), 0);
   const named = unwritten.slice(0, 3).map((s) => `${s.name}: ${found(s)}`);
@@ -159,31 +126,23 @@ const batchesWaiting: Spot = ({ seqs }) => {
   };
 };
 
-/** The yes to offers: never asked, among people a WhatsApp conversation reaches. */
-const offersNeverAsked: Spot = ({ pool }) => {
-  const people = pool?.people ?? [];
-  const never = people.filter(
-    (r) =>
-      (r.marketing_consent ?? "unknown") === "unknown" &&
-      !r.offers_asked_at &&
-      !r.dnc &&
-      (r.channels ?? []).includes("whatsapp"),
-  ).length;
+/** The yes to offers: never asked, among people a WhatsApp conversation reaches (counted where they are, seen.ts). */
+const offersNeverAsked: Spot = ({ people, saidYes }) => {
+  const never = people?.neverAsked ?? 0;
   if (!never) return null;
-  const saidYes = people.filter((r) => r.marketing_consent === "opted_in").length;
+  const yesSoFar = saidYes === undefined ? "" : ` (${saidYes} said yes so far)`;
   return {
     key: "offers_never_asked",
     facts: { never },
-    says: `${plural(never, "person on WhatsApp has", "people on WhatsApp have")} never been asked for the yes to offers (${saidYes} said yes so far).`,
+    says: `${plural(never, "person on WhatsApp has", "people on WhatsApp have")} never been asked for the yes to offers${yesSoFar}.`,
     next: "never a message whose purpose is the ask: the receptionist asks once at the natural end of a conversation they started; offer the sign-up link and its QR for the counter, and sequences after a booking to people with a messages yes (propose_sequence with action moment)",
     weight: 3,
   };
 };
 
 /** Deals out with no next step: none where no proposal is out. */
-const dealsWithoutAStep: Spot = ({ pool }) => {
-  if (!pool) return null;
-  const count = pool.people.filter((r) => r.deal_stage === "proposed" && !r.step_id).length;
+const dealsWithoutAStep: Spot = ({ people }) => {
+  const count = people?.proposalsWithoutAStep ?? 0;
   if (!count) return null;
   return {
     key: "deals_without_a_step",
@@ -195,13 +154,14 @@ const dealsWithoutAStep: Spot = ({ pool }) => {
 };
 
 /** Appointments cancelled in the window whose time nothing offered (contracts freedTimesUnoffered, decision 0082). */
-const freedTimesNotOffered: Spot = ({ pb, cancellations, nowMs }) => {
-  if (!pb) return null;
+const freedTimesNotOffered: Spot = ({ steps, calendar, zone, cancellations, nowMs }) => {
+  if (!steps || !zone) return null;
   const freedTimes = freedTimesUnoffered({
     cancellations,
-    calendar: pb.calendar,
-    steps: pb.playbooks,
-    tz: pb.timezone,
+    // Connected is all the rule asks of the calendar (a feed down just now is still connected): none where unread.
+    calendar: calendar ? "connected" : "none",
+    steps,
+    tz: zone,
     nowMs,
     days: NEW_DAYS,
   });
@@ -229,29 +189,53 @@ export const spotsOf = (seen: Seen): Signal[] =>
 
 /** The parts that could not be read, said beside the signals, never as nothing to notice. */
 const unreadOf = (s: Seen): string[] => [
-  ...(s.pool ? [] : ["people"]),
+  ...(s.people ? [] : ["people"]),
   ...(s.seqs ? [] : ["sequences"]),
   ...(s.finder ? [] : ["lead searches"]),
-  ...(s.chains ? [] : ["cold emails"]),
+  ...(s.written ? [] : ["cold emails"]),
 ];
 
+/**
+ * What Ask's own read says beyond what the spots decide on: the owner's goal and the member's follow-ups, and who in People
+ * is new and who said yes, in its sentences for the model. Everyone in People is the turn's own read (readers/everyone.ts),
+ * which the people and audience tools share. Each null where its read failed.
+ */
+async function seeMore(toolContext: ToolContext) {
+  const failed = (read: string) => unread(toolContext, "signals", read);
+  const nowMs = toolContext.now.getTime();
+  const [cfg, views, people] = await Promise.all([
+    load(toolContext.rc, configReader, undefined).then((r) => r.data, failed("settings")),
+    toolContext.ctx.userId
+      ? load(toolContext.rc, memberViews, undefined).then((r) => r.data, failed("follow-ups"))
+      : Promise.resolve(null),
+    load(toolContext.rc, everyone, undefined).then((r) => r.data, failed("people")),
+  ]);
+  const isNew = (at: string | null | undefined) => !!at && nowMs - Date.parse(at) <= NEW_DAYS * DAY_MS;
+  return {
+    cfg,
+    views,
+    fresh: people?.filter((r) => isNew(r.first_contact_at)).length,
+    saidYes: people?.filter((r) => r.marketing_consent === "opted_in").length,
+  };
+}
+
 /** The owner's goal, as Settings keeps it for Ask; null where none is kept or the settings could not be read. */
-function goalOf(cfg: Seen["cfg"]): string | null {
+function goalOf(cfg: Awaited<ReturnType<typeof seeMore>>["cfg"]): string | null {
   const parsed = cfg ? parseTenantConfigResult(cfg.config ?? null) : null;
   return parsed && parsed.ok ? (parsed.config.ask?.goal ?? null) : null;
 }
 
 async function readSignals(toolContext: ToolContext): Promise<unknown> {
-  const seen = await seeAll(toolContext);
+  const [seen, more] = await Promise.all([seeAll(toolContext), seeMore(toolContext)]);
   // The member's follow-ups that are due, by what the searches and the sequences say now: decided as Ask's home decides it.
-  const { due, waiting } = followUpsNow(seen.views ? followUpsOf(seen.views) : [], {
+  const { due, waiting } = followUpsNow(more.views ? followUpsOf(more.views) : [], {
     searches: seen.finder?.searches ?? null,
     sequences: seen.seqs?.sequences ?? null,
     nowMs: seen.nowMs,
     zone: seen.zone ?? toolContext.timezone,
   });
-  const signals = spotsOf(seen);
-  const goal = goalOf(seen.cfg);
+  const signals = spotsOf({ ...seen, fresh: more.fresh, saidYes: more.saidYes });
+  const goal = goalOf(more.cfg);
   const unreadParts = unreadOf(seen);
   return {
     route: "today",
