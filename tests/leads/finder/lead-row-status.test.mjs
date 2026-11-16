@@ -68,8 +68,8 @@ test("one status: left out and review say why, a standing place is the sequence'
       place("queued", { why: "unchecked" }),
       { word: "Not planned", tone: "warn", line: `Their address couldn't be checked · ${SEQ}` },
     ],
-    [lead(), place("queued"), { word: "In sequence", tone: "ok", line: `In its next batch · ${SEQ}` }],
-    [lead(), place("in"), { word: "In sequence", tone: "ok", line: `Between steps · ${SEQ}` }],
+    [lead(), place("queued"), { word: "In campaign", tone: "ok", line: `In its next batch · ${SEQ}` }],
+    [lead(), place("in"), { word: "In campaign", tone: "ok", line: `Between steps · ${SEQ}` }],
     [lead({ state: "contacted", contactedAt: hoursAgo(3) }), null, { word: "Contacted", tone: "info", line: "3h ago" }],
     [lead({ state: "contacted" }), null, { word: "Contacted", tone: "info", line: null }],
     [lead({ state: "talking" }), null, { word: "Talking", tone: "ok", line: null }],
@@ -130,7 +130,7 @@ test("the one press a row offers, by what the row knows", () => {
     [lead(), place("done"), pick, null],
     [lead(), place("left", { why: "removed" }), pick, null],
     [lead(), null, pick, { kind: "add", label: `Add to ${SEQ}` }],
-    [lead(), null, null, { kind: "pick", label: "Add to a sequence" }],
+    [lead(), null, null, { kind: "pick", label: "Add to a campaign" }],
     [lead({ emailState: "catch_all" }), null, pick, { kind: "add", label: `Add to ${SEQ}` }],
     [lead({ email: null, emailState: "none" }), null, pick, { kind: "call", label: "Call" }],
     [lead({ emailState: "invalid" }), null, pick, { kind: "call", label: "Call" }],
@@ -156,7 +156,7 @@ test("the queue's heads: needs you and in a sequence with the view's counts, the
   const counts = { needs: 2, in: 5, none: 20 };
   const row = (over = {}) => ({ cls: "qualified", stage: "ready", statusGroup: null, ...over });
   assert.deepEqual(leadGroupOf(row({ statusGroup: "needs" }), counts), { key: "needs", label: "Needs you", count: 2 });
-  assert.deepEqual(leadGroupOf(row({ statusGroup: "in" }), counts), { key: "in", label: "In a sequence", count: 5 });
+  assert.deepEqual(leadGroupOf(row({ statusGroup: "in" }), counts), { key: "in", label: "In a campaign", count: 5 });
   assert.deepEqual(leadGroupOf(row(), counts), { key: "ready", label: "Not contacted", count: null });
   assert.deepEqual(leadGroupOf(row({ stage: "nurture" }), counts), { key: "nurture", label: "Contacted", count: null });
   assert.deepEqual(leadGroupOf(row({ stage: "converted" }), counts), {
@@ -185,9 +185,9 @@ test("under a head that says it, a row stops repeating it: Not contacted with no
   });
   assert.equal(leadStatusOf(lead(), null, CLOCK, true).word, "", "Not contacted: the head said it");
   const step = leadStatusOf(lead(), placed("next"), CLOCK, true);
-  assert.notEqual(step.word, "In sequence");
+  assert.notEqual(step.word, "In campaign");
   assert.match(step.word, /^Step 2 /, "the step and when");
-  assert.equal(step.line, SEQ, "and under it the sequence");
+  assert.equal(step.line, SEQ, "and under it the campaign");
   assert.equal(step.tone, "ok");
   assert.equal(
     leadStatusOf(lead(), placed("waiting"), CLOCK, true).word,
@@ -198,7 +198,7 @@ test("under a head that says it, a row stops repeating it: Not contacted with no
   assert.equal(leadStatusOf(lead(), barred, CLOCK, true).word, "Not planned");
   const asked = lead({ state: "contacted", contactedAt: hoursAgo(3) });
   assert.deepEqual(wordsOf(leadStatusOf(asked, null, CLOCK, true)), { word: "3h ago", tone: "quiet", line: null });
-  assert.equal(leadStatusOf(lead(), placed("next"), CLOCK).word, "In sequence", "and with no head, as before");
+  assert.equal(leadStatusOf(lead(), placed("next"), CLOCK).word, "In campaign", "and with no head, as before");
   assert.equal(leadStatusOf(lead(), null, CLOCK).word, "Not contacted");
 });
 

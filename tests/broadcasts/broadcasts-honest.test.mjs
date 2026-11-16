@@ -1190,7 +1190,7 @@ test("the run open at its home is the address's: closing it goes back to where i
     assert.match(textOf(door), / campaign$/, "said as a campaign to its reader (decision 19)");
     const before = calls.length;
     press(door);
-    assert.equal(went.at(-1), "campaigns/sequences/pb-1", "its sequence, by the sequence's own id the run names");
+    assert.equal(went.at(-1), "campaigns/sequences/pb-1", "its campaign, by the campaign's own id the run names");
     assert.equal(calls.length, before, "and it did not replace the run's entry");
     // Closed with no frame to say what opened it (a link, a reload): onto its sequence's History, the days it is one of,
     // never a Back out of the app. The frame's own Back to the opener is the shell's (shell-status.test.mjs).
@@ -1266,7 +1266,7 @@ test("the page says what needs you and what goes out, and calls a message a mess
   });
   const line = textOf(headSaid());
   assert.ok(line.includes("1 needs you"), `the one WhatsApp refused needs you -- ${line}`);
-  assert.ok(line.includes("1 sending"), `and the one a running sequence sends is sending -- ${line}`);
+  assert.ok(line.includes("1 sending"), `and the one a running campaign sends is sending -- ${line}`);
   assert.ok(!/\btemplates?\b/i.test(line), `no "template" on the line -- ${line}`);
   messages({ templatesAll: [templateRow()] });
   assert.ok(textOf(headSaid()).includes("Nothing sending yet"), "nothing sends it: said so, not a count of zero");
@@ -1297,10 +1297,10 @@ test("A message needs you when a language a running sequence sends is missing --
   const row = (t) => byTestId(t, "custom-row");
   // A playbook sends Spanish and WhatsApp holds only English: every run of it is skipped. It needs you.
   let tree = messages({ templatesAll: [en], playbooks: sends("es"), templateUse: use });
-  assert.equal(row(tree).props["data-place"], "need", "a language a running sequence sends, missing");
+  assert.equal(row(tree).props["data-place"], "need", "a language a running campaign sends, missing");
   assert.ok(String(row(tree).props.className).split(" ").includes("is-attn"));
   assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish missing");
-  assert.ok(textOf(row(tree)).includes("A sequence sends it in Spanish"), textOf(row(tree)));
+  assert.ok(textOf(row(tree)).includes("A campaign sends it in Spanish"), textOf(row(tree)));
   assert.ok(textOf(headSaid()).includes("1 needs you"), textOf(headSaid()));
   // It sends the approved English, and Spanish is in review: it goes out, and the pill says Spanish is in review.
   tree = messages({ templatesAll: [en, es], playbooks: sends("en_US"), templateUse: use });
@@ -1936,7 +1936,7 @@ test("Messages says what sends each message -- every source, so 'nothing sends i
   // Opened, what sends it is a fact of the message, with its Open (the record kit's row): the one sequence that sends it.
   tree = openedRow(customRow);
   press(byTestId(paneOf(tree), "template-users"));
-  assert.equal(went.at(-1), "campaigns/sequences/sq-1", "and it opens the one sequence that sends it");
+  assert.equal(went.at(-1), "campaigns/sequences/sq-1", "and it opens the one campaign that sends it");
 
   // What the page could not say while it read the playbooks alone: nothing sends it, so it says what it is, not in use.
   tree = messages({ templatesAll: offer, templateUse: sentBy("Not used", { unused: true, running: false }) });
@@ -1947,7 +1947,7 @@ test("Messages says what sends each message -- every source, so 'nothing sends i
   messages({ templatesAll: offer, templateUse: sentBy("Win-back and Welcome") });
   tree = openedRow(customRow);
   press(byTestId(paneOf(tree), "template-users"));
-  assert.equal(went.at(-1), "campaigns/sequences", "no single sequence to open, so the list");
+  assert.equal(went.at(-1), "campaigns/sequences", "no single campaign to open, so the list");
 
   // A usage read that has not landed is not "nothing sends it".
   tree = messages({ templatesAll: offer, templateUse: undefined });

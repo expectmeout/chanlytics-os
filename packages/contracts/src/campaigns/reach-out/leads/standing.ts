@@ -78,7 +78,7 @@ export function reachOutPersonOf(leadTimeline: ReachOutLeadTimelineDto, nowMs: n
     if (s.from || s.host) parts.push(`from ${s.from ?? s.host}`);
     else if (s.said) parts.push("from your inbox");
     parts.push(emailWords(s));
-    emails.set(s.message_id, { who: chain ? `Sequence · ${chain}` : "Your sequence", sub: parts.join(" · ") });
+    emails.set(s.message_id, { who: chain ? `Campaign · ${chain}` : "Your campaign", sub: parts.join(" · ") });
   }
   const readings = new Map<string, string>();
   for (const r of leadTimeline.readings)
@@ -167,7 +167,7 @@ function answerStanding(
     return standing(`asked to hear from you ${askedDayOf(resume, tz, nowMs)} · write to them yourself`, "warn", false);
   const text = `wrote back ${near(timelineReading.read_at, tz, nowMs)} · ${intentWords(timelineReading.intent)}`;
   return standing(
-    timelineReading.stops || timelineReading.convert ? `${text} · the sequence stopped` : text,
+    timelineReading.stops || timelineReading.convert ? `${text} · the campaign stopped` : text,
     "good",
     false,
   );
@@ -238,7 +238,7 @@ export function reachOutStandingOf(
   const away = leadTimeline.readings.find((r) => !r.undone && r.intent === "away" && at(r.until_at) !== null);
   const back = away ? at(away.until_at) : null;
   if (back !== null && back > nowMs)
-    return standing(`away until ${clockDate(back, tz, nowMs)} · the sequence waits`, "plain", leadTimeline.can_stop);
+    return standing(`away until ${clockDate(back, tz, nowMs)} · the campaign waits`, "plain", leadTimeline.can_stop);
   const written = writtenStanding(leadTimeline, tz, nowMs);
   if (written) return written;
   const added = leadTimeline.added_at ? `added ${near(leadTimeline.added_at, tz, nowMs)} · ` : "";
@@ -286,7 +286,7 @@ export const REACH_OUT_WHY_NOT_WORDS: Record<ReachOutWhyNot, string> = {
   unchecked: "with an address not checked yet",
   already: "already on it",
   not_counted: "still in Needs review",
-  elsewhere: "in another sequence",
+  elsewhere: "in another campaign",
 };
 
 /** One lead the door left out, and the reach-out that has it when another does. */
@@ -316,9 +316,9 @@ export interface ReachOutAddDto {
 
 /** The door's refusals and its undo's answers, in words. */
 export const REACH_OUT_ADD_WORDS = {
-  listGone: "That sequence's list was removed, so nothing can be added to it.",
-  fedBySearch: "That sequence writes to its search's leads as they're found, so leads aren't added to it by hand.",
-  door: "Add to its sequence",
+  listGone: "That campaign's list was removed, so nothing can be added to it.",
+  fedBySearch: "That campaign writes to its search's leads as they're found, so leads aren't added to it by hand.",
+  door: "Add to its campaign",
   takenBack: (n: number) => `Took ${plural(n, "lead", "leads")} back off the list`,
   onItsWay: "Its email is already on its way, so it stays. Stop writing to them instead.",
   sent: "Its email was already sent, so it stays. Stop writing to them instead.",

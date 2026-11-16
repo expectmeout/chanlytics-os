@@ -110,7 +110,7 @@ test("Start says what really happened, each reason in its own words; within the 
     said("held", "waiting_for_you", 30),
     "Planned 30 emails. The first run waits on you: open it to approve.",
   );
-  assert.equal(said("held", "waiting_for_you", 0), "A run of this sequence already waits on you. Answer it first.");
+  assert.equal(said("held", "waiting_for_you", 0), "A run of this campaign already waits on you. Answer it first.");
   assert.equal(said("held", "billing"), "Saved. Nothing is planned until billing is sorted: open Billing.");
   assert.equal(
     said("held", "no_mailbox"),
@@ -250,7 +250,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
   // Approve says the count it releases ("Approve all 30"); when it goes is the foot's, beside it.
   assert.equal(w.approve, "Approve all 30");
   assert.deepEqual([flat(w.dock.lead), w.dock.said], ["30 go from 9:40 AM", "1 held waits for you"]);
-  assert.equal(w.note, "Skipping loses this run only. The sequence keeps its place and asks again tomorrow.");
+  assert.equal(w.note, "Skipping loses this run only. The campaign keeps its place and asks again tomorrow.");
   assert.deepEqual(
     [w.heldHead, w.heldNote.closed, w.heldNote.gated],
     [
@@ -541,7 +541,7 @@ test("Templates says an email is a reach-out's and what sends it (R19); its word
     checkLabel: "What is checked before each send",
     checkNote:
       "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
-    edit: "Edit the sequence",
+    edit: "Edit the campaign",
   });
 });
 

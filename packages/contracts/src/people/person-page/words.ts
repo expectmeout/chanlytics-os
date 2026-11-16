@@ -112,7 +112,7 @@ export const WORKS_AT_WORDS = {
   stageNote: "changed on Leads",
   fit: "Fit",
   checks: (n: number) => plural(n, "check"),
-  reachOut: "Sequence",
+  reachOut: "Campaign",
   readWhatWentOut: "Read what went out",
   listingPhone: "Listing phone",
   listingHours: (line: string) => `Listing hours: ${line.charAt(0).toLowerCase()}${line.slice(1)}`,
@@ -160,7 +160,7 @@ export const PERSON_ABOUT_WORDS = {
   campaigns: "Campaigns",
   campaignsMark: (n: number, newest: string) => `${n} sent · ${newest}`,
   /** The sequences they are in now (0060), over what went to them. */
-  inSequence: "In a sequence",
+  inSequence: "In a campaign",
   /** Messages and receptionist's rows (canvas A, P9.4): a mode the workspace sets, and a row nobody here changes. */
   thisWorkspace: "this workspace",
   readOnly: "read only",

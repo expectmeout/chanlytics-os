@@ -151,7 +151,7 @@ export const LEAD_BUILD_WORDS = {
     noAddress: "Add your address in Settings › Details: every email carries it at the foot.",
     /** The mailboxes it writes from (0077, D4): a tick each, one always kept. */
     everyMailbox: "Every mailbox, and any you connect later",
-    keepOne: "One has to send. To stop them all, pause the sequence.",
+    keepOne: "One has to send. To stop them all, pause the campaign.",
     newMailbox: "New",
     dnsMissing: (records: readonly string[]) => `${records.map((r) => r.toUpperCase()).join(" and ")} missing`,
     setUpDns: "Set up DNS",

@@ -206,7 +206,7 @@ test("what fills their words: each slot with its value and where it came from, a
   assert.equal(by.city.look, "gap");
   assert.equal(by.city.value, null);
   assert.equal(by["your name"].value, "Rae");
-  assert.equal(by["your name"].from, "The name this sequence signs with");
+  assert.equal(by["your name"].from, "The name this campaign signs with");
   assert.equal(by["booking link"].value, "https://example.com/book");
 });
 
@@ -367,6 +367,6 @@ test("the marks: couldn't-tell first, then seen, then read; a no is the verdict'
 test("the sheet's three tabs, Why first, in Sequences' words (the refined canvas)", () => {
   assert.deepEqual(
     LEAD_CARD_TABS.map((t) => t.label),
-    ["Why", "Contact", "Sequence"],
+    ["Why", "Contact", "Campaign"],
   );
 });

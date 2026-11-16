@@ -61,23 +61,15 @@ export const ASK_PAGES: JumpEntry[] = [
   { label: "Conversations", to: "conversations", kind: "page" },
   { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
   { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },
-  // Campaigns (3 Oct 2026), which is Sequences (decision 0060): what goes out on its own, and what is sent by hand. The old
-  // Playbooks list was `outbound`, which lands here; the name it went by still finds it.
+  // Campaigns (3 Oct 2026): everything that sends on its own, and what is sent by hand. It was Sequences (decision 0060)
+  // until the words pass of 15 Nov 2026, the old Playbooks list was `outbound`, and Sent's list went to each campaign's
+  // History (D3): the names people learned and still type find it.
   {
     label: "Campaigns",
     to: SEQUENCES_ROUTE,
     kind: "page",
-    sub: "what goes out on its own, and what you send yourself",
-    also: ["playbooks", "moments"],
-  },
-  // Campaigns › Sequences by its own name, and by what the old pages were called: Sent's list went to each sequence's
-  // History (D3), so its names find it.
-  {
-    label: "Sequences",
-    to: "campaigns/sequences",
-    kind: "page",
-    sub: "everything that sends on its own",
-    also: ["automations", "follow-ups", "drip", "sent", "broadcasts"],
+    sub: "everything that sends on its own, and what you send yourself",
+    also: ["sequences", "playbooks", "moments", "automations", "follow-ups", "drip", "sent", "broadcasts"],
   },
   // Campaigns' Messages (D4: it was the Library), its other view, found too by the names it went by, which people learned
   // and still type.

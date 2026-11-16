@@ -1351,7 +1351,7 @@ test("the second batch of what the ledgers never kept reads in an owner's words:
     activityWords("member.left", { by: "u1", how: "account_deleted" }),
     "Left the workspace · deleted their account",
   );
-  assert.equal(activityWords("reach_out.lead_stopped", { by: "u1" }), "A sequence stopped writing to a lead");
+  assert.equal(activityWords("reach_out.lead_stopped", { by: "u1" }), "A campaign stopped writing to a lead");
   assert.equal(
     activityWords("reach_out.lead_words_changed", { step_id: "s1", kept: true, by: "u1" }),
     "An email to a lead was changed for that lead",

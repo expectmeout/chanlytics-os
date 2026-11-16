@@ -224,14 +224,14 @@ test("a lead's own words: one lead at one step, the receipt its name, and the un
     body: { lead_id: LEAD, words },
   });
   assert.equal(s.receipt(c.card, {}), "Saved for Luxe Lane");
-  assert.equal(s.receipt(of(null).card, {}), "Luxe Lane gets the sequence's words");
+  assert.equal(s.receipt(of(null).card, {}), "Luxe Lane gets the campaign's words");
   const was = { subject: "Before", body: "What stood" };
   const kept = s.undo.record(c.card, { was }, TAB);
   assert.deepEqual(s.undo.call(kept, TAB).body, { lead_id: LEAD, words: was });
   assert.equal(s.undo.receipt({}, kept), "Luxe Lane gets the words you had before");
   const none = s.undo.record(c.card, { was: null }, TAB);
   assert.deepEqual(s.undo.call(none, TAB).body, { lead_id: LEAD, words: null });
-  assert.equal(s.undo.receipt({}, none), "Luxe Lane gets the sequence's words");
+  assert.equal(s.undo.receipt({}, none), "Luxe Lane gets the campaign's words");
   // A card that does not say which lead, or which step, is never sent.
   assert.ok(s.commit(card("sequence_lead_words", { sequence_id: SEQ, step_id: STEP, words }).card, TAB).refused);
 });
@@ -281,7 +281,7 @@ test("a draft is asked for, never made; keeping it makes the sequence whole, and
     refused: "Say what starts it and the message it sends first.",
   });
   assert.equal(make.receipt(c.card, { id: SEQ, state: "draft" }), "Kept as a draft: nothing goes yet");
-  assert.equal(make.receipt(c.card, { id: SEQ, state: "on" }), "The sequence is on");
+  assert.equal(make.receipt(c.card, { id: SEQ, state: "on" }), "The campaign is on");
   assert.equal(make.made(c.card, { id: SEQ }), SEQ);
   assert.equal(
     make.open(c.card, { state: "done", receipt: "", atMs: 0, made: { kind: "sequence_make", id: SEQ } }),
@@ -372,7 +372,7 @@ test("an email the check held is decided, and one handed over said of, through o
     [
       "Bloom Bar's new opening is written",
       "Bloom Bar's new opening is written, and the check held it",
-      "Bloom Bar's opening is written again once its sequence runs",
+      "Bloom Bar's opening is written again once its campaign runs",
       "Bloom Bar's opening is being written again",
       "Bloom Bar's opening is being written again",
     ],
@@ -461,7 +461,7 @@ test("End it ends a customer's sequence through the campaign's own door, says so
     route: "DELETE playbooks/[id]",
     params: { id: SEQ },
   });
-  assert.ok("refused" in commit("sequence_end", {}), "no sequence named, nothing ended");
+  assert.ok("refused" in commit("sequence_end", {}), "no campaign named, nothing ended");
   const c = card("sequence_end", { sequence_id: SEQ, name: "Win-back" });
   assert.equal(c.spec.receipt(c.card, { deleted: true, id: SEQ }), "“Win-back” has ended");
   assert.equal(c.spec.undo, undefined);

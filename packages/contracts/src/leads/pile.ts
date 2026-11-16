@@ -28,7 +28,7 @@ export interface LeadPileCountsDto {
 /** The pile's words. */
 export const LEAD_PILE_WORDS = {
   start: "Go through them",
-  startTip: "One lead at a time: add it to a sequence, put it off, or say it isn't a fit.",
+  startTip: "One lead at a time: add it to a campaign, put it off, or say it isn't a fit.",
   head: (search: string) => `Going through “${search}”`,
   target: "Adds go to",
   newList: "A new list",
@@ -51,9 +51,9 @@ export const LEAD_PILE_WORDS = {
   undo: "Undo",
   undoGone: "That was already undone",
   /** A sequence's Add leads named where this pass's adds go: the door says so, and so does the page before a search. */
-  startFor: (target: string | null) => (target ? `Pick leads for “${target}”` : "Pick leads for its sequence"),
+  startFor: (target: string | null) => (target ? `Pick leads for “${target}”` : "Pick leads for its campaign"),
   askSearch: (target: string | null) =>
-    `Open a search to pick its leads for ${target ? `“${target}”` : "the sequence you came from"}.`,
+    `Open a search to pick its leads for ${target ? `“${target}”` : "the campaign you came from"}.`,
   askLetGo: "Not now",
   /** The end of the pile, with a sequence its adds went to: the way to it. */
   openTarget: (target: string) => `Open “${target}”`,

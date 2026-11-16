@@ -241,7 +241,7 @@ test.describe("The kit's table on a real workspace", () => {
     await expect(picked, "every row the Filter shows").toHaveCount(kept);
     // The bar says the picks and offers its act for them alone; nothing is pressed.
     await expect(page.getByText(`${kept} selected`).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: new RegExp(`Add ${kept} to a sequence`) }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: new RegExp(`Add ${kept} to a campaign`) }).first()).toBeVisible();
     await flip(word);
     await expect(rows, "the Filter off shows every lead again").toHaveCount(all);
     await expect(picked, "and the leads picked stay picked: a narrowing never clears a selection").toHaveCount(kept);

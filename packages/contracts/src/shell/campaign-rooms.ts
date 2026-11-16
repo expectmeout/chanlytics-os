@@ -11,7 +11,7 @@ import { WHATSAPP_REVIEW_TAKES } from "../campaigns/templates/templates";
 
 export const CAMPAIGN_ROOMS = {
   home: "Campaigns",
-  sequences: "Sequences",
+  sequences: "Campaigns",
   /** Where a sequence or a one-off is begun (decision 0065). */
   new: "New",
   library: "Messages",

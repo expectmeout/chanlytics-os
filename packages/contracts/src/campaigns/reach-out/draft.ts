@@ -328,7 +328,7 @@ export function reachOutDoorOf(
   reachOutReach: ReachOutReachDto | null,
 ): { kind: "open"; label: string; rootId: string } | { kind: "write"; label: string; include: boolean } | null {
   if (!reachOutReach) return null;
-  if (reachOutReach.chain) return { kind: "open", label: "Open its sequence", rootId: reachOutReach.chain };
+  if (reachOutReach.chain) return { kind: "open", label: "Open its campaign", rootId: reachOutReach.chain };
   if (reachOutReach.ready > 0)
     return { kind: "write", label: `Write to the ${reachOutReach.ready} ready`, include: false };
   const unconfirmed = Math.max(0, reachOutReach.with_unconfirmed - reachOutReach.ready);
@@ -397,7 +397,7 @@ export function reachOutSavedWords(saved: ReachOutSavedDto): {
   const run = saved.start ? saved.start.run_id : null;
   return run
     ? { ...startLine, to: runRoute(run), label: RUN_OPEN_WORDS }
-    : { ...startLine, to: sequenceRoute(saved.root_id), label: "Open its sequence" };
+    : { ...startLine, to: sequenceRoute(saved.root_id), label: "Open its campaign" };
 }
 
 /** The sheet's own labels: its parts, its fields and its acts. */
@@ -427,7 +427,7 @@ export const REACH_OUT_SHEET_PARTS = {
   starting: "Starting…",
   saving: "Saving…",
   cancel: "Cancel",
-  name: "The sequence's name",
+  name: "The campaign's name",
   fromLine: "From",
   toLine: "To",
   subjectLine: "Subject",

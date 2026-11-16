@@ -91,7 +91,7 @@ export function SheetPicker(p: PickerProps) {
               onClick={() => !p.busy && p.onPick(r)}
               onKeyDown={pressKeys(() => !p.busy && p.onPick(r))}
               data-testid={`lead-sheet-pick-${r.id}`}
-              {...gate("approve", "add this lead to a sequence")}
+              {...gate("approve", "add this lead to a campaign")}
             />
           ))}
         </div>
@@ -110,7 +110,7 @@ export function SheetPicker(p: PickerProps) {
         onClick={p.onNew}
         onKeyDown={pressKeys(p.onNew)}
         data-testid="lead-sheet-new"
-        {...gate("approve", "start a sequence")}
+        {...gate("approve", "start a campaign")}
       />
       {p.onWrite ? (
         <ListRow
@@ -274,7 +274,7 @@ export function SheetNew(p: NewProps) {
         aria-busy={p.busy || drafting || undefined}
         onClick={() => p.onCreate(name.trim(), start)}
         data-testid="lead-sheet-new-create"
-        {...gate("approve", "start a sequence")}
+        {...gate("approve", "start a campaign")}
       >
         {drafting ? W.make.drafting : who ? W.make.create(who) : W.make.createMany("count" in p.who ? p.who.count : 0)}
       </Button>
