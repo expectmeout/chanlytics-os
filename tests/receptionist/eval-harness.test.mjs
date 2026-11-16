@@ -172,7 +172,7 @@ test("the token budget: a policy limit, a check before the brain, a labelled rea
     "the cap is handed to the read, which stops at it",
   );
   assert.ok(/handToAPerson\(at, \{\s*reason: "budget",/.test(wa));
-  assert.ok(wa.includes('"(no reply sent — the daily AI limit is reached)"'));
+  assert.ok(wa.includes('"(no reply sent · the daily AI limit is reached)"'));
   const sql = readRaw("supabase/migrations/00039_budget_reason.sql");
   assert.ok(sql.includes("'budget'"), "the CHECK admits the reason");
   const route = readCode(

@@ -178,7 +178,7 @@ export function reachOutDayWords(reachOutDayNumbers: ReachOutDayNumbers): { titl
   if (reachOutDayNumbers.said_no) clauses.push(`${reachOutDayNumbers.said_no} said no`);
   if (reachOutDayNumbers.bounced) clauses.push(`${reachOutDayNumbers.bounced} bounced`);
   if (reachOutDayNumbers.held)
-    clauses.push(`${reachOutDayNumbers.held} wait${reachOutDayNumbers.held === 1 ? "s" : ""} for your say`);
+    clauses.push(`${reachOutDayNumbers.held} wait${reachOutDayNumbers.held === 1 ? "s" : ""} for your approval`);
   return {
     title: "Today's emails to leads",
     body: clauses.length ? `${clauses.join(" · ")}.` : "Nothing happened today.",

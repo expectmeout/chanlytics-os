@@ -9,6 +9,7 @@ export {
   CALENDAR_UNREADABLE_WORDS,
   GOOGLE_SYNC_NOTICE_WORDS,
   GOOGLE_SYNC_TOLD_AFTER_MS,
+  NUMBER_FLAG_TITLES,
 } from "./connection-news";
 export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } from "./member-news";
 export type { MemberJoined } from "./member-news";

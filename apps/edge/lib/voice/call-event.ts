@@ -450,7 +450,7 @@ export function missedCallNotice(
     subject: `${callAttemptWords("inbound")} · ${personName}`,
     body:
       `${normalizedCall.fromE164 ? `${normalizedCall.fromE164} rang` : "A caller rang"} and the call never connected, so nobody spoke with them. ` +
-      "Call them back, or write to them from their thread.",
+      "Call them back, or write to them from their conversation.",
     redactedBody: "A customer's call to a workspace never connected.",
   };
 }

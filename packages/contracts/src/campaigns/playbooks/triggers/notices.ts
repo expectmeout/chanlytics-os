@@ -108,7 +108,7 @@ export function coldBatchGoesNotice(name: string, emails: number, when: string):
  * batch waits (batchModeOf), so it says both.
  */
 const NEXT_BATCH_WAITS =
-  "its batches wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask";
+  "its sends wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask";
 
 /**
  * What the owner is told when the sweep skips a customer's batch that waited for an OK past its day (decision 0064):
@@ -129,16 +129,16 @@ export function skippedRunNotice(
   if (at && triggerOf(trigger ?? "")?.kind === "freed")
     return {
       subject,
-      body: `${phrase} waited for your OK until ${at} came, and nothing was sent: that time has passed. The next cancellation offers its own time, and waits for your OK too: ${NEXT_BATCH_WAITS}.`,
+      body: `${phrase} waited for your approval until ${at} came, and nothing was sent, since that time has passed. The next cancellation offers its own time, and waits for your approval too: ${NEXT_BATCH_WAITS}.`,
     };
   if (approvalEndsWithSendingHours(trigger))
     return {
       subject,
-      body: `${phrase} waited for your OK until ${SENDING_HOURS_WORDS.end}, and it did not reach them: no later batch sends it in its place. Open it to see who, and write to them yourself. The next day’s “${name}” waits for your OK too, until ${SENDING_HOURS_WORDS.end}: ${NEXT_BATCH_WAITS}.`,
+      body: `${phrase} waited for your approval until ${SENDING_HOURS_WORDS.end}, and it didn’t reach them. No later send goes in its place. Open it to see who, and write to them yourself. The next day’s “${name}” waits for your approval too, until ${SENDING_HOURS_WORDS.end}: ${NEXT_BATCH_WAITS}.`,
     };
   return {
     subject,
-    body: `${phrase} waited for your OK until the day ended, and nothing was sent. They are in line for its next batch, which waits for your OK too: ${NEXT_BATCH_WAITS}.`,
+    body: `${phrase} waited for your approval until the day ended, and nothing was sent. They are in line for its next send, which waits for your approval too: ${NEXT_BATCH_WAITS}.`,
   };
 }
 
@@ -155,17 +155,17 @@ export function lateReminderSkippedNotice(
 ): { subject: string; body: string } {
   const subject = `“${name}” didn’t go: nobody approved it`;
   const unsent =
-    "it did not reach them, and no later batch sends it in its place. Open it to see who, and write to them yourself.";
+    "it didn’t reach them, and no later send goes in its place. Open it to see who, and write to them yourself.";
   // An occasion's waits only while its words are new (contracts sequenceModesFor: it never asks for each).
   if (triggerOf(trigger ?? "")?.kind === "occasion")
     return {
       subject,
-      body: `The message made for ${plural(people, "person", "people")} waited for your OK until it was too late to send: ${unsent} The next “${name}” waits for your OK too, until you approve one.`,
+      body: `The message made for ${plural(people, "person", "people")} waited for your approval until it was too late to send: ${unsent} The next “${name}” waits for your approval too, until you approve one.`,
     };
-  const after = `${unsent} The next “${name}” waits for your OK too: ${NEXT_BATCH_WAITS}.`;
+  const after = `${unsent} The next “${name}” waits for your approval too: ${NEXT_BATCH_WAITS}.`;
   return {
     subject,
-    body: `${plural(people, "person", "people")} booked after the day’s reminders went, and the reminder made for them waited for your OK until it was too late to send: ${after}`,
+    body: `${plural(people, "person", "people")} booked after the day’s reminders went, and the reminder made for them waited for your approval until it was too late to send: ${after}`,
   };
 }
 
@@ -178,8 +178,8 @@ export function lateReminderSkippedNotice(
  */
 export function leftBehindNotice(name: string, people: number): { subject: string; body: string } {
   return {
-    subject: `“${name}” is skipping people while it waits for your OK`,
-    body: `${plural(people, "person’s message", "people’s messages")} did not go: “${name}” still waits for your first OK of its words, and their time passed while it waited. Nothing later sends it in its place. Each person after them is skipped the same way until you approve or skip the one that waits, from your Inbox or Today.`,
+    subject: `“${name}” is skipping people while it waits for your approval`,
+    body: `${plural(people, "person’s message", "people’s messages")} didn’t go: “${name}” still waits for your first approval of its words, and their time passed while it waited. Nothing later sends it in its place. Each person after them is skipped the same way until you approve or skip the one that waits, from your Inbox or Today.`,
   };
 }
 
@@ -200,7 +200,7 @@ export const PLAYBOOK_NAME_MAX = 80;
 export const CAMPAIGN_NOT_FOUND = "Campaign not found.";
 
 /** What a moment's doors say when handed a reach-out's step: the one refusal, in one place. */
-export const REACH_OUT_IS_NOT_A_MOMENT = "A sequence to leads starts from a search's leads, not at a moment.";
+export const REACH_OUT_IS_NOT_A_MOMENT = "Cold email starts from a search's leads, not at a moment.";
 
 export function triggerOf(id: string): (typeof PLAYBOOK_TRIGGERS)[number] | null {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;

@@ -85,7 +85,7 @@ test("a person's reply from a lead is kept, flagged in its own words, then hande
   assert.deepEqual(w.call("reachOutReply"), ["reachOutReply", T, "m1"]);
   assert.deepEqual(w.call("readReply"), ["readReply", T, "m1"]);
   assert.deepEqual(w.call("escalate"), ["escalate", T, "c1", "email_review", EMAIL_REVIEW_WORDS.reach_out]);
-  assert.match(EMAIL_REVIEW_WORDS.reach_out, /^They wrote back to your sequence\. Nothing is sent without you/);
+  assert.match(EMAIL_REVIEW_WORDS.reach_out, /^They wrote back to your cold email\. Nothing is sent without you/);
   assert.equal(w.call("tell"), undefined, "the reading tells the owner what it meant: never twice");
 });
 

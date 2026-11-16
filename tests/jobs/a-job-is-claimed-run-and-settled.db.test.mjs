@@ -481,7 +481,7 @@ test(
     const row = await jobRow(jobId);
     assert.deepEqual([row.state, row.attempts, row.lease_until], ["failed", 3, null]);
     const box = ok(await db.from("mailboxes").select("last_error").eq("id", mailboxId).single());
-    assert.match(box.last_error ?? "", /could not be taken in/, "the owner's mailbox says so");
+    assert.match(box.last_error ?? "", /Couldn't take in an email/, "the owner's mailbox says so");
     assert.deepEqual(
       alerts.filter((a) => a.job === jobId).map((a) => a.kind),
       ["job_failed"],

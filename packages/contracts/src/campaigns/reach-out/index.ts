@@ -322,7 +322,7 @@ export { openingToldParts, reachOutExampleRecord, replyToldParts, toldPart, told
 export type { ReachOutToldDto, ToldKind, ToldPart, ToldPartId, TryPart, TrySource } from "./told";
 export { US_STATE_ZONES, zoneOfRegion } from "./us-zones";
 export type { UsStateCode } from "./us-zones";
-export { coldWaitsNotice, coldWaitsReminderKey, coldWaitsReminderOf } from "./waiting";
+export { coldWaitsNotice, coldWaitsReminderKey, coldWaitsReminderOf, coldWaitsTitle } from "./waiting";
 export type { WaitingColdRun } from "./waiting";
 export {
   CHAIN_MIN_LISTINGS,

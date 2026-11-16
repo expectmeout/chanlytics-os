@@ -100,7 +100,7 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
   // The WhatsApp-app echo pausing for the workspace's own pause_hours, and for
   // the default day when none is set, is run in whatsapp-door.test.mjs.
   assert.ok(
-    alerts.includes("AI is paused on this thread for ${ctx.pausedHours}h."),
+    alerts.includes("AI is paused on this conversation for ${ctx.pausedHours}h."),
     "and the handoff email states the same number",
   );
   // Stated only by a branch that actually paused the thread. The email used to

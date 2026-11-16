@@ -366,7 +366,7 @@ test(
     assert.deepEqual(planned1.map((s) => s.lead_id).sort(), [leads.tx, leads.ca].sort(), "never a customer's address");
     const told = ok(await db.from("notifications").select("title").eq("tenant_id", A));
     assert.ok(
-      told.some((n) => n.title.endsWith("waits for your OK")),
+      told.some((n) => n.title.endsWith("waits for your approval")),
       JSON.stringify(told),
     );
 

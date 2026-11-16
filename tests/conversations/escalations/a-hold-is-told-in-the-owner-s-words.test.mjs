@@ -21,7 +21,7 @@ import { holdNotice } from "../../../packages/core/src/deliver/hold-notice.ts";
 const facts = (over = {}) => ({
   conversationId: "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0",
   reason: "stale",
-  details: "Message arrived 42 minutes late — too old to answer automatically.",
+  details: "The message arrived 42 minutes late, too late for AI to answer.",
   who: "Rosa Diaz",
   address: "+13055550142",
   channel: "sms",
@@ -35,7 +35,7 @@ const facts = (over = {}) => ({
 test("every reason a hold can carry reaches the subject line in words, never as its token", () => {
   for (const reason of ESCALATION_REASONS) {
     const { subject } = holdNotice(facts({ reason }));
-    const why = subject.split(" — ")[1];
+    const why = subject.split(" · ")[1];
     assert.ok(why && why.length > 8, `${reason} has words (${subject})`);
     assert.ok(!why.includes("_") && why !== reason, `${reason} is never said as its token`);
   }
@@ -46,7 +46,7 @@ test("a reason has one vocabulary: the notice says what the Inbox says, and 'nob
     const n = holdNotice(facts({ reason }));
     assert.equal(
       n.subject,
-      `Rosa Diaz needs a person — ${ESCALATION_REASON_SHORT[reason]}`,
+      `Rosa Diaz needs a person · ${ESCALATION_REASON_SHORT[reason]}`,
       `${reason}: the Inbox's clause, not a second map's`,
     );
     assert.ok(
@@ -54,11 +54,11 @@ test("a reason has one vocabulary: the notice says what the Inbox says, and 'nob
       n.redactedBody,
     );
   }
-  assert.equal(holdNotice(facts({ reason: "deadman" })).subject, "Rosa Diaz needs a person — nobody picked this up");
-  assert.equal(holdNotice(facts({ reason: "manual" })).subject, "Rosa Diaz needs a person — flagged by hand");
+  assert.equal(holdNotice(facts({ reason: "deadman" })).subject, "Rosa Diaz needs a person · nobody picked this up");
+  assert.equal(holdNotice(facts({ reason: "manual" })).subject, "Rosa Diaz needs a person · flagged by hand");
   assert.equal(
     holdNotice(facts({ reason: "person_hold" })).subject,
-    "Rosa Diaz needs a person — you answer this person",
+    "Rosa Diaz needs a person · you answer this person",
   );
   // A reason the set does not know is a person needed, with no raw token said and no empty parenthesis.
   const odd = holdNotice(facts({ reason: "from_a_newer_deploy" }));
@@ -85,7 +85,7 @@ test("the reason carries its act: a reply to write, a call to return, or nothing
   // The pause rides after the verb, whichever it is.
   assert.ok(
     holdNotice(facts({ reason: "callback", pausedHours: 2 })).body.endsWith(
-      "Call them back — AI is paused on this thread for 2h.",
+      "Call them back. AI is paused on this conversation for 2h.",
     ),
   );
 });
@@ -100,16 +100,16 @@ test("the notice: who, their words, AI's, the hold's own, where to answer, the p
       { type: "conversation", id: "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0" },
     ],
   );
-  assert.equal(n.subject, "Rosa Diaz needs a person — too late for AI to answer");
+  assert.equal(n.subject, "Rosa Diaz needs a person · too late for AI to answer");
   assert.equal(
     n.body,
     [
       "They wrote: “Are you open Sunday?”",
       "AI: “We open at 10 on Sunday.”",
-      "Message arrived 42 minutes late — too old to answer automatically.",
+      "The message arrived 42 minutes late, too late for AI to answer.",
       "",
       "Text conversation · +1 (305) 555-0142",
-      "Reply from the Inbox — AI is paused on this thread for 24h.",
+      "Reply from the Inbox. AI is paused on this conversation for 24h.",
     ].join("\n"),
   );
   assert.equal(
@@ -129,7 +129,7 @@ test("the notice: who, their words, AI's, the hold's own, where to answer, the p
 
 test("someone erased is a customer: no name, no words, no number, no hold's words", () => {
   const n = holdNotice(facts({ erased: true, replyWords: "We open at 10." }));
-  assert.equal(n.subject, "A customer needs a person — too late for AI to answer");
+  assert.equal(n.subject, "A customer needs a person · too late for AI to answer");
   assert.equal(n.body, "Text conversation\nReply from the Inbox.");
 });
 
@@ -159,15 +159,15 @@ test("the notice a hold that could not be written is told by (the handler's own,
     ["carriers", "carriers"],
     ["paused", "paused"],
   ]) {
-    assert.equal(said(why).subject, `Rosa Diaz needs a person — ${ESCALATION_REASON_SHORT[reason]}`, why);
+    assert.equal(said(why).subject, `Rosa Diaz needs a person · ${ESCALATION_REASON_SHORT[reason]}`, why);
     assert.ok(said(why).body.endsWith(HOLD_ACT_WORDS[holdActOf(reason)].notice), why);
   }
   // A name that is no reason a hold carries is said in the handler's words, and one nobody knows as it came.
-  assert.equal(said("location").subject, "Rosa Diaz needs a person — shared a location");
-  assert.equal(said("something new").subject, "Rosa Diaz needs a person — something new");
+  assert.equal(said("location").subject, "Rosa Diaz needs a person · shared a location");
+  assert.equal(said("something new").subject, "Rosa Diaz needs a person · something new");
   assert.ok(
     said("passed to a human", { pausedHours: 24 }).body.endsWith(
-      "Reply from the Inbox — AI is paused on this thread for 24h.",
+      "Reply from the Inbox. AI is paused on this conversation for 24h.",
     ),
   );
 });

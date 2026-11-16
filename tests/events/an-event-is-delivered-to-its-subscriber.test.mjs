@@ -511,7 +511,7 @@ test("owner_notice tells the workspace of a hold once, from its rows: who, why, 
     ["handoff", `inbox/th-${CONV}`, { type: "conversation", id: CONV }, E],
   );
   // The Inbox's own words for the reason (ESCALATION_REASON_SHORT), not a second set of the notice's (D1-hold-reasons).
-  assert.equal(n.subject, "Rosa Diaz needs a person — too many replies too fast");
+  assert.equal(n.subject, "Rosa Diaz needs a person · too many replies too fast");
   assert.match(n.body, /^They wrote: “Can I move my visit to Friday\?”/);
   assert.match(n.body, /Thread hit 20 automatic replies today/);
   assert.match(n.body, /WhatsApp conversation · \+1 \(305\) 555-0142/);
@@ -533,7 +533,7 @@ test("owner_notice tells nobody of a hold answered since, nor of one an edge fro
     id: "f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1",
     tenant_id: T,
     kind: "handoff",
-    title: "Rosa Diaz needs a person — rate cap",
+    title: "Rosa Diaz needs a person · rate cap",
     body: "They wrote: …",
     route: `inbox/th-${CONV}`,
     subject_type: "conversation",
@@ -562,7 +562,7 @@ test("owner_notice reads a change by its hold, and names nobody erased", async (
   erased.tables.contacts[0].erased_at = "2026-10-05T00:00:00Z";
   assert.equal(await dispatchJob(erased.ctx, erased.job), "done");
   const [n] = erased.told;
-  assert.equal(n.subject, "A customer needs a person — too many replies too fast");
+  assert.equal(n.subject, "A customer needs a person · too many replies too fast");
   assert.doesNotMatch(n.body, /Rosa|Friday|305|Thread hit/, "no name, no words, no number of someone erased");
 });
 
@@ -579,7 +579,7 @@ test("owner_notice tells a hold's new reason a moment after it told the first: i
     id: "f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2",
     tenant_id: T,
     kind: "handoff",
-    title: "Rosa Diaz needs a person — asked for a person",
+    title: "Rosa Diaz needs a person · asked for a person",
     body: "They wrote: …",
     route: `inbox/th-${CONV}`,
     subject_type: "conversation",
@@ -591,7 +591,7 @@ test("owner_notice tells a hold's new reason a moment after it told the first: i
   assert.equal(await dispatchJob(w.ctx, w.job), "done");
   assert.deepEqual(
     w.told.map((n) => n.subject),
-    ["Rosa Diaz needs a person — too many replies too fast"],
+    ["Rosa Diaz needs a person · too many replies too fast"],
     "REGRESSION: a reason changed within the minute was swallowed by the first notice",
   );
 });

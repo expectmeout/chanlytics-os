@@ -283,7 +283,7 @@ test("call_started on a known agent: the normalised call reaches ingest_call, th
     [bells[0].tenant_id, bells[0].kind, bells[0].route, bells[0].subject_type, bells[0].subject_id],
     [w.T, "number", "start", "line", lineId],
   );
-  assert.equal(bells[0].title, "Forwarding works: calls to +1 (212) 555-0142 reach your receptionist");
+  assert.equal(bells[0].title, "Forwarding works: calls to +1 (212) 555-0142 reach AI");
   const verified = kind(w.tables, "line.forwarding_verified");
   assert.equal(verified.length, 1);
   assert.deepEqual(

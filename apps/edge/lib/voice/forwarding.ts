@@ -82,8 +82,8 @@ export async function markForwardingVerified(
       const kept = formatPhoneDisplay(row.e164) ?? row.e164 ?? "your number";
       await recordNotification(tenantId, {
         kind: "number",
-        title: `Forwarding works: calls to ${kept} reach your receptionist`,
-        body: `Your test call came through. Calls to ${kept} that you don't pick up now reach the receptionist; Setup reads the number as kept.`,
+        title: `Forwarding works: calls to ${kept} reach AI`,
+        body: `Your test call came through. Calls to ${kept} that you don't pick up now reach AI, and Setup shows the number as kept.`,
         route: FIRST_RUN_ROUTE,
         about: { type: "line", id: row.id },
       });

@@ -47,7 +47,15 @@ import { GO, type Answering } from "./context";
 const sentAtSecondsOf = (iso: string | null): number | undefined =>
   iso === null ? undefined : Date.parse(iso) / SECOND_MS;
 import { unattendedHold } from "./reply-posture";
-import { escalationOf, handledOf, handToAPerson, getProcessedAfter, SET_ASIDE, type Asked } from "./handled";
+import {
+  escalationOf,
+  handledOf,
+  handToAPerson,
+  getProcessedAfter,
+  SET_ASIDE,
+  TEAM_HAS_IT_NOTE,
+  type Asked,
+} from "./handled";
 import { toldFromItsEvent } from "../events/subscribers";
 import { heldByThread } from "../deliver/hold";
 
@@ -129,9 +137,9 @@ export async function isTooLate(at: Answering): Promise<typeof GO | undefined> {
       at,
       {
         reason: "stale",
-        details: `Message arrived ${Math.round(ageMs / 60000)} minutes late — too old to answer automatically.`,
+        details: `The message arrived ${Math.round(ageMs / 60000)} minutes late, too late for AI to answer.`,
         said: n.body ?? `[${n.rawType}]`,
-        answered: "(no reply sent — arrived too late to answer automatically)",
+        answered: "(no reply sent · too late for AI to answer)",
       },
       n.media ? [sink.media(n)] : [],
     );
@@ -245,7 +253,7 @@ async function heldWhileTheirs(at: Answering, bodyText: string): Promise<void> {
     details:
       "They wrote again while your team had this thread, so AI stayed out. Answer them, or hand the thread back.",
     said: bodyText,
-    answered: "(no reply sent — a person on your team has this thread)",
+    answered: TEAM_HAS_IT_NOTE,
   });
 }
 
@@ -309,9 +317,9 @@ export async function holdForThePerson(at: Answering, bodyText: string): Promise
     // fires on a busy thread, not only when someone lowers the limit.
     return handToAPerson(at, {
       reason: "rate_cap",
-      details: `Thread hit ${maxRepliesDay} automatic replies today — AI stopped and is waiting for a human.`,
+      details: `AI sent ${maxRepliesDay} replies in this conversation today, so it stopped and waits for a person.`,
       said: bodyText,
-      answered: "(no reply sent — daily automatic-reply limit reached)",
+      answered: "(no reply sent · the day's limit on replies is reached)",
     });
   }
   // THE PAUSE (tenants.status = 'paused', written by billing for a workspace
@@ -329,7 +337,7 @@ export async function holdForThePerson(at: Answering, bodyText: string): Promise
       // The Inbox's own sentence for this hold, said once (contracts ESCALATION_SUMMARIES).
       details: ESCALATION_SUMMARIES.paused,
       said: bodyText,
-      answered: "(no reply sent — the workspace is paused until billing resumes)",
+      answered: "(no reply sent · the workspace is paused until billing resumes)",
     });
   }
 
@@ -350,9 +358,9 @@ export async function holdForThePerson(at: Answering, bodyText: string): Promise
       L.info("wa_skip_budget", { cap: tokenCap, used });
       return handToAPerson(at, {
         reason: "budget",
-        details: `The daily AI limit is reached (${used.toLocaleString("en-US")} of ${tokenCap.toLocaleString("en-US")} tokens in the last 24 hours) — AI stopped and is waiting for a human.`,
+        details: `The daily AI limit is reached (${used.toLocaleString("en-US")} of ${tokenCap.toLocaleString("en-US")} used in the last 24 hours), so AI stopped and waits for a person.`,
         said: bodyText,
-        answered: "(no reply sent — the daily AI limit is reached)",
+        answered: "(no reply sent · the daily AI limit is reached)",
       });
     }
   }

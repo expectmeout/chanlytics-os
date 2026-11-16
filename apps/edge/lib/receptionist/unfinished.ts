@@ -266,7 +266,7 @@ async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void>
       if (!replied && r.conversation_id) {
         const waitedMin = Math.max(1, Math.round((now - new Date(r.created_at).getTime()) / MIN_MS));
         const words = short(r.body);
-        const detail = `AI never answered this: the message arrived ${waitedMin} minutes ago and its handling did not finish (a crash or a timeout after it was accepted). No reply has been sent — ${words ? `"${words}"` : "no text"}`;
+        const detail = `AI never answered this. The message arrived ${waitedMin} minutes ago and AI didn’t finish with it. No reply was sent · ${words ? `"${words}"` : "no text"}`;
         const flagged = await p.upsertEscalation(
           p.db,
           r.tenant_id,
@@ -286,7 +286,7 @@ async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void>
             body:
               `A message arrived ${waitedMin} minutes ago and AI never finished with it, so the customer has had no reply.\n\n` +
               `${words ? `They wrote: "${words}"\n\n` : ""}` +
-              `The thread is flagged for you in the Inbox. Reply there; nothing will be sent on its own.`,
+              `The conversation is flagged for you in the Inbox. Reply there. Nothing will be sent on its own.`,
             redactedBody: `A customer in this workspace wrote ${waitedMin} minutes ago and nothing answered; the thread is flagged.`,
           }));
         if (notice) out.told += 1;
@@ -358,7 +358,7 @@ async function failOrphans({ p, now, out, tell, late }: Tick): Promise<void> {
             route: `inbox/th-${s.conversation_id}`,
             about: { type: "conversation", id: s.conversation_id },
             subject: "A reply never left",
-            body: `${person} was queued and ${ORPHAN_NOTE}, so it never reached the customer. The thread is flagged for you in the Inbox; check it before sending again.`,
+            body: `${person} was waiting to go and ${ORPHAN_NOTE}, so it never reached the customer. The conversation is flagged for you in the Inbox. Check it before sending again.`,
             redactedBody: "A queued reply in this workspace never left; the thread is flagged.",
           }));
         if (notice) out.told += 1;

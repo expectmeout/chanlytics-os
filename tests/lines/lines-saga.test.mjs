@@ -538,7 +538,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
     prov.includes('kind: "number",') && prov.includes("title: `Your phone line is ready: ${shown}`"),
     "the bell on success",
   );
-  assert.ok(prov.includes("Your phone line hit a snag — a person at Chanlytics has it"), "the bell on failure");
+  assert.ok(prov.includes("Setting up your phone line stopped · Chanlytics is on it"), "the bell on failure");
   assert.ok(prov.includes("{ tenantId: null, notifications: null }"), "the platform hears a failure");
   for (const k of ["line.answering", "line.failed", "line.released"]) assert.ok(EVENT_KINDS.includes(k), k);
   const lib = readCode("apps/edge/lib/lines/lines.ts");

@@ -28,6 +28,7 @@ import { syncTemplates } from "./template-admin.js";
 import {
   addressOf,
   nameDecisionWords,
+  NUMBER_FLAG_TITLES,
   parseTenantConfig,
   samePhone,
   standingAfterNameDecision,
@@ -299,14 +300,14 @@ export function describeWabaChange(wabaChange: WabaChange, number: string | null
       if (event === "FLAGGED")
         return {
           ...NUM,
-          subject: "WhatsApp quality rating flagged",
-          body: `${line} has been flagged by WhatsApp. Customers may see delays. Keep replies to what they asked for; the rating recovers on its own when they stop reporting messages.`,
+          subject: NUMBER_FLAG_TITLES.flagged,
+          body: `${line} has been flagged by WhatsApp. Customers may see delays. Keep replies to what they asked for, and the flag lifts on its own once people stop reporting messages.`,
           alert: true,
         };
       if (event === "UNFLAGGED")
         return {
           ...NUM,
-          subject: "WhatsApp quality rating back to normal",
+          subject: NUMBER_FLAG_TITLES.cleared,
           body: `${line} is no longer flagged.`,
           alert: false,
         };

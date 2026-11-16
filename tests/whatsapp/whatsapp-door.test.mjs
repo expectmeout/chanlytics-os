@@ -755,14 +755,14 @@ test("the account's own news is routed by its WABA and never by a number: kept a
 
         assert.deepEqual(
           w.tables.notifications.map((n) => [n.tenant_id, n.kind, n.route, n.title]),
-          [[w.T, "number", "admin/integrations", "WhatsApp quality rating flagged"]],
+          [[w.T, "number", "admin/integrations", "WhatsApp flagged your number"]],
           "the workspace's bell",
         );
         const mail = line.mail();
         assert.equal(mail.length, 1);
         assert.deepEqual(
           [mail[0].to, mail[0].subject],
-          [[OWNER], "WhatsApp quality rating flagged"],
+          [[OWNER], "WhatsApp flagged your number"],
           "and the workspace's own mailbox",
         );
         assert.ok(mail[0].text.includes(`Your WhatsApp number ${w.LINE} has been flagged`), mail[0].text);
