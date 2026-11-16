@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 186 | 186 |
+| door | 187 | 187 |
 | reader | 77 | 0 |
-| the server's | 343 | 298 |
+| the server's | 344 | 299 |
 | computed column | 3 | 0 |
-| trigger | 101 | 71 |
-| all | 710 | 555 |
+| trigger | 103 | 73 |
+| all | 714 | 559 |
 
 ## Called by nothing
 
@@ -207,7 +207,7 @@ being read is dropped by a migration.
 | `handover_accept` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The caller, by the confirmed address a workspace was handed to (0016), becomes its owner: |
 | `handover_decline` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The addressee of a handover (0016) says no. |
 | `handovers_mine` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The open handovers (0016) addressed to the caller's confirmed email: |
-| `has_permission` | the server's | the server | code `packages/db/src/repositories/files/posts.ts`; SQL `caller_has_permission`, `capability_activate` and 27 more | Whether this user may do this in this workspace, by role: |
+| `has_permission` | the server's | the server | code `packages/db/src/repositories/files/posts.ts`; SQL `caller_has_permission`, `capability_activate` and 28 more | Whether this user may do this in this workspace, by role: |
 | `has_relationship` | computed column | a signed-in person, the server | code `packages/contracts/src/consent/asks.ts`, `packages/contracts/src/consent/consent.ts` and 9 more; SQL `offers_email_reach` | Whether a person has a relationship with the business on record (spec 4.1): |
 | `held_draft_outcome` | reader | a signed-in person, the server | SQL `held_drafts_by_intent` | What became of one of the receptionist's held drafts (decision 0063), from its status and its error: |
 | `held_drafts_by_intent` | reader | a signed-in person, the server | code `packages/db/src/repositories/facts/held-drafts.ts` | The Autonomy pane's evidence (decision 0063): |
@@ -268,6 +268,7 @@ being read is dropped by a migration.
 | `lead_month` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 12 more | The workspace's calendar month of an instant, YYYY-MM, in tenants.timezone: |
 | `lead_month_used` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | What this workspace has used and reserved of the month's two ceilings, as {allowance: |
 | `lead_name_key` | the server's | the server | SQL `reach_out_record` |  |
+| `lead_named` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | The owner's own name or city for a lead (permission find; |
 | `lead_niche_prior` | door | a signed-in person, the server | code `apps/dashboard/src/server/leads/plan-facts.ts`, `packages/db/src/repositories/leads/workbench.ts` | The platform-wide prior for a kind of business ({places, matched, with_email}), or null when the kind was never searched. |
 | `lead_people_search_create` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | Owner (find). A people search (00430), as lead_search_create is a places one: |
 | `lead_person_forget` | the server's | the server | SQL `leads_erase_on_contact` | Erasure of a person named at companies (00430): |
@@ -275,6 +276,7 @@ being read is dropped by a migration.
 | `lead_pile_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/campaigns/reach-out/leads.ts` | The pile's progress line (00426), under the caller's row security: |
 | `lead_plan_check` | the server's | the server | SQL `lead_round_answer`, `lead_search_create` and 1 more | Raises 22023 naming the key when a plan is not the shape LeadSearchPlanSchema describes: |
 | `lead_previews_erase_with_their_lead` | trigger | the server | trigger `lead_previews_erase_with_their_lead on leads` |  |
+| `lead_previews_notify` | trigger | the server | trigger `lead_previews_notify on lead_previews` | The bell's line when a lead first texts, and first calls, their own preview (00632): |
 | `lead_previews_take_their_workspace` | trigger | the server | trigger `lead_previews_take_their_workspace on lead_previews` |  |
 | `lead_release` | the server's | the server | SQL `lead_round_end` | Gives back what a round reserved and did not use, to the four rows it took from -- the round's own month, day and platform_day -- in the same lock order as lead_reserve. |
 | `lead_renews_on` | the server's | the server | SQL `lead_member_move`, `lead_reserve` and 2 more | The first day of the workspace's next calendar month, as the sentence says it: |
@@ -316,6 +318,7 @@ being read is dropped by a migration.
 | `lead_suggestions_write` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | The one writer of lead_suggestions (00400, 00470, 00473), by act: |
 | `lead_suppression_hash` | the server's | the server | SQL `email_marketing_on_erase`, `lead_addresses_suppressed` and 12 more | The erasure digest (00263 erasure_digest): |
 | `lead_tells_its_person` | trigger | the server | trigger `leads_tell_their_person on leads` | Decision 0052: a lead that names a person (leads.contact_id: |
+| `lead_tried_notes_forget` | trigger | the server | trigger `lead_tried_notes_forget on leads` | A lead blanked or erased takes the bell's lines about its preview with it (00632): |
 | `lead_undo` | door | a signed-in person, the server | code `packages/contracts/src/ask/proposals/lead-work.ts`, `packages/db/src/repositories/leads/search-acts.ts` | Undoes one operation by its id and the version the client saw: |
 | `lead_view_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | What a view of Leads holds (lead_view_rows, each lead once as the page draws it and lead_bulk acts on it): |
 | `lead_view_rows` | reader | a signed-in person, the server | code `packages/contracts/src/leads/plan-schema.ts`; SQL `lead_bulk`, `lead_view_counts` and 1 more | Which leads a view of Leads holds, the one door leads_page, lead_view_counts and lead_bulk read it through (00554): |
@@ -467,6 +470,7 @@ being read is dropped by a migration.
 | `platform_clocks` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Every registered clock (sweep_status) with its pg_cron schedule and, over the last p_days (at most 14, the history kept), how many times it ran, how many of those failed, and the newest failure's word |
 | `platform_find` | door | a signed-in person, the server | code `packages/db/src/repositories/console/staff.ts` | The Console's Find (00467, decision 0066): |
 | `platform_health_parts` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Every part the Console's Health draws, over the last p_days (at most 90; |
+| `platform_health_previews` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Health's read of leads' previews over the last p_days (1 to 90; |
 | `platform_metrics_read` | the server's | the server | code `packages/db/src/repositories/ops/console.ts` | The back office's read of platform_metrics (00277): |
 | `platform_metrics_roll` | the server's | the server | the clock, `platform-metrics-roll` | Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day's rows (00277), then keeps what the lenses read (00316), then the spine's |
 | `platform_model_spend` | the server's | the server | code `packages/db/src/repositories/console/staff.ts` | The Console (00467, decision 0066): |
@@ -495,7 +499,7 @@ being read is dropped by a migration.
 | `preview_make` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | A lead's preview (0079): |
 | `preview_not_right` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | What a business said is not right on its preview (0079): |
 | `preview_opened` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | A preview's page drawn in a browser (0079): |
-| `preview_said` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | A message to a preview and its receptionist's answer (0079), kept in its turns: |
+| `preview_said` | the server's | the server | code `packages/contracts/src/campaigns/reach-out/opening.ts`, `packages/contracts/src/campaigns/reach-out/words/opening.ts` and 1 more | A message to a preview and its receptionist's answer (0079), kept in its turns: |
 | `preview_sent` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | The first email that carried a preview (0079): |
 | `profile_set` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/me/route.ts`, `packages/db/src/repositories/auth/account.ts` | Your own display name, trimmed, at most 80 characters; |
 | `provider_code_of` | reader | a signed-in person, the server | SQL `campaign_ledger` | The provider's error code on a failed message, wherever the writer put it: |
@@ -541,7 +545,7 @@ being read is dropped by a migration.
 | `reach_out_due_mailboxes` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/email-day.ts` | The connected, rested mailboxes with a reach-out send due and going ahead (checked, its run and chain running), earliest first (00424). |
 | `reach_out_finishable` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/reach-out.ts` |  |
 | `reach_out_followers` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/reach-out.ts` | A later reach-out step's leads: |
-| `reach_out_given_up` | reader | a signed-in person, the server | SQL `reach_out_recheck`, `reach_out_send_decide` |  |
+| `reach_out_given_up` | reader | a signed-in person, the server | SQL `lead_named`, `reach_out_recheck` and 1 more |  |
 | `reach_out_hand_run` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/sheet.ts` | A reach-out's hand step's run for a day (Reach out Part 5, G20), written whole: |
 | `reach_out_lead_stop` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/reach-out/chain-doors.ts` | "Stop writing to them" (Reach out Part 6, H10), an acting member's door: |
 | `reach_out_lead_timeline` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/reach-out/chain-doors.ts` | One lead's reach-out (Reach out Part 6, H9, H11), for a member: |
@@ -554,7 +558,7 @@ being read is dropped by a migration.
 | `reach_out_plan_run` | the server's | the server | code `packages/db/src/repositories/campaigns/sequences/runs.ts` | A reach-out step's run and its sends, written whole (core runReachOut): |
 | `reach_out_reach` | door | a signed-in person, the server | code `apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts`, `packages/db/src/repositories/campaigns/reach-out/chain-doors.ts` |  |
 | `reach_out_read_take` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/outreach.ts` |  |
-| `reach_out_recheck` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/sheet.ts`; SQL `reach_out_release_unavailable`, `reach_out_run_recheck` and 3 more |  |
+| `reach_out_recheck` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/sheet.ts`; SQL `lead_named`, `reach_out_release_unavailable` and 4 more |  |
 | `reach_out_record` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/check.ts`; SQL `sequence_unchecked` | One business's record as the check reads it (00197; |
 | `reach_out_release_unavailable` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/check.ts` |  |
 | `reach_out_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/reach-out/chain-doors.ts` |  |

@@ -74,7 +74,7 @@ export async function findLeadOfReply(db: Db, tenantId: TenantId, conversationId
     .order("read_at", { ascending: false })
     .limit(1);
   if (error) throw new DbFailure(error, "cannot read whose reply this is");
-  return data?.[0]?.lead_id ?? null;
+  return data[0]?.lead_id ?? null;
 }
 
 /** A lead's preview made, or the one that stands (the service role's). */

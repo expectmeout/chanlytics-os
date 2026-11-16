@@ -11148,6 +11148,118 @@ CREATE FUNCTION public.lead_name_key(p_name text) RETURNS text
 
 
 --
+-- Name: lead_named(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_named(p_lead_id uuid, p_business_name text DEFAULT NULL::text, p_city text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user  uuid := auth.uid();
+  v_lead  public.leads%rowtype;
+  -- As typed, with its spaces made single: nothing else is changed.
+  v_name  text := nullif(btrim(regexp_replace(coalesce(p_business_name, ''), '\s+', ' ', 'g')), '');
+  v_city  text := nullif(btrim(regexp_replace(coalesce(p_city, ''), '\s+', ' ', 'g')), '');
+  v_own   jsonb;
+  v_was   jsonb;
+  v_facts jsonb;
+  v_again integer := 0;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- Whose it is, then the lead locked: a lead of a workspace the caller may not find leads in is never held.
+  select * into v_lead from public.leads where id = p_lead_id;
+  if not found or not public.has_permission(v_user, v_lead.tenant_id, 'find') then
+    raise exception 'Lead not found.' using errcode = 'P0002';
+  end if;
+  select * into v_lead from public.leads where id = p_lead_id for update;
+  if v_lead.erased_at is not null or v_lead.blanked_at is not null then
+    return jsonb_build_object('error', 'gone');
+  end if;
+  if v_name is not null and char_length(v_name) not between 2 and 200 then
+    return jsonb_build_object('error', 'bad_name');
+  end if;
+  if v_city is not null and char_length(v_city) > 120 then
+    return jsonb_build_object('error', 'bad_city');
+  end if;
+
+  v_own := case when jsonb_typeof(v_lead.facts->'own') = 'object' then v_lead.facts->'own' else '{}'::jsonb end;
+  -- What it says already, as its owner's own, is no change. The listing's own name typed again IS one: it becomes the
+  -- owner's, said as typed from then on.
+  if v_name is not null and v_name = v_lead.business_name and v_own->>'name' = 'true' then
+    v_name := null;
+  end if;
+  if v_city is not null and v_city = v_lead.city and v_own->>'city' = 'true' then
+    v_city := null;
+  end if;
+  if v_name is null and v_city is null then
+    return jsonb_build_object('error', 'nothing');
+  end if;
+
+  -- What the listing said, kept the first time a value is put right.
+  v_was := case when jsonb_typeof(v_own->'was') = 'object' then v_own->'was' else '{}'::jsonb end;
+  if v_name is not null and not (v_was ? 'name') then
+    v_was := v_was || jsonb_build_object('name', v_lead.business_name);
+  end if;
+  if v_city is not null and not (v_was ? 'city') then
+    v_was := v_was || jsonb_build_object('city', v_lead.city);
+  end if;
+  v_own := v_own
+           || case when v_name is not null then '{"name": true}'::jsonb else '{}'::jsonb end
+           || case when v_city is not null then '{"city": true}'::jsonb else '{}'::jsonb end;
+  v_facts := jsonb_set(v_lead.facts, '{own}', v_own || jsonb_build_object('was', v_was));
+  -- A lead whose facts are near their most (leads_facts_is_an_object) keeps the marks and not what the listing said.
+  if octet_length(v_facts::text) > 8000 then
+    v_facts := jsonb_set(v_lead.facts, '{own}', v_own - 'was');
+  end if;
+
+  update public.leads
+     set business_name = coalesce(v_name, business_name),
+         city = coalesce(v_city, city),
+         facts = v_facts,
+         version = version + 1
+   where id = v_lead.id;
+
+  -- Each email of theirs still waiting that holds a line written from the record as it was: written again.
+  select public.reach_out_recheck(
+           array(select s.id from public.sequence_sends s
+                  where s.tenant_id = v_lead.tenant_id and s.lead_id = v_lead.id
+                    and s.state in ('planned', 'held') and s.opening is not null
+                    and not public.reach_out_given_up(s.created_at)),
+           v_lead.tenant_id)
+    into v_again;
+
+  -- Their preview's workspace takes the name while it is still a preview; one made theirs is theirs to name.
+  if v_name is not null then
+    update public.tenants t
+       set name = left(v_name, 120)
+      from public.lead_previews p
+     where p.tenant_id = v_lead.tenant_id and p.lead_id = v_lead.id
+       and t.id = p.preview_tenant_id and t.status = 'preview';
+  end if;
+
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_lead.tenant_id, 'lead.named', 'lead', 'lead', v_lead.id,
+          jsonb_build_object('name', v_name is not null, 'city', v_city is not null,
+                             'again', coalesce(v_again, 0), 'by', v_user));
+  return jsonb_build_object('ok', true,
+                            'business_name', coalesce(v_name, v_lead.business_name),
+                            'city', coalesce(v_city, v_lead.city),
+                            'again', coalesce(v_again, 0),
+                            'version', v_lead.version + 1);
+end $$;
+
+
+--
+-- Name: FUNCTION lead_named(p_lead_id uuid, p_business_name text, p_city text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_named(p_lead_id uuid, p_business_name text, p_city text) IS 'The owner''s own name or city for a lead (permission find; 00631): written as typed and marked in facts.own ({name, city, was: what the listing said}), so every email says it and a listing''s tidy-up never touches it. Emails of theirs still waiting that hold a written line are sent back to be written again (the count is `again`), and their preview''s workspace takes the name while it is a preview. {ok, business_name, city, again, version}, or {error: gone | bad_name | bad_city | nothing}. Raises 28000 with no session and P0002 for a lead the caller may not find.';
+
+
+--
 -- Name: lead_niche_prior(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11502,6 +11614,62 @@ begin
   end if;
   return new;
 end $$;
+
+
+--
+-- Name: lead_previews_notify(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_previews_notify() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_did   text;
+  v_name  text;
+  v_phone text;
+begin
+  -- The first message, and the first call: each rings once. A count only rises, so its step off zero is the once.
+  if OLD.asked_count = 0 and NEW.asked_count > 0 then
+    v_did := 'texted';
+  elsif OLD.call_count = 0 and NEW.call_count > 0 then
+    v_did := 'called';
+  else
+    return null;
+  end if;
+  begin
+    -- The name its preview answers by (the lead's, as it is called; lead_named keeps the two the same), else the lead's.
+    select coalesce(nullif(btrim(t.name), ''), nullif(btrim(l.business_name), ''), 'A lead'),
+           case when l.phone_wrong then null else nullif(btrim(l.phone_e164), '') end
+      into v_name, v_phone
+      from public.leads l
+      left join public.tenants t on t.id = NEW.preview_tenant_id
+     where l.tenant_id = NEW.tenant_id and l.id = NEW.lead_id;
+    if not found then
+      return null;
+    end if;
+    insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id)
+    values (NEW.tenant_id, 'preview_tried',
+            left(v_name || ' ' || v_did || ' their preview', 200),
+            case when v_phone is null then 'No number is on file for them.'
+                 when v_phone ~ '^\+1[0-9]{10}$' then
+                   'Their number is +1 (' || substr(v_phone, 3, 3) || ') ' || substr(v_phone, 6, 3) || '-'
+                   || substr(v_phone, 9, 4) || '.'
+                 else 'Their number is ' || v_phone || '.' end,
+            'clients/leads:p-' || NEW.lead_id::text, 'lead', NEW.lead_id::text);
+  exception when others then
+    -- The bell's line never costs a lead their message or their call.
+    raise warning 'lead_previews_notify: %', sqlerrm;
+  end;
+  return null;
+end $_$;
+
+
+--
+-- Name: FUNCTION lead_previews_notify(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_previews_notify() IS 'The bell''s line when a lead first texts, and first calls, their own preview (00632): one preview_tried row for the sender''s workspace, titled with the business and what it did, its body the lead''s number where its listing has one nobody marked wrong, opening the lead. Written after preview_said or preview_called moves a count off zero; a line that cannot be written is a warning, never the lead''s failure.';
 
 
 --
@@ -14039,6 +14207,29 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.lead_tells_its_person() IS 'Decision 0052: a lead that names a person (leads.contact_id: its first email, an Interested call, a person who wrote from its own number or address) sets that person''s lead_id when they work nowhere yet, or when this lead is newer and nobody settled where they work; contact.business_linked {lead_id, via lead}. One way: it never writes leads.';
+
+
+--
+-- Name: lead_tried_notes_forget(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_tried_notes_forget() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  delete from public.notifications n
+   where n.tenant_id = NEW.tenant_id and n.kind = 'preview_tried'
+     and n.subject_type = 'lead' and n.subject_id = NEW.id::text;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION lead_tried_notes_forget(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_tried_notes_forget() IS 'A lead blanked or erased takes the bell''s lines about its preview with it (00632): they hold its name and its number.';
 
 
 --
@@ -22110,6 +22301,43 @@ $$;
 --
 
 COMMENT ON FUNCTION public.platform_health_parts(p_days integer) IS 'Every part the Console''s Health draws, over the last p_days (at most 90; webhooks a week, as provider_events keeps): sends by channel and status with the providers'' failure codes, calls by outcome, webhooks by provider, billing events, model calls by purpose and outcome and by workspace with the failures'' reasons, event deliveries by subscriber, Ask''s answers with their percentiles, tools, failures and threads, and the lines, channels, Google syncs and mailboxes that are not healthy. Each keyed by whether its workspace is ours (00469, decision 0068). Nobody''s words. Service role.';
+
+
+--
+-- Name: platform_health_previews(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_health_previews(p_days integer DEFAULT 7) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with w as (
+    select now() - make_interval(days => least(greatest(coalesce(p_days, 7), 1), 90)) as since,
+           date_trunc('day', now(), 'UTC') as today
+  ),
+  p as (select lp.* from public.lead_previews lp, w where lp.created_at >= w.since)
+  select jsonb_build_object(
+    'made', (select count(*) from p),
+    'made_today', (select count(*) from public.lead_previews lp, w where lp.created_at >= w.today),
+    'tried', (select count(*) from p where p.tried_at is not null),
+    'claimed', (select count(*) from p where p.state = 'claimed'),
+    'messages', (select coalesce(sum(p.asked_count), 0) from p),
+    'call_seconds', (select coalesce(sum(p.call_seconds), 0) from p),
+    -- What the model cost on the preview workspaces that still stand, until each was made theirs: an ended preview's
+    -- workspace is erased, and its usage with it.
+    'usd', (select coalesce(sum(u.usd), 0)
+              from public.lead_previews lp
+              join public.ai_usage u on u.tenant_id = lp.preview_tenant_id
+              cross join w
+             where u.created_at >= w.since and (lp.claimed_at is null or u.created_at <= lp.claimed_at)))
+$$;
+
+
+--
+-- Name: FUNCTION platform_health_previews(p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.platform_health_previews(p_days integer) IS 'Health''s read of leads'' previews over the last p_days (1 to 90; 00632): {made, made_today (this UTC day), tried, claimed, messages, call_seconds, usd}. usd is the model''s cost on the preview workspaces that still stand, until each was made theirs; an ended preview''s workspace is erased and its usage with it. Service role only.';
 
 
 --
@@ -40920,7 +41148,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -45436,6 +45664,13 @@ CREATE INDEX lead_previews_ending ON public.lead_previews USING btree (ends_at) 
 
 
 --
+-- Name: lead_previews_made_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_previews_made_at ON public.lead_previews USING btree (tenant_id, created_at);
+
+
+--
 -- Name: lead_previews_one_per_lead; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -47361,6 +47596,13 @@ CREATE TRIGGER lead_previews_erase_with_their_lead AFTER UPDATE OF blanked_at, e
 
 
 --
+-- Name: lead_previews lead_previews_notify; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lead_previews_notify AFTER UPDATE OF asked_count, call_count ON public.lead_previews FOR EACH ROW EXECUTE FUNCTION public.lead_previews_notify();
+
+
+--
 -- Name: lead_previews lead_previews_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -47407,6 +47649,13 @@ CREATE TRIGGER lead_runs_guard BEFORE UPDATE ON public.lead_runs FOR EACH ROW EX
 --
 
 CREATE TRIGGER lead_suppressions_erasure_digest_keyed BEFORE INSERT OR UPDATE OF hash ON public.lead_suppressions FOR EACH ROW WHEN ((new.hash !~~ 'h1:%'::text)) EXECUTE FUNCTION public.erasure_digest_keyed_on_write();
+
+
+--
+-- Name: leads lead_tried_notes_forget; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lead_tried_notes_forget AFTER UPDATE OF blanked_at, erased_at ON public.leads FOR EACH ROW WHEN ((((new.blanked_at IS NOT NULL) AND (old.blanked_at IS NULL)) OR ((new.erased_at IS NOT NULL) AND (old.erased_at IS NULL)))) EXECUTE FUNCTION public.lead_tried_notes_forget();
 
 
 --
@@ -54580,6 +54829,15 @@ GRANT ALL ON FUNCTION public.lead_name_key(p_name text) TO service_role;
 
 
 --
+-- Name: FUNCTION lead_named(p_lead_id uuid, p_business_name text, p_city text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_named(p_lead_id uuid, p_business_name text, p_city text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_named(p_lead_id uuid, p_business_name text, p_city text) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_named(p_lead_id uuid, p_business_name text, p_city text) TO service_role;
+
+
+--
 -- Name: FUNCTION lead_niche_prior(p_category_key text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -54636,6 +54894,14 @@ GRANT ALL ON FUNCTION public.lead_plan_check(p_plan jsonb) TO service_role;
 
 REVOKE ALL ON FUNCTION public.lead_previews_erase_with_their_lead() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_previews_erase_with_their_lead() TO service_role;
+
+
+--
+-- Name: FUNCTION lead_previews_notify(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_previews_notify() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_previews_notify() TO service_role;
 
 
 --
@@ -54978,6 +55244,14 @@ GRANT ALL ON FUNCTION public.lead_suppression_hash(p_tenant_id uuid, p_value tex
 
 REVOKE ALL ON FUNCTION public.lead_tells_its_person() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_tells_its_person() TO service_role;
+
+
+--
+-- Name: FUNCTION lead_tried_notes_forget(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_tried_notes_forget() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_tried_notes_forget() TO service_role;
 
 
 --
@@ -56252,6 +56526,14 @@ GRANT ALL ON FUNCTION public.platform_find(p_q text) TO service_role;
 
 REVOKE ALL ON FUNCTION public.platform_health_parts(p_days integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.platform_health_parts(p_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION platform_health_previews(p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_health_previews(p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_health_previews(p_days integer) TO service_role;
 
 
 --

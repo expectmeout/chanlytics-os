@@ -98,7 +98,8 @@ export interface PreviewPageFacts {
   turns: unknown;
   business: string;
   logo_url: string | null;
-  profile: Pick<BusinessProfile, "hours" | "address" | "website" | "services" | "assistant_name"> | null;
+  /** With its notes: what the business told it and put right are notes of the record (previews/theirs.ts). */
+  profile: Pick<BusinessProfile, "hours" | "address" | "website" | "services" | "assistant_name" | "notes"> | null;
   phone_display: string | null;
   /** The seconds its ended calls spoke (lead_previews.call_seconds). */
   call_seconds: number;
