@@ -269,7 +269,7 @@ function workspacePresses(form: WorkspaceForm, email: string | null, onCreated: 
     // Checked here so the answer is instant and names the field, and again in
     // the database, where it is the rule rather than a courtesy.
     if (trimmed.length < 2) {
-      setError("Give the workspace a name — AI introduces itself with it.");
+      setError("Give the workspace a name · AI introduces itself with it.");
       return;
     }
     await create(trimmed, code.trim());
@@ -423,7 +423,7 @@ function workspaceFormCard(
 
         {!another && (
           <p className="cw-foot">
-            Been invited to a workspace? Ask whoever invited you to send it again — an invitation is accepted the first
+            Been invited to a workspace? Ask whoever invited you to send it again · an invitation is accepted the first
             time you sign in.
           </p>
         )}

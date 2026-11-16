@@ -108,8 +108,7 @@ test("a workspace with nothing: every door honest, nothing pretends", () => {
   const r = by(connectionRows({ ...base(), whatsapp: { ready: false, reason: "no_config_id" } }, NOW));
   assert.equal(r.whatsapp.state, "none");
   assert.ok(
-    r.whatsapp.sentence.includes("the Embedded Signup configuration is missing on the Chanlytics side") &&
-      r.whatsapp.verb === null,
+    r.whatsapp.sentence.includes("WhatsApp sign-up isn't set up on Chanlytics' side") && r.whatsapp.verb === null,
     "the missing piece is named, not hidden",
   );
   assert.deepEqual(r.phone.verb, { label: "Ask for a line", to: "start/channels", who: "owner" });
@@ -156,7 +155,7 @@ test("the live salon: both numbers on, the listing watched, the profile connecte
   assert.equal(r.google_listing.state, "connected");
   assert.equal(r.google_listing.stateWords, "Watched");
   assert.ok(r.google_listing.sentence.startsWith("Marisa's Beauty Salon · 4.6 ★ · 71 reviews on Google · Checked"));
-  assert.equal(r.google_listing.verb.label, "Sync now", "with the profile connected, a read is a sync");
+  assert.equal(r.google_listing.verb.label, "Update now", "with the profile connected, a read is a sync");
   assert.equal(r.calendar.state, "connected");
   const rows = connectionRows(
     {
@@ -190,7 +189,7 @@ test("attention is joined but not working: a number off, a listing unreadable, a
   assert.equal(r.whatsapp.stateWords, "Off");
   assert.equal(r.google_listing.state, "attention");
   assert.equal(r.google_listing.stateWords, "Couldn't be read");
-  assert.equal(r.google_profile.stateWords, "Couldn't sync");
+  assert.equal(r.google_profile.stateWords, "Couldn't update");
   assert.equal(r.calendar.stateWords, "Couldn't be read");
   assert.deepEqual(r.calendar.verb, { label: "Check the link", to: "admin/workspace/calendar", who: "owner" });
   const list = connectionRows({ ...base(), channels: [channel("whatsapp", { status: "disabled" })] }, NOW).filter(
@@ -223,7 +222,7 @@ test("Google's doors: Connect where open with the audience said, choose where se
   );
   assert.ok(
     testing.google_profile.sentence.endsWith(
-      "Google is reviewing Chanlytics; until then Connect works for invited Google accounts only.",
+      "Google is reviewing Chanlytics · until then Connect works for invited Google accounts only.",
     ),
   );
   assert.ok(googleAudienceWords("unverified").includes("choose Advanced, then Go to Chanlytics"));
@@ -259,7 +258,7 @@ test("the phone line's road: requested, being set up with the step and since, st
       NOW,
     ),
   );
-  assert.ok(prov.phone.sentence.startsWith("Setting up — buying the number, since 1m ago"));
+  assert.ok(prov.phone.sentence.startsWith("Setting up · buying the number, since 1m ago"));
   assert.equal(prov.phone.detail, "+1 (646) 555-0100");
   const failed = by(
     connectionRows({ ...base(), lines: { rows: [line({ voice_state: "failed", step: "trunk" })], ready: true } }, NOW),
@@ -269,7 +268,7 @@ test("the phone line's road: requested, being set up with the step and since, st
   assert.deepEqual(failed.phone.verb, { label: "Retry", to: "verb:retry-line:l1", who: "owner" });
   assert.equal(
     failed.phone.sentence,
-    `Setting up stopped while ${LINE_STEP_WORDS.trunk}. A person at Chanlytics has it. Retry from here; we have been told.`,
+    `Setting up stopped while ${LINE_STEP_WORDS.trunk}. A person at Chanlytics has it. Retry from here · we have been told.`,
   );
   const offer = by(connectionRows({ ...base(), lines: { rows: [], ready: true } }, NOW));
   assert.deepEqual(offer.phone.verb, { label: "Get a line", to: "start/channels", who: "owner" });
@@ -293,7 +292,7 @@ test("the rows read one set of facts: the listing's verb reads the profile's con
   assert.equal(by(connectionRows({ ...base(), google: google(null) }, NOW)).google_listing.verb.label, "Check now");
   assert.equal(
     by(connectionRows({ ...base(), google: google(connection()) }, NOW)).google_listing.verb.label,
-    "Sync now",
+    "Update now",
   );
   // The workspace's own line is the first that is not a forwarded number, whichever order the rows arrive in.
   const own = line({ voice_state: "provisioning", step: "number", sms_state: "registering" });
@@ -340,9 +339,9 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   assert.equal(
     words("needs_record", {
       last_error:
-        "The carriers will be told this business is called \u201cBilling probe\u201d. Make the workspace's name match.",
+        "The phone networks will be told this business is called \u201cBilling probe\u201d. Make the workspace's name match.",
     }).sentence,
-    "The carriers will be told this business is called \u201cBilling probe\u201d. Make the workspace's name match.",
+    "The phone networks will be told this business is called \u201cBilling probe\u201d. Make the workspace's name match.",
   );
   assert.match(
     words("needs_record", { last_error: "x" }).verb.label,
@@ -367,10 +366,14 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   // cannot be withdrawn, so the row says who asks for a new code instead of
   // pretending the owner can.
   assert.equal(words("otp_waiting").verb, null, "no dead button");
-  assert.match(words("otp_waiting").sentence, /Chanlytics asks the carriers for another/, "and it says who does it");
+  assert.match(
+    words("otp_waiting").sentence,
+    /Chanlytics asks the phone networks for another/,
+    "and it says who does it",
+  );
   const reg = words("registering", { state_since: ago(2 * 24 * H) });
   assert.equal(reg.state, "waiting_them");
-  assert.equal(reg.stateWords, "Waiting on carriers");
+  assert.equal(reg.stateWords, "Texting is being approved");
   assert.ok(reg.sentence.includes("since 2d ago"));
   // A rejection says what they said, then WHO sends it again -- because that is
   // not the owner. Gate 6 put resubmitting behind `platform_admins` on purpose (a
@@ -379,7 +382,7 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   // resubmit", and the button behind it was guaranteed to answer "The carriers did
   // not answer" -- about a message the carriers had explicitly sent.
   const sentBack = words("rejected", { last_error: "the website couldn't be reached" });
-  assert.match(sentBack.sentence, /^The carriers sent the registration back: the website couldn't be reached\./);
+  assert.match(sentBack.sentence, /^The phone networks sent the registration back: the website couldn't be reached\./);
   assert.match(sentBack.sentence, /Chanlytics sends it again/, "and it says who does");
   assert.match(
     sentBack.sentence,
@@ -557,7 +560,7 @@ test("every verb a row can offer is a verb the page runs", () => {
   const otp = rows.slice(rows.indexOf('case "otp_waiting":'), rows.indexOf('case "registering":'));
   assert.match(otp, /reply to that message from the handset itself/);
   assert.match(otp, /nothing to type here/);
-  assert.match(otp, /Chanlytics asks the carriers for another/);
+  assert.match(otp, /Chanlytics asks the phone networks for another/);
   // That the row carries no verb at all is asserted on the RETURNED row above,
   // where it is a fact rather than an absence of a substring -- this comment
   // block itself names the retired verb, so a source scan here would match it.
@@ -711,7 +714,7 @@ test("D1-line-row-derivations: the phone row says what Start's row says in each 
   // Within its deadline it is still setting up, and has no button.
   const within = phone({ voice_state: "provisioning", state_since: ago(60_000) });
   assert.equal(within.verb, null);
-  assert.ok(within.sentence.startsWith(`Setting up — ${LINE_STEP_WORDS.trunk}, since 1m ago.`));
+  assert.ok(within.sentence.startsWith(`Setting up · ${LINE_STEP_WORDS.trunk}, since 1m ago.`));
   // Stopped at the vault, which is ours to mend: a retry cannot help, so none is offered (it offered "Retry it").
   const vault = phone({ voice_state: "failed", last_error: "keeping the line's credentials: permission denied" });
   assert.equal(vault.verb, null, "no Retry that cannot help");

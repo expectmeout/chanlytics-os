@@ -65,7 +65,7 @@ export const BtaVoice = ({
             btnClass="bt-link"
             align="left"
             escape
-            gated={readOnly ? "Saving — nothing can be changed until this is saved." : null}
+            gated={readOnly ? "Saving · nothing can be changed until this is saved." : null}
             testid="rec-tone-presets"
           />
         </div>

@@ -72,7 +72,7 @@ export const listSpec: ProposalSpec = {
     const ids = idsIn(pl.ids);
     if (!byHand(pl) || !ids.length) return null;
     const id = idIn(rec(data), "id");
-    if (!id) return refuseWith("the list came back without its id; put them on it from People");
+    if (!id) return refuseWith("the list came back without its id · put them on it from People");
     return {
       route: "PUT segments/[id]",
       params: { id },

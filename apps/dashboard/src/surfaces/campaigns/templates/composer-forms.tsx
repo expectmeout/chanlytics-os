@@ -85,7 +85,7 @@ export function composerFields({ st, facts }: ComposerCtx) {
         className="tpl-body"
         label={
           <>
-            Message — values as {"{{1}}"}, {"{{2}}"} in order
+            Message · values as {"{{1}}"}, {"{{2}}"} in order
           </>
         }
         rows={4}
@@ -104,7 +104,7 @@ export function composerFields({ st, facts }: ComposerCtx) {
         <div data-testid="tpl-button">
           {link ? (
             <Field
-              label={<>Button (optional) &middot; opens {link.replace(/^https?:\/\//, "")}</>}
+              label={<>Button (optional) &middot · opens {link.replace(/^https?:\/\//, "")}</>}
               value={buttonText}
               maxLength={25}
               onValueChange={setButtonText}
@@ -185,7 +185,7 @@ export function translationForm(c: ComposerCtx, translate: TemplateTranslation, 
             ? `Writing it from the ${fromLabel} words…`
             : failed
               ? `From the ${fromLabel} words`
-              : `Written from the ${fromLabel} words — read it through, change what you like, then send it for review`}
+              : `Written from the ${fromLabel} words · read it through, change what you like, then send it for review`}
         </span>
       </div>
       {drafting ? (
@@ -230,7 +230,7 @@ export function translationForm(c: ComposerCtx, translate: TemplateTranslation, 
         ) : (
           <>
             <span className="bc-excl-hint">
-              The same message, <span className="mono">{translate.name}</span>, in one more language — WhatsApp reviews
+              The same message, <span className="mono">{translate.name}</span>, in one more language · WhatsApp reviews
               it on its own.
             </span>
             <span className="bc-actions-spacer" />
@@ -305,7 +305,7 @@ function newRows(c: ComposerCtx, made: Made) {
               {s.title}
             </Button>
           ))}
-          <span className="bc-excl-hint">a starter to change — or say what you want to tell customers below</span>
+          <span className="bc-excl-hint">a starter to change · or say what you want to tell customers below</span>
         </div>
       </div>
       <div className="tpl-row">
@@ -331,12 +331,12 @@ function newRows(c: ComposerCtx, made: Made) {
               {
                 value: "marketing",
                 label: "Marketing",
-                title: "An offer, news or an invitation — needs the customer's yes",
+                title: "An offer, news or an invitation · needs the customer's yes",
               },
               {
                 value: "utility",
                 label: "Utility",
-                title: "A notice about their own booking or account — no promotional words",
+                title: "A notice about their own booking or account · no promotional words",
               },
             ]}
           />
@@ -518,7 +518,7 @@ function newTemplatePane(c: ComposerCtx, made: Made) {
       title="New message"
       sub={
         where === "whatsapp"
-          ? `WhatsApp reviews it before it can be sent — ${WHATSAPP_REVIEW_TAKES}`
+          ? `WhatsApp reviews it before it can be sent · ${WHATSAPP_REVIEW_TAKES}`
           : where === "email"
             ? NEW_MESSAGE_WORDS.sub
             : undefined

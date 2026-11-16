@@ -150,7 +150,7 @@ function CrWindow({ w, hours }: { w: CalendarWindowVM; hours: Hours }) {
     <div
       className="cal-open"
       style={{ top: ofHours(from), height: `max(18px, ${ofHours(span)} - 2px)` }}
-      title={`Open · ${w.label} — AI would offer this`}
+      title={`Open · ${w.label} · AI would offer this`}
       data-testid="cal-window"
     >
       <span className="cal-open-label">Open · {w.label}</span>
@@ -622,7 +622,7 @@ function agendaOpenTimes(p: {
   const { d, windows, service, offer } = p;
   // Past the last day it offers, a free day read as a day with nothing to offer (C1).
   return d.beyondOffer ? (
-    <span className="ag-none">not offered yet — it offers times up to {offer.days} days ahead</span>
+    <span className="ag-none">not offered yet · it offers times up to {offer.days} days ahead</span>
   ) : windows.length ? (
     windows.map((w) => (
       <span key={w.label} className="ag-window">

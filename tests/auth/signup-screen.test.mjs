@@ -204,13 +204,13 @@ test("a weak password is refused before anything is sent, in the rule's own word
 
 test("only a yes both ways leaves the form; every refusal is said in the route's words or ours", async () => {
   for (const [answer, words] of [
-    [{ status: 500, body: { ok: true, data: {} } }, "Something went wrong. Try again."],
+    [{ status: 500, body: { ok: true, data: {} } }, "Couldn't finish that. Try again."],
     [{ status: 200, body: { ok: false, error: { message: "Half an answer." } } }, "Half an answer."],
     [
       { status: 403, body: { ok: false, error: { message: "That invite code is not right." } } },
       "That invite code is not right.",
     ],
-    [{ status: 502, raw: "<html>bad gateway</html>" }, "Something went wrong. Try again."],
+    [{ status: 502, raw: "<html>bad gateway</html>" }, "Couldn't finish that. Try again."],
     [new TypeError("Failed to fetch"), SIGNUP_WORDS.unreachable],
   ]) {
     await open("invite", answer);

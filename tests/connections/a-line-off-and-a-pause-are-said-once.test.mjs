@@ -162,7 +162,7 @@ test("the standing values: what a caller gets and the tone it is drawn in, once"
 
 test("Connections: the phone line row says what a caller gets, in the tone the value gives", () => {
   const voice = C.toChannelVM(channelDto("voice"), NOW);
-  assert.equal(voice.healthLabel, `Switched off — ${C.PHONE_LINE_OFF.gets}; Chanlytics is told, you are not`);
+  assert.equal(voice.healthLabel, `Switched off · ${C.PHONE_LINE_OFF.gets}; Chanlytics is told, you are not`);
   const row = connectionRows(
     {
       channels: [voice],
@@ -182,14 +182,14 @@ test("Connections: the phone line row says what a caller gets, in the tone the v
   const wa = C.toChannelVM(channelDto("whatsapp"), NOW);
   assert.equal(
     wa.healthLabel,
-    `Switched off — ${C.lineOffGets("whatsapp", "message").gets}; Chanlytics is told they are arriving, you are not`,
+    `Switched off · ${C.lineOffGets("whatsapp", "message").gets}; Chanlytics is told they are arriving, you are not`,
   );
 });
 
 test("Live: the line note says what a caller gets, and the page draws the view model's sentence", async () => {
   const vm = C.toLiveVM([], [channelDto("voice")], ZONE, NOW);
   assert.equal(vm.line.on, false);
-  assert.equal(vm.line.offWords, `The line is switched off — ${C.PHONE_LINE_OFF.gets}.`);
+  assert.equal(vm.line.offWords, `The line is switched off · ${C.PHONE_LINE_OFF.gets}.`);
   assert.deepEqual(contradicting(words(vm)), []);
 
   installStubReact({ __DEMO_MODE: false });
@@ -240,7 +240,7 @@ test("Start: the line row says what a caller gets, and no Start sentence says AI
   const vm = C.setupSteps(startInputs(), NOW_MS);
   assert.equal(
     stepOf(vm, "line").sentence,
-    `Your line ${C.formatPhoneDisplay(VOICE)} is switched off — ${C.PHONE_LINE_OFF.gets}.`,
+    `Your line ${C.formatPhoneDisplay(VOICE)} is switched off · ${C.PHONE_LINE_OFF.gets}.`,
   );
   assert.deepEqual(contradicting(words(vm)), [], "the whole page, every row and detail");
 });

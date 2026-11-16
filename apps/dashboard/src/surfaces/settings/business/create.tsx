@@ -146,7 +146,7 @@ export const BtCreateCard = ({ flash = () => {} }: { flash?: (flash: FrameFlash)
         hint="Name, number and booking link"
         // No preview is composed for a workspace with no receptionist, so nothing is said it will be told.
         channel={null}
-        said={<>Saved — AI picks these up within a minute</>}
+        said={<>Saved · AI picks these up within a minute</>}
         canEdit={canEdit}
         gate={pressable}
         flash={flash}
@@ -160,7 +160,7 @@ export const BtCreateCard = ({ flash = () => {} }: { flash?: (flash: FrameFlash)
             kind="card"
             glyph="agents"
             title="AI isn't set up for this workspace yet"
-            body="Nothing has been set up for it — no business name, no phone line, no booking link — so nothing is answering your customers yet."
+            body="Nothing has been set up for it · no business name, no phone line, no booking link · so nothing is answering your customers yet."
             // Offered only where there is something read to save onto, as a row's act is: the press would otherwise
             // open nothing, the fold having no draft to work out.
             action={

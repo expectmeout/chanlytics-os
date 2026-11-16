@@ -99,46 +99,46 @@ function savedWords(r: UiRow, mode: string | undefined, d: PolicyDials, budget: 
   if (replyDelayMs !== undefined)
     return (
       <>
-        <b>Hold window</b> → {wordOf(AUT_DELAYS, replyDelayMs, `${replyDelayMs / 1000}s`)} — from the next reply
+        <b>Hold window</b> → {wordOf(AUT_DELAYS, replyDelayMs, `${replyDelayMs / 1000}s`)} · from the next reply
       </>
     );
   if (minConfidence !== undefined)
     return (
       <>
-        <b>Confidence dial</b> → {wordOf(AUT_CONF, minConfidence, `${Math.round(minConfidence * 100)}%`)} — from the
+        <b>Confidence dial</b> → {wordOf(AUT_CONF, minConfidence, `${Math.round(minConfidence * 100)}%`)} · from the
         next reply
       </>
     );
   if (maxTokensDay !== undefined)
     return (
       <>
-        <b>{budget.label}</b> → {wordOf(budget.steps, maxTokensDay, String(maxTokensDay))} — from the next reply
+        <b>{budget.label}</b> → {wordOf(budget.steps, maxTokensDay, String(maxTokensDay))} · from the next reply
       </>
     );
   if (maxRepliesDay !== undefined)
     return (
       <>
-        <b>Reply cap</b> → {maxRepliesDay} automatic replies to one person in 24 hours — from the next reply
+        <b>Reply cap</b> → {maxRepliesDay} automatic replies to one person in 24 hours · from the next reply
       </>
     );
   if (pauseHours !== undefined)
     return (
       <>
-        <b>Stays out after a person steps in</b> → {wordOf(AUT_PAUSE, pauseHours, `${pauseHours}h`)} — from the next
+        <b>Stays out after a person steps in</b> → {wordOf(AUT_PAUSE, pauseHours, `${pauseHours}h`)} · from the next
         time someone steps in
       </>
     );
   if (answerWithinHours !== undefined)
     return (
       <>
-        <b>Answer people within</b> → {wordOf(AUT_WITHIN, answerWithinHours, `${answerWithinHours}h`)} — Today holds
+        <b>Answer people within</b> → {wordOf(AUT_WITHIN, answerWithinHours, `${answerWithinHours}h`)} · Today holds
         every wait to it now
       </>
     );
   // The confirmation says what will happen, in the words the heading just used.
   return (
     <>
-      <b>{r.label}</b> → {String(polMode(modeLabel(mode)).head).toLowerCase()} — from the next message
+      <b>{r.label}</b> → {String(polMode(modeLabel(mode)).head).toLowerCase()} · from the next message
     </>
   );
 }
@@ -331,7 +331,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
       <FailedRead
         kind="card"
         title="Your autonomy settings couldn't be loaded"
-        body="AI keeps running on the settings it already has; this page just can't show them right now."
+        body="AI keeps running on the settings it already has · this page just can't show them right now."
         surface="settings"
         testid="policies-failed"
       />
@@ -372,7 +372,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
         tone: "danger",
         msg: (
           <>
-            <b>Not changed</b> — {res.message}
+            <b>Not changed</b> · {res.message}
           </>
         ),
       });

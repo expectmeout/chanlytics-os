@@ -230,7 +230,7 @@ const btoApplyToAll = (week: Week, change: Change, from: DayKey, days: DayKey[])
           ))}
         </>
       ) : (
-        <>Copied {BTO_SHORT[from]}&apos;s hours — nothing else changed</>
+        <>Copied {BTO_SHORT[from]}&apos;s hours · nothing else changed</>
       ),
       back: () => before,
     },
@@ -336,7 +336,7 @@ const BtoTime = ({
         "aria-describedby": bad || undefined,
         "aria-disabled": readOnly ? true : undefined,
       }}
-      gated={readOnly ? "Saving — the hours can be changed once this is saved." : null}
+      gated={readOnly ? "Saving · the hours can be changed once this is saved." : null}
     />
   </span>
 );
@@ -448,7 +448,7 @@ const BtoDay = ({
             ))}
           </>
         ) : (
-          <span className="bt-week-closed">{kept ? "Closed — times kept" : "Closed"}</span>
+          <span className="bt-week-closed">{kept ? "Closed · times kept" : "Closed"}</span>
         )}
       </span>
       <FieldError id={problemId} message={bad} testid={`rec-hours-problem-${d}`} />
@@ -488,7 +488,7 @@ const BtoWeekCopy = ({ from, copies, readOnly }: { from: DayKey | null; copies: 
         btnClass="bt-link"
         align="left"
         escape
-        gated={readOnly ? "Saving — nothing can be copied until this is saved." : null}
+        gated={readOnly ? "Saving · nothing can be copied until this is saved." : null}
       />
     </div>
   </div>

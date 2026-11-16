@@ -14,7 +14,7 @@ const SETUP_GATES: readonly (readonly [to: string, action: string, doing: string
   ["verb:billing-portal", "billing", "manage the subscription"],
   ["verb:forwarding-test:", "team", "test forwarding"],
   ["verb:retry-line:", "team", "retry a line"],
-  ["verb:activate:", "team", "activate a capability"],
+  ["verb:activate:", "team", "turn on a capability"],
   ["verb:deactivate:", "team", "withdraw an activation"],
   // Google's row opens the first run's Find (contracts FIRST_RUN_FIND_ROUTE), and searching and linking are an owner's
   // (the routes say so too).

@@ -155,7 +155,7 @@ test("each path asks exactly what its own filing sends", () => {
   }
   assert.match(
     businessFieldsFor("standard").find((f) => f.name === "website_url").hint,
-    /the carriers are given your public page instead/,
+    /the phone networks are given your public page instead/,
   );
 
   // SOLE PROPRIETOR: two end users and an address, and between them they send
@@ -255,7 +255,7 @@ test("the mobile the carriers text cannot be the number we answer for them", () 
   assert.deepEqual(businessRecordProblems(soleProp(), "sole_proprietor"), {});
 });
 
-test("the carriers register two countries, and a refusal for that is days away", () => {
+test("the phone networks register two countries, and a refusal for that is days away", () => {
   assert.match(businessRecordProblems({ ...RECORD, country: "GB" }, "standard").country, /US and Canadian/);
   assert.deepEqual(
     businessRecordProblems({ ...RECORD, country: "ca" }, "standard"),
@@ -530,7 +530,7 @@ test("a filing the carriers sent back offers no button that can only be refused"
   assert.equal(byId(sentBack.tree, "biz-file"), null, "no File button on a line the carriers sent back");
   assert.match(
     textOf(byId(sentBack.tree, "biz-rejected")),
-    /Chanlytics sends the registration back to the carriers for you/,
+    /Chanlytics sends the registration back to the phone networks for you/,
   );
   assert.ok(byId(sentBack.tree, "biz-save"), "and saving the corrections is still theirs");
 
@@ -855,7 +855,7 @@ test("the save says what it moved and what the carriers hold, in the words contr
     assert.equal(onFile.ok, true);
     assert.equal(
       onFile.message,
-      "Saved. Your public page shows it now; the carriers still hold “Harbor Moving LLC” as you filed it.",
+      "Saved. Your public page shows it now; the phone networks still hold “Harbor Moving LLC” as you filed it.",
     );
     assert.match(answers[0][1], /\/api\/v1\/business-record/);
     assert.equal(answers[0][0], "PUT");

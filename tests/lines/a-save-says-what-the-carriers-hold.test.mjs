@@ -123,28 +123,31 @@ test("the words a save shows, for each standing, with and without a change to wh
   assert.equal(recordSavedWords(null), "Saved.");
   assert.equal(
     recordSavedWords({ first: true, changed: [], filing: "none", filed_name: null }),
-    `${page}, and the carriers see it when you file.`,
+    `${page}, and the phone networks see it when you file.`,
   );
   assert.equal(recordSavedWords(saved("on_file", [])), "Saved. Nothing in it had changed.");
-  assert.equal(recordSavedWords(saved("none", pub)), `${page}, and the carriers see it when you file.`);
-  assert.equal(recordSavedWords(saved("none", own)), "Saved. The carriers see it when you file.");
+  assert.equal(recordSavedWords(saved("none", pub)), `${page}, and the phone networks see it when you file.`);
+  assert.equal(recordSavedWords(saved("none", own)), "Saved. The phone networks see it when you file.");
   assert.equal(
     recordSavedWords(saved("in_review", pub, "Harbor Moving LLC")),
-    `${page}; the carriers are still reviewing “Harbor Moving LLC” as you filed it.`,
+    `${page}; the phone networks are still reviewing “Harbor Moving LLC” as you filed it.`,
   );
-  assert.equal(recordSavedWords(saved("in_review", own)), "Saved. The carriers are still reviewing what you filed.");
+  assert.equal(
+    recordSavedWords(saved("in_review", own)),
+    "Saved. The phone networks are still reviewing what you filed.",
+  );
   assert.equal(
     recordSavedWords(saved("on_file", pub, "Harbor Moving LLC")),
-    `${page}; the carriers still hold “Harbor Moving LLC” as you filed it.`,
+    `${page}; the phone networks still hold “Harbor Moving LLC” as you filed it.`,
   );
-  assert.equal(recordSavedWords(saved("on_file", own)), "Saved. The carriers still hold what you filed.");
+  assert.equal(recordSavedWords(saved("on_file", own)), "Saved. The phone networks still hold what you filed.");
   assert.equal(
     recordSavedWords(saved("sent_back", pub)),
-    `${page}, and Chanlytics sends your corrections to the carriers for you, at no cost.`,
+    `${page}, and Chanlytics sends your corrections to the phone networks for you, at no cost.`,
   );
   assert.equal(
     recordSavedWords(saved("sent_back", own)),
-    "Saved. Chanlytics sends your corrections to the carriers for you, at no cost.",
+    "Saved. Chanlytics sends your corrections to the phone networks for you, at no cost.",
   );
   assert.equal(recordSavedWords(saved("stopped", pub)), `${page}.`);
   assert.equal(recordSavedWords(saved("stopped", own)), "Saved.");

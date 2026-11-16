@@ -231,7 +231,7 @@ test("REGRESSION (S9): Setup's billing row says test mode before anything it say
     rowOf("trialing", false).details,
     [
       SAID,
-      "The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not",
+      "The card on file is charged when the trial ends · cancel from Billing before then if you'd rather not",
       // What the trial covers (decision 0090: everything, up to its allowances).
       "Your trial includes everything: your number, texting and every channel, up to 150 call minutes, 1,000 replies and 50 leads.",
     ],

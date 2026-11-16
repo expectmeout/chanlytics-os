@@ -42,10 +42,10 @@ export function stoppedCard(v: CampaignLensVM, className: string) {
 /** The messages that failed after they left, by the provider's own reason in the words the Inbox's thread uses. */
 export function failedWhyCard(v: CampaignLensVM, className: string) {
   return mixCard(v.failedWhy, {
-    title: "Sends that failed",
+    title: "Messages that didn't reach them",
     testid: "chart-campaigns-failed-why",
     className,
-    columns: ["Why it failed", "Messages"],
+    columns: ["Why it didn't reach them", "Messages"],
   });
 }
 

@@ -120,56 +120,56 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   template_blocked: { ends: "mended" },
   job_failed: {
     ends: "news",
-    why: "A job that did not finish is told once; the next try is its own news, and nothing is left to answer here.",
+    why: "A job that did not finish is told once · the next try is its own news, and nothing is left to answer here.",
   },
   broadcast_stopped: {
     ends: "news",
-    why: "A run that stopped is told once; what is left to do is a new run, made on Sent.",
+    why: "A run that stopped is told once · what is left to do is a new run, made on Sent.",
   },
   calendar_people: {
     ends: "news",
-    why: "Who is on the calendar is told once; the Calendar keeps the names to look at.",
+    why: "Who is on the calendar is told once · the Calendar keeps the names to look at.",
   },
   alert: {
     ends: "news",
-    why: "An alert is told once; what it asks is done where its door goes, and nothing here waits.",
+    why: "An alert is told once · what it asks is done where its door goes, and nothing here waits.",
   },
   template_ready: { ends: "news", why: "A message approved is good news, told once." },
   broadcast_sent: { ends: "news", why: "A run that finished is told once, with what it did." },
-  leads_ready: { ends: "news", why: "A search that finished is told once; its places wait in Leads." },
+  leads_ready: { ends: "news", why: "A search that finished is told once · its places wait in Leads." },
   note_for_you: { ends: "news", why: "A note left for you is read when you open it." },
-  reach_out_replied: { ends: "news", why: "A reply is told once per reading; its conversation holds the rest." },
-  reach_out_day: { ends: "news", why: "The day's reach-out numbers are a line, told once at six." },
-  opted_out: { ends: "news", why: "A customer's stop is news, told once; there is nothing to answer." },
-  booking: { ends: "news", why: "A booking that arrived is news; the Calendar holds it." },
+  reach_out_replied: { ends: "news", why: "A reply is told once per reading · its conversation holds the rest." },
+  reach_out_day: { ends: "news", why: "The day's cold email numbers are a line, told once at six." },
+  opted_out: { ends: "news", why: "A customer's stop is news, told once · there is nothing to answer." },
+  booking: { ends: "news", why: "A booking that arrived is news · the Calendar holds it." },
   member_joined: { ends: "news", why: "A teammate who joined is news, told once." },
   member_left: { ends: "news", why: "A teammate who left is news, told once." },
   note_to_keep: {
     ends: "news",
-    why: "A note to keep is told once; its answer, Keep or Dismiss, closes the row for everyone (fact_suggestion_answer).",
+    why: "A note to keep is told once · its answer, Keep or Dismiss, closes the row for everyone (fact_suggestion_answer).",
   },
   // A reply counting down: it waits while its thread has one, and the server closes it once the reply leaves the queue
   // (sent or stopped: 00461 messages_reply_held_closes).
   reply_held: { ends: "send", server: "reply_gone" },
   ask_cards: {
     ends: "news",
-    why: "AI's morning is told once, to the member it is for; its cards wait on Today, where each is approved or let go.",
+    why: "AI's morning is told once, to the member it is for · its cards wait on Today, where each is approved or let go.",
   },
   website_form: {
     ends: "news",
-    why: "A form sent on the website is told once; the person is in People, and what they asked waits on their page.",
+    why: "A form sent on the website is told once · the person is in People, and what they asked waits on their page.",
   },
   files_waiting: {
     ends: "news",
-    why: "Found photos are told once; they wait in Files' Inbox, which the page opens on while anything is there.",
+    why: "Found photos are told once · they wait in Files' Inbox, which the page opens on while anything is there.",
   },
   video_ready: {
     ends: "news",
-    why: "A video that can be played is told once; it is in Content, under Made, and nothing waits on it.",
+    why: "A video that can be played is told once · it is in Content, under Made, and nothing waits on it.",
   },
   post_up: {
     ends: "news",
-    why: "A post that went up at its time is told once; it is in Content, saying where it is up, and nothing waits on it.",
+    why: "A post that went up at its time is told once · it is in Content, saying where it is up, and nothing waits on it.",
   },
   post_stopped: {
     ends: "news",

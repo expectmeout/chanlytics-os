@@ -51,7 +51,7 @@ export const SENDER_READING_SCHEMA = /* @__PURE__ */ (() => ({
     kind: { type: "string", enum: [...SENDER_KINDS] },
     about: {
       type: "string",
-      description: "What the sender wanted, under twelve words, no names, addresses or numbers; empty for a notice.",
+      description: "What the sender wanted, under twelve words, no names, addresses or numbers · empty for a notice.",
     },
   },
   required: ["kind", "about"],

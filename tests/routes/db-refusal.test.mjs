@@ -142,7 +142,7 @@ test("any other database failure stays the fault it is: 500, the words every fau
   ]) {
     const a = await answer(failing(reply, "reading"));
     assert.equal(a.status, 500, reply.message);
-    assert.deepEqual(a.body.error, { code: "internal", message: "Something went wrong." }, reply.message);
+    assert.deepEqual(a.body.error, { code: "internal", message: "Couldn't finish that." }, reply.message);
     assert.equal(JSON.stringify(a.body).includes(reply.message), false, "the raw text never reaches the browser");
     const line = a.lines.find((l) => l.event === "route_failed");
     assert.equal(line?.error, `DbFailure: reading: ${reply.message}`);
@@ -208,7 +208,7 @@ test("anything else is a try-again: unavailable 503, the database's text in the 
   ]) {
     const a = await answer(throwing(e));
     assert.equal(a.status, 503, e.message);
-    assert.deepEqual(a.body.error, { code: "unavailable", message: "Something went wrong." }, e.message);
+    assert.deepEqual(a.body.error, { code: "unavailable", message: "Couldn't finish that." }, e.message);
     assert.equal(JSON.stringify(a.body).includes(e.message), false, "the raw text never reaches the browser");
     const logged = a.lines.find((l) => l.event === "db_failed");
     assert.ok(logged, `no db_failed line for ${e.message}`);
@@ -236,7 +236,7 @@ test("REGRESSION: one of the fifteen, whole: marking notifications seen through 
     });
   const a = await answer(notifications.PUT, { supabase, request: seen() });
   assert.equal(a.status, 503, JSON.stringify(a.body));
-  assert.deepEqual(a.body.error, { code: "unavailable", message: "Something went wrong." });
+  assert.deepEqual(a.body.error, { code: "unavailable", message: "Couldn't finish that." });
   assert.equal(a.lines.find((l) => l.event === "db_failed")?.error, RAW);
 
   const gone = fakeDb(

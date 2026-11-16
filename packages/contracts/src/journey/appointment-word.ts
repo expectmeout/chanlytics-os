@@ -66,7 +66,7 @@ export function appointmentWordVM(word: AppointmentWord): AppointmentWordVM {
 
 /** The toast once a word is saved. */
 export function appointmentWordSaved(word: AppointmentWord): string {
-  return `Saved — it says “${word}” now.`;
+  return `Saved · it says “${word}” now.`;
 }
 
 /** How each word takes an article and a verb. Visit is the one that is a verb itself: "visits tomorrow", "visited". */

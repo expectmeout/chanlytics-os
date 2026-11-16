@@ -250,7 +250,7 @@ export function whenItGoes(
   const at = receipt?.scheduled_for ? Date.parse(receipt.scheduled_for) : NaN;
   if (Number.isNaN(at)) return SENDING_NOW_WORDS;
   if (receipt?.moved_from)
-    return `scheduled for ${when(at)} — messages go out ${SENDING_HOURS_WORDS.between} by your clock`;
+    return `scheduled for ${when(at)} · messages go out ${SENDING_HOURS_WORDS.between} by your clock`;
   // Pressed for now, it goes in ten minutes unless stopped (decision 0064, step 3), as the wait rule says it.
   if (receipt?.pressed_now && at > nowMs) {
     const goes = waitEndsWords("one_off", when(at));

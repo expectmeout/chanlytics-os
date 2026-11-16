@@ -82,7 +82,7 @@ const SMS_FAILURES: Readonly<Record<number, string>> = {
   21408: "Texts to that region are turned off for your account",
   21610: "They've opted out of texts from your number",
   21614: "That number isn't a valid mobile number",
-  30003: "Their phone couldn't be reached: it may be off, out of signal, or unable to receive texts",
+  30003: "Their phone couldn't be reached: it may be off, out of signal, or can't receive texts",
   30004: "The text was blocked from reaching this number",
   30005: "This number is unknown and may no longer exist",
   30006: "This number can't receive texts, which is typical of a landline",

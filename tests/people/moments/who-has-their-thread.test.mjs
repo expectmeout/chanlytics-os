@@ -172,7 +172,7 @@ test("with no member looking the page cannot say whose, and says only that a per
     assert.equal(p.rightNow.title, "Paused, a person owns this conversation");
     assert.equal(
       p.rightNow.detail,
-      "A person owns this conversation; automatic replies resume when it is handed back.",
+      "A person owns this conversation · automatic replies resume when it is handed back.",
     );
     assert.equal(p.receptionist.label, "Paused, a person owns the conversation");
     assert.equal(receptionistFact(p).meta, "a person owns the conversation");

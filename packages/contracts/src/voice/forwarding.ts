@@ -30,7 +30,7 @@ export const CARRIER_WORDS: Record<Carrier, string> = {
   verizon: "Verizon",
   att: "AT&T",
   tmobile: "T-Mobile",
-  other: "Another carrier or a landline",
+  other: "Another phone company or a landline",
   office: "An office phone system",
 };
 
@@ -69,7 +69,7 @@ function national(e164: string): string {
 const code = (c: string): ForwardingCode => ({ code: c, tel: telHref(c) });
 
 const UNANSWERED_NOTE =
-  "Your phone rings first. After your carrier's timer, usually 15 to 30 seconds, the call comes to AI. If voicemail picks up first, calls never arrive: ask your carrier to lengthen the ring time, or forward every call.";
+  "Your phone rings first. After your phone company's timer, usually 15 to 30 seconds, the call comes to AI. If voicemail picks up first, calls never arrive: ask your phone company to lengthen the ring time, or forward every call.";
 const DIAL_NOTE = "Dial it on the phone that has the number you keep, wait for the tone or the message, then hang up.";
 const OFFICE_NOTE =
   "An office phone system takes no code: in its settings, under forwarding or what happens when no one answers, forward the calls to the number above.";
@@ -131,7 +131,7 @@ export function forwardingCodes(carrier: Carrier, mode: ForwardingMode, destinat
         notes: [
           DIAL_NOTE,
           ...(conditional ? [UNANSWERED_NOTE] : []),
-          "Codes vary by carrier. If these are refused, ask your carrier for its call-forwarding codes: most landlines use *72 for every call and *92 or *71 for calls you don't answer.",
+          "Codes vary by phone company. If these are refused, ask yours for its call-forwarding codes: most landlines use *72 for every call and *92 or *71 for calls you don't answer.",
         ],
       };
   }

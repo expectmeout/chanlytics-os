@@ -72,8 +72,8 @@ export function attentionRow(person: PersonRowVM, tz: string, nowMs: number, wor
   else if (person.calls > 0)
     sentence =
       person.calls === 1
-        ? "Phoned once; nothing in writing yet"
-        : `Phoned ${person.calls} times; nothing in writing yet`;
+        ? "Phoned once · nothing in writing yet"
+        : `Phoned ${person.calls} times · nothing in writing yet`;
   else sentence = "Nothing written yet";
   const receptionist = person.receptionist;
   let status: string[];

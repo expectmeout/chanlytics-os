@@ -87,8 +87,8 @@ export function soleProprietorLimits(): readonly string[] {
     `One number and one campaign: a second number cannot text on this registration.`,
     `About ${log.messagesPerSecond} message a second, so a hundred texts go out over a minute or two rather than at once.`,
     `T-Mobile takes ${grouped(log.perDayTMobile)} a day from you, AT&T ${log.perMinuteAtt} a minute.`,
-    `The carriers text a code to your own mobile and you reply from that handset — there is no code to bring back here.`,
-    `That mobile can be used on ${log.mobileUsesEver} of these registrations ever, across every provider; your email and address on ${log.emailUsesEver} each. Only the carriers can count what you have already spent.`,
+    `The phone networks text a code to your own mobile and you reply from that handset · there is no code to bring back here.`,
+    `That mobile can be used on ${log.mobileUsesEver} of these registrations ever, across every provider · your email and address on ${log.emailUsesEver} each. Only the phone networks can count what you have already spent.`,
     `It cannot be withdrawn once filed. If you get a tax id later, the standard registration is a new filing.`,
   ];
 }
@@ -96,9 +96,9 @@ export function soleProprietorLimits(): readonly string[] {
 /** The fork, as the owner is asked it. */
 export const REGISTRATION_QUESTION = {
   title: "Does the business have a tax ID?",
-  sub: "It decides which registration the carriers run, and the two are not the same. Asked once.",
+  sub: "It decides which registration the phone networks run, and the two are not the same. Asked once.",
   /** Said under the answers, because the narrow path is a real cost and the choice is permanent. */
-  nudge: "If there is an EIN, use it — none of the limits below apply to that registration.",
+  nudge: "If there is an EIN, use it · none of the limits below apply to that registration.",
 } as const;
 
 export interface RegistrationPathWords {
@@ -118,7 +118,7 @@ export const REGISTRATION_PATH_WORDS: Record<RegistrationPath, RegistrationPathW
   },
   sole_proprietor: {
     choice: "No, it is just me",
-    sub: "The carriers' registration for a one-person business. It works, and it is narrower.",
+    sub: "The phone networks' registration for a one-person business. It works, and it is narrower.",
     filed: "Registered as a sole proprietor",
   },
 };

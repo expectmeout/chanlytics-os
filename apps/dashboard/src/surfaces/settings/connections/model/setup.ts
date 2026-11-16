@@ -263,8 +263,8 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
       return {
         ...base,
         state: "waiting_them",
-        stateWords: "Waiting on carriers",
-        sentence: `Your business is approved. One last check on the line is with the carriers — usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.`,
+        stateWords: "Texting is being approved",
+        sentence: `Your business is approved. One last check on the line is with the phone networks · usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.`,
       };
     case "needs_record":
       // The pre-flight's own sentences when it has them, exactly as `rejected` and
@@ -311,15 +311,15 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
         state: "waiting_you",
         stateWords: SETUP_STATE_WORDS.waiting_you,
         sentence:
-          "The carriers texted your mobile — reply to that message from the handset itself and texting switches on. There is nothing to type here. The code lasts a day; if it runs out, Chanlytics asks the carriers for another.",
+          "The phone networks texted your mobile · reply to that message from the handset itself and texting switches on. There is nothing to type here. The code lasts a day · if it runs out, Chanlytics asks the phone networks for another.",
       };
     case "registering":
     case "hosting":
       return {
         ...base,
         state: "waiting_them",
-        stateWords: "Waiting on carriers",
-        sentence: `The carriers are registering your line, since ${since} · usually a week.`,
+        stateWords: "Texting is being approved",
+        sentence: `Texting is being approved, since ${since} · usually a week.`,
       };
     case "rejected":
       // NO "resubmit" VERB, and for the same reason `otp_waiting` above has none:
@@ -336,7 +336,7 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
         ...base,
         state: "attention",
         stateWords: "Sent back",
-        sentence: `The carriers sent the registration back${line?.last_error ? `: ${line.last_error}` : ""}. Correct what they named and Chanlytics sends it again — resubmitting is ours to do, and it costs nothing.`,
+        sentence: `The phone networks sent the registration back${line?.last_error ? `: ${line.last_error}` : ""}. Correct what they named and Chanlytics sends it again · resubmitting is ours to do, and it costs nothing.`,
         verb: { label: "Open the record", to: "verb:business-record", who: "owner" },
         body: "business_record",
       };
@@ -353,7 +353,7 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
         state: "later",
         stateWords: "Later",
         sentence:
-          "Plain text messages — arrives with a line that registers with the carriers; this page will say when.",
+          "Plain text messages · arrives with a line that registers with the phone networks · this page will say when.",
       };
   }
 }
@@ -432,7 +432,7 @@ const SIGNUP_LEFT_OPEN_WITHIN_MS = HOUR_MS;
  * code back (it rides the SDK's own callback), so the way on is to press Connect again and choose the account Meta already made.
  */
 const SIGNUP_LEFT_OPEN_NOTE =
-  "A WhatsApp sign-up was started here and did not come back to Chanlytics — if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.";
+  "A WhatsApp sign-up was started here and did not come back to Chanlytics · if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.";
 
 /** The left-open note, while the mark is under an hour old (a mark in the future, or one that is no time, is no sign-up anyone is waiting on). */
 function signupLeftOpenNotes(startedAt: string | null | undefined, nowMs: number): ConnectionNote[] {
@@ -533,9 +533,9 @@ function whatsappRow(connectionInputs: ConnectionInputs, { wa, own, nowMs }: Con
   }
   const reason =
     connectionInputs.whatsapp?.reason === "no_config_id"
-      ? " — the Embedded Signup configuration is missing on the Chanlytics side"
+      ? " · WhatsApp sign-up isn't set up on Chanlytics' side"
       : connectionInputs.whatsapp?.reason === "preview"
-        ? " — only on the production dashboard"
+        ? " · only on the production dashboard"
         : "";
   return {
     ...base,
@@ -579,7 +579,7 @@ function phoneRow(connectionInputs: ConnectionInputs, { voice, own, nowMs }: Con
       detail: null,
       state: "waiting_them",
       stateWords: SETUP_STATE_WORDS.waiting_them,
-      sentence: `Requested ${agoWords(Date.parse(connectionInputs.lineRequestedAt), nowMs)} — a person at Chanlytics will set up your line with you and reach you by email.`,
+      sentence: `Requested ${agoWords(Date.parse(connectionInputs.lineRequestedAt), nowMs)} · a person at Chanlytics will set up your line with you and reach you by email.`,
       verb: null,
     };
   }
@@ -621,7 +621,7 @@ function googleProfileRow(connectionInputs: ConnectionInputs, { connection: c, n
       ...base,
       detail: c.location_title,
       state: c.sync_error ? "attention" : "connected",
-      stateWords: c.sync_error ? "Couldn't sync" : "Connected",
+      stateWords: c.sync_error ? "Couldn't update" : "Connected",
       sentence: connectionWords(c, nowMs),
       verb: { label: "Disconnect", to: "verb:google-disconnect", who: "owner" },
     };
@@ -644,7 +644,7 @@ function googleProfileRow(connectionInputs: ConnectionInputs, { connection: c, n
       detail: null,
       state: "none",
       stateWords: "Not connected",
-      sentence: `Sign in to Google once; every review and the right to answer them follow.${note ? ` ${note}` : ""}`,
+      sentence: `Sign in to Google once · every review and the right to answer them follow.${note ? ` ${note}` : ""}`,
       verb: { label: "Connect Google", to: "verb:google-connect", who: "owner" },
     };
   }
@@ -672,7 +672,7 @@ function googleListingRow(
       state: l.check_error ? "attention" : "connected",
       stateWords: l.check_error ? "Couldn't be read" : "Watched",
       sentence: `${listingLine(l)} · ${checkedWords(l, nowMs)}`,
-      verb: { label: c && c.location_name ? "Sync now" : "Check now", to: "verb:google-check", who: "operator" },
+      verb: { label: c && c.location_name ? "Update now" : "Check now", to: "verb:google-check", who: "operator" },
     };
   }
   if (google?.ready.places) {
@@ -681,7 +681,7 @@ function googleListingRow(
       detail: null,
       state: "none",
       stateWords: "Not watched",
-      sentence: "Find it from the name and address on record; new reviews then reach your bell and Reports.",
+      sentence: "Find it from the name and address on record · new reviews then reach your bell and Reports.",
       verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE, who: "owner" },
     };
   }

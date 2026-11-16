@@ -76,7 +76,7 @@ export function RuleEditor({ list, flash, onDone }: { list: SavedList; flash: Fl
           <input
             autoFocus={focusAsDrawn()}
             value={words}
-            placeholder="Describe who — “on WhatsApp, and quiet a month”"
+            placeholder="Describe who · “on WhatsApp, and quiet a month”"
             maxLength={300}
             disabled={busy}
             aria-label="Describe who is on the list"

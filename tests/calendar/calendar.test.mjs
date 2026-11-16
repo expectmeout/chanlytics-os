@@ -278,7 +278,7 @@ test("without a feed the board still shows the hours and says so; a feed that co
     }),
     new Date("2026-09-08T16:00:00.000Z"),
   );
-  assert.equal(down.feed.line, "Your calendar couldn't be read · last read 4h ago");
+  assert.equal(down.feed.line, "Your calendar couldn't be read · updated 4h ago");
   const noHours = toCalendarVM(dto({ hours: null }), new Date("2026-09-08T16:00:00.000Z"));
   assert.deepEqual(noHours.hours, { start: 7, end: 21 }, "no hours on file: a plain working day, with air");
   // No hours on file is hours not set, never a week closed (the Calendar's lane B): every day read as Closed, and the
@@ -674,7 +674,7 @@ test("the board drawn right: overlapping blocks take lanes, a block outside the 
       bookingLinkAction: act(
         "Send the booking link",
         "Send the link",
-        "Only an approved message reaches them until they write again; their conversation offers the one with the link",
+        "Only an approved message reaches them until they write again · their conversation offers the one with the link",
         false,
       ),
       stopped: false,

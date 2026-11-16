@@ -1584,7 +1584,7 @@ test("REGRESSION (C1): a day past what AI offers says so, and the legend names t
     textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === key));
   assert.match(
     day("2026-09-15"),
-    /not offered yet — it offers times up to 7 days ahead/,
+    /not offered yet · it offers times up to 7 days ahead/,
     "REGRESSION: a day past the offer read as a day with nothing to offer",
   );
   assert.doesNotMatch(day("2026-09-15"), /Open[^:]*:\s*none\b/);
@@ -1625,7 +1625,7 @@ test("(C2) the feed line says when the calendar was last tried where that is the
     }),
     NOW,
   );
-  assert.equal(down.feed.line, "Your calendar couldn't be read · tried 3m ago · last read 4h ago");
+  assert.equal(down.feed.line, "Your calendar couldn't be read · tried 3m ago · updated 4h ago");
   const never = toCalendarVM(
     dto({
       feed: {
@@ -1688,7 +1688,7 @@ test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afres
   };
   await byTestId(page(), "cal-refresh").props.onClick();
   assert.equal(toasts.at(-1).tone, "warn");
-  assert.match(textOf(toasts.at(-1).msg), /Couldn't refresh your calendar — showing the last good read/);
+  assert.match(textOf(toasts.at(-1).msg), /Couldn't refresh your calendar · showing the last good read/);
   assert.match(textOf(toasts.at(-1).msg), /The calendar answered 503\./, "with why");
   // Nothing landed at all.
   globalThis.window.__calendar.refresh = async () => false;
@@ -2375,10 +2375,10 @@ test("REGRESSION (C3): the feed's state is the pill Connections and Setup use, i
   assert.deepEqual([feed({}).health, feed({}).detail], ["ok", "From your calendar · read 2m ago · 4 events"]);
   assert.equal(feed({ stale: true, reason: "http", checked_at: tried }).health, "stale");
   const down = feed({ state: "unavailable", read_at: "2026-09-08T12:00:00.000Z", checked_at: tried, events: 0 });
-  assert.deepEqual([down.health, down.detail], ["unavailable", "tried 3m ago · last read 4h ago"]);
+  assert.deepEqual([down.health, down.detail], ["unavailable", "tried 3m ago · updated 4h ago"]);
   assert.equal(
     down.line,
-    "Your calendar couldn't be read · tried 3m ago · last read 4h ago",
+    "Your calendar couldn't be read · tried 3m ago · updated 4h ago",
     "the whole sentence stays, for AI",
   );
   const none = feed({ present: false, state: "none", read_at: null, events: 0 });
@@ -2401,7 +2401,7 @@ test("REGRESSION (C3): the feed's state is the pill Connections and Setup use, i
   assert.ok(pill, "REGRESSION: a coloured dot, in no word Connections uses");
   assert.deepEqual([pill.props.kind, pill.props.value], ["calendar", "unavailable"]);
   const said = textOf(chip);
-  assert.ok(said.includes("Couldn't be read") && said.includes("tried 3m ago · last read 4h ago"), said);
+  assert.ok(said.includes("Couldn't be read") && said.includes("tried 3m ago · updated 4h ago"), said);
   assert.ok(!said.includes("Your calendar couldn't be read"), `the state is said once, by the pill: ${said}`);
 });
 

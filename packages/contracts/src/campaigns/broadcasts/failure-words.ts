@@ -75,8 +75,8 @@ export const BROADCAST_FAILURE_WORDS: Record<BroadcastFailure, Words> = {
     email: "the mail provider kept limiting how fast this workspace may send",
   },
   stalled: {
-    whatsapp: "its people or its number's credentials couldn't be read for half an hour",
-    sms: "its line's credentials couldn't be read for half an hour",
+    whatsapp: "its people or its number's connection couldn't be read for half an hour",
+    sms: "its line's connection couldn't be read for half an hour",
     email: "its mailbox couldn't be read for half an hour",
   },
   people_unreadable: "its people couldn't be read for half an hour",

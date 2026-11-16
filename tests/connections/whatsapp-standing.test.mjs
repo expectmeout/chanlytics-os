@@ -49,9 +49,9 @@ const LIBRARY = { label: "Messages", to: "campaigns/messages", who: "operator" }
 
 /** The row's sentences for the account's payment method: none on file, and one Meta reports a problem with. */
 const NEEDS_CARD =
-  "WhatsApp needs a card on file before it delivers reminders and campaigns; they wait and go once one is added.";
+  "WhatsApp needs a card on file before it delivers reminders and campaigns · they wait and go once one is added.";
 const CARD_FAILING =
-  "The card on your WhatsApp account has a problem, so reminders and campaigns wait; they go once it is fixed.";
+  "The card on your WhatsApp account has a problem, so reminders and campaigns wait · they go once it is fixed.";
 const REPLIES_STILL_GO = "Replies to customers who write first still go out.";
 const IN_SUITE = "Add one in Meta Business Suite › Billing.";
 const FIX_IN_SUITE = "Fix it in Meta Business Suite › Billing.";
@@ -280,10 +280,10 @@ test("a number Meta limits stays On: Meta's own note, a name in review and a ver
 
 test("a declined or lapsed name is said, with where to change it; a name Meta approved, a business with no daily limit, and a number it has said nothing about say nothing of themselves", () => {
   const declined = whatsappRow(channel({ ...AVAILABLE, name_status: "DECLINED", limit: "TIER_UNLIMITED" }));
-  assert.deepEqual(said(declined), ["Meta declined the display name “Harbor Moving” — change it in WhatsApp Manager."]);
+  assert.deepEqual(said(declined), ["Meta declined the display name “Harbor Moving” · change it in WhatsApp Manager."]);
   assert.equal(declined.state, "connected");
   const expired = whatsappRow(channel({ ...AVAILABLE, name: null, name_status: "EXPIRED", verification: null }));
-  assert.deepEqual(said(expired), ["The request for your display name expired — submit it again in WhatsApp Manager."]);
+  assert.deepEqual(said(expired), ["The request for your display name expired · submit it again in WhatsApp Manager."]);
   assert.deepEqual(said(whatsappRow(channel(AVAILABLE))), []);
   const unread = whatsappRow(channel(null));
   assert.deepEqual(said(unread), [], "nothing read yet: as it was, its quality and its last message");
@@ -439,7 +439,7 @@ test("the owner's alert: a payment method missing or failing says what Meta stop
   );
   assert.equal(
     standingAlertWords(null, { ...RESTRICTED, problems: [] }).body,
-    "WhatsApp can't send from your number. Meta did not say why; open Connections to read what it holds.",
+    "WhatsApp can't send from your number. Meta did not say why · open Connections to read what it holds.",
   );
 });
 
@@ -469,18 +469,18 @@ test("Meta's decision on a display name is said to the owner in the row's own wo
   });
   assert.deepEqual(nameDecisionWords("REJECTED", "Harbor Moving", "NAME_FORMAT_UNACCEPTABLE"), {
     subject: "WhatsApp display name declined",
-    body: "Meta declined the display name “Harbor Moving” — change it in WhatsApp Manager. Meta's reason: name format unacceptable.",
+    body: "Meta declined the display name “Harbor Moving” · change it in WhatsApp Manager. Meta's reason: name format unacceptable.",
     alert: true,
   });
   for (const reason of [null, undefined, "UNKNOWN", "NONE", "", 7])
     assert.equal(
       nameDecisionWords("REJECTED", "Harbor Moving", reason).body,
-      "Meta declined the display name “Harbor Moving” — change it in WhatsApp Manager.",
+      "Meta declined the display name “Harbor Moving” · change it in WhatsApp Manager.",
       `a reason Meta did not give is not said (${String(reason)})`,
     );
   assert.equal(
     nameDecisionWords("DECLINED", null, null).body,
-    "Meta declined your display name — change it in WhatsApp Manager.",
+    "Meta declined your display name · change it in WhatsApp Manager.",
     "the Graph's own word for the same decision, and a name the notice did not carry",
   );
   for (const quiet of ["PENDING", "DEFERRED", "approved", "MAYBE", "", null, undefined, 7])

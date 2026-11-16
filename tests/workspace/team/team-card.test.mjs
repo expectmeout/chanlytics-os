@@ -207,7 +207,7 @@ test("the invitations wait in their own group: days left or Expired, Resend or S
   assert.ok(byTestId(tree, "team-waiting"));
   const jamie = byTestId(tree, "team-row-i-jamie");
   assert.match(textOf(jamie), /Viewer · invited .* · 5 days left/);
-  assert.equal(textOf(byTestId(tree, "team-resend-i-jamie")), "Resend");
+  assert.equal(textOf(byTestId(tree, "team-resend-i-jamie")), "Send again");
   assert.ok(byTestId(tree, "team-expired-i-sam"), "an expired one says so as a state");
   assert.equal(textOf(byTestId(tree, "team-resend-i-sam")), "Send again");
   await press(byTestId(tree, "team-resend-i-sam"));

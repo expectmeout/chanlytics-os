@@ -372,7 +372,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
   const sheet = globalThis.React.createElement(GetYesSheet, { open: true, onClose() {} });
   const line = textOf(byTestId(sheet, "bc-optin-page"));
   assert.ok(
-    line.includes("app.chanlytics.com/yes/marisas") && line.includes("the wording the phone carriers ask for"),
+    line.includes("app.chanlytics.com/yes/marisas") && line.includes("the wording the phone networks ask for"),
     line,
   );
   const sd = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");

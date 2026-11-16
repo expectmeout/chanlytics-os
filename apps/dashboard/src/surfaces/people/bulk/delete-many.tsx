@@ -40,7 +40,7 @@ export const DELETE_MANY_WORDS = {
   said: (r: DeletedMany) =>
     [
       r.going.length ? `Deleting ${howManyPeople(r.going.length)}` : "Nobody deleted",
-      r.failed.length ? `${r.failed.length} not deleted — ${r.failed.at(0)?.message ?? ""}` : null,
+      r.failed.length ? `${r.failed.length} not deleted · ${r.failed.at(0)?.message ?? ""}` : null,
       r.skipped.length ? `${r.skipped.length} already gone` : null,
     ]
       .filter(Boolean)

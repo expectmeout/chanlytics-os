@@ -33,7 +33,7 @@ export function billingRow(setupInputs: SetupInputs, ctx: SetupRowContext): Setu
       state: "ready",
       required: true,
       sentence: `On trial, cancelled: AI answers until ${billingDayWords(billing.cancel_at ?? billing.trial_end, setupInputs.tz) || "the trial ends"}, then stops.`,
-      details: [...testMode, "Nothing is charged; undo the cancellation from Billing before then to keep it"],
+      details: [...testMode, "Nothing is charged · undo the cancellation from Billing before then to keep it"],
       verb: { label: "Open Billing", to: "admin/billing" },
     };
   }
@@ -47,7 +47,7 @@ export function billingRow(setupInputs: SetupInputs, ctx: SetupRowContext): Setu
       sentence: `On trial: ${trialWords(billing.trial_end, nowMs, setupInputs.tz) || "the card is on file"}.`,
       details: [
         ...testMode,
-        "The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not",
+        "The card on file is charged when the trial ends · cancel from Billing before then if you'd rather not",
         // What the trial does not cover (maySpend), said where the trial is, as Billing says it.
         TRIAL_COVERS,
       ],
@@ -64,7 +64,7 @@ export function billingRow(setupInputs: SetupInputs, ctx: SetupRowContext): Setu
       sentence:
         billing.status === "active"
           ? `Subscribed · next invoice ${billingDayWords(billing.current_period_end, setupInputs.tz) || "on the renewal date"}.`
-          : "Finishing checkout — this page updates by itself.",
+          : "Finishing checkout · this page updates by itself.",
       details: [...testMode],
       verb: { label: "Open Billing", to: "admin/billing" },
     };
@@ -76,7 +76,7 @@ export function billingRow(setupInputs: SetupInputs, ctx: SetupRowContext): Setu
       title: "Billing",
       state: "waiting_you",
       required: true,
-      sentence: "The last payment failed. Update the card to keep AI answering.",
+      sentence: "The last payment was declined. Update the card to keep AI answering.",
       details: [...testMode, "Stripe retries for a few days, then pauses the subscription"],
       verb: { label: "Update the card", to: "verb:billing-portal" },
     };
@@ -104,8 +104,8 @@ export function billingRow(setupInputs: SetupInputs, ctx: SetupRowContext): Setu
     required: true,
     sentence:
       billing.trial_days > 0
-        ? `Start the ${billing.trial_days}-day trial with a card — nothing is charged until it ends.`
-        : "Subscribe with a card — the first charge is today.",
+        ? `Start the ${billing.trial_days}-day trial with a card · nothing is charged until it ends.`
+        : "Subscribe with a card · the first charge is today.",
     details: [
       ...testMode,
       ...(billing.trial_days > 0
@@ -187,7 +187,7 @@ export function factsRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupR
       required: true,
       sentence: `${business.name} · hours set · ${plural(business.services, "service")} on record`,
       details: [
-        business.bookingLink ? "Booking link on record" : "No booking link — AI answers, but cannot send one",
+        business.bookingLink ? "Booking link on record" : "No booking link · AI answers, but cannot send one",
         business.address ? "Address on record" : "No address yet",
       ],
       verb: { label: "Edit in Business", to: "admin/workspace" },
@@ -262,12 +262,12 @@ export function whatsappRow(setupInputs: SetupInputs, ctx: SetupRowContext): Set
       stateWords: metaWaits ? "Waiting on Meta" : undefined,
       required: !answering,
       sentence: metaWaits
-        ? `Connected on ${waNum} — your first messages are with Meta for approval.`
+        ? `Connected on ${waNum} · your first messages are with Meta for approval.`
         : `Connected on ${waNum}.`,
       details,
       verb:
         cap.tested && !cap.live && !metaWaits
-          ? { label: "Activate", to: "verb:activate:whatsapp" }
+          ? { label: "Turn on", to: "verb:activate:whatsapp" }
           : templates.startersApproved < 5 && !metaWaits
             ? { label: "Add the starters", to: SEQUENCES_ROUTE }
             : { label: "Open the Inbox", to: "inbox" },

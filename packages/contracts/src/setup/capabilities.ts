@@ -83,17 +83,17 @@ export function capabilityStatus(
     } else if (voice.present) {
       blockers.push({ code: "channel_off", words: "Your line is switched off." });
     } else if (own && own.voice_state === "provisioning") {
-      blockers.push({ code: "line_provisioning", words: "Your line is being set up; it answers the moment it is." });
+      blockers.push({ code: "line_provisioning", words: "Your line is being set up · it answers the moment it is." });
     } else if (own && own.voice_state === "failed" && lineCredentialFailure(own.last_error)) {
       blockers.push({
         code: "line_failed",
         words:
-          "Setting up your line stopped at the vault that keeps its credentials; a person at Chanlytics has it, and a retry cannot help until they restore them.",
+          "Setting up your line stopped at the vault that keeps its keys. Chanlytics is on it, and trying again can't help until they're restored.",
       });
     } else if (own && own.voice_state === "failed") {
       blockers.push({
         code: "line_failed",
-        words: "Setting up your line stopped; a person at Chanlytics has it, and Retry is on the row.",
+        words: "Setting up your line stopped · a person at Chanlytics has it, and Retry is on the row.",
       });
     } else {
       blockers.push({ code: "no_line", words: "No line yet: get a number, or keep the one you have." });
@@ -118,7 +118,7 @@ export function capabilityStatus(
     if (!line)
       blockers.push({
         code: "texting_not_sold",
-        words: "Texting is not part of what is sold yet: it arrives with a line the carriers have approved.",
+        words: "Texting is not part of what is sold yet: it arrives with a line the phone networks have approved.",
       });
   }
 
@@ -128,11 +128,11 @@ export function capabilityStatus(
   const words = live
     ? `Active since ${agoWords(Date.parse(activated.at), nowMs)}.`
     : activated && !ready
-      ? `Activated, but not ready: ${blockers[0]?.words ?? ""}`
+      ? `Turned on, but not ready: ${blockers[0]?.words ?? ""}`
       : ready && tested
-        ? `Tested (${tested.what} ${agoWords(Date.parse(tested.at), nowMs)}). Activate it to say it is yours.`
+        ? `Tested (${tested.what} ${agoWords(Date.parse(tested.at), nowMs)}). Turn it on to say it is yours.`
         : ready
-          ? "Ready. Try it from your own phone, then activate it."
+          ? "Ready. Try it from your own phone, then turn it on."
           : (blockers[0]?.words ?? "");
   return { kind, ready, blockers, tested, activated, live, words };
 }

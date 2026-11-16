@@ -111,7 +111,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     /** Where it cannot keep the app yet: honest about what connecting does. */
     sameMoves: "WhatsApp moves to a number on Chanlytics. The app on your phone stops receiving its messages.",
     own: (n: string | null) => (n ? `On its own number, ${n}` : "On its own number"),
-    ownSays: "Customers write there; we register it with Meta for you.",
+    ownSays: "Customers write there · we register it with Meta for you.",
     later: "Later",
     laterSays: "Today keeps it as a row to finish.",
     approveAtGoLive: "Approve on your phone at Go live",

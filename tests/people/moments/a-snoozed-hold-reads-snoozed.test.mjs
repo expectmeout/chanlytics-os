@@ -127,7 +127,7 @@ test("the person's page: Right now and the Receptionist fact say Snoozed, and no
   const p = personFor(ROW);
   assert.equal(p.rightNow.tone, "snoozed");
   assert.equal(p.rightNow.title, "Snoozed", "was Escalated · asked for a person");
-  assert.match(p.rightNow.detail, /^Wakes .+\. Customer asked for a person — that is still waiting for you\.$/);
+  assert.match(p.rightNow.detail, /^Wakes .+\. Customer asked for a person · that is still waiting for you\.$/);
   assert.equal(stateOf("standing", p.rightNow.tone).label, "Snoozed", "the head pill says it too");
   assert.equal(p.rightNow.cta.to, "inbox/th-c1", "and the thread is a press away");
   const fact = receptionistFact(p);
@@ -152,7 +152,7 @@ test("a snooze with nothing open on it just says when it wakes, and the same hol
   );
 });
 
-test("a reply counting down on a snoozed thread is still what it is doing: Reply queued, as it is counted in Needs you", () => {
+test("a reply counting down on a snoozed thread is still what it is doing: Reply waiting to go, as it is counted in Needs you", () => {
   const queued = { ...ROW, queued_reply_at: "2026-09-18T17:59:30Z" };
   assert.equal(toPersonRowVM(queued, TZ, NOW, ME, null).receptionist.tone, "queued");
   assert.equal(personFor(queued).rightNow.tone, "queued");

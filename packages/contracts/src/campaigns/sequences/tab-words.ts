@@ -72,14 +72,14 @@ export const SEQUENCE_EDIT_WORDS = {
   reaches: (first: boolean) =>
     first
       ? "Your change reaches the next send"
-      : "Your change reaches everyone who gets the step before from now; anyone already waiting keeps their day",
-  whatsAppFirst: "WhatsApp reviews new words first; until it approves them, the step keeps the words approved now",
+      : "Your change reaches everyone who gets the step before from now · anyone already waiting keeps their day",
+  whatsAppFirst: "WhatsApp reviews new words first · until it approves them, the step keeps the words approved now",
   /**
    * What a call's or a note's change reaches (decision 0065 step 6): its words are read the day it runs, so they reach
    * everyone not on your Today yet; a new wait, only those who get the step before from now.
    */
   handReaches:
-    "New words reach everyone not on your Today yet; a new wait, only those who get the step before from now",
+    "New words reach everyone not on your Today yet · a new wait, only those who get the step before from now",
   /** A call or a note as it lands on Today for one person (the run's own sentence, personHandWords), for the example. */
   onToday: (kind: HandKind, words: string) => personHandWords(kind, "Dani", words),
 } as const;
@@ -425,7 +425,7 @@ export const SEQUENCE_REPLIES_WORDS = {
       ? `Nobody wrote back to ${name} in ${SEQUENCE_REPLIES_WORDS.period[period]}`
       : `${plural(n, "reply", "replies")} to ${name}, ${SEQUENCE_REPLIES_WORDS.period[period]}`,
   /** Some of them are older than the threads the Inbox holds: "9 of them are here; the rest are older". */
-  shown: (here: number, n: number) => (here === n ? null : `${here} of them are here; the rest are older`),
+  shown: (here: number, n: number) => (here === n ? null : `${here} of them are here · the rest are older`),
   reading: "Reading its replies…",
   failed: "its replies",
   leave: "Show every conversation",

@@ -40,9 +40,9 @@ export const LrControls = ({ c }: { c: LiveCallVM }) => {
     const rang = (r.ok && rangLine(r.data)) || line;
     if (r.ok)
       flash({
-        msg: <>Asked AI to pass the call to {rang || "the business's line"} — it should ring in a moment</>,
+        msg: <>Asked AI to pass the call to {rang || "the business's line"} · it should ring in a moment</>,
       });
-    else flash({ tone: "danger", msg: <>Not passed — {r.message}</> });
+    else flash({ tone: "danger", msg: <>Not passed · {r.message}</> });
   };
   const end = async () => {
     if (busy) return;
@@ -51,7 +51,7 @@ export const LrControls = ({ c }: { c: LiveCallVM }) => {
     const r = await endCall(c.callId);
     setBusy(null);
     if (r.ok) flash({ msg: <>Call ended</> });
-    else flash({ tone: "danger", msg: <>Not ended — {r.message}</> });
+    else flash({ tone: "danger", msg: <>Not ended · {r.message}</> });
   };
   return (
     <div className="lm-call-controls" data-testid="live-controls">

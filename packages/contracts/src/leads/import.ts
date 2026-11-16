@@ -378,7 +378,7 @@ export function leadListEmptyOf(
   if (!state || state.via !== "import" || !state.round || state.round.state === "ended") return null;
   return {
     title: "Checking the addresses.",
-    body: "Each business shows here once its address checks out; the rest wait in Needs review.",
+    body: "Each business shows here once its address checks out · the rest wait in Needs review.",
     action: null,
   };
 }

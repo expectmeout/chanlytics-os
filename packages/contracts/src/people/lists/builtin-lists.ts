@@ -70,7 +70,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "steps_due",
     label: "Steps due",
-    tip: "Their next step's day has come, or gone by — a note with a day, for the team",
+    tip: "Their next step's day has come, or gone by · a note with a day, for the team",
     group: "attention",
     onProfile: false,
     rule: r({ field: "step_due", op: "is", yes: true }),
@@ -79,7 +79,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "new_week",
     label: "New this week",
-    tip: "First contact in the last 7 days, by evidence — imported history never counts",
+    tip: "First contact in the last 7 days, by evidence · imported history never counts",
     group: "journey",
     rule: r({ field: "first_contact", op: "within", days: 7 }),
   },
@@ -94,7 +94,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "booked",
     label: "Booked",
-    tip: "Something ahead on your calendar — the booking is the conversion",
+    tip: "Something ahead on your calendar · the booking is the conversion",
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: true }),
   },
@@ -102,7 +102,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "asked_never_booked",
     label: "Asked, never booked",
-    tip: "Wrote or called in the last 30 days, and nothing on your calendar since answers it — the people you can still win",
+    tip: "Wrote or called in the last 30 days, and nothing on your calendar since answers it · the people you can still win",
     group: "journey",
     rule: r({ field: "asked_not_booked", op: "is", yes: true }),
   },
@@ -110,7 +110,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "lapsed",
     label: "Lapsed",
-    tip: "Forty-five days or more since they were last on the calendar, nothing ahead — the win-back list, from the calendar rather than silence",
+    tip: "Forty-five days or more since they were last on the calendar, nothing ahead · the win-back list, from the calendar rather than silence",
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 }),
   },
@@ -118,7 +118,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "consultation_booked",
     label: "Consultations",
-    tip: "A consultation coming up, or one this past week with no proposal since — the Pipeline's Consultations",
+    tip: "A consultation coming up, or one this past week with no proposal since · the Pipeline's Consultations",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "consultation" }),
@@ -135,7 +135,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "clients",
     label: "Clients",
-    tip: "Said yes, or paid — the engagement is running",
+    tip: "Said yes, or paid · the engagement is running",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "won" }),
@@ -151,7 +151,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "deal_ended",
     label: DEAL_STAGE_WORDS.ended,
-    tip: "An engagement that ended — the win-back list for clients",
+    tip: "An engagement that ended · the win-back list for clients",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "ended" }),
@@ -161,14 +161,14 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "quiet",
     label: "Quiet 30+ days",
-    tip: "They haven't written or called in 30 days — your own messages don't count, and someone never heard from isn't quiet",
+    tip: "They haven't written or called in 30 days · your own messages don't count, and someone never heard from isn't quiet",
     group: "reach",
     rule: r({ field: "last_heard", op: "more_than", days: 30 }),
   },
   {
     id: "phoned_only",
     label: "Phoned only",
-    tip: "Only ever phoned — no WhatsApp conversation",
+    tip: "Only ever phoned · no WhatsApp conversation",
     group: "reach",
     rule: r({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 }),
   },
@@ -177,7 +177,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "opted_in",
     label: "Said yes to messages",
-    tip: "Said yes to messages — replies, reminders and confirmations",
+    tip: "Said yes to messages · replies, reminders and confirmations",
     group: "reach",
     onProfile: false,
     rule: r({ field: "said_yes", op: "is", to: "messages", yes: true }),
@@ -185,7 +185,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "offers_ok",
     label: "Can receive offers",
-    tip: "Said yes to OFFERS, separately, with a number to send to — the only people a promotional send may reach",
+    tip: "Said yes to OFFERS, separately, with a number to send to · the only people a promotional send may reach",
     group: "reach",
     onProfile: false,
     rule: r({ field: "can_receive", op: "is", to: "offers", yes: true }),

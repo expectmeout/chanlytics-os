@@ -113,7 +113,7 @@ export function PolModeRow({
   lines?: RowLines;
 }) {
   const g = gate("autonomy");
-  const gated = busy === r.cls ? "Saving — wait for this one to land." : g["aria-disabled"] ? g["data-tip"] : null;
+  const gated = busy === r.cls ? "Saving · wait for this one to land." : g["aria-disabled"] ? g["data-tip"] : null;
   return (
     <RecordRow
       id={`pol-${r.id}`}
@@ -183,7 +183,7 @@ function modeCell(r: UiRow, m: UiMode, put: PutMode, busy: string | null) {
       {r.modes && !r.modes.includes(m) ? (
         <span
           className="pol-dash"
-          title={m === "Veto" ? "Nothing to hold for review here" : "Answered by AI or by you — there is no never"}
+          title={m === "Veto" ? "Nothing to hold for review here" : "Answered by AI or by you · there is no never"}
         >
           —
         </span>

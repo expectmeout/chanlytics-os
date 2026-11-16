@@ -78,7 +78,7 @@ export const plCsv = (
 /** The receptionist, in one word beside the state, only when it is not simply answering. */
 const PL_RECEPT_MARK: Record<string, string> = {
   escalated: "escalated",
-  queued: "reply queued",
+  queued: "reply waiting to go",
   snoozed: "snoozed",
   paused: "held for you",
   yours: "held for you",

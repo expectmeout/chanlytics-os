@@ -23,7 +23,7 @@ export const WHATSAPP_COST_WORDS = {
    * a row says one thing at a time, and the rates themselves are Meta's page (pricesLink), which says them by country and category.
    */
   summary:
-    "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill, so add one when Meta asks: replies within 24 hours of a customer's message are free; reminders sent after that, and campaigns, are charged for each one Meta delivers.",
+    "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill, so add one when Meta asks: replies within 24 hours of a customer's message are free · reminders sent after that, and campaigns, are charged for each one Meta delivers.",
   pricesLink: "Meta's current prices",
   /** Meta's page of current rates: what the Billing line and the Connect row's note link. */
   ratesUrl: RATES_URL,

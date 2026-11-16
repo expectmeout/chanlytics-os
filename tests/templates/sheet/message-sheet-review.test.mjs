@@ -246,7 +246,7 @@ test("put away while a sequence still sends it says so as it goes: putting it aw
   await settle();
   assert.match(
     textOf(toasts.at(-1).msg),
-    /is put away — still on file\. Putting it away stops nothing: it is still sent by Hours · step 2\./,
+    /is put away · still on file\. Putting it away stops nothing: it is still sent by Hours · step 2\./,
   );
 });
 

@@ -115,7 +115,7 @@ function saidView(said: readonly Said[], onResend: (id: string) => void, again: 
             </span>
             {s.resend && (
               <LinkButton onClick={() => onResend(s.resend as string)} data-testid="team-invite-resend">
-                Resend it
+                Send it again
               </LinkButton>
             )}
           </li>

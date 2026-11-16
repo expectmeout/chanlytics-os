@@ -157,7 +157,7 @@ export function consentSourceLabel(source: string | null | undefined): string | 
   if (!source) return null;
   const known = CONSENT_SOURCES.find((s) => s.id === source);
   if (known) return known.label;
-  if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
+  if (source === CARRIER_CONSENT_SOURCE) return "Reported by their phone company";
   if (source === STOP_ENDED_OFFERS_SOURCE) return "Ended when they said stop";
   if (source === WHATSAPP_CONSENT_SOURCE) return "Reported by WhatsApp";
   // The merge of two records changed the answer (00326).

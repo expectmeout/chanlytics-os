@@ -310,7 +310,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     hints: {
       words: "Written once by AI when you make a campaign in New: the same words for every business it goes to.",
       opening:
-        "Written for each business as its email comes due, then read back by a second reader. One that guesses is written again; one that still does is held for you.",
+        "Written for each business as its email comes due, then read back by a second reader. One that guesses is written again · one that still does is held for you.",
       reply:
         "Written by AI as How it answers is told, with the conversation and the lead's note. Signed as the campaign signs.",
     },

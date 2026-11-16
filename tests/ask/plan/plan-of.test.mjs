@@ -249,7 +249,7 @@ const WRITES = (on) =>
 const NOTE = "Tells AI about the offer, until Nov 30.";
 /** The pause is a silent step: it applies at the plan's Approve (Task 15, carry-forward b). */
 const PAUSES =
-  "Pauses the month's offer, “This month's offer”, from when you approve it, so nobody gets two offers; resume it after Nov 30.";
+  "Pauses the month's offer, “This month's offer”, from when you approve it, so nobody gets two offers · resume it after Nov 30.";
 const GOES = "The offer goes to “Can receive offers” on Nov 1 at 10:00 AM.";
 /** The reminder, its own question on its day: whole, and short enough to fit the answer before what the cards show. */
 const REMINDS = "On Nov 20, ask me to send a reminder to whoever on “Can receive offers” has not booked by then.";
@@ -1079,7 +1079,7 @@ const ES_WRITES = (on) =>
 const ES_NOTE = "Avisa a la recepcionista de la oferta, hasta el 30 de noviembre.";
 const ES_TODAY_NOTE = "Avisa a la recepcionista de la oferta, hasta el 15 de noviembre.";
 const ES_PAUSES = (name = "Oferta del mes") =>
-  `Pausa la oferta del mes, «${name}», desde que apruebes el plan, para que nadie reciba dos ofertas; reanúdala después del 30 de noviembre.`;
+  `Pausa la oferta del mes, «${name}», desde que apruebes el plan, para que nadie reciba dos ofertas · reanúdala después del 30 de noviembre.`;
 const ES_GOES = "La oferta va a «Pueden recibir ofertas» el 1 de noviembre a las 10:00.";
 const ES_REMINDS = (day = "20 de noviembre") =>
   `El ${day}, pídeme que envíe un recordatorio a quien de «Pueden recibir ofertas» no haya reservado para entonces.`;

@@ -52,8 +52,7 @@ export const BUDGET_WORDS = {
   /** A cap of 0: none, so it never stops for the day. */
   none: "No limit",
   stops: "Over it, it stops for the day and every new message lands in Needs you.",
-  sized: (perReply: number) =>
-    `Counted from the size of a reply here over the last week (about ${perReply.toLocaleString("en-US")} tokens).`,
+  sized: "Counted from the size of a reply here over the last week.",
   unsized: "Said in replies once it has answered a few.",
 } as const;
 
@@ -80,7 +79,7 @@ export function budgetDial(caps: readonly number[], perReply: number | null): Bu
   const inReplies = perReply !== null && new Set(wordedCaps.map(([w]) => w)).size === wordedCaps.length;
   return {
     label: inReplies ? BUDGET_WORDS.inReplies : BUDGET_WORDS.inTokens,
-    note: `${perReply ? BUDGET_WORDS.sized(perReply) : BUDGET_WORDS.unsized} ${BUDGET_WORDS.stops}`,
+    note: `${perReply ? BUDGET_WORDS.sized : BUDGET_WORDS.unsized} ${BUDGET_WORDS.stops}`,
     steps: inReplies ? wordedCaps : caps.map((c) => [word(c, false), c] as const),
   };
 }

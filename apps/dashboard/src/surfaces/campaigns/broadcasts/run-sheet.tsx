@@ -273,7 +273,7 @@ function bcSheetWords(says: CmPreviewBy, avm: ApprovalVM) {
         )}
         {avm.hiThere > 0 && (
           <span className="bc-sheet-hi" data-testid="bc-sheet-hi">
-            {avm.hiThere} {avm.hiThere === 1 ? "gets" : "get"} “Hi there” — no name on file
+            {avm.hiThere} {avm.hiThere === 1 ? "gets" : "get"} “Hi there” · no name on file
           </span>
         )}
       </div>

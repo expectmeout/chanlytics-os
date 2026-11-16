@@ -38,8 +38,8 @@ export const VISIT_CHANGES_TOLD = {
   added: "A booking arriving (bookingArriving): told, unless it is the owner's own entry or a calendar's catching up.",
   confirmed: "A proposed one the tool confirmed: told as a booking arriving.",
   cancelled:
-    "Told when the customer cancelled through their booking tool (bookingChanged); a member's cancel is theirs.",
-  moved: "Told when the customer moved it through their booking tool; the calendar's moves are the owner's own diary.",
+    "Told when the customer cancelled through their booking tool (bookingChanged) · a member's cancel is theirs.",
+  moved: "Told when the customer moved it through their booking tool · the calendar's moves are the owner's own diary.",
   kept: "A member's word that they came: theirs, not news.",
   missed: "A member's word on a no-show: theirs, not news.",
   vanished: "Gone from the owner's calendar, their own diary: not told, as a feed's rebuild would tell them all.",

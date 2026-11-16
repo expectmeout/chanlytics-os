@@ -57,7 +57,7 @@ export const SMS_CLAUSES: readonly string[] = [
  */
 export function dataSentences(businessName: string): string[] {
   return [
-    `For text messages, ${businessName} keeps your mobile number, the messages you and it exchange, and your yes to messages, with the date and the way it was given.`,
+    `For text messages, ${businessName} keeps your mobile number, the messages you and it exchange, and your consent to messages, with the date and the way it was given.`,
     "They are used only to answer you, to send the messages you agreed to, and to honour a STOP. They are not sold, and they are not shared with third parties or affiliates for marketing or promotional purposes.",
   ];
 }
@@ -397,7 +397,7 @@ export function registrationPreflight(preflightFacts: PreflightFacts): Preflight
   if (sentence && legal && sentence !== legal && (!trade || sentence !== trade)) {
     out.push({
       id: "name_mismatch",
-      what: `The carriers will be told this business is called “${preflightFacts.workspaceName}”, but the business on record is “${preflightFacts.tradeName?.trim() || preflightFacts.legalName}”.`,
+      what: `The phone networks will be told this business is called “${preflightFacts.workspaceName}”, but the business on record is “${preflightFacts.tradeName?.trim() || preflightFacts.legalName}”.`,
       fix: "Save the business's name under Settings › Details as it is on record, or put that name on record as its trading name, before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign.",
     });
   }
@@ -419,7 +419,7 @@ export function registrationPreflight(preflightFacts: PreflightFacts): Preflight
   if (!identifiesABusiness(preflightFacts)) {
     out.push({
       id: "no_identity",
-      what: "The page the carriers will open to check who you are cannot be published: it needs your legal name and your address.",
+      what: "The page the phone networks will open to check who you are cannot be published: it needs your legal name and your address.",
       fix: "Fill in the legal name and the street address above. They are the two facts a reviewer looks for first.",
     });
   }
@@ -431,7 +431,7 @@ export function registrationPreflight(preflightFacts: PreflightFacts): Preflight
   if ((preflightFacts.about ?? "").trim().length < ABOUT_MIN) {
     out.push({
       id: "no_about",
-      what: "The carriers can't tell what this business does: your page and your registration have no description of it.",
+      what: "The phone networks can't tell what this business does: your page and your registration have no description of it.",
       fix: "Fill in “What the business does” above in two or three sentences: what you sell, who buys it, and how they pay.",
     });
   }
@@ -444,7 +444,7 @@ export function registrationPreflight(preflightFacts: PreflightFacts): Preflight
     out.push({
       id: "no_opt_in_number",
       what: "There is no number for customers to text to say yes, so the sign-up page has nothing to offer them.",
-      fix: "Connect WhatsApp or finish setting up the phone line first. The carriers are told customers opt in by texting this business, and that has to be true.",
+      fix: "Connect WhatsApp or finish setting up the phone line first. The phone networks are told customers opt in by texting this business, and that has to be true.",
     });
   }
 

@@ -223,7 +223,7 @@ export function sendableTemplates<T extends { components?: unknown }>(
   return {
     sendable,
     blocked,
-    why: `${lead} can't go out from here — ${words}. ${length === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`,
+    why: `${lead} can't go out from here · ${words}. ${length === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`,
   };
 }
 

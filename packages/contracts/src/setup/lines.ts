@@ -255,17 +255,17 @@ export function lineRetryRefusal(
 ): string | null {
   if (!line) return "no such line";
   if (line.voice_state === "failed" && lineCredentialFailure(line.last_error))
-    return "the line's credentials couldn't be kept — a retry cannot help until a person at Chanlytics restores them, and we have been told";
+    return "the line's keys couldn't be kept. Trying again can't help until Chanlytics restores them, and Chanlytics has been told";
   if (line.voice_state === "failed") return null;
   if (lineStuckProvisioning(line, nowMs)) return null;
   return line.voice_state === "provisioning"
-    ? "the line is still setting up — give it a few minutes, and it is retried automatically after that"
+    ? "the line is still setting up · give it a few minutes, and it is retried automatically after that"
     : `the line is ${line.voice_state}, not failed`;
 }
 
 /** The saga's step, in the owner's words — the row, the bell and the platform email say the same thing. */
 export const LINE_STEP_WORDS: Record<string, string> = {
-  subaccount: "opening your account with the carrier",
+  subaccount: "opening your account with the phone company",
   number: "buying the number",
   trunk: "connecting the number to AI",
   agent: "setting up AI",
@@ -378,7 +378,7 @@ export const SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registrat
 export const SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 
 export const MOCK_TEXTING_SENTENCE =
-  "Texting is filed against a test registry, so nothing is delivered — a person at Chanlytics is filing it with the carriers for real.";
+  "Texting is filed against a test registry, so nothing is delivered · a person at Chanlytics is filing it with the phone networks for real.";
 
 /**
  * Texting on a line that answers calls with nothing filed waits on the owner's
@@ -387,10 +387,10 @@ export const MOCK_TEXTING_SENTENCE =
  * says the sentence on the row that holds the form; Setup's clause adds where.
  */
 export const TEXTING_NEEDS_RECORD_SENTENCE =
-  "Texting needs your business on record for the carriers — two minutes, once.";
+  "Texting needs your business on record for the phone networks · two minutes, once.";
 
 export const TEXTING_NEEDS_RECORD_CLAUSE =
-  "Texting needs your business on record for the carriers — two minutes, once, on Connections.";
+  "Texting needs your business on record for the phone networks · two minutes, once, on Connections.";
 
 /**
  * A broken configuration, said once. Setup sent the owner to "Open Workspace to
@@ -400,14 +400,14 @@ export const TEXTING_NEEDS_RECORD_CLAUSE =
  */
 export const BROKEN_CONFIG_WORDS = {
   title: "This workspace's settings can't be read",
-  body: "Something saved in this workspace's configuration no longer passes the checks AI runs before it answers, so AI is silent and this form is closed — saving from here would replace what is still there. Chanlytics has to repair it.",
+  body: "Something saved in this workspace's settings no longer passes the checks AI runs before it answers, so AI is silent and this form is closed · saving from here would replace what is still there. Chanlytics has to repair it.",
   clause:
     "Your business settings couldn't be read, so AI is silent until Chanlytics repairs them. Business lists what is wrong.",
   /** The owner's one move on a configuration only Chanlytics can repair (S8): it said so, with no way to ask. */
   ask: "Ask for a repair",
   /** Once asked: when, and what happens next, on Setup's row and on the pane's card alike. */
   requested: (at: string, nowMs: number) =>
-    `Requested ${agoWords(Date.parse(at), nowMs)} — a person at Chanlytics will repair them and reach you by email.`,
+    `Requested ${agoWords(Date.parse(at), nowMs)} · a person at Chanlytics will repair them and reach you by email.`,
 } as const;
 
 /**
@@ -454,9 +454,12 @@ export function textingWords(
     case "active":
       return { sentence: line.reg_sole_prop ? SOLE_PROP_TEXTING_SENTENCE : "Texting is on.", done: true };
     case "approved":
-      return { sentence: "Your business is approved; one last check on the line is with the carriers.", done: false };
+      return {
+        sentence: "Your business is approved · one last check on the line is with the phone networks.",
+        done: false,
+      };
     case "registering":
-      return { sentence: "Texting is with the carriers.", done: false };
+      return { sentence: "Texting is being approved.", done: false };
     // The state the pre-flight writes, which had no case here at all -- so a
     // workspace stopped BEFORE anything was filed read the default, "Texting is
     // not available yet", which says nothing about what is in the way and nothing
@@ -471,24 +474,24 @@ export function textingWords(
     // does trips the same state, and that fix is a rename, not a field.
     case "needs_record":
       return {
-        sentence: "Texting needs something on your business record put right — Connections says what.",
+        sentence: "Texting needs something on your business record put right · Connections says what.",
         done: false,
       };
     case "rejected":
-      return { sentence: "The carriers refused the texting registration.", done: false };
+      return { sentence: "Texting wasn't approved.", done: false };
     case "failed":
-      return { sentence: "The texting registration stopped; a person at Chanlytics has it.", done: false };
+      return { sentence: "The texting registration stopped · a person at Chanlytics has it.", done: false };
     // The one state where the owner must act inside a day: the carriers texted
     // their own mobile. Connections says it in full; Setup used to say "not
     // available yet", which reads as nothing to do.
     case "otp_waiting":
       return {
         sentence:
-          "The carriers texted your mobile — reply to that message from the handset itself and texting switches on; the code lasts a day.",
+          "The phone networks texted your mobile · reply to that message from the handset itself and texting switches on · the code lasts a day.",
         done: false,
       };
     case "hosting":
-      return { sentence: "Texting is with the carriers.", done: false };
+      return { sentence: "Texting is being approved.", done: false };
     default:
       return { sentence: "Texting is not available yet.", done: false };
   }

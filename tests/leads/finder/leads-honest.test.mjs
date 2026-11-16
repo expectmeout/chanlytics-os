@@ -1168,7 +1168,7 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   assert.match(labelOf(slot("l3", "mailbox")), /^Email: Unconfirmed, /);
   assert.match(
     tipOf(slot("l3", "mailbox")),
-    /mail server wouldn't answer/,
+    /email provider wouldn't answer/,
     "the same shape as a catch-all, its own sentence in the tip",
   );
   assert.ok(
@@ -1702,13 +1702,13 @@ test("Needs review is a workbench: the pile in the order to work it, the group's
   const queue = all(byTestId(bench, "lead-bench-queue"), (n) => n.props?.role === "tab");
   assert.deepEqual(
     queue.map((q) => textOf(q)),
-    ["1Their mail server wouldn't answerCheck again · Keep · Exclude"],
+    ["1Their email provider wouldn't answerCheck again · Keep · Exclude"],
     "one row per thing that would resolve a pile, with its count and its acts in words",
   );
-  assert.equal(textOf(byTestId(bench, "bench-title")), "Their mail server wouldn't answer1");
+  assert.equal(textOf(byTestId(bench, "bench-title")), "Their email provider wouldn't answer1");
   assert.match(
     textOf(byTestId(bench, "bench-why")),
-    /^Their mail server did not answer the check/,
+    /^Their email provider didn't answer the check/,
     "and a sentence saying what is true of every lead in it",
   );
   assert.deepEqual(
@@ -4580,7 +4580,7 @@ test("at a phone's width Needs review is rows in groups: the group's acts on its
     assert.equal(id, "l3", "the review pile's one row");
     assert.equal(
       textOf(heads[0]),
-      "Their mail server wouldn't answer1·Check againKeep allExclude all",
+      "Their email provider wouldn't answer1·Check againKeep allExclude all",
       "the group's words, its count, its acts (Check again has its door: the surface's own)",
     );
     assert.equal(

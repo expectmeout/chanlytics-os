@@ -955,7 +955,7 @@ test("a draft is judged in the body's words before the assistant is asked; the s
     draft.POST.run(send("POST", { brief: "Tell them about the new hours", category: "spam" }, inB), ctxFor(tables)),
     "validation",
     400,
-    "A template is marketing or utility.",
+    "Pick marketing or utility.",
   );
   await refused(
     draft.POST.run(
@@ -1426,7 +1426,7 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
       post(tablesFor({ lines: [pending] }), { channels: ["sms"] }).run,
       "conflict",
       409,
-      "not approved by the carriers",
+      "isn't approved for your number",
     );
     await refused(
       post(tablesFor({ lines: [channelRows.line] }), { channels: ["sms"] }).run,

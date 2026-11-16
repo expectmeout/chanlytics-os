@@ -163,8 +163,8 @@ test("a caller with nothing in writing: the call's summary is the sentence; the 
   );
   assert.equal(withSummary.cta, null, "the row is the profile; there is no conversation to open");
   const bare = rowOf(caller);
-  assert.equal(bare.sentence, "Phoned once; nothing in writing yet");
-  assert.equal(rowOf({ ...caller, call_count: 3 }).sentence, "Phoned 3 times; nothing in writing yet");
+  assert.equal(bare.sentence, "Phoned once · nothing in writing yet");
+  assert.equal(rowOf({ ...caller, call_count: 3 }).sentence, "Phoned 3 times · nothing in writing yet");
   assert.equal(
     rowOf({ ...caller, last_call_at: null, last_inbound_call_at: null, call_count: 0 }).sentence,
     "Nothing written yet",

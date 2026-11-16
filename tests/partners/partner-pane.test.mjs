@@ -762,7 +762,7 @@ test("over the real bridge: who is asking, joining and declining, and the owner'
     assert.deepEqual(joined, {
       ok: true,
       message:
-        "You're Harbor's partner. It was already paying when you joined, so it earns you no share; the owner's team is yours to help run.",
+        "You're Harbor's partner. It was already paying when you joined, so it earns you no share · the owner's team is yours to help run.",
     });
     assert.deepEqual(await P.answer("t9", false), { ok: true, message: "" });
 

@@ -257,7 +257,7 @@ test("emails and businesses are counted apart, and each outcome is a share of bu
   ]);
   assert.equal(
     businesses.line,
-    "Of 25 businesses written to in these 30 days: 24% wrote back and 12% were interested. Each counts once, at the last email that wrote to it; a question counts as interested. Who wrote back, was interested, booked or said no is as it stands now.",
+    "Of 25 businesses written to in these 30 days: 24% wrote back and 12% were interested. Each counts once, at the last email that wrote to it · a question counts as interested. Who wrote back, was interested, booked or said no is as it stands now.",
   );
   assert.equal(businesses.empty, null);
   // The bars measure against the largest in their own list: a unit never mixes in one list.
@@ -293,11 +293,11 @@ test("on a database before 00404 the businesses part says it does not count them
   assert.deepEqual(old.businesses, {
     rows: [],
     line: null,
-    empty: "This database does not count businesses yet.",
+    empty: "Chanlytics doesn't count businesses here yet.",
   });
   assert.deepEqual(old.emails, vm().emails, "the emails part is the same words and numbers");
   // It does not guess a unit from the emails: nothing in the angles or the sources is a share of emails either.
-  assert.deepEqual(old.angles, { rows: [], line: null, empty: "This database does not count businesses yet." });
+  assert.deepEqual(old.angles, { rows: [], line: null, empty: "Chanlytics doesn't count businesses here yet." });
   const chain = old.sources.find((s) => s.kind === "chain");
   assert.deepEqual([chain.businesses, chain.wroteBack], ["—", "5"], "no businesses to divide by: the count alone");
 });
@@ -735,8 +735,8 @@ test("a businesses count that is null or not a count reads as absent: the pre-00
   const old = toReachOutLensVM(before00404(), NOW);
   assert.equal(vmNull.strip[0].meta, "40 emails");
   assert.deepEqual(vmNull.businesses, old.businesses);
-  assert.equal(vmNull.businesses.empty, "This database does not count businesses yet.");
-  assert.deepEqual(vmNull.angles, { rows: [], line: null, empty: "This database does not count businesses yet." });
+  assert.equal(vmNull.businesses.empty, "Chanlytics doesn't count businesses here yet.");
+  assert.deepEqual(vmNull.angles, { rows: [], line: null, empty: "Chanlytics doesn't count businesses here yet." });
   assert.equal("businesses" in vmNull.totals, false, "the totals say it is absent, not null");
   const chain = vmNull.sources.find((s) => s.id === "r1");
   const p1 = vmNull.sources.find((s) => s.id === "r1:p1");

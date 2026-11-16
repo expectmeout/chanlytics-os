@@ -572,7 +572,7 @@ test("the card's one next act follows the stage: the proposal's link, its send, 
   });
   assert.equal(
     DEAL_ACT_HINTS.approved,
-    "Only an approved message reaches them until they write again; their conversation offers those",
+    "Only an approved message reaches them until they write again · their conversation offers those",
   );
   // On its way (a send still in the seconds it can be undone): the yes, and no second send.
   const sending = person({ deals: [dealDto()], messages: [msg("m1", 3 * H), sentMsg(0, { status: "queued" })] });

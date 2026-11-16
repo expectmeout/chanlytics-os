@@ -132,7 +132,7 @@ function PartnerAccount({
       setCopied(true);
       window.setTimeout(() => setCopied(false), COPIED_MS);
     } catch {
-      flash({ tone: "warn", msg: <>Couldn't copy — select the link and copy it yourself.</> });
+      flash({ tone: "warn", msg: <>Couldn&apos;t copy · select the link and copy it yourself.</> });
     }
   };
   return (
