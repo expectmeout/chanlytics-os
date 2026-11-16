@@ -289,6 +289,7 @@ export {
   REACH_OUT_REFUSALS,
   REACH_OUT_SHEET_WORDS,
   reachLineOf,
+  reachOutRefusalWords,
   sheetFootWords,
   startWords,
   stepLabel,
