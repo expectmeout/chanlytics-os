@@ -261,8 +261,9 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   template_not_approved: "its WhatsApp version is no longer approved",
   // They waited for WhatsApp to say yes to the message, and the wait ended first (core whatsapp-wait.ts).
   whatsapp_wait_ended: "WhatsApp had not approved the message in time",
-  // A follow-up to go as a reply in their open WhatsApp chat (decision 0135), whose day had passed by the time it went.
-  chat_closed: "their WhatsApp chat had closed",
+  // A follow-up to go as a reply in their open WhatsApp conversation (decision 0135), whose 24 hours had passed by the time
+  // it went: said as the app says those 24 hours everywhere (conversations/window-words.ts), and never "chat".
+  chat_closed: "more than 24 hours since they last wrote on WhatsApp",
   // The number is on file but no thread answers to it on this line: a stored
   // number that does not normalise, or one no contact row matches.
   no_thread: "no thread for that number",
@@ -337,6 +338,9 @@ export const HELD_WHEN_COUNTED = [
   "month_allowance",
   // Who waited for WhatsApp's yes to the message until the run's wait for it ended (core whatsapp-wait.ts).
   "whatsapp_wait_ended",
+  // Who was to get a follow-up as a reply on WhatsApp and whose 24 hours had passed by the send (decision 0135), most
+  // often a batch that waited for the owner's approval: what the wait cost, named.
+  "chat_closed",
 ] as const;
 
 /**

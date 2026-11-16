@@ -104,7 +104,7 @@ export { FREED_TIME_PASSED_WORDS, poolWords, reachLines, runApprovalRefusal, run
 export { campaignChannelsOf, playbookChannelsRead, WHATSAPP_VERSION_ALONE } from "./campaigns/playbooks/channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./campaigns/playbooks/failed";
 export { FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, followUpIsFor, followUpKey, followUpNames, followUpRunAt, followUpStandOf, followUpWords, PLAYBOOK_TOUCH_WINDOW_MS, playbookRunStop, playbookStopBy } from "./campaigns/playbooks/follow-ups";
-export { IN_CHAT_FACT, inChatPurposeOf, replyInChatOf } from "./campaigns/playbooks/in-chat";
+export { IN_CHAT_FACT, inChatPurposeOf, inChatPurposeOfMessage, replyInChatOf } from "./campaigns/playbooks/in-chat";
 export { keptThanksAt, lateReminderAt } from "./campaigns/playbooks/late-reminder";
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./campaigns/playbooks/lifecycle/inputs";
 export { reachCountsOf, lifecycleComing, lifecycleReach, lifecycleResults, nextRunLine, resumeDetailOf, waitingOffer, workspacePausedOf } from "./campaigns/playbooks/lifecycle/tiles";
