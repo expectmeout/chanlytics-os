@@ -237,17 +237,14 @@ const ASK_TEXT = {
     },
     whyChange: "Change it",
     pressOffer: "Start the offer",
-    pressReview: "Send for review",
     pressPlan: "Do it",
     // A plan whose one press starts several campaigns names them by their count.
     pressAll: (n: number) => `Start all ${n}`,
-    // A plan's one card (card.tsx AskPlan): its fold, what a press left, and WhatsApp's first read.
+    // A plan's one card (card.tsx AskPlan): its fold and what a press left.
     howItRuns: "How it runs",
-    reviewFirst: "WhatsApp reads new words first, usually in minutes.",
-    planFiled: "Words sent for review. Press Start once WhatsApp has read them.",
     planDone: "Done.",
     planAllOn: (n: number) => `All ${n} are on. Each says below when it starts.`,
-    // What a press left for the next one: a send that waits for WhatsApp's read, or for what another comes back with.
+    // What a press left for the next one: a send that waits for what another comes back with.
     planLeft: (n: number) => (n === 1 ? "1 more starts with the next press." : `${n} more start with the next press.`),
     fixIt: "Fix it",
     planUndone: "Undone. Nothing goes out.",
@@ -377,12 +374,9 @@ const ASK_TEXT = {
     },
     whyChange: "Cambiarlo",
     pressOffer: "Empezar la oferta",
-    pressReview: "Enviar a revisión",
     pressPlan: "Hazlo",
     pressAll: (n: number) => `Empezar las ${n}`,
     howItRuns: "Cómo funciona",
-    reviewFirst: "WhatsApp lee primero los textos nuevos, normalmente en minutos.",
-    planFiled: "Texto enviado a revisión. Pulsa Empezar cuando WhatsApp lo haya leído.",
     planDone: "Hecho.",
     planAllOn: (n: number) => `Las ${n} están en marcha. Cada una dice abajo cuándo empieza.`,
     planLeft: (n: number) =>

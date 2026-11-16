@@ -35,8 +35,6 @@ interface OfferWords {
   noText: string;
   /** A channel the offer goes without, and why, as a card says a channel that waits (playbooks/channels.ts). */
   without: (channel: OfferChannel, why: string | null) => string;
-  /** Why it goes without WhatsApp where the one message that carries it waits on WhatsApp's review (a send it holds). */
-  reviewing: (name: string) => string;
   reuseMessage: (name: string) => string;
   writeMessage: (name: string, on: readonly OfferChannel[]) => string;
   noteMade: (until: string) => string;
@@ -51,9 +49,7 @@ interface OfferWords {
   paced: (room: Room, audience: number, cap: number) => string;
   /** The same room for an offer that starts later: its send reaches the whole list, or is dismissed to pace it then. */
   roomTight: (room: Room, audience: number, from: string) => string;
-  /** Its WhatsApp version unapproved, a send waits (sendWaitsForReview) at its press, whatever its day; its card says. */
-  reviewFirst: string;
-  /** A paced campaign by email too: approved now, its WhatsApp people held until the version is approved. */
+  /** Its WhatsApp version still being checked: approved now, a one-off or a campaign, its WhatsApp people waiting for the check. */
   whatsappReview: string;
   /** The reminder, its own question on its day (who has booked is known then); short, to fit the answer whole. */
   reminderAsk: (day: string, list: string) => string;
@@ -85,7 +81,6 @@ const EN: OfferWords = {
   reason: reasonEn,
   noText: CHANNEL_WORDS.noOffersByText,
   without: (channel, reason) => `It goes without ${versionWord(channel)}: ${reasonEn(reason)}`,
-  reviewing: (name) => `WhatsApp is still reviewing the WhatsApp version of “${name}”.`,
   reuseMessage: (name) => `Sends “${name}”, already in your messages, with the offer in its words.`,
   writeMessage: (name, on) =>
     `Writes a message for offers, “${name}”, for ${joinWords(on.map(versionWord))}: this offer goes in its words, and the next offer can send it too.`,
@@ -100,7 +95,6 @@ const EN: OfferWords = {
     `${roomEn(room, audience)}, so the offer goes as a campaign: up to ${cap} a day, each person once, until it ends, starting when you approve it.`,
   roomTight: (room, audience, from) =>
     `${roomEn(room, audience)}, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on ${from}.`,
-  reviewFirst: "The send can be approved once WhatsApp has reviewed its WhatsApp version.",
   whatsappReview:
     "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
   reminderAsk: (day, list) => `On ${day}, ask me to send a reminder to whoever on “${list}” has not booked by then.`,
@@ -169,7 +163,6 @@ const ES: OfferWords = {
   reason: reasonEs,
   noText: "Los mensajes de texto no llevan ofertas.",
   without: (channel, reason) => `Va sin ${channelEs(channel)}: ${reasonEs(reason)}`,
-  reviewing: (name) => `WhatsApp aún revisa la versión de WhatsApp de «${name}».`,
   reuseMessage: (name) => `Envía «${name}», que ya está en la Biblioteca, con la oferta en su texto.`,
   writeMessage: (name, on) =>
     `Escribe un mensaje para ofertas, «${name}», para ${joinWordsEs(on.map(channelEs))}: esta oferta va en su texto, y la próxima también podrá enviarlo.`,
@@ -184,7 +177,6 @@ const ES: OfferWords = {
     `${roomEs(room, audience)}, así que la oferta va como campaña: hasta ${cap} al día, cada persona una vez, hasta que termine, desde que la apruebes.`,
   roomTight: (room, audience, from) =>
     `${roomEs(room, audience)}, y el envío va a toda la lista a la vez: para ajustarla a los huecos, descarta el envío y pídemelo otra vez el ${from}.`,
-  reviewFirst: "El envío se puede aprobar cuando WhatsApp haya revisado su versión de WhatsApp.",
   whatsappReview:
     "Su versión de WhatsApp espera la revisión de WhatsApp, que puede seguir en el primer envío: quien la reciba por WhatsApp espera a que termine.",
   reminderAsk: (day, list) =>

@@ -184,22 +184,24 @@ test("the plan's words: a step it waits for, an undone step and a stop are each 
   );
 });
 
-test("the silent steps commit together, in step order, each under its step's key; the message's version is what step 1 made; the send is not among them", async () => {
+test("the silent steps commit together, in step order, each under its step's key, and the send on the words step 1 writes goes in the same press, its message what step 1 made: WhatsApp's check of the words waits at the send (the clean list, 16 Nov 2026; the press stopped short of it until then)", async () => {
   const t = tab();
-  // Handed in any order, with the send among them: only the silent ones go, by their step.
+  // Handed in any order: each goes by its step, the send last.
   const run = await commit.commitPlan(t.win, [send, pause, note, message], { client: t.client, nowMs: NOW });
   assert.deepEqual(keys(t), [
     ["POST /api/v1/templates/message", `plan:${PLAN}:1`],
     ["PUT /api/v1/settings", `plan:${PLAN}:2`],
     [`PUT /api/v1/playbooks/${PB}`, `plan:${PLAN}:3`],
+    ["POST /api/v1/broadcasts", `plan:${PLAN}:4`],
   ]);
+  assert.equal(t.sent[3].body.template_id, V(1), "the send's token filled from what step 1 made, in the same press");
   assert.ok(
     t.sent.every((s) => s.via === "ask"),
     "every call marked as a card's",
   );
   assert.equal(run.stoppedAt, null);
   assert.deepEqual(
-    run.results.map((r) => [r.step, r.result.ok, r.id]),
+    run.results.slice(0, 3).map((r) => [r.step, r.result.ok, r.id]),
     [
       [1, true, V(1)],
       [2, true, null],
@@ -210,11 +212,15 @@ test("the silent steps commit together, in step order, each under its step's key
   assert.deepEqual(run.results[0].result.made, { kind: "message", id: V(1) }, "the commit's result says what it made");
   assert.equal(run.results[1].result.made, null);
   // Every step committed is in the run's made, the ones that made nothing a token names with no id.
-  assert.deepEqual(run.made, {
-    1: { kind: "message", id: V(1) },
-    2: { kind: "settings", id: null },
-    3: { kind: "playbook_change", id: null },
-  });
+  assert.deepEqual(
+    [1, 2, 3].map((n) => run.made[n]),
+    [
+      { kind: "message", id: V(1) },
+      { kind: "settings", id: null },
+      { kind: "playbook_change", id: null },
+    ],
+  );
+  assert.deepEqual([run.results[3].step, run.results[3].result.ok, run.made[4].kind], [4, true, "broadcast"]);
   assert.deepEqual([run.done, run.undone], [[], []]);
   // Each step's own receipt and undo, as its card's own press would have them.
   assert.equal(run.results[2].result.receipt, PROPOSAL_SPECS.playbook_change.receipt(pause, ANSWERS[keys(t)[2][0]]));

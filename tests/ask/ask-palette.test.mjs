@@ -4914,7 +4914,6 @@ const planBridge = (over = {}) => {
   holdAsk({
     planGroupOf: PC.planGroupOf,
     planPressOf: PC.planPressOf,
-    planInReview: PC.planInReview,
     cardOpenRoute,
     undoOpen: () => false,
     undoPlan: async () => ({ results: [] }),
@@ -5021,7 +5020,7 @@ test("a plan draws as one card where its first card stood, whatever order the mo
   }
 });
 
-test("the plan's own words are the Line's, in the Line's language (surfaces/ask/words.ts): its press names what it does, and a message WhatsApp must read first says so and files it first", () => {
+test("the plan's own words are the Line's, in the Line's language (surfaces/ask/words.ts): its press names what it does, and a plan whose words WhatsApp checks first starts in the same press, with no note of its own and no press to send them for review", () => {
   const calls = planBridge();
   const AskAnswer = AskAnswerKit.AskAnswer;
   const chrome = (lang, cards) => {
@@ -5034,15 +5033,9 @@ test("the plan's own words are the Line's, in the Line's language (surfaces/ask/
   try {
     assert.deepEqual(chrome("en", BY_EMAIL), { press: "Start the offer", note: null });
     assert.deepEqual(chrome("es", BY_EMAIL), { press: "Empezar la oferta", note: null });
-    // The send by WhatsApp goes on the message step 1 writes: the press files it, and the send waits.
-    assert.deepEqual(chrome("en", SIX), {
-      press: "Send for review",
-      note: "WhatsApp reads new words first, usually in minutes.",
-    });
-    assert.deepEqual(chrome("es", SIX), {
-      press: "Enviar a revisión",
-      note: "WhatsApp lee primero los textos nuevos, normalmente en minutos.",
-    });
+    // The one press files step 1's words and starts its three sends, whose WhatsApp people wait for WhatsApp's check.
+    assert.deepEqual(chrome("en", SIX), { press: "Do it", note: null });
+    assert.deepEqual(chrome("es", SIX), { press: "Hazlo", note: null });
   } finally {
     calls.restore();
   }
@@ -5287,10 +5280,16 @@ test("REGRESSION (ruling 3): what the plan's press made survives a reload, throu
     "POST /api/v1/broadcasts": { id: "b1", name: "Offer: November, again", state: "scheduled", recipient_count: 3 },
   };
   const sent = [];
+  // The first send is refused once, so the press after the reload carries on with what the first made.
+  let refusals = 1;
   const client = createApi({
     fetch: async (url, init) => {
       const key = `${init.method} ${String(url).replace(/\?.*$/, "")}`;
       sent.push({ key, body: init.body ? JSON.parse(init.body) : undefined });
+      if (key === "POST /api/v1/broadcasts" && refusals-- > 0) {
+        const error = { code: "conflict", message: "Not counted just now." };
+        return new Response(JSON.stringify({ ok: false, error }), { status: 409 });
+      }
       if (!ANSWERS[key]) throw new Error(`a route this test does not answer: ${key}`);
       return new Response(JSON.stringify({ ok: true, data: ANSWERS[key] }), {
         status: 200,
@@ -5368,35 +5367,36 @@ test("REGRESSION (ruling 3): what the plan's press made survives a reload, throu
   try {
     let tree = render(AskAnswer, planProps(SIX));
     press(byTestId(tree, "ask-plan-approve"));
-    await until(() => tables.ask_messages[0].content.proposals[2].outcome, "the third step's outcome is kept");
+    await until(() => tables.ask_messages[0].content.proposals[3].outcome, "the first send's outcome is kept");
     tree = await later(AskAnswer, planProps(SIX));
     assert.deepEqual(refused, [], "every outcome the route took");
+    const firstPress = ["POST /api/v1/templates/message", "PUT /api/v1/settings", `PUT /api/v1/playbooks/${PLAN_PB}`];
     assert.deepEqual(
       sent.map((s) => s.key),
-      ["POST /api/v1/templates/message", "PUT /api/v1/settings", `PUT /api/v1/playbooks/${PLAN_PB}`],
-      "WhatsApp reads the message first: the press files it, and the send waits",
+      [...firstPress, "POST /api/v1/broadcasts"],
+      "the words, then the send",
     );
     // Reloaded: the turn's cards as the store keeps them now.
     const kept = tables.ask_messages[0].content.proposals;
     assert.deepEqual(
       kept.map((p) => (p.outcome ? p.outcome.state : null)),
-      ["done", "done", "done", null, null, null],
+      ["done", "done", "done", "failed", null, null],
       "REGRESSION: every step's outcome kept on the turn, none written over by the next",
     );
     assert.deepEqual(PC.planMadeOf(PLAN_ID, kept), ran.made, "the press's made, read back from the turn");
     assert.deepEqual(ran.made[1], MADE_MESSAGE);
     const back = planProps(kept);
     tree = render(AskAnswer, back);
-    assert.equal(textOf(byTestId(tree, "ask-plan-receipt")), askText("en").planFiled, "it says where it stands");
-    assert.deepEqual(sent.length, 3, "nothing is sent by drawing it again");
+    assert.match(textOf(byTestId(tree, "ask-plan-receipt")), /Not counted just now/, "it says where it stands");
+    assert.deepEqual(sent.length, 4, "nothing is sent by drawing it again");
     press(byTestId(tree, "ask-plan-approve"));
-    // The offer's one press starts all of it (Ruben, 14 Nov 2026): its two sends and its campaign, in the plan's order.
-    await until(() => sent.length === 6, "the sends went");
+    // The next press starts the rest (Ruben, 14 Nov 2026): its two sends and its campaign, filing nothing twice.
+    await until(() => sent.length === 7, "the sends went");
     assert.deepEqual(
-      sent.slice(3).map((s) => s.key),
+      sent.slice(4).map((s) => s.key),
       ["POST /api/v1/broadcasts", "POST /api/v1/broadcasts", "POST /api/v1/playbooks"],
     );
-    assert.equal(sent[3].body.template_id, PV(1), "its token filled from what step 1 made, read back after the reload");
+    assert.equal(sent[4].body.template_id, PV(1), "its token filled from what step 1 made, read back after the reload");
   } finally {
     calls.restore();
   }

@@ -41,7 +41,7 @@ const usePlanCards = (
 };
 
 /** What a plan's one card says after a press, read from what became of its steps. */
-function planSaid(now: readonly AskProposal[], t: LineWords, inReview: boolean): { line: string; ok: boolean } | null {
+function planSaid(now: readonly AskProposal[], t: LineWords): { line: string; ok: boolean } | null {
   const failed = now.find((p) => p.outcome?.state === "failed");
   if (failed?.outcome) return { line: failed.outcome.receipt, ok: false };
   const doneSends = now.filter((p) => !p.plan?.silent && p.outcome?.state === "done");
@@ -51,7 +51,6 @@ function planSaid(now: readonly AskProposal[], t: LineWords, inReview: boolean):
   if (send) return { line: send.paused ? t.planPaused : send.receipt, ok: true };
   // Its send taken back is what matters: a setting somebody saved over since stays as it is, and nothing goes out either way.
   if (now.some((p) => p.outcome?.state === "undone")) return { line: t.planUndone, ok: true };
-  if (inReview) return { line: t.planFiled, ok: true };
   if (now.every((p) => p.outcome?.state === "done")) return { line: t.planDone, ok: true };
   return null;
 }
@@ -297,7 +296,6 @@ const AskPlanPress = ({
   const press = A.planPressOf(now);
   const sendCards = press.sends.flatMap((n) => now.find((p) => p.plan?.step === n) ?? []);
   const word = (() => {
-    if (!sendCards.length && press.review !== null) return t.pressReview;
     if (head?.press === "offer" && sendCards.length) return t.pressOffer;
     // Several sends at once are named by their count where they all start: "Start all 4".
     if (sendCards.length > 1)
@@ -364,8 +362,7 @@ export const AskPlan = ({
   const first = ordered.at(0);
   const head = ordered.find((p) => p.plan?.head)?.plan?.head ?? null;
   const press = A.planPressOf(now);
-  const inReview = A.planInReview(now) && now.some((p) => p.outcome?.state === "done");
-  const said = planSaid(now, t, inReview);
+  const said = planSaid(now, t);
   const pressedOnce = now.some((p) => p.outcome);
   const holds = [...new Set(now.filter((p) => !p.outcome).flatMap((p) => p.sheet?.holds ?? []))];
   const says = head?.says ?? [];
@@ -385,11 +382,6 @@ export const AskPlan = ({
         </p>
       ) : null}
       <AskPlanHow ordered={ordered} also={head?.also ?? []} t={t} />
-      {press.review !== null ? (
-        <p className="ask-card-foot" data-testid="ask-step-note">
-          {t.reviewFirst}
-        </p>
-      ) : null}
       {pressedOnce && press.steps.length ? (
         <p className="ask-card-foot" data-testid="ask-plan-left">
           {t.planLeft(now.filter((p) => !p.plan?.silent && !p.outcome).length)}

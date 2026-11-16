@@ -8,7 +8,7 @@ import { campaignRunsOn } from "../../campaigns/playbooks/schedule";
 import { PLAYBOOK_NAME_MAX } from "../../campaigns/playbooks/triggers/notices";
 import { clip } from "../answer/shape";
 import type { AskPlanHead } from "../thread-words";
-import { sendWaitsForReview, stepToken } from "../plan-steps";
+import { stepToken } from "../plan-steps";
 import {
   REMINDER_AFTER_DAYS,
   SAY,
@@ -125,18 +125,16 @@ function offerRead(offer: Offer, say: string | undefined, world: PlanWorld): Off
   // The room is counted over the days from now and a campaign sends from its Approve: an offer is paced to it only on
   // its first day. One that starts later is its broadcast to the whole list, and the words say how to pace it instead.
   const cap = tight && dates.from === dates.today ? capOf(tight.room) : null;
-  // The message once the send's kind is known: whether WhatsApp's review holds it decides which versions it may reuse.
   const kind = cap === null ? "broadcast" : "playbook";
-  const picked = offerMessage(world, channels.on, line, kind, channels.unasked);
-  if ("refused" in picked) return picked;
+  const message = offerMessage(world, channels.on, line);
   return {
     offer,
     dates,
-    on: picked.on,
-    onSaid: [...channels.said, ...picked.said],
+    on: channels.on,
+    onSaid: channels.said,
     audience,
     to,
-    message: picked.message,
+    message,
     tight,
     cap,
     kind,
@@ -149,7 +147,7 @@ function offerRead(offer: Offer, say: string | undefined, world: PlanWorld): Off
 /** A WhatsApp version the send goes by still to be reviewed: the one the plan writes, or one in review it reuses. */
 const awaitsReview = (r: OfferRead): boolean => r.on.includes("whatsapp") && (r.message.made || r.message.inReview);
 
-/** What no card says of the send: the room, WhatsApp's review of a paced campaign by email too, the reminder's day. */
+/** What no card says of the send: the room, the reminder's day, and that its WhatsApp people wait for WhatsApp's check of the words. */
 function sendUnseen(offerRead: OfferRead, world: PlanWorld): string[] {
   const words = OFFER_PLAN_WORDS[world.says];
   const room = offerRead.tight
@@ -159,12 +157,14 @@ function sendUnseen(offerRead: OfferRead, world: PlanWorld): string[] {
           : words.roomTight(offerRead.tight.room, offerRead.tight.audience, offerRead.dates.fromSaid),
       ]
     : [];
+  // The reminder before WhatsApp's check: no card says the reminder, and the message's own step says the check, so a cut at
+  // the answer's 700 characters keeps the reminder whole.
   return [
     ...room,
-    ...(awaitsReview(offerRead) && !sendWaitsForReview(offerRead.kind, offerRead.on) ? [words.whatsappReview] : []),
     ...(offerRead.reminder
       ? [words.reminderAsk(words.day(offerRead.reminder, world.tz, world.now), offerRead.audience.name)]
       : []),
+    ...(awaitsReview(offerRead) ? [words.whatsappReview] : []),
   ];
 }
 
@@ -272,8 +272,6 @@ function offerPlan(
     ...(offerRead.note.input ? [] : [offerRead.note.said]),
     ...offerRead.pauses.map((p) => p.said),
     ...sendUnseen(offerRead, world),
-    // A send WhatsApp's review holds, approved once it is reviewed, as its card says too (plan-steps.ts reviewedStep).
-    ...(awaitsReview(offerRead) && sendWaitsForReview(offerRead.kind, offerRead.on) ? [offerWords.reviewFirst] : []),
     offerRead.message.made
       ? offerWords.writeMessage(offerRead.message.name, offerRead.on)
       : offerWords.reuseMessage(offerRead.message.name),
