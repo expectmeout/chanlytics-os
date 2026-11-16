@@ -177,28 +177,36 @@ test(
   "Health's read: what was made, tried, said and called, and what the model cost on a preview",
   { skip },
   async () => {
-    const was = ok(await db.rpc("platform_health_previews", { p_days: 7 }));
-    const p = await ready();
-    ok(await say(p));
-    ok(await say(p, "And Mondays?"));
-    ok(await call(p, 75));
-    ok(
-      await db.from("ai_usage").insert({
-        tenant_id: p.preview_tenant_id,
-        purpose: "website_read",
-        model_asked: "fixture-model",
-        model: "fixture-model",
-        outcome: "answered",
-        usd: 0.25,
-      }),
-    );
-    const now = ok(await db.rpc("platform_health_previews", { p_days: 7 }));
-    const moved = (key) => Number(now[key]) - Number(was[key]);
-    assert.deepEqual(
-      ["made", "made_today", "tried", "claimed", "messages", "call_seconds"].map(moved),
-      [1, 1, 1, 0, 2, 75],
-    );
-    assert.ok(Math.abs(moved("usd") - 0.25) < 1e-9, `the model's cost on its workspace: ${moved("usd")}`);
+    const COUNTS = ["made", "made_today", "tried", "claimed", "messages", "call_seconds"];
+    const OURS = [1, 1, 1, 0, 2, 75];
+    /** What Health's read moved while this test made, tried and called one preview, its model's cost on it. */
+    const window = async () => {
+      const was = ok(await db.rpc("platform_health_previews", { p_days: 7 }));
+      const p = await ready();
+      ok(await say(p));
+      ok(await say(p, "And Mondays?"));
+      ok(await call(p, 75));
+      ok(
+        await db.from("ai_usage").insert({
+          tenant_id: p.preview_tenant_id,
+          purpose: "website_read",
+          model_asked: "fixture-model",
+          model: "fixture-model",
+          outcome: "answered",
+          usd: 0.25,
+        }),
+      );
+      const now = ok(await db.rpc("platform_health_previews", { p_days: 7 }));
+      const moved = (key) => Number(now[key]) - Number(was[key]);
+      return { counts: COUNTS.map(moved), usd: moved("usd") };
+    };
+    // Health reads the whole platform, and the suites that share the stack make previews of their own at the same
+    // time (previews.db, reach-out-sender.db): a window one of them moved too is measured again. A read that counts
+    // wrong moves every window wrong, and fails.
+    let moved = await window();
+    for (let again = 0; again < 4 && moved.counts.join() !== OURS.join(); again += 1) moved = await window();
+    assert.deepEqual(moved.counts, OURS);
+    assert.ok(Math.abs(moved.usd - 0.25) < 1e-9, `the model's cost on its workspace: ${moved.usd}`);
     // The window is held between a day and ninety: a nonsense ask reads a day, never everything.
     assert.equal(typeof ok(await db.rpc("platform_health_previews", { p_days: 0 })).made, "number");
   },
