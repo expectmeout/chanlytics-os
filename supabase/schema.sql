@@ -54799,7 +54799,6 @@ GRANT ALL ON FUNCTION public.lead_is_set_aside(p_stage text, p_closed_reason tex
 --
 
 REVOKE ALL ON FUNCTION public.lead_leg_cap(p_count integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.lead_leg_cap(p_count integer) TO authenticated;
 GRANT ALL ON FUNCTION public.lead_leg_cap(p_count integer) TO service_role;
 
 
