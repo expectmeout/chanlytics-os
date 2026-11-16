@@ -32,8 +32,7 @@ const TZ = "America/New_York";
 const NOW = new Date("2026-11-03T01:05:00Z");
 const SEARCH = "64e5040f-ef56-4b74-9680-2d44026f4799";
 const HOLD = "Each email is handed to you to send from your own inbox.";
-const PRESS_IS_OK =
-  "Approving is your OK of these emails: the first run is planned at once and goes as “Before each batch” says.";
+const PRESS_IS_OK = "Approving these emails plans the first run at once, and it goes as “Before each send” says.";
 
 /** The 3 November turn's cold email, as the model asked for it: a first email, then one follow-up four days later. */
 const INPUT = {
@@ -149,12 +148,12 @@ test("every email is on the card whole, so its press is the OK of those words: t
   assert.equal(commit.body.name, INPUT.name);
   assert.equal(
     PROPOSAL_SPECS.reach_out_make.receipt(p, { root_id: "r1", words_ok: true }),
-    "“Personal trainers · Austin” is saved, and its emails have your approval: its first run goes as “Before each batch” says.",
+    "“Personal trainers · Austin” is saved, and its emails have your approval: its first run goes as “Before each send” says.",
   );
   // A door that could not take the press as the OK (a database before it) says the first run waits, as it does.
   assert.equal(
     PROPOSAL_SPECS.reach_out_make.receipt(p, { root_id: "r1" }),
-    "“Personal trainers · Austin” is saved. Nothing goes until you OK the first emails. After that, each batch goes as Before each batch says on Cold email.",
+    "“Personal trainers · Austin” is saved. Nothing goes until you approve the first emails. After that, each send goes as Before each send says on Cold email.",
   );
   // A card stored before this one says nothing of the words: its commit carries none, and its first run waits.
   const { words_shown: _shown, ...older } = p.payload;
@@ -237,7 +236,7 @@ test("the Line draws it as it draws a campaign's: the rows, with every email who
   assert.match(words, /PaceOne every 20 minutes/);
   assert.match(
     words,
-    /SendsApproving is your OK of these emails/,
+    /SendsApproving these emails plans the first run/,
     "what the press does is on the card, not behind Details",
   );
   assert.doesNotMatch(words, /one every 20 minutes: /, "the summary is not drawn beside the sheet");

@@ -93,6 +93,6 @@ test("its sheet offers no button the verb refuses, and says the day its words we
 test("skipped by the sweep, its owner is told it did not reach them and that nothing later sends it", () => {
   assert.deepEqual(lateReminderSkippedNotice("Appointment reminder", 1), {
     subject: "“Appointment reminder” didn’t go: nobody approved it",
-    body: "1 person booked after the day’s reminders went, and the reminder made for them waited for your approval until it was too late to send: it didn’t reach them, and no later send goes in its place. Open it to see who, and write to them yourself. The next “Appointment reminder” waits for your approval too: its sends wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
+    body: "1 person booked after the day’s reminders went, and the reminder made for them waited for your approval until it was too late to send: it didn’t reach them, and no later send goes in its place. Open it to see who, and write to them yourself. The next “Appointment reminder” waits for your approval too: its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask.",
   });
 });

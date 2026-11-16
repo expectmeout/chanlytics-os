@@ -221,7 +221,7 @@ const ASK_TEXT = {
     tryAgain: "Try again",
     priceNote: "This looks like a price. AI says only the prices your settings allow; you may say any.",
     windowNote:
-      "Their 24-hour window is closed — only an approved template can be sent. Open the conversation to pick one.",
+      "Over a day since they wrote, so only an approved message can reach them. Open the conversation to pick one.",
     // The press says what it does (D14 of the answers canvas; contracts askPressOf names which).
     press: (word: AskPressWord, n: number | null): string => PRESS_EN[word](n),
     posting: "Posting on Google",

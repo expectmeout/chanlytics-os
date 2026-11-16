@@ -79,7 +79,7 @@ test("REGRESSION (the live run of 14 Nov 2026): a batch approved on Campaigns si
   const a = await runAct(ctx, req(), member, { messageId: MSG, proposalId: "p-batch", by: "press" });
   assert.equal(a.ok, false);
   assert.equal(calls.length, 0, "nothing reached the approve door");
-  assert.equal(a.message, "This batch was already decided on Campaigns (scheduled), so there is nothing to do here.");
+  assert.equal(a.message, "This send was already decided on Campaigns (scheduled), so there is nothing to do here.");
   assert.equal(tables.ask_messages[0].content.proposals[0].outcome.moved, true, "the card stands as moved on");
 });
 

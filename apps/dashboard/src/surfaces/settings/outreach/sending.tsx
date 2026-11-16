@@ -217,7 +217,7 @@ function BatchFold(shared: OutreachShared & { again: () => void }) {
       label={SEND_WORDS.batch}
       channel={null}
       light
-      gate={gate("autonomy", "change what happens before each batch")}
+      gate={gate("autonomy", "change what happens before each send")}
       door={door}
       row={{ value: said }}
       body={(fields) => (

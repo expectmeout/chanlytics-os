@@ -52,8 +52,8 @@ export const SEQUENCE_WORDS = {
   addFollowUp: "Add a follow-up",
   approve: "Approve",
   skip: "Skip",
-  skipAsk: "Skip this batch?",
-  skipDetail: "Nobody in it gets this step from this batch; the campaign goes on with its next one.",
+  skipAsk: "Skip this send?",
+  skipDetail: "Nobody in it gets this step from this send; the campaign goes on with its next one.",
   lookFirst: "Look first",
   pause: "Pause",
   resume: "Turn on",
@@ -311,7 +311,7 @@ export function sequenceStateWords(row: SequenceRowDto): string {
       sending: "Sending",
       sent: "Sent",
       canceled: "Canceled",
-      failed: "Failed",
+      failed: "Couldn't send",
     };
     return DATE[row.date.state] ?? "Scheduled";
   }
@@ -345,7 +345,7 @@ export function sequenceStateTone(row: SequenceRowDto): "warn" | "ok" | "plain" 
 export function sequenceRowState(row: SequenceRowDto): { label: string; tone: "plain" | "danger" } | null {
   if (row.starts === "date" && row.date) {
     const DATE: Record<string, string> = { scheduled: "Scheduled", sending: "Sending", canceled: "Canceled" };
-    if (row.date.state === "failed") return { label: "Failed", tone: "danger" };
+    if (row.date.state === "failed") return { label: "Couldn't send", tone: "danger" };
     const label = DATE[row.date.state];
     return label ? { label, tone: "plain" } : null;
   }

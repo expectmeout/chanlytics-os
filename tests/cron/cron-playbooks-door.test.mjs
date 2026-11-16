@@ -1034,11 +1034,11 @@ test("REGRESSION: a reminder nobody approved by 21:00 is skipped, and its owner 
   const told = Object.fromEntries(bellOf(w, A).map((n) => [n.subject_id, [n.title, n.body]]));
   assert.deepEqual(told["run-reminder"], [
     "“Appointment reminder” didn’t go: nobody approved it",
-    "3 people waited for your approval until 21:00, and it didn’t reach them. No later send goes in its place. Open it to see who, and write to them yourself. The next day’s “Appointment reminder” waits for your approval too, until 21:00: its sends wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
+    "3 people waited for your approval until 21:00, and it didn’t reach them. No later send goes in its place. Open it to see who, and write to them yourself. The next day’s “Appointment reminder” waits for your approval too, until 21:00: its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask.",
   ]);
   assert.deepEqual(told["run-winback"], [
     "“Win-back” didn’t go: nobody approved it",
-    "2 people waited for your approval until the day ended, and nothing was sent. They are in line for its next send, which waits for your approval too: its sends wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
+    "2 people waited for your approval until the day ended, and nothing was sent. They are in line for its next send, which waits for your approval too: its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask.",
   ]);
 });
 

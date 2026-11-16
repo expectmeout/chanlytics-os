@@ -82,7 +82,7 @@ export const TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MA
  * What a message of a name and language the workspace already holds is told: POST templates, POST templates/message and
  * Ask's message card, which refuses it before it is a card.
  */
-export const TEMPLATE_SAME_NAME_WORDS = "A template with that name and language already exists. Pick another name.";
+export const TEMPLATE_SAME_NAME_WORDS = "A message with that name and language already exists. Pick another name.";
 
 /** Meta's ceiling for the words on a button. */
 export const TEMPLATE_BUTTON_TEXT_MAX = 25;

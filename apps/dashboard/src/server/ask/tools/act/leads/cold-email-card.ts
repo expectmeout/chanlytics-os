@@ -14,9 +14,8 @@ import type { AskCardSheet } from "@chanlytics/contracts";
 import { sheetWords } from "../playbook-card";
 
 const FROM_MAILBOXES = "your connected mailboxes";
-/** How its first run goes: the press is the OK of the words it shows, so the run goes as the sequence's batches do. */
-const PRESS_IS_THE_OK =
-  "Approving is your OK of these emails: the first run is planned at once and goes as “Before each batch” says.";
+/** How its first run goes: the press approves the words it shows, so the run goes as the campaign's sends do. */
+const PRESS_IS_THE_OK = "Approving these emails plans the first run at once, and it goes as “Before each send” says.";
 
 /** One email as the card shows it: where it falls, its subject (none for a reply in the same thread), and its words. */
 interface ColdEmailShown {

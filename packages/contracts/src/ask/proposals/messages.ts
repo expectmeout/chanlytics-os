@@ -65,7 +65,7 @@ export const MESSAGE_CHANGE_WORDS = {
     `Delete ${title}${language ? ` in ${language}` : ""}`,
   /** What a delete takes: every version of the message in the language, its other languages kept, said where it has any. */
   deleteSaid: (channels: readonly string[], others: boolean): string =>
-    `Its ${namesInWords(channels)} ${channels.length === 1 ? "version goes" : "versions go"}, and sends that use it fail from now on.${others ? " Its other languages stay." : ""}`,
+    `Its ${namesInWords(channels)} ${channels.length === 1 ? "version goes" : "versions go"}, and sends that use it won't go from now on.${others ? " Its other languages stay." : ""}`,
   /** WhatsApp's words, sent back: in review again until WhatsApp answers. */
   sentBack: (title: string): string =>
     `${title} went back to WhatsApp with the new words: it looks at them (${WHATSAPP_REVIEW_TAKES})`,
@@ -82,7 +82,7 @@ export const MESSAGE_CHANGE_WORDS = {
   back: (title: string): string => `${title} is back in the list and the composers`,
   awayBack: "Put it back as it was",
   awayAsWas: "It is as it was",
-  deleted: (title: string): string => `${title} is deleted — sends that named it fail from now on`,
+  deleted: (title: string): string => `${title} is deleted · sends that named it won't go from now on`,
 } as const;
 
 /** A channel as a card says it inside a sentence (contracts versionWord); a channel it does not know, as it came. */

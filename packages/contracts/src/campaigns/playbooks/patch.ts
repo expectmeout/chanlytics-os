@@ -69,9 +69,9 @@ export const PLAYBOOK_PATCH_WORDS = {
   until: (day: string | null): string => (day ? `Ends ${day}` : "Runs until it is paused, with no last day"),
   /** Its sequence's mode (decision 0064), as How it runs says it: "Before each batch: Ask me, where it was Send it". */
   mode: (to: SequenceMode, was: SequenceMode): string =>
-    `Before each batch: ${SEQUENCE_MODE_WORDS[to].choice}, where it was ${SEQUENCE_MODE_WORDS[was].choice}`,
+    `Before each send: ${SEQUENCE_MODE_WORDS[to].choice}, where it was ${SEQUENCE_MODE_WORDS[was].choice}`,
   /** A mode that is none of the three (decision 0064). */
-  modeWhich: "Before each batch is ask (Ask me), veto (Hold it for a stop) or auto (Send it).",
+  modeWhich: "Before each send is ask (Ask me), veto (Hold it for a stop) or auto (Send it).",
   /**
    * Ask me on a sequence an occasion starts (decision 0119, contracts sequenceModesFor): it writes to one person at a
    * time of their own, so each would wait for an OK of their own, and a reminder's would run out when its visit began.

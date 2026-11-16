@@ -250,7 +250,7 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
   );
   // The duplicate's sentence is contracts' since Ask's message card says it too (TEMPLATE_SAME_NAME_WORDS).
   assert.ok(r.includes('throw new AppError("conflict", TEMPLATE_SAME_NAME_WORDS, 409);'));
-  assert.equal(TEMPLATE_SAME_NAME_WORDS, "A template with that name and language already exists. Pick another name.");
+  assert.equal(TEMPLATE_SAME_NAME_WORDS, "A message with that name and language already exists. Pick another name.");
   assert.ok(r.includes("WhatsApp did not accept it: ${r.detail"), "Meta's words reach the person");
   const del = readCode(
     "apps/dashboard/app/api/v1/templates/[id]/route.ts",

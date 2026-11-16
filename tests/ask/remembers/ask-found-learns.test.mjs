@@ -86,7 +86,7 @@ test("three batches in a row that all went out offer the step on, and a batch st
       steady.map((b) => ({ ...b, sequence_id: "seq-2" })),
     ),
     [],
-    "another sequence's batches",
+    "another sequence's sends",
   );
 });
 
@@ -100,7 +100,7 @@ test("what hurts results comes first, and a finding's card opens where the seque
   const made = repliesFellCard(found[0]);
   assert.equal(made.kind, "fix");
   assert.equal(made.title, "Replies fell on Dentists in Austin");
-  assert.equal(made.line, "0 of 20 replied to the last batch, 12 of 40 to those before it.");
+  assert.equal(made.line, "0 of 20 replied to the last send, 12 of 40 to those before it.");
   assert.equal(made.payload.to, "campaigns/sequences/seq-1");
   assert.equal(isFindingCard(made), true);
   assert.equal(isFindingCard({ id: "p-1" }), false);
@@ -149,10 +149,10 @@ test("what came of an idea approved is what its sequence earned, else what the p
     batch("10-31", 0, 0, "scheduled"),
   ]);
   assert.deepEqual(latelyRows(earned, TODAY), [
-    { title: "Start it", said: "Last batch: 20 sent, 3 replied" },
+    { title: "Start it", said: "Last send: 20 sent, 3 replied" },
     { title: "Find gyms", said: "Found 40" },
   ]);
-  assert.match(latelySaid(earned), /Start it \(2026-10-30, approved: Last batch: 20 sent, 3 replied\)/);
+  assert.match(latelySaid(earned), /Start it \(2026-10-30, approved: Last send: 20 sent, 3 replied\)/);
 });
 
 test("a member's rest lasts a week, lets go of those run out, and a view that holds anything else is none", () => {

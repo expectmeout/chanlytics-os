@@ -229,7 +229,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     pace: "Pace",
     month: "This month",
     // The row is what a NEW sequence starts as; one that exists keeps its own on its page.
-    batch: "Before each batch, on new campaigns",
+    batch: "Before each send, on new campaigns",
     none: "Not connected",
     /** The page's read came back without its mailboxes: not known, which is neither connected nor not. */
     unread: "Couldn't check just now",
@@ -260,7 +260,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     batchAt: { veto: "Held 30 minutes so you can stop it", ask: "Waits for your approval" },
     batchDoes: {
       veto: "You're told it's ready. It goes unless you stop it.",
-      ask: "Each batch waits until you say OK.",
+      ask: "Each send waits until you approve it.",
     },
   },
   connect: COLD_EMAIL_CONNECT_WORDS,

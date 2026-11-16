@@ -44,13 +44,13 @@ export const LEAD_NOW_WORDS = {
   writtenSay: "A business gets one campaign.",
   nothingSent: "Nothing sent to them yet.",
   stepOf: LEAD_LINE_WORDS.stepOf,
-  batch: (n: number) => `In today's batch of ${n}.`,
-  batchOne: "In today's batch.",
+  batch: (n: number) => `In today's send of ${n}.`,
+  batchOne: "In today's send.",
   /**
    * A batch made on an earlier day, still waiting: it said "today's batch" of one that had waited four days (the phone
    * walk of 3 Nov 2026).
    */
-  batchSince: (n: number, day: string) => `In a batch of ${n}, waiting since ${day}.`,
+  batchSince: (n: number, day: string) => `In a send of ${n}, waiting since ${day}.`,
   batchOneSince: (day: string) => `Waiting since ${day}.`,
   /** How long an OK takes to go, at what its mailboxes may send a day (chainPaceOf), said where it is more than a day. */
   pace: (days: number) => `Once approved, it goes out over about ${days} days.`,

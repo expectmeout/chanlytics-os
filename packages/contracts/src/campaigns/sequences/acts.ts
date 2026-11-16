@@ -86,7 +86,7 @@ export const SEQUENCE_ACT_WHY: Record<SequenceActReason, string> = {
   ran: "It has run, and what it sent stays in its History.",
   wrote: "It has written to leads, and what it sent stays.",
   unread: "What it has sent couldn't be read just now.",
-  batch_waiting: "A batch of it waits for your approval.",
+  batch_waiting: "A send of it waits for your approval.",
   not_today: "It runs nothing today.",
   not_scheduled: "It is not waiting for its day any more.",
   not_sent: "It has not gone yet.",

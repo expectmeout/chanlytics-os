@@ -177,7 +177,7 @@ test("a pause says the run that waits stays waiting; a resume says its sequence'
     { state: "running" },
     tables({ policies: [], playbooks: [playbookRow({ state: "paused" })] }),
   );
-  assert.equal(asks.proposal.summary, "Runs again: each batch waits for your approval");
+  assert.equal(asks.proposal.summary, "Runs again: each send waits for your approval");
   // New words under auto: its first batch waits for an OK, and after that each goes on its own.
   const newWords = await change(
     { state: "running" },
@@ -185,7 +185,7 @@ test("a pause says the run that waits stays waiting; a resume says its sequence'
   );
   assert.equal(
     newWords.proposal.summary,
-    "Runs again: its first batch waits for your approval; after that, each batch goes on its own",
+    "Runs again: its first send waits for your approval; after that, each send goes on its own",
   );
 });
 
@@ -196,7 +196,7 @@ test("its mode (decision 0064): How it runs' choice said with what it was, carri
   const p = made.proposal;
   assert.deepEqual([p.title, p.undo], ["Change: Win-back", "Put it back"]);
   assert.equal(p.summary, PLAYBOOK_PATCH_WORDS.mode("ask", "auto"));
-  assert.equal(p.summary, "Before each batch: Ask me, where it was Send it");
+  assert.equal(p.summary, "Before each send: Ask me, where it was Send it");
   assert.deepEqual([p.payload.sequence_mode, p.payload.mode, p.payload.was], ["ask", undefined, { mode: "auto" }]);
   const spec = PROPOSAL_SPECS.playbook_change;
   const commit = spec.commit(p, { settings: null });

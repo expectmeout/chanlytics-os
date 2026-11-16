@@ -484,7 +484,7 @@ test("a member who asks for a waiting run still gets its card, and a morning may
 
 test("the morning's question says the batches waiting for an OK are on Today, in both its forms, so the model spends no slot on one", () => {
   for (const question of [ASK_MORNING_QUESTION, ASK_MORNING_EDITED_QUESTION])
-    assert.match(question, /the batches waiting for my OK/);
+    assert.match(question, /the sends waiting for my OK/);
 });
 
 const envelope = (data) =>

@@ -791,7 +791,7 @@ test("a pitch row nobody filled says what an email is written without, and one t
 test("Before each batch offers holding or asking, never sending on its own, and says it is for new sequences", async () => {
   let tree = await drawOnRead({}, {}, (t) => /Held 30 minutes/.test(textOf(byTestId(t, "rec-row-batch_mode"))));
   // On its face too, not only in its sheet: the row is what a new sequence starts as.
-  assert.match(textOf(byTestId(tree, "rec-row-batch_mode")), /Before each batch, on new campaigns/);
+  assert.match(textOf(byTestId(tree, "rec-row-batch_mode")), /Before each send, on new campaigns/);
   openFold(tree, "batch_mode");
   tree = redrawTab();
   const choice = textOf(byTestId(tree, "rec-batch-mode-choice"));
