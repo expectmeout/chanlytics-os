@@ -398,6 +398,7 @@ export {
   findTemplateWords,
   findWhatsAppTemplate,
   keepTemplateWords,
+  listSlowReviews,
   listWhatsAppTemplateKeys,
   listWhatsAppTwins,
   patchWhatsAppTemplateBack,
