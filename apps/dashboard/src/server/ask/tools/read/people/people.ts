@@ -26,6 +26,7 @@ import {
 } from "@chanlytics/contracts";
 import { load } from "../../../../shared/reader";
 import { audiencePool } from "../../../../readers/audience-pool";
+import type { AudiencePool } from "../../../../campaigns/audience";
 import { lists as listsReader } from "../../../../readers/lists";
 import { dealBoard } from "../../../../readers/people";
 import { lead as leadReader } from "../../../../readers/leads";
@@ -214,6 +215,32 @@ async function readWinners(toolContext: ToolContext): Promise<unknown> {
 const PIPELINE_CAP = 30;
 
 /**
+ * People's own lists as the rail offers them over this pool: the outcome lists only when there is a calendar to read, the
+ * consultations only with a consult-first service, the deal lists only where a deal was ever recorded.
+ */
+const offeredListsOf = (pool: AudiencePool) =>
+  PEOPLE_LISTS.filter(
+    (l) =>
+      (!l.needsCalendar || pool.calendar.state === "ok") &&
+      (!l.needsConsultFirst || pool.consult_first) &&
+      (!l.needsDeals || pool.has_deals),
+  );
+
+/**
+ * One of People's own lists as listLists says it, its token and how many are on it, counted over the audience pool; null
+ * where the rail does not offer it here. What Ask notices of the room reads of who said yes (notice/notices.ts), with
+ * none of the workspace's own lists read.
+ */
+export async function findOfferedList(
+  toolContext: ToolContext,
+  id: string,
+): Promise<{ list: string; count: number } | null> {
+  const pool = (await load(toolContext.rc, audiencePool, undefined)).data;
+  const l = offeredListsOf(pool).find((x) => x.id === id);
+  return l ? { list: listToken({ kind: "builtin", id: l.id }), count: pool.rows.filter(l.test).length } : null;
+}
+
+/**
  * Every list People's rail shows, as the page builds it (bridge/surface-data.ts publishPeople, over contracts'
  * one table of lists): People's own that this workspace can count, each with what it holds and how many; the ones it
  * cannot, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words
@@ -231,14 +258,7 @@ export async function listLists(toolContext: ToolContext) {
   const lookup = savedListLookup(kept);
   // A rule that reads another list names it as the rail does (contracts listNamer).
   const listName = listNamer(kept);
-  // People's lists as the rail offers them: the outcome lists only when there is a calendar to read, the consultations
-  // only with a consult-first service, the deal lists only where a deal was ever recorded.
-  const offered = PEOPLE_LISTS.filter(
-    (l) =>
-      (!l.needsCalendar || cal === "ok") &&
-      (!l.needsConsultFirst || pool.consult_first) &&
-      (!l.needsDeals || pool.has_deals),
-  );
+  const offered = offeredListsOf(pool);
   for (const l of offered)
     noteRow(toolContext, "list", l.id, l.label, `clients/${listToken({ kind: "builtin", id: l.id })}`);
   const live = kept.filter((l) => !l.archived_at);

@@ -113,6 +113,18 @@ async function listRows(
   return rows.map((l) => ({ id: l.id, name: l.name, rule: l.rule ?? null, archived_at: l.archived_at ?? null }));
 }
 
+/**
+ * Every saved list of one workspace, by name, without its members: its id, its name and whether it is archived. What a
+ * reader that names lists and counts nobody on them reads (what Ask notices: a list nothing runs on), so it never reads
+ * every membership the way listSavedLists must. Scoped by tenant, not by row security alone.
+ */
+export async function listListHeads(
+  db: Db,
+  tenantId: TenantId,
+): Promise<{ id: string; name: string; archived_at: string | null }[]> {
+  return (await listRows(db, tenantId)).map(({ id, name, archived_at }) => ({ id, name, archived_at }));
+}
+
 /** Every saved list of one workspace with every id on it, by name. Scoped by tenant, not by row security alone. */
 export async function listSavedLists(db: Db, tenantId: TenantId): Promise<SavedListRow[]> {
   const [lists, members] = await Promise.all([

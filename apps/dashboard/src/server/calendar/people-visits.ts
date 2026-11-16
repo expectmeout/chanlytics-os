@@ -114,6 +114,14 @@ export async function getCalendar(
   }
 }
 
+/**
+ * Whether a calendar is connected here, read or not just now: a feed to read (the grant's calendar, or a link), or one
+ * that was lost. Where none is, the calendar is "none" (visitsIn); where one is, whatever its read says, it is connected
+ * (what Ask notices of a freed time asks, ask/tools/read/seen.ts, with no feed read).
+ */
+export const isCalendarConnected = (lookup: Pick<CalendarRead["lookup"], "url" | "lostCalendar">): boolean =>
+  !!lookup.url || lookup.lostCalendar;
+
 /** Everyone's visits off a calendar already read: the rows indexed against its feed, once. */
 export function visitsIn({ lookup, feed, record }: CalendarRead, rows: PersonRowDto[], now: Date): PeopleVisits {
   const { lostCalendar, timezone, source, bookingLink, own, profile } = lookup;
@@ -122,7 +130,7 @@ export function visitsIn({ lookup, feed, record }: CalendarRead, rows: PersonRow
   const visits = new Map<string, PersonVisitsDto>();
   if (!feed)
     return {
-      calendar: { state: lostCalendar ? "unavailable" : "none", source, timezone },
+      calendar: { state: isCalendarConnected(lookup) ? "unavailable" : "none", source, timezone },
       visits,
       bookingLink,
       services,
