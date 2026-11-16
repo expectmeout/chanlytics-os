@@ -236,13 +236,16 @@ export function setAppRouter(router: AppRouter | null): void {
 }
 
 /**
- * Who hears the shell ask for a route (client/page-speed.ts, decision 0053): a move is timed from the press that asked
- * for it, and for a route with a page of its own the address moves only once the router has its page, which on a phone
- * is the wait a person sees.
+ * Who hears the shell ask for a route, before the router draws its page. The page's measures (client/page-speed.ts,
+ * decision 0053): a move is timed from the press that asked for it, and for a route with a page of its own the address
+ * moves only once the router has its page, which on a phone is the wait a person sees. And Today's first draw, which
+ * waits for its cards on a move to it as on a load (surfaces/today/first-draw-read.ts).
  */
-let routeAsked: ((route: string) => void) | null = null;
-export function onRouteAsked(fn: ((route: string) => void) | null): void {
-  routeAsked = fn;
+const routeAsked = new Set<(route: string) => void>();
+/** Hear the shell ask for a route (routeAsked); answers the stop. */
+export function onRouteAsked(fn: (route: string) => void): () => void {
+  routeAsked.add(fn);
+  return () => routeAsked.delete(fn);
 }
 
 /**
@@ -281,7 +284,7 @@ export function goToRoute(asked: string, opts: GoOptions = {}, win: AddressWindo
   // where it stands, or a redirect (`replace`), is nobody leaving.
   if (!opts.replace && route !== routeOnScreen(win) && askedToLeave?.(() => goToRoute(route, opts, win))) return;
   // A move is timed from its ask, and a page with a page of its own is drawn only once the router has fetched it.
-  routeAsked?.(route);
+  for (const heard of routeAsked) heard(route);
   const to = hrefOfRoute(route, win);
   const here = to.startsWith("#") ? win.location.hash : win.location.pathname;
   // A move within one route's page (`inbox/th-1` to `inbox/th-2`) stays on the patched history: the page follows the

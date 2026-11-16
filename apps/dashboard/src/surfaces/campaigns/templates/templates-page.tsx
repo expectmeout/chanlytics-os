@@ -342,6 +342,10 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   // own surface (Part 4 PR 8): their rows draw when they land.
   const settings = useSurface("settings");
   const chains = useSurface("reach_outs");
+  // What each row says of what sends it is the playbooks read's (message-row-facts.ts usageOf): heard here, so the rows are
+  // drawn again as it lands, never at whatever next draws the page (2.1 s on a phone, 5.6 s in Safari's engine: the phone
+  // review of 15 Nov 2026). The first draw waits for it (surface-registry ROUTE_WAITS).
+  useSurface("playbooks");
   const templates = settings ? settings.templatesAll : undefined;
   const messages = settings?.messages;
   // The workspace's email and text rows (not a reach-out's): each message finds its own among them. Unread is none.

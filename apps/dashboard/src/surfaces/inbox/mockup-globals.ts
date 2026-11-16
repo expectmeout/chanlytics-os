@@ -8,8 +8,7 @@
  * What is shared moves once: these were the mockup's globals, written by `data/inbox-data.jsx`,
  * `data/conversations-data.jsx`, `pages/inbox.jsx` and `pages/conversations.jsx`, and this is the one line that says them
  * now, deleted name by name as the last page that reads each moves. The app publishes them from seed-globals.ts before any
- * page loads; the standalone mockup gets them from a bundle its server builds (tooling/scripts/serve-mockup.mjs,
- * `data/inbox-globals.js`, from e2e-harness/inbox-src.ts).
+ * page loads.
  *
  * A demo's seeded rows (`INBOX_DATA`, `CONVERSATIONS_DATA`, which a real read replaces) are not here: the app fetches them
  * only in a demo session (shell.ts demoCode), so no workspace's first load carries them (the loadability review, 19 Oct 2026), and

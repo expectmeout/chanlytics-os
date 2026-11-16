@@ -13,7 +13,6 @@ compiled in.
 - `src/surfaces/<surface>/`: what a page draws, and `src/surfaces/kit/` the parts every page draws with.
 - `src/client/`: the typed calls to the API. `src/bridge/`: the seam between the data layer and the pages, and the frame every page sits in.
 - `src/styles/`: the design tokens and the stylesheets of the frame and the pages that have not taken theirs yet.
-- `mockup/`: the standalone mockup, for design review. It is not the app, and nothing new goes in it.
 
 ## What it may import
 

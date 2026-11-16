@@ -60,10 +60,14 @@ const { coldEmailNoteFactsOf } = await import("../../../apps/dashboard/src/serve
 const { ColdEmailNote } = await import("../../../apps/dashboard/src/surfaces/today/zones/cold-email-note.tsx");
 const { holdTodayForNote, keptColdEmailNote } =
   await import("../../../apps/dashboard/src/surfaces/today/cold-email-note-read.ts");
+const { arriveOnToday, readTodaySoon } = await import("../../../apps/dashboard/src/surfaces/today/first-draw-read.ts");
+const { ROUTE_WAITS } = await import("../../../apps/dashboard/src/bridge/surface-registry.ts");
+const { afterBoot } = await import("../../../apps/dashboard/src/bridge/workspace.ts");
 const { PREFETCH_SLOT } = await import("@chanlytics/contracts");
 const { clearReadCaches } = await import("../../../apps/dashboard/src/bridge/read-cache.ts");
 const { api } = await import("../../../apps/dashboard/src/bridge/api.ts");
-const { codeOutFor, markHydrated } = await import("../../../apps/dashboard/src/bridge/surface-status.ts");
+const { codeOutFor, isSurfaceReady, markHydrated } =
+  await import("../../../apps/dashboard/src/bridge/surface-status.ts");
 const { applyToday } = await import("../../../apps/dashboard/src/surfaces/today/surface.ts");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -297,6 +301,75 @@ test("a load that opens on Today holds its first draw for the note the document'
   holdTodayForNote();
   assert.equal(codeOutFor("today"), false, "a tab that holds the note never waits for it");
   delete globalThis[PREFETCH_SLOT];
+});
+
+test("a move to Today from another page holds its first draw for the note, where the tab holds none, and asks for it once; a tab that holds it never waits", async () => {
+  const was = globalThis.window.location;
+  globalThis.window.location = { ...was, pathname: "/w/harbor/calendar" };
+  let letGo = () => {};
+  try {
+    clearReadCaches();
+    api().forget();
+    noteHeldBack = new Promise((r) => (letGo = r));
+    const before = reads();
+    arriveOnToday("clients");
+    assert.equal(codeOutFor("today"), false, "a move to another page waits for nothing of Today's");
+    arriveOnToday("today");
+    assert.equal(
+      codeOutFor("today"),
+      true,
+      "REGRESSION (15 Nov 2026): from the Calendar, Cold email's line landed 0.3 s after the page and pushed the day 79 px down",
+    );
+    letGo();
+    await until(() => !codeOutFor("today"), "the note's read settled");
+    assert.equal(reads(), before + 1, "asked once, as the move was");
+    fresh();
+    assert.ok(byTestId(drawNote(), "today-cold-email"), "in the first draw");
+    assert.equal(reads(), before + 1, "the card took the move's read: never asked twice");
+    // Off to another page and back: the tab holds the note now, and nothing more is asked for it.
+    arriveOnToday("today");
+    await until(() => !codeOutFor("today"), "nothing of the note's to wait for");
+    assert.equal(reads(), before + 1, "a tab that holds the note never waits for it");
+  } finally {
+    noteHeldBack = null;
+    letGo();
+    globalThis.window.location = was;
+  }
+});
+
+test("off Today, what its first draw waits for is read once the boot is in, never Ask's morning, and a press to Today takes the note read so: asked once", async () => {
+  const was = globalThis.window.location;
+  const page = { document: { readyState: "complete" }, addEventListener: () => {} };
+  try {
+    clearReadCaches();
+    api().forget();
+    const before = reads();
+    assert.ok(ROUTE_WAITS.today.includes("ask_morning") && !isSurfaceReady("ask_morning"), "Ask's morning is out");
+    // On Today itself: nothing is read ahead, Today reads its own. (What waits for the boot after it runs after it.)
+    const onToday = [];
+    readTodaySoon((keys) => onToday.push(...keys), page);
+    await afterBoot();
+    // On another page: read once the boot is in.
+    globalThis.window.location = { ...was, pathname: "/w/harbor/calendar" };
+    const ahead = [];
+    readTodaySoon((keys) => ahead.push(...keys), page);
+    await until(() => ahead.length > 0 && reads() === before + 1, "Today's waits and the note, read ahead");
+    assert.deepEqual(onToday, [], "on Today nothing is read ahead");
+    assert.ok(
+      !ahead.includes("ask_morning"),
+      "never Ask's morning: where none is written yet its read asks Ask to write one",
+    );
+    // A press to Today: the note is in hand, and nothing more is asked for it.
+    arriveOnToday("today");
+    await until(() => !codeOutFor("today"), "nothing of the note's to wait for");
+    assert.equal(
+      reads(),
+      before + 1,
+      "REGRESSION (15 Nov 2026): asked only as Today was reached, its first draw came 1.6 to 2.0 s after the press",
+    );
+  } finally {
+    globalThis.window.location = was;
+  }
 });
 
 // LAST in the file: a kept copy of Today cannot be taken back (surface-status.ts has no reset).

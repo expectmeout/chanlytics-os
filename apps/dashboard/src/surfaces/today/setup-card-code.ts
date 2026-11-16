@@ -3,8 +3,9 @@
  * with the frame (override.ts imports it), not with Today's page: the frame opens its gate before the page's own chunk has
  * run, so a wait the page's module said came after the gate had opened, and the card still landed over the queue
  * (measured on a production build, 27 Oct 2026: the gate open at 707 ms, the queue drawn at 751, the wait said at 752, the
- * card at 793). Where Today is the page the tab opens on, its fetch starts here, as the frame loads; anywhere else the
- * card's own module asks for it as Today's page loads (zones/setup-card.tsx), as it did.
+ * card at 793). Where Today is the page the tab opens on, its fetch starts here, as the frame loads; on a move to Today
+ * from another page, as the move is asked (first-draw-read.ts arriveOnToday); and the card's own module asks for it as
+ * Today's page loads all the same (zones/setup-card.tsx).
  */
 import { codeOnce } from "@/lib/code-once";
 import { firstDrawWaitsFor } from "@/bridge/surface-status";

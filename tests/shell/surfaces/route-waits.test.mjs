@@ -108,7 +108,7 @@ test("what a Campaigns view waits for is among the first four the boot reads bes
 test("Campaigns' views each wait for what their own first screen is made of, asked of the view before the page (the Campaigns load review, 28 Oct 2026)", () => {
   assert.deepEqual(reg.ROUTE_WAITS["campaigns/sequences"], ["settings"]);
   assert.deepEqual(reg.ROUTE_WAITS["campaigns/sequences/new"], ["playbooks"]);
-  assert.deepEqual(reg.ROUTE_WAITS["campaigns/messages"], ["channels"]);
+  assert.deepEqual(reg.ROUTE_WAITS["campaigns/messages"], ["channels", "reach_outs", "playbooks"]);
   assert.equal(reg.ROUTE_WAITS.campaigns, undefined, "no view waits for another's");
   status.setStatus("sequences", "live");
   // A sequence's steps say their messages' words, which are the settings read's.
@@ -146,11 +146,36 @@ test("Campaigns' views each wait for what their own first screen is made of, ask
   );
   assert.equal(gate("campaigns", "messages/booking_link"), false, "a message open in it is Messages too");
   status.setStatus("channels", "seeded");
+  // And what its rows say of what sends each (the playbooks read, in by now) and a cold email sequence's emails.
+  assert.equal(
+    gate("campaigns", "messages"),
+    false,
+    "REGRESSION (15 Nov 2026): a row's pill came 2.7 s after the list on a phone, the emails 0.3 s after it",
+  );
+  status.setStatus("reach_outs", "live");
   assert.equal(
     gate("campaigns", "messages"),
     true,
     "a numbers read that failed holds nothing: the page says what it could not read",
   );
+});
+
+// After Reports' own: the report and the workspace list are in by then (module state).
+test("a lens of Reports drawn from a read of its own waits for it beside the report; days after the lens are that lens; a lens with none waits for nothing more (the phone review of 15 Nov 2026)", () => {
+  for (const lens of ["people", "receptionist", "reviews"])
+    assert.deepEqual(reg.ROUTE_WAITS[`reports/${lens}`], ["workspace", `reports_${lens}`]);
+  assert.equal(gate("reports"), true, "the Overview, as before");
+  assert.equal(gate("reports", "bookings"), true, "a lens drawn from the report alone");
+  assert.equal(
+    gate("reports", "people"),
+    false,
+    "REGRESSION: People's strip and charts landed 0.3 s after the page and moved it",
+  );
+  assert.equal(gate("reports", "people:2026-09-01~2026-09-20"), false, "over days it is the same lens");
+  status.setStatus("reports_people", "live");
+  assert.equal(gate("reports", "people"), true, "the page and its charts draw together");
+  status.setStatus("reports_receptionist", "seeded");
+  assert.equal(gate("reports", "receptionist"), true, "a lens whose read failed holds nothing");
 });
 
 test("a page's first draw waits for code of its own as it waits for a surface, until the fetch settles, landed or failed, and the shell hears it end", async () => {

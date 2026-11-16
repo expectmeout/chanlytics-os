@@ -253,8 +253,8 @@
    What nothing else in this file writes: the lead cells over .cl-table, the
    three classes and the Excluded chips (Task 11), the rail's kept searches
    (Task 16), and every rule the phone needs -- for this task's own markup and
-   for theirs. Loaded AFTER clients.css and people.css (frame.css,
-   Chanlytics.html), so a lead cell's rule wins over the People card rule it
+   for theirs. Loaded AFTER clients.css and people.css (frame.css), so a
+   lead cell's rule wins over the People card rule it
    narrows at the same specificity.
 
    Colour comes only from tokens.css; there is no colour here that is not a

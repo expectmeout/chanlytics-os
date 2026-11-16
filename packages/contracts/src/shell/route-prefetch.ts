@@ -94,6 +94,12 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // The report over one period: REPORT_PERIOD_DEFAULT here, the device's own in the head. The Campaigns lens's three reads are its
   // own surface's (reports_campaigns), made where the lens is drawn and not by the head.
   reports: ["reports?period=30d"],
+  // A lens drawn from a read of its own, over the same period (surfaces/reports/people-surface.ts and its two siblings), beside
+  // the report: asked only once the page's code had come, People's strip and charts landed 0.3 s after the page and moved it
+  // (the phone review of 15 Nov 2026; Receptionist's charts 0.4 s, the load sweep of 12 Nov 2026).
+  "reports/people": ["reports?period=30d", "reports/people?period=30d"],
+  "reports/receptionist": ["reports?period=30d", "reports/receptionist?period=30d"],
+  "reports/reviews": ["reports?period=30d", "reports/reviews?period=30d"],
   live: ["calls", "channels"],
   // Sent's sheets: the runs, and the channels read the composers are made of (surfaces/channels/surface.ts), beside Sequences'
   // list (decision 0060, D3), its own read. Who an audience reaches (Send it again's list) is every page of People, read
@@ -136,11 +142,14 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
     "reach-outs/sources",
   ],
   // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
-  // which Connections draws too and asks for as its pane comes on screen.
-  messages: ["settings", "team", "policies", "channels", "templates?all=1"],
+  // which Connections draws too and asks for as its pane comes on screen. And what each row says of what sends it, the
+  // playbooks read, and a cold email sequence's emails, the reach-outs read: started by the frame only once the page had
+  // drawn, a row's pill came 2.7 s after the list on a phone (5.8 s in Safari's engine) and the emails 0.3 s after it (the
+  // phone review of 15 Nov 2026; the load sweep of 12 Nov 2026).
+  messages: ["settings", "team", "policies", "channels", "templates?all=1", "playbooks", "reach-outs"],
   // Messages as the view of Campaigns it is (MESSAGES_ROUTE, 19 Oct 2026): the same reads, at the address it opens at now,
   // and a message open in it (`campaigns/messages/<name>`, its home) is drawn from them.
-  "campaigns/messages": ["settings", "team", "policies", "channels", "templates?all=1"],
+  "campaigns/messages": ["settings", "team", "policies", "channels", "templates?all=1", "playbooks", "reach-outs"],
   // Campaigns › Ads (`campaigns/ads…`, where it is drawn; an ad, New ad and Results among its addresses): the settings read, which
   // says whether it is drawn and whose business it is, and nothing of Sequences. It waited for Sequences' list it does not draw. What
   // a workspace's page counts is the page's own read, made as its code is in (campaigns/ads/first-touch.ts): the boot lets go of what
@@ -148,8 +157,13 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // dearest of the reports would be read twice.
   "campaigns/ads": SETTINGS_READ,
   // Campaigns › Content (`campaigns/content`, where it is drawn): the settings read, which says whether it is, and its own
-  // first page (campaigns/content/surface.ts asks with no query, so the page takes this one).
+  // first page (campaigns/content/surface.ts asks with no query, so the page takes this one). Its address had no word in the
+  // head's script, so a load there opened on Campaigns' list, which Content never draws, and read Content itself only once
+  // the page's code had come: its empty state stood 1.8 s after the page's frame on a phone (the phone review of 15 Nov 2026).
   "campaigns/content": [...SETTINGS_READ, "content"],
+  // Its Library (`campaigns/content:library`): the settings read, and what the business keeps, the library's own read, never
+  // Made's (files/surface.ts).
+  "campaigns/content/library": [...SETTINGS_READ, "files"],
   // Settings: its own read, and the partner account the rail names Partner by; a pane its address names opens on its own
   // (below, the head reads the pane's word: `settings/billing` is `admin/billing`), and a pane not named there on these.
   admin: [...SETTINGS_READ, "partner"],
@@ -304,6 +318,8 @@ export function routePrefetchScript(): string {
     'if(s==="campaigns"&&/^messages?(\\/|:|$)/.test(l))s="campaigns/messages";',
     // Ads is a view of Campaigns too (`campaigns/ads`, `campaigns/ads:new`, `campaigns/ads:ad:<id>`), and opens on its own reads.
     'if(s==="campaigns"&&/^ads(:|$)/.test(l))s="campaigns/ads";',
+    // And Content (`campaigns/content`, its Library `campaigns/content:library`), each on its own reads.
+    'if(s==="campaigns"&&/^content(:|$)/.test(l))s=/^content:library(:|$)/.test(l)?"campaigns/content/library":"campaigns/content";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
     // view's word or a visit with no day (`calendar/month`, `calendar/a-<id>`) opens on the weeks around today, as the
     // route alone does (contracts calendarParamParts).
@@ -316,6 +332,9 @@ export function routePrefetchScript(): string {
       `if(d)P="from="+d[1]+"&to="+d[2];else if(s==="reports"||O.call(B,s))try{` +
       `var o=localStorage.getItem(${JSON.stringify(REPORT_PERIOD_STORAGE)});` +
       `if(${JSON.stringify(REPORT_PERIOD_IDS)}.indexOf(o)>=0)P="period="+o}catch(e){}`,
+    // A lens of Reports drawn from a read of its own opens on it beside the report, over the same days (`reports/people`,
+    // `reports/people:<days>`); any other lens, and days alone, on the report.
+    'if(s==="reports"){var V=l.split(":")[0];if(O.call(t,"reports/"+V))s="reports/"+V}',
     `if(s==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(l))u.push("/api/v1/contacts/"+l+"?workspace="+w);`,
     // A view of Leads the address names (a search, a list) is the page's to read: it opens on who is looking alone.
     'else if(!(s==="clients"&&/^leads(:|$)/.test(l))&&Object.prototype.hasOwnProperty.call(t,s))',

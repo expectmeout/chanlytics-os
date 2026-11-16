@@ -1,7 +1,7 @@
 /**
  * The shell's shared contracts (moved from legacy/data/constants.jsx, the one-system plan's step 7e): the confidence
  * thresholds, the seed clock, the route builders, the frame's move and the address, and the money words. Canonical values
- * live here and in mockup/CLAUDE.md: never fork a threshold, a route string or an agent's identity in a page. Published
+ * live here: never fork a threshold, a route string or an agent's identity in a page. Published
  * as `window.CHANLY` by frame-globals.ts, where the pages and the adapters read it (step 9 ends the reads).
  */
 import { frameShell } from "./frame-window";
@@ -82,7 +82,7 @@ const address = {
 const CONF = { SAFE: 0.8, MED: 0.5 };
 
 export const CHANLY = {
-  // ---- Confidence (0–1 float everywhere; see mockup/CLAUDE.md) ----
+  // ---- Confidence (0–1 float everywhere) ----
   CONF,
   isSafe(level: number): boolean {
     return level >= CONF.SAFE;
@@ -97,7 +97,7 @@ export const CHANLY = {
 
   // ---- Seed clock ----
   IX_NOW: "12:04",
-  // The seed's "today" (mockup/CLAUDE.md, Numeric contracts): 26 April of the seed year.
+  // The seed's "today": 26 April of the seed year.
   SEED_TODAY: new Date(2026, 3, 26),
   WAIT_WARN_MIN: 30,
 

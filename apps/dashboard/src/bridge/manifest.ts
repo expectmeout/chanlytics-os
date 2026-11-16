@@ -1,8 +1,6 @@
 /**
  * The ordered manifest: every file a real workspace draws, in the order
- * the shared global scope requires. The standalone harness loads the same files
- * from this list (its server writes Chanlytics.html's from it:
- * tooling/scripts/serve-mockup.mjs).
+ * the shared global scope requires.
  * ES modules execute static imports in declaration order, so this file IS the
  * execution-order guarantee the classic <script> tags used to provide.
  *
@@ -12,7 +10,7 @@
  *
  * Dropped vs the original, and since deleted from the tree: tweaks-panel.jsx
  * (replaced by the bridge's localStorage prefs) and design-canvas.jsx (never
- * loaded by Chanlytics.html).
+ * loaded by the standalone mockup, which went on 15 November 2026).
  */
 import "./seed-globals";
 
