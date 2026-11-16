@@ -97,7 +97,7 @@ export const NEW_WORDS = {
     stopsReply: "stops if they reply",
     checked: "AI checked",
     runs: "How it runs",
-    yourOk: "Your approval",
+    yourOk: "Approval",
     keep: "Keep as a draft",
     start: "Start",
     sendNow: "Send now",

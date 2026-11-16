@@ -235,7 +235,7 @@ export const broadcastSpec: ProposalSpec = {
  */
 function firstSendsWords(pl: Record<string, unknown>, d: Record<string, unknown>): string {
   // Under Asks you every batch waits, the first among them; under Holds it each waits its half hour.
-  if (d.words_ok !== true || pl.mode === "ask") return "Its first batch waits for your approval.";
+  if (d.words_ok !== true || pl.mode === "ask") return LIFECYCLE_WORDS.ledger.resume.asksFirst;
   const cap = Number(pl.cap_per_run);
   const held = pl.mode === "veto" ? PLAYBOOK_VETO_DELAY_MS : 0;
   const at = Date.parse(asText(d.first_at)) + held;

@@ -402,7 +402,7 @@ function unreadNotice(p: NoticeProps): NoticeVM {
     id: "feed",
     fact: (
       <>
-        <b>Your calendar couldn&apos;t be read.</b> {why}
+        <b>{"Your calendar couldn't be read."}</b> {why}
         {until}
       </>
     ),

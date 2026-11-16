@@ -6,6 +6,7 @@
  * rules, so they stand with the page they are for.
  */
 import {
+  LIFECYCLE_WORDS,
   NEW_WORDS,
   isWinBack,
   momentOffered,
@@ -55,7 +56,7 @@ export const NEW_READY_WORDS = {
   open: "Open the draft",
   askWrites: "AI writes it",
   yours: (title: string) => `Your message: ${title}`,
-  firstWaits: "Its first batch waits for your approval.",
+  firstWaits: LIFECYCLE_WORDS.ledger.resume.asksFirst,
   reach: (n: number) => `${plural(n, "person", "people")} it would reach today`,
   list: (name: string) => `Write to everyone on ${name}`,
   listSaid: (n: number) => `${n} on it, nothing sends to it`,

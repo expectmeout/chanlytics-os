@@ -166,7 +166,7 @@ export const PIECE_WORDS: PieceWords = {
   bell: {
     ready: "Your video is ready",
     readyBody: (name) => (name ? `${fileSaidOf(name)} · Watch it` : "Watch it"),
-    failed: "Your video couldn't be made",
+    failed: "Couldn't make your video",
     failedBody: (reason) => `${FAILED[reason]} ${FAILED_NEXT[reason]}`,
   },
 };
