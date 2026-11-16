@@ -11,31 +11,49 @@
  *     Enter opens, Space picks it for a bulk act
  *
  * The person who has a thread a teammate is answering (ixAnswerer) is answerer.ts, where the member was in the list
- * (ixPlace) is place.ts, a row, with the words of confidence, is list-rows.tsx, and the pick -- the boxes, the bar
- * of acts over it, its keys -- is pick.tsx, which Conversations draws too.
+ * (ixPlace) is place.ts, a row, with the words of confidence, is list-rows.tsx, the pick -- the boxes, the bar
+ * of acts over it, its keys -- is pick.tsx, which Conversations draws too, and what an empty list says is list-empty.tsx.
  */
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
-import { BAR_LINE_WORDS, NEEDS_YOU_LIST_END } from "@chanlytics/contracts";
+import { BAR_LINE_WORDS, NEEDS_YOU_LIST_END, NEED_YOU_WORDS, type TodayQueueRowVM } from "@chanlytics/contracts";
+import { AttnRow } from "../../kit/attention/attn-row";
 import { ListFind, foldedLookup } from "../../kit/head/list-find";
-import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Search } from "../../kit/search/search";
 import { useRowsArrive } from "../../kit/motion/use-rows-arrive";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
+import type { ShownRows } from "../../kit/rows/shown-rows";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { ixKeepPlace, ixPlace } from "../place";
 import { useNeedsYouParts } from "../../needs-you";
 import { usePageSearch } from "../../kit/head/page-search";
 import type { Flash } from "../../shell-doors";
+import { doorRow } from "../../today/need-you/sheet/row-words";
 import { InboxRunsWaiting } from "./inbox-runs";
 import { threadRows, useShownThreads } from "./list-rows";
 import { pickAll, pickArchiveAsk, pickBar, pickKeys } from "./pick";
-import { askOnScreenKey, demoSession, setAskOnScreen, surfaceState } from "../shell";
-import { inboxData } from "../store";
+import { appNavigate, askOnScreenKey, setAskOnScreen } from "../shell";
+import { emptyThreads, unreadEscalated } from "./list-empty";
 import type { InboxBucket, InboxView, Thread } from "../types";
 
 /** How much of a row the desk draws: the phone ignores it. */
 export type Density = "compact" | "medium" | "rich";
+
+/**
+ * What Needs you draws beside its conversations, by the one count's rows (rules.ts ixNeedsYouOf): whoever has waited past
+ * a week, folded at its foot (their conversations, and the rows of those it does not hold); the counted rows that are no
+ * conversation here; and what a conversation it holds by the count alone asks of you.
+ */
+interface NeedsYouDrawn {
+  older: Thread[];
+  olderRows: readonly TodayQueueRowVM[];
+  rows: readonly TodayQueueRowVM[];
+  why: (t: Thread) => string | null;
+}
+
+/** No rows, and no conversations: what a list draws beside its own where the one count has given it none. */
+const NONE_COUNTED: readonly TodayQueueRowVM[] = [];
+const NO_THREADS: Thread[] = [];
 
 /** What a bucket's chips over the rows say about the Needs you bucket: how many decisions, the dollars, the oldest wait. */
 interface Stake {
@@ -75,6 +93,8 @@ interface InboxListProps {
   toSendOpen?: boolean;
   /** The page's toast: what an Approve on a run's row says, with its Stop (inbox-runs.tsx). */
   flash?: (flash: Flash) => void;
+  /** What Needs you draws beside its conversations, where Today has been read (NeedsYouDrawn). */
+  needsYou?: NeedsYouDrawn | null;
 }
 
 /** The props with what the caller left out filled in: what the destructuring's defaults did in the JSX. */
@@ -103,8 +123,10 @@ function listProps({
   fromLine = null,
   toSendOpen = false,
   flash = () => undefined,
+  needsYou = null,
 }: InboxListProps) {
   return {
+    needsYou,
     threads,
     allThreads,
     buckets,
@@ -144,6 +166,9 @@ export interface ListCtx extends ReturnType<typeof listProps> {
   setShowViews: (v: boolean) => void;
   askArchive: boolean;
   setAskArchive: (v: boolean) => void;
+  /** Whether Needs you's fold of whoever has waited past a week is open, and its press. */
+  olderOpen: boolean;
+  setOlderOpen: (v: boolean) => void;
   visible: Thread[];
   searching: boolean;
   multipleAgents: boolean;
@@ -222,6 +247,7 @@ export function InboxList(props: InboxListProps) {
   // buckets); otherwise the parent already scoped `threads` to bucket/view.
   const visible = visibleRows({ query, allThreads, threads });
   const shown = useShownThreads(visible, activeThreadId ?? null, base.density);
+  const fold = useOlderFold(base.needsYou?.older, activeThreadId ?? null, base.density);
   // At a desk the first rows fade in as the list arrives, as People's do; on a phone they stand whole on the first frame
   // (kit/motion/use-rows-arrive.ts). The rows the window draws after, as the list is scrolled, come as they are. One ref
   // on the rows' element gives it to the kit and to the window.
@@ -247,8 +273,6 @@ export function InboxList(props: InboxListProps) {
   // what a saved view holds, or what is picked. It said the chip's number again, "3 need you · 1 being answered"
   // under Needs you 3 and over rows whose pills say whose, and once "3 threads" under a chip counting 1 (I2).
   const searching = !!query.trim();
-  // A search finds threads: the runs stand aside while one is typed, and Needs you with a run in it is not empty.
-  const runRows = activeBucket === "escalated" && !searching && !activeView;
   // What Ask is told is on screen (bridge/ask/context.ts): the rows this list draws, in its order, forty at most,
   // and what chose them -- a search, a saved view or the bucket. The list is the one place that knows its order.
   const askRows = visible.slice(0, 40);
@@ -285,6 +309,8 @@ export function InboxList(props: InboxListProps) {
     setShowViews,
     askArchive,
     setAskArchive,
+    olderOpen: fold.olderOpen,
+    setOlderOpen: fold.setOlderOpen,
     visible,
     searching,
     multipleAgents,
@@ -306,29 +332,111 @@ export function InboxList(props: InboxListProps) {
       {archiveAsk(L)}
       {/* Threads */}
       <div className="ix-threads" ref={swap}>
-        {L.fromLine}
-        {!L.fromLine && runRows && <InboxRunsWaiting flash={L.flash} />}
-        {!L.fromLine && unreadEscalated()}
-        {visible.length === 0 && !L.fromLine && !(runRows && runsWaiting > 0) && emptyThreads(L)}
-        {visible.length > 0 && (
-          <div
-            ref={rowsRef}
-            className="ix-thread-rows"
-            role="listbox"
-            aria-label="Conversations"
-            aria-multiselectable="true"
-          >
-            {threadRows(L, shown)}
-          </div>
-        )}
-        {/* Under Needs you's last row, where nothing narrows the rows: that is all of them (the thread canvas's list). */}
-        {visible.length > 0 && activeBucket === "escalated" && !searching && !activeView && (
-          <p className="ix-list-end" data-testid="inbox-list-end">
-            {NEEDS_YOU_LIST_END}
-          </p>
-        )}
+        {threadsBody(L, { shown, olderShown: fold.olderShown, rowsRef, runsWaiting })}
       </div>
     </div>
+  );
+}
+
+/** Needs you's fold: whether it is open, and its conversations' rows, a list of their own drawn only while it is open. */
+function useOlderFold(older: Thread[] | undefined, openId: string | null, density: Density) {
+  // Whoever has waited past a week stands folded at Needs you's foot until the fold is pressed (olderFold).
+  const [olderOpen, setOlderOpen] = useState(false);
+  const olderShown = useShownThreads(olderOpen ? (older ?? NO_THREADS) : NO_THREADS, openId, density, "inbox-older");
+  return { olderOpen, setOlderOpen, olderShown };
+}
+
+/**
+ * The rows under the buckets: a sequence's line where the address names one; else, in Needs you, the rows of what the one
+ * count holds that is no conversation here and the runs (inbox-runs.tsx), the conversations, the line that says that is
+ * all of them, and the fold of whoever has waited past a week. A search finds conversations: the rest stand aside while one
+ * is typed, and Needs you with any of them in it is not empty.
+ */
+function threadsBody(
+  list: ListCtx,
+  drawn: { shown: ShownRows; olderShown: ShownRows; rowsRef: (el: HTMLDivElement | null) => void; runsWaiting: number },
+) {
+  const whole = list.activeBucket === "escalated" && !list.searching && !list.activeView;
+  const besides = whole && !list.fromLine;
+  const counted = list.needsYou?.rows ?? NONE_COUNTED;
+  const empty = list.visible.length === 0;
+  return (
+    <>
+      {list.fromLine}
+      {besides && <InboxRunsWaiting flash={list.flash} rows={counted} />}
+      {!list.fromLine && unreadEscalated()}
+      {empty && !list.fromLine && !(besides && (drawn.runsWaiting > 0 || counted.length > 0)) && emptyThreads(list)}
+      {!empty && (
+        <div
+          ref={drawn.rowsRef}
+          className="ix-thread-rows"
+          role="listbox"
+          aria-label="Conversations"
+          aria-multiselectable="true"
+        >
+          {threadRows(list, drawn.shown)}
+        </div>
+      )}
+      {/* Under Needs you's last row, where nothing narrows the rows: that is all of them (the thread canvas's list). */}
+      {!empty && whole && (
+        <p className="ix-list-end" data-testid="inbox-list-end">
+          {NEEDS_YOU_LIST_END}
+        </p>
+      )}
+      {besides && olderFold(list, drawn.olderShown)}
+    </>
+  );
+}
+
+/**
+ * Whoever has waited past a week, at Needs you's foot, as Today draws them (today/need-you/older.tsx): one row, how many
+ * and who, in no count and never the page's coral (the one count leaves them out: 0048, amended 2 Nov 2026), which opens
+ * in place into their conversations' own rows, a list of its own, and the rows of those the Inbox holds no conversation
+ * of. Nothing while nobody has.
+ */
+function olderFold(list: ListCtx, shown: ShownRows) {
+  const older = list.needsYou?.older ?? NO_THREADS;
+  const away = list.needsYou?.olderRows ?? NONE_COUNTED;
+  const count = older.length + away.length;
+  if (!count) return null;
+  // Its own list: one tab stop, on the open row or its first, and the arrows walk its rows alone (pick.tsx).
+  const fold: ListCtx = {
+    ...list,
+    visible: older,
+    tabStopId: older.some((t) => t.id === list.activeThreadId) ? list.activeThreadId : older[0]?.id,
+    onRowKey: pickKeys({
+      rows: older,
+      onOpen: list.onSelectThread,
+      onToggle: list.onToggleSelect,
+      attr: "data-thread-id",
+    }),
+  };
+  return (
+    <>
+      <div className="ix-runs" data-testid="inbox-older">
+        <AttnRow
+          glyph="clock"
+          initials=""
+          name={NEED_YOU_WORDS.older.row(count)}
+          sentence={[...older.map((t) => t.who), ...away.map((r) => r.who)].join(", ")}
+          tone=""
+          testid="inbox-older-row"
+          onOpen={() => list.setOlderOpen(!list.olderOpen)}
+        />
+        {list.olderOpen ? away.map((r) => doorRow(r, (to) => appNavigate(to))) : null}
+      </div>
+      {list.olderOpen && older.length > 0 ? (
+        <div
+          ref={shown.listRef}
+          className="ix-thread-rows"
+          role="listbox"
+          aria-label={NEED_YOU_WORDS.group.old}
+          aria-multiselectable="true"
+        >
+          {threadRows(fold, shown)}
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -525,123 +633,5 @@ function archiveAsk(L: ListCtx) {
       onYes: () => Promise.resolve(onBulkArchive()).finally(() => setAskArchive(false)),
       onNo: () => setAskArchive(false),
     })
-  );
-}
-
-/**
- * Escalated threads outside the newest page are fetched one by one;
- * one that failed is a waiting customer nobody can see, so the list
- * says so instead of listing fewer.
- */
-function unreadEscalated() {
-  const n = inboxData().UNREAD_ESCALATED || 0;
-  return n > 0 ? (
-    <FailedRead
-      kind="line"
-      title={`Couldn't read ${n} escalated conversation${n === 1 ? "" : "s"}`}
-      body="Someone may be waiting in them."
-      surface="inbox"
-      testid="inbox-unread-escalated"
-    />
-  ) : null;
-}
-
-/** What an empty bucket, or an empty saved view, says. */
-interface EmptyWords {
-  icon: string;
-  title: string;
-  body: string;
-  cta?: { label: string; to: string };
-}
-
-/**
- * The words of each empty bucket: a real workspace's, or the mockup's. Needs you with a campaign run waiting is not empty:
- * the run is its row (inbox-runs.tsx), and nothing says "Nobody's waiting" over it.
- */
-function emptyWords(isReal: boolean): Record<string, EmptyWords> {
-  return {
-    waiting: {
-      icon: "users",
-      title: "Nothing waiting",
-      body: "Conversations where the next move is theirs, or a teammate's, show here.",
-    },
-    done: isReal
-      ? {
-          icon: "check",
-          title: "Nothing handled yet",
-          body: "Conversations that were answered or closed show here.",
-          cta: { label: "Open Conversations", to: "conversations" },
-        }
-      : {
-          icon: "check",
-          title: "48 resolved this week",
-          body: "Handled conversations archive after 7 days. Every transcript stays in Conversations.",
-          cta: { label: "Open Conversations", to: "conversations" },
-        },
-    snoozed: isReal
-      ? {
-          icon: "clock",
-          title: "Nothing snoozed",
-          body: "Snooze hides a conversation from this list. AI keeps answering it.",
-        }
-      : {
-          icon: "clock",
-          title: "7 snoozed, all sleeping",
-          body: "They come back when they wake. Next: Elena's win-back, tomorrow 10:00.",
-        },
-    needs: {
-      icon: "check",
-      title: "Nothing needs you",
-      body: "Conversations AI hands to you land here first.",
-    },
-    watching: { icon: "eye", title: "Nothing in flight", body: "Conversations AI is answering show here." },
-    drafts: { icon: "edit", title: "No drafts waiting", body: "Replies AI wrote wait here for your review." },
-    escalated: isReal
-      ? {
-          icon: "check",
-          title: "Nobody's waiting on you",
-          body: "AI is answering on its own. Anything left for you lands here.",
-        }
-      : { icon: "flag", title: "No escalations", body: "Sensitive conversations that need a person land here." },
-  };
-}
-
-function emptyThreads(L: ListCtx) {
-  const { threads, activeView, activeBucket, query, setQuery } = L;
-  // "Is this a real workspace?" must come from the surface
-  // classification, not from the array being inspected: an EMPTY
-  // thread list made `threads.some(t => t.real)` false, so precisely
-  // when the empty state showed, it showed the mockup's copy — an
-  // empty Snoozed bucket reading "7 snoozed… Elena's win-back".
-  const surface = surfaceState("inbox");
-  const isReal = surface !== undefined ? surface === "real" && !demoSession() : threads.some((t) => t.real);
-  const meta: EmptyWords = emptyWords(isReal)[activeView ? "view" : activeBucket] || {
-    icon: "filter",
-    title: "Nothing in this view",
-    body: "No conversations match this view right now.",
-  };
-  // Needs you with nobody in it and nothing typed is what the pane beside says, as "Inbox zero" (thread.tsx InboxEmpty):
-  // where that pane stands (a desk), this card steps aside for it (inbox.css, .ix-zero-beside), so the page says it once.
-  const saidBeside = activeBucket === "escalated" && !query && !activeView;
-  return (
-    <EmptyState
-      kind="card"
-      className={`ix-empty-mini${saidBeside ? " ix-zero-beside" : ""}`}
-      glyph={query ? "search" : meta.icon || "check"}
-      tone={query ? null : "ok"}
-      title={query ? `No matches for "${query}"` : meta.title || "All clear"}
-      body={
-        query
-          ? "Try another word. Search looks through every tab."
-          : meta.body || "AI brings anything that needs you here."
-      }
-      action={
-        query
-          ? { label: "Clear search", onClick: () => setQuery("") }
-          : meta.cta
-            ? { label: meta.cta.label, to: meta.cta.to }
-            : null
-      }
-    />
   );
 }

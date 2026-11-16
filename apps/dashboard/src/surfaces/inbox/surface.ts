@@ -29,11 +29,11 @@ import {
   shareUnchanged,
   surfaceValue,
 } from "../surface-values";
-import { waitingRunsNow } from "../needs-you";
+import { needsYouRowsNow, needsYouWaitsNow } from "../needs-you";
 import { peopleHold, threadPersonSaid } from "../people/want-person";
 import { namedByRoute } from "./address";
 import { ixPlace } from "./place";
-import { ixOnPhone, ixOpeningThread } from "./rules";
+import { ixNeedsYouOf, ixOnPhone, ixOpeningThread } from "./rules";
 import { inboxThreadsOf, readHeldThreads, readThreadWhole, revivedThread } from "./read-apart";
 import { inboxData, REAL_BUCKETS, REAL_CHANNEL_LABELS } from "./store";
 import type { Thread } from "./types";
@@ -137,7 +137,11 @@ function openingThreadWaits(threads: Thread[]): void {
   // opens on what the page works out, which this does not guess.
   const named = param && /^th-[^/]+$/.test(param) ? param : null;
   if ((param && !named) || (!named && ixOnPhone()) || routeGateOpen(page, param)) return;
-  const thread = ixOpeningThread(threads, named, { had: ixPlace().bucket, runsWaiting: waitingRunsNow().length > 0 });
+  const thread = ixOpeningThread(threads, named, {
+    had: ixPlace().bucket,
+    waiting: needsYouWaitsNow(),
+    needsYou: ixNeedsYouOf(threads, needsYouRowsNow()),
+  });
   if (!thread || !thread.real) return;
   firstDrawWaitsFor("inbox", surfaceSettles("settings"));
   firstDrawWaitsFor("inbox", surfaceSettles("reply_drafts"));

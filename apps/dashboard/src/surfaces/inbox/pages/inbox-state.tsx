@@ -16,12 +16,15 @@ import {
   ixBucketOf,
   ixDraftKey,
   ixFirstBucket,
+  ixFirstOpen,
   ixHeld,
+  ixListedIn,
+  ixNeedsYouOf,
   ixOnPhone,
   ixOpeningBucket,
   ixReadAgain,
-  ixSending,
   ixWaitsOnYou,
+  type IxNeedsYou,
 } from "../rules";
 import { ixKeepPlace, ixPlace } from "../place";
 import {
@@ -37,7 +40,7 @@ import {
   type SeededLead,
 } from "../shell";
 import { getSurfaceStatuses, onSurfaceMoved } from "@/bridge/surface-status";
-import { needsYouMoved, waitingRunsNow } from "../../needs-you";
+import { needsYouMoved, needsYouWaitsNow, useNeedsYouRows, waitingRunsNow } from "../../needs-you";
 import { seePerson, threadReading, threadUnread, threadWhose } from "../../seen";
 import { inboxData, IX_STORE, VW_STORE, VW_UTIL, type Decision } from "../store";
 import { threadVerbs } from "../thread/thread-verbs";
@@ -142,7 +145,7 @@ const ixFollowReads = ({
     setActiveBucket((b) => {
       const picked = ixPlace().bucket;
       if (picked) return b;
-      return list.some((x) => ixBucketOf(x) === b) ? b : ixFirstBucket(list, waitingRunsNow().length > 0);
+      return list.some((x) => ixBucketOf(x) === b) ? b : ixFirstBucket(list, needsYouWaitsNow());
     });
     // A thread the route still names stays selected though the list does not hold it: the pane keeps
     // saying it is missing, where clearing it let the refresh open the first thread in its place.
@@ -228,6 +231,8 @@ export interface InboxState extends Omit<InboxAddress, "ownRouteRef"> {
   setPhoneThreadOpen: Dispatch<SetStateAction<boolean>>;
   activeView: string | null;
   setActiveView: Dispatch<SetStateAction<string | null>>;
+  /** Needs you's list, by the one count's rows (rules.ts ixNeedsYouOf): what it lists, folds, draws and says. */
+  needsYou: IxNeedsYou;
   listedHere: (t: Thread) => boolean;
   stale: Stale | null;
   setStale: Dispatch<SetStateAction<Stale | null>>;
@@ -245,6 +250,8 @@ export interface InboxState extends Omit<InboxAddress, "ownRouteRef"> {
  * followed, a re-read landing (ixFollowReads), the mockup's scripted concurrent change, and the sidebar's count.
  */
 export const useInboxState = (THREADS: Thread[], initialThreadId: string | null, toSendOpen = false): InboxState => {
+  // The rows of the one count (needs-you.ts): Needs you lists them, and says how many, as the badge does.
+  const counted = useNeedsYouRows();
   const [threads, setThreads] = useState<Thread[]>(() =>
     THREADS.map((t) => {
       // Overlay session decisions (made here or from Tasks) so state survives navigation
@@ -252,27 +259,21 @@ export const useInboxState = (THREADS: Thread[], initialThreadId: string | null,
       return d ? withDecision(t, d) : { ...t };
     }),
   );
+  const needsYou = ixNeedsYouOf(threads, counted);
   const [activeBucket, setActiveBucket] = useState<string>(() =>
     ixOpeningBucket(THREADS, initialThreadId, {
       toSendOpen,
       had: ixPlace().bucket,
-      runsWaiting: waitingRunsNow().length > 0,
+      waiting: needsYouWaitsNow(),
     }),
   );
   // A move to To send's address with the Inbox open (Today's row, a sequence's "One by one") is Needs you too.
   useEffect(() => {
     if (toSendOpen) setActiveBucket("escalated");
   }, [toSendOpen]);
+  // The bucket's first row opens first, never one folded at Needs you's foot (rules.ts ixFirstOpen).
   const [activeThreadId, setActiveThreadId] = useState<string | null>(
-    // The bucket's first row opens first, in the list's own order (ixRank): a reply about to send, then a thread that
-    // needs you. A teammate's thread opened in its place (I2).
-    initialThreadId ||
-      (
-        THREADS.find((x) => ixSending(x)) ||
-        THREADS.find((x) => x.state === "needs" || (x.real && ixWaitsOnYou(x))) ||
-        THREADS[0]
-      )?.id ||
-      null,
+    () => initialThreadId || ixFirstOpen(THREADS, needsYou.older),
   );
   const [selected, setSelected] = useState<string[]>([]);
   // A bulk act on real threads while it runs: the bar says so, and a second press asks nothing.
@@ -285,8 +286,7 @@ export const useInboxState = (THREADS: Thread[], initialThreadId: string | null,
   const [activeView, setActiveView] = useState<string | null>(null);
   // Whether the bucket (or view) on screen lists a thread: the one rule the list and the pane both follow.
   const viewFilter = activeView ? IX_VIEW_FILTERS[activeView] : null;
-  const listedHere = (t: Thread) =>
-    viewFilter ? !!viewFilter(t) : activeBucket === "all" || ixBucketOf(t) === activeBucket;
+  const listedHere = (t: Thread) => (viewFilter ? !!viewFilter(t) : ixListedIn(t, activeBucket, needsYou));
   const [stale, setStale] = useState<Stale | null>(null); // { threadId, update } — concurrent change waiting to merge
   // A real re-read that moves the open thread: the thread kept on screen though its bucket no longer lists it --
   // never another customer's in its place. What happened to it, the pane says (ThreadPane).
@@ -379,6 +379,7 @@ export const useInboxState = (THREADS: Thread[], initialThreadId: string | null,
     setPhoneThreadOpen,
     activeView,
     setActiveView,
+    needsYou,
     listedHere,
     stale,
     setStale,

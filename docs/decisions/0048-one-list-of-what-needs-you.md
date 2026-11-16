@@ -138,3 +138,24 @@ head that replaced the away card, starts again from now (the canvas's Head board
 newest sixty, which it only counts, are marked seen with the rest. Opening it marks nothing, so New holds while it is
 open. A warning in Today's band (number health, a stopped line or mailbox, billing) reads New alone, so it leaves the band
 once the bell has been closed over it, though it may still be true; the bell keeps it.
+
+## Amended 15 November 2026 · The Inbox's Needs you says the one count
+
+The words standard (`docs/words.md`, "One number for each idea": a count with one name is one count) found the Inbox's own
+chip apart from the badge beside it: 1 under a badge of 2 on the nightly's workspace (a lead search's question, counted and
+drawn nowhere in the Inbox), 40 under 26 on the demo's (the conversations waiting past a week, in the chip and in no other
+count). Ruben approved the fix on the design shown to him the same day.
+
+1. **One number.** The Inbox's Needs you tab, on a desk and a phone, and the Inbox's head say the badge's number
+   (`needsYouNow`), the head in Today's words ("1 needs you", contracts `NEED_YOU_WORDS.said`). Before Today has been read
+   the chip counts its own list, as it did.
+2. **The list is the count's rows** (the dashboard's `inbox/rules.ts` `ixNeedsYouOf`, over `needsYouRowsNow`): every
+   conversation the rule puts in Needs you, and every one whose person the count holds, so a WhatsApp window shutting on a
+   snoozed or a teammate's conversation is listed there too; a row of its own for what is counted and is no conversation
+   the Inbox holds (a search's question, a hold whose conversation it could not read), drawn as Today draws it
+   (`today/need-you/sheet/row-words.tsx`); the runs as before. A conversation the rule puts there that Today's read does not hold yet is
+   listed, never hidden, and the next read counts it.
+3. **Whoever has waited past a week folds** at the list's foot in one row, "N waiting over a week", which opens in place
+   into their conversations' own rows. It is no part of any count, as on Today. Mark all done stays Today's.
+4. **Where the Inbox opens** follows the one count: with anything in it, Needs you (a search's question alone, as a run
+   alone already did), and never on a folded conversation.

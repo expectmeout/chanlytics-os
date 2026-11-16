@@ -32,7 +32,7 @@ import {
 } from "./inbox-state";
 import { ixKeyLeft } from "../keys";
 import { ixKeepPlace } from "../place";
-import { ixBucketOf, ixNextMoveAt, ixOnPhone, ixRank } from "../rules";
+import { ixBucketOf, ixDrawnIn, ixNextMoveAt, ixOnPhone, ixRank, type IxNeedsYou } from "../rules";
 import { useNeedsYouParts } from "../../needs-you";
 import { threadReading, threadWhose, useSeeOpen, useSeen } from "../../seen";
 import { canDo, gate, presenceAway } from "../shell";
@@ -49,14 +49,18 @@ type AfterBulk = InboxSoFar & InboxActs & InboxRealBulk & ReturnType<typeof inbo
 
 /** What is on screen: the bucket's rows, the thread open beside them, and whether the one a link asked for is missing. */
 const inboxOnScreen = (
-  { threads, listedHere, activeThreadId, keepOpenId, shownRef }: AfterBulk,
+  { threads, listedHere, activeThreadId, keepOpenId, shownRef, needsYou, activeBucket, activeView }: AfterBulk,
   initialThreadId: string | null,
   only: ReadonlySet<string> | null = null,
 ) => {
   // The bucket's rows, in the one order (ixRank): a reply about to send, then what needs you, then the threads you
   // have, then a teammate's. A thread whose own reply is on its way out stands in Needs you while it counts down. A
   // sequence's replies the address names are the rows in place of the bucket's (inbox-from.tsx).
-  const visible = threads.filter((t) => (only ? only.has(t.id) : listedHere(t))).sort((a, b) => ixRank(a) - ixRank(b));
+  const listed = threads.filter((t) => (only ? only.has(t.id) : listedHere(t))).sort((a, b) => ixRank(a) - ixRank(b));
+  // Whoever has waited past a week stands at Needs you's foot, folded, in no count (rules.ts ixNeedsYouOf), as on Today.
+  const folds = !only && !activeView && activeBucket === "escalated" && needsYou.older.size > 0;
+  const older = folds ? listed.filter((t) => needsYou.older.has(t.id)) : [];
+  const visible = folds ? listed.filter((t) => !needsYou.older.has(t.id)) : listed;
   // Scoped to the VISIBLE list: an id left over from another bucket used to
   // keep a customer (with a live Snooze button) on screen beside a list that
   // said "0 threads".
@@ -64,6 +68,8 @@ const inboxOnScreen = (
   // to the first thread in the list, another customer's, and a half-written reply went with it.
   const activeThread: Thread | undefined =
     visible.find((t) => t.id === activeThreadId) ||
+    // One opened from the fold, or named by a link: it is Needs you's, under its fold.
+    older.find((t) => t.id === activeThreadId) ||
     (keepOpenId && keepOpenId === activeThreadId ? threads.find((t) => t.id === keepOpenId) : undefined) ||
     // Archived is in no list: a link or a search still opens it, beside whichever list is on screen.
     threads.find((t) => t.id === activeThreadId && ixBucketOf(t) === "out") ||
@@ -78,7 +84,7 @@ const inboxOnScreen = (
     !threads.some((t) => t.id === initialThreadId);
   // The thread on screen, for the next re-read to compare with; none while a link's notice stands.
   shownRef.current = requestedMissing ? null : activeThread || null;
-  return { visible, activeThread, requestedMissing };
+  return { visible, older, activeThread, requestedMissing };
 };
 
 type InboxOnScreen = ReturnType<typeof inboxOnScreen>;
@@ -134,6 +140,7 @@ const useInboxKeys = ({
 const inboxBucketMoves = ({
   threads,
   activeThread,
+  needsYou,
   setActiveBucket,
   setActiveView,
   setSelected,
@@ -152,10 +159,11 @@ const inboxBucketMoves = ({
     // turns on the screen, and a bucket that opened its first thread took the screen with it: the rows were gone,
     // a customer nobody had asked for was on the phone, and a bucket with nothing in it showed neither.
     setPhoneThreadOpen(false);
-    // By the list's own rule (ixBucketOf): a reply counting down stands in Needs you whatever its state says.
-    const stillVisible = activeThread && (id === "all" || ixBucketOf(activeThread) === id);
+    // By the list's own rule (rules.ts ixDrawnIn): a reply counting down stands in Needs you whatever its state says, and
+    // Needs you draws what the one count holds, less whoever it folds.
+    const stillVisible = activeThread && ixDrawnIn(activeThread, id, needsYou);
     if (!stillVisible) {
-      const next = [...threads].sort((a, b) => ixRank(a) - ixRank(b)).find((t) => id === "all" || ixBucketOf(t) === id);
+      const next = [...threads].sort((a, b) => ixRank(a) - ixRank(b)).find((t) => ixDrawnIn(t, id, needsYou));
       // The desktop's pane beside the list shows the bucket's first thread, and the address says which, so a
       // refresh comes back to the same one. An empty bucket clears the pane: leaving the id stranded a customer --
       // with a live Snooze button -- beside a list reading "0 threads".
@@ -173,8 +181,9 @@ const inboxBucketMoves = ({
 type InboxBucketMoves = ReturnType<typeof inboxBucketMoves>;
 
 /**
- * The buckets' and the views' counts, and the Needs bucket's stake. `runs` are the campaign runs waiting for your say,
- * each a row of Needs you over its threads (inbox-runs.tsx), so its chip counts them as the badge does.
+ * The buckets' and the views' counts, and the Needs bucket's stake. Needs you says the one count, the badge's (needs-you.ts),
+ * whose rows its list holds (rules.ts ixNeedsYouOf); before Today is read it counts its own list, `runs` among it, the
+ * campaign runs waiting for your say, each a row of Needs you over its threads (inbox-runs.tsx).
  */
 const inboxCounts = (
   threads: Thread[],
@@ -183,20 +192,22 @@ const inboxCounts = (
     INBOX_VIEWS,
     INBOX_BASELINE,
   }: Pick<InboxSurface, "INBOX_BUCKETS" | "INBOX_VIEWS" | "INBOX_BASELINE">,
-  runs: number,
+  { runs, needsYou }: { runs: number; needsYou: IxNeedsYou },
 ) => {
   // Live bucket counts (done keeps its archive baseline of 48 resolved this week)
-  // Needs you's chip counts the threads its list holds, by the rule (thread-move.ts): the badge's one count is Today's rows
-  // (0048, amended 2 Nov 2026), so a week-old wait is here and not there. Waiting's chip counts the threads whose move is
-  // someone else's. A reply about to send counts in Needs you, and leaves wherever it stood while it counts down.
-  const bucketsWithCounts = INBOX_BUCKETS.map((b) => ({
-    ...b,
-    // One rule, so the chip cannot say a number the list does not hold: `ixBucketOf`. It used to ask
-    // `ixWaitsOnYou` for Needs you and the bucket for the rest, which is exactly how the two came apart.
+  // Needs you's chip is the badge's number (0048, amended 15 Nov 2026: it counted its own list, a week-old wait in it, and
+  // said 1 under a badge of 2). Waiting's chip counts the threads whose move is someone else's. A reply about to send
+  // counts in Needs you, and leaves wherever it stood while it counts down.
+  const bucketsWithCounts = INBOX_BUCKETS.map((bucket) => ({
+    ...bucket,
+    // One rule, so the chip cannot say a number the list does not hold: the one count over its rows, or `ixBucketOf`. It
+    // used to ask `ixWaitsOnYou` for Needs you and the bucket for the rest, which is exactly how the two came apart.
     count:
-      threads.filter((t) => ixBucketOf(t) === b.id).length +
-      (b.id === "done" ? (INBOX_BASELINE?.doneThisWeek ?? 48) : 0) +
-      (b.id === "escalated" ? runs : 0),
+      bucket.id === "escalated" && needsYou.count !== null
+        ? needsYou.count
+        : threads.filter((t) => ixBucketOf(t) === bucket.id).length +
+          (bucket.id === "done" ? (INBOX_BASELINE?.doneThisWeek ?? 48) : 0) +
+          (bucket.id === "escalated" ? runs : 0),
     // Set aside stands only where it holds something: it is no list to keep an eye on.
   })).filter((b) => !b.onlyWithRows || b.count > 0);
   const viewsWithCounts = INBOX_VIEWS.map((v) => {
@@ -407,6 +418,8 @@ const inboxPage = (
   const {
     threads,
     visible,
+    older,
+    needsYou,
     bucketsWithCounts,
     viewsWithCounts,
     activeView,
@@ -473,6 +486,7 @@ const inboxPage = (
         fromLine={replies ? <SequenceRepliesLine read={replies} held={threads} /> : null}
         toSendOpen={toSendOpen}
         flash={ppFlash}
+        needsYou={{ older, rows: needsYou.rows, olderRows: needsYou.olderRows, why: needsYou.why }}
       />
       {ixOnPhone() && !phoneThreadOpen
         ? // On a phone the list and the thread take turns on the screen (mobile.css hides the pane until the page wears
@@ -570,7 +584,11 @@ export const Inbox = ({
   const runs = useNeedsYouParts()?.runs ?? 0;
   const full = Object.assign(
     withBucketMoves,
-    inboxCounts(withBucketMoves.threads, { INBOX_BUCKETS, INBOX_VIEWS, INBOX_BASELINE }, runs),
+    inboxCounts(
+      withBucketMoves.threads,
+      { INBOX_BUCKETS, INBOX_VIEWS, INBOX_BASELINE },
+      { runs, needsYou: withBucketMoves.needsYou },
+    ),
   );
   // On a phone the list stays where it was under an open thread, and is put back there as the thread goes, by any Back;
   // the thread is pushed in over it as it opens. A phone's alone, as Conversations' and Live's are: `phoneThreadOpen` is
