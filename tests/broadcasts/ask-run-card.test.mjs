@@ -614,7 +614,7 @@ test("a run card approved, walked end to end: Approve sends it through the run's
     done.receipt,
     moved
       ? new RegExp(
-          `^Win-back · ${run().run_for} approved · 3 people, scheduled for .+ — messages go out between 9:00 and 20:59 by your clock$`,
+          `^Win-back · ${run().run_for} approved · 3 people, scheduled for .+ · messages go out between 9:00 and 20:59 by your clock$`,
         )
       : new RegExp(`^Win-back · ${run().run_for} approved · 3 people, sending now$`),
   );
