@@ -146,7 +146,7 @@ function didLine(reachOutReply: ReachOutReplyDto, now: number, tz: string): stri
     case "away":
       if (reachOutReply.claim === "auto_reply" && reachOutReply.until_at) {
         const back = clockDate(Date.parse(reachOutReply.until_at), tz, now);
-        return `Away until ${back} (an automatic reply). The sequence goes on after that.`;
+        return `Away until ${back} (an automatic reply). The campaign goes on after that.`;
       }
       return reachOutReply.named_day
         ? `Away until ${replyDayWords(reachOutReply.named_day, tz, now)}. A step is on Today for that day.`
@@ -170,8 +170,8 @@ export function replyStripOf(reachOutReply: ReachOutReplyDto, now: number, tz: s
       answers,
       did:
         reachOutReply.claim === "auto_reply"
-          ? "Read as no, then undone. It was an automatic reply, so the sequence goes on."
-          : "Read as no, then undone. The sequence stays stopped: they wrote back.",
+          ? "Read as no, then undone. It was an automatic reply, so the campaign goes on."
+          : "Read as no, then undone. The campaign stays stopped: they wrote back.",
       doors: [],
     };
   }

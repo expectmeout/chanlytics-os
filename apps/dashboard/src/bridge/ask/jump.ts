@@ -73,7 +73,7 @@ export const ASK_PAGES: JumpEntry[] = [
   // Campaigns › Sequences by its own name, and by what the old pages were called: Sent's list went to each sequence's
   // History (D3), so its names find it.
   {
-    label: "Sequences",
+    label: "Campaigns",
     to: "campaigns/sequences",
     kind: "page",
     sub: "everything that sends on its own",

@@ -82,12 +82,11 @@ export const REACH_OUT_REFUSALS = {
   stepGone: "That step has gone.",
   onlyEmailWords: "Only an email takes words.",
   yoursToSend: "It's yours to send now: change it in your mail app.",
-  youWroteIt: "You wrote this email. Use the sequence's words first.",
+  youWroteIt: "You wrote this email. Use the campaign's words first.",
   /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
-  unsaved: "That sequence could not be saved as it is. Check its steps and try again.",
+  unsaved: "That campaign could not be saved as it is. Check its steps and try again.",
   /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
-  notHere:
-    "A sequence to leads is removed from its own row, and only before its first email goes. After that, pause it.",
+  notHere: "Cold email is removed from its own row, and only before its first email goes. After that, pause it.",
   /** The preview on a deployment that runs nothing. */
   preview: "Previews only work on the production dashboard.",
   previewDown: "The preview could not be written just now. Try again in a moment.",
@@ -214,7 +213,7 @@ export function startWords(
         case "waiting_for_you":
           return reachOutStart.planned > 0
             ? { tone: "good", text: `Planned ${phrase}. The first run waits on you: open it to approve.` }
-            : { tone: "plain", text: "A run of this sequence already waits on you. Answer it first." };
+            : { tone: "plain", text: "A run of this campaign already waits on you. Answer it first." };
         case "billing":
           return { tone: "warn", text: "Saved. Nothing is planned until billing is sorted: open Billing." };
         case "no_mailbox":

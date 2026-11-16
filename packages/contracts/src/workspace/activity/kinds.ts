@@ -319,7 +319,7 @@ export const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base:
   ["reach_out.send_decided", (p, base) => wordOf(SEND_DECIDED_WORDS, textAt(p, "decision")) ?? base],
   [
     "reach_out.lead_words_changed",
-    (p, base) => (p.kept === false ? "An email to a lead went back to the sequence's words" : base),
+    (p, base) => (p.kept === false ? "An email to a lead went back to the campaign's words" : base),
   ],
   ["lead.search_renamed", (p, base) => joinBits(base, [textAt(p, "name")])],
   ["lead.search_removed", searchRemovedWords],

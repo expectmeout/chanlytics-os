@@ -166,7 +166,7 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
     const { first, lastRunOff, history } = own;
     const [facts, word, evidence] = await workspace;
     const [read] = rows;
-    if (!read) throw new AppError("not_found", "Sequence not found.", 404);
+    if (!read) throw new AppError("not_found", "Campaign not found.", 404);
     const row = sequenceWaitsNow(read, runDaysAt(facts.timezone, rc.now));
     // A freed time's sequence says how far ahead it offers (decision 0082): read for it alone.
     const daysAhead = first && read.first?.trigger === "slot_opened" ? await daysAheadOf(rc) : undefined;
@@ -212,7 +212,7 @@ export const sequenceReach: Reader<{ id: string }, SequenceReachDto> = {
     const pb = (await load(rc, playbooksReader, undefined)).data;
     // A sequence's first step has the sequence's own id (00440).
     const step = pb.playbooks.find((p) => p.id === id);
-    if (!step) throw new AppError("not_found", "This sequence does not start on a moment or a list.", 404);
+    if (!step) throw new AppError("not_found", "This campaign does not start on a moment or a list.", 404);
     const reading = readingFor(pb.pools[playbookCountKey(step, pb.pools)], step.channels);
     return {
       data: {
@@ -262,7 +262,7 @@ export const sequenceReplies: Reader<{ id: string; period: "30" | "90" | "all" }
       load(rc, readers.facts, undefined).then((r) => r.data),
     ]);
     const [row] = rows;
-    if (!row) throw new AppError("not_found", "Sequence not found.", 404);
+    if (!row) throw new AppError("not_found", "Campaign not found.", 404);
     const tz = facts.timezone;
     const since = historySince(period, tz, rc.now.getTime());
     const batches: SequenceBatchDto[] = [];

@@ -45,12 +45,12 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: `how a new win-back sequence starts · each keeps its own on its page, and asks you before its first batch and after new words`,
+    note: `how a new win-back campaign starts · each keeps its own on its page, and asks you before its first batch and after new words`,
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: `how a new offer or welcome sequence starts · each keeps its own on its page, and asks you before its first batch and after new words`,
+    note: `how a new offer or welcome campaign starts · each keeps its own on its page, and asks you before its first batch and after new words`,
   },
   reviews: {
     name: "Google reviews",
@@ -69,7 +69,7 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Cold email",
-    note: "how a new cold email sequence starts · each keeps its own on its page, and asks you before its first batch and after new words",
+    note: "how a new cold email campaign starts · each keeps its own on its page, and asks you before its first batch and after new words",
   },
 };
 

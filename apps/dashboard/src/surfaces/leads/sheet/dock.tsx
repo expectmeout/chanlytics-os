@@ -28,8 +28,8 @@ const DOING: Partial<Record<LeadSheetSlotVM["act"], string>> = {
   exclude: "leave this lead out",
   put_back: "put this lead back",
   return: "put this lead back",
-  add: "add this lead to a sequence",
-  pick: "add this lead to a sequence",
+  add: "add this lead to a campaign",
+  pick: "add this lead to a campaign",
   move: "move this lead",
   later: "save this lead for later",
   approve: "approve a batch",
@@ -114,7 +114,7 @@ function caretOf(s: LeadSheetSlotVM, p: DockProps) {
       aria-keyshortcuts="Shift+A"
       data-tip={D.choose}
       data-testid="lead-sheet-pick"
-      {...gate("approve", "add this lead to a sequence")}
+      {...gate("approve", "add this lead to a campaign")}
     >
       <Icon name="chevron-down" size={13} />
     </Button>
