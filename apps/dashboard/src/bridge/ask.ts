@@ -231,7 +231,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     thread,
     sendSpoken,
     ...followUps,
-    ...askNotices(win),
+    ...askNotices(win, () => palette.language()),
     commit: (p, cards = [], messageId) => keptOrCleared([p], commitCard(win, p, cards, { messageId })),
     commitPlan: (cards, messageId) => keptOrCleared(cards, commitPlan(win, cards, { messageId })),
     undoPlan: (cards, open, messageId) => keptOrCleared(cards, undoPlan(win, cards, open, { messageId })),

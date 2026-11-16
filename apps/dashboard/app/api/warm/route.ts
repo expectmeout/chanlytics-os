@@ -14,8 +14,12 @@ import * as leadSearches from "../v1/lead-searches/route";
 import * as leads from "../v1/leads/route";
 import * as myAlerts from "../v1/me/alerts/route";
 import * as partner from "../v1/partner/route";
+import * as reachOuts from "../v1/reach-outs/route";
 import * as reachOutSources from "../v1/reach-outs/sources/route";
 import * as reports from "../v1/reports/route";
+import * as reportsPeople from "../v1/reports/people/route";
+import * as reportsReceptionist from "../v1/reports/receptionist/route";
+import * as reportsReviews from "../v1/reports/reviews/route";
 import * as sequences from "../v1/sequences/route";
 import * as reachOutSettings from "../v1/settings/reach-out/route";
 import * as teamPartner from "../v1/team/partner/route";
@@ -45,8 +49,12 @@ const HELD = {
   leads,
   "me/alerts": myAlerts,
   partner,
+  "reach-outs": reachOuts,
   "reach-outs/sources": reachOutSources,
   reports,
+  "reports/people": reportsPeople,
+  "reports/receptionist": reportsReceptionist,
+  "reports/reviews": reportsReviews,
   sequences,
   "settings/reach-out": reachOutSettings,
   "team/partner": teamPartner,

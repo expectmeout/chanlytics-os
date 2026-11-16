@@ -18,7 +18,7 @@ const peopleRead = firstDrawRead<TodayPeopleDto>(
   "today_people",
   "today/people",
   async () => (await read("GET today/people")).people,
-  TODAY_PEOPLE_HEARD,
+  { heard: TODAY_PEOPLE_HEARD },
 );
 
 /** What this tab last read for the workspace on screen, or null where it holds nothing. */

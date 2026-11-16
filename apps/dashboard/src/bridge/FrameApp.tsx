@@ -46,6 +46,7 @@ import { readIsOut, workspaceOverride, switchWorkspace, type Workspace } from ".
 import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
 import { inboxOverride } from "@/surfaces/inbox/surface";
 import { todayOverride } from "@/surfaces/today/override";
+import { readTodaySoon } from "@/surfaces/today/first-draw-read";
 import { settingsOverride } from "./surfaces/settings";
 import { policiesNow } from "@/surfaces/settings/business/shell";
 import { channelsOverride } from "@/surfaces/channels/surface";
@@ -325,10 +326,16 @@ onRouteReachedFor((route) => {
 // Campaigns, reached for once the frame is idle: a door on every page whose list the boot does not read and whose code it
 // does not carry, so the first press finds its page, its list and its code in, as the Inbox's are.
 warmCampaignsSoon(reachFor);
-// The Calendar's campaigns, read once the frame is idle off the Calendar, so they come in with its weeks, which every boot
+// The Calendar's campaigns, read once the boot is in off the Calendar, so they come in with its weeks, which every boot
 // reads: its rows of campaigns came half a second after its meetings and pushed them down (runs-surface.ts readRunsSoon).
 // The read alone, not the reach: the Calendar's code is a press's to fetch.
 readRunsSoon(() => void refreshSurfaces([calendarRunsOverride]));
+// And what Today's first draw waits for that no other page reads (Google's reviews, the drafts kept for its rows, the
+// period's headline, its cards' own reads), once the boot is in off Today, so a press to Today draws at once
+// (today/first-draw-read.ts readTodaySoon). Its read is out already where a press began it: that one is taken.
+readTodaySoon(
+  (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key) && !(o.onDemand && readIsOut(o)))),
+);
 // The page the address opens as it loads, where it is Campaigns: its code fetched now, beside the frame's own, not once the
 // page has drawn and asked for it; and a sequence's record, the reads the document's head started for it, taken into the
 // record's caches now. The record mounts only once Sequences' chunk is in, after the boot's first pass has let go of what

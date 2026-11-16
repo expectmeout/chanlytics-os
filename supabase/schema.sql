@@ -1407,7 +1407,7 @@ begin
                      and e.state = 'open' and e.reason = 'booking_request') then
       -- The line the dashboard words (contracts), else the time and the service as they stand.
       v_words := coalesce(nullif(btrim(coalesce(p_reply_words, '')), ''),
-                          'Could not book '
+                          'Couldn''t book '
                           || to_char(v_row.starts_at at time zone v_row.timezone, 'Dy FMDD Mon, FMHH12:MI AM')
                           || coalesce(' · ' || v_row.service, '') || ': reply to them');
       perform public.escalation_open(v_row.tenant_id, v_row.conversation_id, 'booking_reply', v_words);
@@ -28273,7 +28273,7 @@ begin
       if exists (select 1 from public.sequence_lead_words w
                   where w.step_id = v_send.step_id and w.lead_id = v_send.lead_id
                     and w.body !~* '\{\{\s*opening\s*\}\}') then
-        raise exception 'You wrote this email. Use the sequence''s words first.' using errcode = '22023';
+        raise exception 'You wrote this email. Use the campaign''s words first.' using errcode = '22023';
       end if;
       -- The opening it replaces, as it stood, kept once: a second press while the first is written undoes to the first.
       v_was := case
@@ -31671,7 +31671,7 @@ begin
       from public.mailbox_connections c where c.tenant_id = p_tenant_id and c.state = 'connected';
   end if;
   if cardinality(v_boxes) = 0 then
-    raise exception 'Connect your mailbox first: a sequence to leads sends from your own address. Settings › Cold email has the way.'
+    raise exception 'Connect your mailbox first: cold email sends from your own address. Settings › Cold email has the way.'
       using errcode = '22023';
   end if;
   if v_from is not null then

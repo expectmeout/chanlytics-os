@@ -11,7 +11,7 @@ import {
   emailFoot,
   whyFrom,
   chainIssueWords,
-  isReachOutRefusal,
+  reachOutRefusalWords,
   parseTenantConfig,
   reachOutEmailOf,
   validateReachOutChain,
@@ -70,7 +70,7 @@ interface PgError {
  * status follows the code (P0002 not found, 22023 or 23514 not as it may be, 23505 or 23503 in the way of something).
  */
 export function reachOutRefusal(pgError: PgError): Error {
-  const sentence = isReachOutRefusal(pgError.message) ? pgError.message : null;
+  const sentence = reachOutRefusalWords(pgError.message);
   switch (pgError.code) {
     case "P0002":
       return new AppError("not_found", sentence ?? REACH_OUT_REFUSALS.notFound, 404);

@@ -15,7 +15,7 @@ import { read } from "@/bridge/api";
 import { heldViews } from "@/bridge/held-views";
 import { readAged, type SurfaceOverride } from "@/bridge/surface-data";
 import { declareReads } from "@/bridge/surface-registry";
-import { aheadWhenIdle, routeOnScreen } from "@/bridge/workspace";
+import { afterBoot, routeOnScreen, warmsOnItsOwn } from "@/bridge/workspace";
 import { knownZone } from "@/bridge/zone";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 import { getCalendarSpan } from "./surface";
@@ -43,28 +43,39 @@ export function keptShow(): CalendarShow {
   return { open: on("open"), campaigns: on("campaigns"), cold: on("cold"), posts: on("posts") };
 }
 
-/** How long an idle page may wait before the Calendar's campaigns are read off the Calendar: after the page's own reads. */
-const RUNS_IDLE_MS = 2000;
-
 /**
- * The Calendar's campaigns read once the frame is idle on any other page (`read`: the runner's read of this surface,
+ * The Calendar's campaigns read once the boot is in on any other page (`read`: the runner's read of this surface,
  * FrameApp.tsx), where Show draws them and the tab holds none, so a move to the Calendar finds them in hand with its
  * weeks, which every boot reads (Today draws them). Read only as the Calendar came on screen, they arrived about half a
  * second after its meetings in 66 of 294 moves there (page_vitals, 14-21 Oct 2026), the campaign rows pushing the
- * meetings down as they came (Ruben, 21 Oct 2026). Never where the page may not warm on its own (aheadWhenIdle).
+ * meetings down as they came (Ruben, 21 Oct 2026). Read once the page was idle too, they were still out a second or two
+ * after Today had drawn, longest where the browser has no idle callback and waits 2 s (Safari), and a press to the
+ * Calendar then drew the meetings and the campaigns 0.2 to 0.3 s after (the phone review of 15 Nov 2026): one small read
+ * after the boot's own stands in nobody's way. Never where the page may not warm on its own (warmsOnItsOwn).
  */
 export function readRunsSoon(read: () => void, at?: Window): void {
   const win = at ?? (typeof window === "undefined" ? null : window);
-  if (!win) return;
+  if (!win || !warmsOnItsOwn()) return;
   const go = () => {
     const show = keptShow();
     if (!(show.campaigns || show.cold || show.posts) || surfaceValue("calendar_runs")) return;
     if (/^calendar(\/|$)/.test(routeOnScreen(win))) return;
     read();
   };
-  const idle = () => void aheadWhenIdle(go, RUNS_IDLE_MS);
-  if (win.document.readyState === "complete") idle();
-  else win.addEventListener("load", idle, { once: true });
+  const soon = () => void afterBoot().then(go);
+  if (win.document.readyState === "complete") soon();
+  else win.addEventListener("load", soon, { once: true });
+}
+
+/** How many reads of the campaigns are out now (`calendarRunsOverride.apply`). */
+let runsOut = 0;
+
+/**
+ * Whether a read of the campaigns is out now: a board that comes on screen while one is waits for it (calendar-page.tsx),
+ * as a press from Today finds it, its weeks in hand and its campaigns still being read.
+ */
+export function runsReading(): boolean {
+  return runsOut > 0;
 }
 
 /**
@@ -131,9 +142,10 @@ export const calendarRunsOverride: SurfaceOverride = {
   apply: async () => {
     const { from, days } = getCalendarSpan();
     // The board's own first read names no day (`around`), so the document's head can start this one beside it.
+    runsOut += 1;
     const data = await read("GET calendar/runs", {
       query: from ? { from, days: String(days) } : { around: "today" as const },
-    });
+    }).finally(() => (runsOut -= 1));
     // A read for a span the board has since left is dropped, never painted.
     const now = getCalendarSpan();
     if (now.from !== from || now.days !== days) return;
