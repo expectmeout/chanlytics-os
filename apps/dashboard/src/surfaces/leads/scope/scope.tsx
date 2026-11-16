@@ -13,10 +13,9 @@ import { Icon } from "../../kit/icon/icon";
 import { PeopleListsSheet } from "../../people/rail/lists-sheet";
 import { PL_TABLE_CLASSES } from "../../people/words";
 import { PeopleRail } from "../../people/rail/people-rail";
-import { LeadsStandingRow, PeopleStanding } from "../../people/rail/standing";
+import { PeopleStanding } from "../../people/rail/standing";
 import { DataTable } from "../../kit/table/data-table";
 import type { TableSection } from "../../kit/table/groups";
-import { LeadBand } from "../bench/band";
 import { LeadsBackToday } from "../pile/back-today";
 import { LeadReviewBench } from "../bench/bench";
 import { LeadExcludedChips, LeadReviewGroups, ldExcludedChips } from "../bench/chips";
@@ -27,7 +26,6 @@ import { LeadsFirstDay } from "../finder/first-day";
 import { planPickTitle } from "../finder/plan-card";
 import { LeadPlanPanel } from "../finder/plan-panel";
 import { jobBack } from "../../people/sheets/phone-sheet";
-import { LeadStrip } from "../finder/strip-view";
 import { LeadMap } from "../map/map";
 import { LeadPeekActions } from "../peek/acts";
 import { LeadLightbox } from "../peek/lightbox";
@@ -43,6 +41,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { LeadsRailRows } from "./rail";
 import { ldReviewSections } from "./review";
 import { RowsLand } from "./rows-land";
+import { addsAloneOf, phoneStandingOf, searchHeadOf } from "./search-head";
 
 type P = LeadsScopeProps;
 /** The rail's own pick is People's: under Leads it draws the rows it is handed, and picks nothing itself. */
@@ -261,16 +260,6 @@ const listHeadOf = (p: P) => (
 );
 
 /**
- * The band only where it narrows something: two piles or more with leads in them (a list of the owner's own). A search the
- * finder ran keeps one, Qualified (decision 0133), and a row of one tab narrowed nothing and said the count twice, over the
- * strip's "51 of 100" (Ruben, 16 Nov 2026, "cleaner, less redundant"). Its fits stay the table's to sort and filter.
- */
-const bandOf = (p: P) =>
-  p.band && p.band.classes.filter((c) => c.count > 0).length > 1 ? (
-    <LeadBand band={p.band} cls={p.view.cls} onPick={p.onPickClass} fit={p.fit} onPickFit={p.onPickFit} />
-  ) : null;
-
-/**
  * The first day: the question, the door to Ask (Find leads is Ask on this surface, spec F1) and the ideas, each a ready
  * plan the plan sheet opens (00398); and the door for a list the owner already has, which is the rail's on every other
  * day.
@@ -480,20 +469,6 @@ const backTodayOf = (p: P) => (!p.search && !p.firstDay && !p.surface.readFailed
 /** While a lead's sheet is open beside the rows, a row's hover card would say again what the sheet says (leads.css). */
 const sheetMarkOf = (p: P) => (p.peek || p.pileSheet ? "" : undefined);
 
-/**
- * A phone's count on a line under the bar, as People's: the bar names the list alone. In an open search the workspace's
- * count is All leads' and the strip says the search's own (Ruben, 16 Nov 2026: "366 leads in all" stood over "51 of 100"),
- * so the line keeps only another search that waits on an answer, where one does.
- */
-const phoneStandingOf = (p: P, phone: boolean) => {
-  if (!phone || p.firstDay || p.newSearch) return null;
-  if (!p.search) return <LeadsStandingRow leads={p.standing} onNeeds={p.onNeedsYou} />;
-  const needs = p.standing.needsYou;
-  return needs && needs.searchId !== p.search.id ? (
-    <LeadsStandingRow leads={{ total: "", parts: [], needsYou: needs }} onNeeds={p.onNeedsYou} />
-  ) : null;
-};
-
 /** What a running search found, taken in by itself under a reader at the top with no lead open (rows-land.tsx). */
 const rowsLandOf = (p: P) => (
   <RowsLand
@@ -504,23 +479,6 @@ const rowsLandOf = (p: P) => (
     take={leadsTakeOffered}
   />
 );
-
-/**
- * The open search's head: what happened, its piles as the tabs that open them where there are two or more, and the one next
- * step; on its second line, its count and where its adds go. With no strip to hold the band, the band stands alone.
- */
-const searchHeadOf = (p: P) => {
-  if (!p.search) return null;
-  if (!p.strip) return p.band ? bandOf(p) : null;
-  return (
-    <LeadStrip vm={p.strip} onAction={p.onStripAction} foot={p.addsGoTo}>
-      {bandOf(p)}
-    </LeadStrip>
-  );
-};
-
-/** Where the search's adds go, as a line of its own only where no strip carries it on its second line. */
-const addsAloneOf = (p: P) => (p.search && p.strip ? null : p.addsGoTo);
 
 const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections) => {
   const search = p.search;

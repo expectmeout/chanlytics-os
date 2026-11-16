@@ -3708,22 +3708,10 @@ test("at a phone's width the page draws the bar instead of the rail and the cont
   assert.equal(byTestId(pick, "leads-phone-lists-count"), null, "its count is the line under the bar, as People's is");
   assert.equal(all(t, (n) => n.props?.className === "cl-controls").length, 0, "no controls row above the rows");
   assert.equal(all(t, (n) => n.props?.className === "cl-rail").length, 0, "no rail");
-  assert.equal(
-    textOf(byTestId(t, "leads-standing")),
-    "1 search needs you",
-    "in an open search the workspace's count is All leads', and the strip says the search's own (16 Nov 2026): the line " +
-      "keeps only another search waiting on an answer",
-  );
-  assert.equal(
-    all(draw(), (n) => n.props?.["data-testid"] === "leads-standing").length,
-    1,
-    "on All leads, the count on a line under the bar, as People's (Ruben, 12 Nov 2026)",
-  );
-  assert.equal(
-    byTestId(draw({ leadsRoute: `leads:s-${SEARCH_B}` }), "leads-standing"),
-    null,
-    "the search open is the one waiting: its strip asks, and the line says nothing twice",
-  );
+  // The workspace's count is All leads' (People's line, 12 Nov); a search keeps only another one waiting (16 Nov 2026).
+  assert.equal(textOf(byTestId(t, "leads-standing")), "1 search needs you", "in a search: another one waiting");
+  assert.equal(all(draw(), (n) => n.props?.["data-testid"] === "leads-standing").length, 1, "All leads: the count");
+  assert.equal(byTestId(draw({ leadsRoute: `leads:s-${SEARCH_B}` }), "leads-standing"), null, "its own wait: none");
   const above = all(
     t,
     (n) =>

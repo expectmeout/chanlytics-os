@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import {
   NEW_WORDS as W,
   exampleParams,
+  sequenceRoute,
   visitWhenExample,
   type NewAudience,
   type NewCheck,
@@ -21,6 +22,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { cx } from "../../../kit/variants";
+import { routeDoor } from "../../../frame-verbs";
 import { MessagePreview } from "../../parts/message-preview";
 import { Choice } from "./choice";
 import { setName } from "./new-model";
@@ -242,6 +244,28 @@ export function CaseNote(p: {
       {p.words ? <p className="sq-nw-case-words">{p.words}</p> : null}
       {p.acts ? <div className="sq-nw-case-acts">{p.acts}</div> : null}
     </div>
+  );
+}
+
+/**
+ * A campaign that already does this: two would send twice. Its fact, why in a line, and the way to the one there as quiet
+ * words at that line's end (16 Nov 2026: two lines, not four).
+ */
+export function TwinCase({ twin }: { twin: NonNullable<NewDraftDto["twin"]> }) {
+  return (
+    <CaseNote
+      tone="warn"
+      title={W.checks.twin(twin.name)}
+      words={W.checks.twinDetail}
+      acts={
+        <LinkButton {...routeDoor(sequenceRoute(twin.id))} data-testid="sq-nw-twin-open">
+          {W.twin.open}
+          <Icon name="chevron" size={12} />
+        </LinkButton>
+      }
+      inline
+      testid="sq-nw-twin"
+    />
   );
 }
 

@@ -18,7 +18,7 @@ import {
   type ContentSourceLine,
   type ContentSourcePlace,
   type ContentSourcesDto,
-  type FilmSaid,
+  type ContentSourcesSaid,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -67,7 +67,7 @@ function SourceLine({ line }: { line: ContentSourceLine }) {
  * The clips to film, folded under one line (how many, and their length where they share one): opened, each says what to
  * film and where to hold the phone, whole. The browser's own disclosure, so the keys and a screen reader know it.
  */
-function FilmFold({ film }: { film: FilmSaid }) {
+function FilmFold({ film }: { film: NonNullable<ContentSourcesSaid["film"]> }) {
   return (
     <details className="cnv-found-film" data-testid="cnv-found-film">
       <summary className="cnv-found-film-head" data-testid="cnv-found-film-open">

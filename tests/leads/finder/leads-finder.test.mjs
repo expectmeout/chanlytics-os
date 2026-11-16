@@ -1209,14 +1209,16 @@ test("a running search is two lines: what it does and its Stop, then its count b
   };
   frames.begin();
   const tree = LeadStrip({ vm, onAction: () => {}, foot: "Adds go to" });
-  const foot = byTestId(tree, "strip-foot");
+  const second = find(tree, (n) => n.props && "foot" in n.props && "count" in n.props);
+  const foot = second.type(second.props);
   assert.ok(foot, "the second line");
   assert.ok(byTestId(foot, "strip-count"), "the count leads it, not the first line");
   assert.match(textOf(foot), /51 of 100.*Adds go to/);
   assert.equal(tree.props["data-state"], "running", "its state, which a phone's stylesheet draws without a box");
   frames.begin();
   const ended = LeadStrip({ vm: { ...vm, state: "ended", count: undefined }, onAction: () => {} });
-  assert.equal(byTestId(ended, "strip-foot"), null, "no count and nowhere to add: no second line");
+  const none = find(ended, (n) => n.props && "foot" in n.props && "count" in n.props);
+  assert.equal(none.type(none.props), null, "no count and nowhere to add: no second line");
 });
 
 test("REGRESSION: the finder draws no key -- Close's tip said (esc), beside the ? sheet that lists it", () => {

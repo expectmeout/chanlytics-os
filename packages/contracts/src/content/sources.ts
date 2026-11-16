@@ -66,7 +66,7 @@ export interface ContentSourceLine {
  * The clips to film for a video, folded under one line: how many, and their length where they share one; each clip what,
  * where to hold the phone, and its own length where the clips' lengths differ.
  */
-export interface FilmSaid {
+interface FilmSaid {
   head: string;
   each: string | null;
   shots: { what: string; how: string; seconds: string | null }[];

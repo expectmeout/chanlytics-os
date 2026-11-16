@@ -23,6 +23,35 @@ const QUIET = [
   "not_on_renewal",
 ];
 
+/** The strip's classes: its tone (a question asks, a round that ended is done), whether it holds the band and a second line. */
+const stripClassOf = (vm: StripVM, band: boolean, second: boolean): string => {
+  const tone = vm.state === "question" ? "ask" : vm.state === "found" || vm.state === "ended" ? "done" : "";
+  return `lf-strip ${tone}${band ? " has-band" : ""}${second ? " has-foot" : ""}`;
+};
+
+/**
+ * The strip's second line: the count a phone reads from across a room (D9 of the answers canvas; a desk's parts say it),
+ * then where the search's adds go. Nothing where it has neither.
+ */
+const StripFoot = ({ count, foot }: { count: StripVM["count"]; foot: ReactNode }) => {
+  if (!count && !foot) return null;
+  return (
+    <span className="lf-strip-foot" data-testid="strip-foot">
+      {count ? (
+        <span className="lf-strip-count" data-testid="strip-count">
+          <b>{count.n}</b> of {count.of}
+        </span>
+      ) : null}
+      {count && foot ? (
+        <span className="lf-strip-sep" aria-hidden="true">
+          ·
+        </span>
+      ) : null}
+      {foot}
+    </span>
+  );
+};
+
 export const LeadStrip = ({
   vm,
   onAction,
@@ -39,21 +68,14 @@ export const LeadStrip = ({
   foot?: ReactNode;
 }) => {
   if (!vm) return null;
-  const tone = vm.state === "question" ? "ask" : vm.state === "found" || vm.state === "ended" ? "done" : "";
   // With the band inside, its tabs ARE the ways into each pile: the strip's own "14 need a look" link beside a tab saying
   // "14 need a look" was the same door twice, and so was an ending's step that only opens a pile ("1 left out" beside the
   // tab saying it, Ruben, 10 Oct 2026): the tab is that door.
   const actions = children ? vm.actions.filter((a) => !a.pile && a.id !== "excluded" && a.id !== "review") : vm.actions;
   const parts = vm.parts.map((t) => ` · ${t}`).join("");
-  // The count a phone reads from across a room (D9 of the answers canvas) leads the second line; a desk's parts say it.
-  const count = vm.count ? (
-    <span className="lf-strip-count" data-testid="strip-count">
-      <b>{vm.count.n}</b> of {vm.count.of}
-    </span>
-  ) : null;
   return (
     <div
-      className={`lf-strip ${tone}${children ? " has-band" : ""}${count || foot ? " has-foot" : ""}`}
+      className={stripClassOf(vm, !!children, !!(vm.count || foot))}
       role={vm.alert ? "alert" : "status"}
       data-state={vm.state}
       data-testid="lead-strip"
@@ -116,17 +138,7 @@ export const LeadStrip = ({
           {act}
         </span>
       ) : null}
-      {count || foot ? (
-        <span className="lf-strip-foot" data-testid="strip-foot">
-          {count}
-          {count && foot ? (
-            <span className="lf-strip-sep" aria-hidden="true">
-              ·
-            </span>
-          ) : null}
-          {foot}
-        </span>
-      ) : null}
+      <StripFoot count={vm.count} foot={foot} />
       {vm.progress === null ? null : (
         <span className="lf-strip-bar" style={{ width: `${Math.round(vm.progress * 100)}%` }} aria-hidden="true" />
       )}
