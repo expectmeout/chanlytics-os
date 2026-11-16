@@ -217,7 +217,7 @@ const ASK_TEXT = {
     working: "Working…",
     editComposer: "Edit in the composer",
     openIt: "Open it",
-    openNew: "Open in New sequence",
+    openNew: "Open in New campaign",
     tryAgain: "Try again",
     priceNote: "This looks like a price. AI says only the prices your settings allow; you may say any.",
     windowNote: "Their 24-hour window is closed — only an approved template can be sent. Open the thread to pick one.",

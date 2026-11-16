@@ -211,7 +211,7 @@ export function rewroteWords(name: string, rewroteOpening: RewroteOpening | null
   if (rewroteOpening && rewroteOpening.written)
     return `${theirsOf(name)} new opening is written${rewroteOpening.held ? ", and the check held it" : ""}`;
   if (rewroteOpening && rewroteOpening.paused)
-    return `${theirsOf(name)} opening is written again once its sequence runs`;
+    return `${theirsOf(name)} opening is written again once its campaign runs`;
   return `${theirsOf(name)} opening is being written again`;
 }
 

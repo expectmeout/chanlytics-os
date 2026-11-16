@@ -139,7 +139,7 @@ const STILL_READ: Readonly<Record<ReadPart, string>> = {
   campaigns: "the sends and their channels",
   ledger: "who it reached",
   stuck: "what is stuck now",
-  reach_outs: "the sequences to leads",
+  reach_outs: "the cold email campaigns",
 };
 
 export const REST_IS_CURRENT = "The rest of this page is current.";

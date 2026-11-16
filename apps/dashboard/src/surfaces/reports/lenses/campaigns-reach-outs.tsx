@@ -84,7 +84,7 @@ function SourcesTable({ rows }: { rows: ReachOutLensSourceLine[] }) {
       <table className="ck-table">
         <thead>
           <tr>
-            <th>Sequence</th>
+            <th>Campaign</th>
             <th className="num">Written</th>
             <th className="num">Delivered</th>
             <th className="num">Businesses</th>
@@ -208,13 +208,13 @@ function sourcesCard(ro: ReachOutLensVM) {
   return (
     <ChartCard
       className="rpt-span-12"
-      title="By sequence and step"
+      title="By campaign and step"
       testid="ro-sources"
       takeaway={ro.lines.sources}
       switchable={false}
       table={{
         columns: [
-          "Sequence",
+          "Campaign",
           "Written",
           "Delivered",
           "Businesses",

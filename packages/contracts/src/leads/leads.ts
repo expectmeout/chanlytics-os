@@ -352,7 +352,7 @@ export const LEAD_WORDS = {
   viewsHeading: "Views",
   savedHeading: "Saved",
   searchesHeading: "Searches",
-  sequencesHeading: "Sequences",
+  sequencesHeading: "Campaigns",
   // D5, on a phone: one lead at a time, and the question when you are back from the call.
   deckOf: (at: number, of: number) => `${at} of ${of}`,
   deckPrev: "The lead before",

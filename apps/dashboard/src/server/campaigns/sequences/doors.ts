@@ -105,7 +105,7 @@ export async function stepOfSequence(ctx: RouteContext, seq: Sequence, stepId: s
 /** A step of this sequence after its first: the first is the sequence, changed where the sequence is. */
 async function laterStepOf(ctx: RouteContext, seq: Sequence, stepId: string) {
   const step = await stepOfSequence(ctx, seq, stepId);
-  if (step.id === seq.id) throw new AppError("validation", "The first step is the sequence: change it there.");
+  if (step.id === seq.id) throw new AppError("validation", "The first step is the campaign: change it there.");
   return step;
 }
 

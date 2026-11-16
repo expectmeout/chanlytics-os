@@ -42,7 +42,7 @@ export const SEQUENCE_TEST_WORDS = {
   noAddress: "Your account has no email address to send a test to",
   notSent: "The test didn't go. Try again in a minute",
   /** A one-off's message is tested from Messages: its step is its batch. */
-  notCustomer: "Only a sequence's step can be tested here",
+  notCustomer: "Only a campaign's step can be tested here",
   noMessage: "This step sends no message",
   subject: (text: string) => `Test: ${text}`,
   stepName: (sequence: string, place: number) => `${sequence}, step ${place}`,

@@ -67,7 +67,7 @@ export const NEW_READY_WORDS = {
   mapSub: (n: number, of: number) => `${n} of ${of} moments covered`,
   draft: "Draft",
   needsCalendar: "Needs your calendar",
-  anyTime: "Any time: an offer or news to everyone, a sequence on one of your lists, or cold email to businesses.",
+  anyTime: "Any time: an offer or news to everyone, a campaign on one of your lists, or cold email to businesses.",
   line: { placeholder: "Say what it should do", letGo: "Listening. Let go to draft it" },
   since: {
     cap: "New since you left",

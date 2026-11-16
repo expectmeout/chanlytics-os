@@ -41,7 +41,7 @@ export const LEAD_NOW_WORDS = {
   inIt: (name: string) => `In ${name}`,
   outOf: (name: string) => `Out of ${name}.`,
   written: (name: string) => `Written to by ${name}`,
-  writtenSay: "A business gets one sequence.",
+  writtenSay: "A business gets one campaign.",
   nothingSent: "Nothing sent to them yet.",
   stepOf: LEAD_LINE_WORDS.stepOf,
   batch: (n: number) => `In today's batch of ${n}.`,
@@ -59,7 +59,7 @@ export const LEAD_NOW_WORDS = {
   writing: "Its opening is being written. Approve waits for it.",
   toSend: "From your own inbox. Say Sent once it goes.",
   wrote: (intent: string | null) => (intent ? `Wrote back · ${intent}` : "Wrote back"),
-  stopped: "The sequence stopped.",
+  stopped: "The campaign stopped.",
   noNeed: "Nothing needs you.",
   sentNothing: "Nothing was sent to them.",
   /** A person now, where a sequence's place still stands: a call went well, and the send door writes no more. */

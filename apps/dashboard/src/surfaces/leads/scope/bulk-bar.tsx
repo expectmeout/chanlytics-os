@@ -326,7 +326,7 @@ function phoneBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
             onPress: () => onSheet("add"),
             disabled: off || !p.add,
             testid: "leads-bulk-add",
-            gate: gate("approve", "add these leads to a sequence"),
+            gate: gate("approve", "add these leads to a campaign"),
           })}
           {dockAct({
             icon: "menu",

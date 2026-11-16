@@ -137,8 +137,8 @@ test("a change is saved through the record's chain: the chain's body less its li
   const puts = wire.filter(([m]) => m === "PUT");
   assert.equal(puts.length, 1, "one save for the change");
   const [, path, body] = puts[0];
-  assert.equal(path, `sequences/${SEQ}/chain`, "the record's own door, by the sequence");
-  assert.equal("search_id" in body, false, "its list is the sequence's own, never sent");
+  assert.equal(path, `sequences/${SEQ}/chain`, "the record's own door, by the campaign");
+  assert.equal("search_id" in body, false, "its list is the campaign's own, never sent");
   assert.equal(body.name, "Gift shops · fall (renamed)", "the record's name, never the one the draft opened with");
   assert.equal(body.steps.length, 3);
   assert.deepEqual(ids, ["st-1", "st-2", "st-3"]);
@@ -202,7 +202,7 @@ const sheetOf = (tree) => {
 test("the first step has no Take out; a later one says how long it waits, then only if they have not written back", () => {
   let body = sheetOf(drawStep(1));
   assert.ok(byTestId(body, "ld-subject"), "the first email's subject");
-  assert.equal(byTestId(body, "ld-step-remove"), null, "the first step is the sequence's start");
+  assert.equal(byTestId(body, "ld-step-remove"), null, "the first step is the campaign's start");
   assert.equal(byTestId(body, "ld-wait-1"), null);
   fresh();
   body = sheetOf(drawStep(2));
@@ -595,7 +595,7 @@ test("Before each batch, picked, reaches the change door as the sequence's own m
   // nothing was written; the door reads a sequence's under `sequence_mode` (contracts playbookChangeSpec).
   const rec = { ...REC, sequence: { ...REC.sequence, starts: "leads", mode: "veto", evidence: null } };
   const pick = byTestId(sheetOf(again(() => W.React.createElement(Runs, { rec }))), "ld-runs-approves-pick");
-  assert.equal(pick.props.value, "veto", "it opens on the sequence's own mode");
+  assert.equal(pick.props.value, "veto", "it opens on the campaign's own mode");
   pick.props.onValueChange("ask");
   const put = () => wire.find(([m, p]) => m === "PUT" && p === `playbooks/${SEQ}`);
   for (let i = 0; i < 200 && !put(); i += 1) await new Promise((r) => setTimeout(r, 5));
@@ -713,7 +713,7 @@ test("Each mailbox is a row: its day, why it does not send now, the records DNS 
       ["ann@getharbor.example", true, false, "40 a day · Done for today", false],
       ["kim@getharbor.example", true, false, "New · 10 a day, rising to 40", false],
     ],
-    "a sequence that names none writes from every one",
+    "a campaign that names none writes from every one",
   );
   // One ticked: it stays, and says why.
   const one = contracts.leadMailboxRowsOf(chain, ["sam"]);
@@ -726,7 +726,7 @@ test("Each mailbox is a row: its day, why it does not send now, the records DNS 
       [false, false],
     ],
   );
-  assert.match(one[0].sub, /One has to send\. To stop them all, pause the sequence\.$/);
+  assert.match(one[0].sub, /One has to send\. To stop them all, pause the campaign\.$/);
   // A tick names its own list from then on, and the last one is never taken off.
   assert.deepEqual(contracts.leadMailboxesTicked(chain, [], "lee", false), ["sam", "ann", "kim"]);
   assert.deepEqual(contracts.leadMailboxesTicked(chain, ["sam"], "sam", false), ["sam"]);

@@ -46,7 +46,7 @@ test("a kept status filter is read back in the queue's order, each once, and not
   assert.deepEqual(leadStatusGroupsOf(["late", "in"]), ["in"]);
   assert.deepEqual(leadStatusGroupsOf("needs"), [], "a stray value is no filter");
   assert.deepEqual(leadStatusGroupsOf(undefined), []);
-  assert.deepEqual(LEAD_STATUS_GROUP_WORDS, { needs: "Needs you", in: "In a sequence", none: "Not in a sequence" });
+  assert.deepEqual(LEAD_STATUS_GROUP_WORDS, { needs: "Needs you", in: "In a campaign", none: "Not in a campaign" });
 });
 
 test("the read takes the status filter as a query says it and as a body says it, and asks it as the rule does", () => {

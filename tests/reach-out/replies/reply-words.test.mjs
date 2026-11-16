@@ -100,19 +100,19 @@ test("an undone no says what stands now: a person wrote back; an automatic reply
     title: "Wrote back",
     said: "“Wants more details”",
     answers: FIRST,
-    did: "Read as no, then undone. The sequence stays stopped: they wrote back.",
+    did: "Read as no, then undone. The campaign stays stopped: they wrote back.",
     doors: [],
   });
   assert.equal(
     strip({ ...undone, claim: "auto_reply" }).did,
-    "Read as no, then undone. It was an automatic reply, so the sequence goes on.",
+    "Read as no, then undone. It was an automatic reply, so the campaign goes on.",
   );
 });
 
 test("away: an automatic reply's day back, or their own words' step", () => {
   assert.equal(
     strip({ intent: "away", claim: "auto_reply", until_at: "2026-10-05T13:00:00.000Z" }).did,
-    "Away until Oct 5 (an automatic reply). The sequence goes on after that.",
+    "Away until Oct 5 (an automatic reply). The campaign goes on after that.",
   );
   assert.equal(
     strip({ intent: "away", named_day: "2026-10-12", step_day: "2026-10-12" }).did,

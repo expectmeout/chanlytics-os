@@ -76,7 +76,7 @@ export type SequenceActReason = (typeof SEQUENCE_ACT_REASONS)[number];
 export const SEQUENCE_ACT_WHY: Record<SequenceActReason, string> = {
   one_off: "A one-off goes once, on its day.",
   not_a_one_off: "Only a one-off is cancelled or sent again.",
-  to_leads: "A sequence to leads goes on its own days: it is paused, never ended or run by hand.",
+  to_leads: "Cold email goes on its own days: it is paused, never ended or run by hand.",
   ended: "It has ended.",
   not_a_draft: "It has been on already.",
   email_to_write: "An email of it is still to write.",

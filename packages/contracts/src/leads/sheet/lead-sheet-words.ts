@@ -60,7 +60,7 @@ export const LEAD_WORDS_BOX = {
   bodyOf: (personName: string) => `The email to ${personName}`,
   subject: "Subject",
   done: "Done",
-  back: "Use the sequence's words",
+  back: "Use the campaign's words",
   more: "More for this email",
   everyone: "Change it for everyone",
   test: "Send me a test",
@@ -69,7 +69,7 @@ export const LEAD_WORDS_BOX = {
   saved: (personName: string) => `Saved for ${personName}`,
   undo: "Undo",
   undone: (personName: string) => `${personName} gets the words you had before`,
-  backAgain: (personName: string) => `${personName} gets the sequence's words`,
+  backAgain: (personName: string) => `${personName} gets the campaign's words`,
   fill: (labels: readonly string[]) => `Fill in ${labels.join(" and ")}, or take it out.`,
   /** Under the box while it is typed in: what goes under the words that is not theirs to change. */
   foot: "Your footer is added when it goes.",
@@ -81,7 +81,7 @@ export const LEAD_WORDS_BOX = {
   reading: "Reading what went",
   unread: "What went couldn't be read. It's in their conversation.",
   /** Their own words could not be read: this is the step's, and may not be what goes. */
-  wordsUnread: "These are the sequence's words. Any you wrote for them couldn't be read just now.",
+  wordsUnread: "These are the campaign's words. Any you wrote for them couldn't be read just now.",
 } as const;
 
 const W = LEAD_WORDS_BOX;

@@ -123,7 +123,7 @@ function LeadStartRow({
               addLeadsTo(row.id, row.name, row.first?.source_search_id ?? row.first?.source_could?.id ?? null)
             }
             data-testid="sq-add-leads"
-            {...gate("approve", "add leads to this sequence")}
+            {...gate("approve", "add leads to this campaign")}
           >
             <Icon name="plus" size={12} /> {F.addLeads}
           </Button>

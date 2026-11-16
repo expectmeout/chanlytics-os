@@ -365,7 +365,7 @@ export function reachOutTimelineOf(
   const ownerSent = leadTimeline.sends.some((s) => s.left && s.said === true);
   const answered = leadTimeline.readings.some((r) => !r.undone && r.claim !== "auto_reply");
   return {
-    label: `Sequence · ${leadTimeline.chain?.name ?? leadTimeline.search?.name ?? "a sequence"}`,
+    label: `Campaign · ${leadTimeline.chain?.name ?? leadTimeline.search?.name ?? "a campaign"}`,
     lines,
     stopped: stopped !== null ? `You stopped writing to them ${clockNear(stopped, tz, nowMs)}` : null,
     read: leadTimeline.conversation_id
@@ -402,8 +402,8 @@ export interface ReachOutPersonVM {
 export function readingEffect(r: ReachOutTimelineReadingDto): string {
   if (r.undone) return "undone";
   if (r.said_no) return "nothing more will be written";
-  if (r.convert) return "the sequence stopped · Talking";
-  if (r.stops) return "the sequence stopped";
-  if (r.claim === "auto_reply" && r.intent === "away" && r.until_at) return "the sequence waits";
+  if (r.convert) return "the campaign stopped · Talking";
+  if (r.stops) return "the campaign stopped";
+  if (r.claim === "auto_reply" && r.intent === "away" && r.until_at) return "the campaign waits";
   return "nothing changed";
 }

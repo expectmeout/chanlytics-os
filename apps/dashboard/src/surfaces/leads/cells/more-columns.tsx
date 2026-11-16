@@ -67,7 +67,7 @@ const socialCell = (l: LeadRowVM) => (
 export const LEAD_MORE_COLUMNS: readonly LeadColumn[] = [
   {
     key: "sequence",
-    label: "Sequence",
+    label: "Campaign",
     group: LEAD_COLUMN_GROUPS.stands,
     on: false,
     width: { base: 170, min: 120, max: 280 },

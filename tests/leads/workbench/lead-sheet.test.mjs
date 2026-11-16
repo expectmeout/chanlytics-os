@@ -92,13 +92,13 @@ test("the state: its record and its place first, then the add door's answer, the
   assert.equal(stateOf({}, { place: placeOf("replied") }), "replied", "their place says they wrote back");
   assert.equal(stateOf({ stage: "archived" }), "closed");
   assert.equal(stateOf({}, { place: placeOf("left", { why: "bounced" }) }), "closed", "a bounce closes the lead");
-  assert.equal(stateOf({}, { place: placeOf("in") }), "sequence", "a place is a sequence's, whatever the door says");
+  assert.equal(stateOf({}, { place: placeOf("in") }), "sequence", "a place is a campaign's, whatever the door says");
   assert.equal(stateOf({}, { check: { why: "elsewhere" } }), "elsewhere");
   assert.equal(stateOf({}, { check: { why: "already" } }), "sequence");
   assert.equal(stateOf({}, { check: { why: "checking" } }), "finding");
   assert.equal(stateOf({}, { check: { why: "no_email" } }), "phone", "an address the door refused, with a number");
   assert.equal(stateOf({ canCall: false }, { check: { why: "no_email" } }), "closed", "and with none");
-  assert.equal(stateOf({}, { check: { why: "unconfirmed" } }), "gap", "the sequence's own setting");
+  assert.equal(stateOf({}, { check: { why: "unconfirmed" } }), "gap", "the campaign's own setting");
   assert.equal(stateOf({ hasEmail: false }), "phone");
   assert.equal(stateOf({ emailState: "checking" }), "finding");
   assert.equal(stateOf({}, { email: { blocked: "They have no city", note: null } }), "gap");
@@ -258,7 +258,7 @@ test("where they stand, the same words in every window: what needs you by its wo
   assert.equal(word("replied").tone, "warn");
   assert.deepEqual(word("queued"), { word: "In Bookstore intro", tone: "ok", line: "In its next batch" });
   assert.equal(word("queued", {}, true, { name: "Gift shops", state: "draft" }).line, "Joins when you start it");
-  assert.equal(word("queued", {}, false).word, "In it", "the sheet's head, beside the name, names no sequence");
+  assert.equal(word("queued", {}, false).word, "In it", "the sheet's head, beside the name, names no campaign");
   assert.equal(word("in").line, "Between steps");
   assert.deepEqual(word("done"), { word: "Done", tone: "plain", line: "Bookstore intro · every step went" });
   // Left says why, never "Left", which Leads' Filtered out sat beside (the phone walk of 3 Nov 2026).
@@ -272,8 +272,8 @@ test("a row's one status: the place's short word, the sequence named in the line
   const row = (group, extra = {}) =>
     placeWordOf({ group, place: 1, at: null, why: null, ...extra }, seq, clock, "line");
   assert.deepEqual(row("waiting"), { word: "Waits for your OK", tone: "warn", line: "Step 1 · Bookstore intro" });
-  assert.deepEqual(row("queued"), { word: "In sequence", tone: "ok", line: "In its next batch · Bookstore intro" });
-  assert.deepEqual(row("in"), { word: "In sequence", tone: "ok", line: "Between steps · Bookstore intro" });
+  assert.deepEqual(row("queued"), { word: "In campaign", tone: "ok", line: "In its next batch · Bookstore intro" });
+  assert.deepEqual(row("in"), { word: "In campaign", tone: "ok", line: "Between steps · Bookstore intro" });
   assert.equal(row("next").line, "Step 1 · Bookstore intro");
   assert.deepEqual(row("left", { why: "removed" }), { word: "Taken out", tone: "plain", line: "Bookstore intro" });
 });
@@ -292,7 +292,7 @@ test("a lead on a list that no batch can take says why, in amber, never In its n
   assert.equal(word("no_email", true).word, "Not planned");
   // Checking is no reason: the address is on its way, and the next batch takes them once it is checked.
   assert.deepEqual(word("checking", "line"), {
-    word: "In sequence",
+    word: "In campaign",
     tone: "ok",
     line: "Joins once their address is checked · Brooklyn intro",
   });
@@ -484,7 +484,7 @@ test("the card while a sequence has them: one status word, what it needs of you,
   assert.deepEqual(
     [left.word, left.say],
     ["Taken out", `Out of Bookstore intro. ${N.sentNothing}`],
-    "why as the word, the sequence it left, and whether any went",
+    "why as the word, the campaign it left, and whether any went",
   );
   const leftAfter = nowOf({ place: placeOf("left", { why: "removed" }, { sends: [sent(1)] }) });
   assert.equal(leftAfter.say, "Out of Bookstore intro.");
@@ -563,7 +563,7 @@ const lineOf = (id, over) => leadLinesOf(lineFacts(over)).find((l) => l.id === i
 test("the five lines: the same five in one order, each saying its answer closed", () => {
   assert.deepEqual(
     leadLinesOf(lineFacts()).map((l) => l.label),
-    ["Fit", "Contact", "About", "Sequence", "History"],
+    ["Fit", "Contact", "About", "Campaign", "History"],
   );
   const fit = lineOf("fit");
   assert.deepEqual([fit.value, fit.note, fit.dots], ["Strong", "1 of 2", ["ok", "warn"]], "the line's label says Fit");
@@ -578,7 +578,7 @@ test("the five lines: the same five in one order, each saying its answer closed"
   const co = lineOf("about", { vm: { ...lineFacts().vm, company } });
   assert.deepEqual([co.label, co.value, co.note], ["Company", "11 - 50 people", "2 named"]);
   assert.deepEqual([lineOf("sequence").value, lineOf("sequence").note], ["Not in one yet", "adds to Bookstore intro"]);
-  assert.equal(lineOf("sequence", { canJoin: false }).note, null, "a lead no sequence can take adds nowhere");
+  assert.equal(lineOf("sequence", { canJoin: false }).note, null, "a lead no campaign can take adds nowhere");
   const inIt = lineOf("sequence", { place: placeOf("in", { place: 2 }), steps: 3 });
   assert.deepEqual([inIt.value, inIt.note], ["Bookstore intro", "Step 2 of 3"]);
   assert.deepEqual([lineOf("history").value, lineOf("history").note], ["#7 for “salons”", "Oct 12"]);
@@ -610,7 +610,7 @@ test("History: how we found them, what a sequence did, and your last call, each 
   assert.equal(
     leadHistoryOf({ vm: quiet, place: null, emails: [], tz: TZ, nowMs: NOW }).length,
     2,
-    "no sequence, no call: found alone",
+    "no campaign, no call: found alone",
   );
 });
 
@@ -847,12 +847,12 @@ test("History says an email you wrote yourself, and never takes a sequence's sen
   const said = (place) =>
     leadHistoryOf({ vm: { found: [], worked }, place, emails: [], tz: TZ, nowMs: NOW }).map((r) => r.what);
   const YOURS = "You wrote to them yourself";
-  assert.ok(said(placeOf("next")).includes(YOURS), "their sequence has sent nothing yet: the email is yours");
+  assert.ok(said(placeOf("next")).includes(YOURS), "their campaign has sent nothing yet: the email is yours");
   const went = said(placeOf("in", { place: 2 }, { sends: [sent(1)] }));
   assert.equal(
     went.includes(YOURS),
     false,
-    "a send of the sequence writes the same word on the lead (recordLeadWritten)",
+    "a send of the campaign writes the same word on the lead (recordLeadWritten)",
   );
   assert.ok(went.includes("Step 1 sent"), "and that send is said already, as its step");
 
@@ -932,7 +932,7 @@ test("New opens on a copy of the search's own pick, else Ask's draft over a sear
   assert.equal(
     newStartFirst(leadPickerRowsOf(seqs, null), true),
     "ask",
-    "another sequence is no start for a new search",
+    "another campaign is no start for a new search",
   );
   assert.equal(newStartFirst(leadPickerRowsOf(seqs, null), false), "copy", "no search: the newest");
   assert.equal(newStartFirst([], true), "ask");
@@ -987,7 +987,7 @@ test("the picker says when its emails are written in the owner's words, never th
 test("REGRESSION (the live run of 14 Nov 2026): New says before its press that leads with no email won't be written to, and makes nothing where none has one", () => {
   // 35 med spas, none with an email, were pressed into a new sequence; Ask's draft failed and nothing was made.
   assert.deepEqual(newSheetEmailOf(35, 35), {
-    line: "None of these 35 has an email yet, so an email sequence can't reach them.",
+    line: "None of these 35 has an email yet, so an email campaign can't reach them.",
     blocks: true,
   });
   assert.deepEqual(newSheetEmailOf(35, 23), {
@@ -995,7 +995,7 @@ test("REGRESSION (the live run of 14 Nov 2026): New says before its press that l
     blocks: false,
   });
   assert.deepEqual(newSheetEmailOf(1, 1), {
-    line: "This lead has no email yet, so an email sequence can't reach it.",
+    line: "This lead has no email yet, so an email campaign can't reach it.",
     blocks: true,
   });
   assert.equal(newSheetEmailOf(35, 0), null, "every one has an email: nothing to say");
