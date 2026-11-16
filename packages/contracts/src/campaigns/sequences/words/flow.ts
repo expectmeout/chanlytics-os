@@ -20,11 +20,15 @@ export const SEQUENCE_WORDS = {
   backToLeads: "Leads",
   /** A phone record's Back, where Leads opened it: the way back is the screen's only one. */
   backToLeadsLabel: "Back to Leads",
-  search: "Search sequences",
+  search: "Search campaigns",
   /** The list's views over its search (Pipeline's "All deals ⌄"): every sequence, or one of its groups. */
-  views: { label: "Which sequences", all: "All sequences" },
-  empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.",
-  failed: "The sequences couldn’t be loaded right now",
+  views: { label: "Which campaigns", all: "All campaigns" },
+  /**
+   * The list with none yet: what will be here, then New's own line under it, which drafts what is said there (16 Nov
+   * 2026: the page's name said once, and one New); one who may not start one reads that there are none.
+   */
+  empty: { title: "Messages that go out on their own", none: "None yet" },
+  failed: "The campaigns couldn’t be loaded right now",
   filters: { all: "All", needs: "Needs you", off: "Paused or off" },
   groups: {
     needs: "Needs you",
@@ -49,7 +53,7 @@ export const SEQUENCE_WORDS = {
   approve: "Approve",
   skip: "Skip",
   skipAsk: "Skip this batch?",
-  skipDetail: "Nobody in it gets this step from this batch; the sequence goes on with its next one.",
+  skipDetail: "Nobody in it gets this step from this batch; the campaign goes on with its next one.",
   lookFirst: "Look first",
   pause: "Pause",
   resume: "Turn on",
@@ -69,7 +73,7 @@ export const SEQUENCE_WORDS = {
   /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
   untilTonight: "until tonight",
   /** A phone dock's line over a batch waiting for an OK: its Approve says how many (the run review's item 12, 19 Oct 2026). */
-  waitsForOk: "Waits for your OK",
+  waitsForOk: "Waits for your approval",
   /** Approve while an opening of its batch is being written: you read each before it goes, so it waits for them. */
   openingsWriting: "Writing openings…",
   /** Who approves its batches, said in the record's More, which opens How it runs, where it is changed (decision 0064). */
@@ -114,7 +118,7 @@ export const SEQUENCE_FLOW_WORDS = {
   mailboxes: "Mailboxes",
   checked: "Each one is checked before it goes",
   takeAwayAsk: (place: number) => `Take step ${place} away?`,
-  takeAwayDetail: "The steps after it go with it; nobody waiting for it hears more from this sequence.",
+  takeAwayDetail: "The steps after it go with it; nobody waiting for it hears more from this campaign.",
   /** A call or a note asked away: it is always the last step, so nothing goes with it. */
   takeAwayHandDetail: "Nobody still waiting for it lands on your Today.",
   /** New words a step waits on WhatsApp for, or that WhatsApp turned down: said without the message's stored name. */
@@ -135,7 +139,7 @@ export const SEQUENCE_FLOW_WORDS = {
    * starts (decision 0119), two hours before; after the visit is its own moment.
    */
   noFollowUpOnReminder: (trigger: string | null | undefined) =>
-    `A reminder goes once, ${trigger === "visit_soon" ? "two hours before" : "the day before"}. To write to them afterwards, start a sequence that sends after it.`,
+    `A reminder goes once, ${trigger === "visit_soon" ? "two hours before" : "the day before"}. To write to them afterwards, start a campaign that sends after it.`,
   /** A step's change refused by the door (decision 0065 step 6): a message step keeps a message, a call or a note its words. */
   handOnMessage: "This step sends a message. To call them instead, add a call as the last step.",
   valuesOnHand: "A call or a note has no message to fill. Change what it says to do instead.",
@@ -369,7 +373,7 @@ export function sequenceSubLine(
   if (row.starts === "date" && row.date) {
     const at = Date.parse(row.date.at);
     const DATE: Record<string, string> = {
-      pending_approval: "waits for your OK",
+      pending_approval: "waits for your approval",
       scheduled: "goes on its own",
       sending: "going out now",
       sent: `went ${clockDate(row.last ? Date.parse(row.last.at) : at, rec.timezone, nowMs)}`,

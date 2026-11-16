@@ -621,7 +621,7 @@ function googleProfileRow(connectionInputs: ConnectionInputs, { connection: c, n
       ...base,
       detail: c.location_title,
       state: c.sync_error ? "attention" : "connected",
-      stateWords: c.sync_error ? "Could not sync" : "Connected",
+      stateWords: c.sync_error ? "Couldn't sync" : "Connected",
       sentence: connectionWords(c, nowMs),
       verb: { label: "Disconnect", to: "verb:google-disconnect", who: "owner" },
     };
@@ -670,7 +670,7 @@ function googleListingRow(
       ...base,
       detail: l.address,
       state: l.check_error ? "attention" : "connected",
-      stateWords: l.check_error ? "Could not be read" : "Watched",
+      stateWords: l.check_error ? "Couldn't be read" : "Watched",
       sentence: `${listingLine(l)} · ${checkedWords(l, nowMs)}`,
       verb: { label: c && c.location_name ? "Sync now" : "Check now", to: "verb:google-check", who: "operator" },
     };

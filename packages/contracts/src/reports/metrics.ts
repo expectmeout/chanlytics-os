@@ -25,7 +25,7 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   new_people:
     "People whose first message in their own words, or first connected call to you, fell in this period, counted once. A message you or AI sent, an automatic reply or a list's mail, a call you placed, people brought in with their history, people who asked to be forgotten, and people who have not written or phoned yet are not counted.",
   booked:
-    "Of the people who wrote or called in this period, how many have a booking on your calendar, ahead or begun no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
+    "Of the people who wrote or called in this period, how many have a booking on your calendar, ahead or begun no more than a day before they asked. It is a dash where no calendar is connected or it couldn't be read.",
   delivered_share: `Of the messages sent, the share the channel reports as delivered or read (${DELIVERY_RECEIPTS_WORDS}). A message with no receipt yet is not counted as delivered.`,
   said_yes: `People who said yes to being messaged ${REPLY_WINDOW_WORDS} of a campaign reaching them, in their own words or recorded at the desk, counted once in the period. A yes with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
   asked_to_stop: `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign reaching them, by STOP, a carrier's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
@@ -54,7 +54,7 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   call_backs:
     "Of the conversations that need you, the ones where the customer asked to be rung back, as of now, whatever period is picked. A call-back someone has taken over, or put aside until later, is not counted.",
   replies_held_back:
-    "Replies AI wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a campaign message the door held are not counted.",
+    "Replies AI wrote in this period that the send door refused, such as a person having the conversation or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a campaign message the door held are not counted.",
   people_reached:
     "People who wrote in their own words, or phoned and were spoken to, in this period, counted once however often they did. An automatic reply, a message or call you placed, a call that rang out, people brought in with their history, and people who asked to be forgotten are not counted.",
   yeses_won:
@@ -76,16 +76,16 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   quiet_now:
     "People whose last message or call to you was more than 30 days ago, as of now, whatever period is picked. Your own messages are not theirs, and a person who has never written or phoned is not counted.",
   emails_written:
-    "Emails your sequences to leads wrote in this period, one for each email that left, however many went to the same business. A call or a note handed to you, and an email that never left, are not counted.",
+    "Emails your cold email wrote in this period, one for each email that left, however many went to the same business. A call or a note handed to you, and an email that never left, are not counted.",
   emails_landed:
-    "Of the emails your sequences to leads wrote in this period, the share the email provider reports as delivered. An email with no receipt yet is not counted as delivered.",
+    "Of the emails your cold email wrote in this period, the share the email provider reports as delivered. An email with no receipt yet is not counted as delivered.",
   emails_bounced:
-    "Emails your sequences to leads wrote in this period that bounced for good: the address refused them and will go on refusing. A complaint, and an email that is only late, are not counted.",
+    "Emails your cold email wrote in this period that bounced for good: the address refused them and will go on refusing. A complaint, and an email that is only late, are not counted.",
   people_sent_to:
     "People a campaign sent a message to in this period, counted once however many it sent them. A person a run held back, a message that failed before it left and an email to a lead are not counted.",
   people_wrote_back: `Of the people sent a message in this period, how many answered in their own words ${REPLY_WINDOW_WORDS}, on any channel, counted once. A note the system wrote, an automatic reply, a booking tool's notice and an answer that came later are not counted; people sent to in the last ${REPLY_DAYS} may still answer.`,
   runs_waiting:
-    "Runs waiting for your OK, as of now, whatever period is picked: a campaign's, a one-off send's or a step to leads. A run you approved, skipped or that already went is not counted; one whose day has passed is counted, and can only be skipped.",
+    "Runs waiting for your approval, as of now, whatever period is picked: a campaign's, a one-off send's or a step to leads. A run you approved, skipped or that already went is not counted; one whose day has passed is counted, and can only be skipped.",
   runs_failed: `Runs that ended as failed in the last ${STUCK_DAYS}, as of now, whatever period is picked: a campaign's, a one-off send's or a step to leads. A run you canceled or skipped, and a person held back from a run that went, are not counted.`,
   campaign_replies_waiting: `People who answered a campaign in the last ${STUCK_DAYS} whose conversation waits for a person, as of now, whatever period is picked. One a teammate or you have taken over, and one put aside until later, are not counted.`,
   templates_paused:

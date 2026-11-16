@@ -149,7 +149,7 @@ test("every email is on the card whole, so its press is the OK of those words: t
   assert.equal(commit.body.name, INPUT.name);
   assert.equal(
     PROPOSAL_SPECS.reach_out_make.receipt(p, { root_id: "r1", words_ok: true }),
-    "“Personal trainers · Austin” is saved, and its emails have your OK: its first run goes as “Before each batch” says.",
+    "“Personal trainers · Austin” is saved, and its emails have your approval: its first run goes as “Before each batch” says.",
   );
   // A door that could not take the press as the OK (a database before it) says the first run waits, as it does.
   assert.equal(

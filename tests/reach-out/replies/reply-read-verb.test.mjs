@@ -217,7 +217,7 @@ test("the spend: no model, a workspace that may not spend, a spent day: other wi
     assert.equal(applied.plan.tell, true);
     assert.equal(applied.plan.draft, null);
     assert.equal(w.calls("scheduleOnce").length, 1, `${why}: read again later`);
-    assert.match(w.calls("tell")[0][2].body, /could not be read/);
+    assert.match(w.calls("tell")[0][2].body, /couldn't be read/);
   }
 });
 
@@ -409,7 +409,11 @@ test("the reading closes what the intake opened: a no resolves the flag and arch
   ]) {
     const w = world({ answers: { ask: answer } });
     await run(w);
-    assert.deepEqual(closes(w), [1, 0], `${name}: the flag resolved; the thread stays open for its step on Today`);
+    assert.deepEqual(
+      closes(w),
+      [1, 0],
+      `${name}: the flag resolved; the conversation stays open for its step on Today`,
+    );
   }
   for (const [name, answer] of [
     ["interested", INTERESTED],
@@ -430,7 +434,11 @@ test("the reading closes what the intake opened: a no resolves the flag and arch
   for (const answer of [NO, WRONG, NOT_NOW]) {
     const auto = world({ facts: { claim: "auto_reply", from: "noreply@example.com" }, answers: { ask: answer } });
     await run(auto);
-    assert.deepEqual(closes(auto), [0, 0], `an automatic ${answer.intent} closes neither the flag nor the thread`);
+    assert.deepEqual(
+      closes(auto),
+      [0, 0],
+      `an automatic ${answer.intent} closes neither the flag nor the conversation`,
+    );
   }
 });
 
@@ -461,7 +469,7 @@ test("with the second key on, a close goes only when the second model read the s
     ["nothing read", { on: true, read: null }],
   ]) {
     const { w, outcome } = await read(NO, second);
-    assert.deepEqual(closes(w), [0, 0], `a no, ${why}: the flag stands and the thread stays in Needs you`);
+    assert.deepEqual(closes(w), [0, 0], `a no, ${why}: the flag stands and the conversation stays in Needs you`);
     assert.equal(outcome, "told", "the owner is told as before");
     assert.equal(w.state.kept.intent, "no", "the reading is kept as the reader read it");
     assert.deepEqual(

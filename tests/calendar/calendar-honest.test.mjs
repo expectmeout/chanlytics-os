@@ -895,7 +895,7 @@ test("REGRESSION (B11): days that could not be read say so with a Retry, and are
   let tree = page();
   assert.equal(reads.length, 1, "one read for the days the window lacks");
   const failed = byTestId(tree, "cal-failed");
-  assert.ok(failed, "the page says the days could not be read");
+  assert.ok(failed, "the page says the days couldn't be read");
   assert.match(textOf(failed), /Couldn't read those days/);
   const cols = all(tree, (n) => n.props?.["data-testid"] === "cal-col");
   assert.equal(cols.length, 7);
@@ -905,7 +905,7 @@ test("REGRESSION (B11): days that could not be read say so with a Retry, and are
   );
   assert.ok(
     cols.every((c) => classes(c).includes("unread")),
-    "the board marks the days it could not read",
+    "the board marks the days it couldn't read",
   );
 
   byTestId(tree, "cal-failed-retry").props.onClick();
@@ -1531,7 +1531,7 @@ test("REGRESSION (C1): the page says only what it read -- an unreadable calendar
     }),
   );
   let tree = page();
-  assert.match(textOf(byTestId(tree, "cal-notice-feed")), /Your calendar could not be read\./);
+  assert.match(textOf(byTestId(tree, "cal-notice-feed")), /Your calendar couldn't be read\./);
   fresh(
     dto({
       feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
@@ -1600,7 +1600,7 @@ test("(C2) the feed line says when the calendar was last tried where that is the
     }),
     NOW,
   );
-  assert.equal(down.feed.line, "Your calendar could not be read · tried 3m ago · last read 4h ago");
+  assert.equal(down.feed.line, "Your calendar couldn't be read · tried 3m ago · last read 4h ago");
   const never = toCalendarVM(
     dto({
       feed: {
@@ -1615,9 +1615,9 @@ test("(C2) the feed line says when the calendar was last tried where that is the
     }),
     NOW,
   );
-  assert.equal(never.feed.line, "Your calendar could not be read · tried 3m ago", "never read: only when it was tried");
+  assert.equal(never.feed.line, "Your calendar couldn't be read · tried 3m ago", "never read: only when it was tried");
   const stale = toCalendarVM(dto({ feed: { ...dto().feed, stale: true, reason: "http", checked_at: tried } }), NOW);
-  assert.ok(stale.feed.line.includes("· could not be refreshed 3m ago ·"), stale.feed.line);
+  assert.ok(stale.feed.line.includes("· couldn't be refreshed 3m ago ·"), stale.feed.line);
   assert.equal(
     toCalendarVM(dto({ feed: { ...dto().feed, checked_at: tried } }), NOW).feed.line,
     "From your calendar · read 2m ago · 4 events",
@@ -1973,7 +1973,7 @@ test("REGRESSION: two moves whose reads overlap land as the second, and neither 
     await pause();
     assert.equal(parked.length, 2, "both reads are out at once");
     await release();
-    assert.equal(await toFirst, true, "REGRESSION: the first move said its days could not be read");
+    assert.equal(await toFirst, true, "REGRESSION: the first move said its days couldn't be read");
     assert.equal(await toSecond, true, "REGRESSION: and so did the second, though every read landed");
     assert.equal(getCalendarSpan().from, second, "REGRESSION: the first move put the span back under the second");
     assert.equal(shown(), second, "the board shows the weeks asked for last");
@@ -2265,7 +2265,7 @@ test("REGRESSION (C3): what could not be read is said one way -- a month's days 
         String(n.props?.className ?? "").split(" ")[0] === "cal-month-cell" &&
         String(n.props.className).includes("unread"),
     );
-    assert.ok(unread.length > 0, "the month's days outside the loaded week could not be read");
+    assert.ok(unread.length > 0, "the month's days outside the loaded week couldn't be read");
     assert.ok(
       unread.every((n) => textOf(n).includes("couldn't read")),
       `REGRESSION: 'not read': ${textOf(unread[0])}`,
@@ -2341,7 +2341,7 @@ test("REGRESSION (C3): the feed's state is the pill Connections and Setup use, i
     [
       { tone: "ok", label: "Readable" },
       { tone: "warn", label: "Last good read" },
-      { tone: "warn", label: "Could not be read" },
+      { tone: "warn", label: "Couldn't be read" },
       { tone: "plain", label: "Not connected" },
     ],
   );
@@ -2353,7 +2353,7 @@ test("REGRESSION (C3): the feed's state is the pill Connections and Setup use, i
   assert.deepEqual([down.health, down.detail], ["unavailable", "tried 3m ago · last read 4h ago"]);
   assert.equal(
     down.line,
-    "Your calendar could not be read · tried 3m ago · last read 4h ago",
+    "Your calendar couldn't be read · tried 3m ago · last read 4h ago",
     "the whole sentence stays, for AI",
   );
   const none = feed({ present: false, state: "none", read_at: null, events: 0 });
@@ -2376,8 +2376,8 @@ test("REGRESSION (C3): the feed's state is the pill Connections and Setup use, i
   assert.ok(pill, "REGRESSION: a coloured dot, in no word Connections uses");
   assert.deepEqual([pill.props.kind, pill.props.value], ["calendar", "unavailable"]);
   const said = textOf(chip);
-  assert.ok(said.includes("Could not be read") && said.includes("tried 3m ago · last read 4h ago"), said);
-  assert.ok(!said.includes("Your calendar could not be read"), `the state is said once, by the pill: ${said}`);
+  assert.ok(said.includes("Couldn't be read") && said.includes("tried 3m ago · last read 4h ago"), said);
+  assert.ok(!said.includes("Your calendar couldn't be read"), `the state is said once, by the pill: ${said}`);
 });
 
 test("REGRESSION (C3): the page's other words match the product's -- Try again beside FailedRead's Retry, Connect where Setup says paste the address, America/New_York for a zone Settings calls New York, and 'your link' for the booking link", () => {
@@ -2766,7 +2766,7 @@ test("the page publishes how long it keeps a read and its words for a read that 
   );
   assert.ok(
     textOf(byTestId(page(), "cal-notice-feed")).includes(keeps.words.unavailable),
-    "and the card over a calendar that could not be read",
+    "and the card over a calendar that couldn't be read",
   );
   // A reason of the read's own wins over both.
   fresh(dto({ feed: { ...dto().feed, stale: true, reason: "http", problem: "The calendar answered 503." } }));

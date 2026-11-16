@@ -94,7 +94,7 @@ export type PlaceTone = "warn" | "ok" | "plain";
 
 /** Each place said beside a name, in the singular (the canvas's States board); in it, up next and added are In it. */
 export const PLACE_WORDS: Record<SequencePeopleGroup, string> = {
-  waiting: "Waits for your OK",
+  waiting: "Waits for your approval",
   held: "Held",
   to_send: "Yours to send",
   replied: "Wrote back",
@@ -106,7 +106,7 @@ export const PLACE_WORDS: Record<SequencePeopleGroup, string> = {
 };
 
 /** In it, as a row says it, where the sequence is named in the line under the word, never in the word. */
-const PLACE_IN_ROW_WORD = "In sequence";
+const PLACE_IN_ROW_WORD = "In campaign";
 
 /** A lead on a sequence's list that its next batch cannot take: the word, amber, with why in the line. */
 export const PLACE_NOT_PLANNED_WORD = "Not planned";
@@ -274,7 +274,7 @@ export const PLACE_RAIL_WORDS = {
   readFrom: "Replies are read from your connected mailbox.",
   toldBy: "Replies aren't read here: say so with They wrote back…",
   takeOut: (name: string) => `Take out of ${name}`,
-  afterOk: "Goes after your OK",
+  afterOk: "Goes after your approval",
 } as const;
 
 /** What a step's own send did for them, on its box. */
@@ -307,7 +307,7 @@ function sendStateOf(
   if (sequencePlaceSend.state === "failed") return { tone: "done", words: "Didn't go" };
   // Planned, claimed or on its way: in a batch waiting for an OK where their place says so, else when it goes.
   if (row && row.send_id === sequencePlaceSend.id && row.group === "waiting")
-    return { tone: "need", words: "In today's batch · waits for your OK" };
+    return { tone: "need", words: "In today's batch · waits for your approval" };
   const item = at(sequencePlaceSend.send_at);
   return {
     tone: "next",

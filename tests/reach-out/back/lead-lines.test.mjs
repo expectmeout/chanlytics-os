@@ -48,7 +48,7 @@ test("the line under a lead's stage says where it stands, first that holds", () 
   assert.equal(said({ next_at: "2026-09-30T15:00:00.000Z" }), "Written Tue · next Wed");
   assert.equal(
     said({ held: true, next_at: "2026-09-30T15:00:00.000Z" }),
-    "Written Tue · a follow-up waits for your OK",
+    "Written Tue · a follow-up waits for your approval",
   );
   assert.equal(
     said({ reply: { intent: "interested", claim: "person", read_at: "2026-09-24T15:00:00.000Z", undone: false } }),
@@ -94,7 +94,7 @@ test("a lead not written yet says when, or that it waits; one the chain never to
   const planned = { sent: 0, first_sent_at: null, last_sent_at: null };
   assert.equal(said({ ...planned, next_at: "2026-09-28T16:12:00.000Z" }), "Today 11:12 AM");
   assert.equal(said({ ...planned, next_at: "2026-09-29T14:40:00.000Z" }), "Tomorrow 9:40 AM");
-  assert.equal(said({ ...planned, held: true }), "Held for your OK");
+  assert.equal(said({ ...planned, held: true }), "Held for your approval");
   assert.equal(said({ ...planned, handed: true }), "Handed to you");
   assert.equal(said(planned), null);
 });
@@ -139,9 +139,9 @@ test("the strip, paused, with nothing planned, with holds and a run waiting", ()
   assert.deepEqual(paused.parts, ["18 of 30 today", "nothing goes while it is paused"]);
   assert.deepEqual(paused.toggle, { label: "Resume", pause: false });
   const quiet = reachOutStripOf(lines({ next: null, held: 2, waiting_run_id: "b9" }), null, NOW, TZ);
-  assert.deepEqual(quiet.parts, ["18 today", "nothing more planned yet", "2 held for your OK"]);
+  assert.deepEqual(quiet.parts, ["18 today", "nothing more planned yet", "2 held for your approval"]);
   assert.equal(quiet.progress, null);
-  assert.deepEqual(quiet.waiting, { label: "Waits for your OK", to: "campaigns/sequences/b9/runs/b9" });
+  assert.deepEqual(quiet.waiting, { label: "Waits for your approval", to: "campaigns/sequences/b9/runs/b9" });
   const tomorrow = reachOutStripOf(
     lines({ next: { at: "2026-09-29T14:40:00.000Z", business: null, host: null } }),
     chain,
@@ -232,7 +232,7 @@ const story = (over = {}) => ({
 
 test("the peek's story is each email and each reading, oldest first, with its doors", () => {
   const vm = reachOutTimelineOf(story(), NOW, TZ);
-  assert.equal(vm.label, "Sequence · Trainers in Austin");
+  assert.equal(vm.label, "Campaign · Trainers in Austin");
   assert.deepEqual(
     vm.lines.map((l) => [l.when, l.text]),
     [
@@ -312,7 +312,7 @@ test("a stopped lead says so and offers no stop; a no that may be undone offers 
   const bare = reachOutTimelineOf(story({ chain: null, conversation_id: null, sends: [], readings: [] }), NOW, TZ);
   assert.equal(bare.stop, null);
   assert.equal(bare.read, null);
-  assert.equal(bare.label, "Sequence · Trainers · Austin");
+  assert.equal(bare.label, "Campaign · Trainers · Austin");
 });
 
 test("a reach-out its owner sends: a draft is theirs to send, an email they sent says so, and what came back is theirs to say (00429)", () => {
@@ -364,11 +364,11 @@ test("a reach-out its owner sends: a draft is theirs to send, an email they sent
   const back = (at) => ({ at, tz: TZ, nowMs: NOW });
   assert.equal(
     REACH_OUT_SAID_WORDS.done("Zilker Kettlebell Club", "not_now", back("2027-01-11T15:00:00.000Z")),
-    "Your sequence stops for Zilker Kettlebell Club. They're back in Leads on Jan 11, 2027.",
+    "Your campaign stops for Zilker Kettlebell Club. They're back in Leads on Jan 11, 2027.",
   );
   assert.equal(
     REACH_OUT_SAID_WORDS.done("Zilker Kettlebell Club", "interested", back(null)),
-    "Zilker Kettlebell Club is Talking now, and your sequence stops for them.",
+    "Zilker Kettlebell Club is Talking now, and your campaign stops for them.",
   );
   assert.equal(REACH_OUT_SAID_WORDS.note("not_now"), "You said they wrote back: not now.");
 });
@@ -376,17 +376,17 @@ test("a reach-out its owner sends: a draft is theirs to send, an email they sent
 test("a person's page names the reach-out's emails, says how each reply was read, and where they were found", () => {
   const vm = reachOutPersonOf(story(), NOW, TZ);
   assert.deepEqual(vm.emails.get("m1"), {
-    who: "Sequence · Trainers in Austin",
+    who: "Campaign · Trainers in Austin",
     sub: "Email 1 · angle: their rating · from mail.example.com · delivered",
   });
   assert.equal(vm.emails.size, 1);
-  assert.equal(vm.readings.get("m2"), "Read as interested · the sequence stopped · Talking");
+  assert.equal(vm.readings.get("m2"), "Read as interested · the campaign stopped · Talking");
   assert.deepEqual(vm.found, {
     at: Date.parse("2026-09-20T15:00:00.000Z"),
     text: "Found on Google Maps by “personal trainers in Austin” · strong fit · address checked",
   });
   // The one standing line (00426): what their answer did with the reach-out, as every page says it.
-  assert.equal(vm.about, "Trainers in Austin · Talking · wrote back Thu · interested · the sequence stopped");
+  assert.equal(vm.about, "Trainers in Austin · Talking · wrote back Thu · interested · the campaign stopped");
   const booked = reachOutPersonOf(story({ booked_at: "2026-10-01T18:30:00.000Z" }), NOW, TZ);
   assert.equal(booked.about, "Trainers in Austin · Talking · booked Thu 1:30 PM");
   const written = reachOutPersonOf(story({ readings: [] }), NOW, TZ);

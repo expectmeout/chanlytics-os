@@ -212,7 +212,7 @@ test("the route refuses what the table would, before it reaches the table", asyn
 });
 
 test("a report the table could not take is kept by nobody and refused to nobody", async () => {
-  setServiceClient(fakeDb({}, {}, { note_page_vitals: raise("PGRST202", "Could not find the function") }));
+  setServiceClient(fakeDb({}, {}, { note_page_vitals: raise("PGRST202", "Couldn't find the function") }));
   const said = [];
   const warn = console.warn;
   console.warn = (...args) => said.push(asEventAndJson(args));
@@ -224,7 +224,7 @@ test("a report the table could not take is kept by nobody and refused to nobody"
   }
   assert.equal(said.length, 1);
   assert.equal(said[0][0], "page_vitals_not_kept");
-  assert.deepEqual(JSON.parse(said[0][1]), { code: "PGRST202", message: "Could not find the function" });
+  assert.deepEqual(JSON.parse(said[0][1]), { code: "PGRST202", message: "Couldn't find the function" });
 });
 
 test("the back office's read asks for the bounded window, says unread as null, and a database without it as none", async () => {
@@ -246,7 +246,7 @@ test("the back office's read asks for the bounded window, says unread as null, a
     { metric: "LCP", page: "inbox", samples: 40, p75: 2300 },
   ]);
   assert.equal(await listPlatformVitals(office(raise("57014", "canceling statement due to statement timeout"))), null);
-  assert.deepEqual(await listPlatformVitals(office(raise("PGRST202", "Could not find the function"))), []);
+  assert.deepEqual(await listPlatformVitals(office(raise("PGRST202", "Couldn't find the function"))), []);
 });
 
 test("the timings ride on the overview, and a read that fails takes nothing else with it", async () => {
@@ -358,7 +358,7 @@ test("the words: a value as a person reads it, and each verdict on web.dev's thr
 
 test("the card: unread says so, a quiet week says so, and a week of loads is a sentence, a line each and the slowest pages", () => {
   assert.deepEqual(pageVitalsWords(null), {
-    sentence: "Page timings could not be read just now.",
+    sentence: "Page timings couldn't be read just now.",
     lines: [],
     pages: [],
   });

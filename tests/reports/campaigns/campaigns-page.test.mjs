@@ -367,7 +367,7 @@ test("a quiet period is the lens's own card, in place of the strip and every car
   const door = find(card, (n) => n.type === "button");
   assert.equal(textOf(door).trim(), words.door.label);
   press(door);
-  assert.deepEqual(navigated, [words.door.to], "to Sequences");
+  assert.deepEqual(navigated, [words.door.to], "to Campaigns");
   assert.equal(words.door.to, "campaigns/sequences");
   assert.deepEqual(present(tree, ORDER), no(ORDER), "no strip and none of the window's cards");
   assert.equal(
@@ -435,7 +435,7 @@ test("the sends failing draws its failed read and the ledger's parts: the people
     [[12], [4, 4, 4], [12], [6, 6]],
     "each message's rate takes the row it has to itself, and the waits are the ledger's",
   );
-  assert.equal(standingSaid().sentence, undefined, "no head where the sends could not be read: the lens's name alone");
+  assert.equal(standingSaid().sentence, undefined, "no head where the sends couldn't be read: the lens's name alone");
 });
 
 test("both reads failing say that nothing else could be read, and the old words about the receptionist's numbers are nowhere", () => {
@@ -777,7 +777,7 @@ test("the time cards are the fold's two distributions, every bucket kept, each w
   const tree = draw({ own: everything() });
   const cards = [
     ["chart-campaigns-first-reply", v.firstReply, "From a message to the first reply", ["How soon", "Messages"]],
-    ["chart-campaigns-approval", v.approval, "Waiting for your OK", ["How long it waited", "Runs"]],
+    ["chart-campaigns-approval", v.approval, "Waiting for your approval", ["How long it waited", "Runs"]],
   ];
   for (const [id, part, title, columns] of cards) {
     const wanted = part.rows.map((r) => [r.label, r.value]);
@@ -823,7 +823,9 @@ test("the time cards are the fold's two distributions, every bucket kept, each w
       "7d",
     ),
   });
-  assert.ok(textOf(byTestId(nobody, "chart-campaigns-approval")).includes("No run waited for your OK in this period."));
+  assert.ok(
+    textOf(byTestId(nobody, "chart-campaigns-approval")).includes("No run waited for your approval in this period."),
+  );
   assert.ok(
     textOf(byTestId(nobody, "chart-campaigns-first-reply")).includes("No message was answered in this period."),
   );
@@ -932,7 +934,7 @@ test("a quiet period hides neither the stuck nor the reach-outs, and draws no wi
   );
   assert.equal(
     standingSaid().sentence,
-    "Nothing went out in this period. Your cold email sequences wrote 40 emails to 25 businesses.",
+    "Nothing went out in this period. Your cold email campaigns wrote 40 emails to 25 businesses.",
   );
   assert.doesNotMatch(textOf(tree), /NaN|Infinity/);
 });
@@ -1026,11 +1028,11 @@ test("the angles' bars grey where the businesses they are of are fewer than five
 test("the sources say a business once: the Businesses column, a door on a reach-out's name, a count where fewer than five", () => {
   const v = liveFoldOf({ reachOuts: reachOuts() }).reachOuts;
   const tree = draw({ own: everything() });
-  assert.equal(titleOf(tree, "ro-sources"), "By sequence and step");
+  assert.equal(titleOf(tree, "ro-sources"), "By campaign and step");
   assert.equal(lineOf(tree, "ro-sources"), v.lines.sources);
   assert.match(lineOf(tree, "ro-sources"), /as it stands now/, "what came of each is state now, and the card says so");
   assert.deepEqual(headersOf(tree, "ro-sources"), [
-    "Sequence",
+    "Campaign",
     "Written",
     "Delivered",
     "Businesses",
@@ -1081,7 +1083,7 @@ test("the sources say a business once: the Businesses column, a door on a reach-
   );
   // The table twin carries the Businesses column too.
   assert.deepEqual(cardOf(tree, "ro-sources").props.table.columns, [
-    "Sequence",
+    "Campaign",
     "Written",
     "Delivered",
     "Businesses",
@@ -1312,7 +1314,7 @@ test("a reach-out period that wrote nothing is the old card with the fold's word
   const card = byTestId(tree, "ro-report-empty");
   assert.ok(card, "nothing written");
   assert.ok(textOf(card).includes("Nothing written") && textOf(card).includes(v.lines.empty), textOf(card));
-  assert.equal(v.lines.empty, "No sequence to leads wrote in the last 30 days.");
+  assert.equal(v.lines.empty, "No cold email campaign wrote in the last 30 days.");
   assert.ok(byTestId(tree, "rpt-reach-outs"), "the section is still there, under its heading");
   for (const id of RO_CARDS) assert.equal(byTestId(tree, id), null, `${id}: no card of nothing`);
   assert.equal(byTestId(tree, "ro-strip"), null, "and no strip of zeros");

@@ -103,7 +103,7 @@ export function scopeFromRoute(
 ): AskScope | null {
   if (!param) return null;
   if (page === "inbox" && param.startsWith("th-"))
-    return { kind: "thread", id: param.slice(3), label: label || "this thread" };
+    return { kind: "thread", id: param.slice(3), label: label || "this conversation" };
   if (page === "conversations") {
     // A row on its tab, or a row alone (on All): the row is after the tab's colon.
     const row = param.includes(":") ? param.slice(param.indexOf(":") + 1) : param;
@@ -136,7 +136,7 @@ function campaignsScope(
   if (param.startsWith("moment:") && UUID.test(param.slice(7))) {
     const id = param.slice(7);
     const chain = chains?.find((c) => c.root_id === id);
-    if (chain) return { kind: "page", id: `campaigns/moment:${id}`, label: label || chain.name || "this sequence" };
+    if (chain) return { kind: "page", id: `campaigns/moment:${id}`, label: label || chain.name || "this campaign" };
     return { kind: "playbook", id, label: label || "this campaign" };
   }
   if (page === "campaigns" && param.startsWith("ads:ad:") && UUID.test(param.slice(7)))
@@ -153,7 +153,7 @@ function campaignsScope(
   if (place?.view === "record" && place.run && UUID.test(place.run))
     return { kind: "run", id: place.run, label: label || "this run" };
   if (place?.view === "record" && UUID.test(place.id))
-    return { kind: "sequence", id: place.id, label: label || "this sequence" };
+    return { kind: "sequence", id: place.id, label: label || "this campaign" };
   // A message the Library has open: its id the name it is stored by, its chip the title the page says (templateTitle).
   const message = page === "campaigns" ? messageOfRoute(`campaigns/${param}`) : null;
   if (message) return { kind: "message", id: message, label: label || templateTitle(message) };

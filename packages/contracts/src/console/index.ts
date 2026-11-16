@@ -48,7 +48,13 @@ export {
   subscriberWords,
 } from "./health-clocks";
 export type { ClockState, ClockVM, HealthClockDto, OperatorPageDto, PageVM } from "./health-clocks";
-export { connectionsOf, deliveriesOf, draftUsesOf, modelCallsOf } from "./health-parts/models-connections";
+export {
+  connectionsOf,
+  deliveriesOf,
+  draftUsesOf,
+  modelCallsOf,
+  previewsHealthOf,
+} from "./health-parts/models-connections";
 export type { ConnectionVM, DeliveriesVM, ModelCallsVM } from "./health-parts/models-connections";
 export { callsOf, sendsOf, webhooksOf } from "./health-parts/sends-calls";
 export type { CallsVM, HealthPartsDto, SendChannelVM, SendsVM, WebhooksVM } from "./health-parts/sends-calls";

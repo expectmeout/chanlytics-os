@@ -151,16 +151,16 @@ test("a period that sent nothing says so, and what the reach-outs wrote if only 
   assert.equal(fold(quiet).head, "Nothing went out in this period.");
   assert.equal(
     fold({ ...quiet, reachOuts: reachOutReport(12, 9) }).head,
-    "Nothing went out in this period. Your cold email sequences wrote 12 emails to 9 businesses.",
+    "Nothing went out in this period. Your cold email campaigns wrote 12 emails to 9 businesses.",
   );
   assert.equal(
     fold({ ...quiet, reachOuts: reachOutReport(1, 1) }).head,
-    "Nothing went out in this period. Your cold email sequences wrote 1 email to 1 business.",
+    "Nothing went out in this period. Your cold email campaigns wrote 1 email to 1 business.",
   );
   // A database that does not count businesses yet (before 00404) says the emails alone; a reach-out that wrote none says nothing.
   assert.equal(
     fold({ ...quiet, reachOuts: reachOutReport(12, undefined) }).head,
-    "Nothing went out in this period. Your cold email sequences wrote 12 emails.",
+    "Nothing went out in this period. Your cold email campaigns wrote 12 emails.",
   );
   assert.equal(fold({ ...quiet, reachOuts: reachOutReport(0, 0) }).head, "Nothing went out in this period.");
   // The reach-outs are not in a head where campaigns went out: the head is the sends'.
@@ -453,7 +453,7 @@ test("what was held back, by reason in the owner's words, and the line that says
     ["send_failed", "The provider refused it", 3],
     ["other", "Another reason", 1],
   ]);
-  assert.equal(held.line, "12 of the 252 messages planned were held back or could not be sent.");
+  assert.equal(held.line, "12 of the 252 messages planned were held back or couldn't be sent.");
   assert.equal(held.empty, null);
   // One held is "was", and a single message planned is no plural: the line agrees with its count, not with the plan.
   const heldOf = (total, sent) =>
@@ -461,9 +461,9 @@ test("what was held back, by reason in the owner's words, and the line that says
       campaigns: campaignsOf({ sent }),
       ledger: ledgerWith({ held: { total, skipped: total, failed: 0, by_reason: { opted_out: total } } }),
     }).held.line;
-  assert.equal(heldOf(1, 2), "1 of the 3 messages planned was held back or could not be sent.");
-  assert.equal(heldOf(2, 1), "2 of the 3 messages planned were held back or could not be sent.");
-  assert.equal(heldOf(1, 0), "1 of the 1 message planned was held back or could not be sent.");
+  assert.equal(heldOf(1, 2), "1 of the 3 messages planned was held back or couldn't be sent.");
+  assert.equal(heldOf(2, 1), "2 of the 3 messages planned were held back or couldn't be sent.");
+  assert.equal(heldOf(1, 0), "1 of the 1 message planned was held back or couldn't be sent.");
   // A reason that is none of ours folds into "other", summed (the database sends any word that is lower case and underscored).
   const reasons = (by_reason, total) =>
     fold({ ledger: ledgerWith({ held: { total, skipped: total, failed: 0, by_reason } }) }).held;
@@ -484,13 +484,13 @@ test("the runs that stopped, by why, and the ones that were canceled", () => {
   assert.deepEqual(rows(stopped), [
     ["canceled", "Canceled", 1],
     ["paused", "The workspace was paused", 1],
-    ["wire_unavailable:sms", "The texting provider could not be reached", 1],
+    ["wire_unavailable:sms", "The texting provider couldn't be reached", 1],
   ]);
   assert.equal(stopped.line, `2 runs failed and 1 was canceled. ${REACH_OUTS_UNDER}`);
   const by = (failed, canceled, by_failure) =>
     fold({ ledger: ledgerWith({ stopped: { failed, canceled, by_failure } }) }).stopped;
   // A code nobody wrote words for yet, and "other", are one row.
-  assert.deepEqual(rows(by(3, 0, { made_up_code: 2, other: 1 })), [["other", "It could not finish", 3]]);
+  assert.deepEqual(rows(by(3, 0, { made_up_code: 2, other: 1 })), [["other", "It couldn't finish", 3]]);
   assert.equal(by(1, 2, { paused: 1 }).line, `1 run failed and 2 were canceled. ${REACH_OUTS_UNDER}`);
   assert.equal(by(0, 2, {}).line, `0 runs failed and 2 were canceled. ${REACH_OUTS_UNDER}`);
   assert.deepEqual(rows(by(0, 2, {})), [["canceled", "Canceled", 2]]);
@@ -711,9 +711,13 @@ test("how long an approval waited, in the same shape", () => {
   const wait = (n, median_s, buckets) =>
     fold({ ledger: ledgerWith({ approval: { n, median_s, buckets: { h1: 0, h4: 0, h24: 0, over: 0, ...buckets } } }) })
       .approval;
-  assert.equal(wait(5, 7200, { h4: 5 }).line, "The middle wait for your OK was 2h, over 5 runs you approved.");
+  assert.equal(wait(5, 7200, { h4: 5 }).line, "The middle wait for your approval was 2h, over 5 runs you approved.");
   assert.equal(wait(1, 600, { h1: 1 }).line, "1 run you approved: too few for a middle.");
-  assert.deepEqual(wait(0, null, {}), { rows: [], line: null, empty: "No run waited for your OK in this period." });
+  assert.deepEqual(wait(0, null, {}), {
+    rows: [],
+    line: null,
+    empty: "No run waited for your approval in this period.",
+  });
 });
 
 /* ---------------------------------------------------------------- what is stuck now */
@@ -787,7 +791,12 @@ test("runs waiting say how many can still be approved and how many are past thei
     "2 past their day (skip those), 3 can still be approved",
   ]);
   // Nothing waiting is a zero with no tone.
-  assert.deepEqual(waiting(0, 0).slice(3), ["0", undefined, "campaigns/sequences", "nothing is waiting for your OK"]);
+  assert.deepEqual(waiting(0, 0).slice(3), [
+    "0",
+    undefined,
+    "campaigns/sequences",
+    "nothing is waiting for your approval",
+  ]);
   // A list cut at what the database lists is a floor: "500+".
   const capped = stuckTile(stuckWith({ waiting: { n: 500, late: 0, oldest_at: null, capped: true } }).at(0));
   assert.equal(capped[3], "500+");
@@ -803,7 +812,7 @@ test("the quiet side of each figure has no tone, and says so in words", () => {
   assert.deepEqual(
     quiet.map((t) => [t.value, t.tone, t.meta]),
     [
-      ["0", undefined, "nothing is waiting for your OK"],
+      ["0", undefined, "nothing is waiting for your approval"],
       ["0", undefined, "no run failed in the last 30 days"],
       ["0", undefined, "nobody who answered a campaign is waiting"],
       ["0", undefined, "every WhatsApp message is approved"],
@@ -821,7 +830,7 @@ test("the quiet side of each figure has no tone, and says so in words", () => {
   });
   assert.deepEqual(
     [cut.at(1).value, cut.at(1).meta, cut.at(2).value],
-    ["500+", `the latest: Spring note, the mail provider could not be reached · ${STEP_COUNTS}`, "37+"],
+    ["500+", `the latest: Spring note, the mail provider couldn't be reached · ${STEP_COUNTS}`, "37+"],
   );
 });
 
@@ -886,12 +895,7 @@ test("your WhatsApp number: how it is rated, and the two states with no number t
     "admin/integrations",
     "no WhatsApp number is connected",
   ]);
-  assert.deepEqual(number({ state: "unread" }), [
-    "—",
-    undefined,
-    "admin/integrations",
-    "this number could not be read",
-  ]);
+  assert.deepEqual(number({ state: "unread" }), ["—", undefined, "admin/integrations", "this number couldn't be read"]);
 });
 
 /* ---------------------------------------------------------------- a period with nothing in it */
@@ -915,7 +919,7 @@ test("nothing in the period: one quiet lens, every window part with its words, a
       [[], null, `No run failed or was canceled in this period. ${REACH_OUTS_UNDER}`],
       [[], null, "No sent message failed in this period."],
       [[], null, "No message was answered in this period."],
-      [[], null, "No run waited for your OK in this period."],
+      [[], null, "No run waited for your approval in this period."],
     ],
   );
   assert.deepEqual(stuckAlone.byMessage, { rows: [], line: null, empty: "No message went out in this period." });
@@ -934,7 +938,7 @@ test("nothing in the period: one quiet lens, every window part with its words, a
   assert.equal(reachOnly.quiet, true);
   assert.equal(
     reachOnly.head,
-    "Nothing went out in this period. Your cold email sequences wrote 12 emails to 9 businesses.",
+    "Nothing went out in this period. Your cold email campaigns wrote 12 emails to 9 businesses.",
   );
   assert.equal(reachOnly.reachOuts.present, true);
   assert.equal(reachOnly.reachOuts.totals.written, 12);
@@ -969,7 +973,7 @@ test("a period is quiet only when nothing went out, nothing was held or stopped 
     series: CAMPAIGNS_QUIET.series.map((d, i) => (i === 31 ? dayRow(d.day, { opt_ins: 1 }) : d)),
   };
   assert.equal(fold({ ...quiet, campaigns: yes }).quiet, false, "someone said yes");
-  assert.equal(fold({ campaigns: null }).quiet, false, "the sends could not be read: that is not a quiet period");
+  assert.equal(fold({ campaigns: null }).quiet, false, "the sends couldn't be read: that is not a quiet period");
 });
 
 /* ---------------------------------------------------------------- each read alone */
@@ -1087,8 +1091,8 @@ test("when more than one read failed, each failure says what could still be read
   assert.deepEqual(
     stuckAndSends.failed.map((f) => [f.part, f.body]),
     [
-      ["campaigns", "Only who it reached and the sequences to leads could be read."],
-      ["stuck", "Only who it reached and the sequences to leads could be read."],
+      ["campaigns", "Only who it reached and the cold email campaigns could be read."],
+      ["stuck", "Only who it reached and the cold email campaigns could be read."],
     ],
   );
   const one = fold({ campaigns: null, ledger: dtoWith(null), reachOuts: null });

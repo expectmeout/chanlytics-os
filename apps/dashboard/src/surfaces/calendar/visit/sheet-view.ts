@@ -63,7 +63,7 @@ export const CALENDAR_VISIT_SHEET_WORDS = {
   message: (first: string) => `Message ${first}`,
   link: "Send the booking link",
   newTime: "Ask for a new time",
-  windowShut: "Their WhatsApp window is shut: the thread offers the approved message.",
+  windowShut: "Their WhatsApp window is shut: the conversation offers the approved message.",
   call: (first: string) => `Call ${first}`,
   more: "More",
   moreActs: {

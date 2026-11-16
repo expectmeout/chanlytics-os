@@ -151,7 +151,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
   },
   email: {
     title: "Your email",
-    says: "Connect the inbox you already use: customers' emails and your contacts come in, and offers and sequences go from your address.",
+    says: "Connect the inbox you already use: customers' emails and your contacts come in, and offers and campaigns go from your address.",
     google: "Connect Gmail",
     microsoft: "Connect Outlook",
     soon: "Coming soon",

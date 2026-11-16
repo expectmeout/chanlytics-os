@@ -308,7 +308,7 @@ test("the ending opened on the name a sequence signs with, saved as it stands, s
   let tree = await drawOnRead({}, { sequence: SEQUENCE_SIGNED_MAYA }, (t) => !!byTestId(t, "rec-ending-lines"));
   openFold(tree, "ending");
   tree = redrawTab();
-  assert.match(textOf(foldOf(tree, "ending")), /From your newest sequence/);
+  assert.match(textOf(foldOf(tree, "ending")), /From your newest campaign/);
   saveFoldOf(tree, "ending");
   assert.equal(sent.length, 0);
   unmount();
@@ -628,7 +628,7 @@ test("each press says who may do it: an operator approves a batch, and the press
   };
   const waiting = {
     kind: "waiting_ok",
-    headline: "Your first 12 emails are ready for your OK",
+    headline: "Your first 12 emails are ready for your approval",
     detail: null,
     act: "Read and approve",
     to: "sends/33333333-3333-4333-8333-333333333333",
@@ -668,7 +668,7 @@ test("each press says who may do it: an operator approves a batch, and the press
   globalThis.window.gate = (action) =>
     globalThis.window.canDo(action) ? {} : { "aria-disabled": true, "aria-description": "Only an owner can do this." };
   try {
-    let tree = await drawOnRead({}, { standing: waiting }, head(/ready for your OK/));
+    let tree = await drawOnRead({}, { standing: waiting }, head(/ready for your approval/));
     assert.equal(textOf(byTestId(tree, "rec-standing-act")), "Read and approve", "an OK is theirs to give");
     assert.equal(byTestId(tree, "rec-standing-act").props["aria-disabled"], undefined);
     tree = await drawOnRead({}, { standing: mailbox }, head(/Connect your mailbox/));
@@ -791,7 +791,7 @@ test("a pitch row nobody filled says what an email is written without, and one t
 test("Before each batch offers holding or asking, never sending on its own, and says it is for new sequences", async () => {
   let tree = await drawOnRead({}, {}, (t) => /Held 30 minutes/.test(textOf(byTestId(t, "rec-row-batch_mode"))));
   // On its face too, not only in its sheet: the row is what a new sequence starts as.
-  assert.match(textOf(byTestId(tree, "rec-row-batch_mode")), /Before each batch, on new sequences/);
+  assert.match(textOf(byTestId(tree, "rec-row-batch_mode")), /Before each batch, on new campaigns/);
   openFold(tree, "batch_mode");
   tree = redrawTab();
   const choice = textOf(byTestId(tree, "rec-batch-mode-choice"));
@@ -799,8 +799,8 @@ test("Before each batch offers holding or asking, never sending on its own, and 
   assert.match(choice, /Ask me/);
   assert.doesNotMatch(choice, /Send it/);
   const note = textOf(byTestId(tree, "rec-batch-note"));
-  assert.match(note, /For new sequences\. Each sequence can change its own\./);
-  assert.match(note, /New words always wait for your OK/);
+  assert.match(note, /For new campaigns\. Each campaign can change its own\./);
+  assert.match(note, /New words always wait for your approval/);
   unmount();
 });
 
@@ -875,8 +875,8 @@ test("Try it with no running sequence to leads says to start one, and asks the p
   let tree = page();
   press(byTestId(tree, "rec-row-act-try_lead"));
   tree = redrawTab();
-  assert.match(textOf(byTestId(tree, "rec-try-none")), /Start a sequence to see one/);
-  assert.ok(!asked.some((u) => u.includes("reach-outs/preview")), "no sequence, no email written");
+  assert.match(textOf(byTestId(tree, "rec-try-none")), /Start a campaign to see one/);
+  assert.ok(!asked.some((u) => u.includes("reach-outs/preview")), "no campaign, no email written");
 });
 
 test("a claim's row says how many emails carried it, from the page's own read", async () => {
@@ -1058,7 +1058,7 @@ test("Before each batch writes Autonomy's outreach row, and says where the rest 
   // The page reads again once its write lands, and the row says what was saved. The test stays until it does: a write
   // left in the air lands in the next test, where this page's read-again would be taken for that page's own.
   await until(
-    () => /Waits for your OK/.test(textOf(byTestId(redrawTab(), "rec-row-batch_mode") ?? "")),
+    () => /Waits for your approval/.test(textOf(byTestId(redrawTab(), "rec-row-batch_mode") ?? "")),
     "the saved mode, read again and said",
   );
   unmount();
@@ -1180,7 +1180,7 @@ test("a sample email is written once per open: the page reading again writes no 
       () => textOf(byTestId(redrawTab(), "rec-try-lead")).includes("Lakeside Family Dental"),
       "the next business's email",
     );
-    assert.equal(door.written.length, 2, "the same sequence, read again, is no reason to write another email");
+    assert.equal(door.written.length, 2, "the same campaign, read again, is no reason to write another email");
   } finally {
     Date.now = realNow;
   }

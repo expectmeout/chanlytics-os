@@ -33,7 +33,6 @@ const {
   SEQUENCE_MODE_WORDS,
   appointmentWordOf,
   appointmentWords,
-  channelsWords,
   defaultParamSpecs,
   startersForTrigger,
   winBackWords,
@@ -291,20 +290,14 @@ test("a moment whose starter is not on file: a card that names the starter, says
   );
 });
 
-test("a starter card is refused for what its Approve would be refused for, in the same words, and nothing is filed: a number out of bounds, a moment this workspace is not offered, WhatsApp alone before WhatsApp approves the version", async () => {
+test("a starter card is refused for what its Approve would be refused for, in the same words, and nothing is filed: a number out of bounds, a moment this workspace is not offered", async () => {
   const one = propose({ trigger: "quiet_30", run_hour: 7 });
   assert.equal(said(await one.made), "The hour must be a whole number from 9 to 20.");
   // The win-back by appointments needs a calendar, and this world has none: momentOffered refuses it, as the route does.
   const two = propose({ trigger: "lapsed" });
   const word = appointmentWordOf("meeting");
   assert.equal(said(await two.made), winBackWords(word).lapsed);
-  // WhatsApp named alone: its version would go to Meta and carry nothing until approved, so no card.
-  const three = propose({ trigger: "quiet_30", channels: ["whatsapp"] });
-  assert.equal(
-    said(await three.made),
-    LIBRARY_STARTER_WORDS.waitsForWhatsApp(STARTER.title, channelsWords(["whatsapp"]), channelsWords(["email"])),
-  );
-  for (const { rows } of [one, two, three]) assert.deepEqual([rows.templates, rows.playbooks], [[], []]);
+  for (const { rows } of [one, two]) assert.deepEqual([rows.templates, rows.playbooks], [[], []]);
 });
 
 test("a starter card says every channel it goes by and which hold their people until they can send: with no number email alone and nothing for WhatsApp; with offers by email closed, email waits too", async () => {
@@ -393,6 +386,43 @@ test("a starter whose WhatsApp version is on file says what it is, never that it
   assert.ok(!/WhatsApp/.test(unnamed.proposal.summary), unnamed.proposal.summary);
 });
 
+test("a starter card by WhatsApp alone is a card while WhatsApp checks the words, as a sequence picked in New is made (the one picker rule): it says the check and that its messages go by themselves after, and files nothing; a version WhatsApp asked a change to is no card, in the message's own words", async () => {
+  // Not on file: its WhatsApp version goes to WhatsApp at Approve, and the campaign's people wait for the answer. It was
+  // refused ("can send nothing on WhatsApp until WhatsApp approves"), though a run has waited for that check since #2334.
+  const fresh = propose({ trigger: "quiet_30", channels: ["whatsapp"] });
+  const card = await fresh.made;
+  assert.equal(card.isError, false, card.result);
+  assert.equal(card.proposal.kind, "playbook");
+  assert.equal(card.proposal.payload.starter_key, STARTER.key);
+  assert.deepEqual(card.proposal.payload.channels, ["whatsapp"]);
+  assert.ok(
+    card.proposal.sheet.holds.includes(LIBRARY_STARTER_WORDS.whatsappForReview),
+    JSON.stringify(card.proposal.sheet.holds),
+  );
+  assert.deepEqual([fresh.rows.templates, fresh.rows.playbooks], [[], []], "nothing is filed at the card");
+  // On file and being checked: the same card, its WhatsApp version said as it stands, and nothing goes for review again.
+  const checking = propose({ trigger: "quiet_30", channels: ["whatsapp"] }, { templates: [onFile("pending")] });
+  const waits = await checking.made;
+  assert.equal(waits.isError, false, waits.result);
+  assert.deepEqual(waits.proposal.payload.channels, ["whatsapp"]);
+  assert.ok(
+    waits.proposal.summary.includes(
+      ` · WhatsApp waits: WhatsApp is checking this message. It sends by itself once approved (usually minutes, sometimes a day). ${WAITS_WORDS}`,
+    ),
+    waits.proposal.summary,
+  );
+  assert.ok(!/for review|taken back/.test(waits.proposal.summary), waits.proposal.summary);
+  assert.equal(checking.rows.templates.length, 1, "nothing is filed at the card");
+  // A version WhatsApp asked a change to does not come back by itself: by WhatsApp alone it goes nowhere, so no card,
+  // in the sentence the message says of that version everywhere.
+  const changed = propose({ trigger: "quiet_30", channels: ["whatsapp"] }, { templates: [onFile("rejected")] });
+  assert.equal(
+    said(await changed.made),
+    "WhatsApp asked for a change to this message's words. AI writes new words for you to send back.",
+  );
+  assert.deepEqual(changed.rows.playbooks, []);
+});
+
 test("a starter the workspace hid is never added back, and the card says it is hidden in the Library, not that it has no version", async () => {
   const hidden = await propose({ trigger: "quiet_30" }, { templates: [onFile("approved", { hidden_at: ago(DAY) })] })
     .made;
@@ -427,8 +457,8 @@ test("a new campaign's card says what its batches will do: its first waits for y
       // Under ask every batch waits, the first among them: said once.
       const batches =
         mode === "ask"
-          ? "Each batch waits for your OK"
-          : `Its first batch waits for your OK; after that, ${SEQUENCE_MODE_WORDS[mode].does}`;
+          ? "Each batch waits for your approval"
+          : `Its first batch waits for your approval; after that, ${SEQUENCE_MODE_WORDS[mode].does}`;
       assert.ok(p.summary.includes(`${batches} (${PLAYBOOK_CLASS_LABEL.reengage}).`), p.summary);
       const body = PROPOSAL_SPECS.playbook.commit(p, { settings: null }).body;
       assert.deepEqual(["trial" in body, "trial_until" in body], [false, false]);
@@ -528,7 +558,7 @@ test("what no press turns on is aside (decision 0088): how later batches go and 
     end: "Until Nov 30",
     goes: "On WhatsApp",
     reaches: "6 people",
-    sends: "Each batch waits for your OK",
+    sends: "Each batch waits for your approval",
     message: "Adds the starter first",
     waiting: [],
   });
@@ -605,10 +635,12 @@ test("the three moments an occasion starts are proposed where a calendar is conn
     assert.equal(r.isError, false, r.result);
     assert.equal(r.proposal.payload.mode, "veto");
     assert.ok(
-      r.proposal.summary.includes(`Its first batch waits for your OK; after that, ${SEQUENCE_MODE_WORDS.veto.does}`),
+      r.proposal.summary.includes(
+        `Its first batch waits for your approval; after that, ${SEQUENCE_MODE_WORDS.veto.does}`,
+      ),
       r.proposal.summary,
     );
-    assert.ok(!r.proposal.summary.includes("Each batch waits for your OK"), r.proposal.summary);
+    assert.ok(!r.proposal.summary.includes("Each batch waits for your approval"), r.proposal.summary);
   }
   const sends = await propose({ trigger: "visit_soon" }, { tenant_config: withCalendar(), policies: modes("auto") })
     .made;

@@ -101,7 +101,7 @@ test("a chain's pace is one the sheet offers, as the database's CHECK holds it",
 test("each step is named and timed as the chain draws it", () => {
   assert.deepEqual([0, 1, 2].map(stepLabel), ["Your email", "A short nudge", "Email 3"]);
   assert.equal(stepWhenWords(0, null), "Day one, in their hours");
-  assert.equal(stepWhenWords(1, 4), "After 4 days with nothing back · in the same thread");
+  assert.equal(stepWhenWords(1, 4), "After 4 days with nothing back · in the same conversation");
 });
 
 test("Start says what really happened, each reason in its own words; within the hour only when the edge was not reached (R14)", () => {
@@ -110,7 +110,7 @@ test("Start says what really happened, each reason in its own words; within the 
     said("held", "waiting_for_you", 30),
     "Planned 30 emails. The first run waits on you: open it to approve.",
   );
-  assert.equal(said("held", "waiting_for_you", 0), "A run of this sequence already waits on you. Answer it first.");
+  assert.equal(said("held", "waiting_for_you", 0), "A run of this campaign already waits on you. Answer it first.");
   assert.equal(said("held", "billing"), "Saved. Nothing is planned until billing is sorted: open Billing.");
   assert.equal(
     said("held", "no_mailbox"),
@@ -140,7 +140,7 @@ test("Start says what really happened, each reason in its own words; within the 
   assert.equal(
     within.filter((t) => t.includes("within the hour")).length,
     0,
-    "only an edge that could not be reached says it",
+    "only an edge that couldn't be reached says it",
   );
 });
 
@@ -250,7 +250,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
   // Approve says the count it releases ("Approve all 30"); when it goes is the foot's, beside it.
   assert.equal(w.approve, "Approve all 30");
   assert.deepEqual([flat(w.dock.lead), w.dock.said], ["30 go from 9:40 AM", "1 held waits for you"]);
-  assert.equal(w.note, "Skipping loses this run only. The sequence keeps its place and asks again tomorrow.");
+  assert.equal(w.note, "Skipping loses this run only. The campaign keeps its place and asks again tomorrow.");
   assert.deepEqual(
     [w.heldHead, w.heldNote.closed, w.heldNote.gated],
     [
@@ -381,7 +381,7 @@ test("a run approved or going says the same facts in its state: going today, the
     ["Scheduled", "Goes from 9:40 AM", "Cancel keeps it from going"],
   );
   // Its head says what it waits for (the run-to-leads canvas): your OK.
-  assert.equal(live("pending_approval").k, "Waits for your OK");
+  assert.equal(live("pending_approval").k, "Waits for your approval");
   // A run its owner sends (00429): what is handed to them counts, from their own inbox, and its head says whose it is.
   const owner = live("sending", { owner_sends: true, mailboxes: [] });
   assert.deepEqual([owner.who, owner.count.words, owner.from], ["You send them", "for you to send", null]);
@@ -541,7 +541,7 @@ test("Templates says an email is a reach-out's and what sends it (R19); its word
     checkLabel: "What is checked before each send",
     checkNote:
       "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
-    edit: "Edit the sequence",
+    edit: "Edit the campaign",
   });
 });
 

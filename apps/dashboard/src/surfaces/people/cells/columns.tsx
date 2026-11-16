@@ -85,7 +85,7 @@ function PeopleRowActions({
           variant="quiet"
           size="sm"
           iconOnly
-          aria-label="Open the thread"
+          aria-label="Open the conversation"
           data-tip="Open the thread"
           onClick={open}
           data-testid="row-open-thread"

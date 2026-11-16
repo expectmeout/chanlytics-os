@@ -99,7 +99,11 @@ export interface ColdEmailNote {
   needs: ColdEmailPressNeeds;
 }
 
-/** What refuses a new sequence to leads with no mailbox to send it, on New, on Ask's card and at the door. */
+/**
+ * What refuses a new sequence to leads with no mailbox to send it, on New, on Ask's card and at the door. The database
+ * says the same sentence at its own door, and a database test holds the two equal, so its words change there first.
+ */
+// screen-word: the database's own sentence; a migration changes both
 export const COLD_EMAIL_NEEDS_MAILBOX =
   "Connect your mailbox first: a sequence to leads sends from your own address. Settings › Cold email has the way.";
 /** Ask's word where the mailboxes could not be read: nobody is told they have none on a read that failed. */
@@ -218,10 +222,10 @@ export function coldEmailCannotSendWhy(
     return `Your mailbox is paused to protect your name: ${mailboxHoldWords(held.held_why)}. Settings › Connections has what to fix.`;
   }
   if (mailboxes.some((m) => m.state === "reconnect")) {
-    return `Your mailbox needs reconnecting: ${SIGN_IN_ASKED} Reconnect it in Settings › Connections, then start your sequence.`;
+    return `Your mailbox needs reconnecting: ${SIGN_IN_ASKED} Reconnect it in Settings › Connections, then start your campaign.`;
   }
   if (mailboxes.some((m) => m.state === "paused")) {
-    return "Your mailbox is paused. Resume it in Settings › Connections, then start your sequence.";
+    return "Your mailbox is paused. Resume it in Settings › Connections, then start your campaign.";
   }
   return COLD_EMAIL_NEEDS_MAILBOX;
 }
@@ -249,7 +253,7 @@ const noMailboxAnswer: Rule = (f) =>
     ? {
         kind: "no_mailbox",
         headline: "Connect your mailbox to start sending",
-        detail: "Emails go out from your own address, so replies come back to you. A new sequence needs one.",
+        detail: "Emails go out from your own address, so replies come back to you. A new campaign needs one.",
         act: "Connect Google",
         to: null,
         needs_you: true,
@@ -275,7 +279,7 @@ const noAddressAnswer: Rule = (f) => {
 /** "Your first 12 emails are ready", "Your next email is ready", or with neither known, "Emails are ready". */
 function readyForOkWords(planned: number | null, first: boolean | null): string {
   const one = planned === 1;
-  const ready = one ? "is ready for your OK" : "are ready for your OK";
+  const ready = one ? "is ready for your approval" : "are ready for your approval";
   const what = one ? "email" : "emails";
   if (first === null) return planned === null ? `Emails ${ready}` : `${planned} ${what} ${ready}`;
   const size = planned === null || one ? "" : `${planned} `;
@@ -286,7 +290,7 @@ const waitingAnswer: Rule = (f) => {
   const run = f.waitingRun;
   if (!run) return null;
   const more = f.othersWaiting ?? 0;
-  const others = more > 0 ? ` ${plural(more, "other sequence waits", "other sequences wait")} too.` : "";
+  const others = more > 0 ? ` ${plural(more, "other campaign waits", "other campaigns wait")} too.` : "";
   return {
     kind: "waiting_ok",
     headline: readyForOkWords(run.planned, run.first),
@@ -319,13 +323,13 @@ const noOneNewAnswer: Rule = (f) => {
   const dry = f.running.filter((r) => r.waitingLeads === 0);
   const first = dry[0];
   if (!first) return null;
-  const more = dry.length > 1 ? ` ${plural(dry.length - 1, "other sequence is", "other sequences are")} the same.` : "";
+  const more = dry.length > 1 ? ` ${plural(dry.length - 1, "other campaign is", "other campaigns are")} the same.` : "";
   if (first.fed_by === "list")
     return {
       kind: "no_one_new",
       headline: `${first.name} has written to everyone on its list`,
       detail: `Its follow-ups keep going. Add people to its list to write to more.${more}`,
-      act: "Open the sequence",
+      act: "Open the campaign",
       to: first.root_id ? sequenceRoute(first.root_id) : "campaigns",
       needs_you: false,
       needs: null,
@@ -350,7 +354,7 @@ const pausedAnswer: Rule = (f) => {
   return {
     kind: "paused",
     headline: "Your mailbox is paused",
-    detail: `${run ? `${ready} ready for your OK. ` : ""}Nothing goes out until you resume it.`,
+    detail: `${run ? `${ready} ready for your approval. ` : ""}Nothing goes out until you resume it.`,
     act: "Open Connections",
     to: CONNECTIONS_PAGE,
     needs_you: run !== null,
@@ -380,11 +384,11 @@ const readyAnswer: Rule = (f) =>
   f.running.length === 0
     ? {
         kind: "ready",
-        headline: f.hadSequence ? "No sequence is running" : "Ready for your first sequence",
+        headline: f.hadSequence ? "No campaign is running" : "Ready for your first campaign",
         detail: f.hadSequence
           ? "Start one, or turn one back on in Campaigns."
           : "Pick who to write to, and AI writes the emails from your pitch. You approve the first run before anything goes out.",
-        act: "Start a sequence",
+        act: "Start a campaign",
         to: newForLeadsRoute(),
         needs_you: false,
         needs: "approve",

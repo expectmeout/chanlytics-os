@@ -383,6 +383,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST leads/[id]/later": leads,
   // Who a company's reach-out writes to (00430): the row's addressee, its address and that address's check.
   "POST leads/[id]/addressee": leads,
+  // A lead's name or city put right (00631): the row's name, its city and its facts, which every email's blanks read.
+  "POST leads/[id]/name": leads,
   // An add taken back (00426) skips its lead's planned email in a waiting run and takes it off the reach-out's list:
   // the run's counts and the reach-out's people move with the leads.
   "POST lead-operations/[id]/undo": () => [...leadsAnswered(), reachOutsOverride, broadcastsOverride],
@@ -712,7 +714,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST reach-outs/[id]/leads/check":
     "what an add would do (00426, dry): nothing is written; the caller says the answer",
   "POST sequences/[id]/leads/check":
-    "what an add to a sequence would do (00459, dry): nothing is written; the caller says the answer",
+    "what an add to a campaign would do (00459, dry): nothing is written; the caller says the answer",
   // Ask keeps its own thread and its cards; a card's own call goes through its verb's route, and that route's refresh.
   "POST ask": "a question: Ask draws its answer from the turn it streams",
   "POST ask/quick": "a quick answer kept as a turn: the Line holds the answer it drew and the thread it landed in",
@@ -765,7 +767,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
     "a look at what a number is, by the carrier's records, drawn in the calls tile that asked; nothing is kept",
   "POST reach-outs/preview": "a preview of a reach-out's email",
   "POST segments/draft": "a draft of a list's rule",
-  "POST sequences/draft": "a draft of a new sequence, shown in the pane that asked; nothing is made until it is kept",
+  "POST sequences/draft": "a draft of a new campaign, shown in the pane that asked; nothing is made until it is kept",
   "POST sequences/[id]/rewrite": "an email's words written again, handed back to the step's sheet; its save keeps them",
   "POST templates/draft": "a draft of a template's words",
   "POST templates/versions/rewrite":
@@ -773,7 +775,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST leads/check-again": "the checks are scheduled; each row moves as its check lands, through the live feed",
   // Their receptionist made (decision 0079): every reader of that lead reads again; Today's rows are who tried one.
   "POST leads/[id]/preview":
-    "the lead sheet reads that lead's line again after the press, for its Sequence line and its card's mark (sheet/fill-ins/preview-read.ts); no surface draws a preview",
+    "the lead sheet reads that lead's line again after the press, for its Campaign line and its card's mark (sheet/fill-ins/preview-read.ts); no surface draws a preview",
   // Somewhere else: the page leaves, or the provider's page opens.
   "POST billing/checkout": "Stripe's checkout opens; the return reads Billing again (billing.ts outcome)",
   "POST billing/portal": "Stripe's portal opens",

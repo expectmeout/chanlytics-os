@@ -189,5 +189,5 @@ export const FORWARDING_WAIT_WORDS = "Until it is set up, only calls to AI's own
 /** Why putting a row off, or back, did not start: nothing was saved, and the rows stay as they were. */
 export const SETUP_LATER_REFUSED = {
   reading: "Setting up is still being read. Try again in a moment.",
-  unread: "What you put off could not be read just now, so nothing changed. Try again in a moment.",
+  unread: "What you put off couldn't be read just now, so nothing changed. Try again in a moment.",
 } as const;

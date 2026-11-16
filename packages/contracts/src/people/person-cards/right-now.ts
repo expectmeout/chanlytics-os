@@ -324,7 +324,7 @@ export function rightNowOf({
 }: PersonCardContext): PersonRightNow {
   const threadTo = r.latest_conversation_id ? `inbox/th-${r.latest_conversation_id}` : null;
   // One door, one label: the header's "Open thread" and this card's "Open in Inbox" went to the same thread.
-  const openThread = threadTo ? { label: "Open the thread", to: threadTo } : null;
+  const openThread = threadTo ? { label: "Open the conversation", to: threadTo } : null;
   const queuedCard = (): PersonRightNow => {
     const q = ts(r.queued_reply_at);
     return {
@@ -378,7 +378,7 @@ export function rightNowOf({
     return {
       tone: "escalated",
       title: "Waiting for a person",
-      detail: "Stopped, and nobody has taken the thread yet.",
+      detail: "Stopped, and nobody has taken the conversation yet.",
       cta: openThread,
     };
   }
@@ -408,6 +408,6 @@ export function rightNowOf({
     tone: "answering",
     title: "Answering",
     detail: "New messages are answered automatically.",
-    cta: base.threadId ? { label: "Open the thread", to: `inbox/${base.threadId}` } : null,
+    cta: base.threadId ? { label: "Open the conversation", to: `inbox/${base.threadId}` } : null,
   };
 }

@@ -274,17 +274,17 @@ function doneWords(intent: ReplyIntent): string {
   switch (intent) {
     case "interested":
     case "question":
-      return "They are Talking now, and your sequence stops for them.";
+      return "They are Talking now, and your campaign stops for them.";
     case "not_now":
-      return "Your sequence stops for them. On the day they named, a step to write again is on Today, its note written.";
+      return "Your campaign stops for them. On the day they named, a step to write again is on Today, its note written.";
     case "no":
       return "They are marked Said no: nothing more will be written to them.";
     case "wrong_person":
-      return "Your sequence stops for them, and a step on Today names who to write to.";
+      return "Your campaign stops for them, and a step on Today names who to write to.";
     case "away":
-      return "Your sequence stops for them, and a step is on Today for the day they are back.";
+      return "Your campaign stops for them, and a step is on Today for the day they are back.";
     default:
-      return "Your sequence stops for them. Nothing is sent without you.";
+      return "Your campaign stops for them. Nothing is sent without you.";
   }
 }
 
@@ -300,7 +300,7 @@ function subjectOf(p: { intent: ReplyIntent; business: string; automatic: boolea
 
 /** What the platform may be told of a reading: its intent, never the business or their words. */
 function redactedReadAs(intent: ReplyIntent, unread: Unread | null): string {
-  if (unread) return "; the reply could not be read yet";
+  if (unread) return "; the reply couldn't be read yet";
   return intent === "other" ? "" : `, read as ${REPLY_INTENT_WORDS[intent]}`;
 }
 
@@ -330,22 +330,22 @@ export function replyNoticeWords(params: {
   const push = summary
     ? `${(summary[0] ?? "").toUpperCase()}${summary.slice(1)}${/[.!?]$/.test(summary) ? "" : "."}`
     : params.unread
-      ? "Their reply could not be read yet."
+      ? "Their reply couldn't be read yet."
       : "They wrote back.";
   const quote = params.quote.replace(/\s+/g, " ").trim();
   const body = [
     push,
     quote ? `“${withinChars(quote, REPLY_QUOTE_MAX)}”` : null,
     doneWords(intent),
-    intent === "no" ? "If that's a misreading, undo it on the thread within seven days." : null,
-    params.unread ? `It could not be read (${UNREAD_WORDS[params.unread]}), so it is read again later.` : null,
+    intent === "no" ? "If that's a misreading, undo it in the conversation within seven days." : null,
+    params.unread ? `It couldn't be read (${UNREAD_WORDS[params.unread]}), so it is read again later.` : null,
     params.draft ? `AI drafted an answer: “${draftExcerpt(params.draft)}” Nothing is sent without you.` : null,
-    params.signer ? `Signed ${params.signer} · Use this name on the thread.` : null,
+    params.signer ? `Signed ${params.signer} · Use this name in the conversation.` : null,
   ].filter((l): l is string => l !== null);
   return {
     subject: `${subjectOf({ intent, business, automatic: params.automatic })}${params.reread ? " (read again later)" : ""}`,
     body: body.join("\n"),
-    redacted: `A business wrote back to a workspace's sequence${redactedReadAs(intent, params.unread)}.`,
+    redacted: `A business wrote back to a workspace's campaign${redactedReadAs(intent, params.unread)}.`,
     push,
   };
 }

@@ -39,18 +39,18 @@ const run = (over = {}) => ({ id: "run-1", planned: 12, name: "Clinics · Austin
 
 test("a batch is said as many as it holds: one is an email, and a count not read says neither first nor next", () => {
   const said = (r) => coldEmailStandingOf(facts({ waitingRun: run(r) })).headline;
-  assert.equal(said({}), "Your first 12 emails are ready for your OK");
-  assert.equal(said({ first: false }), "Your next 12 emails are ready for your OK");
-  assert.equal(said({ planned: 1 }), "Your first email is ready for your OK");
-  assert.equal(said({ planned: 1, first: false }), "Your next email is ready for your OK");
-  assert.equal(said({ first: null }), "12 emails are ready for your OK");
-  assert.equal(said({ planned: 1, first: null }), "1 email is ready for your OK");
-  assert.equal(said({ planned: null, first: null }), "Emails are ready for your OK");
+  assert.equal(said({}), "Your first 12 emails are ready for your approval");
+  assert.equal(said({ first: false }), "Your next 12 emails are ready for your approval");
+  assert.equal(said({ planned: 1 }), "Your first email is ready for your approval");
+  assert.equal(said({ planned: 1, first: false }), "Your next email is ready for your approval");
+  assert.equal(said({ first: null }), "12 emails are ready for your approval");
+  assert.equal(said({ planned: 1, first: null }), "1 email is ready for your approval");
+  assert.equal(said({ planned: null, first: null }), "Emails are ready for your approval");
 });
 
 test("another sequence waiting is said beside the one named", () => {
   const s = coldEmailStandingOf(facts({ waitingRun: run(), othersWaiting: 2 }));
-  assert.match(s.detail ?? "", /2 other sequences wait too\.$/);
+  assert.match(s.detail ?? "", /2 other campaigns wait too\.$/);
   assert.equal(s.needs, "approve");
 });
 
@@ -69,7 +69,7 @@ test("no mailbox says what is true while an old by-hand sequence still runs, and
   const s = coldEmailStandingOf(facts({ mailboxes: [] }));
   assert.equal(s.kind, "no_mailbox");
   assert.doesNotMatch(s.detail ?? "", /Nothing can go out/);
-  assert.match(s.detail ?? "", /A new sequence needs one\./);
+  assert.match(s.detail ?? "", /A new campaign needs one\./);
   assert.equal(s.needs, "settings");
 });
 

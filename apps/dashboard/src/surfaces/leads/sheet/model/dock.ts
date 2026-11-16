@@ -48,7 +48,7 @@ export const LEAD_DOCK_WORDS = {
   notFit: "Not a fit",
   later: "Later",
   addTo: (name: string) => `Add to ${name}`,
-  addToOne: "Add to a sequence",
+  addToOne: "Add to a campaign",
   choose: "Choose where it goes",
   otherWays: "Other ways to answer",
   checking: "Checking the mailbox…",

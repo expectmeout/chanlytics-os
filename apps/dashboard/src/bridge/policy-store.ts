@@ -91,7 +91,7 @@ export const UI_ROWS: readonly UiRowMeta[] = [
     ...W("faq"),
     hints: {
       Auto: "answers from your business profile — a price only as your settings allow",
-      Ask: "tells them a person will get back with the details, and lands the thread in Needs you",
+      Ask: "tells them a person will get back with the details, and lands the conversation in Needs you",
     },
   },
   {
@@ -100,7 +100,7 @@ export const UI_ROWS: readonly UiRowMeta[] = [
     ...W("booking"),
     hints: {
       Auto: "sends your booking link when they want to book, move or cancel",
-      Ask: "tells them a person will confirm, never sends the link, and lands the thread in Needs you",
+      Ask: "tells them a person will confirm, never sends the link, and lands the conversation in Needs you",
     },
   },
   { id: "reengage", cls: "reengage", ...W("reengage") },
@@ -117,7 +117,7 @@ export const UI_ROWS: readonly UiRowMeta[] = [
       Auto: "answers each new review on Google within the hour, in the business's name — never about money",
       // Holds it and Ask me write each reply ahead and hold it on Reports (decision 0064, step 6).
       Veto: "writes each reply and posts it after 30 minutes on Reports, unless you stop it — never about money",
-      Ask: "writes each reply and holds it on Reports for your OK; you send it",
+      Ask: "writes each reply and holds it on Reports for your approval; you send it",
       Never: "writes nothing; you reply in your own words",
     },
   },

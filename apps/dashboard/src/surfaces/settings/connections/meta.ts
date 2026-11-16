@@ -20,7 +20,7 @@ const OUTCOME_WORDS: Readonly<Record<string, string>> = {
   connected: "Meta is connected — AI answers the account's DMs through it now.",
   declined: "Meta did not connect: the sign-in was declined.",
   state_expired: "The way back from Meta took too long. Start the connection again.",
-  state_signature: "The way back from Meta could not be verified. Start the connection again.",
+  state_signature: "The way back from Meta couldn't be verified. Start the connection again.",
   state_missing: "The way back from Meta was incomplete. Start the connection again.",
   state_malformed: "The way back from Meta was incomplete. Start the connection again.",
   not_owner: "Only an owner or a manager can connect Meta.",
@@ -32,7 +32,7 @@ const OUTCOME_WORDS: Readonly<Record<string, string>> = {
     "Meta did not say which Instagram account was shared. Start again and choose your professional account.",
   instagram_accounts_several:
     "That sign-in shared several Instagram accounts. Start again and choose only this workspace's account.",
-  subscribe_failed: "Chanlytics could not subscribe to the account's messages. Try again in a moment.",
+  subscribe_failed: "Chanlytics couldn't subscribe to the account's messages. Try again in a moment.",
   meta_off: "Connecting Meta is not offered in this workspace yet.",
   not_available: "Connecting Meta is not available here yet.",
 };

@@ -321,3 +321,52 @@ test("a claim refused is the door's own words: someone's own already, ended, non
   const { ctx } = session();
   await assert.rejects(claimWith(ctx, "not-a-token"), (e) => e.status === 400, "a body that is no link");
 });
+
+/* ---- keeping it takes no password (the canvas's call P10) ---- */
+
+/** A sign-up with no password in it, from a fresh network and address each time. */
+const signUpByCode = (body) => (
+  setRateStore(memoryStore()),
+  signupRoute.POST(
+    new Request("http://localhost/api/v1/signup", {
+      method: "POST",
+      headers: { ...SAME, "content-type": "application/json" },
+      body: JSON.stringify({ name: "Fixture Barbers", ...body }),
+    }),
+  )
+);
+
+test("from a live preview's link an account is made with no password: a code is emailed, and what the form said rides on it", async () => {
+  world();
+  wire = [];
+  const res = await signUpByCode({ email: "owner@fixture.example", preview: TOKEN });
+  const body = await res.json();
+  assert.equal(res.status, 200, JSON.stringify(body));
+  assert.deepEqual(body.data, { sent: true, next: null }, "the same answer a sign-up with a password gets");
+  assert.equal(wire.filter((w) => w.path === "/auth/v1/signup").length, 0, "no account with a password is asked for");
+  const codes = wire.filter((w) => w.path === "/auth/v1/otp");
+  assert.equal(codes.length, 1);
+  assert.equal(codes[0].body.email, "owner@fixture.example");
+  assert.equal(codes[0].body.create_user, true, "a new address gets its account as its code is sent");
+  assert.equal("password" in codes[0].body, false);
+  assert.deepEqual(codes[0].body.data[PENDING_WORKSPACE_KEY], {
+    name: "Fixture Barbers",
+    timezone: null,
+    preview: TOKEN,
+  });
+});
+
+test("no password is a live preview's alone: with no link, or one that is none, the door still asks for one", async () => {
+  setEnv({ SIGNUP_CODE: undefined });
+  world();
+  wire = [];
+  const plain = await signUpByCode({ email: "owner@fixture.example" });
+  assert.equal(plain.status, 400, "sign-up's own form still takes a password");
+  const dead = await signUpByCode({ email: "owner@fixture.example", preview: "NoSuchLinkNoSuchLink01" });
+  assert.equal(dead.status, 400, "a link that names nothing opens nothing");
+  assert.deepEqual(
+    wire.filter((w) => w.path === "/auth/v1/otp" || w.path === "/auth/v1/signup"),
+    [],
+    "and nobody is made or written to",
+  );
+});

@@ -206,7 +206,7 @@ export const LEAD_IMPORT_WORDS = {
   importLine: "A name and an email on each row.",
   importMore: "What a row can hold",
   importRest:
-    "A phone, a website, a city or a state, where you have them. Every address is checked before a sequence may write to it.",
+    "A phone, a website, a city or a state, where you have them. Every address is checked before a campaign may write to it.",
   file: "Choose a CSV file",
   paste: "Or paste the rows",
   pastePlaceholder: "Business,Email,Website,City,State\nZilker Kettlebell Club,hello@example.com,example.com,Austin,TX",
@@ -217,11 +217,11 @@ export const LEAD_IMPORT_WORDS = {
   costs: "Each address that checks out counts as one of this month's leads, as a found lead does.",
   tooMany: `A list takes at most ${LEAD_LIST_MAX} rows. Split the file and import the rest as another list.`,
   tooBig: `That file is larger than ${LEAD_IMPORT_MAX_BYTES / 1_000_000} MB, more than a list of ${LEAD_LIST_MAX} rows needs. Split it and import each part as a list of its own.`,
-  unreadable: "That file could not be read. Save it again as a CSV and choose it once more, or paste its rows.",
+  unreadable: "That file couldn't be read. Save it again as a CSV and choose it once more, or paste its rows.",
   nothing: "No row has both a business name and an email address, so there is nothing to import.",
-  failed: "The list could not be imported. Nothing was written.",
+  failed: "The list couldn't be imported. Nothing was written.",
   write: "Write to them",
-  writeHint: "The chosen leads become a list of their own, and a sequence opens on it.",
+  writeHint: "The chosen leads become a list of their own, and a campaign opens on it.",
   writing: "Making the list…",
   searchAgain: "A list of your own is not searched again. Start a new search to find more businesses.",
 } as const;
@@ -365,7 +365,7 @@ export function leadListStripOf(state: { via?: string | null; round: LeadSearchR
     state: "ended",
     alert: false,
     title: `${qualified.toLocaleString()} of ${(qualified + review).toLocaleString()} on your list are ready`,
-    parts: review ? [`${review.toLocaleString()} could not be confirmed and wait in Needs review`] : [],
+    parts: review ? [`${review.toLocaleString()} couldn't be confirmed and wait in Needs review`] : [],
     progress: null,
     actions: pile,
   };

@@ -187,7 +187,7 @@ export const REHEARSE_WORDS = {
     mic: "Allow the microphone when your browser asks: it's how it hears you.",
     micBlocked: "Your browser blocked the microphone. Allow it in the address bar, or type instead.",
     dropped: "The call dropped. What was said is kept: see how it did, or call again.",
-    failed: "The call could not start. Nothing was spent; try again, or type instead.",
+    failed: "The call couldn't start. Nothing was spent; try again, or type instead.",
     ended: "Call ended",
     listening: "It's listening",
     notLive: "Calls in the browser answer on the live app only.",

@@ -75,7 +75,7 @@ export interface DealPerson {
 
 /** Why the proposal cannot go now, one sentence each (0008). */
 export const DEAL_SEND_WHY = {
-  window: "Their WhatsApp window has closed. Record it now, and send it from their thread when they write next.",
+  window: "Their WhatsApp window has closed. Record it now, and send it from their conversation when they write next.",
   stopped: "They asked not to be messaged.",
   // The Replies row's own sentence (person-reach.ts), not a second one.
   emailStopped: EMAIL_CANT_REACH,
@@ -135,7 +135,7 @@ export function proposalFollowUp(url: string): string {
 /** What an act does, said on hover where it needs saying. Its label is DEAL_ACT_WORDS' (deals.ts). */
 export const DEAL_ACT_HINTS = {
   /** A send where only an approved message can go: it opens their thread, which offers those. */
-  approved: "Only an approved message reaches them until they write again; their thread offers those",
+  approved: "Only an approved message reaches them until they write again; their conversation offers those",
 } as const;
 
 export interface DealAct {

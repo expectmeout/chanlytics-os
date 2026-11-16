@@ -271,7 +271,7 @@ export function SequenceRecord({ id, tab, over = false }: SequenceRecordProps) {
         testid="sq-record"
       >
         {read.state === "failed" ? (
-          <FailedRead what="this sequence" why={read.why} onRetry={moved} testid="sq-record-failed" />
+          <FailedRead what="this campaign" why={read.why} onRetry={moved} testid="sq-record-failed" />
         ) : (
           <div className="route-reading sq-reading" role="status" aria-busy="true">
             {LIFECYCLE_WORDS.reading}

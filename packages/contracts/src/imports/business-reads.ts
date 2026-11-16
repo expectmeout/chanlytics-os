@@ -218,7 +218,7 @@ export const WEBSITE_READ_SYSTEM = [
   "rules: booking rules in a short sentence each (a deposit, cancelling or rescheduling, arriving late, age, what to bring).",
   "answers: questions the pages answer, each the question and its answer in a sentence or two.",
   "description: one short paragraph of what the business says of itself, in its own words, or null.",
-  "film: three short clips its owner could film on a phone to show what the pages say the business does, each what (the shot, a few words) and how (where to stand or how long, a few words). Never a face up close. Empty where the pages say too little.",
+  "film: three short clips its owner could film on a phone to show what the pages say the business does, each what (the shot, five words at most), how (where to hold the phone, one short sentence, never how long) and seconds (how long to film it, a whole number). Never a face up close. Empty where the pages say too little.",
 ].join("\n");
 
 /** The JSON schema the reading answers in (Anthropic's structured output), the shape businessReadFactsOf reads. */
@@ -265,21 +265,32 @@ export const WEBSITE_READ_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["what", "how"],
-        properties: { what: { type: "string" }, how: { type: "string" } },
+        required: ["what", "how", "seconds"],
+        properties: { what: { type: "string" }, how: { type: "string" }, seconds: { type: ["integer", "null"] } },
       },
     },
   },
 } as const;
 
-/** One clip to film, as the website's read wrote it for this business (Content's empty state: "For a video, film these three"). */
+/** One clip to film, as the website's read wrote it for this business (Content's empty state: "Film 3 clips for a video"). */
 export interface FilmShot {
+  /** The shot, in a few words: the line a person reads first. */
   what: string;
+  /** Where to hold the phone. */
   how: string;
+  /** How long to film it; null where the read said none (every read before 16 Nov 2026 said it in `how`). */
+  seconds: number | null;
 }
 
 /** The most shots a read keeps. */
 const FILM_SHOTS_MAX = 3;
+
+/** The longest clip a shot may ask for: past it the number is not a clip's. */
+const FILM_SECONDS_MAX = 120;
+
+/** A shot's seconds, a whole number from 1 to FILM_SECONDS_MAX, or null. */
+const filmSecondsOf = (raw: unknown): number | null =>
+  typeof raw === "number" && Number.isInteger(raw) && raw >= 1 && raw <= FILM_SECONDS_MAX ? raw : null;
 
 /** The shots a read's answer wrote, cleaned and at most FILM_SHOTS_MAX; none where it wrote none. */
 export function filmShotsOf(raw: unknown): FilmShot[] {
@@ -290,7 +301,7 @@ export function filmShotsOf(raw: unknown): FilmShot[] {
       const shot = isObjectRecord(x) ? x : {};
       const subject = cleanText(shot.what, 80);
       const way = cleanText(shot.how, 80);
-      return subject && way ? [{ what: subject, how: way }] : [];
+      return subject && way ? [{ what: subject, how: way, seconds: filmSecondsOf(shot.seconds) }] : [];
     })
     .slice(0, FILM_SHOTS_MAX);
 }

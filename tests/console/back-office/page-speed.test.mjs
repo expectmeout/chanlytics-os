@@ -110,7 +110,7 @@ test("a part that opens one thing at a time is timed from the press that opened 
     { name: "READY", value: 100, page: "inbox", part: "thread", from: "today", warm: true },
     { name: "READY", value: 140, page: "inbox", part: "thread", from: "inbox", warm: false },
   ]);
-  assert.equal(rig.reports.filter((r) => !r.part).length, 0, "a thread opened is never the page's own READY");
+  assert.equal(rig.reports.filter((r) => !r.part).length, 0, "a conversation opened is never the page's own READY");
 });
 
 test("a part first begun once its page was drawn is timed from the press that opened it, never from the page's start", () => {
@@ -517,7 +517,7 @@ test("the card: each page by its moves and loads, slowest first; the parts drawn
     vm.parts.map((p) => [p.label, p.value]),
     [
       ["Today · Worth a look", "1.4 s"],
-      ["Inbox · a thread opened", "90 ms"],
+      ["Inbox · a conversation opened", "90 ms"],
     ],
   );
   assert.equal(vm.parts[0].hint, "1.4 s · 20 times drawn · waits on contacts");
@@ -527,7 +527,7 @@ test("the card: each page by its moves and loads, slowest first; the parts drawn
     "a tap fewer than ten times said is an anecdote",
   );
   assert.deepEqual(vm.shifts, [], "a shift too small to feel is not named");
-  assert.equal(pageSpeedWords(null).sentence, "Where the pages' time goes could not be read just now.");
+  assert.equal(pageSpeedWords(null).sentence, "Where the pages' time goes couldn't be read just now.");
   assert.equal(
     pageSpeedWords({ rows: [], spots: [] }).sentence,
     "Not enough pages have said where their time went in the last 7 days.",

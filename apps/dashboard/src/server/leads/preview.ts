@@ -9,8 +9,15 @@ import "server-only";
  *   makeLeadPreviewFor  POST leads/:id/preview, Make their preview: asked of the edge's door (askPreview, the sender's
  *                       own way, its switch with it), then the line read again
  */
-import { AppError, leadCalledByOf, type LeadPreviewDto } from "@chanlytics/contracts";
-import { findLeadForPreview, findLeadPreview, doesMakePreviews, type LeadPreviewRow } from "@chanlytics/db/campaigns";
+import { AppError, PREVIEW_LIMITS, SECOND_MS, leadCalledByOf, type LeadPreviewDto } from "@chanlytics/contracts";
+import {
+  countLeadPreviewsSince,
+  findLeadForPreview,
+  findLeadPreview,
+  doesMakePreviews,
+  type LeadPreviewRow,
+} from "@chanlytics/db/campaigns";
+import { logAndGoOn } from "@chanlytics/log";
 import { callEdge, edgeRefusalWords } from "../shared/edge";
 import type { RouteContext } from "../shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
@@ -43,12 +50,44 @@ type LeadForPreview = NonNullable<Awaited<ReturnType<typeof findLeadForPreview>>
  * answer before the email that would ask it goes.
  */
 function previewCannotOf(
-  lead: Pick<LeadForPreview, "kind" | "stage" | "business_name" | "city">,
+  lead: Pick<LeadForPreview, "kind" | "stage" | "business_name" | "city" | "facts">,
 ): NonNullable<LeadPreviewDto["cannot"]> | null {
   if (lead.kind !== "place") return "not_a_business";
   if (lead.stage !== "ready" && lead.stage !== "nurture") return "closed";
   const name = leadCalledByOf(lead) ?? lead.business_name;
   return name.trim().length < 2 ? "no_name" : null;
+}
+
+/** How long the edge's standing door is waited for: the sheet's line is not held up by a slow answer about a switch. */
+const STANDING_WAIT_MS = 2 * SECOND_MS;
+
+/**
+ * Whether none is being made for anyone just now, as the edge's standing door says its switch. Only a plain "off" is
+ * believed: an older edge with no such door, one that could not be reached, or an answer that says nothing of it claims
+ * nothing, and the line reads as it did before.
+ */
+async function arePreviewsPaused(ctx: Ctx, tenantId: TenantId): Promise<boolean> {
+  const answer = await callEdge("/api/admin/previews/standing", null, {
+    workspace: tenantId,
+    user: ctx.userId,
+    method: "GET",
+    timeoutMs: STANDING_WAIT_MS,
+  });
+  return answer.status === 200 && answer.body?.on === false;
+}
+
+/**
+ * Whether this workspace's day of previews is all made (contracts PREVIEW_LIMITS.aDay), over the UTC day now is in, as
+ * the edge counts it (its previewDayFull): so the card says the email waits for tomorrow before it does. A count that
+ * cannot be read claims nothing.
+ */
+async function isPreviewDayFull(ctx: Ctx, tenantId: TenantId): Promise<boolean> {
+  const now = new Date();
+  const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const madeToday = await countLeadPreviewsSince(ctx.supabase, tenantId, day.toISOString()).catch(
+    logAndGoOn("counting the day's previews for a lead's card", 0),
+  );
+  return madeToday >= PREVIEW_LIMITS.aDay;
 }
 
 export async function getLeadPreview(ctx: Ctx, tenantId: TenantId, leadId: string): Promise<LeadPreviewDto> {
@@ -58,7 +97,12 @@ export async function getLeadPreview(ctx: Ctx, tenantId: TenantId, leadId: strin
   ]);
   // The lead is read only where one would be made for it: a workspace that makes them, and none made yet.
   const lead = !row && makes ? await findLeadForPreview(ctx.supabase, tenantId, leadId) : null;
-  return { preview: row ? previewFactsOf(row) : null, makes, cannot: lead ? previewCannotOf(lead) : null };
+  const cannot = lead ? previewCannotOf(lead) : null;
+  // The switch is asked only where its answer changes what is said: a lead that would otherwise get one.
+  const paused = lead && !cannot ? await arePreviewsPaused(ctx, tenantId) : false;
+  // The day's limit likewise: counted only for a lead that would get one today.
+  const full = lead && !cannot && !paused ? await isPreviewDayFull(ctx, tenantId) : false;
+  return { preview: row ? previewFactsOf(row) : null, makes, cannot, paused, full };
 }
 
 /** The edge door's refusals, said in its words: none such, not a workspace of ours, or the door's own (switched off). */

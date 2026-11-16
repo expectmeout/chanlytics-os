@@ -234,7 +234,7 @@ function onePlayer(w: SpeechWindow) {
 
 /** Why a clip could not be made, in the server's words where it gave some. */
 const clipRefusal = (e: unknown): string =>
-  e instanceof Error && e.message ? e.message : "AI's voice could not be reached just now.";
+  e instanceof Error && e.message ? e.message : "AI's voice couldn't be reached just now.";
 
 /** What is being read, with anything going. */
 const readingWhile = (state: SpeechState, reading: SpeechPurpose | null): SpeechPurpose | null =>

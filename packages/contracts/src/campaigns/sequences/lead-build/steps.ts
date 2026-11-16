@@ -62,7 +62,7 @@ export const LEAD_BUILD_WORDS = {
   done: "Done",
   subject: "Subject",
   email: "Email",
-  inThread: "It answers the email before it, in the same thread: no subject.",
+  inThread: "It answers the email before it, in the same conversation: no subject.",
   insert: "Insert",
   askRewrites: "AI rewrites it",
   rewriteChange: "What should change?",
@@ -151,7 +151,7 @@ export const LEAD_BUILD_WORDS = {
     noAddress: "Add your address in Settings › Details: every email carries it at the foot.",
     /** The mailboxes it writes from (0077, D4): a tick each, one always kept. */
     everyMailbox: "Every mailbox, and any you connect later",
-    keepOne: "One has to send. To stop them all, pause the sequence.",
+    keepOne: "One has to send. To stop them all, pause the campaign.",
     newMailbox: "New",
     dnsMissing: (records: readonly string[]) => `${records.map((r) => r.toUpperCase()).join(" and ")} missing`,
     setUpDns: "Set up DNS",
@@ -170,7 +170,7 @@ export const LEAD_BUILD_WORDS = {
     once: "Written to once. This stays off unless you turn it on.",
     againOn:
       "With new words, written from their listing as it is then. Never to anyone who said no, became a customer, or asked to be erased.",
-    againAsks: "The new words wait for your OK first, like any new words.",
+    againAsks: "The new words wait for your approval first, like any new words.",
     /** Who would come back, and from when: "8 businesses would come back in February." */
     comeBack: (n: number, month: string | null) =>
       n === 0

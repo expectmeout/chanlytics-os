@@ -91,7 +91,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
     "Took over a call · passed to the business's line",
     "the Inbox's verb on a call, and never the number",
   );
-  assert.equal(activityWords("take_over", { paused_until: "2026-09-14T15:00:00Z" }), "Took over a thread");
+  assert.equal(activityWords("take_over", { paused_until: "2026-09-14T15:00:00Z" }), "Took over a conversation");
   assert.equal(activityWords("resume_agent", { receptionist_mode: "inherit" }), "Resumed AI · follows the workspace");
   assert.equal(
     activityWords("send_broadcast", { name: "Spring offer", recipients: 40, approved: true }),
@@ -413,7 +413,11 @@ test("filters: a kind by name (noise included when asked), a person with their t
   const verb = await route.GET.run(get("&kind=export"), ctxFor(tables(), rpcs));
   assert.deepEqual(ids(verb), ["d-d3"], "this workspace's only");
   const person = await route.GET.run(get(`&person=${P1}`), ctxFor(tables(), rpcs));
-  assert.deepEqual(ids(person), ["d-d2", "d-d1", "e-e4"], "their own row, their thread's decision, their call's event");
+  assert.deepEqual(
+    ids(person),
+    ["d-d2", "d-d1", "e-e4"],
+    "their own row, their conversation's decision, their call's event",
+  );
   const day = await route.GET.run(get("&day=2026-09-11"), ctxFor(tables(), rpcs));
   assert.deepEqual(
     ids(day),
@@ -876,15 +880,15 @@ test("a message held at the wire, or that failed, says why where its event carri
   // message.send_failed: { http_status?, body, reason, outcome? }. The provider's own words are on the message, not here.
   assert.equal(
     activityWords("message.send_failed", { http_status: 400, body: '{"error":{"code":131047}}', reason: "provider" }),
-    "A message could not be sent · the provider refused it",
+    "A message couldn't be sent · the provider refused it",
   );
   assert.equal(
     activityWords("message.send_failed", { http_status: 0, body: "timeout", reason: "provider" }),
-    "A message could not be sent · the provider gave no answer",
+    "A message couldn't be sent · the provider gave no answer",
   );
   assert.equal(
     activityWords("message.send_failed", { http_status: 0, body: "timeout", reason: "provider", outcome: "unknown" }),
-    "A message could not be sent · the provider didn't answer in time, so it may have gone",
+    "A message couldn't be sent · the provider didn't answer in time, so it may have gone",
   );
   assert.equal(
     activityWords("message.send_failed", {
@@ -892,14 +896,14 @@ test("a message held at the wire, or that failed, says why where its event carri
       outcome: "refused",
       body: '{"errors":[{"code":131047}]}',
     }),
-    "A message could not be sent · the provider reported it as not delivered, after taking it",
+    "A message couldn't be sent · the provider reported it as not delivered, after taking it",
     "a failure the provider reported after taking the message (#1415)",
   );
   assert.equal(
     activityWords("message.send_failed", { http_status: 503, body: "no_credentials", reason: "no_credentials" }),
-    "A message could not be sent · the channel has no credentials to send with",
+    "A message couldn't be sent · the channel has no credentials to send with",
   );
-  assert.equal(activityWords("message.send_failed", { reason: "something_new" }), "A message could not be sent");
+  assert.equal(activityWords("message.send_failed", { reason: "something_new" }), "A message couldn't be sent");
 });
 
 /* ------------------------- folds, names, and who did it ------------------------- */
@@ -1141,7 +1145,7 @@ test("a row says who or what it is about by name, an event names the member its 
       [`call:${K1}`]: "Dana Ortiz",
       "list:seg1": "Regulars",
     },
-    "a person by their name, their thread and their call by it too, a list by its own; a workspace, a message and a line by none",
+    "a person by their name, their conversation and their call by it too, a list by its own; a workspace, a message and a line by none",
   );
   const changed = r.rows.find((x) => x.id === "e-e9");
   assert.equal(changed.actor_user_id, U_BO, "REGRESSION: an event's own `by` was read as nobody");
@@ -1203,10 +1207,10 @@ test("the log is narrowed to a family, to what went wrong, to AI's own, and to a
 
 test("what the ledgers never kept is said in an owner's words: a thread handed over, a member joining, a playbook or a message changed, answering switched on or off, and Meta's own news", () => {
   assert.equal(
-    activityWords("escalation.opened", { reason: "callback" }).startsWith("A thread was handed to the team · "),
+    activityWords("escalation.opened", { reason: "callback" }).startsWith("A conversation was handed to the team · "),
     true,
   );
-  assert.equal(activityWords("escalation.opened", {}), "A thread was handed to the team");
+  assert.equal(activityWords("escalation.opened", {}), "A conversation was handed to the team");
   assert.equal(activityWords("member.joined", { by: "u1", role: "operator" }), "Joined the workspace · as operator");
   assert.equal(
     activityWords("playbook.changed", { name: "Win-back", by: "u1", fields: ["message", "channels"] }),
@@ -1264,7 +1268,7 @@ test("what the ledgers never kept is said in an owner's words: a thread handed o
   ])
     assert.equal(activityFamily(kind), family, kind);
   assert.equal(activityTone("capability.deactivated"), "warn");
-  assert.ok(!ACTIVITY_FOLD_KINDS.includes("escalation.opened"), "each thread handed over is its own news");
+  assert.ok(!ACTIVITY_FOLD_KINDS.includes("escalation.opened"), "each conversation handed over is its own news");
   // Meta's seven, each in words: none reads as its field.
   for (const k of ACTIVITY_KINDS.filter((x) => x.startsWith("channel.")))
     assert.ok(!activityWords(k, {}).startsWith("Channel · "), `${k} has words of its own`);
@@ -1278,7 +1282,7 @@ test("a thread handed to the team is on the ledger: the one writer of an escalat
   assert.deepEqual(
     world.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
     [[A, "escalation.opened", "conversation", C1, { reason: "callback" }]],
-    "REGRESSION: the activity log had no line for a thread AI handed over",
+    "REGRESSION: the activity log had no line for a conversation AI handed over",
   );
 });
 
@@ -1315,13 +1319,13 @@ test("a message and an escalation are their thread's person's, and a deal its pe
   assert.deepEqual(
     r.doors,
     { "message:msg1": `inbox/th-${C1}`, "deal:deal1": `clients/${P1}` },
-    "REGRESSION: a message that could not be sent opened nothing; a subject nothing is read for has no door",
+    "REGRESSION: a message that couldn't be sent opened nothing; a subject nothing is read for has no door",
   );
   const named = await route.GET.run(get("&kind=escalation.changed"), ctxFor(t, rpcs));
   assert.deepEqual(
     [named.subjects["escalation:esc1"], named.doors["escalation:esc1"]],
     ["Dana Ortiz", `inbox/th-${C2}`],
-    "an escalation is its thread's: named by its person, and it opens the thread",
+    "an escalation is its conversation's: named by its person, and it opens the conversation",
   );
 });
 
@@ -1351,7 +1355,7 @@ test("the second batch of what the ledgers never kept reads in an owner's words:
     activityWords("member.left", { by: "u1", how: "account_deleted" }),
     "Left the workspace · deleted their account",
   );
-  assert.equal(activityWords("reach_out.lead_stopped", { by: "u1" }), "A sequence stopped writing to a lead");
+  assert.equal(activityWords("reach_out.lead_stopped", { by: "u1" }), "A campaign stopped writing to a lead");
   assert.equal(
     activityWords("reach_out.lead_words_changed", { step_id: "s1", kept: true, by: "u1" }),
     "An email to a lead was changed for that lead",

@@ -13,7 +13,7 @@ import {
 import { isSameOrigin } from "@/server/shared/request-guards";
 import { takeRate } from "@/server/shared/rate-limit";
 import { ipOf, hashKey as hash } from "@/server/shared/request-ip";
-import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/workspace/signup";
+import { inviteCodeMatches, joinWaitlist, signUp, signUpByCode } from "@/server/workspace/signup";
 import { findPreviewForSignup } from "@/server/previews/claim";
 import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
@@ -89,14 +89,22 @@ export async function POST(req: Request): Promise<Response> {
     // browser's answer and the server's answer cannot drift.
     // Asked as the NARROWING half, so what reaches `signUp` is a string the
     // type system has been told about rather than one this file asserts.
-    if (!isUsablePassword(input.password)) {
+    //
+    // The one account made with NO password is a preview's (decision 0079, the canvas's call P10): its live link was
+    // checked above, and the code that proves the address is its way in, as it is at every sign-in after. A password
+    // sent with a preview is a page from before this, and is taken as it always was.
+    const byCode = !!preview && input.password === undefined;
+    if (!byCode && !isUsablePassword(input.password)) {
       throw new AppError("validation", passwordProblem(input.password) ?? "Choose a password.");
     }
     if (posture === "invite" && !inviteCodeMatches(input.code)) throw new AppError("forbidden", SIGNUP_WORDS.codeWrong);
     // Narrowing a PROPERTY does not re-type the object that holds it, so the
     // proved password is handed over explicitly rather than passing `input`
     // and asserting. No cast, and the compiler keeps the guarantee.
-    const out = await signUp({ ...input, password: input.password, preview });
+    const out =
+      byCode || input.password === undefined
+        ? await signUpByCode({ ...input, preview })
+        : await signUp({ ...input, password: input.password, preview });
     log.info("signup", { created: out.created, code_unsent: out.codeUnsent, ms: Date.now() - started });
     // THE CODE IS THE ONLY WAY IN, so a send WE could not make is worth saying.
     // The usual answer stays deliberately opaque -- whether an address is already

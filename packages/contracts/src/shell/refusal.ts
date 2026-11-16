@@ -122,7 +122,7 @@ const REASON_WORDS: ReadonlyMap<string, string> = new Map([
 const SERVER_CATCH_ALL = "Something went wrong.";
 
 const NETWORK_WRITE = "Network error — nothing was changed.";
-const NETWORK_READ = "Chanlytics could not be reached.";
+const NETWORK_READ = "Chanlytics couldn't be reached.";
 const TIMEOUT_WRITE = "Chanlytics took too long to answer — this may still go through, so check before trying again.";
 const TIMEOUT_READ = "Chanlytics took too long to answer — try again in a moment.";
 const NO_ANSWER_WRITE =

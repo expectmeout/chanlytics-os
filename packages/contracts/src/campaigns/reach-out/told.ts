@@ -72,8 +72,8 @@ const PART = {
     row: "reply_offer",
     door: null,
   },
-  thread: { label: "The thread", note: "Their reply, and the email it answers", row: null, door: null },
-  note: { label: "The lead's note", note: "Who they are, and how the sequence signs", row: null, door: null },
+  thread: { label: "The conversation", note: "Their reply, and the email it answers", row: null, door: null },
+  note: { label: "The lead's note", note: "Who they are, and how the campaign signs", row: null, door: null },
 } as const;
 export type ToldPartId = keyof typeof PART;
 

@@ -529,7 +529,7 @@ export function SheetEmail(p: {
               className="lw-link q"
               onClick={() => void box.back(edit)}
               data-testid="lead-sheet-own-back"
-              {...gate("approve", "put the sequence's words back")}
+              {...gate("approve", "put the campaign's words back")}
             >
               {B.back}
             </LinkButton>
@@ -580,7 +580,7 @@ export function SheetBoxDock(p: { box: EmailBox; run: SheetRun | null; flash: Fl
           onMouseDown={keepKeys}
           onClick={() => void box.back()}
           data-testid="lead-sheet-box-back"
-          {...gate("approve", "put the sequence's words back")}
+          {...gate("approve", "put the campaign's words back")}
         >
           <span className="lw-dock-w">{B.back}</span>
         </Button>

@@ -87,7 +87,7 @@ test("the Inbox, People, the Pipeline and the Calendar: what the page said it dr
     { kind: "thread", id: U(2) },
   ]);
   assert.equal(inbox.view, "needs");
-  assert.deepEqual(inbox.focus, { kind: "thread", id: U(2), label: "this thread" }, "the row the route opens");
+  assert.deepEqual(inbox.focus, { kind: "thread", id: U(2), label: "this conversation" }, "the row the route opens");
   assert.deepEqual(ctx({ __askOnScreen: shown }, "clients").rows, [], "the Inbox's rows are not People's");
   const people = ctx({ __askOnScreen: { key: "people", ids: [U(3)], labels: ["Luis"], view: "seg:vip" } }, "clients");
   assert.deepEqual([people.rows, people.view], [[{ kind: "person", id: U(3) }], "seg:vip"]);
@@ -238,7 +238,7 @@ test("Campaigns is Sequences (decision 0060): its rows are the list's in its ord
   assert.deepEqual(ctx({}, `campaigns/sequences/${U(8)}`).focus, {
     kind: "sequence",
     id: U(8),
-    label: "this sequence",
+    label: "this campaign",
   });
   // A link kept from the home still names its campaign as it lands on its sequence (contracts scopeFromRoute).
   assert.deepEqual(ctx({}, `campaigns/moment:${U(1)}`).focus, { kind: "playbook", id: U(1), label: "this campaign" });
@@ -355,7 +355,7 @@ test("the row the words name: by its place, in English or Spanish, or by its nam
   assert.equal(f("what did the second one say?"), U(2));
   assert.equal(f("¿qué dijo el segundo?"), U(2));
   assert.equal(f("la tercera"), U(3));
-  assert.equal(f("open the first thread"), U(1), "a row's noun after the place");
+  assert.equal(f("open the first conversation"), U(1), "a row's noun after the place");
   assert.equal(f("reply to #1"), U(1));
   assert.equal(f("and number 3?"), U(3));
   assert.equal(f("what did rosa diaz ask for"), U(1), "two words: case and accents aside");
@@ -389,7 +389,11 @@ test("the row the words name: by its place, in English or Spanish, or by its nam
   // Through the page, asked in no thread: the words name a row, over the route's own.
   const g = { __askOnScreen: { key: "inbox", ids: [U(1), U(2)], labels: ["Rosa Díaz", "Ana"] } };
   assert.deepEqual(ctx(g, `inbox/th-${U(1)}`, "and the second one?").focus, { kind: "thread", id: U(2), label: "Ana" });
-  assert.deepEqual(ctx(g, `inbox/th-${U(1)}`, "what now?").focus, { kind: "thread", id: U(1), label: "this thread" });
+  assert.deepEqual(ctx(g, `inbox/th-${U(1)}`, "what now?").focus, {
+    kind: "thread",
+    id: U(1),
+    label: "this conversation",
+  });
 });
 
 test("in an open thread a row by its place is the last answer's item at that place (the Phase 5 plan, D7), in the answer's order: a broadcast as the run its page spells, an answer from before the Line by the rows it cited; an item of a kind no focus has names none -- never the page's row at that place; past the answer's items, the page's rows; a name is the page's; no thread, the page's as ever", () => {
@@ -436,7 +440,11 @@ test("in an open thread a row by its place is the last answer's item at that pla
     { kind: "thread", id: U(2), label: "Ana" },
     "a name is the page's",
   );
-  assert.deepEqual(focus("inbox", "and the second one?"), { kind: "thread", id: U(2), label: "Ana" }, "no thread");
+  assert.deepEqual(
+    focus("inbox", "and the second one?"),
+    { kind: "thread", id: U(2), label: "Ana" },
+    "no conversation",
+  );
   // The newest answer's items: an earlier one's are not what "the second" points at.
   const older = [asked, answered([item("thread", U(4), "Old")]), asked, answered([item("call", U(8), "Luis's call")])];
   assert.deepEqual(focus("inbox", "the first one", older), { kind: "call", id: U(8), label: "Luis's call" });
@@ -447,7 +455,7 @@ test("in an open thread a row by its place is the last answer's item at that pla
   assert.equal(focus("inbox", "the second", kinds), null, "a deal: none, never Ana");
   assert.deepEqual(
     focus(`inbox/th-${U(3)}`, "the second", kinds),
-    { kind: "thread", id: U(3), label: "this thread" },
+    { kind: "thread", id: U(3), label: "this conversation" },
     "the row open, never the page's second",
   );
   // An answer from before the Line: its items are the rows it cited, pages aside (answerFromV1).

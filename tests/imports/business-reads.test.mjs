@@ -11,6 +11,7 @@ import {
   PROFILE_LIMITS,
   WEBSITE_READ_SCHEMA,
   businessReadFactsOf,
+  filmShotsOf,
   foundOf,
   foundServicesRoom,
   withFoundClosure,
@@ -140,6 +141,22 @@ test("the website's reading answers in the shape the facts are read in: every fi
   );
   assert.equal(WEBSITE_READ_SCHEMA.additionalProperties, false);
   assert.deepEqual([...WEBSITE_READ_SCHEMA.properties.services.items.required], ["name", "price_note", "duration_min"]);
+  // A clip's length is its own number (Content's card says it once, "8s each"), never words inside where to stand.
+  assert.deepEqual([...WEBSITE_READ_SCHEMA.properties.film.items.required], ["what", "how", "seconds"]);
+});
+
+test("a clip to film keeps its seconds where they are a clip's, and a read before them keeps none", () => {
+  const shots = filmShotsOf({
+    film: [
+      { what: "The chat on the phone", how: "Hold the phone over a desk.", seconds: 8 },
+      { what: "The count, from above", how: "Straight down over the screen.", seconds: 900 },
+      { what: "Written before 16 Nov", how: "Film it for about 8 seconds." },
+    ],
+  });
+  assert.deepEqual(
+    shots.map((s) => s.seconds),
+    [8, null, null],
+  );
 });
 
 test("Check offers what the reads found that the record does not hold: the profile's first, each thing once", () => {

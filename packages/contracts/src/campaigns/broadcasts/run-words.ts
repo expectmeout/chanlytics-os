@@ -223,7 +223,7 @@ export function allLeftOutWords(label: string, count: number): string {
  * What the composer says when who hears from you around the send could not be read: the send still leaves them out (it
  * reads them again, and is refused while it cannot), so its count may be fewer than the page's.
  */
-export const HEARD_UNREAD_WORDS = `Who hears ${BREATH_WHY} could not be read just now: the send still leaves them out, so it may go to fewer.`;
+export const HEARD_UNREAD_WORDS = `Who hears ${BREATH_WHY} couldn't be read just now: the send still leaves them out, so it may go to fewer.`;
 
 /**
  * How many a send's receipt says it goes to (POST broadcasts' answer): everyone it enrolled less those left out. A
@@ -265,8 +265,8 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   chat_closed: "their WhatsApp chat had closed",
   // The number is on file but no thread answers to it on this line: a stored
   // number that does not normalise, or one no contact row matches.
-  no_thread: "no thread for that number",
-  human_has_it: "a person had the thread",
+  no_thread: "no conversation for that number",
+  human_has_it: "a person had the conversation",
   paused: "the workspace was paused",
   superseded_by_human: "a person answered first",
   // The receptionist's held reply, past the reply horizon after the message it answers: a person answers instead.

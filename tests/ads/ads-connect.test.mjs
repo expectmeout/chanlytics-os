@@ -156,7 +156,7 @@ test("several accounts to choose among show their currency; a read that failed o
     ],
     "an account's currency is the platform's, shown, never converted",
   );
-  assert.equal(rowsOf("failed").meta.read, "Could not be read · last read Sat 10 Oct, 6:00 PM");
+  assert.equal(rowsOf("failed").meta.read, "Couldn't be read · last read Sat 10 Oct, 6:00 PM");
   assert.equal(rowsOf("reading").meta.read, "Reading now");
 });
 
@@ -172,7 +172,7 @@ test("ads that are on, in review or being made are running, and Disconnect is re
   assert.equal(rowsOf("finished").meta.running, 1, "the weekend offer is in review; the spring offer ended");
   const setting = rowsOf("setting-up");
   assert.equal(setting.meta.running, 3, "one being made on Meta counts with the two already there");
-  assert.equal(setting.google.running, 1, "and a Google ad that could not finish does not");
+  assert.equal(setting.google.running, 1, "and a Google ad that couldn't finish does not");
 });
 
 test("ads made on the platform itself are shown in Ads, read-only, and the card says how many", () => {

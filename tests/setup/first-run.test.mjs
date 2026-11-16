@@ -614,8 +614,8 @@ test("after the first run, with the calendar in, Today's card carries one door t
     to: "campaigns/sequences/new:moment:visit_tomorrow",
     put: {
       week: "Put off for a week.",
-      good: "Off your list. Turn it on any time in Sequences.",
-      home: "Turn it on any time in Sequences.",
+      good: "Off your list. Turn it on any time in Campaigns.",
+      home: "Turn it on any time in Campaigns.",
       cost: null,
     },
     back: false,
@@ -686,7 +686,7 @@ test("the reminder's row, skipped, is put off as a row is: the member's, on ever
   assert.deepEqual([back.remindSkipped, back.remindBack], [false, true]);
   const remind = setupCardOf(back).remind;
   assert.equal(remind.back, true);
-  assert.equal(remind.put.good, "Off your list. Turn it on any time in Sequences.");
+  assert.equal(remind.put.good, "Off your list. Turn it on any time in Campaigns.");
 });
 
 test("Today's reminder door stands only where Campaigns can make the reminder: a calendar link connected", () => {
@@ -1102,12 +1102,12 @@ test("a config that cannot be read is no Check: Setup's facts row asks for the r
 test("the days Google gives hours for that the week cannot hold are named under the hours", () => {
   assert.equal(
     firstRunOf(setupSteps(harbor({}, { unsure: ["fri", "sat"] }), NOW), null, OWNER).check.unsure,
-    "Google's hours for Friday and Saturday could not be copied: check those days.",
+    "Google's hours for Friday and Saturday couldn't be copied: check those days.",
   );
-  assert.equal(unsureHoursWords(["fri"]), "Google's hours for Friday could not be copied: check that day.");
+  assert.equal(unsureHoursWords(["fri"]), "Google's hours for Friday couldn't be copied: check that day.");
   assert.equal(
     unsureHoursWords(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    "Google's hours for every day could not be copied: add yours.",
+    "Google's hours for every day couldn't be copied: add yours.",
   );
   assert.equal(unsureHoursWords([]), null);
   assert.equal(W.found("Harbor Moving"), "Meet AI for Harbor Moving");

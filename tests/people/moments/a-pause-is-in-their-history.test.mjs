@@ -140,7 +140,7 @@ test("a pause the owner made for them is on their page, with the thread's decisi
   assert.deepEqual(
     before.decisions.map((d) => d.id),
     ["d-thread"],
-    "only the thread's decision was read, and nothing else was theirs",
+    "only the conversation's decision was read, and nothing else was theirs",
   );
 
   const paused = await decide(db, ADA, "never");
@@ -161,7 +161,7 @@ test("a pause the owner made for them is on their page, with the thread's decisi
     items.map((i) => [i.who, i.text]),
     [
       ["Paused AI", "You paused automatic replies"],
-      ["Snoozed", "You snoozed the thread"],
+      ["Snoozed", "You snoozed the conversation"],
     ],
     "the timeline's own labels, now fed: the pause reads in their history",
   );
@@ -169,12 +169,12 @@ test("a pause the owner made for them is on their page, with the thread's decisi
 
 test("resuming reads the same way, and the page of a person with no thread still has their own decisions", async () => {
   const db = tables();
-  assert.deepEqual((await read(db, BEN)).conversations, [], "Ben has no thread");
+  assert.deepEqual((await read(db, BEN)).conversations, [], "Ben has no conversation");
   const before = await read(db, BEN);
   assert.deepEqual(
     before.decisions.map((d) => d.id),
     ["d-ben"],
-    "REGRESSION: a person with no thread read no decisions at all, whatever was recorded about them",
+    "REGRESSION: a person with no conversation read no decisions at all, whatever was recorded about them",
   );
   await decide(db, BEN, "inherit");
   const after = await read(db, BEN);

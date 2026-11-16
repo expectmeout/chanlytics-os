@@ -15,7 +15,7 @@ export const INVOICE_STATUS_WORDS: Record<string, string> = {
   draft: "Draft",
   open: "Not paid yet",
   paid: "Paid",
-  uncollectible: "Could not be collected",
+  uncollectible: "Couldn't be collected",
   void: "Cancelled",
 };
 

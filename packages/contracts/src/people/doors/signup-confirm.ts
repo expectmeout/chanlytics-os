@@ -141,7 +141,7 @@ export function signupAskLine(outcome: SignupAskRefusal | "asked" | null): strin
     case "suppressed":
       return "Email to their address does not arrive, so we did not ask them to confirm.";
     case "no_mailbox":
-      return "We could not email them to confirm: you have no email address yet (Settings › Connections › Email).";
+      return "We couldn't email them to confirm: you have no email address yet (Settings › Connections › Email).";
     case "open":
       return "We already emailed them to confirm.";
     case "not_from_website":

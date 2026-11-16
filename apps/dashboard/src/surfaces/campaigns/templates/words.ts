@@ -226,9 +226,9 @@ export const TPL_SHEET_WORDS = {
   /** Something sends it and nothing can carry it here yet: nothing is lost, and it goes by itself. */
   waitingSays: (by: string): string =>
     `Set to go out with ${by}. It goes by itself as soon as there is a way to send it.`,
-  idleSays: "Nothing sends it now. It goes out once a sequence uses it.",
+  idleSays: "Nothing sends it now. It goes out once a campaign uses it.",
   /** A starter nothing sends: it is there to use as it is, and nothing is filed until it is used. */
-  madeSays: "Written for you and ready to use. It goes out once a sequence uses it.",
+  madeSays: "Written for you and ready to use. It goes out once a campaign uses it.",
   awaySays: "On file, out of the list and the composers. Its name brings it back.",
   offerSays: "An offer reaches only people who said yes to offers, and never goes by text.",
   noteSays: "A note about their own booking or proposal reaches anyone a send may.",
@@ -288,7 +288,7 @@ export const TPL_LIST_WORDS = {
   waiting: "Waiting",
   standing: STANDING_WORDS,
   /** A running sequence sends a language the message has no version of that it can send. */
-  sendsMissing: (language: string): string => `A sequence sends it in ${language}, which it has no version to send in.`,
+  sendsMissing: (language: string): string => `A campaign sends it in ${language}, which it has no version to send in.`,
   /** At a row's right: how many went out, of a message that goes out; when the last did, of one that does not now. */
   sentCount: (count: string): string => `${count} sent`,
   notSentYet: "Not sent yet",

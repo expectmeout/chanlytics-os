@@ -427,7 +427,7 @@ test("a read, then the answer: the read runs for real, its rows enter the read s
   );
   assert.deepEqual(
     r.answer.do.open,
-    { to: `inbox/th-${C1}`, label: "Open the thread", now: true },
+    { to: `inbox/th-${C1}`, label: "Open the conversation", now: true },
     "one door runs where the answer is drawn: the Open the person asked for keeps its now beside the same row's item",
   );
   assert.deepEqual(r.answer.do.next, ["Reply to Rosa?"]);
@@ -1282,10 +1282,10 @@ test("report says the Campaigns lens as the page does (C4): the sentence, the fi
   assert.deepEqual(said.window, {
     held: {
       rows: ["Asked to stop: 5", "No number: 3", "The provider refused it: 3", "Another reason: 1"],
-      line: "12 of the 252 messages planned were held back or could not be sent.",
+      line: "12 of the 252 messages planned were held back or couldn't be sent.",
     },
     runs_stopped: {
-      rows: ["Canceled: 1", "The workspace was paused: 1", "The texting provider could not be reached: 1"],
+      rows: ["Canceled: 1", "The workspace was paused: 1", "The texting provider couldn't be reached: 1"],
       // The window's card counts a campaign's and a broadcast's runs; a reach-out's are under Reach-outs (the stuck figure counts them).
       line: "2 runs failed and 1 was canceled. Runs to leads are not counted here.",
     },
@@ -1593,12 +1593,12 @@ test("report says an empty period in the lens's own words, with no share and no 
     failed_sends: { empty: "No sent message failed in this period." },
     by_message: { empty: "No message went out in this period." },
     send_to_first_reply: { empty: "No message was answered in this period." },
-    wait_for_your_ok: { empty: "No run waited for your OK in this period." },
+    wait_for_your_ok: { empty: "No run waited for your approval in this period." },
   });
   assert.deepEqual(
     said.stuck.map((f) => [f.label, f.value, f.meta]),
     [
-      ["Runs waiting for you", "0", "nothing is waiting for your OK"],
+      ["Runs waiting for you", "0", "nothing is waiting for your approval"],
       ["Failed runs", "0", "no run failed in the last 30 days"],
       ["Replies that need you", "0", "nobody who answered a campaign is waiting"],
       ["Messages Meta stopped", "0", "every WhatsApp message is approved"],
@@ -2073,11 +2073,11 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
       stuck: [
         { label: "Needs you", value: "2", meta: "the oldest has waited 6h" },
         { label: "Call-backs", value: "1", meta: "people to ring, counted in Needs you" },
-        { label: "Replies held back", value: "4", meta: "a person had the thread 3 · asked to stop 1" },
+        { label: "Replies held back", value: "4", meta: "a person had the conversation 3 · asked to stop 1" },
       ],
-      held_back: ["A person had the thread: 3", "Asked to stop: 1"],
+      held_back: ["A person had the conversation: 3", "Asked to stop: 1"],
     });
-    assert.equal(week.said.receptionist.held_back[0], "A person had the thread: 3");
+    assert.equal(week.said.receptionist.held_back[0], "A person had the conversation: 3");
     assert.equal(week.said.receptionist.stuck[0].value, "2");
     assert.equal(
       peopleRead(week),
@@ -2710,7 +2710,7 @@ test("report says the Reach-outs section as the page does (the Campaigns lens, C
   const wrote = await salonReport(alone);
   assert.equal(
     wrote.campaigns.head,
-    "Nothing went out in this period. Your cold email sequences wrote 40 emails to 25 businesses.",
+    "Nothing went out in this period. Your cold email campaigns wrote 40 emails to 25 businesses.",
   );
   assert.equal(wrote.reach_outs.businesses.rows[0], "Written to: 25");
 

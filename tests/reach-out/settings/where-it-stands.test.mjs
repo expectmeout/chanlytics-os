@@ -100,7 +100,7 @@ const ROWS = [
     needs_you: true,
   },
   {
-    name: "no mailbox, with a sequence running",
+    name: "no mailbox, with a campaign running",
     facts: facts({ mailboxes: [] }),
     kind: "no_mailbox",
     headline: "Connect your mailbox to start sending",
@@ -127,7 +127,7 @@ const ROWS = [
     needs_you: true,
   },
   {
-    name: "no address and a sequence running, none held yet or the count not read",
+    name: "no address and a campaign running, none held yet or the count not read",
     facts: facts({ hasAddress: false, heldForAddress: null }),
     kind: "no_address",
     headline: "Your emails need your address",
@@ -139,7 +139,7 @@ const ROWS = [
     name: "a first run waiting",
     facts: facts({ waitingRun: { id: "run-1", planned: 10, name: "Dental clinics · Austin", first: true } }),
     kind: "waiting_ok",
-    headline: "Your first 10 emails are ready for your OK",
+    headline: "Your first 10 emails are ready for your approval",
     act: "Read and approve",
     to: "runs/run-1",
     needs_you: true,
@@ -148,7 +148,7 @@ const ROWS = [
     name: "a later run waiting",
     facts: facts({ waitingRun: { id: "run-2", planned: 8, name: "Dental clinics · Austin", first: false } }),
     kind: "waiting_ok",
-    headline: "Your next 8 emails are ready for your OK",
+    headline: "Your next 8 emails are ready for your approval",
     act: "Read and approve",
     to: "runs/run-2",
     needs_you: true,
@@ -157,7 +157,7 @@ const ROWS = [
     name: "a run waiting whose size was not read",
     facts: facts({ waitingRun: { id: "run-3", planned: null, name: "Dental clinics · Austin", first: true } }),
     kind: "waiting_ok",
-    headline: "Your first emails are ready for your OK",
+    headline: "Your first emails are ready for your approval",
     act: "Read and approve",
     to: "runs/run-3",
     needs_you: true,
@@ -172,7 +172,7 @@ const ROWS = [
     needs_you: false,
   },
   {
-    name: "a sequence with no one new",
+    name: "a campaign with no one new",
     facts: facts({ running: [{ ...RUNNING, waitingLeads: 0 }] }),
     kind: "no_one_new",
     headline: "Clinics · Austin has no one new to write to",
@@ -205,17 +205,17 @@ const ROWS = [
     name: "ready, and never started",
     facts: facts({ running: [], hadSequence: false }),
     kind: "ready",
-    headline: "Ready for your first sequence",
-    act: "Start a sequence",
+    headline: "Ready for your first campaign",
+    act: "Start a campaign",
     to: "campaigns/sequences/new:leads",
     needs_you: false,
   },
   {
-    name: "ready, with every sequence paused",
+    name: "ready, with every campaign paused",
     facts: facts({ running: [] }),
     kind: "ready",
-    headline: "No sequence is running",
-    act: "Start a sequence",
+    headline: "No campaign is running",
+    act: "Start a campaign",
     to: "campaigns/sequences/new:leads",
     needs_you: false,
   },
@@ -281,11 +281,11 @@ test("a paused mailbox with a batch waiting says the batch, since an OK alone wo
   const paused = [{ state: "paused", held_why: null }];
   const run = { id: "run-1", name: "Dental clinics · Austin", first: false };
   const some = coldEmailStandingOf(facts({ mailboxes: paused, waitingRun: { ...run, planned: 25 } }));
-  assert.equal(some.detail, "25 emails are ready for your OK. Nothing goes out until you resume it.");
+  assert.equal(some.detail, "25 emails are ready for your approval. Nothing goes out until you resume it.");
   const one = coldEmailStandingOf(facts({ mailboxes: paused, waitingRun: { ...run, planned: 1 } }));
-  assert.equal(one.detail, "1 email is ready for your OK. Nothing goes out until you resume it.");
+  assert.equal(one.detail, "1 email is ready for your approval. Nothing goes out until you resume it.");
   const unread = coldEmailStandingOf(facts({ mailboxes: paused, waitingRun: { ...run, planned: null } }));
-  assert.equal(unread.detail, "Emails are ready for your OK. Nothing goes out until you resume it.");
+  assert.equal(unread.detail, "Emails are ready for your approval. Nothing goes out until you resume it.");
   const none = coldEmailStandingOf(facts({ mailboxes: paused }));
   assert.equal(none.detail, "Nothing goes out until you resume it.");
 });
@@ -293,7 +293,7 @@ test("a paused mailbox with a batch waiting says the batch, since an OK alone wo
 test("a workspace that has written before is never told 'before your first email' for a pitch alone", () => {
   const standing = coldEmailStandingOf(facts({ running: [], hasPitch: false }));
   assert.equal(standing.kind, "ready");
-  assert.equal(standing.headline, "No sequence is running");
+  assert.equal(standing.headline, "No campaign is running");
   assert.equal(coldEmailStandingOf(facts({ hasPitch: false })).kind, "sending");
 });
 

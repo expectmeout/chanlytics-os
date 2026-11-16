@@ -413,7 +413,7 @@ export const broadcastScope = row((ctx, params) => loadBroadcast(ctx, String(par
 /** The sequence a verb or a read acts on (decision 0060), read under RLS: one the caller cannot see is a 404. */
 async function loadSequence(ctx: RouteContext, id: string) {
   const found = await findSequenceRow(ctx.supabase, requireUuid(id, "sequence"));
-  if (!found) throw new AppError("not_found", "Sequence not found.", 404);
+  if (!found) throw new AppError("not_found", "Campaign not found.", 404);
   return { ...found, tenant_id: asTenantId(found.tenant_id) };
 }
 export const sequenceScope = row((ctx, params) => loadSequence(ctx, String(params.id ?? "")));

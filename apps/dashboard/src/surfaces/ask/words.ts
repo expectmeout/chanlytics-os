@@ -152,7 +152,7 @@ const ASK_TEXT = {
     // Ask's home: the follow-ups it kept that came due (a search finished, replies came in, the day came).
     followUpsDue: "Ready now",
     noEarlier: "No earlier conversations yet.",
-    kind: { person: "Person", thread: "Thread", call: "Call", page: "Page" },
+    kind: { person: "Person", thread: "Conversation", call: "Call", page: "Page" },
     rowsLabel: "Ask Chanlytics",
     dialogName: "Ask Chanlytics",
     stopAnswer: "Stop",
@@ -163,7 +163,7 @@ const ASK_TEXT = {
     attach: "Add a photo",
     attachAway: (name: string) => `Take ${name} away`,
     attachAgain: "Try again",
-    attachFailed: "It could not be sent. Check your connection and try again.",
+    attachFailed: "It couldn't be sent. Check your connection and try again.",
     attachGone: "Photo removed",
     attachSending: "Sending the photo",
     attachSendingVideo: "Sending the video",
@@ -217,10 +217,11 @@ const ASK_TEXT = {
     working: "Working…",
     editComposer: "Edit in the composer",
     openIt: "Open it",
-    openNew: "Open in New sequence",
+    openNew: "Open in New campaign",
     tryAgain: "Try again",
     priceNote: "This looks like a price. AI says only the prices your settings allow; you may say any.",
-    windowNote: "Their 24-hour window is closed — only an approved template can be sent. Open the thread to pick one.",
+    windowNote:
+      "Their 24-hour window is closed — only an approved template can be sent. Open the conversation to pick one.",
     // The press says what it does (D14 of the answers canvas; contracts askPressOf names which).
     press: (word: AskPressWord, n: number | null): string => PRESS_EN[word](n),
     posting: "Posting on Google",

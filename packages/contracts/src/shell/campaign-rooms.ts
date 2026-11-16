@@ -11,7 +11,7 @@ import { WHATSAPP_REVIEW_TAKES } from "../campaigns/templates/templates";
 
 export const CAMPAIGN_ROOMS = {
   home: "Campaigns",
-  sequences: "Sequences",
+  sequences: "Campaigns",
   /** Where a sequence or a one-off is begun (decision 0065). */
   new: "New",
   library: "Messages",
@@ -105,25 +105,16 @@ export const LIBRARY_STARTER_WORDS = {
    */
   whatsappSentForReview: "WhatsApp checks its new wording first.",
   /**
-   * A new campaign named by a starter, on channels none of which its message holds at once: a WhatsApp version in
-   * review carries nothing until WhatsApp approves it, and once sent it cannot be taken back, so nothing is filed.
-   * `on` is where it was asked to go, `could` where the starter would carry it at once (null: nowhere).
-   */
-  waitsForWhatsApp: (title: string, on: string, could: string | null): string =>
-    could
-      ? `The “${title}” starter can send nothing ${on} until WhatsApp approves its WhatsApp version: let the campaign go ${could} too, or start it once WhatsApp has.`
-      : `The “${title}” starter can send nothing ${on} until WhatsApp approves its WhatsApp version: start the campaign once WhatsApp has.`,
-  /**
    * The starter was judged and filing it failed, so nothing that uses it was started or saved (a version refused, or none
    * to send). Filing is the use's own: there is no other place to add it from (the clean list, 14 Nov 2026).
    */
-  notAdded: "The starter message could not be set up just now, so nothing was started. Try again in a minute.",
+  notAdded: "The starter message couldn't be set up just now, so nothing was started. Try again in a minute.",
   /**
    * The same, where its WhatsApp version did reach WhatsApp (sent for review, or found in the number's account): that
    * version is in the Library and stays there, and a second press sends nothing to WhatsApp again.
    */
   notAddedSentForReview:
-    "The starter's WhatsApp version went to WhatsApp for review and is in Messages, but the campaign could not be started just now. Try again: nothing is sent to WhatsApp twice.",
+    "The starter's WhatsApp version went to WhatsApp for review and is in Messages, but the campaign couldn't be started just now. Try again: nothing is sent to WhatsApp twice.",
 } as const;
 
 /** What a broadcast is, said where a page defines it (the Sent room's standing line, on hover): one message, and where it goes. */
@@ -205,12 +196,14 @@ export const RUN_UNNAMED_WORDS = "Run";
  * for your approval, or for your say on the emails its check holds (waits.ts runWaitsOnYou): one word covers both.
  */
 export function runsWaitingSentence(count: number): string {
-  return count === 1 ? "A campaign run is waiting for your say." : `${count} campaign runs are waiting for your say.`;
+  return count === 1
+    ? "A campaign run is waiting for your approval."
+    : `${count} campaign runs are waiting for your approval.`;
 }
 
 /** A reach-out's going run whose emails the check holds for the owner's say: "2 emails wait for your say". */
 export function heldEmailsWords(count: number): string {
-  return `${count} ${count === 1 ? "email waits" : "emails wait"} for your say`;
+  return `${count} ${count === 1 ? "email waits" : "emails wait"} for your approval`;
 }
 
 /**

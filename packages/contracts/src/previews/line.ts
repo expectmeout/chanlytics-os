@@ -10,7 +10,7 @@
  * What a lead's trying came to, and what it said is not right, are previews/tried.ts's, which Today shares.
  */
 import { DAY_MS, MIN_MS } from "../shared/time";
-import { previewClaimable, previewStateOf } from "./lead-preview";
+import { PREVIEW_LIMITS, previewClaimable, previewStateOf } from "./standing";
 import { previewSaidOf, previewTriedWords } from "./tried";
 
 /** A lead's preview as its sender's workspace reads it: the row's facts the line says, never its chat. */
@@ -36,11 +36,17 @@ export interface LeadPreviewFacts {
  * GET leads/:id/preview: the lead's preview, or none made; whether this workspace makes them (ours); and, where it does
  * and none is made, why this lead can get none, as its door would refuse it (00497 preview_make: not a business that
  * takes bookings, a lead that is closed, no name to set it up under). Null or absent: nothing stands in the way.
+ * `paused`: none is being made for anyone just now (the edge's switch, asked of its standing door), so an email that
+ * carries the link waits. Absent or false: made as usual, or the edge did not say.
+ * `full`: the day's are all made (PREVIEW_LIMITS.aDay), so an email that carries the link waits for tomorrow; a press
+ * still makes this one. Absent or false: there is room, or it was not counted.
  */
 export interface LeadPreviewDto {
   preview: LeadPreviewFacts | null;
   makes: boolean;
   cannot?: "not_a_business" | "closed" | "no_name" | null;
+  paused?: boolean;
+  full?: boolean;
 }
 
 /** The lead sheet's line. */
@@ -71,11 +77,15 @@ const CANNOT_WHY: Record<NonNullable<LeadPreviewDto["cannot"]>, string> = {
 
 /** The sheet's words. */
 export const PREVIEW_LINE_WORDS = {
-  title: "Their receptionist",
+  title: "Their preview",
   none: "Not made yet. It is made when an email that carries its link goes, and that email waits for it.",
   /** None made, and its door would refuse this lead: said before any email goes, with nothing to press. */
   cannot: (reason: NonNullable<LeadPreviewDto["cannot"]>) =>
     `Can't be made: ${CANNOT_WHY[reason]}. An email that carries its link is skipped.`,
+  /** None is being made for anyone just now: what is happening, that it mends itself, and nothing to press. */
+  paused: "Paused for now. An email that carries its link waits, and goes by itself once these are made again.",
+  /** The day's are all made: what is happening, that it goes by itself tomorrow, and the one press that makes this one today. */
+  full: `Today's ${PREVIEW_LIMITS.aDay} are made. An email that carries its link waits, and goes by itself tomorrow. Make it now makes this one today.`,
   building: "Being set up. It takes about half a minute.",
   slow: "Still being set up. It usually takes half a minute; this one is slower, and it is checked again by itself.",
   failed: (reason: string | null) => `Couldn't be made: ${reason === "no_name" ? NO_NAME : "its set-up failed"}.`,
@@ -103,8 +113,10 @@ function noneLineOf(dto: LeadPreviewDto): LeadPreviewLineVM | null {
   const words = PREVIEW_LINE_WORDS;
   if (!dto.makes) return null;
   const none = { said: [], open: null, link: null };
-  return dto.cannot
-    ? { ...none, words: words.cannot(dto.cannot), tone: "warn", make: false }
+  if (dto.cannot) return { ...none, words: words.cannot(dto.cannot), tone: "warn", make: false };
+  if (dto.paused) return { ...none, words: words.paused, tone: "warn", make: false };
+  return dto.full
+    ? { ...none, words: words.full, tone: "warn", make: true }
     : { ...none, words: words.none, tone: "quiet", make: true };
 }
 

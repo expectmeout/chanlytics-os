@@ -6,7 +6,7 @@ import { isRealDate } from "../../../config/workspace-config/config-rules";
 import { mondayOf, shiftKey, DAY_KEY } from "../../../shared/zone/day-keys";
 import { wallClockAt } from "../../../shared/clock";
 import { DAY_MS, HOUR_MS } from "../../../shared/time";
-import { fenceLine } from "../opening";
+import { fenceLine } from "../../../ai/fence";
 import { wordCount } from "../words/limits";
 import { REPLY_INTENTS, isReplyIntent, type ReplyIntent, type ReplyReading, type Unread, withinChars } from "./intents";
 

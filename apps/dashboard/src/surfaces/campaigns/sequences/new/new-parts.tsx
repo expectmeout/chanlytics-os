@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import {
   NEW_WORDS as W,
   exampleParams,
+  sequenceRoute,
   visitWhenExample,
   type NewAudience,
   type NewCheck,
@@ -21,6 +22,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { cx } from "../../../kit/variants";
+import { routeDoor } from "../../../frame-verbs";
 import { MessagePreview } from "../../parts/message-preview";
 import { Choice } from "./choice";
 import { setName } from "./new-model";
@@ -121,21 +123,22 @@ export function WhoCaption({ children }: { children?: ReactNode }) {
 }
 
 /**
- * A choice said as a word in the sentence, pressed to change it: the kit's capsule with its caret, and quiet (no ground of
- * its own) where it is not made yet; the kind, the sentence's first word, a size up.
+ * A choice said as a word in the sentence, pressed to change it: the sentence's own words, underlined, with a small caret,
+ * never a capsule round each (Ruben, 16 Nov 2026: "the bubble around the options feels too bulky"); dim where it is not
+ * made yet. The kit's quiet link at the sentence's size.
  */
 export function WordPick(p: { label: string; onPick: () => void; empty?: boolean; big?: boolean; testid: string }) {
   return (
-    <Button
-      size={p.big ? "md" : "sm"}
-      variant={p.empty ? "quiet" : "secondary"}
+    <LinkButton
+      size="inherit"
       className="sq-nw-word"
       onClick={p.onPick}
+      data-empty={p.empty ? "" : undefined}
       data-testid={p.testid}
     >
-      {p.label}
-      <Icon name="chevron-down" size={p.big ? 14 : 13} />
-    </Button>
+      <span className="sq-nw-word-says">{p.label}</span>
+      <Icon name="chevron-down" size={12} />
+    </LinkButton>
   );
 }
 
@@ -222,10 +225,18 @@ export function CaseNote(p: {
   testid: string;
   /** Read out when it comes or changes (what a draft leaves out, which a change can say anew); a bad one always is. */
   live?: boolean;
+  /** Its one act is quiet words, at the end of its words' line rather than a row of its own. */
+  inline?: boolean;
 }) {
   const role = p.tone === "bad" ? "alert" : p.live ? "status" : undefined;
   return (
-    <div className="sq-nw-case" data-tone={p.tone} role={role} data-testid={p.testid}>
+    <div
+      className="sq-nw-case"
+      data-tone={p.tone}
+      data-inline={p.inline ? "" : undefined}
+      role={role}
+      data-testid={p.testid}
+    >
       <p className="sq-nw-case-head">
         <Icon name={p.glyph ?? (p.tone === "plain" ? "info" : "alert")} size={15} />
         {p.title}
@@ -233,6 +244,28 @@ export function CaseNote(p: {
       {p.words ? <p className="sq-nw-case-words">{p.words}</p> : null}
       {p.acts ? <div className="sq-nw-case-acts">{p.acts}</div> : null}
     </div>
+  );
+}
+
+/**
+ * A campaign that already does this: two would send twice. Its fact, why in a line, and the way to the one there as quiet
+ * words at that line's end (16 Nov 2026: two lines, not four).
+ */
+export function TwinCase({ twin }: { twin: NonNullable<NewDraftDto["twin"]> }) {
+  return (
+    <CaseNote
+      tone="warn"
+      title={W.checks.twin(twin.name)}
+      words={W.checks.twinDetail}
+      acts={
+        <LinkButton {...routeDoor(sequenceRoute(twin.id))} data-testid="sq-nw-twin-open">
+          {W.twin.open}
+          <Icon name="chevron" size={12} />
+        </LinkButton>
+      }
+      inline
+      testid="sq-nw-twin"
+    />
   );
 }
 

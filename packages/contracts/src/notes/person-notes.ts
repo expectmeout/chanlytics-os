@@ -159,7 +159,7 @@ const NOTE_REFUSAL_WORDS = {
   not_yours: "Only the person who wrote this note can change it.",
   moved: "Someone changed this note since you opened it. Read it again, then save.",
   decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
+  bad_source: "Couldn't save this note.",
   bad_deal: "That deal is not this person's.",
   not_a_step: "Only a note with a day can be done.",
   not_for_you: "This note is for someone else.",
@@ -173,7 +173,7 @@ const NOTE_FROM: Record<PersonNoteDto["source"], string | null> = {
   call: "After a call",
   thread: "After a conversation",
   // A step a reach-out's reply made (Reach out Part 5, 00220 person_step_from_playbook): the words say which.
-  reach_out: "From a sequence to leads",
+  reach_out: "From cold email",
   // What someone asked on a form on the business's website (00488): their words, kept only once a member keeps them.
   website: "From your website",
 };

@@ -54,7 +54,7 @@ export function PersonName({ p, canEdit, flash, onPutBack }: FieldProps & { onPu
     save: async (next) => {
       const was = p.givenName || "";
       const r = await setPersonDetails(p.id, { name: next });
-      if (!r.ok) return r.message || "Could not save the name.";
+      if (!r.ok) return r.message || "Couldn't save the name.";
       // A name the owner gave goes back by the same door; a stand-in's and a signer's go back by the notice's own Undo.
       const undo =
         p.standIn || p.head.namedBy
@@ -65,7 +65,7 @@ export function PersonName({ p, canEdit, flash, onPutBack }: FieldProps & { onPu
               const back = await setPersonDetails(p.id, { name: was });
               if (!back.ok) {
                 edit.hold(null);
-                flash({ tone: "danger", msg: <>{back.message || "Could not put the name back."}</> });
+                flash({ tone: "danger", msg: <>{back.message || "Couldn't put the name back."}</> });
               } else flash({ msg: was ? <>{PERSON_NAME_WORDS.backTo(was)}</> : clearedWords(p) });
             };
       flash({
@@ -160,13 +160,13 @@ export function PersonEmail({ p, canEdit, flash }: FieldProps) {
     save: async (next) => {
       const was = p.email || "";
       const r = await setPersonDetails(p.id, { email: next });
-      if (!r.ok) return r.message || "Could not save the address.";
+      if (!r.ok) return r.message || "Couldn't save the address.";
       const undo = async () => {
         edit.hold(was || null);
         const back = await setPersonDetails(p.id, { email: was });
         if (!back.ok) {
           edit.hold(null);
-          flash({ tone: "danger", msg: <>{back.message || "Could not put the address back."}</> });
+          flash({ tone: "danger", msg: <>{back.message || "Couldn't put the address back."}</> });
         } else flash({ msg: was ? <>Email address put back</> : <>Email address removed</> });
       };
       flash({ msg: next ? <>Email address saved</> : <>Email address removed</>, undo: () => void undo() });

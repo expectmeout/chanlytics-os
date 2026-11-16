@@ -208,7 +208,7 @@ export const personAnswered = (r: ReachOutLineReplyDto | null): r is ReachOutLin
 export function writtenWords(l: ReachOutLeadLineDto, tz: string, nowMs: number): string {
   const parts = [`Written ${near(l.first_sent_at, tz, nowMs)}`];
   if (l.sent > 1) parts.push(`followed up ${near(l.last_sent_at, tz, nowMs)}`);
-  if (l.held) parts.push("a follow-up waits for your OK");
+  if (l.held) parts.push("a follow-up waits for your approval");
   else if ((l.drafted ?? 0) > 0) parts.push("a follow-up is handed to you to send");
   else if (l.next_at) parts.push(`next ${near(l.next_at, tz, nowMs)}`);
   return parts.join(" · ");
@@ -244,7 +244,7 @@ export function reachOutStripOf(
     if (searchLines.next.from || searchLines.next.host)
       parts.push(`from ${searchLines.next.from ?? searchLines.next.host}`);
   } else parts.push("nothing more planned yet");
-  if (searchLines.held > 0) parts.push(`${searchLines.held} held for your OK`);
+  if (searchLines.held > 0) parts.push(`${searchLines.held} held for your approval`);
   if ((searchLines.to_send ?? 0) > 0) parts.push(`${searchLines.to_send} to send from your inbox`);
   return {
     title: running
@@ -256,7 +256,7 @@ export function reachOutStripOf(
     going: { label: "How it's going", to: sequenceRoute(searchLines.chain.root_id) },
     toggle: running ? { label: "Pause", pause: true } : { label: "Resume", pause: false },
     waiting: searchLines.waiting_run_id
-      ? { label: "Waits for your OK", to: runRoute(searchLines.waiting_run_id) }
+      ? { label: "Waits for your approval", to: runRoute(searchLines.waiting_run_id) }
       : null,
   };
 }
@@ -310,10 +310,10 @@ function sendLine(timelineSend: ReachOutTimelineSendDto, tz: string, nowMs: numb
   }
   if (timelineSend.state === "handed") return line(`${name} · handed to you`);
   if (timelineSend.state === "drafted") return line(`${name} · handed to you to send`);
-  if (timelineSend.state === "held") return line(`${name} · waits for your OK`);
+  if (timelineSend.state === "held") return line(`${name} · waits for your approval`);
   if (timelineSend.state === "planned" || timelineSend.state === "claimed" || timelineSend.state === "queued")
     return line(`${name} · planned`);
-  if (timelineSend.state === "failed") return line(`${name} · could not be sent`);
+  if (timelineSend.state === "failed") return line(`${name} · couldn't be sent`);
   const reason = skippedWords(timelineSend.reason);
   return reason ? line(`${name} · ${reason}`) : null;
 }
@@ -365,7 +365,7 @@ export function reachOutTimelineOf(
   const ownerSent = leadTimeline.sends.some((s) => s.left && s.said === true);
   const answered = leadTimeline.readings.some((r) => !r.undone && r.claim !== "auto_reply");
   return {
-    label: `Sequence · ${leadTimeline.chain?.name ?? leadTimeline.search?.name ?? "a sequence"}`,
+    label: `Campaign · ${leadTimeline.chain?.name ?? leadTimeline.search?.name ?? "a campaign"}`,
     lines,
     stopped: stopped !== null ? `You stopped writing to them ${clockNear(stopped, tz, nowMs)}` : null,
     read: leadTimeline.conversation_id
@@ -402,8 +402,8 @@ export interface ReachOutPersonVM {
 export function readingEffect(r: ReachOutTimelineReadingDto): string {
   if (r.undone) return "undone";
   if (r.said_no) return "nothing more will be written";
-  if (r.convert) return "the sequence stopped · Talking";
-  if (r.stops) return "the sequence stopped";
-  if (r.claim === "auto_reply" && r.intent === "away" && r.until_at) return "the sequence waits";
+  if (r.convert) return "the campaign stopped · Talking";
+  if (r.stops) return "the campaign stopped";
+  if (r.claim === "auto_reply" && r.intent === "away" && r.until_at) return "the campaign waits";
   return "nothing changed";
 }

@@ -100,19 +100,19 @@ test("an undone no says what stands now: a person wrote back; an automatic reply
     title: "Wrote back",
     said: "“Wants more details”",
     answers: FIRST,
-    did: "Read as no, then undone. The sequence stays stopped: they wrote back.",
+    did: "Read as no, then undone. The campaign stays stopped: they wrote back.",
     doors: [],
   });
   assert.equal(
     strip({ ...undone, claim: "auto_reply" }).did,
-    "Read as no, then undone. It was an automatic reply, so the sequence goes on.",
+    "Read as no, then undone. It was an automatic reply, so the campaign goes on.",
   );
 });
 
 test("away: an automatic reply's day back, or their own words' step", () => {
   assert.equal(
     strip({ intent: "away", claim: "auto_reply", until_at: "2026-10-05T13:00:00.000Z" }).did,
-    "Away until Oct 5 (an automatic reply). The sequence goes on after that.",
+    "Away until Oct 5 (an automatic reply). The campaign goes on after that.",
   );
   assert.equal(
     strip({ intent: "away", named_day: "2026-10-12", step_day: "2026-10-12" }).did,
@@ -174,7 +174,7 @@ test("a sent reply that went from the mailbox says so; one that went as frozen s
   });
   assert.equal(
     replyLeftAsOf(meta("mailbox")),
-    "Went from hello@mail.example.com: sam@owndomain.example.com could not send it.",
+    "Went from hello@mail.example.com: sam@owndomain.example.com couldn't send it.",
   );
   assert.equal(
     replyLeftAsOf(meta("mailbox", "own_not_sending")),
@@ -198,7 +198,7 @@ test("the notice for a no says it can be undone on the thread, and nothing else 
       automatic: false,
       reread: false,
     });
-  assert.match(n("no").body, /If that's a misreading, undo it on the thread within seven days\./);
+  assert.match(n("no").body, /If that's a misreading, undo it in the conversation within seven days\./);
   assert.doesNotMatch(n("interested").body, /undo/);
   assert.doesNotMatch(n("no").redacted, /undo/);
 });

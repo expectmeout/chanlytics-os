@@ -44,6 +44,22 @@ export async function signUpOnPublicKey(
   return anon.auth.signUp({ email: args.email, password: args.password, options: { data: args.userData } });
 }
 
+/**
+ * Send the code that signs an address in, making its account where it has none, in ONE call with the PUBLIC key and with
+ * no session kept: the account an owner keeps with no password (a preview made theirs, decision 0079). `userData` is kept
+ * on an account this makes, and an account that stands already is sent its code and left as it is, so the answer is
+ * the same either way. A deployment without its keys throws here, on the call that needs them.
+ */
+export async function sendSignInCodeOnPublicKey(cfg: PublicKeyConfig, args: { email: string; userData: object }) {
+  if (!cfg.url || !cfg.anonKey) {
+    throw new Error("public_client_unconfigured: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  }
+  const anon = createClient(cfg.url, cfg.anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  return anon.auth.signInWithOtp({ email: args.email, options: { shouldCreateUser: true, data: args.userData } });
+}
+
 /** As the service role: Supabase makes the account for an address that has none and sends it the invitation link. */
 export async function inviteUserByEmail(db: SupabaseClient<Database>, email: string): Promise<UserResponse> {
   return db.auth.admin.inviteUserByEmail(email);

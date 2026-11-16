@@ -54,7 +54,7 @@ export function reachOutLineOf(reachOutLeadLine: ReachOutLeadLineDto, nowMs: num
   if (reachOutLeadLine.sent > 0 && away !== null && away > nowMs)
     return `Written ${near(reachOutLeadLine.first_sent_at, tz, nowMs)} · away until ${clockDate(away, tz, nowMs)}`;
   if (reachOutLeadLine.sent > 0) return writtenWords(reachOutLeadLine, tz, nowMs);
-  if (reachOutLeadLine.held) return "Held for your OK";
+  if (reachOutLeadLine.held) return "Held for your approval";
   // Handed to its owner, written and checked (00429): it waits for them to send it from their inbox.
   if ((reachOutLeadLine.drafted ?? 0) > 0) return "Drafted for you · to send from your inbox";
   const next = at(reachOutLeadLine.next_at);
@@ -78,7 +78,7 @@ export function reachOutPersonOf(leadTimeline: ReachOutLeadTimelineDto, nowMs: n
     if (s.from || s.host) parts.push(`from ${s.from ?? s.host}`);
     else if (s.said) parts.push("from your inbox");
     parts.push(emailWords(s));
-    emails.set(s.message_id, { who: chain ? `Sequence · ${chain}` : "Your sequence", sub: parts.join(" · ") });
+    emails.set(s.message_id, { who: chain ? `Campaign · ${chain}` : "Your campaign", sub: parts.join(" · ") });
   }
   const readings = new Map<string, string>();
   for (const r of leadTimeline.readings)
@@ -141,12 +141,12 @@ const standing = (words: string, tone: ReachOutStandingVM["tone"], stop: boolean
  * then, 00426), or tomorrow's (today's made, or the day's last hour gone). A sequence whose batches ask says so.
  */
 export function reachOutWhenOf(timelineChain: ReachOutTimelineChainDto, nowMs: number, tz: string): string {
-  if (timelineChain.waiting_run_id) return "waits for your OK";
+  if (timelineChain.waiting_run_id) return "waits for your approval";
   if (timelineChain.state !== "running") return "nothing goes while it is paused";
   const hour = timelineChain.run_hour ?? PLAYBOOK_HOURS.min;
   const now = new Date(nowMs);
   const result = localHour(tz, now);
-  const say = timelineChain.asks ? ", after your OK" : "";
+  const say = timelineChain.asks ? ", after your approval" : "";
   if (timelineChain.last_run_for === localDate(tz, now) || result > PLAYBOOK_HOURS.max)
     return `goes tomorrow from ${clockHour(hour)}${say}`;
   if (result < hour) return `goes today from ${clockHour(hour)}${say}`;
@@ -167,7 +167,7 @@ function answerStanding(
     return standing(`asked to hear from you ${askedDayOf(resume, tz, nowMs)} · write to them yourself`, "warn", false);
   const text = `wrote back ${near(timelineReading.read_at, tz, nowMs)} · ${intentWords(timelineReading.intent)}`;
   return standing(
-    timelineReading.stops || timelineReading.convert ? `${text} · the sequence stopped` : text,
+    timelineReading.stops || timelineReading.convert ? `${text} · the campaign stopped` : text,
     "good",
     false,
   );
@@ -190,7 +190,7 @@ function writtenStanding(leadTimeline: ReachOutLeadTimelineDto, tz: string, nowM
   const drafted = leadTimeline.sends.some((s) => s.state === "drafted");
   const planned = nextPlanned(leadTimeline);
   if (left.length === 0) {
-    if (held) return standing("email 1 waits for your OK", "warn", false);
+    if (held) return standing("email 1 waits for your approval", "warn", false);
     if (drafted) return standing("email 1 is handed to you to send", "warn", false);
     if (planned !== null) return standing(`email 1 goes ${clockNearWhen(planned, tz, nowMs)}`, "plain", false);
     return null;
@@ -200,7 +200,7 @@ function writtenStanding(leadTimeline: ReachOutLeadTimelineDto, tz: string, nowM
   const parts = [
     `${steps >= key ? `email ${key} of ${steps} sent` : "written"} ${near(last?.sent_at ?? null, tz, nowMs)}`,
   ];
-  if (held) parts.push("the next waits for your OK");
+  if (held) parts.push("the next waits for your approval");
   else if (drafted) parts.push("the next is handed to you to send");
   else if (planned !== null) parts.push(`next ${clockNearWhen(planned, tz, nowMs)}`);
   else if (steps > key) parts.push("the next if nothing comes back");
@@ -238,7 +238,7 @@ export function reachOutStandingOf(
   const away = leadTimeline.readings.find((r) => !r.undone && r.intent === "away" && at(r.until_at) !== null);
   const back = away ? at(away.until_at) : null;
   if (back !== null && back > nowMs)
-    return standing(`away until ${clockDate(back, tz, nowMs)} · the sequence waits`, "plain", leadTimeline.can_stop);
+    return standing(`away until ${clockDate(back, tz, nowMs)} · the campaign waits`, "plain", leadTimeline.can_stop);
   const written = writtenStanding(leadTimeline, tz, nowMs);
   if (written) return written;
   const added = leadTimeline.added_at ? `added ${near(leadTimeline.added_at, tz, nowMs)} · ` : "";
@@ -286,7 +286,7 @@ export const REACH_OUT_WHY_NOT_WORDS: Record<ReachOutWhyNot, string> = {
   unchecked: "with an address not checked yet",
   already: "already on it",
   not_counted: "still in Needs review",
-  elsewhere: "in another sequence",
+  elsewhere: "in another campaign",
 };
 
 /** One lead the door left out, and the reach-out that has it when another does. */
@@ -316,9 +316,9 @@ export interface ReachOutAddDto {
 
 /** The door's refusals and its undo's answers, in words. */
 export const REACH_OUT_ADD_WORDS = {
-  listGone: "That sequence's list was removed, so nothing can be added to it.",
-  fedBySearch: "That sequence writes to its search's leads as they're found, so leads aren't added to it by hand.",
-  door: "Add to its sequence",
+  listGone: "That campaign's list was removed, so nothing can be added to it.",
+  fedBySearch: "That campaign writes to its search's leads as they're found, so leads aren't added to it by hand.",
+  door: "Add to its campaign",
   takenBack: (n: number) => `Took ${plural(n, "lead", "leads")} back off the list`,
   onItsWay: "Its email is already on its way, so it stays. Stop writing to them instead.",
   sent: "Its email was already sent, so it stays. Stop writing to them instead.",

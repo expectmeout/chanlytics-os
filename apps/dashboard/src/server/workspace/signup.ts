@@ -1,7 +1,7 @@
 import "server-only";
 import { timingSafeEqual } from "node:crypto";
 import { addToWaitlist, refreshWaitlistRow } from "@chanlytics/db/workspace";
-import { signUpOnPublicKey } from "@chanlytics/db/auth";
+import { sendSignInCodeOnPublicKey, signUpOnPublicKey } from "@chanlytics/db/auth";
 import {
   PENDING_WORKSPACE_KEY,
   addressAlreadyKnown,
@@ -136,6 +136,37 @@ export async function signUp(input: SignupInput & { password: string }): Promise
   // the caller is the same sentence either way, which is the entire point.
   const created = (data.user?.identities?.length ?? 0) > 0;
   return { created, userId: created ? (data.user?.id ?? null) : null, codeUnsent: false };
+}
+
+/**
+ * The account a preview's owner keeps, made with NO password (decision 0079; the canvas's call P10): the code that proves
+ * the address is the way in, now and at every sign-in after (/login sends one to any account), and Google is the other.
+ * Asked of the route only for a live preview's link, which it has checked.
+ *
+ * One call with the public key, as signUp is: Supabase sends the code, makes the account where the address has none with
+ * what the form said kept on it, and sends the same code to an address it already has, left as it is. So the answer is
+ * one sentence either way by the platform's own behaviour, and whether an account was made is not ours to know or say.
+ * A send WE could not make is still said, as signUp says it.
+ */
+export async function signUpByCode(input: SignupInput): Promise<SignupOutcome> {
+  const { error } = await sendSignInCodeOnPublicKey(
+    { url: env.NEXT_PUBLIC_SUPABASE_URL, anonKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY },
+    {
+      email: input.email,
+      userData: {
+        [PENDING_WORKSPACE_KEY]: {
+          name: input.name,
+          timezone: input.timezone ?? null,
+          ...(input.code ? { code: input.code } : {}),
+          ...(input.preview ? { preview: input.preview } : {}),
+        },
+      },
+    },
+  );
+  if (!error) return { created: false, userId: null, codeUnsent: false };
+  if (!sendFailureIsOurs(error)) throw new DbFailure(error, "signUpByCode");
+  log.warn("signup_code_not_sent", { ourFault: true, message: error.message.slice(0, 120) });
+  return { created: false, userId: null, codeUnsent: true };
 }
 
 /**

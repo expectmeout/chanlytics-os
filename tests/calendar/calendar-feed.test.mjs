@@ -303,7 +303,7 @@ test("one sentence per way a feed fails, naming what to do", () => {
     feedProblemWords("address"),
     "The calendar feed needs to be a full https:// or webcal:// address on the internet.",
   );
-  assert.equal(feedProblemWords("unreachable"), "The calendar could not be reached. Check the address and try again.");
+  assert.equal(feedProblemWords("unreachable"), "The calendar couldn't be reached. Check the address and try again.");
   assert.equal(
     feedProblemWords("http", 404),
     "The calendar answered 404. It is usually the private iCal address, not the calendar's web page.",
@@ -316,7 +316,7 @@ test("one sentence per way a feed fails, naming what to do", () => {
   assert.match(feedProblemWords("not_ical"), /^That address is not an iCal feed\. In Google Calendar it is Settings/);
   assert.equal(
     feedProblemWords("settings"),
-    "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.",
+    "Your workspace settings couldn't be read, so the calendar address couldn't be found. Save it again in Settings.",
   );
   assert.equal(feedProblemWords(null), null);
   assert.equal(feedProblemWords(undefined), null);
@@ -549,7 +549,7 @@ test("the last good read is served when the calendar goes away, and the chip and
   assert.deepEqual([stale.feed.stale, stale.feed.reason, stale.feed.status], [true, "http", 503]);
   assert.equal(stale.days.find((d) => d.key === "2026-09-08").items.length, 1);
   const vm = toCalendarVM(stale, new Date(NOW.getTime() + 6 * 60 * 1000));
-  assert.match(vm.feed.line, /· could not be refreshed (just now|\d+[smh] ago) ·/, vm.feed.line);
+  assert.match(vm.feed.line, /· couldn't be refreshed (just now|\d+[smh] ago) ·/, vm.feed.line);
   assert.equal(vm.feed.problem, feedProblemWords("http", 503));
   assert.equal(vm.feed.stale, true);
 });

@@ -23,7 +23,7 @@ export async function addLeadToPick(p: {
     draft: p.to.row.state === "draft",
   });
   if (!r.ok) {
-    p.flash(refusalToast(r, "It could not be added"));
+    p.flash(refusalToast(r, "It couldn't be added"));
     return false;
   }
   const answer = r.data as ReachOutAddDto;

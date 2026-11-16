@@ -137,10 +137,10 @@ test("the list groups what needs you first, then by how each starts, and a draft
 test("what needs you is one count and one line: a waiting batch with nobody named yet is the batch, never 0 people", () => {
   const n = { ...NONE, waiting: 1, waiting_people: 0, held: 2, replies: 1 };
   assert.equal(needsCount(n), 4);
-  assert.equal(needsWords(row({ needs: n }), CLOCK), "waits for your OK · 2 held · 1 wrote back · answer them");
+  assert.equal(needsWords(row({ needs: n }), CLOCK), "waits for your approval · 2 held · 1 wrote back · answer them");
   assert.equal(
     needsWords(row({ needs: { ...n, waiting_people: 14 } }), CLOCK),
-    "14 wait for your OK · 2 held · 1 wrote back · answer them",
+    "14 wait for your approval · 2 held · 1 wrote back · answer them",
   );
 });
 
@@ -206,17 +206,17 @@ test("the one notice: a batch waiting for an OK with its act and how long it wai
   const waiting = sequenceNotice(row({ needs: { ...NONE, waiting: 1, batches: [batch()] } }), []);
   assert.equal(waiting.kind, "waiting");
   // A customer's batch waits until its day is gone, never "goes at" the hour it was made: an OK sends it at once.
-  assert.equal(waiting.words, "The next batch waits for your OK · until tonight");
+  assert.equal(waiting.words, "The next batch waits for your approval · until tonight");
   assert.deepEqual([waiting.act, waiting.batchId], ["Approve", "b9"]);
   const named = sequenceNotice(
     row({ needs: { ...NONE, waiting: 1, waiting_people: 3, batches: [batch({ people: 3 })] } }),
     [],
   );
   // The act in the words every Approve of a run says (decision 19 of the spec of 9 Oct 2026): its sheet's, Today's row.
-  assert.deepEqual([named.words, named.act], ["3 people wait for your OK · until tonight", "Approve all 3"]);
+  assert.deepEqual([named.words, named.act], ["3 people wait for your approval · until tonight", "Approve all 3"]);
   // A phone's dock says it in a line and one fact, the step where there are several; the count is its Approve's alone, never
   // said twice beside it (the run review's item 12).
-  assert.deepEqual([named.line, named.fact], ["Waits for your OK", "until tonight"]);
+  assert.deepEqual([named.line, named.fact], ["Waits for your approval", "until tonight"]);
   const steps = [
     { id: "s1", place: 1 },
     { id: "s2", place: 2 },
@@ -239,7 +239,7 @@ test("the one notice: a batch waiting for an OK with its act and how long it wai
     }),
     [],
   );
-  assert.deepEqual([leads.words, leads.fact], ["4 people wait for your OK", null]);
+  assert.deepEqual([leads.words, leads.fact], ["4 people wait for your approval", null]);
   assert.equal(sequenceNotice(row({ needs: { ...NONE, held: 2 } }), []).words, "2 emails are held by the check");
   // A batch to leads with every email held: an OK sends nothing, so it is said as what is held, never "waits for your OK"
   // over an Approve (31 Oct 2026: Brooklyn's 7). One with nobody named yet, being planned, still waits.
@@ -258,7 +258,7 @@ test("the one notice: a batch waiting for an OK with its act and how long it wai
   assert.equal(sequenceRowLine(row({ starts: "leads", needs: allHeld }), AT), "7 emails held for your look");
   const planning = { ...allHeld, held: 0 };
   assert.equal(sequenceNotice(row({ starts: "leads", needs: planning }), []).kind, "waiting");
-  assert.equal(needsWords(row({ starts: "leads", needs: planning }), CLOCK), "The next batch waits for your OK");
+  assert.equal(needsWords(row({ starts: "leads", needs: planning }), CLOCK), "The next batch waits for your approval");
   assert.equal(sequenceNotice(row(), []), null);
 });
 
@@ -531,11 +531,11 @@ test("a paused sequence's dock, who approves in its More, and where a follow-up 
   assert.equal(takesFollowUps(row({ first: { ...FIRST, trigger: "visit_soon" } })), false);
   assert.equal(
     SEQUENCE_FLOW_WORDS.noFollowUpOnReminder("visit_tomorrow"),
-    "A reminder goes once, the day before. To write to them afterwards, start a sequence that sends after it.",
+    "A reminder goes once, the day before. To write to them afterwards, start a campaign that sends after it.",
   );
   assert.equal(
     SEQUENCE_FLOW_WORDS.noFollowUpOnReminder("visit_soon"),
-    "A reminder goes once, two hours before. To write to them afterwards, start a sequence that sends after it.",
+    "A reminder goes once, two hours before. To write to them afterwards, start a campaign that sends after it.",
   );
   assert.equal(sequenceChannelsWords([]), "", "a one-off's channels are its sends': none guessed");
   assert.equal(sequenceChannelsWords(["whatsapp", "email"]), "WhatsApp or email, one each");

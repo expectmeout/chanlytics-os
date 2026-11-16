@@ -207,7 +207,7 @@ test("reading: the pane says it, spend and the cost wait as dashes with their re
 test("failed: a line says it could not be read and as of when; that platform's rows hold their last numbers", () => {
   const vm = model("failed");
   assert.deepEqual(vm.failed, [
-    { platform: "meta", line: "Meta's numbers could not be read · as of Sat 6 PM", again: "Try again" },
+    { platform: "meta", line: "Meta's numbers couldn't be read · as of Sat 6 PM", again: "Try again" },
   ]);
   const spring = rowOf(vm, SPRING);
   assert.deepEqual(
@@ -218,7 +218,7 @@ test("failed: a line says it could not be read and as of when; that platform's r
   assert.equal(spring.phone.line, "Facebook and Instagram · WhatsApp · as of Sat 6 PM");
   assert.equal(rowOf(vm, SATURDAY).spent.unit, null, "TikTok was read");
   const meta = vm.standing.find((s) => s.id === "meta");
-  assert.deepEqual([meta?.state, meta?.word], ["warn", "Could not be read"]);
+  assert.deepEqual([meta?.state, meta?.word], ["warn", "Couldn't be read"]);
   assert.match(vm.figures[0].meta ?? "", /^across 4 ads · Meta as of Sat 6 PM$/);
   // Read again: the failed line goes with the failure.
   const read = withAccount(EXAMPLE_READS.failed(), "meta", { read: "ok" });

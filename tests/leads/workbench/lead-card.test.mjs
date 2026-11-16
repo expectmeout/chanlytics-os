@@ -120,11 +120,11 @@ test("nobody named greets them as the fallback, said before Add; a company's add
 
 test("when it goes is the batch, never a minute: today's made, so tomorrow's, after the owner's OK on a list", () => {
   const e = leadCardEmailOf({ chain: chain(), lead: place(), workspace: WS, nowMs: NOW, tz: TZ });
-  assert.equal(e.when, "Goes tomorrow from 9:00 AM, after your OK");
+  assert.equal(e.when, "Goes tomorrow from 9:00 AM, after your approval");
   const waiting = chain({ next: { ...chain().next, waiting_run_id: "run-1" } });
   assert.equal(
     leadCardEmailOf({ chain: waiting, lead: place(), workspace: WS, nowMs: NOW, tz: TZ }).when,
-    "Waits for your OK",
+    "Waits for your approval",
   );
 });
 
@@ -187,7 +187,7 @@ test("where an address is what is missing, the card offers the door left: someon
 
 test("an address still being checked joins, and goes once it checks out", () => {
   const e = emailWith(place({ emailState: "checking" }), undefined);
-  assert.equal(e.when, `Goes tomorrow from 9:00 AM, after your OK, ${LEAD_CARD_WORDS.checking}`);
+  assert.equal(e.when, `Goes tomorrow from 9:00 AM, after your approval, ${LEAD_CARD_WORDS.checking}`);
   assert.equal(e.blocked, null);
 });
 
@@ -206,7 +206,7 @@ test("what fills their words: each slot with its value and where it came from, a
   assert.equal(by.city.look, "gap");
   assert.equal(by.city.value, null);
   assert.equal(by["your name"].value, "Rae");
-  assert.equal(by["your name"].from, "The name this sequence signs with");
+  assert.equal(by["your name"].from, "The name this campaign signs with");
   assert.equal(by["booking link"].value, "https://example.com/book");
 });
 
@@ -367,6 +367,6 @@ test("the marks: couldn't-tell first, then seen, then read; a no is the verdict'
 test("the sheet's three tabs, Why first, in Sequences' words (the refined canvas)", () => {
   assert.deepEqual(
     LEAD_CARD_TABS.map((t) => t.label),
-    ["Why", "Contact", "Sequence"],
+    ["Why", "Contact", "Campaign"],
   );
 });

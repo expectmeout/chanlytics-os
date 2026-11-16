@@ -99,7 +99,7 @@ export const WORKS_AT_WORDS = {
     names.length > 2 ? `${names.slice(0, 2).join(", ")} and ${names.length - 2} more` : names.join(", "),
   thisPage: "this page",
   /** The business sheet opened from a thread (the Inbox's Works at): the person the thread is with. */
-  thisThread: "this thread",
+  thisThread: "this conversation",
   inTouch: (day: string) => `in touch ${day}`,
   neverInTouch: "not in touch yet",
   linkPerson: "Link a person",
@@ -112,7 +112,7 @@ export const WORKS_AT_WORDS = {
   stageNote: "changed on Leads",
   fit: "Fit",
   checks: (n: number) => plural(n, "check"),
-  reachOut: "Sequence",
+  reachOut: "Campaign",
   readWhatWentOut: "Read what went out",
   listingPhone: "Listing phone",
   listingHours: (line: string) => `Listing hours: ${line.charAt(0).toLowerCase()}${line.slice(1)}`,
@@ -160,13 +160,13 @@ export const PERSON_ABOUT_WORDS = {
   campaigns: "Campaigns",
   campaignsMark: (n: number, newest: string) => `${n} sent · ${newest}`,
   /** The sequences they are in now (0060), over what went to them. */
-  inSequence: "In a sequence",
+  inSequence: "In a campaign",
   /** Messages and receptionist's rows (canvas A, P9.4): a mode the workspace sets, and a row nobody here changes. */
   thisWorkspace: "this workspace",
   readOnly: "read only",
   change: "Change",
   /** Offers by email's ask (00489), when the edge could not be asked at all: the reasons it gives are its own words. */
-  couldNotAsk: "Their confirmation could not be asked for. Try again in a minute.",
+  couldNotAsk: "Their confirmation couldn't be asked for. Try again in a minute.",
   /** The top bar's Ask on their page (canvas A): about them by their first name, or a stand-in's business whole. */
   askAbout: (personName: string) => `Ask about ${personName}`,
   /** What the receptionist knows of them, under the rows while the group is open. */
@@ -250,7 +250,7 @@ export const CALL_FACT_WORDS = {
 
 /** A reply the receptionist wrote and holds before it sends (the veto window): said under their last words (canvas A). */
 export const DRAFT_NOTICE_WORDS = {
-  waiting: "A draft answer is waiting in the thread",
+  waiting: "A draft answer is waiting in the conversation",
   sends: (time: string) => `sends at ${time}`,
   review: "Review the draft",
 } as const;
@@ -283,8 +283,8 @@ export const PERSON_LISTS_SHEET_WORDS = {
   /** "Emily is on Regulars", or off it. */
   moved: (on: boolean) => (on ? "is on" : "is off"),
   onNew: "is on the new list",
-  failed: "Could not change the list.",
-  notMade: "Could not make the list.",
+  failed: "Couldn't change the list.",
+  notMade: "Couldn't make the list.",
 } as const;
 
 /**

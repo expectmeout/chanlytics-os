@@ -255,7 +255,7 @@ export function lineRetryRefusal(
 ): string | null {
   if (!line) return "no such line";
   if (line.voice_state === "failed" && lineCredentialFailure(line.last_error))
-    return "the line's credentials could not be kept — a retry cannot help until a person at Chanlytics restores them, and we have been told";
+    return "the line's credentials couldn't be kept — a retry cannot help until a person at Chanlytics restores them, and we have been told";
   if (line.voice_state === "failed") return null;
   if (lineStuckProvisioning(line, nowMs)) return null;
   return line.voice_state === "provisioning"
@@ -402,7 +402,7 @@ export const BROKEN_CONFIG_WORDS = {
   title: "This workspace's settings can't be read",
   body: "Something saved in this workspace's configuration no longer passes the checks AI runs before it answers, so AI is silent and this form is closed — saving from here would replace what is still there. Chanlytics has to repair it.",
   clause:
-    "Your business settings could not be read, so AI is silent until Chanlytics repairs them. Business lists what is wrong.",
+    "Your business settings couldn't be read, so AI is silent until Chanlytics repairs them. Business lists what is wrong.",
   /** The owner's one move on a configuration only Chanlytics can repair (S8): it said so, with no way to ask. */
   ask: "Ask for a repair",
   /** Once asked: when, and what happens next, on Setup's row and on the pane's card alike. */
