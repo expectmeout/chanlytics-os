@@ -1034,11 +1034,11 @@ test("REGRESSION: a reminder nobody approved by 21:00 is skipped, and its owner 
   const told = Object.fromEntries(bellOf(w, A).map((n) => [n.subject_id, [n.title, n.body]]));
   assert.deepEqual(told["run-reminder"], [
     "“Appointment reminder” didn’t go: nobody approved it",
-    "3 people waited for your OK until 21:00, and it did not reach them: no later batch sends it in its place. Open it to see who, and write to them yourself. The next day’s “Appointment reminder” waits for your OK too, until 21:00: its batches wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
+    "3 people waited for your approval until 21:00, and it didn’t reach them. No later send goes in its place. Open it to see who, and write to them yourself. The next day’s “Appointment reminder” waits for your approval too, until 21:00: its sends wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
   ]);
   assert.deepEqual(told["run-winback"], [
     "“Win-back” didn’t go: nobody approved it",
-    "2 people waited for your OK until the day ended, and nothing was sent. They are in line for its next batch, which waits for your OK too: its batches wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
+    "2 people waited for your approval until the day ended, and nothing was sent. They are in line for its next send, which waits for your approval too: its sends wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
   ]);
 });
 
@@ -1075,7 +1075,7 @@ test("a freed time's batch nobody approved ends when its time comes (0082), told
   assert.equal(told.title, "“Fill a cancellation” didn’t go: nobody approved it");
   assert.match(
     told.body,
-    /^2 people waited for your OK until .+ came, and nothing was sent: that time has passed\. The next cancellation offers its own time/,
+    /^2 people waited for your approval until .+ came, and nothing was sent, since that time has passed\. The next cancellation offers its own time/,
   );
 });
 
@@ -1134,7 +1134,7 @@ test("a late booking's reminder nobody approved ends when its visit begins (0118
   );
   const [told] = bellOf(w, A).filter((n) => n.subject_id === "run-begun");
   assert.equal(told.title, "“Appointment reminder” didn’t go: nobody approved it");
-  assert.match(told.body, /^1 person booked after the day’s reminders went, .+ no later batch sends it in its place\./);
+  assert.match(told.body, /^1 person booked after the day’s reminders went, .+ no later send goes in its place\./);
 });
 
 test("two playbooks due in the same hour keep the week's breath between them: the second leaves out whoever the first just enrolled, and keeps whoever it did not (P1 3)", async () => {

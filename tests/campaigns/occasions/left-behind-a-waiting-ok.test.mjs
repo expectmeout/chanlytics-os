@@ -122,10 +122,10 @@ test("people whose visit began while the step's first OK waited are left, and th
   assert.equal(w.told.length, 1, "one notice for the two of them");
   const [tenantId, msg] = w.told[0];
   assert.equal(tenantId, T);
-  assert.equal(msg.subject, "“Two-hour reminder” is skipping people while it waits for your OK");
+  assert.equal(msg.subject, "“Two-hour reminder” is skipping people while it waits for your approval");
   assert.equal(
     msg.body,
-    "2 people’s messages did not go: “Two-hour reminder” still waits for your first OK of its words, and their time passed while it waited. Nothing later sends it in its place. Each person after them is skipped the same way until you approve or skip the one that waits, from your Inbox or Today.",
+    "2 people’s messages didn’t go: “Two-hour reminder” still waits for your first approval of its words, and their time passed while it waited. Nothing later sends it in its place. Each person after them is skipped the same way until you approve or skip the one that waits, from your Inbox or Today.",
   );
   // Told once a waiting batch, under its own name, and its row opens that batch.
   assert.equal(msg.onceKey, `occasions-behind:${BATCH}`);
@@ -137,7 +137,7 @@ test("people whose visit began while the step's first OK waited are left, and th
 test("one person says it of one person", async () => {
   const w = world({ visits: begun().slice(0, 1) });
   await w.run();
-  assert.ok(w.told[0][1].body.startsWith("1 person’s message did not go:"), w.told[0][1].body);
+  assert.ok(w.told[0][1].body.startsWith("1 person’s message didn’t go:"), w.told[0][1].body);
 });
 
 test("one found more than a day past its time behind a waiting OK is told the same way", async () => {

@@ -81,13 +81,13 @@ export function holdNotice(holdFacts: HoldFacts): Omit<JobNews, "sourceEvent"> {
       ];
   // What to do, by the reason's act: reply, call back, or nothing that may be sent; the pause rides after it when there is one.
   const pause = holdFacts.pausedHours
-    ? `${act.replace(/\.$/, "")} — AI is paused on this thread for ${holdFacts.pausedHours}h.`
+    ? `${act.replace(/\.$/, "")}. AI is paused on this conversation for ${holdFacts.pausedHours}h.`
     : act;
   return {
     kind: "handoff",
     route: `inbox/th-${holdFacts.conversationId}`,
     about: { type: "conversation", id: holdFacts.conversationId },
-    subject: clipped(reason ? `${name} needs a person — ${reason}` : `${name} needs a person`, 200),
+    subject: clipped(reason ? `${name} needs a person · ${reason}` : `${name} needs a person`, 200),
     body: [...lines, "", `${where} conversation${shown ? ` · ${shown}` : ""}`, pause].join("\n").replace(/^\n/, ""),
     redactedBody: `A ${where === "The" ? "" : `${where} `}conversation needed a person${reason ? ` (${reason})` : ""}, and nobody could be told.`,
   };

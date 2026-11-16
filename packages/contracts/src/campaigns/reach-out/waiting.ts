@@ -52,6 +52,12 @@ export function coldWaitsReminderOf(
   return waited.length > 0 ? { day: zoneDayKey(nowMs, tz), runs: waited } : null;
 }
 
+/**
+ * The title of the notice that a cold email send waits for the owner's approval, by its campaign's name: the edge keeps it
+ * (reach-out run-context.ts) and the bell's close finds the waiting send by it (waits/notice-closes.ts).
+ */
+export const coldWaitsTitle = (name: string): string => `${name} waits for your approval`;
+
 /** The name a workspace's reminder for one day is kept once under (the edge's once-only notices). */
 export const coldWaitsReminderKey = (tenantId: string, day: string): string => `cold_email_waits:${tenantId}:${day}`;
 
@@ -74,11 +80,11 @@ export function coldWaitsNotice(
   const one = runs.length === 1;
   return {
     subject: one
-      ? `${stepNameOf(first)} still waits for your OK`
-      : `${plural(runs.length, "cold email run")} still wait for your OK`,
+      ? `${stepNameOf(first)} still waits for your approval`
+      : `${plural(runs.length, "cold email send")} still wait for your approval`,
     body: one
-      ? `${plural(emails, "email")} to businesses your search found ${emails === 1 ? "has" : "have"} waited since ${since}. Approve ${emails === 1 ? "it" : "them"}, or skip the run. ${waitEndsWords("leads_batch")}.`
-      : `${plural(emails, "email")} to businesses your searches found have waited since ${since}: ${list}. Approve or skip each run. ${waitEndsWords("leads_batch")}.`,
+      ? `${plural(emails, "email")} to businesses your search found ${emails === 1 ? "has" : "have"} waited since ${since}. Approve ${emails === 1 ? "it" : "them"}, or skip this send. ${waitEndsWords("leads_batch")}.`
+      : `${plural(emails, "email")} to businesses your searches found have waited since ${since}: ${list}. Approve or skip each one. ${waitEndsWords("leads_batch")}.`,
     runId: first.id,
   };
 }

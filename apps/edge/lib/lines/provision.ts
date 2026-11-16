@@ -53,10 +53,10 @@ export async function reportLineFailed(
   const credentials = lineCredentialFailure(error);
   await recordNotification(tenant.id, {
     kind: "alert",
-    title: "Your phone line hit a snag — a person at Chanlytics has it",
+    title: "Setting up your phone line stopped · Chanlytics is on it",
     body: credentials
-      ? `Setting up ${shown} stopped at ${LINE_CREDENTIALS_SENTENCE}. A retry cannot help until we restore them; we have been told and will finish it with you.`
-      : `Setting up ${shown} stopped while ${at}. You can retry from Setup; we have been told and will finish it with you if the retry does not.`,
+      ? `Setting up ${shown} stopped at ${LINE_CREDENTIALS_SENTENCE}. Trying again can’t help until Chanlytics restores them. Chanlytics has been told, and will finish it with you.`
+      : `Setting up ${shown} stopped while ${at}. You can try again from Setup. Chanlytics has been told, and will finish it with you if that doesn’t work.`,
     route: FIRST_RUN_ROUTE,
     about: { type: "line", id: line.id },
   });
@@ -113,7 +113,7 @@ export async function provisionLine(
     await recordNotification(tenant.id, {
       kind: "number",
       title: `Your phone line is ready: ${shown}`,
-      body: `AI answers calls on ${shown}. Call it from your own phone to hear it; the Live page shows the call as it happens. Texting arrives once the carriers register the line.`,
+      body: `AI answers calls on ${shown}. Call it from your own phone to hear it. The Live page shows the call as it happens. Texting starts once it’s approved.`,
       route: FIRST_RUN_ROUTE,
       about: { type: "line", id: line.id },
     });

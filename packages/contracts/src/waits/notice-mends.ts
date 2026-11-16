@@ -14,7 +14,7 @@
  */
 import { OFFERS_NOTICE_WORDS } from "../campaigns/broadcasts/email-offers";
 import { TEMPLATE_NOTICE_TITLES, TEMPLATE_STATUS_WORDS } from "../campaigns/templates/templates";
-import { CALENDAR_UNREADABLE_WORDS, GOOGLE_SYNC_NOTICE_WORDS } from "../notices/connection-news";
+import { CALENDAR_UNREADABLE_WORDS, GOOGLE_SYNC_NOTICE_WORDS, NUMBER_FLAG_TITLES } from "../notices/connection-news";
 import type { ServerNotificationKind } from "../today/notifications/feed-input";
 
 /** A change the edge records that mends a warning, where no row of good news is kept for it. */
@@ -73,8 +73,11 @@ export const messageNewsTitle = (status: ToldStatus): RegExp => anyOf([toldAs(st
 export const NOTICE_MENDS: readonly NoticeMend[] = [
   // A number's quality and its limit are that number's (its channel, waba-events.ts): one number's good news is not another's.
   {
-    warns: { kind: "number", title: /^WhatsApp quality rating flagged$/u },
-    by: { kind: "number", title: /^WhatsApp quality rating back to normal$/u },
+    warns: {
+      kind: "number",
+      title: anyOf([NUMBER_FLAG_TITLES.flagged, NUMBER_FLAG_TITLES.before.flagged].map(escaped)),
+    },
+    by: { kind: "number", title: anyOf([NUMBER_FLAG_TITLES.cleared, NUMBER_FLAG_TITLES.before.cleared].map(escaped)) },
     sameSubject: true,
   },
   {

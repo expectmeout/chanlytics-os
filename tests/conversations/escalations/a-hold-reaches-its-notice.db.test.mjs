@@ -148,7 +148,7 @@ test("a hold opened through its door is owed to owner_notice, and told once from
   };
   await SUBSCRIBERS.owner_notice(event, ports);
   assert.equal(told.length, 1);
-  assert.equal(told[0].subject, "Rosa Diaz needs a person — too many replies too fast");
+  assert.equal(told[0].subject, "Rosa Diaz needs a person · too many replies too fast");
   assert.match(told[0].body, /^They wrote: “Can I move my visit to Friday\?”\nThread hit 20 automatic replies today/);
   assert.match(told[0].body, /Text conversation · \+1 \(305\) 555-0177/);
   await SUBSCRIBERS.owner_notice(event, ports);

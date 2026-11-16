@@ -249,7 +249,7 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
     await Promise.all([
       tell(request, {
         said: bodyText,
-        answered: "(send failed — the customer received no reply)",
+        answered: "(couldn't send · the customer got no reply)",
         why: "send_failed",
       }),
       request,

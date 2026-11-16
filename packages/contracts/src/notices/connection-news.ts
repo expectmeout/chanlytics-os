@@ -26,6 +26,18 @@ export const GOOGLE_SYNC_NOTICE_WORDS = {
 } as const;
 
 /**
+ * The titles of WhatsApp's news of a number's flag, as the edge keeps them (whatsapp waba-events.ts) and the bell's mend
+ * matches them (waits/notice-mends.ts): the flag, and its lifting. `before` are the titles kept until the words pass of
+ * 15 Nov 2026, which the bell still holds for a month: the mend matches both, and they can go after 15 Dec 2026.
+ */
+export const NUMBER_FLAG_TITLES = {
+  flagged: "WhatsApp flagged your number",
+  cleared: "WhatsApp no longer flags your number",
+  // screen-word: the titles of rows kept before 15 Nov 2026, matched and never written
+  before: { flagged: "WhatsApp quality rating flagged", cleared: "WhatsApp quality rating back to normal" },
+} as const;
+
+/**
  * A calendar link that has failed every read for this long is told of. One read failing is routine (a slow feed, the
  * read's own bound, a failure kept for five minutes); a day of them is a link that has stopped working.
  */

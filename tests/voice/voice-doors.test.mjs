@@ -536,8 +536,7 @@ test("provision, the apply that buys a number: the LLM that is the shell, the ag
     [A, "number", `Your phone line is ready: ${shown}`, "start", "setup", row.id],
   );
   assert.ok(
-    bell.body.includes(`The receptionist answers calls on ${shown}.`) &&
-      bell.body.includes("Setup now reads the line as ready"),
+    bell.body.includes(`AI answers calls on ${shown}.`) && bell.body.includes("Setup now shows the number as ready"),
   );
   assert.equal(tables.events.length, 1);
   const ev = tables.events[0];

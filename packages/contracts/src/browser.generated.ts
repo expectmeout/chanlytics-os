@@ -147,7 +147,7 @@ export { COLD_EMAIL_CONNECT_ROUTE, COLD_EMAIL_MAILBOX_UNREAD, COLD_EMAIL_NEEDS_M
 export { SEND_DAY_FRAME, SEND_WINDOW_MARGIN_MIN, sendWindowsOf, timetable, TIMETABLE_HORIZON_DAYS } from "./campaigns/reach-out/timetable";
 export { openingToldParts, reachOutExampleRecord, replyToldParts, toldPart, toldShares, tryPartsOf } from "./campaigns/reach-out/told";
 export { US_STATE_ZONES, zoneOfRegion } from "./campaigns/reach-out/us-zones";
-export { coldWaitsNotice, coldWaitsReminderKey, coldWaitsReminderOf } from "./campaigns/reach-out/waiting";
+export { coldWaitsNotice, coldWaitsReminderKey, coldWaitsReminderOf, coldWaitsTitle } from "./campaigns/reach-out/waiting";
 export { CHAIN_MIN_LISTINGS, chainOf, customerDomainOf, heldClaimOf, HOLD_DOOR_WORDS, holdDoors, HOLDS_INCLUDED_FOR_CHAIN, holdWords, isReachOutHold, OPENING_CLAIM_KINDS, openingClaimWords, REACH_OUT_COUNTRIES_FREE, REACH_OUT_COUNTRIES_REFUSED, REACH_OUT_HOLDS, reachOutCountryOf } from "./campaigns/reach-out/words/claims";
 export { ANGLE_WORDS_MAX, ASK_FIRST_WORDS_MAX, ASK_LATER_WORDS_MAX, emailWordCount, linkCount, linksIn, OPENING_CHARS_MAX, OPENING_WORDS_MAX, REACH_OUT_AFTER_DAYS, REACH_OUT_GAP_MINUTES, REACH_OUT_NAME_MAX, REACH_OUT_STEPS_MAX, reachOutRules, reachOutSlotFault, shoutingLine, SIGNED_BY_MAX, slotCount, validateReachOutWords, wordCount, wordsIssueWords, wordsNeedOpening } from "./campaigns/reach-out/words/limits";
 export { chainIssueWords, checkOpening, factValue, isOpeningFactKey, isOpeningProblem, OPENING_FACT_KEYS, OPENING_PROBLEMS, openingProblemWords, validateReachOutChain } from "./campaigns/reach-out/words/opening";
@@ -395,7 +395,7 @@ export { NOTE_LINE_MAX, NOTE_MAX, NOTE_REFUSALS, NOTE_WORDS, personNotesVM } fro
 export { NO_DAY, noteManyLine, STEP_SHEET_WORDS, stepSheetBody, stepSheetDirty, stepSheetDone, stepSheetFor, stepSheetMerge } from "./notes/step-sheet";
 export { callDays, composerDays, dueStepDay, forWords, nextStepOf, stepDayName, stepDayOf, stepDays, stepIsDue, TODAY_STEPS_MAX, todayStepsDue } from "./notes/steps";
 export { checkNoteSuggestion, customerWords, NOTE_SUGGEST_KINDS, NOTE_SUGGEST_LIMITS, NOTE_SUGGEST_MODEL, NOTE_SUGGEST_SCHEMA, noteSuggestSystemPrompt, noteSuggestUserContent, whyNotLook } from "./notes/suggest";
-export { CALENDAR_UNREADABLE_TOLD_AFTER_MS, CALENDAR_UNREADABLE_WORDS, GOOGLE_SYNC_NOTICE_WORDS, GOOGLE_SYNC_TOLD_AFTER_MS } from "./notices/connection-news";
+export { CALENDAR_UNREADABLE_TOLD_AFTER_MS, CALENDAR_UNREADABLE_WORDS, GOOGLE_SYNC_NOTICE_WORDS, GOOGLE_SYNC_TOLD_AFTER_MS, NUMBER_FLAG_TITLES } from "./notices/connection-news";
 export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } from "./notices/member-news";
 export { bookedOnce, BOOKING_VIAS, bookingArriving, bookingChanged, CATCH_UP_VISITS, feedAdditionIsBooking, VISIT_CHANGES_TOLD, visitChangeNews, visitNews } from "./notices/visit-news";
 export { consultFirstOf, peopleVisitsOf, personLikeOf, poolListContext, poolRowOf, poolRowsOf, withVisitsOf } from "./people/audience-pool";

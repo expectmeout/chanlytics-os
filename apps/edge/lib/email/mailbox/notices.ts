@@ -64,7 +64,7 @@ export async function tellGap(
         about: { type: "mailbox_connection", id: row.id },
         subject: `${row.address} was not read for a while`,
         body:
-          `Chanlytics could not read ${row.address} from ${from} to ${to}. It is read again now, and the replies to ` +
+          `Chanlytics couldn’t read ${row.address} from ${from} to ${to}. It is read again now, and the replies to ` +
           `emails Chanlytics sent from it in those days are in.\n\nOther email that arrived then was not brought in: ` +
           `look in ${row.address} itself for anything from those days that still needs an answer.` +
           (gap.clipped ? ` Nothing from before ${from} was looked for.` : ""),

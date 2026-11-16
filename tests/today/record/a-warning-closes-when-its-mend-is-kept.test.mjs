@@ -81,9 +81,12 @@ test("every kind the edge keeps says how its row ends, and every warning a mend 
 test("a mend names its warning by title: 'back to normal' mends 'flagged' and nothing else, and a warning mends nothing", () => {
   const titles = (by) => warningsMendedBy(by).map((w) => [w.kind, w.title.source, w.sameSubject]);
   // A number's quality and limit are that number's: the pair must be about the same channel.
-  assert.deepEqual(titles({ kind: "number", title: "WhatsApp quality rating back to normal" }), [
-    ["number", "^WhatsApp quality rating flagged$", true],
-  ]);
+  // The flag's titles are said once (NUMBER_FLAG_TITLES); a row kept before the words pass of 15 Nov 2026 is still read.
+  const FLAGGED = "^(?:WhatsApp flagged your number|WhatsApp quality rating flagged)$";
+  for (const cleared of ["WhatsApp no longer flags your number", "WhatsApp quality rating back to normal"])
+    assert.deepEqual(titles({ kind: "number", title: cleared }), [["number", FLAGGED, true]], cleared);
+  for (const flagged of ["WhatsApp flagged your number", "WhatsApp quality rating flagged"])
+    assert.match(flagged, new RegExp(FLAGGED, "u"), `${flagged} is a warning the lifting mends`);
   assert.deepEqual(titles({ kind: "number", title: "WhatsApp messaging limit raised" }), [
     ["number", "^WhatsApp messaging limit lowered$", true],
   ]);
@@ -92,6 +95,7 @@ test("a mend names its warning by title: 'back to normal' mends 'flagged' and no
     ["number", "^WhatsApp account review rejected$", false],
   ]);
   assert.deepEqual(titles({ kind: "number", title: "WhatsApp quality rating flagged" }), [], "a warning mends nothing");
+  assert.deepEqual(titles({ kind: "number", title: "WhatsApp flagged your number" }), [], "in today's words too");
   assert.deepEqual(
     titles({ kind: "sweep", title: "WhatsApp quality rating back to normal" }),
     [],

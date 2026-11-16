@@ -95,7 +95,7 @@ test(
     // mailbox is the only place in the product it can be said.
     assert.deepEqual(out, [{ what: "email", changed: false, mailbox: "marked" }]);
     const said = await errorOf(mailboxes.ours);
-    assert.match(said, /could not be taken in/);
+    assert.match(said, /Couldn't take in an email/);
     assert.match(said, /Inbox/, "it tells the owner where to look");
     assert.doesNotMatch(said, /job|lease|retr(y|ies)|error/i, "a sentence for the owner, never the job's own reason");
   },

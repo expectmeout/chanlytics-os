@@ -149,12 +149,7 @@ test("a wire that could not carry it flags the thread, whose event tells the own
     ["deliver", "escalate"],
     "the flag is written, so its event tells the owner, not the send (decision 0043)",
   );
-  assert.deepEqual(failed.log[1], [
-    "escalate",
-    "c1",
-    "send_failed",
-    "Dashboard reply could not be delivered (HTTP 500).",
-  ]);
+  assert.deepEqual(failed.log[1], ["escalate", "c1", "send_failed", "Your team's reply didn't reach them (HTTP 500)."]);
   // A flag the database refused is told here, in the send's words: the job completes, and nothing will say it again.
   const unwritten = fakes({
     escalate: "failed",
@@ -162,7 +157,7 @@ test("a wire that could not carry it flags the thread, whose event tells the own
   });
   await core.sendQueued(unwritten.ports, send());
   assert.deepEqual(unwritten.ops(), ["deliver", "escalate", "alert"]);
-  assert.match(unwritten.log[2][1].subject, /Reply delivery failed: \+13475550101/);
+  assert.match(unwritten.log[2][1].subject, /A reply didn't reach \+13475550101/);
   assert.match(unwritten.log[2][1].body, /HTTP 500/);
   // A reply that could not be delivered is a thread that needs a person, and its button opens THAT thread; the job itself finished.
   assert.deepEqual(
@@ -193,7 +188,7 @@ test("a wire that could not carry it flags the thread, whose event tells the own
   );
   assert.deepEqual(
     noWire.log[1],
-    ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (the WhatsApp number is not connected)."],
+    ["escalate", "c1", "send_failed", "Your team's reply didn't reach them (the WhatsApp number is not connected)."],
     "and it is shown as what it is, never as an HTTP status",
   );
   const noLine = fakes({
@@ -203,7 +198,7 @@ test("a wire that could not carry it flags the thread, whose event tells the own
   await core.sendQueued(noLine.ports, send());
   assert.deepEqual(
     noLine.log[1],
-    ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (the texting line is not connected)."],
+    ["escalate", "c1", "send_failed", "Your team's reply didn't reach them (the texting line is not connected)."],
     "a text is told as a text: its line, never a WhatsApp number it was not sent on",
   );
   const draft = fakes({
@@ -213,7 +208,7 @@ test("a wire that could not carry it flags the thread, whose event tells the own
   await core.sendQueued(draft.ports, send());
   assert.equal(
     draft.log[1][3],
-    "AI's reply could not be delivered (HTTP 500).",
+    "AI's reply didn't reach them (HTTP 500).",
     "a draft AI queued is not 'a dashboard reply'",
   );
   const refused = fakes({ deliver: { outcome: "refused", reason: "opted_out", messageId: "m1" } });
@@ -283,9 +278,9 @@ test("an email's queued row leaves as the request it was frozen with, to the add
     "escalate",
     "c1",
     "send_failed",
-    "Dashboard reply could not be delivered (it never reached the provider).",
+    "Your team's reply didn't reach them (it never reached the provider).",
   ]);
-  assert.match(bare.log[2][1].subject, /Reply delivery failed: ana@example\.com/);
+  assert.match(bare.log[2][1].subject, /A reply didn't reach ana@example\.com/);
   // No answer in time is not "never reached": it may have gone, and the owner is told to look before sending it again.
   const maybe = fakes({
     queued: row,
@@ -301,14 +296,14 @@ test("an email's queued row leaves as the request it was frozen with, to the add
   await core.sendQueued(maybe.ports, byEmail());
   assert.equal(
     maybe.log[1][3],
-    "Dashboard reply could not be delivered (the provider did not answer, so it may have gone; check the thread before sending it again).",
+    "Your team's reply didn't reach them (the provider did not answer, so it may have gone; check the thread before sending it again).",
   );
   const unset = fakes({
     queued: row,
     deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" },
   });
   await core.sendQueued(unset.ports, byEmail());
-  assert.equal(unset.log[1][3], "Dashboard reply could not be delivered (the email channel is not connected).");
+  assert.equal(unset.log[1][3], "Your team's reply didn't reach them (the email channel is not connected).");
 });
 
 test("the provisioning: the saga is the edge's; a runtime without it fails loudly, and a saga that stopped names its step", async () => {
@@ -361,19 +356,19 @@ test("a limit at the mail provider is said as one: a used-up day or month is rec
   );
   assert.equal(
     day.log[2][3],
-    "Dashboard reply could not be delivered (the mail provider's sending limit is used up for now).",
+    "Your team's reply didn't reach them (the mail provider's sending limit is used up for now).",
   );
   const busy = fakes({ queued: emailRow, deliver: refusedBy("rate") });
   await core.sendQueued(busy.ports, byEmail);
   assert.deepEqual(busy.ops(), ["deliver", "escalate"], "a busy second is nobody's page");
-  assert.equal(busy.log[1][3], "Dashboard reply could not be delivered (the mail provider asked us to slow down).");
+  assert.equal(busy.log[1][3], "Your team's reply didn't reach them (the mail provider asked us to slow down).");
   const month = fakes({ queued: emailRow, deliver: refusedBy("monthly") });
   await core.sendQueued(month.ports, byEmail);
   assert.deepEqual(month.ops(), ["deliver", "page", "escalate"]);
   assert.equal(month.log[1][2], "email: the monthly sending limit is used up");
   assert.equal(
     month.log[2][3],
-    "Dashboard reply could not be delivered (the mail provider's sending limit is used up for now).",
+    "Your team's reply didn't reach them (the mail provider's sending limit is used up for now).",
   );
   // A try still being worked may yet arrive: the owner is told to look before sending again, and nobody is paged.
   const inFlight = fakes({ queued: emailRow, deliver: refusedBy("in_flight") });
@@ -381,13 +376,13 @@ test("a limit at the mail provider is said as one: a used-up day or month is rec
   assert.deepEqual(inFlight.ops(), ["deliver", "escalate"]);
   assert.equal(
     inFlight.log[1][3],
-    "Dashboard reply could not be delivered (the mail provider is still sending an earlier try of it; check the thread before sending it again).",
+    "Your team's reply didn't reach them (the mail provider is still sending an earlier try of it; check the thread before sending it again).",
   );
   const text = fakes({ deliver: refusedBy(null) });
   await core.sendQueued(text.ports, send());
   assert.equal(
     text.log[1][3],
-    "Dashboard reply could not be delivered (HTTP 429).",
+    "Your team's reply didn't reach them (HTTP 429).",
     "a refusal the door names no limit for is said as its status",
   );
 });

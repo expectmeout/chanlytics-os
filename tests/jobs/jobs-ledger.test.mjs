@@ -518,7 +518,7 @@ test("a ledger that refuses the fresh run fails the broadcast and says THAT, not
   assert.equal(broadcasts[0].failure, "run_interrupted");
   assert.match(
     saySettled(out),
-    /could not be handed to a fresh run \(.*jobs_guard says no.*\), so it has been marked failed; the 2 it had already reached still got it, and 2 did not/,
+    /couldn't be handed to a fresh run \(.*jobs_guard says no.*\), so it's marked as stopped\. The 2 it had already reached still got it, and 2 did not/,
   );
 });
 
@@ -535,7 +535,7 @@ test("a count that could not be read is never reported as zero, and never risks 
     "not '0 reached so far, 0 still to go'",
   );
   assert.equal(broadcasts[0].state, "sending");
-  assert.match(saySettled(out), /could not be updated \(statement timeout\)/);
+  assert.match(saySettled(out), /couldn't be updated \(statement timeout\)/);
   // A ledger it cannot read is not a ledger with no run coming: scheduling one
   // on a guess is how the same people are sent the same template twice.
   const deaf = fakeDb(
@@ -574,13 +574,13 @@ test("a settlement that cannot be written, or has nothing to point at, says so",
 test("the owner reads what the writes returned, not what they meant to do", () => {
   assert.match(
     saySettled([{ what: "message", changed: true }]),
-    /marked failed, so it is no longer shown as on its way/,
+    /marked as not sent, so it no longer shows as on its way/,
   );
   assert.match(saySettled([{ what: "broadcast", changed: true }]), /people it had already reached still got it/);
   // Not "nobody is sent it twice": a run killed between the wire accepting a
   // message and the row recording it leaves no row for the next run to read.
   const carriesOn =
-    "The broadcast carries on in a fresh run: 12 reached so far, 30 still to go. Anyone it already recorded as sent is skipped, not sent again.";
+    "The campaign send carries on in a fresh run: 12 reached so far, 30 still to go. Anyone already marked as sent is skipped, not sent again.";
   assert.equal(
     saySettled([{ what: "broadcast", changed: true, resumed: true, reached: 12, remaining: 30 }]),
     carriesOn,
@@ -592,15 +592,15 @@ test("the owner reads what the writes returned, not what they meant to do", () =
   );
   assert.match(
     saySettled([{ what: "broadcast", changed: true, notResumed: "jobs_guard says no", reached: 12, remaining: 30 }]),
-    /could not be handed to a fresh run \(jobs_guard says no\), so it has been marked failed; the 12 it had already reached still got it, and 30 did not/,
+    /couldn't be handed to a fresh run \(jobs_guard says no\), so it's marked as stopped\. The 12 it had already reached still got it, and 30 did not/,
   );
   assert.match(
     saySettled([{ what: "broadcast", changed: true, reached: 12, remaining: 30 }]),
-    /the 12 it had already reached still got it, and 30 did not/,
+    /The 12 it had already reached still got it, and 30 did not/,
   );
   assert.match(
     saySettled([{ what: "message", changed: false, error: "permission denied" }]),
-    /could not be updated \(permission denied\)/,
+    /couldn't be updated \(permission denied\)/,
   );
   assert.equal(
     saySettled([{ what: "message", changed: false }]),
@@ -612,12 +612,12 @@ test("the owner reads what the writes returned, not what they meant to do", () =
   // be marked either, rather than claiming a mark that did not happen.
   assert.match(
     saySettled([{ what: "email", changed: false, mailbox: "marked" }]),
-    /never stored, so there is no thread to flag; the workspace's mailbox now says an email could not be taken in/,
+    /never saved, so there is no conversation to flag\. The mailbox in Connections now says an email couldn't be taken in/,
   );
   for (const m of [{}, { mailbox: "gone" }, { mailbox: "failed" }]) {
     assert.match(
       saySettled([{ what: "email", changed: false, ...m }]),
-      /never stored, so there is nothing to flag for a person/,
+      /never saved, so there is nothing to flag for a person/,
       JSON.stringify(m),
     );
   }
@@ -628,7 +628,7 @@ test("the owner reads what the writes returned, not what they meant to do", () =
   );
   assert.match(
     saySettled([{ what: "email", changed: false, error: "statement timeout" }]),
-    /could not be flagged for a person \(statement timeout\)/,
+    /couldn't be flagged for a person \(statement timeout\)/,
   );
   assert.equal(saySettled([]), null);
 });

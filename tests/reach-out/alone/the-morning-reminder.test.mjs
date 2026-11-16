@@ -70,7 +70,7 @@ test("a workspace whose cold email has waited is told once that morning, on the 
   const bell = w.tables.notifications.filter((n) => n.tenant_id === A);
   assert.equal(bell.length, 1, "one line, however many runs wait");
   assert.equal(bell[0].kind, "playbook");
-  assert.equal(bell[0].title, "2 cold email runs still wait for your OK");
+  assert.equal(bell[0].title, "2 cold email sends still wait for your approval");
   assert.match(
     bell[0].body,
     /^12 emails .* have waited since Nov 8: Movers in Austin \(8\), Dentists in Tampa \(4\)\./,

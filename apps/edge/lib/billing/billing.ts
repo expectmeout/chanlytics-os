@@ -367,7 +367,7 @@ export async function notePayment(db: Db, row: BillingRow, paymentNote: PaymentN
       row.tenant_id,
       {
         title: "A payment did not go through",
-        body: "The card on file was declined. Stripe tries again over the next days; update the card from Billing to keep AI answering.",
+        body: "The card on file was declined. It’s tried again over the next few days. Update the card in Billing to keep AI answering.",
       },
       `stripe:${paymentNote.eventId}`,
     );

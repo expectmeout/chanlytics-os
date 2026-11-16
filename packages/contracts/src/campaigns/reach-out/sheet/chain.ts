@@ -37,8 +37,8 @@ function runWordsOf(r: ReachOutRunDto): Array<{ text: string; opening: boolean }
 
 /** What the held card says under its head: whose say it waits for, and what the run does without them. */
 function heldNoteWords(held: number, each: boolean, ready: number, owner: boolean, waiting: boolean): string {
-  const lead = `${held === 1 ? "It waits" : each ? "Each waits" : "They wait"} for your say`;
-  if (!waiting) return owner ? `${lead}.` : `${lead}; the run goes on without them.`;
+  const lead = `${held === 1 ? "It waits" : each ? "Each waits" : "They wait"} for your approval`;
+  if (!waiting) return owner ? `${lead}.` : `${lead}. The run goes on without them.`;
   return ready > 0 && !owner ? `${lead}. Approve sends only the ${ready} ready.` : `${lead}.`;
 }
 
@@ -275,7 +275,9 @@ export function chainReportWordsOf(
         : `${REACH_OUT_SHEET_WORDS.noMailbox} ${clauses.join("; ")}.`,
     // The held wait for their owner in their run (R20): the newest run that holds some opens them.
     waiting:
-      held > 0 ? { text: `${held} wait for your say`, run_id: report.runs.find((r) => r.held > 0)?.id ?? null } : null,
+      held > 0
+        ? { text: `${held} wait for your approval`, run_id: report.runs.find((r) => r.held > 0)?.id ?? null }
+        : null,
     history: report.runs.map((r) => ({
       id: r.id,
       text: `${r.run_for ? runDayWords(r.run_for) : "A run"} · ${(r.handed ?? 0) > 0 ? `${r.handed} handed to you` : `${r.written} written`}${r.held > 0 ? ` · ${r.held} held` : ""}`,

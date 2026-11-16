@@ -104,7 +104,7 @@ const NEVER_SENT = "the job that would have sent this never ran";
 
 /** What the thread says when the intake died: the email is here, and it is a person’s. */
 const EMAIL_UNFINISHED =
-  "An email arrived and could not be taken in: it did not finish being filed, and no reply was drafted. Read it here and reply from the Inbox.";
+  "An email arrived and couldn't be taken in. It wasn't filed, and no reply was drafted. Read it here and reply from the Inbox.";
 const MAY_HAVE_SENT = "the run that was sending this did not finish";
 
 /**
@@ -120,7 +120,7 @@ const noteOf = (certain: boolean, reason?: string): string => (certain ? (reason
  * is on the job, where a person at Chanlytics reads it. The next email that is
  * taken in clears it (db stampMailboxReceived), so it says what is true now.
  */
-const MAILBOX_INTAKE_FAILED = "An email could not be taken in. Anything since then is in your Inbox as usual.";
+const MAILBOX_INTAKE_FAILED = "Couldn't take in an email. Anything since then is in your Inbox as usual.";
 
 function idFrom(payload: unknown, key: string): string | null {
   if (typeof payload !== "object" || payload === null) return null;
@@ -592,12 +592,12 @@ export function saySettled(results: Settled[]): string | null {
     if (result.error) {
       lines.push(
         result.what === "message"
-          ? `The message it was sending could not be updated (${result.error}), so it may still show as sending.`
+          ? `The message it was sending couldn't be updated (${result.error}), so it may still show as sending.`
           : result.what === "email"
-            ? `The email it was taking in could not be flagged for a person (${result.error}), so look for it in the Inbox.`
+            ? `The email it was taking in couldn't be flagged for a person (${result.error}), so look for it in the Inbox.`
             : result.what === "broadcast"
-              ? `The broadcast could not be updated (${result.error}), so it may still show as sending.`
-              : `What it was doing could not be marked as stopped (${result.error}), so it may still show as in progress.`,
+              ? `The campaign send couldn't be updated (${result.error}), so it may still show as sending.`
+              : `What it was doing couldn't be marked as stopped (${result.error}), so it may still show as in progress.`,
       );
     } else if (result.changed && result.what === "import") {
       lines.push("Its source says it stopped, with Try again.");
@@ -616,11 +616,11 @@ export function saySettled(results: Settled[]): string | null {
       // "nobody is sent it twice" — a run killed between the wire accepting a
       // message and the row recording it leaves no row for the next run to read.
       lines.push(
-        `The broadcast carries on in a fresh run: ${result.reached ?? 0} reached so far, ${result.remaining ?? 0} still to go. Anyone it already recorded as sent is skipped, not sent again.`,
+        `The campaign send carries on in a fresh run: ${result.reached ?? 0} reached so far, ${result.remaining ?? 0} still to go. Anyone already marked as sent is skipped, not sent again.`,
       );
     } else if (result.changed && result.notResumed) {
       lines.push(
-        `The broadcast could not be handed to a fresh run (${result.notResumed}), so it has been marked failed; the ${result.reached ?? "people"} it had already reached still got it${typeof result.remaining === "number" ? `, and ${result.remaining} did not` : ""}.`,
+        `The campaign send couldn't be handed to a fresh run (${result.notResumed}), so it's marked as stopped. The ${result.reached ?? "people"} it had already reached still got it${typeof result.remaining === "number" ? `, and ${result.remaining} did not` : ""}.`,
       );
     } else if (result.changed && result.what === "email") {
       lines.push("The email it was taking in is in the Inbox and flagged for a person, so nobody has to find it.");
@@ -629,14 +629,14 @@ export function saySettled(results: Settled[]): string | null {
       // the mailbox is the only place in the product it can be said at all.
       lines.push(
         result.mailbox === "marked"
-          ? "The email it was taking in was never stored, so there is no thread to flag; the workspace's mailbox now says an email could not be taken in."
-          : "The email it was taking in was never stored, so there is nothing to flag for a person.",
+          ? "The email it was taking in was never saved, so there is no conversation to flag. The mailbox in Connections now says an email couldn't be taken in."
+          : "The email it was taking in was never saved, so there is nothing to flag for a person.",
       );
     } else if (result.changed) {
       lines.push(
         result.what === "message"
-          ? "The message has been marked failed, so it is no longer shown as on its way."
-          : `The broadcast has been marked failed; the ${result.reached ?? "people"} it had already reached still got it${typeof result.remaining === "number" ? `, and ${result.remaining} did not` : ""}.`,
+          ? "The message is marked as not sent, so it no longer shows as on its way."
+          : `The campaign send is marked as stopped. The ${result.reached ?? "people"} it had already reached still got it${typeof result.remaining === "number" ? `, and ${result.remaining} did not` : ""}.`,
       );
     }
     // changed:false with no error means the row had already moved on by itself.

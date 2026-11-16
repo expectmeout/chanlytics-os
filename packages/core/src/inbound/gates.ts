@@ -49,9 +49,9 @@ export async function runFirstGates(at: Answering): Promise<typeof GO | undefine
     L.error("wa_state_unavailable");
     return handToAPerson(at, {
       reason: "state_unavailable",
-      details: "AI could not read this thread's history, so it did not reply. Please answer this one.",
+      details: "AI couldn't read this conversation's history, so it didn't reply. Please answer this one.",
       said: n.body ?? `[${n.rawType}]`,
-      answered: "(no reply sent — AI could not read the thread state)",
+      answered: "(no reply sent · AI couldn't read the conversation)",
     });
   }
 
@@ -105,7 +105,7 @@ export async function runFirstGates(at: Answering): Promise<typeof GO | undefine
       reason: carrier.held.reason,
       details: carrier.held.details,
       said: n.body ?? `[${n.rawType}]`,
-      answered: "(no reply sent — the carriers have not approved this line for texting yet)",
+      answered: "(no reply sent · texting isn't approved for this number yet)",
     });
   }
 
@@ -137,9 +137,9 @@ export async function runFirstGates(at: Answering): Promise<typeof GO | undefine
     L.info("wa_escalate_readable_nontext", { kind: n.kind });
     return handToAPerson(at, {
       reason: "non_text",
-      details: `${n.body} — needs a person.`,
+      details: `${n.body} · needs a person.`,
       said: n.body ?? `[${n.rawType}]`,
-      answered: "(no reply sent — passed to a human)",
+      answered: "(no reply sent · passed to a person)",
     });
   }
   return GO;
