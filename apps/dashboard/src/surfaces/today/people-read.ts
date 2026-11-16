@@ -6,9 +6,15 @@
  * wave, and landed 0.3 to 1.3 s after the rest of it (the load reviews of 10 and 13 Nov 2026). Its own module, apart from
  * the parts that read it (helpers.ts peopleForToday): the frame loads it with Today's surface (override.ts), which holds the draw
  * before Today's gate first opens, and only where the document's head has the read out.
+ *
+ * A move to Today from another page waits for it too, and it is read ahead off Today (first-draw-read.ts arriveOnToday,
+ * readTodaySoon), where neither it nor People's whole book is in hand: pressed a second after another page drew, Today drew
+ * before the book had come, and its steps due and Ask found came 0.45 to 0.67 s after it (the production re-measure of 16
+ * Nov 2026). Where the book is in hand Today draws from it, and nothing waits.
  */
 import type { TodayPeopleDto } from "@chanlytics/contracts";
 import { read } from "@/bridge/api";
+import { isSurfaceReady } from "@/bridge/surface-status";
 import { firstDrawRead } from "./first-draw-read";
 
 /** The signal the parts that read it redraw on, as an answer is kept: one that lands past the first draw's wait. */
@@ -18,7 +24,7 @@ const peopleRead = firstDrawRead<TodayPeopleDto>(
   "today_people",
   "today/people",
   async () => (await read("GET today/people")).people,
-  { heard: TODAY_PEOPLE_HEARD },
+  { heard: TODAY_PEOPLE_HEARD, onArrival: true, servedBy: () => isSurfaceReady("people") },
 );
 
 /** What this tab last read for the workspace on screen, or null where it holds nothing. */
