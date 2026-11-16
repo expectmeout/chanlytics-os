@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact } from "../../_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 const went = [];
 const toasts = [];

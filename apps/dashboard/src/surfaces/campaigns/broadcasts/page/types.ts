@@ -105,9 +105,6 @@ interface BcOffered {
  */
 export type BcData = BroadcastsSurface & Partial<Omit<AudiencesSurface, "fetchedAt">>;
 
-/** What a composer is opened with: Sent's surface and who each audience reaches, both read. */
-export type BcWhole = BroadcastsSurface & Omit<AudiencesSurface, "fetchedAt">;
-
 /** The page's own state and reads, before anything is worked out of them. */
 export interface BcBase {
   data: BcData;

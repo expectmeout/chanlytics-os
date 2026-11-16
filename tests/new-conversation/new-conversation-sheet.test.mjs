@@ -12,7 +12,7 @@ import { NEW_CONVERSATION_WORDS as W, PLAN_NOTE_MAX, channelsReady, inboxTemplat
 import { writeReachOf } from "../../apps/dashboard/src/server/new-conversation/write-reach.ts";
 import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false });
+installStubReact();
 const { NewMessage } = await import("../../apps/dashboard/src/surfaces/inbox/new-conversation/message.tsx");
 const { NewCall } = await import("../../apps/dashboard/src/surfaces/inbox/new-conversation/call.tsx");
 const { approvedKey, firstMessageOf, noteDay, noteShown, onSendKey, sayQueued, whoAnswers, writtenFor } =

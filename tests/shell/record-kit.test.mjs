@@ -26,7 +26,7 @@ import { KIT_GLOBALS } from "../../apps/dashboard/src/surfaces/kit/kit-globals.t
 
 // The app's chrome bridge publishes contracts' stateOf as __chrome.state (bridge/shell.ts). Without it every
 // StatePill is plain, and no tone could be read here.
-installStubReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
+installStubReact({ __chrome: { state: stateOf } });
 const SRC = "../../apps/dashboard/src";
 Object.assign(globalThis, {
   CHANLY: { nav: () => {}, R: {} },

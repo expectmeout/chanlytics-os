@@ -12,7 +12,7 @@ import { installStubReact, fresh, again, all, textOf, press, kitPages } from "..
 import { until } from "../../shared/_until.mjs";
 import { importSrc } from "../../_source.mjs";
 
-installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
+installStubReact({ __surfaceState: () => "live", __surfaceFailed: () => false });
 Object.assign(globalThis.window, kitPages);
 Object.assign(globalThis, { canDo: () => true, gate: () => ({}) });
 const { AskCards } = await import("../../../apps/dashboard/src/surfaces/ask/card.tsx");

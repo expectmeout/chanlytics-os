@@ -22,20 +22,10 @@ import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { Face } from "../../kit/face/face";
-import { askAbout, refreshSurface, routeDoor } from "../../frame-verbs";
+import { refreshSurface, routeDoor } from "../../frame-verbs";
 import { ROUTES } from "../constants";
 import { carryNotAPerson } from "../carried-reply";
-import {
-  clockZone,
-  demoSession,
-  gate,
-  hasDealSheet,
-  navigate,
-  openDealSheet,
-  seededLeads,
-  useToast,
-  type Flash,
-} from "../shell";
+import { clockZone, gate, hasDealSheet, navigate, openDealSheet, seededLeads, useToast, type Flash } from "../shell";
 import { dealKit, hasHref, hrefOf, personNotes, usePeopleMoved } from "./shell-thread";
 import type { Thread } from "../types";
 import { ixBandCallBack } from "./band";
@@ -226,7 +216,7 @@ function dealGroup(thread: Thread, facts: HeaderFacts): MenuItem[] {
       : null;
   const clientId = thread.clientId;
   const dealItems: MenuItem[] =
-    kit && !demoSession() && clientId && person && hasDealSheet()
+    kit && clientId && person && hasDealSheet()
       ? kit
           .menu(person.deal)
           .filter((a) => a.mode)
@@ -336,10 +326,9 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
       : []),
     // Mark as unread is the reader's own mark on the person now (00349, surfaces/seen.ts), kept: on a real thread it
     // flipped a local flag the next realtime reseed wiped, and was taken out of the menu for promising what did not
-    // happen. A thread with nobody behind it (a caller who withheld their number) has no one to mark. "Block sender"
-    // opened the Ask overlay, a no-op outside a demo: the real way to stop the receptionist for one person is the
-    // mode on their profile, so that is where a real session goes.
-    ...(demoSession() || (thread.real && thread.clientId)
+    // happen. A thread with nobody behind it (a caller who withheld their number) has no one to mark. The way to stop the
+    // receptionist for one person is the mode on their profile, so that is where a session goes.
+    ...(thread.real && thread.clientId
       ? [{ label: "Mark as unread", glyph: ixGlyph("mail"), square: true, onSelect: () => onMarkUnread(thread.id) }]
       : []),
   ];
@@ -347,7 +336,7 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
   const row = facts.person;
   const person: MenuItem[] = [
     // Their receptionist, as People says how it stands with them (the person's mode is on their page).
-    ...(!demoSession() && thread.clientId
+    ...(thread.clientId
       ? [
           {
             // Under Contact, theirs already: "Receptionist for" a business's whole name took two lines (3 Nov 2026).
@@ -426,18 +415,6 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
     // someone who said stop, only on a real thread; the hint says where the link lives (contracts linkHost) -- and the
     // moves for its stage, each opening the sheet. Every workspace's (0008, amended 18 Oct 2026). The file beside it.
     { header: W.groupDealFile, items: [...dealActs, ...file] },
-    {
-      items: demoSession()
-        ? [
-            {
-              label: "Block sender",
-              glyph: ixGlyph("x"),
-              tone: "danger" as const,
-              onSelect: () => askAbout({ mode: "compose", prompt: "Block this sender because " }),
-            },
-          ]
-        : [],
-    },
   ]);
 }
 
@@ -605,7 +582,7 @@ function headerMain(props: ThreadHeaderProps, facts: HeaderFacts, alsoLeads: Rea
         {headerName(thread, personTo)}
         {headerSub(thread, channelLabels, facts.person, props.countdown ?? { remaining: null, paused: false })}
       </IxWho>
-      {thread.real && !demoSession() ? visitDoor(facts) : null}
+      {thread.real ? visitDoor(facts) : null}
       {alsoLeads}
     </div>
   );
@@ -689,10 +666,10 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
   const [business, setBusiness] = useState<BusinessAsked | null>(null);
   // The deal's group and the seeded chip are made before the markup, as they were: a role gate is asked for each in that order.
   const dealActs = dealGroup(thread, facts);
-  const alsoLeads = alsoInLeads(thread) ?? (thread.real && !demoSession() ? worksAtDoor(facts, setBusiness) : null);
+  const alsoLeads = alsoInLeads(thread) ?? (thread.real ? worksAtDoor(facts, setBusiness) : null);
   // A line under the head's row (a reply's signer offered, a step due): on a phone the bar holds two rows, and is a card.
-  const signer = person && person.signer && !demoSession() ? person.signer : null;
-  const step = person && person.nextStep && !demoSession() ? person.nextStep : null;
+  const signer = person && person.signer ? person.signer : null;
+  const step = person && person.nextStep ? person.nextStep : null;
   return (
     <header className="ix-th-head" data-stacked={signer || step ? "" : undefined}>
       {headerMain(props, facts, alsoLeads)}

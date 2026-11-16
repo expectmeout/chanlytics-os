@@ -25,7 +25,7 @@ import {
 } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
-installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 const ZONE = "America/Chicago";
 const dayKey = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: ZONE }).format(new Date(ms));

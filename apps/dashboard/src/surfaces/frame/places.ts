@@ -11,7 +11,6 @@ export interface NavItem {
   label: string;
   hint?: string;
   urgent?: boolean;
-  demoOnly?: boolean;
   badge?: string | number | null;
   expandable?: boolean;
   children?: ReadonlyArray<{ id: string; label: string; badge?: string | number | null }>;
@@ -31,12 +30,9 @@ export const NAV_WORK: readonly NavItem[] = [
   { id: "campaigns", icon: "bolt", label: "Campaigns" },
 ];
 
-// Agents (fleet, store, studio, tasks) is the mockup's: hidden outside a demo session, with the rest of the mockup (see
-// surface-registry.ts). Settings is no place in this list: it is the first door of the account's menu at the foot.
-export const NAV_INTEL: readonly NavItem[] = [
-  { id: "agents", icon: "agents", label: "Agents", demoOnly: true },
-  { id: "reports", icon: "trending-up", label: "Reports" },
-];
+// Settings is no place in this list: it is the first door of the account's menu at the foot. The demo's Agents place went
+// with demo mode (16 Nov 2026).
+export const NAV_INTEL: readonly NavItem[] = [{ id: "reports", icon: "trending-up", label: "Reports" }];
 
 /** The sidebar's groups in order, each with the label it says over its rows when the sidebar is open. */
 export const NAV_GROUPS: ReadonlyArray<{ items: readonly NavItem[]; label?: string }> = [
@@ -53,7 +49,6 @@ const PLACE_GROUPS: Readonly<Record<string, readonly string[]>> = {
   people: ["clients", "leads", "segments", "pipeline"],
   inbox: ["inbox", "conversations", "live", "calls", "chats", "email"],
   campaigns: ["campaigns", "outbound", "content", "broadcasts", "messages"],
-  agents: ["fleet", "store", "studio", "tasks"],
 };
 
 /** The place a route's `activeNav` lights: its group's, or its own. */

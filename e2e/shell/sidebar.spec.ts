@@ -89,8 +89,7 @@ test.describe("sidebar on a real workspace", () => {
    * Conversations and Live read the same table the Inbox does (surface-data.ts
    * inboxOverride / conversationsOverride both GET conversations), so they are
    * views of it rather than places of their own. In a real browser, on a real
-   * workspace -- where demoOnly items are filtered out and a node render of the
-   * rail cannot see that filtering.
+   * workspace.
    */
   test("the Inbox is one door: Conversations and Live are its views, and the rail lights one item", async ({
     page,
@@ -99,7 +98,7 @@ test.describe("sidebar on a real workspace", () => {
     await page.goto("/#/inbox");
     await page.waitForLoadState("networkidle");
 
-    // Six places on a real workspace (Agents is demo-only; Settings is the account menu's, 7 Oct 2026), and Conversations
+    // Six places (the demo's Agents went with demo mode, 16 Nov 2026; Settings is the account menu's, 7 Oct 2026), and Conversations
     // is not one of them. Counted rather than spelled out: a nav item carries a
     // hint and a badge inside it, and this promise is about which places exist.
     const rail = page.getByTestId("sidebar");

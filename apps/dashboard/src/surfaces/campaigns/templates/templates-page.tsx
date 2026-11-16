@@ -47,7 +47,7 @@ import {
 } from "@chanlytics/contracts";
 import type { ReachOutChainDto } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { canDo, demoSession, gateTitle, navigate, replaceRoute, useFrameToast } from "../../frame-verbs";
+import { canDo, gateTitle, navigate, replaceRoute, useFrameToast } from "../../frame-verbs";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { tabDraft } from "../../kit/record/work";
@@ -130,7 +130,7 @@ function messageCard(read: ReturnType<typeof readEach>, shownKey: string | null,
 function readingNow(view: CmView | undefined) {
   return (
     <div className="reports" data-testid="messages-real" ref={view?.ref} data-slide={view?.slide}>
-      <div className="cm-standing">{demoSession() ? LIBRARY_WORDS.demo : LIBRARY_WORDS.reading}</div>
+      <div className="cm-standing">{LIBRARY_WORDS.reading}</div>
     </div>
   );
 }

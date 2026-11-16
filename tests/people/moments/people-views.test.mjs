@@ -56,7 +56,6 @@ globalThis.React = {
 };
 const warmed = [];
 globalThis.window = {
-  __DEMO_MODE: false,
   CHANLY: {
     address: {
       warmSoon: (routes) => warmed.push(...routes),
@@ -225,9 +224,7 @@ test("a page that says no views is drawn from its group: the Inbox's still reads
     [false, true, false],
   );
   // A person's page (no views said) keeps the strip hidden, as it was.
-  win.__DEMO_MODE = true;
   assert.equal(strip({ page: "clients", param: "c-aisha", views: null }), null);
-  win.__DEMO_MODE = false;
 });
 
 test("under a person's page carried back to People, the strip is the one People drew, picked where it was", () => {

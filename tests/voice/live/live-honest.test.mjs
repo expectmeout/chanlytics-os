@@ -97,9 +97,6 @@ const channels = [
 
 /* -------------------------------- the view model -------------------------------- */
 
-// A demo's sample is fetched only in a demo session (surfaces/live/demo.ts): fetched once here, so a demo draws it at once.
-await (await import("../../../apps/dashboard/src/surfaces/live/demo.ts")).liveDemo();
-
 test("REGRESSION (A20, L8): an ended call carries what the caller wanted, how it ended, what to do next, and its length in words", () => {
   const vm = toLiveCallVM(ended(), ZONE, new Date(NOW));
   assert.equal(
@@ -130,7 +127,6 @@ const flashes = [];
 const went = [];
 const sent = [];
 installStubReact({
-  __DEMO_MODE: false,
   CHANLY: { nav: (to) => went.push(to) },
   setInterval: () => 1,
   clearInterval() {},
@@ -626,30 +622,16 @@ test("the page is drawn again when the live surface moves, and shows what the re
   assert.equal(callRows(mount()).length, 2, "and the next draw is the new read");
 });
 
-// The route draws the real page whenever the surface holds a value, a demo session draws the same page over a contracts
-// sample (surfaces/live/sample.ts: the mockup's scripted console is gone), and a session with neither draws nothing.
+// The route draws the page whenever the surface holds a value, and nothing before. The demo's sample went with demo mode
+// (16 Nov 2026).
 
-test("the page draws what the surface holds; before its first read nothing, and in a demo session the sample", () => {
+test("the page draws what the surface holds, and before its first read nothing", () => {
   withLive([call()]);
   assert.ok(byTestId(mount(), "live-real"), "a value the surface holds is the page");
   setSurfaceValue("live", undefined);
   fresh();
-  assert.equal(mount(), null, "before the first read of a real workspace the page draws nothing");
-  globalThis.window.__DEMO_MODE = true;
-  try {
-    fresh();
-    const tree = mount();
-    assert.ok(byTestId(tree, "live-real"), "a demo session draws the one Live page");
-    assert.deepEqual(
-      callRows(tree).map((r) => textOf(find(r, (n) => n.props?.className === "lm-row-who"))),
-      ["Rosa Díaz"],
-      "over the sample's call on the line, not a customer's",
-    );
-    assert.ok(byTestId(tree, "live-controls"), "with the controls a live call has");
-    setSurfaceValue("live", live([]));
-    fresh();
-    assert.equal(callRows(mount()).length, 0, "a value the surface holds wins over the sample, even an empty one");
-  } finally {
-    globalThis.window.__DEMO_MODE = false;
-  }
+  assert.equal(mount(), null, "before the first read the page draws nothing");
+  setSurfaceValue("live", live([]));
+  fresh();
+  assert.equal(callRows(mount()).length, 0, "an empty read is an empty page");
 });

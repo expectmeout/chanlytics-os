@@ -10,7 +10,7 @@ import { again, all, fresh, installStubReact, installRoleStore, settle, textOf, 
 import { stateOf } from "@chanlytics/contracts";
 import { personDto } from "../../consent/_person-row.mjs";
 
-installStubReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
+installStubReact({ __chrome: { state: stateOf } });
 const W = globalThis;
 const PEOPLE = "../../../apps/dashboard/src/surfaces/people";
 const BRIDGE = "../../../apps/dashboard/src/bridge";

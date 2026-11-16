@@ -18,7 +18,6 @@ import { importSrc } from "../../_source.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 
 installStubReact({
-  __DEMO_MODE: false,
   usePPToast: () => [null, () => {}],
   __WORKSPACES: [
     { id: "w1", name: "Studio One" },

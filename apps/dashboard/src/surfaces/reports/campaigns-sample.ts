@@ -1,12 +1,12 @@
 /**
- * The demo's Campaigns lens: the sample business's sends (the report `GET reports/campaigns` answers) and the ledger beside them
+ * The Campaigns lens for the tests: the sample business's sends (the report `GET reports/campaigns` answers) and the ledger beside them
  * (what `GET reports/campaigns/ledger` answers: the window beyond the sends' counts, and what is stuck now), both built over the
  * same days of the same business as the demo's report (sample.ts), so the page folds them through the real `toCampaignLensVM`
- * and a demo draws the one Campaigns lens there is. Deterministic: the same range on the same day is the same object. Every figure
+ * and a test draws the one Campaigns lens there is. Deterministic: the same range on the same day is the same object. Every figure
  * agrees with its parts, as the demo's report does: the people are a share of the sends and none wrote back more than were
  * answered, the sources' sends are the messages' and the channels', the first replies are the answered sends, every
  * distribution adds up to the count it is of, and no message is counted as answered before its reply window is over. The
- * reach-outs are absent (nothing reads them in a demo), so that part of the lens draws nothing.
+ * reach-outs are absent, so that part of the lens draws nothing.
  */
 import {
   DAY_MS,

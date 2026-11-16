@@ -21,7 +21,6 @@ import { useSyncExternalStore } from "react";
 import {
   needYouCountOf,
   needYouGroupsOf,
-  needsYouCount,
   replyWaitsOnYou,
   runsThatWait,
   waitsOf,
@@ -36,14 +35,13 @@ import { waitRowsOf } from "@/surfaces/waits/rows";
 import { onSurfaceMoved } from "@/bridge/surface-status";
 import { approvalDaysNow } from "./campaigns/broadcasts/when-words";
 import { ixWaiting, ixWaitsOnYou, vetoKeyOf } from "./inbox/rules";
-import { demoSession } from "./inbox/shell";
-import { IX_STORE, VW_STORE, inboxData } from "./inbox/store";
+import { IX_STORE, VW_STORE } from "./inbox/store";
 import type { Thread } from "./inbox/types";
 import { surfaceValue } from "./surface-values";
 
 /**
- * A thread as the count reads it: a real one by the Inbox's own rule, with the hold this tab has made; a seeded one (a
- * demo session's) by the mockup's, less the decisions the session has made on it.
+ * A thread as the count reads it: a real one by the Inbox's own rule, with the hold this tab has made; a seeded one by the
+ * mockup's, less the decisions the session has made on it.
  */
 function waitingThread(t: Thread, nowMs: number): WaitingThread {
   return t.real ? ixWaiting(t, nowMs) : { needsYou: ixWaitsOnYou(t) && !IX_STORE.get(t.id) };
@@ -60,11 +58,11 @@ let lastParts: Waits | null = null;
 
 /**
  * What waits on you now, by its parts (holds, held sends, runs), or null while the Inbox has not been read: a count of
- * what nothing has read is no count, and the seeded threads of the mockup are no one's. A demo session counts its seeds,
- * as the mockup always did. The same object while the parts are the same, so a hook over it draws once.
+ * what nothing has read is no count, and the seeded threads of the mockup are no one's. The same object while the parts
+ * are the same, so a hook over it draws once.
  */
 export function needsYouParts(nowMs: number = Date.now()): Waits | null {
-  const inbox = typeof window !== "undefined" && demoSession() ? inboxData() : surfaceValue("inbox");
+  const inbox = surfaceValue("inbox");
   if (!inbox) return null;
   const rows = surfaceValue("broadcasts")?.rows ?? [];
   const parts = waitsOf({
@@ -136,10 +134,9 @@ interface NeedsYouRows {
 /**
  * The rows the one count is made of, as Today's read makes them and this tab has worked them, for the pages that draw
  * them as well as count them: the Inbox's Needs you lists exactly these (inbox/pages/needs-you-list.ts ixNeedsYouOf). Null while Today
- * has not been read, and in a demo session, whose count is its seeded threads.
+ * has not been read.
  */
 export function needsYouRowsNow(nowMs: number = Date.now()): NeedsYouRows | null {
-  if (typeof window !== "undefined" && demoSession()) return null;
   const today = surfaceValue("today");
   if (!today) return null;
   const rows = today.queue.rows.filter((r) => stillWaits(r, nowMs));
@@ -155,14 +152,9 @@ export function needsYouRowsNow(nowMs: number = Date.now()): NeedsYouRows | null
  * to-dos and whoever waited past a week never. A reach-out's reply that Need you draws in its handoff's place (contracts
  * withReplies) keeps that row's id, wait and clock, and both are a person waiting, so the count reads the rows as Today's
  * read has them, and leaves the replies' rows to the page that draws them. Every page reads Today (today/override.ts), so
- * this is no read of its own. Null while Today has not been read; a demo session counts its seeded threads, as the mockup
- * always did.
+ * this is no read of its own. Null while Today has not been read.
  */
 export function needsYouNow(nowMs: number = Date.now()): number | null {
-  if (typeof window !== "undefined" && demoSession()) {
-    const p = needsYouParts(nowMs);
-    return p ? needsYouCount(p) : null;
-  }
   const rows = needsYouRowsNow(nowMs);
   return rows ? needYouCountOf(rows.groups, rows.runs) : null;
 }
@@ -207,8 +199,6 @@ export function hearNeedsYou(fn: () => void): () => void {
   if (!wired) {
     wired = true;
     onSurfaceMoved(["today", "inbox", "broadcasts"], moved);
-    // A demo session's decisions are the session's, not a read's: the store says so with this one event (inbox/store.ts).
-    if (typeof window !== "undefined" && demoSession()) window.addEventListener("inbox:decisions", moved);
   }
   hearers.add(fn);
   return () => void hearers.delete(fn);
@@ -216,7 +206,7 @@ export function hearNeedsYou(fn: () => void): () => void {
 
 /**
  * The Inbox's page tells the readers that what only it holds has moved: a reply held in this tab, which no read has told the
- * wire of yet, and a decision on a demo's seeded thread. Nothing else sends it.
+ * wire of yet. Nothing else sends it.
  */
 export function needsYouMoved(): void {
   moved();

@@ -16,7 +16,6 @@ import { installStubReact, fresh } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
 installStubReact({
-  __DEMO_MODE: false,
   usePPToast: () => [null, () => {}],
   // The demo's presence menu is the kit's, drawn by name: a host element is enough to see which listeners the top bar made.
   MoreMenu: "MoreMenu",
@@ -55,7 +54,6 @@ Object.assign(W, {
   SOON_META: routeTable.SOON_META,
   drawRoute: routeTable.drawRoute,
 });
-const { hearPresence } = await importSrc("apps/dashboard/src/surfaces/inbox/store.ts");
 const { SURFACE_STATES } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 
 /** The events with no sender left, and the name a patched-ahead sidebar once heard its own name change by. */
@@ -81,13 +79,11 @@ const THE_DEMOS = [
  * Every event the window was asked to be told of while `draw` ran, in a session that is a demo or is not. The demo's scripted
  * lead waits 18 seconds on a timer, which a draw does not run.
  */
-const heardWhile = (demo, draw) => {
+const heardWhile = (draw) => {
   const heard = [];
   const add = W.addEventListener;
   const timer = globalThis.setTimeout;
-  const was = W.__DEMO_MODE;
   fresh();
-  W.__DEMO_MODE = demo;
   W.addEventListener = (type, fn) => {
     heard.push(type);
     add(type, fn);
@@ -98,7 +94,6 @@ const heardWhile = (demo, draw) => {
   } finally {
     W.addEventListener = add;
     globalThis.setTimeout = timer;
-    W.__DEMO_MODE = was;
   }
   return new Set(heard);
 };
@@ -109,46 +104,31 @@ const drawn =
 const missing = (heard, names) => names.filter((n) => !heard.has(n));
 const present = (heard, names) => names.filter((n) => heard.has(n));
 
-test("the top bar of a real workspace listens for none of the mockup's bell rows, and a demo's for the ones its pages send", () => {
-  const real = heardWhile(false, drawn(W.Topbar, { crumbs: [] }));
-  assert.deepEqual(present(real, [...NO_SENDER, ...THE_DEMOS]), [], "a real session registers none of them");
-  const demo = heardWhile(true, drawn(W.Topbar, { crumbs: [] }));
-  assert.deepEqual(missing(demo, THE_DEMOS), [], "the demo's bell hears what its pages, its lead and its verdict send");
-  assert.deepEqual(present(demo, NO_SENDER), [], "and none of the five that nothing sends");
+test("the top bar listens for none of the mockup's bell rows: the demo's bell and its presence control went with demo mode", () => {
+  const real = heardWhile(drawn(W.Topbar, { crumbs: [] }));
+  assert.deepEqual(present(real, [...NO_SENDER, ...THE_DEMOS]), [], "a session registers none of them");
 });
 
 test("the live bar redraws on the live feed alone: a call that ends is a row on it, and no event says so", () => {
-  const heard = heardWhile(false, drawn(W.LiveCallBar));
+  const heard = heardWhile(drawn(W.LiveCallBar));
   assert.equal(heard.has("live:ended"), false);
 });
 
-test("the sidebar hears the workspace read; the count of what needs you is handed in, not heard, a fleet pause is the demo's, and the credits, the call ends and a patched-ahead name left", () => {
-  const real = heardWhile(false, drawn(W.Sidebar, { onNavigate() {} }));
+test("the sidebar hears the workspace read; the count of what needs you is handed in, not heard, and a fleet pause, the credits, the call ends and a patched-ahead name left", () => {
+  const real = heardWhile(drawn(W.Sidebar, { onNavigate() {} }));
   assert.deepEqual(missing(real, ["surface:workspace"]), [], "what redraws it in a workspace");
   assert.deepEqual(
     present(real, [...NO_SENDER, "fleet:status", "inbox:counts", "inbox:decisions"]),
     [],
     "and nothing a real session never hears, nor a number the Inbox and Today once sent over each other's (decision 0048)",
   );
-  const demo = heardWhile(true, drawn(W.Sidebar, { onNavigate() {} }));
-  assert.equal(demo.has("fleet:status"), true, "the demo's strip of agents follows a pause");
-  assert.deepEqual(present(demo, NO_SENDER), []);
 });
 
 test("the strip of views hears the live feed alone, the Needs-you badge being the count's own hook, and the sheet of keys hears the keyboard alone", () => {
-  const tabs = heardWhile(false, drawn(W.SurfaceTabs, { page: "clients", param: null, views: null, onNavigate() {} }));
+  const tabs = heardWhile(drawn(W.SurfaceTabs, { page: "clients", param: null, views: null, onNavigate() {} }));
   assert.deepEqual([...tabs].sort(), ["surface:live"], "the Live tab's pulse: no event feeds the Needs-you badge");
-  const sheet = heardWhile(false, drawn(W.ShortcutsSheet));
+  const sheet = heardWhile(drawn(W.ShortcutsSheet));
   assert.deepEqual([...sheet], ["keydown"], "it opens on ? and by openShortcuts(), never by an event");
-});
-
-test("the Inbox's veto store hears the member go Away only in a demo, where the control that sets it is drawn", () => {
-  const stopped = [];
-  const real = heardWhile(false, () => stopped.push(hearPresence()));
-  assert.equal(real.has("presence:changed"), false, "a real session has no Away to hear");
-  const demo = heardWhile(true, () => stopped.push(hearPresence()));
-  assert.equal(demo.has("presence:changed"), true, "the demo's countdowns freeze and thaw with it");
-  for (const stop of stopped) stop();
 });
 
 test("SOON_META words the landing of the mockup's own pages and no others: its keys are the registry's demo pages (A3b)", () => {

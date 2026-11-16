@@ -27,7 +27,7 @@ import {
 } from "@chanlytics/contracts";
 import { installStubReact, again, unmount, all, find, byTestId, textOf, classes, press } from "./_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
+installStubReact({ __chrome: { state: stateOf } });
 const went = [];
 Object.assign(globalThis, {
   CHANLY: { nav: (to) => went.push(to), R: {} },

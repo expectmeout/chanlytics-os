@@ -6,8 +6,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-// A window that hears its own events: the frame is told as the demo's People lands.
-globalThis.window = Object.assign(new EventTarget(), { __DEMO_MODE: true });
+// A window that hears its own events.
+globalThis.window = new EventTarget();
 const { isPersonParam, peopleChrome, peopleTakes } =
   await import("../../../apps/dashboard/src/surfaces/people/chrome.ts");
 const { routeHasPage } = await import("../../../apps/dashboard/src/surfaces/routes.ts");
@@ -53,18 +53,13 @@ test("the page takes a person, a view of People, Leads and the Pipeline (which i
   );
 });
 
-test("a person's crumbs are People (the page's own Back) and their name: from People's row, else the tab's copy, else Profile", async () => {
+test("a person's crumbs are People (the page's own Back) and their name: from People's row, else the tab's copy, else Profile", () => {
   const back = () => {};
   const from = (id) => peopleChrome({ param: id, backToPeople: back });
-  // A demo session names them from the sample's row, once its code is in (demo.ts): Profile until then, and the frame is
-  // told as it lands.
+  // Before People is read, Profile.
+  setSurfaceValue("people", undefined);
   assert.equal(from("c-aisha").crumbs[1], "Profile");
-  const told = [];
-  const hear = () => told.push(1);
-  globalThis.window.addEventListener("surface:clients", hear);
-  await (await import("../../../apps/dashboard/src/surfaces/people/hooks/demo.ts")).demoCode();
-  globalThis.window.removeEventListener("surface:clients", hear);
-  assert.equal(told.length, 1, "the frame draws the crumb again");
+  setSurfaceValue("people", { rows: [{ id: "c-aisha", name: "Aisha Khan" }], lists: [], saved: [] });
   const named = from("c-aisha");
   assert.equal(named.crumbs.length, 2);
   assert.deepEqual(named.crumbs[0], { label: "People", to: "clients", go: back });
@@ -77,8 +72,7 @@ test("a person's crumbs are People (the page's own Back) and their name: from Pe
   assert.equal(onTab.mount, "clients", "History is the same mount");
   assert.equal(onTab.crumbs[1], "Aisha Khan", "and names the person, never the tab");
   assert.equal(from("c-nobody").crumbs[1], "Profile");
-  // A real workspace's People, once read, names them by its own rows.
-  globalThis.window.__DEMO_MODE = false;
+  // People, once read, names them by its own rows.
   setSurfaceValue("people", { rows: [{ id: UUID, name: "Daniela Reyes" }], lists: [], saved: [] });
   assert.equal(from(UUID).crumbs[1], "Daniela Reyes");
   assert.equal(from("00000000-0000-4000-8000-000000000000").crumbs[1], "Profile", "nobody the tab holds either");

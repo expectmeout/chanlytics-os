@@ -252,7 +252,6 @@ installStubReact({
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   useHotkey: () => {},
 });
 const S = "../../apps/dashboard/src";

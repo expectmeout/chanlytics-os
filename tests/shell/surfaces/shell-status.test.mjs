@@ -1245,10 +1245,6 @@ test("REGRESSION (N10): a real workspace's Calendar and Campaigns offer no prima
       null,
       "REGRESSION: Campaigns still loading, or failed, offered New campaign, which opened Ask",
     );
-    win.__DEMO_MODE = true;
-    assert.equal(textOf(right("#/calendar")).trim(), "Book", "the demo keeps its detour");
-    assert.equal(right("#/campaigns"), null, "the demo's Campaigns draws its New message in the page's own head");
-    delete win.__DEMO_MODE;
     setSurfaceValue("calendar", { vm: { bookingLink: "https://book.example/luna" }, fetchedAt: 1 });
     // A ready Calendar has none either: its booking link is in the page's own options menu (calendar/chrome.ts).
     assert.equal(right("#/calendar"), null, "a ready Calendar keeps its link in the page's menu, not the top bar");
@@ -1258,7 +1254,6 @@ test("REGRESSION (N10): a real workspace's Calendar and Campaigns offer no prima
   } finally {
     setSurfaceValue("calendar", undefined);
     setSurfaceValue("playbooks", undefined);
-    for (const k of ["__DEMO_MODE"]) delete win[k];
     win.gate = keepGate;
   }
 });
@@ -1299,7 +1294,7 @@ test("REGRESSION (N16): an address under soon/ opens a page that has shipped, an
       "the standalone mockup, with no registry, keeps its landings",
     );
   } finally {
-    for (const k of ["__surfaceState", "__DEMO_MODE"]) delete win[k];
+    delete win.__surfaceState;
   }
 });
 
@@ -1592,7 +1587,7 @@ test("the frame fills the bridge's doors as it renders (a move, AI, a person's B
   }
 });
 
-test("People has no tab strip on a real workspace -- its one real tab is People, and Lists and Leads are views of it; the demo keeps its seeded Deal board, over every view (N24)", async () => {
+test("People has no tab strip -- its one real tab is People, and Lists and Leads are views of it; a session that says it is a demo draws the same (N24)", async () => {
   // The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
   // publishes it; its hooks are this file's stub's.
   const { useStubHooks } = await import("../../_stub-react.mjs");
@@ -1612,40 +1607,8 @@ test("People has no tab strip on a real workspace -- its one real tab is People,
     frames.begin();
     return win.SurfaceTabs({ page: "clients", param, onNavigate() {} });
   };
-  const labels = (tree) =>
-    tree
-      ? tree.rendered.props.children
-          .flat()
-          .filter((n) => n && String(n.props?.className || "").includes("stabs-tab"))
-          .map((b) => textOf(b).trim())
-      : null;
   for (const param of [null, "seg:opted_in", "list:regulars", "state:needs", "p-9"])
     assert.equal(tabsAt(param), null, `nothing to switch to at ${param}: one real tab is no strip`);
-  win.__DEMO_MODE = true;
-  try {
-    // No Leads tab, in a demo either: the seeded Leads page is retired and Leads
-    // is a SCOPE of People (clients/leads), switched by the rail's own
-    // People | Leads. The Deal board is the one seeded page left to switch to,
-    // which is exactly two tabs -- the bar's own floor.
-    assert.deepEqual(
-      labels(tabsAt(null)),
-      ["People", "Deal board"],
-      "the demo's seeded tabs, and no Lists or Leads among them",
-    );
-    assert.deepEqual(
-      labels(tabsAt("list:regulars")),
-      ["People", "Deal board"],
-      "REGRESSION (N24): a list you keep lost the tabs",
-    );
-    assert.deepEqual(
-      labels(tabsAt("state:needs")),
-      ["People", "Deal board"],
-      "REGRESSION (N24): a state lost the tabs",
-    );
-    assert.equal(tabsAt("p-9"), null, "a person's profile keeps its focus");
-  } finally {
-    delete win.__DEMO_MODE;
-  }
 });
 
 /* ------------------------------ the live-call bar ------------------------------ */

@@ -35,6 +35,7 @@ const { CONFIG, SPRING, NEAR_ME, SATURDAY, OLD_BOOST, connected } =
   await import("../../apps/dashboard/src/surfaces/campaigns/ads/sample.ts");
 const { makeVerbs } = await import("../../apps/dashboard/src/surfaces/campaigns/ads/store.ts");
 const { campaignsChrome } = await import("../../apps/dashboard/src/surfaces/campaigns/routes.ts");
+const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
 
 /** A store over a plain variable, the way a test stands in for the hook's ref. */
 function world(read) {
@@ -268,8 +269,9 @@ test("a real workspace's Campaigns has no Ads tab, and an Ads address is Sequenc
   );
   assert.deepEqual(campaignsChrome({ param: "ads" }), home);
   assert.deepEqual(campaignsChrome({ param: "ads:ad:abc" }), home);
-  // A demo session has the Ads tab, and the Ads crumbs.
-  globalThis.window = { __DEMO_MODE: true, location: { pathname: "/w/demo/campaigns" } };
+  // A workspace whose Ads preview is on has the Ads tab, and the Ads crumbs (the demo that had them too went, 16 Nov 2026).
+  globalThis.window = { location: { pathname: "/w/harbor/campaigns" } };
+  setSurfaceValue("settings", { settings: { config: { features: { ads_preview: true } } } });
   try {
     assert.equal(campaignsChrome({ param: null }).views?.picked, "sequences");
     assert.deepEqual(
@@ -281,6 +283,7 @@ test("a real workspace's Campaigns has no Ads tab, and an Ads address is Sequenc
     assert.deepEqual(at.crumbs, [{ label: "Campaigns", to: "campaigns/sequences" }, "Ads"]);
     assert.deepEqual(campaignsChrome({ param: "ads:new" }).crumbs.at(-1), "New ad");
   } finally {
+    setSurfaceValue("settings", undefined);
     delete globalThis.window;
   }
 });

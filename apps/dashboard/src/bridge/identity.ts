@@ -89,8 +89,6 @@ declare global {
 export interface RoleStore {
   /** An owner's preview of a lower role, or null to act as who they are. */
   viewAsRole: string | null;
-  /** The mockup's own signed-in member, used only by a demo session (no workspace read to take it from). */
-  me?: () => { role?: string | null } | undefined;
   myRole: () => string;
   mayAtLeast?: (least: Role) => boolean;
   /** Preview a lower role, or `null` to stop; tells every reader (`team:changed`). */
@@ -114,16 +112,15 @@ export type RolesWindow = Window & { __ME?: { role?: string | null } | null };
 
 /**
  * The role the person is acting as. A workspace read that gave a member is the real role, and View-as previews a lower
- * one on top of it (owner-only, client-side, harmless: the server checks again with requireRole). Without one, a demo
- * session acts as the mockup's own member, and anything else is a viewer.
+ * one on top of it (owner-only, client-side, harmless: the server checks again with requireRole). Without one, anyone is a
+ * viewer.
  */
 export function roleOf(input: {
   me: { role?: string | null } | null | undefined;
   viewAs: string | null | undefined;
-  demoRole?: string | null;
 }): string {
   if (input.me) return input.viewAs || input.me.role || "viewer";
-  return input.viewAs || input.demoRole || "viewer";
+  return input.viewAs || "viewer";
 }
 
 /**
@@ -138,7 +135,6 @@ export function installRoles(win: RolesWindow = window): void {
     roleOf({
       me: win.__ME,
       viewAs: store.viewAsRole,
-      demoRole: win.__DEMO_MODE ? (store.me?.()?.role ?? null) : null,
     });
   store.mayAtLeast = (least) => roleAtLeast(store.myRole(), least);
 }
@@ -241,7 +237,6 @@ const permsOf = (role: string): Record<string, boolean> =>
 
 /** Who is signed in and how the session started, read when a gate asks. */
 const signedIn = (): { role?: string | null } | null | undefined => Reflect.get(window, "__ME");
-const inDemo = (): boolean => !!Reflect.get(window, "__DEMO_MODE");
 
 function makeRoleStore(): SessionStore {
   return {
@@ -255,10 +250,6 @@ function makeRoleStore(): SessionStore {
 
     // ---- Roles (audit U3) ----
     viewAsRole: null, // owner-only preview; null = act as real role
-    // The mockup's own signed-in member, for a demo session (no workspace read to take it from): its owner, by role alone.
-    me() {
-      return { role: "owner" };
-    },
     myRole() {
       // Real membership role when the bridge has it (E1) -- every gate() chip in the app starts telling the truth
       // through this one line. View-as still previews a LOWER role on top of the real one (owner-only, client-side,
@@ -267,8 +258,7 @@ function makeRoleStore(): SessionStore {
       // defaulting to owner rendered every gated control as available to a viewer.
       const me = signedIn();
       if (me) return this.viewAsRole || me.role || "viewer";
-      const own = this.me?.();
-      return this.viewAsRole || (inDemo() && own?.role ? own.role : "viewer");
+      return this.viewAsRole || "viewer";
     },
     can(action) {
       return !!permsOf(this.myRole())[action];

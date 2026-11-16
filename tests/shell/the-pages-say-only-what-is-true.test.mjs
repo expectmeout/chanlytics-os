@@ -285,7 +285,6 @@ globalThis.window = {
   CHANLY: { nav() {}, R: {} },
   gate: () => ({}),
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   addEventListener() {},
   removeEventListener() {},
   setTimeout: () => 1,
@@ -510,7 +509,7 @@ test("REGRESSION: a link to a thread the Inbox has not loaded draws the missing 
   });
   cells = [];
   frames.begin();
-  const tree = Inbox({ initialThreadId: "th-missing", showAgentRail: false });
+  const tree = Inbox({ initialThreadId: "th-missing" });
   const missing = (() => {
     let hit = null;
     walk(tree, (n) => {
@@ -546,7 +545,7 @@ test("REGRESSION: the missing notice holds when the Inbox is read again -- on th
     });
     const render = () => {
       frames.begin();
-      return Inbox({ initialThreadId: "th-missing", showAgentRail: false });
+      return Inbox({ initialThreadId: "th-missing" });
     };
     const missingIn = (tree) => {
       let hit = null;
@@ -1017,7 +1016,6 @@ const campaignsWorld = async () => {
   if (campaigns) return campaigns;
   const toasts = [];
   installStubReact({
-    __DEMO_MODE: false,
     __surfaceState: () => "live",
     __ME: { role: "owner" },
     ...shellDoors,

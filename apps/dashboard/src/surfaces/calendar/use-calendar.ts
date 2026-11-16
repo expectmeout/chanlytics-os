@@ -12,7 +12,7 @@ import {
   type CalendarVM,
   type CalendarView,
 } from "@chanlytics/contracts";
-import { askOnScreenKey, demoSession, navigate, replaceRoute, setAskOnScreen, useFrameToast } from "../frame-verbs";
+import { askOnScreenKey, navigate, replaceRoute, setAskOnScreen, useFrameToast } from "../frame-verbs";
 import { historyBack } from "../kit/sheet/back";
 import { calendarPlaceRoute, keepCalendarView } from "./address";
 import { keptShow, type CalendarShow } from "./runs-surface";
@@ -301,12 +301,12 @@ function useWindowRead(p: ReadAsk) {
 
 /**
  * Once the board has stood still on a view for a second with the days it needs, the windows a few moves on that the loaded
- * weeks do not cover are read and held (warm.ts), so stepping to them paints at once. A demo has no calendar to read.
+ * weeks do not cover are read and held (warm.ts), so stepping to them paints at once.
  */
 function useWarmAhead(p: ReadAsk & { vm: CalendarVM }) {
   const { view, anchor, covered, vm } = p;
   useEffect(() => {
-    if (!covered || demoSession()) return undefined;
+    if (!covered) return undefined;
     const id = setTimeout(() => calendar.warmAround(view, anchor), CR_WARM_MS);
     return () => clearTimeout(id);
   }, [view, anchor, covered, vm.days]);

@@ -1,8 +1,8 @@
 /**
  * What People's rows and lists are, from what was read: the one mapping from the loaded people, their saved lists and the
- * workspace's facts to the surface's value (decision 0015). Pure: the override runs it over what the wire answered, and a
- * demo session's sample (sample.ts) runs it over made-up people, so both draw the one People page the same way. Nothing
- * here reads the window, the wire or the clock: the member looking, the moment and the roster are its arguments.
+ * workspace's facts to the surface's value (decision 0015). Pure: the override runs it over what the wire answered, and the
+ * tests' sample (sample.ts) runs it over made-up people, so both draw the one People page the same way. Nothing here reads
+ * the window, the wire or the clock: the member looking, the moment and the roster are its arguments.
  */
 import {
   type ChannelsReady,
@@ -87,7 +87,7 @@ export function personRowOf(
 
 /**
  * The surface from what is loaded: every list, count and cell derived the same way, whether after the first read, a later
- * page, or a demo session's sample (sample.ts), as the member `viewer` looks at `now`. Pure.
+ * page, or the tests' sample (sample.ts), as the member `viewer` looks at `now`. Pure.
  */
 export function peopleSurfaceOf(
   loaded: PeopleLoaded,

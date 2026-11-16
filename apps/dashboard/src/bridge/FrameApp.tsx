@@ -508,7 +508,7 @@ function useShellApp(
   const onTheme = useCallback((v: string) => choose("theme", v), [choose]);
   const onLook = useCallback((v: string) => choose("look", v), [choose]);
   const onSidebar = useCallback((v: string) => choose("sidebar", v), [choose]);
-  const { theme: themePref, sidebar, inboxDensity, showInboxAgentRail } = prefs;
+  const { theme: themePref, sidebar, inboxDensity } = prefs;
   return useMemo(
     () => (
       <>
@@ -521,7 +521,6 @@ function useShellApp(
           sidebar={sidebar}
           onSidebar={onSidebar}
           inboxDensity={inboxDensity}
-          showInboxAgentRail={showInboxAgentRail}
           routePage={routePage}
           routeNow={route}
           surfaceRoutes={SURFACE_ROUTES}
@@ -545,7 +544,7 @@ function useShellApp(
         <SpeedFrame route={route} />
       </>
     ),
-    [theme, themePref, onTheme, look, onLook, sidebar, onSidebar, inboxDensity, showInboxAgentRail, routePage, route],
+    [theme, themePref, onTheme, look, onLook, sidebar, onSidebar, inboxDensity, routePage, route],
   );
 }
 

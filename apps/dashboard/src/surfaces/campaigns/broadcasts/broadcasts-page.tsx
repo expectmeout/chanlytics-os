@@ -19,8 +19,7 @@
  * re-fetched, so the Scheduled and History rows are the server's.
  *
  * A real workspace draws the bridge's own rows (`useSurface("broadcasts")`), with who each audience reaches
- * (`useSurface("audiences")`) once that is read; a demo session draws the same page from the sample (sample.ts); without
- * either, nothing is drawn.
+ * (`useSurface("audiences")`) once that is read; without them, nothing is drawn.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -46,7 +45,6 @@ import {
 import type { BcApproving, BcBase, BcData, BcV, Flash } from "./page/types";
 import { bcDefault, bcIsStarter } from "./page/words";
 import { BC_NONE, BroadcastDetail } from "./run";
-import { useBroadcastsDemo } from "./demo";
 
 /** What the page's state opens on: the run open (a run's own screen, BroadcastRun). */
 interface BroadcastsPageProps {
@@ -193,14 +191,12 @@ function useBroadcastsPage({ data, initialRun = null, flash: hosted, over }: Bro
 /**
  * What the page is drawn from: Sent's runs, with who each audience reaches once that is read (Send it again offers a run's
  * list then; a run's screen, To send and Get their yes never wait for it, since it is every page of People:
- * audiences-surface.ts); a demo session's sample; else nothing yet.
+ * audiences-surface.ts); else nothing yet.
  */
 function useBroadcastsData(): BcData | null {
   const live = useSurface("broadcasts");
   const audiences = useSurface("audiences");
-  const real = useMemo(() => (live ? { ...audiences, ...live } : null), [live, audiences]);
-  const demo = useBroadcastsDemo();
-  return real || (demo ? demo.broadcastsSample() : null);
+  return useMemo(() => (live ? { ...audiences, ...live } : null), [live, audiences]);
 }
 
 /** What a run's screen is told of where it stands: its id, and, over another page, the host's toast and the sheet. */

@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
+installStubReact({ __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 const SRC = "../../../apps/dashboard/src";
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();

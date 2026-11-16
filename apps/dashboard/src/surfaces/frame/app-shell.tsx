@@ -44,7 +44,6 @@ interface ChanlyticsAppProps {
   sidebar?: string;
   onSidebar?: (v: string) => void;
   inboxDensity?: string;
-  showInboxAgentRail?: boolean;
   routePage?: ReactNode;
   surfaceRoutes?: Readonly<Record<string, SurfaceRoute>> | null;
   sharedPage?: ReactNode;
@@ -103,7 +102,6 @@ export function ChanlyticsApp({
   sidebar: keptSidebar = "open",
   onSidebar: keepSidebar = () => {},
   inboxDensity,
-  showInboxAgentRail,
   routePage = null,
   surfaceRoutes = null,
   sharedPage = null,
@@ -148,7 +146,6 @@ export function ChanlyticsApp({
     openAsk,
     backToPeople,
     inboxDensity,
-    showInboxAgentRail,
     routePage,
     surfaceRoutes,
   } as Parameters<typeof drawRoute>[0]);

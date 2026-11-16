@@ -18,7 +18,6 @@ import { until } from "../../shared/_until.mjs";
 const went = [];
 const flashes = [];
 installStubReact({
-  __DEMO_MODE: false,
   __surfaceState: () => "live",
   appNavigate: (to) => went.push(to),
   usePPToast: () => [null, (m) => flashes.push(m)],

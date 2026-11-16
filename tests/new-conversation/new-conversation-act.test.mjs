@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { NEW_CONVERSATION_WORDS, newConversationOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, textOf, press } from "../_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false });
+installStubReact();
 // The standing keeps the minute on a timer (kit/head/dateline.ts), and a test that draws by hand starts none.
 globalThis.setInterval = () => 0;
 globalThis.clearInterval = () => undefined;

@@ -1,10 +1,10 @@
 /**
- * The demo's Reports: a sample business passed through the same contracts functions a real workspace's numbers go
- * through, so a demo session draws the one Reports page there is (spec section 7). Deterministic: the same period on
+ * Reports for the tests: a sample business passed through the same contracts functions a workspace's numbers go
+ * through, so a test draws the one Reports page there is over it (spec section 7). Deterministic: the same period on
  * the same day is the same report. Every total agrees with its parts: the channels, the hours and the week add up to
  * the messages and calls, the replies to what the receptionist answered, the reasons to the handovers, the moods to
- * the calls and the sources to what was sent. The page imports it, and draws it only in a demo session that has read
- * nothing of its own (the standalone mockup's Reports went with the shell's: a moved surface is drawn by the app). The Reviews
+ * the calls and the sources to what was sent. No page imports it: the demo session that drew it went with demo mode (16 Nov
+ * 2026). The Reviews
  * lens has its own, a listing Google shows with no Business Profile behind it (`reviewsSample`), drawn the same way, and so has
  * the Receptionist lens (`receptionistSample`) and the People lens (`peopleSample`): the route's answer for the same business and
  * days, which the lens folds as it folds a workspace's. The Campaigns lens's (campaigns-sample.ts) is made over the same days of

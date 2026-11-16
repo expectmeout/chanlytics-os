@@ -188,7 +188,7 @@ test("the fixtures stand where the salon's threads stand", () => {
 
 /* -------------------------------- a browser -------------------------------- */
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 const S = "../../../apps/dashboard/src";
 const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
@@ -295,7 +295,7 @@ const page = (threads) => {
       return find(tree, (n) => n.type === ThreadPane)?.props ?? null;
     },
   };
-  const render = () => (tree = again(() => Inbox({ showAgentRail: false })));
+  const render = () => (tree = again(() => Inbox({})));
   render();
   return { seen, render };
 };

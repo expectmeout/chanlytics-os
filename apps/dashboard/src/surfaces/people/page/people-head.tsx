@@ -8,8 +8,6 @@
 import type { ReactNode } from "react";
 import { useStanding } from "../../kit/head/standing";
 import { useSurface } from "../../use-surface";
-import { useDemoPeople } from "../hooks/demo";
-import type { PeopleSurface } from "../surface";
 
 interface Standing {
   total: number;
@@ -31,9 +29,7 @@ function peopleSentence(agg: Standing): string {
  * person, on a desk) stands at the right of the strip of scopes.
  */
 export function usePeopleStanding(scope: "people" | null, act: ReactNode = null): void {
-  const live = useSurface("people");
-  const demo = useDemoPeople();
-  const people: PeopleSurface | undefined = live ?? demo;
+  const people = useSurface("people");
   const sentence = people ? peopleSentence(people.aggregates) : undefined;
   // A scope is picked in the page's own strip (People | Leads | Pipeline), so none has a way back above its name (D1).
   useStanding(scope === null ? null : { title: "People", sentence, back: null, act: act ?? undefined });

@@ -19,7 +19,7 @@ import {
   held as campaignsHeld,
 } from "../campaigns/_campaign-world.mjs";
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 globalThis.window.fetch = async () =>
   new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "not read here" } }), { status: 500 });
 const S = "../../../apps/dashboard/src";

@@ -1,22 +1,20 @@
 /**
  * The top bar (moved from legacy/components/topbar.jsx, the one-system plan's step 7d): the menu, the crumbs, Ask's
- * button, the demo's presence, the bell with its notes (notif-popover.tsx) and the theme. Outside a demo the bell reads the
- * workspace's own rows through the bridge (bridge/notifications.ts): who needs you, a draft waiting, a missed call,
- * an open invitation; read state is this device's. In a demo it draws the seeded notes (bell-demo.tsx). The frame's JSX
+ * button, the bell with its notes (notif-popover.tsx) and the theme. The bell reads the workspace's own rows through the
+ * bridge (bridge/notifications.ts): who needs you, a draft waiting, a missed call, an open invitation; read state is
+ * this device's. The demo's seeded notes and its presence control went with demo mode (16 Nov 2026). The frame's JSX
  * draws it by its old name (`Topbar`, frame-globals.ts) until the frame itself is TypeScript (step 7e). Drawn as the JSX
  * drew it, raw buttons and all, until the frame's kit step.
  */
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import type { Dispatch, ReactNode, SetStateAction } from "react";
+import type { ReactNode } from "react";
 import { askCalls, type FrameFlash } from "../../frame-verbs";
-import type { DemoNote } from "./bell-demo";
-import { tbOverlay, useDemoBell, useDemoPresence } from "./bell-demo-acts";
 import { BAR_LINE_WORDS, BELL_READ_WORDS } from "@chanlytics/contracts";
 import { askAbout, openAsk } from "../../frame-doors";
 import { Button } from "../../kit/button/button";
 import { AskFace } from "../../kit/face/ask-face";
 import { usePageSearchSaid, type PageSearch } from "../../kit/head/page-search";
-import { frameBell, frameChrome, frameGlyph, frameMoreMenu, frameToastHook, isDemoFrame } from "../frame-window";
+import { frameBell, frameChrome, frameGlyph, frameToastHook } from "../frame-window";
 import { NotifPopover, type BellAlerts, type BellNote } from "./notif-popover";
 
 type Flash = (p: FrameFlash) => void;
@@ -147,11 +145,8 @@ function useRealBell(real: Bell | null) {
 
 const PING_MS = 1200;
 
-/**
- * The bell swings when something new needs you (the real feed), and once when a session push lands in the demo's (or an
- * item updates in place).
- */
-function useBellPing(unread: number, real: Bell | null, notifs: readonly DemoNote[]) {
+/** The bell swings when something new needs you. */
+function useBellPing(unread: number, real: Bell | null) {
   const [ping, setPing] = useState(false);
   const prevUnread = useRef(unread);
   useEffect(() => {
@@ -165,36 +160,16 @@ function useBellPing(unread: number, real: Bell | null, notifs: readonly DemoNot
     prevUnread.current = unread;
     return undefined;
   }, [unread, real]);
-  const pingKey = useRef<string | null>(null);
-  useEffect(() => {
-    const f = notifs[0] || notifs.find((n) => n.time === "now");
-    if (!f || f.time !== "now") return undefined;
-    const key = f.id + "|" + f.title;
-    if (pingKey.current === key) return undefined;
-    pingKey.current = key;
-    setPing(true);
-    const t = setTimeout(() => setPing(false), PING_MS);
-    return () => clearTimeout(t);
-  }, [notifs]);
   return ping;
 }
 
 interface BellActsAt {
   real: Bell | null;
-  notifs: DemoNote[];
-  setNotifs: Dispatch<SetStateAction<DemoNote[]>>;
   realRows: BellNote[];
   setAlertState: (a: BellAlerts | null) => void;
   flash: Flash;
   closeBell: () => void;
 }
-
-/** A dismissed seeded note, put back where it stood. */
-const putBack = (item: DemoNote, idx: number) => (list: DemoNote[]) => {
-  const next = [...list];
-  next.splice(Math.min(idx, next.length), 0, item);
-  return next;
-};
 
 /**
  * Mark all read on the workspace's bell: the dots go at once and the toast says how many, beside Undo. A save the server
@@ -213,17 +188,18 @@ function readAllOnBell(real: Bell, flash: Flash) {
   void saved.then(say(BELL_READ_WORDS.readFailed));
 }
 
-/** A group's notes read by one press: one write where the bridge has it; a stand-in bell, and the seeded notes, read each. */
+/** A group's notes read by one press: one write where the bridge has it; a stand-in bell reads each. */
 const tbReadManyOf =
   (real: Bell | null, read: (id: string) => void) =>
   (ids: readonly string[]): void =>
     real?.readMany ? real.readMany(ids) : ids.forEach(read);
 
-/** What a press in the bell does: on the bridge's rows where the workspace has them, else on the seeded notes. */
-function bellActs({ real, notifs, setNotifs, realRows, setAlertState, flash, closeBell }: BellActsAt) {
-  const markRead = (id: string) => setNotifs((list) => list.map((n) => (n.id === id ? { ...n, unread: false } : n)));
-  // A note marked read where it stands (its check, or a thumb slid it right): the bridge's mark, or the seeded note's flag.
-  const read = (id: string) => (real ? real.read(id) : markRead(id));
+/** What a press in the bell does, on the bridge's rows; with no bell from the bridge there is nothing to press on. */
+function bellActs({ real, realRows, setAlertState, flash, closeBell }: BellActsAt) {
+  // A note marked read where it stands (its check, or a thumb slid it right).
+  const read = (id: string) => {
+    real?.read(id);
+  };
   const readMany = tbReadManyOf(real, read);
   const act = (id: string, to: string | null) => {
     read(id);
@@ -245,39 +221,19 @@ function bellActs({ real, notifs, setNotifs, realRows, setAlertState, flash, clo
     });
   };
   const readAll = () => {
-    if (real) {
-      readAllOnBell(real, flash);
-      return;
-    }
-    const prev = notifs;
-    setNotifs((list) => list.map((n) => ({ ...n, unread: false })));
-    flash({ msg: <>All notifications marked read</>, undo: () => setNotifs(prev) });
+    if (real) readAllOnBell(real, flash);
   };
   const dismiss = (id: string) => {
-    if (real) {
-      const item = realRows.find((n) => n.id === id);
-      real.dismiss(id);
-      flash({
-        msg: (
-          <>
-            Dismissed <b>“{item ? item.title : "notification"}”</b>
-          </>
-        ),
-        undo: () => real.restore(id),
-      });
-      return;
-    }
-    const idx = notifs.findIndex((n) => n.id === id);
-    const item = notifs[idx];
-    if (!item) return;
-    setNotifs((list) => list.filter((n) => n.id !== id));
+    if (!real) return;
+    const item = realRows.find((n) => n.id === id);
+    real.dismiss(id);
     flash({
       msg: (
         <>
-          Dismissed <b>“{item.title.split(" — ")[0]}”</b>
+          Dismissed <b>“{item ? item.title : "notification"}”</b>
         </>
       ),
-      undo: () => setNotifs(putBack(item, idx)),
+      undo: () => real.restore(id),
     });
   };
   return { act, onAlerts, readAll, read, readMany, dismiss };
@@ -312,42 +268,9 @@ const tbCrumbs = (crumbs: readonly Crumb[]) => (
   </div>
 );
 
-/** Presence is the mockup's: a real workspace has no away timer or transfer line yet, so the control would change nothing. */
-const tbPresence = () => {
-  const Menu = frameMoreMenu();
-  const pr = window.PR_STORE;
-  if (!pr) return null;
-  return (
-    <Menu
-      btnClass="btn btn-ghost btn-sm tb-presence"
-      title="Away pauses call transfers and the wait before a reply sends"
-      label={
-        <>
-          <span className={`tb-pres-dot ${pr.away ? "away" : pr.transfers ? "" : "off"}`}></span>{" "}
-          {pr.away ? "Away" : "Available"}
-        </>
-      }
-      items={[
-        {
-          header: pr.away ? "Away · replies wait for you" : "Available · transfers " + (pr.transfers ? "on" : "off"),
-        },
-        { label: "Available", icon: "check", onClick: () => pr.setAway(false), meta: pr.away ? "" : "current" },
-        { label: "Away", icon: "pause", onClick: () => pr.setAway(true), meta: pr.away ? "current" : "" },
-        { divider: true },
-        {
-          label: pr.transfers ? "Transfers: on" : "Transfers: off",
-          icon: "phone",
-          meta: pr.away ? "holding line while Away" : "flip it",
-          onClick: () => pr.setTransfers(!pr.transfers),
-        },
-      ]}
-    />
-  );
-};
-
 /**
  * The bell's words for a pointer: what is new on a workspace, or what is still unread once it has been looked at
- * (contracts BELL_READ_WORDS); what agents did in the demo. Nothing where nothing is new or unread: a press of Later
+ * (contracts BELL_READ_WORDS); before the bridge's bell is in, the quiet words. Nothing where nothing is new or unread: a press of Later
  * handed the keys back to it, and "Nothing needs you right now" popped up over the greeting (9 Nov 2026).
  */
 const bellTip = (real: Bell | null, unread: number, dots: number) =>
@@ -381,20 +304,18 @@ interface TopbarProps {
   right?: ReactNode;
 }
 
-/** The bell's state: the server's rows or the seeded notes, its unread count, its ping, and what a press in it does. */
+/** The bell's state: the server's rows, its unread count, its ping, and what a press in it does. */
 function useBell(flash: Flash) {
-  const [notifs, setNotifs] = useDemoBell();
   const bell = frameBell();
-  const real = !isDemoFrame() && bell ? bell : null;
+  const real = bell ? bell : null;
   const { realRows, alertState, setAlertState } = useRealBell(real);
   const [openNotifs, setOpenNotifs] = useState(false);
-  useDemoPresence(flash);
-  // The seeded feed is demo theater: outside a demo we show no count rather than a badge promising things that don't exist.
-  const shown: BellNote[] = real ? realRows : isDemoFrame() ? notifs.map(tbOverlay) : [];
+  // No bell from the bridge yet: no count, rather than a badge promising things that don't exist.
+  const shown: BellNote[] = real ? realRows : [];
   const unread = tbNewOf(real, shown);
   // What still wears a dot: with nothing new, the closed bell says it quietly (decision 0124).
   const dots = tbDotsOf(real, shown);
-  const ping = useBellPing(unread, real, notifs);
+  const ping = useBellPing(unread, real);
   // The bell's press is the member looking (Today in three zones, 2 Nov 2026): once it closes, what it held is seen,
   // so its number starts again and Today's Since you looked does too. No note is read by it (decision 0124): a dot goes
   // when its note is opened or by Mark all read. Never on a look at Today alone.
@@ -402,7 +323,7 @@ function useBell(flash: Flash) {
     setOpenNotifs(false);
     real?.seenAll();
   }, [real]);
-  const acts = bellActs({ real, notifs, setNotifs, realRows, setAlertState, flash, closeBell });
+  const acts = bellActs({ real, realRows, setAlertState, flash, closeBell });
   return { real, shown, unread, dots, ping, openNotifs, setOpenNotifs, closeBell, alertState, acts };
 }
 
@@ -417,7 +338,7 @@ const tbBell = (b: BellState) => {
         className={`btn btn-ghost btn-icon btn-sm tb-bell ${b.ping ? "ping" : ""}`}
         data-tip={bellTip(b.real, b.unread, b.dots)}
         data-tip-side="bottom"
-        // A workspace's bell says what is new, then what is unread; the demo's notes are unread, as they were.
+        // A workspace's bell says what is new, then what is unread.
         aria-label={BELL_READ_WORDS.name(b.real ? b.unread : 0, b.dots)}
         aria-haspopup="dialog"
         aria-expanded={b.openNotifs}
@@ -467,7 +388,7 @@ export function Topbar({
 
       <div className="topbar-spacer" />
 
-      {/* Ask reads the workspace as the signed-in person (surfaces/ask/); in a demo it answers the seed world. Its icon is
+      {/* Ask reads the workspace as the signed-in person (surfaces/ask/). Its icon is
           the three (kit/face/ask-face.tsx), Ask's face: ink at rest, coral and moving while Ask listens, reads or answers, on every
           page. On a desk it stands in the bar's middle, the page's search where the page has one (TbLine). */}
       <TbLine onAsk={onAsk} askLabel={askLabel} />
@@ -475,7 +396,6 @@ export function Topbar({
       {right}
 
       <div className="tbn-wrap">
-        {isDemoFrame() && tbPresence()}
         {tbBell(bell)}
         <button
           className="btn btn-ghost btn-icon btn-sm tb-theme"

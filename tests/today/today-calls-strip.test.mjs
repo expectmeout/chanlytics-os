@@ -27,7 +27,6 @@ import { installStubReact, fresh, all, byTestId } from "../_stub-react.mjs";
 // (the rail's clock ticks once a second while a call is up).
 const went = [];
 installStubReact({
-  __DEMO_MODE: false,
   __surfaceState: () => "live",
   appNavigate: (to) => went.push(to),
   canDo: () => true,

@@ -63,7 +63,6 @@ const channels = [
 // The page's clock is a window interval, only while a call is up: held here, so a test fires it and reads whether it is still running.
 const intervals = [];
 installStubReact({
-  __DEMO_MODE: false,
   __WORKSPACES: [{ id: "w1", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "w1",
   CHANLY: { nav() {} },

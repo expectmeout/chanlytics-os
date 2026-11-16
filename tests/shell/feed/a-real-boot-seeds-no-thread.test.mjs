@@ -14,24 +14,37 @@ import { importSrc } from "../../_source.mjs";
 
 installStubReact();
 const win = globalThis.window;
-// Nothing declared a demo: a signed-in tab, as the app's own page boots it.
-delete win.__DEMO_MODE;
+// A signed-in tab, as the app's own page boots it.
 await importSrc("apps/dashboard/src/bridge/seed-globals.ts");
 const { inboxData, conversationsData, REAL_CHANNEL_LABELS } = await importSrc(
   "apps/dashboard/src/surfaces/inbox/store.ts",
 );
-const { inboxSample, conversationsSample } = await importSrc("apps/dashboard/src/surfaces/inbox/sample.ts");
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { installNotifications } = await importSrc("apps/dashboard/src/bridge/notifications.ts");
 
-const SEEDED = [...inboxSample.THREADS, ...conversationsSample.CONVERSATIONS].map((row) => row.who);
+/** The people the demo's seeds invented, as they named them when demo mode went (16 Nov 2026). */
+const SEEDED = [
+  "Gabby Moreno",
+  "Aisha Khan",
+  "@thewellness.co",
+  "Jordan Patel",
+  "Tara Ellis",
+  "Maya Rodriguez",
+  "Noah Williams",
+  "Kayla Brooks",
+  "Marcus Webb",
+  "Elena Park",
+  "David Chen",
+  "Selena Cho",
+  "@marcus_lee",
+];
 const storage = () => {
   const kept = new Map();
   return { getItem: (k) => kept.get(k) ?? null, setItem: (k, v) => kept.set(k, v) };
 };
 
 test("REGRESSION (X6-1): a real boot publishes no seeded thread, and the Inbox's store holds none before its read", () => {
-  assert.equal(win.__DEMO_MODE, false, "a session that declared nothing is real");
+  assert.equal(win.__DEMO_MODE, undefined, "the seeds set no demo flag: demo mode went (16 Nov 2026)");
   assert.equal(win.INBOX_DATA, undefined, "REGRESSION: the demo's eleven threads were published in every session");
   assert.equal(win.CONVERSATIONS_DATA, undefined);
   const inbox = inboxData();
@@ -39,8 +52,6 @@ test("REGRESSION (X6-1): a real boot publishes no seeded thread, and the Inbox's
   assert.deepEqual(inbox.CHANNEL_LABELS, REAL_CHANNEL_LABELS, "and the channels' words are the real ones");
   assert.deepEqual(inbox.INBOX_BASELINE, { doneThisWeek: 0 }, "nothing invented is counted as done");
   assert.deepEqual(conversationsData().CONVERSATIONS, []);
-  // The names the pages that have not moved still read off the window are the Inbox's own, never a seed.
-  assert.equal(typeof win.IX_STORE, "object", "the session's decisions are published as before");
 });
 
 test("REGRESSION (X6-1, X6-3): the bell over a real boot names nobody the seeds invent, before and after the Inbox's read", () => {
@@ -57,17 +68,4 @@ test("REGRESSION (X6-1, X6-3): the bell over a real boot names nobody the seeds 
     ["needs:t-real"],
   );
   for (const seed of SEEDED) assert.ok(!said.includes(seed), `the bell names ${seed}, whom the seeds invent`);
-});
-
-test("a demo still draws its seeds: the store answers them in a session that declared itself one", () => {
-  setSurfaceValue("inbox", undefined);
-  setSurfaceValue("conversations", undefined);
-  win.__DEMO_MODE = true;
-  try {
-    assert.equal(inboxData(), inboxSample);
-    assert.equal(conversationsData(), conversationsSample);
-  } finally {
-    win.__DEMO_MODE = false;
-  }
-  assert.deepEqual(inboxData().THREADS, [], "and a real one, again, none");
 });

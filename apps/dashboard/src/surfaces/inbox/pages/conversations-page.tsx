@@ -39,17 +39,7 @@ import { useShownCvRows } from "./cv-shown";
 import { RowGap } from "../../kit/rows/row-gap";
 import type { ShownRows } from "../../kit/rows/shown-rows";
 import { seePerson, unreadHere, useSeeOpen, useSeen } from "../../seen";
-import {
-  appNavigate,
-  canNavigate,
-  currentRoute,
-  demoSession,
-  navigate,
-  tabMemory,
-  useToast,
-  type Flash,
-} from "../shell";
-import { warmDemo } from "../shell";
+import { appNavigate, canNavigate, currentRoute, navigate, tabMemory, useToast, type Flash } from "../shell";
 import { conversationsData, inboxData, IX_STORE } from "../store";
 import { ThreadCall } from "../thread/call";
 import { useCallLinesFirst } from "../thread/call-turns";
@@ -325,9 +315,9 @@ const cvThreadHolds = (c: ConversationLine): boolean => {
 };
 const cvOpens = (c: ConversationLine): "thread" | "call" | "inbox" => {
   if (c.callId || c.channel === "phone") {
-    return !demoSession() && !c.live && c.threadId && c.messageId && cvThreadHolds(c) ? "thread" : "call";
+    return !c.live && c.threadId && c.messageId && cvThreadHolds(c) ? "thread" : "call";
   }
-  return demoSession() || !c.threadId ? "inbox" : "thread";
+  return !c.threadId ? "inbox" : "thread";
 };
 
 // ---------- Page ----------
@@ -652,8 +642,6 @@ export const ConversationsPage = ({
   // Its own rows, and where a call opens depends on the threads the Inbox read (cvOpens): drawn again when either lands.
   const cvRead = useSurface("conversations");
   useSurface("inbox");
-  // A demo's seeded calls and chats, fetched as the page mounts (demo.ts); their landing redraws it as a read's does.
-  useEffect(warmDemo, []);
   const { openRow, closeRow } = useCvAddress(channel, setSelectedId, setPhoneOpen);
   // On a phone the list stays where it was under an open row, and is put back there as the row goes, by any Back; the row
   // is pushed in over it as it opens.
@@ -673,15 +661,11 @@ export const ConversationsPage = ({
   }, [initialId]);
   useEffect(() => {
     const bump = () => setTick((n) => n + 1);
-    // A decision on a seeded thread is the demo's (IX_STORE sends this and nothing else does): a real workspace's decisions
-    // are the server's, and its rows are drawn again when they are read.
-    if (demoSession()) window.addEventListener("inbox:decisions", bump);
     // The reading pane is drawn only where it is on the screen (cvOnPhone, below): a phone turned sideways crosses the
     // breakpoint, and the pane it had no need of is drawn then.
     const phone = window.matchMedia ? window.matchMedia("(max-width: 720px)") : null;
     if (phone && phone.addEventListener) phone.addEventListener("change", bump);
     return () => {
-      window.removeEventListener("inbox:decisions", bump);
       if (phone && phone.removeEventListener) phone.removeEventListener("change", bump);
     };
   }, []);

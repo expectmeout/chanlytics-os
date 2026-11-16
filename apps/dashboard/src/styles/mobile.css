@@ -169,8 +169,7 @@
   .today-setup .setup-chooser { margin-left: 0; }
 
   /* ---------- Inbox ---------- */
-  .inbox, .inbox.with-rail { grid-template-columns: 1fr; grid-template-rows: minmax(0, 42vh) minmax(0, 1fr); }
-  .ix-agent-rail { display: none; }
+  .inbox { grid-template-columns: 1fr; grid-template-rows: minmax(0, 42vh) minmax(0, 1fr); }
   .ix-list { border-right: none; border-bottom: 1px solid var(--line); }
   .ix-th-head { padding: 12px 16px; }
   .ix-th-closed { padding: 6px 16px 0; }
@@ -446,7 +445,7 @@
 
 @media (max-width: 720px) {
   /* Inbox: the list OR the thread, never both squeezed into one screen */
-  .inbox, .inbox.with-rail { grid-template-rows: minmax(0, 1fr); }
+  .inbox { grid-template-rows: minmax(0, 1fr); }
   /* With nothing in the bucket the list is its buckets and its search alone, and "Inbox zero" takes the room under
      them, clear of the tab bar: the list kept the screen's upper half empty and the message stood in the 40vh under
      it, its button behind the bar. */

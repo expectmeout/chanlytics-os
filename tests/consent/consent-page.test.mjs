@@ -338,7 +338,6 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
     usePPToast: () => [null, () => {}],
     canDo: () => true,
     gate: () => ({}),
-    __DEMO_MODE: false,
   });
   const SRC = "../../apps/dashboard/src";
   // Get their yes is People's sheet (the Campaigns wiring review's lane 7), drawn from Sent's read.

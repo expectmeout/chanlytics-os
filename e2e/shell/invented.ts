@@ -1,5 +1,4 @@
 import { expect, type Page } from "@playwright/test";
-import { conversationsSample, inboxSample } from "../../apps/dashboard/src/surfaces/inbox/sample";
 
 /** Names and numbers that exist only in the design seeds. */
 export const INVENTED = [
@@ -16,10 +15,16 @@ export const INVENTED = [
   // the mockup's callers, now that Live is real
   "Selena Cho",
   "Maya Rodriguez",
-  // Every person the demo's Inbox and Conversations invent, read from the seeds themselves (the wiring's second audit, X6-3):
-  // the list above named five of their thirteen, so the seeded Inbox that stood in on a real session before its read (X6-1)
-  // showed names this walk never looked for. A seed added is looked for by itself.
-  ...[...inboxSample.THREADS, ...conversationsSample.CONVERSATIONS].map((row) => row.who),
+  // Every person the demo's Inbox and Conversations invented (the wiring's second audit, X6-3), as their seeds named them
+  // when demo mode went (16 Nov 2026): the seeded Inbox that stood in on a real session before its read (X6-1) showed them.
+  "Gabby Moreno",
+  "@thewellness.co",
+  "Jordan Patel",
+  "Tara Ellis",
+  "Noah Williams",
+  "Kayla Brooks",
+  "Elena Park",
+  "@marcus_lee",
 ].filter((seed, i, all) => all.indexOf(seed) === i);
 
 /** On a signed-in session, the mockup's people, business and phone numbers appear nowhere. */

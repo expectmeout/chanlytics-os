@@ -192,7 +192,7 @@ test("Conversations' box: the threads whose messages say the words, past each th
 
 /* ---------------------------------------------------------------- the page */
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/harbor/today",

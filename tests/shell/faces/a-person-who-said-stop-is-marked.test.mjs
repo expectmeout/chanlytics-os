@@ -33,7 +33,7 @@ import { pipelinePeekOf } from "../../../apps/dashboard/src/surfaces/people/pipe
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { installStubReact, fresh, find, all, byTestId, classes, textOf } from "../../_stub-react.mjs";
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 const S = "../../../apps/dashboard/src";
 const { Face } = await import(`${S}/surfaces/kit/face/face.tsx`);
 const { Icon } = await import(`${S}/surfaces/kit/icon/icon.tsx`);

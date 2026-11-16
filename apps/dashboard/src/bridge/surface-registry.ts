@@ -9,14 +9,13 @@
  * notified, Reports showing $48,300 the schema has no column for. A rule
  * applied per-route is a rule someone forgets per-route. Here the
  * classification IS the enforcement: the shell asks this table, and anything
- * marked "demo" renders the honest ComingSoon pane outside an explicit demo
- * session. A test asserts the table covers every route the shell declares, so
+ * marked "demo" renders the honest ComingSoon pane. A test asserts the table covers every route the shell declares, so
  * adding a route without classifying it fails CI rather than shipping a
  * finished-looking fabrication.
  *
  * "demo" does not mean bad — it means the surface's data is invented, and
- * invented data may only render in a session that declared itself a demo
- * (window.__DEMO_MODE). Flipping a surface to real later is a one-line change
+ * invented data renders nowhere: the session that could declare itself a demo
+ * went with demo mode (16 Nov 2026). Flipping a surface to real later is a one-line change
  * here, made in the same directory as the override that makes it true.
  */
 import {
@@ -640,19 +639,11 @@ export const ROUTES_MOVED: Record<string, string> = {
   "admin/setup": FIRST_RUN_ROUTE,
 };
 
-/** Retired pages the mockup no longer has either: the seeded Leads page was deleted when Leads became a scope of People. */
-const GONE_FROM_THE_TREE = new Set(["leads"]);
-
-/**
- * Where a retired page, or a pane that moved, lands now; undefined for an address that is where it always was. A pane
- * that moved and a page gone from the tree move for everyone; a retired page the mockup still has (the Deal board)
- * stays where it is in a demo session (`demo`), which is the one place it is still drawn.
- */
-export function surfaceRetiredTo(page: string, at?: string | null, demo = false): string | undefined {
+/** Where a retired page, or a pane that moved, lands now; undefined for an address that is where it always was. */
+export function surfaceRetiredTo(page: string, at?: string | null): string | undefined {
   const param = paneOf(page, at);
   const moved = param ? ROUTES_MOVED[`${page}/${param}`] : undefined;
-  if (moved) return moved;
-  return demo && !GONE_FROM_THE_TREE.has(page) ? undefined : SURFACE_RETIRED[page];
+  return moved ?? SURFACE_RETIRED[page];
 }
 
 export function installSurfaceRegistry(): void {

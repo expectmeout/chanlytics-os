@@ -80,7 +80,6 @@ globalThis.window = {
   gate: () => ({}),
   canDo: () => true,
   gateTitle: () => null,
-  __DEMO_MODE: false,
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent() {

@@ -126,9 +126,5 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
   assert.ok(!app.includes("other surfaces seeded") && !app.includes("liveLabels"), "the footer is the customer's");
   const topbar = readCode("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx");
-  assert.ok(
-    topbar.includes("{isDemoFrame() && tbPresence()}") &&
-      topbar.includes('btnClass="btn btn-ghost btn-sm tb-presence"'),
-    "presence is the mockup's",
-  );
+  assert.ok(!topbar.includes("tb-presence"), "presence was the mockup's, and went with demo mode");
 });

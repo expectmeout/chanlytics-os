@@ -80,11 +80,6 @@ export function canDo(action: string): boolean {
   return window.canDo ? window.canDo(action) : false;
 }
 
-/** Whether the session declared itself a demo (`window.__DEMO_MODE`, which the seeds set false wherever nothing set it). */
-export function demoSession(): boolean {
-  return !!window.__DEMO_MODE;
-}
-
 /**
  * Whether a pointer that reaches a row or a door warms what it opens: a mouse or a pen resting on it, never a finger. A touch
  * starts a scroll, or a swipe across a strip, far more often than a tap, and each warm read a person or a view whole on the

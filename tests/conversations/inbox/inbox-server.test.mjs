@@ -341,7 +341,7 @@ test("an email intake that died leaves the email flagged for a person, and marks
 
 /* ------------------------------- the bridge's read ------------------------------- */
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/harbor",

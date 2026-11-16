@@ -16,9 +16,6 @@ export const FOCUS_COMPOSER_MS = 60;
 /** How long "Saved" stays under Save draft. */
 export const SAVED_NOTICE_MS = 1600;
 
-/** When the scripted "this thread changed under you" notice appears, where its update names no time. */
-export const STALE_AFTER_MS = 11_000;
-
 /** The seed clock: the time a session decision stamps on a seeded thread. */
 export const IX_NOW = "12:04";
 

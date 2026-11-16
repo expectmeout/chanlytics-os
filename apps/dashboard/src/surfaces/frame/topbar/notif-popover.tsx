@@ -14,7 +14,7 @@ import { BELL_READ_WORDS } from "@chanlytics/contracts";
 import type { BellRow } from "@/bridge/notifications";
 import { frameBell, frameGlyph, frameRecordSwitch } from "../frame-window";
 
-/** A note the bell draws: the server's row (BellRow), or the demo's seeded one. */
+/** A note the bell draws: the server's row (BellRow). */
 export interface BellNote {
   id: string;
   icon: string;
@@ -260,7 +260,7 @@ function bellLine(d: BellDraw, l: BellLine) {
   );
 }
 
-/** Device alerts, outside a demo: a system notification when something new needs the owner while the app is away. */
+/** Device alerts: a system notification when something new needs the owner while the app is away. */
 function bellAlerts(alerts: BellAlerts, onAlerts: (on: boolean) => void) {
   const Switch = frameRecordSwitch();
   return (
