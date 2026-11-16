@@ -82,7 +82,8 @@ export const REACH_OUT_REFUSALS = {
   stepGone: "That step has gone.",
   onlyEmailWords: "Only an email takes words.",
   yoursToSend: "It's yours to send now: change it in your mail app.",
-  youWroteIt: "You wrote this email. Use the campaign's words first.",
+  // screen-word: the database's own sentence (reach_out_send_decide); a migration changes both
+  youWroteIt: "You wrote this email. Use the sequence's words first.",
   /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
   unsaved: "That campaign couldn't be saved as it is. Check its steps and try again.",
   /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */

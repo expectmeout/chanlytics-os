@@ -99,9 +99,13 @@ export interface ColdEmailNote {
   needs: ColdEmailPressNeeds;
 }
 
-/** What refuses a new sequence to leads with no mailbox to send it, on New, on Ask's card and at the door. */
+/**
+ * What refuses a new sequence to leads with no mailbox to send it, on New, on Ask's card and at the door. The database
+ * says the same sentence at its own door, and a database test holds the two equal, so its words change there first.
+ */
+// screen-word: the database's own sentence; a migration changes both
 export const COLD_EMAIL_NEEDS_MAILBOX =
-  "Connect your mailbox first: cold email sends from your own address. Settings › Cold email has the way.";
+  "Connect your mailbox first: a sequence to leads sends from your own address. Settings › Cold email has the way.";
 /** Ask's word where the mailboxes could not be read: nobody is told they have none on a read that failed. */
 export const COLD_EMAIL_MAILBOX_UNREAD = "Couldn't check your mailbox just now. Try again in a moment.";
 /** The address that opens Cold email's connect sheet: Today's line and a lead's Connect land on it. */
