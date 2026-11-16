@@ -82,8 +82,8 @@ export const REACH_OUT_REFUSALS = {
   stepGone: "That step has gone.",
   onlyEmailWords: "Only an email takes words.",
   yoursToSend: "It's yours to send now: change it in your mail app.",
-  // screen-word: the database's own sentence (reach_out_send_decide); a migration changes both
-  youWroteIt: "You wrote this email. Use the sequence's words first.",
+  /** The database raises the same sentence (reach_out_send_decide, 00633), and a database test holds the two equal. */
+  youWroteIt: "You wrote this email. Use the campaign's words first.",
   /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
   unsaved: "That campaign couldn't be saved as it is. Check its steps and try again.",
   /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
@@ -99,6 +99,22 @@ const REFUSAL_SET = new Set<string>(Object.values(REACH_OUT_REFUSALS));
 /** Whether a door's message is one of the refusals above, and so may be shown as it is. */
 export function isReachOutRefusal(message: string | null | undefined): boolean {
   return REFUSAL_SET.has(message ?? "");
+}
+
+/**
+ * What the database said for a refusal above before 00633 (16 Nov 2026), and the refusal it is: read as today's
+ * words, so a page says the same sentence whether the app or the database is the newer. It can go once 00633 is on
+ * production and no build from before it serves.
+ */
+const SAID_BEFORE: ReadonlyMap<string, string> = new Map([
+  // screen-word: the database's sentence before 00633, read and never shown
+  ["You wrote this email. Use the sequence's words first.", REACH_OUT_REFUSALS.youWroteIt],
+]);
+
+/** The words a door's message is said in: one of the refusals above, as it is or as the database said it before; else null. */
+export function reachOutRefusalWords(message: string | null | undefined): string | null {
+  const refusal = message ?? "";
+  return REFUSAL_SET.has(refusal) ? refusal : (SAID_BEFORE.get(refusal) ?? null);
 }
 
 /** Who gets it (the reach block): the count, the bar, and the reasons, each with its door. */
