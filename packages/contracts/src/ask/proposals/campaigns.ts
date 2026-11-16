@@ -84,19 +84,19 @@ export const PLAYBOOK_CARD_REFUSALS = {
    */
   twin: (name: string): string =>
     `“${name}” already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`,
-  followUpsUnread: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
+  followUpsUnread: "who already had a proposal follow-up couldn't be read just now; say so, and try again in a moment",
   /**
    * The week's breath: every message sent or due within a week of a run, a member's own too, holds its person, so the
    * count waits on it. The stem a broadcast's door says it in (core createBroadcast).
    */
   weekUnread:
-    "who has had a message from you lately, or has one due, could not be read just now; say so, and try again in a moment",
+    "who has had a message from you lately, or has one due, couldn't be read just now; say so, and try again in a moment",
   /**
    * The autonomy modes, unread: what a card says of its runs after the first is what its class's row says a new sequence
    * starts as (decision 0064), so no card is made on a guess.
    */
   modeUnread:
-    "the sending mode of this campaign's class could not be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
+    "the sending mode of this campaign's class couldn't be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
   /** The action named a message and a starter both: a campaign sends one. */
   starterOrMessage:
     "name template_id for a message the workspace holds, or starter for the moment's starter to file at Approve, never both",
@@ -149,7 +149,7 @@ export const PLAYBOOK_CARD_WORDS = {
    * Every new sequence's first batch, and its first after new words, waits for the owner's OK whatever its mode (decision
    * 0064): the card says so beside what its batches do after that.
    */
-  asksFirst: "its first batch waits for your OK",
+  asksFirst: "its first batch waits for your approval",
   /**
    * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
    * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment
@@ -235,7 +235,7 @@ export const broadcastSpec: ProposalSpec = {
  */
 function firstSendsWords(pl: Record<string, unknown>, d: Record<string, unknown>): string {
   // Under Asks you every batch waits, the first among them; under Holds it each waits its half hour.
-  if (d.words_ok !== true || pl.mode === "ask") return "Its first batch waits for your OK.";
+  if (d.words_ok !== true || pl.mode === "ask") return "Its first batch waits for your approval.";
   const cap = Number(pl.cap_per_run);
   const held = pl.mode === "veto" ? PLAYBOOK_VETO_DELAY_MS : 0;
   const at = Date.parse(asText(d.first_at)) + held;

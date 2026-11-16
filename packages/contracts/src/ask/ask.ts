@@ -103,7 +103,7 @@ export function scopeFromRoute(
 ): AskScope | null {
   if (!param) return null;
   if (page === "inbox" && param.startsWith("th-"))
-    return { kind: "thread", id: param.slice(3), label: label || "this thread" };
+    return { kind: "thread", id: param.slice(3), label: label || "this conversation" };
   if (page === "conversations") {
     // A row on its tab, or a row alone (on All): the row is after the tab's colon.
     const row = param.includes(":") ? param.slice(param.indexOf(":") + 1) : param;

@@ -240,7 +240,7 @@ function googleRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowDraf
       state: "waiting_them",
       stateWords: "Waiting on Google",
       required: false,
-      sentence: `${listing.name} is on record, but Google could not be read${listing.checked_at ? ` since ${agoWords(Date.parse(listing.checked_at), nowMs)}` : " yet"} — it is read again once a day.`,
+      sentence: `${listing.name} is on record, but Google couldn't be read${listing.checked_at ? ` since ${agoWords(Date.parse(listing.checked_at), nowMs)}` : " yet"} — it is read again once a day.`,
       details: [],
       verb: { label: "Open Reports", to: lensRoute("reviews") },
     };

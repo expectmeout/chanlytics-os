@@ -119,7 +119,7 @@ export const MAILBOX_SENDERS_WORDS = {
   wholeDomain: (domain: string) => `Everything from ${domain}, too`,
   done: (personName: string) => `${personName}: not a person. Deleted, and their mail stays in your mailbox.`,
   show: "Show who",
-  failed: "Could not change this.",
+  failed: "Couldn't change this.",
 } as const;
 
 /** The domain an address is at, lower-cased. */

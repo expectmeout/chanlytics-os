@@ -352,7 +352,7 @@ export const PEOPLE_STRIP_WORDS = {
   stop: "Stop",
   ended: (ending: string | null, count: number, target: number): string => {
     if (ending === "source_failed")
-      return "The directory could not be read. Nothing was counted for what was not found.";
+      return "The directory couldn't be read. Nothing was counted for what was not found.";
     if (ending === "stopped")
       return `Stopped with ${plural(count, "company", "companies")} found. Their addresses were checked.`;
     // Ended before it searched, or before its companies were checked: said as it is, never as a search that found none.

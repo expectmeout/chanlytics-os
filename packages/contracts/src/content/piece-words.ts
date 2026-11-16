@@ -96,9 +96,9 @@ const summarized =
 /** Why a video was not made, and what a person does about each. */
 const FAILED: Record<PieceFail, string> = {
   clips: "One of its clips or photos isn't in your Library any more, or can't be used yet.",
-  draw: "It could not be drawn this time.",
-  store: "It was drawn but could not be kept. Check there is room for it.",
-  unknown: "It could not be made this time.",
+  draw: "It couldn't be drawn this time.",
+  store: "It was drawn but couldn't be kept. Check there is room for it.",
+  unknown: "It couldn't be made this time.",
 };
 const FAILED_NEXT: Record<PieceFail, string> = {
   clips: "Ask for it again once it is there.",
@@ -123,7 +123,7 @@ export const PIECE_WORDS: PieceWords = {
   caption: "Caption",
   busy: "Three videos are being made right now. Make this one once one of them is done.",
   off: "Videos aren't on for this workspace yet.",
-  notDrawn: "The stills could not be drawn. Making it still works.",
+  notDrawn: "The stills couldn't be drawn. Making it still works.",
   boardSaid: "Each part of the video in order, with its words where the video shows them",
   follows: {
     making: "Making it",
@@ -166,7 +166,7 @@ export const PIECE_WORDS: PieceWords = {
   bell: {
     ready: "Your video is ready",
     readyBody: (name) => (name ? `${fileSaidOf(name)} · Watch it` : "Watch it"),
-    failed: "Your video could not be made",
+    failed: "Your video couldn't be made",
     failedBody: (reason) => `${FAILED[reason]} ${FAILED_NEXT[reason]}`,
   },
 };

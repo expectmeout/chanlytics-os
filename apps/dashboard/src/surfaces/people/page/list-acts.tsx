@@ -54,7 +54,7 @@ export function peopleListDoors({
               </>
             ),
           }
-        : { tone: "danger", msg: <>{r.message || "It could not be brought back."}</> },
+        : { tone: "danger", msg: <>{r.message || "It couldn't be brought back."}</> },
     );
   };
   const createList = async (name: string, rule: ListRule | null = null) => {
@@ -228,7 +228,7 @@ function listActGoOf(a: PhoneActsArgs, closePhoneSheet: () => void) {
     const ids = shownIds;
     const made = await plMakeListWith(n, ids);
     if (!made.ok) {
-      setListDraft((x) => ({ ...x, busy: false, error: made.message || "Could not make the list." }));
+      setListDraft((x) => ({ ...x, busy: false, error: made.message || "Couldn't make the list." }));
       return;
     }
     const { filled, id } = made;

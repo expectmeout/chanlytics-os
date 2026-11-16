@@ -390,7 +390,7 @@ export const SEQUENCE_HISTORY_WORDS = {
   period: "Over",
   inReports: "Reports",
   /** The batch to come, over the days that went: "Next · goes on its own", or waiting for an OK. */
-  upcoming: (waits: boolean) => (waits ? "Next · waits for your OK" : "Next · goes on its own"),
+  upcoming: (waits: boolean) => (waits ? "Next · waits for your approval" : "Next · goes on its own"),
   dayByDay: "Day by day",
   /** Sent, as the card's one large number says it: "19 sent" (its definition is the figure's, on its tip). */
   sent: "sent",
@@ -401,7 +401,7 @@ export const SEQUENCE_HISTORY_WORDS = {
   noReplies: "Nobody has written back to this one yet.",
   everyone: (n: number) => `All ${n} who got it`,
   openRun: RUN_OPEN_WORDS,
-  thread: "Thread",
+  thread: "Conversation",
   waits: RUN_WAITING_SHORT,
   counting: "Counting…",
   step: (place: number) => `step ${place}`,
@@ -428,7 +428,7 @@ export const SEQUENCE_REPLIES_WORDS = {
   shown: (here: number, n: number) => (here === n ? null : `${here} of them are here; the rest are older`),
   reading: "Reading its replies…",
   failed: "its replies",
-  leave: "Show every thread",
+  leave: "Show every conversation",
 } as const;
 
 /** What a figure counts, and what it does not: said on the label's tooltip. */

@@ -243,7 +243,7 @@ export const TRIAL_SPENT_WORDS = {
   title: "Your trial's use is spent, so your plan has started",
   detail: (use: string) => `${use}. Your plan started today on the card you gave and keeps AI answering.`,
   /** The plan could not start (a card Stripe refused): the trial runs on, and Billing has the card. */
-  failedTitle: "Your trial is used up, and your plan could not start",
+  failedTitle: "Your trial is used up, and your plan couldn't start",
   failed: "Update the card in Billing so AI keeps answering when the trial ends.",
 } as const;
 
@@ -368,7 +368,7 @@ export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): Billing
       return {
         ...base,
         headline: "Paused",
-        detail: "Payment could not be collected after several tries. Update the card in Manage billing, then resume.",
+        detail: "Payment couldn't be collected after several tries. Update the card in Manage billing, then resume.",
         tone: "danger",
         actions: { checkout: false, portal: true, resume: true, startNow: false },
         paused: true,

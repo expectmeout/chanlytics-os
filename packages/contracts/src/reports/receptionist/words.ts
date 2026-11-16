@@ -88,7 +88,7 @@ export const callEndingsLine = (total: number): string => `${plural(total, "call
 function bookedReason(calendar: LinksCalendar): string | null {
   if (calendar === "ended") return BOOKED_NEEDS_TODAY;
   if (calendar === "none") return BOOKED_NEEDS_A_LINK;
-  if (calendar === "unavailable") return "Your calendar could not be read.";
+  if (calendar === "unavailable") return "Your calendar couldn't be read.";
   return null;
 }
 

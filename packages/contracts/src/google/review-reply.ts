@@ -72,7 +72,7 @@ export function reviewDraftsBell(
   if (!d) return null;
   if (rest.length === 0) {
     const author = (d.author ?? "").trim();
-    const goes = d.posts_at ? `posts after ${clockTime(Date.parse(d.posts_at), tz)}` : "waits for your OK";
+    const goes = d.posts_at ? `posts after ${clockTime(Date.parse(d.posts_at), tz)}` : "waits for your approval";
     return {
       title: `${REVIEW_REPLY_HELD_TITLE} ${author ? `${author}'s review` : "a review"} ${goes}`,
       body: `${d.text} ${reviewHeldReplyWords(d.posts_at, tz)}`,
@@ -80,7 +80,7 @@ export function reviewDraftsBell(
   }
   const holds = drafted.some((r) => r.posts_at);
   return {
-    title: `${drafted.length} replies to reviews ${holds ? "post unless you stop them" : "wait for your OK"}`,
+    title: `${drafted.length} replies to reviews ${holds ? "post unless you stop them" : "wait for your approval"}`,
     body: "Each is on Reports, under its review.",
   };
 }
@@ -263,6 +263,6 @@ export function reviewReplyWords(mode: ReviewReplyMode | null | undefined, canRe
   if (!canReply || !mode) return "";
   if (mode === "auto") return "new ones are answered by AI within the hour";
   if (mode === "veto") return "AI writes each reply and posts it after 30 minutes unless you stop it";
-  if (mode === "ask") return "AI writes each reply and holds it for your OK";
+  if (mode === "ask") return "AI writes each reply and holds it for your approval";
   return "";
 }

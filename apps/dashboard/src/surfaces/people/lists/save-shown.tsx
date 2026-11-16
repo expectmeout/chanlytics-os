@@ -90,7 +90,7 @@ export function SaveShownAsList({
     const made = await plMakeListWith(n, ids);
     if (!made.ok) {
       setBusy(false);
-      flash({ tone: "danger", msg: <>{made.message || "Could not make the list."}</> });
+      flash({ tone: "danger", msg: <>{made.message || "Couldn't make the list."}</> });
       return;
     }
     const { filled, id } = made;
