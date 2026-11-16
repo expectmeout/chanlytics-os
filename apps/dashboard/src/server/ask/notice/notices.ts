@@ -114,8 +114,8 @@ async function reviewsWritten(t: ToolContext, language: string): Promise<AskNoti
 /** Every notice this member has not rested, the one most worth acting on first. */
 export async function listNotices(t: ToolContext, language: string, rested: AskRested): Promise<AskNotice[]> {
   const today = dayInZone(t.timezone, t.now.getTime()).key;
-  let asked: ReturnType<Runs> | null = null;
-  const runsRead: Runs = () => (asked ??= listBroadcasts(t.ctx, t.tenantId).catch(logAndGoOn("notice runs", null)));
+  let sendsRead: ReturnType<Runs> | null = null;
+  const runsRead: Runs = () => (sendsRead ??= listBroadcasts(t.ctx, t.tenantId).catch(logAndGoOn("notice runs", null)));
   const [seen, ...more] = await Promise.all([
     seeAll(t),
     roomAndYes(t, language, runsRead),

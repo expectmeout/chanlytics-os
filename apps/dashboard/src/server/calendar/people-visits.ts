@@ -124,7 +124,7 @@ export const isCalendarConnected = (lookup: Pick<CalendarRead["lookup"], "url" |
 
 /** Everyone's visits off a calendar already read: the rows indexed against its feed, once. */
 export function visitsIn({ lookup, feed, record }: CalendarRead, rows: PersonRowDto[], now: Date): PeopleVisits {
-  const { lostCalendar, timezone, source, bookingLink, own, profile } = lookup;
+  const { timezone, source, bookingLink, own, profile } = lookup;
   const services = profile?.services ?? [];
   const rules = profile?.booking_rules ?? null;
   const visits = new Map<string, PersonVisitsDto>();
