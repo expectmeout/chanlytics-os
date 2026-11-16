@@ -3,6 +3,7 @@ import { askedWords, takeAskedOfTheLine } from "../../frame-doors";
 import type { AskedSeed, Line } from "./types";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { MASCOT } from "@/bridge/mascot";
+import { ROUTE_WAIT_MS } from "@/bridge/surface-registry";
 import { trapFocus } from "../../kit/focus/trap";
 import {
   ahSlide,
@@ -124,6 +125,26 @@ export const useArSlide = ({ open, composing, setComposing, slideFrom, stageRef,
   }, [open, setComposing]);
 };
 
+/**
+ * What the AI noticed, read as the Line opens (`read`): where none was held for the language, the home is laid out but not
+ * shown until the read is in (`noticeWaits`, ask.css `.ask-now.waiting`), at most the route's wait, so it comes in whole.
+ * Answers the stop.
+ */
+const arNoticeWait = (read: Promise<void>, held: boolean, setWaits: (on: boolean) => void): (() => void) => {
+  if (held) return () => {};
+  setWaits(true);
+  const done = () => setWaits(false);
+  const cap = setTimeout(done, window.__routeWaitMs ?? ROUTE_WAIT_MS);
+  void read.finally(() => {
+    clearTimeout(cap);
+    done();
+  });
+  return () => {
+    clearTimeout(cap);
+    done();
+  };
+};
+
 /** What opening does: the route's scope, the threads and the surfaces the rows read, and the three coming in from the button. */
 export const useArOpen = ({
   lang,
@@ -135,6 +156,7 @@ export const useArOpen = ({
   threadsReady,
   setThreads,
   setTick,
+  setNoticeWaits,
   faceRef,
 }: Line) => {
   // Open: the route's scope, the threads, and the surfaces the rows read (Right now reads Today's and Broadcasts').
@@ -148,7 +170,11 @@ export const useArOpen = ({
       return list;
     });
     if (A.readFollowUps) void A.readFollowUps();
-    if (A.readNotices) void A.readNotices(lang ?? "en");
+    let stopWaiting = (): void => {};
+    if (A.readNotices) {
+      const noticeLang = lang ?? "en";
+      stopWaiting = arNoticeWait(A.readNotices(noticeLang), A.holdsNotice(noticeLang), setNoticeWaits);
+    }
     const bump = () => setTick((n) => n + 1);
     const evs = [
       "surface:inbox",
@@ -160,8 +186,11 @@ export const useArOpen = ({
       "ask:follow-ups",
     ];
     evs.forEach((e) => window.addEventListener(e, bump));
-    return () => evs.forEach((e) => window.removeEventListener(e, bump));
-  }, [open, A, openedAt, setScope, threadsReady, setThreads, setTick]);
+    return () => {
+      evs.forEach((e) => window.removeEventListener(e, bump));
+      stopWaiting();
+    };
+  }, [open, A, openedAt, setScope, threadsReady, setThreads, setTick, setNoticeWaits]);
 
   // Open, and the page under the Line changing while it is open: the page is warmed (POST ask/warm; bridge/ask/api.ts),
   // so the server has read the rows on screen before the question comes. Never waited on; a page that cannot say what it

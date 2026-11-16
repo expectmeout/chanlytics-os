@@ -10,7 +10,6 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { reachOuts } from "../../campaigns/reach-out/surface";
-import { leadDtoFor } from "../surface";
 import { LeadCallMenu, ldCallProps } from "./call-menu";
 import { LeadCard, LeadHover } from "./hover";
 import { LeadTile } from "./tile";
@@ -183,7 +182,7 @@ export const ldTalkingDoor = (
  * step and the sequence. Null for a lead in none, and for one the finder filtered out.
  */
 export const ldPlaceRowOf = (l: LeadRowVM) => {
-  const place = l.cls === "excluded" ? null : (leadDtoFor(l.id)?.place ?? null);
+  const place = l.place ?? null;
   return place
     ? placeWordOf(place, { name: place.name, state: place.state }, { tz: reachOuts.zone(), nowMs: Date.now() }, "line")
     : null;

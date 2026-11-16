@@ -149,6 +149,8 @@ export interface LineState {
   setDoomed: (next: AskThreadVM | null) => void;
   composing: boolean;
   setComposing: (next: boolean) => void;
+  noticeWaits: boolean;
+  setNoticeWaits: (next: boolean) => void;
   slideFrom: Ref<ReturnType<typeof ahSlideFrom>>;
   speech: ReturnType<typeof useAskSpeech>;
   toastNode: ReactNode;

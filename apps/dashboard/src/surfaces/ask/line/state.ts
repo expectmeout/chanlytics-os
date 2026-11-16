@@ -28,6 +28,8 @@ export const useArLine = (A: AskApi | undefined): LineState => {
   // their size, centred in what is left with the standing pills under them, and listen, each key heard lifting them
   // (spec 5.9, "Composing").
   const [composing, setComposing] = useState(false);
+  // The home laid out but not shown while what the AI noticed is read with nothing held (hooks.tsx arNoticeWait).
+  const [noticeWaits, setNoticeWaits] = useState(false);
   // Where the field and the three stood as the field was focused (ahSlideFrom), until the slide has run.
   const slideFrom = useRef<ReturnType<typeof ahSlideFrom>>(null);
   const speech = useAskSpeech(A);
@@ -85,6 +87,8 @@ export const useArLine = (A: AskApi | undefined): LineState => {
     setDoomed,
     composing,
     setComposing,
+    noticeWaits,
+    setNoticeWaits,
     slideFrom,
     speech,
     toastNode,
