@@ -57,6 +57,8 @@ export type PieceNext =
   | { is: "again"; place: PostPlace }
   | { is: "going"; place: PostPlace; pull: string | null }
   | { is: "save" }
+  /** A post Ask made that was set aside: put back on Made before anything else is done with it. */
+  | { is: "put_back" }
   /** A file of the library: kept, where it waits in the inbox; then what Ask makes from it. */
   | { is: "keep" }
   | { is: "make" }
@@ -91,6 +93,9 @@ export function pieceNextOf(
   if (file.source !== "made") return libraryNextOf(file);
   // A video is no picture or story: a reel waits for its own road (decision 0121).
   if (file.kind === "video") return { is: "save" };
+  // Set aside is the owner's "not this one" (Ruben, 16 Nov 2026: it still led with Post): Put back leads, before a post of it
+  // or one tried again. What waited went with it (server files/file.ts), and one that stopped needs nobody while it is aside.
+  if (file.status === "set_aside") return { is: "put_back" };
   const newest = newestAtEachPlace(posts);
   const stuck = newest.find((p) => p.status === "held" || p.status === "failed");
   if (stuck) return { is: "again", place: stuck.place };

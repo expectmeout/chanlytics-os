@@ -62,7 +62,7 @@ function pieceActsOf(
       presses.clear();
       // Post, Post to Google and Post again open the one sheet as where it stands opens it (post-both.tsx begin).
       if (next.is === "post" || next.is === "post_to" || next.is === "again") drafts.both.begin();
-      else if (next.is === "keep") presses.say({ status: "filed" });
+      else if (next.is === "keep" || next.is === "put_back") presses.say({ status: "filed" });
       // A conversation of its own, so a post costs only what a post reads, whatever Ask was last asked (as Files').
       else if (next.is === "make") askAbout({ about, prompts: postAskOf(file), fresh: true });
     },
