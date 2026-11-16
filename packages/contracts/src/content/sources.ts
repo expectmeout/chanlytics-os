@@ -62,18 +62,14 @@ export interface ContentSourceLine {
   tone: "live" | "ok" | "rest";
 }
 
-/** One clip to film, as the card says it: what, where to hold the phone, and its length where the shots' lengths differ. */
-export interface FilmShotSaid {
-  what: string;
-  how: string;
-  seconds: string | null;
-}
-
-/** The clips to film for a video, folded under one line: how many, and their length where they share one. */
+/**
+ * The clips to film for a video, folded under one line: how many, and their length where they share one; each clip what,
+ * where to hold the phone, and its own length where the clips' lengths differ.
+ */
 export interface FilmSaid {
   head: string;
   each: string | null;
-  shots: FilmShotSaid[];
+  shots: { what: string; how: string; seconds: string | null }[];
 }
 
 export interface ContentSourcesSaid {
