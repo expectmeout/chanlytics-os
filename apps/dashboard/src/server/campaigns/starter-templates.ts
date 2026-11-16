@@ -433,7 +433,8 @@ function asFiled(
     category: starter.category,
     versions: {
       whatsapp:
-        held.whatsapp ?? (sent ? { id: "", status: "pending", hidden: false, blocked: null, reason: null } : null),
+        held.whatsapp ??
+        (sent ? { id: "", status: "pending", hidden: false, blocked: null, reason: null, since: null } : null),
       email: own("email"),
       sms: own("sms"),
     },

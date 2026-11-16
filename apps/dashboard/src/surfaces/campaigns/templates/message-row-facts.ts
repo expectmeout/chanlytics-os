@@ -13,6 +13,9 @@ import {
   messageWhyNot,
   NUMBERED_SLOT,
   readyForMessage,
+  reviewIsSlow,
+  reviewSinceOf,
+  SLOW_REVIEW_WORDS,
 } from "@chanlytics/contracts";
 import type { CampaignMessage, TemplateSentWords } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
@@ -203,7 +206,14 @@ function marksOf(p: { g: TemplateGroup; message: CampaignMessage | null; usage: 
   const flagged = g.rows
     .map(({ lang, row: r }) => {
       const standing = r && r.meta_status !== "approved" ? tplSaid(r.meta_status) : null;
-      return r && standing ? { lang, standing, words: TPL_LIST_WORDS.standing[r.meta_status] ?? standing.label } : null;
+      if (!r || !standing) return null;
+      // Past a day in review, WhatsApp is taking longer than usual (contracts reviewIsSlow): the list says so.
+      const slow = reviewIsSlow(reviewSinceOf(r), Date.now());
+      return {
+        lang,
+        standing,
+        words: slow ? SLOW_REVIEW_WORDS.list : (TPL_LIST_WORDS.standing[r.meta_status] ?? standing.label),
+      };
     })
     .find(Boolean);
   const several = g.rows.filter(({ row: r }) => r).length > 1;

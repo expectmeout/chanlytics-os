@@ -189,6 +189,8 @@ test("a tick reads each due number once with its own workspace's token, and keep
       standing_gone: 0,
       standing_unreadable: 2,
       standing_told: 0,
+      // Nothing in this world has been in review past a day (lib/whatsapp/slow-reviews.ts).
+      reviews: { slow: 0, decided: 0, still: 0, told: 0, unreadable: 0, left: 0 },
     });
     assert.deepEqual(w.kept, [
       [T(1), "ch-1", "GREEN"],
@@ -363,6 +365,7 @@ test("every due number lands in one count: kept, gone, without a token, unreadab
       standing_gone: 0,
       standing_unreadable: 4,
       standing_told: 0,
+      reviews: { slow: 0, decided: 0, still: 0, told: 0, unreadable: 0, left: 0 },
     });
     const { due, read, gone, no_token, unreadable, not_a_rating, left } = body;
     assert.equal(due, read + gone + no_token + unreadable + not_a_rating + left, "each due number is counted once");
@@ -469,6 +472,8 @@ test("the tick ends in one line that carries every count, the number of workspac
     standing_gone: 0,
     standing_unreadable: 1,
     standing_told: 0,
+    // The messages asked again in the same visit (lib/whatsapp/slow-reviews.ts): one line still carries every count.
+    reviews: { slow: 0, decided: 0, still: 0, told: 0, unreadable: 0, left: 0 },
   });
 });
 

@@ -30,7 +30,6 @@ import {
   parseParamSpecs,
   messageAboutOfClass,
   slotLabels,
-  stepApprovalOf,
   visitWhenExample,
   type ConsentChannel,
   type FollowUpCondition,
@@ -56,7 +55,7 @@ import { MessagePreview } from "../parts/message-preview";
 import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
 import { useCmPhone } from "../parts/split";
 import { RecordFootContext } from "./record-foot";
-import { HandTask } from "./step-words";
+import { HandTask, approvalOf } from "./step-words";
 import { useBatchRead } from "./use-record";
 import { pickMetaOf, readyMadeOf, stepSaved } from "./step-pick";
 import { pressed } from "./verbs";
@@ -236,7 +235,7 @@ function StepPreview(p: {
 
 /** Under the message's box: its name in Messages and its WhatsApp standing. Its words are written in place, beside it. */
 function MessageFrom({ picked }: { picked: CmOffered }) {
-  const approval = stepApprovalOf(picked.message?.versions.whatsapp?.status ?? null);
+  const approval = approvalOf(picked.message);
   return (
     <p className="sq-ed-from">
       <span>{E.savedIn(picked.title ?? picked.name)}</span>
