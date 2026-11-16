@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { build } from "esbuild";
-import { LEAD_PREVIEW_WORDS as W, previewPageOf } from "@chanlytics/contracts";
+import { LEAD_PREVIEW_WORDS as W, PREVIEW_TAUGHT, previewPageOf, withPreviewFix } from "@chanlytics/contracts";
 import { ROOT } from "../_source.mjs";
 
 const DASHBOARD_MODULES = path.join(ROOT, "apps/dashboard/node_modules");
@@ -231,4 +231,39 @@ test("its sender looking (Open it, ?look=1): what it has said and what it knows,
   for (const id of ["pv-text", "pv-send", "pv-starters", "pv-call", "pv-mine", "pv-not-right-hours", "pv-spent"])
     assert.ok(!has(html, id), `${id}: nothing to press`);
   assert.ok(!has(draw(), "pv-look"), "the lead's own page says none of it");
+});
+
+/* ---- what a business makes of it before it signs up (the canvas's calls P4 and P5) ---- */
+
+const toldNotes = (texts) => texts.map((text) => ({ title: PREVIEW_TAUGHT.title, text }));
+
+test("telling it something: the field while it has room, what they told it listed, and no field once it holds three", () => {
+  const room = draw();
+  assert.ok(has(room, "pv-teach") && has(room, "pv-teach-text") && has(room, "pv-teach-send"));
+  assert.ok(words(room).includes(W.teachLeft(3)), "how many more it takes");
+  const one = draw({ profile: { ...FACTS.profile, notes: toldNotes(["We answer all night."]) } });
+  assert.ok(has(one, "pv-taught-0") && words(one).includes("We answer all night."));
+  assert.ok(words(one).includes(W.teachLeft(2)));
+  const full = draw({ profile: { ...FACTS.profile, notes: toldNotes(["One", "Two", "Three"]) } });
+  assert.ok(has(full, "pv-taught-2") && !has(full, "pv-teach-text"), "no field once it holds three");
+  assert.ok(words(full).includes(W.taughtFull));
+});
+
+test("telling it comes after the chat it changes, and before the fold of what it knows", () => {
+  const html = draw();
+  const at = (testid) => html.indexOf(`data-testid="${testid}"`);
+  assert.ok(at("pv-chat") < at("pv-teach") && at("pv-teach") < at("pv-knows"));
+});
+
+test("its sender looking sees what they told it and nothing to type into; with nothing told, no part at all", () => {
+  const looked = draw({ profile: { ...FACTS.profile, notes: toldNotes(["One"]) } }, true);
+  assert.ok(has(looked, "pv-taught-0") && !has(looked, "pv-teach-text"));
+  assert.ok(!has(draw({}, true), "pv-teach"));
+});
+
+test("a fact they put right is drawn as theirs, in their words", () => {
+  const html = draw({ profile: withPreviewFix(FACTS.profile, "hours", "Saturday we close at 1") });
+  const row = html.slice(html.indexOf('data-testid="pv-knows-hours"'), html.indexOf('data-testid="pv-knows-address"'));
+  assert.ok(words(row).includes("Saturday we close at 1"), words(row));
+  assert.ok(words(row).includes(W.from.you));
 });

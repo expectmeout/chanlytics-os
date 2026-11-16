@@ -1,53 +1,21 @@
 /**
- * A lead's own receptionist before they sign up (decision 0079, 00497 lead_previews): its states and its limits, which
- * the database's checks and doors hold too (schema-sets.ts holds the states to the column).
- *
- *   building   its workspace made, its receptionist being written from the lead and its website
- *   ready      open to try: texted and called, up to its limits, until its thirty days are up
- *   failed     it could not be made (its why kept); the email that would have carried it is skipped
- *   claimed    made theirs: an active workspace with its claimer as owner
- *   ended      its thirty days are up, or its lead was erased: its workspace and its words gone, its counts kept
- *
- * And its page (L2): which page a preview is now (previewStateOf), its chat (previewTurnsOf), three questions to start
- * from (previewStartersOf), what it knows and where each fact was read (previewKnowsOf), and all of it (previewPageOf).
- * The page's words are previews/words.ts's, apart, so the page that draws them carries none of this.
+ * A lead's preview's PAGE (decision 0079, L2): its chat (previewTurnsOf), three questions to start from
+ * (previewStartersOf), what it knows and where each fact was read (previewKnowsOf), and all of it (previewPageOf); and
+ * what its use counts for once it is someone's own (previewFirstRunMarks). Its states, its limits and which page it is
+ * now are previews/standing.ts's, which everything but the page reads. The page's words are previews/words.ts's, apart,
+ * so the page that draws them carries none of this.
  */
 import { dayIntervals } from "../calendar/availability";
 import { calendarHoursLines } from "../calendar/words/labels";
 import type { BusinessProfile } from "../config/workspace-config/business-profile";
 import { DAY_NAMES, DAYS } from "../config/workspace-config/config-rules";
-import { REHEARSAL_LIMITS } from "../rehearsal/rehearsal";
 import { RECEPTIONIST_MET, REHEARSE_SKIPPED } from "../setup/put-off";
 import { SECOND_MS } from "../shared/time";
+import { PREVIEW_LIMITS, previewStateOf, type PreviewPageState } from "./standing";
+import { previewTheirsOf } from "./theirs";
 import { LEAD_PREVIEW_WORDS } from "./words";
 
-export const PREVIEW_STATES = ["building", "ready", "failed", "claimed", "ended"] as const;
-export type PreviewState = (typeof PREVIEW_STATES)[number];
-
-/** What a preview answers and keeps, as its doors hold it (00497). */
-export const PREVIEW_LIMITS = {
-  /** Messages a preview answers (preview_said). */
-  messages: 20,
-  /** Days a preview lasts from the first email that carried it, or from its build. */
-  days: 30,
-  /** Lines of "not right" a preview keeps (preview_not_right). */
-  notRight: 10,
-  /** The longest message a preview takes, in characters: Try it's case. */
-  messageChars: 500,
-  /** What its calls may speak in all: the rehearsal's own preview window, three minutes at most a call (L3). */
-  callMs: REHEARSAL_LIMITS.previewMs,
-} as const;
-
-/** Why a preview could not be made, as its row keeps it (lead_previews.failed_why). */
-export type PreviewFailure = "no_name" | "build_failed";
-
 /* ---- its page ---- */
-
-/**
- * What the page draws: open to try; open, its twenty messages said; being set up; ended (its thirty days up, its lead
- * erased, or it could not be made); or someone's own now.
- */
-export type PreviewPageState = "building" | "ready" | "spent" | "ended" | "taken";
 
 /** One turn of the chat as the page draws it: who said it, the words, and for an answer what a live chat would do. */
 export interface PreviewTurnVM {
@@ -80,6 +48,8 @@ export interface PreviewPageVM {
   /** What it says first in the chat, as their business: shown, never stored or counted. */
   greeting: string;
   knows: PreviewKnowsRowVM[];
+  /** What they told it, in the order they did (previews/theirs.ts): none on a page that is not open. */
+  taught: string[];
 }
 
 /** What the page is drawn from: the row as its door keeps it, and the preview workspace's name, look and record. */
@@ -90,7 +60,8 @@ export interface PreviewPageFacts {
   turns: unknown;
   business: string;
   logo_url: string | null;
-  profile: Pick<BusinessProfile, "hours" | "address" | "website" | "services" | "assistant_name"> | null;
+  /** With its notes: what the business told it and put right are notes of the record (previews/theirs.ts). */
+  profile: Pick<BusinessProfile, "hours" | "address" | "website" | "services" | "assistant_name" | "notes"> | null;
   phone_display: string | null;
   /** The seconds its ended calls spoke (lead_previews.call_seconds). */
   call_seconds: number;
@@ -154,8 +125,13 @@ function servicesLine(services: readonly { name: string }[]): string {
 export function previewKnowsOf(profile: PreviewPageFacts["profile"], phoneDisplay: string | null): PreviewKnowsRowVM[] {
   const words = LEAD_PREVIEW_WORDS;
   const rows: PreviewKnowsRowVM[] = [];
-  const add = (key: PreviewKnowsRowVM["key"], value: string | null | undefined, from: string) => {
-    if (value?.trim()) rows.push({ key, label: words.rows[key], value: value.trim(), from });
+  // A fact they put right is theirs, in their words, whatever the listing said (previews/theirs.ts).
+  const { fixed } = previewTheirsOf(profile);
+  const add = (key: PreviewKnowsRowVM["key"], listed: string | null | undefined, from: string) => {
+    const theirs = fixed[key];
+    const value = theirs ?? listed;
+    if (value?.trim())
+      rows.push({ key, label: words.rows[key], value: value.trim(), from: theirs ? words.from.you : from });
   };
   add("hours", calendarHoursLines(profile?.hours ?? null).join(" · "), words.from.google);
   add("address", profile?.address, words.from.google);
@@ -165,48 +141,9 @@ export function previewKnowsOf(profile: PreviewPageFacts["profile"], phoneDispla
   return rows;
 }
 
-/** Which page a preview is now: its door's state, read against its clock and its limit. */
-export function previewStateOf(
-  previewPageFacts: Pick<PreviewPageFacts, "state" | "ends_at" | "asked_count">,
-  now: Date,
-): PreviewPageState {
-  if (previewPageFacts.state === "claimed") return "taken";
-  if (
-    previewPageFacts.state === "ended" ||
-    previewPageFacts.state === "failed" ||
-    Date.parse(previewPageFacts.ends_at) <= now.getTime()
-  )
-    return "ended";
-  if (previewPageFacts.state === "building") return "building";
-  return previewPageFacts.asked_count >= PREVIEW_LIMITS.messages ? "spent" : "ready";
-}
-
-/**
- * A lead's preview as {{their preview}} reads it (L5): open, with its link; being made (or not made yet, which the first
- * send that names it asks for); or gone, failed, ended or someone's own, which no email may carry.
- */
-export type LeadPreviewSlot = { state: "open"; url: string } | { state: "building" } | { state: "gone" };
-
-/** The slot's standing for a lead's preview row, or none, read against the clock; `origin` is the dashboard's. */
-export function previewSlotOf(
-  row: (Pick<PreviewPageFacts, "state" | "ends_at" | "asked_count"> & { token: string }) | null,
-  now: Date,
-  origin: string,
-): LeadPreviewSlot {
-  if (!row || row.state === "building") return { state: "building" };
-  return previewClaimable(previewStateOf(row, now))
-    ? { state: "open", url: `${origin}/preview/${encodeURIComponent(row.token)}` }
-    : { state: "gone" };
-}
-
 /** Make it mine's address (L4): the preview's own sign-up, read on the server, under the preview's public prefix. */
 export function previewMinePath(token: string): string {
   return `/preview/${encodeURIComponent(token)}/mine`;
-}
-
-/** Whether a preview can be made someone's own now: open, with its twenty messages said or not (Make it mine, L4). */
-export function previewClaimable(state: PreviewPageState): boolean {
-  return state === "ready" || state === "spent";
 }
 
 /**
@@ -241,5 +178,6 @@ export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): Pr
       state === "ready" || state === "spent"
         ? previewKnowsOf(previewPageFacts.profile, previewPageFacts.phone_display)
         : [],
+    taught: state === "ready" || state === "spent" ? previewTheirsOf(previewPageFacts.profile).taught : [],
   };
 }

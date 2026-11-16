@@ -17,7 +17,14 @@ import {
 } from "@chanlytics/db/campaigns";
 import { findMailboxConnection } from "@chanlytics/db/email";
 import { sendMessageId } from "@chanlytics/core";
-import { MIN_MS, REACH_OUT_MONTH_EMAILS, mailboxDailyCap, mailboxSendsNow, slotCount } from "@chanlytics/contracts";
+import {
+  MIN_MS,
+  REACH_OUT_MONTH_EMAILS,
+  mailboxDailyCap,
+  mailboxSendsNow,
+  slotCount,
+  wordsNeedOpening,
+} from "@chanlytics/contracts";
 import { checkedWordsOf } from "@chanlytics/channels/email";
 import { replanSends, type Replan } from "../replan.js";
 import type { LogEvent, Logger } from "../../../shared/log.js";
@@ -28,12 +35,12 @@ import {
   DUE_MAILBOXES_PAGE,
   DUE_PAGES,
   HOLD_MS,
+  PREVIEW_HOLD_MS,
   REWRITE_AFTER_MS,
   REWRITE_PAGE,
   adopt,
   claimedTurns,
   handOver,
-  previewForWords,
   sendFromMailbox,
   tickReads,
   type Db,
@@ -43,6 +50,7 @@ import {
   type SenderCounts,
   type Tick,
 } from "./lanes.js";
+import { previewForWords } from "./their-preview.js";
 import type { TenantId } from "@chanlytics/contracts";
 
 /** One claimed send, written: its email and its job, then its move. Only from `claimed`, as it was read. */
@@ -89,10 +97,6 @@ async function writeOne(tick: Tick, reachOutSend: ReachOutSendRow): Promise<Outc
   if (workspace.missing) return hold(workspace.missing);
   const words = ownWords ?? stepWords;
   if (!words) return hold("no_template");
-  // Checked against other words than these (its step's, the name it signs with, whether a booking link exists): the
-  // check reads it again before it goes (R5). Never a skip: nothing about the lead changed.
-  if (reachOutSend.checked_words !== checkedWordsOf(words, standing.signedBy, workspace.bookingLink !== null))
-    return recheck();
 
   // 3. A step after the first answers the lead's email on the step before (D19).
   const after = standing.step.after_step_id;
@@ -110,6 +114,13 @@ async function writeOne(tick: Tick, reachOutSend: ReachOutSendRow): Promise<Outc
     slotCount(`${words.subject ?? ""}\n${words.body}`, "their preview") > 0
       ? await previewForWords(tick, reachOutSend)
       : null;
+  // Checked against other words than these (its step's, the name it signs with, whether a booking link exists), or its
+  // line written before their preview stood or before they last used it: the check reads it again before it goes (R5),
+  // and writes that line from what the preview says now. Never a skip: nothing about the lead changed. Read after
+  // their preview is, since its mark is part of what the line was checked against.
+  const did = lineMarkOf(words, preview);
+  if (reachOutSend.checked_words !== checkedWordsOf(words, standing.signedBy, workspace.bookingLink !== null, did))
+    return recheck();
   const created: Made = {
     afterStep: after,
     lead,
@@ -295,7 +306,10 @@ export async function claimAndWrite(params: ClaimParams): Promise<SenderCounts> 
     reads: tickReads(params.db),
     replan: [],
     later: [],
+    soon: [],
     said: new Set(),
+    capped: new Set(),
+    cappedSends: new Set(),
   };
   const late = () => Date.now() - params.started > CLAIM_YIELD_AT_MS;
   const failed = (event: LogEvent, fields: Record<string, unknown>, e: unknown) => {
@@ -333,10 +347,11 @@ export async function claimAndWrite(params: ClaimParams): Promise<SenderCounts> 
   const lanes = draftsGoFirst(params.now) ? [writeDraftsDue, writeMailboxesDue] : [writeMailboxesDue, writeDraftsDue];
   for (const lane of lanes) await lane(run);
 
-  // Planned again: from now on another mailbox, and an hour on in their leads' hours.
+  // Planned again: from now on another mailbox, an hour on in their leads' hours, and minutes on for a receptionist being made.
   const replans: Array<[Replan[], Date]> = [
     [tick.replan, params.now],
     [tick.later, new Date(params.now.getTime() + HOLD_MS)],
+    [tick.soon, new Date(params.now.getTime() + PREVIEW_HOLD_MS)],
   ];
   for (const [items, from] of replans) {
     if (items.length === 0) continue;
@@ -349,4 +364,12 @@ export async function claimAndWrite(params: ClaimParams): Promise<SenderCounts> 
     }
   }
   return out;
+}
+
+/** The mark of their preview a written line was checked against: only words that hold the line carry one. */
+function lineMarkOf(
+  words: { subject: string | null; body: string },
+  preview: { did: string | null } | null,
+): string | null {
+  return wordsNeedOpening(words) ? (preview?.did ?? null) : null;
 }

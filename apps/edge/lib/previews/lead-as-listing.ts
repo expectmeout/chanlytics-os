@@ -24,6 +24,8 @@ export interface LeadListingInput {
   website_host: string | null;
   /** The finder's week, `[{day, hours}]` in Maps' own words. */
   hours: unknown;
+  /** What is its owner's own word (00631 lead_named): a name they typed is said as typed. */
+  facts?: unknown;
 }
 
 /** The zone every new workspace starts in where nothing says another (create_workspace_for's). */
@@ -62,7 +64,11 @@ export function leadAsListing(leadListingInput: LeadListingInput): NonNullable<F
     time_zone: previewZoneOf(leadListingInput),
   };
   return {
-    name: leadCalledByOf({ business_name: leadListingInput.business_name, city: leadListingInput.city }),
+    name: leadCalledByOf({
+      business_name: leadListingInput.business_name,
+      city: leadListingInput.city,
+      facts: leadListingInput.facts,
+    }),
     address: listingAddressOf(leadListingInput),
     facts,
   };

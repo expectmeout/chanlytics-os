@@ -241,6 +241,12 @@ export const SERVER_NOTIFICATION_KINDS = [
   "post_up",
   // A post set for its time did not go, or was held (00616): the row opens Content's Needs you, where it says why.
   "post_stopped",
+  /**
+   * A lead texted, or called, the preview they were sent (00632; decision 0079): news the moment it happens, told once for
+   * their first message and once for their first call by the database itself (lead_previews_notify). The row names the
+   * business, gives its number and opens the lead. A line on the bell: no mail and no phone for now.
+   */
+  "preview_tried",
 ] as const;
 
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];

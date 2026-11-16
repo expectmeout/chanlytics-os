@@ -123,15 +123,19 @@ export function reachOutWords(
 /**
  * The words a send was checked against (R5), as one short mark: its step's words, the name its chain signs with, and
  * whether the workspace has a booking link. The check stamps it on the send; the sender compares it with the words as
- * they stand, and a send whose words changed since goes back to be checked.
+ * they stand, and a send whose words changed since goes back to be checked. `preview` is what its lead's own preview
+ * said when a line was written from it (the edge's previewDidMarkOf): a line written before the preview stood, or before
+ * they last used it, is written again. With none it is the mark it always was, so no other send is checked twice.
  */
 export function checkedWordsOf(
   words: { subject: string | null; body: string },
   signedBy: string | null,
   hasBookingLink: boolean,
+  preview: string | null = null,
 ): string {
+  const marked = [words.subject ?? null, words.body, signedBy?.trim() || null, hasBookingLink];
   return createHash("sha256")
-    .update(JSON.stringify([words.subject ?? null, words.body, signedBy?.trim() || null, hasBookingLink]))
+    .update(JSON.stringify(preview ? [...marked, preview] : marked))
     .digest("hex");
 }
 

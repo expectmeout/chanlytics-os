@@ -19,8 +19,14 @@ import {
   AppError,
   LEAD_PREVIEW_WORDS as W,
   PREVIEW_LIMITS,
+  PREVIEW_TAUGHT,
+  heldTenantId,
+  previewFactOf,
   previewStateOf,
+  previewTheirsOf,
   previewTurnsOf,
+  withPreviewFix,
+  withPreviewTaught,
   type PreviewTurnVM,
   causedBy,
 } from "@chanlytics/contracts";
@@ -32,7 +38,9 @@ import {
   type LeadPreviewRow,
   type PreviewRefusal,
 } from "@chanlytics/db/campaigns";
+import { logAndGoOn } from "@chanlytics/log";
 import { linkPageDb } from "../public/link-page";
+import { changePreviewRecord } from "./theirs";
 import { takeRate } from "../shared/rate-limit";
 import { startRehearsal, type RehearsalStartDto } from "../settings/rehearsal";
 import { tryReceptionist } from "../receptionist/try";
@@ -114,19 +122,57 @@ export async function recordPreviewOpenedBy(token: string): Promise<{ opened: nu
   return { opened: await recordPreviewOpened(db, row.id) };
 }
 
-/** What the business said is not right: the fact it named, and what is right where it said so. */
+/**
+ * A thing the business tells its preview (the canvas's call P4): in its record at once, so the next answer and the next
+ * call use it, and a line for the sender as what they said is not right is. Three at most; the rule is contracts'.
+ */
+export async function tellPreviewBy(token: string, raw: unknown): Promise<{ taught: number; left: number }> {
+  const text = typeof raw === "string" ? raw.replace(/\s+/g, " ").trim() : "";
+  if (!text || text.length > PREVIEW_TAUGHT.chars) throw new AppError("validation", W.teachLabel, 400);
+  // Its door's bucket a network and its three at most are its limits: it asks no model, so it takes no turn of the chat's.
+  const preview = await openPreview(token, { calls: true });
+  const db = dbOrFail();
+  let taught = 0;
+  const outcome = await changePreviewRecord(db, heldTenantId(preview.preview_tenant_id), (profile) => {
+    const next = withPreviewTaught(profile, text);
+    if (next !== "full" && next !== null) taught = previewTheirsOf(next).taught.length;
+    return next;
+  });
+  if (outcome === "full") throw new AppError("conflict", W.taughtFull, 409);
+  if (outcome !== "changed") throw new AppError("unavailable", W.failed);
+  // The sender's line. One that could not be kept (its ten lines are said) costs the sender the line, never the
+  // business what it just told its preview.
+  await recordPreviewNotRight(db, preview.id, PREVIEW_TAUGHT.fact, text).catch(
+    logAndGoOn("keeping what a business told its preview for its sender", null),
+  );
+  return { taught, left: Math.max(0, PREVIEW_TAUGHT.most - taught) };
+}
+
+/**
+ * What the business said is not right: the fact it named, and what is right where it said so. Kept for the sender, and
+ * where it said what is right for a fact of the page, put right in the preview's record (the canvas's call P5). A record
+ * that would not take it costs the fix, never the sender's line.
+ */
 export async function recordPreviewNotRightBy(
   token: string,
   fact: unknown,
   sentence: unknown,
-): Promise<{ kept: number }> {
+): Promise<{ kept: number; fixed: boolean }> {
   const named = typeof fact === "string" ? fact.trim().slice(0, 80) : "";
   if (!named) throw new AppError("validation", W.notRight, 400);
   const right = typeof sentence === "string" && sentence.trim() ? sentence.trim().slice(0, 300) : null;
-  const p = await openPreview(token, { calls: false });
-  const kept = await recordPreviewNotRight(dbOrFail(), p.id, named, right);
+  const preview = await openPreview(token, { calls: false });
+  const db = dbOrFail();
+  const kept = await recordPreviewNotRight(db, preview.id, named, right);
   if (!kept.ok) throw doorRefused(kept.reason);
-  return { kept: kept.value };
+  const which = previewFactOf(named);
+  const fixed =
+    right && which
+      ? await changePreviewRecord(db, heldTenantId(preview.preview_tenant_id), (profile) =>
+          withPreviewFix(profile, which, right),
+        ).catch(logAndGoOn("putting a preview's fact right", "unwritten" as const))
+      : "nothing";
+  return { kept: kept.value, fixed: fixed === "changed" };
 }
 
 /** What a call comes back as: the call the browser joins, how long it may run, and what is left after it. */

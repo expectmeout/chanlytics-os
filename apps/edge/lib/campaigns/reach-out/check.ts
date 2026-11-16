@@ -37,6 +37,8 @@ import {
   REACH_OUT_MONTH_EMAILS,
   openingAskedOf,
   reachOutCountryOf,
+  slotCount,
+  wordsNeedOpening,
   type RewriteStep,
   type WrittenOpening,
 } from "@chanlytics/contracts";
@@ -73,6 +75,8 @@ import { notifyHeldRuns, type HeldNoticeSend } from "./held-notice.js";
 import type { LogEvent, Logger } from "../../shared/log.js";
 import { once } from "./once.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
+import { previewForOpening, type PreviewForOpening } from "../../previews/for-opening.js";
 
 export {
   CHECK_CALLS_UNTIL_MS,
@@ -197,6 +201,7 @@ function sendInputOf(
   ws: CheckWorkspace,
   country: string | null,
   onStep?: (step: RewriteStep) => void,
+  preview: PreviewForOpening | null = null,
 ): CheckInput {
   const kept = uncheckedSend.send.website_says?.trim() || null;
   const read = siteReaderOf(uncheckedSend.record.website_host);
@@ -216,10 +221,39 @@ function sendInputOf(
       uncheckedSend.template_language,
       uncheckedSend.included_for,
       country,
+      preview,
     ),
     site,
     asked: openingAskedOf(uncheckedSend.send.rewrite_asked),
     onStep,
+  };
+}
+
+/**
+ * A send's input, with their preview where its email carries one. A line in such an email is written from what the
+ * preview knows and what they did with it, once one is open (previews/for-opening.ts); `mark` is what that line is
+ * stamped with, and the sender sends it back here once the preview's own mark is another. A read that fails says
+ * nothing of it, and the line is written as any other. `onStep` hears each step the check takes, by its send.
+ */
+async function lineInputFor(
+  db: Parameters<typeof previewForOpening>[0],
+  uncheckedSend: UncheckedSend,
+  words: { subject: string | null; body: string },
+  about: { ws: CheckWorkspace; country: string | null; now: Date },
+  onStep?: (sendId: string, step: RewriteStep) => void,
+): Promise<{ input: CheckInput; mark: string | null }> {
+  const { send } = uncheckedSend;
+  const carries = wordsNeedOpening(words) && slotCount(`${words.subject ?? ""}\n${words.body}`, "their preview") > 0;
+  const preview =
+    carries && send.lead_id
+      ? await previewForOpening(db, { tenantId: send.tenant_id, leadId: send.lead_id }, about.now).catch(
+          logAndGoOn("reading a lead's preview for the line of the email that carries it", null),
+        )
+      : null;
+  const heard = onStep && ((step: RewriteStep) => onStep(send.id, step));
+  return {
+    input: sendInputOf(uncheckedSend, words, about.ws, about.country, heard, preview),
+    mark: preview?.mark ?? null,
   };
 }
 
@@ -377,13 +411,7 @@ export async function checkSends(params: {
         return;
       }
       const ws = await once(workspaces, send.tenant_id, () => checkWorkspaceOf(db, send.tenant_id));
-      const input = sendInputOf(
-        uncheckedSend,
-        item,
-        ws,
-        country,
-        params.onStep && ((step) => params.onStep?.(send.id, step)),
-      );
+      const { input, mark } = await lineInputFor(db, uncheckedSend, item, { ws, country, now }, params.onStep);
       // One attempt of the workspace's UTC day, taken before the model is asked (a rewrite is the same attempt, a
       // failure spends it): words that name no opening cost nothing and take none.
       const cap = dayShareOf(uncheckedSend, pressed);
@@ -427,7 +455,7 @@ export async function checkSends(params: {
         ...(result.site && result.site !== send.website_says
           ? { website_says: result.site.slice(0, WEBSITE_SAYS_KEPT_MAX) }
           : {}),
-        checked_words: checkedWordsOf(item, uncheckedSend.signed_by, ws.bookingLink !== null),
+        checked_words: checkedWordsOf(item, uncheckedSend.signed_by, ws.bookingLink !== null, mark),
         check_after: null,
         ...(result.hold ? { state: "held", reason: result.hold } : {}),
       };

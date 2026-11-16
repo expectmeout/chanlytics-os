@@ -3,12 +3,20 @@
  * none (the sender), or by a member's press on the lead (the dashboard). The one way one is made: its door
  * (preview_make: a workspace marked ours, a business's lead still open) under the name the lead is called by and its
  * state's zone, and its build scheduled once while it waits (previews/build.ts). With the switch off, none is made.
- * makePreviewFor is the member's press, behind its admin door.
+ * What nobody pressed for has a day's limit (contracts PREVIEW_LIMITS.aDay): past it the ask is refused as the limit,
+ * and the sender holds its email for the day. makePreviewFor is the member's press, behind its admin door.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isUuid } from "@chanlytics/contracts";
+import { PREVIEW_LIMITS, isUuid } from "@chanlytics/contracts";
 import { leadAsListing, previewZoneOf } from "./lead-as-listing";
-import { findLeadForPreview, makeLeadPreview, type PreviewDoor, type PreviewMade } from "@chanlytics/db/campaigns";
+import {
+  countLeadPreviewsSince,
+  findLeadForPreview,
+  findLeadPreview,
+  makeLeadPreview,
+  type PreviewDoor,
+  type PreviewMade,
+} from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce } from "@chanlytics/jobs";
 import { env } from "../shared/env.js";
@@ -19,14 +27,32 @@ import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
-/** The lead's preview, made where there is none and its build scheduled while it is building; or why not. */
+/**
+ * Whether this workspace has made its day's previews (contracts PREVIEW_LIMITS.aDay), counted over the UTC day `now` is
+ * in: the limit on what nobody pressed for, so a sequence that carries the link to thousands makes fifty a day.
+ */
+async function previewDayFull(db: Db, tenantId: TenantId, now: Date): Promise<boolean> {
+  const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  return (await countLeadPreviewsSince(db, tenantId, day.toISOString())) >= PREVIEW_LIMITS.aDay;
+}
+
+/**
+ * The lead's preview, made where there is none and its build scheduled while it is building; or why not. Asked for by
+ * nobody's press (`by` null: the sender, a reply's draft), a new one is refused as the limit once the day's are made;
+ * `none` says the asker has just read that this lead has none, and saves reading it again.
+ */
 export async function askPreview(
   db: Db,
-  params: { tenantId: TenantId; leadId: string; by: string | null },
+  params: { tenantId: TenantId; leadId: string; by: string | null; none?: boolean },
+  now: Date = new Date(),
 ): Promise<PreviewDoor<PreviewMade>> {
   if (env.LEAD_PREVIEWS !== "on") return { ok: false, reason: "refused", message: "Previews are switched off." };
   const lead = await findLeadForPreview(db, params.tenantId, params.leadId);
   if (!lead) return { ok: false, reason: "not_found", message: "Lead not found." };
+  // A member's press makes one whatever the day holds, and a lead that has one already is answered it.
+  const fresh = !params.by && (params.none || !(await findLeadPreview(db, params.tenantId, params.leadId)));
+  if (fresh && (await previewDayFull(db, params.tenantId, now)))
+    return { ok: false, reason: "limit", message: "Today's previews are all made." };
   const created = await makeLeadPreview(db, {
     tenantId: params.tenantId,
     leadId: params.leadId,
@@ -62,4 +88,12 @@ export async function makePreviewFor(auth: Admitted, body: Partial<{ tenant_id: 
   if (created.reason === "not_found") return refuse(404, "not_found", created.message);
   if (created.reason === "not_ours") return refuse(403, "platform_only", created.message);
   return refuse(409, "preview_failed", created.message);
+}
+
+/**
+ * Whether a lead's preview is made at all just now (GET /api/admin/previews/standing): the switch, said to the
+ * dashboard, so the lead sheet tells its member an email will wait before it does. Nothing is read and nothing made.
+ */
+export function previewsStanding(): Response {
+  return json(200, { ok: true, on: env.LEAD_PREVIEWS === "on" });
 }
