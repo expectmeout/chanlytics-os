@@ -34,6 +34,7 @@ test("a change to what the fast checks read runs them; any other does not", () =
     "apps/dashboard/src/styles/tokens.css",
     "tooling/scripts/e2e-harness/kit-gallery.mjs",
     "tooling/scripts/e2e-harness/kit-shared.mjs",
+    "tooling/scripts/e2e-harness/app-styles.mjs",
     "e2e/kit/kit.spec.ts",
     "e2e/kit/kit-behaves.spec.ts",
     "e2e/kit/kit-checks.ts",

@@ -80,7 +80,8 @@ test("a visit late at night is reminded at the last sending hour of its own even
 });
 
 test("the follow-up to an ask goes the next day at the sequence's hour, kept inside the sending hours", () => {
-  const next = (runHour) => new Date(askFollowUpAt({ askedAt: NOW, tz: TZ, runHour })).toISOString();
+  const next = (runHour) =>
+    new Date(askFollowUpAt({ askedAt: NOW, tz: TZ, runHour, chatClosesAt: null })).toISOString();
   assert.equal(next(10), "2026-11-10T15:00:00.000Z", "Tuesday at 10:00 AM");
   assert.equal(next(6), "2026-11-10T14:00:00.000Z", "never before nine");
   assert.equal(next(23), "2026-11-11T01:00:00.000Z", "never after eight in the evening");
