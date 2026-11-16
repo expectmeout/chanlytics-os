@@ -203,6 +203,8 @@ const lead = (id, over = {}) => ({
   blanked_at: null,
   erased_at: null,
   found_at: new Date(NOW - 7 * MINUTE).toISOString(),
+  // An address that checked out: a lead that counts, whose mark is worth a read.
+  email_state: "ok",
   ...over,
 });
 const icon = (href) => `<head><link rel="apple-touch-icon" href="${href}"></head>`;
@@ -216,11 +218,11 @@ const readerOf = (pages, asked = []) => ({
   },
   fetchBytes: async () => png(180, 180),
 });
-/** A world for the sweep: the leads, their copies' bucket, and what each workspace was charged for reading. */
-const sweepWorld = (leads) => {
+/** A world for the sweep: the leads, their memberships, their copies' bucket, and what each workspace was charged for reading. */
+const sweepWorld = (leads, members = []) => {
   const spends = [];
   const db = fakeDb(
-    { leads },
+    { leads, lead_search_members: members },
     {},
     {
       lead_site_reads_spent: (a) => {
@@ -271,6 +273,32 @@ test("the sweep tries again the leads found in the five minutes before its last 
     ].sort(),
     "each workspace pays for its own, a page with no mark on it too; no round asked for these",
   );
+});
+
+test("the sweep reads a site only for a lead that counts or may: never one with no address, one whose address failed, or one left out", async () => {
+  const member = (lead_id, over = {}) => ({ lead_id, class: "review", counted: false, ...over });
+  const w = sweepWorld(
+    [
+      lead("checking", { email_state: "checking" }),
+      lead("phone", { email_state: "none" }),
+      lead("noemail", { email_state: "none" }),
+      lead("invalid", { email_state: "invalid" }),
+      lead("leftout", { email_state: "none" }),
+    ],
+    [
+      member("phone", { class: "qualified", counted: true }),
+      member("noemail"),
+      member("leftout", { class: "excluded" }),
+    ],
+  );
+  const asked = [];
+  const out = await markLeadsAgain(w.db, readerOf({}, asked), NOW + 50_000, () => new Date(NOW));
+  assert.deepEqual(
+    asked.sort(),
+    ["https://checking.example", "https://phone.example"],
+    "15 Nov 2026: about 300 of a search's 391 reads were for places that could never count",
+  );
+  assert.equal(out.due, 2);
 });
 
 test("a lead is due to one slot however late its tick runs: consecutive slots meet with no gap and no overlap", async () => {

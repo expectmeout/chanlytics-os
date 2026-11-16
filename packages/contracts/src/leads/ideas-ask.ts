@@ -217,7 +217,7 @@ export const IDEA_LENGTHS = { words: 24, why: 90, line: 300 } as const;
 /** What the model is asked to do: decide who buys, then the three, then how each field is written. */
 export const LEAD_IDEAS_SYSTEM = [
   `You write ${LEAD_IDEAS_MAX} ideas for a business's next search for leads to reach out to and sell to. Each idea is a search the owner can start as it is, on one of the finder's two cards:`,
-  "- places: businesses with a Google listing, by kind, in one US place: a ZIP (about 8 km around it), a city (about 25 km), or a whole state.",
+  "- places: businesses with a Google listing, by kind, in one US place: a ZIP (about 5 miles around it), a whole city, or a whole state.",
   `- people: named people by job title and seniority, at companies by industry and size, in up to ${PEOPLE_STATES_MAX} US states or the whole US.`,
   "",
   "Who buys:",

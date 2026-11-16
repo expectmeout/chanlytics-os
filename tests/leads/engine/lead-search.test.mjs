@@ -1008,8 +1008,9 @@ test("the sentence is the plan card's words joined: every picker is one word of 
 });
 
 test("the count picker's options each say about how long they take, and a plan never claims under two minutes", () => {
+  // A search made for calls at the places' own rate; one made for email at its measured pace, below.
   const three = (n, area = ZIP_AREA) =>
-    plan({ count: n, terms: ["personal trainer", "strength coach", "fitness coach"], area });
+    plan({ count: n, terms: ["personal trainer", "strength coach", "fitness coach"], area, contact: "phone" });
   const city = plan().area;
   assert.deepEqual([...LEAD_COUNT_CHOICES], [50, 100, 200, 500]);
   // Measured over five real searches (20 Sep 2026): 8 places a minute, not the canvas's 50. 500 is the same round
@@ -1038,6 +1039,11 @@ test("the count picker's options each say about how long they take, and a plan n
     LEAD_COUNT_CHOICES.map((n) => planMinutes(three(n, city))),
     [16, 28, 53, 128],
     "a city's 500 is a round of its own, and its time says so",
+  );
+  assert.deepEqual(
+    LEAD_COUNT_CHOICES.map((n) => planMinutes(plan({ count: n, contact: "email" }))),
+    [24, 48, 96, 240],
+    "a search made for email at its measured pace: 99 checked-email leads in 47 minutes, nine areas and every check (15 Nov 2026)",
   );
   assert.ok(planMinutes(plan({ count: 1 })) >= 2, "never under two minutes: the probe alone is 25 places");
   assert.equal(LEAD_ASSUMED_YIELD, 0.5);

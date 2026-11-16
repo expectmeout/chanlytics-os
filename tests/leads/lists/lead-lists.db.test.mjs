@@ -69,7 +69,8 @@ const migration = (n) => {
 const bodyIn = (src, header) => {
   const at = src.indexOf(header);
   assert.ok(at >= 0, `no ${header}`);
-  const open = src.indexOf("as $$", at) + "as $$".length;
+  // In either case: 00635 writes its functions as the schema prints them (AS $$).
+  const open = at + src.slice(at).search(/\bas \$\$/i) + "as $$".length;
   return src.slice(open, src.indexOf("$$", open));
 };
 const liveBody = (name) =>
@@ -670,8 +671,18 @@ test(
   { skip },
   async () => {
     const w = await world();
+    const guarded = bodyIn(migration("00635"), "create or replace function public.lead_rounds_notify(");
+    assert.equal(liveBody("lead_rounds_notify"), guarded, "the database runs 00635's");
+    // 00635 is 00628's with a widened search its own guards stopped short of its count, with areas still within reach,
+    // saying how many of how many it found and that it stopped after the nearby areas it reads on its own; and nothing
+    // else.
     const widened = bodyIn(migration("00628"), "create or replace function public.lead_rounds_notify(");
-    assert.equal(liveBody("lead_rounds_notify"), widened, "the database runs 00628's");
+    assert.equal(
+      guarded
+        .replace(/ {16}when v_wide and v_want is not null and v_n < v_want[^\n]*\n[^\n]*\n/, "")
+        .replace(/ {16}when v_via <> 'import' and v_wide[^\n]*\n[^\n]*\n[^\n]*\n/, ""),
+      widened,
+    );
     // 00628 is 00506's with a search that widens to its count (decision 0133): a round that opened the next leg rings
     // nothing, the one that ends a widened search counts every leg's finished leads, and an ending short of its count
     // says why in its title; and nothing else.

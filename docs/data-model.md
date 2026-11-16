@@ -73,7 +73,7 @@ what the script writes.
 | [`lead_previews`](#lead_previews) | `packages/db/src/repositories/campaigns/lead-previews.ts` | on, 1 policy |
 | [`lead_rounds`](#lead_rounds) | `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/leads/sweep.ts`, `packages/db/src/repositories/leads/workbench.ts`, `packages/db/src/repositories/ops/console.ts` | on, 1 policy |
 | [`lead_runs`](#lead_runs) | `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/sweep.ts` | on, 1 policy |
-| [`lead_search_members`](#lead_search_members) | `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/workbench.ts`, `packages/db/src/repositories/ops/console.ts` | on, 1 policy |
+| [`lead_search_members`](#lead_search_members) | `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/leads/workbench.ts`, `packages/db/src/repositories/ops/console.ts` | on, 1 policy |
 | [`lead_searches`](#lead_searches) | `packages/db/src/repositories/campaigns/reach-out/leads.ts`, `packages/db/src/repositories/campaigns/reach-out/sheet.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/workbench.ts` | on, 1 policy |
 | [`lead_suggestions`](#lead_suggestions) | `packages/db/src/repositories/leads/workbench.ts` | on, 1 policy |
 | [`lead_suppressions`](#lead_suppressions) | `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/leads/finder.ts` | on, 1 policy |
@@ -1931,7 +1931,7 @@ Foreign keys:
 
 One lead in one search, with that search's judgment ({answer, reasons, shares}), class, fit and distance. counted_month is the month it counted in (S11). The round's tallies are counts over this table, never stored twice. version guards Undo (E9).
 
-- Owned by: `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/workbench.ts`, `packages/db/src/repositories/ops/console.ts`
+- Owned by: `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/leads/workbench.ts`, `packages/db/src/repositories/ops/console.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

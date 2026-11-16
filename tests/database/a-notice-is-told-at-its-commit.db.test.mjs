@@ -163,7 +163,9 @@ function seenOnce() {
       insert into public.memberships (user_id, tenant_id, role) values
         (member_a, a, 'operator'), (partner_a, a, 'partner'), (member_b, b, 'owner');
       ${COMMIT}
-      before_probes := clock_timestamp();
+      -- To the millisecond, as a notice says its commit (00507): a moment kept to the microsecond missed a list saved
+      -- within the same millisecond.
+      before_probes := date_trunc('milliseconds', clock_timestamp());
       insert into public.segments (tenant_id, name) values (a, 'A list');
       ${COMMIT}
       for tr in

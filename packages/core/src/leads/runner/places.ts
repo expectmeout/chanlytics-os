@@ -68,10 +68,11 @@ export function nearbyFor(
   plan: LeadSearchPlan,
   members: LeadMemberRow[],
   read: readonly Pick<LeadArea, "center" | "zip">[],
+  held: readonly LatLng[] = [],
 ): LeadArea[] {
   const geo = centerOf(plan, members);
   const ground = plan.area.kind === "city" ? CITY_GROUND_M : plan.area.radius_m;
-  return nextRung({ plan, center: geo.center, areaRadiusM: Math.max(geo.radiusM, ground), read });
+  return nextRung({ plan, center: geo.center, areaRadiusM: Math.max(geo.radiusM, ground), read, held });
 }
 
 /** What each key asked under a plan, worked out once per plan (judgeAsked hashes every question). */

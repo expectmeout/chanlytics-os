@@ -75,6 +75,13 @@ export const LEAD_SITE_READ_USD = 0.005;
 export const BUSINESS_LINE_MAX = 400;
 /** The judge's one reason, in words (§0.1). */
 export const LEAD_REASON_MAX_WORDS = 12;
+/**
+ * What a search made for email takes a lead, measured whole (decision 0133's second real search, 15 Nov 2026: 99
+ * checked-email leads in 47 minutes for $7.97, the probe, nine areas and every check together; 8 cents a lead, the price
+ * the month's caps are sized to). The card's 8 places a minute came from a cheaper niche's rounds; a search made for
+ * email reads most of its places for an address that is not there.
+ */
+export const LEAD_EMAIL_MINUTES_PER_LEAD = 0.48;
 /** The yield assumed before a probe has measured one: half the places asked for qualify. The card's minutes and the route's estimate both read it. */
 export const LEAD_ASSUMED_YIELD = 0.5;
 /** A round's estimate is reserved with this much room (§13.3: the cap is the estimate with room). */
