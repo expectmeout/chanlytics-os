@@ -86,6 +86,7 @@ export {
   findMessageSentTo,
   findOccasionAppointment,
   findWaitingBatchOf,
+  findWhatsAppClock,
   leaveOccasions,
   listOccasionsDue,
   listOccasionSteps,
