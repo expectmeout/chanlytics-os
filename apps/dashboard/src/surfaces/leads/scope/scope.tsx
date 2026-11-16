@@ -260,8 +260,13 @@ const listHeadOf = (p: P) => (
   </div>
 );
 
+/**
+ * The band only where it narrows something: two piles or more with leads in them (a list of the owner's own). A search the
+ * finder ran keeps one, Qualified (decision 0133), and a row of one tab narrowed nothing and said the count twice, over the
+ * strip's "51 of 100" (Ruben, 16 Nov 2026, "cleaner, less redundant"). Its fits stay the table's to sort and filter.
+ */
 const bandOf = (p: P) =>
-  p.band ? (
+  p.band && p.band.classes.filter((c) => c.count > 0).length > 1 ? (
     <LeadBand band={p.band} cls={p.view.cls} onPick={p.onPickClass} fit={p.fit} onPickFit={p.onPickFit} />
   ) : null;
 
@@ -475,9 +480,19 @@ const backTodayOf = (p: P) => (!p.search && !p.firstDay && !p.surface.readFailed
 /** While a lead's sheet is open beside the rows, a row's hover card would say again what the sheet says (leads.css). */
 const sheetMarkOf = (p: P) => (p.peek || p.pileSheet ? "" : undefined);
 
-/** A phone's count on a line under the bar, as People's: the bar names the list alone. */
-const phoneStandingOf = (p: P, phone: boolean) =>
-  phone && !p.firstDay && !p.newSearch ? <LeadsStandingRow leads={p.standing} onNeeds={p.onNeedsYou} /> : null;
+/**
+ * A phone's count on a line under the bar, as People's: the bar names the list alone. In an open search the workspace's
+ * count is All leads' and the strip says the search's own (Ruben, 16 Nov 2026: "366 leads in all" stood over "51 of 100"),
+ * so the line keeps only another search that waits on an answer, where one does.
+ */
+const phoneStandingOf = (p: P, phone: boolean) => {
+  if (!phone || p.firstDay || p.newSearch) return null;
+  if (!p.search) return <LeadsStandingRow leads={p.standing} onNeeds={p.onNeedsYou} />;
+  const needs = p.standing.needsYou;
+  return needs && needs.searchId !== p.search.id ? (
+    <LeadsStandingRow leads={{ total: "", parts: [], needsYou: needs }} onNeeds={p.onNeedsYou} />
+  ) : null;
+};
 
 /** What a running search found, taken in by itself under a reader at the top with no lead open (rows-land.tsx). */
 const rowsLandOf = (p: P) => (
@@ -489,6 +504,23 @@ const rowsLandOf = (p: P) => (
     take={leadsTakeOffered}
   />
 );
+
+/**
+ * The open search's head: what happened, its piles as the tabs that open them where there are two or more, and the one next
+ * step; on its second line, its count and where its adds go. With no strip to hold the band, the band stands alone.
+ */
+const searchHeadOf = (p: P) => {
+  if (!p.search) return null;
+  if (!p.strip) return p.band ? bandOf(p) : null;
+  return (
+    <LeadStrip vm={p.strip} onAction={p.onStripAction} foot={p.addsGoTo}>
+      {bandOf(p)}
+    </LeadStrip>
+  );
+};
+
+/** Where the search's adds go, as a line of its own only where no strip carries it on its second line. */
+const addsAloneOf = (p: P) => (p.search && p.strip ? null : p.addsGoTo);
 
 const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections) => {
   const search = p.search;
@@ -514,16 +546,9 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
             {!search && !phone && !p.firstDay && !L.readFailed ? listHeadOf(p) : null}
             {backTodayOf(p)}
 
-            {/* One line for the open search: what happened, its three piles as the tabs that open them, and the one next step.
-            The band rides inside the strip; with no strip to hold it, it stands alone as it did. */}
-            {search && p.strip ? (
-              <LeadStrip vm={p.strip} onAction={p.onStripAction}>
-                {bandOf(p)}
-              </LeadStrip>
-            ) : null}
-            {search && !p.strip && p.band && bandOf(p)}
+            {searchHeadOf(p)}
             {p.pileDoor}
-            {p.addsGoTo}
+            {addsAloneOf(p)}
             {p.view.cls === "excluded" && (
               <LeadExcludedChips
                 chips={ldExcludedChips(L.rows, L.viewCounts ? L.viewCounts.excluded_by : null)}

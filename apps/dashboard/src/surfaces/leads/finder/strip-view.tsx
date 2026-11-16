@@ -3,6 +3,9 @@
  * after 25 in the accent with role="alert", or one of the nine endings (sections 8.4, 8.5, 8.8). Every word it says is
  * leadStrip's (strip.ts), so nothing is spelled here; every button hands its id and its argument back through the one
  * onAction the page gives it, and presses nothing itself.
+ *
+ * Two lines at most (Ruben, 16 Nov 2026, "cleaner, less redundant"): what is happening and its one act, then what it has
+ * counted beside where its adds go (`foot`, the page's Adds go to), so a running search is one block, not four lines.
  */
 import type { ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
@@ -25,12 +28,15 @@ export const LeadStrip = ({
   onAction,
   children = null,
   act = null,
+  foot = null,
 }: {
   vm: StripVM | null;
   onAction: (id: string, arg?: unknown) => unknown;
   children?: ReactNode;
   /** The page's own act at the end of the strip's actions: the search's door to a reach-out, on a phone (scope.tsx). */
   act?: ReactNode;
+  /** The second line's end: where the search's adds go (scope.tsx), beside what it has counted. */
+  foot?: ReactNode;
 }) => {
   if (!vm) return null;
   const tone = vm.state === "question" ? "ask" : vm.state === "found" || vm.state === "ended" ? "done" : "";
@@ -39,18 +45,20 @@ export const LeadStrip = ({
   // tab saying it, Ruben, 10 Oct 2026): the tab is that door.
   const actions = children ? vm.actions.filter((a) => !a.pile && a.id !== "excluded" && a.id !== "review") : vm.actions;
   const parts = vm.parts.map((t) => ` · ${t}`).join("");
+  // The count a phone reads from across a room (D9 of the answers canvas) leads the second line; a desk's parts say it.
+  const count = vm.count ? (
+    <span className="lf-strip-count" data-testid="strip-count">
+      <b>{vm.count.n}</b> of {vm.count.of}
+    </span>
+  ) : null;
   return (
     <div
-      className={`lf-strip ${tone}${children ? " has-band" : ""}`}
+      className={`lf-strip ${tone}${children ? " has-band" : ""}${count || foot ? " has-foot" : ""}`}
       role={vm.alert ? "alert" : "status"}
+      data-state={vm.state}
       data-testid="lead-strip"
     >
       {vm.state === "running" ? <span className="live-dot" aria-hidden="true" /> : null}
-      {vm.count ? (
-        <span className="lf-strip-count" data-testid="strip-count">
-          <b>{vm.count.n}</b> of {vm.count.of}
-        </span>
-      ) : null}
       {vm.state === "question" ? (
         <span className="qmark" aria-hidden="true">
           ?
@@ -106,6 +114,17 @@ export const LeadStrip = ({
             </button>
           ))}
           {act}
+        </span>
+      ) : null}
+      {count || foot ? (
+        <span className="lf-strip-foot" data-testid="strip-foot">
+          {count}
+          {count && foot ? (
+            <span className="lf-strip-sep" aria-hidden="true">
+              ·
+            </span>
+          ) : null}
+          {foot}
         </span>
       ) : null}
       {vm.progress === null ? null : (

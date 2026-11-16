@@ -7,8 +7,8 @@
  * and started from; with none taking leads yet, New is all it offers.
  */
 import { LEAD_SHEET_WORDS as W, leadPickerRowsOf } from "./model/view";
-import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu, type MenuGroup } from "../../kit/menu/menu";
 import { gate } from "../../frame-verbs";
 import type { FrameFlash } from "../../frame-verbs";
@@ -48,16 +48,18 @@ export function AddsGoTo({
       <span className="lw-adds-k">{W.addsGoTo}</span>
       <Menu
         label={W.addsGoTo}
+        // The pick is words in the line with a small caret, never a capsule (Ruben, 16 Nov 2026: "Pick a campaign feels too
+        // bulky, almost overlaps with other rows"); its finger's room is drawn round it (leads.css .lw-adds-pick).
         trigger={
-          <Button
-            size="sm"
-            variant="secondary"
+          <LinkButton
+            size="inherit"
+            className="lw-adds-pick"
             data-testid="leads-adds-go-to-pick"
             {...gate("approve", "choose where adds go")}
           >
-            {pick ? pick.name : W.noneYet}
+            <span className="lw-adds-name">{pick ? pick.name : W.noneYet}</span>
             <Icon name="chevron-down" size={12} />
-          </Button>
+          </LinkButton>
         }
         groups={groups}
       />

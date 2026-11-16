@@ -25,6 +25,8 @@ import {
   type NewKind,
 } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
+import { Icon } from "../../../kit/icon/icon";
+import { LinkButton } from "../../../kit/link-button/link-button";
 import { Switch } from "../../../kit/switch/switch";
 import { routeDoor, type refusalToast } from "../../../frame-verbs";
 import { keepHistory } from "../../../settings/connections/history-choice";
@@ -236,10 +238,12 @@ function DraftCases(p: { draft: NewDraftDto; channels: ChannelsReady; paused: bo
         title={W.checks.twin(draft.twin.name)}
         words={W.checks.twinDetail}
         acts={
-          <Button size="sm" {...routeDoor(sequenceRoute(draft.twin.id))} data-testid="sq-nw-twin-open">
+          <LinkButton {...routeDoor(sequenceRoute(draft.twin.id))} data-testid="sq-nw-twin-open">
             {W.twin.open}
-          </Button>
+            <Icon name="chevron" size={12} />
+          </LinkButton>
         }
+        inline
         testid="sq-nw-twin"
       />,
     );

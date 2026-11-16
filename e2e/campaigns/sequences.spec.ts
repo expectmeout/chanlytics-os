@@ -43,7 +43,9 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     await expect(page.getByTestId("sq-page")).toBeVisible();
     const list = await readList(page);
     if (list.sequences.length === 0) {
+      // None yet: what will be here, and New's own line, its arrow the way to a draft (sequences-page.tsx NoCampaigns).
       await expect(page.getByTestId("sq-empty")).toBeVisible();
+      await expect(page.getByTestId("sq-empty-line")).toBeVisible();
       await expect(page.getByTestId("sq-empty-new")).toBeVisible();
       return;
     }

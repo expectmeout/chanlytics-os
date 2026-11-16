@@ -23,21 +23,52 @@ import {
   newSequenceRoute,
   parseSequencesRoute,
 } from "@chanlytics/contracts";
+import { useState } from "react";
 import { Button } from "../../kit/button/button";
-import { EmptyState, FailedRead } from "../../kit/empty/empty";
+import { FailedRead } from "../../kit/empty/empty";
 import { ActWords } from "../../kit/head/act-words";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { useHeldList, type Arrival } from "../../kit/motion/held-list";
-import { gate, navigate, routeDoor } from "../../frame-verbs";
+import { canDo, gate, navigate, routeDoor } from "../../frame-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
 import { CmSplit, cmGoing, useCmPhone, type CmView } from "../parts/split";
 import { SequencesList, sequencesList } from "./list";
-import { NewSequence } from "./new/new-page";
+import { DRAFT_LINE, NewLine } from "./new/line";
+import { NewSequence, sayToNew } from "./new/new-page";
 import { SequenceRecord } from "./record";
 import { SequenceRun } from "./run-pane";
 import { recordBackOf, tripNow } from "./trip";
 import "./sequences.css";
+
+/** New's own line on the empty list, under ids of its own: New's line can stand beside it, on a desk. */
+const FIRST_LINE = { ...DRAFT_LINE, ids: { line: "sq-empty-line", talk: "sq-empty-talk", send: "sq-empty-new" } };
+
+/**
+ * The list with no campaign yet (16 Nov 2026, "cleaner, less redundant"): what will be here, then New's own line, with its
+ * mic and its arrow, which hands what is said to New to draft as it opens. No frame, no glyph, no third "Campaigns" under
+ * the page's name and its tab, and no second New beside the head's. One who may not start one reads that there is none.
+ */
+function NoCampaigns() {
+  const [line, setLine] = useState("");
+  return (
+    <div className="sq-zero" data-testid="sq-empty">
+      <h2 className="sq-zero-title">{SEQUENCE_WORDS.empty.title}</h2>
+      {canDo("approve") ? (
+        <NewLine
+          line={line}
+          onLine={setLine}
+          onDraft={sayToNew}
+          hint={NEW_WORDS.say.hint}
+          says={FIRST_LINE}
+          busy={false}
+        />
+      ) : (
+        <p className="sq-zero-none">{SEQUENCE_WORDS.empty.none}</p>
+      )}
+    </div>
+  );
+}
 
 /** The list's pane: reading, failed, empty, or the sequences, `openId` the one open beside it. */
 function SequencesListPane({ openId = null }: { openId?: string | null }) {
@@ -51,23 +82,7 @@ function SequencesListPane({ openId = null }: { openId?: string | null }) {
         {LIFECYCLE_WORDS.reading}
       </div>
     );
-  return page.sequences.length === 0 ? (
-    <EmptyState
-      kind="card"
-      glyph="send"
-      title={SEQUENCE_WORDS.title}
-      body={SEQUENCE_WORDS.empty}
-      action={{
-        label: NEW_WORDS.title,
-        to: newSequenceRoute(),
-        testid: "sq-empty-new",
-        gate: gate("approve"),
-      }}
-      testid="sq-empty"
-    />
-  ) : (
-    <SequencesList page={page} openId={openId} />
-  );
+  return page.sequences.length === 0 ? <NoCampaigns /> : <SequencesList page={page} openId={openId} />;
 }
 
 /**

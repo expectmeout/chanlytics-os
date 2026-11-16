@@ -3377,13 +3377,11 @@ test("the Excluded view's chips count by criterion, and each narrows the rows", 
   tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-excluded` });
   assert.deepEqual(names(tree), ["GigaFit Austin"]);
   assert.equal(went.at(-1), `clients/leads:s-${SEARCH_A}:c-excluded:x-chain`, "the address says the chip");
-  assert.deepEqual(
-    all(byTestId(tree, "lead-classes"), (n) => n.props?.role === "tab").map((n) => [
-      textOf(n).trim(),
-      n.props["aria-selected"],
-    ]),
-    [["2 Qualified", false]],
-    "a search's band is its finished leads alone (decision 0133): the Excluded view is its question's, by its address",
+  assert.equal(
+    byTestId(tree, "lead-classes"),
+    null,
+    "a search's band is its finished leads alone (decision 0133), and one tab narrows nothing, so none is drawn (16 Nov " +
+      "2026): the Excluded view is its question's, by its address",
   );
 });
 
@@ -3711,9 +3709,20 @@ test("at a phone's width the page draws the bar instead of the rail and the cont
   assert.equal(all(t, (n) => n.props?.className === "cl-controls").length, 0, "no controls row above the rows");
   assert.equal(all(t, (n) => n.props?.className === "cl-rail").length, 0, "no rail");
   assert.equal(
-    all(t, (n) => n.props?.["data-testid"] === "leads-standing").length,
+    textOf(byTestId(t, "leads-standing")),
+    "1 search needs you",
+    "in an open search the workspace's count is All leads', and the strip says the search's own (16 Nov 2026): the line " +
+      "keeps only another search waiting on an answer",
+  );
+  assert.equal(
+    all(draw(), (n) => n.props?.["data-testid"] === "leads-standing").length,
     1,
-    "the count on a line under the bar, as People's (Ruben, 12 Nov 2026)",
+    "on All leads, the count on a line under the bar, as People's (Ruben, 12 Nov 2026)",
+  );
+  assert.equal(
+    byTestId(draw({ leadsRoute: `leads:s-${SEARCH_B}` }), "leads-standing"),
+    null,
+    "the search open is the one waiting: its strip asks, and the line says nothing twice",
   );
   const above = all(
     t,

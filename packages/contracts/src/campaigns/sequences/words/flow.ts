@@ -23,7 +23,11 @@ export const SEQUENCE_WORDS = {
   search: "Search campaigns",
   /** The list's views over its search (Pipeline's "All deals ⌄"): every sequence, or one of its groups. */
   views: { label: "Which campaigns", all: "All campaigns" },
-  empty: "Nothing sends on its own yet. A campaign starts at a moment, when someone joins a list, or on a date.",
+  /**
+   * The list with none yet: what will be here, then New's own line under it, which drafts what is said there (16 Nov
+   * 2026: the page's name said once, and one New); one who may not start one reads that there are none.
+   */
+  empty: { title: "Messages that go out on their own", none: "None yet" },
   failed: "The campaigns couldn’t be loaded right now",
   filters: { all: "All", needs: "Needs you", off: "Paused or off" },
   groups: {

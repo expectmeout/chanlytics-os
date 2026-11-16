@@ -121,21 +121,22 @@ export function WhoCaption({ children }: { children?: ReactNode }) {
 }
 
 /**
- * A choice said as a word in the sentence, pressed to change it: the kit's capsule with its caret, and quiet (no ground of
- * its own) where it is not made yet; the kind, the sentence's first word, a size up.
+ * A choice said as a word in the sentence, pressed to change it: the sentence's own words, underlined, with a small caret,
+ * never a capsule round each (Ruben, 16 Nov 2026: "the bubble around the options feels too bulky"); dim where it is not
+ * made yet. The kit's quiet link at the sentence's size.
  */
 export function WordPick(p: { label: string; onPick: () => void; empty?: boolean; big?: boolean; testid: string }) {
   return (
-    <Button
-      size={p.big ? "md" : "sm"}
-      variant={p.empty ? "quiet" : "secondary"}
+    <LinkButton
+      size="inherit"
       className="sq-nw-word"
       onClick={p.onPick}
+      data-empty={p.empty ? "" : undefined}
       data-testid={p.testid}
     >
-      {p.label}
-      <Icon name="chevron-down" size={p.big ? 14 : 13} />
-    </Button>
+      <span className="sq-nw-word-says">{p.label}</span>
+      <Icon name="chevron-down" size={12} />
+    </LinkButton>
   );
 }
 
@@ -222,10 +223,18 @@ export function CaseNote(p: {
   testid: string;
   /** Read out when it comes or changes (what a draft leaves out, which a change can say anew); a bad one always is. */
   live?: boolean;
+  /** Its one act is quiet words, at the end of its words' line rather than a row of its own. */
+  inline?: boolean;
 }) {
   const role = p.tone === "bad" ? "alert" : p.live ? "status" : undefined;
   return (
-    <div className="sq-nw-case" data-tone={p.tone} role={role} data-testid={p.testid}>
+    <div
+      className="sq-nw-case"
+      data-tone={p.tone}
+      data-inline={p.inline ? "" : undefined}
+      role={role}
+      data-testid={p.testid}
+    >
       <p className="sq-nw-case-head">
         <Icon name={p.glyph ?? (p.tone === "plain" ? "info" : "alert")} size={15} />
         {p.title}

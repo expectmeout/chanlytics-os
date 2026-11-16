@@ -140,4 +140,5 @@ export type {
   ContentSourceSeen,
   ContentSourcesSaid,
   ContentSourcesState,
+  FilmSaid,
 } from "./sources";

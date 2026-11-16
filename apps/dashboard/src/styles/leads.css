@@ -155,6 +155,11 @@
   background: var(--accent); color: var(--accent-fg); font-size: 12px; font-weight: 600; flex: none;
 }
 .lf-ask-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 360px; }
+/* The strip's second line (16 Nov 2026): what it has counted, then where its adds go, at the foot of the one block. A desk's
+   parts say the count, so there the line holds the adds alone. */
+.lf-strip-foot { order: 10; flex-basis: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; padding: 0 0 4px; font-size: var(--text-sm); color: var(--ink-muted); }
+.lf-strip-foot .lw-adds { padding: 0; }
+.lf-strip-sep { display: none; color: var(--ink-faint); }
 @media (prefers-reduced-motion: reduce) {
   .lf-strip .ok-mark { animation: none; }
   .lf-strip.done .lf-strip-bar { animation: none; opacity: 0; }
@@ -498,6 +503,12 @@ textarea.ld-line-box { height: auto; min-height: 80px; max-height: 40vh; field-s
   .lf-strip.has-band:not(.ask) .lf-strip-title { overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
   .lf-strip.has-band:not(.ask) .lf-acts { width: auto; margin-top: 0; }
   .lf-strip.has-band:not(.ask) .lf-strip-band { order: 9; margin: 2px 0 0; }
+  /* A search running or checking is two lines with no box (Ruben, 16 Nov 2026): what it is doing and its Stop, then its
+     count and where its adds go; how far along is the hairline under them, edge to edge. */
+  .lf-strip:is([data-state="running"], [data-state="checking"]):not(.has-band) { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 0; margin: 0; padding: 10px var(--gutter-page) 8px; border: 0; border-radius: 0; background: transparent; animation: none; }
+  .lf-strip:is([data-state="running"], [data-state="checking"]):not(.has-band) .lf-strip-said { flex: 1 1 0; min-width: 0; }
+  .lf-strip:is([data-state="running"], [data-state="checking"]):not(.has-band) .lf-strip-title { overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+  .lf-strip:is([data-state="running"], [data-state="checking"]):not(.has-band) .lf-acts { width: auto; margin-top: 0; }
 
   /* Rows are cards on the lead grid areas, with the actions cell as a fourth
      column holding the 44px Call: the row's own phone block draws them, every
@@ -1656,7 +1667,14 @@ html.frame-on .lw .lw-now-edit, .lw .lw-now-edit { position: relative; flex: non
 .lw-phone .lw-dock .lw-x-said { position: relative; width: auto; min-width: 0; flex-direction: column; justify-content: center; gap: 3px; padding: 0 6px; border-radius: var(--radius-full); }
 .lw-phone .lw-dock .lw-x-said::after { content: ""; position: absolute; inset: 0 -3px; }
 .lw-x-w { font-size: var(--text-2xs); line-height: 1; color: var(--ink-muted); white-space: nowrap; }
-.lw-adds { display: flex; align-items: center; gap: 8px; padding: 2px var(--gutter-page) 8px; font-size: var(--text-sm); color: var(--ink-muted); }
+.lw-adds { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 2px var(--gutter-page) 8px; font-size: var(--text-sm); color: var(--ink-muted); }
+/* The pick: its words in ink with a small caret, as tall as the line (16 Nov 2026: a capsule here crowded the rows), and a
+   finger's room drawn round it. */
+.lw-adds .lw-adds-pick { position: relative; display: inline-flex; align-items: center; gap: 3px; min-width: 0; overflow: visible; color: var(--ink); font-weight: var(--weight-medium); }
+.lw-adds-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lw-adds .lw-adds-pick > svg { flex: none; color: var(--ink-dim); }
+.lw-adds .lw-adds-pick::after { content: ""; position: absolute; inset: -12px -6px; }
+.lw-adds .lw-adds-pick:focus-visible { outline: 0; border-radius: var(--radius-sm); box-shadow: var(--focus-ring); }
 .lw-step { display: flex; flex-direction: column; gap: 8px; padding: 2px 18px 14px; animation: lw-rise var(--duration-base) var(--ease-out) both; }
 .lw-step-h { display: flex; align-items: flex-start; gap: 8px; }
 .lw-step-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-top: 4px; }
@@ -1705,24 +1723,25 @@ html.frame-on .lw .lw-now-edit, .lw .lw-now-edit { position: relative; flex: non
 .ld-back-head span { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .ld-back ul { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); }
 
-/* A search running, read from across a room (D9 of the answers canvas): on a phone the number is the strip, and the small words
-   give way. A desk keeps its line. */
+/* A search running (D9 of the answers canvas): on a phone its count leads the strip's second line in ink, and the small words
+   after the title give way. A desk keeps its line, whose parts say the count. */
 .lf-strip-count {
   display: none;
 }
 @media (max-width: 720px) {
   .lf-strip-count {
-    display: flex;
+    display: inline-flex;
     align-items: baseline;
-    gap: 6px;
-    font-size: var(--text-base);
+    gap: 4px;
     color: var(--ink-dim);
   }
   .lf-strip-count b {
-    font-size: var(--text-2xl);
-    font-weight: 600;
+    font-weight: var(--weight-semibold);
     font-variant-numeric: tabular-nums;
     color: var(--ink);
+  }
+  .lf-strip-sep {
+    display: inline;
   }
   .lf-strip:has(.lf-strip-count) .lf-strip-parts {
     display: none;

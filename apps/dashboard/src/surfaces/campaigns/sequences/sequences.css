@@ -112,6 +112,30 @@
 .route-reading.sq-reading {
   padding-inline: 0;
 }
+/* The list with none yet (sequences-page.tsx NoCampaigns): what will be here, then New's own line, on the page itself,
+   with no frame round them; at the list's own edge, where its rows will stand. */
+.sq-zero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.sq-zero-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.sq-zero-none {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+@media (max-width: 900px) {
+  .cm-split:not([data-open]) .sq-zero {
+    padding: var(--space-3) 0;
+  }
+}
 .sq-none,
 .sq-more {
   margin: var(--space-3) var(--space-2);

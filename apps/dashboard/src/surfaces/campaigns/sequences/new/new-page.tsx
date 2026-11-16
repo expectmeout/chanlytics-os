@@ -22,6 +22,7 @@ import {
   UNKNOWN_AUDIENCE_WORDS,
   clockWhen,
   localHour,
+  newSequenceRoute,
   readyOrWhatsApp,
   sequenceRoute,
   whoSuits,
@@ -455,6 +456,22 @@ interface KeptHere {
   draft: NewDraftDto | null;
   line: string | null;
   drafted?: NewDraftDto | null;
+  /** The line was said before New opened (Campaigns' empty list): New drafts it as it opens. */
+  go?: boolean;
+}
+
+/** Where the tab keeps what New held, by the choices its address made: the plain New's is "|||". */
+const hereOf = (moment: string | null, who: NewWho | null, to: string | null, kept: string | null) =>
+  [moment, who, to, kept].map((x) => x ?? "").join("|");
+
+/**
+ * A line said before New is open (Campaigns' empty list, sequences-page.tsx): kept for the plain New as its own line is,
+ * marked to be drafted as it opens, and New opened, so what was said goes on by itself with nothing pressed twice.
+ */
+export function sayToNew(line: string): void {
+  const kept: KeptHere = { draft: null, line, drafted: null, go: true };
+  keepTabDraft("new", kept, hereOf(null, null, null, null));
+  navigate(newSequenceRoute());
 }
 
 interface NewSequenceProps {
@@ -497,7 +514,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   const [toast, flash] = useFrameToast();
   const { door, seed, notice } = useDoor(moment, who, to, reads);
   // What this address held when New last closed over it, kept in the tab: the draft, and the line.
-  const here = [moment, who, to, kept].map((x) => x ?? "").join("|");
+  const here = hereOf(moment, who, to, kept);
   const [back] = useState(() => tabDraft("new", here) as KeptHere | null);
   const [typed, setTyped] = useState<string | null>(back?.line ?? null);
   const line = typed ?? seed;
@@ -533,6 +550,15 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     change.forget();
   };
   const redo = useRedraft({ draft, asking, took, byHand: built });
+  // A line said on Campaigns' empty list (sayToNew) is drafted as New opens, once its reads are in: once, and not again on
+  // a reload, since from here on the tab keeps New's own words, which carry no `go`. Looked at after every render (no
+  // list): the ref lets it act once, and what it calls is this render's own.
+  const handed = useRef(back?.go === true && !!back.line?.trim());
+  useEffect(() => {
+    if (!handed.current || !reads || held) return;
+    handed.current = false;
+    void asking.ask(line.trim(), {}, false).then((d) => (d ? took(d) : undefined));
+  });
   const tz = reads?.draft.timezone ?? "UTC";
   const made = useMake({ keptId: kept, flash, letGo, tz, onNoMailbox: () => setDraft(withoutMailbox) });
   const busy = made.busy;
