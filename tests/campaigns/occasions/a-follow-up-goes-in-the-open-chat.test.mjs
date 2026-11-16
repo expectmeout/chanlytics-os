@@ -5,13 +5,13 @@
  * offers on every channel (contracts enrolPurpose), and from a US number that leaves nothing: WhatsApp delivers no offer
  * there, no text carries one, and email waits on the workspace's offers. The person it is for wrote on WhatsApp within
  * the day, and a business may write freely in a chat for 24 hours after a person's last message. So a step of that kind
- * says so to the pick (`inChat`: its moment's own yes, and the moment the send is for), and a person whose chat is open
- * then is picked on WhatsApp under the moment's yes; everyone else is picked as they were. Run on the one pick (contracts
- * reachFor) over the workspace's channels as the edge reads them (channelsReady).
+ * says so to the pick (`inChat`: its moment's own yes, and whether a chat is open at the moment the send is for), and a
+ * person whose chat is open then is picked on WhatsApp under the moment's yes; everyone else is picked as they were. Run
+ * on the one pick (contracts reachFor) over the workspace's channels as the edge reads them (channelsReady).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelsReady, reachFor, whatsappOffersOpen } from "@chanlytics/contracts";
+import { channelsReady, reachFor, replyWindow, whatsappOffersOpen } from "@chanlytics/contracts";
 
 const HOUR = 3_600_000;
 /** Monday 16 November 2026, 10:00 AM in New York: the moment a follow-up's batch is for. */
@@ -51,8 +51,13 @@ const person = (over = {}, consent = {}) => ({
 const TICKS = ["whatsapp", "sms", "email"];
 /** The step's run as it is asked today: an offer by WhatsApp's word, about something of theirs. */
 const how = (over = {}) => ({ channels: TICKS, ready: ready(), about: "theirs", ...over });
+/** The step's ask for the open chat as the run makes it (core inChatOf): its moment's own yes, and the chat open at `at`. */
+const asked = (at = AT) => ({
+  purpose: "conversational",
+  open: (r) => replyWindow("whatsapp", r.waInboundAt, new Date(at)).open,
+});
 /** The same, saying its reply may go in an open chat under its moment's own yes. */
-const inChat = (over = {}) => how({ inChat: { purpose: "conversational", atMs: AT }, ...over });
+const inChat = (over = {}) => how({ inChat: asked(), ...over });
 
 test("as it was: from a US number an offer under a follow-up reaches nobody who has not said yes to offers", () => {
   assert.equal(whatsappOffersOpen(US_NUMBER).ok, false, "WhatsApp delivers no offer to a US number");
@@ -95,10 +100,7 @@ test("a chat that is closed, or was never open, is no chat to reply in: they are
   // The 24 hours are counted to the moment the send is for, not to now: open at ten, closed by the afternoon.
   const wrote = person({ waInboundAt: ago(20) });
   assert.equal(reachFor(wrote, "marketing", inChat()).channel, "whatsapp");
-  assert.equal(
-    reachFor(wrote, "marketing", inChat({ inChat: { purpose: "conversational", atMs: AT + 5 * HOUR } })).channel,
-    null,
-  );
+  assert.equal(reachFor(wrote, "marketing", inChat({ inChat: asked(AT + 5 * HOUR) })).channel, null);
   // Someone an offer does reach, with no chat open, goes as an offer goes: never marked as a reply in the chat.
   const saidYes = person({ waInboundAt: ago(25) }, { marketing: "opted_in", marketingSource: "customer_message" });
   assert.deepEqual(reachFor(saidYes, "marketing", inChat({ ready: ready(UK_NUMBER) })), {

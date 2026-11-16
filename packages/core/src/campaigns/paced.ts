@@ -4,6 +4,7 @@ import {
   inChatPurposeOf,
   inLastSendingHour,
   messageHolds,
+  replyWindow,
   triggerOf,
   whatsappWaits,
   type AskedPurpose,
@@ -88,9 +89,10 @@ export function waitsAtTheSend(
 }
 
 /**
- * The reply in the open WhatsApp chat a run's step asks for (decision 0135), with the moment its batch goes, which a
- * person's 24 hours are counted to: only in a workspace whose switch is on (RunContext `repliesInChat`), for a step
- * about the person's own request whose message WhatsApp approved as an offer (contracts inChatPurposeOf). Null else.
+ * The reply in the open WhatsApp chat a run's step asks for (decision 0135), and whether a person's chat is open at the
+ * moment its batch goes, which their 24 hours are counted to (replyWindow): only in a workspace whose switch is on
+ * (RunContext `repliesInChat`), for a step about the person's own request whose message WhatsApp approved as an offer
+ * (contracts inChatPurposeOf). Null else.
  */
 export function inChatOf(
   run: { ctx: { repliesInChat?: boolean }; p: { trigger: string } },
@@ -99,7 +101,8 @@ export function inChatOf(
 ): InChat | null {
   if (run.ctx.repliesInChat !== true) return null;
   const purpose = inChatPurposeAt(run.p.trigger, message);
-  return purpose ? { purpose, atMs: goesAt.getTime() } : null;
+  if (!purpose) return null;
+  return { purpose, open: (reach) => replyWindow("whatsapp", reach.waInboundAt, goesAt).open };
 }
 
 /**

@@ -15,7 +15,6 @@
  * is an offer at the door (decision D2, consent.ts isOfferByEmail), so it waits for the same. Over a channel's limit a person is
  * held on that channel, never moved to another: nobody gets an email because WhatsApp ran out for the day (decision 9).
  */
-import { replyWindow } from "../../config/policy/prices";
 import { isOfferByEmail, type AskedPurpose, type MessageAbout } from "../../consent/consent";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import type { WrittenChannel } from "../../conversations/thread-channel";
@@ -304,11 +303,13 @@ export type ReachRow = ReceiveRow & { lastChannel?: WrittenChannel | null; waInb
 /**
  * A step whose reply may go in a person's open WhatsApp chat (decision 0135): a follow-up about their own request whose
  * message WhatsApp approved as an offer. `purpose` is the moment's own, the yes the open chat asks, where the message's
- * is the offer's; `atMs` is the moment the send is for, which the person's 24 hours are counted to.
+ * is the offer's; `open` says whether a person's chat is still open at the moment the send is for, as the run asks it
+ * (core campaigns/paced.ts inChatOf, by replyWindow), so this pick, which every page that counts a run loads, carries
+ * no clock of its own.
  */
 export interface InChat {
   purpose: AskedPurpose;
-  atMs: number;
+  open: (reach: ReachRow) => boolean;
 }
 
 /**
@@ -350,7 +351,7 @@ export function usableChannels(
  * Whether a step's reply goes in this person's open WhatsApp chat (decision 0135): null where it does. "closed" where
  * there is no chat to reply in, which holds nobody, and they are picked as they always were: the step does not go by
  * WhatsApp, the number cannot send, or their 24 hours since they last wrote there are over at the moment the send is for
- * (replyWindow, the one reading of it). Else the person's own reason under the moment's yes: a stop, no yes to messages,
+ * (InChat `open`). Else the person's own reason under the moment's yes: a stop, no yes to messages,
  * no number. Meta's pause on offers to US numbers is not asked: words in an open chat are no saved message of Meta's.
  */
 function inChatFor(
@@ -359,7 +360,7 @@ function inChatFor(
   options: Parameters<typeof usableChannels>[1],
 ): NotReceived | "closed" | null {
   if (!options.channels.includes("whatsapp") || !options.ready.whatsapp.ready) return "closed";
-  if (!replyWindow("whatsapp", reach.waInboundAt, new Date(chat.atMs)).open) return "closed";
+  if (!chat.open(reach)) return "closed";
   return whyNotReceive(reach, chat.purpose, "whatsapp", options.about);
 }
 
