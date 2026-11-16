@@ -88,6 +88,3 @@ export function previewTheirsOf(profile: Pick<BusinessProfile, "notes"> | null |
   }
   return { taught: notes.filter((note) => note.title === PREVIEW_TAUGHT.title).map((note) => note.text), fixed };
 }
-
-/** Whether a line the sender is given is a thing they told it, not a fact they said is not right. */
-export const isPreviewTaughtLine = (fact: string): boolean => entryOf({ [PREVIEW_TAUGHT.fact]: true }, fact) === true;
