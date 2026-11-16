@@ -13,7 +13,7 @@
  *
  *   the kit's rules and names    kit.css, classes.json
  *   the values they read         tokens.css
- *   what draws them              kit-gallery.mjs, kit-shared.mjs
+ *   what draws them              kit-gallery.mjs, kit-shared.mjs, app-styles.mjs
  *   what checks them             e2e/kit
  *   this decision                the workflow and this script
  *
@@ -30,6 +30,7 @@ export const KIT_PATHS = [
   "apps/dashboard/src/styles/tokens.css",
   "tooling/scripts/e2e-harness/kit-gallery.mjs",
   "tooling/scripts/e2e-harness/kit-shared.mjs",
+  "tooling/scripts/e2e-harness/app-styles.mjs",
   "e2e/kit/",
   ".github/workflows/ci.yml",
   "tooling/scripts/e2e-harness/kit-paths-changed.mjs",

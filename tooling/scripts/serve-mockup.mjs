@@ -33,6 +33,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { appStylesheets } from "./e2e-harness/app-styles.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -227,16 +228,6 @@ const SRC = path.join(REPO, "apps/dashboard/src");
 const MOCKUP = path.join(REPO, "apps/dashboard/mockup");
 const BRIDGE = path.join(SRC, "bridge");
 
-/**
- * The stylesheets the app imports, in its order, each as a path from src/: the shell's one entry, bridge/frame.css
- * (Next orders nothing across imports, so one file does). The tokens' and the shell's are under styles/; the kit's and
- * Campaigns' live with their surface (a moved surface keeps its rules in its own folder).
- */
-const appStylesheets = () =>
-  [...fs.readFileSync(path.join(BRIDGE, "frame.css"), "utf8").matchAll(/^@import "([^"]+)";/gm)].map((m) =>
-    path.relative(SRC, path.resolve(BRIDGE, m[1])).split(path.sep).join("/"),
-  );
-
 /** The stylesheets the document names, none of them in the mockup's own folder: each at its one path, and only those. */
 const outsideCss = () => appStylesheets().map((sheet) => ({ at: `/${sheet}`, file: path.join(SRC, sheet) }));
 
@@ -258,7 +249,7 @@ const SCRIPTS_HERE = "<!-- The app's files -->";
 
 /**
  * The mockup's document: Chanlytics.html with the stylesheets the app imports linked, and the files it loads named, each
- * where the document says. Exported: the e2e harness serves this document too, and its kit gallery reads its links.
+ * where the document says. Exported: the e2e harness serves this document too.
  */
 export function mockupDocument() {
   const at = (doc, marker, tags) => {
