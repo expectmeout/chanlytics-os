@@ -12,8 +12,10 @@ import { declareSurfaceValue } from "../surface-values";
 // The Setup card's code, which Today's first draw waits for where Today is the page the tab opens on: said as the frame
 // loads, before its gate first opens (setup-card-code.ts).
 import "./setup-card-code";
+import { onRouteAsked } from "@/bridge/workspace";
 import { holdTodayForNote } from "./cold-email-note-read";
 import { holdTodayForContent } from "./content-note-read";
+import { arriveOnToday } from "./first-draw-read";
 import { holdTodayForPeople } from "./people-read";
 
 // The pages that have not moved (Ask, the phone app's bridge, the bell) still read the day under its old name.
@@ -26,6 +28,10 @@ holdTodayForNote();
 holdTodayForContent();
 // And what Ask found and To do's steps due read of People, the same way (people-read.ts): they stand in the first draw.
 holdTodayForPeople();
+// And a move to Today from another page: the Setup card's code and the two cards' reads, where the tab holds none, asked as
+// the move is (first-draw-read.ts arriveOnToday). What Ask found reads of People is People's own book there, which every
+// page's boot reads.
+onRouteAsked(arriveOnToday);
 
 /** Today's read and the day's making: fetched once, at once where Today is the page opened (bridge/surfaces/code.ts). */
 const todayCode = surfaceCode("today", () => import("./surface"));

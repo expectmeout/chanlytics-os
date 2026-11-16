@@ -55,7 +55,7 @@ export interface SpeedShell {
   /** Hear the route on screen change (workspace.ts hearAddress); answers the stop. */
   hearRoute(fn: () => void): () => void;
   /** Hear the shell ask for a route, before its page is drawn (workspace.ts onRouteAsked). */
-  hearAsked(fn: ((route: string) => void) | null): void;
+  hearAsked(fn: (route: string) => void): void;
   /** The surfaces the route's page is drawn from (surface-registry.ts routeSurfaces). */
   surfacesOf(route: string): readonly string[];
   /** The route's own surface (surface-registry.ts routeSurfaceFor). */

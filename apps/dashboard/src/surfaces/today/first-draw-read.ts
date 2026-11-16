@@ -7,14 +7,16 @@
  * page on a first visit and pushed the day down under it (79 px on a phone for Cold email's line, the load review of 10 Nov
  * 2026; about 230 px for Content's card). The frame loads each with Today's surface (override.ts), which holds the draw
  * before Today's gate first opens, and only where the document's head has the read out: the frame takes that read and asks
- * the server for nothing itself.
+ * the server for nothing itself. A move to Today from another page, the tab holding none, asks for each as the move is asked
+ * and waits for it the same way (arriveOnToday).
  */
 import { firstRowsStand } from "@chanlytics/contracts";
 import { headStarted } from "@/bridge/api";
 import { readCache } from "@/bridge/read-cache";
-import { firstDrawWaitsFor, isSurfaceReady, surfaceMoved } from "@/bridge/surface-status";
-import { getActiveWorkspace } from "@/bridge/workspace";
-import { todayOnScreen } from "./setup-card-code";
+import { ROUTE_WAITS, routePartsOf } from "@/bridge/surface-registry";
+import { firstDrawWaitsFor, isSurfaceFailed, isSurfaceReady, surfaceMoved } from "@/bridge/surface-status";
+import { afterBoot, getActiveWorkspace, warmsOnItsOwn } from "@/bridge/workspace";
+import { setupCardCode, todayOnScreen } from "./setup-card-code";
 
 /** The answer as it is kept: a workspace with nothing to say holds `value: null`, which is not the same as holding nothing. */
 interface Held<T> {
@@ -37,6 +39,70 @@ interface FirstDrawRead<T> {
   read: () => Promise<T | null>;
 }
 
+/** How a card's read stands in Today beside the page's own. */
+interface FirstDrawReadOptions {
+  /**
+   * The signal the parts it is drawn into redraw on as an answer is kept (surface-status surfaceMoved), where they read it in
+   * their own render (Today's arrangement reads what Today draws from People: people-read.ts): one that lands past the
+   * first draw's wait.
+   */
+  heard?: string;
+  /** Whether a move to Today from another page waits for it too, where the tab holds none (arriveOnToday). */
+  onArrival?: boolean;
+}
+
+/** A card's read that said so (`onArrival`), as a move to Today reaches it (`arrive`: waited for) and a read ahead (`ahead`). */
+interface Arriving {
+  arrive: () => void;
+  ahead: () => void;
+}
+
+/** What a move to Today waits for beside its Setup card's code, and reads ahead of one. */
+const arrivals = new Set<Arriving>();
+
+/**
+ * A move to Today asked from another page (workspace.ts onRouteAsked, said by override.ts): its first draw waits for the
+ * Setup card's code and for each card's read the tab holds no answer for, as a load's does (`hold`). Asked only as Today's
+ * page drew, each landed after it: from the Calendar, Cold email's line 0.3 s after the page and 79 px over the day, the
+ * Setup card 75 ms after (the phone review of 15 Nov 2026). Said as the move is asked, before the router draws the page.
+ */
+export function arriveOnToday(route: string): void {
+  if (routePartsOf(route).page !== "today" || todayOnScreen()) return;
+  firstDrawWaitsFor(
+    "today",
+    setupCardCode().then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  for (const card of arrivals) card.arrive();
+}
+
+/** What Today's first draw waits for that is read ahead of a move to it: all of it but Ask's morning (readTodaySoon). */
+const readAheadOfToday = (): string[] =>
+  (ROUTE_WAITS.today ?? []).filter((k) => k !== "ask_morning" && !isSurfaceReady(k) && !isSurfaceFailed(k));
+
+/**
+ * What Today's first draw waits for, read once the boot is in on any other page (`read`: the runner's read of those
+ * surfaces, FrameApp.tsx), with each card's read the tab holds none of, so a press to Today draws at once. Asked only as
+ * Today was reached, its first draw came 1.6 to 2.0 s after the press (the phone review of 15 Nov 2026). Never Ask's
+ * morning: where none is written yet, its read asks Ask to write it, which is a visit to Today's to start. Never where the
+ * page may not warm on its own (warmsOnItsOwn).
+ */
+export function readTodaySoon(read: (keys: string[]) => void, at?: Window): void {
+  const win = at ?? (typeof window === "undefined" ? null : window);
+  if (!win || !warmsOnItsOwn()) return;
+  const go = () => {
+    if (todayOnScreen()) return;
+    const keys = readAheadOfToday();
+    if (keys.length) read(keys);
+    for (const card of arrivals) card.ahead();
+  };
+  const soon = () => void afterBoot().then(go);
+  if (win.document.readyState === "complete") soon();
+  else win.addEventListener("load", soon, { once: true });
+}
+
 /** Whether a phone's kept picture stands where the page will draw (contracts firstRowsStand); none where there is no document. */
 const pictureStands = (): boolean => typeof document !== "undefined" && firstRowsStand(document);
 
@@ -53,16 +119,12 @@ const drawsAtOnce = (): Promise<void> =>
     });
   });
 
-/**
- * A card's read: kept under `key`, started by the document's head at `path`, asked by `ask`. Where the parts it is drawn into
- * read it in their own render (Today's arrangement reads what Today draws from People: people-read.ts), `heard` is the
- * signal they redraw on as an answer is kept (surface-status surfaceMoved): one that lands past the first draw's wait.
- */
+/** A card's read: kept under `key`, started by the document's head at `path`, asked by `ask`, standing as `opts` says. */
 export function firstDrawRead<T>(
   key: string,
   path: string,
   ask: () => Promise<T | null>,
-  heard: string | null = null,
+  { heard, onArrival = false }: FirstDrawReadOptions = {},
 ): FirstDrawRead<T> {
   const held = readCache<Held<T>>(key, () => true, { tab: true });
   const askFor = (): Promise<T | null> =>
@@ -76,8 +138,20 @@ export function firstDrawRead<T>(
         () => null,
       );
   const kept = (): Held<T> | null => held.peek(getActiveWorkspace() ?? "");
-  /** The load's own read, while the card has not taken it: the one Today's first draw waited for. */
+  /** The load's own read, or the move's, while the card has not taken it: the one Today's first draw waited for. */
   let loadsRead: Promise<T | null> | null = null;
+  if (onArrival)
+    arrivals.add({
+      // A read already out, one started ahead, is the one waited for, never asked again.
+      arrive: () => {
+        if (kept()) return;
+        loadsRead ??= askFor();
+        firstDrawWaitsFor("today", loadsRead);
+      },
+      ahead: () => {
+        if (!kept()) loadsRead ??= askFor();
+      },
+    });
   return {
     kept,
     hold: () => {

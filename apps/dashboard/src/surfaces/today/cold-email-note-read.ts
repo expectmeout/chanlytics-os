@@ -14,6 +14,7 @@ const note = firstDrawRead<ColdEmailNote>(
   "cold_email_note",
   "settings/reach-out/note",
   async () => (await read("GET settings/reach-out/note")).note,
+  { onArrival: true },
 );
 
 /** What this tab last read for the workspace on screen, or null where it holds nothing: `note: null` is a workspace with nothing to say. */

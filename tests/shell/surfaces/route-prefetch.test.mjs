@@ -145,9 +145,17 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     ["people/leads", "leads"],
     ["clients/leads", "leads"],
     ["calendar", "calendar"],
-    // Every lens of Reports draws from the one report.
+    // Every lens of Reports draws from the one report, and a lens drawn from a read of its own opens on it beside the report
+    // (the phone review of 15 Nov 2026: People's charts landed 0.3 s after the page and moved it).
     ["reports", "reports"],
     ["reports/bookings", "reports"],
+    ["reports/people", "reports/people"],
+    ["reports/receptionist", "reports/receptionist"],
+    ["reports/reviews", "reports/reviews"],
+    // Content, a view of Campaigns, and its Library, each on its own reads: it had no word here and opened on Campaigns' list,
+    // which it never draws, its own read asked only once its code had come (the phone review of 15 Nov 2026).
+    ["campaigns/content", "campaigns/content"],
+    ["campaigns/content:library", "campaigns/content/library"],
     // Campaigns lands on Sequences' list, its own address, a group's and a campaign's alike, and opens on what Sequences does.
     ["campaigns", "campaigns"],
     ["campaigns/in:winback", "campaigns"],
@@ -270,14 +278,17 @@ test("on an address that says days Reports is read over them, by their first and
       globals: { localStorage: { getItem: (k) => (k === REPORT_PERIOD_STORAGE ? saved : null) } },
     }).calls.map(([u]) => u);
   const days = ["/api/v1/workspaces?workspace=acme", "/api/v1/reports?from=2026-09-01&to=2026-09-20&workspace=acme"];
+  // A lens drawn from a read of its own reads it beside the report, over the same days.
+  const lens = (name, over = days) => [...over, over[1].replace("/api/v1/reports?", `/api/v1/reports/${name}?`)];
   // A link someone sent: the Overview over the days, a lens over them, and with nothing kept on the device at all.
   assert.deepEqual(
     over(`reports/${DAYS}`),
     days,
     "REGRESSION: the head read the device's period, and the page read the days after it",
   );
-  assert.deepEqual(over(`reports/people:${DAYS}`), days);
-  assert.deepEqual(over(`reports/reviews:${DAYS}`, null), days);
+  assert.deepEqual(over(`reports/bookings:${DAYS}`), days);
+  assert.deepEqual(over(`reports/people:${DAYS}`), lens("people"));
+  assert.deepEqual(over(`reports/reviews:${DAYS}`, null), lens("reviews"));
   // The address the frame has not moved yet says them in the hash.
   assert.deepEqual(
     headRuns({
@@ -285,12 +296,13 @@ test("on an address that says days Reports is read over them, by their first and
       hash: `#/reports/people:${DAYS}`,
       globals: { localStorage: { getItem: () => "90d" } },
     }).calls.map(([u]) => u),
-    days,
+    lens("people"),
   );
   // A lens alone, and words that are not days, are read over the period kept.
   const kept = days.map((u) => u.replace("from=2026-09-01&to=2026-09-20", "period=7d"));
-  for (const route of ["reports/people", "reports/people:30d", "reports/2026-09-01", "reports/people:2026-09-01~x"])
-    assert.deepEqual(over(route), kept, route);
+  for (const route of ["reports/2026-09-01", "reports/bookings"]) assert.deepEqual(over(route), kept, route);
+  for (const route of ["reports/people", "reports/people:30d", "reports/people:2026-09-01~x"])
+    assert.deepEqual(over(route), lens("people", kept), route);
 });
 
 test("Reports is read over the period this device last picked, as the page reads it; a period nobody offers is the default's", () => {
@@ -773,6 +785,10 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/files/surface.ts`)).filesOverride,
       // What Ask made, which Campaigns › Content draws beside the settings read that says whether it is drawn.
       (await importSrc(`${S}/surfaces/campaigns/content/surface.ts`)).contentOverride,
+      // Reports' lenses drawn from a read of their own, over the report's period.
+      (await importSrc(`${S}/surfaces/reports/people-surface.ts`)).reportsPeopleOverride,
+      (await importSrc(`${S}/surfaces/reports/receptionist-surface.ts`)).receptionistOverride,
+      (await importSrc(`${S}/surfaces/reports/reviews-surface.ts`)).reviewsOverride,
     ].map((o) => [o.key, o]),
   );
   // And what a pane of Settings reads that is no surface (Team's partner, Connections' doors, Profile's views, the log's first
@@ -823,6 +839,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     "campaigns/content": ["content"],
     // Content's Library (the content redesign's stage 2), once Settings › Files: the library's read, never Made's.
     "campaigns/content:library": ["files"],
+    "campaigns/content/library": ["files"],
     // Every pane of Settings draws the partner account (the rail's Partner), and some what else they stand on: the calendar's
     // weeks (Hours), Setup's connections (How it answers, Connections), Google and the channels (Connections), the member's
     // alerts, Billing's plan, Ask's memory. A pane drawn from none of the settings read stands on who is looking alone.
@@ -856,7 +873,10 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   };
   // A key with words after its page (`campaigns/sequences/new`) is that page at that address, as the registry reads one
   // (routePartsOf); a key that names a screen, no address, is asked at one of its addresses (a run at its home).
-  const ADDRESS_OF = { "campaigns/sequences/runs": "campaigns/sequences/sq-1/runs/b-1" };
+  const ADDRESS_OF = {
+    "campaigns/sequences/runs": "campaigns/sequences/sq-1/runs/b-1",
+    "campaigns/content/library": "campaigns/content:library",
+  };
   const addressOf = (route) => ADDRESS_OF[route] ?? route;
   const pageAt = (route) => {
     const { page, param } = registry.routePartsOf(addressOf(route));
@@ -929,17 +949,25 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   }
   // Reports over days a member picked, which only its address says: the head reads the address as the page's surface
   // does, so the two spell one read (first day, then last) and the surface's own takes what the head started.
-  for (const route of ["reports/2026-09-01~2026-09-20", "reports/people:2026-09-01~2026-09-20"]) {
+  for (const [route, lens] of [
+    ["reports/2026-09-01~2026-09-20", null],
+    ["reports/campaigns:2026-09-01~2026-09-20", null],
+    ["reports/people:2026-09-01~2026-09-20", "reports_people"],
+  ]) {
     win.location.pathname = `/w/harbor/${route}`;
     api().forget();
     asked.length = 0;
-    for (const k of ["reports", "workspace"]) void overrides[k].apply().catch(() => {});
+    for (const k of ["reports", "workspace", ...(lens ? [lens] : [])]) void overrides[k].apply().catch(() => {});
     const head = headRuns({ pathname: win.location.pathname, hash: "" })
       .calls.map(([u]) => u)
       .slice(1)
       .sort();
     await allAsked(head);
-    assert.equal(head.length, 1, `${route}: the report alone (the Campaigns lens's reads are its own surface's)`);
+    assert.equal(
+      head.length,
+      lens ? 2 : 1,
+      `${route}: the report, and a lens's own read beside it (the Campaigns lens's reads are its own surface's)`,
+    );
     assert.deepEqual(head, theirs(), `${route}: the head starts what Reports asks for over the days`);
   }
   win.location.pathname = "/w/harbor";

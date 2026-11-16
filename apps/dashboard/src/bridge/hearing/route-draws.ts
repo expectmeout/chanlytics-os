@@ -200,6 +200,11 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
   // Reports' strip of lenses is decided from the workspace list (the role of who is looking: a lens is shown from its
   // rung up) and draws above the page's body, so a list that landed after it would add a tab to a strip already drawn.
   reports: ["workspace"],
+  // And a lens drawn from a read of its own, its strip and its charts that read: landing after the page, People's moved it
+  // (the phone review of 15 Nov 2026). Each started from the document's head with the report (contracts PREFETCH_READS).
+  "reports/people": ["workspace", "reports_people"],
+  "reports/receptionist": ["workspace", "reports_receptionist"],
+  "reports/reviews": ["workspace", "reports_reviews"],
   // Campaigns' views each wait for what their own first screen is made of (surface-registry routeWaitsFor asks the view
   // before the page), each started from the document's head with the view's own (contracts PREFETCH_READS). A sequence's
   // steps say their messages' words, which are the settings read's (offered-templates.ts), as the Inbox's reply box does:
@@ -209,6 +214,10 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
   // there is a number to send from: drawn before the channels read, it said there was none, then the list moved 55 px up.
   "campaigns/sequences": ["settings"],
   "campaigns/sequences/new": ["playbooks"],
-  "campaigns/messages": ["channels"],
+  // And what each of its rows says of what sends it (the playbooks read: a pill where a language something sends is missing)
+  // and a cold email sequence's emails (the reach-outs read): neither was waited for, and the pills came 2.7 s after the
+  // list on a phone, the emails 0.3 s after it (the phone review of 15 Nov 2026). Each started from the head with the page's.
+  "campaigns/messages": ["channels", "reach_outs", "playbooks"],
+  messages: ["channels", "reach_outs", "playbooks"],
 };
 export const ROUTE_WAIT_MS = 3000;

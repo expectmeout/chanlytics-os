@@ -11,7 +11,7 @@
   },
   "apps/dashboard/src/bridge/ask/notices.ts GET ask/notice": {
     "kind": "on-open",
-    "fresh": "Read as Ask opens, at most every five minutes (READ_AGAIN_MS), and once more when the language it speaks changes.",
+    "fresh": "Read as Ask opens, at most every five minutes (READ_AGAIN_MS), and once more when the language it speaks changes; on a device that opened Ask in the last two weeks, once the boot is in too, and the last answer kept in the tab, so Ask opens with it.",
     "why": "What Ask noticed moves over hours, and a line resting here is said by the browser's own record of it. A stale line costs one press that says the thing has moved, never a wrong send: the act door reads the card again."
   },
   "apps/dashboard/src/bridge/zone.ts GET workspaces": {
