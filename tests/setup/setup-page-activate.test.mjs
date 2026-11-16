@@ -990,7 +990,7 @@ test("Google's row says a Business Profile that stopped syncing as Connections d
     "waiting_you",
     "REGRESSION: 'connected', over a profile that stopped syncing three days ago",
   );
-  assert.match(broken.sentence, /^Connected as owner@example\.com · could not sync since /);
+  assert.match(broken.sentence, /^Connected as owner@example\.com · couldn't sync since /);
   assert.deepEqual(broken.verb, { label: "Reconnect", to: "admin/integrations" });
   const fine = rowOf({
     ready: true,

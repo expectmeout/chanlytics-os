@@ -113,13 +113,34 @@ test("a leg asks its own area for the most a term may, though the term read 600 
   assert.ok(run, "the leg's run is its own");
 });
 
-test("a leg sizes from what counted, never from a candidate email that may not check out", async () => {
+test("a leg asks its area for a whole page, however few its count still wants: the top of an area is mostly what the search holds", async () => {
+  for (const wanted of [20, 4, 1]) {
+    const { w, p } = searching({});
+    const card = cardRoundRead(w, 100, 50);
+    const leg = legOpened(w, card, wanted);
+    await startRound(p(), leg.id, OWNER);
+    // Sized from what counted (a half) it asked for 40, 8 and 2, and on 15 Nov 2026 such asks found 2, 1 and 0 near
+    // New York, ending a search for 100 at 99 with "every area within reach was searched".
+    assert.deepEqual(asked(w), [["hair salon", 120]], `${wanted} wanted`);
+  }
+});
+
+test("a leg sizes from what counted, never from a candidate email that may not check out: past its page, in a city", async () => {
   const { w, p } = searching({});
   const card = cardRoundRead(w, 100, 50);
-  const leg = legOpened(w, card, 20);
+  const city = {
+    kind: "city",
+    label: "Round Rock, TX",
+    state: "TX",
+    center: null,
+    radius_m: 25_000,
+    query: "Round Rock, TX, USA",
+  };
+  const leg = { ...legOpened(w, card, 100), plan: { ...card.plan, area: city } };
+  w.T.lead_rounds.splice(w.T.lead_rounds.length - 1, 1, leg);
   await startRound(p(), leg.id, OWNER);
-  // Half counted: 20 wanted at a half is 40, never under 1.2 times the 20.
-  assert.deepEqual(asked(w), [["hair salon", 40]]);
+  // Half counted: 100 wanted at a half is 200, past the page of 120; a city's term may be asked for 600.
+  assert.deepEqual(asked(w), [["hair salon", 200]]);
 });
 
 test("a leg that runs dry names the next area past every area read, its own too, and none overlapping it", async () => {

@@ -632,6 +632,8 @@
     "00627_the_lead_caps_fit_a_count.sql": "5f78b08d088d1a2984d6341748a3c6485fcca2c0701079f110baa211103fba32",
     "00628_a_search_widens_until_its_count.sql": "664089c2ff22073ae38376ef500566f012f0aba3e580cf3f9247554e11a7187d",
     "00629_whether_a_search_widens_is_asked_of_its_own_workspace.sql": "70448f497acd5ef36b124d645428947d89068e63430e92154ed64c9e322edbcf",
-    "00630_one_picture_is_one_file_whichever_road_brought_it.sql": "1cc261758cf28be8c0a00e604e0ff4dd4d45fa0a4d00e36735435238097db22a"
+    "00630_one_picture_is_one_file_whichever_road_brought_it.sql": "1cc261758cf28be8c0a00e604e0ff4dd4d45fa0a4d00e36735435238097db22a",
+    "00631_a_lead_is_named_by_its_owner.sql": "5adfb8b80c622d2a141074d1192fce52d82491d17cd14f2eb549569c44df067e",
+    "00632_a_lead_who_tries_their_preview_rings_the_bell.sql": "ed228d7f3fa582d27c8104343ad1256075ab1dae3bc99760a9d3e5f246f7f8de"
   }
 }

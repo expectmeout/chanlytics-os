@@ -1287,14 +1287,16 @@
   color: var(--ink-muted);
 }
 
-/* The empty state (14 Nov 2026, the canvas "Content empty state"): what Ask looked at, a line a place, then the one line to
-   Ask for a link and the phone's own adding. The card is the first day's raised card; its marks are the tiles' own dots. */
+/* The empty state (14 Nov 2026, the canvas "Content empty state"; made compact 16 Nov 2026): what AI looked at, a line a
+   place, the one line to AI with its + that adds from the phone, and the clips to film folded under one line. The card is
+   the first day's raised card; its marks are the tiles' own dots; inside it nothing is boxed again, each part stands on a
+   hairline. */
 .cnv-found {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   margin: 8px 0 24px;
-  padding: 20px 16px 16px;
+  padding: 16px;
 }
 .cnv-found-head {
   display: flex;
@@ -1304,19 +1306,21 @@
 .cnv-found-three {
   display: inline-flex;
   flex: none;
+  padding-top: 2px;
   color: var(--ink);
 }
 .cnv-found-three .files-looking {
   position: relative;
   top: auto;
   right: auto;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
 }
 .cnv-found-said {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
 }
 .cnv-found-title {
@@ -1330,53 +1334,37 @@
   line-height: var(--leading-normal);
   color: var(--ink-dim);
 }
+/* Review rides the title's line, where the news is, so it comes and goes with no line of its own. */
+.cnv-found-go {
+  flex: none;
+  align-self: center;
+}
 .cnv-found-lines {
   display: flex;
   flex-direction: column;
   margin: 0;
   padding: 0;
   list-style: none;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
 }
 .cnv-found-line {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
-  min-height: 50px;
-  padding: 8px 12px 8px 10px;
+  min-height: 40px;
   border-top: 1px solid var(--line);
-}
-.cnv-found-line:first-child {
-  border-top: 0;
 }
 .cnv-found-glyph {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--radius-md);
-  background: var(--line);
   color: var(--ink-dim);
 }
-.cnv-found-words {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.cnv-found-words b {
+.cnv-found-name {
   overflow: hidden;
   font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.cnv-found-words span,
-.cnv-found-hint,
-.cnv-found-or {
-  font-size: var(--text-xs);
-  color: var(--ink-faint);
 }
 .cnv-found-status {
   display: inline-flex;
@@ -1396,72 +1384,117 @@
   width: 7px;
   height: 7px;
 }
-.cnv-found-ask {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+
+/* What to film for a video, as the website's read wrote it: folded under one line on the card's last hairline; opened,
+   each clip says what and where whole, its words wrapping, never cut off. */
+.cnv-found-film {
+  margin: 0 -16px -16px;
+  padding: 0 16px;
+  border-top: 1px solid var(--line);
+  interpolate-size: allow-keywords;
 }
-.cnv-found-hint {
-  margin: 0;
-  padding: 0 14px;
-}
-.cnv-found-or {
+.cnv-found-film-head {
   display: flex;
   gap: 10px;
   align-items: center;
-  margin: 0;
+  min-height: 48px;
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
 }
-.cnv-found-or::before,
-.cnv-found-or::after {
-  content: "";
-  flex: 1 1 auto;
-  height: 1px;
-  background: var(--line);
+.cnv-found-film-head::-webkit-details-marker {
+  display: none;
 }
-
-/* What to film for a video, as the website's read wrote it: three numbered lines in the card's own quiet list. */
-.cnv-found-film {
+.cnv-found-film-head:focus-visible {
+  outline: 0;
+  border-radius: var(--radius-md);
+  box-shadow: var(--focus-ring);
+}
+.cnv-found-film-says {
   display: flex;
-  flex-direction: column;
+  flex: 1 1 auto;
   gap: 8px;
+  align-items: baseline;
+  min-width: 0;
 }
-.cnv-found-film-head {
-  margin: 0;
-  padding: 2px 2px 0;
-  font-size: var(--text-xs);
+.cnv-found-film-says b {
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
+}
+.cnv-found-film-says span,
+.cnv-found-shot-len {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cnv-found-film-turn {
+  display: inline-flex;
+  flex: none;
+  color: var(--ink-dim);
+  transition: transform var(--duration-base) var(--ease-out);
+}
+.cnv-found-film[open] .cnv-found-film-turn {
+  transform: rotate(180deg);
+}
+/* Opening grows the fold to its height where the browser can (Chrome; elsewhere it opens at once). */
+.cnv-found-film::details-content {
+  block-size: 0;
+  overflow: clip;
+  transition:
+    block-size var(--duration-base) var(--ease-out),
+    content-visibility var(--duration-base) allow-discrete;
+}
+.cnv-found-film[open]::details-content {
+  block-size: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cnv-found-film-turn,
+  .cnv-found-film::details-content {
+    transition: none;
+  }
 }
 .cnv-found-shots {
   display: flex;
   flex-direction: column;
+  gap: 12px;
   margin: 0;
-  padding: 0;
+  padding: 2px 0 16px;
   list-style: none;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
 }
 .cnv-found-shot {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: start;
-  padding: 10px 12px;
-  border-top: 1px solid var(--line);
-}
-.cnv-found-shot:first-child {
-  border-top: 0;
 }
 .cnv-found-n {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border-radius: var(--radius-full);
   background: var(--line);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
+}
+.cnv-found-shot-says {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 2px;
+}
+.cnv-found-shot-says b {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.cnv-found-shot-says span {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-dim);
+}
+.cnv-found-shot-len {
+  padding-top: 3px;
 }

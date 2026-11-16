@@ -106,7 +106,7 @@ export const LEAD_REVIEW_GROUP_WHY: Record<LeadReviewGroupId, string> = {
   no_phone:
     "This search counts a phone as enough, and no number on the listing could be matched against their site. An email may still reach them.",
   catch_all: "Their server accepts every address, so the check cannot tell whether this one is real.",
-  unsure: "AI could not tell from the listing or from their site.",
+  unsure: "AI couldn't tell from the listing or from their site.",
   read_only: "Only the listing says so, and this search asked to see it for itself.",
   out_of_area: "They sit outside the area you asked for, so they were not counted.",
 };

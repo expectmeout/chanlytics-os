@@ -158,11 +158,11 @@ function waitingNotice(steps: readonly SequenceStepDto[], batch: SequenceNeedsDt
     kind: "waiting",
     words:
       people > 0
-        ? `${plural(people, "person waits", "people wait")} for your OK${until}`
-        : `The next batch waits for your OK${until}`,
+        ? `${plural(people, "person waits", "people wait")} for your approval${until}`
+        : `The next batch waits for your approval${until}`,
     // The dock's line beside its Approve, which says how many: "Waits for your OK" over "Approve all 6", where it said
     // the count twice, "6 wait for your OK" beside it (the run review's item 12).
-    line: people > 0 ? SEQUENCE_WORDS.waitsForOk : "The next batch waits for your OK",
+    line: people > 0 ? SEQUENCE_WORDS.waitsForOk : "The next batch waits for your approval",
     fact: fact || null,
     // One word per act, as the run's own sheet and Today's row say it (decision 19 of the spec of 9 Oct 2026).
     act: people > 0 ? runApproveWords(people) : SEQUENCE_WORDS.approve,
@@ -361,7 +361,7 @@ export function stepsStopSentence(steps: readonly { only_if: readonly string[] }
 
 /** What a people group is called on the People tab. */
 export const PEOPLE_GROUP_WORDS: Record<SequencePeopleGroup, string> = {
-  waiting: "Waits for your OK",
+  waiting: "Waits for your approval",
   held: "Held by the check",
   to_send: "For you to send",
   replied: "Wrote back",

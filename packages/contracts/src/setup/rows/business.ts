@@ -91,7 +91,7 @@ export function billingRow(setupInputs: SetupInputs, ctx: SetupRowContext): Setu
       sentence: `AI is paused. ${PAUSED_WORDS}`,
       details: [
         ...testMode,
-        billing.status === "paused" ? "The trial ended without a card on file" : "Payment could not be collected",
+        billing.status === "paused" ? "The trial ended without a card on file" : "Payment couldn't be collected",
       ],
       verb: { label: "Resume in Billing", to: "admin/billing" },
     };

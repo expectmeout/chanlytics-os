@@ -138,7 +138,7 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   broadcast_sent: { ends: "news", why: "A run that finished is told once, with what it did." },
   leads_ready: { ends: "news", why: "A search that finished is told once; its places wait in Leads." },
   note_for_you: { ends: "news", why: "A note left for you is read when you open it." },
-  reach_out_replied: { ends: "news", why: "A reply is told once per reading; its thread holds the rest." },
+  reach_out_replied: { ends: "news", why: "A reply is told once per reading; its conversation holds the rest." },
   reach_out_day: { ends: "news", why: "The day's reach-out numbers are a line, told once at six." },
   opted_out: { ends: "news", why: "A customer's stop is news, told once; there is nothing to answer." },
   booking: { ends: "news", why: "A booking that arrived is news; the Calendar holds it." },
@@ -174,6 +174,10 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   post_stopped: {
     ends: "news",
     why: "A post that did not go is told once; Content's Needs you holds it, with why, until it is sent again or let go.",
+  },
+  preview_tried: {
+    ends: "news",
+    why: "A lead who tried their preview is told at their first message and at their first call. Today keeps the lead.",
   },
 };
 

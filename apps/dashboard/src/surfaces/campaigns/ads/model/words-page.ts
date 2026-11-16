@@ -39,7 +39,7 @@ export const HEAD = {
 /** The line under the pane line when an account could not be read, and the press that reads it again. */
 export const ADS_READ = {
   failed: (owner: string, when: string | null) =>
-    when === null ? `${owner}'s numbers could not be read` : `${owner}'s numbers could not be read · as of ${when}`,
+    when === null ? `${owner}'s numbers couldn't be read` : `${owner}'s numbers couldn't be read · as of ${when}`,
   again: "Try again",
 };
 
@@ -52,13 +52,13 @@ export const STANDING = {
   lapsed: "Needs connecting again",
   account: (name: string, time: string) => `${name} · read ${time}`,
   reading: (name: string) => `${name} · reading now`,
-  failed: (name: string, when: string) => `${name} · could not be read, last read ${when}`,
+  failed: (name: string, when: string) => `${name} · couldn't be read, last read ${when}`,
   charged: (p: AdPlatform) => `Charged to your card by ${PLATFORM_OWNER[p]}. Chanlytics never holds your ad money.`,
   door: "Open in Settings › Connections",
   /** The post permission turns amber 7 days before it lapses. */
   permission: (day: string) => `Post permission runs to ${day}`,
   /** An account that is connected but whose last read failed. */
-  unread: "Could not be read",
+  unread: "Couldn't be read",
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -92,7 +92,7 @@ export function figureWords(countCtx: CountCtx) {
     },
     each: {
       label: "For each person who booked",
-      def: `What the platforms charged on the days those people first got in touch, divided by the people who have since booked. Shown from 5 booked. Not counted: calls (Google's count, not matched to people yet), people you already knew, ${countCtx.many} Chanlytics could not match to a person, and WhatsApp message fees, which WhatsApp bills you separately. The last two weeks are still settling, so this can only come down.`,
+      def: `What the platforms charged on the days those people first got in touch, divided by the people who have since booked. Shown from 5 booked. Not counted: calls (Google's count, not matched to people yet), people you already knew, ${countCtx.many} Chanlytics couldn't match to a person, and WhatsApp message fees, which WhatsApp bills you separately. The last two weeks are still settling, so this can only come down.`,
     },
   };
 }
@@ -338,7 +338,7 @@ export const V0 = {
   /** Read, and nobody at all: People's own answer for these days. */
   nobodyNew: "Nobody new has reached you in the last 30 days.",
   reading: "Counting how new people first reached you…",
-  notRead: "How new people first reached you could not be read.",
+  notRead: "How new people first reached you couldn't be read.",
   again: "Try again",
   notes: [
     "Ads that open WhatsApp or Instagram are counted under An ad, not under either.",

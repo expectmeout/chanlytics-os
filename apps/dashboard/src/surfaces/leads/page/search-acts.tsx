@@ -245,7 +245,7 @@ function keptSearchActs(a: SearchActsArgs) {
     const r = await removeSearch(s.id);
     setLeadBusy(false);
     if (!r.ok) {
-      setRemoveError(r.message || "The search could not be removed.");
+      setRemoveError(r.message || "The search couldn't be removed.");
       return;
     }
     setRemoving(null);
@@ -268,7 +268,7 @@ export const leadSearchActs = (a: SearchActsArgs) => {
     setLeadLine((l) => ({ ...(l ?? NO_LINE), busy: true, error: null }));
     const r = await setBusinessLine(line);
     if (!r.ok) {
-      setLeadLine((l) => ({ ...(l ?? NO_LINE), busy: false, error: r.message || "That could not be saved." }));
+      setLeadLine((l) => ({ ...(l ?? NO_LINE), busy: false, error: r.message || "That couldn't be saved." }));
       return;
     }
     setLeadLine(null);
@@ -281,7 +281,7 @@ export const leadSearchActs = (a: SearchActsArgs) => {
   const newIdeas = async () => {
     if (!leads.suggestions) return;
     const r = await newSuggestions();
-    if (!r.ok) plFlash({ msg: <>{r.message || "New ideas could not be asked for. Try again in a moment."}</> });
+    if (!r.ok) plFlash({ msg: <>{r.message || "New ideas couldn't be asked for. Try again in a moment."}</> });
   };
   // Write it for me (22 Oct 2026): the owner's line let go, and the line written from the profile, the customers and the
   // searches, with three new ideas from it. The sheet stays open and shows the line it wrote, which the owner may keep
@@ -291,7 +291,7 @@ export const leadSearchActs = (a: SearchActsArgs) => {
     setLeadLine((l) => ({ ...(l ?? NO_LINE), writing: true, error: null }));
     const r = await lineWrittenForMe();
     if (!r.ok) {
-      setLeadLine((l) => l && { ...l, writing: false, error: r.message || "That could not be written. Try again." });
+      setLeadLine((l) => l && { ...l, writing: false, error: r.message || "That couldn't be written. Try again." });
       return;
     }
     // Held by another write: the ideas the page's own reads lay on the view once they land written, so the sheet shows

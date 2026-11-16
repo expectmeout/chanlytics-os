@@ -323,7 +323,7 @@ test("a calendar that could not be READ is the run failing, not the day done: no
     const ctx = context({ calendar: "unavailable" });
     assert.deepEqual(
       await runPlaybook(blip.ports, cmd({ playbook: p, ctx })),
-      { outcome: "failed", error: "calendar: could not be read" },
+      { outcome: "failed", error: "calendar: couldn't be read" },
       trigger,
     );
     assert.deepEqual(

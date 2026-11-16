@@ -24,7 +24,7 @@ export function RuleEditor({ list, flash, onDone }: { list: SavedList; flash: Fl
     const r = await lists.draft(w);
     setBusy(false);
     if (!r.ok) {
-      setError(r.message || "Could not draft the rule.");
+      setError(r.message || "Couldn't draft the rule.");
       return;
     }
     setDraft(r.data);
@@ -36,7 +36,7 @@ export function RuleEditor({ list, flash, onDone }: { list: SavedList; flash: Fl
     const r = await lists.setRule(list.id, draft.rule);
     setBusy(false);
     if (!r.ok) {
-      setError(r.message || "Could not change who is on it.");
+      setError(r.message || "Couldn't change who is on it.");
       return;
     }
     flash({

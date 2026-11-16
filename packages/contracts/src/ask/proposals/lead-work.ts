@@ -236,7 +236,7 @@ export const reachOutMakeSpec: ProposalSpec = {
   receipt: ({ payload: pl }, data) => {
     const name = asText(rec(pl.chain).name);
     return rec(data).words_ok === true
-      ? `“${name}” is saved, and its emails have your OK: its first run goes as “Before each batch” says.`
+      ? `“${name}” is saved, and its emails have your approval: its first run goes as “Before each batch” says.`
       : `“${name}” is saved. Nothing goes until you OK the first emails. After that, each batch goes as Before each batch says on Cold email.`;
   },
   made: (_p, data) => idIn(rec(data), "root_id"),

@@ -61,7 +61,7 @@ function manySaid(data: unknown, verb: string): { done: number; failed: number; 
   const skipped = Array.isArray(d.skipped) ? (d.skipped as unknown[]) : [];
   const failed = failedRows.length + skipped.length;
   const reason = asText(rec(failedRows[0]).message) || (skipped.length ? "no longer in this workspace" : "");
-  return { done, failed, said: failed ? `${failed} could not be ${verb}${reason ? ` — ${reason}` : ""}` : "" };
+  return { done, failed, said: failed ? `${failed} couldn't be ${verb}${reason ? ` — ${reason}` : ""}` : "" };
 }
 
 /**

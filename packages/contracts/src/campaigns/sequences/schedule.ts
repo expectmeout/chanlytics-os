@@ -166,7 +166,7 @@ function dateStand(row: SequenceRowDto, date: NonNullable<SequenceRowDto["date"]
   const to = `to ${plural(oneOffPeople(row), "person", "people")}`;
   switch (date.state) {
     case "pending_approval":
-      return `Waits for your OK, ${to}`;
+      return `Waits for your approval, ${to}`;
     case "sending":
       return `Going out now, ${to}`;
     case "sent":
@@ -411,7 +411,7 @@ export function scheduleStepState(row: SequenceRowDto, step: SequenceStepDto, ct
   if (batch) {
     // An OK sends it at once; a customer's waits only until its day is gone (batchWaitsUntilTonight).
     const until = batchWaitsUntilTonight(batch) ? ` · ${SEQUENCE_WORDS.untilTonight}` : "";
-    return { tone: "need", words: `${batch.people > 0 ? `${batch.people} wait` : "Waits"} for your OK${until}` };
+    return { tone: "need", words: `${batch.people > 0 ? `${batch.people} wait` : "Waits"} for your approval${until}` };
   }
   if (row.starts === "leads") {
     const now = leadStepNow(row, step, ctx);

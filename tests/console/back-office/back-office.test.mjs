@@ -1982,7 +1982,7 @@ test("Health's timings card: the 75th percentile in words, a line for each metri
 test("timings that could not be read say so, and none yet says that, never an empty card", async () => {
   const unread = mount(SpeedTab, { P: WORDS, h: { vitals: null, speed: null, day_rows: null } });
   await unread.settle();
-  assert.equal(textOf(byId(unread.tree, "platform-vitals-words")), "Page timings could not be read just now.");
+  assert.equal(textOf(byId(unread.tree, "platform-vitals-words")), "Page timings couldn't be read just now.");
   assert.equal(byId(unread.tree, "platform-vitals-lines"), null, "nothing is drawn, because nothing is known");
   const none = mount(SpeedTab, { P: WORDS, h: { vitals: [], speed: null, day_rows: [] } });
   await none.settle();

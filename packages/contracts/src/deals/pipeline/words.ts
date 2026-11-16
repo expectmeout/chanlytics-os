@@ -85,7 +85,7 @@ export const PIPELINE_WORDS = {
   /** The board: a column with nobody in it, what a card says of itself to a screen reader, and a card's menu. */
   board: { nobody: "Nobody here", card: "Open", menu: "More for", move: "Move to" },
   /** The row's menu: the deal's own acts come from the deal sheet's words; these are its two doors. */
-  row: { menu: "More for", thread: "Open the thread", page: "Open their page" },
+  row: { menu: "More for", thread: "Open the conversation", page: "Open their page" },
   /** A selection's pass (Mark as passed · N): the one question, asked once for every proposal in it. */
   pass: {
     button: "Mark as passed",

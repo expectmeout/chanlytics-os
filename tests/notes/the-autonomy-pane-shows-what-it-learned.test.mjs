@@ -56,7 +56,7 @@ test("a row a new sequence starts by says what its sequences' batches did, and a
   const tree = again(() => h(PolicyTable, { rows, put() {}, busy: null, lines: { held, evidence } }));
   assert.equal(
     said(tree, "pol-held-reengage"),
-    "2 sequences · Last 90 days: 5 batches went: 1 after your OK, 4 on their own · you stopped 1 · 1 skipped: nobody answered in time",
+    "2 sequences · Last 90 days: 5 batches went: 1 after your approval, 4 on their own · you stopped 1 · 1 skipped: nobody answered in time",
   );
   assert.equal(byTestId(tree, "pol-held-faq"), null, "a class no sequence is made under says none");
   fresh();

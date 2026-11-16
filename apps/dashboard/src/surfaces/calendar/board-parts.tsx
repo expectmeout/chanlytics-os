@@ -402,7 +402,7 @@ function unreadNotice(p: NoticeProps): NoticeVM {
     id: "feed",
     fact: (
       <>
-        <b>Your calendar could not be read.</b> {why}
+        <b>{"Your calendar couldn't be read."}</b> {why}
         {until}
       </>
     ),
@@ -411,7 +411,7 @@ function unreadNotice(p: NoticeProps): NoticeVM {
         {p.refreshing ? "Retrying…" : "Retry"}
       </Button>
     ),
-    label: "Your calendar could not be read.",
+    label: "Your calendar couldn't be read.",
   };
 }
 

@@ -97,7 +97,7 @@ export const DEAL_SHEET_WORDS = {
   reading: "Reading…",
   gone: "This person is not in your workspace.",
   moved: "Their deal has moved on since this was opened. Close this and look again.",
-  failed: "Could not record this.",
+  failed: "Couldn't record this.",
   /**
    * The stage's word a recorded move is said in: the stage's own (DEAL_STAGE_WORDS), so a sheet, a card and People say one
    * word (the wiring's second audit, S9-9). An edit moves no stage, and says what it did.

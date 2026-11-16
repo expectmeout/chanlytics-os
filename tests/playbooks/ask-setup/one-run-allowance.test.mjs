@@ -390,7 +390,7 @@ test("the week's touches could not be read: the card declines in its words, and 
   // a broadcast's door says them (core createBroadcast), never "this week" and never "from a campaign".
   assert.match(
     contracts.PLAYBOOK_CARD_REFUSALS.weekUnread,
-    /^who has had a message from you lately, or has one due, could not be read just now/,
+    /^who has had a message from you lately, or has one due, couldn't be read just now/,
   );
   assert.doesNotMatch(contracts.PLAYBOOK_CARD_REFUSALS.weekUnread, /this week/);
 });
@@ -416,6 +416,6 @@ test("the autonomy modes could not be read: the card declines in its words, and 
   assert.equal(JSON.parse(r.result).error, contracts.PLAYBOOK_CARD_REFUSALS.modeUnread);
   assert.equal(
     contracts.PLAYBOOK_CARD_REFUSALS.modeUnread,
-    "the sending mode of this campaign's class could not be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
+    "the sending mode of this campaign's class couldn't be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
   );
 });

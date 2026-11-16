@@ -1929,8 +1929,8 @@ test("Mark as passed for a selection: only the proposals out pass, the rest are 
   });
   assert.deepEqual(pipelinePassDone(0, 2), { words: "2 had changed, and were left as they are", tone: "warn" });
   // One that could not be recorded at all (offline, a refusal of another kind) is not one that had changed.
-  assert.deepEqual(pipelinePassDone(1, 0, 1), { words: "1 marked as passed · 1 could not be marked", tone: "warn" });
-  assert.deepEqual(pipelinePassDone(0, 0, 2), { words: "2 could not be marked", tone: "danger" });
+  assert.deepEqual(pipelinePassDone(1, 0, 1), { words: "1 marked as passed · 1 couldn't be marked", tone: "warn" });
+  assert.deepEqual(pipelinePassDone(0, 0, 2), { words: "2 couldn't be marked", tone: "danger" });
   // Fifty at a press, as People's bar writes: the rest stay selected, and say so.
   const many = Array.from({ length: PIPELINE_PASS_MAX + 3 }, (_, i) =>
     toPersonRowVM(
@@ -2941,8 +2941,8 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   let items = listOf(menuOf(draw(), "wes"));
   assert.deepEqual(
     items.map((it) => (it.divider ? "—" : it.label)),
-    [DEAL_ACT_WORDS.won, DEAL_ACT_WORDS.lost, DEAL_ACT_WORDS.edit, "—", "Open the thread", "Open their page"],
-    "the thread's Deal group but its send, which is the deal sheet's",
+    [DEAL_ACT_WORDS.won, DEAL_ACT_WORDS.lost, DEAL_ACT_WORDS.edit, "—", "Open the conversation", "Open their page"],
+    "the conversation's Deal group but its send, which is the deal sheet's",
   );
   items[0].onClick();
   const wes = globalThis.window.__PEOPLE.rows.find((r) => r.id === "wes");
@@ -2950,7 +2950,7 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   items.at(-1).onClick();
   assert.deepEqual(opened, ["wes"], "their page");
   items.at(-2).onClick();
-  assert.equal(went.at(-1), `inbox/${wes.threadId}`, "their thread");
+  assert.equal(went.at(-1), `inbox/${wes.threadId}`, "their conversation");
   // A consultation held: start one, with nothing to name a deal by.
   items = listOf(menuOf(draw(), "hana"));
   items[0].onClick();
@@ -2976,7 +2976,7 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   try {
     assert.deepEqual(
       listOf(menuOf(draw(), "wes")).map((it) => it.label),
-      ["Open the thread", "Open their page"],
+      ["Open the conversation", "Open their page"],
     );
   } finally {
     globalThis.window.__ME = { role: "owner" };
@@ -3539,7 +3539,7 @@ test("the bridge's pass reads each person afresh, records only a deal still a pr
     assert.deepEqual(
       posts,
       ["POST /api/v1/contacts/ann/deal", "POST /api/v1/contacts/cy/deal", "POST /api/v1/contacts/ed/deal"],
-      "Bo became a client since: nothing is written over him; Di could not be read: nothing is sent for her",
+      "Bo became a client since: nothing is written over him; Di couldn't be read: nothing is sent for her",
     );
     assert.equal(
       asked.filter((a) => a === "GET /api/v1/contacts").length,
@@ -3565,7 +3565,7 @@ test("the bridge publishes the deal kit the pages still read by name (the thread
     assert.equal(
       globalThis.window.__deal.menu.name,
       dealMenuActs.name,
-      "the thread's Deal group reads its acts by name",
+      "the conversation's Deal group reads its acts by name",
     );
     // The card's next act, the sheet's rules and the cards' words are imported where they are drawn (person-deal.tsx,
     // the sheets): the frame stopped carrying them for every page (the loadability review, 19 Oct 2026).

@@ -364,7 +364,7 @@ export const WHATSAPP_PART_WORDS = {
   coming: "Coming in",
   next: "Next",
   note: (assistant: string | null) =>
-    `Older chats show in each person's thread as before Chanlytics. ${assistant ?? "AI"} answers only what comes in from now.`,
+    `Older chats show in each person's conversation as before Chanlytics. ${assistant ?? "AI"} answers only what comes in from now.`,
 } as const;
 
 /**

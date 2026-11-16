@@ -490,7 +490,7 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
   assert.equal(news.subject, "Campaign “Spring offer” sent");
   assert.equal(
     news.body,
-    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish). Replies land in the Inbox.",
+    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the conversation, or a run that did not finish). Replies land in the Inbox.",
     "as many as it reached, of how many, and what a person is held for; a hold on email is not named on a run nobody was held on for one",
   );
   // A run that skipped someone for a hold of the workspace's on email names that hold, and only that one.
@@ -498,7 +498,7 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
   await sendBroadcastBatch(held.ports, cmd());
   assert.equal(
     held.log.at(-1)[1].body,
-    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the thread, offers and news by email are paused, or a run that did not finish). Replies land in the Inbox.",
+    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the conversation, offers and news by email are paused, or a run that did not finish). Replies land in the Inbox.",
   );
   assert.ok(held.ops().indexOf("finish") >= 0 && held.log.at(-1)[0] === "alert");
   // The week's breath: a send by hand left someone out (skipped heard_this_week), and its tally counts them as held. The
@@ -507,7 +507,7 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
   await sendBroadcastBatch(breath.ports, cmd());
   assert.equal(
     breath.log.at(-1)[1].body,
-    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the thread, not sent: they hear from you within a week of it, or a run that did not finish). Replies land in the Inbox.",
+    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the conversation, not sent: they hear from you within a week of it, or a run that did not finish). Replies land in the Inbox.",
   );
   assert.ok(breath.log.at(-1)[1].body.includes(`${HELD_REASONS.heard_this_week}, or a run that did not finish`));
   // The month's allowance, the other reason a run skips someone for that its news left out.
@@ -515,7 +515,7 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
   await sendBroadcastBatch(month.ports, cmd());
   assert.equal(
     month.log.at(-1)[1].body,
-    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the thread, this month's allowance is used up, or a run that did not finish). Replies land in the Inbox.",
+    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the conversation, this month's allowance is used up, or a run that did not finish). Replies land in the Inbox.",
   );
   // Several, in the list's own order whatever order the port answers them in; and a run the breath left everyone out of.
   const all = fakes({
@@ -526,7 +526,7 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
   await sendBroadcastBatch(all.ports, cmd());
   assert.equal(
     all.log.at(-1)[1].body,
-    `None of the 3 people on it got it: each was held back (no recorded yes, asked to stop, no number, a person had the thread, ${HELD_REASONS.email_marketing_disabled}, ${HELD_REASONS.heard_this_week}, ${HELD_REASONS.month_allowance}, or a run that did not finish). The run's page says who and why.`,
+    `None of the 3 people on it got it: each was held back (no recorded yes, asked to stop, no number, a person had the conversation, ${HELD_REASONS.email_marketing_disabled}, ${HELD_REASONS.heard_this_week}, ${HELD_REASONS.month_allowance}, or a run that did not finish). The run's page says who and why.`,
   );
   // Read before the run is closed: a read that fails leaves the run open for the job's next try, the owner's news not lost.
   const unread = fakes({ remaining: 0, tally: { sent: 1, held: 1 }, heldFor: new Error("PostgREST down") });

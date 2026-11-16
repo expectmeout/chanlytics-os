@@ -291,7 +291,7 @@ function noteActs(c: Card) {
     const r = await fn();
     setBusy(false);
     if (!r.ok) {
-      flash({ tone: "danger", msg: <>{r.message || "Could not save this note."}</> });
+      flash({ tone: "danger", msg: <>{r.message || "Couldn't save this note."}</> });
       return false;
     }
     flash({ msg: <>{done}</> });

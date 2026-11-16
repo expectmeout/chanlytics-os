@@ -353,7 +353,7 @@ test("a send whose first batch still waits says so: the receipt never claims wha
   const { ctx } = world([send]);
   answers.push({ status: 200, json: { ok: true, data: { id: "pb-1", name: "Offer", words_ok: false } } });
   const a = await runAct(ctx, req(), member, { messageId: MSG, proposalId: "p-s", by: "press" });
-  assert.match(a.outcome.receipt, /Its first batch waits for your OK\./);
+  assert.match(a.outcome.receipt, /Its first batch waits for your approval\./);
 });
 
 test("an undo goes through the spec's own way back, naming the decision it reverses, and the turn says so", async () => {

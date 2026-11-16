@@ -54,7 +54,7 @@ export function NewListRow({
     const r = await onCreate(n, draft ? draft.rule : null);
     setBusy(false);
     if (!r.ok) {
-      setError(r.message || "Could not make the list.");
+      setError(r.message || "Couldn't make the list.");
       return;
     }
     close();
@@ -67,7 +67,7 @@ export function NewListRow({
     const r = await lists.draft(w);
     setBusy(false);
     if (!r.ok) {
-      setError(r.message || "Could not draft the list.");
+      setError(r.message || "Couldn't draft the list.");
       return;
     }
     setDraft(r.data);

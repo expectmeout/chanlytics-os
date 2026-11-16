@@ -207,7 +207,7 @@ export function useLeadPile({ flash, aim }: { flash: Flash; aim: LeadAim }) {
     // The sequences' own add verb (its door and its undo, as the sheet's and Ask's): the pile says what it did itself.
     const r = await commitVerb("sequence_add", { sequence_id: to.rootId, lead_ids: ids, name: to.name });
     if (!r.ok) {
-      flash(refusalToast(r, "It could not be added"));
+      flash(refusalToast(r, "It couldn't be added"));
       return false;
     }
     const answer = r.data as ReachOutAddDto;

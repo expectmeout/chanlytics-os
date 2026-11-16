@@ -1,7 +1,7 @@
 {
-  "rows": 180,
+  "rows": 181,
   "same": 14,
-  "differ": 166,
+  "differ": 167,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -679,8 +679,8 @@
       }
     },
     "POST contacts": {
-      "changes": "contacts INSERT UPDATE · leads UPDATE · person_doubts INSERT",
-      "tells": "contacts",
+      "changes": "contacts INSERT UPDATE · leads UPDATE · notifications UPDATE · person_doubts INSERT",
+      "tells": "contacts · notifications",
       "extra": {
         "people": "clients/person"
       },
@@ -690,6 +690,7 @@
         "inbox": "every page",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
+        "notifications": "every page",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
         "reach_outs": "campaigns/messages, messages, outbound",
@@ -728,14 +729,15 @@
       }
     },
     "POST contacts/[id]/deal": {
-      "changes": "contacts UPDATE · deals INSERT UPDATE · leads UPDATE",
-      "tells": "contacts",
+      "changes": "contacts UPDATE · deals INSERT UPDATE · leads UPDATE · notifications UPDATE",
+      "tells": "contacts · notifications",
       "missing": {
         "calendar": "every page",
         "conversations": "every page",
         "inbox": "every page",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
+        "notifications": "every page",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
         "reach_outs": "every page",
@@ -897,8 +899,8 @@
       }
     },
     "POST contacts/import": {
-      "changes": "contacts INSERT UPDATE · imports INSERT UPDATE · leads UPDATE · person_doubts INSERT",
-      "tells": "contacts",
+      "changes": "contacts INSERT UPDATE · imports INSERT UPDATE · leads UPDATE · notifications UPDATE · person_doubts INSERT",
+      "tells": "contacts · notifications",
       "extra": {
         "people": "clients/person"
       },
@@ -910,6 +912,7 @@
         "inbox": "every page",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
+        "notifications": "every page",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
         "reach_outs": "campaigns/messages, messages, outbound",
@@ -1537,8 +1540,8 @@
       }
     },
     "POST leads/[id]/addressee": {
-      "changes": "contacts UPDATE · leads UPDATE",
-      "tells": "contacts",
+      "changes": "contacts UPDATE · leads UPDATE · notifications UPDATE",
+      "tells": "contacts · notifications",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
       },
@@ -1548,6 +1551,7 @@
         "conversations": "every page",
         "inbox": "every page",
         "live": "live, start, today",
+        "notifications": "every page",
         "people": "clients, clients/get-yes, segments, today",
         "person": "clients/person",
         "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
@@ -1599,6 +1603,44 @@
         "reach_outs": "campaigns/messages, messages, outbound",
         "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
         "today": "today"
+      }
+    },
+    "POST leads/[id]/name": {
+      "changes": "contacts UPDATE · leads UPDATE · notifications UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends UPDATE · sequences UPDATE · tenant_config UPDATE · tenants UPDATE",
+      "tells": "contacts · notifications · tenant_config · tenants",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "ask_morning": "today",
+        "audiences": "broadcasts",
+        "broadcasts": "every page",
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "content": "campaigns/content, campaigns/content/library",
+        "conversations": "every page",
+        "files": "admin/files",
+        "inbox": "every page",
+        "live": "live, start, today",
+        "notifications": "every page",
+        "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
+        "people": "clients, clients/get-yes, clients/person, segments, today",
+        "person": "clients/person",
+        "playbooks": "every page",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "every page",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "reports_reviews": "reports/reviews",
+        "sequences": "every page",
+        "settings": "every page",
+        "setup": "admin/integrations, admin/receptionist, start, today",
+        "today": "every page",
+        "today_pins": "today",
+        "workspace": "every page"
       }
     },
     "POST leads/[id]/put-back": {
@@ -1683,8 +1725,8 @@
       }
     },
     "POST leads/bulk": {
-      "changes": "contacts UPDATE · lead_operations INSERT · lead_search_members UPDATE · leads UPDATE",
-      "tells": "contacts",
+      "changes": "contacts UPDATE · lead_operations INSERT · lead_search_members UPDATE · leads UPDATE · notifications UPDATE",
+      "tells": "contacts · notifications",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
       },
@@ -1694,6 +1736,7 @@
         "conversations": "every page",
         "inbox": "every page",
         "live": "live, start, today",
+        "notifications": "every page",
         "people": "clients, clients/get-yes, segments, today",
         "person": "clients/person",
         "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
@@ -1711,8 +1754,8 @@
       }
     },
     "POST leads/export": {
-      "changes": "contacts UPDATE · leads UPDATE",
-      "tells": "contacts",
+      "changes": "contacts UPDATE · leads UPDATE · notifications UPDATE",
+      "tells": "contacts · notifications",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
       },
@@ -1722,6 +1765,7 @@
         "conversations": "every page",
         "inbox": "every page",
         "live": "live, start, today",
+        "notifications": "every page",
         "people": "clients, clients/get-yes, segments, today",
         "person": "clients/person",
         "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
@@ -2020,8 +2064,8 @@
       }
     },
     "POST reach-out-replies/[id]/undo": {
-      "changes": "contacts UPDATE · lead_suppressions DELETE INSERT · leads UPDATE · sequence_replies UPDATE",
-      "tells": "contacts",
+      "changes": "contacts UPDATE · lead_suppressions DELETE INSERT · leads UPDATE · notifications UPDATE · sequence_replies UPDATE",
+      "tells": "contacts · notifications",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
       },
@@ -2029,6 +2073,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "live": "live, start, today",
+        "notifications": "every page",
         "people": "every page",
         "person": "clients/person",
         "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
@@ -2619,12 +2664,13 @@
       }
     },
     "PUT contacts/[id]/details": {
-      "changes": "contacts UPDATE · deals INSERT UPDATE · leads UPDATE · person_notes INSERT",
-      "tells": "contacts",
+      "changes": "contacts UPDATE · deals INSERT UPDATE · leads UPDATE · notifications UPDATE · person_notes INSERT",
+      "tells": "contacts · notifications",
       "missing": {
         "calendar": "every page",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
+        "notifications": "every page",
         "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients/leads, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",

@@ -81,7 +81,7 @@ export function toBookingReportVM(dto: BookingReportDto | null | undefined): Boo
       present: false,
       calendar: "unavailable",
       headline: "—",
-      sub: "Your calendar could not be read.",
+      sub: "Your calendar couldn't be read.",
       words: "",
       pct: null,
       asked: dto.asked,

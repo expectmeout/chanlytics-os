@@ -544,7 +544,7 @@ test("the month's allowance by email and by text, said once half is used", () =>
 });
 
 test("the head's lines for the month: each channel from half its allowance, emails first, and nothing while both are under or unread", () => {
-  assert.deepEqual(allowanceLines(null), [], "a count that could not be read says nothing");
+  assert.deepEqual(allowanceLines(null), [], "a count that couldn't be read says nothing");
   assert.deepEqual(allowanceLines({ email: 999, sms: 249 }), [], "a quiet page under half");
   assert.deepEqual(allowanceLines({ email: 1240, sms: 249 }), ["1,240 of 2,000 emails used this month"]);
   assert.deepEqual(allowanceLines({ email: 10, sms: 250 }), ["250 of 500 texts used this month"]);
@@ -655,7 +655,7 @@ test("said before sending: how many will be held back for want of the month's ro
   assert.equal(
     allowanceBeforeSend({ email: 50, sms: 50 }, null, null, "marketing"),
     null,
-    "a count that could not be read says nothing",
+    "a count that couldn't be read says nothing",
   );
   assert.equal(
     allowanceBeforeSend({ email: 50, sms: 50 }, { email: 2000, sms: 500 }, "visit_tomorrow", "conversational"),
@@ -681,7 +681,7 @@ test("an email wire the dashboard could not ask the edge about is not offered, a
     why: CHANNEL_WORDS.unchecked,
     unchecked: true,
   });
-  assert.equal(CHANNEL_WORDS.unchecked, "This could not be checked just now.");
+  assert.equal(CHANNEL_WORDS.unchecked, "This couldn't be checked just now.");
   assert.equal(channelsReady({ ...f, email: { mailbox: true, domain: true } }).email.ready, true);
   assert.equal(channelsReady({ ...f, email: { mailbox: true, domain: false } }).email.why, CHANNEL_WORDS.noEmailDomain);
 });
@@ -718,7 +718,7 @@ test("the note under an offer says which channels carry offers, as the workspace
   // Each way offers by email can be closed leaves the note as it was: the campaigns domain, the address, a pause, a read that failed.
   for (const [what, offers] of [
     ["the campaigns domain is not set up", { ...OPEN, campaigns: false }],
-    ["the domain could not be asked", { ...OPEN, campaigns: null }],
+    ["the domain couldn't be asked", { ...OPEN, campaigns: null }],
     ["the business has no postal address", { ...OPEN, address: false }],
     ["the workspace's offers are paused", { ...OPEN, paused: { at: "2026-10-01T10:00:00Z", reason: "complaints" } }],
   ])

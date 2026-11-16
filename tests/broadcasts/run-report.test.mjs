@@ -311,12 +311,16 @@ test("what came back: each reply in its own words, who answered it first and whe
     "a note to the team is not an answer, and neither is the next template the machine sent",
   );
   assert.equal(by["c-asked"].answered_at, null);
-  assert.equal(by["c-asked"].waiting_on_you, true, "its thread waits on a person");
+  assert.equal(by["c-asked"].waiting_on_you, true, "its conversation waits on a person");
   assert.equal(by["c-team"].answered_by, "team");
   assert.equal(by["c-team"].answered_at, at(H + 10 * 60_000));
   assert.equal(by["c-quiet"].replied, false);
   assert.equal(by["c-quiet"].reply_words, null);
-  assert.equal(by["c-quiet"].waiting_on_you, false, "a thread waiting for some other reason is not this run's answer");
+  assert.equal(
+    by["c-quiet"].waiting_on_you,
+    false,
+    "a conversation waiting for some other reason is not this run's answer",
+  );
   assert.equal(by["c-photo"].replied, true);
   assert.equal(by["c-photo"].reply_words, null, "a photo has no words, and none are made up for it");
 });
@@ -361,14 +365,14 @@ test("a failure that names its wire says the channel's own provider, never Whats
     ["wire_unavailable", "wire_unavailable:sms", "wire_unavailable:email"],
   );
   const words = (code) => C.broadcastFailureWords(code);
-  assert.equal(words("wire_unavailable"), "WhatsApp could not be reached", "stored with no channel: WhatsApp's");
-  assert.equal(words("wire_unavailable:sms"), "the texting provider could not be reached");
-  assert.equal(words("wire_unavailable:email"), "the mail provider could not be reached");
+  assert.equal(words("wire_unavailable"), "WhatsApp couldn't be reached", "stored with no channel: WhatsApp's");
+  assert.equal(words("wire_unavailable:sms"), "the texting provider couldn't be reached");
+  assert.equal(words("wire_unavailable:email"), "the mail provider couldn't be reached");
   assert.equal(words("throttled"), "WhatsApp kept limiting how fast this number may send");
   assert.equal(words("throttled:email"), "the mail provider kept limiting how fast this workspace may send");
-  assert.equal(words("stalled:email"), "its mailbox could not be read for half an hour");
-  assert.equal(words("stalled:sms"), "its line's credentials could not be read for half an hour");
-  assert.equal(words("people_unreadable"), "its people could not be read for half an hour");
+  assert.equal(words("stalled:email"), "its mailbox couldn't be read for half an hour");
+  assert.equal(words("stalled:sms"), "its line's credentials couldn't be read for half an hour");
+  assert.equal(words("people_unreadable"), "its people couldn't be read for half an hour");
   for (const email of ["wire_unavailable:email", "throttled:email", "stalled:email"]) {
     assert.ok(!/whatsapp|number/i.test(words(email)), `${email} says ${words(email)}`);
     assert.ok(!/whatsapp|number/i.test(C.broadcastFailureFix(email)), `${email}: ${C.broadcastFailureFix(email)}`);
@@ -387,10 +391,10 @@ test("a failure that names its wire says the channel's own provider, never Whats
   );
   assert.match(C.broadcastFailureFix("throttled", 1), /^The first one got it, then WhatsApp limited the number\./);
   // A code that does not name its wire has no channel to carry: one that is given one, and any other text, is unknown.
-  assert.equal(words("paused:email"), "it could not finish");
-  assert.equal(words("wire_unavailable:fax"), "it could not finish");
-  assert.equal(words("wire_unavailable:email:sms"), "it could not finish");
-  assert.equal(words("something_new"), "it could not finish");
+  assert.equal(words("paused:email"), "it couldn't finish");
+  assert.equal(words("wire_unavailable:fax"), "it couldn't finish");
+  assert.equal(words("wire_unavailable:email:sms"), "it couldn't finish");
+  assert.equal(words("something_new"), "it couldn't finish");
   assert.equal(C.broadcastFailureFix("paused:email"), null);
   assert.equal(words(null), "no reason was recorded");
   // The run's own page says it too (the stop of a failed run).
@@ -399,7 +403,7 @@ test("a failure that names its wire says the channel's own provider, never Whats
       { broadcast: { state: "failed", failure, params: [] }, recipients: [] },
       { windowMs: C.REPLY_WINDOW_MS, nowMs: T0, clock: () => null },
     ).stop;
-  assert.equal(stop("wire_unavailable:email").words, "the mail provider could not be reached");
+  assert.equal(stop("wire_unavailable:email").words, "the mail provider couldn't be reached");
   assert.equal(stop("wire_unavailable:email").tone, "danger");
   assert.equal(stop("paused").tone, "warn");
 });
@@ -653,8 +657,12 @@ test('everyone it touched, each in the words of what happened to them -- and a g
   const by = Object.fromEntries(vm.people.map((p) => [p.contact_id, p]));
   assert.deepEqual(
     [by.replied.pill, by.replied.words, by.replied.door],
-    [{ label: "Replied", tone: "ok" }, "“Saturday at 2 works”", { label: "Open the thread", to: "inbox/th-cv-c" }],
-    "a reply is quoted, with its thread",
+    [
+      { label: "Replied", tone: "ok" },
+      "“Saturday at 2 works”",
+      { label: "Open the conversation", to: "inbox/th-cv-c" },
+    ],
+    "a reply is quoted, with its conversation",
   );
   assert.equal(by.replied.initials, "PN");
   assert.equal(by.replied.at, "t4", "the last thing that happened: the reply");
@@ -679,7 +687,7 @@ test('everyone it touched, each in the words of what happened to them -- and a g
   );
   assert.deepEqual(
     [by.lost.pill, by.lost.words],
-    [{ label: "Never delivered", tone: "danger" }, "WhatsApp could not deliver it"],
+    [{ label: "Never delivered", tone: "danger" }, "WhatsApp couldn't deliver it"],
   );
   assert.deepEqual(
     [by.held.pill.label, by.held.words, by.held.at, by.held.held],
@@ -890,7 +898,7 @@ test("each part of a run's report says its own words: the span its bars cover, w
   const all = report([person({ message_status: "read", read_at: at(H), replied: true, replied_at: at(H) })]);
   assert.deepEqual(subs(all).slice(1, 3), [
     ["delivered", "every one reached the handset", "ok"],
-    ["replied", "each one is a thread in the Inbox", "ok"],
+    ["replied", "each one is a conversation in the Inbox", "ok"],
   ]);
   assert.deepEqual(
     all.figures[1].bars,
@@ -959,7 +967,7 @@ test("a run's report says each person's channel where it reached anybody by some
   assert.deepEqual(by["k-wa"][0], "on WhatsApp");
   assert.deepEqual(by["k-mail"], ["by email", "the email was not delivered"]);
   assert.deepEqual(by["k-text"], ["by text", "the text was not delivered"]);
-  assert.deepEqual(by["k-wa2"], ["on WhatsApp", "WhatsApp could not deliver it"]);
+  assert.deepEqual(by["k-wa2"], ["on WhatsApp", "WhatsApp couldn't deliver it"]);
   assert.deepEqual(
     by["k-held"],
     ["by email", "no email address"],

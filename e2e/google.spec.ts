@@ -122,8 +122,8 @@ test.describe("Google on a real workspace", () => {
     const profileRow = page.getByTestId("connection-google_profile");
     const listingRow = page.getByTestId("connection-google_listing");
     await expect(profileRow).toContainText("Google Business Profile");
-    await expect(profileRow).toContainText(/Connected|Could not sync/);
-    await expect(listingRow).toContainText(/Watched|Could not be read/);
+    await expect(profileRow).toContainText(/Connected|Couldn't sync/);
+    await expect(listingRow).toContainText(/Watched|Couldn't be read/);
     await expect(JSON.stringify(await (await apiGet(page, "/api/v1/google")).json())).not.toMatch(
       /refresh_token|access_token|credentials_ref/,
     );

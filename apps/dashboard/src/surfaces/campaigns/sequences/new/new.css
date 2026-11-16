@@ -44,16 +44,14 @@
   opacity: 0.55;
 }
 
-/* The owner's line, kept on top: the one it was drafted from, or the one that last changed it, with its Undo. */
+/* The owner's line, kept on top: the one it was drafted from, or the one that last changed it, with its Undo. Words on the
+   page, no box of their own (16 Nov 2026: the draft read as a stack of boxes). */
 .sq-nw-said {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
-  gap: var(--space-1) var(--space-3);
+  gap: 2px var(--space-3);
   align-items: start;
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xl);
-  background: var(--surface-inset-fill);
+  padding: var(--space-1) var(--space-1) 0;
 }
 .sq-nw-said > .icon {
   margin-top: var(--space-1);
@@ -99,24 +97,61 @@
   width: 100%;
 }
 
-/* Who and when, one sentence of words to press, and who it reaches under it. */
+/* Who and when, one sentence of words to press, and who it reaches under it: on the page, no box round them (16 Nov 2026,
+   "too busy"). */
 .sq-nw-who {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-2xl);
-  background: var(--surface-inset-fill);
+  padding: 0 var(--space-1);
 }
 .sq-nw-sentence {
   margin: 0;
   font-size: var(--text-lg);
-  line-height: 2;
+  line-height: 1.75;
   color: var(--ink-muted);
 }
-.sq-nw-word {
-  vertical-align: middle;
+/* A choice in the sentence is its words, underlined, with a small caret: no capsule round each (Ruben, 16 Nov 2026). */
+.sq-nw-sentence .sq-nw-word {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  overflow: visible;
+  white-space: normal;
+  color: var(--ink);
+  font-weight: var(--weight-medium);
+  vertical-align: baseline;
+}
+.sq-nw-word-says {
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 5px;
+  transition: text-decoration-color var(--duration-fast) var(--ease-out);
+}
+.sq-nw-sentence .sq-nw-word > svg {
+  flex: none;
+  color: var(--ink-dim);
+}
+.sq-nw-sentence .sq-nw-word[data-empty] {
+  color: var(--ink-dim);
+}
+/* A finger's room round words that are no taller than the line. */
+.sq-nw-sentence .sq-nw-word::after {
+  content: "";
+  position: absolute;
+  inset: -6px -4px;
+}
+.sq-nw-sentence .sq-nw-word:focus-visible {
+  outline: 0;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--focus-ring);
+}
+@media (hover: hover) {
+  .sq-nw-sentence .sq-nw-word:hover .sq-nw-word-says {
+    text-decoration-color: var(--ink-dim);
+  }
 }
 .sq-nw-reach {
   display: flex;
@@ -124,8 +159,6 @@
   align-items: center;
   gap: var(--space-2);
   margin: 0;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
@@ -157,11 +190,24 @@
 .sq-nw-case {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius-xl);
   background: var(--surface-inset-fill);
+}
+/* One quiet act at the end of the words' line, not a row of its own (16 Nov 2026: two lines, not four). */
+.sq-nw-case[data-inline] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--space-3);
+}
+.sq-nw-case[data-inline] > .sq-nw-case-head {
+  grid-column: 1 / -1;
+}
+.sq-nw-case[data-inline] > .sq-nw-case-acts {
+  margin: 0;
 }
 .sq-nw-case[data-tone="warn"] {
   border-color: var(--warn-line);
@@ -176,7 +222,7 @@
   align-items: center;
   gap: var(--space-2);
   margin: 0;
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
 }
 .sq-nw-case[data-tone="warn"] .sq-nw-case-head {
@@ -389,6 +435,11 @@
      asking dock does (campaigns.css, .bc-approval-foot): a pill's round ends cut across its words and its Discard. */
   .cm-pane-foot:has(> .sq-nw-foot[data-foot-pair] > .sq-nw-foot-line:not(.is-quiet)) {
     border-radius: var(--surface-control-radius);
+  }
+  /* The foot floats over the steps: on the control layer's own ground (8% in dark) the words under it read through Start
+     and Keep as a draft (16 Nov 2026, "too busy"); at a pop's 72% they still did, so it stands on the pop's own fill. */
+  .cm-pane-foot:has(> .sq-nw-foot) {
+    background-color: var(--surface-pop-fill);
   }
 }
 .sq-nw-name {

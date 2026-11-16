@@ -257,7 +257,7 @@ test("an offer leaves from the mailbox on the campaigns domain, answered at the 
   assert.equal(
     mail(1).body,
     "Hi Ada, ten percent off a Saturday move this month.",
-    "the thread shows the words, not the foot",
+    "the conversation shows the words, not the foot",
   );
   assert.equal(mail(1).meta.email.request.from, first.from);
 });
@@ -479,7 +479,7 @@ test("where the deployment names a campaigns domain the provider does not verify
   assert.equal(wentOn.news.length, 1);
   assert.equal(
     wentOn.news[0].body,
-    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the thread, no offers or news by email for now, or a run that did not finish). Replies land in the Inbox.",
+    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the conversation, no offers or news by email for now, or a run that did not finish). Replies land in the Inbox.",
   );
   assert.deepEqual(
     paged.map((p) => [p[0], /goes on for everyone else/.test(p[2])]),
@@ -488,7 +488,7 @@ test("where the deployment names a campaigns domain the provider does not verify
   );
   // Unread: the provider could not be asked. The email wire is bound as ever, and the intake says the domain could not be
   // checked (core offersUnread): a run of offers waits a minute and asks again, nobody claimed.
-  const UNREAD = "the campaigns domain campaigns.example.com could not be checked";
+  const UNREAD = "the campaigns domain campaigns.example.com couldn't be checked";
   const unread = world({ contacts: [customer(1)] });
   const waiting = await attempt(unread, (ctx) => {
     ctx.email = { domain: MAIL, campaignsUnread: UNREAD };
@@ -620,7 +620,7 @@ test("the business's own news by email, though its message is a utility (decisio
   assert.equal(
     t.messages.find((m) => m.contact_id === uuid(2)).body,
     "Hi Bo, see you tomorrow.",
-    "the thread shows the words, not the foot",
+    "the conversation shows the words, not the foot",
   );
 });
 

@@ -85,12 +85,12 @@ export const REACH_OUT_REFUSALS = {
   // screen-word: the database's own sentence (reach_out_send_decide); a migration changes both
   youWroteIt: "You wrote this email. Use the sequence's words first.",
   /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
-  unsaved: "That campaign could not be saved as it is. Check its steps and try again.",
+  unsaved: "That campaign couldn't be saved as it is. Check its steps and try again.",
   /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
   notHere: "Cold email is removed from its own row, and only before its first email goes. After that, pause it.",
   /** The preview on a deployment that runs nothing. */
   preview: "Previews only work on the production dashboard.",
-  previewDown: "The preview could not be written just now. Try again in a moment.",
+  previewDown: "The preview couldn't be written just now. Try again in a moment.",
   budget: "Today's AI limit is reached, so the preview waits until tomorrow.",
 } as const;
 
@@ -189,7 +189,7 @@ export function stepLabelOf(state: { n: number; hand?: { kind: HandKind } | null
 export function stepWhenWords(count: number, afterDays: number | null): string {
   return count === 0
     ? "Day one, in their hours"
-    : `After ${afterDays ?? "?"} days with nothing back · in the same thread`;
+    : `After ${afterDays ?? "?"} days with nothing back · in the same conversation`;
 }
 
 /**
@@ -236,7 +236,7 @@ export function startWords(
         ? { tone: "plain", text: "Saved. It already ran today; it runs again tomorrow." }
         : { tone: "plain", text: "Saved. Nobody on this search can be written to yet; it looks again each day." };
     case "failed":
-      return { tone: "warn", text: "Saved. The first run could not be planned just now; it is tried again each hour." };
+      return { tone: "warn", text: "Saved. The first run couldn't be planned just now; it is tried again each hour." };
     case "unreached":
       return { tone: "plain", text: "Saved. The first run is planned within the hour." };
     case "preview":

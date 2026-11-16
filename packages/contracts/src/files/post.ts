@@ -177,7 +177,7 @@ export const POST_WORDS = {
   cancel: "Cancel",
   removed: "Taken out of Content",
   undo: "Undo",
-  notDrawn: "The picture could not be drawn. Saving still works.",
+  notDrawn: "The picture couldn't be drawn. Saving still works.",
   download: "Download",
   share: "Share",
   shareFailed: "Sharing didn't open. Download it instead.",

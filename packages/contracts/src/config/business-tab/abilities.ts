@@ -157,14 +157,14 @@ function bookingLinkDetail(abilityInputs: AbilityInputs): string {
   }
   if (abilityInputs.bookingHeld)
     return "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm.";
-  if (!abilityInputs.voiceLive) return "It sends it in the thread.";
+  if (!abilityInputs.voiceLive) return "It sends it in the conversation.";
   if (abilityInputs.hasBookingTemplate)
     return abilityInputs.textingLine
-      ? "On a call it sends it to the caller's WhatsApp, or by text when their number has none, and says which. In chat it sends it in the thread."
-      : "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread.";
+      ? "On a call it sends it to the caller's WhatsApp, or by text when their number has none, and says which. In chat it sends it in the conversation."
+      : "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the conversation.";
   return abilityInputs.textingLine
-    ? "In chat it sends it in the thread. On a call it sends it by text, until you have an approved booking-link WhatsApp message."
-    : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+    ? "In chat it sends it in the conversation. On a call it sends it by text, until you have an approved booking-link WhatsApp message."
+    : "In chat it sends it in the conversation. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
 }
 
 /** Where the booking link goes, for the rows that send it or promise it (abilityRows). */
@@ -285,7 +285,7 @@ export function abilityRows(abilityInputs: AbilityInputs): AbilitiesVM {
     },
     {
       id: "handoff",
-      title: "Hand the thread to you",
+      title: "Hand the conversation to you",
       // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts); after that the receptionist
       // answers the next message itself, Needs you or not. The base triggers hold with no reasons at all -- they asked
       // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The

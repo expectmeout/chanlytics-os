@@ -186,7 +186,7 @@ export async function readWebsite(
     booking_read,
     ...(media ? { media } : {}),
     // What to film for a video, from what the site says it does (Content's empty state): kept only where it wrote some.
-    ...(film.length ? { film: film.map((f) => ({ what: f.what, how: f.how })) } : {}),
+    ...(film.length ? { film: film.map((f) => ({ what: f.what, how: f.how, seconds: f.seconds })) } : {}),
   };
   return keep(kept, found || facts.description ? null : WEBSITE_UNREAD_WORDS.nothing);
 }

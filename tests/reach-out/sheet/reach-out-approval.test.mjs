@@ -206,7 +206,7 @@ test("a run waiting on its owner: the decision first, the held, the skipped, the
   assert.equal(textOf(head.props.children[0]), "Reach out · Personal trainers", "the run's name is the pane's title");
   assert.ok(byTestId(tree, "bc-detail-close"), "the pane's Close, where the block's back button was");
   // Its state in the head's line, in its colour: what it waits for (the run-to-leads canvas).
-  assert.equal(textOf(byTestId(tree, "ro-run-k")), "Waits for your OK");
+  assert.equal(textOf(byTestId(tree, "ro-run-k")), "Waits for your approval");
   assert.equal(textOf(byTestId(tree, "ro-run-will")), "30");
   assert.equal(textOf(byTestId(tree, "ro-run-of")), "of 44");
   // One bar by count, said to a screen reader as its legend says it.

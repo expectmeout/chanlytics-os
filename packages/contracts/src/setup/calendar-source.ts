@@ -139,7 +139,7 @@ function unreadLink(
     tone: "warn",
     words: CALENDAR_FEED_WORDS.unavailable,
     ...leadAndRest(
-      "Your calendar could not be read.",
+      "Your calendar couldn't be read.",
       `${sourceFacts.problem ?? ""}${emailsWork ? " Booking emails still arrive." : ""}`,
     ),
     times: false,

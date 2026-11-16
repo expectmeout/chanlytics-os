@@ -665,6 +665,8 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
       // A post set for its time went up, or was held (00616): a line on the bell.
       "post_up",
       "post_stopped",
+      // A lead tried the preview they were sent (00632): a line on the bell, written by the database.
+      "preview_tried",
       "leads_ready",
       "member_joined",
       "member_left",

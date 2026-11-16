@@ -144,7 +144,7 @@ function summaryOf(result: Totals, left: number | null) {
         </div>
       </div>
       {importLines("Skipped", result.skipped, "import-skipped", (s) => s.reason)}
-      {importLines("Could not be added", result.failed, "import-failed", (f) => f.message)}
+      {importLines("Couldn't be added", result.failed, "import-failed", (f) => f.message)}
     </>
   );
 }
@@ -190,7 +190,7 @@ async function sendParts(
       ...(run.via ? { via: run.via } : {}),
     });
     if (!r.ok) {
-      const message = r.message || "The import could not go on.";
+      const message = r.message || "The import couldn't go on.";
       return end(`Stopped at line ${readable[i]?.line}: ${message}`, i);
     }
     sent += 1;

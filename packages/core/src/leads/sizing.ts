@@ -81,7 +81,9 @@ export function termsToAsk(
  * the count less what the places already held may yet deliver, so none is asked where that is nothing. Whose turn: a
  * failed term due another try, then a term not yet asked, then one asked before, past what it read (placesPastRead);
  * never the term the question dropped, a term this phase began, or a synonym that mostly returned places the workspace
- * already held (the widest term is always asked). `terms` is that one term where the reserve holds a run for it; `later`
+ * already held (the widest term is always asked). A term is asked for at least `page` places: a leg's (decision 0133),
+ * so a leg reads its area for what the source answers first there, never for the few a count nearly met still wants.
+ * `terms` is that one term where the reserve holds a run for it; `later`
  * is the terms still to come that it also holds a run for, which the end of a run starts once those before them came
  * back short (runner/round-decision.ts); `waiting` is the terms it holds none for.
  */
@@ -92,6 +94,7 @@ export function mainAsk(
   dropTerm: string | null,
   room: number,
   tried: TermsTried,
+  page = 0,
 ): TermsAsk {
   const fresh = termsToAsk(plan, dropTerm, tried.stale);
   const open = fresh.filter((t) => !tried.begun.has(t));
@@ -105,7 +108,7 @@ export function mainAsk(
   // nothing more is wanted.
   const wanted =
     remaining > 0 || !tried.begun.size
-      ? placesToAsk({ ...plan, terms: fresh }, Math.max(1, remaining), yieldSoFar).total
+      ? Math.max(page, placesToAsk({ ...plan, terms: fresh }, Math.max(1, remaining), yieldSoFar).total)
       : 0;
   const asks = order.map((t) => placesPastRead(plan, tried.read.get(t) ?? 0, wanted));
   const at = tried.running ? -1 : asks.findIndex((n) => n > 0);

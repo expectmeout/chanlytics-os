@@ -253,7 +253,7 @@ function whoWill(lifecyclePlaybook: LifecyclePlaybook): { why: string; pill: Lif
         pill: { tone: "warn", label: "All waiting" },
       };
     case "uncounted":
-      return { why: "Who it reaches could not be counted", pill: null };
+      return { why: "Who it reaches couldn't be counted", pill: null };
     default:
       return null;
   }

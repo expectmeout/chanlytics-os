@@ -33,7 +33,7 @@ const STAGE_WORDS: Record<JourneyStageId, string> = {
  */
 export const JOURNEY_PLAN_WORDS = {
   journeyUnread:
-    "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
+    "The journey couldn't be read just now, so which moments are covered is not known: say so, and try again in a moment.",
   nothingToCover:
     "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected): say so, and propose nothing.",
   notOffered: (stages: readonly string[]): string => `Not offered here: ${joinWords(stages)}.`,

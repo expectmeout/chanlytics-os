@@ -207,7 +207,7 @@ test("what a step is doing now: a batch waiting for your OK, a message gone and 
   // Its `at` is when it was made: an OK sends it at once, and a customer's waits only until its day is gone.
   assert.deepEqual(scheduleStepState(waits, STEPS[0], ctx()), {
     tone: "need",
-    words: "6 wait for your OK · until tonight",
+    words: "6 wait for your approval · until tonight",
   });
   const toLeads = row({
     starts: "leads",
@@ -215,7 +215,7 @@ test("what a step is doing now: a batch waiting for your OK, a message gone and 
   });
   assert.deepEqual(
     scheduleStepState(toLeads, step(1, { kind: "reach_out" }), ctx()),
-    { tone: "need", words: "6 wait for your OK" },
+    { tone: "need", words: "6 wait for your approval" },
     "a sequence to leads' batch has no day to pass",
   );
   assert.deepEqual(scheduleStepState(row(), STEPS[0], ctx({ gone: true })), {

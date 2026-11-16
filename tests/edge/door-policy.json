@@ -267,6 +267,14 @@
         "aud": "/api/admin/previews/make"
       }
     },
+    "GET /api/admin/previews/standing": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "GET in apps/edge/api/admin/previews/standing.ts",
+      "knock_args": {
+        "aud": "/api/admin/previews/standing"
+      }
+    },
     "POST /api/admin/reach-out-preview": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",

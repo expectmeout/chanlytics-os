@@ -97,7 +97,7 @@ export function navigateLabel(nav: { to: string; label: string } | null, languag
   if (!nav || !nav.to) return null;
   const es = language === "es";
   if (/^conversations\/cv-/.test(nav.to)) return es ? "Abrir la llamada" : "Open the call";
-  if (/^inbox\/th-/.test(nav.to)) return es ? "Abrir el hilo" : "Open the thread";
+  if (/^inbox\/th-/.test(nav.to)) return es ? "Abrir el hilo" : "Open the conversation";
   if (/^clients\/[0-9a-f-]{36}$/.test(nav.to)) return es ? "Abrir el perfil" : "Open the profile";
   return nav.label || (es ? "Abrir" : "Open");
 }

@@ -97,7 +97,7 @@ export const NEW_WORDS = {
     stopsReply: "stops if they reply",
     checked: "AI checked",
     runs: "How it runs",
-    yourOk: "Your OK",
+    yourOk: "Approval",
     keep: "Keep as a draft",
     start: "Start",
     sendNow: "Send now",
@@ -132,9 +132,9 @@ export const NEW_WORDS = {
     /** Sent late at night, it waits for the sending hours to open (as every send does). */
     goesOpen: (time: string) => `Goes at ${time}, when your sending hours open`,
     step: (n: number) => `Step ${n}`,
-    sameThread: "Email, in the same thread",
+    sameThread: "Email, in the same conversation",
     goesAt: (when: string) => `${when} · Stop any time before`,
-    leadsWait: "They wait for your OK, then go in their hours",
+    leadsWait: "They wait for your approval, then go in their hours",
     joins: (list: string) => `joins ${list}`,
     firstBatch: (when: string) => `Its first batch is ${when}`,
     todayAt: (time: string) => `today at ${time}`,
@@ -159,7 +159,7 @@ export const NEW_WORDS = {
     rows: [
       { lead: "Email only, from your own mailbox", sub: "They haven’t said yes to you, so no WhatsApp or text" },
       { lead: "Each email opens with a line for its business", sub: "And the lead check reads each before it goes" },
-      { lead: "Waits of 2 to 30 days, and a reply stops it", sub: "The first run waits for your OK" },
+      { lead: "Waits of 2 to 30 days, and a reply stops it", sub: "The first run waits for your approval" },
     ],
     note: "The steps, the waits and a call or a note stay yours to change, as for people.",
   },
@@ -173,8 +173,8 @@ export const NEW_WORDS = {
   /** A one-off sent, back on Sequences (E2). */
   /** A sequence made, on its record (Started, LeadsStarted): when its first batch goes, and that it waits for the OK. */
   started: {
-    people: (when: string) => `Started · its first batch waits for your OK ${when}`,
-    leads: "Started · its first emails wait for your OK",
+    people: (when: string) => `Started · its first batch waits for your approval ${when}`,
+    leads: "Started · its first emails wait for your approval",
     kept: (name: string) => `“${name}” is kept under Drafts`,
   },
   sent: {
@@ -314,7 +314,7 @@ export const NEW_WORDS = {
     addMessage: "One of yours, or one AI writes",
     addCall: "A call for you",
     okSub: "The first batch always waits for it",
-    okNote: "New words wait for your OK again. To leads, “on its own” isn’t offered.",
+    okNote: "New words wait for your approval again. To leads, “on its own” isn’t offered.",
     from: "Sent from",
     fromSub: "Your own mailbox, so replies come to you",
     yourMailbox: "Your mailbox",
@@ -353,7 +353,7 @@ export const NEW_WORDS = {
     firstEmail: "The first email",
     firstEmailSub: "An opening is written for each business above these words",
     laterEmail: "A later email",
-    laterEmailSub: "In the same thread, so no subject of its own",
+    laterEmailSub: "In the same conversation, so no subject of its own",
   },
   /** A step by what it does, as its box names a step with no name of its own. */
   does: { message: "A message", call: "A call", note: "A note" } satisfies Record<NewStepDoes, string>,

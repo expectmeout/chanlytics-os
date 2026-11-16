@@ -435,7 +435,7 @@ test("the sends failing draws its failed read and the ledger's parts: the people
     [[12], [4, 4, 4], [12], [6, 6]],
     "each message's rate takes the row it has to itself, and the waits are the ledger's",
   );
-  assert.equal(standingSaid().sentence, undefined, "no head where the sends could not be read: the lens's name alone");
+  assert.equal(standingSaid().sentence, undefined, "no head where the sends couldn't be read: the lens's name alone");
 });
 
 test("both reads failing say that nothing else could be read, and the old words about the receptionist's numbers are nowhere", () => {
@@ -777,7 +777,7 @@ test("the time cards are the fold's two distributions, every bucket kept, each w
   const tree = draw({ own: everything() });
   const cards = [
     ["chart-campaigns-first-reply", v.firstReply, "From a message to the first reply", ["How soon", "Messages"]],
-    ["chart-campaigns-approval", v.approval, "Waiting for your OK", ["How long it waited", "Runs"]],
+    ["chart-campaigns-approval", v.approval, "Waiting for your approval", ["How long it waited", "Runs"]],
   ];
   for (const [id, part, title, columns] of cards) {
     const wanted = part.rows.map((r) => [r.label, r.value]);
@@ -823,7 +823,9 @@ test("the time cards are the fold's two distributions, every bucket kept, each w
       "7d",
     ),
   });
-  assert.ok(textOf(byTestId(nobody, "chart-campaigns-approval")).includes("No run waited for your OK in this period."));
+  assert.ok(
+    textOf(byTestId(nobody, "chart-campaigns-approval")).includes("No run waited for your approval in this period."),
+  );
   assert.ok(
     textOf(byTestId(nobody, "chart-campaigns-first-reply")).includes("No message was answered in this period."),
   );

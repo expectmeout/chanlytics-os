@@ -89,6 +89,6 @@ export function attentionRow(person: PersonRowVM, tz: string, nowMs: number, wor
     ? null
     : person.state === "needs_you" || person.state === "waiting_on_you"
       ? { label: "Open in Inbox", kind: "primary", to: `inbox/${person.threadId}` }
-      : { label: "Open thread", kind: "ghost", to: `inbox/${person.threadId}` };
+      : { label: "Open conversation", kind: "ghost", to: `inbox/${person.threadId}` };
   return { channel, when, sentence, quoted, status, tone: receptionist.tone, cta };
 }
