@@ -16,6 +16,7 @@ import {
   chainReportWordsOf,
   emailTemplateWords,
   isReachOutRefusal,
+  reachOutRefusalWords,
   nextRunWords,
   paceWords,
   reachLineOf,
@@ -550,6 +551,14 @@ test("the doors' refusals are one set of sentences, the ones the database raises
   assert.equal(isReachOutRefusal("This reach-out has written already. Pause it instead."), true);
   assert.equal(isReachOutRefusal('duplicate key value violates unique constraint "playbooks_one_reach_out"'), false);
   assert.equal(isReachOutRefusal(null), false);
+  // 00633: the database's Rewrite refusal said "the sequence's words" before; read either way, it is said in today's.
+  assert.equal(reachOutRefusalWords(REACH_OUT_REFUSALS.youWroteIt), REACH_OUT_REFUSALS.youWroteIt);
+  assert.equal(
+    reachOutRefusalWords("You wrote this email. Use the sequence's words first."),
+    REACH_OUT_REFUSALS.youWroteIt,
+  );
+  assert.equal(reachOutRefusalWords('duplicate key value violates unique constraint "playbooks_one_reach_out"'), null);
+  assert.equal(reachOutRefusalWords(null), null);
   for (const w of [
     "Workspace not found.",
     "A reach-out has at least one email.",
