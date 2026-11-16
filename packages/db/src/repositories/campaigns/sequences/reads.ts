@@ -245,13 +245,26 @@ export async function listSequenceEvidence(
 
 /** The workspace's sequences, newest first, or the one named (00442 sequence_overview). */
 export async function listSequenceOverview(db: Db, tenantId: TenantId, sequenceId?: string): Promise<SequenceRowDto[]> {
+  // And, for a sequence an occasion starts, who it reaches next: nobody is in a batch of it until their time comes.
+  return withComing(
+    db,
+    tenantId,
+    await withReadyCounts(db, tenantId, await listSequenceRows(db, tenantId, sequenceId)),
+  );
+}
+
+/**
+ * The same rows as sequence_overview answers them, without what the page adds to them (how many emails an OK of a batch to
+ * leads sends, and who an occasion reaches next): each sequence's state, what needs you in it and its batches waiting, which
+ * is all what Ask notices reads of them. One read, however many batches wait.
+ */
+export async function listSequenceRows(db: Db, tenantId: TenantId, sequenceId?: string): Promise<SequenceRowDto[]> {
   const { data, error } = await db.rpc("sequence_overview", {
     p_tenant_id: tenantId,
     ...(sequenceId ? { p_sequence_id: sequenceId } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read the sequences");
-  // And, for a sequence an occasion starts, who it reaches next: nobody is in a batch of it until their time comes.
-  return withComing(db, tenantId, await withReadyCounts(db, tenantId, readerRowsOf<SequenceRowDto>(data)));
+  return readerRowsOf<SequenceRowDto>(data);
 }
 
 /** A sequence running now, as what Ask notices reads it (decision 0087). */
