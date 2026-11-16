@@ -13,9 +13,7 @@ import { ahPanelKeys, ahPinNow, ahSlideFrom } from "../hooks";
 import { leaving, touchSwipe } from "../shell";
 import { AskLatest, AskListen, AskNextRow, AskQuestion, AskThread, AskTurn } from "../turn";
 import { allArrived, AskAttachedRow, AskAttachPress, pastedPhotos } from "./attached";
-import { AR_LIFT_MS, arEscape, arPhone, arScopeIcon } from "./place";
-import { askOnScreenKey } from "@/bridge/ask/on-screen";
-import type { LineWords } from "../words";
+import { AR_LIFT_MS, arEscape, arPhone, arScopeIcon, campaignsAskOf } from "./place";
 
 /** The field's end: the one button (the mic held to talk, Send, or Stop). */
 export const arLineEnd = (ln: Line) => {
@@ -109,16 +107,6 @@ export const arLineEnd = (ln: Line) => {
 
 /** Under the band: the rows, the question while Ask reads, or the answer. */
 /** The answer on its way, as a turn draws one: its words so far. */
-/**
- * Campaigns' field asks for what should go out; on Content, where Ask makes posts and videos, for what to make; on its Ads
- * page, which sends nothing yet, for nothing of the kind.
- */
-const campaignsAskOf = (t: LineWords): string => {
-  const on = askOnScreenKey();
-  if (on === "content") return t.describeContent;
-  return on === "ads" ? t.placeholder : t.describeCampaigns;
-};
-
 const LIVE_MESSAGE = (text: string) =>
   ({
     id: "live",
@@ -413,6 +401,7 @@ const arMiddle = ({
   thread,
   listen,
   restful,
+  noticeWaits,
   composingRows,
   bodyRef,
   body,
@@ -450,7 +439,7 @@ const arMiddle = ({
         onEdit={editWords}
       />
     ) : null}
-    <div className="ask-now">
+    <div className={`ask-now${restful && noticeWaits ? " waiting" : ""}`}>
       {thread && (nowQ || nowFiles.length) ? <AskQuestion text={nowQ} files={nowFiles} t={t} now /> : null}
       {hero}
       {body}

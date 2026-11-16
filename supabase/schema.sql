@@ -4188,7 +4188,7 @@ begin
     raise exception 'A version is written for email or text.' using errcode = '22023';
   end if;
   if left(p_name, 10) = 'reach_out_' then
-    raise exception 'A reach-out''s email is edited in the reach-out.' using errcode = '22023';
+    raise exception 'This email is edited in its cold email.' using errcode = '22023';
   end if;
   -- The edge's own ceiling for a template's name (contracts TEMPLATE_NAME_MAX). Its shape is the route's check.
   if char_length(p_name) > 60 then
@@ -24915,7 +24915,7 @@ begin
   end if;
   select * into r from public.sequence_steps where id = p_root_id and kind = 'reach_out' and trigger = 'lead_first';
   if not found or not public.has_permission(v_user, r.tenant_id, 'approve') then
-    raise exception 'Reach-out not found.' using errcode = 'P0002';
+    raise exception 'Cold email not found.' using errcode = 'P0002';
   end if;
   select * into s from public.lead_searches where id = r.lead_search_id and tenant_id = r.tenant_id;
   if not found or s.removed_at is not null then
@@ -25455,7 +25455,7 @@ begin
   if not exists (select 1 from public.sequence_steps p
                   where p.id = p_root_id and p.tenant_id = p_tenant_id and p.kind = 'reach_out'
                     and p.trigger = 'lead_first') then
-    raise exception 'Reach-out not found.' using errcode = 'P0002';
+    raise exception 'Cold email not found.' using errcode = 'P0002';
   end if;
   return (
     with recursive c as (
@@ -26000,7 +26000,7 @@ begin
      where up.n < 10
   )
   select id into v_root from up where after_playbook_id is null;
-  if v_root is null then raise exception 'Reach-out not found.' using errcode = 'P0002'; end if;
+  if v_root is null then raise exception 'Cold email not found.' using errcode = 'P0002'; end if;
 
   insert into public.sequence_batches (id, tenant_id, step_id, run_for, name, template_id, template_name,
                                  template_language, state, scheduled_for, recipient_count, audience)
@@ -26317,7 +26317,7 @@ begin
   end if;
   select * into r from public.sequence_steps where id = p_root_id and kind = 'reach_out' and trigger = 'lead_first';
   if not found or not public.has_permission(v_user, r.tenant_id, 'approve') then
-    raise exception 'Reach-out not found.' using errcode = 'P0002';
+    raise exception 'Cold email not found.' using errcode = 'P0002';
   end if;
   select * into q from public.lead_searches where id = r.lead_search_id and tenant_id = r.tenant_id;
   if not found or q.removed_at is not null then
@@ -26836,7 +26836,7 @@ begin
   end if;
   perform 1 from public.sequence_steps
    where id = p_root_id and tenant_id = p_tenant_id and kind = 'reach_out' and trigger = 'lead_first' for update;
-  if not found then raise exception 'Reach-out not found.' using errcode = 'P0002'; end if;
+  if not found then raise exception 'Cold email not found.' using errcode = 'P0002'; end if;
   with recursive c as (
     select id from public.sequence_steps where id = p_root_id
     union all
@@ -26849,7 +26849,7 @@ begin
               where s.lead_id is not null and ( s.sequence_id = p_root_id
                 and (s.state in ('claimed', 'queued', 'sent', 'failed', 'drafted')
                      or (s.state = 'skipped' and s.drafted_at is not null)))) then
-    raise exception 'This reach-out has written already. Pause it instead.' using errcode = '23503';
+    raise exception 'This cold email has written already. Pause it instead.' using errcode = '23503';
   end if;
   update public.sequence_batches set state = 'canceled'
    where tenant_id = p_tenant_id and audience->>'kind' = 'reach_out' and audience->>'root_id' = p_root_id::text
@@ -27971,7 +27971,7 @@ begin
   if p_tenant_id is null or p_user_id is null or not public.has_permission(p_user_id, p_tenant_id, 'approve') then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
-  if v_n < 1 then raise exception 'A reach-out has at least one email.' using errcode = '22023'; end if;
+  if v_n < 1 then raise exception 'A cold email has at least one email in it.' using errcode = '22023'; end if;
   -- A call or a note is the last step, and never the first: the chain writes before it hands anyone over.
   for v_i in 0 .. v_n - 1 loop
     if v_steps->v_i ? 'hand' and (v_i = 0 or v_i < v_n - 1) then
@@ -27993,7 +27993,7 @@ begin
     -- Made on a finder search (00459): a list of its own, drawing from that search, so it takes the leads you add too.
     if exists (select 1 from public.lead_searches s where s.id = v_search and s.via not in ('chosen', 'import')) then
       if exists (select 1 from public.sequence_steps r where r.source_search_id = v_search) then
-        raise exception 'This search has a reach-out already.' using errcode = '23505';
+        raise exception 'This search has a cold email already.' using errcode = '23505';
       end if;
       v_source := v_search;
       v_search := public.reach_out_list_for(p_tenant_id, v_name, p_user_id);
@@ -28002,7 +28002,7 @@ begin
     select lead_search_id, signed_by into v_search, v_signed_was from public.sequence_steps
      where id = v_root and tenant_id = p_tenant_id and kind = 'reach_out' and trigger = 'lead_first'
        for update;
-    if not found then raise exception 'Reach-out not found.' using errcode = 'P0002'; end if;
+    if not found then raise exception 'Cold email not found.' using errcode = 'P0002'; end if;
     -- The chain as it stands, root first.
     with recursive c as (
       select id, 0 as n from public.sequence_steps where id = v_root
@@ -28018,7 +28018,7 @@ begin
     v_id := nullif(v_steps->v_i->>'id', '')::uuid;
     if (v_i < coalesce(cardinality(v_existing), 0) and v_id is distinct from v_existing[v_i + 1])
        or (v_i >= coalesce(cardinality(v_existing), 0) and v_id is not null) then
-      raise exception 'A step is out of its place. Open the reach-out again.' using errcode = '22023';
+      raise exception 'A step is out of its place. Open the cold email again.' using errcode = '22023';
     end if;
   end loop;
 
@@ -28031,7 +28031,7 @@ begin
     perform 1 from public.sequence_sends s where s.lead_id is not null and ( s.step_id = any (v_dropped)) for update;
     if exists (select 1 from public.sequence_sends s
                 where s.lead_id is not null and ( s.step_id = any (v_dropped) and s.state in ('claimed', 'queued', 'sent', 'failed', 'handed'))) then
-      raise exception 'That step has written already. Pause the reach-out instead.' using errcode = '23503';
+      raise exception 'That step has written already. Pause the cold email instead.' using errcode = '23503';
     end if;
     update public.sequence_batches set state = 'canceled'
      where tenant_id = p_tenant_id and step_id = any (v_dropped)
@@ -28152,7 +28152,7 @@ begin
   return jsonb_build_object('root_id', v_ids[1], 'step_ids', to_jsonb(v_ids), 'rechecked', v_reset);
 exception
   when unique_violation then
-    raise exception 'This search has a reach-out already.' using errcode = '23505';
+    raise exception 'This search has a cold email already.' using errcode = '23505';
 end $$;
 
 
@@ -30527,7 +30527,7 @@ begin
     raise exception 'A version is written for email or text.' using errcode = '22023';
   end if;
   if left(p_name, 10) = 'reach_out_' then
-    raise exception 'A reach-out''s email is edited in the reach-out.' using errcode = '22023';
+    raise exception 'This email is edited in its cold email.' using errcode = '22023';
   end if;
   -- Meta's own codes: two or three letters, and a region in capitals where there is one (en_US, es, pt_BR, fil).
   if p_language is null or p_language !~ '^[a-z]{2,3}(_[A-Z]{2})?$' then
@@ -34412,7 +34412,7 @@ begin
      and (exists (select 1 from public.leads l where l.contact_id = p_contact_id and l.tenant_id = v_tenant)
           or exists (select 1 from public.contacts k
                       where k.id = p_contact_id and k.tenant_id = v_tenant and k.lead_id is not null)) then
-    raise exception 'This person came from a lead you found. A yes has to come from them: their own message, or your yes page.' using errcode = '42501';
+    raise exception 'This person came from a lead you found. A yes has to come from them: their own message, or your sign-up page.' using errcode = '42501';
   end if;
 
   -- The message, read here, as the offers door reads it.
@@ -34781,7 +34781,7 @@ begin
      and (exists (select 1 from public.leads l where l.contact_id = p_contact_id and l.tenant_id = p_tenant_id)
           or exists (select 1 from public.contacts k
                       where k.id = p_contact_id and k.tenant_id = p_tenant_id and k.lead_id is not null)) then
-    raise exception 'This person came from a lead you found. A yes has to come from them: their own message, or your yes page.' using errcode = '42501';
+    raise exception 'This person came from a lead you found. A yes has to come from them: their own message, or your sign-up page.' using errcode = '42501';
   end if;
 
   -- The message, read here: theirs, to this workspace, on a written wire. A

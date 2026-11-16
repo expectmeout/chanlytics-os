@@ -22,7 +22,7 @@ export const LEAD_NO_ADDRESS =
 
 /** Both consent doors say this, permanently, for a person a lead is linked to (decision 19). */
 export const LEAD_CONSENT_REFUSAL =
-  "This person came from a lead you found. A yes has to come from them: their own message, or your yes page.";
+  "This person came from a lead you found. A yes has to come from them: their own message, or your sign-up page.";
 
 /* --------------------------------------------- release B, tasks 12-15 ---- */
 

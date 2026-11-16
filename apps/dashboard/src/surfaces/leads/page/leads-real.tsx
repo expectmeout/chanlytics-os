@@ -29,7 +29,6 @@ import { useBulkAdd } from "../scope/bulk-add";
 import { leadQueueGroupOf } from "../scope/head-menus";
 import { useLeadNamedViews } from "../scope/rail-views";
 import { addLeadToPick } from "../scope/row-add";
-import { leadDtoFor } from "../surface";
 import { useLeadPile } from "../pile/use-pile";
 import { reachLead } from "../sheet/reach";
 import { useLeadAim, type LeadAim } from "../sheet/use-aim";
@@ -108,8 +107,7 @@ const rowActOn =
   (id: string): void => {
     const l = p.rows.find((r) => r.id === id);
     if (!l) return;
-    const place = l.cls === "excluded" ? null : (leadDtoFor(id)?.place ?? null);
-    const act = leadRowActOf(l, place, p.aim.target ? { name: p.aim.target.name } : null);
+    const act = leadRowActOf(l, l.place ?? null, p.aim.target ? { name: p.aim.target.name } : null);
     // A member who may not press the row's button has no key for it either (the button says why; the key is not theirs).
     if (!act || !mayRowAct(act.kind, p.acts.canFind)) return;
     if (act.kind === "keep") void p.acts.keepLead(id);

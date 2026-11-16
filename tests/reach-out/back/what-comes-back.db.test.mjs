@@ -790,11 +790,14 @@ test("each function re-created whole is its source's body but for the lines it m
     ),
     gated,
   );
+  // 00634 (16 Nov 2026) says cold email where its refusal said reach-out, and changed nothing else.
+  const coldEmail = bodyIn(migration("00634"), "create or replace function public.reach_out_chain_report(");
   assert.equal(
-    liveBody("reach_out_chain_report"),
+    coldEmail.replace("'Cold email not found.'", "'Reach-out not found.'"),
     bodyIn(migration("00451"), "create or replace function public.reach_out_chain_report("),
-    "reach_out_chain_report: the database runs 00451's (00429's, read from the sequence tables)",
+    "reach_out_chain_report: 00634's is 00451's (00429's, read from the sequence tables) but for its refusal's words",
   );
+  assert.equal(liveBody("reach_out_chain_report"), coldEmail, "reach_out_chain_report: the database runs 00634's");
 });
 
 test(

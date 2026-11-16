@@ -2,7 +2,7 @@
 
 import { previewSlotOf, type LeadPreviewSlot } from "@chanlytics/contracts";
 import { findLeadPreview, type ReachOutSendRow } from "@chanlytics/db/campaigns";
-import { previewDidMarkOf } from "../../../previews/for-opening.js";
+import { lineMarkOf, previewDidMarkOf } from "../../../previews/for-opening.js";
 import { askPreview } from "../../../previews/make.js";
 import { dashboardOrigin } from "../../../shared/dashboard-origin.js";
 import { env } from "../../../shared/env.js";
@@ -43,4 +43,20 @@ export async function previewForWords(
     return waits();
   }
   return { slot: otherAskPreview.ok ? slot : { state: "gone" }, id: null, did: null };
+}
+
+/**
+ * Whether the email's line still stands for the preview it goes with (previews/for-opening.ts lineMarkOf): stamped with
+ * the preview as it is now, or, where its owner read the line before it went, with which preview alone, so what the
+ * lead did with it after their OK never writes the line they approved again. A line written before the preview stood,
+ * or for another preview, stands for neither. `stampOf` is these words stamped with a mark (channels checkedWordsOf).
+ */
+export function lineStands(
+  checked: string | null,
+  words: { subject: string | null; body: string },
+  preview: { id: string | null; did: string | null } | null,
+  stampOf: (mark: string | null) => string,
+): boolean {
+  const open = preview?.id && preview.did ? { id: preview.id, mark: preview.did } : null;
+  return checked === stampOf(lineMarkOf(words, open, false)) || checked === stampOf(lineMarkOf(words, open, true));
 }

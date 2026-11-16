@@ -129,7 +129,9 @@ export function warmPeople(ids: string[]): void {
   if (!ahead.length) return;
   // Asked a step later: on a reload a list draws from the tab before the shell starts the boot (a child's effects run
   // before its parent's), and asked at once, afterBoot answered for no boot at all.
-  void Promise.resolve().then(afterBoot).then(readAhead);
+  void Promise.resolve()
+    .then(() => afterBoot())
+    .then(readAhead);
 }
 
 function readAhead(): void {

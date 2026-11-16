@@ -35,6 +35,7 @@ import {
   REACH_OUT_CHECKS_AHEAD_PER_DAY,
   REACH_OUT_CHECKS_PER_DAY,
   REACH_OUT_MONTH_EMAILS,
+  DbFailure,
   openingAskedOf,
   reachOutCountryOf,
   slotCount,
@@ -43,6 +44,7 @@ import {
   type WrittenOpening,
 } from "@chanlytics/contracts";
 import {
+  findBroadcastState,
   findEmailWords,
   leadStepKey,
   getLeadWordsOfLeads,
@@ -76,7 +78,14 @@ import type { LogEvent, Logger } from "../../shared/log.js";
 import { once } from "./once.js";
 import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
-import { previewForOpening, type PreviewForOpening } from "../../previews/for-opening.js";
+import {
+  lineMarkOf,
+  previewForLine,
+  previewForOpening,
+  type PreviewForLine,
+  type PreviewForOpening,
+} from "../../previews/for-opening.js";
+import { PREVIEW_HOLD_MS } from "./sender/lanes.js";
 
 export {
   CHECK_CALLS_UNTIL_MS,
@@ -159,6 +168,8 @@ export interface CheckCounts {
   late: number;
   /** Handed back an hour on: its workspace may not spend, has no room this month, or checked its day's share. */
   gated: number;
+  /** Handed back with no line written: their preview is being made (minutes), or the day's are all made (the hour). */
+  waited: number;
   /** check_unavailable holds put back to be checked. */
   released: number;
   /** Runs not waiting on their owner that got their first hold, their owner told (R20). */
@@ -167,6 +178,13 @@ export interface CheckCounts {
   calls: number;
   calls_failed: number;
   tokens: Tokens;
+}
+
+/** A tick's counts before it has done anything. */
+function noneCounted(): CheckCounts {
+  const counted = { read: 0, checked: 0, held: 0, skipped: 0, rewritten: 0, failed: 0, gave_up: 0, late: 0, gated: 0 };
+  const noted = { waited: 0, released: 0, noticed: 0, errors: 0, calls: 0, calls_failed: 0 };
+  return { ...counted, ...noted, tokens: { input: 0, output: 0 } };
 }
 
 /**
@@ -232,29 +250,52 @@ function sendInputOf(
 /**
  * A send's input, with their preview where its email carries one. A line in such an email is written from what the
  * preview knows and what they did with it, once one is open (previews/for-opening.ts); `mark` is what that line is
- * stamped with, and the sender sends it back here once the preview's own mark is another. A read that fails says
- * nothing of it, and the line is written as any other. `onStep` hears each step the check takes, by its send.
+ * stamped with (lineMarkOf), and the sender sends it back here once the preview's own mark is another, unless its owner
+ * read it first (`ownerReads`: its run waits for their OK). Where its owner reads it first or it is due soon (due_soon
+ * says both), the preview is made before the line is written, and the send `wait`s until it may be (previewForLine), so
+ * the line its owner approves is written from the preview it goes with; one days off, or a press, is written from what
+ * stands. A read that fails says nothing of it, and the line is written as any other. `onStep` hears each step the
+ * check takes, by its send.
  */
 async function lineInputFor(
   db: Parameters<typeof previewForOpening>[0],
   uncheckedSend: UncheckedSend,
   words: { subject: string | null; body: string },
-  about: { ws: CheckWorkspace; country: string | null; now: Date },
+  about: {
+    ws: CheckWorkspace;
+    country: string | null;
+    now: Date;
+    pressed: boolean;
+    ownerReads: () => Promise<boolean>;
+  },
   onStep?: (sendId: string, step: RewriteStep) => void,
-): Promise<{ input: CheckInput; mark: string | null }> {
+): Promise<{ input: CheckInput; mark: string | null } | { wait: string }> {
   const { send } = uncheckedSend;
-  const carries = wordsNeedOpening(words) && slotCount(`${words.subject ?? ""}\n${words.body}`, "their preview") > 0;
-  const preview =
-    carries && send.lead_id
-      ? await previewForOpening(db, { tenantId: send.tenant_id, leadId: send.lead_id }, about.now).catch(
-          logAndGoOn("reading a lead's preview for the line of the email that carries it", null),
-        )
-      : null;
   const heard = onStep && ((step: RewriteStep) => onStep(send.id, step));
+  const carries = wordsNeedOpening(words) && slotCount(`${words.subject ?? ""}\n${words.body}`, "their preview") > 0;
+  if (!carries || !send.lead_id)
+    return { input: sendInputOf(uncheckedSend, words, about.ws, about.country, heard), mark: null };
+  const lead = { tenantId: send.tenant_id, leadId: send.lead_id };
+  const unread = "reading a lead's preview for the line of the email that carries it";
+  const found: PreviewForLine =
+    !about.pressed && uncheckedSend.due_soon
+      ? await previewForLine(db, lead, about.now).catch(logAndGoOn(unread, { preview: null }))
+      : { preview: await previewForOpening(db, lead, about.now).catch(logAndGoOn(unread, null)) };
+  if ("wait" in found) {
+    const waits = found.wait === "making" ? PREVIEW_HOLD_MS : CHECK_GATE_WAIT_MS;
+    return { wait: new Date(about.now.getTime() + waits).toISOString() };
+  }
   return {
-    input: sendInputOf(uncheckedSend, words, about.ws, about.country, heard, preview),
-    mark: preview?.mark ?? null,
+    input: sendInputOf(uncheckedSend, words, about.ws, about.country, heard, found.preview),
+    mark: found.preview ? lineMarkOf(words, found.preview, await about.ownerReads()) : null,
   };
+}
+
+/** Whether a send's run waits for its owner's OK (pending_approval): what they read now is what they approve. */
+async function isRunAwaitingOwner(db: Db, send: ReachOutSendRow): Promise<boolean> {
+  const run = await findBroadcastState(db, { tenantId: send.tenant_id, broadcastId: send.batch_id });
+  if (run.error) throw new DbFailure(run.error, "cannot read whether the send's run waits for its owner");
+  return run.data?.state === "pending_approval";
 }
 
 /**
@@ -280,23 +321,7 @@ export async function checkSends(params: {
   const ask = params.ask ?? askReachOutModel;
   const budget = params.budget ?? checkBudget(params.started);
   const at = now.toISOString();
-  const out: CheckCounts = {
-    read: 0,
-    checked: 0,
-    held: 0,
-    skipped: 0,
-    rewritten: 0,
-    failed: 0,
-    gave_up: 0,
-    late: 0,
-    gated: 0,
-    released: 0,
-    noticed: 0,
-    errors: 0,
-    calls: 0,
-    calls_failed: 0,
-    tokens: { input: 0, output: 0 },
-  };
+  const out = noneCounted();
   const error = (event: LogEvent, fields: Record<string, unknown>, e: unknown) => {
     out.errors += 1;
     log.error(event, { ...fields, error: e instanceof Error ? e.message : String(e) });
@@ -340,6 +365,14 @@ export async function checkSends(params: {
       log.info("reach_out_check_gated", { tenant_id: u.send.tenant_id, reason: reason });
     }
   };
+  // A send's write, counted under `counts` once it lands on the version the tick read.
+  const tally = async (
+    leased: UncheckedSend,
+    patch: Partial<ReachOutSendRow>,
+    counts: Exclude<keyof CheckCounts, "tokens">,
+  ) => {
+    if (await write(leased, patch)) out[counts] += 1;
+  };
   for (const [tenantId, sends] of byTenant) {
     let reason: string | null = null;
     try {
@@ -379,26 +412,14 @@ export async function checkSends(params: {
   /* each send's check, a few at once */
   const words = new Map<string, Promise<{ subject: string | null; body: string } | null>>();
   const workspaces = new Map<string, Promise<CheckWorkspace>>();
+  const runs = new Map<string, Promise<boolean>>();
   const one = async (uncheckedSend: UncheckedSend) => {
     const send = uncheckedSend.send;
     try {
-      if (budget.late()) {
-        if (await write(uncheckedSend, {})) out.late += 1;
-        return;
-      }
+      if (budget.late()) return tally(uncheckedSend, {}, "late");
       const country = countries.get(send.lead_id) ?? null;
-      if (reachOutCountryOf(country) === "refused") {
-        if (
-          await write(uncheckedSend, {
-            state: "skipped",
-            reason: "outreach_country",
-            checked_at: at,
-            check_after: null,
-          })
-        )
-          out.skipped += 1;
-        return;
-      }
+      const refused = { state: "skipped", reason: "outreach_country", checked_at: at, check_after: null } as const;
+      if (reachOutCountryOf(country) === "refused") return tally(uncheckedSend, refused, "skipped");
       const own = send.step_id ? (ownWords.get(leadStepKey(send.step_id, send.lead_id)) ?? null) : null;
       const item =
         own ??
@@ -406,12 +427,14 @@ export async function checkSends(params: {
           findEmailWords(db, send.tenant_id, uncheckedSend.template_id),
         ));
       // No words to check: marked checked, so the sender holds it as it always has (no_template).
-      if (!item) {
-        if (await write(uncheckedSend, { checked_at: at, checked_words: null, check_after: null })) out.checked += 1;
-        return;
-      }
+      if (!item) return tally(uncheckedSend, { checked_at: at, checked_words: null, check_after: null }, "checked");
       const ws = await once(workspaces, send.tenant_id, () => checkWorkspaceOf(db, send.tenant_id));
-      const { input, mark } = await lineInputFor(db, uncheckedSend, item, { ws, country, now }, params.onStep);
+      const ownerReads = () => once(runs, send.batch_id, () => isRunAwaitingOwner(db, send));
+      const about = { ws, country, now, pressed, ownerReads };
+      const lineInput = await lineInputFor(db, uncheckedSend, item, about, params.onStep);
+      // Its line not yet written, until their preview may be: no model is asked meanwhile.
+      if ("wait" in lineInput) return tally(uncheckedSend, { check_after: lineInput.wait }, "waited");
+      const { input, mark } = lineInput;
       // One attempt of the workspace's UTC day, taken before the model is asked (a rewrite is the same attempt, a
       // failure spends it): words that name no opening cost nothing and take none.
       const cap = dayShareOf(uncheckedSend, pressed);
@@ -422,10 +445,7 @@ export async function checkSends(params: {
       const result = await checkOne(input, ask, budget, { tenantId: send.tenant_id, subjectId: send.id });
       out.calls += result.calls;
       out.tokens = { input: out.tokens.input + result.tokens.input, output: out.tokens.output + result.tokens.output };
-      if (result.kind === "late") {
-        if (await write(uncheckedSend, {})) out.late += 1;
-        return;
-      }
+      if (result.kind === "late") return tally(uncheckedSend, {}, "late");
       const failed = async (reason: string) => {
         const f = failedCheck(send, now, at, uncheckedSend.due_soon);
         if (!(await write(uncheckedSend, f.patch))) return;
