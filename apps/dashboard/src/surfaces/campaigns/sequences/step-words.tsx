@@ -20,6 +20,7 @@ import {
   inChatPurposeOfMessage,
   parseParamSpecs,
   replyInChatOf,
+  reviewIsSlow,
   stepApprovalOf,
   stepAsOffer,
   type HandKind,
@@ -71,6 +72,15 @@ export function stepOfferOf(
   return stepAsOffer({ kind: step.kind, hand: step.hand, policy_class: policyClass }, message, inChat);
 }
 
+/**
+ * A step's message's WhatsApp standing as its pill says it (contracts stepApprovalOf), taking longer than usual where
+ * WhatsApp has been checking it for over a day (reviewIsSlow).
+ */
+export function approvalOf(message: CmOffered["message"] | null | undefined) {
+  const whatsapp = message?.versions.whatsapp ?? null;
+  return stepApprovalOf(whatsapp?.status ?? null, reviewIsSlow(whatsapp?.since ?? null, Date.now()));
+}
+
 /** The business's name as a message fills it: an example's words say it. */
 function useBusinessName(): string {
   return cmBusinessOf(useSurface("settings")).businessName;
@@ -82,7 +92,7 @@ function useBusinessName(): string {
  */
 export function StepMessageDoor(p: { name: string; message: CmOffered | null; testid: string }) {
   const { name, message, testid } = p;
-  const approval = stepApprovalOf(message?.message?.versions.whatsapp?.status ?? null);
+  const approval = approvalOf(message?.message);
   return (
     <p className="sq-stepview-from">
       {approval && approval.tone !== "ok" ? (

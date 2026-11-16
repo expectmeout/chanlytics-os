@@ -368,6 +368,14 @@ test("a reader sees where it stands and may save it, and is offered nothing that
   assert.doesNotMatch(desk({ may: false }), /<kbd>P<\/kbd>/, "P presses nothing for a reader");
 });
 
+test("a post set aside leads with Put back, the word its More says, and its row still says where it stands", () => {
+  for (const html of both({ over: { status: "set_aside" } })) {
+    assert.equal(count(html, "cnv-next"), 1, "one act leads");
+    assert.equal(saysOf(html, "cnv-next"), "Put back");
+    assert.equal(count(html, "cnv-status"), 1);
+  }
+});
+
 test("a photo of the Library says no place, and leads with keeping it where it waits", () => {
   const library = { source: "upload", status: "inbox" };
   for (const html of both({ over: library })) {

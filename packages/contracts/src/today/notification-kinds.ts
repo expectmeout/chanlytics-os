@@ -260,11 +260,22 @@ export const ALERT_TOPICS: readonly AlertTopic[] = [
   {
     key: "templates",
     group: "worth_knowing",
-    title: "A WhatsApp message was approved, or needs a change",
-    what: "WhatsApp approved a saved message, asked for a change, paused or turned it off, or treats it as an offer.",
+    title: "A WhatsApp message was approved",
+    what: "WhatsApp approved a saved message, or treats it as an offer.",
     email: "choice",
     phone: false,
-    kinds: ["template_ready", "template_blocked"],
+    kinds: ["template_ready"],
+  },
+  // What sends it waits until the owner acts, so a phone hears it too (the WhatsApp notices plan, step 4, 16 Nov 2026). A
+  // business's email choice is kept by kind (email_off), so the two halves of the one row keep what it chose.
+  {
+    key: "template_changes",
+    group: "worth_knowing",
+    title: "A WhatsApp message needs a change",
+    what: "WhatsApp asked for a change to a saved message, paused it, or turned it off.",
+    email: "choice",
+    phone: true,
+    kinds: ["template_blocked"],
   },
   {
     key: "sweep",
