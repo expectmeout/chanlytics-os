@@ -90,10 +90,13 @@ And, ruled while building:
   first, cut at the answer's 700 characters (`packages/contracts/src/ask/ask-answer.ts:725`, `answerForCards`). They are
   said in the question's language (16 Oct 2026: a setup's in `packages/contracts/src/journey/journey-plan.ts`, an
   offer's in `packages/contracts/src/broadcasts/offer-plan-words.ts`); the refusals the model reads stay English.
-- **A held send never goes on a WhatsApp version still in review.** A broadcast that ticks WhatsApp, and a campaign by
-  WhatsApp alone, wait for WhatsApp's approval before they can be approved
-  (`packages/contracts/src/ask/plan-steps.ts:142`, `sendWaitsForReview`). Where the one message that fits an offer
-  waits on that review, the plan writes no twin: the offer goes without WhatsApp and says why, or is refused in words.
+- **A held send never goes on a WhatsApp version still in review (until 16 November 2026).** A broadcast that ticks
+  WhatsApp, and a campaign by WhatsApp alone, waited for WhatsApp's approval before they could be approved
+  (`sendWaitsForReview`, since removed). Where the one message that fit an offer waited on that review, the plan wrote no
+  twin: the offer went without WhatsApp and said why, or was refused in words. Since a send by hand waits for WhatsApp's
+  check by itself (#2334) and a campaign on words being checked is made (#2345), a send on such words goes in the plan's
+  one press, its WhatsApp people waiting for the check, and the message that fits is reused with WhatsApp kept
+  (`packages/contracts/src/ask/plan-steps.ts`, `planPressOf`; `packages/contracts/src/ask/plan/intents.ts`, `offerMessage`).
 
 **3. A step pressed again after its key's day.** The key `plan:<id>:<n>` keeps decision 0035's one day; a stamped card
 can be approved for a week. A press after the key's day is held by what the turn recorded of each card (`planMadeOf`),

@@ -20,7 +20,6 @@ import {
   answerSpoken,
   answerText,
   planGroupOf,
-  planInReview,
   planPressOf,
   type AskAnswer,
   type AskProposal,
@@ -89,7 +88,6 @@ export type AskApi = ReturnType<typeof askPalette> &
     planGroupOf: typeof planGroupOf;
     /** What a plan's one press does now, and whether WhatsApp is still reading its words: contracts'. */
     planPressOf: typeof planPressOf;
-    planInReview: typeof planInReview;
     /** Undo a committed card, where the verb has one. */
     undo(p: AskProposal, outcome: AskProposalOutcome, messageId?: string | null): Promise<UndoResult>;
     /** "Edit in the composer": open the thread with the words ready to change. */
@@ -238,7 +236,6 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     pauseSend: (p, paused) => pauseSend(win, p, paused),
     planGroupOf,
     planPressOf,
-    planInReview,
     undo: (p, o, messageId) => keptOrCleared([p], undoCard(win, p, o, { messageId })),
     editReply: (p) => editReply(win, p),
     undoOpen: (...a) => pageSpecs.now()?.askUndoOpen(...a) ?? false,

@@ -7,7 +7,7 @@
  */
 import type { AskPlanStamp, AskProposal } from "./thread-words";
 import type { AskLanguage } from "./language";
-import { PROPOSAL_WORDS, rec, type ProposalRefusal } from "./proposals/spec";
+import { PROPOSAL_WORDS, type ProposalRefusal } from "./proposals/spec";
 
 /**
  * Every step of a plan committed so far, by step, as a card's commit fills its tokens from it and a press of the plan
@@ -226,37 +226,8 @@ interface GroupStep<P extends HeldCard> {
   of: number;
   /** What it waits for in place of its Approve (planWaits): a step not committed yet, or one undone; null where it may be pressed. */
   wait: { undone: number } | { waits: number } | null;
-  /** The step whose message WhatsApp reviews before this send can go, said before its press; null for none, and where it never goes. */
-  review: number | null;
   /** Why it never goes, in the refusal's own words (PROPOSAL_WORDS.planUndone), where a step it waits for was undone; else null. */
   note: string | null;
-}
-
-/**
- * Whether a send of this kind, by these channels, waits for WhatsApp's review of its message's WhatsApp version before it
- * can be approved, the way core holds it: a broadcast that ticks WhatsApp (core refuseTicks answers 409 while the version
- * is in review), or a campaign by WhatsApp alone (check-playbook's refuseMessageNoTickHolds). A campaign by email too
- * keeps its WhatsApp tick and holds those people until the version is approved, so it can be approved now. The one
- * reading of it: the Line's (reviewedStep) and the plan's words and its pick of a message (plan.ts).
- */
-export function sendWaitsForReview(kind: string, channels: readonly unknown[]): boolean {
-  if (kind === "broadcast") return channels.includes("whatsapp");
-  return kind === "playbook" && channels.length > 0 && channels.every((c) => c === "whatsapp");
-}
-
-/**
- * The step whose message a send goes on (its template_id, `@step:n`), where that step writes the message with a WhatsApp
- * version and the send waits for WhatsApp's review of it (sendWaitsForReview). Null for every other card. Read from the
- * cards alone: no review state is held.
- */
-function reviewedStep(p: HeldCard, steps: ReadonlyMap<number, HeldCard>): number | null {
-  const token = typeof p.payload.template_id === "string" ? STEP_TOKEN.exec(p.payload.template_id) : null;
-  if (!token) return null;
-  const n = Number(token[1]);
-  const message = steps.get(n);
-  const writesWhatsApp = message?.kind === "message" && !!rec(message.payload.versions).whatsapp;
-  const channels: unknown[] = Array.isArray(p.payload.channels) ? p.payload.channels : [];
-  return writesWhatsApp && sendWaitsForReview(p.kind, channels) ? n : null;
 }
 
 /**
@@ -278,7 +249,6 @@ export function planGroupOf<P extends HeldCard>(
     id,
     mine.map((s) => s.card),
   );
-  const byStep = new Map<number, HeldCard>(mine.map((s) => [s.plan.step, s.card]));
   const steps = mine.map(({ card, plan }): GroupStep<P> => {
     const wait = planWaits(plan, created);
     const undone = wait !== null && "undone" in wait;
@@ -287,7 +257,6 @@ export function planGroupOf<P extends HeldCard>(
       step: plan.step,
       of: plan.of,
       wait,
-      review: undone ? null : reviewedStep(card, byStep),
       note: undone ? PROPOSAL_WORDS.planUndone : null,
     };
   });
@@ -311,14 +280,16 @@ function stepsNamed(value: unknown, into: Set<number> = new Set()): Set<number> 
  * missed meeting campaigns" started one of the four, kept saying Start it, and Ask then told him the other three "weren't
  * approved"; this reverses D2 of the answers canvas, which took one send a press). Walking its steps in order, it takes
  * every step not made yet. It stops, and the card says what the next press starts, at a send that builds on a send not
- * made before this press (it names it in `after` or by its token, and needs what that one comes back with), and at one
- * whose message this plan writes and WhatsApp must read first (`review`, the step that writes it): the press files the
- * words, and that send and those after it wait. A step the person undid stops any send that names it (`undone`). `sends`
- * are the sends this press takes, `send` the first of them; `steps` empty is a plan with nothing left to press.
+ * made before this press (it names it in `after` or by its token, and needs what that one comes back with). A send on
+ * words this plan writes goes with them: WhatsApp's check of their WhatsApp version holds no press, and the send waits
+ * for it by itself (core messages/broadcast/whatsapp-wait.ts, campaigns/paced.ts), as one New makes does (the clean list,
+ * 16 Nov 2026: the press stopped at it, "Send for review", and the owner came back to start it). A step the person undid
+ * stops any send that names it (`undone`). `sends` are the sends this press takes, `send` the first of them; `steps`
+ * empty is a plan with nothing left to press.
  */
 export function planPressOf<P extends HeldCard>(
   cards: readonly P[],
-): { steps: number[]; send: number | null; sends: number[]; review: number | null; undone: number | null } {
+): { steps: number[]; send: number | null; sends: number[]; undone: number | null } {
   const group = planGroupOf(cards);
   const made = planMadeOf(
     group.id,
@@ -327,12 +298,7 @@ export function planPressOf<P extends HeldCard>(
   const sendSteps = new Set(group.steps.filter((s) => !s.card.plan?.silent).map((s) => s.step));
   // A send not made before this press: what a later send that names it would build on is not there yet.
   const pendingSend = (n: number) => sendSteps.has(n) && !made[n];
-  const out: { steps: number[]; sends: number[]; review: number | null; undone: number | null } = {
-    steps: [],
-    sends: [],
-    review: null,
-    undone: null,
-  };
+  const out: { steps: number[]; sends: number[]; undone: number | null } = { steps: [], sends: [], undone: null };
   const said = () => ({ ...out, send: out.sends[0] ?? null });
   for (const s of group.steps) {
     if (made[s.step] || s.card.outcome?.state === "dismissed") continue;
@@ -346,24 +312,10 @@ export function planPressOf<P extends HeldCard>(
     }
     const builds = [...(s.card.plan?.after ?? []), ...stepsNamed(s.card.payload)].some(pendingSend);
     if (builds) return said();
-    if (s.review !== null && !made[s.review]) {
-      // WhatsApp reads the words first: the press files them, and this send waits, with every send after it, so a plan's
-      // sends never go out of the order it wrote them in.
-      out.review = s.review;
-      return said();
-    }
     out.steps.push(s.step);
     out.sends.push(s.step);
   }
   return said();
-}
-
-/**
- * Whether WhatsApp is still reading the words a plan's send goes on: the step that wrote them is made, and the send is not.
- * The card says so in its press's place of mind ("WhatsApp reads new words first"); its press tries, and the door says.
- */
-export function planInReview<P extends HeldCard>(cards: readonly P[]): boolean {
-  return planGroupOf(cards).steps.some((s) => s.review !== null && !s.card.outcome && !s.wait);
 }
 
 /** How many waiting cards the model is named: past it, the person says which. */

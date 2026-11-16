@@ -1254,12 +1254,16 @@ as the owner's marketing manager through `propose_campaign`'s actions and three 
   receptionist in a note until the offer's last day, pauses a running month's offer, and sends at ten on the first day
   (paced as a capped campaign where the calendar is tight and the offer starts today). Each step is built by its own
   action into an ordinary card. Where a step sends nothing, the cards are stamped as one plan (`AskProposal.plan`: its
-  id, the step, of how many, whether it is silent, and the steps a send waits for): the silent steps are approved in
-  one press, in order, each through its own route under the key `plan:<id>:<n>`; each send is its own press once the
-  steps it names are done; a stamped card can be approved for a week. A setup with no silent step is plain cards. A
+  id, the step, of how many, whether it is silent, and the steps a send waits for): one press takes the silent steps
+  and every send the card names, in order, each through its own route under the key `plan:<id>:<n>` (contracts
+  `planPressOf`); a send that builds on what another send comes back with is the next press, and a refused step ends a
+  press, the next carrying on from it. A send on words the plan writes goes in the same press: WhatsApp's check of their
+  WhatsApp version holds no press, and the send's WhatsApp people wait for it, as New's do (16 November 2026; the press
+  stopped there, "Send for review", until then). A stamped card can be approved for a week. A setup with no silent step is plain cards. A
   plan that cannot be made (nothing can carry the offer, a read failed) is refused in words, and no card is made.
 - **Its answer.** The round that makes a plan answers with the plan's words, what no card carries first (a channel left
-  out and why, the note left out, the pause to resume, the room, the reminder to ask for), cut at 700 characters, under
+  out and why, the note left out, the pause to resume, the room, the reminder to ask for, and that the send's WhatsApp
+  people wait for WhatsApp's check of new words), cut at 700 characters, under
   the headline "A plan of N steps to review" (`answerForCards`); a setup's plain cards are "N cards to review".
 
 ## S-19 · Alerts, notifications and the pager

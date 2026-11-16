@@ -91,7 +91,6 @@ export {
   holdsAlike,
   openCardOf,
   planGroupOf,
-  planInReview,
   planMadeOf,
   planPressOf,
   planWaits,

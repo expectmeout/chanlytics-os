@@ -684,17 +684,21 @@ const reviewing = () => [
   tpl(OFFER_EMAIL),
 ];
 
-test("the one message that fits still in WhatsApp's review: a broadcast, built by the real broadcast handler, goes by its email version and the words say why, never core's 409 for the whole plan; a paced campaign by WhatsApp alone is refused in the plan's words, never as a step its handler refused", async () => {
+test("the one message that fits still being checked by WhatsApp: a broadcast, built by the real broadcast handler, keeps WhatsApp beside email and says its WhatsApp people wait for the check; a paced campaign by WhatsApp alone, built by the real campaign handler, is a card on it too, never a refusal (the clean list, 16 Nov 2026)", async () => {
   const both = withCalendar({ templates: reviewing() });
   const r = await plan(offer(), both);
   assert.equal(r.isError, false, r.result);
   const send = r.proposals.at(-1);
-  // The card names the message by its anchor (its WhatsApp version, as every broadcast card does), and goes by email.
-  assert.deepEqual([send.kind, send.payload.channels, send.payload.template_id], ["broadcast", ["email"], OFFER_WA]);
-  assert.ok(said(r).words.includes(EN.without("whatsapp", EN.reviewing("this_months_offer"))), said(r).words);
+  // The card names the message by its anchor (its WhatsApp version, as every broadcast card does), and keeps WhatsApp:
+  // the real handler takes a send on a version being checked, whose WhatsApp people wait for the check (#2334).
+  assert.deepEqual(
+    [send.kind, send.payload.channels, send.payload.template_id],
+    ["broadcast", ["whatsapp", "email"], OFFER_WA],
+  );
+  assert.ok(said(r).words.includes(EN.whatsappReview), said(r).words);
   assert.ok(!r.proposals.some((p) => p.kind === "message"), "no twin of it is written");
   // WhatsApp the one channel that carries offers (no mailbox), and a room tight today: the paced campaign goes by
-  // WhatsApp alone, which core holds for the review, so the plan refuses it itself.
+  // WhatsApp alone on it, made as a campaign New makes on a message being checked is (#2345), its people waiting.
   readerCache.clear();
   const tight = withCalendar({ templates: reviewing(), mailboxes: [] });
   const [cfg] = tight.tenant_config;
@@ -709,8 +713,13 @@ test("the one message that fits still in WhatsApp's review: a broadcast, built b
     "owner",
     ten,
   );
-  assert.equal(paced.isError, true);
-  assert.equal(said(paced).error, W.reviewRefused("this_months_offer", false));
+  assert.equal(paced.isError, false, paced.result);
+  const campaign = paced.proposals.at(-1);
+  assert.deepEqual(
+    [campaign.kind, campaign.payload.channels, campaign.payload.template_id],
+    ["playbook", ["whatsapp"], OFFER_WA],
+  );
+  assert.ok(said(paced).words.includes(EN.whatsappReview), said(paced).words);
 });
 
 /* ------------------------------------------------------------------ a read that fails */
