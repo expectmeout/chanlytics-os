@@ -121,7 +121,7 @@ export const VISIT_ASK_WORDS = {
   gate: "say whether they came",
   /** The confirm before a cancel, under the workspace's own question (appointmentWords cancelAsk). */
   cancel: {
-    detail: "It can't be undone here. Its reminders stop; the calendar keeps the time until it is changed there.",
+    detail: "It can't be undone here. Its reminders stop · the calendar keeps the time until it is changed there.",
     yes: "Yes, cancelled",
     no: "Keep it",
   },

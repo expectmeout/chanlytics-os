@@ -52,7 +52,7 @@ export const STANDING = {
   lapsed: "Needs connecting again",
   account: (name: string, time: string) => `${name} · read ${time}`,
   reading: (name: string) => `${name} · reading now`,
-  failed: (name: string, when: string) => `${name} · couldn't be read, last read ${when}`,
+  failed: (name: string, when: string) => `${name} · couldn't update, updated ${when}`,
   charged: (p: AdPlatform) => `Charged to your card by ${PLATFORM_OWNER[p]}. Chanlytics never holds your ad money.`,
   door: "Open in Settings › Connections",
   /** The post permission turns amber 7 days before it lapses. */

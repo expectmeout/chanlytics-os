@@ -262,7 +262,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     ...(live ? { live: true } : {}),
     snippet: withheld
       ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""}. Caller ID withheld, so it isn't linked to anyone.`
-      : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — ${snippetBody}`,
+      : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} · ${snippetBody}`,
     summary: { headline: wanted || firstSentence || snippetBody, bullets },
     ...linesOf(transcript, dto),
     durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1000) : null,

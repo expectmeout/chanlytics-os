@@ -156,7 +156,7 @@ test("several accounts to choose among show their currency; a read that failed o
     ],
     "an account's currency is the platform's, shown, never converted",
   );
-  assert.equal(rowsOf("failed").meta.read, "Couldn't be read · last read Sat 10 Oct, 6:00 PM");
+  assert.equal(rowsOf("failed").meta.read, "Couldn't update · Updated Sat 10 Oct, 6:00 PM");
   assert.equal(rowsOf("reading").meta.read, "Reading now");
 });
 

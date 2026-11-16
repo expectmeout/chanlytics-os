@@ -163,7 +163,7 @@ export const NEW_AD = {
     /** Google: what people search, grouped by Google. */
     search: {
       label: "What people search",
-      note: "Google groups searches; you will see what people typed in the ad's Results.",
+      note: "Google groups searches · you will see what people typed in the ad's Results.",
       leftOut: (list: readonly string[]) => `Left out for you: ${list.join(", ")}`,
     },
   },
@@ -329,7 +329,7 @@ export const CHECKS = {
   post: "The caption of the post was checked as ad words",
   special: "Not a job, loan or home ad",
   privacy: "Privacy page link added",
-  yes: "Your yes line saved with each number",
+  yes: "The yes line is saved with each number",
   noHealth: "No health question",
   businessName: "The first words of the call are your business name",
   /** The words fit the platform's limits, or which one does not. */

@@ -84,7 +84,7 @@ function vetoSays(thread: VetoThread, remaining: number | null | undefined, paus
   return remaining != null ? (
     paused ? (
       <>
-        Paused at <b>{remaining}s</b> — you're away
+        Paused at <b>{remaining}s</b> · you&apos;re away
       </>
     ) : thread.real && remaining === 0 ? (
       <b>Sending now…</b>

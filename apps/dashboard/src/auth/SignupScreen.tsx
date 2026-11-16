@@ -195,7 +195,7 @@ function signupBody({ name, email, password, code, posture, tz, preview }: Signu
 /** Where the route's answer leaves the screen: its refusal's words, the waitlist, the code not sent, or the code step. */
 function takeSignupAnswer({ setError, setJoined, setUnsent, setStage }: SignupState, res: Response, j: SignupAnswer) {
   if (!res.ok || !j?.ok) {
-    setError(j?.error?.message ?? "Something went wrong. Try again.");
+    setError(j?.error?.message ?? "Couldn't finish that. Try again.");
     return;
   }
   // A waitlist submission has nowhere to go: no code is coming and there is

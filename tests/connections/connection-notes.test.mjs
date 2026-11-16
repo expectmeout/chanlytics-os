@@ -47,7 +47,7 @@ const rowsOf = (inputs) => by(connectionRows({ ...base(), ...inputs }, NOW));
 /** What WhatsApp costs: who bills it, the card Meta asks for, what is free, what is charged, in one line, and Meta's own page for the prices (no rate is written here). */
 const COST = [
   {
-    text: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill, so add one when Meta asks: replies within 24 hours of a customer's message are free; reminders sent after that, and campaigns, are charged for each one Meta delivers.",
+    text: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill, so add one when Meta asks: replies within 24 hours of a customer's message are free · reminders sent after that, and campaigns, are charged for each one Meta delivers.",
     link: { label: "Meta's current prices", href: "https://business.whatsapp.com/products/platform-pricing#rates" },
   },
 ];
@@ -70,7 +70,7 @@ const PREFLIGHT = preflight(CODE_NO_LINE);
 const LEFT_OPEN = {
   // What happened is on the row itself, never behind its press (ConnectionNote.live).
   live: true,
-  text: "A WhatsApp sign-up was started here and did not come back to Chanlytics — if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.",
+  text: "A WhatsApp sign-up was started here and did not come back to Chanlytics · if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.",
 };
 
 test("the WhatsApp row that offers Connect says what Meta will ask and what WhatsApp costs, in the order the owner meets them, and to keep the page open until the window closes: three lines", () => {

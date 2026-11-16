@@ -154,7 +154,7 @@ test("a read's refusal is its own route's: its code, status and sentence, and th
   assert.deepEqual(byKey.setup, {
     k: "setup",
     s: 500,
-    b: { ok: false, error: { code: "internal", message: "Something went wrong." } },
+    b: { ok: false, error: { code: "internal", message: "Couldn't finish that." } },
   });
   assert.equal(byKey.views.s, 403);
   assert.equal(byKey.views.b.error.code, "forbidden");

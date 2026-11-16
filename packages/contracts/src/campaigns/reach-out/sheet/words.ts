@@ -17,7 +17,7 @@ export const REACH_OUT_SHEET_WORDS = {
   opening: "AI opens each email from the finder's record. It never invents a fact: anything it can't back is held.",
   stops: "Stops when they reply, book, unsubscribe, bounce or say no.",
   stopOne: "To stop one business, press Stop writing to them on its lead.",
-  first: `Starts today. You approve the first run; after that you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop each one.`,
+  first: `Starts today. You approve the first run · after that you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop each one.`,
   slotsHint: "each is filled for each business, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
@@ -37,7 +37,7 @@ export const REACH_OUT_SHEET_WORDS = {
   handWords: "What to do",
   handPlaceholder: "Ask whether our quote suited them",
   remove: "Remove",
-  removeNote: "Only before its first email goes; after that, pause it.",
+  removeNote: "Only before its first email goes · after that, pause it.",
   recheck: "Check the held again",
   /** A business on a run's sheet, held, ready or to send, opens its lead over the page (the name's tip). */
   openLead: "Open this business's lead",
@@ -222,8 +222,8 @@ export function startWords(
       return {
         tone: "good",
         text: ownerSends
-          ? `Planned ${phrase}. Each is handed to you to send once it is checked; you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop them.`
-          : `Planned ${phrase}. They go in each business's hours; you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop them.`,
+          ? `Planned ${phrase}. Each is handed to you to send once it is checked · you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop them.`
+          : `Planned ${phrase}. They go in each business's hours · you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop them.`,
       };
     case "held":
       switch (reachOutStart.reason) {
@@ -249,10 +249,10 @@ export function startWords(
         : { tone: "plain", text: "Saved. It is paused, so nothing was planned." };
     case "empty":
       return reachOutStart.reason === "already_ran"
-        ? { tone: "plain", text: "Saved. It already ran today; it runs again tomorrow." }
-        : { tone: "plain", text: "Saved. Nobody on this search can be written to yet; it looks again each day." };
+        ? { tone: "plain", text: "Saved. It already ran today · it runs again tomorrow." }
+        : { tone: "plain", text: "Saved. Nobody on this search can be written to yet · it looks again each day." };
     case "failed":
-      return { tone: "warn", text: "Saved. The first run couldn't be planned just now; it is tried again each hour." };
+      return { tone: "warn", text: "Saved. The first run couldn't be planned just now · it is tried again each hour." };
     case "unreached":
       return { tone: "plain", text: "Saved. The first run is planned within the hour." };
     case "preview":
@@ -276,7 +276,7 @@ export function nextRunWords(
   if (reachOutChain.next.waiting_run_id)
     return {
       tone: "warn",
-      text: "A run waits on you. No new business is written to until you answer it; follow-ups still go.",
+      text: "A run waits on you. No new business is written to until you answer it · follow-ups still go.",
       run_id: reachOutChain.next.waiting_run_id,
     };
   // A paused workspace is the chain's own line above (`may_spend`: held for billing), so the label is the moment's clock alone.

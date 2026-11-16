@@ -132,7 +132,7 @@ export interface FoundVM {
 
 export const FOUND_WORDS = {
   title: "Found for you",
-  lead: "Read from your Google profile and your website. Add what's right; a price comes with its service.",
+  lead: "Read from your Google profile and your website. Add what's right · a price comes with its service.",
   from: { google_profile: "Google profile", website: "your website" } satisfies Record<BusinessReadSource, string>,
   /** The website's read, where it read the booking platform's page too. */
   fromWithBooking: "your website and booking page",
@@ -327,5 +327,5 @@ export const WEBSITE_UNREAD_WORDS = {
   address: "it isn't an address on the public web",
   silent: "it didn't answer, or answered with no page",
   nothing: "it says nothing about services, prices or rules that we could find",
-  failed: "reading it failed just now; it is read again when you save it",
+  failed: "it couldn't be read just now. It is read again when you save it",
 } as const;

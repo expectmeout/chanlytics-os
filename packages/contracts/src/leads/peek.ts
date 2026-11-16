@@ -463,7 +463,7 @@ export function toLeadPeekVM(lead: LeadRowDto, search: LeadSearchDto | null, tz:
               ? "You marked this number wrong."
               : lead.phone_agrees
                 ? "The same number on Google Maps and their website."
-                : "On their Google Maps listing only; their website doesn't show it, so it isn't confirmed.",
+                : "On their Google Maps listing only · their website doesn't show it, so it isn't confirmed.",
             tel: lead.phone_wrong ? null : `tel:${lead.phone}`,
             wrong: lead.phone_wrong,
           }

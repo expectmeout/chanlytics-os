@@ -96,7 +96,7 @@ test("the words say what was answered and how we know, for every kind of change"
   });
   assert.deepEqual(consentChangeWords(change({ consent: "opted_out", channel: "whatsapp", words: "STOP" })), {
     who: "Consent",
-    text: "Asked to stop receiving messages — nothing goes out to them",
+    text: "Asked to stop receiving messages · nothing goes out to them",
     sub: "In their own words on WhatsApp: “STOP”",
   });
   assert.equal(
@@ -134,8 +134,8 @@ test("the words say what was answered and how we know, for every kind of change"
     ),
     {
       who: "Consent",
-      text: "Asked to stop receiving messages — nothing goes out to them",
-      sub: "Reported by the carrier: they had texted STOP to your number, so a text to them was not sent",
+      text: "Asked to stop receiving messages · nothing goes out to them",
+      sub: "Reported by their phone company: they had texted STOP to your number, so a text to them was not sent",
     },
   );
   assert.equal(
@@ -193,7 +193,7 @@ test("an unsubscribe is email's own answer: read as one, and never said as a sto
     text: "Unsubscribed from your emails",
     sub: "Pressed Unsubscribe in an email",
   });
-  assert.notEqual(consentChangeWords(row).text, "Asked to stop receiving messages — nothing goes out to them");
+  assert.notEqual(consentChangeWords(row).text, "Asked to stop receiving messages · nothing goes out to them");
   // A purpose this code has never heard of is still read as the conversational question, as it always was.
   assert.equal(
     consentChangeOf({ id: "e", subject_id: null, created_at: "", data: { purpose: "x" } }).purpose,
@@ -501,7 +501,7 @@ test("a spoken yes to OFFERS is refused before any row is touched; a no is honou
   const out = await silently(() =>
     offers.PUT.run(send({ ids: [P1, P2], consent: "opted_out", source: "phone" }), ctxFor(t2, faulty)),
   );
-  assert.deepEqual(out, { done: 1, failed: [{ id: P1, message: "Something went wrong." }], skipped: [] });
+  assert.deepEqual(out, { done: 1, failed: [{ id: P1, message: "Couldn't finish that." }], skipped: [] });
   assert.deepEqual(
     t2.decisions.map((d) => d.subject_id),
     [P2],

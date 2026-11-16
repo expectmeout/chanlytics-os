@@ -46,7 +46,7 @@ export function skippedReasonWords(reason: string): string {
     case "draft_withdrawn":
       return "were handed to you, then taken back";
     case "erased":
-      return "their record was erased";
+      return "their record was deleted";
     case "mailbox_gone":
       return "the mailbox their emails came from was removed";
     case "outreach_country":
@@ -151,10 +151,10 @@ export function reachOutRunWordsOf(
     // What Approve released, as the flash says it: the checked sends due today, never the run's whole count (R21).
     // Nothing today (planned after hours, or on a closed day) says when they go instead of "0 emails today".
     approved: owner
-      ? `${reachOutRun.chain_name} approved — ${plural(reachOutRun.today + reachOutRun.later, "email", "emails")} to send from your inbox, handed to you as each is checked`
+      ? `${reachOutRun.chain_name} approved · ${plural(reachOutRun.today + reachOutRun.later, "email", "emails")} to send from your inbox, handed to you as each is checked`
       : reachOutRun.today === 0 && reachOutRun.later > 0
-        ? `${reachOutRun.chain_name} approved — ${plural(reachOutRun.later, "email", "emails")} in the coming days, in their hours`
-        : `${reachOutRun.chain_name} approved — ${plural(reachOutRun.today, "email", "emails")} today, in their hours`,
+        ? `${reachOutRun.chain_name} approved · ${plural(reachOutRun.later, "email", "emails")} in the coming days, in their hours`
+        : `${reachOutRun.chain_name} approved · ${plural(reachOutRun.today, "email", "emails")} today, in their hours`,
     labels: REACH_OUT_RUN_LABELS,
     // Folded under its own head (WHO_GETS_IT_WORDS), its press at the head's right; what is still being checked said
     // inside it, under the names; none while nothing is checked.
@@ -236,7 +236,7 @@ export function toSendRowOf(draftedSend: ReachOutDraftedSend, params: { timezone
  */
 const SENT_SINCE_WORDS: Record<string, string> = {
   lead_gone: "Their lead is gone, so nothing more is written to them.",
-  erased: "Their record was erased, so nothing more is written to them.",
+  erased: "Their record was deleted, so nothing more is written to them.",
   lead_closed: "They had closed before it went, so nothing more is written to them.",
   outreach_suppressed: "Their address is on the never-again list, so nothing more is written to them.",
   outreach_stopped: "You had stopped writing to them, so nothing more is written to them.",

@@ -88,7 +88,7 @@ export const UI_ROWS: readonly UiRowMeta[] = [
     cls: "faq",
     ...W("faq"),
     hints: {
-      Auto: "answers from your business profile — a price only as your settings allow",
+      Auto: "answers from your business profile · a price only as your settings allow",
       Ask: "tells them a person will get back with the details, and lands the conversation in Needs you",
     },
   },
@@ -112,11 +112,11 @@ export const UI_ROWS: readonly UiRowMeta[] = [
     cls: "reviews",
     ...W("reviews"),
     hints: {
-      Auto: "answers each new review on Google within the hour, in the business's name — never about money",
+      Auto: "answers each new review on Google within the hour, in the business's name · never about money",
       // Holds it and Ask me write each reply ahead and hold it on Reports (decision 0064, step 6).
-      Veto: "writes each reply and posts it after 30 minutes on Reports, unless you stop it — never about money",
-      Ask: "writes each reply and holds it on Reports for your approval; you send it",
-      Never: "writes nothing; you reply in your own words",
+      Veto: "writes each reply and posts it after 30 minutes on Reports, unless you stop it · never about money",
+      Ask: "writes each reply and holds it on Reports for your approval · you send it",
+      Never: "writes nothing · you reply in your own words",
     },
   },
   { id: "money", cls: "money", ...W("money"), locked: true },

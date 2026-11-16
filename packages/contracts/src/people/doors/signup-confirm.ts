@@ -167,7 +167,7 @@ export function signupConfirmEmail(params: { business: string; link: string }): 
     body: [
       `You signed up on ${business}'s website for offers and news.`,
       `To get them by email, confirm here:\n${params.link}`,
-      "If this wasn't you, ignore this email. Without your yes, no offers are sent.",
+      "If this wasn't you, ignore this email. Unless you say yes, no offers are sent.",
     ].join("\n\n"),
   };
 }
@@ -184,7 +184,7 @@ export function signupConfirmEmailHtml(params: { business: string; link: string;
     look: { ...params.look, business: params.look.business.trim() || business },
     subject: signupConfirmEmail(params).subject,
     preview: signedUp,
-    lines: [signedUp, "If this wasn't you, ignore this email. Without your yes, no offers are sent."],
+    lines: [signedUp, "If this wasn't you, ignore this email. Unless you say yes, no offers are sent."],
     button: {
       words: confirmPageWords("ask", { business, address: null }).button ?? "Yes, send me offers",
       href: params.link,

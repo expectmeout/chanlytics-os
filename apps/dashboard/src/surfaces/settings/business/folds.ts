@@ -521,7 +521,7 @@ const btFallbacksProblems = (draft: unknown) => {
     else if (t.length > BT_LIMITS.message) found[key] = btRefusalOf("message", t.length);
     else if (unknown.length) {
       found[key] =
-        `Only {business}, {booking link} and {phone} are filled in — ${unknown[0]} would be sent as written.`;
+        `Only {business}, {booking link} and {phone} are filled in · ${unknown[0]} would be sent as written.`;
     }
   });
   return found;
@@ -682,7 +682,7 @@ const btSchemaProblems = (fold: string, base: Config | null | undefined, draft: 
       .filter((p) => typeof p === "string")
       .slice(-2)
       .join(".");
-    found.elsewhere = `Something else in your settings stops this save — ${where ? `${where}: ` : ""}${btSchemaWords(issue.message)}`;
+    found.elsewhere = `Something else in your settings stops this save · ${where ? `${where}: ` : ""}${btSchemaWords(issue.message)}`;
   });
   return found;
 };
@@ -701,7 +701,7 @@ const btHoldsChanges = (fold: string, base: Config | null | undefined, draft: un
   !same(btSaveFold(fold, base, draft), btSaveFold(fold, base, btDraftOf(fold, base)));
 
 const BT_FOLD_MOVED =
-  "Not saved — this changed after you opened it. Close it and open it again to see what is there now.";
+  "Not saved · this changed after you opened it. Close it and open it again to see what is there now.";
 
 /** What a fold hands the saver beside its draft: the draft it opened with, the toast, the close and the flash. */
 type FoldJobInput = Pick<FoldJob, "said" | "done" | "flash"> & { opened?: unknown };

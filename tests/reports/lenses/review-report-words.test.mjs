@@ -80,7 +80,7 @@ test("a gain is said once: the head's clause is the figure's, and a second day o
   assert.equal(first.lines.gained, "Needs a second day of reading.");
   assert.equal(
     first.lines.gainedEmpty,
-    "The count is read once a day; the first difference shows after the second read.",
+    "The count is read once a day · the first difference shows after the second read.",
   );
   assert.equal(first.google.gained.total, null);
   assert.equal(old.lines.gained, null, "days to draw: nothing to explain");

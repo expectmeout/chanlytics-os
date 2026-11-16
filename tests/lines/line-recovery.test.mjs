@@ -560,7 +560,7 @@ test("a failure at the vault is named as one: no Retry on the row, the refusal s
     voice_state: "failed",
     last_error: "keeping the line's credentials: permission denied for schema vault",
   });
-  assert.match(lineRetryRefusal(wall, NOW), /a retry cannot help until a person at Chanlytics restores them/);
+  assert.match(lineRetryRefusal(wall, NOW), /Trying again can't help until Chanlytics restores them/);
   assert.equal(
     lineRetryRefusal(line({ voice_state: "failed", last_error: "Twilio 21422" }), NOW),
     null,

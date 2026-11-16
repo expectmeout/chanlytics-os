@@ -1167,7 +1167,7 @@ test("the page says once why a customer who only ever texted is not in an offer'
     }),
   );
   assert.match(alone, /^Offers and news go by WhatsApp only\./);
-  assert.match(alone, /registered with the carriers for replies and appointment messages/);
+  assert.match(alone, /registered with the phone networks for replies and appointment messages/);
   assert.match(alone, /nothing promotional is sent by text/);
   assert.match(alone, /once they say yes on WhatsApp/);
 });

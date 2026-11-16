@@ -108,7 +108,7 @@ export const CHANNEL_WORDS = {
   noWhatsApp: "Connect a WhatsApp number first.",
   noTextLine: "No texting line yet.",
   textLineMock: "Your texting line is a test filing: it sends nothing.",
-  textLineNotActive: "Your texting line is not approved by the carriers yet.",
+  textLineNotActive: "Texting isn't approved for your number yet.",
   noMailbox: "Set up email in Settings › Connections first.",
   noEmailDomain: "Email is not switched on for this deployment yet.",
   /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
@@ -199,7 +199,7 @@ export function offersNote(ready: ChannelsReady): string {
   const byWhatsApp = channelRefuses("whatsapp", "marketing", "ours", ready) === null;
   const byEmail = channelRefuses("email", "marketing", "ours", ready) === null;
   const noText =
-    "The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text";
+    "The text line is registered with the phone networks for replies and appointment messages, so nothing promotional is sent by text";
   const paused = ready.whatsapp.offers?.why ?? "";
   if (byWhatsApp && byEmail)
     return `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`;

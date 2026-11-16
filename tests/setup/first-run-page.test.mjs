@@ -232,7 +232,7 @@ test("Find: another one checked, Yes links it, and the page says so, since Find 
   await byTestId(again, "fr-find-yes").props.onClick();
   assert.deepEqual(asked.link, ["p-dock"]);
   assert.equal(flashes.length, before + 1);
-  assert.equal(textOf(flashes.at(-1).msg), "Harbor Moving Warehouse is your listing on Google — read just now.");
+  assert.equal(textOf(flashes.at(-1).msg), "Harbor Moving Warehouse is your listing on Google · read just now.");
 });
 
 test("Find: Yes links it, then asks for AI to be set up from what Google says", async () => {
@@ -578,7 +578,7 @@ test("back from Google: what came in, a line each with where it stands, and Cont
   assert.match(textOf(back), /Google · owner@example\.com · just now/);
   assert.equal(textOf(byTestId(tree, "fr-google-reviews")), "ReviewsAll 212 · back to 2019 · 9 wait for a replyIn");
   assert.equal(textOf(byTestId(tree, "fr-google-services")), "Services and prices3, for you to check nextIn");
-  assert.equal(textOf(byTestId(tree, "fr-google-news")), "New reviewsRead every hour; your bell ringsOn");
+  assert.equal(textOf(byTestId(tree, "fr-google-news")), "New reviewsRead every hour · your bell ringsOn");
   went.length = 0;
   byTestId(tree, "fr-google-continue").props.onClick();
   assert.equal(went.at(-1), "start/receptionist", "on to where the workspace is now");
@@ -659,7 +659,7 @@ test("AI (canvas 2): the greeting every caller hears in the voice chosen, walk-i
   assert.equal(byTestId(tree, "first-run").props["data-step"], "receptionist");
   const greeting = byTestId(tree, "fr-greeting");
   assert.match(textOf(greeting), /^Greets every caller with“Hi, Harbor Moving\./);
-  assert.match(textOf(greeting), /Your own words any time; the automated-assistant line always stays\.$/);
+  assert.match(textOf(greeting), /Your own words any time · the automated-assistant line always stays\.$/);
   const hear = byTestId(tree, "fr-greeting-hear");
   assert.equal(textOf(hear), "Hear Grace");
   hear.props.onClick();

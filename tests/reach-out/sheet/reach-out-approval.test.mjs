@@ -245,7 +245,7 @@ test("a run waiting on its owner: the decision first, the held, the skipped, the
   assert.equal(sheet.approved, 1);
   assert.equal(
     sheet.said,
-    "Reach out · Personal trainers approved — 30 emails today, in their hours",
+    "Reach out · Personal trainers approved · 30 emails today, in their hours",
     "the flash says the block's today count, never the run's whole",
   );
   // Skip asks first, in a card of its own in the foot's place (the canvas's board 4): the question, what it costs, Keep it.

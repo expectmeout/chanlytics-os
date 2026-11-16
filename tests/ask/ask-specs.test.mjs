@@ -1272,7 +1272,7 @@ test("a run (D11): approve and skip are the run's own doors, approve's undo is a
   const skip = card("run", { ...run, verb: "skip" });
   assert.deepEqual(spec.commit(approve, TAB), { route: "POST broadcasts/[id]/approve", params: { id: RUN } });
   assert.deepEqual(spec.commit(skip, TAB), { route: "POST broadcasts/[id]/cancel", params: { id: RUN } });
-  assert.equal(spec.receipt(approve, APPROVED), "Win-back · 2026-09-26 approved — 12 people, sending now");
+  assert.equal(spec.receipt(approve, APPROVED), "Win-back · 2026-09-26 approved · 12 people, sending now");
   // Approved at 23:30 in New York, it goes at nine the next morning, said from the moment it was approved.
   assert.equal(
     spec.receipt(approve, {
@@ -1281,11 +1281,11 @@ test("a run (D11): approve and skip are the run's own doors, approve's undo is a
       scheduled_for: "2026-09-27T13:00:00.000Z",
       moved_from: "2026-09-27T03:30:00.000Z",
     }),
-    "Win-back · 2026-09-26 approved — 1 person, scheduled for tomorrow 9:00 AM — messages go out between 9:00 and 20:59 by your clock",
+    "Win-back · 2026-09-26 approved · 1 person, scheduled for tomorrow 9:00 AM · messages go out between 9:00 and 20:59 by your clock",
   );
-  assert.equal(spec.receipt(skip, CANCELED("pending_approval")), "Win-back · 2026-09-26 skipped — nothing will send");
+  assert.equal(spec.receipt(skip, CANCELED("pending_approval")), "Win-back · 2026-09-26 skipped · nothing will send");
   // A run that moved on before the skip landed: the cancel says what it did to it, in the page's words.
-  assert.equal(spec.receipt(skip, CANCELED("scheduled")), "Win-back · 2026-09-26 canceled — nothing will send");
+  assert.equal(spec.receipt(skip, CANCELED("scheduled")), "Win-back · 2026-09-26 canceled · nothing will send");
   assert.equal(spec.receipt(skip, CANCELED("sending")), "Win-back · 2026-09-26 stops after this send");
   assert.equal(spec.undo.label(approve), "Cancel it, if it has not finished");
   assert.equal(spec.undo.label(skip), null, "a skip has nothing to undo");

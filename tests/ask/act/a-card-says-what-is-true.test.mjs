@@ -149,5 +149,8 @@ test("REGRESSION (the live run of 14 Nov 2026): a search card's press asks for t
   // The receipt says what it started with and, cut short at the press, when the rest can follow.
   const receipt = PROPOSAL_SPECS.lead_search.receipt(card, { count: 64, asked: 300, renews_on: "Dec 1" });
   assert.match(receipt, /^Finding 64 /);
-  assert.match(receipt, /That is all your leads left this month; the other 236 can follow once they renew on Dec 1\.$/);
+  assert.match(
+    receipt,
+    /That is all your leads left this month · the other 236 can follow once they renew on Dec 1\.$/,
+  );
 });

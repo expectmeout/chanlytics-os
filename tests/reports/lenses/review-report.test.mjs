@@ -306,12 +306,12 @@ test("two replies say how many there are; the third gives the middle", () => {
   assert.deepEqual(said(tile(two, "answered")), { value: "2 of 2", meta: "2 by you", compare: null });
   assert.deepEqual(said(tile(two, "reply_time")), {
     value: "—",
-    meta: "2 replies so far; the middle needs 3",
+    meta: "2 replies so far · the middle needs 3",
     compare: null,
   });
   assert.equal(two.lines.head, "4.8 on Google from 213 reviews; 2 new in the last 30 days, all answered.");
   const one = vmOf(dtoOf(ledgerOf([answered("x1", "2026-09-03", 1), writtenReview("x2", at("2026-08-30"), 5)])));
-  assert.equal(tile(one, "reply_time").meta, "1 reply so far; the middle needs 3");
+  assert.equal(tile(one, "reply_time").meta, "1 reply so far · the middle needs 3");
   const three = vmOf(
     dtoOf(
       ledgerOf([answered("x1", "2026-09-03", 1), answered("x2", "2026-08-30", 2), answered("x3", "2026-08-25", 5)]),
@@ -564,7 +564,7 @@ test("with no review on Google the sentence says so, and the figures are the lis
     }),
     ledger: null,
   });
-  assert.equal(vmOf(failed).lines.head, "Google couldn't be read yet — read again once a day.");
+  assert.equal(vmOf(failed).lines.head, "Google couldn't be read yet · read again once a day.");
 });
 
 const placesOnly = (days, over = {}) =>
@@ -662,13 +662,13 @@ test("a profile connected but not yet synced is the public five, with the connec
   assert.equal(pending.google.connection.pending, true);
   const unsynced = vmOf(placesOnly([], { connection: googleConnection({ last_synced_at: null }) }));
   assert.equal(unsynced.source, "places");
-  assert.equal(unsynced.google.connection.words, "Connected as owner@example.com · not synced yet");
+  assert.equal(unsynced.google.connection.words, "Connected as owner@example.com · not updated yet");
   assert.equal(unsynced.lines.connect, null);
   const failing = vmOf(
     reviewsDto({ google: reviewsGoogle({ connection: googleConnection({ sync_error: "PERMISSION_DENIED" }) }) }),
   );
   assert.equal(failing.source, "profile", "the stored figures stay while a later sync fails");
-  assert.match(failing.google.connection.words, /couldn't sync since 3h ago/);
+  assert.match(failing.google.connection.words, /couldn't update since 3h ago/);
 });
 
 test("no listing: nothing is drawn but the door, and the head says nothing", () => {
@@ -709,7 +709,7 @@ test("the three figures say what they count", () => {
   );
   assert.equal(
     metricWordsOf("reviews_answered"),
-    "Of the reviews written in this period, how many have a reply on Google, from you or AI. A review with no reply yet is not answered. A reply counts as AI's where the last reply Chanlytics recorded under the review was its own; every other reply is yours, written here or on Google.",
+    "Of the reviews written in this period, how many have a reply on Google, from you or AI. A review with no reply yet is not answered. A reply counts as AI's where the last reply Chanlytics recorded under the review was its own · every other reply is yours, written here or on Google.",
   );
   assert.equal(
     metricWordsOf("review_reply_time"),

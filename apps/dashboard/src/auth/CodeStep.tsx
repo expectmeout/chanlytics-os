@@ -121,10 +121,10 @@ export default function CodeStep({
       <button disabled={busy}>{busy ? "Checking…" : submitLabel}</button>
       <div className="hint">
         {cooldown > 0 ? (
-          <span>Didn&apos;t get it? Resend in {cooldown}s. </span>
+          <span>Didn&apos;t get it? Send again in {cooldown}s. </span>
         ) : (
           <button type="button" className="auth-linkbtn" onClick={() => void resend()} disabled={busy}>
-            Resend code
+            Send a new code
           </button>
         )}
         {onBack && (

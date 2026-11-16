@@ -129,7 +129,7 @@ test("the line it answers on is named the way people write it, and choosing it i
   const choice = byTestId(tree, "rec-create-number-choice");
   assert.deepEqual(all(choice, (n) => n.props?.role === "radio").map(textOf), ["Your line", "A different number"]);
   const note = textOf(byTestId(tree, "rec-create-number-note"));
-  assert.ok(note.startsWith("+1 (305) 555-0100 — the line AI answers"), note);
+  assert.ok(note.startsWith("+1 (305) 555-0100 · the line AI answers"), note);
   assert.ok(!note.includes("+13055550100"), "REGRESSION: the stored form, in front of the owner");
 });
 
@@ -247,7 +247,7 @@ test("one request carries the three facts and the product's own prompt and messa
     FALLBACK_DEFAULTS,
     "the product's wording, which names the details rather than copying them in",
   );
-  assert.equal(textOf(flashes.at(-1).msg), "Saved — AI picks these up within a minute");
+  assert.equal(textOf(flashes.at(-1).msg), "Saved · AI picks these up within a minute");
   assert.equal(foldOpen(redrawCreate(flash)), false, "accepted, the fold closes");
 });
 
@@ -327,7 +327,7 @@ const courier = () => {
   return sent;
 };
 const toasts = (flashes) => flashes.map((f) => [f.tone ?? "ok", textOf(f.msg)]);
-const RECEPTIONIST_SAVED = "Saved — AI picks these up within a minute";
+const RECEPTIONIST_SAVED = "Saved · AI picks these up within a minute";
 
 test("the fold asks nothing of how customers buy, and its save sends nothing to the workspace's courier: one act, one toast", async () => {
   const sent = saving();

@@ -168,7 +168,7 @@ test("the stages: confirming with the bank once back from Stripe, a person for t
   assert.equal(noLines({ email: box }), "Emails keep coming to the Inbox", "a mailbox connected");
   assert.equal(
     noLines({ channels: { ...dtoOf().channels, ...wa }, email: { ...box, sending: null, mailbox: { address: "x" } } }),
-    "WhatsApp goes live now; emails keep coming to the Inbox",
+    "WhatsApp goes live now · emails keep coming to the Inbox",
     "the hosted address counts as the Inbox's mail too",
   );
   assert.equal(goLive(dtoOf()).noProvider, null, "said only where no provider is");

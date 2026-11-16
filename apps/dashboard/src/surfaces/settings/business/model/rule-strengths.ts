@@ -98,7 +98,7 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => (
     // names what is always true: a price nobody wrote never goes out. Switch-agnostic, so ruleStrength keeps its
     // one-argument shape; the switch's own state is said by rulesKept and the fold's list.
     sentence:
-      "Every reply is checked for a price in dollars or pesos. On, it says none; off, it may say the ones you've written, and any other is swapped out.",
+      "Every reply is checked for a price in dollars or pesos. On, it says none · off, it may say the ones you've written, and any other is swapped out.",
     checkedOn: [
       {
         channel: "whatsapp",
@@ -123,7 +123,7 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => (
     strength: "instructed",
     chip: "Told",
     sentence:
-      "People should know who they're talking to. A call's greeting says it; in text it opens a new conversation saying so, and says it whenever asked. Nothing checks its answer.",
+      "People should know who they're talking to. A call's greeting says it · in text it opens a new conversation saying so, and says it whenever asked. Nothing checks its answer.",
     checkedOn: null,
   },
   no_health_advice: {

@@ -200,5 +200,5 @@ test("hold to talk: a refused microphone is said plainly, and a silence or an ab
   assert.deepEqual(flashed, [], "nothing to say about a phrase that was never spoken");
   talk(mount()).props.onPointerDown(held);
   made.at(-1).onerror({ error: "network" });
-  assert.match(textOf(flashed[0].msg), /Couldn’t hear you — try again or type it/);
+  assert.match(textOf(flashed[0].msg), /Couldn’t hear you · try again or type it/);
 });

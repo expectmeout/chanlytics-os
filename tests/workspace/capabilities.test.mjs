@@ -60,7 +60,7 @@ test("voice: ready and tested but not activated says so, and activating makes it
   assert.equal(s.tested.what, "a call was answered");
   assert.equal(s.activated, null);
   assert.equal(s.live, false);
-  assert.match(s.words, /Tested .*Activate it/);
+  assert.match(s.words, /Tested .*Turn it on/);
   const live = capabilityStatus(
     "voice",
     dto({ activations: [{ capability: "voice", activated_at: ago(1), activated_by: "u1", deactivated_at: null }] }),
@@ -96,7 +96,7 @@ test("a deactivated record is no activation; an activation ahead of the facts is
   assert.equal(noFacts.ready, false);
   assert.equal(noFacts.blockers[0].code, "no_business_facts");
   assert.equal(noFacts.live, false, "activated, but the records say no");
-  assert.match(noFacts.words, /^Activated, but not ready/);
+  assert.match(noFacts.words, /^Turned on, but not ready/);
 });
 
 test("voice blockers, in the order the owner meets them", () => {

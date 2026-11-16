@@ -107,7 +107,7 @@ function renamedSays(title: string | null, name: string, atWhatsApp: boolean): R
   return (
     <>
       Now called <b>{title}</b>
-      {atWhatsApp ? ` — WhatsApp still knows it as ${name}` : null}
+      {atWhatsApp ? ` · WhatsApp still knows it as ${name}` : null}
     </>
   );
 }
@@ -182,7 +182,7 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
         const { seen, approved, marketing } = r.data;
         return (
           <>
-            {seen} message{seen === 1 ? "" : "s"} from WhatsApp — {approved} approved, {marketing} marketing
+            {seen} message{seen === 1 ? "" : "s"} from WhatsApp · {approved} approved, {marketing} marketing
           </>
         );
       },
@@ -243,7 +243,7 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
     flash({
       msg: (
         <>
-          <b>{g.title}</b> in {lang.label} went to WhatsApp — it reads as in review until they approve it, usually
+          <b>{g.title}</b> in {lang.label} went to WhatsApp · it reads as in review until they approve it, usually
           within minutes
         </>
       ),

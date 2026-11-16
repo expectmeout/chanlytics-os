@@ -1,7 +1,7 @@
 /**
  * An approved run is said in one sentence wherever it is approved (the wiring's second audit, S9-9 and S9-10): Sent's toast,
  * Today's, a campaign's drawer and Ask's card. The page's bcWhenWords and Ask's runGoes were two implementations of when it
- * goes, and Today said "approved: 3 people" where the rest said "approved — 3 people". Both halves are contracts' now
+ * goes, and Today said "approved: 3 people" where the rest said "approved · 3 people". Both halves are contracts' now
  * (whenItGoes, runApprovedTail), and these hold every place that says an approval to them.
  */
 import { test } from "node:test";
@@ -43,15 +43,15 @@ test("when it goes: now, a moment ahead, or moved into the sending hours", () =>
   assert.equal(whenItGoes({ scheduled_for: iso(later) }, when, NOW), `scheduled for ${when(later)}`);
   assert.equal(
     whenItGoes({ scheduled_for: iso(NINE), moved_from: iso(NOW) }, when, NOW),
-    `scheduled for tomorrow 9:00 AM — messages go out ${SENDING_HOURS_WORDS.between} by your clock`,
+    `scheduled for tomorrow 9:00 AM · messages go out ${SENDING_HOURS_WORDS.between} by your clock`,
     "the server moved it, and the sentence says why",
   );
 });
 
 test("approved: one tail, with the count's own noun", () => {
-  assert.equal(runApprovedTail(1, SENDING_NOW_WORDS), "approved — 1 person, sending now");
-  assert.equal(runApprovedTail(3, SENDING_NOW_WORDS), "approved — 3 people, sending now");
-  assert.equal(runApprovedTail(0, "scheduled for 9:00 AM"), "approved — 0 people, scheduled for 9:00 AM");
+  assert.equal(runApprovedTail(1, SENDING_NOW_WORDS), "approved · 1 person, sending now");
+  assert.equal(runApprovedTail(3, SENDING_NOW_WORDS), "approved · 3 people, sending now");
+  assert.equal(runApprovedTail(0, "scheduled for 9:00 AM"), "approved · 0 people, scheduled for 9:00 AM");
 });
 
 test("REGRESSION (S9-9, S9-10): Campaigns' toast, Today's and Ask's card say one approval in the same sentence", () => {
@@ -76,5 +76,5 @@ test("REGRESSION (S9-9, S9-10): Campaigns' toast, Today's and Ask's card say one
     { payload: { verb: "approve", name: "Win-back" } },
     { recipient_count: 3, scheduled_for: iso(NINE), moved_from: iso(NOW) },
   );
-  assert.match(utc, /^Win-back approved — 3 people, scheduled for .+ by your clock$/);
+  assert.match(utc, /^Win-back approved · 3 people, scheduled for .+ by your clock$/);
 });

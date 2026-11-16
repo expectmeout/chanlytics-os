@@ -89,7 +89,7 @@ function ReviewReply({
     if (d.ok) {
       setText(d.text);
       setDrafted("yes");
-    } else setDrafted(d.message || "No draft this time — write the reply yourself.");
+    } else setDrafted(d.message || "No draft this time · write the reply yourself.");
   };
   // The review a link names: its box opens as it is drawn (once), and the review is brought into view.
   const opened = useRef(false);
@@ -165,13 +165,13 @@ function ReviewReply({
             placeholder={
               drafting
                 ? "AI is writing a draft…"
-                : "Thank them, or answer them — it appears on Google under the review, in the business's name."
+                : "Thank them, or answer them · it appears on Google under the review, in the business's name."
             }
             data-testid="google-reply-text"
           />
           {drafted === "yes" && (
             <span className="rp2-review-drafted" data-testid="google-reply-drafted">
-              Drafted by AI — change anything, then send.
+              Drafted by AI · change anything, then send.
             </span>
           )}
           {drafted && drafted !== "yes" && (

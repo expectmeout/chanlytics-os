@@ -55,7 +55,7 @@ test("the codes: every carrier and mode dials AI's line; each card says how to d
   const o = forwardingCodes("other", "unanswered", DEST);
   assert.equal(o.on.code, "*923055550123");
   assert.equal(o.off.code, "*93");
-  assert.ok(o.notes.some((n) => /ask your carrier/i.test(n)));
+  assert.ok(o.notes.some((n) => /ask your phone company/i.test(n)));
   for (const c of CARRIERS.filter((k) => k !== "office"))
     for (const m of FORWARDING_MODES) {
       const codes = forwardingCodes(c, m, DEST);
@@ -91,7 +91,7 @@ test("the codes: every carrier and mode dials AI's line; each card says how to d
     verizon: "Verizon",
     att: "AT&T",
     tmobile: "T-Mobile",
-    other: "Another carrier or a landline",
+    other: "Another phone company or a landline",
     office: "An office phone system",
   });
   assert.deepEqual(FORWARDING_MODE_WORDS, { unanswered: "Only calls you don't answer", always: "Every call" });
@@ -271,7 +271,7 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
   assert.deepEqual(row(office, "keep").details, ["Only calls you don't answer · An office phone system"]);
   const testing = setupSteps({ ...base(), lines: lines([fwLine({}, { test_until: "2026-09-07T15:30:00Z" })]) }, NOW);
   assert.equal(row(testing, "keep").state, "waiting_you");
-  assert.match(row(testing, "keep").sentence, /^Testing — call \+1 \(212\) 555-0142 from another phone/);
+  assert.match(row(testing, "keep").sentence, /^Testing · call \+1 \(212\) 555-0142 from another phone/);
   assert.deepEqual(row(testing, "keep").details, ["Window open for 20m"]);
   assert.deepEqual(row(testing, "keep").verb, { label: "Show the code", to: "verb:forwarding" });
   const done = setupSteps(

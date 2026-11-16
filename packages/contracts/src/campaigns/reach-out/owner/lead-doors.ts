@@ -56,7 +56,7 @@ export const REACH_OUT_SAID_WORDS = {
   note: (intent: OwnerSaidIntent): string => `You said they wrote back: ${REPLY_INTENT_WORDS[intent]}.`,
   /** A drafted email's door: its run, where it is sent from. */
   sendIt: "Send it",
-  failed: "Couldn't save that. Nothing changed; try again.",
+  failed: "Couldn't save that. Nothing changed · try again.",
 } as const;
 
 /** "Stop writing to them": the door, its question, what it did, and why it could not. */
@@ -68,7 +68,7 @@ export const REACH_OUT_STOP_WORDS = {
   yes: "Stop writing",
   done: (business: string) => `Stopped: nothing more will be written to ${business}`,
   already: (business: string) => `${business} was already stopped`,
-  failed: "Couldn't stop it. Nothing changed; try again.",
+  failed: "Couldn't stop it. Nothing changed · try again.",
 } as const;
 
 /** A no's undo on the peek, as whoever read it: a reply read as no, or the owner's own word (00429). */

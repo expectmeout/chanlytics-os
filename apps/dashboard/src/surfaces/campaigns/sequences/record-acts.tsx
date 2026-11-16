@@ -461,7 +461,7 @@ export function RecordQuestion({ a, docked = false }: { a: RecordActs; docked?: 
     return (
       <Confirm
         question={`Discard “${a.row.name}”?`}
-        detail="Nothing of it has gone; its steps go with it."
+        detail="Nothing of it has gone · its steps go with it."
         yes={SEQUENCE_WORDS.discard}
         danger
         onYes={() => void a.discard()}

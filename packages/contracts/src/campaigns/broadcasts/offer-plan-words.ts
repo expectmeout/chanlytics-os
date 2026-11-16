@@ -93,7 +93,7 @@ const EN: OfferWords = {
   noteKnown: "AI already has a note about the offer.",
   noteLeftOut: "AI is not told about the offer until an owner or a partner adds a note about it.",
   monthsOfferPaused: (name, until) =>
-    `Pauses the month's offer, “${name}”, from when you approve it, so nobody gets two offers; resume it after ${until}.`,
+    `Pauses the month's offer, “${name}”, from when you approve it, so nobody gets two offers · resume it after ${until}.`,
   firstSend: (list, day, at) => `The offer goes to “${list}” on ${day} at ${at}.`,
   firstAtApprove: (list, at) => `The offer goes to “${list}” when you approve it, as ${at} today has passed.`,
   paced: (room, audience, cap) =>
@@ -177,7 +177,7 @@ const ES: OfferWords = {
   noteKnown: "La recepcionista ya tiene una nota sobre la oferta.",
   noteLeftOut: "La recepcionista no sabe de la oferta hasta que un dueño o un socio añada una nota.",
   monthsOfferPaused: (name, until) =>
-    `Pausa la oferta del mes, «${name}», desde que apruebes el plan, para que nadie reciba dos ofertas; reanúdala después del ${until}.`,
+    `Pausa la oferta del mes, «${name}», desde que apruebes el plan, para que nadie reciba dos ofertas · reanúdala después del ${until}.`,
   firstSend: (list, day, at) => `La oferta va a «${list}» el ${day} a las ${at}.`,
   firstAtApprove: (list, at) => `La oferta va a «${list}» cuando la apruebes, porque hoy ya pasaron las ${at}.`,
   paced: (room, audience, cap) =>

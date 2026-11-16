@@ -112,7 +112,7 @@ const FIELD = {
   },
   ein: {
     label: "Tax ID (EIN)",
-    hint: "Nine digits from the IRS — on the letter that issued it, or any filing you have made with it.",
+    hint: "Nine digits from the IRS · on the letter that issued it, or any filing you have made with it.",
     placeholder: "12-3456789",
     group: "business",
   },
@@ -121,7 +121,7 @@ const FIELD = {
   industry: { label: "Industry", options: BUSINESS_INDUSTRIES, group: "business" },
   about: {
     label: "What the business does",
-    hint: "Two or three sentences a stranger could follow: what you sell, who buys it, and how they pay. It goes on your public page and into your registration, and the carriers check it.",
+    hint: "Two or three sentences a stranger could follow: what you sell, who buys it, and how they pay. It goes on your public page and into your registration, and the phone networks check it.",
     placeholder:
       "A moving company in Brooklyn. We move homes and small offices across New York and New Jersey, and pack and store for them. Customers book a free estimate and pay per move.",
     multiline: true,
@@ -129,7 +129,7 @@ const FIELD = {
   },
   website_url: {
     label: "Website",
-    hint: "Yours, if you have one: your public page links to it, and the carriers check it. Without one, the carriers are given your public page instead, which carries your name, address and the wording they require.",
+    hint: "Yours, if you have one: your public page links to it, and the phone networks check it. Without one, the phone networks are given your public page instead, which carries your name, address and the wording they require.",
     placeholder: "https://",
     group: "business",
   },
@@ -142,7 +142,7 @@ const FIELD = {
   contact_last_name: { label: "Last name", group: "contact" },
   contact_email: {
     label: "Email",
-    hint: "The carriers write here if they need something, and customers can write to it from your public page.",
+    hint: "The phone networks write here if they need something, and customers can write to it from your public page.",
     placeholder: "you@business.com",
     group: "contact",
   },
@@ -204,7 +204,7 @@ const PATH_FIELDS: Record<RegistrationPath, readonly Ask[]> = {
       name: "legal_name",
       required: true,
       label: "Business name",
-      hint: "What customers call you. There is no filing to match — this is the name the carriers show beside your texts.",
+      hint: "What customers call you. There is no filing to match · this is the name the phone networks show beside your texts.",
     },
     { name: "industry", required: true },
     { name: "about", required: true },
@@ -225,7 +225,7 @@ const PATH_FIELDS: Record<RegistrationPath, readonly Ask[]> = {
       name: "contact_phone",
       required: true,
       label: "Your mobile",
-      hint: "Your own handset, not the number Chanlytics answers for you. The carriers text a code to it and you reply from that phone. It is not published.",
+      hint: "Your own handset, not the number Chanlytics answers for you. The phone networks text a code to it and you reply from that phone. It is not published.",
     },
   ],
 };
@@ -262,15 +262,15 @@ export function businessGroupWordsFor(
       business: { title: "What you do", sub: "as customers know it" },
       address: {
         title: "Where you are",
-        sub: "your own address — the carriers check it, and your public page shows it",
+        sub: "your own address · the phone networks check it, and your public page shows it",
       },
-      contact: { title: "You", sub: "the carriers text this mobile, and you answer from it" },
+      contact: { title: "You", sub: "the phone networks text this mobile, and you answer from it" },
     };
   }
   return {
     business: { title: "The business", sub: "as the tax authorities know it" },
     address: { title: "Where it is registered", sub: "the address on the filing, not a mailbox" },
-    contact: { title: "Who signs for it", sub: "a person the carriers can reach" },
+    contact: { title: "Who signs for it", sub: "a person the phone networks can reach" },
   };
 }
 
@@ -367,7 +367,7 @@ export function businessRecordProblems(
   // but the carriers only register businesses in two countries, and a refusal
   // for this arrives days later saying nothing a person can act on.
   if (has("country") && !REGISTERABLE_COUNTRIES.includes(String(business.country).trim().toUpperCase())) {
-    out.country = "The carriers register US and Canadian businesses only. Ours is not a door we can open.";
+    out.country = "The phone networks register US and Canadian businesses only. Ours is not a door we can open.";
   }
   if (
     path === "sole_proprietor" &&
@@ -375,7 +375,7 @@ export function businessRecordProblems(
     (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(business.contact_phone)))
   ) {
     out.contact_phone =
-      "This is the number Chanlytics answers for you. The carriers need YOUR handset — they text a code to it and you reply from the phone in your hand.";
+      "This is the number Chanlytics answers for you. The phone networks need YOUR handset · they text a code to it and you reply from the phone in your hand.";
   }
   return out;
 }
@@ -396,7 +396,7 @@ export function businessRecordForPath<T extends Partial<BusinessRecordDto>>(item
 
 /** What the pane says about the record as it stands. */
 export function businessRecordLine(business: BusinessRecordDto | null): string {
-  if (!business) return "The carriers ask who you are before they let a number text. It takes two minutes, once.";
+  if (!business) return "The phone networks ask who you are before they let a number text. It takes two minutes, once.";
   // A record on file is on the path its own tax id says it is on — see
   // ./registration-path for why that reads back exactly.
   const path = registrationPathOf(business) ?? "standard";

@@ -53,5 +53,5 @@ export const BC_SAYS = {
   nobody: (list: string, purpose: AskedPurpose): string =>
     `Nobody on “${list}” can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet.`,
   /** A send by WhatsApp has no number to go from: said here, and by the When column's number line. */
-  noNumber: "No WhatsApp number connected — connect one in Settings › Connections.",
+  noNumber: "No WhatsApp number connected · connect one in Settings › Connections.",
 } as const;

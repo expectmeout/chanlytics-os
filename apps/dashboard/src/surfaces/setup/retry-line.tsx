@@ -9,18 +9,18 @@ import { setupVerbs } from "./surface";
 /** Set the line up again, and say what came of it. A member who may not manage the team is not offered the press, and is refused here. */
 export async function retryLineInPlace(lineId: string, flash: (f: FrameFlash) => void): Promise<void> {
   if (!canDo("team")) return;
-  flash({ tone: "info", msg: <>Retrying — usually a minute or two.</> });
+  flash({ tone: "info", msg: <>Retrying · usually a minute or two.</> });
   const r = await setupVerbs.lines.retry(lineId);
   flash({
     tone: r.ok ? "ok" : "danger",
     msg: r.ok ? (
       r.queued ? (
-        <>Setting up again — this page updates by itself.</>
+        <>Setting up again · this page updates by itself.</>
       ) : (
         <>Your line answers now.</>
       )
     ) : (
-      <>{r.message || "It stopped again — a person at Chanlytics has it."}</>
+      <>{r.message || "It stopped again · a person at Chanlytics has it."}</>
     ),
   });
 }

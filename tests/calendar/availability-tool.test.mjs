@@ -811,7 +811,7 @@ test("a business with no booking link (one that quotes each job): no calendar is
   const said = availabilityAnswer({ openings, tz: TZ, daysAhead: 14 }, undefined, {}, { hasBookingLink: false }).result;
   assert.ok(
     said.endsWith(
-      "then take their name, what they need, and where and when so the team can confirm one. Never confirm a slot yourself; the calendar decides.",
+      "then take their name, what they need, and where and when so the team can confirm one. Never confirm a slot yourself · the calendar decides.",
     ),
     said,
   );

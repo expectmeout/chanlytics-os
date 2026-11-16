@@ -692,7 +692,7 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     );
     assert.equal(
       textOf(byTestId(sheet, "bc-sheet-hi")),
-      "1 gets \u201cHi there\u201d \u2014 no name on file",
+      "1 gets \u201cHi there\u201d \u00b7 no name on file",
       "the case nobody is shown before a send, shown before this one",
     );
     assert.ok(
@@ -1055,7 +1055,7 @@ test("an approve or a stop is said the moment the server takes it, with what it 
     press(byTestId(again(props), "bc-sheet-approve"));
     await settle();
     assert.equal(toasts.length, 1, "said at acceptance, while the surfaces are read again");
-    assert.match(textOf(toasts[0].msg), /approved — 3 people/);
+    assert.match(textOf(toasts[0].msg), /approved · 3 people/);
     assert.ok(
       !textOf(byTestId(again(props), "bc-sheet-approve")).includes("Approving…"),
       "the button is back when the server took it",
@@ -2540,7 +2540,7 @@ test("a waiting run whose day has passed is not offered an Approve the route ref
     assert.equal(approve.props["aria-disabled"], true);
     assert.match(
       approve.props["data-tip"],
-      /^This run was made for .+ and that day has passed: .+ Skip it; the next run reads the calendar again\.$/,
+      /^This run was made for .+ and that day has passed: .+ Skip it · the next run reads the calendar again\.$/,
     );
     press(approve);
     await settle();

@@ -85,7 +85,7 @@ export function toPersonRowVM(
       ? person.open_escalation_reason
         ? reasonShort(person.open_escalation_reason)
         : person.queued_reply_at && personStanding(person, nowMs).standing !== "needs_you"
-          ? "a reply is about to send — you can still stop it"
+          ? "a reply is about to send · you can still stop it"
           : "waiting for a person"
       : state === "waiting_on_you"
         ? // The pill says "You have it" (HELD_WORDS), so the detail adds only whose turn it is.

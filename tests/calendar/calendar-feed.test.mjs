@@ -310,7 +310,7 @@ test("one sentence per way a feed fails, naming what to do", () => {
   );
   assert.equal(
     feedProblemWords("http"),
-    "The calendar answered an error. It is usually the private iCal address, not the calendar's web page.",
+    "The calendar answered with a problem. It is usually the private iCal address, not the calendar's web page.",
   );
   assert.equal(feedProblemWords("too_large"), "That feed is too large to read (over 2 MB).");
   assert.match(feedProblemWords("not_ical"), /^That address is not an iCal feed\. In Google Calendar it is Settings/);

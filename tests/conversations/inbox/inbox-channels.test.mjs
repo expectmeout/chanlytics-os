@@ -82,7 +82,7 @@ test("a caller with no WhatsApp thread: phone is the channel, no reply window, t
   );
   assert.equal(
     vm.timeline.find((e) => e.type === "event").body,
-    "Held for you — needs a call back",
+    "Held for you · needs a call back",
     "the mark says why in a clause, not the to-do again",
   );
   assert.equal(vm.holdLine, "Call Emily back to confirm the bridal trial on Oct 3", "the to-do is the dock's line");

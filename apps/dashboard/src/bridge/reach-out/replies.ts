@@ -34,7 +34,7 @@ export const repliesOverride: SurfaceOverride = {
     omit: [
       {
         tables: ["tenant_channels", "lines", "capability_activations", "business_records"],
-        why: "the strip names the mailbox a reply came to; the numbers, the lines, an activation and the carriers' record are none of its words",
+        why: "the strip names the mailbox a reply came to · the numbers, the lines, an activation and the phone networks' record are none of its words",
       },
     ],
   }),

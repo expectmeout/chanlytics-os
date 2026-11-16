@@ -178,7 +178,7 @@ export function leadSlots(lead: Pick<LeadRowDto, "phone" | "phone_agrees" | "pho
           state: "bad",
           value: lead.phone,
           word: LEAD_SLOT_WORDS.bad,
-          tip: `${sentence} — you marked this number wrong`,
+          tip: `${sentence} · you marked this number wrong`,
           copy: false,
         }
       : lead.phone_agrees
@@ -186,14 +186,14 @@ export function leadSlots(lead: Pick<LeadRowDto, "phone" | "phone_agrees" | "pho
             state: "ok",
             value: lead.phone,
             word: LEAD_SLOT_WORDS.ok,
-            tip: `${sentence} — the same number on Google Maps and on their website`,
+            tip: `${sentence} · the same number on Google Maps and on their website`,
             copy: true,
           }
         : {
             state: "part",
             value: lead.phone,
             word: LEAD_SLOT_WORDS.part,
-            tip: `${sentence} — one source, their Google Maps listing`,
+            tip: `${sentence} · one source, their Google Maps listing`,
             copy: true,
           };
   const emailState = lead.email_state;
@@ -203,7 +203,7 @@ export function leadSlots(lead: Pick<LeadRowDto, "phone" | "phone_agrees" | "pho
           state: "none",
           value: null,
           word: LEAD_SLOT_WORDS.none,
-          tip: `${LEAD_MAILBOX_WORDS.none} — home, contact and about pages checked`,
+          tip: `${LEAD_MAILBOX_WORDS.none} · home, contact and about pages checked`,
           copy: false,
         }
       : emailState === "ok"
@@ -227,7 +227,7 @@ export function leadSlots(lead: Pick<LeadRowDto, "phone" | "phone_agrees" | "pho
                 state: "checking",
                 value: lead.email,
                 word: LEAD_SLOT_WORDS.checking,
-                tip: `${lead.email} — ${LEAD_MAILBOX_WORDS.checking}. It resolves itself`,
+                tip: `${lead.email} · ${LEAD_MAILBOX_WORDS.checking}. It resolves itself`,
                 copy: true,
               }
             : {

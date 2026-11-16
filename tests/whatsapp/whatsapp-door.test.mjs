@@ -1126,7 +1126,7 @@ test("a declined display name is told to the owner with the way on and Meta's re
               "number",
               "admin/integrations",
               "WhatsApp display name declined",
-              "Meta declined the display name “Harbor Moving” — change it in WhatsApp Manager. Meta's reason: name format unacceptable.",
+              "Meta declined the display name “Harbor Moving” · change it in WhatsApp Manager. Meta's reason: name format unacceptable.",
             ],
           ],
           "the workspace's bell",

@@ -365,8 +365,8 @@ function turnCall(client: Api, head: { sent(): void }) {
         t: "error",
         text:
           name === "TimeoutError" || name === "AbortError"
-            ? "Chanlytics took too long to answer — ask again in a moment."
-            : "Network error — nothing was asked.",
+            ? "Chanlytics took too long to answer · ask again in a moment."
+            : "Couldn't reach Chanlytics. Nothing was asked.",
       });
       return;
     }
@@ -389,7 +389,7 @@ function turnCall(client: Api, head: { sent(): void }) {
               retryAfter: res.headers.get("retry-after"),
               write: true,
             }).message
-          : "Chanlytics didn't answer — ask again in a moment.",
+          : "Chanlytics didn't answer · ask again in a moment.",
       });
       return;
     }

@@ -397,7 +397,7 @@ export function dealSentence(
         ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.`
         : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
     case "lost":
-      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
+      return `They passed on a proposal${svc}${on}. Do not bring it up · if they ask again, hand over to a person.`;
     case "ended":
       return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
   }

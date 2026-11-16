@@ -284,7 +284,7 @@ function newLanguage(c: RowCtx) {
   const { setSentLang, setAdding, setBack, cancelNew, onWritten } = c;
   return sentLang === view ? (
     <p className="msg-new-sent" role="status" data-testid="template-new-sent">
-      <Icon name="check" size={13} /> {cur.lang.label} went to WhatsApp for review — it shows here in a moment.
+      <Icon name="check" size={13} /> {cur.lang.label} went to WhatsApp for review · it shows here in a moment.
     </p>
   ) : mayAdd && source && adding === view ? (
     <TemplateComposer
@@ -327,7 +327,7 @@ function cardFoot(c: RowCtx) {
   return (
     <div className="msg-card-foot">
       {row ? null : (
-        <span className="msg-card-meta">Not on WhatsApp in {cur.lang.label} yet — the words WhatsApp would review</span>
+        <span className="msg-card-meta">Not on WhatsApp in {cur.lang.label} yet · the words WhatsApp would review</span>
       )}
       {/* The rating WhatsApp gives the template in view, as of the last sync, where it warns. */}
       {warns ? <StatePill kind="template_quality" value={quality} testid="template-quality" /> : null}
@@ -463,7 +463,7 @@ function messageItems({ busy, setDraft, setRenaming, setArm, onHide }: RowCtx, r
       glyph: <Icon name="pencil" size={13} />,
       title:
         row.channel === "whatsapp"
-          ? "Call it something in your own words — WhatsApp keeps its name"
+          ? "Call it something in your own words · WhatsApp keeps its name"
           : "Call it something in your own words",
       disabled: busy,
       gate: { "data-testid": "template-rename" },

@@ -415,6 +415,6 @@ test("the autonomy modes could not be read: the card declines in its words, and 
   assert.equal(JSON.parse(r.result).error, contracts.PLAYBOOK_CARD_REFUSALS.modeUnread);
   assert.equal(
     contracts.PLAYBOOK_CARD_REFUSALS.modeUnread,
-    "the sending mode of this campaign's class couldn't be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
+    "the sending mode of this campaign's class couldn't be read just now, so the card cannot say what its runs would do · say so, and try again in a moment",
   );
 });

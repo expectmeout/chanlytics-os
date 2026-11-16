@@ -139,9 +139,9 @@ test("zero trial days is a real setting, so the offer stays true at zero", () =>
   // "nothing is charged until it ends", while Checkout took the card at once.
   assert.equal(
     trialOffer(14),
-    "Start the 14-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.",
+    "Start the 14-day trial with a card · nothing is charged until it ends, and you can cancel from here any time.",
   );
-  assert.equal(trialOffer(14, true), "Start again with a card; the 14-day trial applies once.");
+  assert.equal(trialOffer(14, true), "Start again with a card · the 14-day trial applies once.");
   for (const n of [0, -1, Number.NaN]) {
     assert.ok(!trialOffer(n).includes("trial"), `${n} must not offer a trial`);
     assert.ok(trialOffer(n).includes("the first charge is today"), `${n} must say when the charge lands`);

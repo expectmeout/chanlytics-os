@@ -326,7 +326,7 @@ async function runSignup(win: Window, ask: SignupAsk = {}): Promise<ConnectResul
       ok: false,
       reason: "blocked",
       message:
-        "Meta's window was blocked. Press Connect WhatsApp again; if it still does not open, allow pop-ups for Chanlytics.",
+        "Meta's window was blocked. Press Connect WhatsApp again · if it still does not open, allow pop-ups for Chanlytics.",
     };
   }
   const code = await answered;

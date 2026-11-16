@@ -414,7 +414,7 @@ test("REGRESSION (A19): the Inbox's bulk snooze is one act -- busy while it runs
         .map(textOf)
         .join(" | ");
     for (let i = 0; i < 400 && !/Snooze undone/.test(said()); i += 1) await settle();
-    assert.match(said(), /Snooze undone — 1 back in the Inbox/);
+    assert.match(said(), /Snooze undone · 1 back in the Inbox/);
   } finally {
     Object.assign(globalThis, clocks);
     globalThis.fetch = realFetch;

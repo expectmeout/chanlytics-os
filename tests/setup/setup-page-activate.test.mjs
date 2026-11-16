@@ -1,6 +1,6 @@
 /**
  * The Setup page, rendered loaded, with a line that is answering and tested
- * but not yet activated: the receptionist row carries Activate, and pressing
+ * but not yet activated: the receptionist row carries Turn on, and pressing
  * it reaches the bridge with the capability's name. The rows come from the
  * real setupSteps over a real DTO; the page (Setup's rows, TSX at
  * surfaces/setup/rows since decision 0015 step 10) runs for real under the
@@ -66,11 +66,11 @@ const dto = {
 };
 const vm = setupSteps({ ...dto, later: [], rests: {} }, NOW);
 
-test("the contract: a tested, unactivated receptionist offers Activate and says so", () => {
+test("the contract: a tested, unactivated receptionist offers Turn on and says so", () => {
   const r = vm.rows.find((x) => x.id === "receptionist");
   assert.equal(r.state, "ready");
-  assert.deepEqual(r.verb, { label: "Activate", to: "verb:activate:voice" });
-  assert.ok(r.details.includes("Tested — activate it to say it is yours"), r.details.join(" | "));
+  assert.deepEqual(r.verb, { label: "Turn on", to: "verb:activate:voice" });
+  assert.ok(r.details.includes("Tested · turn it on to say it is yours"), r.details.join(" | "));
   const live = setupSteps(
     {
       ...dto,
@@ -80,7 +80,7 @@ test("the contract: a tested, unactivated receptionist offers Activate and says 
     NOW,
   ).rows.find((x) => x.id === "receptionist");
   assert.equal(live.verb.label, "Call it", "activated: the verb goes back to trying it");
-  assert.ok(live.details.some((d) => /^Activated /.test(d)));
+  assert.ok(live.details.some((d) => /^Turned on /.test(d)));
 });
 
 /* ---- the page itself, rendered without a browser ---- */
@@ -303,13 +303,13 @@ const textOf = (n) => {
   return textOf(n.props?.children) + (n.rendered ? textOf(n.rendered) : "");
 };
 
-test("the page: the row's Activate reaches the bridge with the capability's name, and the owner is told", async () => {
+test("the page: the row's Turn on reaches the bridge with the capability's name, and the owner is told", async () => {
   const tree = mount();
   let cta = null;
   walk(tree, (n) => {
-    if (!cta && n.props?.cta?.label === "Activate") cta = n.props.cta;
+    if (!cta && n.props?.cta?.label === "Turn on") cta = n.props.cta;
   });
-  assert.ok(cta, "a row offers Activate");
+  assert.ok(cta, "a row offers Turn on");
   // A row's press is `void pressVerb(...)`, so it answers nothing to wait on: the microtasks are let run instead.
   await cta.onClick();
   await tick();
@@ -318,7 +318,7 @@ test("the page: the row's Activate reaches the bridge with the capability's name
   assert.equal(calls.nav.length, 0, "and nothing navigated away");
 });
 
-test("REGRESSION (S15): an operator sees Activate gated before the press, with the reason -- they pressed it and were told after, in a toast", async () => {
+test("REGRESSION (S15): an operator sees Turn on gated before the press, with the reason -- they pressed it and were told after, in a toast", async () => {
   const before = { activate: calls.activate.length, flash: calls.flash.length, nav: calls.nav.length };
   Object.assign(globalThis.window, {
     ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" },
@@ -328,11 +328,11 @@ test("REGRESSION (S15): an operator sees Activate gated before the press, with t
     const tree = mount();
     let row = null;
     walk(tree, (n) => {
-      if (!row && n.props?.cta?.label === "Activate") row = n.props;
+      if (!row && n.props?.cta?.label === "Turn on") row = n.props;
     });
-    assert.ok(row, "a row offers Activate");
+    assert.ok(row, "a row offers Turn on");
     assert.ok(row.cta.gate, "REGRESSION: the verb was offered as if it would work");
-    assert.equal(row.cta.gate["data-tip"], "Only an owner can activate a capability.");
+    assert.equal(row.cta.gate["data-tip"], "Only an owner can turn on a capability.");
     assert.equal(row.onOpen, undefined, "the row is not a way around its own gated button");
     // Pressed as the page draws it: the gate spread after the verb.
     const drawn = { onClick: row.cta.onClick, ...row.cta.gate };
@@ -344,7 +344,7 @@ test("REGRESSION (S15): an operator sees Activate gated before the press, with t
     assert.equal(
       calls.flash.length,
       before.flash,
-      "REGRESSION: 'Only an owner can activate a capability.' arrived as a toast after the press",
+      "REGRESSION: 'Only an owner can turn on a capability.' arrived as a toast after the press",
     );
     assert.equal(calls.nav.length, before.nav);
   } finally {
@@ -536,7 +536,7 @@ test("the page: the chooser finds numbers in an area code, a pick opens the conf
   await byTestId(tree, "setup-buy").props.onClick();
   await tick();
   assert.deepEqual(calls.buy, [["+13055550143", "305"]]);
-  assert.match(String(calls.flash[before].msg.props.children.join("")), /is yours — setting it up now/);
+  assert.match(String(calls.flash[before].msg.props.children.join("")), /is yours · setting it up now/);
 });
 
 /* ---- forwarding: save the carrier and the mode, read the code, open the test window ---- */
@@ -568,7 +568,7 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
       ["verizon", "Verizon"],
       ["att", "AT&T"],
       ["tmobile", "T-Mobile"],
-      ["other", "Another carrier or a landline"],
+      ["other", "Another phone company or a landline"],
       ["office", "An office phone system"],
     ],
     "the five carriers, each by its name",
@@ -771,7 +771,7 @@ test("REGRESSION (S23): a row's verb cannot be pressed twice while it is on its 
       });
       return r;
     };
-    assert.equal(row().cta.label, "Activate");
+    assert.equal(row().cta.label, "Turn on");
     // A row's press is not awaitable (it is `void pressVerb(...)`): the verb is waited on by letting the microtasks run.
     row().cta.onClick();
     tree = mount();
@@ -989,7 +989,7 @@ test("Google's row says a Business Profile that stopped syncing as Connections d
     "waiting_you",
     "REGRESSION: 'connected', over a profile that stopped syncing three days ago",
   );
-  assert.match(broken.sentence, /^Connected as owner@example\.com · couldn't sync since /);
+  assert.match(broken.sentence, /^Connected as owner@example\.com · couldn't update since /);
   assert.deepEqual(broken.verb, { label: "Reconnect", to: "admin/integrations" });
   const fine = rowOf({
     ready: true,

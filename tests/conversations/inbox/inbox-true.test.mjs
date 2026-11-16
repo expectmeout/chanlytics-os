@@ -227,7 +227,7 @@ test("a call back's flag says why it was flagged, and its to-do is said once, wh
     "Call Emily back to confirm the bridal trial on October 3 — she needs a quote for three people and asked to speak with Marisa directly";
   const flag = vm(long).timeline.find((e) => e.type === "event").body;
   // It quoted the to-do (cut at 120 characters), under the band that said it again beside "From the call".
-  assert.equal(flag, "Held for you — needs a call back", "REGRESSION: the flag quoted the to-do a third time");
+  assert.equal(flag, "Held for you · needs a call back", "REGRESSION: the flag quoted the to-do a third time");
   assert.equal(vm(long).summary, long, "said whole, where it is acted on");
   assert.equal(vm(long).holdLine, long, "and it is the dock's line");
 });
@@ -241,7 +241,7 @@ test("any other hold's details are the dock's, under its Why?, whole or cut at a
       asked({ reason: "send_failed", details }),
     );
   const vm = of("the WhatsApp number is not connected");
-  assert.equal(vm.timeline.find((e) => e.type === "event").body, "Held for you — reply didn't reach them");
+  assert.equal(vm.timeline.find((e) => e.type === "event").body, "Held for you · reply didn't reach them");
   assert.equal(vm.holdLine, "The reply never reached them");
   assert.match(vm.holdWhy, /^The reply didn't reach them/);
   assert.equal(vm.holdNote, "the WhatsApp number is not connected");

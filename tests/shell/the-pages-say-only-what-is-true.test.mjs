@@ -669,7 +669,7 @@ test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -
     cells = [];
     frames.begin();
     const real = PolicyChip({ cls: "reengage" });
-    assert.equal(real.props["data-tip"], "Workspace policy — Settings · Autonomy");
+    assert.equal(real.props["data-tip"], "Workspace policy · Settings · Autonomy");
   } finally {
     setSurfaceValue("settings", was);
   }
@@ -758,7 +758,7 @@ test("REGRESSION (C11): the schedule box reads and writes the business's clock, 
     const late = bcWhenNote(picked, 30);
     assert.deepEqual(
       [late.ok, late.words],
-      [true, "Goes out tomorrow 9:00 AM, Tokyo time — sends wait for 9:00–20:59"],
+      [true, "Goes out tomorrow 9:00 AM, Tokyo time · sends wait for 9:00–20:59"],
     );
     assert.equal(bcWhenNote(Date.parse("2026-12-15T05:00:00Z"), 30).words, "Goes out today 2:00 PM, Tokyo time");
     assert.equal(

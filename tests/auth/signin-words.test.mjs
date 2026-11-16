@@ -44,7 +44,7 @@ test("a code request: the person's own wait is told in seconds; our mail failure
   );
   assert.equal(
     requestCodeWords({ message: "Too many attempts", status: 400 }),
-    "Too many requests just now — wait a minute and try again.",
+    "Too many requests just now · wait a minute and try again.",
     "a burst that is neither a wait nor the mail: a minute",
   );
   for (const message of [
@@ -71,12 +71,12 @@ test("a code request: the person's own wait is told in seconds; our mail failure
 test("a verification: a wrong or old code in one sentence, a burst of tries in another, anything else as it is", () => {
   assert.equal(
     verifyCodeWords("Token has expired or is invalid"),
-    "That code didn't match or has expired — request a new one.",
+    "That code didn't match or has expired · request a new one.",
   );
-  assert.equal(verifyCodeWords("Invalid otp"), "That code didn't match or has expired — request a new one.");
+  assert.equal(verifyCodeWords("Invalid otp"), "That code didn't match or has expired · request a new one.");
   assert.equal(
     verifyCodeWords("For security purposes, you can only request this after 9 seconds."),
-    "Too many attempts — wait a minute before trying again.",
+    "Too many attempts · wait a minute before trying again.",
   );
   assert.equal(verifyCodeWords("Database error"), "Database error");
 });

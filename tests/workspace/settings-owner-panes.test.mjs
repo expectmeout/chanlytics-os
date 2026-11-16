@@ -636,7 +636,7 @@ test("what kind of thing is two short lists -- the part of the product, then its
     optionsOf(area),
     [
       ["", "All activity"],
-      ["only:problems", "What went wrong or was stopped"],
+      ["only:problems", "What didn't work or was stopped"],
       ["family:conversations", "Conversations"],
       ["family:calls", "Calls"],
       ["family:calendar", "Calendar"],
@@ -1052,8 +1052,8 @@ test("the day's budget is said in the replies it buys at this workspace's size o
   // A week of 120 replies at 2,500 tokens each: a cap of 250k buys about a hundred.
   let tree = drawn({ max_llm_tokens_day: 250000 }, { replies: 120, tokens: 300000 });
   assert.match(textOf(budgetRow(tree)), new RegExp(`^${BUDGET_WORDS.inReplies}`));
-  assert.equal(note(tree), `${BUDGET_WORDS.sized(2500)} ${BUDGET_WORDS.stops}`);
-  assert.match(note(tree), /over the last week \(about 2,500 tokens\)/);
+  assert.equal(note(tree), `${BUDGET_WORDS.sized} ${BUDGET_WORDS.stops}`);
+  assert.match(note(tree), /over the last week\. Over it/);
   assert.deepEqual(words(tree), ["No limit", "~40", "~100", "~200", "~400"]);
   assert.equal(byTestId(tree, "aut-budget").props.value, "~100", "the cap in force");
   // Too few replies to say a reply's size: tokens, and a label that says so.
@@ -1075,7 +1075,7 @@ test("the day's budget is said in the replies it buys at this workspace's size o
   // A reply so large that two caps buy the same few is said in tokens: a dial of two equal words cannot be read.
   tree = drawn({}, { replies: 10, tokens: 3000000 });
   assert.match(textOf(budgetRow(tree)), new RegExp(`^${BUDGET_WORDS.inTokens}`));
-  assert.match(note(tree), /about 300,000 tokens/);
+  assert.match(note(tree), /^Counted from the size of a reply here over the last week\. /);
   // A press saves the cap in tokens, the dial alone, and says it in the dial's words.
   const sent = [];
   tree = drawn({}, { replies: 120, tokens: 300000 });
@@ -1087,7 +1087,7 @@ test("the day's budget is said in the replies it buys at this workspace's size o
   press(find(budgetRow(tree), (n) => n.type === "button" && n.props.role === "radio" && textOf(n).trim() === "~200"));
   await flush();
   assert.deepEqual(sent, [["reply", undefined, { maxTokensDay: 500000 }]]);
-  assert.match(textOf(flashes.at(-1).msg), new RegExp(`${BUDGET_WORDS.inReplies} → ~200 — from the next reply`));
+  assert.match(textOf(flashes.at(-1).msg), new RegExp(`${BUDGET_WORDS.inReplies} → ~200 · from the next reply`));
 });
 
 test("Replies says how many people are set differently, by mode, and each of the newest opens their own page", () => {

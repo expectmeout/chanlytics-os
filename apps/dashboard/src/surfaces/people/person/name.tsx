@@ -34,7 +34,7 @@ const EMAIL_MAX = 254;
 
 /** What the toast says of a name taken away: what shows in its place. */
 function clearedWords(p: PersonVM) {
-  return <>Name cleared — {p.phone ? "the number" : p.email ? "their email address" : "nothing"} shows again</>;
+  return <>Name cleared · {p.phone ? "the number" : p.email ? "their email address" : "nothing"} shows again</>;
 }
 
 /**

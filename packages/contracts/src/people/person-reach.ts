@@ -109,7 +109,7 @@ export function bookingLinkAction(reach: ReplyReach, stop: { optedOut: boolean; 
   if (win && win.open)
     return ready("Text", `Opens the conversation with the link ready to send · any message for ${win.hoursLeft}h more`);
   return notReady(
-    "Only an approved message reaches them until they write again; their conversation offers the one with the link",
+    "Only an approved message reaches them until they write again · their conversation offers the one with the link",
   );
 }
 

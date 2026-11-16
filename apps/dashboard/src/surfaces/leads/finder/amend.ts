@@ -48,7 +48,7 @@ export const leadAnswerPlan = async (words: string, set: FinderSet): Promise<Ask
   set.trace("Reading what you asked");
   if (!A || typeof A.send !== "function") {
     set.stage("compose");
-    set.refusal("AI isn't available here yet — try again in a moment.");
+    set.refusal("AI isn't available here yet · try again in a moment.");
     return null;
   }
   let card: AskProposal | null = null;
@@ -90,7 +90,7 @@ export const leadAnswerPlan = async (words: string, set: FinderSet): Promise<Ask
     set.stage("plan");
     return got;
   }
-  set.refusal(said || "Nothing came back — ask again in a moment.");
+  set.refusal(said || "Nothing came back · ask again in a moment.");
   set.stage("compose");
   return null;
 };
@@ -106,13 +106,13 @@ async function startPlan(proposal: FinderProposal | null, plan: LeadSearchPlan, 
     const A = askCalls();
     return A && typeof A.commit === "function"
       ? await A.commit({ ...proposal, payload: { ...(proposal.payload || {}), plan } })
-      : { ok: false, message: "AI isn't available here yet — try again in a moment." };
+      : { ok: false, message: "AI isn't available here yet · try again in a moment." };
   }
   // The plan is sent as the owner saw it; the route sets the version and the count the round reserved (G1). If the round
   // stopped waiting meanwhile the route says so, and that is what is shown (section 7.2).
   if (set.more && set.more.answer) return await answerSearch(set.more.searchId, "include", plan);
   if (set.more) return await moreForSearch(set.more.searchId, set.more.purpose || "topup", plan);
-  return { ok: false, message: "Nothing to start — describe what you want again." };
+  return { ok: false, message: "Nothing to start · describe what you want again." };
 }
 
 /**

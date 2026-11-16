@@ -87,7 +87,7 @@ export const inboxBulkActs = (ix: InboxSoFar & InboxActs & InboxRealBulk) => {
             type: "event",
             kind: "decision",
             at: IX_NOW,
-            body: `You approved “${t.approval.plan.label || t.approval.recommended}” (bulk) — ${x.agent.name} is executing`,
+            body: `You approved “${t.approval.plan.label || t.approval.recommended}” (bulk) · ${x.agent.name} is executing`,
           },
         ],
       }));

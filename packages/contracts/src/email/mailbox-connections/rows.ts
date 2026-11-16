@@ -303,7 +303,7 @@ function spfNote(
   // The edge counted the record with the provider's include in it, the include's own lookups and all.
   const after = mailboxConnection.spf_lookups === null || many > 1 ? null : mailboxConnection.spf_lookups;
   return after !== null && after > SPF_LOOKUPS_MAX
-    ? `${change} It would then spend ${after} of SPF's ${SPF_LOOKUPS_MAX} lookups and fail: ask whoever manages your DNS to shorten it first.`
+    ? `${change} It would then spend ${after} of SPF's ${SPF_LOOKUPS_MAX} lookups and stop working: ask whoever manages your DNS to shorten it first.`
     : change;
 }
 
@@ -416,8 +416,8 @@ export function mailboxRecordStateWords(mailbox: Pick<MailboxRecordRow, "key" | 
 export function mailboxesFootWords(count: number): string {
   if (count >= MAILBOX_CONNECTIONS_MAX) return `${MAILBOX_CONNECTIONS_MAX} is the most. Remove one to add another.`;
   if (count === 0)
-    return `Email people write to your mailbox comes into your Inbox, and cold email goes from it through Google, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to leads; for more, use a second domain such as get<yourbusiness>.com.`;
-  return "Email people write to it comes into your Inbox; cold email goes from it, and its replies come back here.";
+    return `Email people write to your mailbox comes into your Inbox, and cold email goes from it through Google, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to leads · for more, use a second domain such as get<yourbusiness>.com.`;
+  return "Email people write to it comes into your Inbox · cold email goes from it, and its replies come back here.";
 }
 
 /** The note shown once a mailbox on the customer domain is connected. */

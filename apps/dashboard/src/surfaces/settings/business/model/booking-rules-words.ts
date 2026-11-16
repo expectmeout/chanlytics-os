@@ -74,7 +74,7 @@ export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefin
   return {
     line: joined ? `${(joined[0] ?? "").toUpperCase()}${joined.slice(1)}` : null,
     notes: notes.length ? notes.join(" ") : null,
-    none: `The calendar's own — at least ${pluralGrouped(defaults.lead_hours, "hour's", "hours'")} notice, up to ${pluralGrouped(defaults.max_days_ahead, "day", "days")} ahead, in ${count(defaults.slot_min)}-minute slots`,
+    none: `The calendar's own · at least ${pluralGrouped(defaults.lead_hours, "hour's", "hours'")} notice, up to ${pluralGrouped(defaults.max_days_ahead, "day", "days")} ahead, in ${count(defaults.slot_min)}-minute slots`,
   };
 }
 
@@ -90,14 +90,14 @@ export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefin
 export function bookingRuleRefusal(key: BookingRuleKey): string {
   const words: Record<BookingRuleKey, (lo: number, hi: number) => string> = {
     lead_hours: (lo, hi) =>
-      `Least notice is ${lo} to ${hi} hours; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+      `Least notice is ${lo} to ${hi} hours · leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
     slot_min: (lo, hi) =>
-      `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar’s ${pluralGrouped(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
+      `A slot is ${lo} to ${hi} minutes · leave it empty for the calendar’s ${pluralGrouped(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
     buffer_min: (lo, hi) =>
-      `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : pluralGrouped(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
+      `The gap is ${lo} to ${hi} minutes · leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : pluralGrouped(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
     max_days_ahead: (lo, hi) =>
-      `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
-    party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`,
+      `Times are offered ${lo} to ${hi} days ahead · leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
+    party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people · leave it empty for no rule.`,
   };
   const known = Object.prototype.hasOwnProperty.call(words, key);
   if (!known) {

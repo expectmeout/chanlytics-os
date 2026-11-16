@@ -197,8 +197,8 @@ export const REACH_OUT_ROW_WORDS = {
   remove: "Remove",
   removeAsk: (name: string) => `Remove “${name}”?`,
   removeYes: "Yes, remove",
-  paused: (name: string) => `${name} is paused — nothing more is planned until you resume it`,
-  resumed: (name: string) => `${name} is running — its next run is on its row`,
+  paused: (name: string) => `${name} is paused · nothing more is planned until you resume it`,
+  resumed: (name: string) => `${name} is running · its next run is on its row`,
   removed: (name: string) => `${name} is removed, and its words with it`,
   runs: (n: number) => (n === 1 ? "1 run" : `${n} runs`),
   noRun: "No run yet",
@@ -303,7 +303,7 @@ export function emailTemplateWords(params: { chainName: string; stepN: number; a
     /** The fold the check is read under, where its sentence stood open under every email (the fitted sheets). */
     checkLabel: "What is checked before each send",
     checkNote:
-      "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
+      "Checked before each send: every slot filled or the email held · the opening's facts in the finder's record · under 120 words · the footer present · the language theirs.",
     /** The act that opens the whole reach-out, whose days, pace and mailboxes are its own. */
     edit: "Edit the campaign",
   };

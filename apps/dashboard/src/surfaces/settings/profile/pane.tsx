@@ -88,7 +88,7 @@ function YourName({ flash }: { flash: Flash }) {
           You&rsquo;re <b>{r.name}</b> to your team now.
         </>
       ) : (
-        <>Name cleared — your email stands in.</>
+        <>Name cleared · your email stands in.</>
       ),
     });
   };
@@ -201,7 +201,7 @@ function AnswerStyle({ flash }: { flash: Flash }) {
     // What the tab holds is read again, so the next visit draws these words and not the ones before them.
     void savedViewsRead.read();
     close();
-    flash({ msg: words ? <>AI will answer you that way.</> : <>Note cleared — AI answers as it sees fit.</> });
+    flash({ msg: words ? <>AI will answer you that way.</> : <>Note cleared · AI answers as it sees fit.</> });
   };
   return (
     <>

@@ -559,7 +559,7 @@ test("the receptionist's lines: the next appointment, the last visit, the rule t
   const words = describeVisits(visitsOf(f.items, PEOPLE[0], NOW, NO_OWN), TZ, NOW, { hasBookingLink: true });
   assert.equal(
     words,
-    "Their next appointment on the calendar: Tue, Sep 8 · 2:00 – 5:00 PM (Maria Lopez - Balayage). If they ask, confirm it; to change or cancel it, send the booking link — nothing is changed from here.",
+    "Their next appointment on the calendar: Tue, Sep 8 · 2:00 – 5:00 PM (Maria Lopez - Balayage). If they ask, confirm it · to change or cancel it, send the booking link · nothing is changed from here.",
   );
   const byName = describeVisits(
     visitsOf(f.items, { id: "x", name: "Maria Lopez", phone: null }, NOW, NO_OWN),
@@ -567,7 +567,7 @@ test("the receptionist's lines: the next appointment, the last visit, the rule t
     NOW,
     { hasBookingLink: true },
   );
-  assert.ok(byName.includes("Matched by name only — make sure it is them before confirming details."));
+  assert.ok(byName.includes("Matched by name only · make sure it is them before confirming details."));
   const last = describeVisits(visitsOf(f.items, PEOPLE[2], NOW, NO_OWN), TZ, NOW, { hasBookingLink: true });
   assert.equal(last, "Their last visit on the calendar: Aug 20 (Daniela Ruiz · Colour).");
   assert.equal(
@@ -1766,7 +1766,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   const yes = lapsedWith({ consent: "opted_in", marketing_consent: "opted_in" });
   const talkOnly = lapsedWith({ consent: "opted_in", marketing_consent: null });
   assert.deepEqual(peopleListAction("lapsed", [lapsed, yes]), {
-    text: "1 of 2 on this list said yes to offers — an offer reaches them.",
+    text: "1 of 2 on this list said yes to offers · an offer reaches them.",
     cta: "Bring them back",
     to: "campaigns/sequences/new:once:to:lapsed",
     enabled: true,
@@ -1774,7 +1774,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   // Nobody on the list has said yes to offers: the list's own step cannot run, and the step that CAN is the
   // door to that yes. It printed "The phrase and the QR are on Broadcasts" beside a disabled "Win them back".
   assert.deepEqual(peopleListAction("lapsed", [lapsed]), {
-    text: "Nobody on this list has said yes to offers yet — an offer reaches only that answer.",
+    text: "Nobody on this list has said yes to offers yet · an offer reaches only that answer.",
     cta: "Get their yes",
     to: GET_YES_ROUTE,
     enabled: true,
@@ -1828,7 +1828,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   // REGRESSION: once everyone on the list has given that yes, the door asked for an answer they gave (#663's rule).
   // The step is the list's broadcast, in the words every list's broadcast step says it.
   assert.deepEqual(peopleListAction("new_week", [yes]), {
-    text: "1 of 1 on this list said yes to offers — an offer reaches them.",
+    text: "1 of 1 on this list said yes to offers · an offer reaches them.",
     cta: "Send them a message",
     to: "campaigns/sequences/new:once:to:new_week",
     enabled: true,
@@ -1836,7 +1836,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   assert.deepEqual(
     peopleListAction("opted_in", [yes]),
     {
-      text: "1 of 1 on this list said yes to offers — an offer reaches them.",
+      text: "1 of 1 on this list said yes to offers · an offer reaches them.",
       cta: "Message everyone who said yes",
       // The composer, on Everyone: the door names this list, which the composer reads as Everyone, and a door that
       // names a list wins over a draft kept in the tab. `broadcasts` alone is the Sent room, with nothing to write in.
@@ -2689,7 +2689,7 @@ test("a caller's appointment, told to a receptionist with no booking link, is ch
     // Asked from a chat (calendar/availability.ts linkOfferedOn): any link is one it can send in the thread.
     const noLink = await findVisits(rt(quotes), maria, "chat", new Date(NOW));
     assert.ok(
-      noLink.includes("to change or cancel it, say the team will follow up — nothing is changed from here."),
+      noLink.includes("to change or cancel it, say the team will follow up · nothing is changed from here."),
       noLink,
     );
     const linked = await findVisits(

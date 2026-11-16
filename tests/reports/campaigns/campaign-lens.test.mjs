@@ -486,18 +486,18 @@ test("the runs that stopped, by why, and the ones that were canceled", () => {
     ["paused", "The workspace was paused", 1],
     ["wire_unavailable:sms", "The texting provider couldn't be reached", 1],
   ]);
-  assert.equal(stopped.line, `2 runs failed and 1 was canceled. ${REACH_OUTS_UNDER}`);
+  assert.equal(stopped.line, `2 runs stopped on a problem and 1 was canceled. ${REACH_OUTS_UNDER}`);
   const by = (failed, canceled, by_failure) =>
     fold({ ledger: ledgerWith({ stopped: { failed, canceled, by_failure } }) }).stopped;
   // A code nobody wrote words for yet, and "other", are one row.
   assert.deepEqual(rows(by(3, 0, { made_up_code: 2, other: 1 })), [["other", "It couldn't finish", 3]]);
-  assert.equal(by(1, 2, { paused: 1 }).line, `1 run failed and 2 were canceled. ${REACH_OUTS_UNDER}`);
-  assert.equal(by(0, 2, {}).line, `0 runs failed and 2 were canceled. ${REACH_OUTS_UNDER}`);
+  assert.equal(by(1, 2, { paused: 1 }).line, `1 run stopped on a problem and 2 were canceled. ${REACH_OUTS_UNDER}`);
+  assert.equal(by(0, 2, {}).line, `0 runs stopped on a problem and 2 were canceled. ${REACH_OUTS_UNDER}`);
   assert.deepEqual(rows(by(0, 2, {})), [["canceled", "Canceled", 2]]);
   assert.deepEqual(fold({ ledger: ledgerWith(QUIET) }).stopped, {
     rows: [],
     line: null,
-    empty: `No run failed or was canceled in this period. ${REACH_OUTS_UNDER}`,
+    empty: `No run stopped on a problem or was canceled in this period. ${REACH_OUTS_UNDER}`,
   });
 });
 
@@ -512,7 +512,7 @@ test("why sends failed, in the words the Inbox's thread uses for the same row", 
       ["The email bounced: their address didn't accept it", 2],
     ],
   );
-  assert.equal(failedWhy.line, "6 messages failed after they were sent, for the provider's own reason.");
+  assert.equal(failedWhy.line, "6 messages left and didn't reach them, for the reasons below.");
   const why = (by_code) =>
     fold({ ledger: ledgerWith({ failed_sends: { total: by_code.reduce((t, c) => t + c.n, 0), by_code } }) }).failedWhy;
   // A code in no table is said by the provider and the number; a send the provider never answered may have gone.
@@ -544,12 +544,12 @@ test("why sends failed, in the words the Inbox's thread uses for the same row", 
   );
   assert.equal(
     why([{ channel: "sms", code: null, kind: "unknown", n: 1 }]).line,
-    "1 message failed after it was sent, for the provider's own reason.",
+    "1 message left and didn't reach them, for the reason below.",
   );
   assert.deepEqual(fold({ ledger: ledgerWith(QUIET) }).failedWhy, {
     rows: [],
     line: null,
-    empty: "No sent message failed in this period.",
+    empty: "No message sent in this period came back.",
   });
 });
 
@@ -740,7 +740,7 @@ test("what is stuck now: five figures, each with the tone it earns and the page 
     [
       "runs-failed",
       "runs_failed",
-      "Failed runs",
+      "Runs with a problem",
       "1",
       "fail",
       "campaigns/sequences",
@@ -813,7 +813,7 @@ test("the quiet side of each figure has no tone, and says so in words", () => {
     quiet.map((t) => [t.value, t.tone, t.meta]),
     [
       ["0", undefined, "nothing is waiting for your approval"],
-      ["0", undefined, "no run failed in the last 30 days"],
+      ["0", undefined, "no run stopped on a problem in the last 30 days"],
       ["0", undefined, "nobody who answered a campaign is waiting"],
       ["0", undefined, "every WhatsApp message is approved"],
       ["Good", undefined, "Number quality: good · up to 1,000 new conversations a day · checked today"],
@@ -837,9 +837,15 @@ test("the quiet side of each figure has no tone, and says so in words", () => {
 test("two counts of failed runs, told apart in words: the stuck figure counts a reach-out's step, the window's card leaves it to Reach-outs", () => {
   const failedMeta = (failed) => stuckWith({ failed }).at(1).meta;
   // Of the runs that failed in the last 30 days (any kind), with the newest named or not; none says nothing to qualify.
-  assert.equal(failedMeta({ n: 3, latest: null, capped: false }), `3 runs failed in the last 30 days · ${STEP_COUNTS}`);
-  assert.equal(failedMeta({ n: 1, latest: null, capped: false }), `1 run failed in the last 30 days · ${STEP_COUNTS}`);
-  assert.equal(failedMeta({ n: 0, latest: null, capped: false }), "no run failed in the last 30 days");
+  assert.equal(
+    failedMeta({ n: 3, latest: null, capped: false }),
+    `3 runs stopped on a problem in the last 30 days · ${STEP_COUNTS}`,
+  );
+  assert.equal(
+    failedMeta({ n: 1, latest: null, capped: false }),
+    `1 run stopped on a problem in the last 30 days · ${STEP_COUNTS}`,
+  );
+  assert.equal(failedMeta({ n: 0, latest: null, capped: false }), "no run stopped on a problem in the last 30 days");
   // The window's card says where the reach-outs are counted, with runs and without.
   assert.match(fold().stopped.line, new RegExp(`${REACH_OUTS_UNDER}$`));
   assert.match(fold({ ledger: ledgerWith(QUIET) }).stopped.empty, new RegExp(`${REACH_OUTS_UNDER}$`));
@@ -850,7 +856,7 @@ test("the messages Meta stopped name up to two, and say how each was stopped", (
   const meta = (list) => stuckWith({ templates: { n: list.length, items: list.slice(0, 3) } }).at(3);
   assert.equal(
     meta(items("disabled")).meta,
-    "Offer 0 disabled",
+    "Offer 0 turned off",
     "the Library's own word for it (TEMPLATE_STATUS_WORDS)",
   );
   assert.equal(meta(items("paused", "rejected")).meta, "Offer 0 paused, Offer 1 refused");
@@ -916,8 +922,8 @@ test("nothing in the period: one quiet lens, every window part with its words, a
     [
       [[], null, "No message went out in this period."],
       [[], null, "Nobody was held back in this period."],
-      [[], null, `No run failed or was canceled in this period. ${REACH_OUTS_UNDER}`],
-      [[], null, "No sent message failed in this period."],
+      [[], null, `No run stopped on a problem or was canceled in this period. ${REACH_OUTS_UNDER}`],
+      [[], null, "No message sent in this period came back."],
       [[], null, "No message was answered in this period."],
       [[], null, "No run waited for your approval in this period."],
     ],
@@ -1038,7 +1044,7 @@ test("each read alone: the sends failing fails the sends and keeps the ledger's 
   assert.deepEqual([vm.head, vm.report], [null, null]);
   assert.deepEqual([vm.funnel, vm.quiet], [{ rows: [], line: null, empty: null }, false]);
   // What the ledger says alone is still said: why runs stopped and sends failed, the messages' rates, the waits, what is stuck.
-  assert.equal(vm.stopped.line, `2 runs failed and 1 was canceled. ${REACH_OUTS_UNDER}`);
+  assert.equal(vm.stopped.line, `2 runs stopped on a problem and 1 was canceled. ${REACH_OUTS_UNDER}`);
   assert.equal(vm.failedWhy.rows.length, 2);
   assert.equal(vm.byMessage.rows.length, 2);
   assert.equal(vm.firstReply.rows.length, 5);
