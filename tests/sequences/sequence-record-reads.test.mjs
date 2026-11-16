@@ -158,7 +158,7 @@ test("a one-off says its message, the values it is filled with, and the channels
     params: ["Dec 24"],
     channels: ["whatsapp", "email"],
   });
-  assert.equal("fed_by" in rec, false, "and nothing a sequence to leads says");
+  assert.equal("fed_by" in rec, false, "and nothing cold email says");
   // A lead's send is no customer's: a one-off is never told it goes by email for one.
   const leadOnly = world({
     sequence_sends: [send(1, { contact_id: null, lead_id: "77777777-7777-4777-8777-777777777777", channel: "email" })],
@@ -195,7 +195,7 @@ test("a record asked by a part of its sequence, a step's id or a batch's, is its
   assert.equal((await recordOf(STEP, tables)).sequence.id, MOMENT, "a step's, as the step editor asks");
   assert.equal((await recordOf(BATCH, tables)).sequence.id, LEADS, "a batch's, as a run's address asks");
   assert.equal((await recordOf(MOMENT, tables)).sequence.id, MOMENT, "its own");
-  await assert.rejects(recordOf("77777777-7777-4777-8777-000000000000", tables), /Sequence not found/);
+  await assert.rejects(recordOf("77777777-7777-4777-8777-000000000000", tables), /Campaign not found/);
 });
 
 /* ------------------------------------------------------------------------------------------- GET sequences/:id/reach -- */

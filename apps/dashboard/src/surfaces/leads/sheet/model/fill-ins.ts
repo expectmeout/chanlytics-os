@@ -38,7 +38,7 @@ export const LEAD_FILL_WORDS = {
   source: (word: string) => `Source: ${word}`,
   named: "The person named at this company.",
   nobody: "Nobody is named at this company, so it says “there”.",
-  signs: "The name this sequence signs with.",
+  signs: "The name this campaign signs with.",
   settings: "From your settings.",
   each: "Different for each business.",
   same: "The same in every email.",

@@ -193,7 +193,7 @@ const TryNone = () => (
         size="sm"
         onClick={() => navigate(newForLeadsRoute())}
         data-testid="rec-try-new"
-        {...gate("approve", "start a sequence")}
+        {...gate("approve", "start a campaign")}
       >
         {TRY_CARD.noneAct}
       </Button>

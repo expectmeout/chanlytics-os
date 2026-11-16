@@ -531,11 +531,11 @@ test("a paused sequence's dock, who approves in its More, and where a follow-up 
   assert.equal(takesFollowUps(row({ first: { ...FIRST, trigger: "visit_soon" } })), false);
   assert.equal(
     SEQUENCE_FLOW_WORDS.noFollowUpOnReminder("visit_tomorrow"),
-    "A reminder goes once, the day before. To write to them afterwards, start a sequence that sends after it.",
+    "A reminder goes once, the day before. To write to them afterwards, start a campaign that sends after it.",
   );
   assert.equal(
     SEQUENCE_FLOW_WORDS.noFollowUpOnReminder("visit_soon"),
-    "A reminder goes once, two hours before. To write to them afterwards, start a sequence that sends after it.",
+    "A reminder goes once, two hours before. To write to them afterwards, start a campaign that sends after it.",
   );
   assert.equal(sequenceChannelsWords([]), "", "a one-off's channels are its sends': none guessed");
   assert.equal(sequenceChannelsWords(["whatsapp", "email"]), "WhatsApp or email, one each");

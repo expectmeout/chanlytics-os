@@ -2077,16 +2077,16 @@ test("a person a reach-out found reads its emails, how their reply was read, whe
   const email = vm.timeline.find((t) => t.id === "m-m-out");
   assert.deepEqual(
     [email.who, email.sub],
-    ["Sequence · Salons in Miami", "Email 1 · angle: their reviews · from mail.example.com · delivered"],
+    ["Campaign · Salons in Miami", "Email 1 · angle: their reviews · from mail.example.com · delivered"],
   );
   const reply = vm.timeline.find((t) => t.id === "m-m1");
-  assert.equal(reply.sub, "Read as a question · the sequence stopped · Talking");
+  assert.equal(reply.sub, "Read as a question · the campaign stopped · Talking");
   const found = vm.timeline.find((t) => t.id === "found");
   assert.deepEqual(
     [found.who, found.text, found.link && found.link.to],
     ["Leads", "Found on Google Maps by “salons in Miami” · strong fit · address checked", `clients/leads:p-${LEAD}`],
   );
-  const about = vm.about.find((a) => a.k === "Sequence");
+  const about = vm.about.find((a) => a.k === "Campaign");
   assert.ok(about && about.v.startsWith("Salons in Miami · Talking · wrote back"), about && about.v);
   // A lead with no reach-out, or one whose story could not be read, adds none of it.
   const plain = toPersonVM(
@@ -2099,7 +2099,7 @@ test("a person a reach-out found reads its emails, how their reply was read, whe
     undefined,
   );
   assert.equal(
-    plain.about.find((a) => a.k === "Sequence"),
+    plain.about.find((a) => a.k === "Campaign"),
     undefined,
   );
 });

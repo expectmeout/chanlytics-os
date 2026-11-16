@@ -148,7 +148,7 @@ export function approvalWordsOf(
     approve: waiting ? runApproveWords(count) : null,
     // What a member who may not approve is told it waits for, in the foot where Approve would be.
     waits: { lead: `${count} go once it's approved`, said: "An owner or operator approves" },
-    note: "Skipping loses this run only. The sequence keeps its place and asks again tomorrow.",
+    note: "Skipping loses this run only. The campaign keeps its place and asks again tomorrow.",
   };
 }
 
@@ -191,7 +191,7 @@ export function chainPathWords(reachOutChain: Pick<ReachOutChainDto, "steps">) {
 /** What Playbooks' chain row says around its acts (PR 8). */
 export const REACH_OUT_ROW_WORDS = {
   reading: "Reading how it is doing…",
-  failed: "how this sequence is doing",
+  failed: "how this campaign is doing",
   pause: "Pause",
   resume: "Resume",
   remove: "Remove",
@@ -305,7 +305,7 @@ export function emailTemplateWords(params: { chainName: string; stepN: number; a
     checkNote:
       "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
     /** The act that opens the whole reach-out, whose days, pace and mailboxes are its own. */
-    edit: "Edit the sequence",
+    edit: "Edit the campaign",
   };
 }
 

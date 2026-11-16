@@ -143,7 +143,7 @@ test("where a lead stands: one line, the first that holds", () => {
   const answered = reachOutStandingOf(story({ can_stop: true, sends: [send()], readings: [reading()] }), NOW, TZ);
   assert.deepEqual(
     [answered.line, answered.tone, answered.stop],
-    ["Wrote back yesterday · interested · the sequence stopped", "good", false],
+    ["Wrote back yesterday · interested · the campaign stopped", "good", false],
   );
   // An automatic reply is not an answer: away only pauses it.
   const away = reading({
@@ -155,7 +155,7 @@ test("where a lead stands: one line, the first that holds", () => {
   });
   assert.match(
     line(story({ can_stop: true, sends: [send()], readings: [away] })),
-    /^Away until .* · the sequence waits$/,
+    /^Away until .* · the campaign waits$/,
   );
   assert.equal(
     line(story({ sends: [send()], readings: [reading({ intent: "no", said_no: true })] })),
@@ -178,7 +178,7 @@ test("a person's page says the same line, never its own", () => {
   const t = story({ can_stop: true, sends: [send()], readings: [reading()] });
   assert.equal(
     reachOutPersonOf(t, NOW, TZ).about,
-    "Early gyms · Not contacted · wrote back yesterday · interested · the sequence stopped",
+    "Early gyms · Not contacted · wrote back yesterday · interested · the campaign stopped",
   );
 });
 

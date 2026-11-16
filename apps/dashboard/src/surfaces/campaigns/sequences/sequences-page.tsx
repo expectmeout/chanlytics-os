@@ -43,7 +43,7 @@ import "./sequences.css";
 function SequencesListPane({ openId = null }: { openId?: string | null }) {
   const page = useSurface("sequences");
   if (page === null)
-    return <FailedRead what="the sequences" title={SEQUENCE_WORDS.failed} surface="sequences" testid="sq-failed" />;
+    return <FailedRead what="the campaigns" title={SEQUENCE_WORDS.failed} surface="sequences" testid="sq-failed" />;
   // On its way: the shell's quiet words, which wait their beat, so a list that lands fast is never said.
   if (page === undefined)
     return (

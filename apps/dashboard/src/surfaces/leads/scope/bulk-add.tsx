@@ -214,7 +214,7 @@ export function BulkAddDesk({ b, search }: { b: BulkAdd; search: { name: string 
       disabled={b.busy}
       aria-label={W.bulk.choose}
       data-testid="leads-bulk-choose"
-      {...gate("approve", "add these leads to a sequence")}
+      {...gate("approve", "add these leads to a campaign")}
     >
       <Icon name="chevron-up" size={12} />
     </Button>
@@ -228,7 +228,7 @@ export function BulkAddDesk({ b, search }: { b: BulkAdd; search: { name: string 
           disabled={b.busy}
           onClick={() => void b.addTo({ id: t.rootId, name: t.name, state: t.row.state })}
           data-testid="leads-bulk-add"
-          {...gate("approve", "add these leads to a sequence")}
+          {...gate("approve", "add these leads to a campaign")}
         >
           <Icon name="plus" size={12} /> {W.bulk.addTo(b.n, t.name)}
         </Button>
@@ -247,7 +247,7 @@ export function BulkAddDesk({ b, search }: { b: BulkAdd; search: { name: string 
               size="sm"
               disabled={b.busy}
               data-testid="leads-bulk-add"
-              {...gate("approve", "add these leads to a sequence")}
+              {...gate("approve", "add these leads to a campaign")}
             >
               <Icon name="plus" size={12} /> {W.bulk.addAny(b.n)}
             </Button>
