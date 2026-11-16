@@ -22,6 +22,7 @@ import {
   getRecentTouches,
   reviewLinkOf,
   isWorkspacePaused,
+  type MessageVersionRow,
 } from "@chanlytics/db/campaigns";
 import type {
   ApproveRunPorts,
@@ -41,6 +42,17 @@ import { getTenantFacts } from "../shared/tenant";
 import { getChannelsReady, findChannelsReadyOrNull, findWhatsappHealth } from "./channels-ready";
 import { jsonCopyOf } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
+
+/**
+ * Messages not filed yet, read as their filing will leave them, by a stand-in id each (drafts/sequence-new.ts): what New
+ * judges a sequence against before anything of it is filed.
+ */
+export type StandIns = ReadonlyMap<string, readonly MessageVersionRow[]>;
+
+/** The same ports, a message's read answered from `standIns` where its id is a stand-in's, else from the workspace. */
+export function withStandIns<P extends Pick<TemplateValuesPorts, "message">>(ports: P, standIns: StandIns): P {
+  return { ...ports, message: async (id: string) => [...(standIns.get(id) ?? (await ports.message(id)))] };
+}
 
 export function templateValuePorts(ctx: RouteContext, tenantId: TenantId): TemplateValuesPorts {
   return {

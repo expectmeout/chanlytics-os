@@ -25,6 +25,7 @@
  * it is judged whole before anything is filed (checkStarterPlaybook, which Ask's starter card runs too), and only where
  * it goes by a channel the starter's message holds at once is the starter filed by the same code (withStarterMessage).
  */
+import { randomUUID } from "node:crypto";
 import {
   AppError,
   CONSENT_CHANNELS,
@@ -48,6 +49,7 @@ import {
   starterText,
   templateComponents,
   momentNamesVisit,
+  purposeOfTemplate,
   whatsappOffersOpen,
   triggerWords,
   validateTemplateDraft,
@@ -74,6 +76,7 @@ import {
   findTemplateStatus,
   listTemplatesNamed,
   findWhatsappChannelFacts,
+  type MessageVersionRow,
 } from "@chanlytics/db/campaigns";
 import { logAndGoOn } from "@chanlytics/log";
 import { templateValuePorts } from "@/server/campaigns/ports";
@@ -606,6 +609,50 @@ export async function fileStarterForUse(
   const { result, message } = await filedForUse(ctx, tenantId, starter, { channels, language });
   if (!result || !message) throw notFiled(result);
   return message.anchor.id;
+}
+
+/**
+ * A starter as its filing for a use will leave it (fileStarterForUse, on `channels`), before anything is filed: the rows of
+ * its message as the judgement of a sequence reads one (the one picker rule's message, read by id), in its language here,
+ * its versions those asFiled reads (on file, written at once, or sent to WhatsApp for review), its values the starter's
+ * own slots. New judges a sequence whole against these first (drafts/sequence-new.ts): a WhatsApp version sent for
+ * review cannot be taken back, so nothing is filed for a sequence that would be refused (the review of 15 Nov 2026, C6).
+ * Null where the key is no starter of the set, which the filing refuses in its own words.
+ */
+export async function findStarterStandIn(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  key: string,
+  channels: readonly ConsentChannel[],
+): Promise<MessageVersionRow[] | null> {
+  const starter = starterByKey(key);
+  if (!starter) return null;
+  const language = await starterLanguageHere(ctx, tenantId, starter);
+  const held = await heldAtOnce(ctx, tenantId, starter, { purpose: purposeOfTemplate(starter.category), language });
+  const { versions } = asFiled(starter, held, channels);
+  // Its values as its filing's are: the starter's own slots (the same count New's draft and the AI's card fill).
+  const variables = defaultParamSpecs({ name: starter.name, variables: [] }).map((_, i) => ({ position: i + 1 }));
+  const row = (channel: ConsentChannel, status: string, blocked: string | null) => ({
+    id: randomUUID(),
+    channel,
+    name: starter.name,
+    language,
+    meta_status: status,
+    category: starter.category,
+    variables,
+    hidden_at: null,
+    title: starter.title,
+    source: "chanlytics",
+    components: null,
+    body_preview: starterText(starter, language).body,
+    rejected_reason: null,
+    blocked,
+  });
+  return [
+    ...(versions.whatsapp ? [row("whatsapp", versions.whatsapp.status, versions.whatsapp.blocked)] : []),
+    ...(versions.email ? [row("email", "approved", null)] : []),
+    ...(versions.sms ? [row("sms", "approved", null)] : []),
+  ];
 }
 
 /**
