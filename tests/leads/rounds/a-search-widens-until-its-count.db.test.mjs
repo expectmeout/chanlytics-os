@@ -240,43 +240,88 @@ test(
   },
 );
 
-test("the last two legs adding fewer than three leads stop the search on reach_searched", { skip }, async () => {
-  await widening(true);
-  const s = await search(10);
-  await named(s.round_id, [ROUND_ROCK]);
-  await ended(s.round_id, "few_new_matches");
-  const [, leg2] = await roundsOf(s.search_id);
-  await named(leg2.id, [KYLE]);
-  await ended(leg2.id, "few_new_matches");
-  const [, , leg3] = await roundsOf(s.search_id);
-  assert.equal(leg3?.purpose, "widen", "one leg that found nothing is no reason to stop");
-  await named(leg3.id, [MANOR]);
-  await ended(leg3.id, "few_new_matches");
-  assert.equal((await round(leg3.id)).ending, "reach_searched", "two legs, nothing between them");
-  assert.equal((await roundsOf(s.search_id)).length, 3, "no fourth leg");
-});
-
-test("a leg the day's searching cannot hold stops the search on day_used, and rings so", { skip }, async () => {
-  await widening(true);
-  const s = await search(10);
-  await named(s.round_id, [ROUND_ROCK]);
-  const day = ok(await db.rpc("lead_day", { p_tenant_id: A }), "day");
-  const counter = ok(
-    await db.from("lead_counters").select("id, used").eq("tenant_id", A).eq("kind", "day").eq("period", day).single(),
-    "day counter",
-  );
-  ok(await db.from("lead_counters").update({ used: 24.9 }).eq("id", counter.id), "near the day's $25");
-  try {
+test(
+  "the last two legs adding fewer than three leads stop the search on what its last leg did, the next area offered",
+  { skip },
+  async () => {
+    await widening(true);
+    const s = await search(10);
+    await named(s.round_id, [ROUND_ROCK]);
     await ended(s.round_id, "few_new_matches");
-  } finally {
-    ok(await db.from("lead_counters").update({ used: counter.used }).eq("id", counter.id), "put back");
-  }
-  const r = await round(s.round_id);
-  assert.deepEqual([r.ending, r.carries_on], ["day_used", false]);
-  assert.equal((await roundsOf(s.search_id)).length, 1, "no leg");
-  const [ring] = await rang(s.round_id);
-  assert.match(ring?.title ?? "", /stopped: today's searching is used up$/);
-});
+    const [, leg2] = await roundsOf(s.search_id);
+    await named(leg2.id, [KYLE]);
+    await ended(leg2.id, "few_new_matches");
+    const [, , leg3] = await roundsOf(s.search_id);
+    assert.equal(leg3?.purpose, "widen", "one leg that found nothing is no reason to stop");
+    await named(leg3.id, [MANOR]);
+    await ended(leg3.id, "few_new_matches");
+    const last = await round(leg3.id);
+    // An area is still within reach: "every area within reach was searched" would not be true (00634). It said so on
+    // 15 Nov 2026, at 99 of 100.
+    assert.deepEqual(
+      [last.ending, last.carries_on, last.nearby.map((a) => a.zip)],
+      ["few_new_matches", false, ["78653"]],
+      "two legs, nothing between them: it stops, and offers the next area",
+    );
+    assert.equal((await roundsOf(s.search_id)).length, 3, "no fourth leg");
+    const [ring] = await rang(leg3.id);
+    assert.match(ring?.title ?? "", / found 0 of 10$/, "how many of how many");
+    assert.equal(ring?.body, "It stopped after the nearby areas it reads on its own. Open it to look further.");
+  },
+);
+
+test(
+  "the legs a search may read grow with its count: eight at least, one for every ten, forty at most",
+  { skip },
+  async () => {
+    const cap = async (n) => ok(await db.rpc("lead_leg_cap", { p_count: n }), `cap ${n}`);
+    assert.deepEqual(
+      [await cap(1), await cap(10), await cap(80), await cap(100), await cap(300), await cap(500), await cap(1000)],
+      [8, 8, 8, 10, 30, 40, 40],
+      "a dense niche's leg adds about nine (15 Nov 2026): eight legs held a search of 300 near a hundred",
+    );
+  },
+);
+
+test(
+  "a leg the day's searching cannot hold waits for tomorrow, reserved from its day, and rings nothing",
+  { skip },
+  async () => {
+    await widening(true);
+    const s = await search(10);
+    await named(s.round_id, [ROUND_ROCK]);
+    const day = ok(await db.rpc("lead_day", { p_tenant_id: A }), "day");
+    const counter = ok(
+      await db.from("lead_counters").select("id, used").eq("tenant_id", A).eq("kind", "day").eq("period", day).single(),
+      "day counter",
+    );
+    ok(await db.from("lead_counters").update({ used: 24.9 }).eq("id", counter.id), "near the day's $25");
+    try {
+      await ended(s.round_id, "few_new_matches");
+    } finally {
+      ok(await db.from("lead_counters").update({ used: counter.used }).eq("id", counter.id), "put back");
+    }
+    const r = await round(s.round_id);
+    const [, leg] = await roundsOf(s.search_id);
+    if (!leg) {
+      // Its tomorrow is the next month, whose leads the owner has not given: it stops, with Carry on (00634).
+      assert.deepEqual([r.ending, r.carries_on], ["day_used", false]);
+      const [ring] = await rang(s.round_id);
+      assert.match(ring?.title ?? "", /stopped: today's searching is used up$/);
+      return;
+    }
+    assert.deepEqual([r.ending, r.carries_on], ["few_new_matches", true], "it carries on, and so rings nothing");
+    assert.equal((await rang(s.round_id)).length, 0);
+    assert.ok(Date.parse(leg.starts_at) > Date.now(), `it starts tomorrow: ${leg.starts_at}`);
+    assert.notEqual(leg.day, day, "reserved from tomorrow's day, which has its own $25");
+    assert.equal(leg.month, r.month, "within the month");
+    const [start] = ok(
+      await db.from("jobs").select("due_at, payload").eq("tenant_id", A).eq("kind", "lead_round_start"),
+      "jobs",
+    ).filter((j) => j.payload.round_id === leg.id);
+    assert.equal(Date.parse(start?.due_at ?? ""), Date.parse(leg.starts_at), "its start is due then, not now");
+  },
+);
 
 test("a round that failed, or that met its count, never opens a leg", { skip }, async () => {
   await widening(true);

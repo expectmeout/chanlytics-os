@@ -15,6 +15,25 @@ import { haversineM, nearestAreas, type LatLng } from "./geo";
 /** One area as the search's rounds name it: two rounds of one area read the same ground. */
 export const areaKey = (area: Pick<LeadArea, "kind" | "label">): string => `${area.kind}:${area.label}`;
 
+/**
+ * An area whose circle holds this many places a search of its kind already holds is read already, whichever search read
+ * it: the source answers a term near a place from its top, and the top of such ground is mostly what is held, paid for
+ * again and skipped (15 Nov 2026: 434 of 1,073 places a search paid for were the workspace's, near its earlier searches).
+ */
+export const HELD_IN_AN_AREA = 40;
+
+/** Whether an area's circle holds HELD_IN_AN_AREA of the places already held. */
+function holdsMuch(area: LeadArea, held: readonly LatLng[]): boolean {
+  if (!area.center || held.length < HELD_IN_AN_AREA) return false;
+  let inside = 0;
+  for (const place of held) {
+    if (haversineM(area.center, place) >= area.radius_m) continue;
+    inside += 1;
+    if (inside >= HELD_IN_AN_AREA) return true;
+  }
+  return false;
+}
+
 /** How many areas one rung names: the first is the next leg's, all of them the owner's "look near" when widening is off. */
 const RUNG_AREAS = 3;
 /** Every ZIP centre nearestAreas could give inside any reach, so the spacing below has all of them to choose from. */
@@ -36,6 +55,8 @@ export function nextRung(input: {
   areaRadiusM: number;
   /** The areas earlier legs read. */
   read: readonly Pick<LeadArea, "center" | "zip">[];
+  /** Where the places a search of this kind already holds are: this search's, and the workspace's like it. */
+  held?: readonly LatLng[];
 }): LeadArea[] {
   const reach = reachOf(input.plan.area, input.plan.reach_m);
   if (!input.center || reach <= input.areaRadiusM) return [];
@@ -46,7 +67,7 @@ export function nextRung(input: {
     maxM: reach,
     state: input.plan.area.state,
   })) {
-    if (overlaps(area, input.read) || overlaps(area, rung)) continue;
+    if (overlaps(area, input.read) || overlaps(area, rung) || holdsMuch(area, input.held ?? [])) continue;
     rung.push(area);
     if (rung.length === RUNG_AREAS) break;
   }

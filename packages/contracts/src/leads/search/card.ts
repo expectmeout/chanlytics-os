@@ -10,6 +10,7 @@ import { rec } from "../../ask/proposals/spec";
 import type { LeadPlanFacts } from "../dtos";
 import { leadPlanAsk, leadPlanFactLine } from "../plan";
 import { peoplePlanAsk, peoplePlanFactLine, peoplePlanOf, peoplePlanRows, type PeopleMonth } from "./people-plan/plan";
+import { LEAD_REACH_MILE_M } from "./caps";
 import type { LeadSearchPlan } from "./plan";
 import { lowerFirst, planArea, planReachSaid, planWho } from "./sentence";
 
@@ -35,7 +36,10 @@ export const startsSearch = (askProposal: Pick<AskProposal, "kind" | "payload" |
  * what it leaves out (and anyone already the owner's), and which contact shows first.
  */
 function leadPlanRows(plan: LeadSearchPlan, facts: LeadPlanFacts | null): Array<{ label: string; value: string }> {
-  const km = Math.round(plan.area.radius_m / 1000);
+  // A US owner reads miles, as the reach beside it says (decision 0133). A city is read whole, the source splitting it
+  // itself, so it is said by its name alone; a ZIP or a circle by how far around it reaches.
+  const miles = Math.round(plan.area.radius_m / LEAD_REACH_MILE_M);
+  const around = plan.area.kind !== "city" && miles > 0;
   // A ZIP's area is said as it is searched, near it; a city or a state by its name.
   const place = plan.area.kind === "zip" && plan.area.zip ? `Near ${plan.area.zip}` : planArea(plan.area);
   const must = plan.criteria.map(
@@ -45,7 +49,7 @@ function leadPlanRows(plan: LeadSearchPlan, facts: LeadPlanFacts | null): Array<
   return [
     { label: "Finds", value: cap(planWho(plan)) },
     { label: "Searched as", value: plan.terms.join(" · ") },
-    { label: "Where", value: km > 0 ? `${place}, about ${km} km around` : place },
+    { label: "Where", value: around ? `${place}, about ${miles} ${miles === 1 ? "mile" : "miles"} around` : place },
     // How far a search that widens by itself looks (decision 0133); said only where it does.
     ...(facts?.widens ? [{ label: "How far", value: planReachSaid(plan) }] : []),
     { label: "How many", value: String(plan.count) },

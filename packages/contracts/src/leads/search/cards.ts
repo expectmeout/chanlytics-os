@@ -9,6 +9,7 @@ import {
   LEAD_ASK_MIN_FACTOR,
   LEAD_ASSUMED_YIELD,
   LEAD_DEEP_PER_TERM,
+  LEAD_EMAIL_MINUTES_PER_LEAD,
   LEAD_ESTIMATE_MARGIN,
   LEAD_MAX_PLACES,
   LEAD_PROBE_PLACES,
@@ -247,6 +248,9 @@ export function planCeiling(plan: LeadSearchPlan): number {
 }
 
 export function planMinutes(plan: LeadSearchPlan): number {
+  // A search made for email at its measured pace: its leads, never its places, since most of what it reads has no address.
+  if (plan.contact === "email" && cardOf(plan).id === "local_businesses")
+    return Math.max(2, Math.round(plan.count * LEAD_EMAIL_MINUTES_PER_LEAD));
   const places = LEAD_PROBE_PLACES + placesToAsk(plan, plan.count, LEAD_ASSUMED_YIELD).total;
   return Math.max(2, Math.round(places / cardOf(plan).placesPerMinute));
 }

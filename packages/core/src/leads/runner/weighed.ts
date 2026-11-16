@@ -12,7 +12,7 @@ import { wasJudged } from "./rules";
 export const NO_EMAIL_TOKEN = "email:none";
 
 /** The reasons a member is held under, as its judgment keeps them. */
-const reasonsOf = (member: LeadMemberRow): unknown[] => {
+const reasonsOf = (member: Pick<LeadMemberRow, "judgment">): unknown[] => {
   const reasons = recordOrNull(member.judgment)?.reasons;
   return Array.isArray(reasons) ? reasons : [];
 };
@@ -33,17 +33,23 @@ export const wasWeighed = (member: LeadMemberRow): boolean =>
   member.excluded_by === LEAD_UNREACHABLE_KEY ||
   hasNoEmail(member);
 
+/** Held in review for its address's check alone: once it checks out, the member counts. */
+const waitsOnItsCheck = (member: Pick<LeadMemberRow, "class" | "judgment">): boolean => {
+  const reasons = reasonsOf(member);
+  return member.class === "review" && reasons.length > 0 && reasons.every((reason) => reason === "email:checking");
+};
+
 /**
  * A member that counts once its address checks out, and by nothing else: held in review only for the check still on its
  * way. What a main phase's later term is asked for is the count less these (main-ask.ts): asked for the whole count
  * again, a second term would pay for places the first term's addresses were about to deliver.
  */
-export const mayYetCount = (member: LeadMemberRow): boolean => {
-  const reasons = reasonsOf(member);
-  return (
-    !member.counted &&
-    member.class === "review" &&
-    reasons.length > 0 &&
-    reasons.every((reason) => reason === "email:checking")
-  );
-};
+export const mayYetCount = (member: LeadMemberRow): boolean => !member.counted && waitsOnItsCheck(member);
+
+/**
+ * A place worth reading its own site for its mark: one that counts (Qualified), or one that will once its address checks
+ * out. A read is a credit with the page's reader whatever it answers, and a place that can never count is never worked:
+ * on 15 Nov 2026 about 300 of a search's 391 reads were for places with no email or left out, a quarter of its cost.
+ */
+export const mayCount = (member: Pick<LeadMemberRow, "class" | "judgment">): boolean =>
+  member.class === "qualified" || waitsOnItsCheck(member);

@@ -273,11 +273,15 @@ export function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts | null)
     plan.contact === "email"
       ? "Counts only matches with a checked email"
       : "Counts only matches with a valid phone number or a checked email";
+  // Where the month's searching cannot pay for the count, the card says so before the press, in leads: the search stops
+  // when it runs out, with the month's searching used up (decision 0133).
+  const covers = plan.contact === "email" ? (facts?.searchingCovers ?? null) : null;
   return [
     `About ${planMinutesSaid(plan, "minutes")} — leave the page if you like`,
     // No number: the card cannot know how many of THIS search's places are already here until it has looked.
     "Anything already yours is skipped",
     facts ? `${counts} · ${leadAllowanceFact(facts.leadsLeft)}` : counts,
+    ...(covers !== null && covers < plan.count ? [`This month's searching covers about ${covers} more`] : []),
   ];
 }
 

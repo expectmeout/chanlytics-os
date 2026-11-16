@@ -10792,6 +10792,25 @@ COMMENT ON FUNCTION public.lead_is_set_aside(p_stage text, p_closed_reason text)
 
 
 --
+-- Name: lead_leg_cap(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_leg_cap(p_count integer) RETURNS integer
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  select least(40, greatest(8, ceil(greatest(coalesce(p_count, 0), 0) / 10.0)::integer))
+$$;
+
+
+--
+-- Name: FUNCTION lead_leg_cap(p_count integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_leg_cap(p_count integer) IS 'How many legs a search of p_count may read (decision 0133, 00634): one for every ten leads, eight at least, forty at most. A leg of a dense niche adds about nine (15 Nov 2026); the month''s and the day''s caps bound the spend.';
+
+
+--
 -- Name: lead_list_counts(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11938,6 +11957,10 @@ declare
   v_err    jsonb;
   v_next   uuid;
   v_short  boolean;
+  v_cap    integer;
+  v_page   numeric;
+  v_tz     text;
+  v_at     timestamptz;
 begin
   if p_ending not in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused', 'reach_searched', 'day_used') then
     raise exception 'not one of the endings: %', p_ending using errcode = '22023';
@@ -11980,8 +12003,13 @@ begin
                where y.search_id = r.search_id order by y.seq desc limit 2) x;
       select a into v_area from jsonb_array_elements(coalesce(r.nearby, '[]'::jsonb)) as x(a)
        where not (a ? 'beyond_m') limit 1;
-      if v_left > 0 and (v_area is null or v_legs >= 8 or (v_two and v_last < 3)) then
+      v_cap := public.lead_leg_cap((s.plan->>'count')::integer);
+      if v_left > 0 and v_area is null then
         v_ending := 'reach_searched';
+      elsif v_left > 0 and (v_legs >= v_cap or (v_two and v_last < 3)) then
+        -- Its own guards stop it with areas still within reach: the round ends on what its area did, its nearby kept,
+        -- so the owner is offered the next area. "Every area within reach was searched" is the ladder's alone.
+        v_ending := p_ending;
       elsif v_left > 0 and public.lead_searches_on(r.tenant_id) and public.lead_spend_refusal(r.tenant_id) is null then
         v_month := public.lead_month(r.tenant_id, now());
         v_day   := public.lead_day(r.tenant_id, now());
@@ -11992,6 +12020,33 @@ begin
           v_left := (v_err->>'left')::integer;
           v_usd  := public.lead_estimate_ceiling('search', v_left, jsonb_array_length(s.plan->'terms'));
           v_err  := public.lead_reserve(r.tenant_id, v_month, v_day, v_pday, v_left, v_usd);
+        end if;
+        -- A leg spends about a page a term (15 Nov 2026: $0.02 to $1.39 of $3.47 to $6.01 set aside): where the month's or
+        -- the day's money cannot hold the count's estimate, a page's is asked for instead.
+        if v_err->>'error' in ('budget_used', 'day_cap') then
+          v_page := public.lead_estimate_ceiling('search', 48, 1);
+          if v_page < v_usd then
+            v_usd := v_page;
+            v_err := public.lead_reserve(r.tenant_id, v_month, v_day, v_pday, v_left, v_usd);
+          end if;
+        end if;
+        -- The day's searching used, the leg waits for the next: it is reserved from tomorrow's day now and starts at
+        -- midnight in the workspace's zone, as the rest when the leads renew does. Never into the next month, whose leads
+        -- the owner has not given: that stops on day_used, with Carry on.
+        if v_err->>'error' = 'day_cap' then
+          select coalesce(t.timezone, 'UTC') into v_tz from public.tenants t where t.id = r.tenant_id;
+          v_at := (date_trunc('day', now() at time zone v_tz) + interval '1 day') at time zone v_tz;
+          if public.lead_month(r.tenant_id, v_at) = v_month then
+            v_err := public.lead_reserve(r.tenant_id, v_month, public.lead_day(r.tenant_id, v_at),
+                                         to_char(v_at at time zone 'UTC', 'YYYY-MM-DD'), v_left, v_usd);
+            if v_err is null then
+              v_day  := public.lead_day(r.tenant_id, v_at);
+              v_pday := to_char(v_at at time zone 'UTC', 'YYYY-MM-DD');
+            end if;
+          end if;
+          if v_err is not null then
+            v_at := null;
+          end if;
         end if;
         if v_err is null then
           v_next := gen_random_uuid();
@@ -12036,15 +12091,16 @@ begin
                              'carries_on', v_next is not null));
   -- The next leg: the search's own plan on the rung's first area, for what its count still wants, started as any round.
   if v_next is not null then
-    insert into public.lead_rounds (id, tenant_id, search_id, seq, purpose, plan, plan_version, target, state, allowance_reserved, cost_reserved_usd, month, day, platform_day)
+    insert into public.lead_rounds (id, tenant_id, search_id, seq, purpose, plan, plan_version, target, state, allowance_reserved, cost_reserved_usd, month, day, platform_day, starts_at)
     values (v_next, r.tenant_id, r.search_id, r.seq + 1, 'widen', jsonb_set(s.plan, '{area}', v_area), (s.plan->>'version')::integer,
-            v_left, 'queued', v_left, v_usd, v_month, v_day, v_pday);
+            v_left, 'queued', v_left, v_usd, v_month, v_day, v_pday, v_at);
     insert into public.jobs (tenant_id, kind, due_at, payload)
-    values (r.tenant_id, 'lead_round_start', now(), jsonb_build_object('round_id', v_next));
+    values (r.tenant_id, 'lead_round_start', coalesce(v_at, now()), jsonb_build_object('round_id', v_next));
     insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
     values (r.tenant_id, 'lead.round', 'lead', 'lead_round', v_next,
             jsonb_build_object('search_id', r.search_id, 'seq', r.seq + 1, 'state', 'queued', 'purpose', 'widen',
-                               'target', v_left, 'area', v_area->>'label'));
+                               'target', v_left, 'area', v_area->>'label')
+            || case when v_at is null then '{}'::jsonb else jsonb_build_object('starts_at', v_at) end);
   end if;
   return true;
 end $$;
@@ -12054,7 +12110,7 @@ end $$;
 -- Name: FUNCTION lead_round_end(p_round_id uuid, p_ending text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) IS 'Ends a round with one of the endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. Where the platform widens for the workspace (decision 0133, 00628), a search short of its count whose round ran dry opens its next leg here (purpose widen, on the first area of nearby), or ends on reach_searched, day_used, month_leads_used or budget_used. True once; false when already ended.';
+COMMENT ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) IS 'Ends a round with one of the endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. Where the platform widens for the workspace (decision 0133, 00628), a search short of its count whose round ran dry opens its next leg here (purpose widen, on the first area of nearby), or ends on reach_searched (no area left within reach), on the ending it was given with its nearby kept (its legs reached lead_leg_cap for its count, or its last two added fewer than three, 00634), or on day_used, month_leads_used or budget_used. A leg the count''s estimate cannot be reserved for asks for a page''s; one the day''s searching cannot hold is reserved from tomorrow''s day and starts then (starts_at), within the month. True once; false when already ended.';
 
 
 --
@@ -12434,9 +12490,14 @@ begin
                   left('Your search for ' || v_name || ' stopped: this month''s searching is used up', 200)
                 when NEW.ending = 'reach_searched' and v_want is not null then
                   left('Your search for ' || v_name || ' found ' || v_n || ' of ' || v_want, 200)
+                when v_wide and v_want is not null and v_n < v_want and NEW.ending in ('few_new_matches', 'searched_everything') then
+                  left('Your search for ' || v_name || ' found ' || v_n || ' of ' || v_want, 200)
                 else left('Your search for ' || v_name || ' is done', 200) end,
            case when v_via <> 'import' and NEW.ending = 'reach_searched' then
                   'Every area within reach was searched, and no more that fit were found.'
+                when v_via <> 'import' and v_wide and v_want is not null and v_n < v_want
+                     and NEW.ending in ('few_new_matches', 'searched_everything') then
+                  'It stopped after the nearby areas it reads on its own. Open it to look further.'
                 when v_via <> 'import' then case when v_n > 0 then v_n || ' found.' else 'Nothing new was counted.' end
                 when NEW.ending not in ('target_reached', 'searched_everything') then 'Its addresses wait in Needs review.'
                 when v_n > 0 then v_n || ' have a checked address.' else 'None of the addresses checked out.' end,
@@ -12458,7 +12519,7 @@ end $$;
 -- Name: FUNCTION lead_rounds_notify(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_rounds_notify() IS 'The bell''s two lead kinds: one leads_question row when a round stops to ask, pointing at the search''s left-out pile (the places the question is about), and one leads_ready row when it ends with anything but "stopped" or "question_unanswered", pointing at the search; each once per round, each with a push_send job so a phone hears it too. A search whose source failed says so (00491): "didn''t run: the source couldn''t start it" when nothing came back, "stopped: the source stopped answering" when places did, a warning in contracts'' notice-tones; every other ending "is done". A file of the owner''s own (via import, 00242) rings "Your list … is checked" with how many have a checked address once its check ran, or "could not be checked" when the check ended any other way; a chosen search rings nothing. A round that leaves waiting_on_owner closes its question row for everyone (00421, notifications_close_about). A member''s own read mark is notification_marks'', as for every other kind.';
+COMMENT ON FUNCTION public.lead_rounds_notify() IS 'The bell''s two lead kinds: one leads_question row when a round stops to ask, pointing at the search''s left-out pile (the places the question is about), and one leads_ready row when it ends with anything but "stopped" or "question_unanswered", pointing at the search; each once per round, each with a push_send job so a phone hears it too. A search whose source failed says so (00491): "didn''t run: the source couldn''t start it" when nothing came back, "stopped: the source stopped answering" when places did, a warning in contracts'' notice-tones; a widened search short of its count says how many of how many it found, with every area searched only where the ladder ran out (00634); every other ending "is done". A file of the owner''s own (via import, 00242) rings "Your list … is checked" with how many have a checked address once its check ran, or "could not be checked" when the check ended any other way; a chosen search rings nothing. A round that leaves waiting_on_owner closes its question row for everyone (00421, notifications_close_about). A member''s own read mark is notification_marks'', as for every other kind.';
 
 
 --
@@ -54731,6 +54792,14 @@ GRANT ALL ON FUNCTION public.lead_in_list(p_stage text, p_closed_reason text, p_
 REVOKE ALL ON FUNCTION public.lead_is_set_aside(p_stage text, p_closed_reason text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_is_set_aside(p_stage text, p_closed_reason text) TO authenticated;
 GRANT ALL ON FUNCTION public.lead_is_set_aside(p_stage text, p_closed_reason text) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_leg_cap(p_count integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_leg_cap(p_count integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_leg_cap(p_count integer) TO service_role;
 
 
 --

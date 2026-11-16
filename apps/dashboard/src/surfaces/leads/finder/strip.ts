@@ -96,6 +96,8 @@ const ldEndingFacts = (s: PlacesSearch, nearby: readonly string[], renewsOn: str
     ...(renewsOn ? { renewsOn } : {}),
     ...ldFurther(s),
     checking: r.state === "checking",
+    // A leg is the search's last round once it widened (decision 0133): what it found is in and near the card's area.
+    ...(r.purpose === "widen" ? { widened: true } : {}),
     foundBefore: r.counted,
     // Where to look next: what the caller knows, else what the round itself wrote when it ran dry (00145).
     nearby: nearby.length ? [...nearby] : (r.nearby || []).map((a) => a.label),
@@ -104,6 +106,19 @@ const ldEndingFacts = (s: PlacesSearch, nearby: readonly string[], renewsOn: str
     leftOutBy: only,
   };
 };
+
+/**
+ * A leg the day's searching could not hold (decision 0133, 00634): reserved from tomorrow's day, it starts by itself at
+ * midnight in the workspace's zone. What it found so far, and Stop, which ends it and gives back what it held.
+ */
+const dayWaitStrip = (counted: number, goal: number, audience: string): StripVM => ({
+  state: "ended",
+  alert: false,
+  title: `Found ${counted} of ${goal} ${audience} so far`,
+  parts: ["today's searching is used up", "it carries on tomorrow by itself"],
+  progress: goal > 0 ? Math.min(1, counted / goal) : null,
+  actions: [{ id: "stop", label: "Stop" }],
+});
 
 /**
  * A round put off until the month's leads renew (decision 0133): what it will find and when, and Don't, which ends it
@@ -247,7 +262,7 @@ const ldStripOf = (
   // back (contracts leadUndoable): an "Undo" here, beside "the 24 found are yours", read as deleting what was just paid for.
   if (r.state === "waiting_on_owner" && r.question) return questionStrip(plan, r.question, progress);
   if (r.state === "queued" && r.starts_at && Date.parse(r.starts_at) > now.getTime())
-    return waitingStrip(r, who, renewsOn);
+    return r.purpose === "widen" ? dayWaitStrip(counted, goal, who) : waitingStrip(r, who, renewsOn);
   if (r.state === "checking") {
     // After Stop the emails of what was already found are still checked, and the strip says so in the ending's own words,
     // with `checking` true (S12, 17).

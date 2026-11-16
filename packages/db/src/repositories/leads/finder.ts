@@ -42,6 +42,19 @@ export const findPlatformDayCounter = async (db: Db, day: string) =>
     .maybeSingle();
 
 /** A search's rounds in order, each with its plan (decision 0133: where its legs read). */
+/**
+ * A workspace's searches made since `since`, the newest first and at most `limit`, each with its plan: those of the same
+ * kind are what a search's places are already held under (decision 0133).
+ */
+export const listSearchesSince = async (db: Db, tenantId: TenantId, since: string, limit: number) =>
+  db
+    .from("lead_searches")
+    .select("id, plan")
+    .eq("tenant_id", tenantId)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
 export const listRoundsOfSearch = async (db: Db, searchId: string) =>
   db
     .from("lead_rounds")

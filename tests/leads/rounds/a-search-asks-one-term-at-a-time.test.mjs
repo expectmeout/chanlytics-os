@@ -261,3 +261,41 @@ test("past its probe, a search made for email shows the judge only a place with 
     "each counts as looked at when a later ask is sized: it was read and paid for",
   );
 });
+
+test("a site is read for a mark only where the place counts or may: never one with no address in a search made for email", async () => {
+  const bare = (n) => (n % 2 === 0 ? { emails: [] } : {});
+  const plan = { ...PLAN, terms: ["hair salon"], contact: "email", count: 60, exclusions: [] };
+  const { w, p } = searching(plan, 9, { "hair salon": fitting(1, 65, bare) });
+  const reads = [];
+  const reading = (owner) => ({ ...p(owner), readSite: async (host) => (reads.push(host), null) });
+  await startRound(reading(), w.round().id, OWNER);
+  await collected(w, reading);
+  await startRound(reading("main-0"), w.round().id, "main-0", true);
+  reads.length = 0;
+  await collected(w, reading);
+  const lead = (host) => w.T.leads.find((l) => l.website_host === host);
+  assert.ok(reads.length > 0, "the places that may count are read");
+  assert.ok(
+    reads.every((host) => lead(host)?.email),
+    `none with no address (15 Nov 2026: about 300 of a search's 391 reads): ${reads.filter((h) => !lead(h)?.email).join(", ")}`,
+  );
+});
+
+test("a search in an area an earlier search of its kind read asks past what that search's runs read: the source answers from the top", async () => {
+  const plan = { ...PLAN, terms: ["hair salon"], count: 30 };
+  const { w, p } = searching(plan, 9, { "hair salon": fitting(1, 400) });
+  await probedAndStarted(w, p);
+  await mainPhaseOut(w, p);
+  // As if the earlier search had read 200 places of its term there.
+  const earlier = w.runs().find((r) => r.term === "hair salon" && r.items_seen > 25);
+  earlier.items_seen = 200;
+  const second = w.rpcs.lead_search_create({ p_tenant_id: TENANT, p_plan: plan, p_via: "people", p_estimate_usd: 9 });
+  await startRound(p("s2-probe"), second.round_id, "s2-probe");
+  await collected(w, p);
+  await startRound(p("s2-main"), second.round_id, "s2-main", true);
+  assert.deepEqual(
+    asked(w).at(-1),
+    ["hair salon", 320],
+    "past the 200 the earlier search read, for the 120 this one wants: asked from the top it pays for those 200 again",
+  );
+});

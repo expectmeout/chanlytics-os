@@ -6,6 +6,7 @@
  * name no workspace and no place (lead_niche_priors, 00140). Nothing else here reads past the workspace.
  */
 import {
+  LEAD_MONTHLY_ALLOWANCE,
   LEAD_MONTHLY_BUDGET_USD,
   leadMonth,
   type LeadNichePrior,
@@ -40,6 +41,13 @@ export async function findNichePrior(
     ? { places: p.places, matched: p.matched ?? 0, with_email: p.with_email ?? 0 }
     : null;
 }
+
+/**
+ * The leads `usd` of the month's searching pays for, at the price a lead the month's caps are sized to: $40 for 500, the
+ * 8 cents a checked-email lead measured (15 Nov 2026).
+ */
+const searchingCovers = (usd: number): number =>
+  Math.floor((usd * LEAD_MONTHLY_ALLOWANCE) / LEAD_MONTHLY_BUDGET_USD + 1e-9);
 
 /**
  * What the plan card is given beside the plan (§8.3): what a search would
@@ -95,5 +103,7 @@ export async function planFacts(
     // Where to look next is a round's that ran dry (contracts leadMonthPlanFacts): a card Ask makes has none to offer.
     nearby: [],
     ...(widens ? { widens: true } : {}),
+    // What the month's searching still pays for, in leads, where it binds before the leads do (decision 0133).
+    ...(searchingCovers(budgetLeftUsd) < leadsLeft ? { searchingCovers: searchingCovers(budgetLeftUsd) } : {}),
   };
 }

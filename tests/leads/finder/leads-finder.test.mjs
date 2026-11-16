@@ -343,8 +343,8 @@ test("a changed count re-plans without the model, and a changed area makes a new
   const counts = byTestId((click(byTestId(drawCard(st), "plan-count")), drawCard(st)), "plan-count-50");
   assert.match(
     textOf(counts),
-    /about 12 to 24 min/,
-    "every count says about how long it takes, at the rate five real searches measured, as a range until real searches measure the spread (decision 0133)",
+    /about 18 to 36 min/,
+    "every count says about how long it takes, at the pace a real search made for email measured (0.48 minutes a lead, 15 Nov 2026), as a range until real searches measure the spread (decision 0133)",
   );
   st.pick = null;
   pickOption(st, "area", "Round Rock, TX");
@@ -412,7 +412,7 @@ test("Leaving out is chips the owner can take back, Likely says what past search
   );
   assert.equal(
     textOf(byTestId(tree, "plan-facts")),
-    "About 40 to 80 minutes — leave the page if you likeAnything already yours is skippedCounts only matches with a checked email · 486 left this month",
+    "About 72 to 144 minutes — leave the page if you likeAnything already yours is skippedCounts only matches with a checked email · 486 left this month",
   );
   assert.equal(/\$/.test(textOf(tree)), false, "there is no dollar meter");
   const chip = byTestId(tree, "plan-leaving-chain");
@@ -770,7 +770,7 @@ test("AI draws a search's card from contracts' rules (surfaces/ask/card.tsx): it
     undo: "Stop the search",
   };
   const v = searchCardView(card);
-  assert.equal(v.sheet.rows.find((r) => r.label === "Where").value, "Austin, TX, about 25 km around");
+  assert.equal(v.sheet.rows.find((r) => r.label === "Where").value, "Austin, TX");
   assert.equal(v.press.label, "Find 200 leads");
   assert.equal(SEARCH_CARD_REPLACED, "Changed below.");
 });
@@ -835,7 +835,7 @@ test("the running strip says what is true, and its Stop is the only thing to pre
   assert.equal(textOf(byTestId(tree, "strip-title")), "Finding personal trainers in Austin, TX");
   assert.equal(
     textOf(byTestId(tree, "strip-parts")),
-    " \u00b7 86 of 200 \u00b7 41 emails checked \u00b7 about 30 min left",
+    " \u00b7 86 of 200 \u00b7 41 emails checked \u00b7 about 55 min left",
   );
   assert.equal(byTestId(tree, "lead-strip").props.role, "status");
   assert.equal(
@@ -1297,6 +1297,37 @@ test("a leg's strip counts the whole search and names the area it reads, after t
     { n: 86, of: 200 },
     "a top-up's too: 86 of 200, never 86 of 114",
   );
+});
+
+test("a leg the day's searching could not hold says what it found so far and that it carries on tomorrow by itself, with Stop (00634)", () => {
+  const waiting = withRound({
+    purpose: "widen",
+    state: "queued",
+    seq: 4,
+    target: 114,
+    area: NEARBY,
+    starts_at: "2026-09-20T05:00:00Z",
+  });
+  const vm = leadStrip(waiting, NOW);
+  assert.equal(vm.title, "Found 86 of 200 personal trainers so far");
+  assert.deepEqual(vm.parts, ["today's searching is used up", "it carries on tomorrow by itself"]);
+  assert.deepEqual(vm.actions, [{ id: "stop", label: "Stop" }]);
+  assert.equal(
+    leadStrip(withRound({ ...waiting.round, purpose: "topup" }), NOW).actions[0]?.id,
+    "not_on_renewal",
+    "a top-up waiting on the month's renewal says that, as it did",
+  );
+});
+
+test("a widened search stopped with areas still within reach says how many of how many, in and near its area, and offers the next", () => {
+  for (const ending of ["few_new_matches", "searched_everything"]) {
+    const vm = leadStrip(ended(ending, { purpose: "widen", target: 139, nearby: [NEARBY] }), NOW);
+    assert.equal(vm.title, "Found 61 of 200 personal trainers in and near Austin, TX", ending);
+    assert.ok(
+      vm.parts.some((p) => /^Look further out/.test(p)),
+      `${ending}: never "everything these searches returned in Austin", which the legs read past (15 Nov 2026, 99 of 100)`,
+    );
+  }
 });
 
 test("a search that read everything within its reach says how far, never that none exist, and what stays the owner's", () => {

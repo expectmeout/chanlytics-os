@@ -11,7 +11,7 @@ import type { CollectPage, LeadMemberRow, LeadPorts, LeadRoundRow, LeadRunRow } 
 import { afterProbe } from "../question";
 import { runCaps, runsRoom, termsToAsk } from "../sizing";
 import { areaKey } from "../ladder";
-import { planMainAsk } from "./main-ask";
+import { findHeldPlaces, planMainAsk } from "./main-ask";
 import { nearbyFor } from "./places";
 import { LEAD_RUN_RETRY_SECONDS, retryOf } from "./retries";
 import { type Phase, outOfTime, targetOf, wasJudged } from "./rules";
@@ -164,14 +164,17 @@ export async function findNextAreas(leadPorts: LeadPorts, round: LeadRoundRow): 
   // The ladder measures from the card's area and what its rounds found there, and passes every other area read.
   const onCard = new Set(rounds.filter((r) => areaKey(r.plan.area) === areaKey(card.plan.area)).map((r) => r.id));
   const read = rounds.filter((r) => !onCard.has(r.id)).map((r) => r.plan.area);
-  const found = (await leadPorts.db.membersOfSearch(round.search_id)).filter((m) => onCard.has(m.round_id ?? ""));
-  const within = nearbyFor(plan, found, read);
+  const members = await leadPorts.db.membersOfSearch(round.search_id);
+  const found = members.filter((m) => onCard.has(m.round_id ?? ""));
+  // Ground a search of this kind already holds is read too, whichever of the workspace's searches read it.
+  const held = await findHeldPlaces(leadPorts, round, members);
+  const within = nearbyFor(plan, found, read, held);
   // Nothing left within the reach on its card: the areas past it, up to the farthest an owner may ask (reachOf holds
   // every reach to it), each marked with that reach, so the round's end never opens one by itself and the owner's Look up
   // to 50 miles can.
   const farthest = reachOf(plan.area, Number.POSITIVE_INFINITY);
   if (within.length || reachOf(plan.area, plan.reach_m) >= farthest) return within;
-  return nearbyFor({ ...plan, reach_m: farthest }, found, read).map((a) => ({ ...a, beyond_m: farthest }));
+  return nearbyFor({ ...plan, reach_m: farthest }, found, read, held).map((a) => ({ ...a, beyond_m: farthest }));
 }
 
 /**
