@@ -260,7 +260,7 @@ test("where they stand, the same words in every window: what needs you by its wo
   assert.deepEqual(word("held", { place: 2 }), { word: "Held", tone: "warn", line: "Step 2 · Bookstore intro" });
   assert.equal(word("to_send").word, "Yours to send");
   assert.equal(word("replied").tone, "warn");
-  assert.deepEqual(word("queued"), { word: "In Bookstore intro", tone: "ok", line: "In its next batch" });
+  assert.deepEqual(word("queued"), { word: "In Bookstore intro", tone: "ok", line: "In its next send" });
   assert.equal(word("queued", {}, true, { name: "Gift shops", state: "draft" }).line, "Joins when you start it");
   assert.equal(word("queued", {}, false).word, "In it", "the sheet's head, beside the name, names no campaign");
   assert.equal(word("in").line, "Between steps");
@@ -276,13 +276,13 @@ test("a row's one status: the place's short word, the sequence named in the line
   const row = (group, extra = {}) =>
     placeWordOf({ group, place: 1, at: null, why: null, ...extra }, seq, clock, "line");
   assert.deepEqual(row("waiting"), { word: "Waits for your approval", tone: "warn", line: "Step 1 · Bookstore intro" });
-  assert.deepEqual(row("queued"), { word: "In campaign", tone: "ok", line: "In its next batch · Bookstore intro" });
+  assert.deepEqual(row("queued"), { word: "In campaign", tone: "ok", line: "In its next send · Bookstore intro" });
   assert.deepEqual(row("in"), { word: "In campaign", tone: "ok", line: "Between steps · Bookstore intro" });
   assert.equal(row("next").line, "Step 1 · Bookstore intro");
   assert.deepEqual(row("left", { why: "removed" }), { word: "Taken out", tone: "plain", line: "Bookstore intro" });
 });
 
-test("a lead on a list that no batch can take says why, in amber, never In its next batch", () => {
+test("a lead on a list that no batch can take says why, in amber, never In its next send", () => {
   const seq = { name: "Brooklyn intro", state: "on" };
   const word = (why, named) => placeWordOf({ group: "queued", place: 1, at: null, why }, seq, clock, named);
   assert.deepEqual(word("unchecked", true), {
@@ -300,8 +300,8 @@ test("a lead on a list that no batch can take says why, in amber, never In its n
     tone: "ok",
     line: "Joins once their address is checked · Brooklyn intro",
   });
-  assert.equal(word(null, true).line, "In its next batch", "a lead its batch can take stays as it was");
-  assert.equal(word("already", true).line, "In its next batch", "a reason the predicate never gives says nothing new");
+  assert.equal(word(null, true).line, "In its next send", "a lead its batch can take stays as it was");
+  assert.equal(word("already", true).line, "In its next send", "a reason the predicate never gives says nothing new");
 });
 
 test("a held email's answers follow why it was held, and Skip this email only from step 2", () => {
@@ -445,19 +445,15 @@ test("the card while a sequence has them: one status word, what it needs of you,
   const today = "2026-10-18T13:05:00Z";
   const before = "2026-10-14T21:05:00Z";
   const say = (over) => nowOf({ place: placeOf("waiting", { checked: true }), ...over }).say;
-  assert.equal(say({ batchAt: today }), "In today's batch of 17.");
-  assert.equal(say({ batchAt: before }), "In a batch of 17, waiting since Oct 14.");
+  assert.equal(say({ batchAt: today }), "In today's send of 17.");
+  assert.equal(say({ batchAt: before }), "In a send of 17, waiting since Oct 14.");
   assert.equal(
     say({ batchAt: before, pace: 10 }),
-    "In a batch of 17, waiting since Oct 14. Once approved, it goes out over about 2 days.",
+    "In a send of 17, waiting since Oct 14. Once approved, it goes out over about 2 days.",
   );
-  assert.equal(say({ batchAt: today, pace: 40 }), "In today's batch of 17.", "a day's sending says nothing of days");
+  assert.equal(say({ batchAt: today, pace: 40 }), "In today's send of 17.", "a day's sending says nothing of days");
   assert.equal(say({ batch: 1, batchAt: before }), "Waiting since Oct 14.");
-  assert.equal(
-    say({ batchAt: before, pace: 0 }),
-    "In a batch of 17, waiting since Oct 14.",
-    "no mailbox, no pace said",
-  );
+  assert.equal(say({ batchAt: before, pace: 0 }), "In a send of 17, waiting since Oct 14.", "no mailbox, no pace said");
   const held = nowOf({ place: placeOf("held", { why: "unbacked_fact", hold_detail: "busy:stretched" }) });
   assert.equal(held.word, N.held);
   assert.match(held.say, /^The opening guesses how busy they are/);
@@ -498,7 +494,7 @@ test("the card while a sequence has them: one status word, what it needs of you,
     ["Not planned", "warn", true, "Their address couldn't be checked, so Bookstore intro can't write to them yet."],
   );
   const listed = nowOf({ place: placeOf("queued") });
-  assert.deepEqual([listed.word, listed.say], ["In Bookstore intro", "In its next batch. Nothing needs you."]);
+  assert.deepEqual([listed.word, listed.say], ["In Bookstore intro", "In its next send. Nothing needs you."]);
 });
 
 test("Approve on one lead's sheet asks first: how many go, from where, over how long, and what stays with you", () => {

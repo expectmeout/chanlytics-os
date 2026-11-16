@@ -12,6 +12,7 @@ const today = firstDrawRead<ContentTodayDto>(
   "content_note",
   "content/note",
   async () => (await read("GET content/note")).today,
+  { onArrival: true },
 );
 
 /** What this tab last read for the workspace on screen, or null where it holds nothing. */

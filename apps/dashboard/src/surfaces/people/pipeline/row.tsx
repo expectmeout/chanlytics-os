@@ -60,7 +60,7 @@ type MoreItems = PeopleMenuItem[];
 // The deal's own acts, as the thread's Deal group offers them (the deal kit's menu), then the two doors. The send is
 // the peek's, whose card holds the person the words are for: it is not offered here. A member who may not record a
 // deal is not shown the acts at all -- an item's secondary acts stay out of sight for a role that may not press them
-// (mockup/CLAUDE.md, role gates) -- and keeps the two doors.
+// (the role gates, .claude/skills/chanlytics-interface/shell.md) -- and keeps the two doors.
 const pipeRowItems = (
   r: PipelineRowVM,
   {

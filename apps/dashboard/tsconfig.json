@@ -34,7 +34,7 @@
     "../../tooling/scripts/e2e-harness/ask-states.tsx",
     "../../e2e/**/*.ts"
   ],
-  "exclude": ["node_modules", "mockup"],
+  "exclude": ["node_modules"],
   "references": [
     {
       "path": "../../packages/log"

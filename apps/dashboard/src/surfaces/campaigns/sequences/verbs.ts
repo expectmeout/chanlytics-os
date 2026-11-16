@@ -132,8 +132,13 @@ async function warmRecord(id: string): Promise<void> {
   if (stepsDrawPeople(rec)) await peoples.warm(id, () => readPeople(id))?.catch(() => null);
 }
 
-/** How many of the list's sequences are read ahead at most, and the breath between two, so none crowds a press. */
-const AHEAD_MAX = 12;
+/**
+ * How many of the list's sequences are read ahead at most, and the breath between two, so none crowds a press. The first
+ * screen of rows, which is where a press lands: a record is the heaviest read a list asks for (0.4 to 1.7 s of the server's
+ * on production, three seconds of its database's), and twelve of them, each with who is in it, were read at every visit to
+ * Campaigns and to Leads for rows nobody opened (the phone review of 15 Nov 2026).
+ */
+const AHEAD_MAX = 4;
 const AHEAD_GAP_MS = 120;
 
 /**

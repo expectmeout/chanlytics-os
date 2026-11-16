@@ -2,8 +2,8 @@
 
 Read this first, whether you are a person or an agent. It says what the product
 is, where the rules are written, and the one canonical example of each thing
-you might add. `apps/dashboard/mockup/CLAUDE.md` holds the shell's own
-conventions and applies inside that tree.
+you might add. The frame's and the pages' own conventions are
+`.claude/skills/chanlytics-interface/shell.md`, beside the interface kit's skill.
 
 ## What this is
 
@@ -248,7 +248,7 @@ the repository's root, and `tests/docs/docs-paths.test.mjs` fails one that opens
   name (`apps/dashboard/src/surfaces/reports/` is the worked example, and `docs/decisions/0015-the-shell-leaves-surface-by-surface.md`
   the order the others follow). It reads its data through `useSurface("<key>")` over the seam, takes its verbs from
   `apps/dashboard/src/bridge` by import, its primitives from the kit, `apps/dashboard/src/surfaces/kit/`, and its
-  layout lives with its surface. Nothing new goes in `apps/dashboard/mockup`: every page has left it.
+  layout lives with its surface.
 - Something the phone app does natively, around the site it shows in each tab: `apps/mobile/src/`
   (`apps/mobile/src/shell/Surface.tsx` holds one page); the words both sides of its bridge share are
   `packages/contracts/src/mobile/app-bridge.ts`.

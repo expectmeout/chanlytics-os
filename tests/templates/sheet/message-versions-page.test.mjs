@@ -1194,7 +1194,7 @@ test("an own-only message is a row the Library draws whole: its words quoted, it
   const ask = find(redraw(), (n) => n.type === Confirm);
   assert.match(ask.props.question, /^Delete “.+”\?$/, "one language: no language named");
   assert.ok(
-    ask.props.detail.startsWith("Its email and text versions go, and sends that use it fail from now on."),
+    ask.props.detail.startsWith("Its email and text versions go, and sends that use it won't go from now on."),
     ask.props.detail,
   );
   ask.props.onYes();

@@ -2,8 +2,7 @@
  * The frame (moved from legacy/pages/app-shell.jsx, the one-system plan's step 7e): routing by the address, the sidebar's
  * click-throughs, page transitions, Ask (⌘K), and the landings for unbuilt surfaces. What each route draws is the route
  * table's (route-table.tsx, through drawRoute); this resolves the address, holds the gates and the hooks, and draws the
- * chrome around the table's answer (shell-chrome.tsx). FrameApp mounts it by import; the standalone mockup by the window
- * name its own bundle gives it (tooling/scripts/serve-mockup.mjs, `data/frame-app.js`).
+ * chrome around the table's answer (shell-chrome.tsx). FrameApp mounts it by import.
  *
  * The hooks are called in the order the frame always called them, so its effects run in the order they always did. The
  * look is stamped beside the theme on every root that carries the theme. `routePage` is the page of a route that has left

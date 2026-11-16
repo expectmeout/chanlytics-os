@@ -732,7 +732,7 @@ test("a broadcast and a playbook: the body the route expects, the receipt from t
   );
   assert.deepEqual(p, {
     ok: true,
-    receipt: "“Win-back” is on. Its first batch waits for your approval.",
+    receipt: "“Win-back” is on. Its first send waits for your approval.",
     undo: { playbook_id: PB1, decision_id: D(0) },
     made: null,
   });

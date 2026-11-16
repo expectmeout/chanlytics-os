@@ -242,7 +242,7 @@ const openRun = ({ payload }: { payload: Record<string, unknown> }): string | nu
 const DECIDED: Record<(typeof REACH_OUT_DECISIONS)[number], (name: string) => string> = {
   include: (name) => `${theirsOf(name)} email goes as written`,
   rewrite: (name) => rewroteWords(name, null),
-  skip: (name) => `${name} is left out of this batch`,
+  skip: (name) => `${name} is left out of this send`,
   not_a_fit: (name) => `${name} is set aside: not a fit`,
 };
 

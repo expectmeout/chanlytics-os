@@ -815,9 +815,9 @@ test("REGRESSION (A15): the template send says when the list could not be read, 
     const line = find(failed, byTestId("ix-tpl-failed"));
     assert.ok(line, "REGRESSION: a failed read said no template was approved");
     assert.match(textOf(line), /Couldn't load your approved messages/);
-    assert.ok(!textOf(failed).includes("No approved template yet"));
+    assert.ok(!textOf(failed).includes("No approved message yet"));
     inboxWith([], { templates: [] });
-    assert.match(textOf(draw()), /No approved template yet/, "an empty list is still the empty answer");
+    assert.match(textOf(draw()), /No approved message yet/, "an empty list is still the empty answer");
   } finally {
     setSurfaceValue("inbox", undefined);
   }

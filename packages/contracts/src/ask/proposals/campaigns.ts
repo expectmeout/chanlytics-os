@@ -149,7 +149,7 @@ export const PLAYBOOK_CARD_WORDS = {
    * Every new sequence's first batch, and its first after new words, waits for the owner's OK whatever its mode (decision
    * 0064): the card says so beside what its batches do after that.
    */
-  asksFirst: "its first batch waits for your approval",
+  asksFirst: "its first send waits for your approval",
   /**
    * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
    * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment
@@ -467,7 +467,7 @@ function runGoes(pl: Record<string, unknown>, data: unknown): string {
 const skipped = (data: unknown): string => {
   const was = rec(data).was;
   return was === "sending"
-    ? "stops after this batch"
+    ? "stops after this send"
     : was === "pending_approval"
       ? "skipped — nothing will send"
       : "canceled — nothing will send";

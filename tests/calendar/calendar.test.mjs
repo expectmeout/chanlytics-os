@@ -830,7 +830,7 @@ test("(lane C) a one-off send stands at its time in Sent's words; a campaign's r
   assert.equal(went.named, false, "a month does not name what went");
   assert.deepEqual(
     marksOn(dto, "2026-09-10").map((m) => [said(m), m.tone]),
-    [["11 AM · Review ask · Failed", "danger"]],
+    [["11 AM · Review ask · Couldn't send", "danger"]],
   );
 });
 

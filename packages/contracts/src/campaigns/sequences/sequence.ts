@@ -38,18 +38,18 @@ export const isSequenceMode = (message: unknown): message is SequenceMode =>
  * stop"), `choice` how How it runs offers it under `SEQUENCE_MODE_LABEL`, and `does` the sentence a card says it in.
  */
 export const SEQUENCE_MODE_WORDS: Record<SequenceMode, { line: string; choice: string; does: string }> = {
-  auto: { line: "sends on its own", choice: "Send it", does: "each batch goes on its own" },
+  auto: { line: "sends on its own", choice: "Send it", does: "each send goes on its own" },
   veto: {
-    line: "holds each batch for you to stop",
+    line: "holds each send for you to stop",
     choice: `Hold it ${PLAYBOOK_VETO_DELAY_WORDS} so I can stop it`,
-    does: `each batch waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it, then goes`,
+    does: `each send waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it, then goes`,
   },
-  ask: { line: "asks you before each batch", choice: "Ask me", does: "each batch waits for your approval" },
+  ask: { line: "asks you before each send", choice: "Ask me", does: "each send waits for your approval" },
 };
 
 /** What How it runs calls the mode, and what it says of a step's new words (decision 0064). */
-export const SEQUENCE_MODE_LABEL = "Before each batch";
-export const SEQUENCE_NEW_WORDS_ASK = "A batch of new words waits for your approval first, whatever this says.";
+export const SEQUENCE_MODE_LABEL = "Before each send";
+export const SEQUENCE_NEW_WORDS_ASK = "A send of new words waits for your approval first, whatever this says.";
 
 /** The modes a sequence an occasion starts takes (decision 0119): it sends each message, or holds each for a stop. */
 const OWN_TIME_MODES: readonly SequenceMode[] = ["auto", "veto"];

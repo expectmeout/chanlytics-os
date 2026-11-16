@@ -71,7 +71,7 @@ export const SEQUENCE_EDIT_WORDS = {
   /** What a save reaches: a wait counts from each person's next send; new words go once WhatsApp approves them. */
   reaches: (first: boolean) =>
     first
-      ? "Your change reaches the next batch"
+      ? "Your change reaches the next send"
       : "Your change reaches everyone who gets the step before from now; anyone already waiting keeps their day",
   whatsAppFirst: "WhatsApp reviews new words first; until it approves them, the step keeps the words approved now",
   /**
@@ -109,7 +109,7 @@ export const SEQUENCE_NEEDS_WORDS = {
   oneByOne: "Send them one by one",
   reading: "Reading what it holds…",
   /** What a failed read could not read: "Couldn't read this batch's emails". */
-  failed: "this batch’s emails",
+  failed: "this send’s emails",
   /** A batch whose emails to send this read carries no draft of: its run's sheet in Sent lays them out. */
   inSent: "Open their run",
 } as const;
@@ -297,9 +297,9 @@ export const SEQUENCE_PEOPLE_WORDS = {
   added: "Added",
   addedAt: (at: string) => `Added ${at}`,
   /** Leads added and not planned yet, by the sequence's state: what the Added fold says beside its count. */
-  queued: { draft: "they join when you start it", paused: "they wait until it's on", on: "in its next batch" },
+  queued: { draft: "they join when you start it", paused: "they wait until it's on", on: "in its next send" },
   /** Added to one that is on, where its next run is known (leadsPlannedWords): "in the batch planned tomorrow 9:00 AM". */
-  queuedAt: (when: string) => `in the batch planned ${when}`,
+  queuedAt: (when: string) => `in the send planned ${when}`,
   /**
    * What the Added fold promises, of the leads a batch can take alone: `where` they go (one of the two above), `whole` the
    * fold's count and `refused` how many of its rows say why no batch takes them. It said "in its next batch" of a fold
@@ -433,7 +433,7 @@ export const SEQUENCE_REPLIES_WORDS = {
 
 /** What a figure counts, and what it does not: said on the label's tooltip. */
 const DEFINITIONS = {
-  sent: "Messages that left, one a person a step. Held, skipped and failed sends are not counted.",
+  sent: "Messages that left, one a person a step. Held, skipped and unsent ones are not counted.",
   delivered:
     "Of those sent, the share the channel says reached the person: WhatsApp's and a text's receipts, an email accepted.",
   read: "WhatsApp's own read receipt. Email and text do not say when they are read, so they are not counted here.",
@@ -592,7 +592,7 @@ export function historyDayWords(sequenceBatch: SequenceBatchDto, place: string |
       sequenceBatch.state === "sending"
         ? "Going out"
         : sequenceBatch.state === "failed"
-          ? "Failed"
+          ? "Couldn't send"
           : `${counts.sent ?? 0} sent`,
     // Why a batch stopped, in the owner's words (its run's report said it there; a day that went opens Reports now).
     said: [place, parts.join(" · "), sequenceBatch.failure ? failureSaid(sequenceBatch.failure) : null]

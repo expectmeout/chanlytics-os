@@ -152,17 +152,17 @@ test("WhatsApp's refusal keeps Meta's own sentence whole: its capital stays, its
 
 test("an empty picker says why: the messages left out are counted by their status, the sentence is the plain one when nothing is counted", () => {
   const { noTemplateWords, templateHolds } = contracts;
-  const plain = "No approved template yet — nothing can be sent until one is.";
+  const plain = "No approved message yet. Nothing can be sent until one is.";
   for (const none of [undefined, null, {}, { pending: 0, rejected: 0, paused: 0, disabled: 0, hidden: 0 }]) {
     assert.equal(noTemplateWords(none), plain, `nothing counted: ${JSON.stringify(none)}`);
   }
   assert.equal(
     noTemplateWords({ pending: 2, rejected: 1, paused: 0, disabled: 0, hidden: 0 }),
-    "No approved template yet (2 waiting for WhatsApp to review, 1 refused by WhatsApp) — nothing can be sent until one is.",
+    "No approved message yet (2 waiting for WhatsApp to review, 1 refused by WhatsApp). Nothing can be sent until one is.",
   );
   assert.equal(
     noTemplateWords({ paused: 1, disabled: 1, hidden: 3 }),
-    "No approved template yet (1 paused by WhatsApp, 1 disabled by WhatsApp, 3 hidden by you) — nothing can be sent until one is.",
+    "No approved message yet (1 paused by WhatsApp, 1 disabled by WhatsApp, 3 hidden by you). Nothing can be sent until one is.",
     "a partial count, in the one order",
   );
 

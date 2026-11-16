@@ -36,7 +36,7 @@ export const LIBRARY_WORDS = {
   noNumber:
     "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
   /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
-  writeNeedsNumber: "Connect a WhatsApp number first — templates belong to a number's account.",
+  writeNeedsNumber: "Connect a WhatsApp number first. WhatsApp approves each message for one number.",
   /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
   addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version.",
 } as const;
@@ -129,7 +129,7 @@ export const BROADCAST_WORDS = {
  * server had stopped, and a run a teammate had approved a moment before was already sending.
  */
 export function runStoppedWords(was: string | null | undefined): string {
-  if (was === "sending") return "stops after this batch";
+  if (was === "sending") return "stops after this send";
   return was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send";
 }
 

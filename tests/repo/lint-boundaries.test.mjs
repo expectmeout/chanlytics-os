@@ -579,9 +579,6 @@ function foldersOf(dir) {
 
 /** The app areas whose folders are the trees, a domain each. */
 const DOMAIN_AREAS = ["apps/dashboard/src/server", "apps/dashboard/src/bridge", "apps/edge/lib", "apps/edge/api"];
-/** The shell, which leaves with decision 0015 rather than joining. */
-const SHELL = "apps/dashboard/mockup";
-
 /** Every candidate tree, as the file's header defines one. */
 function candidateTrees() {
   const trees = [];
@@ -591,7 +588,7 @@ function candidateTrees() {
     trees.push(...(domains.length > 0 ? domains : [src]));
   }
   for (const area of DOMAIN_AREAS) trees.push(...foldersOf(area));
-  trees.push(...foldersOf("apps/dashboard/src").filter((d) => d !== SHELL && !DOMAIN_AREAS.includes(d)));
+  trees.push(...foldersOf("apps/dashboard/src").filter((d) => !DOMAIN_AREAS.includes(d)));
   return trees.sort();
 }
 

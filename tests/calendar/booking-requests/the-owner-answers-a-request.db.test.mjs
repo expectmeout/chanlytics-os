@@ -282,7 +282,7 @@ test("Can't cancels it and leaves the thread waiting on a reply, in the words th
   const second = await open(hal, 30);
   await answer(w.operator, second.appointment.id, false);
   const [said] = await holdsOf(hal.thread);
-  assert.match(said.details, /^Could not book .+ · Balayage: reply to them$/);
+  assert.match(said.details, /^Couldn't book .+ · Balayage: reply to them$/);
 });
 
 test("refused: a row that was no request, a viewer, a stranger", { skip }, async () => {

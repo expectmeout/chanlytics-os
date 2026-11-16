@@ -326,7 +326,7 @@ test("an email the check held is decided, and one handed over said of, through o
   assert.deepEqual(["include", "rewrite", "skip", "not_a_fit"].map(said), [
     "Bloom Bar's email goes as written",
     "Bloom Bar's opening is being written again",
-    "Bloom Bar is left out of this batch",
+    "Bloom Bar is left out of this send",
     "Bloom Bar is set aside: not a fit",
   ]);
   // A rewrite says what should change (00505); the words go only with a rewrite.

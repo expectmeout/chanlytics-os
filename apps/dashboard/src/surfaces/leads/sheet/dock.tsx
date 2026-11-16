@@ -32,7 +32,7 @@ const DOING: Partial<Record<LeadSheetSlotVM["act"], string>> = {
   pick: "add this lead to a campaign",
   move: "move this lead",
   later: "save this lead for later",
-  approve: "approve a batch",
+  approve: "approve a send",
   decide: "decide a held email",
   take_out: "take this lead out",
   leave: "take this lead out",

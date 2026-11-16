@@ -655,7 +655,7 @@ test("the line under the name says where the conversation stands; the template b
       1,
       "the window is said once, where it was asked for",
     );
-    assert.match(textOf(box), /^No approved template yet — nothing can be sent until one is\.$/);
+    assert.match(textOf(box), /^No approved message yet\. Nothing can be sent until one is\.$/);
   } finally {
     setSurfaceValue("inbox", undefined);
   }

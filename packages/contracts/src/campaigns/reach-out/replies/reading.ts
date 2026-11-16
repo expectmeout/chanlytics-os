@@ -266,7 +266,7 @@ const UNREAD_WORDS: Record<Unread, string> = {
   no_model: "no reader was available",
   may_not_spend: "the workspace may not spend on it",
   day_spent: "today's reads are spent",
-  model_failed: "the reader failed",
+  model_failed: "the reading didn't finish",
 };
 
 /** What was done, as the notice says it after their words. */

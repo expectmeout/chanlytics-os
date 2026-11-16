@@ -517,7 +517,7 @@ test("REGRESSION (C12): a failed run says why in the owner's words -- its day in
     },
     null,
   );
-  assert.equal(day.end, "Failed");
+  assert.equal(day.end, "Couldn't send");
   assert.match(day.said, /stopped: its WhatsApp version is no longer approved$/, day.said);
 });
 
@@ -1076,7 +1076,7 @@ test("an approve or a stop is said the moment the server takes it, with what it 
     while (reread.length) reread.shift()();
     await settle();
     assert.deepEqual(stops, ["b-wait"], "the run just approved");
-    assert.match(textOf(toasts.at(-1).msg), /stops after this batch/);
+    assert.match(textOf(toasts.at(-1).msg), /stops after this send/);
   } finally {
     Object.assign(broadcasts, keep);
   }
@@ -1892,7 +1892,7 @@ test("REGRESSION (C8): deleting a message a playbook sends names the playbook --
     "REGRESSION: a Yes, and the playbook's runs skipped from then on",
   );
   const held = byTestId(tree, "template-delete-held");
-  assert.ok(held && textOf(held).includes("“Win-back” still uses this template."), textOf(held));
+  assert.ok(held && textOf(held).includes("“Win-back” still uses this message."), textOf(held));
   // The old Playbooks list is Campaigns' home now: the door says Campaigns and still goes to `outbound`, which lands there.
   press(find(tree, (n) => n.type === "button" && textOf(n).includes("Campaigns")));
   assert.equal(went.at(-1), "campaigns/sequences", "and a door to the playbooks");

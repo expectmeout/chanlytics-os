@@ -139,7 +139,7 @@ test("REGRESSION: a reminder nobody approved told its owner its people were in l
   assert.equal(skipped.subject, "“Appointment reminder” didn’t go: nobody approved it");
   assert.equal(
     skipped.body,
-    "3 people waited for your approval until 21:00, and it didn’t reach them. No later send goes in its place. Open it to see who, and write to them yourself. The next day’s “Appointment reminder” waits for your approval too, until 21:00: its sends wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
+    "3 people waited for your approval until 21:00, and it didn’t reach them. No later send goes in its place. Open it to see who, and write to them yourself. The next day’s “Appointment reminder” waits for your approval too, until 21:00: its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask.",
   );
   // The message the day after one ends the same way, at the same hour, in the same words.
   assert.ok(
@@ -173,7 +173,7 @@ test("REGRESSION: a reminder nobody approved told its owner its people were in l
     );
     assert.equal(
       skippedRunNotice("Win-back", 3, trigger).body,
-      "3 people waited for your approval until the day ended, and nothing was sent. They are in line for its next send, which waits for your approval too: its sends wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
+      "3 people waited for your approval until the day ended, and nothing was sent. They are in line for its next send, which waits for your approval too: its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask.",
       String(trigger),
     );
   }
@@ -380,7 +380,7 @@ test("each sequence shows its evidence: what its batches did over 90 days, said 
     evidenceWords({ went: 1, approved: 0, stopped: 0, skipped: 0 }),
     "Last 90 days: 1 batch went on its own",
   );
-  assert.equal(evidenceWords({ went: 0, approved: 0, stopped: 0, skipped: 0 }), "No batch in the last 90 days");
+  assert.equal(evidenceWords({ went: 0, approved: 0, stopped: 0, skipped: 0 }), "No send in the last 90 days");
   assert.equal(evidenceWords(null), null, "unread: unsaid");
   const rows = [
     { sequence_id: "s1", policy_class: "reengage", went: 4, approved: 4, stopped: 0, skipped: 1 },

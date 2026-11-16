@@ -90,7 +90,7 @@ export function ideasWithResults(seen: readonly AskIdeaSeen[], runs: readonly Re
   return seen.map((s) => {
     const created = s.state === "done" ? s.made : null;
     const last = created ? sent.find((r) => r.sequence_id === created.id) : undefined;
-    return last ? { ...s, result: `Last batch: ${last.counts.sent} sent, ${last.counts.replied} replied` } : s;
+    return last ? { ...s, result: `Last send: ${last.counts.sent} sent, ${last.counts.replied} replied` } : s;
   });
 }
 

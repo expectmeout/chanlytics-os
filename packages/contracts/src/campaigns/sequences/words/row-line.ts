@@ -53,7 +53,7 @@ function needsKinds(row: Pick<SequenceRowDto, "needs" | "first" | "starts">): Ne
       ends: okEnds,
     });
   else if (needs.waiting > 0 && !okSendsNothing(needs))
-    kinds.push({ full: "The next batch waits for your approval", short: "waits for your approval", ends: okEnds });
+    kinds.push({ full: "The next send waits for your approval", short: "waits for your approval", ends: okEnds });
   if (needs.held > 0)
     kinds.push({
       full: `${plural(needs.held, "email", "emails")} held for your look`,

@@ -1180,8 +1180,8 @@ test("every surface a page names to useSurface is a real one: a key that is no o
   const ts = (await import("typescript")).default;
   const real = new Set(REAL.map((o) => o.key));
   const named = [];
-  // The shell's pages, and the frame's parts that left them for TypeScript and call the shell's hook by name (surfaces/frame).
-  for (const file of repoFiles(["apps/dashboard/mockup", "apps/dashboard/src/surfaces/frame"], {
+  // The frame's parts, which left the shell's pages for TypeScript and call the shell's hook by name (surfaces/frame).
+  for (const file of repoFiles(["apps/dashboard/src/surfaces/frame"], {
     keep: /\.(jsx|tsx)$/,
   })) {
     const sf = parse(file);

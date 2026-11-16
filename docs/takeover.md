@@ -77,7 +77,7 @@ repository's root. `tests/docs/docs-paths.test.mjs` fails when one opens nothing
 5. **Business logic**: `packages/core` verbs; the receptionist's decisions in `apps/edge/lib`; privileged writes in SQL doors. Booking logic lives nowhere, by charter: the receptionist never books.
 6. **Shared components**: the kit, `src/surfaces/kit/` (`src/surfaces/kit/kit.css`), and the tokens in `src/styles/tokens.css`.
 7. **Feature components**: `src/surfaces/<surface>/`, a folder per surface, fed through the seam (`src/bridge/surface-data.ts`); Ask's Line in `src/surfaces/ask/`, a chunk of its own, through `src/bridge/ask/`.
-8. **Global state**: `docs/architecture.md`, The shell; the `*_STORE`s and who owns them in `apps/dashboard/mockup/CLAUDE.md`; which surface retires each in decision 0015.
+8. **Global state**: `docs/architecture.md`, The shell; the `*_STORE`s and who owns them in `.claude/skills/chanlytics-interface/shell.md`; which surface retires each in decision 0015.
 9. **Server state cache**: `src/bridge/{surface-cache,read-cache,surface-runner,surface-realtime,refresh-map}.ts`.
 10. **Errors**: `AppError` in `packages/contracts/src/shared/errors.ts` and the envelope in `src/server/shared/route.ts`, `refusalOf` in `packages/contracts/src/shell/refusal.ts`, `FailedRead` and `EmptyState` in `src/surfaces/kit/empty/empty.tsx`; the edge's logger in `apps/edge/lib/shared/log.ts` and the pager in `apps/edge/lib/shared/alerts/page-operator.ts`.
 11. **Form validation**: the zod `input` on every route that declares one; field-level problems come from contracts. There is no form library, by design.

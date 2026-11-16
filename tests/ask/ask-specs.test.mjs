@@ -802,11 +802,11 @@ test("leads added to a reach-out from a card (00426): the add door with the lead
   });
   assert.equal(
     spec.receipt(p, { added: 2 }),
-    "Added 2 leads to “Spring dentists”. Nothing goes to them until you give its next batch your approval.",
+    "Added 2 leads to “Spring dentists”. Nothing goes to them until you give its next send your approval.",
   );
   assert.equal(
     spec.receipt(p, { added: 1 }),
-    "Added 1 lead to “Spring dentists”. Nothing goes to them until you give its next batch your approval.",
+    "Added 1 lead to “Spring dentists”. Nothing goes to them until you give its next send your approval.",
   );
   assert.equal(spec.receipt(p, { added: 0 }), "None could be added to “Spring dentists”.");
   assert.deepEqual(spec.undo.record(p, { op_id: "op1", version: 2 }), { op_id: "op1", version: 2 });
@@ -1286,7 +1286,7 @@ test("a run (D11): approve and skip are the run's own doors, approve's undo is a
   assert.equal(spec.receipt(skip, CANCELED("pending_approval")), "Win-back · 2026-09-26 skipped — nothing will send");
   // A run that moved on before the skip landed: the cancel says what it did to it, in the page's words.
   assert.equal(spec.receipt(skip, CANCELED("scheduled")), "Win-back · 2026-09-26 canceled — nothing will send");
-  assert.equal(spec.receipt(skip, CANCELED("sending")), "Win-back · 2026-09-26 stops after this batch");
+  assert.equal(spec.receipt(skip, CANCELED("sending")), "Win-back · 2026-09-26 stops after this send");
   assert.equal(spec.undo.label(approve), "Cancel it, if it has not finished");
   assert.equal(spec.undo.label(skip), null, "a skip has nothing to undo");
   const kept = spec.undo.record(approve, APPROVED, TAB);

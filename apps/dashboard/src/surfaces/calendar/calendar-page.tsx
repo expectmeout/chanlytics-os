@@ -38,7 +38,7 @@ import { CrAgenda, CrAgendaDay, CrBoard, CrMonth, type ViewAct } from "./blocks"
 import { calendarAct, calendarHead, heldEmailsSheet, noticeSlot, rulesSheet } from "./board-parts";
 import { crPhone, standAfter, type DaysChange } from "./board-dom";
 import { RunSheet } from "./marks";
-import { keptShow, wantRuns } from "./runs-surface";
+import { keptShow, runsReading, wantRuns } from "./runs-surface";
 import { useCalendarDemo } from "./demo";
 import type { CalendarSurface } from "./surface";
 import type { CalendarFrame } from "./types";
@@ -116,16 +116,18 @@ const RUNS_WAIT_MS = 600;
 const justLanded = (live: CalendarSurface | undefined): boolean => !!live && Date.now() - live.fetchedAt < RUNS_WAIT_MS;
 
 /**
- * Whether a cold board holds its first draw for its campaigns, so the two come in as one and no row of campaigns lands
- * between the meetings after them, pushing them down (Ruben, 21 Oct 2026). Only a page that had nothing to draw as it came
- * on screen (a load, or a tab that had not read the weeks) or whose weeks had only just landed (`justLanded`), only while
- * Show draws campaigns, only while their read is out (not failed), and never past RUNS_WAIT_MS from when it began to wait
- * (`live`: the real read). A page that drew at once (weeks it held from before, or a demo's sample a read then replaces)
- * draws at once, as it always did, and never goes back to its frame.
+ * Whether a board holds its first draw for its campaigns, so the two come in as one and no row of campaigns lands between
+ * the meetings after them, pushing them down (Ruben, 21 Oct 2026). Only a page that had nothing to draw as it came on screen
+ * (a load, or a tab that had not read the weeks), whose weeks had only just landed (`justLanded`), or whose campaigns were
+ * being read as it came (`runsReading`): a press from Today finds the weeks in hand, Today draws them, and its campaigns
+ * still out, and the meetings drew, then the campaigns 0.2 to 0.3 s after, 48 px a row (the phone review of 15 Nov 2026).
+ * Only while Show draws campaigns, only while their read is out (not failed), and never past RUNS_WAIT_MS from when it
+ * began to wait (`live`: the real read). A page that drew at once (weeks and campaigns it held from before, or a demo's
+ * sample a read then replaces) draws at once, as it always did, and never goes back to its frame.
  */
 function useRunsHold(live: CalendarSurface | undefined, drewAtStart: boolean): boolean {
   const boardIn = !!live;
-  const coldAtStart = useRef(!drewAtStart || justLanded(live));
+  const coldAtStart = useRef(!drewAtStart || justLanded(live) || runsReading());
   const wanted = useRef(keptShow());
   const runsIn = !!useSurface("calendar_runs");
   const runsFailed = useSurfaceFailed("calendar_runs");

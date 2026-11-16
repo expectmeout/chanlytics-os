@@ -133,7 +133,7 @@ export const REACH_OUT_NEW_LIST_WORDS = {
   nameOf: (sequence: string, lead: string) => `${sequence}, for ${lead}`,
   /** A new sequence's name for a lead, until the owner names it. */
   forLead: (lead: string) => `For ${lead}`,
-  before: "Each lead's first email is written for them as their batch is planned; you see it before it goes.",
+  before: "Each lead's first email is written for them as their send is planned; you see it before it goes.",
   /** Back on the lead, once it started: the name it was given may not be the one it opened with, so the lead's is said. */
   started: (lead: string) => `Started: ${lead} is on its own list`,
   startedOn: (list: string) => `Started on “${list}”`,

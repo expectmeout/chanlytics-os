@@ -141,7 +141,7 @@ test("a day's row: what it went to, or why it did not go, with the step where a 
     { failure: "The number was disconnected" },
   );
   assert.deepEqual(historyDayWords(failed, null), {
-    end: "Failed",
+    end: "Couldn't send",
     said: "0 read · no replies · 12 failed · The number was disconnected",
   });
 });
