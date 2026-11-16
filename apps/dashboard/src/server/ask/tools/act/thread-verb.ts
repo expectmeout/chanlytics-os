@@ -36,16 +36,18 @@ async function proposeThreadVerb(
   if (verb === "resolve") {
     const { data: esc, error: escErr } = await findOpenEscalationOf(toolContext.ctx.supabase, toolContext.tenantId, id);
     if (escErr) throw new Error(escErr.message);
-    if (!esc) return refuse("no open escalation on that thread; nothing to resolve");
+    if (!esc) return refuse("no open escalation on that conversation; nothing to resolve");
     escalationId = esc.id;
   }
-  if (verb === "wake" && conv.state !== "snoozed") return refuse("that thread is not snoozed");
-  if (verb === "hand_back" && !conv.assignee_user_id) return refuse("nobody has taken that thread over");
+  if (verb === "wake" && conv.state !== "snoozed") return refuse("that conversation is not snoozed");
+  if (verb === "hand_back" && !conv.assignee_user_id) return refuse("nobody has taken that conversation over");
   // What the thread already is, said, never a card that changes nothing (the operator stress run, 15 Oct 2026).
   if (verb === "take_over" && conv.assignee_user_id === toolContext.ctx.userId)
-    return refuse(`${contactName}'s thread is already taken over by the person asking: say so, and change nothing`);
+    return refuse(
+      `${contactName}'s conversation is already taken over by the person asking: say so, and change nothing`,
+    );
   if (verb === "archive" && conv.state === "archived")
-    return refuse(`${contactName}'s thread is already archived: say so, and change nothing`);
+    return refuse(`${contactName}'s conversation is already archived: say so, and change nothing`);
   let until: string | null = null;
   if (verb === "snooze") {
     const raw = str(input.until, 40);
@@ -66,11 +68,11 @@ async function proposeThreadVerb(
     until = date.toISOString();
   }
   const TITLES: Record<(typeof THREAD_VERBS)[number], string> = {
-    take_over: `Take over ${contactName}'s thread`,
-    hand_back: `Hand ${contactName}'s thread back to AI`,
-    snooze: `Snooze ${contactName}'s thread`,
-    wake: `Wake ${contactName}'s thread`,
-    archive: `Archive ${contactName}'s thread`,
+    take_over: `Take over ${contactName}'s conversation`,
+    hand_back: `Hand ${contactName}'s conversation back to AI`,
+    snooze: `Snooze ${contactName}'s conversation`,
+    wake: `Wake ${contactName}'s conversation`,
+    archive: `Archive ${contactName}'s conversation`,
     resolve: `Resolve ${contactName}'s escalation`,
   };
   // The undo's words are the spec's (contracts ask-proposals/): a wake's card offers none (D8).
@@ -82,7 +84,7 @@ async function proposeThreadVerb(
       verb === "snooze" && until
         ? `Until ${clockWhen(Date.parse(until), toolContext.timezone, toolContext.now.getTime())}`
         : verb === "resolve"
-          ? "Closes the open escalation; the thread stays"
+          ? "Closes the open escalation; the conversation stays"
           : verb === "take_over"
             ? "AI goes quiet on it until you hand it back"
             : verb === "hand_back"
@@ -98,7 +100,7 @@ export const propose_thread_verb = defineAct({
   name: "propose_thread_verb",
   // How the receptionist treats one person is not a thread's: whose it is to set is said to every role from its card's
   // spec (an owner's, WHOSE), so a role not offered propose_person's mode can still say who can.
-  description: `Propose an Inbox action on a thread: take_over (a person answers from here), hand_back (the receptionist resumes), snooze (until an ISO time with its offset, or by default tomorrow at 10:00 by the business's clock), wake, archive, or resolve (close the open escalation; the thread stays). conversation_id is the id a read returned. Call it when they ask to take, hand back, snooze, wake, archive or resolve a thread; a reply is propose_reply with action draft, and how the receptionist treats one person is ${WHOSE[PROPOSAL_SPECS.person_mode.needs]} to set (propose_person with action mode). It refuses in words when the action does not fit the thread's state: nothing to resolve, not snoozed, or nobody to hand back from.`,
+  description: `Propose an Inbox action on a conversation: take_over (a person answers from here), hand_back (AI resumes), snooze (until an ISO time with its offset, or by default tomorrow at 10:00 by the business's clock), wake, archive, or resolve (close the open escalation; the conversation stays). conversation_id is the id a read returned. Call it when they ask to take, hand back, snooze, wake, archive or resolve a conversation; a reply is propose_reply with action draft, and how AI treats one person is ${WHOSE[PROPOSAL_SPECS.person_mode.needs]} to set (propose_person with action mode). It refuses in words when the action does not fit the conversation's state: nothing to resolve, not snoozed, or nobody to hand back from.`,
   input: z.object({
     conversation_id: z.string(),
     verb: z.enum(THREAD_VERBS),

@@ -201,7 +201,7 @@ test("where a person last wrote is the wire of their own newest words: not a cal
   // A person who has written nothing themselves is answered where the last thing from their side came from: a program
   // at their address is still their address. The row, the person's page and the route say the same wire.
   assert.equal(lastWroteOn([away]), null, "they wrote nothing");
-  assert.equal(threadChannelOf([campaign, away]), "email", "the thread is on the wire their side answered by");
+  assert.equal(threadChannelOf([campaign, away]), "email", "the conversation is on the wire their side answered by");
   const threads = (messages) => [{ messages: messages.map((m, i) => ({ created_at: hoursAgo(10 - i), ...m })) }];
   assert.equal(replyChannelOfThreads(threads([campaign, away])), "email");
   assert.equal(
@@ -304,7 +304,7 @@ test("on a thread nothing has come to, the reply card is a first message's: what
   const held = await draftOnUnheard("sms", rosa({ consent: "unknown", consent_channels: null }));
   assert.equal(held.card.isError, true, "no card is drawn");
   assert.ok(!held.card.proposal);
-  assert.match(held.card.result, /Rosa has not written on this thread, so this would be a first message to them/);
+  assert.match(held.card.result, /Rosa has not written on this conversation, so this would be a first message to them/);
   assert.ok(held.card.result.includes(WRITE_HOLD_WORDS.no_yes("sms")), `in the start's own words: ${held.card.result}`);
   assert.ok(held.reads.includes("rpc:people_list"), "the start's question was asked of People's own row");
   assert.equal(held.writes, 0, "and nothing was opened or written to ask it");

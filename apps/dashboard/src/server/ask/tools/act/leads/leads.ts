@@ -315,7 +315,7 @@ export const propose_leads = defineActions({
   name: "propose_leads",
   description:
     "Propose work on leads, as a card the person approves, by action: a lead's stage or a call's outcome, keep or set aside a search's leads, Later, many leads at once, the address checked again, who a company's email goes to, leads kept as a list to write to, or what a business wrote back.",
-  tail: "Read leads first for the ids. Nothing here writes to a lead: a cold email sequence over a search or a list is propose_sequence with action cold_email, and finding leads propose_lead_search.",
+  tail: "Read leads first for the ids. Nothing here writes to a lead: a cold email over a search or a list is propose_sequence with action cold_email, and finding leads propose_lead_search.",
   actions: {
     stage: actAction({
       kind: "lead_stage",
@@ -375,7 +375,7 @@ export const propose_leads = defineActions({
       }),
       examples: [{ name: "Businesses near you", lead_ids: ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"] }],
       label: "Preparing the list of leads",
-      words: `Action list keeps chosen leads (at most ${LEAD_LIST_MAX}) as a list of their own, a search a cold email sequence writes to; it spends nothing. In a plan, a cold email step names it by its token.`,
+      words: `Action list keeps chosen leads (at most ${LEAD_LIST_MAX}) as a list of their own, a search a cold email writes to; it spends nothing. In a plan, a cold email step names it by its token.`,
       build: (t, input) => Promise.resolve(proposeLeadList(t, input)),
     }),
     said: actAction({

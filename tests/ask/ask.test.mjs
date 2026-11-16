@@ -486,7 +486,7 @@ test("the surfaces are one list, Leads among them, and every kind a scope may ha
     ["run", "ad", "file", "sequence", "message"],
     "a run is its address's word for a Broadcasts row; an ad is cited as the page it is on until the Ads read lands (0049); a file is seen, not cited (0099); a sequence is cited as the playbook it is; a Library message is seen by its page",
   );
-  assert.ok(ASK_CITATION_KINDS.includes("broadcast"), "which a citation names a broadcast");
+  assert.ok(ASK_CITATION_KINDS.includes("broadcast"), "which a citation names a send");
   // A campaign is one now, open in its drawer (the moment spec, A1): campaigns/moment:<id>.
   assert.deepEqual(
     ASK_CITATION_KINDS.filter((k) => !ASK_SCOPE_KINDS.includes(k)),
@@ -1165,7 +1165,7 @@ test("the loop and its reads: several at once, the stable block cached, through 
   assert.equal(read.length, 1, "one rule says it");
   for (const words of [
     "Answer from the tools. Never state a name, a count, a time, a price or a quote you did not read this turn",
-    "a row an earlier answer in this thread named",
+    "a row an earlier answer in this conversation named",
     "may be named, cited and opened by the kind, id and name the earlier turns give it, without a read",
     "anything about it (a count, a time, what was said, where it stands now) is read again",
     "If a tool returns nothing, say so plainly.",
@@ -1180,7 +1180,7 @@ test("REGRESSION: the rules say what stays on a page and where, from the guide's
     for (const x of p.pageOnly) assert.ok(one.includes(`${x.what} (${p.page}: ${x.why})`), `${p.page}: ${x.what}`);
   assert.ok(
     one.includes(
-      "Delete a person (People: it erases a person for good, which is asked for and confirmed on their page)",
+      "Delete a person (People: it deletes a person for good, which is asked for and confirmed on their page)",
     ),
   );
   // A one-off send reaches the yes its message asks for, as the send counts it (broadcastReach by its purpose).
@@ -2144,7 +2144,7 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   };
   const w = turnWords(facts);
   assert.ok(w.includes("They are on Campaigns,"), w);
-  assert.ok(w.includes("is a change to that sequence, by the id the page's rows carry"), w);
+  assert.ok(w.includes("is a change to that campaign, by the id the page's rows carry"), w);
   // The page lines name no tool (the answer canvas, A3): which tool carries a change is the tools' own words.
   for (const surface of ["campaigns", "leads"])
     assert.ok(!/\bpropose_|\bwith action\b|playbook_id/.test(turnWords({ ...facts, surface })), surface);
@@ -2155,10 +2155,10 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   assert.ok(!turnWords({ ...facts, surface: "today" }).includes("They are on Campaigns,"));
   // A card approved since the last answer sends Ask back to the reads; one dismissed, failed or undone does not.
   const since = [{ id: "p-1", title: "Campaign: Win-back", state: "done", receipt: "running", atMs: 1 }];
-  assert.ok(turnWords({ ...facts, since }).includes("read the sequences again, never the shape"));
+  assert.ok(turnWords({ ...facts, since }).includes("read the campaigns again, never the shape"));
   for (const state of ["dismissed", "failed", "undone"])
     assert.ok(!turnWords({ ...facts, since: [{ ...since[0], state }] }).includes("never the shape"), state);
-  const rule = ASK_RULES.find((r) => r.startsWith("Setting up sequences is a few cards, never a claim."));
+  const rule = ASK_RULES.find((r) => r.startsWith("Setting up campaigns is a few cards, never a claim."));
   assert.ok(rule, "the setup rule");
   assert.ok(rule.includes("only calls independent of each other go side by side"), rule);
   assert.ok(rule.includes("Never say that anything is set up, started or running"));
@@ -2184,8 +2184,8 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   for (const words of [PLAN, MESSAGE])
     assert.equal(ASK_RULES.filter((r) => r.includes(words)).length, 1, `one rule says it: ${words}`);
   // The plan is the setup rule's own first instruction: the rule is reworded, never a second one beside it.
-  const setup = ASK_RULES.find((r) => r.startsWith("Setting up sequences is a few cards, never a claim."));
-  assert.ok(setup.startsWith(`Setting up sequences is a few cards, never a claim. ${PLAN}`), setup);
+  const setup = ASK_RULES.find((r) => r.startsWith("Setting up campaigns is a few cards, never a claim."));
+  assert.ok(setup.startsWith(`Setting up campaigns is a few cards, never a claim. ${PLAN}`), setup);
   assert.ok(
     !ASK_RULES.some((r) => r !== setup && /\bset(ting)? up (campaigns|sequences)\b/i.test(r)),
     "one setup rule",
@@ -2225,7 +2225,7 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   assert.ok(one.startsWith("A proposal is one card. A plan's cards, its steps from one call, are one proposal."), one);
   assert.ok(
     ASK_RULES.find((r) => r.includes(MESSAGE)).includes(
-      "a sequence's own values (the month's offer's text) are changed on the sequence",
+      "a campaign's own values (the month's offer's text) are changed on the campaign",
     ),
     "the message rule",
   );
@@ -2253,7 +2253,7 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
     ])
       assert.ok(!old.test(said), `${surface}: ${old}`);
   }
-  const head = "Setting up sequences is a few cards";
+  const head = "Setting up campaigns is a few cards";
   assert.ok(setup.startsWith(head));
   assert.ok(turnWords({ ...facts, surface: "campaigns" }).includes(`as the rule "${head}" says`));
   // The two actions the rules name are propose_plan's and propose_sequence's, as the API is told them.
@@ -2268,7 +2268,7 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   const journey = READ_TOOLS.find((t) => t.name === "sequences").description;
   assert.ok(
     journey.includes(
-      "An offer or a whole setup is one call of propose_plan with action offer, which reads the journey itself and makes the steps, never a sequence proposed stage by stage from this read",
+      "An offer or a whole setup is one call of propose_plan with action offer, which reads the journey itself and makes the steps, never a campaign proposed stage by stage from this read",
     ),
     journey,
   );

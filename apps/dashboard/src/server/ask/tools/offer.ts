@@ -80,7 +80,7 @@ export function aboveRoleWords(role: MembershipRole): string | null {
     above.partner.size ? `only an owner or the workspace's partner can ${said(above.partner)}` : "",
   ].filter(Boolean);
   if (!owner.length) return null;
-  return `Above their role, so no tool of yours proposes it: ${owner.join("; ")}. When they ask for one, say who can do it and that they can ask that person, never that a tool is not available; where something of theirs comes near it, propose that, and say in the answer beside its card who can do what they asked and how this differs (a thread taken over is that one thread, for now).`;
+  return `Above their role, so no tool of yours proposes it: ${owner.join("; ")}. When they ask for one, say who can do it and that they can ask that person, never that a tool is not available; where something of theirs comes near it, propose that, and say in the answer beside its card who can do what they asked and how this differs (a conversation taken over is that one conversation, for now).`;
 }
 
 /**

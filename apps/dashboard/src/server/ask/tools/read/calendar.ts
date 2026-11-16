@@ -98,7 +98,7 @@ async function getCalendar(toolContext: ToolContext, input: { day: string; days?
       })),
       open: day.windows.map((w) => w.label),
     })),
-    note: "Taken is the owner's own calendar; open is what the receptionist would offer a caller.",
+    note: "Taken is the owner's own calendar; open is what AI would offer a caller.",
   };
 }
 
@@ -108,15 +108,15 @@ async function getCalendar(toolContext: ToolContext, input: { day: string; days?
  */
 export const calendarTool = defineActions({
   name: "calendar",
-  description: "The owner's calendar as the receptionist reads it.",
-  tail: "Call action week for what a day looks like or who is booked when, action openings for when there is room or what is free on a day, the free slots alone, sized to a service, and action room for how full the book is over the next fourteen days, to pace an offer. Openings need a connected calendar feed, said in the workspace's facts above. Taken is the owner's own calendar and open is what the receptionist would offer; nothing is booked from here, since customers book through the booking link, or with the team where there is none.",
+  description: "The owner's calendar as AI reads it.",
+  tail: "Call action week for what a day looks like or who is booked when, action openings for when there is room or what is free on a day, the free slots alone, sized to a service, and action room for how full the book is over the next fourteen days, to pace an offer. Openings need a connected calendar feed, said in the workspace's facts above. Taken is the owner's own calendar and open is what AI would offer; nothing is booked from here, since customers book through the booking link, or with the team where there is none.",
   actions: {
     week: readAction({
       input: z.object({ day: z.string(), days: z.number().optional() }),
       examples: [{ day: "tomorrow" }, { day: "2026-10-03", days: 3 }, { day: "", days: 7 }],
       label: "Reading the calendar",
       words:
-        "Action week takes day and an optional days and reads a day or a few: what is taken (in the calendar's own words, with the person in People when the title names one, and its visit_id), whether the business is closed that day, and the windows the receptionist would offer; day is today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the page's own week, and days is how many from there, at most 14.",
+        "Action week takes day and an optional days and reads a day or a few: what is taken (in the calendar's own words, with the person in People when the title names one, and its visit_id), whether the business is closed that day, and the windows AI would offer; day is today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the page's own week, and days is how many from there, at most 14.",
       run: getCalendar,
     }),
     openings: readAction({
@@ -127,7 +127,7 @@ export const calendarTool = defineActions({
       ],
       label: "Checking the calendar",
       words:
-        "Action openings takes day and service and reads the open times from the connected calendar, against the business hours, closures and booking rules, as the receptionist would offer them to a caller: a state, a sentence, and the open windows day by day, sized for a service when one is named; day is a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the next days, and service is the service's name to size the slot, or empty.",
+        "Action openings takes day and service and reads the open times from the connected calendar, against the business hours, closures and booking rules, as AI would offer them to a caller: a state, a sentence, and the open windows day by day, sized for a service when one is named; day is a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the next days, and service is the service's name to size the slot, or empty.",
       run: getOpenings,
     }),
     room: readAction({
@@ -135,7 +135,7 @@ export const calendarTool = defineActions({
       examples: [{}],
       label: "Counting the open slots",
       words:
-        "Action room takes nothing more and reads how full the book is over the next 14 days (days; fewer where the business offers times fewer days ahead), for pacing an offer to what the business can take: open, how many slots of the business's slot length are free against its hours, closures and booking rules once the calendar's appointments and the bookings on record are taken out, as the receptionist would offer them; by_day, the open slots of each day that has any (day is YYYY-MM-DD on the business's clock); and taken, how many slots of the same hours those appointments and bookings fill. A slot is the calendar's, one booking at a time, and never a count of staff or seats: say open as the room left in the book, never as how many people can come at once. none says no_calendar where no calendar feed is connected and unavailable where it could not be read, and the counts then say nothing of the book.",
+        "Action room takes nothing more and reads how full the book is over the next 14 days (days; fewer where the business offers times fewer days ahead), for pacing an offer to what the business can take: open, how many slots of the business's slot length are free against its hours, closures and booking rules once the calendar's appointments and the bookings on record are taken out, as AI would offer them; by_day, the open slots of each day that has any (day is YYYY-MM-DD on the business's clock); and taken, how many slots of the same hours those appointments and bookings fill. A slot is the calendar's, one booking at a time, and never a count of staff or chairs: say open as the room left in the book, never as how many people can come at once. none says no_calendar where no calendar feed is connected and unavailable where it could not be read, and the counts then say nothing of the book.",
       run: getRoom,
     }),
   },

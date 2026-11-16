@@ -227,7 +227,7 @@ export const propose_list = defineActions({
   description: [
     [
       "Propose a list on People, as a card the person asking approves, by action: a new list, one that keeps itself current by its rule or one kept by hand with the people they name, one of the workspace's own renamed or its rule changed, or one taken down. Nothing is made until they approve.",
-      "A list is an audience a sequence or a send can go to, and a line on People's rail; who is on it is counted over everyone in People, as a send counts, and the card says how many are on it today.",
+      "A list is an audience a campaign or a send can go to, and a line on People's rail; who is on it is counted over everyone in People, as a send counts, and the card says how many are on it today.",
       "A rule is written in the list vocabulary:",
     ].join(" "),
     ...LIST_RULE_LINES,

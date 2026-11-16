@@ -31,6 +31,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { taughtToday } from "./tools/_taught-words.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -155,7 +156,8 @@ const STARTER = {
   ],
 };
 
-const fixture = (name) => JSON.parse(fs.readFileSync(path.join(ROOT, "tests/fixtures", name), "utf8"));
+/** A frozen fixture, read in the words AI is taught since 16 Nov 2026 (tools/_taught-words.mjs): the one change to its bytes. */
+const fixture = (name) => taughtToday(JSON.parse(fs.readFileSync(path.join(ROOT, "tests/fixtures", name), "utf8")));
 /** What the model is sent, per role, frozen from the finished registry (the operator, 15 Oct 2026). */
 const FROZEN = fixture("ask-tools-operator.json");
 /** What PR 4.3 sent, per role: inbox reads the same less the search PR 4.5 gave it. */
@@ -175,7 +177,7 @@ const SEARCHED = "inbox";
  * The one place an operator's tool names a role: propose_thread_verb says whose a person's treatment is to set -- an
  * owner's, as person_mode's spec needs -- so a role not offered propose_person's mode can say who can (PR 4.7).
  */
-const THREAD_POINTER = "how the receptionist treats one person is an owner's to set (propose_person with action mode)";
+const THREAD_POINTER = "how AI treats one person is an owner's to set (propose_person with action mode)";
 /** The actions added since the rename (the Phase 4 plan, D1): no old tool was any of them. The eval's one list of them. */
 const { ADDED_SINCE: PHASE_4 } = await import(at("tooling/evals/rename-ask-tools.mjs"));
 /** The twenty-six tools as PR 3.1 froze them: each action's own fields are its old tool's. */
@@ -410,7 +412,7 @@ test("PR 4.5 gave inbox one action, search, and moved nothing else it says: less
         .replace(...NEEDS_YOU_LIST_WORDS)
         .replace(
           "waiting (taken over by a person)",
-          "waiting (the next move is theirs or a teammate's: threads a person holds, and ones with no reply yet)",
+          "waiting (the next move is theirs or a teammate's: conversations a person holds, and ones with no reply yet)",
         )
         .replace(` ${d.tail}`, ` ${d.actions.search.words} ${d.tail}`),
       `${role}: the search's words, between the thread's and the tail, and needs_you as the Inbox counts it`,
@@ -918,8 +920,8 @@ test("an unknown tool is refused as it always was, for a read and for an act, an
     assert.equal(toolLabel(name, action ? { action } : {}), LABELS[old], `${old} -> ${to}`);
   }
   // Before a call names its action, or with one the tool does not have: the tool's first action's line.
-  assert.equal(toolLabel("sequences"), "Reading the sequences");
-  assert.equal(toolLabel("sequences", { action: "teleport" }), "Reading the sequences");
+  assert.equal(toolLabel("sequences"), "Reading the campaigns");
+  assert.equal(toolLabel("sequences", { action: "teleport" }), "Reading the campaigns");
   assert.equal(
     toolLabel("sequences", { action: "sent" }),
     "Reading what went out",

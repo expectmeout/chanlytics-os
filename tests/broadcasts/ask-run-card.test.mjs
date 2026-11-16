@@ -178,7 +178,7 @@ function world(role = "operator") {
 }
 
 /**
- * The one-offs' rows as the sequences' overview answers them (00442 sequence_overview): a one-off's batch is its
+ * The one-offs' rows as the sequences' overview answers them (00442 sequence_overview): a one-off's send is its
  * sequence (00440), so its id is the batch's, and its day's state is the batch's.
  */
 const ONE_OFFS = [
@@ -231,7 +231,7 @@ const RUN_CALLS = [
     {},
     {
       error:
-        "broadcast_id must be a waiting run's id, as sequences with action moments (a playbook's waiting) or action sent (waiting_on_you) gives it",
+        "broadcast_id must be a waiting run's id, as sequences with action moments (a campaign's waiting) or action sent (waiting_on_you) gives it",
     },
     [],
   ],
@@ -271,7 +271,7 @@ const RUN_CALLS = [
     {
       kind: "run",
       needs: "operator",
-      title: "Approve the batch: Dentists in Austin · step 1",
+      title: "Approve the send: Dentists in Austin · step 1",
       summary: "3 emails · each goes at its own time",
       payload: { broadcast_id: REACH, verb: "approve", name: "Dentists in Austin · step 1", people: 3 },
       undo: "Cancel it, if it has not finished",
@@ -279,14 +279,14 @@ const RUN_CALLS = [
     null,
   ],
   [
-    "a batch to leads skipped: none of it goes, and the sequence keeps running",
+    "a send to leads skipped: none of it goes, and the campaign keeps running",
     { broadcast_id: REACH, verb: "skip" },
     {},
     {
       kind: "run",
       needs: "operator",
-      title: "Skip the batch: Dentists in Austin · step 1",
-      summary: "3 emails · none of them goes, and the sequence keeps running",
+      title: "Skip the send: Dentists in Austin · step 1",
+      summary: "3 emails · none of them goes, and the campaign keeps running",
       payload: { broadcast_id: REACH, verb: "skip", name: "Dentists in Austin · step 1", people: 3 },
       undo: null,
     },
@@ -295,7 +295,7 @@ const RUN_CALLS = [
   [
     // 31 Oct 2026: Brooklyn's batch, every email held, was carded "Approve the batch · 0 emails"; an OK sent nothing, and
     // its sequence asks for none (contracts batchOkSendsNothing): what waits is each held email, decided on its own.
-    "a batch to leads whose every email the check held: no OK, each held email decided instead",
+    "a send to leads whose every email the check held: no OK, each held email decided instead",
     { broadcast_id: HELD, verb: "approve" },
     {},
     {
@@ -311,9 +311,9 @@ const RUN_CALLS = [
     {
       kind: "run",
       needs: "operator",
-      title: "Skip the batch: Florists in Denver",
+      title: "Skip the send: Florists in Denver",
       summary:
-        "0 emails · 2 emails the check held stay held until you decide them · none of them goes, and the sequence keeps running",
+        "0 emails · 2 emails the check held stay held until you decide them · none of them goes, and the campaign keeps running",
       payload: { broadcast_id: HELD, verb: "skip", name: "Florists in Denver", people: 0 },
       undo: null,
     },
@@ -344,7 +344,7 @@ const RUN_CALLS = [
     "a broadcast a person scheduled is no playbook's run to approve",
     { broadcast_id: MINE, verb: "approve" },
     {},
-    { error: "that broadcast is not a playbook's run: only a playbook's run waits for a person to approve or skip" },
+    { error: "that send is not a campaign's run: only a campaign's run waits for a person to approve or skip" },
     RUN_READ,
   ],
   [
@@ -455,15 +455,15 @@ test("propose_campaign.run over the database in memory, from a table: each refus
  */
 const ON_TODAY = {
   error:
-    "that run already waits under Your OK on Today, so a morning makes no card of it: leave it there and look for something else worth doing first",
+    "that run already waits under Your approval on Today, so a morning makes no card of it: leave it there and look for something else worth doing first",
 };
 
 test("a morning makes no card of a run waiting for a person, whichever way it would go, in either of its questions: Your OK already holds it", async () => {
   const waiting = [
-    ["a batch to leads", { broadcast_id: REACH, verb: "approve" }],
+    ["a send to leads", { broadcast_id: REACH, verb: "approve" }],
     ["a batch to leads, skipped", { broadcast_id: REACH, verb: "skip" }],
     ["a batch whose every email the check held", { broadcast_id: HELD, verb: "approve" }],
-    ["a playbook's run", { broadcast_id: RUN, verb: "approve" }],
+    ["a campaign's run", { broadcast_id: RUN, verb: "approve" }],
     ["a playbook's run, skipped", { broadcast_id: RUN, verb: "skip" }],
     ["a run past its day", { broadcast_id: OLD, verb: "skip" }],
   ];
@@ -477,7 +477,7 @@ test("a morning makes no card of a run waiting for a person, whichever way it wo
 
 test("a member who asks for a waiting run still gets its card, and a morning may still cancel a one-off, which waits in no row", async () => {
   const asked = await runCall({ broadcast_id: REACH, verb: "approve" }, { question: "Approve the dentists batch" });
-  assert.equal(asked.got.title, "Approve the batch: Dentists in Austin · step 1");
+  assert.equal(asked.got.title, "Approve the send: Dentists in Austin · step 1");
   const oneOff = await runCall({ broadcast_id: MINE, verb: "skip" }, { question: ASK_MORNING_QUESTION });
   assert.equal(oneOff.got.title, "Cancel October offer");
 });

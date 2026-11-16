@@ -108,7 +108,7 @@ export const callsTool = defineActions({
       examples: [{ filter: "missed" }],
       label: "Reading the calls",
       words:
-        "Action list takes filter and lists calls newest first: who, when, how long, how it ended, a one-line summary, and the ids of the call, its conversation and the person; filter is missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), or recent (newest first).",
+        "Action list takes filter and lists calls newest first: who, when, how long, how it ended, a one-line summary, and the ids of the call, its conversation and the person; filter is missed (today's missed calls), abandoned (today's inbound callers who reached AI and hung up within seconds, so they got nothing), today, live (on the line now), or recent (newest first).",
       run: listCalls,
     }),
     get: readAction({

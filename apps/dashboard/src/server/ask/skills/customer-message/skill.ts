@@ -29,7 +29,7 @@ export const CUSTOMER_MESSAGE_SKILL: AskSkill<"customer_message"> = {
     {
       title: "The draft and its facts",
       lines: [
-        "The draft says what the owner wants said: Ask wrote it from their words, which you are given too where they asked. Keep every fact in the draft (the offer and its exact figure, the days, the service, who it is for), and a fact of theirs the draft left out. Add none.",
+        "The draft says what the owner wants said: AI wrote it from their words, which you are given too where they asked. Keep every fact in the draft (the offer and its exact figure, the days, the service, who it is for), and a fact of theirs the draft left out. Add none.",
         "A thin draft becomes a fuller message from the same facts. Fuller means clearer and warmer: a greeting, the point, the one call to act, a sign-off. It never adds what the draft does not say: a reason or a benefit ('a meeting gives us time to go through it'), an option or a service ('reply and we'll find you another time'), or how the person felt or how it went for them ('we had a great time with them').",
         "Its kind (marketing or utility), its language and its values are decided: write within them.",
         "Call an offer what the draft calls it. Words such as discount, coupon, promotion or free appear only where the draft has them.",
@@ -64,7 +64,7 @@ export const CUSTOMER_MESSAGE_SKILL: AskSkill<"customer_message"> = {
       title: "Email",
       lines: [
         "Subject: under 60 characters, says what the email is about, specific, with no emoji, no '!!!' and no 'Re:'.",
-        "Body: a greeting, two or three short paragraphs, the call to act on a line of its own, and the business's name to sign off (by its value where one is given).",
+        "Body: a greeting, two or three short paragraphs, the call to act on a line of its own, and the business's name to close (by its value where one is given).",
         "The sender adds the footer and, under an offer, the unsubscribe link: never write your own, and never write STOP.",
       ],
     },

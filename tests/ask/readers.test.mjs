@@ -1042,7 +1042,7 @@ test("the one thread's messages carry an attachment's public facts, never its st
   // The route's messages are its reader's, and Ask reads the same ones.
   const read = await kernel.load(turnIn(dayCtx(tbls), B), messagesOf, { id: C1, before: null });
   assert.deepEqual(read.data, page.messages);
-  assert.deepEqual(read.rows, [], "a message is cited by its thread");
+  assert.deepEqual(read.rows, [], "a message is cited by its conversation");
 });
 
 test("GET conversations/:id through its reader asks what it asked, in the same order: the row once, in its scope, then the messages once -- the row is never read a second time", async () => {
@@ -1173,7 +1173,7 @@ test("what a message cost to send is never Ask's to read: the thread reader, the
 
   const tc = newToolContext(dayCtx(tbls), B, "operator", "America/New_York", new Date());
   const said = (await runTool(tc, { name: "inbox", input: { action: "thread", conversation_id: C1 } })).result;
-  assert.ok(JSON.parse(said).messages.length > 0, "the tool read the thread");
+  assert.ok(JSON.parse(said).messages.length > 0, "the tool read the conversation");
   for (const [name, out] of [
     ["thread reader", one],
     ["Inbox reader", listed],
@@ -4770,7 +4770,7 @@ test("one broadcast, for Ask and for the page: GET broadcasts/:id answers its re
     assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, "That broadcast does not exist."]);
     return true;
   });
-  assert.deepEqual(asked(typo), ["memberships.select"], "the workspace's door, and nothing of the broadcast's");
+  assert.deepEqual(asked(typo), ["memberships.select"], "the workspace's door, and nothing of the send's");
 });
 
 /* --------------------------------------------------------------------------- the audience pool (PR 1.6) */
@@ -5282,7 +5282,7 @@ test("GET playbooks asks for the pools' reads with its first ones, not behind th
     let answered = false;
     const waiting = playbooksRoute.GET.run(req(`?workspace=${A}`), ctx).then((p) => ((answered = true), p));
     await idle();
-    assert.equal(answered, false, "the page waits for its playbooks");
+    assert.equal(answered, false, "the page waits for its campaigns");
     const before = askedWith(ctx).map(([k, cols]) => `${k} ${cols ?? ""}`.trim());
     for (const read of [
       "rpc:people_list",
@@ -6644,7 +6644,7 @@ test("campaigns.journey says the customer journey: 2 of 4 moments covered, first
     assert.deepEqual(
       said.stages.filter((s) => s.id !== "quiet").map((s) => s.campaigns),
       [[], [], []],
-      "the receptionist and the call's text are no campaign",
+      "AI and the call's text are no campaign",
     );
     // The guide for the workspace's shape, in its word (the stages' "Appointment tomorrow"): the page's word, once.
     assert.deepEqual(said.guide, journeyGuide({ calendarOn: true, hasDeals: false, word: "appointment" }));
@@ -6749,7 +6749,7 @@ test("campaigns.playbooks says what a new sequence starts as could not be read w
   assert.equal(out.isError, false, out.result);
   const said = JSON.parse(out.result);
   assert.equal(said.new_sequences_start_as, null, "no class's start is said");
-  assert.match(said.could_not_read, /could not be read just now, never what a new one's batches would do/);
+  assert.match(said.could_not_read, /could not be read just now, never what a new one's sends would do/);
   assert.deepEqual(
     said.playbooks.map((p) => [p.name, p.mode]),
     [["November offer", "auto"]],

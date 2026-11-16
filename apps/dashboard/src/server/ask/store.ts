@@ -260,7 +260,7 @@ export async function keepQuickTurn(
   let thread: { id: string; title: string };
   if (turn.threadId) {
     const found = await readThread(ctx, turn.threadId);
-    if (!found || found.tenantId !== tenantId) throw new AppError("not_found", "That thread is not yours.", 404);
+    if (!found || found.tenantId !== tenantId) throw new AppError("not_found", "That conversation is not yours.", 404);
     thread = found.thread;
   } else thread = await createThread(ctx, tenantId, titleFromQuestion(turn.text), null);
   await appendMessage(ctx, thread.id, tenantId, "user", { text: turn.text });
@@ -340,5 +340,5 @@ export async function setProposalOutcome(
 export async function deleteThread(ctx: RouteContext, id: string): Promise<void> {
   const { data, error } = await deleteAskThread(ctx.supabase, id);
   if (error) throw new DbFailure(error);
-  if (!data?.length) throw new AppError("not_found", "That thread is not yours or is already gone.", 404);
+  if (!data?.length) throw new AppError("not_found", "That conversation is not yours or is already gone.", 404);
 }

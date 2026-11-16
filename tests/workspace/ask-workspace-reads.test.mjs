@@ -136,7 +136,7 @@ const SETUP_NOW = new Date("2026-09-07T15:00:00Z");
 /** Setup's rows that are connections, as the tool keeps them. */
 const CONNECTION_ROWS = ["line", "keep", "whatsapp", "email", "calendar", "google"];
 
-test("workspace.connections answers Setup's own rows for the connections over GET setup's reader -- whether the receptionist answers, then the line, the number it keeps, WhatsApp, email, the calendar and Google, each in the page's words -- and each connected mailbox in Connections' words, a row in the read set; for every role", async () => {
+test("workspace.connections answers Setup's own rows for the connections over GET setup's reader -- whether AI answers, then the line, the number it keeps, WhatsApp, email, the calendar and Google, each in the page's words -- and each connected mailbox in Connections' words, a row in the read set; for every role", async () => {
   const was = process.env.EMAIL_DOMAIN;
   process.env.EMAIL_DOMAIN = "mail.example.com";
   try {
@@ -445,7 +445,7 @@ test("workspace.activity answers Settings › Activity's lines over GET activity
     const refused = await ask(w, { action: "activity", kind }, "owner", ACT_NOW);
     assert.deepEqual(
       [refused.isError, refused.out.error],
-      [true, "that kind is about money, which stays out of Ask: its page has it"],
+      [true, "that kind is about money, which only its page shows: open it there"],
       kind,
     );
   }

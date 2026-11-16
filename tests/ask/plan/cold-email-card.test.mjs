@@ -136,7 +136,7 @@ test("every email is on the card whole, so its press is the OK of those words: t
     `Subject: ${INPUT.steps[0].subject}\n\n${INPUT.steps[0].body}`,
     "its subject and its words, as they will be sent",
   );
-  assert.equal(shown["Email 2"], `After 4 days. A reply in the same thread\n\n${INPUT.steps[1].body}`);
+  assert.equal(shown["Email 2"], `After 4 days. A reply in the same conversation\n\n${INPUT.steps[1].body}`);
   assert.ok(
     p.sheet.rows.every((r) => !r.aside),
     "nothing is behind Details: the press turns on every row",
@@ -231,7 +231,7 @@ test("the Line draws it as it draws a campaign's: the rows, with every email who
   assert.match(words, /To“Personal trainers · Austin”/);
   assert.match(words, /First emailSubject: A quick question for \{business_name\}/);
   assert.match(words, /Would you be open to a short call this week or next\?/, "the first email's words, whole");
-  assert.match(words, /Email 2After 4 days\. A reply in the same thread/);
+  assert.match(words, /Email 2After 4 days\. A reply in the same conversation/);
   assert.match(words, /Just following up on my note below\./, "and the follow-up's");
   assert.match(words, /PaceOne every 20 minutes/);
   assert.match(
@@ -261,7 +261,7 @@ test("REGRESSION (the live run of 14 Nov 2026): a search none of whose leads has
   assert.equal(out.proposal, null);
   assert.match(
     out.result,
-    /none of the 35 leads in “Personal trainers · Austin” has a checked email a sequence can write to yet \(35 have only a phone\): say so plainly, that nothing was made/,
+    /none of the 35 leads in “Personal trainers · Austin” has a checked email a cold email can write to yet \(35 have only a phone\): say so plainly, that nothing was made/,
   );
 });
 

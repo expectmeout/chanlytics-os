@@ -41,7 +41,7 @@ export function refusalSaid(
     case "unreachable":
       return es
         ? "No pude llegar al modelo. Inténtalo de nuevo en un momento."
-        : "I could not reach the model. Try again in a moment.";
+        : "I couldn't answer just now. Try again in a moment.";
     default:
       return es
         ? "Algo falló de nuestro lado, no con tu pregunta. Inténtalo de nuevo."

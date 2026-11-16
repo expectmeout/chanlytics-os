@@ -27,13 +27,13 @@ export interface GuidePage {
 const WHY = {
   signIn: "it signs in to another service (Google, Microsoft, Meta), which happens on that service's own screen",
   money: "it spends or changes money on the account, which is the owner's on the billing page",
-  legal: "it is a statement to the carriers in the business's legal name",
+  legal: "it is a statement to the phone networks in the business's legal name",
   file: "it reads or writes a file on the member's own device",
   live: "it acts on a phone call that is happening, where the Live page's button is quicker than a sentence",
-  erase: "it erases a person for good, which is asked for and confirmed on their page",
+  erase: "it deletes a person for good, which is asked for and confirmed on their page",
   team: "it changes who is on the team, which the owner does in Settings › Team",
   draft: "AI writes the draft itself in the conversation, so it never needs the page's drafter",
-  made: "AI makes a sequence with its own card, from the draft it wrote in the conversation; New's Keep and Start make the one the owner shaped on the page",
+  made: "AI makes a campaign with its own card, from the draft it wrote in the conversation; New's Keep and Start make the one the owner shaped on the page",
   learned:
     "a note the owner's correction suggested is kept beside what they wrote, on Settings › Autonomy; AI adds a note of its own with a settings card",
   test: "it mails a step's message to the member who presses it, beside the step on its page",
@@ -41,7 +41,7 @@ const WHY = {
     "a member types one lead's email in place on their sheet, reading it as it goes, and AI writes none for them",
   voice:
     "it reads an email the owner pastes under New's draft to leads; told in a conversation how they write, AI keeps a line of memory with its own card",
-  add: "AI adds leads to a sequence with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on",
+  add: "AI adds leads to a campaign with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on",
   stop: "it stops a reply in the minutes before it posts, under the review on Reports, where the reply and its time are",
   memory:
     "it changes or forgets a line of what AI remembers, which a member does on Settings › Memory where every line is listed; AI keeps a line with its own card and its Undo",
@@ -51,28 +51,28 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
   {
     page: "Today",
     route: "today",
-    for: "Who waits on you right now, replies about to time out, a booking the receptionist asked for (Booked it or Can't), today's calls and bookings, the day's recap, and Ask's ideas, among them the one thing to fix before a campaign can reach anyone.",
+    for: "Who waits on you right now, replies about to time out, a booking AI asked for (Booked it or Can't), today's calls and bookings, the day's recap, and AI's ideas, among them the one thing to fix before a campaign can reach anyone.",
     verbs: ["booking_request", "fix"],
     pageOnly: [],
   },
   {
     page: "Inbox",
     route: "inbox",
-    for: "Every conversation: answer, take one over, hand it back to the receptionist, snooze, wake or archive it.",
+    for: "Every conversation: answer, take one over, hand it back to AI, snooze, wake or archive it.",
     verbs: ["reply", "steer", "thread_verb"],
     pageOnly: [{ what: "Export a conversation", why: WHY.file }],
   },
   {
     page: "Live",
     route: "live",
-    for: "Calls happening now: listen, whisper to the receptionist, hand the call to your phone or end it.",
+    for: "Calls happening now: listen, whisper to AI, hand the call to your phone or end it.",
     verbs: ["whisper", "call_hand_over"],
     pageOnly: [{ what: "End a call", why: WHY.live }],
   },
   {
     page: "People",
     route: "clients",
-    for: "Everyone who has written or called: their answers, notes, steps, deals, lists, and what the receptionist does with each.",
+    for: "Everyone who has written or called: their answers, notes, steps, deals, lists, and what AI does with each.",
     verbs: [
       "person_mode",
       "note",
@@ -131,7 +131,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
   {
     page: "Campaigns",
     route: SEQUENCES_ROUTE,
-    for: "Everything that sends on its own: sequences on a moment or a list, one-off sends, cold email to leads, saved messages.",
+    for: "Everything that sends on its own: campaigns on a moment or a list, one-off sends, cold email to leads, saved messages.",
     verbs: [
       "broadcast",
       "playbook",
@@ -165,7 +165,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
       "reach_out_add",
     ],
     pageOnly: [
-      { what: "Draft a sequence from a line on the page", why: WHY.draft },
+      { what: "Draft a campaign from a line on the page", why: WHY.draft },
       { what: "Keep or start what New drafted", why: WHY.made },
       { what: "Send yourself a test of a step's message", why: WHY.test },
       { what: "Type one lead's own email on their sheet", why: WHY.leadWords },
@@ -175,14 +175,14 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
   {
     page: "Reports",
     route: "reports",
-    for: "How any period went: replies, calls, people, campaigns, reviews, cold email and the receptionist, against the period before.",
+    for: "How any period went: replies, calls, people, campaigns, reviews, cold email and AI, against the period before.",
     verbs: ["review_reply", "review_reply_stop"],
     pageOnly: [],
   },
   {
     page: "Settings",
     route: "admin/workspace",
-    for: "What the receptionist knows and may do alone, your goal, how you like answers (Profile), what Ask remembers (Memory), connections, notifications, team and billing.",
+    for: "What AI knows and may do alone, your goal, how you like answers (Profile), what AI remembers (Memory), connections, notifications, team and billing.",
     verbs: [
       "settings",
       "policy",

@@ -66,11 +66,11 @@ async function proposePlaybookChannels(
 ): Promise<ProposalOutcome> {
   // An id is one id in either case: the pattern takes both, so the row is asked for as the table writes it.
   const id = str(input.playbook_id, 40).toLowerCase();
-  if (!UUID.test(id)) return refuse(`playbook_id must be a playbook's id, as ${PLAYBOOK_FROM} gives it`);
+  if (!UUID.test(id)) return refuse(`playbook_id must be a campaign's id, as ${PLAYBOOK_FROM} gives it`);
   const result = await findPlaybookChannelsRow(toolContext.ctx, toolContext.tenantId, id);
   // A reach-out's steps are not listed among the playbooks (they go by email alone, from their own sheet).
   if (!result || triggerOf(result.trigger)?.kind === "reach_out")
-    return refuse(`no such playbook in this workspace; ${PLAYBOOK_FROM} names them`);
+    return refuse(`no such campaign in this workspace; ${PLAYBOOK_FROM} names them`);
   // The playbook is a row the answer may cite, opened where its drawer is.
   noteRows(toolContext.read, [
     { kind: "playbook" as const, id: result.id, route: sequenceRoute(result.id), label: result.name },
@@ -107,6 +107,6 @@ export const playbookChannelsAction = actAction({
   input: z.object({ playbook_id: z.string(), channels: z.array(z.enum(CONSENT_CHANNELS)) }),
   examples: [{ playbook_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c", channels: ["whatsapp", "email"] }],
   label: "Preparing a campaign's channels",
-  words: `Action channels takes playbook_id, a playbook that exists, as ${PLAYBOOK_FROM} gives it, and channels (whatsapp, sms, email): every channel it should go by from now on, not only the ones to add (that read gives the ones it goes by now). Each person is reached once, on the first that can reach them, so one more channel widens who it reaches and never sends a person two messages; nothing else about the playbook changes. A channel its purpose never carries is refused; one it cannot go by yet (no line, no version of its message there, offers by email not open) is kept, the card saying it waits and that its runs hold those people until it can; a run already waiting for approval keeps its channels, which the card says; a playbook already on exactly those channels is refused in words.`,
+  words: `Action channels takes playbook_id, a campaign that exists, as ${PLAYBOOK_FROM} gives it, and channels (whatsapp, sms, email): every channel it should go by from now on, not only the ones to add (that read gives the ones it goes by now). Each person is reached once, on the first that can reach them, so one more channel widens who it reaches and never sends a person two messages; nothing else about the campaign changes. A channel its purpose never carries is refused; one it cannot go by yet (no line, no version of its message there, offers by email not open) is kept, the card saying it waits and that its runs hold those people until it can; a run already waiting for approval keeps its channels, which the card says; a campaign already on exactly those channels is refused in words.`,
   build: proposePlaybookChannels,
 });

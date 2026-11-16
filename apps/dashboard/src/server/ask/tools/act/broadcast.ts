@@ -301,7 +301,7 @@ async function sentMessage(
   if ("refusal" in broadcastWords) return broadcastWords;
   const { slots } = broadcastWords.message;
   if (params.length !== slots)
-    return { refusal: `this template takes ${slots} value${slots === 1 ? "" : "s"}, in order` };
+    return { refusal: `this saved message takes ${slots} value${slots === 1 ? "" : "s"}, in order` };
   // The same purpose the route will derive, from the same message this function already read. An assistant that proposes
   // a broadcast the route then refuses has wasted the operator's approval.
   return { asked: broadcastWords, purpose: broadcastWords.message.purpose };

@@ -145,11 +145,11 @@ function rowName(r: AskScope): string {
  * action carry each change is the tools' own words, found by search with the page's tools first.
  */
 const CAMPAIGNS_LINE =
-  "They are on Campaigns, which lists what goes out on its own as a customer reaches each moment of their journey (campaigns that run by themselves) and what they send themselves. Words that describe an offer, a promotion, a setup, or a message at a moment or to a list are sequences to propose, as the rule \"Setting up sequences is a few cards\" says. Pausing, resuming, renaming, or a new hour, cap, gap or cadence, new words, a step, a last day or its mode (how its batches are decided) of one that exists is a change to that sequence, by the id the page's rows carry, and cold email to leads is a sequence too. A question about results is answered from the page's rows: a campaign's numbers are its last 30 days, and a one-off send's are that send's own, however long ago it went.";
+  "They are on Campaigns, which lists what goes out on its own as a customer reaches each moment of their journey (campaigns that run by themselves) and what they send themselves. Words that describe an offer, a promotion, a setup, or a message at a moment or to a list are campaigns to propose, as the rule \"Setting up campaigns is a few cards\" says. Pausing, resuming, renaming, or a new hour, cap, gap or cadence, new words, a step, a last day or its mode (how its sends are decided) of one that exists is a change to that campaign, by the id the page's rows carry, and cold email to leads is a campaign too. A question about results is answered from the page's rows: a campaign's numbers are its last 30 days, and a one-off send's are that send's own, however long ago it went.";
 
 /** Said once a card of the thread was approved since the last answer (A4): the shape is minutes old; campaigns are read. */
 const AFTER_APPROVAL_LINE =
-  "Cards were approved since the workspace's shape above was read: for what runs now, read the sequences again, never the shape.";
+  "Cards were approved since the workspace's shape above was read: for what runs now, read the campaigns again, never the shape.";
 
 /**
  * This turn's words, in the user's message after the page's data and before
@@ -168,7 +168,7 @@ const AFTER_APPROVAL_LINE =
 function replayedLine(at: readonly number[], tz: string, nowMs: number): string {
   const times = [...new Set(at.map((ms) => clockStamp(ms, tz, nowMs)))];
   const when = times.length > 1 ? `${times.slice(0, -1).join(", ")} and ${times.at(-1) ?? ""}` : (times[0] ?? "");
-  return `The earlier turns above, and every read in them, were made at ${when}, by the business's clock: they are what was true then. Read again what may have changed since (who needs you, a thread's state, a run, a booking) before you say it as now.`;
+  return `The earlier turns above, and every read in them, were made at ${when}, by the business's clock: they are what was true then. Read again what may have changed since (who needs you, a conversation's state, a run, a booking) before you say it as now.`;
 }
 
 /** What became of cards: this thread's since its last answer, and on a morning what the mornings before it offered. */
@@ -178,7 +178,9 @@ function cardLines(turnFacts: TurnFacts): string[] {
     const did = turnFacts.since.map(
       (o) => `“${o.title}” (${o.id}) ${DID[o.state]}${o.receipt ? `: ${o.receipt}` : ""}`,
     );
-    lines.push(`Since the last answer, the person acted on cards from earlier in this thread: ${did.join("; ")}.`);
+    lines.push(
+      `Since the last answer, the person acted on cards from earlier in this conversation: ${did.join("; ")}.`,
+    );
   }
   if (turnFacts.since?.some((o) => o.state === "done")) lines.push(AFTER_APPROVAL_LINE);
   if (turnFacts.lately)
@@ -208,7 +210,7 @@ export function turnWords(turnFacts: TurnFacts): string {
       : turnFacts.role === "partner"
         ? "the workspace's partner, who sets it up and runs it with its owner: they can do what an operator can and change settings, channels and lead searches, but not billing, team or exports"
         : turnFacts.role === "operator"
-          ? "an operator: they can reply, take over, snooze and resolve threads and change autonomy, but not settings, team or exports"
+          ? "an operator: they can reply, take over, snooze and resolve conversations and change autonomy, but not settings, team or exports"
           : "a viewer: they can read everything and change nothing";
   // Who they are, then what is above their role (aboveRoleWords), on one line: nothing more where nothing is.
   lines.push([`You are speaking with ${turnFacts.personLabel}, ${can}.`, turnFacts.above].join(" ").trimEnd());
@@ -219,7 +221,7 @@ export function turnWords(turnFacts: TurnFacts): string {
     );
   if (turnFacts.surface === "leads")
     lines.push(
-      'They are on the Leads page, where the businesses Claude found for them are listed. Words that describe businesses (a kind, a place, a count) are a lead search to propose, once the searches they have are read; ask only when the kind or the place is missing. If a search on this page is waiting for an answer, words that answer its question amend it, and "this search" is the one the scope names.',
+      'They are on the Leads page, where the businesses Chanlytics found for them are listed. Words that describe businesses (a kind, a place, a count) are a lead search to propose, once the searches they have are read; ask only when the kind or the place is missing. If a search on this page is waiting for an answer, words that answer its question amend it, and "this search" is the one the scope names.',
     );
   else if (turnFacts.surface === "campaigns")
     lines.push(isAskAdsView(turnFacts.pageView) ? adsLine(turnFacts.pageView) : CAMPAIGNS_LINE);

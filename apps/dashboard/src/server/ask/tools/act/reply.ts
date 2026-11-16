@@ -116,7 +116,7 @@ async function draftReply(
     });
     if (held)
       return refuse(
-        `${who} has not written on this thread, so this would be a first message to them, and it cannot go: ${held}`,
+        `${who} has not written on this conversation, so this would be a first message to them, and it cannot go: ${held}`,
       );
   }
   // Layer two, said on the card: a price or money (a refund, a discount, a payment term) in a reply is the person's to
@@ -184,7 +184,7 @@ async function proposeBooking(
     title: `${booked ? BOOKING_REQUEST_WORDS.booked_it : BOOKING_REQUEST_WORDS.cant_it}: ${who}`,
     summary: booked
       ? `${hold}. Books it and drafts the reply for you to send; nothing goes to them by itself.`
-      : `${hold}. Lets the time go; the thread waits on your reply.`,
+      : `${hold}. Lets the time go; the conversation waits on your reply.`,
     payload: { conversation_id: id, booked, who },
   });
 }
@@ -196,7 +196,7 @@ async function proposeBooking(
 export const propose_reply = defineActions({
   name: "propose_reply",
   description: "Propose a reply to a customer, as a card the person approves before anything is sent.",
-  tail: "Call action draft when they ask to reply, answer or write to someone, action steer when they want a held draft changed. draft refuses a person who opted out and marks a closed reply window on the card; never quote or confirm a price. steer refuses in words a reply no longer waiting, so read the thread first when in doubt.",
+  tail: "Call action draft when they ask to reply, answer or write to someone, action steer when they want a held draft changed. draft refuses a person who opted out and marks a closed reply window on the card; never quote or confirm a price. steer refuses in words a reply no longer waiting, so read the conversation first when in doubt.",
   actions: {
     draft: actAction({
       kind: "reply",
@@ -210,7 +210,7 @@ export const propose_reply = defineActions({
       ],
       label: "Drafting a reply",
       words:
-        "Action draft takes conversation_id, the id a read returned, text, the reply itself, and voice, you for the person's own words or receptionist for its voice, and proposes a new reply on the thread's own wire.",
+        "Action draft takes conversation_id, the id a read returned, text, the reply itself, and voice, you for the person's own words or receptionist for its voice, and proposes a new reply on the conversation's own wire.",
       build: draftReply,
     }),
     steer: actAction({
@@ -219,7 +219,7 @@ export const propose_reply = defineActions({
       examples: [{ message_id: "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b", instruction: "shorter, and in Spanish" }],
       label: "Preparing a rewrite",
       words:
-        "Action steer takes message_id, the held draft's id from inbox (action list or thread), never a conversation id, and instruction, a rewrite in words ('shorter', 'in Spanish') of a reply the receptionist is holding; the rewrite waits its turn like the first draft.",
+        "Action steer takes message_id, the held draft's id from inbox (action list or thread), never a conversation id, and instruction, a rewrite in words ('shorter', 'in Spanish') of a reply AI is holding; the rewrite waits its turn like the first draft.",
       build: proposeSteer,
     }),
     booking: actAction({
@@ -231,7 +231,7 @@ export const propose_reply = defineActions({
       examples: [{ conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f", booked: true }],
       label: "Preparing the booking's answer",
       words:
-        "Action booking answers a booking the receptionist asked for in a thread (a hold that says Asked for a time), by its conversation_id: booked true books it and drafts the reply they send, booked false lets the time go and leaves the thread waiting on their reply; a thread with no request waiting is refused in words.",
+        "Action booking answers a booking AI asked for in a conversation (a hold that says Asked for a time), by its conversation_id: booked true books it and drafts the reply they send, booked false lets the time go and leaves the conversation waiting on their reply; a conversation with no request waiting is refused in words.",
       build: proposeBooking,
     }),
   },

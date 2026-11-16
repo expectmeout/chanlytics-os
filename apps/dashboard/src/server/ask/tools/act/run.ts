@@ -30,20 +30,20 @@ import { actAction, type ProposalOutcome, type ToolContext } from "../context/to
 import { propose, refuse } from "../context/context";
 
 /** Where a waiting run's id is read, said as the model calls it. */
-const RUN_FROM = "sequences with action moments (a playbook's waiting) or action sent (waiting_on_you)";
+const RUN_FROM = "sequences with action moments (a campaign's waiting) or action sent (waiting_on_you)";
 
 /** Where a held email's send_id is read, said as the model calls it (action decide's own words). */
 const HELD_FROM = "sequences with action sequence, waiting_on_you";
 
 /** A broadcast that is neither a playbook's run nor a one-off of its own: nothing here waits on a person for it. */
-const NOT_A_RUN = "that broadcast is not a playbook's run: only a playbook's run waits for a person to approve or skip";
+const NOT_A_RUN = "that send is not a campaign's run: only a campaign's run waits for a person to approve or skip";
 
 /**
  * A run waiting for a person, carded by a morning: Your OK on Today already holds its row, so the card would say it twice
  * and spend one of the morning's three on what the page says (decision 0071, amended 2 Nov 2026).
  */
 const ON_TODAY =
-  "that run already waits under Your OK on Today, so a morning makes no card of it: leave it there and look for something else worth doing first";
+  "that run already waits under Your approval on Today, so a morning makes no card of it: leave it there and look for something else worth doing first";
 
 /**
  * A one-off's send cancelled (its record's Cancel this send, asked first): its sequence's row read by its batch's id (a
@@ -83,7 +83,7 @@ function proposeLeadsBatch(
   reachOutRun: ReachOutRunDto | null,
 ): ProposalOutcome {
   if (run.state !== "pending_approval")
-    return refuse(`that batch is not waiting for an OK: it is ${BROADCAST_STATE_LABELS[run.state]}`);
+    return refuse(`that send is not waiting for an OK: it is ${BROADCAST_STATE_LABELS[run.state]}`);
   // The emails it holds, as its leads' read says them; the batch's own count where that read has none.
   const emails = reachOutRun?.planned.length ?? run.recipient_count;
   const approve = input.verb === "approve";
@@ -97,11 +97,11 @@ function proposeLeadsBatch(
     ...(reachOutRun && reachOutRun.held.length > 0
       ? [`${plural(reachOutRun.held.length, "email", "emails")} the check held stay held until you decide them`]
       : []),
-    approve ? "each goes at its own time" : "none of them goes, and the sequence keeps running",
+    approve ? "each goes at its own time" : "none of them goes, and the campaign keeps running",
   ];
   return propose({
     kind: "run",
-    title: `${approve ? "Approve" : "Skip"} the batch: ${reachOutRun?.chain_name || run.name}`,
+    title: `${approve ? "Approve" : "Skip"} the send: ${reachOutRun?.chain_name || run.name}`,
     summary: phrases.join(" · "),
     payload: { broadcast_id: run.id, verb: input.verb, name: reachOutRun?.chain_name || run.name, people: emails },
   });
@@ -176,6 +176,6 @@ export const runAction = actAction({
   input: z.object({ broadcast_id: z.string(), verb: z.enum(RUN_VERBS) }),
   examples: [{ broadcast_id: "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b", verb: "approve" }],
   label: "Preparing a run's approval",
-  words: `Action batch takes broadcast_id, a playbook's run that waits for a person, as ${RUN_FROM} gives it, and verb: approve sends it now (asked outside the sending hours, ${SENDING_HOURS_WORDS.between} by the business's clock, it goes at ${SENDING_HOURS_WORDS.first}); skip ends this run unsent and leaves the playbook running. Always give verb, from their words: it has no default, and the card says it back. A run made for a day that has passed can only be skipped; a batch to leads (cold email) is approved or skipped the same way, its card saying what the check held; a one-off waiting for its day is cancelled with verb skip, by its batch's id (its sequence's own): nobody gets it, and one already going is not cancelled.`,
+  words: `Action batch takes broadcast_id, a campaign's run that waits for a person, as ${RUN_FROM} gives it, and verb: approve sends it now (asked outside the sending hours, ${SENDING_HOURS_WORDS.between} by the business's clock, it goes at ${SENDING_HOURS_WORDS.first}); skip ends this run unsent and leaves the campaign running. Always give verb, from their words: it has no default, and the card says it back. A run made for a day that has passed can only be skipped; a send to leads (cold email) is approved or skipped the same way, its card saying what the check held; a one-off waiting for its day is cancelled with verb skip, by its send's id (its campaign's own): nobody gets it, and one already going is not cancelled.`,
   build: proposeRun,
 });

@@ -34,7 +34,7 @@ test("on the Ads page the model is told it is a preview and what it may offer, a
   assert.match(words, /They are on Campaigns › Ads/);
   assert.match(words, /no account can be connected yet, no ad of theirs exists, nothing runs and nothing is spent/);
   assert.match(words, /no tool makes or changes an ad/);
-  assert.match(words, /a sequence to the people they have, or a post/);
+  assert.match(words, /a campaign to the people they have, or a post/);
   assert.doesNotMatch(words, /They are on Campaigns, which lists/, "REGRESSION: it was told it was on Sequences");
 });
 

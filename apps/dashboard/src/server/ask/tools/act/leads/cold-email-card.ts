@@ -36,13 +36,13 @@ interface ColdEmailSaid {
 
 /** An email in a line, as the summary says it: its subject quoted, or a reply in the first's thread. */
 const inALine = (email: ColdEmailShown): string => {
-  const says = email.subject ? `“${email.subject}”` : "a reply in the same thread";
+  const says = email.subject ? `“${email.subject}”` : "a reply in the same conversation";
   return email.after ? `${email.after}: ${says}` : `first: ${says}`;
 };
 
 /** An email whole, as its row shows it: its subject, then its words as they will be sent. */
 const whole = (email: ColdEmailShown): string => {
-  const head = email.subject ? `Subject: ${email.subject}` : "A reply in the same thread";
+  const head = email.subject ? `Subject: ${email.subject}` : "A reply in the same conversation";
   return `${email.after ? `${email.after}. ` : ""}${head}\n\n${email.body.trim()}`;
 };
 

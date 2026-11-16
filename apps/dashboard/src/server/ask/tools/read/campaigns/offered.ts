@@ -229,17 +229,17 @@ export async function listAudiences(toolContext: ToolContext): Promise<unknown> 
   );
   // What could not be read, in words the model says: a null above is not none.
   const couldNotRead = [
-    ...(tpls ? [] : ["The messages could not be read just now: say so, and propose no broadcast until they can."]),
+    ...(tpls ? [] : ["The messages could not be read just now: say so, and propose no send until they can."]),
     ...(chans ? [] : ["The WhatsApp number's state could not be read just now."]),
     ...(touched
       ? []
       : [
-          "Who has had a message from you lately, or has one due, could not be read just now, so who a broadcast goes to is not counted (can_be_sent is null): say so, and propose no broadcast until it can be read.",
+          "Who has had a message from you lately, or has one due, could not be read just now, so who a send goes to is not counted (can_be_sent is null): say so, and propose no send until it can be read.",
         ]),
   ];
   // Said only where somebody is left out, so a listing with nobody left out reads as it always did.
   const leftOutSaid = audiences.some((a) => "left_out_offers" in a || "left_out_messages" in a)
-    ? " A broadcast leaves out whoever hears from you within a week of it, before or after: can_be_sent counts who a send that goes now goes to, and left_out_offers and left_out_messages how many are left out, which the card says too; a card set for later counts for its own time, so it may leave out more or fewer."
+    ? " A send leaves out whoever hears from you within a week of it, before or after: can_be_sent counts who a send that goes now goes to, and left_out_offers and left_out_messages how many are left out, which the card says too; a card set for later counts for its own time, so it may leave out more or fewer."
     : "";
   return {
     route: SEQUENCES_ROUTE,
@@ -250,7 +250,7 @@ export async function listAudiences(toolContext: ToolContext): Promise<unknown> 
     // The Broadcasts page's sentence on which channels carry offers now (offersNote); none where they could not be read.
     ...(ready ? { offers_go_by: offersNote(ready) } : {}),
     ...(couldNotRead.length ? { could_not_read: couldNotRead } : {}),
-    note: `Two consents, two counts each. can_be_sent_offers is who a promotional template reaches on WhatsApp and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, as People counts it, whether or not a number or a channel can carry it now. Where some said yes and WhatsApp reaches none of them, why_none_offers or why_none_messages says what they lack, in People's words: a number to send to, or a channel that can carry it, and offers_go_by says which channels carry offers now (Meta's pause on offers to US numbers among them). Say how many said yes and what they lack, and never send the owner to get a yes they already have. A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.${leftOutSaid}`,
+    note: `Two consents, two counts each. can_be_sent_offers is who a promotional message reaches on WhatsApp and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, as People counts it, whether or not a number or a channel can carry it now. Where some said yes and WhatsApp reaches none of them, why_none_offers or why_none_messages says what they lack, in People's words: a number to send to, or a channel that can carry it, and offers_go_by says which channels carry offers now (Meta's pause on offers to US numbers among them). Say how many said yes and what they lack, and never send the owner to get a yes they already have. A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.${leftOutSaid}`,
   };
 }
 
@@ -263,7 +263,7 @@ const MODE_WORDS = {
   veto: SEQUENCE_MODE_WORDS.veto.does,
   ask: SEQUENCE_MODE_WORDS.ask.does,
   new_words:
-    "a batch of a step whose words are new to the owner (next_batch_asks_first) waits for their OK first, whatever the mode",
+    "a send of a step whose words are new to the owner (next_batch_asks_first) waits for their OK first, whatever the mode",
 };
 
 /**
@@ -357,7 +357,7 @@ export async function listPlaybooksTool(toolContext: ToolContext): Promise<unkno
       ? {}
       : {
           could_not_read:
-            "what a new sequence starts as (the autonomy rows): say it could not be read just now, never what a new one's batches would do",
+            "what a new campaign starts as (the autonomy rows): say it could not be read just now, never what a new one's sends would do",
         }),
     mode_words: MODE_WORDS,
     playbooks: answer.cards.map(({ playbook: p, read: c }) => ({
@@ -411,6 +411,6 @@ export async function listPlaybooksTool(toolContext: ToolContext): Promise<unkno
         ...(markInPlaceOfCounts(x.kind) ?? counted(x.id)),
         starter_template: starterForTrigger(x.id)?.title ?? null,
       })),
-    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and holds whoever hears ${BREATH_WHY}, by a message already sent or one due, for a later run; a reminder the day before ${words.a} and a check the day after go one per ${words.one}, exempt from the gap and ${PLAYBOOK_CARD_WORDS.appointmentBreath}. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever hears from you within a week of today, by a message already sent or one due, waits. A null count means the page could not count it just now. each_at_their_own_time marks a moment that names nobody ahead of time (two hours before ${words.a}, ${words.a} marked missed, the booking link sent and nothing booked): each person comes to it when that happens to them and its message goes then, so it has no count, and that is no fault. The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs.`,
+    note: `A run is a send, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the campaign's gap, and holds whoever hears ${BREATH_WHY}, by a message already sent or one due, for a later run; a reminder the day before ${words.a} and a check the day after go one per ${words.one}, exempt from the gap and ${PLAYBOOK_CARD_WORDS.appointmentBreath}. said_yes_now counts who each trigger names that said the yes its saved message needs, a number or not; can_be_sent_now is who of them a run reaches now, the Campaigns page's own count: whoever hears from you within a week of today, by a message already sent or one due, waits. A null count means the page could not count it just now. each_at_their_own_time marks a moment that names nobody ahead of time (two hours before ${words.a}, ${words.a} marked missed, the booking link sent and nothing booked): each person comes to it when that happens to them and its message goes then, so it has no count, and that is no fault. The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs.`,
   };
 }

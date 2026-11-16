@@ -38,21 +38,21 @@ export const ASK_RULES: readonly string[] = ASK_SECTIONS.flatMap((s) => s.rules)
 /** The words the pages use, so the assistant uses the same ones. */
 export const ASK_DEFINITIONS: Record<string, string> = {
   "needs you":
-    "A thread AI handed to a person: the customer asked for one, AI was unsure, or a rule said so. It waits in the Inbox until someone takes it over, replies, or resolves it.",
-  "you have it": "A thread you have taken over. AI stays quiet on it until it is handed back.",
+    "A conversation AI handed to a person: the customer asked for one, AI was unsure, or a rule said so. It waits in the Inbox until someone takes it over, replies, or resolves it.",
+  "you have it": "A conversation you have taken over. AI stays quiet on it until it is handed back.",
   "a teammate is answering":
-    "A thread another member of the team has taken over: theirs to answer. AI stays quiet on it until they hand it back.",
+    "A conversation another member of the team has taken over: theirs to answer. AI stays quiet on it until they hand it back.",
   "held draft":
     "A reply AI wrote but did not send: either it was not sure enough (below the confidence dial) or the reply policy holds every draft for a short window. It sends itself when the window ends unless someone edits, holds or takes over.",
   "waiting on them":
     "The next move is theirs: nothing has come back yet from what was sent, and nothing is owed to them.",
-  answering: "AI is replying on its own on that thread.",
-  snoozed: "A thread put aside until a chosen time; it wakes on its own.",
+  answering: "AI is replying on its own on that conversation.",
+  snoozed: "A conversation put aside until a chosen time; it wakes on its own.",
   "opted out": "The customer asked not to be messaged. Nothing goes out to them except a reply to something they send.",
   "24-hour window":
-    "WhatsApp delivers a free-form reply only within 24 hours of the customer's last message. Outside it, only an approved template can be sent. Only WhatsApp has a window — a text or an email may be answered whenever, so `window_open` on a thread is this question answered for that thread's own wire.",
+    "WhatsApp delivers a free-form reply only within 24 hours of the customer's last message. Outside it, only an approved message can be sent. Only WhatsApp has a window — a text or an email may be answered whenever, so `window_open` on a conversation is this question answered for that conversation's own wire.",
   escalation:
-    "The record that a thread needed a person, with the reason. Resolving it closes the record; the thread itself stays.",
+    "The record that a conversation needed a person, with the reason. Resolving it closes the record; the conversation itself stays.",
   "confidence dial": "The minimum confidence AI needs to send a reply alone. Below it, the reply is held for a person.",
   "token budget": "A daily cap on AI's model usage. When spent, AI holds replies for a person instead of answering.",
   "veto window": "The reply policy mode where every draft waits a short while before sending, so a person can stop it.",
@@ -61,16 +61,17 @@ export const ASK_DEFINITIONS: Record<string, string> = {
   "median reply time":
     "The middle value of how long a customer waited for AI's answer over the period; half the replies were faster. Where the reply policy holds each reply (the hold window the owner set), that wait is part of it: the hold is the owner's setting, not AI's speed, so say it, and use the report's reply_time.hold for how many went out as the hold ended and how many took longer.",
   "said yes":
-    "A recorded answer that the person wants offers and news by WhatsApp: the desk recorded it on their profile, or they sent YES OFFERS or START themselves. Only these people can be on a broadcast.",
+    "A recorded answer that the person wants offers and news by WhatsApp: the desk recorded it on their profile, or they sent YES OFFERS or START themselves. Only these people can be on a send.",
   broadcast:
     "One message sent to the people on a list who said yes — everyone, a People list, or a list kept by hand. A message is a name with a version for each channel it is written for (WhatsApp, which WhatsApp approves; email and text, ready when saved) and goes on the channels it holds, each person once. Sent now or at a time, 25 at a time; replies land in the Inbox, where AI answers them.",
   "held back":
-    "A person on a broadcast the send skipped at the wire: no recorded yes, asked to stop, no number, or a person had their thread.",
+    "A person a send skipped at the wire: no recorded yes, asked to stop, no number, or a person had their conversation.",
   calendar:
     "The owner's calendar as AI reads it: an iCal feed of what is taken, the business's hours and closures, and the booking rules. AI offers only the open windows, then sends the booking link, or takes their details where there is none; it never books, moves or cancels anything itself.",
   "freed time":
-    "A time a cancellation, a move or a vanished calendar entry freed, offered to the people who asked in the last 30 days and never booked, by the campaign Fill a cancellation (moment slot_opened); its batch goes as every campaign's does, under its own mode. A reply is answered by AI, and a booking stays the owner's to confirm where the workspace takes requests.",
-  playbook: `A standing rule that sends one message to newly eligible people who said yes: win-back (by appointments where a calendar is connected, by 30 days of silence where not), the month's offer (everyone who said yes, on a cadence), a reminder before an appointment and a check after one, the proposal follow-up (one nudge per proposal waiting past the workspace's pace, with its link, once), and three that go to one person at a time of their own instead of on the daily run: a second reminder on the day of an appointment, shortly before it, an offer of another time when one is marked missed, and a follow-up the day after someone is sent the booking link and has not booked. It runs at its hour by the business's clock, reaches a person once within its gap, and holds whoever hears ${BREATH_WHY}, by a message already sent or one due, for a later run (the reminder and the check go one per appointment, ${PLAYBOOK_CARD_WORDS.appointmentBreath}), under its own mode, its "Before each batch" (decision 0064) — auto sends each batch, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless stopped, ask leaves it waiting for a person on Today; a new one takes the mode its class's Autonomy row says, and a batch of a step whose words are new to the owner (its first, and its first after new words) waits for their OK whatever the mode. A person calls it a campaign: in every word they read, say campaign, never playbook; the tools' names, actions and fields keep playbook.`,
+    "A time a cancellation, a move or a vanished calendar entry freed, offered to the people who asked in the last 30 days and never booked, by the campaign Fill a cancellation (moment slot_opened); its send goes as every campaign's does, under its own mode. A reply is answered by AI, and a booking stays the owner's to confirm where the workspace takes requests.",
+  // screen-word: the code's name, said so it never says it
+  playbook: `A standing rule that sends one message to newly eligible people who said yes: win-back (by appointments where a calendar is connected, by 30 days of silence where not), the month's offer (everyone who said yes, on a cadence), a reminder before an appointment and a check after one, the proposal follow-up (one nudge per proposal waiting past the workspace's pace, with its link, once), and three that go to one person at a time of their own instead of on the daily run: a second reminder on the day of an appointment, shortly before it, an offer of another time when one is marked missed, and a follow-up the day after someone is sent the booking link and has not booked. It runs at its hour by the business's clock, reaches a person once within its gap, and holds whoever hears ${BREATH_WHY}, by a message already sent or one due, for a later run (the reminder and the check go one per appointment, ${PLAYBOOK_CARD_WORDS.appointmentBreath}), under its own mode, its "Before each send" (decision 0064) — auto sends each send, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless stopped, ask leaves it waiting for a person on Today; a new one takes the mode its class's Autonomy row says, and a send of a step whose words are new to the owner (its first, and its first after new words) waits for their OK whatever the mode. A person calls it a campaign: in every word they read, say campaign, never playbook; the tools' names, actions and fields keep playbook.`,
 };
 
 const NOTHING = { kind: "none", id: "", label: "" };
@@ -241,7 +242,7 @@ export const ASK_EXAMPLES = [
       say: {
         headline: "Answer the oldest first, then give me what I was missing.",
         detail:
-          "### Today\n1. Open **Needs you** in the Inbox and answer the oldest first.\n2. For each one I could not answer:\n  - add the missing fact to my notes, so I answer the next one myself\n  - take the thread over when it needs a person\n\n### This week\n- Check that the hours and services it answers from are right.",
+          "### Today\n1. Open **Needs you** in the Inbox and answer the oldest first.\n2. For each one I could not answer:\n  - add the missing fact to my notes, so I answer the next one myself\n  - take the conversation over when it needs a person\n\n### This week\n- Check that the hours and services it answers from are right.",
       },
       show: { figures: [], items: [], breakdown: NO_BREAKDOWN, chart: NO_CHART, list: NO_LIST },
       do: {
@@ -338,6 +339,7 @@ export function workspaceFacts(
   );
   if (result.never_confirm_booking) guardrails.push("never confirms a booking itself");
   // Always (decision 0051): a call's greeting says it, a new text conversation opens with it, and it says so when asked.
+  // screen-word: what callers hear, the owner's own words (docs/words.md, "Not on a screen")
   guardrails.push("always says it is the business's automated assistant, never a person");
   if (result.no_health_advice) guardrails.push("gives no health advice");
   return {

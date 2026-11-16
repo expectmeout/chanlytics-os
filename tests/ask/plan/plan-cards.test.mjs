@@ -1421,7 +1421,7 @@ test("a setup asked again in the same thread makes none of its cards a second ti
   assert.deepEqual(again.proposals, [], "nothing made twice");
   assert.equal(again.answer.say.headline, `Your setup is the “${card.title}” card above, one press away.`);
   const told = JSON.stringify(planRequests[1].messages);
-  assert.ok(told.includes("Already above in this thread, waiting for their press"), told.slice(-500));
+  assert.ok(told.includes("Already above in this conversation, waiting for their press"), told.slice(-500));
   assert.ok(told.includes(card.title), "named by its title");
   // A card of another change waiting in the thread holds nothing back: the plan's card is made.
   readerCache.clear();

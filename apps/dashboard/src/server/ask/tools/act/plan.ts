@@ -554,7 +554,7 @@ const stepsAction = actAction({
     },
   ],
   label: "Making a plan",
-  words: `Action steps makes a plan across pages from the steps you name: each a card of any act tool, by its tool, action and its own input, a later step naming what an earlier one makes by its token (@step:n: a list, a list of leads, a message, a sequence, a search). They show as one card: its press does what keeps records and the first that sends, spends or posts; each later send is the next press. Call it when one ask takes several cards that build on each other (lists, then a cold email to a list of leads with a follow-up, a sequence and its first steps); for an offer or a whole setup of the journey, action offer.`,
+  words: `Action steps makes a plan across pages from the steps you name: each a card of any act tool, by its tool, action and its own input, a later step naming what an earlier one makes by its token (@step:n: a list, a list of leads, a message, a campaign, a search). They show as one card: its press does what keeps records and the first that sends, spends or posts; each later send is the next press. Call it when one ask takes several cards that build on each other (lists, then a cold email to a list of leads with a follow-up, a campaign and its first steps); for an offer or a whole setup of the journey, action offer.`,
   build: proposeSteps,
 });
 

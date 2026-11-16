@@ -80,7 +80,7 @@ const threadOf = (id, contactId, name, over = {}) => ({
 
 /**
  * Harbor: Rosa's own receptionist mode is never, and Rosa is on VIP (a list kept by hand); the reply class is set to ask
- * first; Rosa's thread is the member's own, Quinn's archived.
+ * first; Rosa's conversation is the member's own, Quinn's archived.
  */
 function heldWorld(role = "owner") {
   return {
@@ -133,12 +133,9 @@ const refusalOf = (out) => (out.isError ? JSON.parse(out.result).error : null);
 
 test("one person's receptionist: a mode they have already is refused in words, never a card that changes nothing; another mode is the card it was", async () => {
   const same = await heldCall("propose_person", { action: "mode", contact_id: ROSA, mode: "never" });
-  assert.equal(refusalOf(same), "for Rosa the receptionist already stays silent with them: say so, and change nothing");
+  assert.equal(refusalOf(same), "for Rosa AI already stays silent with them: say so, and change nothing");
   const following = await heldCall("propose_person", { action: "mode", contact_id: QUINN, mode: "inherit" });
-  assert.equal(
-    refusalOf(following),
-    "for Quinn the receptionist already follows the workspace rule: say so, and change nothing",
-  );
+  assert.equal(refusalOf(following), "for Quinn AI already follows the workspace rule: say so, and change nothing");
   const change = await heldCall("propose_person", { action: "mode", contact_id: QUINN, mode: "never" });
   assert.equal(change.isError, false, change.result);
   assert.deepEqual([change.proposal.payload.previous, change.proposal.payload.mode], ["inherit", "never"]);
@@ -173,11 +170,11 @@ test("a class's autonomy: all of it already set is refused; a part already set i
 test("a thread: taking over one the member already has, or archiving one archived, is refused in words; a take-over from nobody is the card it was", async () => {
   assert.equal(
     refusalOf(await heldCall("propose_thread_verb", { conversation_id: C_ROSA, verb: "take_over" })),
-    "Rosa's thread is already taken over by the person asking: say so, and change nothing",
+    "Rosa's conversation is already taken over by the person asking: say so, and change nothing",
   );
   assert.equal(
     refusalOf(await heldCall("propose_thread_verb", { conversation_id: C_QUINN, verb: "archive" })),
-    "Quinn's thread is already archived: say so, and change nothing",
+    "Quinn's conversation is already archived: say so, and change nothing",
   );
   const take = await heldCall("propose_thread_verb", { conversation_id: C_QUINN, verb: "take_over" });
   assert.equal(take.isError, false, take.result);

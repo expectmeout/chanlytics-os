@@ -1,5 +1,5 @@
 /**
- * Ask's cards of a sequence's head (decision 0060; the parity review's lane 1; decision 0072): propose_sequence's actions
+ * Ask's cards of a campaign's head (decision 0060; the parity review's lane 1; decision 0072): propose_sequence's actions
  * start, run_now, discard and end, each the page's own act as a card, offered where the page's judge offers it
  * (contracts sequenceActsOf). Each call the model makes runs through the registry over the database in memory, the
  * sequence read as its record reads it (00442 sequence_overview, sequence_steps_of; its batches for whether it ran): the
@@ -145,7 +145,7 @@ test("Run now is a card of the page's own verb, for a sequence that runs today w
 test("where the page offers no such act, the model hears why in the judge's words, and what to do instead", async () => {
   assert.equal(
     (await call("run_now", { sequence_id: WAITS })).error,
-    `Reminder: ${SEQUENCE_ACT_WHY.batch_waiting} (approve or skip that batch with action batch)`,
+    `Reminder: ${SEQUENCE_ACT_WHY.batch_waiting} (approve or skip that send with action batch)`,
   );
   assert.equal((await call("run_now", { sequence_id: PAUSED })).error, `Old offer: ${SEQUENCE_ACT_WHY.not_today}`);
   assert.equal(

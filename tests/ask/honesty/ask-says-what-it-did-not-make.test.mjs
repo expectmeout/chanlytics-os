@@ -308,7 +308,7 @@ test("a member below an owner hears who can do what their tools leave out: an op
     assert.ok(operator.split("; only an owner or the workspace's partner can ")[1].includes(doing), doing);
   assert.ok(!operator.includes("invite someone to the team"), "no action makes an invitation: the Team page's alone");
   assert.match(operator, /never that a tool is not available/);
-  assert.match(operator, /a thread taken over is that one thread, for now/);
+  assert.match(operator, /a conversation taken over is that one conversation, for now/);
   const partner = aboveRoleWords("partner");
   assert.match(partner, /only an owner can change how AI treats one person/);
   assert.ok(!partner.includes("partner can"), "a partner's own acts are theirs");

@@ -51,7 +51,7 @@ export const COLD_STEP = z.object({
   subject: z
     .string()
     .optional()
-    .describe("The email's subject; the steps after the first may leave it out to reply in the same thread."),
+    .describe("The email's subject; the steps after the first may leave it out to reply in the same conversation."),
   body: z
     .string()
     .describe(
@@ -195,6 +195,6 @@ async function reachWords(
   if (can > 0) return { to: `${fedBy}: ${can} of ${reach.of} with ${kind}` };
   const phones = reach.phone_only ? ` (${reach.phone_only} have only a phone)` : "";
   return {
-    refusal: `none of the ${reach.of} leads in ${fedBy} has ${kind} a sequence can write to yet${phones}: say so plainly, that nothing was made, and that a search made for email finds leads that have one`,
+    refusal: `none of the ${reach.of} leads in ${fedBy} has ${kind} a cold email can write to yet${phones}: say so plainly, that nothing was made, and that a search made for email finds leads that have one`,
   };
 }
