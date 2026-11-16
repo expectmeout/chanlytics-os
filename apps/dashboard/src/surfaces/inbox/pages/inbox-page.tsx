@@ -32,7 +32,8 @@ import {
 } from "./inbox-state";
 import { ixKeyLeft } from "../keys";
 import { ixKeepPlace } from "../place";
-import { ixBucketOf, ixDrawnIn, ixNextMoveAt, ixOnPhone, ixRank, type IxNeedsYou } from "../rules";
+import { ixBucketOf, ixNextMoveAt, ixOnPhone, ixRank } from "../rules";
+import { ixDrawnIn, type IxNeedsYou } from "./needs-you-list";
 import { useNeedsYouParts } from "../../needs-you";
 import { threadReading, threadWhose, useSeeOpen, useSeen } from "../../seen";
 import { canDo, gate, presenceAway } from "../shell";
@@ -57,7 +58,7 @@ const inboxOnScreen = (
   // have, then a teammate's. A thread whose own reply is on its way out stands in Needs you while it counts down. A
   // sequence's replies the address names are the rows in place of the bucket's (inbox-from.tsx).
   const listed = threads.filter((t) => (only ? only.has(t.id) : listedHere(t))).sort((a, b) => ixRank(a) - ixRank(b));
-  // Whoever has waited past a week stands at Needs you's foot, folded, in no count (rules.ts ixNeedsYouOf), as on Today.
+  // Whoever has waited past a week stands at Needs you's foot, folded, in no count (needs-you-list.ts ixNeedsYouOf), as on Today.
   const folds = !only && !activeView && activeBucket === "escalated" && needsYou.older.size > 0;
   const older = folds ? listed.filter((t) => needsYou.older.has(t.id)) : [];
   const visible = folds ? listed.filter((t) => !needsYou.older.has(t.id)) : listed;
@@ -159,7 +160,7 @@ const inboxBucketMoves = ({
     // turns on the screen, and a bucket that opened its first thread took the screen with it: the rows were gone,
     // a customer nobody had asked for was on the phone, and a bucket with nothing in it showed neither.
     setPhoneThreadOpen(false);
-    // By the list's own rule (rules.ts ixDrawnIn): a reply counting down stands in Needs you whatever its state says, and
+    // By the list's own rule (needs-you-list.ts ixDrawnIn): a reply counting down stands in Needs you whatever its state says, and
     // Needs you draws what the one count holds, less whoever it folds.
     const stillVisible = activeThread && ixDrawnIn(activeThread, id, needsYou);
     if (!stillVisible) {
@@ -182,7 +183,7 @@ type InboxBucketMoves = ReturnType<typeof inboxBucketMoves>;
 
 /**
  * The buckets' and the views' counts, and the Needs bucket's stake. Needs you says the one count, the badge's (needs-you.ts),
- * whose rows its list holds (rules.ts ixNeedsYouOf); before Today is read it counts its own list, `runs` among it, the
+ * whose rows its list holds (needs-you-list.ts ixNeedsYouOf); before Today is read it counts its own list, `runs` among it, the
  * campaign runs waiting for your say, each a row of Needs you over its threads (inbox-runs.tsx).
  */
 const inboxCounts = (

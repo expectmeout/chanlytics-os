@@ -36,7 +36,7 @@ export function InboxRunsWaiting({
   rows,
 }: {
   flash: (flash: Flash) => void;
-  /** What the one count holds that is no conversation the Inbox holds (rules.ts ixNeedsYouOf `rows`). */
+  /** What the one count holds that is no conversation the Inbox holds (needs-you-list.ts ixNeedsYouOf `rows`). */
   rows: readonly TodayQueueRowVM[];
 }) {
   useMoved(["broadcasts"]);

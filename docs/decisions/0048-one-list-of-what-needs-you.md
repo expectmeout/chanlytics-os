@@ -149,7 +149,7 @@ count). Ruben approved the fix on the design shown to him the same day.
 1. **One number.** The Inbox's Needs you tab, on a desk and a phone, and the Inbox's head say the badge's number
    (`needsYouNow`), the head in Today's words ("1 needs you", contracts `NEED_YOU_WORDS.said`). Before Today has been read
    the chip counts its own list, as it did.
-2. **The list is the count's rows** (the dashboard's `inbox/rules.ts` `ixNeedsYouOf`, over `needsYouRowsNow`): every
+2. **The list is the count's rows** (the dashboard's `inbox/pages/needs-you-list.ts` `ixNeedsYouOf`, over `needsYouRowsNow`): every
    conversation the rule puts in Needs you, and every one whose person the count holds, so a WhatsApp window shutting on a
    snoozed or a teammate's conversation is listed there too; a row of its own for what is counted and is no conversation
    the Inbox holds (a search's question, a hold whose conversation it could not read), drawn as Today draws it

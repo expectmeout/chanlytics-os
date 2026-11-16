@@ -40,7 +40,7 @@ import type { InboxBucket, InboxView, Thread } from "../types";
 export type Density = "compact" | "medium" | "rich";
 
 /**
- * What Needs you draws beside its conversations, by the one count's rows (rules.ts ixNeedsYouOf): whoever has waited past
+ * What Needs you draws beside its conversations, by the one count's rows (needs-you-list.ts ixNeedsYouOf): whoever has waited past
  * a week, folded at its foot (their conversations, and the rows of those it does not hold); the counted rows that are no
  * conversation here; and what a conversation it holds by the count alone asks of you.
  */

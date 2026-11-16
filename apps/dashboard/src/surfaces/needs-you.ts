@@ -135,7 +135,7 @@ interface NeedsYouRows {
 
 /**
  * The rows the one count is made of, as Today's read makes them and this tab has worked them, for the pages that draw
- * them as well as count them: the Inbox's Needs you lists exactly these (inbox/rules.ts ixNeedsYouOf). Null while Today
+ * them as well as count them: the Inbox's Needs you lists exactly these (inbox/pages/needs-you-list.ts ixNeedsYouOf). Null while Today
  * has not been read, and in a demo session, whose count is its seeded threads.
  */
 export function needsYouRowsNow(nowMs: number = Date.now()): NeedsYouRows | null {
@@ -228,21 +228,6 @@ export function needsYouMoved(): void {
  */
 export function useNeedsYou(): number | null {
   return useSyncExternalStore(hearNeedsYou, needsYouNow, needsYouNow);
-}
-
-/** The rows' ids by group and the runs' rows: what a page drawn from the rows is drawn again for, and nothing else. */
-function rowsKeyNow(): string {
-  const r = needsYouRowsNow();
-  if (!r) return "";
-  const ids = (rows: readonly TodayQueueRowVM[]) => rows.map((x) => x.id).join(",");
-  const { next, waiting, ok, old } = r.groups;
-  return [ids(next), ids(waiting), ids(ok), ids(old), r.runs].join("|");
-}
-
-/** The rows of the one count, as a hook: drawn again when a row comes, goes or moves group, by nothing else. */
-export function useNeedsYouRows(): NeedsYouRows | null {
-  useSyncExternalStore(hearNeedsYou, rowsKeyNow, rowsKeyNow);
-  return needsYouRowsNow();
 }
 
 /**

@@ -1,23 +1,20 @@
 /**
  * The Inbox's rules, said once (moved from pages/inbox.jsx and pages/thread-pane.jsx, decision 0015, step 3): what waits
- * on you, the bucket a thread sits in, what Needs you lists, the order a bucket stands in, a draft's own key in the veto
- * store, and the thread a route names. The pages read them, and so does needs-you.ts for the parts it says apart (through
- * `ixWaiting`): the Inbox's band, and Ask's Right now. The number Needs you says is the badge's one count, Today's rows
- * above To do (0048, amended 2 Nov and 15 Nov 2026), and its list is those rows (`ixNeedsYouOf`); the standalone mockup
- * gets `ixWaitsOnYou` from mockup-globals.ts.
+ * on you, the bucket a thread sits in, the order a bucket stands in, a draft's own key in the veto store, and the thread a
+ * route names. The pages read them, and so does needs-you.ts for the parts it says apart (through `ixWaiting`): the
+ * Inbox's band, and Ask's Right now. The number Needs you says is the badge's one count, Today's rows above To do
+ * (0048, amended 2 Nov and 15 Nov 2026), and what its list holds is the Inbox page's own (pages/needs-you-list.ts), which
+ * every page need not load; the standalone mockup gets `ixWaitsOnYou` from mockup-globals.ts.
  */
 import {
   HOUR_MS,
   moveWaits,
-  needYouCountOf,
   threadMoveNow,
   threadWait,
   waitedSaid,
   waitedSince,
-  type NeedYouGroups,
   type ThreadList,
   type ThreadMove,
-  type TodayQueueRowVM,
   type WaitingThread,
 } from "@chanlytics/contracts";
 import { VW_STORE, type VetoState } from "./store";
@@ -123,76 +120,6 @@ export const ixBucketOf = (
   nowMs: number = Date.now(),
 ): ThreadState | ThreadList | null | undefined => (t && t.real ? ixMoveOf(t, nowMs).list : t && t.state);
 
-/** What the one count is made of, as needs-you.ts reads it from Today (`needsYouRowsNow`): Need you's groups, the runs' rows. */
-interface CountedRows {
-  groups: Pick<NeedYouGroups<TodayQueueRowVM>, "next" | "waiting" | "ok" | "old">;
-  runs: number;
-}
-
-/** Needs you's list, by the one count's rows (`ixNeedsYouOf`). */
-export interface IxNeedsYou {
-  /** Whether Needs you lists a conversation: the rule puts it there, or the one count holds its person. */
-  listed: (t: Thread) => boolean;
-  /** The conversations folded at the list's foot, by thread id: whoever has waited past a week, in no count. */
-  older: ReadonlySet<string>;
-  /**
-   * The counted rows that are no conversation the Inbox holds, drawn as rows of their own: someone the count holds whose
-   * conversation the Inbox's read has not (a hold it could not read), then a search's question.
-   */
-  rows: TodayQueueRowVM[];
-  /** Whoever has waited past a week whose conversation the Inbox does not hold: folded with the rest. */
-  olderRows: TodayQueueRowVM[];
-  /** What a conversation Needs you holds by the count alone asks of you, its row's word ("Reply soon"); null for the rest. */
-  why: (t: Thread) => string | null;
-  /** How many: the one count (contracts needYouCountOf), or null while Today has not been read, when the list counts itself. */
-  count: number | null;
-}
-
-/** No conversation folded. */
-const NONE_FOLDED: ReadonlySet<string> = new Set();
-
-/**
- * Needs you's list, made of the rows the badge counts (0048, amended 15 Nov 2026: the tab counted its own list, and said 1
- * under a badge of 2, and 40 under one of 26). It lists every conversation the rule puts there and every one whose person
- * the one count holds (a WhatsApp window shutting on a snoozed conversation, or a teammate's, is Today's row and so its),
- * folds whoever has waited past a week at its foot in no count, and draws a row of its own for what is counted and is no
- * conversation it holds. A conversation the rule puts there that Today's read does not hold yet (a message that came
- * between two reads) is listed, never hidden: the next read counts it. Before Today is read, the list is the rule's alone.
- */
-export function ixNeedsYouOf(
-  threads: readonly Thread[],
-  counted: CountedRows | null,
-  nowMs: number = Date.now(),
-): IxNeedsYou {
-  const own = (t: Thread) => ixBucketOf(t, nowMs) === "escalated";
-  if (!counted) return { listed: own, older: NONE_FOLDED, rows: [], olderRows: [], why: () => null, count: null };
-  const { groups, runs } = counted;
-  const conversationOf = (t: Thread) => (t.real ? t.conversationId : null);
-  const byConversation = (rows: readonly TodayQueueRowVM[]) =>
-    new Map(rows.flatMap((r) => (r.conversationId ? [[r.conversationId, r] as const] : [])));
-  const people = [...groups.next, ...groups.waiting];
-  const fresh = byConversation(people);
-  const old = byConversation(groups.old);
-  const rowOf = (t: Thread) => {
-    const c = conversationOf(t);
-    return c ? (fresh.get(c) ?? old.get(c) ?? null) : null;
-  };
-  const held = new Set(threads.flatMap((t) => (t.real ? [t.conversationId] : [])));
-  const away = (r: TodayQueueRowVM) => !r.conversationId || !held.has(r.conversationId);
-  const folded = threads.filter((t) => {
-    const c = conversationOf(t);
-    return !!c && old.has(c) && !fresh.has(c);
-  });
-  return {
-    listed: (t) => own(t) || rowOf(t) !== null,
-    older: folded.length ? new Set(folded.map((t) => t.id)) : NONE_FOLDED,
-    rows: [...people.filter(away), ...groups.ok],
-    olderRows: groups.old.filter(away),
-    why: (t) => (own(t) ? null : (rowOf(t)?.status[0] ?? null)),
-    count: needYouCountOf(groups, runs),
-  };
-}
-
 /**
  * The order a list stands in: a reply about to send first, then what needs you, each group in the server's order. In
  * Waiting, the threads you have, then a teammate's, then the rest. A teammate's thread sat above the one waiting on you (I2).
@@ -233,8 +160,8 @@ interface IxOpeningAt {
    * Needs you, a search's question or a run among them.
    */
   waiting: boolean;
-  /** Needs you's list, where Today has been read: the conversation it opens on is the first it draws, never a folded one. */
-  needsYou?: IxNeedsYou;
+  /** The conversations Needs you folds at its foot, by id, where Today has been read: never the one it opens on. */
+  older?: ReadonlySet<string>;
   toSendOpen?: boolean;
 }
 
@@ -279,39 +206,13 @@ export function ixOpeningThread(
 ): Thread | undefined {
   if (initialThreadId) return threads.find((t) => t.id === initialThreadId);
   const bucket = ixOpeningBucket(threads, null, at);
+  // Never one folded at Needs you's foot: the page opens it only when it is asked for (pages/needs-you-list.ts).
+  const folded = (t: Thread) => bucket === "escalated" && t.real && !!at.older?.has(t.conversationId);
   return threads
-    .filter((t) => ixDrawnIn(t, bucket, at.needsYou))
+    .filter((t) => (bucket === "all" || ixBucketOf(t) === bucket) && !folded(t))
     .sort((a, b) => ixRank(a) - ixRank(b))
     .at(0);
 }
-
-/**
- * Whether a bucket lists a conversation: All every one, Needs you what the one count holds, its folded ones among them
- * (ixNeedsYouOf), any other its own (ixBucketOf). The one rule the list and the pane both follow.
- */
-export const ixListedIn = (thread: Thread, bucket: string, needsYou?: IxNeedsYou): boolean => {
-  if (bucket === "all") return true;
-  if (bucket === "escalated" && needsYou) return needsYou.listed(thread);
-  return ixBucketOf(thread) === bucket;
-};
-
-/** Whether a bucket draws a conversation among its rows: what it lists, less whoever Needs you folds. */
-export const ixDrawnIn = (thread: Thread, bucket: string, needsYou?: IxNeedsYou): boolean =>
-  ixListedIn(thread, bucket, needsYou) && !(bucket === "escalated" && needsYou?.older.has(thread.id));
-
-/**
- * The thread drawn beside the list as the page opens with no address naming one: the first in the list's own order, a
- * reply about to send, then a thread that needs you. A teammate's thread opened in its place (I2). Never one folded at
- * Needs you's foot (`older`): whoever has waited past a week opens when they are asked for.
- */
-export const ixFirstOpen = (threads: readonly Thread[], older: ReadonlySet<string>): string | null => {
-  const drawn = threads.filter((x) => !older.has(x.id));
-  const first =
-    drawn.find((x) => ixSending(x)) ||
-    drawn.find((x) => x.state === "needs" || (x.real && ixWaitsOnYou(x))) ||
-    drawn[0];
-  return first?.id ?? null;
-};
 
 // ---- A bulk act's refusals, in words ----
 

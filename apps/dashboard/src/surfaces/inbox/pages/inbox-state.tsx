@@ -16,16 +16,13 @@ import {
   ixBucketOf,
   ixDraftKey,
   ixFirstBucket,
-  ixFirstOpen,
   ixHeld,
-  ixListedIn,
-  ixNeedsYouOf,
   ixOnPhone,
   ixOpeningBucket,
   ixReadAgain,
   ixWaitsOnYou,
-  type IxNeedsYou,
 } from "../rules";
+import { ixFirstOpen, ixListedIn, ixNeedsYouOf, useNeedsYouRows, type IxNeedsYou } from "./needs-you-list";
 import { ixKeepPlace, ixPlace } from "../place";
 import {
   appNavigate,
@@ -40,7 +37,7 @@ import {
   type SeededLead,
 } from "../shell";
 import { getSurfaceStatuses, onSurfaceMoved } from "@/bridge/surface-status";
-import { needsYouMoved, needsYouWaitsNow, useNeedsYouRows, waitingRunsNow } from "../../needs-you";
+import { needsYouMoved, needsYouWaitsNow, waitingRunsNow } from "../../needs-you";
 import { seePerson, threadReading, threadUnread, threadWhose } from "../../seen";
 import { inboxData, IX_STORE, VW_STORE, VW_UTIL, type Decision } from "../store";
 import { threadVerbs } from "../thread/thread-verbs";
@@ -231,7 +228,7 @@ export interface InboxState extends Omit<InboxAddress, "ownRouteRef"> {
   setPhoneThreadOpen: Dispatch<SetStateAction<boolean>>;
   activeView: string | null;
   setActiveView: Dispatch<SetStateAction<string | null>>;
-  /** Needs you's list, by the one count's rows (rules.ts ixNeedsYouOf): what it lists, folds, draws and says. */
+  /** Needs you's list, by the one count's rows (needs-you-list.ts ixNeedsYouOf): what it lists, folds, draws and says. */
   needsYou: IxNeedsYou;
   listedHere: (t: Thread) => boolean;
   stale: Stale | null;
@@ -271,7 +268,7 @@ export const useInboxState = (THREADS: Thread[], initialThreadId: string | null,
   useEffect(() => {
     if (toSendOpen) setActiveBucket("escalated");
   }, [toSendOpen]);
-  // The bucket's first row opens first, never one folded at Needs you's foot (rules.ts ixFirstOpen).
+  // The bucket's first row opens first, never one folded at Needs you's foot (needs-you-list.ts ixFirstOpen).
   const [activeThreadId, setActiveThreadId] = useState<string | null>(
     () => initialThreadId || ixFirstOpen(THREADS, needsYou.older),
   );

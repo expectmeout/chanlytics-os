@@ -33,7 +33,7 @@ import { needsYouRowsNow, needsYouWaitsNow } from "../needs-you";
 import { peopleHold, threadPersonSaid } from "../people/want-person";
 import { namedByRoute } from "./address";
 import { ixPlace } from "./place";
-import { ixNeedsYouOf, ixOnPhone, ixOpeningThread } from "./rules";
+import { ixOnPhone, ixOpeningThread } from "./rules";
 import { inboxThreadsOf, readHeldThreads, readThreadWhole, revivedThread } from "./read-apart";
 import { inboxData, REAL_BUCKETS, REAL_CHANNEL_LABELS } from "./store";
 import type { Thread } from "./types";
@@ -137,10 +137,12 @@ function openingThreadWaits(threads: Thread[]): void {
   // opens on what the page works out, which this does not guess.
   const named = param && /^th-[^/]+$/.test(param) ? param : null;
   if ((param && !named) || (!named && ixOnPhone()) || routeGateOpen(page, param)) return;
+  // Never a conversation Needs you folds at its foot, whoever has waited past a week: the page opens on what it draws.
+  const older = needsYouRowsNow()?.groups.old.flatMap((r) => (r.conversationId ? [r.conversationId] : []));
   const thread = ixOpeningThread(threads, named, {
     had: ixPlace().bucket,
     waiting: needsYouWaitsNow(),
-    needsYou: ixNeedsYouOf(threads, needsYouRowsNow()),
+    older: new Set(older),
   });
   if (!thread || !thread.real) return;
   firstDrawWaitsFor("inbox", surfaceSettles("settings"));
