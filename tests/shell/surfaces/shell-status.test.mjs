@@ -1245,8 +1245,9 @@ test("REGRESSION (N10): a real workspace's Calendar and Campaigns offer no prima
       null,
       "REGRESSION: Campaigns still loading, or failed, offered New campaign, which opened Ask",
     );
+    // The demo's detour (Book, which opened Ask) went with demo mode (16 Nov 2026): a session that says it is one gets none.
     win.__DEMO_MODE = true;
-    assert.equal(textOf(right("#/calendar")).trim(), "Book", "the demo keeps its detour");
+    assert.equal(right("#/calendar"), null, "no detour in a demo either");
     assert.equal(right("#/campaigns"), null, "the demo's Campaigns draws its New message in the page's own head");
     delete win.__DEMO_MODE;
     setSurfaceValue("calendar", { vm: { bookingLink: "https://book.example/luna" }, fetchedAt: 1 });
@@ -1592,7 +1593,7 @@ test("the frame fills the bridge's doors as it renders (a move, AI, a person's B
   }
 });
 
-test("People has no tab strip on a real workspace -- its one real tab is People, and Lists and Leads are views of it; the demo keeps its seeded Deal board, over every view (N24)", async () => {
+test("People has no tab strip -- its one real tab is People, and Lists and Leads are views of it; a session that says it is a demo draws the same (N24)", async () => {
   // The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
   // publishes it; its hooks are this file's stub's.
   const { useStubHooks } = await import("../../_stub-react.mjs");
@@ -1612,37 +1613,14 @@ test("People has no tab strip on a real workspace -- its one real tab is People,
     frames.begin();
     return win.SurfaceTabs({ page: "clients", param, onNavigate() {} });
   };
-  const labels = (tree) =>
-    tree
-      ? tree.rendered.props.children
-          .flat()
-          .filter((n) => n && String(n.props?.className || "").includes("stabs-tab"))
-          .map((b) => textOf(b).trim())
-      : null;
   for (const param of [null, "seg:opted_in", "list:regulars", "state:needs", "p-9"])
     assert.equal(tabsAt(param), null, `nothing to switch to at ${param}: one real tab is no strip`);
+  // The demo's seeded Deal board tab, the one other tab a demo had, went with demo mode (16 Nov 2026): a session that says
+  // it is one draws the same, the same over every view (N24).
   win.__DEMO_MODE = true;
   try {
-    // No Leads tab, in a demo either: the seeded Leads page is retired and Leads
-    // is a SCOPE of People (clients/leads), switched by the rail's own
-    // People | Leads. The Deal board is the one seeded page left to switch to,
-    // which is exactly two tabs -- the bar's own floor.
-    assert.deepEqual(
-      labels(tabsAt(null)),
-      ["People", "Deal board"],
-      "the demo's seeded tabs, and no Lists or Leads among them",
-    );
-    assert.deepEqual(
-      labels(tabsAt("list:regulars")),
-      ["People", "Deal board"],
-      "REGRESSION (N24): a list you keep lost the tabs",
-    );
-    assert.deepEqual(
-      labels(tabsAt("state:needs")),
-      ["People", "Deal board"],
-      "REGRESSION (N24): a state lost the tabs",
-    );
-    assert.equal(tabsAt("p-9"), null, "a person's profile keeps its focus");
+    for (const param of [null, "list:regulars", "state:needs", "p-9"])
+      assert.equal(tabsAt(param), null, `a demo draws no strip either at ${param}`);
   } finally {
     delete win.__DEMO_MODE;
   }

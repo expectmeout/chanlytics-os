@@ -41,7 +41,7 @@ function OutlineRow({ item, rail }: { item: NavItem; rail: boolean }) {
 
 /**
  * The sidebar, open or a rail, as the frame draws it (sidebar/sidebar.tsx Sidebar): the workspace's row, the places in
- * their groups, the rail's toggle and the account. The demo's places and agents are a demo session's, never a load's.
+ * their groups, the rail's toggle and the account.
  */
 function OutlineSidebar({ rail }: { rail: boolean }) {
   return (
@@ -58,11 +58,9 @@ function OutlineSidebar({ rail }: { rail: boolean }) {
           {NAV_GROUPS.map(({ items, label }, i) => (
             <div className="sidebar-section" key={i}>
               {label && !rail && <div className="sidebar-label">{label}</div>}
-              {items
-                .filter((item) => !item.demoOnly)
-                .map((item) => (
-                  <OutlineRow key={item.id} item={item} rail={rail} />
-                ))}
+              {items.map((item) => (
+                <OutlineRow key={item.id} item={item} rail={rail} />
+              ))}
             </div>
           ))}
         </nav>

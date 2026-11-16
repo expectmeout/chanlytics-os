@@ -1,12 +1,11 @@
 /**
  * Who is signed in and which workspace is on screen, as the sidebar says them (moved from legacy/components/sidebar.jsx,
  * the one-system plan's step 7b). Every word about a person comes from contracts' identity rules through the bridge
- * (`__identity`); the workspace is the one being viewed (`__ACTIVE_WORKSPACE`), never the first on the list. The demo
- * keeps its persona; signed in with no identity yet, the sidebar says so rather than borrow someone else's name.
+ * (`__identity`); the workspace is the one being viewed (`__ACTIVE_WORKSPACE`), never the first on the list. Signed in
+ * with no identity yet, the sidebar says so rather than borrow someone else's name.
  */
 import type { SyntheticEvent } from "react";
 import { identityWords } from "@chanlytics/contracts";
-import { isDemoFrame } from "../frame-window";
 
 /** A workspace as the switcher draws it: the workspace read's row (bridge/surface-data.ts). */
 type SbWorkspace = NonNullable<Window["__WORKSPACES"]>[number] & {
@@ -36,8 +35,7 @@ export const sbWorkspace = (): SbWorkspace | null =>
 
 export const sbWorkspaceName = (): string => {
   const ws = sbWorkspace();
-  if (ws && ws.name) return ws.name;
-  return isDemoFrame() ? "Chanlytics Sales" : "Workspace";
+  return ws && ws.name ? ws.name : "Workspace";
 };
 
 /** A workspace's initials: contracts' one rule (workspaceInitials), which the bridge publishes as __identity.workspace. */
@@ -85,20 +83,13 @@ export const sbTeamSub = () => {
   return n > 1 ? <div className="sb-team-plan">{n} workspaces</div> : null;
 };
 
-const SB_DEMO_WHO: SbWho = {
-  name: "Sarah Chen",
-  email: "sales@chanlytics.com",
-  initials: "SC",
-  role: "Owner",
-  named: true,
-};
 const SB_NOBODY: SbWho = { name: "Your account", email: "Signed in", initials: "—", role: "", named: false };
 
 // The person, in the words contracts' identity rules give: the name they gave, else "Your account", never a name invented
-// from the email. The demo keeps its persona; signed in with no identity yet, we say so.
+// from the email. Signed in with no identity yet, we say so.
 export const sbWho = (): SbWho => {
   const me = window.__ME || null;
-  if (!me) return isDemoFrame() ? SB_DEMO_WHO : SB_NOBODY;
+  if (!me) return SB_NOBODY;
   const w = window.__identity ? window.__identity.words(me) : identityWords(me);
   return { name: w.name, email: w.email, initials: w.initials, role: w.role, named: w.named };
 };

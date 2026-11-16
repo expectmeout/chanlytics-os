@@ -109,12 +109,12 @@ const drawn =
 const missing = (heard, names) => names.filter((n) => !heard.has(n));
 const present = (heard, names) => names.filter((n) => heard.has(n));
 
-test("the top bar of a real workspace listens for none of the mockup's bell rows, and a demo's for the ones its pages send", () => {
+test("the top bar listens for none of the mockup's bell rows, in a session that says it is a demo too", () => {
   const real = heardWhile(false, drawn(W.Topbar, { crumbs: [] }));
   assert.deepEqual(present(real, [...NO_SENDER, ...THE_DEMOS]), [], "a real session registers none of them");
+  // The demo's bell and its presence control went with demo mode (16 Nov 2026): the switch changes nothing here now.
   const demo = heardWhile(true, drawn(W.Topbar, { crumbs: [] }));
-  assert.deepEqual(missing(demo, THE_DEMOS), [], "the demo's bell hears what its pages, its lead and its verdict send");
-  assert.deepEqual(present(demo, NO_SENDER), [], "and none of the five that nothing sends");
+  assert.deepEqual(present(demo, [...NO_SENDER, ...THE_DEMOS]), [], "nor does a session that says it is a demo");
 });
 
 test("the live bar redraws on the live feed alone: a call that ends is a row on it, and no event says so", () => {
@@ -122,7 +122,7 @@ test("the live bar redraws on the live feed alone: a call that ends is a row on 
   assert.equal(heard.has("live:ended"), false);
 });
 
-test("the sidebar hears the workspace read; the count of what needs you is handed in, not heard, a fleet pause is the demo's, and the credits, the call ends and a patched-ahead name left", () => {
+test("the sidebar hears the workspace read; the count of what needs you is handed in, not heard, and a fleet pause, the credits, the call ends and a patched-ahead name left", () => {
   const real = heardWhile(false, drawn(W.Sidebar, { onNavigate() {} }));
   assert.deepEqual(missing(real, ["surface:workspace"]), [], "what redraws it in a workspace");
   assert.deepEqual(
@@ -130,8 +130,9 @@ test("the sidebar hears the workspace read; the count of what needs you is hande
     [],
     "and nothing a real session never hears, nor a number the Inbox and Today once sent over each other's (decision 0048)",
   );
+  // The demo's strip of agents went with demo mode (16 Nov 2026): a session that says it is one hears no pause either.
   const demo = heardWhile(true, drawn(W.Sidebar, { onNavigate() {} }));
-  assert.equal(demo.has("fleet:status"), true, "the demo's strip of agents follows a pause");
+  assert.equal(demo.has("fleet:status"), false, "no strip of agents to follow a pause");
   assert.deepEqual(present(demo, NO_SENDER), []);
 });
 

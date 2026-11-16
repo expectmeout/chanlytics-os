@@ -8,7 +8,7 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 import { firstRowsStand } from "@chanlytics/contracts";
 import type { watchKeyboard } from "../kit/motion/keyboard";
 import { isDocumentScroller, scrollerOf } from "../kit/motion/page-scroll";
-import { frameChrome, frameShell, frameSurfaceState, fromWindow, isDemoFrame } from "./frame-window";
+import { frameChrome, frameShell, frameSurfaceState, fromWindow } from "./frame-window";
 import { parseRoute, routeFailed, routeReady, shellAddress, type RouteAt, type ShellRoute } from "./shell-routes";
 import { stripPlace, stripSlide } from "./surface-tabs";
 
@@ -59,8 +59,7 @@ export const useInboxNeeds = () => (window.useNeedsYou ? window.useNeedsYou() : 
  * the frame runs as the route changes, and returns what undoes it.
  *
  * The honesty gate: one interception, every route. The registry classifies each surface real or demo (`__surfaceState`);
- * a demo surface renders only in a session that declared itself one, and elsewhere the route table's landing stands
- * (route-table.tsx routeGated). The standalone mockup has no registry, and everything renders there.
+ * a demo surface renders nowhere, and the route table's landing stands in its place (route-table.tsx routeGated).
  */
 export function useRouteGate({ page, param, routeKey }: RouteAt) {
   const [timedOutKey, setTimedOutKey] = useState<string | null>(null);
@@ -105,7 +104,7 @@ export function useRouteGate({ page, param, routeKey }: RouteAt) {
   const surfaceUnavailable = !surfaceReady && (routeFailed(page, param) || timedOutKey === routeKey);
   const routeLoading = !surfaceReady && !surfaceUnavailable;
   const surfaceState = frameSurfaceState();
-  const demoGated = !isDemoFrame() && !!surfaceState && surfaceState(page, param) === "demo";
+  const demoGated = !!surfaceState && surfaceState(page, param) === "demo";
   return { demoGated, routeLoading, surfaceUnavailable, arm, setReadyTick };
 }
 

@@ -7,7 +7,7 @@
  * brief; /inbox; /clients, People; /clients/pipeline; /clients/<id>, a person; /soon/<surface>, an in-design landing.
  */
 import { CHANLY } from "./constants";
-import { frameSurfaceState, isDemoFrame } from "./frame-window";
+import { frameSurfaceState } from "./frame-window";
 
 /** A route's page and its param, as drawn. */
 export interface ShellRoute {
@@ -63,7 +63,7 @@ export const routeAt = (route: ShellRoute): RouteAt => {
   const soonState =
     route.page === "soon" && route.param && surfaceState ? surfaceState(route.param) || "unknown" : null;
   const { page, param } = soonState === "real" ? { page: route.param || "", param: null } : route;
-  const retiredTo = (window.__surfaceRetired && window.__surfaceRetired(page, param, isDemoFrame())) || null;
+  const retiredTo = (window.__surfaceRetired && window.__surfaceRetired(page, param, false)) || null;
   // The gate is asked per PANE, so this key must carry the param. What the surface is MOUNTED under is the route table's.
   const routeKey = `${page}/${param || ""}`;
   return { page, param, raw: route, soonState, retiredTo, routeKey };
@@ -74,7 +74,6 @@ export const NAV_ROUTE: Readonly<Partial<Record<string, string>>> = {
   home: "today",
   people: "clients",
   campaigns: "campaigns",
-  agents: "fleet",
   inbox: "inbox",
   clients: "clients",
   store: "store",

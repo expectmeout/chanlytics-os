@@ -36,7 +36,6 @@ import {
 } from "@chanlytics/contracts";
 import { deviceSealed } from "@/client/kept-on-device";
 import { hearPartReady, speedHost } from "@/client/page-speed";
-import { isDemoFrame } from "./frame-window";
 
 /** The frame itself, never the outline under it. */
 const FRAME = ".app-root:not(.frame-outline)";
@@ -152,7 +151,7 @@ function keepNow(): void {
     const page = at && FIRST_ROWS_PAGES[at.word];
     const sheets = document.documentElement.getAttribute(FIRST_ROWS_SHEETS_ATTR);
     if (!at || !page || !sheets || location.search || location.hash) return;
-    if (innerWidth > FIRST_ROWS_WIDEST_PX || scrollY > 2 || isDemoFrame()) return;
+    if (innerWidth > FIRST_ROWS_WIDEST_PX || scrollY > 2) return;
     const root = document.querySelector(FRAME);
     const html = root && copyOfScreen(root, page.rows);
     if (!html) return;

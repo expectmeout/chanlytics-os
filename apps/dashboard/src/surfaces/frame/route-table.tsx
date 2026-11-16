@@ -11,10 +11,9 @@
  * buttons and all, until the frame's kit step (eslint KIT_PENDING).
  */
 import type { ReactNode } from "react";
-import { askAbout } from "../frame-doors";
 import type { HeadFirst } from "../kit/head/standing";
 import type { SurfaceAct, SurfaceRoute, SurfaceViews } from "../routes";
-import { frameGlyph, isDemoFrame } from "./frame-window";
+import { frameGlyph } from "./frame-window";
 
 type Crumb = string | { label: string; to?: string; go?: unknown };
 
@@ -104,16 +103,6 @@ function ComingSoon({ surface, onNavigate }: { surface: string; onNavigate: (to:
         <button className="btn btn-sm" onClick={() => onNavigate("today")}>
           <Glyph name="home" size={12} /> Back to Today
         </button>
-        {/* Outside a demo askAbout opens the Line, which answers about this workspace, and a page this release does not
-            have is nothing to ask it about: the button is the demo's, where the seed palette answers. */}
-        {isDemoFrame() && (
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => askAbout({ mode: "compose", prompt: "About " + meta.title + ": " })}
-          >
-            <Glyph name="sparkle" size={12} /> Ask about {meta.title}
-          </button>
-        )}
       </div>
     </div>
   );
@@ -168,8 +157,8 @@ const drawNotFound = ({ page, navigate }: DrawnRoute) => ({
 });
 
 // ---- The honesty gate, applied -------------------------------------------
-// The frame derives whether a route is gated (shell-hooks.ts useRouteGate: the registry marks the surface demo and the
-// session did not declare itself one) and hands the answer in as `demoGated`; here the row's answer is replaced by the
+// The frame derives whether a route is gated (shell-hooks.ts useRouteGate: the registry marks the surface demo) and
+// hands the answer in as `demoGated`; here the row's answer is replaced by the
 // honest card. Everything the row computed from seed data is reset, and the nav item it lit stays lit.
 const routeGated = (drawn: RouteAnswer, { page, navigate }: DrawnRoute): RouteAnswer => ({
   ...drawn,
@@ -197,10 +186,10 @@ export const SHELL_ROUTES: readonly RouteRow[] = [
   { page: "soon", when: (param) => !!param, draw: drawSoon },
 ];
 
-// The top bar's act a moved surface names (surfaces/routes.ts SurfaceAct): a link out (the Calendar's booking link), or
-// the Ask door, which only a demo session offers (a primary button that did nothing sat in the real chrome). The door
-// composes from the words the surface gives (`prompt`), else it opens Ask.
-function surfaceAct(act: SurfaceAct, openAsk: (() => void) | undefined): ReactNode {
+// The top bar's act a moved surface names (surfaces/routes.ts SurfaceAct): a link out (the Calendar's booking link). The Ask
+// door an act could name was a demo session's alone (a primary button that did nothing sat in the real chrome), and went
+// with demo mode (16 Nov 2026).
+function surfaceAct(act: SurfaceAct): ReactNode {
   const cls = `btn ${act.primary ? "btn-primary " : ""}btn-sm`;
   const Glyph = frameGlyph();
   if (act.href) {
@@ -211,14 +200,7 @@ function surfaceAct(act: SurfaceAct, openAsk: (() => void) | undefined): ReactNo
       </a>
     );
   }
-  if (!isDemoFrame() || !act.ask) return null;
-  const prompt = act.prompt;
-  return (
-    <button className={cls} onClick={prompt ? () => askAbout({ mode: "compose", prompt }) : openAsk}>
-      <Glyph name={act.glyph} size={12} />
-      {" " + act.label}
-    </button>
-  );
+  return null;
 }
 
 /** A moved route's surface, where it takes this address: every address under it (`params`), or the ones `takes` says. */
@@ -254,7 +236,7 @@ function surfaceAnswer(surface: SurfaceRoute, r: DrawnRoute): Partial<RouteAnswe
     ownHead: !!(chrome && chrome.ownHead),
     // What the page will say in the head, said from the first draw (Today's greeting): no crumb drawn and taken back.
     head: (chrome && chrome.head) || null,
-    primaryAction: act ? surfaceAct(act, r.openAsk) : null,
+    primaryAction: act ? surfaceAct(act) : null,
     content: r.routePage,
     mount: (chrome && chrome.mount) || surface.mount,
   };

@@ -518,7 +518,9 @@ test("the tab bar offers what the registry says is real, and only that", () => {
     ([, id, to, rest]) => ({ id, to, demoOnly: /demoOnly: true/.test(rest) }),
   );
   // Campaigns' three tabs went with its strip (3 Oct 2026): the home is one page, and Sent and the Library are rooms reached from it.
-  assert.ok(rows.length >= 9, `parsed ${rows.length} tabs — the shape of the file changed`);
+  // The demo-only tabs (the Deal board, Content, and the Agents pages' four) went with demo mode (16 Nov 2026): People and
+  // the Inbox's three are left.
+  assert.ok(rows.length >= 4, `parsed ${rows.length} tabs — the shape of the file changed`);
 
   for (const t of rows) {
     const state = SURFACE_STATES[t.to];

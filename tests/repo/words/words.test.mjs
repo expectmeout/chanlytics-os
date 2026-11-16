@@ -204,12 +204,8 @@ test("who reads a file is said by where it lives", () => {
  * Inbox's pass (docs/words.md, the cleanup, 3). The list may only shrink.
  */
 const THE_DEMO_STILL_SAYS_AGENT = [
-  "apps/dashboard/src/surfaces/frame/places.ts",
   "apps/dashboard/src/surfaces/frame/route-table.tsx",
   "apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx",
-  "apps/dashboard/src/surfaces/frame/surface-tabs.tsx",
-  "apps/dashboard/src/surfaces/frame/topbar/bell-demo-acts.tsx",
-  "apps/dashboard/src/surfaces/frame/topbar/bell-demo.ts",
   "apps/dashboard/src/surfaces/inbox/pages/agent-rail.tsx",
   "apps/dashboard/src/surfaces/inbox/sample.ts",
   "apps/dashboard/src/surfaces/inbox/sample/conversations.ts",

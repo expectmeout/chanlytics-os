@@ -9,12 +9,11 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
 import type { FrameFlash } from "../../frame-verbs";
 import { warmSettingsPane } from "../../settings/frame/pane-reads";
-import { frameBell, frameChrome, frameGlyph, framePortal, isDemoFrame } from "../frame-window";
+import { frameBell, frameChrome, frameGlyph, framePortal } from "../frame-window";
 import {
   SbWorkspaceFace,
   sbWho,
   sbWorkspace,
-  sbWorkspaceName,
   sbWorkspaceRole,
   sbWorkspaces,
   sbWorkspacesRead,
@@ -184,12 +183,8 @@ export function SbMenu({
 // says so, and nothing here draws a key.
 export function WorkspaceMenu({ onNavigate, close }: { onNavigate: (to: string) => void; close: () => void }) {
   const Glyph = frameGlyph();
-  const all = sbWorkspacesRead()
-    ? sbWorkspaces()
-    : isDemoFrame()
-      ? [{ id: "demo", slug: "demo", name: sbWorkspaceName(), status: "active", timezone: "" }]
-      : [];
-  const active = sbWorkspace() || (isDemoFrame() ? all[0] : null) || null;
+  const all = sbWorkspacesRead() ? sbWorkspaces() : [];
+  const active = sbWorkspace() || null;
   const role = sbWho().role;
   return (
     <>
@@ -219,7 +214,7 @@ export function WorkspaceMenu({ onNavigate, close }: { onNavigate: (to: string) 
         );
       })}
       <div className="more-divider" />
-      {!isDemoFrame() && window.__shell && (
+      {window.__shell && (
         <button
           className="more-item"
           role="menuitem"
@@ -285,7 +280,7 @@ function UserMenuHead({ who }: { who: SbWho }) {
 function UserMenuDoors({ who, onNavigate, close }: Pick<UserMenuProps, "who" | "onNavigate" | "close">) {
   const Glyph = frameGlyph();
   const bell = frameBell();
-  const real = !isDemoFrame() && bell ? bell : null;
+  const real = bell ? bell : null;
   const alerts = real ? real.alerts() : null;
   const go = (to: string) => () => {
     close();
@@ -377,14 +372,11 @@ function UserMenuLooks({
 // shortcuts sheet on a desk (a pointer's door to it: the sheet opens on ? for a hand on the keys, and a phone needs no keys;
 // Ruben, 23 Sep 2026), and sign out.
 export function UserMenu(props: UserMenuProps) {
-  const { close, flash } = props;
+  const { close } = props;
   const Glyph = frameGlyph();
   const signOut = () => {
     close();
-    if (isDemoFrame() || !window.__shell) {
-      flash({ tone: "info", msg: <>Nothing to sign out of in the demo.</> });
-      return;
-    }
+    if (!window.__shell) return;
     window.__shell.signOut();
   };
   return (
