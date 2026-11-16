@@ -174,7 +174,7 @@ const btAgain = <D,>(cx: BtListCx<D>, id: number, back: () => boolean, opening: 
         return false;
       }
       if (cx.latest().length >= cx.max) {
-        if (cx.full) cx.ed.flash({ tone: "warn", msg: <>Not put back — {cx.full}</> });
+        if (cx.full) cx.ed.flash({ tone: "warn", msg: <>Not put back · {cx.full}</> });
         return false;
       }
       if (!back()) return false;

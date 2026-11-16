@@ -43,7 +43,7 @@ export interface PartnerInvitationDto {
 export const PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
   title: "Your partner",
-  intro: `Someone who sets up and runs AI with you, never billing or the team. Ask one by their code; they have ${PARTNER_INVITE_DAYS} days to accept.`,
+  intro: `Someone who sets up and runs AI with you, never billing or the team. Ask one by their code · they have ${PARTNER_INVITE_DAYS} days to accept.`,
   codeLabel: "Their code or link",
   codePlaceholder: "their-code",
   invite: "Ask them",
@@ -52,7 +52,7 @@ export const PARTNER_INVITE_WORDS = {
   withdrawing: "Taking it back…",
   /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
   notSent:
-    "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+    "Asked, but their email didn't go. It is on their Partner page when they sign in · to send the email again, take it back and ask again.",
   failed: "your partner",
   failedAnswer: "the invitation",
   /** Settings › Partner, the partner's pane. */
@@ -132,7 +132,7 @@ export function partnerJoinedWords(workspace: string, earns: boolean): string {
   const name = workspace.trim() || "The workspace";
   return earns
     ? `You're ${name}'s partner. When it pays for its plan, your share is written as for a workspace you brought.`
-    : `You're ${name}'s partner. It was already paying when you joined, so it earns you no share; the owner's team is yours to help run.`;
+    : `You're ${name}'s partner. It was already paying when you joined, so it earns you no share · the owner's team is yours to help run.`;
 }
 
 /**

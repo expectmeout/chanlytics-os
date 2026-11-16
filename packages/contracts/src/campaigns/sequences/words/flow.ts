@@ -5,7 +5,7 @@ import { isOccasionTrigger, occasionWords } from "../../playbooks/triggers/occas
 import { owedOncePerMoment } from "../../playbooks/triggers/notices";
 import { clockDate } from "../../../shared/clock";
 import { capitalize, plural } from "../../../shared/words";
-import { CAMPAIGN_ROOMS, RUN_WAITING_SHORT } from "../../../shell/campaign-rooms";
+import { CAMPAIGN_ROOMS, RUN_WAITING_SHORT, SLOW_REVIEW_WORDS } from "../../../shell/campaign-rooms";
 import { runWaitsOnYou, type RunDays } from "../../../waits/waits";
 import type { SequenceRowDto } from "../dto";
 import { SEQUENCE_MODE_WORDS, sequenceModeOf, type SequenceState } from "../sequence";
@@ -46,14 +46,14 @@ export const SEQUENCE_WORDS = {
   /** End it (a customer's sequence that has sent), asked first in the record's More: it sends nothing more, its history stays. */
   end: "End it",
   endAsk: (name: string) => `End “${name}”?`,
-  endDetail: "It sends nothing more and nobody is added to it; what it sent stays in its History.",
+  endDetail: "It sends nothing more and nobody is added to it · what it sent stays in its History.",
   endedLine: "Ended · it sends nothing more. What it sent stays in its History.",
   tabs: { steps: "Steps", people: "People", leads: "Leads", history: "History" },
   addFollowUp: "Add a follow-up",
   approve: "Approve",
   skip: "Skip",
   skipAsk: "Skip this send?",
-  skipDetail: "Nobody in it gets this step from this send; the campaign goes on with its next one.",
+  skipDetail: "Nobody in it gets this step from this send · the campaign goes on with its next one.",
   lookFirst: "Look first",
   pause: "Pause",
   resume: "Turn on",
@@ -118,7 +118,7 @@ export const SEQUENCE_FLOW_WORDS = {
   mailboxes: "Mailboxes",
   checked: "Each one is checked before it goes",
   takeAwayAsk: (place: number) => `Take step ${place} away?`,
-  takeAwayDetail: "The steps after it go with it; nobody waiting for it hears more from this campaign.",
+  takeAwayDetail: "The steps after it go with it · nobody waiting for it hears more from this campaign.",
   /** A call or a note asked away: it is always the last step, so nothing goes with it. */
   takeAwayHandDetail: "Nobody still waiting for it lands on your Today.",
   /** New words a step waits on WhatsApp for, or that WhatsApp turned down: said without the message's stored name. */
@@ -165,12 +165,16 @@ export function takesFollowUps(row: Pick<SequenceRowDto, "starts" | "first">): b
   return row.first?.trigger !== "visit_tomorrow" && row.first?.trigger !== "visit_soon";
 }
 
-/** A message's WhatsApp standing, as a step's line says it beside its words: the tone the kit's pill draws it in. */
+/**
+ * A message's WhatsApp standing, as a step's line says it beside its words: the tone the kit's pill draws it in. `slow`:
+ * WhatsApp has been checking it for over a day (templates reviewIsSlow), and the pill says it is taking longer.
+ */
 export function stepApprovalOf(
   status: string | null | undefined,
+  slow: boolean,
 ): { label: string; tone: "ok" | "warn" | "danger" } | null {
   if (status === "approved") return { label: "Approved", tone: "ok" };
-  if (status === "pending") return { label: "In review", tone: "warn" };
+  if (status === "pending") return { label: slow ? SLOW_REVIEW_WORDS.pill : "In review", tone: "warn" };
   if (status === "rejected") return { label: "Not approved", tone: "danger" };
   if (status === "paused" || status === "disabled") return { label: "Paused by WhatsApp", tone: "danger" };
   return null;

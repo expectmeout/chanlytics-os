@@ -719,7 +719,7 @@ test("an undo refused part-way says what is already deleted, then the refusal; p
   const outcome = { state: "done", receipt: "r", atMs: 1, undo: kept };
   const first = await undoProposal(win, p, outcome, client);
   assert.equal(first.ok, false);
-  assert.equal(first.message, `Its email version is deleted; its text version is not: ${STILL_USED}`);
+  assert.equal(first.message, `Its email version is deleted · its text version is not: ${STILL_USED}`);
   assert.equal(first.message, PROPOSAL_SPECS.message.undo.partial(kept, 1, STILL_USED));
   assert.deepEqual(removed, ["email", "refused:sms"]);
   assert.deepEqual(sent, [`${p.id}:undo`, `${p.id}:undo:2`]);

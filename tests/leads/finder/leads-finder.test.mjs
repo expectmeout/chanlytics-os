@@ -408,11 +408,11 @@ test("Leaving out is chips the owner can take back, Likely says what past search
   const tree = drawCard(st);
   assert.equal(
     textOf(byTestId(tree, "plan-likely")),
-    "About 116 will have an email; the rest you call · from past searches for trainers",
+    "About 116 will have an email · the rest you call · from past searches for trainers",
   );
   assert.equal(
     textOf(byTestId(tree, "plan-facts")),
-    "About 40 to 80 minutes — leave the page if you likeAnything already yours is skippedCounts only matches with a checked email · 486 left this month",
+    "About 40 to 80 minutes · leave the page if you likeAnything already yours is skippedCounts only matches with a checked email · 486 left this month",
   );
   assert.equal(/\$/.test(textOf(tree)), false, "there is no dollar meter");
   const chip = byTestId(tree, "plan-leaving-chain");

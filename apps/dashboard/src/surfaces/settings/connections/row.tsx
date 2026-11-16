@@ -455,7 +455,7 @@ function rowAsk(
       <Confirm
         className="set-row-ask"
         question="Disconnect Google?"
-        detail="The public listing stays; replies and the full history do not."
+        detail="The public listing stays · replies and the full history do not."
         yes="Yes, disconnect"
         danger
         busy={busy}

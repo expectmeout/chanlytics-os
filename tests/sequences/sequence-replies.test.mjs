@@ -42,7 +42,7 @@ test("its line: whose replies and over which days, and how many are here when so
   assert.equal(W.line("Win-back", "all", 1), "1 reply to Win-back, since it began");
   assert.equal(W.line("Win-back", "90", 0), "Nobody wrote back to Win-back in the last 90 days");
   assert.equal(W.shown(12, 12), null, "all of them here: nothing more to say");
-  assert.equal(W.shown(9, 12), "9 of them are here; the rest are older");
+  assert.equal(W.shown(9, 12), "9 of them are here · the rest are older");
 });
 
 const msg = (conversation_id, ms, over = {}) => ({

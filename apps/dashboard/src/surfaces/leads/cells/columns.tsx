@@ -226,7 +226,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
     key: "reach",
     label: "Reach",
     group: LEAD_COLUMN_GROUPS.reach,
-    hint: "A half circle is an address not confirmed; a line through is a number marked wrong",
+    hint: "A half circle is an address not confirmed · a line through is a number marked wrong",
     width: { base: 208, min: 160, max: 280 },
     cell: reachCell,
   },

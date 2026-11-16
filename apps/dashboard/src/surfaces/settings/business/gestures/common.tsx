@@ -53,7 +53,7 @@ export const btSkipFlash: Flash = () => undefined;
 
 // What the four rows that are only words say once the server has taken a change: the canvas's Edit-Inline words. The
 // two number rows keep the sentences they have always said (PublishedNumberRow, HandoffRow).
-export const BT_SAVED = "Saved — AI picks it up within a minute";
+export const BT_SAVED = "Saved · AI picks it up within a minute";
 
 export const btNoCheck = () => null;
 
@@ -170,9 +170,9 @@ export const useBtChanged = (text: string | null | undefined) => {
 
 // What a toast's Undo says when it can put nothing back: the fold it was in has closed, or its save is out, or the list
 // the row came from was replaced whole since (a day's hours copied over another's).
-export const BT_UNDO_CLOSED = "Not put back — the editor it was in has closed. Open it again to change it.";
-export const BT_UNDO_SAVING = "Not put back — this is being saved.";
-export const BT_UNDO_REPLACED = "Not put back — the list it came from was replaced since, so it has no place to go.";
+export const BT_UNDO_CLOSED = "Not put back · the editor it was in has closed. Open it again to change it.";
+export const BT_UNDO_SAVING = "Not put back · this is being saved.";
+export const BT_UNDO_REPLACED = "Not put back · the list it came from was replaced since, so it has no place to go.";
 
 /* ------------------------------------ the rows an Undo may still put back ------------------------------------ */
 
@@ -240,7 +240,7 @@ export const BtPutBacks = Object.freeze({
 });
 // What a Save says when its own checks could not run: nothing was sent, and the editor stays open with what was typed.
 export const BT_UNCHECKED =
-  "Not saved — this couldn't be checked, so nothing was sent. Try again, and tell us if it keeps happening.";
+  "Not saved · this couldn't be checked, so nothing was sent. Try again, and tell us if it keeps happening.";
 
 /** The row's own way out in place of the tab's saver: the timezone, which is the workspace's. */
 export interface BtRowDoor<D> {

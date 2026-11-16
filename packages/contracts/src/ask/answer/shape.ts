@@ -237,7 +237,7 @@ const KIND_WORDS: Record<"en" | "es", Record<AskCitationKind, string>> = {
     list: "List",
     broadcast: "Sent once",
     playbook: "Campaign",
-    template: "Template",
+    template: "Message",
     mailbox: "Mailbox",
     visit: "Booking",
     review: "Review",

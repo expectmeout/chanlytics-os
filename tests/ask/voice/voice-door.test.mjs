@@ -351,7 +351,7 @@ test("a database that cannot be asked for the member speaks a failure and keeps 
     },
   };
   w.deps.verify = async () => ({ supabase: down, claims: { sub: USER, email: "ada@example.com" }, error: null });
-  assert.deepEqual(spoken(await frames(await knock(w))), ["Something went wrong on my side. Try again in a moment."]);
+  assert.deepEqual(spoken(await frames(await knock(w))), ["I couldn't finish that. Try again in a moment."]);
   assert.ok(!w.tables.ask_voice_sessions[0].ended_at, "the row stands");
 });
 

@@ -99,7 +99,7 @@ const LrLineNote = ({ line, lineRead = true }: { line: LiveLineVM | null; lineRe
       <FailedRead
         kind="line"
         what="the phone line"
-        body="Calls still show here; whether the line is on is unknown until it reads."
+        body="Calls still show here · whether the line is on is unknown until it reads."
         surface="live"
         testid="live-line-failed"
       />

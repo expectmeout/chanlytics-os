@@ -88,7 +88,7 @@ export const SIGNUP_WORDS = {
    */
   notSentTitle: "We couldn't send your code",
   notSent:
-    "We couldn't send the sign-in code just now. Wait a few minutes and ask for it again from the sign-in page — nothing is lost.",
+    "We couldn't send the sign-in code just now. Wait a few minutes and ask for it again from the sign-in page · nothing is lost.",
   /* ---------------------------------------------------------- the waitlist
    * Said the way a person would say it: what is true, when they will hear,
    * and no apology. "We are onboarding businesses in small groups" is the
@@ -99,7 +99,7 @@ export const SIGNUP_WORDS = {
   waitlistLead:
     "We are onboarding businesses in small groups, so every new workspace gets set up properly. Leave your details and we will send you an invite.",
   waitlistSent: (email: string) =>
-    `You are on the list. We will write to ${email} when there is room — usually within a week.`,
+    `You are on the list. We will write to ${email} when there is room · usually within a week.`,
   waitlistCta: "Join the list",
   /** Under the business's name on the first-workspace screen: the list writes to the address the person signed in with. */
   waitlistWriteTo: (email: string) => `We will write to ${email} when there is room.`,
@@ -311,7 +311,7 @@ export function requestCodeWords(
   if (wait) return `Please wait ${wait[1]}s before requesting another code.`;
   if (sendFailureIsOurs(input)) return SIGNUP_WORDS.notSent;
   if (/security purposes|rate limit|too many/i.test(message))
-    return "Too many requests just now — wait a minute and try again.";
+    return "Too many requests just now · wait a minute and try again.";
   // Anything that distinguishes "no such account" from "code sent" is
   // deliberately swallowed. A genuine outage still surfaces below.
   if (/signup|otp_disabled|not allowed|not found|invalid/i.test(message)) return null;
@@ -321,10 +321,10 @@ export function requestCodeWords(
 /** Errors on the VERIFY step, where the account is already implied. */
 export function verifyCodeWords(message: string): string {
   if (/expired|invalid/i.test(message) && /token|otp|code/i.test(message)) {
-    return "That code didn't match or has expired — request a new one.";
+    return "That code didn't match or has expired · request a new one.";
   }
   if (/security purposes|rate limit|too many/i.test(message)) {
-    return "Too many attempts — wait a minute before trying again.";
+    return "Too many attempts · wait a minute before trying again.";
   }
   return message;
 }

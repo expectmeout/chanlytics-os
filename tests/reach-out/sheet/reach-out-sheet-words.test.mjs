@@ -121,10 +121,13 @@ test("Start says what really happened, each reason in its own words; within the 
     said("held", "no_room"),
     "Saved. Your mailboxes have written all they may today, so the first run is tomorrow.",
   );
-  assert.equal(said("empty", "nobody"), "Saved. Nobody on this search can be written to yet; it looks again each day.");
+  assert.equal(
+    said("empty", "nobody"),
+    "Saved. Nobody on this search can be written to yet · it looks again each day.",
+  );
   assert.equal(
     said("sent", null, 1),
-    "Planned 1 email. They go in each business's hours; you have 30 minutes to stop them.",
+    "Planned 1 email. They go in each business's hours · you have 30 minutes to stop them.",
   );
   assert.equal(said("unreached", null), "Saved. The first run is planned within the hour.");
   assert.equal(said("off", "paused"), "Saved. It is paused, so nothing was planned.");
@@ -163,7 +166,7 @@ test("the next run says a paused chain, billing and a waiting run as they are, t
   );
   assert.deepEqual(nextRunWords(chain({}, { waiting_run_id: "b" }), TZ, at), {
     tone: "warn",
-    text: "A run waits on you. No new business is written to until you answer it; follow-ups still go.",
+    text: "A run waits on you. No new business is written to until you answer it · follow-ups still go.",
     run_id: "b",
   });
   assert.equal(nextRunWords(chain(), TZ, at).text, "Next run today 9:00 AM.");
@@ -353,7 +356,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
       today: "2026-09-27",
       now: Date.parse("2026-09-27T17:00:00Z"),
     }).approved,
-    "Reach out · Personal trainers approved — 41 emails in the coming days, in their hours",
+    "Reach out · Personal trainers approved · 41 emails in the coming days, in their hours",
   );
   // Two days on, it says the date.
   const friday = at(
@@ -541,7 +544,7 @@ test("Templates says an email is a reach-out's and what sends it (R19); its word
     sendsNote: "step 2 · after 4 days with nothing back",
     checkLabel: "What is checked before each send",
     checkNote:
-      "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
+      "Checked before each send: every slot filled or the email held · the opening's facts in the finder's record · under 120 words · the footer present · the language theirs.",
     edit: "Edit the campaign",
   });
 });
@@ -614,7 +617,7 @@ test("the chain row's own words: its pace from its mailboxes, its path, the held
     /^Connect the mailbox you'll write from first: Google Workspace, here or in Settings › Cold email. 72 written/,
     "no mailbox: never a pace of 0 a day",
   );
-  assert.equal(REACH_OUT_ROW_WORDS.paused("Movers"), "Movers is paused — nothing more is planned until you resume it");
+  assert.equal(REACH_OUT_ROW_WORDS.paused("Movers"), "Movers is paused · nothing more is planned until you resume it");
 });
 
 test("who gets it carries each email's opening and its answers, read before the batch goes; none from a read before them (30 Oct 2026)", () => {

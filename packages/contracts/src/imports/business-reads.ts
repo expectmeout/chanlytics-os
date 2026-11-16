@@ -132,7 +132,7 @@ export interface FoundVM {
 
 export const FOUND_WORDS = {
   title: "Found for you",
-  lead: "Read from your Google profile and your website. Add what's right; a price comes with its service.",
+  lead: "Read from your Google profile and your website. Add what's right · a price comes with its service.",
   from: { google_profile: "Google profile", website: "your website" } satisfies Record<BusinessReadSource, string>,
   /** The website's read, where it read the booking platform's page too. */
   fromWithBooking: "your website and booking page",
@@ -218,7 +218,7 @@ export const WEBSITE_READ_SYSTEM = [
   "rules: booking rules in a short sentence each (a deposit, cancelling or rescheduling, arriving late, age, what to bring).",
   "answers: questions the pages answer, each the question and its answer in a sentence or two.",
   "description: one short paragraph of what the business says of itself, in its own words, or null.",
-  "film: three short clips its owner could film on a phone to show what the pages say the business does, each what (the shot, five words at most), how (where to hold the phone, one short sentence, never how long) and seconds (how long to film it, a whole number). Never a face up close. Empty where the pages say too little.",
+  "film: three short clips its owner could film on a phone to show what the pages say the business does, each what (the shot, five words at most), how (where to hold the phone, one sentence of twelve words at most, never how long) and seconds (how long to film it, a whole number). Never a face up close. Empty where the pages say too little.",
 ].join("\n");
 
 /** The JSON schema the reading answers in (Anthropic's structured output), the shape businessReadFactsOf reads. */
@@ -292,6 +292,22 @@ const FILM_SECONDS_MAX = 120;
 const filmSecondsOf = (raw: unknown): number | null =>
   typeof raw === "number" && Number.isInteger(raw) && raw >= 1 && raw <= FILM_SECONDS_MAX ? raw : null;
 
+/** How long a shot's two lines may run: what to film is a few words, where to hold the phone a sentence. */
+const FILM_WHAT_MAX = 80;
+const FILM_HOW_MAX = 160;
+
+/**
+ * A clip's line at most `max` characters, ended at its last whole word with "…" where it ran longer: never cut mid-word
+ * (16 Nov 2026, the first real read with lengths: "film the screen over the ta" was a line cut at 80 characters).
+ */
+function wholeWordsOf(raw: unknown, max: number): string | null {
+  const text = cleanText(raw, max * 4);
+  if (!text || text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:.-]+$/, "")}…`;
+}
+
 /** The shots a read's answer wrote, cleaned and at most FILM_SHOTS_MAX; none where it wrote none. */
 export function filmShotsOf(raw: unknown): FilmShot[] {
   const film = isObjectRecord(raw) ? raw.film : null;
@@ -299,8 +315,8 @@ export function filmShotsOf(raw: unknown): FilmShot[] {
   return film
     .flatMap((x) => {
       const shot = isObjectRecord(x) ? x : {};
-      const subject = cleanText(shot.what, 80);
-      const way = cleanText(shot.how, 80);
+      const subject = wholeWordsOf(shot.what, FILM_WHAT_MAX);
+      const way = wholeWordsOf(shot.how, FILM_HOW_MAX);
       return subject && way ? [{ what: subject, how: way, seconds: filmSecondsOf(shot.seconds) }] : [];
     })
     .slice(0, FILM_SHOTS_MAX);
@@ -311,5 +327,5 @@ export const WEBSITE_UNREAD_WORDS = {
   address: "it isn't an address on the public web",
   silent: "it didn't answer, or answered with no page",
   nothing: "it says nothing about services, prices or rules that we could find",
-  failed: "reading it failed just now; it is read again when you save it",
+  failed: "it couldn't be read just now. It is read again when you save it",
 } as const;

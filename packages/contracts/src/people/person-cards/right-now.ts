@@ -330,7 +330,7 @@ export function rightNowOf({
     return {
       tone: "queued",
       title: "Reply sending",
-      detail: `A reply is queued${q !== null ? `, ${ago(q, tz, nowMs)}` : ""} — it can still be stopped from the Inbox.`,
+      detail: `A reply is waiting to go${q !== null ? `, ${ago(q, tz, nowMs)}` : ""}. It can still be stopped from the Inbox.`,
       cta: openThread,
     };
   };
@@ -341,11 +341,11 @@ export function rightNowOf({
     if (r.queued_reply_at) return queuedCard();
     const asks = snoozedAsk(r);
     const wakes = base.receptionist.wakes;
-    const sentence = [wakes ? `Wakes ${wakes}.` : null, asks ? `${asks} — that is still waiting for you.` : null];
+    const sentence = [wakes ? `Wakes ${wakes}.` : null, asks ? `${asks} · that is still waiting for you.` : null];
     return {
       tone: "snoozed",
       title: "Snoozed",
-      detail: sentence.filter(Boolean).join(" ") || "Hidden from your queue until it wakes.",
+      detail: sentence.filter(Boolean).join(" ") || "Hidden from your list until it wakes.",
       cta: openThread,
     };
   }
@@ -399,8 +399,8 @@ export function rightNowOf({
       tone: "paused",
       title: `Held for you, set to ${word}`,
       detail: theirs
-        ? `Set to ${word} for them — their messages come straight to you.`
-        : `Set to ${word} for the workspace — every message waits for a person.`,
+        ? `Set to ${word} for them · their messages come straight to you.`
+        : `Set to ${word} for the workspace · every message waits for a person.`,
       cta: openThread,
     };
   }

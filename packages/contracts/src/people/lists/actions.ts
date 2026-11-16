@@ -66,7 +66,7 @@ const LIST_STEPS: Record<
   proposal_out: {
     cta: "Open the Inbox",
     to: "inbox",
-    text: "A word from you is the next step; nothing sends on its own.",
+    text: "A word from you is the next step · nothing sends on its own.",
   },
   deal_ended: { cta: "Win them back", to: sendOnceRoute("deal_ended"), broadcast: true },
   quiet: { cta: "Reach out", to: sendOnceRoute("quiet"), broadcast: true },
@@ -165,7 +165,7 @@ export const NO_NUMBER_REACH = "a send reaches only a recorded yes with a number
  * audience's name -- so the two say it in one spelling.
  */
 export function noNumberWords(personName: string, purpose: AskedPurpose): string {
-  return `Nobody on ${personName} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet — ${NO_NUMBER_REACH}.`;
+  return `Nobody on ${personName} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet · ${NO_NUMBER_REACH}.`;
 }
 
 /**
@@ -189,7 +189,7 @@ export const NO_CHANNEL_REACH = "a send needs a channel you can send on, and non
  * is missing is the channel, not a number. Said as `noNumberWords` is, of a list or an audience.
  */
 export function noChannelWords(personName: string, purpose: AskedPurpose): string {
-  return `Nobody on ${personName} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet — ${NO_CHANNEL_REACH}.`;
+  return `Nobody on ${personName} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet · ${NO_CHANNEL_REACH}.`;
 }
 
 /**
@@ -230,7 +230,7 @@ export function saidYesWords(
   const words = `${n} ${n === 1 ? "person" : "people"} on ${personName} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
   if (!noNumber) return words;
   if (noChannel)
-    return `${words}, ${n === 1 ? "who can't" : "none can"} be sent ${purpose === "marketing" ? "an offer" : "a message"} — ${noChannel}`;
+    return `${words}, ${n === 1 ? "who can't" : "none can"} be sent ${purpose === "marketing" ? "an offer" : "a message"} · ${noChannel}`;
   return `${words}, ${n === 1 ? "with no number" : "none with a number"} to send to`;
 }
 
@@ -251,7 +251,7 @@ function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleL
     const offerMembers = members.filter((m) => m.saidYes.offers);
     if (members.length && offerMembers.length === 0) {
       return {
-        text: "Nobody on this list has said yes to offers yet — an offer reaches only that answer.",
+        text: "Nobody on this list has said yes to offers yet · an offer reaches only that answer.",
         cta: "Get their yes",
         to: GET_YES_ROUTE,
         enabled: true,
@@ -261,7 +261,7 @@ function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleL
     return { text: members.length ? reason : "Nobody here right now.", cta, to, enabled: false };
   }
   return {
-    text: `${offersYes} of ${members.length} on this list said yes to offers — an offer reaches them.`,
+    text: `${offersYes} of ${members.length} on this list said yes to offers · an offer reaches them.`,
     cta,
     to,
     enabled: true,

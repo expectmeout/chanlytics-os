@@ -66,6 +66,10 @@ export interface CampaignMessageRow {
   rejected_reason?: string | null;
   blocked?: string | null;
   components?: unknown;
+  /** WhatsApp holds this row (Meta gave it an id), as the page's read says it: only one it holds is being checked. */
+  at_meta?: boolean;
+  /** When the row last changed: for a version in review, when it went to WhatsApp, as near as the row knows. */
+  updated_at?: string | null;
 }
 
 /** A message in one language, with its versions. */
@@ -98,6 +102,8 @@ export interface CampaignMessage {
       hidden: boolean;
       blocked: string | null;
       reason: string | null;
+      /** Since when WhatsApp has been checking it (reviewSinceOf); null where it is not checking one it holds. */
+      since: string | null;
     } | null;
     email: { id: string } | null;
     sms: { id: string } | null;
@@ -138,7 +144,29 @@ function whatsappVersionOf(row: CampaignMessageRow): NonNullable<CampaignMessage
     hidden: Boolean(row.hidden_at),
     blocked: templateBlocked(row),
     reason: status === "rejected" ? refusedWords(row.rejected_reason) : null,
+    since: reviewSinceOf(row),
   };
+}
+
+/**
+ * How long WhatsApp may check a message's words before its pages say it is taking longer than usual: a day, WhatsApp's
+ * own word for its longest (WHATSAPP_REVIEW_TAKES). Production's oldest said "Being checked" for eight days (16 Nov 2026).
+ * The edge asks WhatsApp again about one in review this long (whatsapp/slow-reviews.ts).
+ */
+export const REVIEW_SLOW_MS = 86_400_000;
+
+/**
+ * Since when WhatsApp has been checking a WhatsApp version: its row's last change, for a row in review that WhatsApp
+ * holds (`at_meta`), as near as the row knows (nothing moves it while WhatsApp checks); null for any other row, a sample
+ * nobody sent among them. The one reading of it, for the page's rows and for a message's version.
+ */
+export function reviewSinceOf(row: Pick<CampaignMessageRow, "meta_status" | "at_meta" | "updated_at">): string | null {
+  return metaStatusOf(row.meta_status) === "pending" && row.at_meta === true && row.updated_at ? row.updated_at : null;
+}
+
+/** Whether a review that began at `since` (reviewSinceOf) has taken longer than usual at `nowMs`: over a day. */
+export function reviewIsSlow(since: string | null, nowMs: number): boolean {
+  return since !== null && nowMs - Date.parse(since) > REVIEW_SLOW_MS;
 }
 
 /** The message of these rows, which are of one name's and one language's (rule 1 drops the rest), or null where none is a version. */
@@ -397,13 +425,13 @@ export const RUN_NOW_WITHOUT_VERSION_WORDS =
 export const STARTER_LINE_WORDS = {
   /** The send screen, with no message it can send yet: how many starters' WhatsApp versions WhatsApp is still reviewing. */
   reviewing: (n: number): string =>
-    `Your starter messages' WhatsApp versions are in review (${n}) — they appear here once approved (${WHATSAPP_REVIEW_TAKES}).`,
+    `Your starter messages' WhatsApp versions are in review (${n}) · they appear here once approved (${WHATSAPP_REVIEW_TAKES}).`,
   /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
   standing: (status: string | null | undefined): string => {
     const at = metaStatusOf(status);
     return at === "pending"
-      ? `has its WhatsApp version in review — it appears here once approved (${WHATSAPP_REVIEW_TAKES}).`
-      : `has its WhatsApp version ${whatsappStandingWord(at)} — see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}.`;
+      ? `has its WhatsApp version in review · it appears here once approved (${WHATSAPP_REVIEW_TAKES}).`
+      : `has its WhatsApp version ${whatsappStandingWord(at)} · see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}.`;
   },
   /**
    * The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number

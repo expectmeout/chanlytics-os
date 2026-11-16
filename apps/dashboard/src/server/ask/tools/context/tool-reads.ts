@@ -235,7 +235,9 @@ export function stepMessage(
     category: STEP_CATEGORY,
     purpose: purposeOfTemplate(STEP_CATEGORY),
     versions: {
-      whatsapp: on("whatsapp") ? { id: "", status: "approved", hidden: false, blocked: null, reason: null } : null,
+      whatsapp: on("whatsapp")
+        ? { id: "", status: "approved", hidden: false, blocked: null, reason: null, since: null }
+        : null,
       email: on("email") ? { id: "" } : null,
       sms: on("sms") ? { id: "" } : null,
     },

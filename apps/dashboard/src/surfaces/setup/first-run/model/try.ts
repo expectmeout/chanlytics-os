@@ -139,7 +139,7 @@ export const FIRST_RUN_TRY_WORDS = {
   someone: "Caller",
   transferLabel: "When a caller asks for a person",
   putThrough: (number: string) => `Put them through to ${number}`,
-  putThroughCaller: "The phone you just called from. It rings during opening hours; outside them, it takes a message.",
+  putThroughCaller: "The phone you just called from. It rings during opening hours · outside them, it takes a message.",
   keepPutting: (number: string) => `Keep putting them through to ${number}`,
   keepPuttingSentence: "The number on record now.",
   message: "Take a message and email me",

@@ -28,7 +28,7 @@ export function passwordProblem(raw: unknown): string | null {
   if (typeof raw !== "string" || raw.length === 0) return "Choose a password.";
   if (raw.length < PASSWORD_MIN) return `A password is at least ${PASSWORD_MIN} characters.`;
   if (new TextEncoder().encode(raw).length > PASSWORD_MAX_BYTES) {
-    return `That password is too long — ${PASSWORD_MAX_BYTES} bytes at most.`;
+    return `That password is too long · ${PASSWORD_MAX_BYTES} bytes at most.`;
   }
   return null;
 }
@@ -74,11 +74,11 @@ export const PASSWORD_WORDS = {
   resetSent: (email: string) =>
     `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
   resetSubmit: "Set my password",
-  resetDone: "Your password is set — signing you in.",
+  resetDone: "Your password is set · signing you in.",
   /**
    * A recovery code that did not verify. The address is already implied here
    * (they typed it on the previous step), so this may say what is wrong.
    */
-  resetBadCode: "That code didn't match or has expired — ask for a new one.",
+  resetBadCode: "That code didn't match or has expired · ask for a new one.",
   backToSignIn: "Back to sign-in",
 } as const;

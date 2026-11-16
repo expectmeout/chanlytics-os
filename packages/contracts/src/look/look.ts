@@ -34,7 +34,7 @@ export const LOOK_WORDS = {
   saving: "Saving…",
   saved: "Saved",
   removed: "Removed",
-  notSaved: "Not saved — it didn't go through. Try again.",
+  notSaved: "Not saved · it didn't go through. Try again.",
   unusable: "Pick a colour.",
   preview: "How an email looks",
   previewSub: "The sign-up confirmation, as a customer gets it.",

@@ -237,7 +237,7 @@ export function toInboxThreadVM(
       at: shortTime(escalation.created_at, tz, now),
       // A quiet mark, its reason a clause: the dock says what is owed, its Why? the details (holdWordsOf). The label and the
       // details quoted here said it a third time, printed under the dock on a phone (the thread canvas, 1 Nov 2026).
-      body: `Held for you — ${reasonShort(escalation.reason)}`,
+      body: `Held for you · ${reasonShort(escalation.reason)}`,
     };
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);

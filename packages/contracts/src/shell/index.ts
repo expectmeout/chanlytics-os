@@ -34,6 +34,7 @@ export {
   runStoppedWords,
   runStopWords,
   runsWaitingSentence,
+  SLOW_REVIEW_WORDS,
   WHO_GETS_IT_WORDS,
 } from "./campaign-rooms";
 export type { RunStopWords } from "./campaign-rooms";

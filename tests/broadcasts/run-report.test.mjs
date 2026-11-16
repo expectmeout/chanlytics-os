@@ -371,7 +371,7 @@ test("a failure that names its wire says the channel's own provider, never Whats
   assert.equal(words("throttled"), "WhatsApp kept limiting how fast this number may send");
   assert.equal(words("throttled:email"), "the mail provider kept limiting how fast this workspace may send");
   assert.equal(words("stalled:email"), "its mailbox couldn't be read for half an hour");
-  assert.equal(words("stalled:sms"), "its line's credentials couldn't be read for half an hour");
+  assert.equal(words("stalled:sms"), "its line's connection couldn't be read for half an hour");
   assert.equal(words("people_unreadable"), "its people couldn't be read for half an hour");
   for (const email of ["wire_unavailable:email", "throttled:email", "stalled:email"]) {
     assert.ok(!/whatsapp|number/i.test(words(email)), `${email} says ${words(email)}`);
@@ -383,7 +383,7 @@ test("a failure that names its wire says the channel's own provider, never Whats
   }
   assert.equal(
     C.broadcastFailureFix("throttled:sms"),
-    "Nobody got it. The texting provider lifts these limits on its own; send it again later.",
+    "Nobody got it. The texting provider lifts these limits on its own · send it again later.",
   );
   assert.match(
     C.broadcastFailureFix("wire_unavailable:email", 3),
@@ -673,7 +673,7 @@ test('everyone it touched, each in the words of what happened to them -- and a g
   );
   assert.deepEqual(
     [by.number.words, by.number.door, by.number.initials, by.number.attn],
-    ["greeted “Hi there” — no name on file", { label: "Add a name", to: "clients/number" }, "—", true],
+    ["greeted “Hi there” · no name on file", { label: "Add a name", to: "clients/number" }, "—", true],
     "the case nobody is shown before a send",
   );
   assert.deepEqual(
@@ -731,7 +731,7 @@ test("a failed run's report says why it stopped and how to get past it, in the c
     );
   assert.deepEqual(run("template_not_approved").stop, {
     words: "its WhatsApp version is no longer approved",
-    fix: "Open it in Messages — its WhatsApp version can be resubmitted, or the message written as an email or a text.",
+    fix: "Open it in Messages · its WhatsApp version can be resubmitted, or the message written as an email or a text.",
     tone: "danger",
   });
   assert.equal(run("paused").stop.tone, "warn");
@@ -795,7 +795,7 @@ test("a playbook's run that a billing pause stopped is told its own next step on
   const win = stopped({ playbook_id: "p1", audience: { kind: "playbook", id: "p1", trigger: "quiet_30" } });
   assert.equal(
     win.fix,
-    "Resume from Settings › Billing. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
+    "Resume from Settings › Billing. It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
   );
   assert.equal(win.tone, "warn");
   const visit = stopped({ playbook_id: "p1", audience: { kind: "playbook", id: "p1", trigger: "visit_tomorrow" } });
@@ -817,7 +817,7 @@ test("a playbook's run that a billing pause stopped is told its own next step on
   ).stop;
   assert.equal(
     wire.fix,
-    "Nobody got it. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
+    "Nobody got it. It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
   );
 });
 

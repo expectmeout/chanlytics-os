@@ -242,7 +242,7 @@ async function runVerb(
       const tryIt = res.ok ? tryItLink(res.number) : null;
       k.flash({
         tone: res.ok ? "ok" : "danger",
-        msg: res.ok ? <>WhatsApp {res.number || "number"} is connected — AI answers on it now</> : <>{res.message}</>,
+        msg: res.ok ? <>WhatsApp {res.number || "number"} is connected · AI answers on it now</> : <>{res.message}</>,
         action: tryIt ? { label: "Try it", onClick: () => window.open(tryIt, "_blank", "noopener,noreferrer") } : null,
       });
       return;
@@ -261,11 +261,11 @@ async function runVerb(
         msg: res.ok ? (
           news ? (
             <>
-              Read just now — {news}. The bell has{" "}
+              Read just now · {news}. The bell has{" "}
               {res.fresh === 1 || (!res.fresh && res.counted === 1) ? "it" : "them"}.
             </>
           ) : (
-            <>Read just now — nothing new since the last read.</>
+            <>Updated just now · nothing new since last time.</>
           )
         ) : (
           <>{res.message}</>
@@ -329,7 +329,7 @@ function groupCard(o: {
         <RecordRow
           id="connections-none"
           label={W[g].title}
-          empty="Nothing is connected yet — start below."
+          empty="Nothing is connected yet · start below."
           value={null}
         />
       )}
@@ -419,7 +419,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
       <FailedRead
         kind="card"
         what="your connections"
-        body="AI keeps answering; this page just can't show the connections at the moment."
+        body="AI keeps answering · this page just can't show the connections at the moment."
         surface="channels"
         testid="connections-connected"
       />
@@ -461,10 +461,10 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
               what === "remove" ? (
                 <>
                   The listing is off the record, with what was read from it
-                  {G && G.dto.connection ? " — and the Business Profile is disconnected" : ""}.
+                  {G && G.dto.connection ? " · and the Business Profile is disconnected" : ""}.
                 </>
               ) : (
-                <>Google is disconnected. The public listing stays; replies and the full history do not.</>
+                <>Google is disconnected. The public listing stays · replies and the full history do not.</>
               ),
           }
         : refusalToast(res, what === "remove" ? "Listing not removed" : "Google not disconnected"),

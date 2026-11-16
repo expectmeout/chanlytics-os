@@ -225,7 +225,7 @@ test("pressed and allowed to spend: buying, in the area code of the number kept,
     state: "waiting_them",
     words: "Waiting on us",
     sentence: "Getting AI's number in 305…",
-    detail: "Usually a minute or two; this page updates by itself",
+    detail: "Usually a minute or two · this page updates by itself",
   });
   assert.equal(keep.lead, W.readyLeadForwarded, "customers never see it");
   const pick = { e164: "+13055550142", friendly: "(305) 555-0142" };
@@ -250,7 +250,7 @@ test("a number on its way (canvas R4): the line row's own words", () => {
     sentence: row.sentence,
     detail: row.details[0],
   });
-  assert.match(vm.status.sentence, /^Setting up \+1 \(305\) 555-0142 — buying the number/);
+  assert.match(vm.status.sentence, /^Setting up \+1 \(305\) 555-0142 · buying the number/);
   assert.equal(vm.lead, W.readyLeadForwarded);
   assert.equal(phone(dto).lead, "", "a tab that lost the choice does not say who sees the number");
   const connecting = phone(
@@ -449,7 +449,7 @@ test("the code follows what was saved: every call when Setup's card saved that, 
   );
   assert.equal(
     other.code.label,
-    "Another carrier or a landline",
+    "Another phone company or a landline",
     "a mobile with another company is `other` too: neither said",
   );
   assert.deepEqual(other.code.steps, W.stepsAny);

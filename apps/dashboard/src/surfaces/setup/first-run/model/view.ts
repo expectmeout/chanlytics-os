@@ -64,7 +64,7 @@ const STEP_DEFS: Record<FirstRunStepKey, Omit<FirstRunStepDef, "key">> = {
   },
   channels: {
     name: "Where it answers",
-    lead: "Choose what your customers use. Nothing is bought here; it all connects when you go live.",
+    lead: "Choose what your customers use. Nothing is bought here · it all connects when you go live.",
     rows: ["line", "keep", "whatsapp", "calendar", "email"],
   },
   live: {
@@ -169,7 +169,7 @@ export const FIRST_RUN_WORDS = {
     yes: "That's us",
     notOnGoogle: "We're not on Google",
     linked: (name: string, read: boolean) =>
-      `${name} is your listing on Google — ${read ? "read just now" : "Google will be read within the hour"}.`,
+      `${name} is your listing on Google · ${read ? "read just now" : "Google will be read within the hour"}.`,
     notLinked: "Not linked",
     notSaved: "Not saved",
     retry: "Try again",
@@ -209,7 +209,7 @@ export const FIRST_RUN_WORDS = {
         .join(" · "),
     hoursSay: "As your profile keeps them, offered at Check",
     servicesSay: (n: number) => (n ? `${n}, for you to check next` : "None listed on your profile"),
-    newsSay: "Read every hour; your bell rings",
+    newsSay: "Read every hour · your bell rings",
     in: "In",
     on: "On",
     reading: "Reading…",
@@ -316,7 +316,7 @@ export const FIRST_RUN_WORDS = {
     done: "Done",
     hear: (voice: string) => `Hear ${voice}`,
     /** Under the greeting (canvas 2): the owner's own words any time, the disclosure always kept (decision 0051). */
-    ownWords: "Your own words any time; the automated-assistant line always stays.",
+    ownWords: "Your own words any time · the automated-assistant line always stays.",
     /** What a pick kept, said in its toast. */
     kept: (text: string | null) => (text ? `${text}. Kept.` : "Kept."),
     stop: "Stop",
@@ -332,7 +332,7 @@ export const FIRST_RUN_WORDS = {
     lead: "A rehearsal: nothing is sent and nobody is dialed. Then see how it did, and fix what it got wrong.",
     reviewedHeading: (name: string | null) => (name ? `How ${name} did` : "How it did"),
     reviewedLead:
-      "Each answer judged against what it was told then. Fix what it got wrong; each fix is one change you can undo.",
+      "Each answer judged against what it was told then. Fix what it got wrong · each fix is one change you can undo.",
     onward: "Looks good, go on",
     again: "Talk again",
     typeInstead: "Type instead",

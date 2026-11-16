@@ -182,17 +182,17 @@ test("a workspace that answers everywhere: nine of ten — the kept number is th
   // Three claims, kept apart (PRD ON-02): answering is readiness, a call
   // answered is evidence, and "Activated" is the owner's own act.
   assert.ok(
-    row(vm, "receptionist").details.some((d) => d.startsWith("Activated ")),
+    row(vm, "receptionist").details.some((d) => d.startsWith("Turned on ")),
     "an activated capability says so",
   );
   const untouched = setupSteps({ ...live(), activations: [] }, NOW);
   assert.deepEqual(
     row(untouched, "receptionist").verb,
-    { label: "Activate", to: "verb:activate:voice" },
+    { label: "Turn on", to: "verb:activate:voice" },
     "tested but not activated: the one verb left is the owner's",
   );
-  assert.ok(row(untouched, "receptionist").details.includes("Tested — activate it to say it is yours"));
-  assert.deepEqual(row(untouched, "whatsapp").verb, { label: "Activate", to: "verb:activate:whatsapp" });
+  assert.ok(row(untouched, "receptionist").details.includes("Tested · turn it on to say it is yours"));
+  assert.deepEqual(row(untouched, "whatsapp").verb, { label: "Turn on", to: "verb:activate:whatsapp" });
   assert.ok(row(vm, "receptionist").details.includes(`Last call ${agoWords(Date.parse("2026-09-06T14:30:00Z"), NOW)}`));
   assert.ok(row(vm, "whatsapp").details.includes("Quality green"));
   assert.ok(row(vm, "whatsapp").details.includes("6 approved messages"));
@@ -267,7 +267,7 @@ test("REGRESSION: a yes to offers with no number to send one to is a yes -- Setu
     {
       state: "waiting_you",
       stateWords: "Waiting on you",
-      sentence: `1 person said yes to offers, but nobody can be sent one yet — ${NO_NUMBER_REACH}.`,
+      sentence: `1 person said yes to offers, but nobody can be sent one yet · ${NO_NUMBER_REACH}.`,
       details: ["2 people said yes to messages"],
       verb: { label: "Open People", to: "clients" },
     },
@@ -276,7 +276,7 @@ test("REGRESSION: a yes to offers with no number to send one to is a yes -- Setu
   const two = row(setupSteps(live({ consent: { yes: 2, offers: 0, offersSaidYes: 2 } }), NOW), "yes");
   assert.deepEqual(
     [two.state, two.sentence, two.details],
-    ["waiting_you", `2 people said yes to offers, but nobody can be sent one yet — ${NO_NUMBER_REACH}.`, []],
+    ["waiting_you", `2 people said yes to offers, but nobody can be sent one yet · ${NO_NUMBER_REACH}.`, []],
   );
   // And a yes with a number beside it makes the row ready, as before: the reach is the row's number.
   const one = row(setupSteps(live({ consent: { yes: 3, offers: 1, offersSaidYes: 2 } }), NOW), "yes");
@@ -653,7 +653,7 @@ test("a line that was asked for waits on us and says when; one that exists but i
   assert.equal(row(asked, "line").verb, null, "asked once — no second ask");
   assert.equal(
     row(asked, "line").sentence,
-    `Requested ${agoWords(Date.parse("2026-09-07T13:00:00Z"), NOW)} — a person at Chanlytics will set up your line with you and reach you by email.`,
+    `Requested ${agoWords(Date.parse("2026-09-07T13:00:00Z"), NOW)} · a person at Chanlytics will set up your line with you and reach you by email.`,
   );
   const inactive = setupSteps(
     empty({
@@ -663,7 +663,7 @@ test("a line that was asked for waits on us and says when; one that exists but i
   );
   assert.equal(
     row(inactive, "line").sentence,
-    `Your line ${formatPhoneDisplay(VOICE)} is switched off — calls are picked up without your facts and are not recorded.`,
+    `Your line ${formatPhoneDisplay(VOICE)} is switched off · calls are picked up without your facts and are not recorded.`,
   );
   assert.equal(row(inactive, "line").state, "waiting_you");
   assert.equal(row(inactive, "receptionist").state, "waiting_you");
@@ -677,7 +677,7 @@ test('REGRESSION (S14): a port that was asked for says so on the line row, and w
   assert.equal(row(port, "line").verb, null, "asked once — no second ask");
   assert.equal(
     row(port, "line").sentence,
-    `Requested ${agoWords(Date.parse(at), NOW)} — a person at Chanlytics will move your number onto Chanlytics with you and reach you by email.`,
+    `Requested ${agoWords(Date.parse(at), NOW)} · a person at Chanlytics will move your number onto Chanlytics with you and reach you by email.`,
     "REGRESSION: a port read as a line",
   );
   assert.ok(
@@ -703,7 +703,7 @@ test("REGRESSION (S8): a broken configuration offers the ask for a repair, then 
   assert.equal(row(asked, "facts").state, "waiting_them");
   assert.ok(
     row(asked, "facts").sentence.endsWith(
-      `Requested ${agoWords(Date.parse(at), NOW)} — a person at Chanlytics will repair them and reach you by email.`,
+      `Requested ${agoWords(Date.parse(at), NOW)} · a person at Chanlytics will repair them and reach you by email.`,
     ),
     row(asked, "facts").sentence,
   );
@@ -720,7 +720,7 @@ test("WhatsApp waits on Meta while the first messages are with them, or while th
   assert.equal(row(meta, "whatsapp").stateWords, "Waiting on Meta");
   assert.equal(
     row(meta, "whatsapp").sentence,
-    `Connected on ${formatPhoneDisplay(WA)} — your first messages are with Meta for approval.`,
+    `Connected on ${formatPhoneDisplay(WA)} · your first messages are with Meta for approval.`,
   );
   assert.ok(row(meta, "whatsapp").details.includes("3 messages with Meta for approval"));
   assert.equal(meta.readiness.answering, true, "the number answers even while a template waits");
@@ -755,7 +755,7 @@ test("business facts: partly there says what is missing; a broken config is its 
   assert.equal(row(broken, "facts").state, "waiting_you");
   assert.match(row(broken, "facts").sentence, /couldn't be read/);
   const noLink = setupSteps(empty({ business: { ...facts, bookingLink: false } }), NOW);
-  assert.ok(row(noLink, "facts").details.includes("No booking link — AI answers, but cannot send one"));
+  assert.ok(row(noLink, "facts").details.includes("No booking link · AI answers, but cannot send one"));
 });
 
 test("team and alerts: the verb goes to whichever half is missing; calendar: unreadable is waiting on you", () => {
@@ -979,7 +979,7 @@ test("the line row over the product's own line: get one when this deployment can
   assert.equal(row(can, "line").sentence, "Get a number for calls, or keep the one you have.");
   // The number is part of the plan (Ruben, 24 Sep 2026; the first run's spec): nothing bills a number fee, so nothing quotes one.
   assert.deepEqual(row(can, "line").details, [
-    "A local number, included in your plan · AI answers it · texting arrives when the carriers register it",
+    "A local number, included in your plan · AI answers it · texting arrives when the phone networks register it",
   ]);
   assert.ok(
     !JSON.stringify(setupSteps(empty({ lines: withLines([]) }), NOW)).includes("$"),
@@ -996,12 +996,12 @@ test("the line row over the product's own line: get one when this deployment can
   assert.equal(row(busy, "line").state, "waiting_them");
   assert.equal(
     row(busy, "line").sentence,
-    `Setting up ${formatPhoneDisplay("+13055550100")} — ${LINE_STEP_WORDS.trunk}, since ${agoWords(Date.parse("2026-09-07T14:58:00Z"), NOW)}.`,
+    `Setting up ${formatPhoneDisplay("+13055550100")} · ${LINE_STEP_WORDS.trunk}, since ${agoWords(Date.parse("2026-09-07T14:58:00Z"), NOW)}.`,
   );
   assert.equal(row(busy, "line").verb, null);
   assert.equal(
     row(busy, "receptionist").sentence,
-    "Being created with your line — it answers the moment the line does.",
+    "Being created with your line · it answers the moment the line does.",
   );
   const failed = setupSteps(
     empty({
@@ -1051,13 +1051,13 @@ test("Setup says what texting actually is, and names a mock filing as a mock fil
   );
 
   const filed = withState({ sms_state: "registering" });
-  assert.ok(row(filed, "line").sentence.endsWith("Texting is with the carriers."));
+  assert.ok(row(filed, "line").sentence.endsWith("Texting is being approved."));
   const refused = withState({ sms_state: "rejected" });
-  assert.match(row(refused, "line").sentence, /refused the texting registration/);
+  assert.match(row(refused, "line").sentence, /Texting wasn't approved/);
   // Unfiled, on a line that answers calls: texting waits on the business record, as Connections' row says (S7).
   assert.ok(
     row(withState({}), "line").sentence.endsWith(
-      "Texting needs your business on record for the carriers — two minutes, once, on Connections.",
+      "Texting needs your business on record for the phone networks · two minutes, once, on Connections.",
     ),
   );
 });
@@ -1338,9 +1338,9 @@ test("texting on Setup: the sole proprietor waiting on the carriers' text reads 
   const l = (sms_state) => ({ sms_state, reg_mock: false, reg_sole_prop: true });
   assert.equal(
     textingWords(l("otp_waiting")).sentence,
-    "The carriers texted your mobile — reply to that message from the handset itself and texting switches on; the code lasts a day.",
+    "The phone networks texted your mobile · reply to that message from the handset itself and texting switches on · the code lasts a day.",
   );
-  assert.equal(textingWords(l("hosting")).sentence, "Texting is with the carriers.");
+  assert.equal(textingWords(l("hosting")).sentence, "Texting is being approved.");
   assert.equal(textingWords(l("otp_waiting")).done, false);
 });
 
@@ -1408,11 +1408,11 @@ test("a line stopped at the vault reads as ours on the row, offers no Retry, and
   const ours = setupSteps(stopped("keeping the line's credentials: permission denied for schema vault"), NOW);
   assert.equal(
     row(ours, "line").sentence,
-    "Setting up +1 (305) 555-0101 stopped at the vault that keeps the line's credentials. A person at Chanlytics has it.",
+    "Setting up +1 (305) 555-0101 stopped at the vault that keeps the line's keys. A person at Chanlytics has it.",
   );
   assert.equal(row(ours, "line").verb, null, "no Retry that cannot help");
   assert.deepEqual(row(ours, "line").details, [
-    "A retry cannot help until the credentials are restored; we have been told and will finish it with you",
+    "Trying again can't help until the keys are restored. Chanlytics has been told, and will finish it with you",
   ]);
   const theirs = setupSteps(stopped("Twilio 21422: number not available"), NOW);
   assert.deepEqual(

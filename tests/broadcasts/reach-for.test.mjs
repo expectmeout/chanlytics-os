@@ -712,7 +712,7 @@ test("the note under an offer says which channels carry offers, as the workspace
     });
   const alone = offersNote(READY);
   assert.match(alone, /^Offers and news go by WhatsApp only\./);
-  assert.match(alone, /registered with the carriers for replies and appointment messages/);
+  assert.match(alone, /registered with the phone networks for replies and appointment messages/);
   assert.match(alone, /nothing promotional is sent by text/);
   assert.match(alone, /once they say yes on WhatsApp\.$/);
   // Each way offers by email can be closed leaves the note as it was: the campaigns domain, the address, a pause, a read that failed.

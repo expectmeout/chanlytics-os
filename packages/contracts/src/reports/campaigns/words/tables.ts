@@ -65,7 +65,7 @@ export function runsWaitingMeta(count: number, late: number): string {
   return `${late} past their day (skip those), ${count - late} can still be approved`;
 }
 
-const RUNS_FAILED_NONE = `no run failed in the last ${STUCK_DAYS}`;
+const RUNS_FAILED_NONE = `no run stopped on a problem in the last ${STUCK_DAYS}`;
 
 /** What the stuck figure counts that the window's card leaves out: it reads every kind of run (00406), a reach-out's step among them. */
 const REACH_OUT_STEP_COUNTS = "a step to leads counts too";
@@ -78,7 +78,7 @@ export function failedRunMeta(failed: CampaignStuckNowDto["failed"]): string {
   if (failed.n === 0) return RUNS_FAILED_NONE;
   const subject =
     failed.latest === null
-      ? `${plural(failed.n, "run")} failed in the last ${STUCK_DAYS}`
+      ? `${plural(failed.n, "run")} stopped on a problem in the last ${STUCK_DAYS}`
       : `the latest: ${failed.latest.name}, ${broadcastFailureWords(failed.latest.failure)}`;
   return `${subject} · ${REACH_OUT_STEP_COUNTS}`;
 }

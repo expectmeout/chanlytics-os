@@ -172,7 +172,7 @@ test("an ad made on the platform itself has no Edit, no End, and one line saying
   const old = drawerOf(read, OLD_BOOST);
   assert.equal(old.madeHere, false);
   assert.deepEqual(old.foot, ["resume"], "Pause and Resume only: this one is paused");
-  assert.equal(old.adopted, "Made in Meta Ads Manager. Chanlytics can pause and resume it; change it in Meta.");
+  assert.equal(old.adopted, "Made in Meta Ads Manager. Chanlytics can pause and resume it · change it in Meta.");
   const on = adModel(bent(adOf(read, OLD_BOOST), { state: "on" }), read, CONFIG);
   assert.deepEqual(on.foot, ["pause"]);
   assert.ok(!old.foot.includes("edit") && !on.foot.includes("edit"));

@@ -36,7 +36,7 @@ export const policySpec: ProposalSpec = {
     },
     call: (u) =>
       !u.mode && typeof u.min_confidence !== "number"
-        ? refuseWith("The previous setting is unknown; change it in Settings.")
+        ? refuseWith("The previous setting is unknown · change it in Settings.")
         : { route: "PUT policies", body: policyBody(u.class, u.mode, u.min_confidence) },
     receipt: () => "Set back",
   },
@@ -50,7 +50,7 @@ export const settingsSpec: ProposalSpecAboveOperator = {
   commit: (p, tab) => {
     const st = tab.settings;
     if (!st || !st.config || typeof st.version !== "number")
-      return refuseWith("Settings are not loaded yet — open Settings once and try again.");
+      return refuseWith("Settings are not loaded yet · open Settings once and try again.");
     const config = applySettingsChange(st.config, p.payload.change as Parameters<typeof applySettingsChange>[1]);
     return { route: "PUT settings", body: { config, version: st.version } };
   },
@@ -70,7 +70,7 @@ export const settingsSpec: ProposalSpecAboveOperator = {
       const version = tab.settings?.version;
       if (typeof version !== "number") return refuseWith("Settings are not loaded yet.");
       if (typeof u.version_after !== "number" || version !== u.version_after)
-        return refuseWith("Settings have changed since this card — change them in Settings.");
+        return refuseWith("Settings have changed since this card · change them in Settings.");
       return { route: "PUT settings", body: { config: u.config, version } };
     },
     receipt: () => "Put back.",

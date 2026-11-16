@@ -1070,14 +1070,14 @@ test("the owner's More offers Erase this lead; it asks first in contracts' words
   assert.deepEqual(courier.seen, [], "the menu's press asks; it does not erase");
   const ask = byTestId(P.draw().tree, "peek-erase-confirm");
   assert.equal(
-    textOf(ask).startsWith("Erase Travis Heights Coaching Co.? Its record and every trace of it go for good."),
+    textOf(ask).startsWith("Delete Travis Heights Coaching Co.? Its record and every trace of it go for good."),
     true,
   );
   await press(byTestId(ask, "peek-erase-yes"));
   await settle();
   assert.deepEqual(courier.seen, [["erase", LEAD]], "the one door, with the lead's id");
   assert.equal(P.st.peekId, null, "the sheet closes on a lead that is gone");
-  assert.equal(flashes.at(-1).msg, "Travis Heights Coaching Co. is erased. It won't be found again.");
+  assert.equal(flashes.at(-1).msg, "Travis Heights Coaching Co. is deleted. It won't be found again.");
   assert.equal(flashes.at(-1).undo, undefined, "no Undo: it goes for good");
 });
 
@@ -1122,7 +1122,7 @@ test("REVIEW: Yes, erase pressed twice sends one erase, and the question says it
   await Promise.all([first, second]);
   await settle();
   assert.equal(P.st.peekId, null);
-  assert.equal(flashes.filter((f) => /is erased/.test(String(f.msg))).length, 1, "one toast");
+  assert.equal(flashes.filter((f) => /is deleted/.test(String(f.msg))).length, 1, "one toast");
 });
 
 test("Esc backs out one step: the question it asked, then the pane it opened, then the sheet", () => {

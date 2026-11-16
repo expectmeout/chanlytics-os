@@ -325,10 +325,10 @@ test("Find says only what Google said, in the owner's words", () => {
   assert.equal(W.heading("Harbor Moving"), "Is this Harbor Moving?");
   assert.equal(W.heading(null), "Which one is your business?");
   assert.equal(W.none("Harbor Moving"), "Nothing on Google for “Harbor Moving”.");
-  assert.equal(W.linked("Harbor Moving", true), "Harbor Moving is your listing on Google — read just now.");
+  assert.equal(W.linked("Harbor Moving", true), "Harbor Moving is your listing on Google · read just now.");
   assert.equal(
     W.linked("Harbor Moving", false),
-    "Harbor Moving is your listing on Google — Google will be read within the hour.",
+    "Harbor Moving is your listing on Google · Google will be read within the hour.",
   );
   assert.equal(FIRST_RUN_FIND_ROUTE, "start/find");
 });

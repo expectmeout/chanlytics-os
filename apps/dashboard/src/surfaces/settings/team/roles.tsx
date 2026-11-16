@@ -51,7 +51,7 @@ function RolesCompare({ withPartner }: { withPartner: boolean }) {
       </table>
       {withPartner && (
         <p className="set-team-compare-note">
-          A partner joins with their code, never by invitation, and their seat opens only after two-step sign-in.
+          A partner joins with their code, never by invitation, and their access opens only after two-step sign-in.
         </p>
       )}
     </div>

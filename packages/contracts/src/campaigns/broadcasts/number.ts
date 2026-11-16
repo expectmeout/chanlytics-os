@@ -66,7 +66,7 @@ export function numberHealth(numberHealthInput: NumberHealthInput): NumberHealth
       limitPerDay: limit,
       label: `WhatsApp flagged this number's quality · ${limitWords}`,
       refusal:
-        "WhatsApp flagged this number's quality. Sending more marketing now risks the number; wait for it to recover.",
+        "WhatsApp flagged this number's quality. Sending more marketing now risks the number · wait for it to recover.",
     };
   }
   if (text === "YELLOW" || ev === "DOWNGRADE")
@@ -97,5 +97,5 @@ export function numberHealth(numberHealthInput: NumberHealthInput): NumberHealth
 /** Null when the audience fits the day's limit; otherwise the refusal, with the numbers. */
 export function overLimitRefusal(numberHealth: NumberHealth, audience: number): string | null {
   if (numberHealth.limitPerDay === null || audience <= numberHealth.limitPerDay) return null;
-  return `This number can start up to ${numberHealth.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
+  return `This number can start up to ${numberHealth.limitPerDay.toLocaleString("en-US")} new conversations a day · this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
 }

@@ -113,7 +113,7 @@ export function whyNotAPhone(raw: string | null | undefined): string | null {
   const digits = String(raw ?? "").replace(/[^\d]/g, "");
   if (!digits) return "A phone number is needed to add a person.";
   if (shortCode(digits)) {
-    return "That is a short code, not a phone number — nobody can be reached on one.";
+    return "That is a short code, not a phone number · nobody can be reached on one.";
   }
   if (digits.length === 7) return "That looks like a local number. Add the area code.";
   return "That is not a phone number anyone can be reached on.";
@@ -152,7 +152,7 @@ export function whyNotAHandoff(
     return "The transfer number needs the country code, like +1 212 555 0143.";
   }
   if (samePhone(norm, ownLine)) {
-    return "That is AI's own line — it would ring itself. Use a line a person answers.";
+    return "That is AI's own line · it would ring itself. Use a line a person answers.";
   }
   if (samePhone(norm, keptLine)) return HANDOFF_FORWARDS_BACK;
   return null;
@@ -166,7 +166,7 @@ export function whyNotAHandoff(
 export const HANDOFF_FORWARDS_BACK =
   "That number sends the calls nobody picks up to AI, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
 export const FORWARD_IS_HANDOFF =
-  "AI puts callers through to this number. Change the transfer number in Settings › Details first — once this number forwards to AI, a caller put through to it would come straight back.";
+  "AI puts callers through to this number. Change the transfer number in Settings › Details first · once this number forwards to AI, a caller put through to it would come straight back.";
 
 /** The same loop from forwarding's side: returns the owner's sentence, or null when the number may forward. */
 export function whyNotForward(number: string | null | undefined, handoff: string | null | undefined): string | null {

@@ -143,7 +143,7 @@ export function feedProblemWords(reason: FeedFailure | null | undefined, status?
     case "unreachable":
       return "The calendar couldn't be reached. Check the address and try again.";
     case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
+      return `The calendar answered ${status ?? "with a problem"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large":
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":

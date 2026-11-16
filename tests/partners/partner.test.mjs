@@ -639,7 +639,7 @@ test("a person's decisions: never the standing it has; the outcome said in words
   assert.deepEqual(partnerStandingChoices(null), ["qualified", "review", "disqualified"]);
   assert.equal(
     partnerStandingOutcomeWords({ standing: "disqualified", voided: 1, matured: 0 }),
-    "Disqualified. What it still held (1 share) is void; what was paid stays paid.",
+    "Disqualified. What it still held (1 share) is void · what was paid stays paid.",
   );
   assert.equal(
     partnerStandingOutcomeWords({ standing: "qualified", voided: 0, matured: 2 }),
@@ -695,6 +695,6 @@ test("a partner is paused, closed or restored: never to the status they have, dr
   );
   assert.equal(
     partnerStatusOutcomeWords("ada-co", { status: "closed", seats: 0 }),
-    "ada-co is closed. They held no partner seat to take.",
+    "ada-co is closed. They had no partner access to take.",
   );
 });

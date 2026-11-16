@@ -140,12 +140,12 @@ export function billingDayWords(iso: string | null | undefined, tz: string): str
 export function trialOffer(days: number, again = false): string {
   if (!(days > 0)) {
     return again
-      ? "Start again with a card; the first charge is today."
-      : "Subscribe with a card; the first charge is today, and you can cancel from here any time.";
+      ? "Start again with a card · the first charge is today."
+      : "Subscribe with a card · the first charge is today, and you can cancel from here any time.";
   }
   return again
-    ? `Start again with a card; the ${days}-day trial applies once.`
-    : `Start the ${days}-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.`;
+    ? `Start again with a card · the ${days}-day trial applies once.`
+    : `Start the ${days}-day trial with a card · nothing is charged until it ends, and you can cancel from here any time.`;
 }
 
 export function trialWords(trialEnd: string | null | undefined, nowMs: number, tz: string): string {
@@ -275,7 +275,7 @@ export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): Billing
       mode: "direct",
       status: account?.status ?? "active",
       headline: "Direct arrangement",
-      detail: "This workspace runs on an arrangement made with Chanlytics; nothing on this screen charges anything.",
+      detail: "This workspace runs on an arrangement made with Chanlytics · nothing on this screen charges anything.",
       tone: "",
       plan,
       card: null,
@@ -339,8 +339,8 @@ export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): Billing
     case "past_due":
       return {
         ...base,
-        headline: "Payment failed",
-        detail: `${account.last_payment_failed_at ? `The last charge failed ${agoWords(Date.parse(account.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days; update the card in Manage billing to keep AI answering.`,
+        headline: "Payment declined",
+        detail: `${account.last_payment_failed_at ? `The last charge was declined ${agoWords(Date.parse(account.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days · update the card in Manage billing to keep AI answering.`,
         tone: "danger",
         actions: { checkout: false, portal: true, resume: false, startNow: false },
         paused: false,
@@ -359,7 +359,7 @@ export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): Billing
         ...base,
         headline: "Paused",
         detail:
-          "The trial ended without a card on file. Add one in Manage billing, then resume; messages keep landing in the Inbox meanwhile.",
+          "The trial ended without a card on file. Add one in Manage billing, then resume · messages keep landing in the Inbox meanwhile.",
         tone: "danger",
         actions: { checkout: false, portal: true, resume: true, startNow: false },
         paused: true,

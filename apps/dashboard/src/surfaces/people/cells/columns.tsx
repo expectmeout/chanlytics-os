@@ -519,7 +519,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
         key="since"
         className="dim cl-cut cl-since-cell"
         data-testid="row-since"
-        title={p.firstContact.estimate ? "The earliest row we hold; the true first contact is earlier" : undefined}
+        title={p.firstContact.estimate ? "The earliest row we hold · the true first contact is earlier" : undefined}
       >
         {p.firstContact.label !== "—" ? p.firstContact.label : ""}
       </td>

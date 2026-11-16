@@ -184,7 +184,7 @@ function removeAsk(m: TeamPerson, ask: Extract<TeamAsk, { kind: "remove" }>, k: 
   const held = m.alerts ? k.alertsHeld(m) : null;
   const detail = (
     <>
-      They lose access at once; what they decided stays on the record.
+      They lose access at once · what they decided stays on the record.
       {m.alerts && !held && (
         <span className="set-team-also">
           <RecordSwitch
@@ -323,7 +323,7 @@ export function inviteRow(i: TeamPerson, k: RowActs): ReactNode {
             aria-busy={sending || undefined}
             data-testid={`team-resend-${i.id}`}
           >
-            {sending ? "Sending…" : i.expired ? "Send again" : "Resend"}
+            {sending ? "Sending…" : i.expired ? "Send again" : "Send again"}
           </Button>
         )}
       </span>

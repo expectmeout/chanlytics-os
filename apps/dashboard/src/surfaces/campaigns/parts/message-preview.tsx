@@ -172,7 +172,7 @@ function bubbleLabel(m: {
   rows: readonly MpButton[];
 }) {
   const { from, header, footer, words, rows } = m;
-  return `Preview — ${from || "your business"} sends: ${header ? `${header}. ` : ""}${words}${footer ? `. ${footer}` : ""}${rows.length ? `. Buttons: ${rows.map((b) => b.text).join(", ")}` : ""}`;
+  return `Preview · ${from || "your business"} sends: ${header ? `${header}. ` : ""}${words}${footer ? `. ${footer}` : ""}${rows.length ? `. Buttons: ${rows.map((b) => b.text).join(", ")}` : ""}`;
 }
 
 /** Where the person reads it, a quiet label over the preview ("By email"). */
@@ -230,7 +230,7 @@ interface MailFrameProps {
 /** An email as its person reads it: who from, when, the subject, the words, and the foot the sender adds. */
 function MailFrame({ bare, from, kind, mail, parts, values, words, slot, when, keyer }: MailFrameProps) {
   const subject = mail.subject ? mpFill(mail.subject, values) : null;
-  const label = `Preview — ${from || "your business"} emails${subject ? `: ${subject}` : ""}. ${words}. ${mail.foot.replace(/\n/g, " ")}`;
+  const label = `Preview · ${from || "your business"} emails${subject ? `: ${subject}` : ""}. ${words}. ${mail.foot.replace(/\n/g, " ")}`;
   return (
     <figure className="mp-frame mp-mail-frame">
       {bare ? null : <MpHead from={from} kind={kind} />}

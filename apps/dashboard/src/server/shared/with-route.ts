@@ -257,7 +257,7 @@ function answerOf<T>(
 
 /**
  * What a handler's throw answers, logged where it is decided: a refusal as its own code, status and sentence (with the
- * wait a limit counted), anything else as "Something went wrong.", its line carrying the stack. The one rule withRoute and
+ * wait a limit counted), anything else as "Couldn't finish that.", its line carrying the stack. The one rule withRoute and
  * GET open's reads share (workspace/page-open.ts).
  */
 export function answerOfThrow(
@@ -299,7 +299,7 @@ export function answerOfThrow(
     user: at.userId,
     error: error instanceof Error ? error : String(error),
   });
-  return { status: 500, body: err("internal", "Something went wrong."), headers: {} };
+  return { status: 500, body: err("internal", "Couldn't finish that."), headers: {} };
 }
 
 /* ---- Control plane (Session A): who is acting, on which tenant, as what ---- */
@@ -568,7 +568,7 @@ export function dbRefusal(
   const door = code ? DOOR_REFUSALS[code] : undefined;
   if (door) return new AppError(door.code, doorWords(door, sentence), door.status);
   log.error("db_failed", { code, error: message });
-  return new AppError("unavailable", "Something went wrong.");
+  return new AppError("unavailable", "Couldn't finish that.");
 }
 
 /**

@@ -16,6 +16,7 @@ import {
   type SequencePeopleDto,
   type SequenceReachDto,
   type SequenceRecordDto,
+  type SequenceRowDto,
   type SequencesPageDto,
 } from "@chanlytics/contracts";
 import {
@@ -53,6 +54,15 @@ const cited = (s: { id: string; name: string }) => ({
   label: s.name,
 });
 
+/**
+ * What waits for you in each sequence, as the badge counts it: a batch whose day has passed is no one's to approve. The
+ * page's rows and what Ask notices of them (ask/tools/read/seen.ts) read it so.
+ */
+export const sequencesWaitingNow = (rows: readonly SequenceRowDto[], timezone: string, now: Date): SequenceRowDto[] => {
+  const days = runDaysAt(timezone, now);
+  return rows.map((r) => sequenceWaitsNow(r, days));
+};
+
 /** GET sequences: every sequence of the workspace, newest first, with what needs you in each. */
 export const sequences: Reader<undefined, SequencesPageDto> = {
   name: "sequences",
@@ -63,10 +73,8 @@ export const sequences: Reader<undefined, SequencesPageDto> = {
       // The word its steps are said in, the workspace's own (readers/facts.ts): nothing else of its shape is said here.
       load(rc, readers.appointmentWord, undefined).then((r) => r.data),
     ]);
-    // What waits for you, as the badge counts it: a batch whose day has passed is no one's to approve.
-    const days = runDaysAt(facts.timezone, rc.now);
     return {
-      data: { sequences: rows.map((r) => sequenceWaitsNow(r, days)), timezone: facts.timezone, word },
+      data: { sequences: sequencesWaitingNow(rows, facts.timezone, rc.now), timezone: facts.timezone, word },
       rows: rows.map(cited),
       stamp: readerStamp(),
     };

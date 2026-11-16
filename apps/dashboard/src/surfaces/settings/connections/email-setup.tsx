@@ -50,7 +50,7 @@ export const EmailSetupForm = ({ email, businessName, flash, onClose }: EmailSet
       msg: mailbox ? (
         <>Customers now see {name.trim()} beside your address</>
       ) : (
-        <>{made?.mailbox?.address} is yours — emails to it arrive in your Inbox</>
+        <>{made?.mailbox?.address} is yours · emails to it arrive in your Inbox</>
       ),
     });
     onClose();

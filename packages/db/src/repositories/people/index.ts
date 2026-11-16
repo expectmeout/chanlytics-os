@@ -11,6 +11,7 @@ export {
   deleteList,
   dropFromList,
   findSavedList,
+  listListHeads,
   listMemberIds,
   listPlaybooksOnList,
   listRow,
@@ -39,6 +40,8 @@ export {
   removePersonNote,
   suggestNoteOnPerson,
 } from "./notes";
+export { countNeverAskedOnWhatsApp, listOpenDealsOfListed, listPeopleWithAStep } from "./noticed";
+export type { ListedOpenDeal } from "./noticed";
 export {
   addPersonNote,
   adoptPersonName,

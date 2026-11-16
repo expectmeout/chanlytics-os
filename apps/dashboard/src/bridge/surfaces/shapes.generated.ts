@@ -6,12 +6,12 @@
  * snapshot is the build's alone.
  */
 export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
-  alerts: "9f00d458d977755a",
+  alerts: "8ae98d59432c6173",
   ask_memory: "ea7be04b7c170a76",
   ask_morning: "d246f1808e21b312",
   audiences: "3cf311d9336ac944",
   billing: "9f5a6a4f8592c70a",
-  broadcasts: "cc8ab31acafc7e20",
+  broadcasts: "b6f49d12f80ff357",
   calendar: "5f12f72ccde0120e",
   calendar_runs: "4859024c5ad61285",
   channels: "200700fcf97dd267",
@@ -24,7 +24,7 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   live: "2c7abb05e8a08f8b",
   partner: "03a3b5059117a7f1",
   people: "92e0de4ded39549b",
-  playbooks: "26074d0ce2dbb208",
+  playbooks: "d9cc9bb99af08278",
   reach_outs: "2be2334e55e64b49",
   reply_drafts: "af80977b5881c0c1",
   reports: "43d6fdb2d4f47f7d",
@@ -34,7 +34,7 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   reports_receptionist: "690678d24aad7604",
   reports_reviews: "08da2c694947ffc8",
   sequences: "a42e139c4afec895",
-  settings: "f51ef7922949b7be",
+  settings: "d3661f22ca505351",
   setup: "fb2470f3609076cc",
   today: "f84c67f84b49fff5",
   today_pins: "d3fd87a670594687",

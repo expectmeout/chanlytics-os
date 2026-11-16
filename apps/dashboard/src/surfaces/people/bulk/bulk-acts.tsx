@@ -29,7 +29,7 @@ export function bulkCtx(props: BulkProps, st: BulkState): BulkCtx {
   // Fifty at a press: the batch doors take fifty, and a bigger selection keeps the rest selected, said so.
   const batch = ids.slice(0, PL_BATCH);
   const rest = ids.slice(PL_BATCH);
-  const restWords = rest.length ? ` · ${rest.length} more still selected — fifty at a time` : "";
+  const restWords = rest.length ? ` · ${rest.length} more still selected · fifty at a time` : "";
   return {
     ...props,
     st,

@@ -489,7 +489,7 @@ function stuckFiguresOf(stuck: CampaignStuckNowDto, tz: string, nowMs: number): 
       ...figure,
       id: "runs-failed",
       metric: "runs_failed",
-      label: "Failed runs",
+      label: "Runs with a problem",
       value: stuckValue(failed.n, failed.capped),
       meta: failedRunMeta(failed),
       door: SEQUENCES_ROUTE,

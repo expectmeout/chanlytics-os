@@ -92,7 +92,7 @@ test("an error that is not a refusal is still a 500 that says nothing of its ins
     });
     const res = await handler(req(), { params: Promise.resolve({}) });
     assert.equal(res.status, 500);
-    assert.deepEqual((await res.json()).error, { code: "internal", message: "Something went wrong." });
+    assert.deepEqual((await res.json()).error, { code: "internal", message: "Couldn't finish that." });
   } finally {
     setBearerVerifier(prev);
   }

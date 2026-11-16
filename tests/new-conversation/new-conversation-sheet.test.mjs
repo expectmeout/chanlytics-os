@@ -457,7 +457,7 @@ test("a queued message is said for as long as it can be stopped, with its Undo; 
     { message_id: "m1", cancelable_until: until(15_000), note_id: "n1" },
     () => {},
   );
-  assert.match(said2[0].msg, /^Message to Robin Example queued · sends in 1[45] s unless you undo$/);
+  assert.match(said2[0].msg, /^Message to Robin Example waiting · sends in 1[45] s unless you undo$/);
   assert.equal(typeof said2[0].undo, "function", "the reply's own undo, for as long as the send can be stopped");
   assert.ok(said2[0].ms > 14_000 && said2[0].ms <= 15_000, "the toast lives exactly that long");
   sayQueued(

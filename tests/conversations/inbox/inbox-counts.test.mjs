@@ -674,7 +674,7 @@ test("the bulk snooze's Undo says they are back in the Inbox -- a snooze lets go
       return /Snooze undone/.test(toasts().map(textOf).join(" | "));
     }, "the wake said they are back");
     const said = toasts().map(textOf).join(" | ");
-    assert.match(said, /Snooze undone — 2 back in the Inbox/);
+    assert.match(said, /Snooze undone · 2 back in the Inbox/);
     assert.ok(
       !said.includes("back where"),
       "REGRESSION: 'back where they were', for a thread whose claim the snooze had let go",

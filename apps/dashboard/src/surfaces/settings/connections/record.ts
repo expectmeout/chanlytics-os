@@ -116,10 +116,10 @@ export const businessRecord: BusinessRecordApi = {
       ok: r.data.ok === true || pending,
       pending,
       message: pending
-        ? "Filed. The carriers have your brand; texting switches on by itself when they are through."
+        ? "Filed. The phone networks have your brand · texting switches on by itself when they are through."
         : r.data.ok
-          ? "Filed with the carriers. This page updates by itself."
-          : (r.data.error ?? "The carriers did not accept it."),
+          ? "Filed with the phone networks. This page updates by itself."
+          : (r.data.error ?? "It wasn't approved."),
     };
   },
   fieldsFor: businessFieldsFor,

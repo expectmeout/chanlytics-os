@@ -100,7 +100,7 @@ test("the three lists read the same words they did before the table", () => {
     max_duration_reached: "Hit the call length limit",
     concurrency_limit_reached: "The line was busy",
     user_declined: "Customer declined the call",
-    marked_as_spam: "Flagged as spam by the carrier",
+    marked_as_spam: "Flagged as spam by their phone company",
     manual_stopped: "Ended from the dashboard",
     call_take_over: "A person took over the call",
     transfer_bridged: "Transferred to a person",

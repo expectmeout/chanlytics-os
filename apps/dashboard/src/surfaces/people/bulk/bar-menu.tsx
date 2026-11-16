@@ -12,7 +12,7 @@ import { gatedProps } from "../../frame-verbs";
 import type { BulkActs } from "./bulk-acts";
 import type { BulkCtx } from "./bulk-state";
 
-const SAVING = "One moment — the last change is still saving";
+const SAVING = "One moment · the last change is still saving";
 
 /** A menu of the bar: its words and what they do on hover, its groups, and the size of the bar's buttons (a phone's is large). */
 export function barMenu(o: {

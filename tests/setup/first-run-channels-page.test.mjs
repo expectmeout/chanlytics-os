@@ -70,7 +70,7 @@ test("Where it answers (canvas 4): the calls tile keeps the listing's number fir
   assert.equal(byTestId(tree, "first-run").props["data-step"], "channels");
   assert.equal(textOf(byTestId(tree, "fr-heading")), "Where should it answer?");
   assert.equal(textOf(byTestId(tree, "fr-phone-line")), "4 of 5 · Where it answers");
-  assert.match(textOf(byTestId(tree, "first-run")), /Nothing is bought here; it all connects when you go live\./);
+  assert.match(textOf(byTestId(tree, "first-run")), /Nothing is bought here · it all connects when you go live\./);
   assert.equal(wayOf(tree, "keep").props["aria-checked"], true, "keeping is the default");
   assert.match(textOf(wayOf(tree, "keep")), /^Keep \+1 \(305\) 555-0100Recommended/);
   assert.equal(boxOf(tree, "fr-phone-number-box").props.value, "+1 (305) 555-0100", "from the listing");

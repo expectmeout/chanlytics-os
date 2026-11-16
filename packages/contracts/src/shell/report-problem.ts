@@ -104,7 +104,7 @@ export const REPORT_WORDS = {
   need: "What do you need?",
   sentWith: "Sent with it",
   thisPage: (page: string) => `This page · ${page}`,
-  theError: (id: string) => `The error · ${id}`,
+  theError: (id: string) => `What happened · ${id}`,
   privacy: (email: string | null) =>
     email ? `Nothing about your customers is sent. We answer at ${email}.` : "Nothing about your customers is sent.",
   send: "Send",

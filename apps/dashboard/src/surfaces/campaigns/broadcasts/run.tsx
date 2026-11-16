@@ -287,7 +287,7 @@ function bcAside(vm: RunReportVM) {
                 className="bc-back-row"
                 disabled={!x.to}
                 onClick={() => navigate(x.to as string)}
-                title={`${x.name} — open the conversation`}
+                title={`${x.name} · open the conversation`}
                 data-testid="bc-reply"
               >
                 <Face person={{ name: x.name, initials: x.initials }} size="sm" />

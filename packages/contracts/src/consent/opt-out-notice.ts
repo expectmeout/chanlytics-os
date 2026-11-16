@@ -78,7 +78,7 @@ const SAID_ON: Readonly<Record<string, string>> = { sms: "Text", whatsapp: "What
 function endsWords(optOut: OptOutSaid): string {
   if (optOut.scope === "everything")
     return optOut.how === "carrier"
-      ? "Their carrier told us they replied STOP to your number. Nothing more will be sent to them."
+      ? "Their phone company told Chanlytics they replied STOP to your number. Nothing more will be sent to them."
       : "Nothing more will be sent to them. They can text START to opt back in.";
   if (optOut.how === "whatsapp")
     return "Offers to them on WhatsApp have stopped. Reminders and confirmations still reach them.";
@@ -98,7 +98,7 @@ function headline(name: string, optOut: OptOutSaid): string {
 /** How the platform's copy names a no, with no word of theirs. */
 const HOW_REDACTED: Readonly<Record<OptOutHow, string>> = {
   stop: "asked to stop",
-  carrier: "asked to stop, by their carrier's report",
+  carrier: "asked to stop, by their phone company's report",
   whatsapp: "stopped offers on WhatsApp",
   unsubscribe: "unsubscribed from the emails",
   complaint: "reported an email as spam",

@@ -92,7 +92,7 @@ export const LEAD_SHEET_WORDS = {
     copied: "Copied what is known of them",
     never: "Never write to them again",
     neverHint: "Stops every campaign",
-    erase: "Erase this lead",
+    erase: "Delete this lead",
   },
   /** The picker: a step of the same sheet. */
   picker: {
@@ -101,10 +101,10 @@ export const LEAD_SHEET_WORDS = {
     sub: "Tap one to add. It becomes the pick for this search.",
     canJoin: (name: string) => `${name} can join any of these`,
     yours: "Your lead campaigns",
-    none: "No campaign takes leads yet. Make one by name; you write its emails when you're done here.",
+    none: "No campaign takes leads yet. Make one by name · you write its emails when you're done here.",
     newOne: "New campaign",
-    newLine: "Name it now; write its emails when you're done here",
-    newLineMany: (n: number) => `Name it; the ${n} wait in it as a draft`,
+    newLine: "Name it now · write its emails when you're done here",
+    newLineMany: (n: number) => `Name it · the ${n} wait in it as a draft`,
     pick: "the pick for this search",
     /** One email instead of a sequence: the draft for their own inbox (the 4 Nov 2026 review: no way to it was left). */
     write: "Write one email instead",

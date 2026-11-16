@@ -208,10 +208,10 @@ export function toChannelVM(dto: ChannelDto, now: Date, tz: string): ChannelVM {
     // value's (caller-gets.ts), which Live, Start and Today say too; who is
     // told is this row's own.
     health = "off";
-    healthLabel = `Switched off — ${lineOffGets(dto.kind, meta.noun).gets}; Chanlytics is told${dto.kind === "voice" ? "" : " they are arriving"}, you are not`;
+    healthLabel = `Switched off · ${lineOffGets(dto.kind, meta.noun).gets}; Chanlytics is told${dto.kind === "voice" ? "" : " they are arriving"}, you are not`;
   } else if (last === null) {
     health = "unused";
-    healthLabel = `On — no ${meta.noun} has arrived yet`;
+    healthLabel = `On · no ${meta.noun} has arrived yet`;
   } else if (nowMs - last <= QUIET_AFTER_MS) {
     health = "receiving";
     healthLabel = `Receiving · last ${meta.noun} ${ago(last, nowMs, tz)}`;

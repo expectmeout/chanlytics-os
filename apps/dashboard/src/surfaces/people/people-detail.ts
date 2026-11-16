@@ -195,15 +195,15 @@ export const personOverride: SurfaceOverride = {
     omit: [
       {
         tables: ["lead_searches", "lead_rounds", "lead_search_members"],
-        why: "the page names the business a person works at (a lead); the searches that found leads, their rounds and members are Leads'",
+        why: "the page names the business a person works at (a lead) · the searches that found leads, their rounds and members are Leads'",
       },
       {
         tables: ["invitations"],
-        why: "the page names the members who wrote or took something; an invitation not yet taken names no one",
+        why: "the page names the members who wrote or took something · an invitation not yet taken names no one",
       },
       {
         tables: ["tenant_channels", "lines", "mailboxes", "capability_activations", "business_records"],
-        why: "the page names the connected mailbox a business's emails left from; the numbers, the lines, the hosted mailbox, an activation and the carriers' record are Connections'",
+        why: "the page names the connected mailbox a business's emails left from · the numbers, the lines, the hosted mailbox, an activation and the phone networks' record are Connections'",
       },
     ],
     // A row made now is not the person on screen, nor the business they work at: a lead run inserts leads every few seconds
@@ -441,7 +441,7 @@ function manyResult(r: ApiResult<unknown>, asked: number, verb = "recorded"): Ma
     ok: failed === 0,
     done: d.done,
     failed,
-    message: failed ? `${failed} couldn't be ${verb}${why ? ` — ${why}` : ""}` : undefined,
+    message: failed ? `${failed} couldn't be ${verb}${why ? ` · ${why}` : ""}` : undefined,
   };
 }
 

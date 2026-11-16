@@ -951,7 +951,7 @@ test("a run waiting on you is approved or skipped where it waits: who gets it, a
   const gone = row(waitingRun({ run_for: "2026-09-30" }));
   assert.equal(
     gone.waiting.refusal,
-    "This run was made for Sep 30 and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.",
+    "This run was made for Sep 30 and that day has passed: its people and its words were that day's. Skip it · the next run reads the calendar again.",
   );
   assert.equal(gone.why, gone.waiting.refusal);
   // A visit's run made for today, approved after the last sending hour (it is 9:44 PM), would go tomorrow morning: refused too.
@@ -1027,31 +1027,31 @@ test("a run waiting on you is approved or skipped where it waits: who gets it, a
   // And so are the receipts: the server's count and when it really goes; a skip sends nothing.
   assert.deepEqual(C.LIFECYCLE_TOAST.approved("Win-back", 4, "sending now"), [
     { b: "Win-back" },
-    " approved — 4 people, sending now",
+    " approved · 4 people, sending now",
   ]);
   assert.deepEqual(C.LIFECYCLE_TOAST.approved("Win-back", 1, "scheduled for tomorrow 9:00 AM"), [
     { b: "Win-back" },
-    " approved — 1 person, scheduled for tomorrow 9:00 AM",
+    " approved · 1 person, scheduled for tomorrow 9:00 AM",
   ]);
   // A skip says what the server stopped, by what the run was when it did (Sent's own receipt, runStoppedWords): a run
   // that waited closes unsent; one a teammate approved a moment before is going, and stops after the batch in hand.
   assert.deepEqual(C.LIFECYCLE_TOAST.skipped("Win-back", "pending_approval"), [
     { b: "Win-back" },
-    " skipped — nothing will send",
+    " skipped · nothing will send",
   ]);
   assert.deepEqual(C.LIFECYCLE_TOAST.skipped("Win-back", "sending"), [{ b: "Win-back" }, " stops after this send"]);
   assert.deepEqual(C.LIFECYCLE_TOAST.skipped("Win-back", "scheduled"), [
     { b: "Win-back" },
-    " canceled — nothing will send",
+    " canceled · nothing will send",
   ]);
   assert.deepEqual(
     ["sending", "pending_approval", "scheduled", null, undefined].map((was) => C.runStoppedWords(was)),
     [
       "stops after this send",
-      "skipped — nothing will send",
-      "canceled — nothing will send",
-      "canceled — nothing will send",
-      "canceled — nothing will send",
+      "skipped · nothing will send",
+      "canceled · nothing will send",
+      "canceled · nothing will send",
+      "canceled · nothing will send",
     ],
   );
 });

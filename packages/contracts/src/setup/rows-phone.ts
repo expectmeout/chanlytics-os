@@ -45,7 +45,7 @@ export function lineRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRo
         ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "",
         ownLine || texting.done
           ? ""
-          : "Texting arrives with lines that register with the carriers; this page will say when",
+          : "Texting arrives with lines that register with the phone networks · this page will say when",
       ].filter(Boolean),
       verb: { label: "Open Connections", to: "admin/integrations" },
     };
@@ -57,7 +57,7 @@ export function lineRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRo
       title: "A line for calls and texts",
       state: "waiting_you",
       required: !answering,
-      sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off — ${PHONE_LINE_OFF.gets}.`,
+      sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off · ${PHONE_LINE_OFF.gets}.`,
       details: [],
       verb: { label: "Open Connections", to: "admin/integrations" },
     };
@@ -121,7 +121,7 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
       sentence: `Setting up${numberWords} stopped while ${step}, ${ago}.`,
       details: [
         "It is retried automatically, usually within a quarter of an hour, and Chanlytics is told when it is",
-        "Retry from here — it picks up where it stopped and buys nothing twice",
+        "Retry from here · it picks up where it stopped and buys nothing twice",
       ],
       retry,
     };
@@ -129,8 +129,8 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
   if (line.voice_state === "provisioning") {
     return {
       kind: "setting_up",
-      sentence: `Setting up${numberWords} — ${step}, since ${ago}.`,
-      details: ["Usually a minute or two; this page updates by itself"],
+      sentence: `Setting up${numberWords} · ${step}, since ${ago}.`,
+      details: ["Usually a minute or two · this page updates by itself"],
       retry: null,
     };
   }
@@ -140,7 +140,7 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
       kind: "credentials",
       sentence: `Setting up${numberWords} stopped at ${LINE_CREDENTIALS_SENTENCE}. A person at Chanlytics has it.`,
       details: [
-        "A retry cannot help until the credentials are restored; we have been told and will finish it with you",
+        "Trying again can't help until the keys are restored. Chanlytics has been told, and will finish it with you",
       ],
       retry: null,
     };
@@ -149,14 +149,14 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
     return {
       kind: "stopped",
       sentence: `Setting up${numberWords} stopped while ${step}. A person at Chanlytics has it.`,
-      details: ["Retry from here; we have been told"],
+      details: ["Retry from here · we have been told"],
       retry,
     };
   }
   if (line.voice_state === "answering") {
     return {
       kind: "connecting",
-      sentence: `${number ?? "Your number"} is set up — connecting it to AI.`,
+      sentence: `${number ?? "Your number"} is set up · connecting it to AI.`,
       details: [],
       retry: null,
     };
@@ -201,10 +201,10 @@ function lineToGetRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowD
       title: "A line for calls and texts",
       state: "waiting_them",
       required: !answering,
-      sentence: `Requested ${agoWords(Date.parse(setupInputs.requests.port), nowMs)} — a person at Chanlytics will move your number onto Chanlytics with you and reach you by email.`,
+      sentence: `Requested ${agoWords(Date.parse(setupInputs.requests.port), nowMs)} · a person at Chanlytics will move your number onto Chanlytics with you and reach you by email.`,
       details: [
         "Keep your current phone service until the move is finished — cancelling it first can lose the number",
-        "Carriers take 7 to 14 business days once the move is filed",
+        "The move takes 7 to 14 business days once it's filed",
       ],
       verb: null,
     };
@@ -216,7 +216,7 @@ function lineToGetRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowD
       title: "A line for calls and texts",
       state: "waiting_them",
       required: !answering,
-      sentence: `Requested ${agoWords(Date.parse(setupInputs.requests.line), nowMs)} — a person at Chanlytics will set up your line with you and reach you by email.`,
+      sentence: `Requested ${agoWords(Date.parse(setupInputs.requests.line), nowMs)} · a person at Chanlytics will set up your line with you and reach you by email.`,
       details: [],
       verb: null,
     };
@@ -239,7 +239,7 @@ function lineToGetRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowD
           // Checkout bills one price and nothing bills a number fee, so no row quotes one. The DTO still carries what a
           // number costs Chanlytics (lines.costs); nothing an owner reads says it.
           details: [
-            "A local number, included in your plan · AI answers it · texting arrives when the carriers register it",
+            "A local number, included in your plan · AI answers it · texting arrives when the phone networks register it",
           ],
           verb: { label: "Get a line", to: "verb:choose-line" },
         }
@@ -351,13 +351,13 @@ export function receptionistRow(setupInputs: SetupInputs, ctx: SetupRowContext):
         details: [
           handoffNum
             ? `Transfers to ${handoffNum} when a caller insists on a person`
-            : "No hand-off number yet — callers who insist on a person are told someone will call back",
+            : "No hand-off number yet · callers who insist on a person are told someone will call back",
           last,
           activationWords(cap, nowMs),
         ],
         verb:
           cap.tested && !cap.live
-            ? { label: "Activate", to: "verb:activate:voice" }
+            ? { label: "Turn on", to: "verb:activate:voice" }
             : voice.number
               ? { label: "Call it", to: `tel:${voice.number}` }
               : null,
@@ -384,7 +384,7 @@ export function receptionistRow(setupInputs: SetupInputs, ctx: SetupRowContext):
       title: "AI on the phone",
       state: "waiting_them",
       required: !answering,
-      sentence: "Being created with your line — it answers the moment the line does.",
+      sentence: "Being created with your line · it answers the moment the line does.",
       details: [],
       verb: null,
     };
@@ -439,7 +439,7 @@ export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
   const kept = fw?.e164 ? (formatPhoneDisplay(fw.e164) ?? fw.e164) : "your number";
   const dest = voiceReady && voice.number ? voiceNum : null;
   const how = forwarding
-    ? `${FORWARDING_MODE_WORDS[forwarding.mode as ForwardingMode] ?? "Forwarded"} · ${CARRIER_WORDS[forwarding.carrier as Carrier] ?? "your carrier"}`
+    ? `${FORWARDING_MODE_WORDS[forwarding.mode as ForwardingMode] ?? "Forwarded"} · ${CARRIER_WORDS[forwarding.carrier as Carrier] ?? "your phone company"}`
     : "";
   const title = "The number you already have";
   if (fw && forwarding && fw.forwarding_state === "verified") {
@@ -464,7 +464,7 @@ export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
       title,
       state: "waiting_you",
       required: false,
-      sentence: `Testing — call ${kept} from another phone. This page updates by itself.`,
+      sentence: `Testing · call ${kept} from another phone. This page updates by itself.`,
       details: [`Window open for ${spanLabel(Date.parse(forwarding.test_until ?? "") - nowMs)}`],
       verb: { label: "Show the code", to: "verb:forwarding" },
     };
@@ -503,7 +503,7 @@ export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
     state: "not_started",
     required: false,
     sentence: `Keep the number your customers know: forward its calls to ${dest}.`,
-    details: ["You keep your phone, your carrier and your texts"],
+    details: ["You keep your phone, your phone company and your texts"],
     verb: { label: "Set up forwarding", to: "verb:forwarding" },
   };
 }

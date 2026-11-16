@@ -164,7 +164,7 @@ export const TeamSection = ({ flash }: { flash: Flash }) => {
         <FailedRead
           kind="card"
           what="your team"
-          body="Everything else on this page is current — only the member list failed to load."
+          body="Everything else on this page is current. Only the member list couldn't load."
           surface="settings"
           testid="team-failed"
         />
