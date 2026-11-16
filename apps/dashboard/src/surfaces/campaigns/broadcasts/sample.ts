@@ -1,9 +1,9 @@
 /**
- * The demo's Broadcasts: a sample business's sends and audiences, passed through the same contracts functions a real
- * workspace's go through (the broadcast view model, the number's health, the words for a held reason), so a demo session
- * draws the one Broadcasts page there is. Three broadcasts (one sent, one scheduled, one waiting for its owner) and three
- * audiences over the approved starters. Deterministic: the same moment is the same page. Nothing counted here is a
- * customer's: the twin it replaces was the mockup's own page, with its own invented campaigns and figures.
+ * Sent for the tests: a sample business's sends and audiences, passed through the same contracts functions a workspace's
+ * go through (the broadcast view model, the number's health, the words for a held reason), so a test draws the one page
+ * there is over it. Three broadcasts (one sent, one scheduled, one waiting for its owner) and three audiences over the
+ * approved starters. Deterministic: the same moment is the same page. Nothing counted here is a customer's. No page
+ * imports it: the demo session that drew it went with demo mode (16 Nov 2026).
  */
 import {
   BROADCAST_CHUNK,
@@ -27,7 +27,7 @@ import {
   type BroadcastDto,
 } from "@chanlytics/contracts";
 import type { AudienceOption } from "./audiences-surface";
-import type { BcWhole } from "./page/types";
+import type { BcData } from "./page/types";
 import type { BroadcastTemplate } from "./surface";
 import { DEMO_ZONE } from "../../demo-zone";
 
@@ -105,7 +105,7 @@ function audience(
 }
 
 /** The demo's Broadcasts as of `now`: what `useSurface("broadcasts")` answers for a workspace that has read its own. */
-export function broadcastsSample(now = new Date()): BcWhole {
+export function broadcastsSample(now = new Date()): BcData {
   const iso = (ms: number) => new Date(now.getTime() + ms).toISOString();
   // The day a run is made for is the business's (core run-playbook stamps it by the workspace's zone): the demo's own
   // zone here. Stamped by UTC, the waiting run read as a day late every evening in New York, with nothing to approve.

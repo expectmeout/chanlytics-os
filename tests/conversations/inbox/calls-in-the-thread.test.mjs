@@ -190,7 +190,6 @@ installStubReact({
     CONF: { SAFE: 0.8, MED: 0.5 },
   },
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   __href: (route, p) => `${route}|${p.id}`,
   canDo: () => true,
   gate: () => ({}),
@@ -677,16 +676,6 @@ test("a whisper is the owner's own words, marked as theirs, with no moment in th
   const file = find(call, (n) => n.type === "a" && hasClass("tl-call-file")(n));
   assert.equal(file.props.href, "GET calls/[id]/export|k7", "the call's own transcript, from the route that writes it");
   assert.ok("download" in file.props);
-  globalThis.window.__DEMO_MODE = true;
-  try {
-    assert.equal(
-      find(cardOf(again(vm)), hasClass("tl-call-file")),
-      undefined,
-      "no file in a demo, where there is no route to write it",
-    );
-  } finally {
-    globalThis.window.__DEMO_MODE = false;
-  }
 });
 
 test("a thread opens where a call or an email began when it is the newest thing said; at a message it was opened at; else at its newest", () => {

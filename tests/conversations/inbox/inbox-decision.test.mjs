@@ -150,7 +150,7 @@ test("the customer's own words ride with the decision: what they last wrote, quo
 
 /* ------------------------------ the pages, drawn ------------------------------ */
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 const S = "../../../apps/dashboard/src";
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
 const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);

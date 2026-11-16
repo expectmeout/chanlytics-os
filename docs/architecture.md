@@ -451,8 +451,8 @@ the `window-publishers` measure. Each of the three may only fall (`docs/debt.md`
 keep the surfaces honest:
 
 - `apps/dashboard/src/bridge/surface-registry.ts` classifies every route as `real` or `demo`. A demo surface
-  renders the "not in this release" card outside a declared demo session, and a test fails CI if the shell declares a
-  route the table does not classify.
+  renders the "not in this release" card, and a test fails CI if the shell declares a route the table does not
+  classify.
 - `apps/dashboard/src/bridge/surface-data.ts` is the seam that feeds a real surface from `/api/v1`: an override
   reads, maps the rows through a contracts view model and publishes what the page draws. An override lives beside the
   page it feeds, under `apps/dashboard/src/surfaces/<surface>/`, and publishes the surface's typed value, which a page
@@ -466,11 +466,10 @@ keep the surfaces honest:
   is not.
 
 The unbuilt surfaces (agent fleet, store, studio, tasks, content) are parked by decision: each address draws the "Not
-in this release" card, a demo session's too (`apps/dashboard/src/surfaces/frame/route-table.tsx`). The shared report
-viewer draws the card outside a demo session, and opens only in one
+in this release" card (`apps/dashboard/src/surfaces/frame/route-table.tsx`), and so does the shared report viewer
 (`apps/dashboard/src/surfaces/frame/app-shell.tsx`). The retired deal board's address, `pipeline`, lands on People
-outside a demo session (`SURFACE_RETIRED` in `apps/dashboard/src/bridge/surface-registry.ts`) and draws the card
-in one. Their mockups, the seeded Lists and Ask palette and the seed data only they read lived in the shell's
+(`SURFACE_RETIRED` in `apps/dashboard/src/bridge/surface-registry.ts`). The demo session that drew some of them went
+with demo mode (16 November 2026). Their mockups, the seeded Lists and Ask palette and the seed data only they read lived in the shell's
 demo folder until #1695 (17 October 2026, the closed-loop audit's S2): git keeps them. The shell's route names and the
 API's nouns do not all agree yet; `docs/glossary.md` lists them.
 

@@ -14,7 +14,6 @@ export const flashes = [];
 export const asked = [];
 
 installStubReact({
-  __DEMO_MODE: false,
   __surfaceState: () => "live",
   __surfaceFailed: () => false,
   __refreshSurface: () => {},

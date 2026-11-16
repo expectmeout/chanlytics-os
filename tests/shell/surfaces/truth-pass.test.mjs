@@ -41,15 +41,10 @@ test("Memory is a real pane that keeps the settings nav (decision 0070); Billing
 test("the thread menu on a real workspace offers only verbs that act", () => {
   const page = readCode("apps/dashboard/src/surfaces/inbox/thread/header.tsx");
   assert.ok(
-    page
-      .replace(/\s+/g, " ")
-      .includes('...(demoSession() || (thread.real && thread.clientId) ? [{ label: "Mark as unread"'),
+    page.replace(/\s+/g, " ").includes('...(thread.real && thread.clientId ? [{ label: "Mark as unread"'),
     "Mark as unread acts now (the reader's own mark, 00349): offered on a real thread where there is a person to mark",
   );
-  assert.ok(/label: "Block sender",\s*glyph: ixGlyph\("x"\),\s*tone: "danger"/.test(page), "the demo keeps its item");
-  const block = page.indexOf('label: "Block sender"');
-  const gate = page.lastIndexOf("demoSession()", block);
-  assert.ok(gate > 0 && block - gate < 120, "Block sender is behind the demo gate");
+  assert.ok(!page.includes('label: "Block sender"'), "the demo's Block sender went with demo mode (16 Nov 2026)");
   assert.ok(
     /label: W\.receptionist,[\s\S]{0,400}onSelect: \(\) => onOpenClient\(thread\.clientId\)/.test(page),
     "a real session is sent to the per-person mode instead",

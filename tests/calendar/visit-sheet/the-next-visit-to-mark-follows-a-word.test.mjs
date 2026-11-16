@@ -20,7 +20,7 @@ import { until } from "../../shared/_until.mjs";
 const TZ = "America/New_York";
 const NOW = new Date("2026-09-08T16:00:00.000Z");
 
-installStubReact({ __DEMO_MODE: false, CHANLY: { nav() {} } });
+installStubReact({ CHANLY: { nav() {} } });
 const { OpenVisit } = await import("../../../apps/dashboard/src/surfaces/calendar/visit/visit-sheet");
 
 /** The door takes every word said on a visit, and the reads behind it answer nothing new. */

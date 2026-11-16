@@ -43,7 +43,6 @@ installStubReact({
     CONF: { SAFE: 0.8, MED: 0.5 },
   },
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   canDo: () => true,
   gate: () => ({}),
   setTimeout: () => 1,

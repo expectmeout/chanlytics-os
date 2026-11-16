@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, byTestId, press, unmount } from "../_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
+installStubReact({ __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },

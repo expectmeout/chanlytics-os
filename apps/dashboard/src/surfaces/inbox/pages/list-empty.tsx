@@ -4,7 +4,7 @@
  * conversation could not be read.
  */
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
-import { demoSession, surfaceState } from "../shell";
+import { surfaceState } from "../shell";
 import { inboxData } from "../store";
 import type { Thread } from "../types";
 
@@ -103,7 +103,7 @@ export function emptyThreads(list: EmptyListOf) {
   // when the empty state showed, it showed the mockup's copy — an
   // empty Snoozed bucket reading "7 snoozed… Elena's win-back".
   const surface = surfaceState("inbox");
-  const isReal = surface !== undefined ? surface === "real" && !demoSession() : threads.some((t) => t.real);
+  const isReal = surface !== undefined ? surface === "real" : threads.some((t) => t.real);
   const meta: EmptyWords = emptyWords(isReal)[activeView ? "view" : activeBucket] || {
     icon: "filter",
     title: "Nothing in this view",

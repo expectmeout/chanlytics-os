@@ -12,7 +12,7 @@ import { importSrc } from "../../_source.mjs";
 import { scenario } from "../../../tooling/scripts/e2e-harness/scenarios.mjs";
 import { installStubReact, fresh, again } from "../../_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false });
+installStubReact();
 // The standing keeps the minute on a timer (kit/head/dateline.ts), and a test that draws by hand starts none: a live
 // interval would hold the process open after the last test.
 globalThis.setInterval = () => 0;

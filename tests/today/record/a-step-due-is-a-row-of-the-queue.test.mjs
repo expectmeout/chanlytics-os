@@ -37,7 +37,6 @@ const went = [];
 const flashes = [];
 const opened = [];
 installStubReact({
-  __DEMO_MODE: false,
   __surfaceState: () => "live",
   appNavigate: (to) => went.push(to),
   usePPToast: () => [null, (m) => flashes.push(m)],

@@ -69,7 +69,7 @@ const asked = (over = {}) => ({
 /* -------------------------------- a browser -------------------------------- */
 
 const address = await legacyAddress();
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
@@ -277,7 +277,7 @@ test("REGRESSION: a re-read that moves the open thread out of its bucket keeps i
     inboxWith([other, open]);
   };
   const render = (initialThreadId = null) => {
-    tree = again(() => Inbox({ initialThreadId, showAgentRail: false }));
+    tree = again(() => Inbox({ initialThreadId }));
     const pane = paneOf(tree);
     if (pane) drawn.push({ id: pane.thread ? pane.thread.id : null, notice: pane.notice ?? null });
     return tree;
@@ -334,7 +334,7 @@ test("archived is in no list: a link opens it beside the list the member had, an
   });
   fresh();
   inboxWith([nina, gone]);
-  const tree = again(() => Inbox({ initialThreadId: "th-gone", showAgentRail: false }));
+  const tree = again(() => Inbox({ initialThreadId: "th-gone" }));
   assert.equal(paneOf(tree).thread.id, "th-gone", "the thread the link names");
   assert.ok(!listOf(tree).threads.some((x) => x.id === "th-gone"), "and no list holds it");
   assert.notEqual(listOf(tree).activeBucket, "out", "a tab stays lit: none is called out");
@@ -412,7 +412,7 @@ test("REGRESSION: a thread picked from a search in another bucket opens that thr
   inboxWith([emily, marcus]);
   let tree = null;
   const render = () => {
-    tree = again(() => Inbox({ showAgentRail: false }));
+    tree = again(() => Inbox({}));
     const pane = paneOf(tree);
     if (pane) drawn.push(pane.thread ? pane.thread.id : null);
     return tree;
@@ -458,7 +458,7 @@ test("your own act moves the open thread without a notice about it: its toast ha
   fresh();
   inboxWith([other, open]);
   const render = () => {
-    const tree = again(() => Inbox({ initialThreadId: "th-rosa", showAgentRail: false }));
+    const tree = again(() => Inbox({ initialThreadId: "th-rosa" }));
     const pane = paneOf(tree);
     if (pane)
       drawn.push({ id: pane.thread ? pane.thread.id : null, notice: pane.notice ?? null, onArchive: pane.onArchive });
@@ -535,7 +535,7 @@ test("the thread open is the address's: a click replaces it, a bucket switch nam
     inboxWith([emily, zoe, marcus]);
   };
   const render = (initialThreadId = null) => {
-    tree = again(() => Inbox({ initialThreadId, showAgentRail: false }));
+    tree = again(() => Inbox({ initialThreadId }));
     const pane = paneOf(tree);
     if (pane) drawn.push(pane.thread ? pane.thread.id : null);
     return tree;
@@ -627,8 +627,7 @@ test("on a phone a thread a tap opens is an entry of its own: Back closes it to 
   // The shell hands the Inbox the thread its address names; an effect's own change shows on the draw after it.
   const draw = () => {
     const param = /^#\/inbox\/(.+)$/.exec(w.location.hash);
-    for (let i = 0; i < 2; i++)
-      tree = again(() => Inbox({ initialThreadId: param ? param[1] : null, showAgentRail: false }));
+    for (let i = 0; i < 2; i++) tree = again(() => Inbox({ initialThreadId: param ? param[1] : null }));
     return !!tree.props["data-takeover"];
   };
   const back = () => paneOf(tree).onBack();
@@ -977,7 +976,7 @@ test("REGRESSION: j, k and the arrows pressed inside a dialog over the Inbox mov
   fresh();
   inboxWith([rosa, { ...rosa, id: "th-nina", who: "Nina Park", lastAtMs: 1000 }]);
   const render = () => {
-    const tree = again(() => Inbox({ initialThreadId: null, showAgentRail: false }));
+    const tree = again(() => Inbox({ initialThreadId: null }));
     const pane = paneOf(tree);
     if (pane) drawn.push(pane.thread ? pane.thread.id : null);
     return tree;

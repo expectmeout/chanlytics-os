@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact } from "../../_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false });
+installStubReact();
 
 /** Each ResizeObserver made; `laidOut()` is the browser telling every one of them their boxes moved. */
 const observers = new Set();

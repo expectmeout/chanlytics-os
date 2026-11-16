@@ -1002,7 +1002,7 @@ test("where the proposal follow-up has them in hand (0006), the card says the da
 
 /* ------------------------------------ the sheet, drawn by the shell's host ------------------------------------ */
 
-installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },

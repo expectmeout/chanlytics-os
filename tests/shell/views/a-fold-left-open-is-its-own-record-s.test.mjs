@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import { again, find, installStubReact, press, unmount } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
-installStubReact({ __DEMO_MODE: false });
+installStubReact();
 const { RecordDisclosure } = await importSrc("apps/dashboard/src/surfaces/kit/record/disclosure.tsx");
 const W = globalThis.window;
 

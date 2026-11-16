@@ -10,25 +10,14 @@
  *
  * A real workspace has no act: its booking link, and the other things the Calendar offers its owner, are the page's own
  * options menu at the end of its bar (board-parts.tsx), where a lone coral button for one link read as the page's main act
- * (Ruben, 2 Oct 2026). A demo session, which has read nothing, keeps the Ask door: the demo's detour opened Ask over the
- * skeleton or the failure pane when it was offered before the Calendar loaded (N10).
+ * (Ruben, 2 Oct 2026). The demo's Ask door (Book) went with demo mode (16 Nov 2026).
  *
  * The crumbs are "Calendar" at every address, `calendar/<YYYY-MM-DD>` too, because the page moves on from the day it opened
- * on. The JSX also named an appointment (`calendar/a-lin`) after the seeded week's; nothing names one now, since the sample
- * the demo draws (sample.ts) has no appointment whose id an address can spell that way.
+ * on. The JSX also named an appointment (`calendar/a-lin`) after the seeded week's; nothing names one now.
  */
-import { demoSession } from "../frame-verbs";
 import type { SurfaceViews } from "../routes";
-import { surfaceValue } from "../surface-values";
 import { calendarViewOf, calendarViewRoute } from "./address";
 import { CR_VIEWS } from "./words";
-
-interface CalendarAct {
-  label: string;
-  glyph: string;
-  primary: boolean;
-  ask?: boolean;
-}
 
 /** The four views, as the frame's strip draws them; the one lit is the one the page draws for this address. */
 function calendarViews(param: string | null): SurfaceViews {
@@ -50,9 +39,7 @@ export function calendarChrome({ param }: { param: string | null }): {
   crumbs: readonly string[];
   mount: string;
   views: SurfaceViews;
-  act: CalendarAct | null;
+  act: null;
 } {
-  const act: CalendarAct | null =
-    !surfaceValue("calendar") && demoSession() ? { ask: true, label: "Book", glyph: "plus", primary: true } : null;
-  return { crumbs: ["Calendar"], mount: "calendar", views: calendarViews(param), act };
+  return { crumbs: ["Calendar"], mount: "calendar", views: calendarViews(param), act: null };
 }

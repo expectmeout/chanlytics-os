@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, byTestId, find, textOf } from "../_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false, CHANLY: { nav() {} } });
+installStubReact({ CHANLY: { nav() {} } });
 const S = "../../apps/dashboard/src";
 const { createElement } = globalThis.React;
 const { Photo } = await import(`${S}/surfaces/files/photo.tsx`);

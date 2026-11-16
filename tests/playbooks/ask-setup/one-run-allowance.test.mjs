@@ -53,7 +53,6 @@ installStubReact({
   },
   __WORKSPACES: [{ id: A, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],
   __ACTIVE_WORKSPACE: A,
-  __DEMO_MODE: false,
   setInterval: () => 1,
   clearInterval() {},
 });

@@ -198,7 +198,7 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   // person's lists (lists.tsx), run here on the stub React the page tests share, over the People the seam holds.
   assert.ok(readCode("apps/dashboard/src/surfaces/people/person/lists.tsx").includes('data-testid="person-lists"'));
   const LR = await import("../../_stub-react.mjs");
-  LR.installStubReact({ __DEMO_MODE: false });
+  LR.installStubReact();
   const went = [];
   globalThis.CHANLY = { nav: (to) => went.push(to) };
   const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");

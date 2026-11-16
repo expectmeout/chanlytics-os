@@ -50,7 +50,6 @@ installStubReact({
     CONF: { SAFE: 0.8, MED: 0.5 },
   },
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
   __href: (route, p) => `${route}|${p.id}`,
   canDo: () => true,
   gate: () => ({}),
@@ -811,12 +810,8 @@ test("REGRESSION (S9-7): their visit is a door to the visit beside the head on a
       "Next appointment Tue, Sep 8 2:00 PM",
       "and the words under the name, on a desk too",
     );
-    // A demo's thread has no visit to open.
-    globalThis.window.__DEMO_MODE = true;
-    assert.equal(door(withVisit("calendar/visit:v1")), undefined, "a demo opens no visit");
   } finally {
     peopleAre(undefined);
-    globalThis.window.__DEMO_MODE = false;
   }
 });
 

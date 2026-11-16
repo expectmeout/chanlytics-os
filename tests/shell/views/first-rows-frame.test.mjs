@@ -17,7 +17,7 @@ import {
 } from "@chanlytics/contracts";
 import { fresh, installStubReact, textOf } from "../../_stub-react.mjs";
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false, innerWidth: 393, scrollY: 0 });
+installStubReact({ __surfaceState: () => "live", innerWidth: 393, scrollY: 0 });
 const S = "../../../apps/dashboard/src";
 const { firstRowsMeetRoute, installFirstRows, useFirstRowsLetGo } = await import(`${S}/surfaces/frame/first-rows.ts`);
 const { hearPartReady, installPageSpeed, partReady, speedHost } = await import(`${S}/client/page-speed.ts`);

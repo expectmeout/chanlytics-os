@@ -16,7 +16,7 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Meter } from "../../kit/meter/meter";
 import { CallReview } from "../../settings/business/rehearse/review";
-import { canDo, demoSession } from "../shell";
+import { canDo } from "../shell";
 import { hasHref, hrefOf } from "./shell-thread";
 import { conversationsData } from "../store";
 import type { CallLine, ConversationLine } from "../types";
@@ -127,7 +127,7 @@ function callWords(call: ConversationLine | null, note: string | null): CallWord
 function callLinks(call: ConversationLine | null, lines: CallLine[] | null) {
   // The recording is the route's own address: it redirects to a link signed for each request, so a seek or a play after a
   // long pause is signed afresh (calls/[id]/recording). The route names the workspace as every read does.
-  const real = !!(call && call.real && !demoSession() && hasHref());
+  const real = !!(call && call.real && hasHref());
   const src =
     real && call.recordingState === "ready" ? hrefOf("GET calls/[id]/recording", { id: call.callId ?? "" }) : null;
   const file = real && lines ? hrefOf("GET calls/[id]/export", { id: call.callId ?? "" }) : null;
@@ -562,9 +562,9 @@ interface ThreadCallProps {
 // `call`: the call itself, when it has been read; `note`: the words it left on the thread, which are all an older call
 // has. `open`: its lines shown -- the thread's newest spoken entry, or the call Conversations opened it at. On the side
 // it came from, for its direction; drawn across the thread, for it is neither side's words.
-/** The call Review this call judges: a real call, outside a demo, for whoever may change what the receptionist is told. */
+/** The call Review this call judges: a real call, for whoever may change what the receptionist is told. */
 function callReviewIdOf(call: ConversationLine | null): string | null {
-  return call && call.real && call.callId && !demoSession() && canDo("settings") ? call.callId : null;
+  return call && call.real && call.callId && canDo("settings") ? call.callId : null;
 }
 
 export const ThreadCall = ({

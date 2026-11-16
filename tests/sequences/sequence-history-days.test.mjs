@@ -12,7 +12,7 @@ import { createRequire } from "node:module";
 import { SEQUENCE_HISTORY_WORDS, campaignReportRoute, runRoute } from "@chanlytics/contracts";
 import { again, byTestId, fresh, installStubReact, settle, textOf, unmount } from "../_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false });
+installStubReact();
 // use-record.ts makes the record foot's context as it loads, and "react" under this runner's react-server condition has no
 // createContext: the stub gives it one that holds its value, which nothing here draws.
 const reactOfDashboard = createRequire(new URL("../../apps/dashboard/src/bridge/_.js", import.meta.url))("react");

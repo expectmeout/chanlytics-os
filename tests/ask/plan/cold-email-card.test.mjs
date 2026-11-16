@@ -208,7 +208,7 @@ test("the Line's rules see it: two such cards say the hold once over them, and t
 test("the Line draws it as it draws a campaign's: the rows, with every email whole and nothing behind Details", async () => {
   const { card: p } = await card([CONNECTED]);
   const { installStubReact, fresh, all, textOf, kitPages } = await import("../../_stub-react.mjs");
-  installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
+  installStubReact({ __surfaceState: () => "live", __surfaceFailed: () => false });
   Object.assign(globalThis.window, kitPages);
   Object.assign(globalThis, { canDo: () => true, gate: () => ({}) });
   const { AskCards } = await import(at("apps/dashboard/src/surfaces/ask/card.tsx"));

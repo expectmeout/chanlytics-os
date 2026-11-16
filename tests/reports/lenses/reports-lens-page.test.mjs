@@ -25,7 +25,7 @@ import { dtoWith as campaignsLedger, held as campaignsHeld } from "../campaigns/
 import { reachOuts as campaignsReachOuts } from "../campaigns/_reach-out-world.mjs";
 
 const reads = [];
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 globalThis.window.fetch = async (url) => {
   reads.push(String(url));
   return new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "not read here" } }), {

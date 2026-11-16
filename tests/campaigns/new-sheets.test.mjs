@@ -31,7 +31,6 @@ installStubReact({
   },
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
-  __DEMO_MODE: false,
   setInterval: () => 1,
   clearInterval() {},
 });

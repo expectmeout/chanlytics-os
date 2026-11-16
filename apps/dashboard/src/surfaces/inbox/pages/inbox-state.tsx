@@ -9,9 +9,7 @@
  * Each part is typed by the record so far: `Object.assign(ix, part(ix))` says what it added.
  */
 import { useEffect, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
-import { CONF, FOCUS_COMPOSER_MS, IX_NOW, STALE_AFTER_MS, TICK_MS } from "../constants";
-import type { IX_CONCURRENT } from "../sample";
-import { demoCode, warmDemo } from "../shell";
+import { CONF, FOCUS_COMPOSER_MS, IX_NOW, TICK_MS } from "../constants";
 import {
   ixBucketOf,
   ixDraftKey,
@@ -29,7 +27,6 @@ import {
   canDo,
   canNavigate,
   currentRoute,
-  demoSession,
   seededDeals,
   seededLeads,
   useToast,
@@ -44,10 +41,10 @@ import { threadVerbs } from "../thread/thread-verbs";
 import type { RealThread, Resolution, SeededThread, Thread, ThreadState, TimelineEntry, VerdictOption } from "../types";
 import { refreshInbox } from "../verbs";
 
-/** A concurrent change waiting to merge (the mockup's scripted one): the thread it landed on, and what landed. */
+/** A concurrent change waiting to merge: the thread it landed on, and what landed. */
 interface Stale {
   threadId: string;
-  update: (typeof IX_CONCURRENT)[string];
+  update: { by: string; note: string; append: TimelineEntry[] };
 }
 
 /** What an undo puts back on a thread: the record an act takes of it before it changes it. */
@@ -289,7 +286,6 @@ export const useInboxState = (THREADS: Thread[], initialThreadId: string | null,
   // never another customer's in its place. What happened to it, the pane says (ThreadPane).
   const [keepOpenId, setKeepOpenId] = useState<string | null>(null);
   const shownRef = useRef<Thread | null>(null);
-  const firedRef = useRef<Record<string, boolean>>({});
   const [toastNode, ppFlash] = useToast();
   const [planParams, setPlanParams] = useState<Record<string, number>>({}); // per-thread plan-param pick — lifted so hotkey A and the button write the same record
 
@@ -336,22 +332,6 @@ export const useInboxState = (THREADS: Thread[], initialThreadId: string | null,
     () => ixFollowReads({ setThreads, setKeepOpenId, setActiveBucket, setActiveThreadId, shownRef, routeThreadRef }),
     [],
   );
-  // A demo's seeded threads, fetched as the page mounts (demo.ts); their landing is heard as a read's is, above.
-  useEffect(warmDemo, []);
-
-  // Concurrent change: while you READ a scripted thread, something lands on it.
-  // Arm on open, fire once, clear if you navigate away first — never a silent
-  // overwrite; the thread pane shows a Refresh banner.
-  useEffect(() => {
-    if (!demoSession() || activeThreadId === null) return undefined;
-    const cfg = demoCode.now()?.IX_CONCURRENT[activeThreadId];
-    if (!cfg || firedRef.current[activeThreadId]) return undefined;
-    const timer = setTimeout(() => {
-      firedRef.current[activeThreadId] = true;
-      setStale({ threadId: activeThreadId, update: cfg });
-    }, cfg.afterMs || STALE_AFTER_MS);
-    return () => clearTimeout(timer);
-  }, [activeThreadId]);
 
   // What only this page knows -- a reply held in this tab before the cancel's re-read lands, a decision on a seeded thread --
   // is part of what the badge, the tab, the title and the phone count. Told when this page's own number moves; the readers
@@ -598,19 +578,15 @@ export const useInboxVeto = (ix: InboxState & InboxMoves) => {
   // memoisation, so an unconditional 1Hz timer re-rendered the entire Inbox
   // once a second, forever, to move a number that isn't there. Real threads
   // carry a veto draft only while one is genuinely held server-side — gated on
-  // the DATA rather than on __DEMO_MODE, because a real draft's countdown is the
+  // the DATA rather than on the session, because a real draft's countdown is the
   // server's and is drawn from its deadline.
   const hasLiveVeto = threads.some((t) => t.veto);
   useEffect(
     () => {
       VW_UTIL.seed(threads);
-      const onPres = () => setVetoTick((n) => n + 1);
-      // Away is the demo's (its control is drawn only in a demo session): a real session has none to hear.
-      if (demoSession()) window.addEventListener("presence:changed", onPres);
       const iv = hasLiveVeto ? window.setInterval(() => setVetoTick((n) => n + 1), TICK_MS) : null;
       return () => {
         if (iv) window.clearInterval(iv);
-        window.removeEventListener("presence:changed", onPres);
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- kept as the JSX drew it: the clock is armed by whether a countdown exists, and the threads are seeded once it does

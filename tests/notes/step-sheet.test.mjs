@@ -273,7 +273,7 @@ test("a Save sends the notes route a step -- its words, its day, for whom, the t
 
 /* ------------------------------------ the sheet, drawn by the shell's host ------------------------------------ */
 
-installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },

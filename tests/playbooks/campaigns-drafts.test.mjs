@@ -86,7 +86,6 @@ Object.assign(globalThis, {
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
   __surfaceState: () => "live",
-  __DEMO_MODE: false,
 });
 // React's context, which the react-server condition this suite runs under has none of: Campaigns' toast is held in one at the
 // route's mount (home/route-toast.ts), and New, drawn here on its own, reads its default -- none -- and says its own toast.

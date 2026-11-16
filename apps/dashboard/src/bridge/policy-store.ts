@@ -20,13 +20,11 @@ import {
  * policy chip beside every approval in the Inbox and Today, and Fleet. Rather
  * than teach each reader about the API, this installs a store with the SAME
  * interface that answers from the settings surface's `policies` (the settings
- * read's, bridge/surfaces/settings.ts) and from the seeded store only in the
- * standalone mockup. One swap, every reader truthful.
+ * read's, bridge/surfaces/settings.ts). One swap, every reader truthful.
  *
- * The rows the settings read holds have three states, and the store treats each as its own:
+ * The rows the settings read holds have three states:
  *   undefined  not read yet: a cold tab before settings lands, or a settings read that failed twice -- no modes, as
- *              for a failed read; the seeds only in a session that declared itself a demo (`__DEMO_MODE`), the
- *              mockup's own, where every row is seeded
+ *              for a failed read (the seeds a demo session read here went with demo mode, 16 Nov 2026)
  *   null       the bridge ran and the read FAILED — no modes, never the seeds
  *   object     the workspace's real rows
  * It answered from the seeds while undefined, so a real workspace's chips said the mockup's modes ("Replies · holds
@@ -271,8 +269,6 @@ export function seedPolicyStore(): SeedStore {
 interface PolicyWindow {
   POLICY?: SeedStore;
   __setPolicy?: (cls: string, mode: string) => Promise<unknown>;
-  /** A session that declared itself a demo (seed-globals.ts): the only one whose policies are the seeds. */
-  __DEMO_MODE?: boolean;
 }
 
 /**
@@ -283,22 +279,16 @@ interface PolicyWindow {
  */
 export function installPolicyStore(win: PolicyWindow, held: () => PoliciesSurface | null | undefined): void {
   const seed = win.POLICY;
-  // Not read yet is no modes, as a failed read is, everywhere but a demo (the header above).
-  const surface = (): PoliciesSurface | null | undefined => {
-    const rows = held();
-    return rows === undefined && !win.__DEMO_MODE ? null : rows;
-  };
+  // Not read yet is no modes, as a failed read is (the header above).
+  const surface = (): PoliciesSurface | null => held() ?? null;
   const store = {
     get MODES(): readonly string[] {
-      return surface() === undefined ? (seed?.MODES ?? UI_MODES) : UI_MODES;
+      return UI_MODES;
     },
-    // Contracts' words in every session, the mockup's included: what a mode does
-    // is the same fact whether the rows behind it are real or seeded.
+    // Contracts' words: what a mode does is the same fact whatever rows are behind it.
     WORDS: UI_MODE_WORDS,
     get ROWS(): unknown[] {
-      const s = surface();
-      if (s === undefined) return seed?.ROWS ?? [];
-      return uiRows(s ?? EMPTY);
+      return uiRows(surface() ?? EMPTY);
     },
     forPerm: seed?.forPerm ?? { booking: "book", money: "money", discount: "money", winback: "reengage", scope: "faq" },
     // By the row's id (book) or by its class (booking): a playbook's chip names the class it runs under.
@@ -307,19 +297,13 @@ export function installPolicyStore(win: PolicyWindow, held: () => PoliciesSurfac
       return rows.find((r) => r.id === id) ?? rows.find((r) => r.cls === id) ?? null;
     },
     modeOf(id: string): string | null {
-      const s = surface();
-      if (s === undefined) return seed ? seed.modeOf(id) : null;
       // A failed read has no modes. A chip with nothing after the dot is the
       // truth; a chip reading the mockup's "Veto" beside a real approval is not.
-      return uiRows(s ?? EMPTY).find((r) => r.id === id)?.mode ?? null;
+      return uiRows(surface() ?? EMPTY).find((r) => r.id === id)?.mode ?? null;
     },
     set(id: string, m: string): void {
       const s = surface();
-      if (s === undefined) {
-        seed?.set(id, m);
-        return;
-      }
-      if (!s) return; // the read failed; there is nothing to write against
+      if (!s) return; // not read, or the read failed: there is nothing to write against
       const r = UI_ROWS.find((x) => x.id === id);
       const mode = dbMode(m);
       if (!r || r.locked || !mode || !win.__setPolicy) return;

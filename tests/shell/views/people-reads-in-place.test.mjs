@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { installStubReact, fresh, again } from "../../_stub-react.mjs";
 
-installStubReact({ __DEMO_MODE: false });
+installStubReact();
 const win = globalThis.window;
 const { useViewFade } = await importSrc("apps/dashboard/src/surfaces/frame/shell-hooks.ts");
 const { drawRoute } = await importSrc("apps/dashboard/src/surfaces/frame/route-table.tsx");

@@ -12,7 +12,7 @@ import { RESULTS } from "../../apps/dashboard/src/surfaces/campaigns/ads/results
 import { FIGURES } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-page.ts";
 
 const opened = [];
-installStubReact({ __DEMO_MODE: true, CHANLY: { nav: (to) => opened.push(to) } });
+installStubReact({ CHANLY: { nav: (to) => opened.push(to) } });
 const S = "../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const ads = await import("@chanlytics/contracts");

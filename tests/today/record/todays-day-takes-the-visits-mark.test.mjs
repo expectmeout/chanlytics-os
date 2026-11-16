@@ -18,7 +18,6 @@ import { installStubReact, fresh, all, byTestId, textOf } from "../../_stub-reac
 import { handoffDay } from "./_world.mjs";
 
 installStubReact({
-  __DEMO_MODE: false,
   __surfaceState: () => "live",
   appNavigate: () => {},
   canDo: () => true,

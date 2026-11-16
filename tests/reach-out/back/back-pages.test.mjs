@@ -18,7 +18,7 @@ import { CAMPAIGNS, dtoWith } from "../../reports/campaigns/_campaign-world.mjs"
 // the bridge reads (Date.now) is the fixtures' own: a wall clock a week on turned "Written Tue" into "Written Sep 22".
 const NOW = Date.parse("2026-09-28T18:00:00.000Z");
 Date.now = () => NOW;
-installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
+installStubReact({ __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 const SRC = "../../../apps/dashboard/src";
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();

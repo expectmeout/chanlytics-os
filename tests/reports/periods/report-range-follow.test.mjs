@@ -19,7 +19,7 @@ import { CALENDAR, quiet, rday, reportDto, surface } from "../_report-world.mjs"
 import { until } from "../../shared/_until.mjs";
 
 const moves = [];
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 globalThis.__WORKSPACES = [
   { id: "w1", slug: "harbor", name: "Harbor Studio", status: "active", timezone: "America/New_York", role: "owner" },
 ];

@@ -25,7 +25,6 @@ installStubReact({
   history: { replaceState() {}, back() {} },
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: TID,
-  __DEMO_MODE: false,
 });
 const SRC = "../../../apps/dashboard/src";
 const { installClock } = await import(`${SRC}/bridge/zone.ts`);

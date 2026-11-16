@@ -38,7 +38,6 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { drawnNow, mayAtLeast } from "../../frame-verbs";
 import { personOnThread, useThreadPersonMoved } from "../../people/want-person";
 import { carryNotAPerson } from "../carried-reply";
-import { demoSession } from "../shell";
 import { usePeopleMoved } from "./shell-thread";
 import { EmptyState } from "../../kit/empty/empty";
 import { useNeedsYouParts, waitingRunsNow } from "../../needs-you";
@@ -554,7 +553,7 @@ function FirstEmailAsk({ thread, onOpenClient }: { thread: RealThread; onOpenCli
   useThreadPersonMoved(); // and when the thread's own read of its person lands
   const clientId = thread.clientId;
   const row = personOnThread(thread.conversationId, clientId)?.row ?? null;
-  if (!clientId || !row || demoSession() || thread.archived || thread.primaryChannel !== "email") return null;
+  if (!clientId || !row || thread.archived || thread.primaryChannel !== "email") return null;
   // The dock asks it, where the thread was set aside as not a customer's (status.tsx setAsideBar).
   if (thread.setAside) return null;
   if (!mayAtLeast("owner") || row.threads > 1 || row.deal || row.nextVisitLine || row.lastVisitLine) return null;

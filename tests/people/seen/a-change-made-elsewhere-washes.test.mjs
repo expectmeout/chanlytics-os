@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { PERSON_WASH_WORDS } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find } from "../../_stub-react.mjs";
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 // The reader's press is heard on the document (capture): kept here so a test can press.
 const pressedOn = {};
 let said = null;

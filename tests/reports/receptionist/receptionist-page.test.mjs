@@ -17,7 +17,7 @@ import { quiet, rday, surface } from "../_report-world.mjs";
 import { FACTS, NO_FUNCTION, QUIET, READ_AT, dtoWith, ownHeld } from "./_receptionist-world.mjs";
 
 const navigated = [];
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 Object.assign(globalThis, { CHANLY: { nav: (to) => navigated.push(to), R: { admin: (pane) => `admin/${pane}` } } });
 globalThis.window.fetch = async () =>
   new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "not read here" } }), { status: 500 });

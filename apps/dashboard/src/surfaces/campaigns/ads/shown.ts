@@ -1,34 +1,34 @@
 /**
- * Whether Campaigns › Ads is drawn here (MOCKUP): in a demo session, or in a workspace whose config turns its Ads preview
- * on (`features.ads_preview`, contracts `adsPreviewOf`: Ruben's to set, per workspace, until the Ads read is wired, 0049).
+ * Whether Campaigns › Ads is drawn here (MOCKUP): in a workspace whose config turns its Ads preview on
+ * (`features.ads_preview`, contracts `adsPreviewOf`: Ruben's to set, per workspace, until the Ads read is wired, 0049).
  * Everywhere else, Campaigns is Sequences and Messages alone, Reports has no Ads lens and Connections no Ad accounts card. The preview is
  * read off the settings surface, which an Ads address, Campaigns and Settings open on and wait for (route-prefetch, surface-registry
  * routeSurfaceFor), so a cold load of an Ads address draws the page first and nothing before it (e2e/campaigns/ads.spec.ts). `useAdsShown`
  * draws again when that read moves.
  */
 import { adsPreviewOf } from "@chanlytics/contracts";
-import { demoSession } from "../../frame-verbs";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 
 /** Whether Ads is drawn, as a chrome or a gate asks it as it draws. */
 export function adsShown(): boolean {
   if (typeof window === "undefined") return false;
-  return demoSession() || adsPreviewOf(surfaceValue("settings")?.settings?.config);
+  return adsPreviewOf(surfaceValue("settings")?.settings?.config);
 }
 
 /** The same, for a component: it draws again when the settings surface lands or moves. */
 export function useAdsShown(): boolean {
   const settings = useSurface("settings");
   if (typeof window === "undefined") return false;
-  return demoSession() || adsPreviewOf(settings?.settings?.config);
+  return adsPreviewOf(settings?.settings?.config);
 }
 
 /**
- * Whether Ads drawn here are a workspace's preview and not a demo's: the sample standing among the workspace's real pages. So it
- * says what it is (preview-note.tsx), the people it names open nothing (a demo's People and Inbox hold them, a workspace's do not),
- * and no fact of it joins a real report.
+ * Whether Ads drawn here are a workspace's preview: the sample standing among the workspace's real pages, wherever a page is
+ * drawn (a test's chrome with no window is none). So it says what it is (preview-note.tsx), the people it names open nothing
+ * (no workspace's People or Inbox holds them), and no fact of it joins a real report. The demo that drew the Ads as its own
+ * went with demo mode (16 Nov 2026).
  */
 export function adsInPreview(): boolean {
-  return typeof window !== "undefined" && !demoSession();
+  return typeof window !== "undefined";
 }

@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import { installStubReact } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 
-installStubReact({ __DEMO_MODE: false, __surfaceState: () => "demo" });
+installStubReact({ __surfaceState: () => "demo" });
 // The route table (surfaces/frame/route-table.tsx), under the names the frame reads it by.
 const { drawRoute } = await importSrc("apps/dashboard/src/surfaces/frame/route-table.tsx");
 Object.assign(globalThis, { drawRoute });

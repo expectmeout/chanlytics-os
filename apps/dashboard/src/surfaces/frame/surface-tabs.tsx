@@ -1,6 +1,6 @@
 /**
  * The frame's strip of views (moved from legacy/components/surface-tabs.jsx, the one-system plan's step 7c): merged
- * surfaces (People, the Inbox's three, the demo's Agents) are views under one nav item, not places, drawn by the frame
+ * surfaces (People, the Inbox's three) are views under one nav item, not places, drawn by the frame
  * above the routed page; every route stays as it was, so deep links keep working. The strip itself is the kit's
  * (kit/view-tabs ViewTabs: its links, its highlight, the press that starts the page leaving), as is what moves a view
  * (kit/motion/view-deck.ts) and the page a swipe walks (kit/view-tabs/pager.ts). This is the frame's part of it: which
@@ -13,13 +13,12 @@ import { stripShown, useHeadUnder, type StripAt } from "../kit/head/standing";
 import { holdMoves } from "../kit/motion/swipe";
 import { ViewTabs as KitViewTabs, type ViewTabsProps } from "../kit/view-tabs/view-tabs";
 import type { SurfaceViews } from "../routes";
-import { frameChrome, isDemoFrame } from "./frame-window";
+import { frameChrome } from "./frame-window";
 
 interface StTab {
   id: string;
   label: string;
   to: string;
-  demoOnly?: boolean;
   tip?: string;
   tone?: string;
   testid?: string;
@@ -31,7 +30,7 @@ interface StTab {
 const liveNow = (): boolean => {
   const live = window.__LIVE;
   const chrome = frameChrome();
-  if (!live) return isDemoFrame();
+  if (!live) return false;
   return !!chrome && live.now.some((c) => chrome.liveStillUp(c, live.heartbeatMs, Date.now()));
 };
 
@@ -43,13 +42,6 @@ const ST_GROUPS: Readonly<Record<string, { match: readonly string[]; tabs: reado
       // No Leads tab here: Leads is a SCOPE of People (clients/leads), and People | Leads (| Pipeline) is the page's own
       // views, said by its chrome (surfaces/people/chrome.ts `views`) and drawn by this strip, not by this group. No Lists
       // tab either: the lists are the People rail, so a real workspace has one People tab, and the bar draws nothing there.
-      {
-        id: "pipeline",
-        label: "Deal board",
-        to: "pipeline",
-        demoOnly: true,
-        tip: "Deals are leads with money attached · same people, board view",
-      },
     ],
   },
   // One door over one table: the Inbox and Conversations both read GET conversations (surface-data.ts); the Inbox is the
@@ -64,33 +56,12 @@ const ST_GROUPS: Readonly<Record<string, { match: readonly string[]; tabs: reado
       { id: "inbox", label: "Inbox", to: "inbox", tone: "warn", badge: (needs) => needs || null },
       { id: "conversations", label: "Conversations", to: "conversations" },
       // With the bridge running the pulse is the real thing: a call in progress under the heartbeat rule, so the tab does
-      // not pulse for a phantom the page has already dropped. The seeded pulse stays demo-only.
+      // not pulse for a phantom the page has already dropped.
       { id: "live", label: "Live", to: "live", pulse: liveNow },
     ],
   },
-  // Campaigns is one page, its home, and Sent and the Library are its rooms: the three-tab strip went on 3 Oct 2026.
-  // Content is seed-only, a real workspace has no such surface, and a strip of one draws nothing.
-  campaigns: {
-    match: ["content"],
-    tabs: [{ id: "content", label: "Content", to: "content", demoOnly: true }],
-  },
-  agents: {
-    match: ["fleet", "store", "studio", "tasks"],
-    tabs: [
-      // Every tab in this group is a "demo" surface, so in production all four led to the same Coming Soon pane. One
-      // honest pane beats four ways to find it; they come back the day their slice ships.
-      { id: "fleet", label: "Fleet", to: "fleet", demoOnly: true },
-      { id: "store", label: "Store", to: "store", demoOnly: true },
-      { id: "studio", label: "Studio", to: "studio", demoOnly: true },
-      {
-        id: "tasks",
-        label: "Tasks",
-        to: "tasks",
-        demoOnly: true,
-        tip: "The work ledger · receipts for everything agents did",
-      },
-    ],
-  },
+  // Campaigns is one page, its home, and Sent and the Library are its rooms: the three-tab strip went on 3 Oct 2026. The
+  // demo's own strips (Content's, and the Agents pages' Fleet, Store, Studio and Tasks) went with demo mode (16 Nov 2026).
 };
 
 /** The frame's address as the strip asks it: a route's link, and its reads warmed ahead of a move. */
@@ -124,7 +95,7 @@ const stViewTabs = () =>
 const stTabsOf = (page: string, own: SurfaceViews | null): [string | null, readonly StTab[]] => {
   if (own) return [own.name, own.tabs];
   const found = Object.entries(ST_GROUPS).find(([, g]) => g.match.includes(page));
-  return found ? [found[0], found[1].tabs.filter((t) => !t.demoOnly || isDemoFrame())] : [null, []];
+  return found ? [found[0], found[1].tabs] : [null, []];
 };
 
 // surface:live moves the Live tab's pulse. A call's ending is a row on the live feed, and the verdict thread's news is the
@@ -161,7 +132,7 @@ export function SurfaceTabs({ page, param, views, onNavigate }: SurfaceTabsProps
   const at: StripAt | null = under ? under.strip : { page, param, views };
   const own = at && at.views && at.views.tabs.length > 1 ? at.views : null;
   // What needs you, drawn again when the number changes and by nothing else (surfaces/needs-you.ts). Not read before the
-  // Inbox has been, and nowhere in the standalone mockup.
+  // Inbox has been.
   const needs = window.useNeedsYou ? window.useNeedsYou() : 0;
   const [groupKey, tabs] = at ? stTabsOf(at.page, own) : [null, []];
   // None stood over the list a carried page goes back to, or this is a person's profile.
@@ -247,7 +218,7 @@ export const stripPlace = (page: string, param?: string | null): StripPlace | nu
   if (page === "campaigns") return { strip: "campaigns", at: campaignsPlace(param) };
   const found = Object.entries(ST_GROUPS).find(([key, g]) => key !== "people" && g.match.includes(page));
   if (!found) return null;
-  const at = found[1].tabs.filter((t) => !t.demoOnly || isDemoFrame()).findIndex((t) => t.id === page);
+  const at = found[1].tabs.findIndex((t) => t.id === page);
   return at < 0 ? null : { strip: found[0], at };
 };
 

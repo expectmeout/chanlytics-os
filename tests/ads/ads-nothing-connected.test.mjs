@@ -13,7 +13,7 @@ import { V0, HEAD } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/
 import { adsModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page.ts";
 import { EXAMPLE } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 
-installStubReact({ __DEMO_MODE: false, CHANLY: { nav() {} } });
+installStubReact({ CHANLY: { nav() {} } });
 const S = "../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { toPeopleReportVM } = await import("@chanlytics/contracts/report-lens");
@@ -159,31 +159,24 @@ after(() => {
   globalThis.fetch = realFetch;
 });
 
-function underSession(isDemo, kept, run) {
-  const was = globalThis.__DEMO_MODE;
-  globalThis.__DEMO_MODE = isDemo;
+function underSession(kept, run) {
   if (kept) globalThis.sessionStorage.setItem(KEPT, kept);
   else globalThis.sessionStorage.removeItem(KEPT);
   try {
     return run();
   } finally {
-    globalThis.__DEMO_MODE = was;
     globalThis.sessionStorage.removeItem(KEPT);
   }
 }
 
-test("a preview opens on what is true, or on the example this tab chose; a demo opens on ads running", () => {
+test("a preview opens on what is true, or on the example this tab chose", () => {
   assert.equal(
-    underSession(false, null, () => adsOpening()),
+    underSession(null, () => adsOpening()),
     "v0",
   );
   assert.equal(
-    underSession(false, "needs-you", () => adsOpening()),
+    underSession("needs-you", () => adsOpening()),
     "needs-you",
-  );
-  assert.equal(
-    underSession(true, null, () => adsOpening()),
-    "running",
   );
 });
 
@@ -193,7 +186,6 @@ function previewPage(answer, param = "ads") {
   api().forget();
   route.asked.length = 0;
   route.answer = answer;
-  globalThis.__DEMO_MODE = false;
   globalThis.sessionStorage.removeItem(KEPT);
   fresh();
   const draw = () => AdsPage({ param });
@@ -268,29 +260,11 @@ test("the page tells Ask what it shows, in a word and no row: what is true, or a
   };
   previewPage(() => ({ series: seriesOf(NO_AD), now: null }));
   assert.deepEqual(said(), ["ads", "ads", []]);
-  underSession(false, "running", () => {
+  underSession("running", () => {
     fresh();
     AdsPage({ param: "ads" });
   });
   assert.deepEqual(said(), ["ads", "ads:example", []]);
-  underSession(true, "v0", () => {
-    fresh();
-    AdsPage({ param: "ads" });
-  });
-  assert.deepEqual(said(), ["ads", "ads:example", []], "a demo's nothing connected is an example too");
-});
-
-test("a demo draws its sample and reads nothing", () => {
-  route.asked.length = 0;
-  const tree = underSession(true, "v0", () => {
-    fresh();
-    const draw = () => AdsPage({ param: "ads" });
-    draw();
-    return again(draw);
-  });
-  assert.ok(byTestId(tree, "ads-v0"));
-  assert.equal(route.asked.length, 0);
-  assert.equal(byTestId(tree, NOTE), null);
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -298,7 +272,7 @@ test("a demo draws its sample and reads nothing", () => {
 
 test("Connections says no account is connected, which is true, and asks nothing of the report", () => {
   route.asked.length = 0;
-  const tree = underSession(false, null, () => {
+  const tree = underSession(null, () => {
     fresh();
     return AdAccounts({ flash() {} });
   });
@@ -311,7 +285,7 @@ test("Connections says no account is connected, which is true, and asks nothing 
 });
 
 test("the store a choice moves keeps it for the tab, and choosing today again keeps nothing", () => {
-  underSession(false, null, () => {
+  underSession(null, () => {
     fresh();
     const first = useAdsStore();
     assert.equal(first.example, "v0");
@@ -329,7 +303,7 @@ test("the pill asks to see an example on what is true, and is the Example pill o
     textOf(find(tree, (n) => n.props?.trigger?.props?.["data-testid"] === "ads-example").props.trigger);
   const today = previewPage(() => ({ series: seriesOf(NO_AD), now: null })).tree;
   assert.match(pillIn(today), new RegExp(EXAMPLE.preview.pill));
-  const running = underSession(false, "running", () => {
+  const running = underSession("running", () => {
     fresh();
     return AdsPage({ param: "ads" });
   });

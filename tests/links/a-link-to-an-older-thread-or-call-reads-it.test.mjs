@@ -146,7 +146,7 @@ test("a malformed id in ?ids= is a 404, more than a hundred is refused, and the 
 
 /* ------------------------------------------------------- the surfaces, by id */
 
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/harbor",

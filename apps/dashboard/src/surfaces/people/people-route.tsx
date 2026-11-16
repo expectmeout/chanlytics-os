@@ -27,7 +27,7 @@ import {
   personRouteOf,
   routeOfPath,
 } from "@chanlytics/contracts";
-import { demoSession, navigate } from "../frame-verbs";
+import { navigate } from "../frame-verbs";
 import { usePartShown, useSurface } from "../use-surface";
 import { takeOwnAddress } from "./page/own-address";
 import { usePeopleStanding } from "./page/people-head";
@@ -319,7 +319,7 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
   // place as the way back). The Pipeline says its own, with its act (pipeline/standing.tsx); Leads says its own too, in its
   // standing line (rail/standing.tsx); and People's list says its own, with its act, Add a person (page/people-real.tsx).
   // Until the list can be drawn, the route says People's name.
-  const listDrawn = !!live || demoSession();
+  const listDrawn = !!live;
   // A person's page says its own standing (person-real.tsx: its way back, and on a desk "‹ 4 of 24 ›" beside it).
   usePeopleStanding(person || pipeline || leads || listDrawn ? null : "people");
   // People's first part (client/page-speed.ts): its table, drawn once People's read is in. Its scopes say their own.
@@ -340,7 +340,7 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
     <>
       {kept.asked.has("people") && (
         <KeptScope shown={scope === "people"}>
-          {/* A workspace's People waits for its own surface, saying so where its list will stand; a demo session draws the sample. */}
+          {/* A workspace's People waits for its own surface, saying so where its list will stand. */}
           {listDrawn ? (
             <PeopleReal
               key={mount}

@@ -8,7 +8,7 @@ import { installStubReact, fresh, again, all, find, byTestId, textOf, press, set
 import { lineBox } from "../../shared/_line.mjs";
 import { toSlotParts } from "../../../apps/dashboard/src/surfaces/campaigns/templates/message-version-slots.ts";
 
-installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __chrome: { state: contracts.stateOf } });
 export const W = globalThis;
 export const toasts = [];
 Object.assign(W, {

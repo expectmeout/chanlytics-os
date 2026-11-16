@@ -108,14 +108,15 @@ is a path after the workspace's slug (`/w/acme/inbox`). The frame (the route tab
 up across a move. Every page reads its data through one seam, in `src/bridge/`: `surface-data.ts` (an override
 reads `/api/v1`, maps the rows through a contracts view model and publishes what the page draws),
 `surface-registry.ts` (the table that says which routes are real and which are demo, drawing the "Not in this release"
-card outside a declared demo session) and `surface-runner.ts` (when each surface is read). The mockup was a
+card for a demo one) and `surface-runner.ts` (when each surface is read). The mockup was a
 single-page shell of hand-written JSX, imported in a fixed order by `src/bridge/manifest.ts` and talking through
 `window` globals; its surfaces were made real one at a time by _branching inside the existing components_, never by
 redesigning them, and then each left for TSX in the order decision 0015 gives, the frame after them. The
 stylesheets are in `src/styles`; the standalone mockup that drew the shell without Next went with demo mode (15 Nov
 2026). The `window-globals` and `window-publishers` measures count what remains and may only fall (`docs/debt.md`). The unbuilt surfaces (agent
-fleet, store, studio, tasks, content) are parked by decision: each address draws that card, in a demo session too; the
-shared report viewer opens only in a demo session, and the retired deal board's address lands on People. The mockup's
+fleet, store, studio, tasks, content) are parked by decision: each address draws that card, the shared report viewer
+too, and the retired deal board's address lands on People. Demo mode, the session flag that once drew the mockup's
+invented data, went on 16 November 2026. The mockup's
 own prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 
 **The shell never runs on the server.** `src/bridge/seed-globals.ts` and the shell's files read `window` at
@@ -125,8 +126,8 @@ module scope and would throw during prerender, so `FrameHost` imports the shell 
 frame is placed, a visitor sees the outline (`src/surfaces/frame/outline.tsx`): the frame's own chrome, in its own
 classes.
 
-**Nothing in the UI may state a fact the database cannot support.** Unbacked
-mockup regions stay behind `window.__DEMO_MODE`. A zero is a real measurement
+**Nothing in the UI may state a fact the database cannot support.** No session
+draws the mockup's invented data. A zero is a real measurement
 and is shown; an invented number is not. This is the rule most likely to be
 violated by accident.
 

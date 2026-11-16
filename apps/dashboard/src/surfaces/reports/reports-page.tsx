@@ -14,10 +14,9 @@
  * the head (head.ts); the date range is the page's act at the strip's right, a capsule that opens it (period-picker.tsx), with what
  * its word leaves out beside it on a desk; the page draws the lens's body (lenses/), which is a view of its own: replaced as the lens
  * changes (keyed by it), and moved by the deck every change of view moves by (kit/motion/view-deck.ts), from the side its lens stands
- * on, while the page and what it holds of a range stay. The Ads lens (a demo's or a preview's, until a workspace's ad accounts are read)
- * draws a fold of its own over the days the address says, from a chunk fetched on demand (lenses/ads-load.ts), and in a demo its one
- * fact stands in Worth knowing. A real workspace draws the bridge's own numbers (`useSurface("reports")`); a
- * demo session draws the same page from the contracts sample (sample.ts); without either, the page says what Reports reads.
+ * on, while the page and what it holds of a range stay. The Ads lens (a workspace's preview, until its ad accounts are read) draws
+ * a fold of its own over the days the address says, from a chunk fetched on demand (lenses/ads-load.ts). The page draws the
+ * bridge's own numbers (`useSurface("reports")`); without them, it says what Reports reads.
  *
  * What it shows is a range: a period by name, kept in this browser, or the days a member picked, which the address says
  * after the lens (`reports/receptionist:2026-09-01~2026-09-20`, contracts lensRoute). The page follows that too: a pick
@@ -27,8 +26,6 @@
 import { useEffect, useState } from "react";
 import {
   REPORT_LENSES,
-  REPORT_PERIOD_DEFAULT,
-  lensRoute,
   reportRangeKey,
   reportsRouteParts,
   routeOfPath,
@@ -40,7 +37,6 @@ import {
 import { reportFacts, type ReportFactVM } from "./model/facts";
 import type { CampaignLensVM, PeopleReportVM } from "@chanlytics/contracts/report-lens";
 import { reportWindowOf } from "@chanlytics/contracts/report-window";
-import { navigate } from "../frame-verbs";
 import { EmptyState } from "../kit/empty/empty";
 import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";
@@ -63,13 +59,12 @@ import { PeriodPicker } from "./period-picker";
 import type { PeopleSurface } from "./people-surface";
 import type { ReceptionistSurface } from "./receptionist-surface";
 import type { ReviewsSurface } from "./reviews-surface";
-import { useReportsDemo } from "./demo";
 import { shownReportPeriod, type ReportsSurface } from "./surface";
 
 /** The lenses in the order the strip stands them: which side a lens arrives from. */
 const LENS_ORDER: readonly string[] = REPORT_LENSES.map((l) => l.id);
 
-/** Reports read nothing: a session with no workspace, and no demo to draw. */
+/** Reports read nothing: a session with no workspace. */
 function readsAWorkspace() {
   return (
     <div className="rpt" data-testid="reports-none">
@@ -110,26 +105,13 @@ interface OwnReads {
   campaigns: Follower<CampaignsSurface>;
 }
 
-/**
- * Each of those reads is its own: a pick lands it after the report or before it, and what it says of that is its state. A demo has no
- * read to follow: the samples answer at once, in a demo alone.
- */
-function useOwnReads(
-  live: ReportsSurface | undefined,
-  R: ReportsSurface | null,
-  demo: ReturnType<typeof useReportsDemo>,
-): OwnReads {
+/** Each of those reads is its own: a pick lands it after the report or before it, and what it says of that is its state. */
+function useOwnReads(): OwnReads {
   const reviews = useFollower("reports_reviews");
   const receptionist = useFollower("reports_receptionist");
   const people = useFollower("reports_people");
   const campaigns = useFollower("reports_campaigns");
-  if (live || !R || !demo) return { reviews, receptionist, people, campaigns };
-  return {
-    reviews: { value: demo.reviewsSample(R.range), state: "current" },
-    receptionist: { value: demo.receptionistSample(R.range), state: "current" },
-    people: { value: demo.peopleSample(R.range), state: "current" },
-    campaigns: { value: demo.campaignsSample(R.range), state: "current" },
-  };
+  return { reviews, receptionist, people, campaigns };
 }
 
 /** What a read folds to, while that read is of the period shown: nothing before it lands, while it is of another period or where it could not be made. */
@@ -160,16 +142,6 @@ const waitsOnItsRead = (lens: LensId, own: OwnReads, scope: CampaignsScopeHere):
   (lens === "receptionist" && own.receptionist.state === "coming") ||
   (lens === "people" && own.people.state === "coming") ||
   (lens === "campaigns" && own.campaigns.state === "coming");
-
-/**
- * A demo's pick moves its address, as a workspace's does (period.ts), where the address says days or the pick is days: the days
- * the address says are the lenses', and Ads reads them. A period by name over an address that says none moves nothing.
- */
-function moveDemoAddress(at: ReportsParts, range: ReportRange): void {
-  if (at.days !== null || typeof range !== "string") {
-    navigate(lensRoute(at.lens, typeof range === "string" ? null : range, at.scope ?? null));
-  }
-}
 
 /**
  * What the lens bodies draw beside the report: the reads that follow the period, the People and Campaigns reads folded (once: the
@@ -235,8 +207,6 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   const live = useSurface("reports");
   // Whether a read of the report has come back in this document: nothing is asked of the address while the first is out.
   const settled = useSurfaceSettled("reports");
-  // A demo's own range: the sample answers at once, so a pick switches it here. It opens on the days the address says.
-  const [sampleRange, setSampleRange] = useState<ReportRange>(at.days ?? REPORT_PERIOD_DEFAULT);
   // The range picked and not yet shown: what the control says, and what dims the body until its answer lands.
   const [pending, setPending] = useState<ReportRange | null>(null);
   // The range that failed to load, if any: the page keeps the old one and says so, instead of dimming forever and
@@ -246,9 +216,8 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   useEffect(() => {
     setPending(null);
   }, [fetchedAt]);
-  const demo = useReportsDemo();
-  const R = live || (demo ? demo.reportsSample(sampleRange) : null);
-  const own = useOwnReads(live, R, demo);
+  const R = live ?? null;
+  const own = useOwnReads();
   // The Ads, where they are on: the lens's head, a demo's one fact on the Overview, and what the lens draws, from a chunk fetched on demand.
   const adsHere = useAdsLens(lens, at, R);
   const scope = useCampaignsScope(lens, at, R);
@@ -277,11 +246,6 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   const pick = async (range: ReportRange) => {
     // The one shown, or the one on its way: nothing to read. Any other pick is read, whatever else is out.
     if (!R || reportRangeKey(range) === (comingKey ?? R.key)) return;
-    if (!live) {
-      setSampleRange(range);
-      moveDemoAddress(at, range);
-      return;
-    }
     await show(range);
   };
   // The page follows its own address. A pick has moved it already (period.ts) and is on its way, so there is nothing
@@ -340,12 +304,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   const busy = (comingKey !== null && comingKey !== R.key) || waitsOnItsRead(lens, own, scope);
   return (
     // A period on its way dims by the one rule every page uses (components.css [data-loading] [data-dims]).
-    <div
-      className="rpt"
-      data-testid={live ? "reports-real" : "reports-sample"}
-      data-lens={lens}
-      data-loading={busy ? "" : undefined}
-    >
+    <div className="rpt" data-testid="reports-real" data-lens={lens} data-loading={busy ? "" : undefined}>
       <div className="rpt-inner">
         {/* The period is the head's act (period-picker.tsx); a period that failed to load is said here, over the body. The
             frame's head says Reports and the lens's answer; the page does not title itself. */}

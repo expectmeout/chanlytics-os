@@ -1,11 +1,10 @@
 /**
- * The demo's People: a sample business passed through the same mapping a real workspace's people go through
- * (surface.ts peopleSurfaceOf), so a demo session draws the one People page there is (decision 0015, "A surface, done",
- * condition 3), as Reports and Today do. The mockup drew a seeded twin of the page, with its own scores and its own rows;
- * this is the real page over made-up people. Every number and every sentence on it is the view model's.
+ * People for the tests: a sample business passed through the same mapping a workspace's people go through (surface.ts
+ * peopleSurfaceOf), so a test draws the one People page there is over made-up people. Every number and every sentence on
+ * it is the view model's. No page imports it: the demo session that drew it went with demo mode (16 Nov 2026).
  *
- * Nobody here is real: the numbers are 555-01xx, the addresses example.com, the names are the mockup's own (its ids, so a
- * person a demo opens is the one its seeded profile knows). Relative to `now`, so the day is always today.
+ * Nobody here is real: the numbers are 555-01xx, the addresses example.com, the names are the mockup's own. Relative to
+ * `now`, so the day is always today.
  */
 import type { PersonDetailDto, PersonRowDto, PersonVisitsDto, PersonVM, VisitDto } from "@chanlytics/contracts";
 import { DAY_MS, HOUR_MS, MIN_MS, toPersonVM } from "@chanlytics/contracts";
@@ -243,16 +242,9 @@ function sampleLoaded(nowMs: number): PeopleLoaded {
   };
 }
 
-/** The demo's People, as the seam would hold it for a workspace with these people: `now` is the day it is drawn on. */
+/** The sample's People, as the seam would hold it for a workspace with these people: `now` is the day it is drawn on. */
 export function peopleSample(now: Date = new Date()): PeopleSurface {
   return peopleSurfaceOf(sampleLoaded(now.getTime()), null, now);
-}
-
-let demo: PeopleSurface | null = null;
-/** One sample for a demo's sitting, so the page's memo holds from one draw to the next. */
-export function demoPeople(): PeopleSurface {
-  demo ??= peopleSample();
-  return demo;
 }
 
 /**
@@ -390,7 +382,7 @@ function sampleDetail(id: string, now: Date = new Date()): PersonDetailDto | nul
   };
 }
 
-/** A person's page as the demo draws it: the sample's detail through the same view model a real workspace's goes through. */
+/** A person's page over the sample: its detail through the same view model a workspace's goes through. */
 export function samplePerson(id: string, now: Date = new Date()): PersonVM | null {
   const dto = sampleDetail(id, now);
   return dto ? toPersonVM(dto, DEMO_ZONE, now, null) : null;

@@ -3068,46 +3068,6 @@ test("on a real workspace a person's page is read from the workspace before Peop
   }
 });
 
-test("a demo session draws a sample person's page and asks the workspace for no one; a person the sample does not have is not in the workspace", async () => {
-  // A demo has no workspace to read (surfaces/people/sample.ts): the page is the one page there is, over made-up people,
-  // by the mockup's own ids.
-  globalThis.window.__DEMO_MODE = true;
-  // What the demo asked the workspace for: People's list, or one of its own people. A read a test before it started can land
-  // here on a busy machine (a real person's, by their id); it is not the demo's, and is not counted.
-  const askedByDemo = () =>
-    world.seen.filter((q) => q.path === "/api/v1/contacts" || q.path.startsWith("/api/v1/contacts/c-")).length;
-  try {
-    await newTree();
-    world.seen.length = 0;
-    pageFor("c-aisha");
-    const named = () => textOf(find(pageFor("c-aisha"), (n) => n.type === "h1")) === "Aisha Khan";
-    await until(named, "the sample's person, by name");
-    const tree = pageFor("c-aisha");
-    assert.ok(byTestId(tree, "person-now"), "where they stand");
-    assert.ok(
-      find(tree, (n) => typeof n.type === "function" && n.type.name === "Overview"),
-      "and their Overview",
-    );
-    assert.equal(byTestId(tree, "person-reading"), null);
-    assert.equal(askedByDemo(), 0, "no request went out");
-
-    await newTree();
-    pageFor("c-nobody");
-    await settle();
-    const gone = pageFor("c-nobody");
-    assert.match(textOf(gone), /This person is not in your workspace/);
-    assert.equal(
-      find(gone, (n) => n.type === "h1"),
-      null,
-      "no one is drawn",
-    );
-    assert.equal(byTestId(gone, "person-now"), null);
-    assert.equal(askedByDemo(), 0, "and still no request");
-  } finally {
-    delete globalThis.window.__DEMO_MODE;
-  }
-});
-
 /* ----------------------------------- notes (0007) ----------------------------------- */
 
 const noteDto = (id, body, hoursAgo, over = {}) => ({

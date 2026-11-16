@@ -518,7 +518,9 @@ test("the tab bar offers what the registry says is real, and only that", () => {
     ([, id, to, rest]) => ({ id, to, demoOnly: /demoOnly: true/.test(rest) }),
   );
   // Campaigns' three tabs went with its strip (3 Oct 2026): the home is one page, and Sent and the Library are rooms reached from it.
-  assert.ok(rows.length >= 9, `parsed ${rows.length} tabs — the shape of the file changed`);
+  // The demo-only tabs (the Deal board, Content, and the Agents pages' four) went with demo mode (16 Nov 2026): People and
+  // the Inbox's three are left.
+  assert.ok(rows.length >= 4, `parsed ${rows.length} tabs — the shape of the file changed`);
 
   for (const t of rows) {
     const state = SURFACE_STATES[t.to];
@@ -553,10 +555,11 @@ test("Setup's old address lands on the first run -- the bell rows the edge wrote
   assert.equal(surfaceRetiredTo("admin", "setup"), "start");
   assert.equal(surfaceRetiredTo("admin", "workspace"), undefined, "the rest of Settings stays where it is");
   assert.equal(surfaceRetiredTo("pipeline", null), "clients", "a retired page still moves as a page");
-  // A demo session: a pane that moved and a page gone from the tree move there too; a retired page it still draws stays.
-  assert.equal(surfaceRetiredTo("admin", "setup", true), "start", "the mockup has no Setup pane either");
-  assert.equal(surfaceRetiredTo("leads", null, true), "clients/leads");
-  assert.equal(surfaceRetiredTo("pipeline", null, true), undefined, "the demo keeps the Deal board it still draws");
+  assert.equal(
+    surfaceRetiredTo("leads", null),
+    "clients/leads",
+    "for everyone: the demo that kept the Deal board went",
+  );
   assert.equal(surfaceStateFor("start", null), "real");
   assert.equal(routeSurfaceFor("start", null), "setup", "the first run waits for Setup's read");
 });

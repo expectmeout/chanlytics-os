@@ -1,6 +1,6 @@
 /**
  * The person People's peek draws (canvas A, PEEK-01): the copy this tab holds of them at once (person/read.ts heldPerson,
- * the page's own pair, so a demo reads its sample), read again behind it, and again when People lands or changes
+ * the page's own pair), read again behind it, and again when People lands or changes
  * (`surface:clients`: a step set or done, a deal recorded, a teammate's write the live feed tells of). A read that failed
  * with nothing held says so with its Retry; someone who is not here says that.
  */

@@ -1,18 +1,15 @@
 /**
  * The names the frame's parts read off the window that no module of the bridge declares: the person the workspace read
- * wrote (`__ME`), the bell (`__notifs`, bridge/notifications.ts), and the demo's stores, which a real workspace
- * never fills (the Agents strip's pauses and its store's templates, the seeded leads). Typed once here, as the frame's
- * JSX read them, so each part reads `window.<name>` and the window ratchets count it (step 9 ends the reads). With them,
- * the three reads every part makes: the demo's flag, and the glyph and the portal by their global names.
+ * wrote (`__ME`) and the bell (`__notifs`, bridge/notifications.ts), among others. Typed once here, as the frame's JSX
+ * read them, so each part reads `window.<name>` and the window ratchets count it (step 9 ends the reads). With them, the
+ * reads every part makes: the glyph and the portal by their global names.
  */
 import type { ComponentType, ReactNode } from "react";
 import type { IdentityApi } from "@/bridge/identity";
 import type { BellApi } from "@/bridge/notifications";
 import type { LiveSurface } from "../live/surface";
 import type { SwipeOptions } from "../kit/motion/swipe";
-import type { IX_STORE } from "../inbox/store";
 import { Icon } from "../kit/icon/icon";
-import { MoreMenu } from "../kit/more-menu/more-menu";
 import { RecordSwitch } from "../kit/record/field";
 
 declare global {
@@ -21,19 +18,7 @@ declare global {
     __ME?: Parameters<IdentityApi["words"]>[0];
     /** The bell: its rows, its read state and this device's alerts (bridge/notifications.ts). */
     __notifs?: BellApi;
-    /** The demo's Agents pages' pauses (the mockup's; nothing in the app fills it). */
-    FL_STORE?: { statuses?: Record<string, string> };
-    /** The demo's Agents store (the mockup's; nothing in the app fills it). */
-    STORE_DATA?: {
-      STORE_TEMPLATES?: ReadonlyArray<{ installed?: boolean }>;
-      STORE_LISTINGS?: ReadonlyArray<{ id: string; name: string; status: string; rejectReason?: string }>;
-    };
-    /** The demo's scripted lead arrival (the mockup's; nothing in the app fills it). */
-    LD_STORE?: { arrive?: () => void };
     /** The session's decisions on seeded threads (surfaces/inbox/store.ts), published by seed-globals.ts. */
-    IX_STORE?: typeof IX_STORE;
-    /** The demo's seeded leads (the mockup's; nothing in the app fills it). */
-    LEADS?: ReadonlyArray<{ stage?: string }>;
     /** Calls going on and the last few, with the heartbeat rule (surfaces/live/surface.ts), for the Live tab's pulse. */
     __LIVE?: LiveSurface;
     /** What needs you, the one count (surfaces/needs-you.ts), published by seed-globals.ts for the frame's parts. */
@@ -48,7 +33,7 @@ declare global {
     /** What the registry says of a page: real, demo, or nothing it knows. */
     __surfaceState?: (page: string, param?: string | null) => string | undefined;
     /** Where an address lands now, if it moved (a retired page, a pane that left). */
-    __surfaceRetired?: (page: string, param: string | null, demo: boolean) => string | null | undefined;
+    __surfaceRetired?: (page: string, param: string | null) => string | null | undefined;
     /** Told when any surface's readiness moves; returns the stop. */
     __onSurfaceReady?: (fn: () => void) => () => void;
     /** How long a page whose own surface is in waits for a band beside it (surface-registry.ts ROUTE_WAIT_MS). */
@@ -73,9 +58,6 @@ export const frameBell = () => window.__notifs;
 /** The registry's word for a surface (surface-registry.ts `__surfaceState`): the frame's gate and its soon landing ask it. */
 export const frameSurfaceState = () => window.__surfaceState;
 
-/** Whether the session declared itself a demo, read as the frame's JSX read it (`window.__DEMO_MODE`). */
-export const isDemoFrame = (): boolean => !!window.__DEMO_MODE;
-
 /** The page's portal and glyph, by the global names the frame's JSX drew them by (a test's stand-in), else the kit's. */
 type FrameGlobals = typeof globalThis & {
   ReactDOM?: { createPortal?: (node: ReactNode, into: Element) => ReactNode };
@@ -86,10 +68,8 @@ export const framePortal = () => (globalThis as FrameGlobals).ReactDOM?.createPo
 
 /** The kit's parts by the global names the frame's JSX drew them by (a test's stand-in), else the kit's own. */
 type KitGlobals = typeof globalThis & {
-  MoreMenu?: typeof MoreMenu;
   RecordSwitch?: typeof RecordSwitch;
 };
-export const frameMoreMenu = () => (globalThis as KitGlobals).MoreMenu ?? MoreMenu;
 
 /** The frame's toast and the seam's redraw hook by the global names the top bar's JSX called them by, else the window's. */
 type ShellGlobals = typeof globalThis & {

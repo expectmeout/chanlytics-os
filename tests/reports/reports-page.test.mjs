@@ -3,7 +3,7 @@
  * models the bridge publishes through the seam (surface-values.ts): the headline (the
  * receptionist's share, Worth knowing), the tiles compared in counts, every card under its testid with the view
  * model's own sentence, the empty, failed, unreadable-calendar and no-calendar states, a v2 payload, the period (the head's
- * act on a desk, a row of the page's own on a phone), a period that fails to load, Google's section, and the demo. The page's regressions live here too, moved from
+ * act on a desk, a row of the page's own on a phone), a period that fails to load, Google's section, and every lens over the tests' sample. The page's regressions live here too, moved from
  * reports-honest and rewritten for this page (C13, C25 to C28): every row a door, the period before drawn where it
  * reads, one keyboard stop per chart, a period control that never holds (the latest pick wins), and a table that
  * leaves the page. The period's own door (period.ts) runs for real, over a fetch this test holds, answers or refuses.
@@ -66,7 +66,7 @@ import { until } from "../shared/_until.mjs";
 
 const went = [];
 const flashed = [];
-installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live" });
 globalThis.__WORKSPACES = [
   {
     id: "w1",
@@ -84,7 +84,9 @@ const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { RPT_CHANNEL_COLORS } = await import(`${S}/surfaces/reports/series.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
-const { peopleSample, receptionistSample, reviewsSample } = await import(`${S}/surfaces/reports/sample.ts`);
+const { peopleSample, receptionistSample, reportsSample, reviewsSample } = await import(
+  `${S}/surfaces/reports/sample.ts`
+);
 const { campaignsSample } = await import(`${S}/surfaces/reports/campaigns-sample.ts`);
 const { toCampaignLensVM, toPeopleReportVM, toReceptionistReportVM, PEOPLE_RHYTHM_UNIT } =
   await import("@chanlytics/contracts/report-lens");
@@ -380,9 +382,6 @@ const followingMoves = async (run) => {
 };
 
 /* ------------------------------------------ the headline ------------------------------------------ */
-
-// A demo's sample is fetched only in a demo session (surfaces/reports/demo.ts): fetched once here, so a demo draws it at once.
-await (await import("../../apps/dashboard/src/surfaces/reports/demo.ts")).reportsDemo();
 
 test("the headline: AI's part of the answered as a meter, the period before as a tick, the view model's sentence under it", () => {
   const hero = card(page(), "reports-hero");
@@ -1848,16 +1847,31 @@ test("a pick whose Reviews read could not be made says so on the lens through th
   }
 });
 
-test("a demo's Reviews lens draws the sample's listing through the same section, its tabs switch the sample's period, and nothing in it can be answered", () => {
-  setSurfaceValue("reports", undefined);
-  setSurfaceValue("reports_reviews", undefined);
-  globalThis.__DEMO_MODE = true;
-  lensAt = LENS_PATHS[5];
+/** Every lens drawn over the tests' sample as its reads: the report, and each lens's own read, of the same thirty days. */
+const overSample = (n) => {
+  keepReportPeriod("30d");
+  setSurfaceValue("reports", reportsSample("30d"));
+  setSurfaceValue("reports_reviews", reviewsSample("30d"));
+  setSurfaceValue("reports_receptionist", receptionistSample("30d"));
+  setSurfaceValue("reports_people", peopleSample("30d"));
+  setSurfaceValue("reports_campaigns", campaignsSample("30d"));
+  lensAt = LENS_PATHS[n];
+  fresh();
+  return draw();
+};
+/** The sample's reads let go of, back on the Overview and the period the other tests keep. */
+const offSample = () => {
+  for (const key of ["reports", "reports_reviews", "reports_receptionist", "reports_people", "reports_campaigns"])
+    setSurfaceValue(key, undefined);
+  lensAt = LENS_PATHS[0];
+  keepReportPeriod("7d");
+};
+
+test("over the tests' sample as its reads, the Reviews lens draws the listing through the same section, and nothing in it can be answered", () => {
   try {
-    fresh();
-    let tree = draw();
+    const tree = overSample(5);
     const sample = reviewsSample("30d");
-    assert.ok(byTestId(tree, "reports-sample"), "the sample's page");
+    assert.ok(byTestId(tree, "reports-real"), "the one page");
     assert.deepEqual(figureIds(tree), ["rating", "reviews", "ratings_gained", "newest_review"], "the listing's four");
     assert.equal(standingSaid().sentence, sample.vm.lines.head, "the head says the sample's fold");
     assert.equal(
@@ -1865,39 +1879,22 @@ test("a demo's Reviews lens draws the sample's listing through the same section,
       sample.vm.latest.length,
       "the reviews Google shows",
     );
-    assert.equal(byTestId(tree, "google-reply"), null, "a demo posts no reply to Google");
+    assert.equal(byTestId(tree, "google-reply"), null, "a listing with no profile behind it takes no reply");
     assert.ok(
       textOf(byTestId(tree, "reviews-connect")).includes(sample.vm.lines.connect),
       "and says what a profile would add",
     );
-    assert.equal(byTestId(tree, "reports-real"), null);
-    assert.equal(
-      byTestId(tree, "reports-sample").props["data-loading"],
-      undefined,
-      "the sample answers at once: nothing is on its way",
-    );
-    choose(tree, "90 days");
-    tree = redraw();
-    assert.equal(standingSaid().sentence, reviewsSample("90d").vm.lines.head, "the sample's own period");
+    assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing is on its way");
   } finally {
-    globalThis.__DEMO_MODE = false;
-    lensAt = LENS_PATHS[0];
+    offSample();
   }
 });
 
-test("a demo's Receptionist lens draws the sample's own read through the same fold, every part of it, and its tabs switch the sample's period", () => {
-  setSurfaceValue("reports", undefined);
-  setSurfaceValue("reports_receptionist", undefined);
-  globalThis.__DEMO_MODE = true;
-  lensAt = LENS_PATHS[1];
-  const foldOf = (range) => {
-    const own = receptionistSample(range);
-    return toReceptionistReportVM(own.dto, { nowMs: own.readAt });
-  };
+test("over the tests' sample as its reads, the Receptionist lens draws every part of its own read through the same fold", () => {
+  const own = receptionistSample("30d");
+  const fold = toReceptionistReportVM(own.dto, { nowMs: own.readAt });
   try {
-    fresh();
-    let tree = draw();
-    assert.ok(byTestId(tree, "reports-sample"), "the sample's page");
+    const tree = overSample(1);
     for (const id of [
       "receptionist-strip",
       "chart-hold",
@@ -1910,14 +1907,10 @@ test("a demo's Receptionist lens draws the sample's own read through the same fo
     ])
       assert.ok(byTestId(tree, id), `${id}: the sample has every part`);
     assert.equal(byTestId(tree, "receptionist-failed"), null);
-    assert.equal(
-      byTestId(tree, "reports-sample").props["data-loading"],
-      undefined,
-      "the sample answers at once: nothing is on its way",
-    );
+    assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing is on its way");
     assert.equal(
       textOf(cls(card(tree, "chart-hold"), "ck-card-takeaway")),
-      foldOf("30d").hold.line,
+      fold.hold.line,
       "the hold's line is the fold's, of the sample's numbers",
     );
     assert.equal(
@@ -1925,27 +1918,15 @@ test("a demo's Receptionist lens draws the sample's own read through the same fo
       "your 1-minute hold ends",
       "the sample's business has a hold, so its replies are plotted past it",
     );
-    choose(tree, "90 days");
-    tree = redraw();
-    assert.equal(chosen(tree), "90 days", "the sample's own period");
-    assert.equal(textOf(cls(card(tree, "chart-hold"), "ck-card-takeaway")), foldOf("90d").hold.line);
-    assert.notEqual(foldOf("90d").hold.line, foldOf("30d").hold.line, "a longer period is more replies");
   } finally {
-    globalThis.__DEMO_MODE = false;
-    lensAt = LENS_PATHS[0];
+    offSample();
   }
 });
 
-test("a demo's People lens draws the sample's own read through the same fold, every part of it, and its tabs switch the sample's period", () => {
-  setSurfaceValue("reports", undefined);
-  setSurfaceValue("reports_people", undefined);
-  globalThis.__DEMO_MODE = true;
-  lensAt = LENS_PATHS[2];
-  const foldOf = (range) => toPeopleReportVM(peopleSample(range).dto);
+test("over the tests' sample as its reads, the People lens draws every part of its own read through the same fold", () => {
+  const fold = toPeopleReportVM(peopleSample("30d").dto);
   try {
-    fresh();
-    let tree = draw();
-    assert.ok(byTestId(tree, "reports-sample"), "the sample's page");
+    const tree = overSample(2);
     for (const id of [
       "people-strip",
       "chart-people-channels",
@@ -1965,42 +1946,23 @@ test("a demo's People lens draws the sample's own read through the same fold, ev
       assert.ok(byTestId(tree, id), `${id}: the sample has every part`);
     assert.equal(byTestId(tree, "people-failed"), null);
     assert.equal(byTestId(tree, "people-now-failed"), null);
-    assert.equal(
-      byTestId(tree, "reports-sample").props["data-loading"],
-      undefined,
-      "the sample answers at once: nothing is on its way",
-    );
-    assert.equal(standingSaid().sentence, foldOf("30d").head, "the head says the sample's fold");
+    assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing is on its way");
+    assert.equal(standingSaid().sentence, fold.head, "the head says the sample's fold");
     assert.equal(
       textOf(cls(card(tree, "chart-people-steps"), "ck-card-takeaway")),
-      foldOf("30d").stepsDone.line,
+      fold.stepsDone.line,
       "a card's line is the fold's, of the sample's numbers",
     );
-    choose(tree, "90 days");
-    tree = redraw();
-    assert.equal(chosen(tree), "90 days", "the sample's own period");
-    assert.equal(standingSaid().sentence, foldOf("90d").head);
-    assert.notEqual(foldOf("90d").head, foldOf("30d").head, "a longer period is more people");
-    assert.equal(textOf(cls(card(tree, "chart-people-steps"), "ck-card-takeaway")), foldOf("90d").stepsDone.line);
   } finally {
-    globalThis.__DEMO_MODE = false;
-    lensAt = LENS_PATHS[0];
+    offSample();
   }
 });
 
-test("a demo's Campaigns lens draws the sample's own read through the same fold, every part of it but the reach-outs, and its tabs switch the sample's period", () => {
-  setSurfaceValue("reports", undefined);
-  setSurfaceValue("reports_campaigns", undefined);
-  globalThis.__DEMO_MODE = true;
-  lensAt = LENS_PATHS[4];
-  const foldOf = (range) => {
-    const s = campaignsSample(range);
-    return toCampaignLensVM({ campaigns: s.campaigns, ledger: s.ledger, reachOuts: s.reachOuts }, Date.now());
-  };
+test("over the tests' sample as its reads, the Campaigns lens draws every part of its own read but the reach-outs, and the Overview has something worth knowing", () => {
+  const s = campaignsSample("30d");
+  const fold = toCampaignLensVM({ campaigns: s.campaigns, ledger: s.ledger, reachOuts: s.reachOuts }, Date.now());
   try {
-    fresh();
-    let tree = draw();
-    assert.ok(byTestId(tree, "reports-sample"), "the sample's page");
+    const tree = overSample(4);
     for (const id of [
       "campaigns-strip",
       "chart-funnel",
@@ -2020,61 +1982,37 @@ test("a demo's Campaigns lens draws the sample's own read through the same fold,
     assert.equal(byTestId(tree, "campaigns-failed-campaigns"), null);
     assert.equal(byTestId(tree, "campaigns-failed-ledger"), null);
     assert.equal(byTestId(tree, "chart-campaigns-quiet"), null, "a sample that sends is not a quiet one");
-    assert.equal(byTestId(tree, "rpt-reach-outs"), null, "nothing reads the reach-outs in a demo");
-    assert.equal(byTestId(tree, "reports-sample").props["data-loading"], undefined, "the sample answers at once");
-    assert.equal(standingSaid().sentence, foldOf("30d").head, "the head says the sample's fold");
+    assert.equal(byTestId(tree, "rpt-reach-outs"), null, "a read with no reach-outs draws none");
+    assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing is on its way");
+    assert.equal(standingSaid().sentence, fold.head, "the head says the sample's fold");
     assert.equal(
       textOf(cls(card(tree, "chart-funnel"), "ck-card-takeaway")),
-      foldOf("30d").funnel.line,
+      fold.funnel.line,
       "a card's line is the fold's, of the sample's numbers",
     );
-    choose(tree, "90 days");
-    tree = redraw();
-    assert.equal(chosen(tree), "90 days", "the sample's own period");
-    assert.equal(standingSaid().sentence, foldOf("90d").head);
-    assert.notEqual(foldOf("90d").head, foldOf("30d").head, "a longer period is more messages");
-    // And the Overview stands on the sample, Worth knowing included (it reads the same sample's sources).
-    lensAt = LENS_PATHS[0];
-    fresh();
-    assert.ok(card(draw(), "reports-facts"), "Worth knowing has something to say in the demo");
+    // And the Overview stands on the same reads, Worth knowing included (it reads the same sample's sources).
+    assert.ok(card(overSample(0), "reports-facts"), "Worth knowing has something to say");
   } finally {
-    globalThis.__DEMO_MODE = false;
-    lensAt = LENS_PATHS[0];
+    offSample();
   }
 });
 
-test("a demo draws the same page from the sample, its tabs switch the sample; without a demo the page says what Reports reads", () => {
-  setSurfaceValue("reports", undefined);
-  globalThis.__DEMO_MODE = true;
+test("with nothing read the page says what Reports reads; over a read it is the one page", () => {
+  offSample();
+  fresh();
+  assert.ok(byTestId(draw(), "reports-none"), "nothing read: the page says what Reports reads");
   try {
-    fresh();
-    let tree = draw();
-    assert.ok(
-      byTestId(tree, "reports-sample") && byTestId(tree, "reports-hero"),
-      "the one Reports page, on the sample",
-    );
-    lensAt = LENS_PATHS[2];
-    fresh();
-    // The sample answers the People lens's own read at once as well: the strip, and the cards the report keeps beside it.
-    const people = draw();
+    const tree = overSample(0);
+    assert.ok(byTestId(tree, "reports-real") && byTestId(tree, "reports-hero"), "the one Reports page, over the read");
+    assert.equal(chosen(tree), "30 days");
+    const people = overSample(2);
     assert.ok(
       byTestId(people, "people-strip") && byTestId(people, "chart-people") && byTestId(people, "chart-rhythm"),
       "and its People lens",
     );
     assert.equal(byTestId(people, "people-failed"), null);
-    assert.equal(byTestId(people, "reports-sample").props["data-loading"], undefined, "nothing is on its way");
-    lensAt = LENS_PATHS[0];
-    fresh();
-    tree = draw();
-    assert.equal(chosen(tree), "30 days");
-    choose(tree, "90 days");
-    tree = redraw();
-    assert.equal(chosen(tree), "90 days", "the sample's own period");
-    globalThis.__DEMO_MODE = false;
-    fresh();
-    assert.ok(byTestId(draw(), "reports-none"), "no workspace and no demo: the page says what Reports reads");
   } finally {
-    globalThis.__DEMO_MODE = false;
+    offSample();
   }
 });
 
