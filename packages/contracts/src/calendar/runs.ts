@@ -192,7 +192,7 @@ export const CALENDAR_RUN_SHEET_WORDS = {
   planned: (n: number) => `${n} planned`,
   sent: (n: number) => `${n} sent`,
   many: "Campaigns",
-  failed: "Failed",
+  failed: "Couldn't send",
   /** D13: the day's sheet offers a send of its own (the composer, Send once, where its When picks the day). */
   schedule: "Schedule a message",
 } as const;

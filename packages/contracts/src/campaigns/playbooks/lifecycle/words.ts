@@ -225,7 +225,7 @@ export const LIFECYCLE_WORDS = {
   failed: {
     // The templates are the settings read's, the one read of them (apps/dashboard offered-templates.ts): its Retry reads that.
     templates: {
-      what: "your templates",
+      what: "your saved messages",
       body: "The call's text and your messages show once they read. Everything else here is current.",
       surface: "settings",
     },
@@ -329,7 +329,7 @@ export const LIFECYCLE_WORDS = {
       /** Said in full where its next batch goes without asking (`auto`, decision 7), where the page knows the mode. */
       auto: "It sends on its own: nothing will wait for your approval.",
       /** Said where its next batch's words are new to you (decision 0064): that batch waits for your OK, whatever the mode. */
-      asksFirst: "Its first batch waits for your approval.",
+      asksFirst: "Its first send waits for your approval.",
       yes: "Yes, resume it",
     },
     /** What the drawer's head calls a campaign whose group the page does not hold. */

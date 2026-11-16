@@ -160,9 +160,9 @@ function usageOf(p: { g: TemplateGroup; row: TemplateDto | null }) {
   const pausedWords = !pbRows
     ? " Chanlytics couldn't check which campaigns send it."
     : paused.length === 1
-      ? ` ${quoted(paused)} is paused and sends it: if it resumes, its runs skip until it has another template.`
+      ? ` ${quoted(paused)} is paused and sends it: if it resumes, its sends skip until it has another approved message.`
       : paused.length > 1
-        ? ` ${quoted(paused)} are paused and send it: if they resume, their runs skip until they have another template.`
+        ? ` ${quoted(paused)} are paused and send it: if they resume, their sends skip until they have another approved message.`
         : "";
   // The languages a running playbook sends this message in (a run sends its one
   // `template_language` to everyone on it, run-playbook.ts), and the first of them

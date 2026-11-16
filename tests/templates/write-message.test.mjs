@@ -44,7 +44,7 @@ const USER = "u1";
 const id = (n) => `77777777-7777-4777-8777-${String(n).padStart(12, "0")}`;
 
 /** What submitTemplate says of a name and language already on file, which a twin is answered in. */
-const TWIN = "A template with that name and language already exists. Pick another name.";
+const TWIN = "A message with that name and language already exists. Pick another name.";
 
 /** A template row as the table holds it. */
 const tpl = (n, over = {}) => ({

@@ -487,7 +487,7 @@ test("a run's stop is asked where it can be read: at its head on a desk, where t
     tree = again(props);
     await press(byTestId(part(tree, "footer"), "bc-stop-yes"));
     assert.deepEqual(stopped, ["b-sending"]);
-    assert.match(textOf(toasts.at(-1).msg), / stops after this batch$/, "and the page says so, as it did");
+    assert.match(textOf(toasts.at(-1).msg), / stops after this send$/, "and the page says so, as it did");
   } finally {
     broadcasts.cancel = keep.cancel;
     globalThis.matchMedia = keep.media;

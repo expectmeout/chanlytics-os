@@ -68,7 +68,7 @@ test("one status: left out and review say why, a standing place is the sequence'
       place("queued", { why: "unchecked" }),
       { word: "Not planned", tone: "warn", line: `Their address couldn't be checked · ${SEQ}` },
     ],
-    [lead(), place("queued"), { word: "In campaign", tone: "ok", line: `In its next batch · ${SEQ}` }],
+    [lead(), place("queued"), { word: "In campaign", tone: "ok", line: `In its next send · ${SEQ}` }],
     [lead(), place("in"), { word: "In campaign", tone: "ok", line: `Between steps · ${SEQ}` }],
     [lead({ state: "contacted", contactedAt: hoursAgo(3) }), null, { word: "Contacted", tone: "info", line: "3h ago" }],
     [lead({ state: "contacted" }), null, { word: "Contacted", tone: "info", line: null }],

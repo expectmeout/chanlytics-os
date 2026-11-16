@@ -122,8 +122,8 @@ export function paramSaid(spec: ParamSpec): string {
 export function playbooksStillSending(names: readonly string[]): string {
   const quoted = names.map((n) => `“${n}”`);
   if (quoted.length <= 1)
-    return `${quoted[0] ?? "A campaign"} still uses this template. Pause it, or give it another, first.`;
-  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
+    return `${quoted[0] ?? "A campaign"} still uses this message. Pause it, or give it another, first.`;
+  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this message. Pause them, or give them another, first.`;
 }
 
 export interface ParamFacts {

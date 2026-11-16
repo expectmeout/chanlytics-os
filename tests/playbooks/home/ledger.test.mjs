@@ -309,7 +309,7 @@ test("Resume says what its next batch does by its sequence's mode: in full where
   );
   assert.equal(
     detail({ mode: "auto", words_ok_at: null }),
-    "Next run tomorrow 10:00 AM, about 4 people. Its first batch waits for your approval.",
+    "Next run tomorrow 10:00 AM, about 4 people. Its first send waits for your approval.",
   );
   assert.equal(detail({ mode: "ask", words_ok_at: SEEN }), "Next run tomorrow 10:00 AM, about 4 people");
   assert.equal(detail({}), "Next run tomorrow 10:00 AM, about 4 people", "unread: the mode is not guessed");

@@ -224,7 +224,7 @@ const AUT_MOVES_WITH: Record<string, readonly string[]> = { campaign: ["reengage
 const AUT_MOVED_WITH = new Set(Object.values(AUT_MOVES_WITH).flat());
 const AUT_MANY_ROW = {
   label: "Sends to many people",
-  note: "how a new offer, win-back or follow-up starts · each keeps its own on its page, and asks you before its first batch and after new words",
+  note: "how a new offer, win-back or follow-up starts · each keeps its own on its page, and asks you before its first send and after new words",
 };
 
 /** What else it may do without you, as a table at a desk and a list on a phone. */

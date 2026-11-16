@@ -51,7 +51,7 @@ export const BROADCAST_STATE_LABELS: Record<BroadcastState, string> = {
   sending: "Sending",
   sent: "Sent",
   canceled: "Canceled",
-  failed: "Failed",
+  failed: "Couldn't send",
 };
 
 /** How many go in one job, and the breath between two sends. */

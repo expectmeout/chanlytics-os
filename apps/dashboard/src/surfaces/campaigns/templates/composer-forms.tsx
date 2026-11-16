@@ -207,7 +207,7 @@ export function translationForm(c: ComposerCtx, translate: TemplateTranslation, 
             size="sm"
             onClick={translateNow}
             data-testid="tpl-translate-again"
-            {...gate("approve", "write a template in another language")}
+            {...gate("approve", "write a message in another language")}
           >
             <Icon name="refresh" size={11} /> Try again
           </Button>
@@ -245,7 +245,7 @@ export function translationForm(c: ComposerCtx, translate: TemplateTranslation, 
               disabled={!ready}
               onClick={submit}
               data-testid="tpl-submit"
-              {...gate("approve", "submit a template")}
+              {...gate("approve", "send a message to WhatsApp")}
             >
               {submitting ? "Submitting…" : "Submit to WhatsApp"}
             </Button>
@@ -346,7 +346,7 @@ function newRows(c: ComposerCtx, made: Made) {
             disabled={drafting || brief.trim().length < 4}
             onClick={draft}
             data-testid="tpl-draft"
-            {...gate("approve", "draft a template")}
+            {...gate("approve", "draft a message")}
           >
             <Icon name="sparkle" size={11} /> {drafting ? "Drafting…" : "Draft with Chanlytics"}
           </Button>
@@ -540,7 +540,7 @@ function newTemplatePane(c: ComposerCtx, made: Made) {
               disabled={!ready || numberWhy !== null}
               onClick={submit}
               data-testid="tpl-submit"
-              {...gate("approve", "submit a template")}
+              {...gate("approve", "send a message to WhatsApp")}
             >
               {submitting ? "Submitting…" : "Submit to WhatsApp"}
             </Button>
@@ -577,8 +577,8 @@ export function newTemplateForm(c: ComposerCtx, made: Made) {
   return (
     <section className="ct-section tpl-composer" data-testid="tpl-composer">
       <div className="ct-sec-head">
-        <span className="ct-sec-title">New template</span>
-        <span className="ct-sec-meta">WhatsApp reviews it before it can be sent — {WHATSAPP_REVIEW_TAKES}</span>
+        <span className="ct-sec-title">New WhatsApp message</span>
+        <span className="ct-sec-meta">WhatsApp reviews it before it can be sent · {WHATSAPP_REVIEW_TAKES}</span>
         {onCancel && (
           <LinkButton onClick={work.leave} data-testid="tpl-close">
             Close
@@ -602,7 +602,7 @@ export function newTemplateForm(c: ComposerCtx, made: Made) {
               disabled={!ready}
               onClick={submit}
               data-testid="tpl-submit"
-              {...gate("approve", "submit a template")}
+              {...gate("approve", "send a message to WhatsApp")}
             >
               {submitting ? "Submitting…" : "Submit to WhatsApp"}
             </Button>

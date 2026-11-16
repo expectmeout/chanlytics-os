@@ -697,7 +697,7 @@ test("the notice's body: the summary a phone shows, their words quoted, then wha
   assert.ok(quoted.length <= 280 + 2, `${quoted.length} characters with its marks`);
   const unread = notice({ intent: "other", summary: "", quote: "Hi", unread: "model_failed" });
   assert.equal(unread.push, "Their reply couldn't be read yet.");
-  assert.match(unread.body, /It couldn't be read \(the reader failed\), so it is read again later\./);
+  assert.match(unread.body, /It couldn't be read \(the reading didn't finish\), so it is read again later\./);
 });
 
 test("the notice's redacted words name no business and no words of theirs", () => {

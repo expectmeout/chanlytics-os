@@ -668,12 +668,12 @@ test("the template send is the reply box's capsule: the message it will send at 
   );
 
   setTemplates([]);
-  assert.match(textOf(composerOf(closed)), /No approved template yet/, "none approved is still its own answer");
+  assert.match(textOf(composerOf(closed)), /No approved message yet/, "none approved is still its own answer");
   // ...and it says which: the read counted the messages it left out, by why (noTemplateWords).
   setTemplates([], { pending: 2, rejected: 1, paused: 0, disabled: 0, hidden: 0 });
   assert.equal(
     textOf(find(composerOf(closed), hasClass("ix-tpl-none"))),
-    "No approved template yet (2 waiting for WhatsApp to review, 1 refused by WhatsApp) — nothing can be sent until one is.",
+    "No approved message yet (2 waiting for WhatsApp to review, 1 refused by WhatsApp). Nothing can be sent until one is.",
     "REGRESSION: 'none yet' over a workspace whose messages were all waiting for WhatsApp, refused, or paused",
   );
 

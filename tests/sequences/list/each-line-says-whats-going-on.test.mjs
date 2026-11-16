@@ -129,7 +129,7 @@ test("two kinds at once keep today's short words, with no date; a batch naming n
   const allHeld = { ...NONE, waiting: 1, held: 7, batches: [batch({ people: 0 })] };
   assert.equal(needsWords(lead({ needs: allHeld }), CLOCK), "7 emails held for your look");
   const planning = { ...NONE, waiting: 1, batches: [batch({ people: 0 })] };
-  assert.equal(needsWords(lead({ needs: planning }), CLOCK), "The next batch waits for your approval");
+  assert.equal(needsWords(lead({ needs: planning }), CLOCK), "The next send waits for your approval");
   assert.equal(needsWords(row(), CLOCK), "", "nothing needs you: no words");
 });
 

@@ -63,13 +63,13 @@ export const ASK_FINDING_WORDS = {
   repliesFell: {
     title: (name: string) => `Replies fell on ${name}`,
     line: (last: Earned, before: Earned) =>
-      `${last.replied} of ${last.sent} replied to the last batch, ${before.replied} of ${before.sent} to those before it.`,
+      `${last.replied} of ${last.sent} replied to the last send, ${before.replied} of ${before.sent} to those before it.`,
     door: "Look at it",
     /** Ask found's row (Today in three zones, 2 Nov 2026): its tag, its sentence with the numbers, and why. */
     tag: "Replies fell",
     sentence: (name: string, last: Earned, before: Earned) =>
       `${name} drew ${last.replied} of ${last.sent} ${last.sent === 1 ? "reply" : "replies"}, down from ${before.replied} of ${before.sent}.`,
-    why: "Its last batch, against those before it.",
+    why: "Its last send, against those before it.",
   },
   steady: {
     line: (batches: number) =>

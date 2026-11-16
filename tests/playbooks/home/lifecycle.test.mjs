@@ -1039,7 +1039,7 @@ test("a run waiting on you is approved or skipped where it waits: who gets it, a
     { b: "Win-back" },
     " skipped — nothing will send",
   ]);
-  assert.deepEqual(C.LIFECYCLE_TOAST.skipped("Win-back", "sending"), [{ b: "Win-back" }, " stops after this batch"]);
+  assert.deepEqual(C.LIFECYCLE_TOAST.skipped("Win-back", "sending"), [{ b: "Win-back" }, " stops after this send"]);
   assert.deepEqual(C.LIFECYCLE_TOAST.skipped("Win-back", "scheduled"), [
     { b: "Win-back" },
     " canceled — nothing will send",
@@ -1047,7 +1047,7 @@ test("a run waiting on you is approved or skipped where it waits: who gets it, a
   assert.deepEqual(
     ["sending", "pending_approval", "scheduled", null, undefined].map((was) => C.runStoppedWords(was)),
     [
-      "stops after this batch",
+      "stops after this send",
       "skipped — nothing will send",
       "canceled — nothing will send",
       "canceled — nothing will send",
@@ -1231,7 +1231,7 @@ test("a read that failed is said where its data would be, in contracts' words, w
   );
   // The library is made of the templates, which are the settings read's, the one read of them (task 3.3): its Retry reads that.
   assert.deepEqual(home({ library: null }).failed.templates, {
-    what: "your templates",
+    what: "your saved messages",
     body: "The call's text and your messages show once they read. Everything else here is current.",
     surface: "settings",
   });

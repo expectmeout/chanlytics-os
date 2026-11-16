@@ -49,7 +49,7 @@ export function evidenceWords(sequenceEvidence: SequenceEvidence | null | undefi
     sequenceEvidence.stopped > 0 ? `you stopped ${sequenceEvidence.stopped}` : "",
     sequenceEvidence.skipped > 0 ? `${sequenceEvidence.skipped} skipped: nobody answered in time` : "",
   ].filter(Boolean);
-  if (parts.length === 0) return `No batch in the last ${EVIDENCE_DAYS} days`;
+  if (parts.length === 0) return `No send in the last ${EVIDENCE_DAYS} days`;
   return `Last ${EVIDENCE_DAYS} days: ${parts.join(" · ")}`;
 }
 

@@ -231,7 +231,7 @@ export function noTemplateWords(held: Partial<TemplateHolds> | null | undefined)
     const n = held?.[key] ?? 0;
     return n > 0 ? [`${n} ${words}`] : [];
   });
-  return `No approved template yet${parts.length ? ` (${parts.join(", ")})` : ""} — nothing can be sent until one is.`;
+  return `No approved message yet${parts.length ? ` (${parts.join(", ")})` : ""}. Nothing can be sent until one is.`;
 }
 
 /**

@@ -136,7 +136,7 @@ export const NEW_WORDS = {
     goesAt: (when: string) => `${when} · Stop any time before`,
     leadsWait: "They wait for your approval, then go in their hours",
     joins: (list: string) => `joins ${list}`,
-    firstBatch: (when: string) => `Its first batch is ${when}`,
+    firstBatch: (when: string) => `Its first send is ${when}`,
     todayAt: (time: string) => `today at ${time}`,
     tomorrowAt: (time: string) => `tomorrow at ${time}`,
     whatToDo: "What to do",
@@ -173,7 +173,7 @@ export const NEW_WORDS = {
   /** A one-off sent, back on Sequences (E2). */
   /** A sequence made, on its record (Started, LeadsStarted): when its first batch goes, and that it waits for the OK. */
   started: {
-    people: (when: string) => `Started · its first batch waits for your approval ${when}`,
+    people: (when: string) => `Started · its first send waits for your approval ${when}`,
     leads: "Started · its first emails wait for your approval",
     kept: (name: string) => `“${name}” is kept under Drafts`,
   },
@@ -231,14 +231,14 @@ export const NEW_WORDS = {
   paused: { lead: "Sending is paused", sub: "Resume it from Settings › Billing" },
   /** Your OK, as its sheet names each way and How it runs says the one picked. */
   ok: {
-    ask: "Every batch waits for you",
+    ask: "Every send waits for you",
     veto: "Then 30 minutes to stop",
     auto: "Then on its own",
   } satisfies Record<SequenceMode, string>,
   okSaid: {
-    ask: "Every batch",
-    veto: "First batch, then 30 min to stop",
-    auto: "First batch, then on its own",
+    ask: "Every send",
+    veto: "First send, then 30 min to stop",
+    auto: "First send, then on its own",
   } satisfies Record<SequenceMode, string>,
   channels: {
     whatsapp: "WhatsApp",
@@ -313,7 +313,7 @@ export const NEW_WORDS = {
     addSub: (n: number) => `After step ${n}, for people and leads alike`,
     addMessage: "One of yours, or one AI writes",
     addCall: "A call for you",
-    okSub: "The first batch always waits for it",
+    okSub: "The first send always waits for it",
     okNote: "New words wait for your approval again. To leads, “on its own” isn’t offered.",
     from: "Sent from",
     fromSub: "Your own mailbox, so replies come to you",

@@ -335,7 +335,7 @@ export const SheetEnd = (p: {
               disabled={p.busy}
               onClick={() => p.onAct(r)}
               data-testid={`lead-pile-end-${r.act.kind}`}
-              {...(r.act.kind === "approve" ? gate("approve", "approve a batch") : {})}
+              {...(r.act.kind === "approve" ? gate("approve", "approve a send") : {})}
             >
               {r.act.label}
             </Button>

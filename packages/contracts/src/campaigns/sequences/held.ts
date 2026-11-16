@@ -229,6 +229,6 @@ export const HELD_DECIDE_CARD: Record<ReachOutDecision, { title: string; after: 
     after: (change) =>
       `Its opening is written again at once${change ? `, as asked: “${change}”` : ""}; Undo puts the earlier one back.`,
   },
-  skip: { title: "Leave it out of this batch", after: () => "Nothing undoes it." },
+  skip: { title: "Leave it out of this send", after: () => "Nothing undoes it." },
   not_a_fit: { title: "Set the business aside", after: () => "Nothing undoes it." },
 };

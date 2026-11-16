@@ -606,7 +606,7 @@ test("with a number, a starter whose WhatsApp version cannot be made stops at th
   await refused(post(w, {}, inA), "forbidden", 403);
 });
 
-const NO_CHANNEL = "Connect a WhatsApp number first — templates belong to a number's account.";
+const NO_CHANNEL = "Connect a WhatsApp number first. WhatsApp approves each message for one number.";
 /** Each result of the answer: the starter, the language, what became of its WhatsApp version and of each version beside it. */
 const detailed = (r) =>
   r.results.map((x) => [x.key, x.language, x.status, x.detail, x.versions.map((v) => `${v.channel}:${v.status}`)]);

@@ -643,10 +643,7 @@ test("what sends a template says what that thing is doing: a playbook's clock, a
   assert.equal(C.templateUseWords(usedBy.winback_offer), "Win-back", "a sequence of one step, by its name alone");
   assert.deepEqual(usedBy.winback_offer.sequences, [K1], "the one sequence its row's link opens");
   // A refusal with no name to quote says what still uses it in the reader's word (decision 19).
-  assert.equal(
-    C.playbooksStillSending([]),
-    "A campaign still uses this template. Pause it, or give it another, first.",
-  );
+  assert.equal(C.playbooksStillSending([]), "A campaign still uses this message. Pause it, or give it another, first.");
   assert.equal(C.templateUseNote(usedBy.winback_offer), "runs daily at 10:00 AM");
   assert.equal(
     usedBy.monthly_offer.playbooks[0].waiting,
@@ -922,14 +919,14 @@ test("one template: hidden or titled through the definer doors; deleting is refu
     template.DELETE.run(send("DELETE"), ctxFor(tables, { id: T2 })),
     "conflict",
     409,
-    "“Win-back” and “Welcome” still use this template. Pause them, or give them another, first.",
+    "“Win-back” and “Welcome” still use this message. Pause them, or give them another, first.",
   );
   tables.playbooks[1].state = "paused";
   await refused(
     template.DELETE.run(send("DELETE"), ctxFor(tables, { id: T2 })),
     "conflict",
     409,
-    "“Win-back” still uses this template. Pause it, or give it another, first.",
+    "“Win-back” still uses this message. Pause it, or give it another, first.",
   );
   tables.playbooks[0].state = "paused";
   await refused(
@@ -987,7 +984,7 @@ test("a draft is judged in the body's words before the assistant is asked; the s
   const noNumber = await starter.POST.run(send("POST", { keys: ["winback_reply"] }, inB), ctxFor(tables));
   assert.deepEqual(
     noNumber.results.map((r) => [r.key, r.status, r.detail]),
-    [["winback_reply", "skipped", "Connect a WhatsApp number first — templates belong to a number's account."]],
+    [["winback_reply", "skipped", "Connect a WhatsApp number first. WhatsApp approves each message for one number."]],
   );
   assert.deepEqual([noNumber.submitted, noNumber.skipped], [0, 1]);
   // With a number the submission is the edge's, and a preview stops at its guard.

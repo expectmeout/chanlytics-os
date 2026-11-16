@@ -171,7 +171,7 @@ export const placeLineWriting = (
 
 /** Where a lead added and not yet planned stands, by the sequence's own state. */
 const queuedLine = (state: SequenceState): string =>
-  state === "draft" ? "Joins when you start it" : state === "paused" ? "Waits until it's on" : "In its next batch";
+  state === "draft" ? "Joins when you start it" : state === "paused" ? "Waits until it's on" : "In its next send";
 
 /** The step a row is at, as a place says it. */
 const stepWordOf = (r: PlaceRow) => `Step ${r.place ?? 1}`;
@@ -307,7 +307,7 @@ function sendStateOf(
   if (sequencePlaceSend.state === "failed") return { tone: "done", words: "Didn't go" };
   // Planned, claimed or on its way: in a batch waiting for an OK where their place says so, else when it goes.
   if (row && row.send_id === sequencePlaceSend.id && row.group === "waiting")
-    return { tone: "need", words: "In today's batch · waits for your approval" };
+    return { tone: "need", words: "In today's send · waits for your approval" };
   const item = at(sequencePlaceSend.send_at);
   return {
     tone: "next",

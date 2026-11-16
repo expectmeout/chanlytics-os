@@ -206,7 +206,7 @@ test("the one notice: a batch waiting for an OK with its act and how long it wai
   const waiting = sequenceNotice(row({ needs: { ...NONE, waiting: 1, batches: [batch()] } }), []);
   assert.equal(waiting.kind, "waiting");
   // A customer's batch waits until its day is gone, never "goes at" the hour it was made: an OK sends it at once.
-  assert.equal(waiting.words, "The next batch waits for your approval · until tonight");
+  assert.equal(waiting.words, "The next send waits for your approval · until tonight");
   assert.deepEqual([waiting.act, waiting.batchId], ["Approve", "b9"]);
   const named = sequenceNotice(
     row({ needs: { ...NONE, waiting: 1, waiting_people: 3, batches: [batch({ people: 3 })] } }),
@@ -258,7 +258,7 @@ test("the one notice: a batch waiting for an OK with its act and how long it wai
   assert.equal(sequenceRowLine(row({ starts: "leads", needs: allHeld }), AT), "7 emails held for your look");
   const planning = { ...allHeld, held: 0 };
   assert.equal(sequenceNotice(row({ starts: "leads", needs: planning }), []).kind, "waiting");
-  assert.equal(needsWords(row({ starts: "leads", needs: planning }), CLOCK), "The next batch waits for your approval");
+  assert.equal(needsWords(row({ starts: "leads", needs: planning }), CLOCK), "The next send waits for your approval");
   assert.equal(sequenceNotice(row(), []), null);
 });
 
@@ -434,16 +434,16 @@ test("a row ends on its state only where it is not On; the head's line says what
   });
   assert.deepEqual(sequenceRowState(oneOff), { label: "Scheduled", tone: "plain" });
   assert.deepEqual(sequenceRowState({ ...oneOff, date: { ...oneOff.date, state: "failed" } }), {
-    label: "Failed",
+    label: "Couldn't send",
     tone: "danger",
   });
   // Who approves is the sequence's own mode (decision 0064): the row's, never a class's.
   const rec = { word: "visit", timezone: TZ };
   assert.equal(sequenceSubLine(row({ mode: "auto" }), rec, NOW), "Before a visit · sends on its own");
-  assert.equal(sequenceSubLine(row({ mode: "veto" }), rec, NOW), "Before a visit · holds each batch for you to stop");
+  assert.equal(sequenceSubLine(row({ mode: "veto" }), rec, NOW), "Before a visit · holds each send for you to stop");
   assert.equal(
     sequenceSubLine(row({ mode: null }), rec, NOW),
-    "Before a visit · asks you before each batch",
+    "Before a visit · asks you before each send",
     "none asks",
   );
   assert.equal(sequenceSubLine(oneOff, rec, NOW), "One message · goes on its own");
@@ -456,21 +456,21 @@ test("a row ends on its state only where it is not On; the head's line says what
   });
   assert.equal(
     sequenceSubLine(leads, { ...rec, fed_by: "list" }, NOW),
-    "Leads from “Auto shops” · holds each batch for you to stop",
+    "Leads from “Auto shops” · holds each send for you to stop",
   );
   assert.equal(
     sequenceSubLine(leads, { ...rec, fed_by: "search" }, NOW),
-    "Leads from “Auto shops” · holds each batch for you to stop",
+    "Leads from “Auto shops” · holds each send for you to stop",
   );
   assert.equal(
     sequenceSubLine(leads, rec, NOW),
-    "Leads from “Auto shops” · holds each batch for you to stop",
+    "Leads from “Auto shops” · holds each send for you to stop",
     "a list's row knows no feed",
   );
   // A search named as the sequence is the name said again under itself (3 Nov 2026), so the line leaves it out.
   assert.equal(
     sequenceSubLine({ ...leads, name: " auto Shops" }, { ...rec, fed_by: "list" }, NOW),
-    "Leads · holds each batch for you to stop",
+    "Leads · holds each send for you to stop",
   );
 });
 
@@ -518,12 +518,12 @@ test("a paused sequence's dock, who approves in its More, and where a follow-up 
   assert.deepEqual(sequencePausedDock(row({ state: "paused" })), { line: "Paused", fact: null });
   assert.equal(sequencePausedDock(row()), null);
   assert.equal(sequenceWhoApprovesHint("auto"), "Sends on its own");
-  assert.equal(sequenceWhoApprovesHint("veto"), "Holds each batch for you to stop");
-  assert.equal(sequenceWhoApprovesHint(null), "Asks you before each batch");
+  assert.equal(sequenceWhoApprovesHint("veto"), "Holds each send for you to stop");
+  assert.equal(sequenceWhoApprovesHint(null), "Asks you before each send");
   // One an occasion starts never asks for each (decision 0119): a row that says ask is said as it goes, held.
-  assert.equal(sequenceWhoApprovesHint("ask", "visit_soon"), "Holds each batch for you to stop");
+  assert.equal(sequenceWhoApprovesHint("ask", "visit_soon"), "Holds each send for you to stop");
   assert.equal(sequenceWhoApprovesHint("auto", "visit_missed"), "Sends on its own");
-  assert.equal(sequenceWhoApprovesHint("ask", "visit_tomorrow"), "Asks you before each batch");
+  assert.equal(sequenceWhoApprovesHint("ask", "visit_tomorrow"), "Asks you before each send");
   assert.equal(takesFollowUps(row()), false, "a reminder is said once, the day before");
   assert.equal(takesFollowUps(row({ first: { ...FIRST, trigger: "quiet_30" } })), true);
   assert.equal(takesFollowUps(row({ starts: "leads" })), false);

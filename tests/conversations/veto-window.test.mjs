@@ -191,7 +191,7 @@ test("the event names the usual cause rather than making someone guess", () => {
   test("with no approved template the composer says so instead of offering a send", () => {
     // The composer says it in contracts' words (noTemplateWords), the plain sentence where nothing is counted.
     assert.match(thread, /noTemplateWords\(/);
-    assert.match(noTemplateWords(null), /^No approved template yet/);
+    assert.match(noTemplateWords(null), /^No approved message yet/);
     // And the courier refuses rather than posting a request the server must
     // reject with a message the operator cannot act on.
     assert.match(verbs2, /No WhatsApp message is approved yet/);

@@ -88,8 +88,8 @@ test("a change names any of nine things, the six and the campaign's words, its e
   );
   assert.equal(W.until("Nov 30"), "Ends Nov 30");
   assert.equal(W.until(null), "Runs until it is paused, with no last day");
-  assert.equal(W.mode("ask", "veto"), "Before each batch: Ask me, where it was Hold it 30 minutes so I can stop it");
-  assert.equal(W.mode("auto", "ask"), "Before each batch: Send it, where it was Ask me");
+  assert.equal(W.mode("ask", "veto"), "Before each send: Ask me, where it was Hold it 30 minutes so I can stop it");
+  assert.equal(W.mode("auto", "ask"), "Before each send: Send it, where it was Ask me");
   assert.equal(
     W.params([{ kind: "first_name" }, { kind: "text", value: "15% off a colour" }]),
     "Its words changed: their first name, “15% off a colour”",

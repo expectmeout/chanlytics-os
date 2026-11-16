@@ -1330,7 +1330,7 @@ const withTheHomes = (frozen) =>
 const withTheSequencesStart = (frozen) =>
   frozen.replaceAll(
     "under “Re-engage” (ask): each run waits for you on Today.",
-    "Each batch waits for your approval (Re-engage).",
+    "Each send waits for your approval (Re-engage).",
   );
 
 /**

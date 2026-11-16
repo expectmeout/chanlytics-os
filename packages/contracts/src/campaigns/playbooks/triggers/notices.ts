@@ -108,7 +108,7 @@ export function coldBatchGoesNotice(name: string, emails: number, when: string):
  * batch waits (batchModeOf), so it says both.
  */
 const NEXT_BATCH_WAITS =
-  "its sends wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask";
+  "its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask";
 
 /**
  * What the owner is told when the sweep skips a customer's batch that waited for an OK past its day (decision 0064):
