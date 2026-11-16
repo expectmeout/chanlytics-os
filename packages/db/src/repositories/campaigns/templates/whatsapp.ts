@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
-import { tenantDb } from "../../../shared/tenant-db";
+import { platformWide, tenantDb } from "../../../shared/tenant-db";
 import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
@@ -22,6 +22,23 @@ export const saveTemplateRow = async (db: Db, tenantId: TenantId, row: TemplateI
 /** Templates saved, each over its key. */
 export const saveTemplateRows = async (db: Db, tenantId: TenantId, rows: TemplateInsert[]) =>
   tenantDb(db, tenantId).from("templates").upsert(rows, { onConflict: TEMPLATE_KEY });
+
+/**
+ * Every workspace's WhatsApp versions WhatsApp holds (Meta gave each an id) and has been checking since before `before`,
+ * by their last change, the oldest first: what the six-hourly visit asks WhatsApp about again (edge
+ * whatsapp/slow-reviews.ts). A sample nobody sent has no id and is not one. Across workspaces on purpose, as a sweep reads.
+ */
+export const listSlowReviews = async (db: Db, before: Date, limit: number) =>
+  platformWide(db)
+    .from("templates")
+    .select("id, tenant_id, name, language, title, meta_id, updated_at")
+    .eq("channel", "whatsapp")
+    .eq("meta_status", "pending")
+    .is("hidden_at", null)
+    .not("meta_id", "is", null)
+    .lt("updated_at", before.toISOString())
+    .order("updated_at", { ascending: true })
+    .limit(limit);
 
 /** One of the workspace's WhatsApp templates, as a delete names it to Meta, or none. */
 export const findWhatsAppTemplate = async (db: Db, tenantId: TenantId, templateId: string) =>

@@ -81,6 +81,9 @@ const FORWARDED = {
   "apps/edge/lib/whatsapp/meta-templates.ts": [
     "String(res.error)",
     "body?.error?.message ?? `HTTP ${res.status}`",
+    // getTemplate's: a review asked again past a day (slow-reviews.ts), which logs Meta's words and answers no door.
+    "String(res.error)",
+    "textOrEmpty(failure?.message) || `HTTP ${res.status}`",
     "String(res.error)",
     "body?.error?.error_user_msg ?? body?.error?.message ?? `HTTP ${res.status}`",
     // editTemplate's: a template's words sent back to Meta (the Messages redesign's step 3), in Meta's words for `detail`.

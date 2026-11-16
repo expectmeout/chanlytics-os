@@ -5,7 +5,7 @@ import { isOccasionTrigger, occasionWords } from "../../playbooks/triggers/occas
 import { owedOncePerMoment } from "../../playbooks/triggers/notices";
 import { clockDate } from "../../../shared/clock";
 import { capitalize, plural } from "../../../shared/words";
-import { CAMPAIGN_ROOMS, RUN_WAITING_SHORT } from "../../../shell/campaign-rooms";
+import { CAMPAIGN_ROOMS, RUN_WAITING_SHORT, SLOW_REVIEW_WORDS } from "../../../shell/campaign-rooms";
 import { runWaitsOnYou, type RunDays } from "../../../waits/waits";
 import type { SequenceRowDto } from "../dto";
 import { SEQUENCE_MODE_WORDS, sequenceModeOf, type SequenceState } from "../sequence";
@@ -165,12 +165,16 @@ export function takesFollowUps(row: Pick<SequenceRowDto, "starts" | "first">): b
   return row.first?.trigger !== "visit_tomorrow" && row.first?.trigger !== "visit_soon";
 }
 
-/** A message's WhatsApp standing, as a step's line says it beside its words: the tone the kit's pill draws it in. */
+/**
+ * A message's WhatsApp standing, as a step's line says it beside its words: the tone the kit's pill draws it in. `slow`:
+ * WhatsApp has been checking it for over a day (templates reviewIsSlow), and the pill says it is taking longer.
+ */
 export function stepApprovalOf(
   status: string | null | undefined,
+  slow: boolean,
 ): { label: string; tone: "ok" | "warn" | "danger" } | null {
   if (status === "approved") return { label: "Approved", tone: "ok" };
-  if (status === "pending") return { label: "In review", tone: "warn" };
+  if (status === "pending") return { label: slow ? SLOW_REVIEW_WORDS.pill : "In review", tone: "warn" };
   if (status === "rejected") return { label: "Not approved", tone: "danger" };
   if (status === "paused" || status === "disabled") return { label: "Paused by WhatsApp", tone: "danger" };
   return null;
