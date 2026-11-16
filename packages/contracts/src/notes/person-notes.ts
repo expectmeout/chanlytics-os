@@ -159,7 +159,7 @@ const NOTE_REFUSAL_WORDS = {
   not_yours: "Only the person who wrote this note can change it.",
   moved: "Someone changed this note since you opened it. Read it again, then save.",
   decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
+  bad_source: "Couldn't save this note.",
   bad_deal: "That deal is not this person's.",
   not_a_step: "Only a note with a day can be done.",
   not_for_you: "This note is for someone else.",

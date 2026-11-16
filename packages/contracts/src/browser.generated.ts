@@ -104,7 +104,7 @@ export { FREED_TIME_PASSED_WORDS, poolWords, reachLines, runApprovalRefusal, run
 export { campaignChannelsOf, playbookChannelsRead, WHATSAPP_VERSION_ALONE } from "./campaigns/playbooks/channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./campaigns/playbooks/failed";
 export { FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, followUpIsFor, followUpKey, followUpNames, followUpRunAt, followUpStandOf, followUpWords, PLAYBOOK_TOUCH_WINDOW_MS, playbookRunStop, playbookStopBy } from "./campaigns/playbooks/follow-ups";
-export { IN_CHAT_FACT, inChatPurposeOf, replyInChatOf } from "./campaigns/playbooks/in-chat";
+export { IN_CHAT_FACT, inChatPurposeOf, inChatPurposeOfMessage, replyInChatOf } from "./campaigns/playbooks/in-chat";
 export { keptThanksAt, lateReminderAt } from "./campaigns/playbooks/late-reminder";
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./campaigns/playbooks/lifecycle/inputs";
 export { reachCountsOf, lifecycleComing, lifecycleReach, lifecycleResults, nextRunLine, resumeDetailOf, waitingOffer, workspacePausedOf } from "./campaigns/playbooks/lifecycle/tiles";
@@ -234,7 +234,7 @@ export { ACT_LOG_PAGE, ACT_OUTCOMES, ACT_TARGETS, actRowOf, actsCsv, CONSOLE_SCR
 export { CLAIM_MS, claimWords, CONSOLE_GROUP_WORDS, CONSOLE_WORDS, consoleGroupOf, consoleGroups, consoleNumbersFrom, consoleNumbersOf, homeSentence, verdictPill } from "./console/console";
 export { healthAskOf } from "./console/health-ask";
 export { clocksOf, failureReadingOf, jobWords, pageKeyWords, pagesOf, scheduleWords, subscriberWords } from "./console/health-clocks";
-export { connectionsOf, deliveriesOf, draftUsesOf, modelCallsOf } from "./console/health-parts/models-connections";
+export { connectionsOf, deliveriesOf, draftUsesOf, modelCallsOf, previewsHealthOf } from "./console/health-parts/models-connections";
 export { callsOf, sendsOf, webhooksOf } from "./console/health-parts/sends-calls";
 export { promiseDaysOf } from "./console/health-promises";
 export { HEALTH_SCOPE_WORDS, HEALTH_SCOPES, inScope, oursOf, workspaceNamer } from "./console/health-scope";
@@ -343,7 +343,7 @@ export { LEAD_BACK_WORDS, LEAD_PILE_SAID, LEAD_PILE_UNDO_KEY, LEAD_PILE_WORDS, l
 export { LEAD_DRAFT_JSON_SCHEMA, LEAD_PRIOR_MIN_PLACES, LEAD_QUESTION_WAIT_LINE, leadDraftFooter, leadFiltersOf, leadMonthPlanFacts, leadPlanAsk, leadPlanFactLine, leadPlanFacts, leadPlanLikely, leadQuestionMail, leadQuestionRoute, leadQuestionTitle, leadsRoute, leadsRouteUnchipped, parseLeadsRoute, stageArgs } from "./leads/plan";
 export { LEAD_CHECK_CENTS_EACH, LEAD_MAP_MAX_SPAN_M, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, LEAD_REVIEW_GROUP_WORDS, leadAreaFrom, leadAskedFor, leadCheckAgainCents, leadLowerFirst, leadMapAcross, leadMapNote, leadMapPlot, leadReviewCosts, leadReviewGroups } from "./leads/review";
 export { LEAD_MARK_PATH, LEAD_MARKS_BUCKET, leadBand, leadCriterionWords, leadMarkSrc, leadRail, leadRowOf, leadSearchEmptyWords, leadSourceWord, leadsStanding, toLeadRowVM } from "./leads/row";
-export { leadCalledByOf } from "./leads/search/called-by";
+export { LEAD_NAMED, leadCalledByOf, leadNamedRefusal, leadOwnOf } from "./leads/search/called-by";
 export { BUSINESS_LINE_MAX, LEAD_ASK_MAX_FACTOR, LEAD_ASK_MIN_FACTOR, LEAD_ASSUMED_YIELD, LEAD_DAY_CAP_USD, LEAD_ESTIMATE_MARGIN, LEAD_FACT_MAX, LEAD_JUDGE_BATCH, LEAD_MAX_PLACES, LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_PLATFORM_DAY_CAP_USD, LEAD_PROBE_PLACES, LEAD_QUESTION_MIN_EVIDENCE, LEAD_QUESTION_THRESHOLD, LEAD_REASON_MAX_WORDS, LEAD_SITE_FACT_MAX, LEAD_SITE_READ_USD, LEAD_TRIAL_ALLOWANCE, leadAllowanceFor, leadMonth, US_ZIP } from "./leads/search/caps";
 export { replacedOutcome, SEARCH_CARD_REPLACED, searchCardsReplaced, searchCardView, startsSearch, waitingSearchWords, withAnswerLanded, withIdeaCarried } from "./leads/search/card";
 export { estimateRoundUsd, LEAD_CARDS, LEAD_COUNT_CHOICES, placesPastRead, placesToAsk, planCeiling, planMinutes } from "./leads/search/cards";
@@ -438,8 +438,10 @@ export { peopleRowOf } from "./people/person-row/with-follow-up";
 export { attentionOf, holderOf, NEW_WINDOW_DAYS, PEOPLE_TABS, PERSON_STATE_LABELS, personStanding, personStateFor, QUIET_AFTER_DAYS, stopToldBesideState } from "./people/person-state";
 export { consentChangeWords } from "./people/person-timeline";
 export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, sinceWords } from "./people/person-words";
-export { PREVIEW_LIMITS, PREVIEW_STATES, previewClaimable, previewFirstRunMarks, previewKnowsOf, previewMinePath, previewPageOf, previewSlotOf, previewStartersOf, previewStateOf, previewTurnsOf } from "./previews/lead-preview";
+export { previewFirstRunMarks, previewKnowsOf, previewMinePath, previewPageOf, previewStartersOf, previewTurnsOf } from "./previews/lead-preview";
 export { PREVIEW_LINE_WORDS, previewBuildSlow, previewLineOf } from "./previews/line";
+export { PREVIEW_LIMITS, PREVIEW_STATES, previewClaimable, previewSlotOf, previewStateOf } from "./previews/standing";
+export { PREVIEW_TAUGHT, previewFactOf, previewTheirsOf, withPreviewFix, withPreviewTaught } from "./previews/theirs";
 export { PREVIEW_TRIED_DAYS, previewSaidOf, previewTriedWords } from "./previews/tried";
 export { LEAD_PREVIEW_WORDS } from "./previews/words";
 export { checkFixRoute, datesIn, daysIn, FIX_BLOCK_OF, FIX_ROUTE_OPS, FIX_ROUTE_SCHEMA, FIX_WORDS, fixField, fixLine, fixRouteSystemPrompt, fixRouteUserContent, guardrailIn, languagesIn, linkIn, minutesIn, priceIn, routeFix, serviceIn, timesIn } from "./rehearsal/fix-router";

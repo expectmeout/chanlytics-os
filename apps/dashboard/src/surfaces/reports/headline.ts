@@ -50,7 +50,7 @@ export const headline = periodSurface({
     reads: ["conversation", "call", "visit", "person", "facts"],
     fresh: "its-page",
     omit: [
-      { tables: ["conversations"], why: "it counts the messages, not the threads they are in" },
+      { tables: ["conversations"], why: "it counts the messages, not the conversations they are in" },
       {
         tables: ["appointment_notices"],
         why: "its booking line reads the appointments; a held booking email is not one",

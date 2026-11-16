@@ -37,7 +37,6 @@ const DRAWN = [
   "apps/dashboard/src",
   "apps/dashboard/src/server",
   "apps/dashboard/src/bridge",
-  "apps/dashboard/mockup",
   "apps/mobile/src",
   PACKAGES,
   "tooling/scripts",

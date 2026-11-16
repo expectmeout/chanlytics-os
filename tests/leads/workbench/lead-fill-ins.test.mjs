@@ -141,6 +141,12 @@ test("the mark promises nothing the door would refuse: a lead that can get none 
       say: F.mark.cannot,
       tone: "warn",
     });
+  // Switched off on the edge: nothing is made, so the email waits; a lead that can get none is told that first.
+  assert.deepEqual(previewMarkOf({ preview: null, makes: true, cannot: null, paused: true }, NOW), {
+    say: F.mark.paused,
+    tone: "warn",
+  });
+  assert.equal(previewMarkOf({ preview: null, makes: true, cannot: "closed", paused: true }, NOW).say, F.mark.cannot);
   // Nothing in the way: made when this goes, as before.
   assert.equal(previewMarkOf({ preview: null, makes: true, cannot: null }, NOW).say, F.mark.none);
 });
@@ -154,4 +160,13 @@ test("one being made says so for two minutes, then that it is slower than usual"
   });
   // An answer that does not say when it was made: being made, never a guess.
   assert.equal(previewMarkOf({ preview: row({ state: "building" }), makes: true }, NOW).say, F.mark.building);
+});
+
+test("the mark says the day's limit before the email waits on it; paused and cannot are said first", () => {
+  assert.deepEqual(previewMarkOf({ preview: null, makes: true, cannot: null, full: true }, NOW), {
+    say: F.mark.full,
+    tone: "warn",
+  });
+  assert.equal(previewMarkOf({ preview: null, makes: true, paused: true, full: true }, NOW).say, F.mark.paused);
+  assert.equal(previewMarkOf({ preview: null, makes: true, cannot: "closed", full: true }, NOW).say, F.mark.cannot);
 });

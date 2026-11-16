@@ -256,7 +256,7 @@ export const PERSON_ACT_WORDS = {
   downloadHint: "Everything kept about them, in one file: for when they ask what you hold",
   /** Why a send into their thread cannot go: there is none (a wire's own reasons are the sheet's, writeWaysOf). */
   noThread: "No conversation with them yet.",
-  ready: (on: string) => `Opens their thread with it ready to send${on}`,
+  ready: (on: string) => `Opens their conversation with it ready to send${on}`,
 } as const;
 
 /**
@@ -272,7 +272,7 @@ export const PERSON_DELETE_WORDS = {
   yes: "Delete this person",
   busy: "Deleting…",
   cancel: "Cancel",
-  failed: "Could not delete this person.",
+  failed: "Couldn't delete this person.",
   done: (name: string) => `${name} deleted: their messages, media and recordings are gone`,
 } as const;
 

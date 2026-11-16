@@ -79,25 +79,29 @@ function LeadsStandingLine({
 /**
  * Leads' line itself, "3 leads · 2 ready · 1 search", where People's stands: under the controls on a desk, and on a phone
  * under the bar, as People's is (Ruben, 12 Nov 2026: Leads' count stood beside the list's name, People's on a line under).
+ * With no total (a phone's open search keeps only another search waiting, scope.tsx), it starts at what it has, no dot first.
  */
 export function LeadsStandingRow({ leads, onNeeds }: { leads: LeadsStanding; onNeeds: (id: string) => void }) {
   const needs = leads.needsYou;
+  const total = leads.total !== "";
+  const dot = (first: boolean) =>
+    first ? null : (
+      <span className="pl-standing-dot" aria-hidden="true">
+        ·
+      </span>
+    );
   return (
     <div className="pl-standing" data-testid="leads-standing">
-      <span className="pl-standing-total">{leads.total}</span>
-      {leads.parts.map((part) => (
+      {total ? <span className="pl-standing-total">{leads.total}</span> : null}
+      {leads.parts.map((part, i) => (
         <span key={part} className="pl-standing-part">
-          <span className="pl-standing-dot" aria-hidden="true">
-            ·
-          </span>
+          {dot(!total && i === 0)}
           <span className="pl-standing-reached">{part}</span>
         </span>
       ))}
       {needs && (
         <span className="pl-standing-part">
-          <span className="pl-standing-dot" aria-hidden="true">
-            ·
-          </span>
+          {dot(!total && leads.parts.length === 0)}
           {leadsNeeds(needs, onNeeds)}
         </span>
       )}

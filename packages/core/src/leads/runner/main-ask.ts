@@ -10,6 +10,7 @@
  * run's end starts a next term only where the start will find one to make.
  */
 
+import { LEAD_CARDS } from "@chanlytics/contracts";
 import { FINAL_RUN_STATES, failedRun } from "../endings";
 import { runIdFor } from "../ids";
 import { areaKey } from "../ladder";
@@ -124,6 +125,18 @@ async function termsTried(
   return { read, begun, tries, running, again, stale };
 }
 
+/**
+ * The fewest places a leg asks of a term (decision 0133): the card's page, what one search of a ZIP returns. The source
+ * answers a term near a place from its top, and the top of an area next to ones the search read is mostly what it
+ * already holds: a leg asked for the few its count still wanted read only those, found none of its own, and ended the
+ * search one short, saying every area within reach was searched (15 Nov 2026: 16, 8 and 4 places asked, 2, 1 and 0
+ * found, 99 of 100). Nothing for any other round, which sizes its ask from its yield alone.
+ */
+function legPageOf(round: Pick<LeadRoundRow, "purpose" | "plan">): number {
+  if (round.purpose !== "widen") return 0;
+  return LEAD_CARDS.find((card) => card.id === round.plan.card)?.maxPerTerm ?? 0;
+}
+
 /** What the main phase asks now, the tries its failed terms have had, the terms it began and the synonyms it passes over. */
 interface MainAsk {
   ask: TermsAsk;
@@ -160,7 +173,15 @@ export async function planMainAsk(
   const tried = await termsTried(round, runs, searched);
   const onTheirWay = tried.begun.size ? members.filter(mayYetCount).length : 0;
   return {
-    ask: mainAsk(round.plan, targetOf(round) - counted - onTheirWay, yieldSoFar, dropTerm, room, tried),
+    ask: mainAsk(
+      round.plan,
+      targetOf(round) - counted - onTheirWay,
+      yieldSoFar,
+      dropTerm,
+      room,
+      tried,
+      legPageOf(round),
+    ),
     tries: tried.tries,
     begun: [...tried.begun],
     stale: tried.stale ?? new Set(),

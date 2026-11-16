@@ -1,8 +1,7 @@
 /**
  * The bundle of Ask's states page (ask-states.tsx), for the harness's `ask` record (server.mjs serves it at
  * /_hx/ask-states.js), built as the kit's running page is (kit-behaves.mjs): esbuild, the dashboard's own React, and the
- * surfaces from their source. Contracts' entries the app loads by import() are bundled in, as the mockup's are, since the
- * page has no chunks. React's production build runs: the recorder measures what the app draws.
+ * surfaces from their source. Contracts' entries the app loads by import() are bundled in, since the page has no chunks. React's production build runs: the recorder measures what the app draws.
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";

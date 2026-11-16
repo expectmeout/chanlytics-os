@@ -23,7 +23,11 @@ export const SEQUENCE_WORDS = {
   search: "Search campaigns",
   /** The list's views over its search (Pipeline's "All deals ⌄"): every sequence, or one of its groups. */
   views: { label: "Which campaigns", all: "All campaigns" },
-  empty: "Nothing sends on its own yet. A campaign starts at a moment, when someone joins a list, or on a date.",
+  /**
+   * The list with none yet: what will be here, then New's own line under it, which drafts what is said there (16 Nov
+   * 2026: the page's name said once, and one New); one who may not start one reads that there are none.
+   */
+  empty: { title: "Messages that go out on their own", none: "None yet" },
   failed: "The campaigns couldn’t be loaded right now",
   filters: { all: "All", needs: "Needs you", off: "Paused or off" },
   groups: {
@@ -69,7 +73,7 @@ export const SEQUENCE_WORDS = {
   /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
   untilTonight: "until tonight",
   /** A phone dock's line over a batch waiting for an OK: its Approve says how many (the run review's item 12, 19 Oct 2026). */
-  waitsForOk: "Waits for your OK",
+  waitsForOk: "Waits for your approval",
   /** Approve while an opening of its batch is being written: you read each before it goes, so it waits for them. */
   openingsWriting: "Writing openings…",
   /** Who approves its batches, said in the record's More, which opens How it runs, where it is changed (decision 0064). */
@@ -369,7 +373,7 @@ export function sequenceSubLine(
   if (row.starts === "date" && row.date) {
     const at = Date.parse(row.date.at);
     const DATE: Record<string, string> = {
-      pending_approval: "waits for your OK",
+      pending_approval: "waits for your approval",
       scheduled: "goes on its own",
       sending: "going out now",
       sent: `went ${clockDate(row.last ? Date.parse(row.last.at) : at, rec.timezone, nowMs)}`,

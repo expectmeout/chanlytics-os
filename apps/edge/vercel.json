@@ -71,6 +71,9 @@
           "api/admin/previews/make.ts": {
             "maxDuration": 15
           },
+          "api/admin/previews/standing.ts": {
+            "maxDuration": 15
+          },
           "api/admin/reach-out-preview.ts": {
             "maxDuration": 30
           },

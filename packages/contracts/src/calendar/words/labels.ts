@@ -206,7 +206,7 @@ export interface CalendarFeedNoteVM {
 export const CALENDAR_FEED_WORDS = {
   ok: "Readable",
   stale: "Last good read",
-  unavailable: "Could not be read",
+  unavailable: "Couldn't be read",
   none: "Not connected",
 } as const;
 

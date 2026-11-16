@@ -104,7 +104,7 @@ export const SAY_IT_WORDS = {
   busy: "Reading…",
   filled: "Filled in from what you said. Check it, then save.",
   empty: "Nothing in that fits these fields. Try saying it another way.",
-  failed: "Could not read that just now.",
+  failed: "Couldn't read that just now.",
 } as const;
 
 const DEAL_PER_SET: readonly string[] = DEAL_PERS;

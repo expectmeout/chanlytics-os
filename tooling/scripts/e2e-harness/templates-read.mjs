@@ -1,6 +1,5 @@
 /**
- * What GET templates answers for a workspace's template rows, so the harness's server and its page's fixture say what the
- * route says: the rows (the composers' unless `all`), the messages made of EVERY row, what the composers left out, and the
+ * What GET templates answers for a workspace's template rows, so the harness's server says what the route says: the rows (the composers' unless `all`), the messages made of EVERY row, what the composers left out, and the
  * call's text found among every WhatsApp row.
  *
  * The route's body is its reader's (apps/dashboard/src/server/readers/templates.ts templatesOf), which reads the database and

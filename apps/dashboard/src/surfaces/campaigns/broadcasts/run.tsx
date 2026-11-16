@@ -277,8 +277,7 @@ function bcAside(vm: RunReportVM) {
       <section className="bc-card" data-testid="bc-back">
         <span className="bc-card-title">What came back</span>
         <p className="bc-card-lede">
-          A send does not hold a conversation. Every reply is a thread in the Inbox, and AI answers it under its usual
-          autonomy.
+          A send is not a conversation. Each reply is one in the Inbox, and AI answers it as it usually does.
         </p>
         {vm.replies.length > 0 ? (
           <div className="bc-back-list">
@@ -288,7 +287,7 @@ function bcAside(vm: RunReportVM) {
                 className="bc-back-row"
                 disabled={!x.to}
                 onClick={() => navigate(x.to as string)}
-                title={`${x.name} — open the thread`}
+                title={`${x.name} — open the conversation`}
                 data-testid="bc-reply"
               >
                 <Face person={{ name: x.name, initials: x.initials }} size="sm" />

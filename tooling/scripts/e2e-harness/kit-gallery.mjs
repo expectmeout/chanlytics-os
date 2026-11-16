@@ -6,11 +6,11 @@
  *   corepack pnpm e2e:local -- e2e/kit/kit.spec.ts --scenario=kit   # the gallery's checks
  *
  * The harness serves it as the `kit` record's page (scenarios.mjs), and production never does (decision 7). It is
- * static markup, built on every request as the mockup's document is read (server.mjs), so an edit to an entry or to a
- * stylesheet shows on the next load. No React, no Babel, no fixture: each entry is the markup a kit component renders,
- * written out. Where the component is written in TSX (the Button, the link button, the panel, the face, the list row
- * and the meter, apps/dashboard/src/surfaces/kit/), styles/kit-components.test.mjs holds each entry of its family to
- * what it draws, element for element: the tag, the classes, and the attributes a stylesheet or a screen reader reads
+ * static markup, built on every request (server.mjs) over the app's faces and stylesheets (app-styles.mjs), so an edit to
+ * an entry or to a stylesheet shows on the next load. No React, no Babel, no fixture: each entry is the markup a kit
+ * component renders, written out. Where the component is written in TSX (the Button, the link button, the panel, the
+ * face, the list row and the meter, apps/dashboard/src/surfaces/kit/), styles/kit-components.test.mjs holds each entry of
+ * its family to what it draws, element for element: the tag, the classes, and the attributes a stylesheet or a screen reader reads
  * (a type, disabled, hidden, an address, a role, aria-hidden, aria-label, aria-disabled, the gate's mark, a picture's
  * alt, a style's declarations). So an entry or a component changed alone in any of those is red.
  *
@@ -36,8 +36,8 @@
  * twin, is not in a phone's page, where it would put the stack at the foot as the bell's panel does (mobile.css,
  * :root:has(.tbn-pop)), over a sheet's Save.
  */
+import { styleLinks } from "./app-styles.mjs";
 import { GLYPHS, SHEET_SERVICES } from "./kit-shared.mjs";
-import { mockupDocument } from "../serve-mockup.mjs";
 
 /**
  * The names the kit's markup carries that classes.json lists as neither a class nor a modifier. A kit entry names one
@@ -3348,21 +3348,14 @@ export const FAMILIES = [
 
 /* ---- the document ---- */
 
-/** Every <link> in the head of the mockup's document, as it stands: the fonts, then the tokens, the kit and the rest. */
-function documentLinks() {
-  const doc = mockupDocument();
-  const head = doc.slice(doc.indexOf("<head>"), doc.indexOf("</head>"));
-  return head.match(/<link\b[^>]*>/g) ?? [];
-}
-
 /** The app's own rules (bridge/frame.css, less its @imports), served by the harness after every stylesheet. */
 const APP_RULES = '<link rel="stylesheet" href="/_hx/app.css" />';
 
 /**
  * The gallery's own layout, under gx-* and on tokens, so it reads in both themes. The shell holds the page to the
  * window with nothing to scroll (html.frame-on, frame.css); the gallery scrolls, so a full-page shot takes it all.
- * The faces are named as the harness's fixture names them on the mockup's page (fixture-src.ts, `fonts`), which the
- * gallery does not run: the app names them through next/font (app/layout.tsx), and --font-sans and --font-mono read it.
+ * The faces are named by the names Google Fonts gives them (app-styles.mjs links them): the app names them through
+ * next/font (app/layout.tsx), and --font-sans and --font-mono read it.
  */
 const GALLERY_CSS = `
     :root { --font-geist: "Geist"; --font-geist-mono: "Geist Mono"; }
@@ -3394,8 +3387,8 @@ const GALLERY_CSS = `
 
 /**
  * The theme from `?theme=light|dark` (dark otherwise), and the look stamped as the app stamps it (Glass, the one look
- * since Classic retired: contracts LOOK_OPTIONS); `t` turns the theme, as the mockup's document does
- * (style-equality.mjs presses it). And an entry bound to
+ * since Classic retired: contracts LOOK_OPTIONS); `t` turns the theme (style-equality.mjs presses it). And an entry
+ * bound to
  * a width leaves the page at the other, as it loads, at the kit's one breakpoint; a box marked
  * `data-gx-indeterminate` is put in the state between on and off, which no attribute says (a table's head box with
  * some of its rows picked).
@@ -3447,7 +3440,7 @@ const familyHtml = (f) =>
   `<p class="gx-about">${f.about}</p><div class="gx-entries">${f.entries.map(entryHtml).join("\n")}</div></section>`;
 
 /**
- * The gallery's page, built afresh: the mockup's fonts and stylesheets in its order, the app's rules, the entries. Its
+ * The gallery's page, built afresh: the app's faces and stylesheets in its order, the app's rules, the entries. Its
  * words say no count: a family added at the end moves nothing drawn above it, so a recording of the page before and
  * after (style-equality.mjs) differs only in what was added.
  */
@@ -3458,7 +3451,7 @@ export function galleryDocument(families = FAMILIES) {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Chanlytics · the kit</title>
-  ${documentLinks().join("\n  ")}
+  ${styleLinks().join("\n  ")}
   ${APP_RULES}
   <style>${GALLERY_CSS}  </style>
 </head>
@@ -3493,7 +3486,7 @@ export function askStatesDocument(bundle = "/_hx/ask-states.js") {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Chanlytics · Ask's states</title>
-  ${documentLinks().join("\n  ")}
+  ${styleLinks().join("\n  ")}
   ${APP_RULES}
   <style>:root { --font-geist: "Geist"; --font-geist-mono: "Geist Mono"; }</style>
 </head>
@@ -3517,7 +3510,7 @@ export function behavesDocument(bundle = "/_hx/kit-behaves.js") {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Chanlytics · the kit, behaving</title>
-  ${documentLinks().join("\n  ")}
+  ${styleLinks().join("\n  ")}
   ${APP_RULES}
   <style>${GALLERY_CSS}${BEHAVES_CSS}  </style>
 </head>

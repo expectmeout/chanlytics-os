@@ -113,10 +113,10 @@ export const LIST_RULE_FIELDS: readonly {
   },
   {
     id: "assigned",
-    label: "Thread is with",
+    label: "Conversation is with",
     kind: "assigned",
     needs: [],
-    draft: "who has their thread: value me, teammate or nobody",
+    draft: "who has their conversation: value me, teammate or nobody",
   },
   {
     id: "deal_stage",

@@ -753,7 +753,7 @@ test("business facts: partly there says what is missing; a broken config is its 
   assert.deepEqual(row(part, "facts").verb, { label: "Finish in Business", to: "admin/workspace/hours" });
   const broken = setupSteps(empty({ business: { ...empty().business, broken: true } }), NOW);
   assert.equal(row(broken, "facts").state, "waiting_you");
-  assert.match(row(broken, "facts").sentence, /could not be read/);
+  assert.match(row(broken, "facts").sentence, /couldn't be read/);
   const noLink = setupSteps(empty({ business: { ...facts, bookingLink: false } }), NOW);
   assert.ok(row(noLink, "facts").details.includes("No booking link — AI answers, but cannot send one"));
 });
@@ -790,7 +790,7 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
     row(setupSteps(empty({ calendar: { state: "ok" } }), NOW), "calendar").sentence,
     "AI offers open times from it.",
   );
-  assert.equal(row(feed, "calendar").sentence, "Your calendar could not be read.");
+  assert.equal(row(feed, "calendar").sentence, "Your calendar couldn't be read.");
   // REGRESSION: the row read the link alone, so a business whose bookings arrive by email was asked, for good, to
   // paste an address its tool does not have. It is ready; the tool's first email is waited for in its own words;
   // and a business that books by hand, by its own word, is ready with nothing to connect.
@@ -838,7 +838,7 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
   );
   assert.equal(
     row(why, "calendar").sentence,
-    "Your calendar could not be read. The calendar answered 404. It is usually the private iCal link, not the calendar's web page.",
+    "Your calendar couldn't be read. The calendar answered 404. It is usually the private iCal link, not the calendar's web page.",
     "the row says why, in the words the board and the preview use",
   );
 });

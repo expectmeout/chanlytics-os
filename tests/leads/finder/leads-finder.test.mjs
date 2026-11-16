@@ -528,7 +528,7 @@ test("answering: the panel says the question, sends the owner's words as one tur
       surface: "leads",
     },
     "the owner's words and nothing else as the text; the search by id for the route to read and tell the model " +
-      "(ask-routes.test.mjs); the thread the search was planned in; and no scope, so the planning thread keeps its " +
+      "(ask-routes.test.mjs); the conversation the search was planned in; and no scope, so the planning conversation keeps its " +
       "own (a null would clear it: the Phase 5 plan, D9)",
   );
   assert.deepEqual(
@@ -1197,6 +1197,30 @@ test("a search's strip, alone or holding the band, has no way into either pile, 
   );
 });
 
+test("a running search is two lines: what it does and its Stop, then its count beside where its adds go", () => {
+  const vm = {
+    state: "running",
+    alert: false,
+    title: "Finding med spas near 10475",
+    parts: ["51 of 100"],
+    progress: 0.51,
+    count: { n: 51, of: 100 },
+    actions: [{ id: "stop", label: "Stop" }],
+  };
+  frames.begin();
+  const tree = LeadStrip({ vm, onAction: () => {}, foot: "Adds go to" });
+  const second = find(tree, (n) => n.props && "foot" in n.props && "count" in n.props);
+  const foot = second.type(second.props);
+  assert.ok(foot, "the second line");
+  assert.ok(byTestId(foot, "strip-count"), "the count leads it, not the first line");
+  assert.match(textOf(foot), /51 of 100.*Adds go to/);
+  assert.equal(tree.props["data-state"], "running", "its state, which a phone's stylesheet draws without a box");
+  frames.begin();
+  const ended = LeadStrip({ vm: { ...vm, state: "ended", count: undefined }, onAction: () => {} });
+  const none = find(ended, (n) => n.props && "foot" in n.props && "count" in n.props);
+  assert.equal(none.type(none.props), null, "no count and nowhere to add: no second line");
+});
+
 test("REGRESSION: the finder draws no key -- Close's tip said (esc), beside the ? sheet that lists it", () => {
   const { st } = page({ words: "florists in Austin" });
   const tree = drawFinder(st, { answering: ANSWERING });
@@ -1332,12 +1356,12 @@ test("a search's empty view counts no pile of ours and opens none; a list of the
   assert.equal(leadSearchEmptyWords(ended("stopped")), null, "one that counted some: the page's own words");
   assert.deepEqual(leadSearchEmptyWords(list({ counted: 0, review: 67 })), {
     title: "67 leads need a look.",
-    body: "AI is still checking them, and could not decide on these yet.",
+    body: "AI is still checking them, and couldn't decide on these yet.",
     review: true,
   });
   const listEnded = list({ state: "ended", ending: "target_reached", counted: 0, review: 1 });
   assert.equal(leadSearchEmptyWords(listEnded).title, "1 lead needs a look.");
-  assert.equal(leadSearchEmptyWords(listEnded).body, "AI could not decide on these by itself.");
+  assert.equal(leadSearchEmptyWords(listEnded).body, "AI couldn't decide on these by itself.");
   assert.equal(leadSearchEmptyWords(list({ state: "ended", counted: 0, review: 0 })), null);
   assert.equal(leadSearchEmptyWords(null), null);
   assert.equal(leadSearchEmptyWords({ ...SEARCH, round: null }), null);

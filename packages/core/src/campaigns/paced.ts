@@ -1,9 +1,8 @@
 import {
   campaignEnded,
   IN_CHAT_FACT,
-  inChatPurposeOf,
+  inChatPurposeOfMessage,
   inLastSendingHour,
-  messageHolds,
   replyWindow,
   triggerOf,
   whatsappWaits,
@@ -106,17 +105,13 @@ export function inChatOf(
 }
 
 /**
- * The yes a moment's message goes under as a reply in a person's open WhatsApp chat (contracts inChatPurposeOf), from the
- * message as it stands: asked by the run that marks the people for it (inChatOf) and again at their send (messages
- * broadcast/batch.ts), so a message WhatsApp no longer approves as an offer goes as every send does. Null for no message,
- * and for a broadcast, which has no moment.
+ * The yes a moment's message goes under as a reply in a person's open WhatsApp chat (contracts inChatPurposeOfMessage),
+ * from the message as it stands: asked by the run that marks the people for it (inChatOf) and again at their send
+ * (messages broadcast/batch.ts), so a message WhatsApp no longer approves as an offer goes as every send does. Null for no
+ * message, and for a broadcast, which has no moment.
  */
 export function inChatPurposeAt(trigger: string | null, message: CampaignMessage | null): AskedPurpose | null {
-  if (!message || trigger === null) return null;
-  return inChatPurposeOf(triggerOf(trigger)?.cls ?? null, {
-    category: message.category,
-    whatsappApproved: messageHolds(message).whatsapp,
-  });
+  return trigger === null ? null : inChatPurposeOfMessage(triggerOf(trigger)?.cls ?? null, message);
 }
 
 /** Who a run draws, each on their channel, and who of them it reaches in their open chat (contracts playbookRunReach). */

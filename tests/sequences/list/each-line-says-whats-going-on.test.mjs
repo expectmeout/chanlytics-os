@@ -79,7 +79,7 @@ test("what waits on you says what it is and since when", () => {
   const followUps = lead({
     needs: { ...NONE, waiting: 1, waiting_people: 2, oldest_at: "2026-11-08T18:05:03Z", batches: [batch()] },
   });
-  assert.equal(line(followUps), "2 follow-ups wait for your OK · since Sun");
+  assert.equal(line(followUps), "2 follow-ups wait for your approval · since Sun");
   const firsts = lead({
     needs: {
       ...NONE,
@@ -89,7 +89,7 @@ test("what waits on you says what it is and since when", () => {
       batches: [batch({ step_id: "seq", people: 12 })],
     },
   });
-  assert.equal(line(firsts), "12 first emails wait for your OK · since Mon");
+  assert.equal(line(firsts), "12 first emails wait for your approval · since Mon");
   const held = lead({ needs: { ...NONE, held: 1, oldest_at: "2026-10-30T21:05:03Z" } });
   assert.equal(line(held), "1 email held for your look · since Oct 30", "REGRESSION: it said “1 held”");
   assert.equal(
@@ -116,17 +116,20 @@ test("a customer's batch says until tonight, when it lapses, and counts people",
       batches: [batch({ step_id: "seq", people: 14, audience: { kind: "playbook", trigger: "quiet_30" } })],
     },
   });
-  assert.equal(line(r), "14 people wait for your OK · until tonight");
+  assert.equal(line(r), "14 people wait for your approval · until tonight");
 });
 
 test("two kinds at once keep today's short words, with no date; a batch naming nobody yet is the batch", () => {
   // A customer's sequence: an OK to a cold email's batch whose every email is held would send nothing, and is said as held.
   const both = { ...NONE, waiting: 1, held: 2, replies: 1, oldest_at: "2026-11-08T18:05:03Z" };
-  assert.equal(needsWords(row({ needs: both }), CLOCK), "waits for your OK · 2 held · 1 wrote back · answer them");
+  assert.equal(
+    needsWords(row({ needs: both }), CLOCK),
+    "waits for your approval · 2 held · 1 wrote back · answer them",
+  );
   const allHeld = { ...NONE, waiting: 1, held: 7, batches: [batch({ people: 0 })] };
   assert.equal(needsWords(lead({ needs: allHeld }), CLOCK), "7 emails held for your look");
   const planning = { ...NONE, waiting: 1, batches: [batch({ people: 0 })] };
-  assert.equal(needsWords(lead({ needs: planning }), CLOCK), "The next batch waits for your OK");
+  assert.equal(needsWords(lead({ needs: planning }), CLOCK), "The next batch waits for your approval");
   assert.equal(needsWords(row(), CLOCK), "", "nothing needs you: no words");
 });
 

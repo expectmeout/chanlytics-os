@@ -467,7 +467,7 @@ test("the strip's figures: five counts, each named by its metric, the period bef
     "booked",
     "Booked",
     "—",
-    "the calendar could not be read",
+    "the calendar couldn't be read",
   ]);
   const strip = card(page(), "reports-tiles");
   assert.equal(strip.type, "dl", "terms and their values");
@@ -850,7 +850,7 @@ test("a workspace with no hours is asked for them through the page, with the doo
   press(find(hours, (n) => n.type === "a"));
   assert.deepEqual(went, ["admin/hours"], "the door opens Settings' Hours & booking, where the hours are kept");
   const unread = page({ report: calm, campaigns: null, profile: null });
-  assert.equal(factOf(unread, "hours"), null, "a profile that could not be read says nothing of the hours");
+  assert.equal(factOf(unread, "hours"), null, "a profile that couldn't be read says nothing of the hours");
 });
 
 test("the channels' colours are kept by channel, in contracts' order, and the same ones wherever a channel is drawn", () => {
@@ -967,7 +967,7 @@ test("asked, then booked: the share as a meter beside the view model's words, th
   const unread = card(page({ booking: { calendar: "unavailable", days: 7, asked: 4, booked: 0 } }), "chart-booking");
   assert.ok(
     textOf(unread).includes("Couldn't read your calendar"),
-    "a calendar that could not be read is a failed read",
+    "a calendar that couldn't be read is a failed read",
   );
   assert.ok(!textOf(unread).includes("Open Settings"), "not a missing one: no door to connect what is connected");
   assert.ok(

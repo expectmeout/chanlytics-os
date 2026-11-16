@@ -190,12 +190,12 @@ export function consentChangeWords(consentChange: ConsentChange): { who: string;
 
 /** What each verb of the ledger did, said after who did it ("You paused automatic replies", "Ruben snoozed the thread"). */
 const DECISION_LABELS: Record<string, { who: string; did: string }> = {
-  take_over: { who: "Took over", did: "paused AI on this thread" },
-  hand_back: { who: "Handed back", did: "returned the thread to AI" },
-  snooze: { who: "Snoozed", did: "snoozed the thread" },
-  wake: { who: "Woke", did: "brought the thread back" },
+  take_over: { who: "Took over", did: "paused AI in this conversation" },
+  hand_back: { who: "Handed back", did: "returned the conversation to AI" },
+  snooze: { who: "Snoozed", did: "snoozed the conversation" },
+  wake: { who: "Woke", did: "brought the conversation back" },
   resolve: { who: "Resolved", did: "marked the escalation resolved" },
-  archive: { who: "Archived", did: "archived the thread" },
+  archive: { who: "Archived", did: "archived the conversation" },
   cancel_send: { who: "Canceled a reply", did: "stopped a reply before it sent" },
   pause_agent: { who: "Paused AI", did: "paused automatic replies" },
   resume_agent: { who: "Resumed AI", did: "resumed automatic replies" },
@@ -305,7 +305,7 @@ function messageItems(ctx: PersonCardContext): PersonTimelineItemVM[] {
         text: messageWords(message),
         ...(sub ? { sub } : {}),
         ...(unsent ? { unsent: true as const } : {}),
-        link: { label: "Open the thread", to: addressOf({ kind: "conversation", id: conversation.id }) },
+        link: { label: "Open the conversation", to: addressOf({ kind: "conversation", id: conversation.id }) },
       });
     }
   }
@@ -392,7 +392,10 @@ function escalationItems({ profile, stamp }: PersonCardContext): PersonTimelineI
         escalation.state === "resolved"
           ? `Resolved${resolvedAt !== null ? ` · ${stamp(resolvedAt).time} ${stamp(resolvedAt).day}` : ""}${escalation.resolved_by_user_id ? " · by a person" : ""}`
           : "Still open",
-      link: { label: "Open the thread", to: addressOf({ kind: "hold", conversationId: escalation.conversation_id }) },
+      link: {
+        label: "Open the conversation",
+        to: addressOf({ kind: "hold", conversationId: escalation.conversation_id }),
+      },
     });
   }
   return items;

@@ -573,7 +573,7 @@ test("a read of who heard that failed is said in the breath's words", async () =
   const { HEARD_UNREAD_WORDS } = await import("@chanlytics/contracts");
   assert.equal(
     HEARD_UNREAD_WORDS,
-    "Who hears from you within a week of it could not be read just now: the send still leaves them out, so it may go to fewer.",
+    "Who hears from you within a week of it couldn't be read just now: the send still leaves them out, so it may go to fewer.",
   );
 });
 

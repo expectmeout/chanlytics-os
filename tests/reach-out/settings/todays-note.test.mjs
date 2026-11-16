@@ -40,7 +40,7 @@ installStubReact({
           ok: true,
           data: {
             note: {
-              headline: "Your first 12 emails are ready for your OK",
+              headline: "Your first 12 emails are ready for your approval",
               act: "Read and approve",
               to: `sends/${RUN}`,
             },
@@ -156,7 +156,7 @@ test("a run waiting for an OK opens that run, and says how many", async () => {
     ],
   });
   const { note } = await noteOf(ctx);
-  assert.equal(note.headline, "Your first 12 emails are ready for your OK");
+  assert.equal(note.headline, "Your first 12 emails are ready for your approval");
   assert.equal(note.act, "Read and approve");
   assert.match(note.to, new RegExp(RUN));
 });
@@ -227,7 +227,7 @@ test("the note is asked once as Today lands, again as the day moves, and at most
   const draw = drawNote;
   draw();
   await until(() => byTestId(draw(), "today-cold-email"), "the note");
-  assert.match(textOf(byTestId(draw(), "today-cold-email")), /Your first 12 emails are ready for your OK/);
+  assert.match(textOf(byTestId(draw(), "today-cold-email")), /Your first 12 emails are ready for your approval/);
   assert.equal(reads(), 1);
   assert.equal(
     asked.some((u) => /settings\/reach-out(\?|$)/.test(u)),
@@ -281,7 +281,7 @@ test("a load that opens on Today holds its first draw for the note the document'
   );
   await until(() => !codeOutFor("today"), "the note's read settled");
   assert.equal(reads(), before + 1, "the head's read alone: the frame took it and asked for nothing more");
-  assert.match(keptColdEmailNote()?.note?.headline ?? "", /ready for your OK/);
+  assert.match(keptColdEmailNote()?.note?.headline ?? "", /ready for your approval/);
   // The page draws, its card with it, and the card's own read as it is drawn is the load's. A minute on the day moves and
   // the card asks again: the second read there has been, so the load's was never asked for twice.
   fresh();
@@ -407,7 +407,7 @@ test("a tab that opens on a kept copy of Today is held for the note only where a
     assert.equal(codeOutFor("today"), true, "the picture stands until the page can draw with its card");
     letGo();
     await until(() => !codeOutFor("today"), "the note in: the page takes the picture's place");
-    assert.match(keptColdEmailNote()?.note?.headline ?? "", /ready for your OK/);
+    assert.match(keptColdEmailNote()?.note?.headline ?? "", /ready for your approval/);
   } finally {
     noteHeldBack = null;
     letGo();

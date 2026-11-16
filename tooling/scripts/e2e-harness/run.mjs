@@ -1,11 +1,12 @@
 /**
  * A signed-in Playwright spec, run locally against the harness rather than a deployment.
  *
- *   corepack pnpm e2e:local -- e2e/people/people.spec.ts --scenario=pipeline
  *   corepack pnpm e2e:local -- e2e/kit/kit.spec.ts --scenario=kit
+ *   corepack pnpm e2e:local -- e2e/kit/kit-behaves.spec.ts
  *
- * The spec is named: there is no default one. The Business-tab spec the harness used to run by default drew Settings
- * in the standalone mockup, which no longer draws it (decision 0015 step 11; Ruben, 4 Oct 2026).
+ * The spec is named: there is no default one. The record is the `kit` one unless `--scenario` names another that has a
+ * page (the kit's gallery, Ask's states): the other records draw none since the standalone mockup went (15 Nov 2026),
+ * so a spec of the app's own pages is run against the nightly's stack (docs/runbook.md, "A signed-in spec").
  *
  * It starts the harness on a FREE port (never a fixed one: a developer machine has its own servers, and a port
  * already taken would fail as something far stranger), sets the four environment variables e2e/session.ts needs so
@@ -23,8 +24,8 @@
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { startHarness } from "./server.mjs";
-import { OWNER, SCENARIOS } from "./scenarios.mjs";
+import { pageOf, startHarness } from "./server.mjs";
+import { OWNER, scenario, SCENARIOS } from "./scenarios.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const PLAYWRIGHT = path.join(REPO, "node_modules/@playwright/test/cli.js");
@@ -33,9 +34,17 @@ const PLAYWRIGHT = path.join(REPO, "node_modules/@playwright/test/cli.js");
 // and the spec after it is read as nothing at all, so the WHOLE suite runs. It is pnpm's separator, not an argument.
 const argv = process.argv.slice(2).filter((a) => a !== "--");
 const scenarioArg = argv.find((a) => a.startsWith("--scenario="));
-const name = scenarioArg ? scenarioArg.slice("--scenario=".length) : "nightly";
+const name = scenarioArg ? scenarioArg.slice("--scenario=".length) : "kit";
 if (!SCENARIOS.includes(name)) {
   console.error(`no scenario "${name}": ${SCENARIOS.join(", ")}`);
+  process.exit(2);
+}
+if (!pageOf(scenario(name))) {
+  const paged = SCENARIOS.filter((n) => pageOf(scenario(n)));
+  console.error(
+    `the ${name} record draws no page here: only the ${paged.join(" and ")} records do. A spec of the app's`,
+  );
+  console.error('own pages runs against the nightly\'s stack (docs/runbook.md, "A signed-in spec, on this machine").');
   process.exit(2);
 }
 // Everything else goes to Playwright AS IT STANDS, in the order it was given: a flag and its own argument

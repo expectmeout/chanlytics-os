@@ -82,16 +82,9 @@ Point anything at it with `SUPABASE_URL=http://127.0.0.1:54321` and the keys
 
 ### See a real page
 
-**Run the app. Do not judge a page by the standalone mockup.**
-`Chanlytics.html` (`serve-mockup.mjs`) loads every file over
-`data/bridge-stubs.jsx`, so the surfaces fed by the bridge never mount in it:
-Today, the real Calendar, People, Leads and Live render a `soon` placeholder or
-the seeded mockup instead. Its data is the demo's, at a density nobody has, and
-a screenshot of it is not evidence about the product. It is for the shell, the
-seeded pages, and checking that a new file loads in both lists -- nothing else.
-
-To see what a member sees, run the dashboard against a real project and open a
-workspace:
+**Run the app.** Every page is an App Router page that only the app draws (the standalone mockup that once drew the shell
+over seeded data went with demo mode, 15 Nov 2026). To see what a member sees, run the dashboard against a real project
+and open a workspace:
 
 ```bash
 corepack pnpm --filter @chanlytics/dashboard dev
@@ -113,7 +106,7 @@ Three things trip this up, in this order:
 3. **A page renders before its surfaces land.** Wait for the thing you came to
    look at, not for the shell.
 
-A page that a spec should hold is still a spec (`e2e:local`, below); this is for
+A page that a spec should hold is still a spec (the nightly's, below); this is for
 looking at one while you change it.
 
 ### The lead map's streets
@@ -270,19 +263,18 @@ stack (`supabase db reset`) before running it again.
 ### A signed-in spec, on this machine
 
 A signed-in spec needs a session, and no developer machine holds a service-role
-key -- so those specs skip locally and are first RUN by the nightly, on a stack
+key -- so a spec of the app's pages skips locally and is first RUN by the nightly, on a stack
 of its own (`gh workflow run nightly-e2e.yml --ref <branch> -f specs="e2e/x.spec.ts"`
-runs a few there in minutes). That is a slow way to find out a spec is wrong, and no way at all
-to mutation-test one. `tooling/scripts/e2e-harness` closes the gap: a local
-server that answers the two Supabase calls `e2e/session.ts` makes, serves the
-standalone mockup from this worktree's source with a fixture first in its head,
-and answers the spec's own `/api/v1` reads from a record.
+runs a few there in minutes).
+
+`tooling/scripts/e2e-harness` is a local server for the two pages that are the harness's own: the kit's gallery (the
+`kit` record, below, "See the kit") and Ask's states (the `ask` record, which `check:style-equality` records). It
+answers the two Supabase calls `e2e/session.ts` makes and a spec's own `/api/v1` reads from a record. The pages of the
+app are not drawn there: the standalone mockup that drew the shell over a fixture went with demo mode (15 Nov 2026), and
+by then it drew none of them (every page is an App Router page).
 
 ```bash
-corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts
-corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --scenario=salon
-corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --grep "fits a phone"
-corepack pnpm e2e:local -- e2e/people/people.spec.ts --scenario=pipeline --grep "the Pipeline is a third scope"
+corepack pnpm e2e:local -- e2e/kit/kit.spec.ts --scenario=kit
 ```
 
 It takes a free port, sets what `signIn()` reads, runs the REAL spec unmodified
@@ -291,9 +283,9 @@ and the harness cannot write: every route but the two auth calls answers a GET
 or a HEAD and refuses the rest, so nothing on it can look like a write that
 landed. It runs with `--retries=0`, where the config retries once locally: a
 mutation run asks whether the journey went red, and a retry that passes turns a
-caught mutant into a flake.
+caught mutant into a flake. A record that draws no page is refused before anything starts.
 
-The records are `nightly`, `salon`, `pipeline`, `email-only` and `kit`. `nightly` is the seeded `chanlytics-e2e` workspace, DERIVED from
+The other records are data. `nightly` is the seeded `chanlytics-e2e` workspace, DERIVED from
 `tooling/scripts/ops/e2e-workspace.mjs` -- the config it writes, the line it
 provisions, the clock it sets -- so it changes when the seed changes rather than
 drifting from it; `e2e-harness.test.mjs` holds the two together. `salon` is a
@@ -301,43 +293,18 @@ fuller, fictional record for the branches the nightly's data cannot reach: a
 week of hours, closures at the cap, services, and one language short of the cap.
 `pipeline` is the salon's record made a studio that sends proposals (its word
 "meeting", and deals on file), with eight people across the
-Pipeline's four groups in `people_list`'s row shape and the person read's own.
-For it alone the server answers People's reads and the fixture runs the app's
-People surface, courier and route gate over them, so People, the Pipeline and a
-person's page are real there; a route whose surface the harness does not serve
-(Today, the Inbox, Leads) waits on it and then says it could not be read.
-`email-only` is the nightly's record with no WhatsApp number, for what a message that needs no WhatsApp row looks like:
-a mailbox the campaigns send from (`ready`, by contracts' `channelsReady`), two messages with no WhatsApp version (the
-starter "How did it go" as an email and a text, and an offer as an email alone, both as the table's rows) and three people
-who wrote by email, on a saved list. The server answers GET templates from it as the route does
-(`tooling/scripts/e2e-harness/templates-read.mjs`, held to the reader's own answer), GET channels, and People's reads. The
-Campaigns pages are App Router pages that the mockup does not draw, so no spec of them runs on a record here: what the
-Library and the two composers draw of this one is run in `tests/e2e/e2e-harness-campaigns.test.mjs`, over
-the real pages and against what the three specs expect.
-`kit` is the nightly's record with the kit's gallery for its page in place of
-the mockup (below, "See the kit").
+Pipeline's four groups in `people_list`'s row shape and the person read's own, which the server answers People's
+reads from. `email-only` is the nightly's record with no WhatsApp number, for what a message that needs no WhatsApp row
+looks like: a mailbox the campaigns send from (`ready`, by contracts' `channelsReady`), two messages with no WhatsApp
+version (the starter "How did it go" as an email and a text, and an offer as an email alone, both as the table's rows)
+and three people who wrote by email, on a saved list. The server answers GET templates from it as the route does
+(`tooling/scripts/e2e-harness/templates-read.mjs`, held to the reader's own answer), GET channels, and People's reads.
+What the Library and the two composers draw of this one is run in `tests/e2e/e2e-harness-campaigns.test.mjs`, over
+the real pages and against what the three Campaigns specs expect.
 
-What it cannot prove: anything behind a Save (the page's saver refuses, by
-design, and the specs that run here never press one), and anything about timing
-in the real bundle -- the harness compiles the shell with Babel in the
-browser, so the runner raises the per-test timeout where production runs under
-the config's own 45s. Green here is not a green nightly.
-
-`e2e/settings/settings-business.spec.ts` runs on it, and `e2e/people/people.spec.ts`'s Pipeline
-walk on the `pipeline` record. Another
-surface needs its own globals added to `e2e-harness/fixture-src.ts` -- whatever
-that page's bridge publishes -- and any read it makes added to `answer()` in
-`e2e-harness/server.mjs`. The harness signs in as the workspace's owner, and the
-role store the mockup makes (`window.ST_STORE`, in `settings.jsx`) is completed
-by the shell's own `installRoles` (`bridge/identity.ts`) the moment it is
-assigned, so `myRole()`, `mayAtLeast()` and View-as answer as they do in the app
-and an owner-only item (a person's "Delete person") is offered.
-
-One flake to know about, in the product and not in the harness: the week's copy
-menu is an `escape` `MoreMenu`, which closes on any captured scroll event
-(`more-menu.tsx`), so a scroll into view between the menu opening and the item
-being clicked closes it and the item is never there -- rare, likelier on the
-harness because its page is slower, and the nightly can hit it too.
+One flake to know about, in the product: the week's copy menu is an `escape` `MoreMenu`, which closes on any captured
+scroll event (`more-menu.tsx`), so a scroll into view between the menu opening and the item being clicked closes it and
+the item is never there -- rare, and the nightly can hit it.
 
 ### See the kit
 
@@ -419,11 +386,9 @@ that directory. Record the base first, before you edit: the harness reads the pa
 every request, so what is recorded is the working tree as it stands.
 
 `record` starts the harness above for each record and opens each route at 1440 by 900 and at a phone's 390 by 844 with a
-coarse pointer, dark and light. The harness is the mockup's static server, so it draws the shell's own table, the kit's
-gallery and Ask's states, and nothing else: a page that has left the shell (an App Router page,
-`apps/dashboard/src/surfaces/routes.ts`: Today, the Inbox, People, Leads, the Calendar, Reports, Campaigns, Settings, the first
-run) is drawn by Next alone, and the harness answers it with "No surface at", which `record` refuses. What `record` opens
-today is the kit's gallery, which draws every class of the kit, and Ask's states (`e2e-harness/ask-states.tsx`: the real Line
+coarse pointer, dark and light. The harness draws the kit's gallery and Ask's states, and nothing else: every page of
+the app is an App Router page (`apps/dashboard/src/surfaces/routes.ts`), drawn by Next alone. What `record` opens is the
+kit's gallery, which draws every class of the kit, and Ask's states (`e2e-harness/ask-states.tsx`: the real Line
 over the bridge's real palette, with Ask's routes scripted, at rest, in Earlier, typing, scoped, on a whole answer, streaming, on
 a card and a receipt, on a failed turn, offering Latest, asking before a delete, and listening; `node --import tsx
 tooling/scripts/e2e-harness/server.mjs 3211 ask`, then http://localhost:3211/#/card, `t` turning the theme). A recording made
@@ -455,16 +420,14 @@ pull request names them with how they were checked, says what was compared, and 
 What it cannot prove, so a pull request does not claim it:
 
 - a state after the page is drawn: hover, focus, a menu, sheet, fold or toast, anything after typing;
-- a page that has left the shell, which the harness cannot draw (above), and the real surfaces the mockup stubs: Today, the
-  Inbox, the Calendar and Live draw the seeded page, and Leads waits and then says it could not be read;
+- a page of the app, which the harness does not draw (above);
 - what the three's canvas draws, or any canvas;
 - motion: animations and transitions are stopped, so a change to one is not seen;
 - text: what an element says is not recorded, only its style and where it stands;
 - a width between 390 and 1440, and the 900px and 720px breaks among them;
 - an edge that moved an eighth of a pixel or less.
 
-It needs the network: the page loads React and Babel from unpkg and its fonts from Google. Record both runs on one
-machine, in one sitting; a new browser is a different recording, and `compare` says so rather than compare.
+It needs the network: the pages load their fonts from Google. Record both runs on one machine, in one sitting; a new browser is a different recording, and `compare` says so rather than compare.
 
 ### Add a look
 
@@ -491,9 +454,8 @@ and to the looks `e2e/kit/kit.spec.ts` runs.
    cannot drop a `var()`. `blur(0)` is not `none`: any value but `none` makes its element a containing block for its
    fixed children, and a stacking context. A translucent fill falls back to an opaque one under
    `@supports not (backdrop-filter: blur(1px))` and under `prefers-reduced-transparency: reduce`.
-3. **It moves nothing in Glass.** The recorder draws every page the shell still holds in Glass, the look the
-   harness's documents stamp (`TWEAK_DEFAULTS` in `apps/dashboard/mockup/Chanlytics.html`, and the gallery), in
-   both themes. A recording from before the change and one after it are equal ("Prove a style change", above),
+3. **It moves nothing in Glass.** The recorder draws the gallery and Ask's states in Glass, the look the harness's
+   pages stamp, in both themes. A recording from before the change and one after it are equal ("Prove a style change", above),
    backdrop filters included. The pages that left the shell are recorded on the app itself (step 5.7 did so on the dev
    server against the stand-in, every element's edges and computed longhands, the same comparison).
 4. **It draws.** The gallery shows it in both themes, at a desk and on a phone: `?theme=light&look=<name>` ("See the
@@ -518,7 +480,8 @@ and to the looks `e2e/kit/kit.spec.ts` runs.
    and `tests/shell/theme-boot.test.mjs` pin the default, `apps/dashboard/app/layout.tsx` stamps it on
    the document the server sends, and the browser's bars, the manifest and the native shell's own screens take its
    paper (`THEME_COLORS`, the default look's). A look with type of its own names its faces in `app/globals.css` over
-   `public/fonts` and in the mockup's Google Fonts link (`Chanlytics.html`), and sets `--font-sans` in its block, as
+   `public/fonts` and in the harness's Google Fonts link (`tooling/scripts/e2e-harness/app-styles.mjs`), and sets
+   `--font-sans` in its block, as
    Glass names Mona Sans.
 
 ## What CI proves

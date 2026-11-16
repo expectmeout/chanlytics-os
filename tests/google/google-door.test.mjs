@@ -1795,7 +1795,7 @@ test("refresh under Ask me (decision 0064): the reply is written and held for an
   );
   const row = tables.google_reviews.find((r) => r.id === R1);
   assert.deepEqual([row.draft_text, row.posts_at], ["Thank you, Rosa.", null], "held, with no time to go");
-  assert.equal(tables.notifications[0].title, "A reply to Rosa's review waits for your OK");
+  assert.equal(tables.notifications[0].title, "A reply to Rosa's review waits for your approval");
   // Its stop is no change: it has no time to clear.
   const [s1, b1] = await answer(await knock({ op: "hold", id: R1 }));
   assert.deepEqual([s1, b1], [200, { ok: true, held: false }]);

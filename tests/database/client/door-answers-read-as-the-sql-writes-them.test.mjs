@@ -13,7 +13,7 @@ import { addReachOutPerson, handRun } from "@chanlytics/db/campaigns";
 import { connectMailbox } from "@chanlytics/db/email";
 import { beginPeopleErasure } from "@chanlytics/db/erasure";
 import { suggestPersonNote } from "@chanlytics/db/facts";
-import { chooseLeadAddressee, createLeadPeopleSearch, upsertLeadCompany } from "@chanlytics/db/leads";
+import { chooseLeadAddressee, createLeadPeopleSearch, nameLead, upsertLeadCompany } from "@chanlytics/db/leads";
 
 const lines = [];
 observeDb({
@@ -121,6 +121,18 @@ const CASES = [
         { data: { ok: true, addressee: 1, email_state: "checking", version: 4 }, error: null },
       ],
       [{ error: "gone" }, { data: { error: "gone" }, error: null }],
+      [null, { data: { error: "no_answer" }, error: null }],
+    ],
+  },
+  {
+    door: "lead_named",
+    call: (db) => nameLead(db, { leadId: "l1", businessName: "Iron Works", city: null }),
+    answers: [
+      [
+        { ok: true, business_name: "Iron Works", city: null, again: 0, version: 4 },
+        { data: { ok: true, business_name: "Iron Works", city: null, again: 0, version: 4 }, error: null },
+      ],
+      [{ error: "nothing" }, { data: { error: "nothing" }, error: null }],
       [null, { data: { error: "no_answer" }, error: null }],
     ],
   },

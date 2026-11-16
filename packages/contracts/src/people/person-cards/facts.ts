@@ -122,7 +122,7 @@ export function personFactsOf({
             .join(" · ")
         : visits.state === "ok"
           ? "none booked"
-          : "could not be read",
+          : "couldn't be read",
     });
   }
   return facts;
@@ -166,7 +166,7 @@ export function aboutOf({
       ? `${visitLine(visits.next, visits.timezone, nowMs)} · ${visitTitleWithout(visits.next.title, [base.name])}`
       : visits.state === "ok"
         ? "Nothing on the calendar"
-        : "Calendar could not be read";
+        : "Calendar couldn't be read";
     const words = appointmentWords(word);
     about.push({ k: words.next, v: nextLine, next: true });
     if (visits.last)

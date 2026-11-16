@@ -9,10 +9,11 @@
  *
  * They all read this now (`needsYouNow`): since Today in three zones (2 Nov 2026), the rows of Need you above To do, as
  * Today's read makes them and as this tab has worked them, and the rows of the runs an approval can still send, so the
- * badge and the head say one number over the rows the list draws. It sends nothing and keeps nothing of its own: the
- * surfaces it is made of move, and a reader that asks again is told the same thing. The parts the Inbox's threads hold are
- * read here too (`needsYouParts`: holds, held sends, runs), by the pages that say them apart: the Inbox's band for the runs
- * and its head, and Ask's Right now; the phone's widget only while the one count is unknown. A run counts only while an
+ * badge and the head say one number over the rows the list draws. The Inbox's Needs you says it too, over a list of these
+ * same rows (`needsYouRowsNow`; 15 Nov 2026: it counted its own list, and said 1 under a badge of 2). It sends nothing and
+ * keeps nothing of its own: the surfaces it is made of move, and a reader that asks again is told the same thing. The parts
+ * the Inbox's threads hold are read here too (`needsYouParts`: holds, held sends, runs), by the pages that say them apart:
+ * the Inbox's band for the runs, and Ask's Right now; the phone's widget only while the one count is unknown. A run counts only while an
  * approval can still send it (contracts runWaitsOnYou, by the business's days), and a hold whose thread the Inbox could
  * not read counts in the parts too (UNREAD_HOLDS: unknown is not handled).
  */
@@ -25,6 +26,7 @@ import {
   runsThatWait,
   waitsOf,
   type BroadcastVM,
+  type NeedYouGroups,
   type TodayQueueRowVM,
   type TodayVM,
   type WaitingThread,
@@ -123,26 +125,54 @@ function stillWaits(r: TodayQueueRowVM, nowMs: number): boolean {
   return replyWaitsOnYou({ endsAtMs: r.held.sends_at_ms, held }, nowMs);
 }
 
+/** What the one count is made of: Need you's rows by where each stands, and how many rows the runs waiting are. */
+interface NeedsYouRows {
+  /** Today's rows still waiting, by group (contracts needYouGroupsOf): Older's and Ask found's in no count. */
+  groups: NeedYouGroups<TodayQueueRowVM>;
+  /** The runs waiting for a word, as the lists draw them (contracts waitRowsOf): a folded row is one. */
+  runs: number;
+}
+
 /**
- * How many need you now: the one count (decision 0048 as amended by Today in three zones, 2 Nov 2026), which the head,
- * the sidebar's badge, the strip's Inbox tab, the phone's tab and the tab's title all say. Need you's rows above To do,
- * as Today's read makes them and this tab has worked them (contracts needYouGroupsOf: Up next, who waits on you, what
- * waits for your OK), and the rows of the runs an approval can still send, as the list draws them (contracts waitRowsOf:
- * a batch To send, the runs waiting for an OK folded into one); your own to-dos and whoever waited past a week never.
- * A reach-out's reply that Need you draws in its handoff's place (contracts withReplies) keeps that row's id, wait and
- * clock, and both are a person waiting, so the count reads the rows as Today's read has them, and leaves the replies'
- * rows to the page that draws them. Every page reads Today (today/override.ts), so this is no read of its own. Null
- * while Today has not been read; a demo session counts its seeded threads, as the mockup always did.
+ * The rows the one count is made of, as Today's read makes them and this tab has worked them, for the pages that draw
+ * them as well as count them: the Inbox's Needs you lists exactly these (inbox/pages/needs-you-list.ts ixNeedsYouOf). Null while Today
+ * has not been read, and in a demo session, whose count is its seeded threads.
+ */
+export function needsYouRowsNow(nowMs: number = Date.now()): NeedsYouRows | null {
+  if (typeof window !== "undefined" && demoSession()) return null;
+  const today = surfaceValue("today");
+  if (!today) return null;
+  const rows = today.queue.rows.filter((r) => stillWaits(r, nowMs));
+  return { groups: needYouGroupsOf(rows), runs: waitRowsOf(waitingRunsNow(nowMs)).length };
+}
+
+/**
+ * How many need you now: the one count (decision 0048 as amended by Today in three zones, 2 Nov 2026, and on 15 Nov
+ * 2026), which the head, the sidebar's badge, the strip's Inbox tab, the phone's tab, the tab's title and the Inbox's own
+ * Needs you all say. Need you's rows above To do, as Today's read makes them and this tab has worked them (contracts
+ * needYouGroupsOf: Up next, who waits on you, what waits for your OK), and the rows of the runs an approval can still send,
+ * as the list draws them (contracts waitRowsOf: a batch To send, the runs waiting for an OK folded into one); your own
+ * to-dos and whoever waited past a week never. A reach-out's reply that Need you draws in its handoff's place (contracts
+ * withReplies) keeps that row's id, wait and clock, and both are a person waiting, so the count reads the rows as Today's
+ * read has them, and leaves the replies' rows to the page that draws them. Every page reads Today (today/override.ts), so
+ * this is no read of its own. Null while Today has not been read; a demo session counts its seeded threads, as the mockup
+ * always did.
  */
 export function needsYouNow(nowMs: number = Date.now()): number | null {
   if (typeof window !== "undefined" && demoSession()) {
     const p = needsYouParts(nowMs);
     return p ? needsYouCount(p) : null;
   }
-  const today = surfaceValue("today");
-  if (!today) return null;
-  const rows = today.queue.rows.filter((r) => stillWaits(r, nowMs));
-  return needYouCountOf(needYouGroupsOf(rows), waitRowsOf(waitingRunsNow(nowMs)).length);
+  const rows = needsYouRowsNow(nowMs);
+  return rows ? needYouCountOf(rows.groups, rows.runs) : null;
+}
+
+/**
+ * Whether anything waits on you that the Inbox's Needs you lists: the one count above none, or, before Today is read, a
+ * run waiting. Where the Inbox opens (inbox/rules.ts ixFirstBucket).
+ */
+export function needsYouWaitsNow(nowMs: number = Date.now()): boolean {
+  return (needsYouNow(nowMs) ?? 0) > 0 || waitingRunsNow(nowMs).length > 0;
 }
 
 /**

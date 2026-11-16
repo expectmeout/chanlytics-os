@@ -12,6 +12,9 @@ import { shortName } from "../conversations/thread-contact";
 import { HOUR_MS } from "../shared/time";
 import { WINDOW_CLOSED_WORDS } from "../conversations/window-words";
 
+/** How many need you, in the words every page says it ("1 needs you", "3 need you"): Today's head, the Inbox's head. */
+const needYouSaid = (n: number): string => (n === 1 ? "1 needs you" : `${n} need you`);
+
 /** Seconds in a minute, for a countdown said in minutes. */
 const MINUTE_S = 60;
 
@@ -116,9 +119,11 @@ export const NEED_YOU_WORDS = {
     n === 1 ? `Set aside · ${about ?? "1 not a customer's"}` : `Set aside · ${n} not customers'`,
   setAsideOpen: "Look",
   /** How many need you, as the head says it before anything else: the badge's number. */
-  count: (n: number) => (n === 1 ? "1 needs you." : `${n} need you.`),
+  count: (n: number) => `${needYouSaid(n)}.`,
+  /** The same count inside a line the page goes on with: the Inbox's head ("3 need you · the oldest since 2:26 PM"). */
+  said: needYouSaid,
   /** The same count said after a line that is down, which leads. */
-  countAsWell: (n: number) => (n === 1 ? "1 needs you as well." : `${n} need you as well.`),
+  countAsWell: (n: number) => `${needYouSaid(n)} as well.`,
   /** How many rows were dealt with today, by the door: what clearing the list came to. */
   doneToday: (n: number) => `${n} done today`,
   /** Not today pressed: said in the toast, with the day it comes back on, beside its Undo. */

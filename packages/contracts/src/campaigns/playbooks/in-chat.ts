@@ -1,10 +1,12 @@
 /**
  * A follow-up's reply in a person's open WhatsApp chat (decision 0135): which step asks for it, the workspace's switch for
  * it, and the mark a run leaves on the row of whoever it reaches that way. The run (core campaigns/paced.ts) and the send
- * (core messages/broadcast-channels.ts) read them, and the edge reads the switch; no page does, so they live apart from the
- * moment's own rules (purpose.ts), which every page that counts a run carries.
+ * (core messages/broadcast-channels.ts) read them, the edge reads the switch, and a campaign's step says what they do
+ * (its box and its sheet, sequences/schedule.ts stepAsOffer); they live apart from the moment's own rules (purpose.ts),
+ * which every page that counts a run carries.
  */
 import { type AskedPurpose, purposeOfPlaybook, purposeOfTemplate } from "../../consent/consent";
+import { messageHolds, type CampaignMessage } from "../templates/campaign-message";
 
 /**
  * The yes a step's reply in a person's open WhatsApp chat asks, or null for a step that never replies there: one whose
@@ -21,6 +23,18 @@ export function inChatPurposeOf(
   const byClass = purposeOfPlaybook(policyClass);
   if (byClass === "marketing" || !message.whatsappApproved) return null;
   return purposeOfTemplate(message.category) === "marketing" ? byClass : null;
+}
+
+/**
+ * The same, of a saved message as it stands: its category, and whether its WhatsApp version is approved and whole
+ * (messageHolds). Null for no message. What the run asks of the message it sends, and what the step's words ask of it.
+ */
+export function inChatPurposeOfMessage(
+  policyClass: string | null | undefined,
+  message: Pick<CampaignMessage, "category" | "versions"> | null,
+): AskedPurpose | null {
+  if (!message) return null;
+  return inChatPurposeOf(policyClass, { category: message.category, whatsappApproved: messageHolds(message).whatsapp });
 }
 
 /**

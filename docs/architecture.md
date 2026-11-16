@@ -438,11 +438,10 @@ It began as a design mockup, a single-page shell of classic scripts imported in 
 `window`, and was made real one surface at a time; then each surface left it in the order decision 0015 gives, and the
 frame after them, and Ask's Line last: TSX in `apps/dashboard/src/surfaces/ask/`, a chunk of its own that
 `apps/dashboard/src/bridge/ask/line.tsx` fetches, and its face in the kit
-(`apps/dashboard/src/surfaces/kit/face/ask-face.tsx`), which the frame imports. `apps/dashboard/mockup` keeps what
-has not left: the stylesheets (`apps/dashboard/src/styles/*.css`, `apps/dashboard/src/styles/tokens.css`
-among them); the standalone mockup (`apps/dashboard/mockup/Chanlytics.html`) and its stand-ins for what the bridge
-publishes (`apps/dashboard/mockup/data/bridge-stubs.jsx`); and the tree's own conventions
-(`apps/dashboard/mockup/CLAUDE.md`). A surface still asks the shell for a few names that the bridge, the frame
+(`apps/dashboard/src/surfaces/kit/face/ask-face.tsx`), which the frame imports. The stylesheets are in
+`apps/dashboard/src/styles` (`apps/dashboard/src/styles/tokens.css` among them), and `apps/dashboard/mockup` keeps
+only the tree's old conventions (`apps/dashboard/mockup/CLAUDE.md`); the standalone mockup that drew the shell without
+Next went with demo mode (15 Nov 2026). A surface still asks the shell for a few names that the bridge, the frame
 (`apps/dashboard/src/surfaces/frame/frame-globals.ts`) and the overrides publish on `window`, through
 `apps/dashboard/src/surfaces/frame-verbs.ts` and its own `shell.ts`
 (`apps/dashboard/src/surfaces/ask/shell.ts`, Ask's). Every

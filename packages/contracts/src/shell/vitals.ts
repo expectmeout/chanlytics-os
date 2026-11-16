@@ -257,7 +257,7 @@ function pagesOf(rows: readonly PageVitalsRowDto[]): PageVitalsPageVM[] {
  * app, and says that.
  */
 export function pageVitalsWords(rows: readonly PageVitalsRowDto[] | null): PageVitalsVM {
-  if (rows === null) return { sentence: "Page timings could not be read just now.", lines: [], pages: [] };
+  if (rows === null) return { sentence: "Page timings couldn't be read just now.", lines: [], pages: [] };
   const overall = new Map<PageVital, PageVitalsRowDto>();
   for (const r of rows) if (r.page === null && isVital(r.metric)) overall.set(r.metric, r);
   if (overall.size === 0) {

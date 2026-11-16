@@ -35,7 +35,7 @@ export const reviewReplyStopSpec: ProposalSpec = {
       : refuseWith(PROPOSAL_WORDS.cannotApprove),
   receipt: (_p, data) =>
     rec(data).held === true
-      ? "Stopped. The reply waits for your OK, under the review."
+      ? "Stopped. The reply waits for your approval, under the review."
       : "Nothing to stop: that reply had already gone, or was stopped.",
   open: () => "reports/reviews",
 };

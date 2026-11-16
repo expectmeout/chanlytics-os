@@ -406,10 +406,10 @@ export function rehearseAsksOf(
  */
 export function unsureHoursWords(days: readonly string[]): string | null {
   if (!days.length) return null;
-  if (days.length >= 7) return "Google's hours for every day could not be copied: add yours.";
+  if (days.length >= 7) return "Google's hours for every day couldn't be copied: add yours.";
   const names = days.map((d) => (DAY_NAMES as Record<string, string>)[d] ?? d);
   const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-  return `Google's hours for ${list} could not be copied: check ${days.length === 1 ? "that day" : "those days"}.`;
+  return `Google's hours for ${list} couldn't be copied: check ${days.length === 1 ? "that day" : "those days"}.`;
 }
 
 export type FirstRunStepState = "done" | "current" | "ahead";

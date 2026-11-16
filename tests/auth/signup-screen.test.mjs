@@ -346,13 +346,17 @@ test("from a preview's link: whose receptionist at once, the address it was sent
     );
     assert.equal(textOf(find((n) => n.type === "button")), W.claim, "the press is Make it mine");
     assert.ok(!textOf(card()).includes("Your clock"), "a preview keeps its business's own clock");
-    type("password", "correct horse battery");
+    // Keeping it takes no password (the canvas's call P10): the code that proves the address is the way in.
+    assert.equal(
+      find((n) => n.props?.id === "password"),
+      null,
+      "no password is asked from a preview's link",
+    );
     await press();
     assert.deepEqual(postedTo("/api/v1/signup"), [
       {
         name: "Fixture Barbers",
         email: "owner@fixture.example",
-        password: "correct horse battery",
         ...(zone ? { timezone: zone } : {}),
         preview: TOKEN,
       },
@@ -369,7 +373,6 @@ test("from a preview's link, the code makes it theirs and opens its first run; a
   ]) {
     auth = { session: null, verifyOtp: () => ({ error: null }) };
     await openFromLink("open", { [CLAIM]: claim });
-    type("password", "correct horse battery");
     await press();
     assert.equal(await step().onSubmit("123456"), null);
     assert.deepEqual(postedTo("/api/v1/preview-claims"), [{ token: TOKEN }], "claimed once, signed in now");
@@ -414,7 +417,6 @@ test("from a preview's link, someone who has an account signs in and comes back 
   const signIn = () => find((n) => n.type === "a" && textOf(n) === "Sign in").props.href;
   const back = `/login?email=owner%40fixture.example&preview=${TOKEN}`;
   assert.equal(signIn(), back, "the address it was sent to, and the preview to land back on");
-  type("password", "correct horse battery");
   await press();
   assert.equal(card().props["data-testid"], "signup-confirm");
   assert.equal(signIn(), back, "the way out of a code nobody sent, for an address that had an account");

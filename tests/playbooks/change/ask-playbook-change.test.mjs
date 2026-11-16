@@ -177,7 +177,7 @@ test("a pause says the run that waits stays waiting; a resume says its sequence'
     { state: "running" },
     tables({ policies: [], playbooks: [playbookRow({ state: "paused" })] }),
   );
-  assert.equal(asks.proposal.summary, "Runs again: each batch waits for your OK");
+  assert.equal(asks.proposal.summary, "Runs again: each batch waits for your approval");
   // New words under auto: its first batch waits for an OK, and after that each goes on its own.
   const newWords = await change(
     { state: "running" },
@@ -185,7 +185,7 @@ test("a pause says the run that waits stays waiting; a resume says its sequence'
   );
   assert.equal(
     newWords.proposal.summary,
-    "Runs again: its first batch waits for your OK; after that, each batch goes on its own",
+    "Runs again: its first batch waits for your approval; after that, each batch goes on its own",
   );
 });
 

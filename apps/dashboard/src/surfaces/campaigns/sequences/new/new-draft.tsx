@@ -16,7 +16,6 @@ import {
   GET_YES_ROUTE,
   NEW_WORDS as W,
   clockHour,
-  sequenceRoute,
   zonedInputValue,
   type ChannelsReady,
   type MailboxHistory,
@@ -43,6 +42,7 @@ import {
   ReachLine,
   SaidLine,
   ToLeadsNote,
+  TwinCase,
   WhoCaption,
   WordPick,
 } from "./new-parts";
@@ -228,21 +228,7 @@ function DraftCases(p: { draft: NewDraftDto; channels: ChannelsReady; paused: bo
     const c = M.cannotParts(draft.cannot);
     cards.push(<CaseNote key="cannot" tone="warn" title={c.title} words={c.words} testid="sq-nw-cannot" live />);
   }
-  if (draft.twin)
-    cards.push(
-      <CaseNote
-        key="twin"
-        tone="warn"
-        title={W.checks.twin(draft.twin.name)}
-        words={W.checks.twinDetail}
-        acts={
-          <Button size="sm" {...routeDoor(sequenceRoute(draft.twin.id))} data-testid="sq-nw-twin-open">
-            {W.twin.open}
-          </Button>
-        }
-        testid="sq-nw-twin"
-      />,
-    );
+  if (draft.twin) cards.push(<TwinCase key="twin" twin={draft.twin} />);
   // A one-off goes to whoever can hear it now, so with nobody there is nothing to send (D4); a sequence runs on.
   const nobody = M.nobodyOf(draft, p.channels);
   if (nobody) cards.push(<NobodyCase key="nobody" said={nobody} open={p.open} />);

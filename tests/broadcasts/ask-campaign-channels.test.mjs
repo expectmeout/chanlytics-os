@@ -340,7 +340,7 @@ test("a broadcast's channels are held to the route's own rule, in the composers'
   // An edge that could not be asked is not ready, and not guessed ready: the page's words for it.
   await edgeSays(new Error("connect ECONNREFUSED"));
   const unchecked = await propose({ ...BROADCAST, channels: ["email"] });
-  assert.equal(said(unchecked), "This could not be checked just now.");
+  assert.equal(said(unchecked), "This couldn't be checked just now.");
   // A card the route would refuse is never shown: with no card, nothing for the person to approve.
   assert.equal(unchecked.proposal, null);
 });

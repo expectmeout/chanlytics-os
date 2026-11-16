@@ -241,6 +241,8 @@ const ANNOUNCES = {
     "Campaigns › Content, which the row opens on the piece, asks again while a post is on its way and hears file; the piece's record reads its posts as it opens (00616).",
   post_stopped:
     "Content's Needs you, which the row opens on the piece, reads the posts that stopped as it comes on screen, with why (00616).",
+  preview_tried:
+    "The lead, which the row opens, reads its preview as its sheet opens (its messages, its calls, what it said is not right), and Today reads the leads who tried theirs as it comes on screen; the feed does not tell of lead_previews, so a page already open reads it again when it is next opened (00632).",
 };
 
 test("every kind the edge keeps says what it announces and who hears it", () => {

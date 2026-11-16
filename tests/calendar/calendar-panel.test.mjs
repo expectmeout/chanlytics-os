@@ -240,7 +240,7 @@ test("(lane E) how a visit stands is said once, and what it leads with follows i
   assert.deepEqual(
     ended.primary,
     { act: "message", label: "Message Ana", quiet: true },
-    "the ask leads; the thread waits",
+    "the ask leads; the conversation waits",
   );
   assert.equal(sheet(YESTERDAY, booked).ask.question, "Did Ana come yesterday?");
   assert.equal(sheet(ENDED, { visit: null }).ask, null, "an event the record has not kept has nothing to say it on");
@@ -256,7 +256,7 @@ test("(lane E) how a visit stands is said once, and what it leads with follows i
   assert.equal(
     sheet(ENDED, { visit: { id: "v1", status: "kept" } }, { bookingLink: null }).primary.act,
     "message",
-    "no link on file: their thread",
+    "no link on file: their conversation",
   );
 
   const missed = sheet(ENDED, { visit: { id: "v1", status: "missed" } });
@@ -435,7 +435,10 @@ test("(decision 0061) a time a customer picked by text leads with Booked it, kee
     vm.more.some((m) => m.act === "cant" && m.label === "Can't" && m.danger),
     "Can't, in More",
   );
-  assert.ok(!vm.more.some((m) => m.act === "cancel"), "never the visit's own cancel: Can't leaves the thread a reply");
+  assert.ok(
+    !vm.more.some((m) => m.act === "cancel"),
+    "never the visit's own cancel: Can't leaves the conversation a reply",
+  );
   assert.equal(vm.state?.word, "Requested");
   // A booking tool's request is the tool's to confirm: it keeps its own words and acts.
   const tools = sheet(AHEAD, { source: "notice", tool: "Booksy", visit: { id: "v1", status: "proposed" } });
@@ -447,7 +450,7 @@ test("(decision 0061) a time a customer picked by text leads with Booked it, kee
     visit: { id: "v1", status: "booked" },
     request: { thread_id: "cv-ana", open: false },
   });
-  assert.equal(booked.footnote, "Booked by text · change it with them in their thread");
+  assert.equal(booked.footnote, "Booked by text · change it with them in their conversation");
   assert.notEqual(booked.primary?.act, "booked");
   assert.ok(!booked.more.some((m) => m.act === "cant"));
   const cant = sheet(AHEAD, {

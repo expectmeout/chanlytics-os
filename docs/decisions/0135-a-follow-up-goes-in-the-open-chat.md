@@ -1,7 +1,8 @@
 # 0135 · A follow-up WhatsApp files as an offer goes in the open chat
 
-**Status:** Decided by Ruben, 15 November 2026 ("Accept the note", after "Approve the design" on its outline). Step 1
-built (the pick and the send, behind `features.reply_in_chat`, off for everyone); steps 2 to 4 not.
+**Status:** Decided by Ruben, 15 November 2026 ("Accept the note", after "Approve the design" on its outline). Steps 1
+(the pick and the send), 2 (the hour) and 3 (the words) built, behind `features.reply_in_chat`, off for everyone; step 4
+not. Its sixth rule amended by Ruben, 16 November 2026.
 Written against main at `b2f058d8e2`. It amends [0006](0006-a-proposal-follow-up.md) for one case, said under Decision.
 Corrected against the code the same day, before any of it was built: the row a run reads already carries the chat's
 clock, so the note's first step (putting it there, perhaps by a migration) went, and four remain.
@@ -75,7 +76,11 @@ delivered at any price.
    to spare. Never the same day, and never before the first sending hour (`PLAYBOOK_HOURS`, `:183`). Where no such time
    exists, it is due when it is today and goes by today's rules.
 6. **The chat is asked again at the send.** A person whose chat has closed by then, because the batch waited for an OK
-   or the door held it, is not sent the reply. They go by today's rules for the message, and the run's record says why.
+   or the door held it, is not sent the reply, and nothing else is sent them for it: the run's record says why ("more
+   than 24 hours since they last wrote on WhatsApp"), and the finished run's notice names it. Amended by Ruben, 16
+   November 2026: it read "they go by today's rules for the message", which would ask the pick again at the send (Meta's
+   pause on offers to US numbers is asked there alone) for the few who said yes to offers on a number WhatsApp delivers
+   offers to, and the hour of step 2 leaves the chat open for all but a batch held for an OK past 45 minutes.
 7. **The step says what it does**, on its box and in its sheet, in the words of `docs/words.md`: where it goes in the
    open chat, and who gets it otherwise.
 

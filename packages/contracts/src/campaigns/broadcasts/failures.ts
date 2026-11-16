@@ -175,7 +175,7 @@ const BROADCAST_FAILURE_FIX_AFTER: Partial<Record<BroadcastFailure, (n: number, 
   stalled: (n) =>
     `The first ${n === 1 ? "one" : n} got it, then its reads failed. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
   people_unreadable: (n) =>
-    `The first ${n === 1 ? "one" : n} got it, then its people could not be read. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+    `The first ${n === 1 ? "one" : n} got it, then its people couldn't be read. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
   after_hours: (n) =>
     `The first ${n === 1 ? "one" : n} got it before the day's sending hours ran out. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
   provider_limit: (n) =>

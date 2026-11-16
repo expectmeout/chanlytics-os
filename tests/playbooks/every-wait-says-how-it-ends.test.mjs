@@ -233,7 +233,11 @@ test("a held reply's row waits while its thread has a reply counting down, settl
   const sends = (counting, readAt = NOW) => ({ ...NOTHING_WAITS_KNOWN, sends: { readAt, held: new Map(counting) } });
   assert.equal(noticeStillWaits(row, sends([["c1", true]])), true, "still counting down");
   assert.equal(noticeStillWaits(row, sends([["c1", false]])), false, "gone, or stopped");
-  assert.equal(noticeStillWaits(row, sends([["c2", true]])), null, "a thread the Inbox did not hold settles nothing");
+  assert.equal(
+    noticeStillWaits(row, sends([["c2", true]])),
+    null,
+    "a conversation the Inbox did not hold settles nothing",
+  );
   assert.equal(noticeStillWaits(row, sends([["c1", false]], NOW - 2 * MIN)), null, "a read from before the row");
   assert.equal(noticeStillWaits(row, NOTHING_WAITS_KNOWN), null, "no read at all");
 });
@@ -366,11 +370,11 @@ test("each sequence shows its evidence: what its batches did over 90 days, said 
   );
   assert.equal(
     evidenceWords({ went: 12, approved: 11, stopped: 1, skipped: 2 }),
-    "Last 90 days: 12 batches went: 11 after your OK, 1 on its own · you stopped 1 · 2 skipped: nobody answered in time",
+    "Last 90 days: 12 batches went: 11 after your approval, 1 on its own · you stopped 1 · 2 skipped: nobody answered in time",
   );
   assert.equal(
     evidenceWords({ went: 3, approved: 3, stopped: 0, skipped: 0 }),
-    "Last 90 days: 3 batches went, each after your OK",
+    "Last 90 days: 3 batches went, each after your approval",
   );
   assert.equal(
     evidenceWords({ went: 1, approved: 0, stopped: 0, skipped: 0 }),
@@ -388,7 +392,7 @@ test("each sequence shows its evidence: what its batches did over 90 days, said 
   assert.equal(evidenceOf(null, "s1"), null);
   assert.equal(
     classEvidenceLine(rows, "reengage"),
-    "2 sequences · Last 90 days: 6 batches went: 4 after your OK, 2 on their own · you stopped 1 · 1 skipped: nobody answered in time",
+    "2 sequences · Last 90 days: 6 batches went: 4 after your approval, 2 on their own · you stopped 1 · 1 skipped: nobody answered in time",
   );
   assert.equal(classEvidenceLine(rows, "follow_up"), null, "a class with no sequence says nothing");
   assert.ok(!/should|could|let it|move it|switch/i.test(classEvidenceLine(rows, "reengage")), "evidence, never advice");
@@ -396,7 +400,7 @@ test("each sequence shows its evidence: what its batches did over 90 days, said 
   assert.equal(approvalSkippedLine(2), "2 runs were skipped: nobody answered before their day ended.");
   assert.equal(
     approvalLine(6, 3600, 1),
-    "The middle wait for your OK was 1h, over 6 runs you approved. 1 run was skipped: nobody answered before its day ended.",
+    "The middle wait for your approval was 1h, over 6 runs you approved. 1 run was skipped: nobody answered before its day ended.",
   );
 });
 
@@ -427,7 +431,7 @@ test("a review's reply waits like everything else: held for an OK, or posted aft
   });
   assert.equal(
     stop.receipt({ payload: {} }, { held: true }),
-    "Stopped. The reply waits for your OK, under the review.",
+    "Stopped. The reply waits for your approval, under the review.",
   );
   assert.match(stop.receipt({ payload: {} }, { held: false }), /^Nothing to stop: /);
   assert.deepEqual(reviewDraftsBell([{ author: "Rosa", text: "Thank you, Rosa.", posts_at: at }], TZ), {
@@ -436,7 +440,7 @@ test("a review's reply waits like everything else: held for an OK, or posted aft
   });
   assert.equal(
     reviewDraftsBell([{ author: null, text: "Thanks!", posts_at: null }], TZ).title,
-    "A reply to a review waits for your OK",
+    "A reply to a review waits for your approval",
   );
   assert.equal(
     reviewDraftsBell(

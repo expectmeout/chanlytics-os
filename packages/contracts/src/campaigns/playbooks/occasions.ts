@@ -12,7 +12,7 @@ import { DAY_MS, HOUR_MS, MIN_MS } from "../../shared/time";
 import { recordOrEmpty } from "../../shared/unknown";
 import { shiftKey } from "../../shared/zone/day-keys";
 import { localDate, localHour } from "./schedule";
-import { PLAYBOOK_HOURS } from "./triggers/kinds";
+import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS } from "./triggers/kinds";
 import type { OccasionTrigger } from "./triggers/occasions";
 
 /* ------------------------------ what names one ------------------------------ */
@@ -114,13 +114,33 @@ export function visitSoonAt(visit: {
 }
 
 /**
+ * How long before a person's open WhatsApp chat closes their follow-up is due at the latest (decision 0135): the half
+ * hour a sequence may hold its batch for an OK (PLAYBOOK_VETO_DELAY_MS), and a quarter of an hour to spare.
+ */
+const CHAT_ROOM_MS = PLAYBOOK_VETO_DELAY_MS + 15 * MIN_MS;
+
+/**
  * When the follow-up to someone sent the booking link goes: the next day at the sequence's hour, by the business's
  * clock, kept inside the sending hours. The day after, never the same day: they have the link in hand tonight.
+ *
+ * `chatClosesAt`: when their open WhatsApp chat closes, said only where the follow-up may reply in it (decision 0135),
+ * else null. Where it closes before the sequence's hour, the follow-up is due earlier that day, to the minute, with room
+ * for its batch to wait (CHAT_ROOM_MS); never before the first sending hour, and where no such time is left (they last
+ * wrote early the morning before, or the chat closes the same evening), at the sequence's hour, going as it would
+ * without the chat.
  */
-export function askFollowUpAt(ask: { askedAt: number; tz: string; runHour: number }): number {
+export function askFollowUpAt(ask: {
+  askedAt: number;
+  tz: string;
+  runHour: number;
+  chatClosesAt: number | null;
+}): number {
   const day = shiftKey(localDate(ask.tz, new Date(ask.askedAt)), 1);
   const hour = Math.min(Math.max(ask.runHour, PLAYBOOK_HOURS.min), PLAYBOOK_HOURS.max);
-  return wallClockAt(ask.tz, day, hour, 0);
+  const atHour = wallClockAt(ask.tz, day, hour, 0);
+  if (ask.chatClosesAt === null) return atHour;
+  const latest = Math.floor((ask.chatClosesAt - CHAT_ROOM_MS) / MIN_MS) * MIN_MS;
+  return latest < atHour && latest >= wallClockAt(ask.tz, day, PLAYBOOK_HOURS.min, 0) ? latest : atHour;
 }
 
 /** How long after a visit is marked missed its message waits: long enough to take a slip of the finger back. */

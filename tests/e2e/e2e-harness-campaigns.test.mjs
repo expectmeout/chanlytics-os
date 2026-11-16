@@ -2,8 +2,8 @@
  * The Campaigns specs (e2e/campaigns) expect what the pages draw, and the harness's records say what a workspace holds.
  *
  * The three specs run against the nightly's workspace on production, which keeps its WhatsApp number, and every
- * assertion in them must hold as well on a workspace with none. The local harness serves the standalone mockup, which
- * draws none of the Campaigns pages (they are App Router pages), so no spec of them runs on a record here. What can be run
+ * assertion in them must hold as well on a workspace with none. The local harness draws none of the Campaigns pages
+ * (they are App Router pages, which Next alone draws), so no spec of them runs on a record here. What can be run
  * is the other half of each assertion: the expectation a spec works out from the rows (e2e/campaigns/offered.ts, which the
  * specs call) held against the real pages, run on the stub React over the surfaces the real bridge publishes from what the
  * harness answers for a record.
@@ -52,7 +52,7 @@ const NOW = Date.parse("2026-09-22T09:00:00Z");
 /* ---------------------------------- the page's window ---------------------------------- */
 
 // The page's window is the stub React's (installStubReact: window IS globalThis), with the harness's workspace in it, as
-// the fixture publishes it, and the shell's doors the TSX pages reach through the bridge's verbs.
+// the bridge publishes it, and the shell's doors the TSX pages reach through the bridge's verbs.
 const toasts = [];
 installStubReact({
   location: {

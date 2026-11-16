@@ -279,7 +279,7 @@ const noAddressAnswer: Rule = (f) => {
 /** "Your first 12 emails are ready", "Your next email is ready", or with neither known, "Emails are ready". */
 function readyForOkWords(planned: number | null, first: boolean | null): string {
   const one = planned === 1;
-  const ready = one ? "is ready for your OK" : "are ready for your OK";
+  const ready = one ? "is ready for your approval" : "are ready for your approval";
   const what = one ? "email" : "emails";
   if (first === null) return planned === null ? `Emails ${ready}` : `${planned} ${what} ${ready}`;
   const size = planned === null || one ? "" : `${planned} `;
@@ -354,7 +354,7 @@ const pausedAnswer: Rule = (f) => {
   return {
     kind: "paused",
     headline: "Your mailbox is paused",
-    detail: `${run ? `${ready} ready for your OK. ` : ""}Nothing goes out until you resume it.`,
+    detail: `${run ? `${ready} ready for your approval. ` : ""}Nothing goes out until you resume it.`,
     act: "Open Connections",
     to: CONNECTIONS_PAGE,
     needs_you: run !== null,

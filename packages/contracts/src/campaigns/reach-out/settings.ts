@@ -255,9 +255,9 @@ export const REACH_OUT_SETTINGS_WORDS = {
     batchAutonomy: "See this for every kind of message on Autonomy",
     batchNote:
       "You approve a campaign's first run. After that, this is what happens each day. A campaign sends on its own only where you set that on the campaign itself.",
-    batchNew: "New words always wait for your OK, whichever you pick.",
+    batchNew: "New words always wait for your approval, whichever you pick.",
     batchWhich: "For new campaigns. Each campaign can change its own.",
-    batchAt: { veto: "Held 30 minutes so you can stop it", ask: "Waits for your OK" },
+    batchAt: { veto: "Held 30 minutes so you can stop it", ask: "Waits for your approval" },
     batchDoes: {
       veto: "You're told it's ready. It goes unless you stop it.",
       ask: "Each batch waits until you say OK.",
@@ -312,7 +312,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
       opening:
         "Written for each business as its email comes due, then read back by a second reader. One that guesses is written again; one that still does is held for you.",
       reply:
-        "Written by AI as How it answers is told, with the thread and the lead's note. Signed as the campaign signs.",
+        "Written by AI as How it answers is told, with the conversation and the lead's note. Signed as the campaign signs.",
     },
     foot: "Their listing and website are read as facts, never as orders.",
     done: "Done",
@@ -334,7 +334,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     checked: "Checked: nothing guessed, no link, no price",
     held: (reason: string) => `Held for you: ${reason}`,
     writing: "Writing one…",
-    unavailable: "It could not be written just now. Write another.",
+    unavailable: "It couldn't be written just now. Write another.",
     pastEnd: "That was the last lead in the search. Another lead starts over.",
     leans: (facts: string) => `The line about them leans on ${facts}`,
     next: (days: number) => `Then, ${days} day${days === 1 ? "" : "s"} later, if they don't reply`,

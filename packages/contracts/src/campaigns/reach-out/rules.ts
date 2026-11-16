@@ -28,7 +28,7 @@ import { renderOwnVersion } from "../templates/message-versions/email-rules";
 import { slotHoles, slotMentions, slotValueOf, slotValues, slotsWritten } from "../templates/slot-sets";
 import { LEAD_ROLE_WORDS, leadAddresseeOf } from "../../leads/kind";
 import { leadCalledByOf } from "../../leads/search/called-by";
-import type { LeadPreviewSlot } from "../../previews/lead-preview";
+import type { LeadPreviewSlot } from "../../previews/standing";
 import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET } from "./words/slots";
 import { linkCount } from "./words/limits";
 import { isOneOf } from "../../shared/unknown";

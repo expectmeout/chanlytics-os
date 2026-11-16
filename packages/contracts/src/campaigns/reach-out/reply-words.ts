@@ -248,5 +248,5 @@ export function replyLeftAsOf(meta: unknown): string | null {
   if (!own) return `Went from ${sent}.`;
   return email.left_as_why === "own_not_sending"
     ? `Went from ${sent}: ${own} isn't sending right now.`
-    : `Went from ${sent}: ${own} could not send it.`;
+    : `Went from ${sent}: ${own} couldn't send it.`;
 }

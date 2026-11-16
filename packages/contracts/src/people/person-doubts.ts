@@ -45,6 +45,6 @@ export const DOUBT_WORDS = {
   apartHint: "Keep both records; this pair is not asked about again",
   apartBusy: "Keeping both…",
   apartDone: (other: string) => `Kept apart from ${other}`,
-  apartFailed: "Could not settle this pair.",
+  apartFailed: "Couldn't settle this pair.",
   notFound: "This doubt is not on this person.",
 } as const;

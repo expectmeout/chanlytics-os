@@ -207,7 +207,7 @@ test("what a step is doing now: a batch waiting for your OK, a message gone and 
   // Its `at` is when it was made: an OK sends it at once, and a customer's waits only until its day is gone.
   assert.deepEqual(scheduleStepState(waits, STEPS[0], ctx()), {
     tone: "need",
-    words: "6 wait for your OK · until tonight",
+    words: "6 wait for your approval · until tonight",
   });
   const toLeads = row({
     starts: "leads",
@@ -215,7 +215,7 @@ test("what a step is doing now: a batch waiting for your OK, a message gone and 
   });
   assert.deepEqual(
     scheduleStepState(toLeads, step(1, { kind: "reach_out" }), ctx()),
-    { tone: "need", words: "6 wait for your OK" },
+    { tone: "need", words: "6 wait for your approval" },
     "a sequence to leads' batch has no day to pass",
   );
   assert.deepEqual(scheduleStepState(row(), STEPS[0], ctx({ gone: true })), {
@@ -372,5 +372,32 @@ test("an offer's step never names text, and says why fewer people get it: on its
     scheduleStepFacts(moment, one, "visit", ctx({ offer: "whatsapp" })).find((f) => f.label === "Now"),
     undefined,
     "said once: the sheet says it under By, and not again under Now",
+  );
+});
+
+// Decision 0135, step 3: in a workspace whose switch for the reply in the open chat is on, the follow-up WhatsApp
+// approved as an offer goes as a reply to whoever wrote on WhatsApp in the 24 hours before it, under their yes to
+// messages, and its box and sheet say so; anyone else gets it as the offer, as before (Ruben approved the words, 16 Nov).
+test("with the reply in the open chat on, the step says who gets it there, and who gets it otherwise", () => {
+  assert.equal(stepAsOffer(FOLLOW_UP, message("marketing"), true), "in_chat", "an offer by WhatsApp's word, on");
+  assert.equal(stepAsOffer(FOLLOW_UP, message("marketing"), false), "whatsapp", "the switch off: as before");
+  assert.equal(stepAsOffer(FOLLOW_UP, message("marketing", null), true), "own", "no WhatsApp version, no reply there");
+  assert.equal(stepAsOffer(FOLLOW_UP, message("utility"), true), null, "a notice goes as it always did");
+  const ticks = ["whatsapp", "sms", "email"];
+  assert.equal(scheduleChannels(ticks, "in_chat"), "WhatsApp, else email", "an offer still never goes by text");
+  const one = step(1, { channels: ticks, policy_class: "follow_up", trigger: "asked_no_booking" });
+  const moment = row({ starts: "moment", first: { ...FIRST, trigger: "asked_no_booking", policy_class: "follow_up" } });
+  assert.deepEqual(scheduleStepState(moment, one, ctx({ offer: "in_chat" })), {
+    tone: "next",
+    words: "A reply on WhatsApp if they wrote in the last 24 hours · else only people who said yes to offers get it",
+  });
+  assert.equal(
+    scheduleStepFacts(moment, one, "visit", ctx({ offer: "in_chat" })).find((f) => f.label === "By").value,
+    "WhatsApp or email, one each. If they wrote on WhatsApp in the 24 hours before it goes, it goes there as a reply, to anyone who said yes to messages. Otherwise WhatsApp treats this message as an offer, so only people who said yes to offers get it, and never by text.",
+  );
+  assert.equal(
+    scheduleStepFacts(moment, one, "visit", ctx({ offer: "in_chat" })).find((f) => f.label === "Now"),
+    undefined,
+    "said once, under By",
   );
 });

@@ -127,5 +127,5 @@ export function usePreviewName(lead: PreviewLead | null): string {
   const row = useLeadRow(lead?.id ?? null);
   if (!lead) return reachOutExampleLead().business_name ?? "";
   const listed = row?.business_name || lead.name;
-  return leadCalledByOf({ business_name: listed, city: row?.city ?? null }) ?? listed;
+  return leadCalledByOf({ business_name: listed, city: row?.city ?? null, facts: row?.facts }) ?? listed;
 }

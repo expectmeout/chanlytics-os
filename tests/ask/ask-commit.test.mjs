@@ -282,7 +282,7 @@ test("thread verbs: each to its Inbox route; the snooze carries its until; the r
   );
   assert.deepEqual(took, {
     ok: true,
-    receipt: "You have Rosa's thread",
+    receipt: "You have Rosa's conversation",
     undo: { verb: "hand_back", conversation_id: C1, until: null, decision_id: D(2) },
     made: null,
   });
@@ -732,7 +732,7 @@ test("a broadcast and a playbook: the body the route expects, the receipt from t
   );
   assert.deepEqual(p, {
     ok: true,
-    receipt: "“Win-back” is on. Its first batch waits for your OK.",
+    receipt: "“Win-back” is on. Its first batch waits for your approval.",
     undo: { playbook_id: PB1, decision_id: D(0) },
     made: null,
   });
@@ -1064,9 +1064,17 @@ test("REGRESSION: edit in the composer leaves the words as the thread's reply dr
   const heard = [];
   t.win.dispatchEvent = (e) => heard.push([e.type, e.detail]);
   editReply(t.win, card("reply", { conversation_id: C1, text: "On our way." }));
-  assert.equal(t.win.__tabMemory.draft("reply", `th-${C1}`), "On our way.", "the draft the thread's box opens with");
+  assert.equal(
+    t.win.__tabMemory.draft("reply", `th-${C1}`),
+    "On our way.",
+    "the draft the conversation's box opens with",
+  );
   assert.deepEqual(heard, [["inbox:focus-composer", { text: "On our way.", threadId: `th-${C1}` }]]);
-  assert.equal(t.win.location.pathname, "/w/harbor", "nothing navigates here: the card's own press opens the thread");
+  assert.equal(
+    t.win.location.pathname,
+    "/w/harbor",
+    "nothing navigates here: the card's own press opens the conversation",
+  );
 });
 
 test("the ledger writer: an undo that names a decision the database does not have keeps the row without the link, and says so, rather than failing the verb", async () => {

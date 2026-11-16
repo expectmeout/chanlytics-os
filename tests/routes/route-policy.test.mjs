@@ -33,6 +33,7 @@ const OWN_DOOR = new Set([
   "previews/[token]/message",
   "previews/[token]/opened",
   "previews/[token]/not-right",
+  "previews/[token]/tell",
   "previews/[token]/call",
 ]);
 

@@ -79,19 +79,26 @@ async function pagesBeside(home: SitePage): Promise<string[]> {
  * A workspace's website read and kept (business_reads), its look worn: the job's read, at an owner's press and so `fresh`
  * (as the site stands now), and a lead's preview's build (decision 0079, previews/build.ts), which reads the site of a
  * workspace nobody is a member of yet, where the reader's copy will do. Only the job asks for its photos (`photos`): a
- * preview's workspace is a stranger's, and what it kept would outlive it with no row to find it. No model call starts after
- * `deadline`. Answers what it kept.
+ * preview's workspace is a stranger's, and what it kept would outlive it with no row to find it. A read on its own
+ * (`again`, the monthly one: sites-again.ts) that fails keeps nothing, so the last good read stands: a site down for a day
+ * must not take the facts and shots the owner was offered. No model call starts after `deadline`. Answers what it kept.
  */
 export async function readWebsite(
   db: Db,
   tenantId: TenantId,
   raw: string | null,
-  { deadline, fresh = false, photos = false }: { deadline: number; fresh?: boolean; photos?: boolean },
+  {
+    deadline,
+    fresh = false,
+    photos = false,
+    again = false,
+  }: { deadline: number; fresh?: boolean; photos?: boolean; again?: boolean },
 ): Promise<WebsiteReadKept> {
   const log = logger({ tenant_id: tenantId });
   const url = feedUrlOk(raw);
   const keep = async (facts: Json, error: string | null): Promise<WebsiteReadKept> => {
-    await keepBusinessRead(db, { tenantId, source: "website", facts, readFrom: url ?? raw, error });
+    if (!(again && error))
+      await keepBusinessRead(db, { tenantId, source: "website", facts, readFrom: url ?? raw, error });
     return { facts, error };
   };
   if (!url) return keep({}, WEBSITE_UNREAD_WORDS.address);
@@ -186,7 +193,7 @@ export async function readWebsite(
     booking_read,
     ...(media ? { media } : {}),
     // What to film for a video, from what the site says it does (Content's empty state): kept only where it wrote some.
-    ...(film.length ? { film: film.map((f) => ({ what: f.what, how: f.how })) } : {}),
+    ...(film.length ? { film: film.map((f) => ({ what: f.what, how: f.how, seconds: f.seconds })) } : {}),
   };
   return keep(kept, found || facts.description ? null : WEBSITE_UNREAD_WORDS.nothing);
 }
@@ -218,13 +225,15 @@ export function websiteReader(db: Db): NonNullable<JobContext["website"]> {
   return {
     read: async (job: ClaimedJob, deadline: number) => {
       const url = typeof job.payload.url === "string" ? job.payload.url : null;
+      // The monthly read (sites-again.ts) leaves the last good read standing where it fails.
+      const again = job.payload.again === true;
       const ledger = (state: "running" | "done" | "failed", error?: string) =>
         noteImport(db, { tenantId: job.tenant_id, source: "website_media", state, ...(error ? { error } : {}) }).catch(
           logAndGoOn("website read: its line on the ledger"),
         );
       // The empty Content page says "Looking" from here; the found-files job says what came, or this says nothing will.
       await ledger("running");
-      const kept = await readWebsite(db, job.tenant_id, url, { deadline, fresh: true, photos: true });
+      const kept = await readWebsite(db, job.tenant_id, url, { deadline, fresh: true, photos: true, again });
       const media = valueAt(kept.facts, "media");
       if (!media) await ledger("failed", kept.error ?? WEBSITE_UNREAD_WORDS.failed);
       else if (!valueAt(media, "photos") && !valueAt(media, "videos")) await ledger("done");
@@ -247,6 +256,15 @@ export async function scheduleWebsiteRead(db: Db, tenantId: TenantId, website: s
   }
 }
 
+/** The website a workspace names: the address its settings hold, else its linked listing's; null for none. */
+export async function findWorkspaceWebsite(db: Db, tenantId: TenantId): Promise<string | null> {
+  const cfg = parseTenantConfig((await getTenantConfig(db, tenantId))?.config ?? null);
+  const listing = listingFactsOf(
+    await findListingFactsStored(db, tenantId).catch(logAndGoOn("findListingFactsStored", null)),
+  );
+  return cfg?.brain?.profile?.website ?? listing?.website ?? null;
+}
+
 /**
  * POST /api/admin/imports/website-read: a read of the workspace's website asked for by the dashboard (the first run's receptionist
  * set up, or its website saved): the address the settings hold, else the linked listing's. Answers whether one was asked.
@@ -261,11 +279,7 @@ export async function askWebsiteRead(
   if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  const cfg = parseTenantConfig((await getTenantConfig(db, tenantId))?.config ?? null);
-  const listing = listingFactsOf(
-    await findListingFactsStored(db, tenantId).catch(logAndGoOn("findListingFactsStored", null)),
-  );
-  const website = cfg?.brain?.profile?.website ?? listing?.website ?? null;
+  const website = await findWorkspaceWebsite(db, tenantId);
   if (!feedUrlOk(website)) return json(200, { ok: true, asked: false });
   await scheduleWebsiteRead(db, tenantId, website);
   return json(200, { ok: true, asked: true });

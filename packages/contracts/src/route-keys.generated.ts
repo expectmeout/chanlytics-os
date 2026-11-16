@@ -267,6 +267,7 @@ export const ROUTE_KEYS = [
   "POST leads/[id]/exclude",
   "POST leads/[id]/keep",
   "POST leads/[id]/later",
+  "POST leads/[id]/name",
   "POST leads/[id]/preview",
   "POST leads/[id]/put-back",
   "POST leads/[id]/send",

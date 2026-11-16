@@ -29,7 +29,7 @@ import {
   shareUnchanged,
   surfaceValue,
 } from "../surface-values";
-import { waitingRunsNow } from "../needs-you";
+import { needsYouRowsNow, needsYouWaitsNow } from "../needs-you";
 import { peopleHold, threadPersonSaid } from "../people/want-person";
 import { namedByRoute } from "./address";
 import { ixPlace } from "./place";
@@ -137,7 +137,13 @@ function openingThreadWaits(threads: Thread[]): void {
   // opens on what the page works out, which this does not guess.
   const named = param && /^th-[^/]+$/.test(param) ? param : null;
   if ((param && !named) || (!named && ixOnPhone()) || routeGateOpen(page, param)) return;
-  const thread = ixOpeningThread(threads, named, { had: ixPlace().bucket, runsWaiting: waitingRunsNow().length > 0 });
+  // Never a conversation Needs you folds at its foot, whoever has waited past a week: the page opens on what it draws.
+  const older = needsYouRowsNow()?.groups.old.flatMap((r) => (r.conversationId ? [r.conversationId] : []));
+  const thread = ixOpeningThread(threads, named, {
+    had: ixPlace().bucket,
+    waiting: needsYouWaitsNow(),
+    older: new Set(older),
+  });
   if (!thread || !thread.real) return;
   firstDrawWaitsFor("inbox", surfaceSettles("settings"));
   firstDrawWaitsFor("inbox", surfaceSettles("reply_drafts"));

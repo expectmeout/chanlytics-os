@@ -24,7 +24,7 @@ export const FIRST_REPLY_ROWS: BucketWords = [
   ["h72", `Within ${REPLY_DAYS}`],
 ];
 
-export const APPROVAL_EMPTY = "No run waited for your OK in this period.";
+export const APPROVAL_EMPTY = "No run waited for your approval in this period.";
 
 export const APPROVAL_ROWS: BucketWords = [
   ["h1", "An hour or less"],
@@ -46,7 +46,7 @@ export function approvalLine(count: number, medianS: number | null, skipped = 0)
   const unanswered = skipped > 0 ? ` ${approvalSkippedLine(skipped)}` : "";
   if (count < REPORT_MIN_N) return `${plural(count, "run")} you approved: too few for a middle.${unanswered}`;
   if (medianS === null) return null;
-  return `The middle wait for your OK was ${durationWords(medianS)}, over ${plural(count, "run")} you approved.${unanswered}`;
+  return `The middle wait for your approval was ${durationWords(medianS)}, over ${plural(count, "run")} you approved.${unanswered}`;
 }
 
 /** The runs skipped because nobody answered before their day ended, in a sentence (decision 0064, step 5). */
@@ -58,7 +58,7 @@ export function approvalSkippedLine(skipped: number): string {
 
 /** Runs waiting for an OK, and how many of them are past their day (the verb would refuse them: they can only be skipped). */
 export function runsWaitingMeta(count: number, late: number): string {
-  if (count === 0) return "nothing is waiting for your OK";
+  if (count === 0) return "nothing is waiting for your approval";
   const one = count === 1;
   if (late === 0) return one ? "it can still be approved" : "they can still be approved";
   if (late >= count) return one ? "it is past its day: skip it" : "they are past their day: skip them";
@@ -113,7 +113,7 @@ export const NUMBER_HEALTH_TONES = {
 
 export const NUMBER_NONE = "no WhatsApp number is connected";
 
-export const NUMBER_UNREAD = "this number could not be read";
+export const NUMBER_UNREAD = "this number couldn't be read";
 
 /** The health's own label, and when the number was last checked as the workspace's days say it. */
 export function numberMeta(number: Extract<CampaignNumberDto, { state: "read" }>, tz: string, nowMs: number): string {

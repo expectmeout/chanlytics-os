@@ -19,7 +19,9 @@ checked) and what to leave out. Nothing is searched or spent before Approve. A s
    (decision 0133). A term not yet asked goes before one that was, and one asked again is asked past what it read,
    since the provider answers a term from its top (`mainAsk`). The next term starts only once every term before it
    came back under its ask (`runner/main-ask.ts`, `round-decision.ts`), and a synonym that mostly returned places the
-   workspace already held is passed over by the search's later rounds. Past its probe, a search made for email shows
+   workspace already held is passed over by the search's later rounds. A leg (decision 0133) asks each term for a page
+   at least, since the top of an area beside one already read is mostly what the search holds. Past its probe, a search
+   made for email shows
    the judge only a place with a candidate email (`places.ts` `noEmailRule`).
 3. **The checks.** Every email found goes through the mailbox checker, so an address counts only once it is proved.
 

@@ -88,7 +88,7 @@ test.describe("Calendar on a real workspace", () => {
     // tool named, where its emails stand when they need the owner (emails that work say nothing over the board).
     const notice = board.getByTestId("cal-notice-feed");
     if (cal.feed.by_hand) await expect(notice).toHaveCount(0);
-    else if (cal.feed.present && cal.feed.state !== "ok") await expect(notice).toContainText("could not be read");
+    else if (cal.feed.present && cal.feed.state !== "ok") await expect(notice).toContainText("couldn't be read");
     else if (!cal.feed.present && !cal.feed.notices?.tool) await expect(notice).toContainText("No calendar connected");
     else if (!cal.feed.present && (await notice.count()))
       await expect(notice).toContainText(
@@ -100,7 +100,7 @@ test.describe("Calendar on a real workspace", () => {
     const rules = await openRules(page);
     await expect(rules).toContainText(/Hours|Closed|Booking/);
     await expect(rules.getByTestId("cal-feed-state")).toContainText(
-      /^(Readable|Last good read|Could not be read|Not connected|By email|Waiting for the first email|Needs you|\d+ to look at|Booked by hand)$/,
+      /^(Readable|Last good read|Couldn't be read|Not connected|By email|Waiting for the first email|Needs you|\d+ to look at|Booked by hand)$/,
     );
     await page.keyboard.press("Escape");
     await expect(rules).toBeHidden();

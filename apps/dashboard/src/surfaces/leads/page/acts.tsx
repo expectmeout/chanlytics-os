@@ -202,7 +202,7 @@ export const leadActs = (a: LeadActsArgs) => {
     });
     a.setLeadBusy(false);
     if (!r.ok) {
-      a.plFlash(refusalToast(r, "The leads could not be exported"));
+      a.plFlash(refusalToast(r, "The leads couldn't be exported"));
       return;
     }
     downloadCsv(r.data.file, r.data.csv);

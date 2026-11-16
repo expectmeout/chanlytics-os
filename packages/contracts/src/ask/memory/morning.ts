@@ -25,7 +25,7 @@ export const ASK_MORNING_CARDS_MAX = 3;
  * says only how many cards it made.
  */
 const MORNING_HEAD =
-  "Good morning. Look at my day: what is due, what happened since yesterday, what you remember about the business, and the lead finder's ideas if Leads has any. The people waiting on me already have their replies or call briefs drafted on Today, and the batches waiting for my OK are under Your OK there, so make no card that only answers or calls back someone who is waiting, or that approves or skips a batch.";
+  "Good morning. Look at my day: what is due, what happened since yesterday, what you remember about the business, and the lead finder's ideas if Leads has any. The people waiting on me already have their replies or call briefs drafted on Today, and the batches waiting for my OK are under Your approval there, so make no card that only answers or calls back someone who is waiting, or that approves or skips a batch.";
 const MORNING_TAIL =
   "Give me at most three other things worth doing first, each as a card I can approve: its title the act in a few words, its line why it comes first, without repeating the name. Today already says how my day stands, so say only how many cards you made, in a few words. If nothing else is worth doing, say so in a few words and make no card.";
 export const ASK_MORNING_QUESTION = `${MORNING_HEAD} ${MORNING_TAIL}`;

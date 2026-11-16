@@ -439,7 +439,7 @@ function manyResult(r: ApiResult<unknown>, asked: number, verb = "recorded"): Ma
     ok: failed === 0,
     done: d.done,
     failed,
-    message: failed ? `${failed} could not be ${verb}${why ? ` — ${why}` : ""}` : undefined,
+    message: failed ? `${failed} couldn't be ${verb}${why ? ` — ${why}` : ""}` : undefined,
   };
 }
 

@@ -99,17 +99,17 @@ export function bookingLinkAction(reach: ReplyReach, stop: { optedOut: boolean; 
   if (via === "Email")
     return reach.emailStopped
       ? notReady(EMAIL_CANT_REACH, false)
-      : ready("Email", "Opens the thread with the link ready to send by email");
-  if (via === "Text") return ready("Text", "Opens the thread with the link ready to send as a text");
+      : ready("Email", "Opens the conversation with the link ready to send by email");
+  if (via === "Text") return ready("Text", "Opens the conversation with the link ready to send as a text");
   // A DM goes only inside Instagram's day, and past it nothing waits in the thread to send instead.
   if (via === "Instagram")
     return win && win.open
-      ? ready("DM", `Opens the thread with the link ready to send by DM · for ${win.hoursLeft}h more`)
+      ? ready("DM", `Opens the conversation with the link ready to send by DM · for ${win.hoursLeft}h more`)
       : notReady(DM_CLOSED, false);
   if (win && win.open)
-    return ready("Text", `Opens the thread with the link ready to send · any message for ${win.hoursLeft}h more`);
+    return ready("Text", `Opens the conversation with the link ready to send · any message for ${win.hoursLeft}h more`);
   return notReady(
-    "Only an approved message reaches them until they write again; their thread offers the one with the link",
+    "Only an approved message reaches them until they write again; their conversation offers the one with the link",
   );
 }
 
@@ -197,19 +197,19 @@ export function proposalAction(
       ? notReady(EMAIL_CANT_REACH)
       : {
           label: `Email the proposal${again}`,
-          title: `Opens the thread with the proposal link ready to send by email${sent}`,
+          title: `Opens the conversation with the proposal link ready to send by email${sent}`,
           ready: true,
         };
   if (via === "Text")
     return {
       label: `Text the proposal${again}`,
-      title: `Opens the thread with the proposal link ready to send as a text${sent}`,
+      title: `Opens the conversation with the proposal link ready to send as a text${sent}`,
       ready: true,
     };
   if (win && win.open)
     return {
       label: `Send the proposal${again}`,
-      title: `Opens the thread with the proposal link ready to send · any message for ${win.hoursLeft}h more${sent}`,
+      title: `Opens the conversation with the proposal link ready to send · any message for ${win.hoursLeft}h more${sent}`,
       ready: true,
     };
   return notReady("Only an approved message reaches them until they write again, so the proposal waits until they do");
