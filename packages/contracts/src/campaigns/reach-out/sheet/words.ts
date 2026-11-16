@@ -48,16 +48,16 @@ export const REACH_OUT_SHEET_WORDS = {
  * (reach-out-sheet-doors.db.test.mjs holds the two to the same words).
  */
 export const REACH_OUT_REFUSALS = {
-  exists: "This search has a reach-out already.",
-  wrote: "This reach-out has written already. Pause it instead.",
-  stepWrote: "That step has written already. Pause the reach-out instead.",
+  exists: "This search has a cold email already.",
+  wrote: "This cold email has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the cold email instead.",
   /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
   handLast: "A call or a note ends the chain.",
   stepRan: "That step has run already. Add a new step instead.",
-  outOfPlace: "A step is out of its place. Open the reach-out again.",
-  notFound: "Reach-out not found.",
+  outOfPlace: "A step is out of its place. Open the cold email again.",
+  notFound: "Cold email not found.",
   workspaceNotFound: "Workspace not found.",
-  oneEmail: "A reach-out has at least one email.",
+  oneEmail: "A cold email has at least one email in it.",
   /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
   leadNotFound: "Lead not found.",
   leadGone: "This lead is gone.",
@@ -102,13 +102,19 @@ export function isReachOutRefusal(message: string | null | undefined): boolean {
 }
 
 /**
- * What the database said for a refusal above before 00633 (16 Nov 2026), and the refusal it is: read as today's
- * words, so a page says the same sentence whether the app or the database is the newer. It can go once 00633 is on
- * production and no build from before it serves.
+ * What the database said for a refusal above before 00633 and 00634 (16 Nov 2026), and the refusal it is: read as
+ * today's words, so a page says the same sentence whether the app or the database is the newer. Each can go once its
+ * migration is on production and no build from before it serves.
  */
+// screen-word: the database's sentences before 00633 and 00634, read and never shown
 const SAID_BEFORE: ReadonlyMap<string, string> = new Map([
-  // screen-word: the database's sentence before 00633, read and never shown
   ["You wrote this email. Use the sequence's words first.", REACH_OUT_REFUSALS.youWroteIt],
+  ["This search has a reach-out already.", REACH_OUT_REFUSALS.exists],
+  ["This reach-out has written already. Pause it instead.", REACH_OUT_REFUSALS.wrote],
+  ["That step has written already. Pause the reach-out instead.", REACH_OUT_REFUSALS.stepWrote],
+  ["A step is out of its place. Open the reach-out again.", REACH_OUT_REFUSALS.outOfPlace],
+  ["Reach-out not found.", REACH_OUT_REFUSALS.notFound],
+  ["A reach-out has at least one email.", REACH_OUT_REFUSALS.oneEmail],
 ]);
 
 /** The words a door's message is said in: one of the refusals above, as it is or as the database said it before; else null. */

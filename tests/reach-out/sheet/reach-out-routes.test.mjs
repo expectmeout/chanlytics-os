@@ -544,7 +544,7 @@ test("GET reach-outs/[id] reads its report and its search's reach; DELETE goes t
     { id: ROOT_ID },
     {
       reach_out_remove: () => {
-        throw pgError("23503", "This reach-out has written already. Pause it instead.");
+        throw pgError("23503", "This cold email has written already. Pause it instead.");
       },
     },
   );
@@ -552,7 +552,7 @@ test("GET reach-outs/[id] reads its report and its search's reach; DELETE goes t
     chain.DELETE.run(send("DELETE"), wrote),
     "conflict",
     409,
-    "This reach-out has written already. Pause it instead.",
+    "This cold email has written already. Pause it instead.",
   );
   await refused(chain.DELETE.run(send("DELETE"), ctxFor(tables("viewer"), { id: ROOT_ID })), "forbidden", 403);
 });

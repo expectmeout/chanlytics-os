@@ -548,7 +548,7 @@ test("Templates says an email is a reach-out's and what sends it (R19); its word
 
 test("the doors' refusals are one set of sentences, the ones the database raises", () => {
   assert.equal(isReachOutRefusal(REACH_OUT_REFUSALS.wrote), true);
-  assert.equal(isReachOutRefusal("This reach-out has written already. Pause it instead."), true);
+  assert.equal(isReachOutRefusal("This cold email has written already. Pause it instead."), true);
   assert.equal(isReachOutRefusal('duplicate key value violates unique constraint "playbooks_one_reach_out"'), false);
   assert.equal(isReachOutRefusal(null), false);
   // 00633: the database's Rewrite refusal said "the sequence's words" before; read either way, it is said in today's.
@@ -557,11 +557,24 @@ test("the doors' refusals are one set of sentences, the ones the database raises
     reachOutRefusalWords("You wrote this email. Use the sequence's words first."),
     REACH_OUT_REFUSALS.youWroteIt,
   );
+  // 00634: the database said "reach-out" in six of them before; read either way, each is said in today's words.
+  for (const [before, today] of [
+    ["This search has a reach-out already.", REACH_OUT_REFUSALS.exists],
+    ["This reach-out has written already. Pause it instead.", REACH_OUT_REFUSALS.wrote],
+    ["That step has written already. Pause the reach-out instead.", REACH_OUT_REFUSALS.stepWrote],
+    ["A step is out of its place. Open the reach-out again.", REACH_OUT_REFUSALS.outOfPlace],
+    ["Reach-out not found.", REACH_OUT_REFUSALS.notFound],
+    ["A reach-out has at least one email.", REACH_OUT_REFUSALS.oneEmail],
+  ]) {
+    assert.equal(reachOutRefusalWords(before), today, before);
+    assert.equal(reachOutRefusalWords(today), today, today);
+    assert.doesNotMatch(today, /reach-out/i, today);
+  }
   assert.equal(reachOutRefusalWords('duplicate key value violates unique constraint "playbooks_one_reach_out"'), null);
   assert.equal(reachOutRefusalWords(null), null);
   for (const w of [
     "Workspace not found.",
-    "A reach-out has at least one email.",
+    "A cold email has at least one email in it.",
     "This lead is gone.",
     "Lead not found.",
   ])

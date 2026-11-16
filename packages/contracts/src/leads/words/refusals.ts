@@ -8,7 +8,7 @@ import type { LeadNotAFitWhy } from "./lists";
 export const LEAD_SOURCE_WORD = "Google Maps listing";
 
 export const LEAD_LOCKED_LINE =
-  "Wait for their yes. Once they write back, they're in People and your yes page works for them.";
+  "Wait for their yes. Once they write back, they're in People and your sign-up page works for them.";
 
 /** An address on the never-again list: no email is written to it here, as no sequence writes to it. */
 export const LEAD_ASKED_NOT_WRITTEN = "They asked not to be written to, so no email is written here.";
@@ -22,7 +22,7 @@ export const LEAD_NO_ADDRESS =
 
 /** Both consent doors say this, permanently, for a person a lead is linked to (decision 19). */
 export const LEAD_CONSENT_REFUSAL =
-  "This person came from a lead you found. A yes has to come from them: their own message, or your yes page.";
+  "This person came from a lead you found. A yes has to come from them: their own message, or your sign-up page.";
 
 /* --------------------------------------------- release B, tasks 12-15 ---- */
 
