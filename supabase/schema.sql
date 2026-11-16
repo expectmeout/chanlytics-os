@@ -11937,7 +11937,7 @@ COMMENT ON FUNCTION public.lead_round_answer(p_round_id uuid, p_answer text, p_p
 CREATE FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
+    AS $_$
 declare
   r        public.lead_rounds;
   s        public.lead_searches;
@@ -12103,7 +12103,7 @@ begin
             || case when v_at is null then '{}'::jsonb else jsonb_build_object('starts_at', v_at) end);
   end if;
   return true;
-end $$;
+end $_$;
 
 
 --
