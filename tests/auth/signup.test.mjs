@@ -318,7 +318,7 @@ test("a send WE could not make is admitted; one about an ADDRESS is not", () => 
   // and nothing is lost -- true because nothing was made; the name they typed
   // waits on their account. It must NOT hint at the address, and must not
   // claim a workspace that does not exist yet.
-  assert.match(SIGNUP_WORDS.notSent, /could not send/);
+  assert.match(SIGNUP_WORDS.notSent, /couldn't send/);
   assert.match(SIGNUP_WORDS.notSent, /nothing is lost/);
   assert.doesNotMatch(
     SIGNUP_WORDS.notSent,
@@ -413,7 +413,7 @@ test("what sign-up kept is a prefill, and a clock Postgres would refuse is dropp
   assert.equal(pendingWorkspaceOf(null), null);
   assert.equal(
     SIGNUP_WORDS.notSentTitle,
-    "We could not send your code",
+    "We couldn't send your code",
     "the page's heading when the code did not go out says so, not that a workspace exists",
   );
 });

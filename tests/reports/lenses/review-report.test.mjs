@@ -564,7 +564,7 @@ test("with no review on Google the sentence says so, and the figures are the lis
     }),
     ledger: null,
   });
-  assert.equal(vmOf(failed).lines.head, "Google could not be read yet — read again once a day.");
+  assert.equal(vmOf(failed).lines.head, "Google couldn't be read yet — read again once a day.");
 });
 
 const placesOnly = (days, over = {}) =>
@@ -668,7 +668,7 @@ test("a profile connected but not yet synced is the public five, with the connec
     reviewsDto({ google: reviewsGoogle({ connection: googleConnection({ sync_error: "PERMISSION_DENIED" }) }) }),
   );
   assert.equal(failing.source, "profile", "the stored figures stay while a later sync fails");
-  assert.match(failing.google.connection.words, /could not sync since 3h ago/);
+  assert.match(failing.google.connection.words, /couldn't sync since 3h ago/);
 });
 
 test("no listing: nothing is drawn but the door, and the head says nothing", () => {

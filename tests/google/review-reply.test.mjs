@@ -205,7 +205,7 @@ test("why a reply was held, in words: one set for each answer autoReplyHold give
 
 test("the words beside the source, and the view model carrying the mode", () => {
   assert.equal(reviewReplyWords("auto", true), "new ones are answered by AI within the hour");
-  assert.equal(reviewReplyWords("ask", true), "AI writes each reply and holds it for your OK");
+  assert.equal(reviewReplyWords("ask", true), "AI writes each reply and holds it for your approval");
   assert.equal(reviewReplyWords("veto", true), "AI writes each reply and posts it after 30 minutes unless you stop it");
   assert.equal(reviewReplyWords("never", true), "");
   assert.equal(reviewReplyWords("auto", false), "", "nothing can go out until the profile is connected");

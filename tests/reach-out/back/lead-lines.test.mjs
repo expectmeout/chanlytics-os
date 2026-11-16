@@ -48,7 +48,7 @@ test("the line under a lead's stage says where it stands, first that holds", () 
   assert.equal(said({ next_at: "2026-09-30T15:00:00.000Z" }), "Written Tue · next Wed");
   assert.equal(
     said({ held: true, next_at: "2026-09-30T15:00:00.000Z" }),
-    "Written Tue · a follow-up waits for your OK",
+    "Written Tue · a follow-up waits for your approval",
   );
   assert.equal(
     said({ reply: { intent: "interested", claim: "person", read_at: "2026-09-24T15:00:00.000Z", undone: false } }),
@@ -94,7 +94,7 @@ test("a lead not written yet says when, or that it waits; one the chain never to
   const planned = { sent: 0, first_sent_at: null, last_sent_at: null };
   assert.equal(said({ ...planned, next_at: "2026-09-28T16:12:00.000Z" }), "Today 11:12 AM");
   assert.equal(said({ ...planned, next_at: "2026-09-29T14:40:00.000Z" }), "Tomorrow 9:40 AM");
-  assert.equal(said({ ...planned, held: true }), "Held for your OK");
+  assert.equal(said({ ...planned, held: true }), "Held for your approval");
   assert.equal(said({ ...planned, handed: true }), "Handed to you");
   assert.equal(said(planned), null);
 });
@@ -139,9 +139,9 @@ test("the strip, paused, with nothing planned, with holds and a run waiting", ()
   assert.deepEqual(paused.parts, ["18 of 30 today", "nothing goes while it is paused"]);
   assert.deepEqual(paused.toggle, { label: "Resume", pause: false });
   const quiet = reachOutStripOf(lines({ next: null, held: 2, waiting_run_id: "b9" }), null, NOW, TZ);
-  assert.deepEqual(quiet.parts, ["18 today", "nothing more planned yet", "2 held for your OK"]);
+  assert.deepEqual(quiet.parts, ["18 today", "nothing more planned yet", "2 held for your approval"]);
   assert.equal(quiet.progress, null);
-  assert.deepEqual(quiet.waiting, { label: "Waits for your OK", to: "campaigns/sequences/b9/runs/b9" });
+  assert.deepEqual(quiet.waiting, { label: "Waits for your approval", to: "campaigns/sequences/b9/runs/b9" });
   const tomorrow = reachOutStripOf(
     lines({ next: { at: "2026-09-29T14:40:00.000Z", business: null, host: null } }),
     chain,

@@ -296,7 +296,7 @@ async function theCampaignsLens(page: Page, report: Locator) {
     expect(series.people.now.sent_to, "the seed's run went to two people").toBeGreaterThanOrEqual(2);
 
     // Robin was held back because a person had his thread, and nothing the run sent failed: the card says so in its own words.
-    await expect(report.getByTestId("chart-campaigns-held")).toContainText("A person had the thread");
+    await expect(report.getByTestId("chart-campaigns-held")).toContainText("A person had the conversation");
     await expect(report.getByTestId("chart-campaigns-failed-why")).toContainText(
       "No sent message failed in this period.",
     );

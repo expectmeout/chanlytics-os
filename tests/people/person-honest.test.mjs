@@ -958,17 +958,17 @@ test("REGRESSION: a person's page says who they are once -- the header held two 
   // One way to the thread, beside who they are, with the booking link beside it.
   const threadButtons = all(
     tree,
-    (n) => n.type === "button" && /^(Open thread|Open in Inbox|Open the thread)$/.test(textOf(n).trim()),
+    (n) => n.type === "button" && /^(Open conversation|Open in Inbox|Open the conversation)$/.test(textOf(n).trim()),
   );
   assert.equal(
     threadButtons.length,
     1,
-    "REGRESSION: Open thread in the header and Open in Inbox in Right now went to the same thread",
+    "REGRESSION: Open conversation in the header and Open in Inbox in Right now went to the same conversation",
   );
   assert.equal(
     textOf(threadButtons[0]).trim(),
-    "Open the thread",
-    "one door, one label: the card said Open in Inbox and the header said Open thread",
+    "Open the conversation",
+    "one door, one label: the card said Open in Inbox and the header said Open conversation",
   );
   const actions = find(tree, (n) => cls(n) === "cl-prof-queue-actions");
   const more = find(actions, (n) => n.type === Menu);
@@ -977,11 +977,11 @@ test("REGRESSION: a person's page says who they are once -- the header held two 
       more &&
       more.props.trigger.props["data-testid"] === "person-more" &&
       /^More/.test(textOf(more.props.trigger).trim()),
-    "the thread beside who they are, and the rest behind More, in words: a ⋯ was too quiet to find",
+    "the conversation beside who they are, and the rest behind More, in words: a ⋯ was too quiet to find",
   );
   assert.ok(
     itemsIn(more).some((i) => i.label === "Send booking link"),
-    "REGRESSION: 'Send the booking-link template' was a button of its own beside a thread button to the same place",
+    "REGRESSION: 'Send the booking-link template' was a button of its own beside a conversation button to the same place",
   );
 
   assert.ok(
@@ -1020,12 +1020,16 @@ test("someone who said stop keeps their way into the thread, and is offered no b
     new Date(NOW),
   );
   assert.equal(vm.rightNow.cta, null, "the silent case: Right now has no button of its own");
-  assert.ok(vm.openThread, "and they do have a thread");
+  assert.ok(vm.openThread, "and they do have a conversation");
   const draw = await profile(vm);
   const tree = draw();
   const actions = find(tree, (n) => String(n.props?.className || "") === "cl-prof-queue-actions");
   const open = byTestId(actions, "person-open-thread");
-  assert.equal(open && textOf(open).trim(), "Open the thread", "the header's Open thread was their only way in");
+  assert.equal(
+    open && textOf(open).trim(),
+    "Open the conversation",
+    "the header's Open conversation was their only way in",
+  );
   press(open);
   assert.deepEqual(went, [vm.openThread]);
   assert.equal(
@@ -1078,7 +1082,7 @@ test("the timeline's linked rows are the doors themselves -- a message's door hi
     );
   went.length = 0;
   press(doors.find((d) => /inbox\//.test(d.props.href)));
-  assert.deepEqual(went, ["inbox/th-cv1"], "a press opens the thread");
+  assert.deepEqual(went, ["inbox/th-cv1"], "a press opens the conversation");
 });
 
 test("a long record folds past twenty rows, and a fold of three is not worth a press", async () => {
@@ -2310,7 +2314,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
   );
   const proposal = items.find((i) => i.label === "Send proposal");
   assert.ok(
-    /^Opens their thread with it ready to send/.test(proposal.title),
+    /^Opens their conversation with it ready to send/.test(proposal.title),
     `what it does, on hover: ${proposal.title}`,
   );
   const send = { props: { onClick: proposal.onSelect } };
@@ -2321,7 +2325,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
   try {
     went.length = 0;
     press(send);
-    assert.deepEqual(went, [vm.openThread], "it opens the thread");
+    assert.deepEqual(went, [vm.openThread], "it opens the conversation");
     assert.equal(carried.length, 1);
     assert.equal(carried[0][0], "chanlytics-compose");
     assert.deepEqual(JSON.parse(carried[0][1]), {
@@ -2655,7 +2659,7 @@ test("where only an approved message can reach them, the card's follow-up opens 
     const next = byTestId(tree, "person-deal-next");
     assert.deepEqual([textOf(next), next.props.title], ["Follow up", contracts.DEAL_ACT_HINTS.approved]);
     press(next);
-    assert.deepEqual(went, [vm.openThread], "their thread, which offers the approved messages");
+    assert.deepEqual(went, [vm.openThread], "their conversation, which offers the approved messages");
     assert.deepEqual(carried, [], "and nothing written for them: no free text can go");
     for (const rowOver of [{ consent: "opted_out" }, { dnc: true }]) {
       const stopped = await openedRow(quiet(rowOver));
@@ -3016,7 +3020,7 @@ test("a kept copy whose read again failed says so, quietly, and stays: never tak
   await newTree();
   serve(vm);
   await personDetail(vm.id);
-  world.answers[`GET /api/v1/contacts/${vm.id}`] = () => refused(500, "Could not be read right now", "internal");
+  world.answers[`GET /api/v1/contacts/${vm.id}`] = () => refused(500, "Couldn't be read right now", "internal");
   pageFor(vm.id);
   await settle();
   const tree = pageFor(vm.id);

@@ -590,7 +590,7 @@ test("the days Google's hours could not be copied for are named under the hours"
   const tree = draw({ setup: dto({}, { unsure: ["fri"] }) });
   assert.equal(
     textOf(byTestId(tree, "fr-check-unsure")),
-    "Google's hours for Friday could not be copied: check that day.",
+    "Google's hours for Friday couldn't be copied: check that day.",
   );
   assert.equal(byTestId(draw(), "fr-check-unsure"), null, "and nothing when none");
 });

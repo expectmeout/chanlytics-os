@@ -163,7 +163,7 @@ test("the waiting search card is told to the turn whole, as find takes it, so a 
   assert.equal(waitingSearchWords([]), null);
   assert.equal(waitingSearchWords([{ ...places(), kind: "note" }]), null);
   const said = waitingSearchWords([places()]);
-  assert.match(said, /^A search card waits in this thread for their press, “Find 20 personal trainers” \(p-1\)/);
+  assert.match(said, /^A search card waits in this conversation for their press, “Find 20 personal trainers” \(p-1\)/);
   const ask = JSON.parse(/: (\{.*\})\. When they change it/.exec(said)[1]);
   assert.deepEqual(
     [ask.looking_for, ask.city, ask.region, ask.count, ask.terms, ask.leave_out, ask.contact],

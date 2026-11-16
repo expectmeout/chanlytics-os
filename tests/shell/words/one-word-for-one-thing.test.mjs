@@ -205,7 +205,7 @@ test("D1-message-status: History says a reply that did not reach them in the thr
     ],
   });
   const line = (id) => p.timeline.find((i) => i.id === `m-${id}`);
-  assert.equal(messageStatusLabel("failed"), "Didn't send", "the thread's own words");
+  assert.equal(messageStatusLabel("failed"), "Didn't send", "the conversation's own words");
   assert.equal(line("fail").sub, "Didn't send", "was Not delivered");
   assert.equal(line("wait").sub, "Sending…", "was Sending");
   assert.equal(line("gone").sub, "Canceled before sending", "was left out of History altogether");
@@ -245,14 +245,14 @@ test("D1-member-name: a decision says You for the member looking, a teammate by 
     names,
   );
   const said = (id) => p.timeline.find((i) => i.id === `d-${id}`).text;
-  assert.equal(said("d1"), "You snoozed the thread");
-  assert.equal(said("d2"), "Ruben snoozed the thread", "a teammate the roster names");
-  assert.equal(said("d3"), "Your team snoozed the thread", "a member the roster does not know is not You");
-  assert.equal(said("d4"), "The system brought the thread back");
-  assert.equal(said("d5"), "AI snoozed the thread");
+  assert.equal(said("d1"), "You snoozed the conversation");
+  assert.equal(said("d2"), "Ruben snoozed the conversation", "a teammate the roster names");
+  assert.equal(said("d3"), "Your team snoozed the conversation", "a member the roster does not know is not You");
+  assert.equal(said("d4"), "The system brought the conversation back");
+  assert.equal(said("d5"), "AI snoozed the conversation");
   // Where nobody is looking (no viewer), no decision is anyone's You.
   const nobody = personFor({ decisions: [decision("d1", "snooze", 60)] }, null, null);
-  assert.equal(nobody.timeline.find((i) => i.id === "d-d1").text, "Your team snoozed the thread");
+  assert.equal(nobody.timeline.find((i) => i.id === "d-d1").text, "Your team snoozed the conversation");
 });
 
 test("D1-call-ended-words: a finished call has one outcome word, the registry's, on Live, Conversations, the call card and History", () => {
@@ -519,8 +519,8 @@ test("REGRESSION (S9-9): a deal's stage is said in its stage's word on the sheet
   assert.equal(label("clients"), "Clients", "a list of people names the people, not the stage");
   // The thread pane said "Moved to" in words of its own beside the tabs' (inbox/thread/thread-pane.tsx).
   for (const state of ["escalated", "done", "snoozed"]) assert.equal(inboxBucketWord(state), INBOX_BUCKET_WORDS[state]);
-  assert.equal(inboxBucketWord("escalated"), NEEDS_YOU_WORD, "the tab of threads nobody has is Needs you");
-  assert.equal(inboxBucketWord("open"), null, "no tab lists an open thread");
+  assert.equal(inboxBucketWord("escalated"), NEEDS_YOU_WORD, "the tab of conversations nobody has is Needs you");
+  assert.equal(inboxBucketWord("open"), null, "no tab lists an open conversation");
   const { REAL_BUCKETS } = await importSrc("apps/dashboard/src/surfaces/inbox/store.ts");
   assert.deepEqual(
     REAL_BUCKETS.map((b) => [b.id, b.label]),

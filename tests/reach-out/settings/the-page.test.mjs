@@ -628,7 +628,7 @@ test("each press says who may do it: an operator approves a batch, and the press
   };
   const waiting = {
     kind: "waiting_ok",
-    headline: "Your first 12 emails are ready for your OK",
+    headline: "Your first 12 emails are ready for your approval",
     detail: null,
     act: "Read and approve",
     to: "sends/33333333-3333-4333-8333-333333333333",
@@ -668,7 +668,7 @@ test("each press says who may do it: an operator approves a batch, and the press
   globalThis.window.gate = (action) =>
     globalThis.window.canDo(action) ? {} : { "aria-disabled": true, "aria-description": "Only an owner can do this." };
   try {
-    let tree = await drawOnRead({}, { standing: waiting }, head(/ready for your OK/));
+    let tree = await drawOnRead({}, { standing: waiting }, head(/ready for your approval/));
     assert.equal(textOf(byTestId(tree, "rec-standing-act")), "Read and approve", "an OK is theirs to give");
     assert.equal(byTestId(tree, "rec-standing-act").props["aria-disabled"], undefined);
     tree = await drawOnRead({}, { standing: mailbox }, head(/Connect your mailbox/));
@@ -800,7 +800,7 @@ test("Before each batch offers holding or asking, never sending on its own, and 
   assert.doesNotMatch(choice, /Send it/);
   const note = textOf(byTestId(tree, "rec-batch-note"));
   assert.match(note, /For new campaigns\. Each campaign can change its own\./);
-  assert.match(note, /New words always wait for your OK/);
+  assert.match(note, /New words always wait for your approval/);
   unmount();
 });
 
@@ -1058,7 +1058,7 @@ test("Before each batch writes Autonomy's outreach row, and says where the rest 
   // The page reads again once its write lands, and the row says what was saved. The test stays until it does: a write
   // left in the air lands in the next test, where this page's read-again would be taken for that page's own.
   await until(
-    () => /Waits for your OK/.test(textOf(byTestId(redrawTab(), "rec-row-batch_mode") ?? "")),
+    () => /Waits for your approval/.test(textOf(byTestId(redrawTab(), "rec-row-batch_mode") ?? "")),
     "the saved mode, read again and said",
   );
   unmount();

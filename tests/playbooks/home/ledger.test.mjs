@@ -309,7 +309,7 @@ test("Resume says what its next batch does by its sequence's mode: in full where
   );
   assert.equal(
     detail({ mode: "auto", words_ok_at: null }),
-    "Next run tomorrow 10:00 AM, about 4 people. Its first batch waits for your OK.",
+    "Next run tomorrow 10:00 AM, about 4 people. Its first batch waits for your approval.",
   );
   assert.equal(detail({ mode: "ask", words_ok_at: SEEN }), "Next run tomorrow 10:00 AM, about 4 people");
   assert.equal(detail({}), "Next run tomorrow 10:00 AM, about 4 people", "unread: the mode is not guessed");
@@ -318,7 +318,7 @@ test("Resume says what its next batch does by its sequence's mode: in full where
   assert.equal(
     row(ledger({ playbooks: playbooks(uncounted) }), "pb-u").act.ask.detail,
     "Next run tomorrow 10:00 AM",
-    "REGRESSION: the question said about 0 people of a moment the server could not count",
+    "REGRESSION: the question said about 0 people of a moment the server couldn't count",
   );
   assert.equal(
     C.LIFECYCLE_WORDS.ledger.resume.detail("tomorrow 10:00 AM", 0),
@@ -421,7 +421,7 @@ test("a reach-out's numbers: written, businesses and wrote back from its own tot
   const chains = [chain("ro-1"), chain("ro-2"), chain("ro-21")];
   const res = (l, id) => row(l, id).results;
   assert.equal(res(ledger({ reachOuts: chains, chains: undefined }), "ro-1"), "uncounted", "not read yet");
-  assert.equal(res(ledger({ reachOuts: chains, chains: null }), "ro-1"), "uncounted", "could not be read");
+  assert.equal(res(ledger({ reachOuts: chains, chains: null }), "ro-1"), "uncounted", "couldn't be read");
   const every = ledger({
     reachOuts: chains,
     chains: {

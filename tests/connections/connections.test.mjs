@@ -189,9 +189,9 @@ test("attention is joined but not working: a number off, a listing unreadable, a
   assert.equal(r.whatsapp.state, "off");
   assert.equal(r.whatsapp.stateWords, "Off");
   assert.equal(r.google_listing.state, "attention");
-  assert.equal(r.google_listing.stateWords, "Could not be read");
-  assert.equal(r.google_profile.stateWords, "Could not sync");
-  assert.equal(r.calendar.stateWords, "Could not be read");
+  assert.equal(r.google_listing.stateWords, "Couldn't be read");
+  assert.equal(r.google_profile.stateWords, "Couldn't sync");
+  assert.equal(r.calendar.stateWords, "Couldn't be read");
   assert.deepEqual(r.calendar.verb, { label: "Check the link", to: "admin/workspace/calendar", who: "owner" });
   const list = connectionRows({ ...base(), channels: [channel("whatsapp", { status: "disabled" })] }, NOW).filter(
     (x) => x.group === "connected",
@@ -378,8 +378,8 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   // true` is never sent by the owner's route. This row used to offer them "Fix and
   // resubmit", and the button behind it was guaranteed to answer "The carriers did
   // not answer" -- about a message the carriers had explicitly sent.
-  const sentBack = words("rejected", { last_error: "the website could not be reached" });
-  assert.match(sentBack.sentence, /^The carriers sent the registration back: the website could not be reached\./);
+  const sentBack = words("rejected", { last_error: "the website couldn't be reached" });
+  assert.match(sentBack.sentence, /^The carriers sent the registration back: the website couldn't be reached\./);
   assert.match(sentBack.sentence, /Chanlytics sends it again/, "and it says who does");
   assert.match(
     sentBack.sentence,
@@ -687,7 +687,7 @@ test("the mailboxes sequences write from are a row of their own: Later and greye
         email: {
           ready: true,
           domain: "mail.chanlytics.com",
-          mailbox: { ...mailbox, last_error: "An email could not be taken in." },
+          mailbox: { ...mailbox, last_error: "An email couldn't be taken in." },
           sending: { providers: ["google"], mailboxes: [held] },
         },
       },

@@ -407,7 +407,7 @@ test("a person's reply: the intake schedules one reading and tells nobody; the r
     assert.equal(w.drafts.length, 1, "a draft kept is not drafted again");
     assert.equal(w.told.length, 1);
     // Interested is a person's to answer: the intake's flag stands and the thread stays open.
-    assert.deepEqual(w.closes(), [], "nothing written to the flag or the thread");
+    assert.deepEqual(w.closes(), [], "nothing written to the flag or the conversation");
     assert.equal(w.threadOf().state, "open");
   });
 });
@@ -471,7 +471,7 @@ test("a wrong person and a not now resolve the flag and leave the thread open fo
       assert.ok(w.applied[0].p_plan.step, `${intent}: a step on Today is what is left to do`);
       assert.equal(w.tables.escalations[0].state, "resolved", `${intent}: the flag resolved`);
       assert.equal(w.tables.escalations[0].resolved_by_user_id ?? null, null);
-      assert.equal(w.threadOf().state, "open", `${intent}: the thread stays open`);
+      assert.equal(w.threadOf().state, "open", `${intent}: the conversation stays open`);
       assert.deepEqual(w.closes(), ["escalations"], `${intent}: the flag alone is written`);
     }
   });
@@ -509,7 +509,7 @@ test("an automatic 'remove us' is read and told (B1); an automatic out-of-office
     // to resolve, and a thread is not archived over a robot's words (a person's flag on it would be hidden).
     assert.equal(w.threadOf().state, "open");
     assert.equal(w.tables.escalations.length, 0);
-    assert.deepEqual(w.closes(), [], "nothing written to the flag or the thread");
+    assert.deepEqual(w.closes(), [], "nothing written to the flag or the conversation");
 
     const away = world();
     const out = provided(9);
@@ -579,6 +579,6 @@ test("with no model key the reply is other, the chain's stop stands, the owner i
     const reread = w.readJobs().find((j) => j.payload.stage === "reread-1");
     assert.ok(reread, "read again later");
     assert.equal(reread.due_at, "2026-09-29T15:10:00.000Z", "in an hour, the first time");
-    assert.match(w.told[0].notice.body, /could not be read/);
+    assert.match(w.told[0].notice.body, /couldn't be read/);
   });
 });

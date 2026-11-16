@@ -427,8 +427,8 @@ test("a new campaign's card says what its batches will do: its first waits for y
       // Under ask every batch waits, the first among them: said once.
       const batches =
         mode === "ask"
-          ? "Each batch waits for your OK"
-          : `Its first batch waits for your OK; after that, ${SEQUENCE_MODE_WORDS[mode].does}`;
+          ? "Each batch waits for your approval"
+          : `Its first batch waits for your approval; after that, ${SEQUENCE_MODE_WORDS[mode].does}`;
       assert.ok(p.summary.includes(`${batches} (${PLAYBOOK_CLASS_LABEL.reengage}).`), p.summary);
       const body = PROPOSAL_SPECS.playbook.commit(p, { settings: null }).body;
       assert.deepEqual(["trial" in body, "trial_until" in body], [false, false]);
@@ -528,7 +528,7 @@ test("what no press turns on is aside (decision 0088): how later batches go and 
     end: "Until Nov 30",
     goes: "On WhatsApp",
     reaches: "6 people",
-    sends: "Each batch waits for your OK",
+    sends: "Each batch waits for your approval",
     message: "Adds the starter first",
     waiting: [],
   });
@@ -605,10 +605,12 @@ test("the three moments an occasion starts are proposed where a calendar is conn
     assert.equal(r.isError, false, r.result);
     assert.equal(r.proposal.payload.mode, "veto");
     assert.ok(
-      r.proposal.summary.includes(`Its first batch waits for your OK; after that, ${SEQUENCE_MODE_WORDS.veto.does}`),
+      r.proposal.summary.includes(
+        `Its first batch waits for your approval; after that, ${SEQUENCE_MODE_WORDS.veto.does}`,
+      ),
       r.proposal.summary,
     );
-    assert.ok(!r.proposal.summary.includes("Each batch waits for your OK"), r.proposal.summary);
+    assert.ok(!r.proposal.summary.includes("Each batch waits for your approval"), r.proposal.summary);
   }
   const sends = await propose({ trigger: "visit_soon" }, { tenant_config: withCalendar(), policies: modes("auto") })
     .made;

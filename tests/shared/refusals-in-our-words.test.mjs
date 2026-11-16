@@ -207,7 +207,7 @@ test("the server's catch-all becomes a sentence an owner can act on; a specific 
     "Chanlytics couldn't read this just now — try again in a moment.",
   );
   const specific =
-    "The shared count could not be read just now (the shared store did not answer) — try again in a moment.";
+    "The shared count couldn't be read just now (the shared store did not answer) — try again in a moment.";
   assert.equal(refusalOf({ code: "internal", status: 503, message: specific, write: true }).message, specific);
 });
 
@@ -220,7 +220,7 @@ test("no answer at all: offline changed nothing, a timeout may still go through,
     retryAfterS: null,
     fields: null,
   });
-  assert.equal(refusalOf({ code: "network", status: 0, write: false }).message, "Chanlytics could not be reached.");
+  assert.equal(refusalOf({ code: "network", status: 0, write: false }).message, "Chanlytics couldn't be reached.");
   const slow = refusalOf({ code: "timeout", status: 0, write: true });
   assert.equal(slow.title, "No answer in time");
   assert.equal(
@@ -233,12 +233,12 @@ test("no answer at all: offline changed nothing, a timeout may still go through,
     "Chanlytics took too long to answer — try again in a moment.",
   );
   assert.deepEqual(
-    refusalOf({ code: "client", status: 0, message: "No open escalation on this thread.", write: true }),
+    refusalOf({ code: "client", status: 0, message: "No open escalation in this conversation.", write: true }),
     {
       code: "client",
       status: 0,
       title: "Not sent",
-      message: "No open escalation on this thread.",
+      message: "No open escalation in this conversation.",
       retryAfterS: null,
       fields: null,
     },

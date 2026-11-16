@@ -728,7 +728,7 @@ const serveRead = (path, query) => {
   // Suggestions the server has not written (undefined) are a read that fails: the surface publishes none, and says so.
   if (path === "/api/v1/lead-suggestions")
     return server.suggestions === undefined
-      ? refusal(500, "internal", "The suggestions could not be read.")
+      ? refusal(500, "internal", "The suggestions couldn't be read.")
       : reply(200, { ok: true, data: server.suggestions });
   if (path === "/api/v1/leads") {
     if (query.after_key)
@@ -1482,13 +1482,13 @@ test("an idea that carries its search opens Ask on its card (Ruben, 23 Oct 2026)
   await fresh({ leads: { ...FIRST_DAY, suggestions: withPlan } });
   const before = asks.length;
   click(byTestId(byTestId(draw(), "leads-first-day"), "ld-sug-gym"));
-  await until(() => asks.length > before, "Ask opened on the card's thread");
+  await until(() => asks.length > before, "Ask opened on the card's conversation");
   assert.deepEqual(
     writes.filter((w) => w.key === "POST /api/v1/ask/idea"),
     [{ key: "POST /api/v1/ask/idea", body: { words: "gyms in Denver" } }],
     "the idea named by its words, never its plan: the server reads its own",
   );
-  assert.deepEqual(asks.slice(before), [{ thread: "t-idea" }], "Ask opens on the card's thread");
+  assert.deepEqual(asks.slice(before), [{ thread: "t-idea" }], "Ask opens on the card's conversation");
   assert.equal(panels.length, 0, "the page draws no card of its own");
   assert.equal(
     writes.some((w) => w.key === "POST /api/v1/lead-searches"),
@@ -3123,7 +3123,7 @@ test("the bulk bar acts on the leads loaded and selected: Add them, Not a fit, C
   assert.equal(
     textOf(flashes.at(-1).msg),
     "Copied 3 emails; 2 had none you can use",
-    "what was copied, and what could not be",
+    "what was copied, and what couldn't be",
   );
 });
 
@@ -3974,7 +3974,7 @@ test("Change what I asked opens the answer row under the question, and approving
   assert.deepEqual(
     [sent[0].text, sent[0].threadId, sent[0].answering],
     ["include the chains too", PLANNED_THREAD, { searchId: SEARCH_B }],
-    "the owner's words, in the thread the search was planned in, naming the search for the route to read",
+    "the owner's words, in the conversation the search was planned in, naming the search for the route to read",
   );
   assert.equal(sent[0].surface, "leads", "the amend turn is on the Leads surface (spec F5)");
   const shown = panels.at(-1);
@@ -4805,7 +4805,7 @@ test("a lead in a sequence wears one status, its place there, with the step and 
     const tree = draw();
     const cardOf = (id) => find(rowOf(tree, id), (n) => /\blist-row pl-card\b/.test(String(n.props?.className || "")));
     const pill = (id) => byTestId(cardOf(id), "lead-state");
-    assert.equal(textOf(pill("l1")), "Waits for your OK", "the place, never Not contacted beside it");
+    assert.equal(textOf(pill("l1")), "Waits for your approval", "the place, never Not contacted beside it");
     assert.equal(String(pill("l1").rendered?.props?.className ?? pill("l1").props?.className), "pill pill-warn");
     assert.equal(textOf(byTestId(cardOf("l1"), "lead-sub")), "Step 1 · Bookstore intro", "the step and the sequence");
     assert.equal(textOf(pill("l2")), "Taken out", "why it left, never Left beside the finder's Filtered out");
@@ -4829,7 +4829,7 @@ test("a lead in a sequence wears one status, its place there, with the step and 
       ),
       (n) => n.props?.testid === "lead-state-tag",
     );
-  assert.equal(tagOf("l1", false)?.props.label, "Waits for your OK");
+  assert.equal(tagOf("l1", false)?.props.label, "Waits for your approval");
   assert.equal(tagOf("l2", false)?.props.label, "Taken out");
   assert.equal(tagOf("l1", true), null, "the Stage column says it");
 });

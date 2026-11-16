@@ -1102,12 +1102,12 @@ test("a config that cannot be read is no Check: Setup's facts row asks for the r
 test("the days Google gives hours for that the week cannot hold are named under the hours", () => {
   assert.equal(
     firstRunOf(setupSteps(harbor({}, { unsure: ["fri", "sat"] }), NOW), null, OWNER).check.unsure,
-    "Google's hours for Friday and Saturday could not be copied: check those days.",
+    "Google's hours for Friday and Saturday couldn't be copied: check those days.",
   );
-  assert.equal(unsureHoursWords(["fri"]), "Google's hours for Friday could not be copied: check that day.");
+  assert.equal(unsureHoursWords(["fri"]), "Google's hours for Friday couldn't be copied: check that day.");
   assert.equal(
     unsureHoursWords(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    "Google's hours for every day could not be copied: add yours.",
+    "Google's hours for every day couldn't be copied: add yours.",
   );
   assert.equal(unsureHoursWords([]), null);
   assert.equal(W.found("Harbor Moving"), "Meet AI for Harbor Moving");

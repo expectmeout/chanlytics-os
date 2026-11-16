@@ -104,7 +104,7 @@ test("a yes names a waiting card by its id; a plan is one card, by its first ste
   cards[0].plan.head = { title: "Free posture check", sub: "", press: "offer", says: [] };
   assert.equal(
     waitingCardsWords(cards),
-    "Cards waiting in this thread for their press, each with its own terms (say what a card does from these, never from memory): “Free posture check” (p-1).",
+    "Cards waiting in this conversation for their press, each with its own terms (say what a card does from these, never from memory): “Free posture check” (p-1).",
   );
   assert.equal(waitingCardsWords([]), null);
 });

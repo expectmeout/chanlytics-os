@@ -62,7 +62,7 @@ test("an answer made before the Line reads back as prose: its rows are items, a 
   assert.deepEqual(a.say, { headline: "", detail: "Nora asked about Saturday; nobody else is waiting." });
   assert.deepEqual(
     a.show.items.map((i) => [i.title, i.meta, i.source.to, i.source.door]),
-    [["Nora", "Thread", `inbox/th-${ID}`, true]],
+    [["Nora", "Conversation", `inbox/th-${ID}`, true]],
   );
   assert.deepEqual(
     a.do.open,
@@ -99,7 +99,7 @@ test("one door: an item keeps its door, Open goes when an item has its route, a 
       breakdown: null,
     },
     do: {
-      open: { to: `inbox/th-${ID}`, label: "Open the thread", now: false },
+      open: { to: `inbox/th-${ID}`, label: "Open the conversation", now: false },
       next: ["Show me Nora's thread", "What did the receptionist tell Nora?", "what did the receptionist tell nora"],
     },
     language: "en",
@@ -245,11 +245,11 @@ test("Right now is Today's queue in a sentence: the people waiting, then the run
   assert.equal(rightNowLine(waiting(["Ana"]), "en"), "Ana needs you.");
   assert.equal(
     rightNowLine(waiting(["Ana", "Sam"], 1), "en"),
-    "Ana and Sam need you; a campaign run is waiting for your say.",
+    "Ana and Sam need you; a campaign run is waiting for your approval.",
   );
   assert.equal(rightNowLine(waiting(["Ana", "Sam", "Lee", "Kai"]), "en"), "Ana, Sam and 2 others need you.");
   // A person reads "campaign", never "playbook" (the moment spec, D19), in both languages.
-  assert.equal(rightNowLine(waiting([], 2), "en"), "2 campaign runs are waiting for your say.");
+  assert.equal(rightNowLine(waiting([], 2), "en"), "2 campaign runs are waiting for your approval.");
   assert.equal(rightNowLine(waiting([], 1), "es"), "Un envío de campaña espera tu decisión.");
   assert.equal(rightNowLine(waiting([], 2), "es"), "2 envíos de campaña esperan tu decisión.");
   assert.equal(rightNowLine(waiting([]), "es"), "Nadie te espera ahora mismo.");
@@ -278,7 +278,7 @@ test("Right now names the one search waiting for an answer, counts several, afte
   );
   assert.equal(
     rightNowLine(waiting(["Ana"], 1, 0, [SEARCH]), "en"),
-    "Ana needs you; a campaign run is waiting for your say; your search for personal trainers is waiting for your answer.",
+    "Ana needs you; a campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
     "three populations, three clauses, in this order",
   );
   assert.equal(
@@ -306,7 +306,7 @@ test("rightNowCounts: the people, the runs and the searches the sentence counts;
   assert.deepEqual(rightNowCounts(w), { people: 3, runs: 1, searches: 1, windows: 1 });
   assert.equal(
     rightNowLine(w, "en"),
-    "Nora, Emily and 1 other need you; a campaign run is waiting for your say; your search for personal trainers is waiting for your answer; Eve's reply window is closing.",
+    "Nora, Emily and 1 other need you; a campaign run is waiting for your approval; your search for personal trainers is waiting for your answer; Eve's reply window is closing.",
   );
 });
 
@@ -329,7 +329,7 @@ test("who needs me: the sentence, then the people, the searches and the runs as 
   assert.equal(a.form, "structured");
   assert.equal(
     a.say.headline,
-    "Ana and Sam need you; a campaign run is waiting for your say; your search for personal trainers is waiting for your answer.",
+    "Ana and Sam need you; a campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
   );
   assert.deepEqual(
     a.show.items.map((i) => [i.title, i.meta, i.line, i.source.to]),

@@ -171,7 +171,7 @@ test("a refusal is the server's words and code, with the kind of no as a title; 
     code: "network",
     status: 0,
     title: "No connection",
-    message: "Chanlytics could not be reached.",
+    message: "Chanlytics couldn't be reached.",
     retryAfterS: null,
     fields: null,
   });

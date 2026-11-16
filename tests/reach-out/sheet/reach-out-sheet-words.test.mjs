@@ -101,7 +101,7 @@ test("a chain's pace is one the sheet offers, as the database's CHECK holds it",
 test("each step is named and timed as the chain draws it", () => {
   assert.deepEqual([0, 1, 2].map(stepLabel), ["Your email", "A short nudge", "Email 3"]);
   assert.equal(stepWhenWords(0, null), "Day one, in their hours");
-  assert.equal(stepWhenWords(1, 4), "After 4 days with nothing back · in the same thread");
+  assert.equal(stepWhenWords(1, 4), "After 4 days with nothing back · in the same conversation");
 });
 
 test("Start says what really happened, each reason in its own words; within the hour only when the edge was not reached (R14)", () => {
@@ -140,7 +140,7 @@ test("Start says what really happened, each reason in its own words; within the 
   assert.equal(
     within.filter((t) => t.includes("within the hour")).length,
     0,
-    "only an edge that could not be reached says it",
+    "only an edge that couldn't be reached says it",
   );
 });
 
@@ -381,7 +381,7 @@ test("a run approved or going says the same facts in its state: going today, the
     ["Scheduled", "Goes from 9:40 AM", "Cancel keeps it from going"],
   );
   // Its head says what it waits for (the run-to-leads canvas): your OK.
-  assert.equal(live("pending_approval").k, "Waits for your OK");
+  assert.equal(live("pending_approval").k, "Waits for your approval");
   // A run its owner sends (00429): what is handed to them counts, from their own inbox, and its head says whose it is.
   const owner = live("sending", { owner_sends: true, mailboxes: [] });
   assert.deepEqual([owner.who, owner.count.words, owner.from], ["You send them", "for you to send", null]);

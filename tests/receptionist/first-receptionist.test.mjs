@@ -154,7 +154,7 @@ test("a receptionist already set up is never replaced: Google fills only what it
   assert.deepEqual(await receptionist.POST.run(post(), unlinked), { wrote: false }, "no listing: nothing to add");
   assert.equal(writes(unlinked), 0);
   const broken = ctxFor(tables({ config: "nonsense", listing: LISTED }));
-  await refused(receptionist.POST.run(post(), broken), "conflict", 409, "could not be read");
+  await refused(receptionist.POST.run(post(), broken), "conflict", 409, "couldn't be read");
   assert.equal(writes(broken), 0);
   const missing = { ...tables(), tenant_config: [] };
   await refused(
