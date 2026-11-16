@@ -100,7 +100,7 @@ const ROWS = [
     needs_you: true,
   },
   {
-    name: "no mailbox, with a sequence running",
+    name: "no mailbox, with a campaign running",
     facts: facts({ mailboxes: [] }),
     kind: "no_mailbox",
     headline: "Connect your mailbox to start sending",
@@ -127,7 +127,7 @@ const ROWS = [
     needs_you: true,
   },
   {
-    name: "no address and a sequence running, none held yet or the count not read",
+    name: "no address and a campaign running, none held yet or the count not read",
     facts: facts({ hasAddress: false, heldForAddress: null }),
     kind: "no_address",
     headline: "Your emails need your address",
@@ -172,7 +172,7 @@ const ROWS = [
     needs_you: false,
   },
   {
-    name: "a sequence with no one new",
+    name: "a campaign with no one new",
     facts: facts({ running: [{ ...RUNNING, waitingLeads: 0 }] }),
     kind: "no_one_new",
     headline: "Clinics · Austin has no one new to write to",
@@ -205,17 +205,17 @@ const ROWS = [
     name: "ready, and never started",
     facts: facts({ running: [], hadSequence: false }),
     kind: "ready",
-    headline: "Ready for your first sequence",
-    act: "Start a sequence",
+    headline: "Ready for your first campaign",
+    act: "Start a campaign",
     to: "campaigns/sequences/new:leads",
     needs_you: false,
   },
   {
-    name: "ready, with every sequence paused",
+    name: "ready, with every campaign paused",
     facts: facts({ running: [] }),
     kind: "ready",
-    headline: "No sequence is running",
-    act: "Start a sequence",
+    headline: "No campaign is running",
+    act: "Start a campaign",
     to: "campaigns/sequences/new:leads",
     needs_you: false,
   },
@@ -293,7 +293,7 @@ test("a paused mailbox with a batch waiting says the batch, since an OK alone wo
 test("a workspace that has written before is never told 'before your first email' for a pitch alone", () => {
   const standing = coldEmailStandingOf(facts({ running: [], hasPitch: false }));
   assert.equal(standing.kind, "ready");
-  assert.equal(standing.headline, "No sequence is running");
+  assert.equal(standing.headline, "No campaign is running");
   assert.equal(coldEmailStandingOf(facts({ hasPitch: false })).kind, "sending");
 });
 

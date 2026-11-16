@@ -11,7 +11,7 @@ import { WHATSAPP_REVIEW_TAKES } from "../campaigns/templates/templates";
 
 export const CAMPAIGN_ROOMS = {
   home: "Campaigns",
-  sequences: "Sequences",
+  sequences: "Campaigns",
   /** Where a sequence or a one-off is begun (decision 0065). */
   new: "New",
   library: "Messages",
@@ -104,15 +104,6 @@ export const LIBRARY_STARTER_WORDS = {
    * approval of the version releases nobody, so the reason stands and the review is a clause of its own.
    */
   whatsappSentForReview: "WhatsApp checks its new wording first.",
-  /**
-   * A new campaign named by a starter, on channels none of which its message holds at once: a WhatsApp version in
-   * review carries nothing until WhatsApp approves it, and once sent it cannot be taken back, so nothing is filed.
-   * `on` is where it was asked to go, `could` where the starter would carry it at once (null: nowhere).
-   */
-  waitsForWhatsApp: (title: string, on: string, could: string | null): string =>
-    could
-      ? `The “${title}” starter can send nothing ${on} until WhatsApp approves its WhatsApp version: let the campaign go ${could} too, or start it once WhatsApp has.`
-      : `The “${title}” starter can send nothing ${on} until WhatsApp approves its WhatsApp version: start the campaign once WhatsApp has.`,
   /**
    * The starter was judged and filing it failed, so nothing that uses it was started or saved (a version refused, or none
    * to send). Filing is the use's own: there is no other place to add it from (the clean list, 14 Nov 2026).

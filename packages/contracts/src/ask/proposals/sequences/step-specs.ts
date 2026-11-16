@@ -359,7 +359,7 @@ export const sequenceMakeSpec: ProposalSpec = {
   receipt: ({ payload: pl }, data) => {
     const first = rec(pl.first);
     const on = rec(data).state === "on";
-    if (first.starts !== "leads") return on ? "The sequence is on" : "Kept as a draft: nothing goes yet";
+    if (first.starts !== "leads") return on ? "The campaign is on" : "Kept as a draft: nothing goes yet";
     // The canvas's receipt for New, mid-pile: who went in it, and that it is a draft.
     const name = asText(first.name).trim();
     const added = Number(rec(data).added) || 0;
@@ -380,7 +380,7 @@ export const sequenceMakeSpec: ProposalSpec = {
       const id = asText(u.sequence_id);
       return id ? { route: "DELETE sequences/[id]", params: { id } } : refuseWith(PROPOSAL_WORDS.noUndo);
     },
-    receipt: () => "The sequence is gone again",
+    receipt: () => "The campaign is gone again",
   },
   made: (_p, data) => asText(rec(data).id),
   open: (_p, outcome) => (outcome?.made ? sequenceRoute(outcome.made.id) : SEQUENCES_ROUTE),

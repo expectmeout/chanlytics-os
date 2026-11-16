@@ -41,7 +41,7 @@ export const sequencesOverride: SurfaceOverride = {
       },
       {
         tables: ["lead_rounds"],
-        why: "a search's round finds leads; the list reads who is on a sequence's list and each one's own row, which it hears",
+        why: "a search's round finds leads; the list reads who is on a campaign's list and each one's own row, which it hears",
       },
     ],
   }),

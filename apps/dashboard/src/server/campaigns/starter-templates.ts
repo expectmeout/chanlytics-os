@@ -36,10 +36,10 @@ import {
   PLAYBOOK_LIMITS,
   campaignMessageOf,
   channelNeverCarries,
-  channelsWords,
   defaultParamSpecs,
   enrolPurpose,
   messageFitsMoment,
+  messageGoesBy,
   messageHolds,
   starterByKey,
   startersForTrigger,
@@ -54,6 +54,7 @@ import {
   triggerWords,
   validateTemplateDraft,
   type AskedPurpose,
+  type CampaignMessage,
   type ConsentChannel,
   type OwnVersionChannel,
   type ParamSpec,
@@ -66,6 +67,7 @@ import {
   TEMPLATE_VALUE_WORDS,
   parseChannels,
   playbookNumber,
+  refuseMessageNoTickHolds,
   refuseWithoutBookingLink,
   refuseWithoutReviewLink,
 } from "@chanlytics/core";
@@ -440,12 +442,17 @@ function asFiled(
 
 /**
  * The channels a starter's campaign goes by (checkStarterPlaybook): those named, else those its message holds at once and
- * WhatsApp where there is a number and its version may yet send, its people there held until WhatsApp approves it. Refused
- * where it would go by none its message holds at once: WhatsApp named where there is no number says a number is needed
- * (no approval is coming), and otherwise that it waits for WhatsApp, with where it could go at once.
+ * WhatsApp where there is a number and its version may yet send, its people there held until WhatsApp approves it. It is
+ * a campaign where its message, as the filing leaves it (asFiled), goes by one of them, by the rule a campaign on a
+ * message on file is held to (core refuseMessageNoTickHolds over contracts messageGoesBy, the one picker rule): a channel
+ * it holds at once, or WhatsApp while WhatsApp checks its words, the campaign's people waiting for that check as a
+ * sequence picked in New waits (core paced.ts). By WhatsApp alone it was refused until WhatsApp approved the version, and
+ * nothing could be started. Refused where it goes by none: WhatsApp named where there is no number says a number is
+ * needed (no approval is coming), and otherwise each channel says why not in the message's own sentence for it (a version
+ * WhatsApp asked a change to, a text the starter has none of).
  */
 function starterChannels(
-  title: string,
+  starter: StarterTemplate,
   named: ConsentChannel[] | null,
   held: Awaited<ReturnType<typeof heldAtOnce>>,
 ): ConsentChannel[] {
@@ -458,11 +465,8 @@ function starterChannels(
   if (channels.length === 0) throw new AppError("validation", LIBRARY_STARTER_WORDS.pickAChannel);
   if (channels.some((c) => atOnce.includes(c))) return channels;
   if (channels.includes("whatsapp") && !number) throw new AppError("validation", LIBRARY_WORDS.writeNeedsNumber);
-  const could = atOnce.filter((c) => !channels.includes(c));
-  throw new AppError(
-    "validation",
-    LIBRARY_STARTER_WORDS.waitsForWhatsApp(title, channelsWords(channels), could.length ? channelsWords(could) : null),
-  );
+  refuseMessageNoTickHolds(asFiled(starter, held, channels), channels);
+  return channels;
 }
 
 /**
@@ -472,10 +476,10 @@ function starterChannels(
  * moment offered here, contracts momentOffered); the starter is that moment's own and still offered, takes no words of its
  * own, and its kind of message fits the class (contracts messageFitsMoment); its numbers keep their bounds (core
  * playbookNumber); a channel it names is one its purpose carries (contracts channelNeverCarries). And it goes by a channel
- * its message holds at once (heldAtOnce): a WhatsApp version in review carries nothing until WhatsApp approves it, so a
- * campaign on that alone is refused and nothing is filed. Named none, it goes by the channels held at once and by WhatsApp
- * where there is a number, its people there held until WhatsApp approves, as a run holds the people on any channel not
- * ready yet. POST playbooks runs it before it files (withStarterMessage), and Ask's starter card runs it at the card
+ * its message goes by once filed (starterChannels): one it holds at once, or WhatsApp while WhatsApp checks its words, its
+ * people there held until WhatsApp approves, as a run holds the people on any channel not ready yet. Named none, it goes
+ * by the channels held at once and by WhatsApp where there is a number. POST playbooks runs it before it files
+ * (withStarterMessage), and Ask's starter card runs it at the card
  * (act/playbook/playbook.ts proposeOnStarter): one judgement, in one set of words.
  */
 export async function checkStarterPlaybook(
@@ -513,7 +517,7 @@ export async function checkStarterPlaybook(
   // WhatsApp named for an offer no one here can be sent by it (a US number): refused in the pause's own words.
   if (named?.includes("whatsapp") && !held.whatsappWritten && held.whatsappOffers?.why)
     throw new AppError("validation", held.whatsappOffers.why, undefined, { mend: null });
-  const channels = starterChannels(starter.title, named, held);
+  const channels = starterChannels(starter, named, held);
   return {
     starter,
     params,
@@ -529,9 +533,9 @@ export async function checkStarterPlaybook(
  * A new campaign named by a starter's key and no message (Ask's first-day card, the moment spec's A0, D23): judged whole
  * first (checkStarterPlaybook: a refused card files nothing and asks nothing of Meta), then the starter is added as the
  * composer's one press adds it (fileStarters: in English, on the channels the campaign goes by), then the campaign goes by
- * that message, its slots filled with the starter's own sources. A starter that could not be filed so its message holds
- * one of those channels starts nothing (a version a database refused). A body with a message of its own, or with no key,
- * is the body as it came, and no starter is filed.
+ * that message, its slots filled with the starter's own sources. A starter that could not be filed so its message
+ * carries the campaign as it was judged (filedCarries) starts nothing (a version a database refused). A body with a
+ * message of its own, or with no key, is the body as it came, and no starter is filed.
  */
 export async function withStarterMessage(
   ctx: RouteContext,
@@ -548,12 +552,23 @@ export async function withStarterMessage(
     channels: judged.channels,
     language: judged.language,
   });
-  const holds = message ? messageHolds(message) : null;
-  if (!result || !message || !judged.channels.some((c) => holds?.[c])) throw notFiled(result);
+  if (!result || !message || !filedCarries(judged, message)) throw notFiled(result);
   return {
     body: { ...rest, template_id: message.anchor.id, params: judged.params, channels: judged.channels },
     starter: { key, status: result.status, meta_status: result.meta_status },
   };
+}
+
+/**
+ * Whether the filing left the starter's message able to carry the campaign as it was judged. Judged on a channel its
+ * message holds at once (its email, its text, a WhatsApp version already approved), it starts where the filing left one
+ * of those held: a version a database refused starts nothing, though its WhatsApp version is with WhatsApp. Judged on
+ * WhatsApp's check alone (starterChannels), it starts where that version is with WhatsApp, being checked.
+ */
+function filedCarries(judged: StarterJudged, message: Pick<CampaignMessage, "versions">): boolean {
+  const held = (m: Pick<CampaignMessage, "versions">) => judged.channels.filter((c) => messageHolds(m)[c]);
+  if (held(judged.message).length > 0) return held(message).length > 0;
+  return judged.channels.some((c) => messageGoesBy(message).includes(c));
 }
 
 /* ---- A starter filed the first time something uses it ---- */

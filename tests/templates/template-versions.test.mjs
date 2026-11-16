@@ -235,7 +235,7 @@ test("writing a version: who may, and what is said in the person's words before 
     post(write({ name: "reach_out_0123456789abcdef0123456789abcdef", channel: "sms", body: "Hi" })),
     "validation",
     400,
-    "A sequence to leads sends email only.",
+    "Cold email sends email only.",
   );
   await refused(post(write({ subject: "  " })), "validation", 400, "Give the email a subject.");
   await refused(post(write({ subject: null })), "validation", 400, "Give the email a subject.");
@@ -1403,7 +1403,7 @@ test("Start judges a sequence whole before it files a ready-made starter or the 
     assert.deepEqual(w.calls, [], `${what}: nothing filed, nothing sent to WhatsApp`);
     assert.deepEqual(tables.templates, [], what);
   }
-  assert.equal(made.length, 0, "and no sequence made");
+  assert.equal(made.length, 0, "and no campaign made");
   // The link on file: the starter is filed (its email, the channel the sequence goes by), then the sequence is made on it.
   const { tables, w, made: ok } = start([starter], "https://book.example/luna");
   assert.deepEqual(await ok, { made: id(80), kind: "sequence", state: "on" });

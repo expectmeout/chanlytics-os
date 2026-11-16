@@ -181,7 +181,7 @@ const NOT_BY_HAND = z.literal(false, { error: NO_SENDING_BY_HAND });
 export const LEAD_FIRST_BODY = z.strictObject({
   starts: z.literal("leads"),
   name: z.string().trim().min(1, "Name it.").max(REACH_OUT_NAME_MAX, `At most ${REACH_OUT_NAME_MAX} characters.`),
-  from: anId("Which sequence?").optional(),
+  from: anId("Which campaign?").optional(),
   list_id: anId("Which list?").optional(),
   search_id: anId("Which search?").optional(),
   source_search_id: anId("Which search?").optional(),

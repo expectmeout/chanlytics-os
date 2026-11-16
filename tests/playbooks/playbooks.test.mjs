@@ -404,9 +404,9 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   // Each sequence class's row says it is what a new sequence starts as (decision 0064): each keeps its own mode.
   assert.equal(
     POLICY_CLASS_WORDS.reengage.note,
-    "how a new win-back sequence starts · each keeps its own on its page, and asks you before its first batch and after new words",
+    "how a new win-back campaign starts · each keeps its own on its page, and asks you before its first batch and after new words",
   );
-  assert.match(POLICY_CLASS_WORDS.campaign.note, /^how a new offer or welcome sequence starts · /);
+  assert.match(POLICY_CLASS_WORDS.campaign.note, /^how a new offer or welcome campaign starts · /);
   assert.match(POLICY_CLASS_WORDS.follow_up.note, /^how the proposal follow-up and filling a cancellation start · /);
   assert.equal(POLICY_CLASS_WORDS.follow_up.name, "Follow-ups", "the row names both moments under it (0082)");
   assert.ok(
@@ -419,7 +419,7 @@ test("the page and its doors: Campaigns is real (Sequences, decision 0060), and 
   const { SURFACE_STATES, ROUTE_SURFACE } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   for (const route of ["campaigns", "outbound"]) assert.equal(SURFACE_STATES[route], "real", `${route}: flipped`);
   // The gate waits on what each draws first: Campaigns is Sequences' list; the old Outbound, a door, its playbooks.
-  assert.equal(ROUTE_SURFACE.campaigns, "sequences", "campaigns: the gate waits on Sequences' list");
+  assert.equal(ROUTE_SURFACE.campaigns, "sequences", "campaigns: the gate waits on Campaigns' list");
   assert.equal(ROUTE_SURFACE.outbound, "playbooks", "outbound: the gate waits on its surface");
   const routes = readCode("apps/dashboard/app/api/v1/playbooks/route.ts");
   assert.ok(
@@ -606,7 +606,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   assert.equal(
     cardOpenRoute({ kind: "playbook", payload: {} }),
     "campaigns/sequences",
-    "a playbook card opens Sequences",
+    "a playbook card opens Campaigns",
   );
   const { ASK_DEFINITIONS } = await importSrc("apps/dashboard/src/server/ask/prompt/stable-system.ts");
   assert.ok(ASK_DEFINITIONS.playbook.startsWith("A standing rule"));

@@ -293,19 +293,19 @@ export async function findBookedSince(
 }
 
 /**
- * Who a message went to and when it left: the person a booking link's event is about. Null for one no person holds.
- * `campaign`: the message is a campaign's own (a template sent, the system's words, or a send of a sequence's batch
- * names it), not the receptionist or a member answering someone on their thread.
+ * Who a message went to, when it left and on which thread: the person a booking link's event is about. Null for one no
+ * person holds. `campaign`: the message is a campaign's own (a template sent, the system's words, or a send of a
+ * sequence's batch names it), not the receptionist or a member answering someone on their thread.
  */
 export async function findMessageSentTo(
   db: Db,
   tenantId: TenantId,
   messageId: string,
-): Promise<{ contactId: ContactId; at: string; campaign: boolean } | null> {
+): Promise<{ contactId: ContactId; at: string; campaign: boolean; conversationId: string | null } | null> {
   const [message, send] = await Promise.all([
     db
       .from("messages")
-      .select("contact_id, created_at, channel_ts, type, sender")
+      .select("contact_id, conversation_id, created_at, channel_ts, type, sender")
       .eq("tenant_id", tenantId)
       .eq("id", messageId)
       .maybeSingle(),
@@ -319,7 +319,23 @@ export async function findMessageSentTo(
     contactId: data.contact_id,
     at: data.channel_ts ?? data.created_at,
     campaign: send.data.length > 0 || data.type === "template" || data.sender === "system",
+    conversationId: data.conversation_id,
   };
+}
+
+/**
+ * When the person last wrote on WhatsApp in a thread (null: never, or no such thread), read through its one accessor
+ * (`last_inbound_on_whatsapp`, 00485): their open chat's clock, which a follow-up's hour keeps inside (decision 0135).
+ */
+export async function findWhatsAppClock(db: Db, tenantId: TenantId, conversationId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("conversations")
+    .select("last_inbound_on_whatsapp")
+    .eq("tenant_id", tenantId)
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "occasions: when they last wrote on WhatsApp");
+  return data?.last_inbound_on_whatsapp ?? null;
 }
 
 /** The batch of this step that still waits for its owner, or null: while its words are new, the next person waits behind it. */

@@ -614,8 +614,8 @@ test("after the first run, with the calendar in, Today's card carries one door t
     to: "campaigns/sequences/new:moment:visit_tomorrow",
     put: {
       week: "Put off for a week.",
-      good: "Off your list. Turn it on any time in Sequences.",
-      home: "Turn it on any time in Sequences.",
+      good: "Off your list. Turn it on any time in Campaigns.",
+      home: "Turn it on any time in Campaigns.",
       cost: null,
     },
     back: false,
@@ -686,7 +686,7 @@ test("the reminder's row, skipped, is put off as a row is: the member's, on ever
   assert.deepEqual([back.remindSkipped, back.remindBack], [false, true]);
   const remind = setupCardOf(back).remind;
   assert.equal(remind.back, true);
-  assert.equal(remind.put.good, "Off your list. Turn it on any time in Sequences.");
+  assert.equal(remind.put.good, "Off your list. Turn it on any time in Campaigns.");
 });
 
 test("Today's reminder door stands only where Campaigns can make the reminder: a calendar link connected", () => {

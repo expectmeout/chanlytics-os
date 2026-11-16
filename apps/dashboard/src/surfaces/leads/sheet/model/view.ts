@@ -75,15 +75,15 @@ export const LEAD_SHEET_WORDS = {
   whatWeKeep: "What we keep",
   noListing: "No listing",
   /** Contact: where the sequence writes, and changing who it writes to. */
-  writesHere: "The sequence writes here",
+  writesHere: "The campaign writes here",
   writeHere: "Write here",
   checkedMailbox: "Mailbox checked",
   notConfirmed: "Not confirmed",
   emailOnSite: "Email found on its contact page",
   /** Sequence, before one: the sequence Add goes to and the emails they'd get, or why none can have them. */
   ifAdded: "If you add them",
-  noPick: "Pick a sequence to see the emails they'd get.",
-  noEmailToWrite: "No email to write to: no sequence can take them. Call them instead.",
+  noPick: "Pick a campaign to see the emails they'd get.",
+  noEmailToWrite: "No email to write to: no campaign can take them. Call them instead.",
   openSequence: (name: string) => `Open ${name}`,
   /** The lead's More: the rare acts. */
   menu: {
@@ -91,7 +91,7 @@ export const LEAD_SHEET_WORDS = {
     copy: "Copy details",
     copied: "Copied what is known of them",
     never: "Never write to them again",
-    neverHint: "Stops every sequence",
+    neverHint: "Stops every campaign",
     erase: "Erase this lead",
   },
   /** The picker: a step of the same sheet. */
@@ -100,15 +100,15 @@ export const LEAD_SHEET_WORDS = {
     titleMany: (n: number) => `Add ${n} to`,
     sub: "Tap one to add. It becomes the pick for this search.",
     canJoin: (name: string) => `${name} can join any of these`,
-    yours: "Your lead sequences",
-    none: "No sequence takes leads yet. Make one by name; you write its emails when you're done here.",
-    newOne: "New sequence",
+    yours: "Your lead campaigns",
+    none: "No campaign takes leads yet. Make one by name; you write its emails when you're done here.",
+    newOne: "New campaign",
     newLine: "Name it now; write its emails when you're done here",
     newLineMany: (n: number) => `Name it; the ${n} wait in it as a draft`,
     pick: "the pick for this search",
     /** One email instead of a sequence: the draft for their own inbox (the 4 Nov 2026 review: no way to it was left). */
     write: "Write one email instead",
-    writeLine: "Just this email, no sequence",
+    writeLine: "Just this email, no campaign",
   },
   /** Write to them: one email, written here (POST leads/:id/draft), sent from the workspace's mailbox. */
   write: {
@@ -119,7 +119,7 @@ export const LEAD_SHEET_WORDS = {
   bulk: {
     noEmail: (n: number) => (n === 1 ? "1 has no email" : `${n} have no email`),
     addTo: (n: number, name: string) => `Add ${n} to ${name}`,
-    addAny: (n: number) => `Add ${n} to a sequence`,
+    addAny: (n: number) => `Add ${n} to a campaign`,
     choose: "Choose where they go",
     stay: (n: number) => (n === 1 ? "1 couldn't join and stays selected" : `${n} couldn't join and stay selected`),
     later: "Later",
@@ -128,7 +128,7 @@ export const LEAD_SHEET_WORDS = {
   },
   /** New: a name and a start, mid-pile. */
   make: {
-    title: "New sequence",
+    title: "New campaign",
     sub: (name: string) => `${name} goes in it. Nothing sends until you start it.`,
     subMany: (n: number) => `The ${n} go in it. Nothing sends until you start it.`,
     name: "Name",
@@ -147,8 +147,8 @@ export const LEAD_SHEET_WORDS = {
     // into a new sequence by Ask's draft, which failed saying no search of med spas was ready).
     noneEmail: (n: number) =>
       n === 1
-        ? "This lead has no email yet, so an email sequence can't reach it."
-        : `None of these ${n} has an email yet, so an email sequence can't reach them.`,
+        ? "This lead has no email yet, so an email campaign can't reach it."
+        : `None of these ${n} has an email yet, so an email campaign can't reach them.`,
     someNoEmail: (k: number, n: number) =>
       `${k} of the ${n} ${k === 1 ? "has" : "have"} no email yet, so ${k === 1 ? "it won't be" : "they won't be"} written to.`,
     // What a draft Ask could not write left: nothing, and why, in Ask's words after it.
@@ -162,7 +162,7 @@ export const LEAD_SHEET_WORDS = {
     later: (n: number) => `${n} for later`,
     goThrough: "Go through them",
     approve: runApproveWords,
-    write: "Write the emails in Sequences",
+    write: "Write the emails in Campaigns",
     writeNote: (n: number) => `Next: one set of emails for the ${n}, in the draft's record. Back brings you here.`,
     approveNote: "Their first batch waits for your OK: it carries leads you added.",
   },
@@ -170,9 +170,9 @@ export const LEAD_SHEET_WORDS = {
   of: (at: number, of: number, search: string) => `${at} of ${of} · ${search}`,
   /** Adds go to: the pick, said on Leads over the rows. */
   addsGoTo: "Adds go to",
-  noneYet: "Pick a sequence",
+  noneYet: "Pick a campaign",
   /** Its last item: every lead shown, to a sequence of their own (Add opens at New). */
-  newSequence: "New sequence for these…",
+  newSequence: "New campaign for these…",
 } as const;
 
 /* ------------------------------------------------------------------------------------------------- the state -- */

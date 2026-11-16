@@ -416,6 +416,20 @@ test("sizing: the probe spreads 25 across the terms; the main phase divides the 
     { terms: ["strength coach"], perTerm: [49], waiting: [], later: ["personal trainer", "kettlebell class"] },
     "a failed term due another try goes first, past what its failed run read",
   );
+  const zip = { ...PLAN, area: { ...PLAN.area, kind: "zip", label: "near 78704", radius_m: 8_000, zip: "78704" } };
+  assert.deepEqual(
+    [
+      mainAsk(zip, 4, 0.5, null, 2, { read: new Map(), begun: new Set() }, 120).perTerm,
+      mainAsk(zip, 4, 0.5, null, 2, { read: new Map(), begun: new Set() }).perTerm,
+    ],
+    [[120], [8]],
+    "a leg's page: a ZIP's whole 120, where four still wanted at a half asked for 8",
+  );
+  assert.deepEqual(
+    mainAsk(PLAN, 100, 0.5, null, 2, { read: new Map(), begun: new Set() }, 120).perTerm,
+    [200],
+    "past the page, a city's leg is still sized from its yield",
+  );
 });
 
 test("after the probe: more than 40% left out asks about the most common EXCLUSION, never a required criterion; otherwise the main phase goes with the yield the contact standard measures", () => {

@@ -922,8 +922,10 @@ mode, in full under auto. A new campaign on a moment whose starter is not on fil
 (`starter_key`) and is judged whole before anything is filed (`checkStarterPlaybook`, the judgement `POST playbooks`
 runs before its Approve files the starter): it goes by a channel the starter's message holds at once, an email or text
 version filed with it or a WhatsApp version already approved, and by WhatsApp beside them where the workspace has a
-number, its people there held until WhatsApp approves; a card that would go by none it holds at once is refused in
-words, with nothing filed and Meta never called. A running twin on the same moment, list and message is refused
+number, its people there held until WhatsApp approves. By WhatsApp alone it is a card while WhatsApp checks the
+starter's words (the one picker rule, contracts `messageGoesBy`, as a sequence picked in New is made), its people
+waiting for the check; a card that would go by none its message goes by (a version WhatsApp asked a change to) is
+refused in the message's own words, with nothing filed and Meta never called. A running twin on the same moment, list and message is refused
 unless named apart, and a card going by email or text says what the month's allowance holds back. Ask's doors on
 Campaigns: Ask in the head between the Library and New message from 721px up (`cmh-ask`; under it the shell's ✦),
 "Set up my campaigns" beside the first day's hinted Turn on for a role that may approve, sent as Ask opens so no field

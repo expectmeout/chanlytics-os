@@ -13,7 +13,7 @@ export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "lead_member",
-  input: z.strictObject({ sequence_id: z.string().regex(UUID, "Which sequence?").nullable() }),
+  input: z.strictObject({ sequence_id: z.string().regex(UUID, "Which campaign?").nullable() }),
   handle: ({ ctx, member, input }) =>
     aimSearch(ctx, member.tenantId, requireUuid(ctx.params.id, "search"), input.sequence_id),
 });
