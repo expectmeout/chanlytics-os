@@ -405,7 +405,7 @@ async function announceLeg(
   await recordNotification(tenantId, {
     kind: "number",
     title: `Your phone line is ready: ${shown}`,
-    body: `The receptionist answers calls on ${shown}. Call it from your own phone to hear it; the Live page shows the call as it happens, and Setup now reads the line as ready.`,
+    body: `AI answers calls on ${shown}. Call it from your own phone to hear it. The Live page shows the call as it happens, and Setup now shows the number as ready.`,
     route: FIRST_RUN_ROUTE,
     about: { type: "setup", id: channelId },
   });

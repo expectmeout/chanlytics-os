@@ -8,7 +8,7 @@ import { isVisionMime, toBase64, VISION_MAX_BYTES } from "./vision";
 import { GO, type Answering } from "./context";
 import { speaksUnattended } from "./reply-posture";
 import { modeSaid } from "./steps";
-import { escalationOf, handledOf, type WayOut } from "./handled";
+import { escalationOf, handledOf, TEAM_HAS_IT_NOTE, type WayOut } from "./handled";
 
 /** Whether the receptionist will look at this photo, and how it says what it will not read. */
 export function seeingOf(at: Answering) {
@@ -62,7 +62,7 @@ export function seeingOf(at: Answering) {
         escalated,
         tell(escalated, {
           said: `[${n.rawType} message]`,
-          answered: "(no reply sent — a person on your team has this thread)",
+          answered: TEAM_HAS_IT_NOTE,
           why: "wrote_while_held",
         }),
       ]);

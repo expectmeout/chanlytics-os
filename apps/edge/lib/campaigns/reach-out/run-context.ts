@@ -27,6 +27,7 @@ import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "@c
 import {
   clockWhen,
   coldBatchGoesNotice,
+  coldWaitsTitle,
   DbFailure,
   DEFAULT_TIMEZONE,
   handOf,
@@ -254,10 +255,10 @@ export async function getReachOutRunContext(
           about: { type: "broadcast", id: runId },
           // Its sequence's name first, in the words every run waiting says (the Campaigns wiring review's lane 7: it said
           // "A reach-out waits for you: X", a noun that left the copy).
-          subject: `${row.name} waits for your OK`,
+          subject: coldWaitsTitle(row.name),
           // How its wait ends is the wait rule's (contracts waitEndsWords, leads_batch): it has no day to pass. Said of any
           // batch alike, first emails or follow-ups, from a search or a list; its when as every batch's (contracts clockWhen).
-          body: `${planned} ${planned === 1 ? "email" : "emails"}, the first ${clockWhen(firstAt, tz, now.getTime())}. Approve them, or skip the run. ${waitEndsWords("leads_batch")}.`,
+          body: `${planned} ${planned === 1 ? "email" : "emails"}, the first ${clockWhen(firstAt, tz, now.getTime())}. Approve them, or skip this send. ${waitEndsWords("leads_batch")}.`,
         },
       );
     },

@@ -62,12 +62,9 @@ const OWN_WORDS: ReadonlyMap<string, string> = new Map([
   ["location", "shared a location"],
   ["contacts", "sent a contact card"],
   ["share", "shared a post"],
-  ["message not recorded", "their message could not be recorded"],
-  ["opt-in not confirmed", "the confirmation of their yes could not be sent"],
-  [
-    "low confidence, not held",
-    "it was not sure enough to answer, and nothing was sent: its reply could not be held for you",
-  ],
+  ["message not recorded", "their message couldn't be saved"],
+  ["opt-in not confirmed", "their yes couldn't be confirmed"],
+  ["low confidence, not held", "AI wasn't sure enough to answer, and nothing was sent or kept for you"],
 ]);
 
 /** Whether these words are one of the closed set of hold reasons (contracts ESCALATION_REASONS). */
@@ -170,12 +167,12 @@ export function handoffMessage({
     kind: "handoff",
     route: ctx.route ?? "inbox",
     about: ctx.about ?? null,
-    subject: `${name} needs a person — ${reasonWords}`,
+    subject: `${name} needs a person · ${reasonWords}`,
     body:
       `They wrote: “${userText}”\n` +
       `${botText}\n\n` +
       `${onDm ? where : `${where} · +${threadId}`}\n` +
-      (ctx.pausedHours ? `${act.replace(/\.$/, "")} — AI is paused on this thread for ${ctx.pausedHours}h.` : act),
+      (ctx.pausedHours ? `${act.replace(/\.$/, "")}. AI is paused on this conversation for ${ctx.pausedHours}h.` : act),
     redactedBody: `A ${where} conversation needed a person (${reasonWords}), and nobody could be told.`,
   };
 }

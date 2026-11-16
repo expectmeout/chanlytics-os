@@ -63,26 +63,26 @@ test("it is kept once a workspace a day", () => {
 
 test("one run that waits is named by its sequence, with how many emails and since when", () => {
   const told = coldWaitsNotice([MOVERS], TZ, MORNING);
-  assert.equal(told.subject, "Movers in Austin still waits for your OK");
+  assert.equal(told.subject, "Movers in Austin still waits for your approval");
   assert.equal(
     told.body,
-    "8 emails to businesses your search found have waited since Nov 8. Approve them, or skip the run. " +
+    "8 emails to businesses your search found have waited since Nov 8. Approve them, or skip this send. " +
       "Waits for you to approve. Nothing new goes out until you do, and you're reminded each morning.",
   );
   assert.equal(told.runId, "r1", "the bell's row opens the run");
   const one = coldWaitsNotice([{ ...MOVERS, emails: 1 }], TZ, MORNING);
   assert.match(
     one.body,
-    /^1 email to businesses your search found has waited since Nov 8\. Approve it, or skip the run\./,
+    /^1 email to businesses your search found has waited since Nov 8\. Approve it, or skip this send\./,
   );
 });
 
 test("several runs are counted, the longest-waiting named first, and the row opens that one", () => {
   const told = coldWaitsNotice([MOVERS, DENTISTS], TZ, MORNING);
-  assert.equal(told.subject, "2 cold email runs still wait for your OK");
+  assert.equal(told.subject, "2 cold email sends still wait for your approval");
   assert.match(
     told.body,
-    /^12 emails to businesses your searches found have waited since Nov 8: Movers in Austin \(8\), Dentists in Tampa \(4\)\. Approve or skip each run\./,
+    /^12 emails to businesses your searches found have waited since Nov 8: Movers in Austin \(8\), Dentists in Tampa \(4\)\. Approve or skip each one\./,
   );
   assert.equal(told.runId, "r1");
   const many = [MOVERS, DENTISTS, FRESH, run("r4", "Vets · 2026-11-07", 2, "2026-11-07T20:00:00.000Z")];

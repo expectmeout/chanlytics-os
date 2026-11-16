@@ -255,7 +255,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
     [w.heldHead, w.heldNote.closed, w.heldNote.gated],
     [
       "1 held by the check",
-      "It waits for your say. Approve sends only the 30 ready.",
+      "It waits for your approval. Approve sends only the 30 ready.",
       "It waits for an owner's or operator's say.",
     ],
   );
@@ -371,8 +371,8 @@ test("a run approved or going says the same facts in its state: going today, the
   const sending = live("sending");
   assert.deepEqual([sending.k, sending.count.words, sending.approve], ["Sending", "going today", null]);
   assert.deepEqual(sending.when, { lead: "Going now", rest: "one every 12 minutes as each business opens" });
-  assert.equal(sending.heldNote.closed, "It waits for your say; the run goes on without them.");
-  assert.equal(sending.heldNote.open, "It waits for your say; the run goes on without them.");
+  assert.equal(sending.heldNote.closed, "It waits for your approval. The run goes on without them.");
+  assert.equal(sending.heldNote.open, "It waits for your approval. The run goes on without them.");
   assert.deepEqual([sending.dock.lead, sending.dock.said], ["Going now", "Stop keeps the rest from going"]);
   assert.equal(sending.parts[0].words, "30 going");
   const scheduled = live("scheduled");
@@ -596,7 +596,7 @@ test("the chain row's own words: its pace from its mailboxes, its path, the held
     ],
   };
   assert.deepEqual(report(CHAIN, held, REACH, { from: null, share: 30 }).waiting, {
-    text: "3 wait for your say",
+    text: "3 wait for your approval",
     run_id: "b3",
   });
   assert.equal(report(CHAIN, REPORT, REACH, { from: null, share: 30 }).waiting, null);

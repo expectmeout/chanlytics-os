@@ -16,6 +16,7 @@ import {
   EMPTY_READ_STATE,
   NOTHING_WAITS_KNOWN,
   buildNotificationFeed,
+  coldWaitsTitle,
   closeSettledNotices,
   noticeStillWaits,
   serverNotificationRows,
@@ -104,6 +105,25 @@ test("a run approved or skipped reads its 'is ready' row as read, in the old wor
       false,
       state,
     );
+});
+
+test("cold email's waiting send is found by the title the edge keeps today, and by the one it kept before (the words pass, 15 Nov 2026)", () => {
+  // The edge's title is contracts' (coldWaitsTitle, reach-out run-context.ts), so the rule and the row cannot part again.
+  assert.equal(coldWaitsTitle("Spring"), "Spring waits for your approval");
+  for (const title of [
+    coldWaitsTitle("Spring"),
+    "Spring waits for your OK",
+    "“Spring” is skipping people while it waits for your approval",
+  ]) {
+    const row = ready({ type: "broadcast", id: RUN }, title);
+    const asks = (state) =>
+      noticeStillWaits(
+        { ...serverNotificationRows({ notifications: [row], seen_at: null })[0] },
+        waitsOf({ runs: runs({ [RUN]: state }) }),
+      );
+    assert.equal(asks("pending_approval"), true, `${title}: still asks while its send waits`);
+    assert.equal(asks("sent"), false, `${title}: closed once its send has gone`);
+  }
 });
 
 test("unknown is not settled: a surface not read, a run it does not hold, or a read from before the row was kept close nothing", () => {

@@ -438,7 +438,7 @@ test("a customer's message the handler never finished with: flagged for a person
     );
     assert.match(w.tables.escalations[0].details, /never answered this/);
     assert.match(w.tables.escalations[0].details, /are you open tomorrow\?/, "the customer's words travel with it");
-    assert.match(w.tables.escalations[0].details, /No reply has been sent/);
+    assert.match(w.tables.escalations[0].details, /No reply was sent/);
     assert.deepEqual(told(w), ["cv-m-old"], "the hold's event, which tells the owner after the commit");
     assert.deepEqual([bell(w, A), line.mail()], [[], []], "and the sweep tells nobody itself");
     assert.ok(w.tables.messages.find((m) => m.id === "m-old").meta.processed_at, "stamped handled");
@@ -494,7 +494,7 @@ test("a hold the database refused is told by the sweep itself, in its own words:
       "each opens the conversation it is about, and names it",
     );
     assert.match(rows[0].body, /are you open tomorrow\?/);
-    assert.match(rows[0].body, /nothing will be sent on its own/);
+    assert.match(rows[0].body, /Nothing will be sent on its own/);
     assert.match(rows[1].body, /no job was left to send this/);
     assert.equal(line.mail().length, 2, "the owner's mail, for each");
   } finally {
@@ -604,7 +604,7 @@ test("a broadcast, a playbook's reminder, a reach-out's email, and a reply that 
     ]);
     assert.match(
       w.tables.escalations.find((e) => e.conversation_id === "cv-m-b").details,
-      /No reply has been sent/,
+      /No reply was sent/,
       "true with a broadcast on the thread: it was sent, and it was no reply",
     );
     for (const id of ["m-b", "m-p", "m-r", "m-f", "m-c", "m-q"])

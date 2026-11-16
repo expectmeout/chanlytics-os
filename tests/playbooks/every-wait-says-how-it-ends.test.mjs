@@ -101,7 +101,7 @@ test("the notices of a batch say its wait by the rule: ready (until its day ends
   assert.equal(coldBatchGoesNotice("Dentists", 1, "today 10:30 AM").subject.endsWith(": 1 business"), true);
   const skipped = skippedRunNotice("Win-back", 3, "quiet_30");
   assert.equal(skipped.subject, "“Win-back” didn’t go: nobody approved it");
-  assert.match(skipped.body, /^3 people waited for your OK until the day ended, and nothing was sent\./);
+  assert.match(skipped.body, /^3 people waited for your approval until the day ended, and nothing was sent\./);
   // Today's row for the waiting run says its wait by the same rule: a customer batch's ends with its day, a reach-out's
   // and a one-off's do not.
   const row = { state: "pending_approval", recipient_count: 4, when: "today", counts: { sent: 0, replied: 0 } };
@@ -139,7 +139,7 @@ test("REGRESSION: a reminder nobody approved told its owner its people were in l
   assert.equal(skipped.subject, "“Appointment reminder” didn’t go: nobody approved it");
   assert.equal(
     skipped.body,
-    "3 people waited for your OK until 21:00, and it did not reach them: no later batch sends it in its place. Open it to see who, and write to them yourself. The next day’s “Appointment reminder” waits for your OK too, until 21:00: its batches wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
+    "3 people waited for your approval until 21:00, and it didn’t reach them. No later send goes in its place. Open it to see who, and write to them yourself. The next day’s “Appointment reminder” waits for your approval too, until 21:00: its sends wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
   );
   // The message the day after one ends the same way, at the same hour, in the same words.
   assert.ok(
@@ -147,7 +147,7 @@ test("REGRESSION: a reminder nobody approved told its owner its people were in l
   );
   assert.match(
     skippedRunNotice("After the appointment", 1, "visited").body,
-    /^1 person waited for your OK until 21:00, and it did not reach them: no later batch sends it in its place\. /,
+    /^1 person waited for your approval until 21:00, and it didn’t reach them\. No later send goes in its place\. /,
   );
   // Every other moment's batch waits until its day ends, and its skip is drawn again on the next batch (a skipped run
   // touched nobody, 00453 gives back its places); so is a step after the first, and a run whose moment is not known. Its
@@ -173,7 +173,7 @@ test("REGRESSION: a reminder nobody approved told its owner its people were in l
     );
     assert.equal(
       skippedRunNotice("Win-back", 3, trigger).body,
-      "3 people waited for your OK until the day ended, and nothing was sent. They are in line for its next batch, which waits for your OK too: its batches wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
+      "3 people waited for your approval until the day ended, and nothing was sent. They are in line for its next send, which waits for your approval too: its sends wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
       String(trigger),
     );
   }

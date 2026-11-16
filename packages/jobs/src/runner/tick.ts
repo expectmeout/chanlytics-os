@@ -365,7 +365,7 @@ async function conclude(
     ports.log.error("job_settle_failed", { job_id: job.id, error: errText(e) });
     resumed = null;
     wreckage =
-      "What it was in the middle of could not be checked, so a message or broadcast may still show as sending.";
+      "What it was in the middle of couldn't be checked, so a message or a campaign send may still show as sending.";
   }
   ports.log.info("job_failed", {
     job_id: job.id,

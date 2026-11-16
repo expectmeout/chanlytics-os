@@ -59,7 +59,7 @@ test("each workspace whose 6 PM it is gets one line in the bell, of its own kind
         A,
         "reach_out_day",
         "Today's emails to leads",
-        "18 written · 2 wrote back, 1 interested · 1 said no · 3 wait for your say.",
+        "18 written · 2 wrote back, 1 interested · 1 said no · 3 wait for your approval.",
         "campaigns/sequences",
         "reach_out_day",
         "2026-09-28",

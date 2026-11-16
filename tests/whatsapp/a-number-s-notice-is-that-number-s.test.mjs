@@ -164,7 +164,7 @@ test("a rating whose read of the row fails writes nothing over nothing: the conf
   );
   assert.deepEqual(failuresIn(lines), [{ tenant_id: T, channel_id: "ch-new", step: "read", error: DOWN.message }]);
   assert.equal(result, "alerted", "it goes on: the webhook is already acknowledged");
-  assert.deepEqual(noteOf(tables), ["WhatsApp quality rating flagged"]);
+  assert.deepEqual(noteOf(tables), ["WhatsApp flagged your number"]);
 });
 
 test("a rating the row refuses is a line, where it was dropped, and the notice is still told", async (t) => {
@@ -175,7 +175,7 @@ test("a rating the row refuses is a line, where it was dropped, and the notice i
   assert.deepEqual(tables.tenant_channels, before);
   assert.deepEqual(failuresIn(lines), [{ tenant_id: T, channel_id: "ch-new", step: "write", error: DOWN.message }]);
   assert.equal(result, "alerted");
-  assert.deepEqual(noteOf(tables), ["WhatsApp quality rating flagged"]);
+  assert.deepEqual(noteOf(tables), ["WhatsApp flagged your number"]);
 });
 
 test("a rating kept keeps what else the config holds, and says nothing of a failure", async () => {

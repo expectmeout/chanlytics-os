@@ -999,7 +999,7 @@ test("an email intake that throws is claimed again five minutes later, then thir
   });
 
   assert.deepEqual([intake.state, intake.attempts], ["failed", 3]);
-  assert.equal(mailbox.last_error, "An email could not be taken in. Anything since then is in your Inbox as usual.");
+  assert.equal(mailbox.last_error, "Couldn't take in an email. Anything since then is in your Inbox as usual.");
   const told = L.left().mail;
   assert.deepEqual(
     told.map((m) => m.to),

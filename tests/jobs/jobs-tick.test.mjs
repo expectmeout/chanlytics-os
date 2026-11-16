@@ -164,7 +164,7 @@ test("a handler that throws is failed, settled as an unknown outcome and reporte
   assert.match(calls.alert[0].body, /Reference: job b \(outbound_send\): boom b\.$/, "the id and the error close it");
   assert.match(
     calls.alert[0].body,
-    /marked failed, so it is no longer shown as on its way/,
+    /marked as not sent, so it no longer shows as on its way/,
     "and what became of the message",
   );
   assert.deepEqual(tally(counts), {
@@ -300,11 +300,7 @@ test("a job whose settling threw is told as neither carrying on nor not starting
     const [first_line, ...rest] = calls.alert[0].body.split("\n\n");
     assert.match(first_line, first, what);
     assert.doesNotMatch(first_line, /will not start again|carries on in a fresh run\./, what);
-    assert.match(
-      rest[0],
-      /What it was in the middle of could not be checked/,
-      `${what}: the body says what is unknown`,
-    );
+    assert.match(rest[0], /What it was in the middle of couldn't be checked/, `${what}: the body says what is unknown`);
     assert.ok(logged("error", "job_settle_failed"), what);
   }
   // A job that settled keeps its words: the neutral line is for a settle that threw, and for no other.
@@ -765,7 +761,7 @@ test("a settlement that could not be written reaches the owner as exactly that",
     settled: [{ what: "message", changed: false, error: "permission denied" }],
   });
   await runTick(ports, OPTS);
-  assert.match(calls.alert[0].body, /could not be updated \(permission denied\)/);
+  assert.match(calls.alert[0].body, /couldn't be updated \(permission denied\)/);
   assert.ok(logged("error", "job_settle_failed"));
 });
 
@@ -775,7 +771,7 @@ test("a settlement that throws still leaves the owner told", async () => {
     throw new Error("socket hang up");
   };
   await runTick(ports, OPTS);
-  assert.match(calls.alert[0].body, /could not be checked/);
+  assert.match(calls.alert[0].body, /couldn't be checked/);
   assert.ok(logged("error", "job_settle_failed"));
 });
 

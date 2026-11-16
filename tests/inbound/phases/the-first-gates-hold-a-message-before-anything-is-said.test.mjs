@@ -52,7 +52,7 @@ test("a memory that cannot be read hands the conversation to a person, and answe
     w.seen.escalations.map((e) => e.reason),
     ["state_unavailable"],
   );
-  assert.match(w.seen.escalations[0].details, /could not read this thread's history/);
+  assert.match(w.seen.escalations[0].details, /couldn't read this conversation's history/);
   assert.deepEqual(w.seen.alerts, [], FROM_ITS_EVENT);
   assert.equal(w.seen.processed, 1, "marked handled, so a redelivery does not open it twice");
   assert.equal(w.seen.pauses.length, 0, "the receptionist did not speak, so it claims no pause");

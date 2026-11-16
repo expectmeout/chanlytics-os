@@ -2177,10 +2177,10 @@ test("lines: a line 'setting up' past its deadline is taken and resumed by sched
     // The first run's page (contracts FIRST_RUN_ROUTE), where the retired admin/setup moved.
     [T, "alert", "start", "line", worn],
   );
-  assert.equal(bell.title, "Your phone line hit a snag — a person at Chanlytics has it");
+  assert.equal(bell.title, "Setting up your phone line stopped · Chanlytics is on it");
   assert.equal(
     bell.body,
-    "Setting up +1 (305) 555-0100 stopped while connecting the number to AI. You can retry from Setup; we have been told and will finish it with you if the retry does not.",
+    "Setting up +1 (305) 555-0100 stopped while connecting the number to AI. You can try again from Setup. Chanlytics has been told, and will finish it with you if that doesn’t work.",
   );
 
   // The mail: the platform, twice -- the line given up on, then the first automatic try.

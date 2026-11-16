@@ -295,7 +295,7 @@ test("an email intake that died leaves the email flagged for a person, and marks
   ]);
   assert.equal(escalations.length, 1);
   assert.deepEqual([escalations[0].conversation_id, escalations[0].reason], [uuid(3), "email_review"]);
-  assert.match(escalations[0].details, /could not be taken in/);
+  assert.match(escalations[0].details, /couldn't be taken in/);
   assert.match(escalations[0].details, /reply from the Inbox/i, "what the person is to do, not who to blame");
 
   // Died before it stored anything: there is no thread to flag, and inventing
@@ -307,7 +307,7 @@ test("an email intake that died leaves the email flagged for a person, and marks
     { what: "email", changed: false, mailbox: "marked" },
   ]);
   assert.equal(escalations.length, 1, "nothing invented");
-  assert.match(mailboxes[0].last_error, /could not be taken in/);
+  assert.match(mailboxes[0].last_error, /Couldn't take in an email/);
   assert.doesNotMatch(
     mailboxes[0].last_error,
     /job|lease|error/i,

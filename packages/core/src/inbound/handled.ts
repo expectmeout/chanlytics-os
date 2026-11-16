@@ -44,6 +44,9 @@ export interface WayOut {
   reply: Reply;
 }
 
+/** What stands where AI's reply would, on a message that came while a person on the team had the conversation. */
+export const TEAM_HAS_IT_NOTE = "(no reply sent · a person on your team has this conversation)";
+
 /** A rule set the message aside: nothing was said and nobody was asked (a short code, a person's thread, a thumbs-up). */
 export const SET_ASIDE: WayOut = { escalation: "none", reply: "none" };
 

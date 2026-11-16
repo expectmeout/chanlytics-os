@@ -317,10 +317,10 @@ test("an old voice note or sticker Meta sent again after an outage is a person's
       ["stale"],
       name,
     );
-    assert.match(w.seen.refused[0].details, /minutes late — too old to answer automatically/, name);
+    assert.match(w.seen.refused[0].details, /minutes late, too late for AI to answer/, name);
     assert.deepEqual(
       w.seen.alerts.map((a) => [a.userText, a.botText]),
-      [[`[${m.type}]`, "(no reply sent — arrived too late to answer automatically)"]],
+      [[`[${m.type}]`, "(no reply sent · too late for AI to answer)"]],
       `${name}: a person is told what it was, here, since the database refused the hold`,
     );
     assert.equal(w.seen.media, 1, `${name}: kept for the person it is handed to`);
