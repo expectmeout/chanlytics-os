@@ -19,7 +19,8 @@ type Badges = Record<string, string | number | null | undefined>;
 
 const rowTip = (id: string) =>
   id === "inbox"
-    ? "Decisions waiting on you — agents hold until you call it"
+    ? // What the count is, in five words at most (docs/words.md, Tooltip): it said "agents hold until you call it".
+      "Conversations that need you"
     : id === "people"
       ? "Leads ready for you to call"
       : null;

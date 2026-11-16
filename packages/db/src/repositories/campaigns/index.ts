@@ -90,6 +90,7 @@ export {
   findWaitingBatchOf,
   findWhatsAppClock,
   leaveOccasions,
+  listMissedFollowed,
   listOccasionsDue,
   listOccasionSteps,
   listWaitingOccasions,

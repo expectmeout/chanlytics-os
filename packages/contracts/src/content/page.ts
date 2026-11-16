@@ -24,6 +24,15 @@ import {
   type PostDto,
   type PostPlace,
 } from "./posts";
+import { DAY_MS } from "../shared/time";
+
+/** How long a story stands on Instagram once it is up: a day, after which it is gone from the place. */
+const STORY_STANDS_MS = DAY_MS;
+
+/** Whether a post is up at its place now: a story only for its day (16 Nov 2026: one a week old still said "On Instagram"). */
+const postStandsNow = (post: PostDto, nowMs: number): boolean =>
+  post.status === "published" &&
+  !(post.kind === "story" && post.published_at && Date.parse(post.published_at) + STORY_STANDS_MS <= nowMs);
 
 /** How many made pieces a page holds, and the most one read answers (a page that has scrolled reads what it holds again). */
 export const CONTENT_PAGE = 24;
@@ -159,6 +168,18 @@ export function newestAtEachPlace(posts: readonly PostDto[]): PostDto[] {
 }
 
 /**
+ * Whether a stop (a post held or refused) is old news: a newer post of its piece came after it at its place (sent again, or
+ * let go), so the stop no longer speaks for that place, as a tile says one only while it is the newest there
+ * (newestAtEachPlace). `theirs` are its piece's posts, any order. The Calendar kept one amber after it was posted again.
+ */
+export function stopSuperseded(
+  stop: { file_id: string; place: string; created_at: string },
+  theirs: readonly { file_id: string; place: string; created_at: string }[],
+): boolean {
+  return theirs.some((p) => p.file_id === stop.file_id && p.place === stop.place && p.created_at > stop.created_at);
+}
+
+/**
  * Where a made piece stands, as its tile, its row and Today count it: a video that went nowhere is to be saved, never "ready to
  * post" (Ruben, 12 Nov 2026: no press here posts it); anything else, where its posts say (contentMarkOf).
  */
@@ -188,7 +209,14 @@ export function contentMarkOf(posts: readonly PostDto[], nowMs: number): Content
   if (going) return { is: "going", place: going.place };
   const timed = [...onItsWay].sort((a, b) => a.scheduled_for.localeCompare(b.scheduled_for))[0];
   if (timed) return { is: "timed", place: timed.place, at: timed.scheduled_for };
-  const up = newest.filter((p) => p.status === "published");
+  // A story past its day is gone from its place: an earlier post still up there is the one that stands.
+  const up = newest.flatMap((p) =>
+    postStandsNow(p, nowMs)
+      ? [p]
+      : p.status === "published"
+        ? posts.filter((q) => q.place === p.place && postStandsNow(q, nowMs)).slice(0, 1)
+        : [],
+  );
   if (up.length === 0) return { is: "ready" };
   const times = up.flatMap((p) => (p.published_at ? [p.published_at] : [])).sort();
   return { is: "posted", places: up.map((p) => p.place), at: times.at(-1) ?? null };

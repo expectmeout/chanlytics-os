@@ -354,10 +354,15 @@ const linkGoes = (i: VisitSheetInput): boolean =>
 const outcomeNow = ({ outcome, block }: VisitSheetInput): VisitSheetOutcome | null =>
   outcome && block.visit?.status === outcome.word ? outcome : null;
 
-/** Whether a sequence owes them a message for the Missed just said here (the door's answer, decision 0119). */
+/**
+ * Whether a sequence owes them a message for the Missed (decision 0119): the door's answer to a Missed just said here, or,
+ * on a sheet opened on it later, what the board's read found (VisitMark.followed), so they are not asked twice.
+ */
 const sequenceAnswers = (visitSheetInput: VisitSheetInput): boolean => {
   const outcome = outcomeNow(visitSheetInput);
-  return outcome?.word === "missed" && outcome.follows !== null;
+  if (outcome) return outcome.word === "missed" && outcome.follows !== null;
+  const visit = visitSheetInput.block.visit;
+  return visit?.status === "missed" && visit.followed === true;
 };
 
 /**

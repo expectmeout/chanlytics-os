@@ -92,6 +92,12 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
     "the Inbox's verb on a call, and never the number",
   );
   assert.equal(activityWords("take_over", { paused_until: "2026-09-14T15:00:00Z" }), "Took over a conversation");
+  // A copy that went by itself (00630) is AI's, never a deletion someone made; one a person removed reads as it did.
+  assert.equal(
+    activityWords("file.removed", { file_id: "f1", why: "twin", stays: "f2" }),
+    "AI kept one of two copies of a photo",
+  );
+  assert.equal(activityWords("file.removed", { file_id: "f1", by: "u1" }), "A photo was deleted");
   assert.equal(activityWords("resume_agent", { receptionist_mode: "inherit" }), "Resumed AI · follows the workspace");
   assert.equal(
     activityWords("send_broadcast", { name: "Spring offer", recipients: 40, approved: true }),

@@ -15,6 +15,11 @@ import type { WrittenChannel } from "../conversations/thread-channel";
 export interface VisitMark {
   id: string;
   status: AppointmentStatus;
+  /**
+   * Missed, and a sequence follows it up (decision 0119: its occasion waits or ran), as the board's read found it: the
+   * sheet opened on it later offers no second ask for a new time. Absent where the read did not ask, or nothing follows.
+   */
+  followed?: boolean;
 }
 
 /**

@@ -1067,7 +1067,7 @@ test("each ending says contracts' own sentence, with this round's numbers in it,
   });
   assert.equal(
     nearby.title,
-    "There are 3 personal trainers in Austin, TX, and all of them are chain gyms, which you asked me to leave out.",
+    "There are 3 personal trainers in Austin, TX, and all of them are chain gyms, which you asked to leave out.",
   );
   assert.deepEqual(
     [nearby.parts, ids(nearby)],

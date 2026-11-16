@@ -3960,10 +3960,14 @@ html.frame-on .cm-pane-sub .bc-run-link {
 .tpl-ask-line[data-busy] .tpl-ask-words {
   color: var(--ink-muted);
 }
+/* The AI's mark, ink at rest and coral only while it works (docs/words.md). */
 .tpl-ask-mark {
   display: grid;
   flex: none;
   place-items: center;
+  color: var(--ink);
+}
+.tpl-ask-line[data-busy] .tpl-ask-mark {
   color: var(--accent);
 }
 .tpl-ask-line .tpl-ask-words {

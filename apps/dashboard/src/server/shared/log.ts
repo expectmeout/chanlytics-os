@@ -106,6 +106,8 @@ export const DASHBOARD_LOG_EVENTS = [
   "broadcast_touches_failed",
   "broadcasts_held_read_failed",
   "broadcasts_waiting_read_failed",
+  // Which missed visits a sequence follows up, beside the board (decision 0119): a failed read holds no ask back.
+  "calendar_followed_read_failed",
   "calendar_notices_read_failed",
   // The visits' origins beside the board (00426): a failed read draws no origin row.
   "calendar_origins_read_failed",

@@ -211,7 +211,9 @@ test.describe("Today on a real workspace", () => {
     // Up next stands open over the list on a desk, its work drawn in place (zones/need-you.tsx), and since the sheet's five
     // parts (#2213, 9 Nov 2026) a reply that did not reach its person is 375px of it: To decide starts under a screen 720
     // tall. The row is brought to the screen as a person scrolls to it, and stands whole there, none of it under an edge.
-    await row.scrollIntoViewIfNeeded();
+    // Centred, as a person brings it up: Playwright's "if needed" aligns a row partly shown to the nearest edge in whole
+    // pixels, and a row laid out at a fraction of one kept that fraction under the edge (the 16 Nov nightly: 0.992).
+    await row.evaluate((el) => el.scrollIntoView({ block: "center" }));
     await expect(row).toBeInViewport({ ratio: 1 });
     await expect(row.locator(".cl-attn-who")).toHaveText(WAITING_SEARCH_NAME);
     // Waited three hours when the seed ran: the number moves with the clock, the words do not.

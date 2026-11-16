@@ -109,6 +109,11 @@ export interface LeadEndingFacts {
   /** How many places the source returned at all, and what left them all out. */
   seen: number;
   leftOutBy: string | null;
+  /**
+   * Of `seen`, how many wait to be checked (their address could not be confirmed, decision 0133): never shown as a pile,
+   * and never said to be what the owner's exclusions left out. Absent counts none.
+   */
+  review?: number;
   /** reach_searched: how far the search looked, in miles (decision 0133, planReachMiles); absent says "within reach". */
   reachMiles?: number;
   /** month_leads_used: the day the month's leads renew, in the workspace's zone ("Dec 1"); absent says nothing of it. */
@@ -210,6 +215,28 @@ function widenedEnding(mark: string, facts: LeadEndingFacts, yours: string): Lea
   };
 }
 
+/**
+ * A search that looked everywhere and counted nobody. Where every place it saw was left out as not what was asked, it says
+ * so, and by the owner's own words where one exclusion names them. Where any wait to be checked (their address could not
+ * be confirmed: `review`), the owner's exclusions did not leave those out, and the line claims no reason: it says none of
+ * what came back could be counted. It said every place was what "you asked me to leave out", catch-alls and all.
+ */
+function nothingCounted(mark: string, facts: LeadEndingFacts, one: string): LeadEndingLine {
+  const seen = plural(facts.seen, one, facts.name);
+  const allLeftOut = facts.seen > 0 && !facts.review;
+  const why = facts.leftOutBy ? `${facts.leftOutBy}, which you asked to leave out` : "outside what you asked for";
+  return {
+    mark,
+    title: allLeftOut
+      ? `There ${facts.seen === 1 ? "is" : "are"} ${seen} in ${facts.area}, and ${facts.seen === 1 ? "it is" : "all of them are"} ${why}.`
+      : facts.seen > 0
+        ? `Found ${seen} in ${facts.area}`
+        : `Found no ${facts.name} in ${facts.area}`,
+    parts: allLeftOut ? ["Nothing was counted."] : [facts.seen > 0 ? "none could be counted" : "nothing was counted"],
+    step: facts.nearby.length ? { id: "nearby", label: `Look ${leadNearWhere(facts.nearby)}` } : null,
+  };
+}
+
 export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEndingFacts): LeadEndingLine {
   const mark = LEAD_ENDING_WORDS[ending];
   const yours = `the ${leadEndingFacts.counted} found are yours`;
@@ -236,16 +263,7 @@ export function leadEndingLine(ending: LeadRoundEnding, leadEndingFacts: LeadEnd
             : { id: "sort_fit", label: "Sort by fit" },
       };
     case "searched_everything":
-      if (leadEndingFacts.counted === 0) {
-        return {
-          mark,
-          title: `There are ${plural(leadEndingFacts.seen, one, leadEndingFacts.name)} in ${leadEndingFacts.area}, and ${leadEndingFacts.seen === 1 ? "it is" : "all of them are"} ${leadEndingFacts.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
-          parts: ["Nothing was counted."],
-          step: leadEndingFacts.nearby.length
-            ? { id: "nearby", label: `Look ${leadNearWhere(leadEndingFacts.nearby)}` }
-            : null,
-        };
-      }
+      if (leadEndingFacts.counted === 0) return nothingCounted(mark, leadEndingFacts, one);
       return {
         mark,
         title: `Found ${leadEndingFacts.counted} ${leadEndingFacts.name}`,
