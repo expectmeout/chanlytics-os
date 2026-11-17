@@ -34,18 +34,19 @@ const QUIET_READ = 25;
 /** The part of each hour a tick runs this pass in: the deadman tick comes every ten minutes, so one tick in six. */
 const PASS_WINDOW_MS = 10 * MIN_MS;
 
-interface QuietPorts {
+/** The pass as the deadman tick hands it over, and what a test sets in the clock's and the pivot's place. */
+interface QuietPass {
   db: SweepTick["db"];
   L: SweepTick["L"];
-  /** When to stop and leave the rest to the next pass: the deadman tick's own work comes after this. */
-  deadline: number;
+  /** When the deadman tick began: which tick of the hour it is, and how long the pass may run. */
+  started: number;
   now?: () => number;
   /** Where in the table this pass begins; its own, each pass. */
   pivot?: string;
 }
 
-/** Whether this tick is the hour's pass. */
-export const quietPassDue = (nowMs: number): boolean => nowMs % HOUR_MS < PASS_WINDOW_MS;
+/** Whether a tick that began then is the hour's pass. */
+const quietPassDue = (startedMs: number): boolean => startedMs % HOUR_MS < PASS_WINDOW_MS;
 
 /** How long into the tick the pass may keep letting go: the deadman tick's watchdog needs the rest. */
 const QUIET_BUDGET_MS = 25_000;
@@ -53,24 +54,27 @@ const QUIET_BUDGET_MS = 25_000;
 /**
  * The hour's pass, as the deadman tick asks for it: nothing in any other tick, and on its own, so a failure here
  * (quiet_call_back_sweep_failed) never costs the watchdog its tick. Each hold let go is its own line (call_back_let_go);
- * the door's answer keeps its shape.
+ * the door's answer keeps its shape. How many were let go, for a test to read.
  */
-export async function letQuietCallBacksGo(tick: Pick<SweepTick, "db" | "L" | "started">): Promise<void> {
-  if (!quietPassDue(tick.started)) return;
+export async function letQuietCallBacksGo(quietPass: QuietPass): Promise<{ letGo: number }> {
+  if (!quietPassDue(quietPass.started)) return { letGo: 0 };
   try {
-    await sweepQuietCallBacks({ db: tick.db, L: tick.L, deadline: tick.started + QUIET_BUDGET_MS });
+    return await sweepQuietCallBacks(quietPass);
   } catch (e) {
-    tick.L.error("quiet_call_back_sweep_failed", { error: errField(e) });
+    quietPass.L.error("quiet_call_back_sweep_failed", { error: errField(e) });
+    return { letGo: 0 };
   }
 }
 
 /** How many call backs gone quiet were let go this pass. */
-export async function sweepQuietCallBacks(quietPorts: QuietPorts): Promise<{ letGo: number }> {
-  const { db, deadline } = quietPorts;
-  const clock = quietPorts.now ?? Date.now;
+async function sweepQuietCallBacks(quietPass: QuietPass): Promise<{ letGo: number }> {
+  const { db } = quietPass;
+  const clock = quietPass.now ?? Date.now;
+  // When to stop and leave the rest to the next pass: the deadman tick's own work comes after this.
+  const deadline = quietPass.started + QUIET_BUDGET_MS;
   const quiet = {
     beforeIso: new Date(clock() - NEED_YOU_OLD_MS).toISOString(),
-    pivot: quietPorts.pivot ?? randomUUID(),
+    pivot: quietPass.pivot ?? randomUUID(),
     limit: QUIET_READ,
   };
   const found: QuietCallBack[] = [];
@@ -84,13 +88,13 @@ export async function sweepQuietCallBacks(quietPorts: QuietPorts): Promise<{ let
       const standing = callerStandingOf(await findCallerFacts(db, hold.tenant_id, hold.conversation_id));
       if (!strangerCaller(standing) || !(await letHoldGo(db, hold.tenant_id, hold.id))) continue;
       letGo += 1;
-      quietPorts.L.info("call_back_let_go", {
+      quietPass.L.info("call_back_let_go", {
         tenant_id: hold.tenant_id,
         escalation: hold.id,
         conversation: hold.conversation_id,
       });
     } catch (e) {
-      quietPorts.L.error("quiet_call_back_sweep_failed", {
+      quietPass.L.error("quiet_call_back_sweep_failed", {
         tenant_id: hold.tenant_id,
         escalation: hold.id,
         error: e instanceof Error ? e.message : String(e),

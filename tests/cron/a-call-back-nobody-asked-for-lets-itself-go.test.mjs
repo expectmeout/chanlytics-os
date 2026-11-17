@@ -15,7 +15,7 @@ import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { quietPassDue, sweepQuietCallBacks } = await import(at("apps/edge/lib/receptionist/quiet-call-backs.ts"));
+const { letQuietCallBacksGo } = await import(at("apps/edge/lib/receptionist/quiet-call-backs.ts"));
 
 const NOW = Date.parse("2026-11-17T09:03:00Z");
 const DAY = 86_400_000;
@@ -55,11 +55,12 @@ function world(people, more = {}) {
   const lines = [];
   const say = (level) => (event, fields) => lines.push({ level, event, ...fields });
   const L = { info: say("info"), warn: say("warn"), error: say("error") };
+  // The tick began three minutes into the hour: the hour's pass. Its clock and its pivot are the test's.
   const run = (over = {}) =>
-    sweepQuietCallBacks({
+    letQuietCallBacksGo({
       db: fakeDb(tables),
       L,
-      deadline: NOW + 20_000,
+      started: NOW,
       now: () => NOW,
       pivot: "00000004-0000-4000-8000-000000000000",
       ...over,
@@ -131,11 +132,14 @@ test("a call's own note in the thread is nobody's words: the caller is still a s
 
 test("past its time the pass stops and leaves the rest for the next; it runs in one tick of each hour's six", async () => {
   const w = world([held(1, MISSED, 39), held(2, MISSED, 39)]);
-  assert.deepEqual(await w.run({ deadline: NOW - 1 }), { letGo: 0 });
+  // Half a minute into the tick, past the pass's twenty-five seconds: nothing more is begun.
+  assert.deepEqual(await w.run({ now: () => NOW + 30_000 }), { letGo: 0 });
   assert.equal(w.stateOf(1), "open");
+  // A tick that began later in the hour is not the pass: nothing is read, and nobody is let go.
   const hour = Date.parse("2026-11-17T09:00:00Z");
-  assert.deepEqual(
-    [0, 9, 10, 20, 30, 40, 50, 59].map((min) => quietPassDue(hour + min * 60_000)),
-    [true, true, false, false, false, false, false, false],
-  );
+  for (const min of [10, 20, 30, 40, 50, 59]) {
+    assert.deepEqual(await w.run({ started: hour + min * 60_000 }), { letGo: 0 }, `${min} past`);
+    assert.equal(w.stateOf(1), "open", `${min} past`);
+  }
+  assert.deepEqual(await w.run({ started: hour + 9 * 60_000 }), { letGo: 2 }, "nine past is still the pass");
 });
