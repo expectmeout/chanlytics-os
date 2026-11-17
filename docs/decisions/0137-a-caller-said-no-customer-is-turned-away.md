@@ -48,7 +48,10 @@ own beside the series.
    back, nobody is asked, and the message is stamped so no sweep takes it for one nobody finished. A START, or a YES
    OFFERS on WhatsApp, goes on to its confirmation (core `yesOwedConfirmation`, the one rule both gates ask): the yes is
    theirs to give, and its confirmation is owed. The word is read off the row the thread's live hold is read from
-   (db `readLiveHold`), so it costs no read.
+   (db `readLiveHold`), so it costs no read. A message reopens the thread it is kept on (`ingest_inbound`'s rule, for
+   every thread), so the one answer to whose move a thread is (contracts `threadMoveOf`) files such a thread away
+   whatever its state: left to who had the last word, it would stand in Needs you as unanswered, the list the
+   member's word took it off.
 3. **One predicate reads the word** (contracts `saidNotACustomer`, in `conversations/standing.ts`): the caller's
    standing, the Inbox's dock, the two words' verb, the call turned away and the message not answered. It was written
    out three times.
@@ -103,7 +106,8 @@ before carries no `number_check` in its metadata, and the webhook decides nothin
 - `tests/voice/provider/a-call-that-asks-for-nothing-holds-nobody.test.mjs`: the two headers read; the rule and the
   plan for a number that failed its check; the `screened` step; the real door writing the row.
 - `tests/inbound/the-gates-run-in-their-order.test.mjs`: the gate in its place, before the carriers' hold and before a
-  pin drop or a voice note would hold; a START still confirmed.
+  pin drop or a voice note would hold; a START still confirmed. `tests/conversations/state/thread-move.test.mjs`: the
+  thread stays off Needs you when they write.
 - `tests/conversations/reply-draft-verbs.test.mjs`: a selling call set aside is kept on the ledger; an email is not.
 - `tests/reports/receptionist/screened-calls.test.mjs`: the count. `receptionist-report.test.mjs`: the sentence, the
   window, and "No call connected". `receptionist-page.test.mjs`: where it is drawn. `tests/ask/readers.test.mjs`,
@@ -124,5 +128,6 @@ before carries no `number_check` in its metadata, and the webhook decides nothin
 
 - Whether a number that failed its check should say so on the call's page, once a week of `number_check` on
   production's lines shows what arrives.
-- Whether a thread a member said is not a customer's should be archived again when they write, rather than reopened
-  with its dock.
+- Whether a thread a member said is not a customer's should be archived again in the database when they write. It
+  is reopened there and filed away on every page; Reports' count of unanswered messages, which SQL makes, still counts
+  what they wrote.

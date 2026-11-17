@@ -15,7 +15,12 @@ import { NEVER_CONNECTED_LINES } from "../conversations/call-dto";
 import type { EscalationDto } from "../conversations/escalations";
 import { isAutomatedSend, messageAuthor } from "../conversations/message-author";
 import { draftSendsAtMs, heldDraftOf, lastExchanged, reachedCustomer } from "../conversations/message-words";
-import { standingOfThread, type StandingVerdict, type ThreadMoveKey } from "../conversations/standing";
+import {
+  saidNotACustomer,
+  standingOfThread,
+  type StandingVerdict,
+  type ThreadMoveKey,
+} from "../conversations/standing";
 import { isChatMessage, isTheirOwnWords } from "../conversations/thread-channel";
 import { isOptedOut, messageAt, type ConversationDto, type MessageDto } from "../conversations/thread-dto";
 import { QUIET_AFTER_DAYS } from "../people/person-state";
@@ -155,8 +160,8 @@ function heldMove(v: StandingVerdict, escalation: EscalationDto | null): ThreadM
 }
 
 /**
- * The ladder, first match wins. Snoozed, then filed away (a thread with a hold still open is not), then they asked to
- * stop; then a reply of ours that never reached them; then what a person holds or is asked for; then a reply counting
+ * The ladder, first match wins. Snoozed, then filed away (a thread with a hold still open is not; one a member said is
+ * not a customer's is, whatever reopened it), then they asked to stop; then a reply of ours that never reached them; then what a person holds or is asked for; then a reply counting
  * down; then who had the last word.
  */
 export function threadMoveOf(dto: ConversationDto, escalation: EscalationDto | null, nowMs: number): ThreadMove {
@@ -164,6 +169,10 @@ export function threadMoveOf(dto: ConversationDto, escalation: EscalationDto | n
   if (result.standing === "snoozed") return { move: "snoozed", list: "snoozed" };
   if (dto.state === "archived" && dto.set_aside_at) return { move: "aside", list: "aside" };
   if (dto.state === "archived" && !result.flagged) return { move: "archived", list: "out" };
+  // A member said the thread is not a customer's (decisions 0136 and 0137): what they write since is kept on it and
+  // answered by nobody, and a message reopens the thread it is kept on. It stays filed away all the same: left to who
+  // had the last word, it would stand in Needs you as unanswered, the list their word took it off.
+  if (saidNotACustomer(dto) && !result.flagged) return { move: "archived", list: "out" };
   if (isOptedOut(dto) && result.standing !== "needs_you") return { move: "stopped", list: "done" };
   const chat = dto.messages.filter(isChatMessage);
   const last = lastExchanged(chat);
