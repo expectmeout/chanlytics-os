@@ -32,6 +32,8 @@ export const KEPT_WITH_NO_CALLER = {
     "a workspace's month of metered use, under its members' row-level security, for the billing page to read; proved by tests/ai/ai-usage.db.test.mjs",
   conversation_draft_keep:
     "Ask's reply draft as decision 0071 first kept it, superseded by conversation_draft_write (00538) and kept for a dashboard a deploy behind; tests/need-you/reply-drafts.db.test.mjs still proves its fence: dropped with that test, in a change of its own",
+  erasure_digest_legacy:
+    "the legacy digest of one value, read by hand and by the erasure tests: since 00640 erasure_digests_legacy holds the formula and every reader asks it for many; proved by tests/people/erasure/erasure-digest.db.test.mjs",
   page_freshness:
     "read by hand: docs/runbook.md, what tabs could not hear or read, `select * from page_freshness(7)` as the service role",
   platform_admin_add:

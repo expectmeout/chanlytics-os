@@ -20,8 +20,14 @@
  * A customer's send sits in the reach-out too, with no lead. `not in` is only safe because no row of the walk is ever null, and
  * one null would hide every lead not yet written to, which the counts below would say.
  *
+ * reach_out_why_not asked the never-again list of each lead in turn (00640), most of why a drawer at the ceiling ran past a member's
+ * 8 s. It touches no more rows of a CTE, and the plan cannot see inside what it calls, so what holds that is how many times each
+ * function ran, every call counted: the same on any machine, for one lead or for thousands. Each reason is held beside it, asked of
+ * many leads at once and of each alone, before the digests are keyed and after, since production is keyed.
+ *
  * Local stack only. Rows are written with triggers off (session_replication_role): this measures the reads, not the writes.
  */
+import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { neverCommitted } from "../table/_never-committed.mjs";
@@ -316,5 +322,341 @@ test(
         console.log(`${name} walked ${rowsWalked(plan)} rows, planned as ${JSON.stringify(plan)}`);
       throw failure;
     }
+  },
+);
+
+/**
+ * Every way a lead can stand before reach_out_why_not, and what it is told: each reason, each way it is reached, and each pair the
+ * rule's order decides. `yes` is what it is told by a reach-out that includes the unconfirmed, where that differs. `held` says what
+ * the never-again list holds, `person` who People holds, `send` what was sent, `member` what the finder saw, each beside this lead.
+ */
+const REASON_CASES = [
+  { tag: "lets_go", why: null },
+  { tag: "gone_erased", why: "gone", lead: { erased_at: "now()" } },
+  { tag: "gone_blanked", why: "gone", lead: { blanked_at: "now()" } },
+  { tag: "gone_beats_closed", why: "gone", lead: { erased_at: "now()", stage: "'archived'" } },
+  { tag: "closed_by_stage", why: "closed", lead: { stage: "'archived'" } },
+  { tag: "closed_nurturing", why: "closed", lead: { stage: "'nurture'" } },
+  { tag: "closed_by_reason", why: "closed", lead: { closed_reason: "'said_no'" } },
+  { tag: "closed_beats_customer", why: "closed", lead: { stage: "'archived'" }, person: [{ by: "email" }] },
+  { tag: "customer_by_email", why: "customer", person: [{ by: "email" }] },
+  { tag: "customer_in_another_case", why: "customer", email: "  CASE@Fixture-Why.Example ", person: [{ by: "email" }] },
+  { tag: "customer_by_number", why: "customer", person: [{ by: "phone" }] },
+  { tag: "customer_wrote_from_it", why: "customer", person: [{ by: "identity" }] },
+  { tag: "customer_beats_suppressed", why: "customer", person: [{ by: "email" }], held: [{ kind: "email" }] },
+  { tag: "no_customer_erased", why: null, person: [{ by: "email", erased: true }] },
+  { tag: "no_customer_erased_identity", why: null, person: [{ by: "identity", erased: true }] },
+  { tag: "no_customer_by_text", why: null, person: [{ by: "identity", channel: "sms" }] },
+  {
+    tag: "no_customer_elsewhere",
+    why: null,
+    person: [
+      { by: "email", elsewhere: true },
+      { by: "phone", elsewhere: true },
+    ],
+  },
+  { tag: "suppressed_opted_out", why: "suppressed", held: [{ kind: "email" }] },
+  { tag: "suppressed_said_no", why: "suppressed", held: [{ kind: "email", what: "said_no" }] },
+  { tag: "suppressed_erased", why: "suppressed", held: [{ kind: "email", what: "erased" }] },
+  {
+    tag: "suppressed_in_another_case",
+    why: "suppressed",
+    email: "  MIXED@Fixture-Why.Example ",
+    held: [{ kind: "email" }],
+  },
+  {
+    tag: "suppressed_by_domain",
+    why: "suppressed",
+    email: "someone@held.example",
+    held: [{ kind: "domain", value: "held.example" }],
+  },
+  {
+    tag: "suppressed_by_domain_in_another_case",
+    why: "suppressed",
+    email: "Someone@HELD.Example",
+    held: [{ kind: "domain", value: "held.example" }],
+  },
+  {
+    tag: "suppressed_by_the_last_at",
+    why: "suppressed",
+    email: "a@b@held.example",
+    held: [{ kind: "domain", value: "held.example" }],
+  },
+  { tag: "suppressed_by_place", why: "suppressed", held: [{ kind: "place" }] },
+  { tag: "suppressed_by_number", why: "suppressed", held: [{ kind: "phone" }] },
+  { tag: "suppressed_beats_written", why: "suppressed", held: [{ kind: "email" }], send: { state: "sent" } },
+  {
+    tag: "no_suppression_elsewhere",
+    why: null,
+    held: [
+      { kind: "email", elsewhere: true },
+      { kind: "place", elsewhere: true },
+      { kind: "phone", elsewhere: true },
+    ],
+  },
+  {
+    tag: "no_suppression_of_another_kind",
+    why: null,
+    held: [
+      { kind: "phone", of: "place" },
+      { kind: "place", of: "phone" },
+      { kind: "domain", of: "email" },
+    ],
+  },
+  { tag: "no_domain_without_an_at", why: null, email: "no-at-sign", held: [{ kind: "domain", value: "no-at-sign" }] },
+  { tag: "no_domain_after_a_last_at", why: null, email: "someone@", held: [{ kind: "domain", value: "" }] },
+  {
+    tag: "an_address_row_is_not_a_domain_row",
+    why: null,
+    email: "someone@not-a-domain-row.example",
+    held: [{ kind: "email", value: "not-a-domain-row.example" }],
+  },
+  { tag: "written_sent", why: "written", send: { state: "sent" } },
+  { tag: "written_planned", why: "written", send: { state: "planned" } },
+  { tag: "written_held", why: "written", send: { state: "held", reason: "chain" } },
+  { tag: "written_skipped_otherwise", why: "written", send: { state: "skipped", reason: "kept_waiting" } },
+  { tag: "written_beats_shared", why: "written", send: { state: "sent" }, member: { shares: true } },
+  { tag: "not_written_run_canceled", why: null, send: { state: "skipped", reason: "run_canceled" } },
+  { tag: "not_written_taken_back", why: null, send: { state: "skipped", reason: "owner_took_back" } },
+  { tag: "not_written_moved", why: null, send: { state: "skipped", reason: "moved" } },
+  { tag: "not_written_its_own_email", why: null, send: { state: "queued", own: true } },
+  { tag: "shared", why: "shared", member: { shares: true } },
+  { tag: "shared_beats_no_email", why: "shared", email: null, member: { shares: true } },
+  { tag: "not_shared_blanked", why: null, member: { shares: true, blanked: true } },
+  { tag: "not_shared_empty", why: null, member: {} },
+  { tag: "not_shared_no_key", why: null, member: { judgment: "{}" } },
+  { tag: "no_email", why: "no_email", email: null },
+  { tag: "no_email_blank", why: "no_email", email: "" },
+  { tag: "no_email_spaces", why: "no_email", email: "   " },
+  { tag: "no_email_beats_its_state", why: "no_email", email: null, lead: { email_state: "'invalid'" } },
+  { tag: "checking", why: "checking", lead: { email_state: "'checking'" } },
+  { tag: "unconfirmed", why: "unconfirmed", yes: null, lead: { email_state: "'catch_all'" } },
+  { tag: "invalid", why: "invalid", lead: { email_state: "'invalid'" } },
+  { tag: "unchecked", why: "unchecked", lead: { email_state: "'none'" } },
+  { tag: "unchecked_unknown", why: "unchecked", lead: { email_state: "'unknown'" } },
+];
+/** A list beside the cases, of which this many are on the never-again list by each of its four kinds. */
+const LIST_LEADS = 5_000;
+const HELD_EACH = 500;
+/** What a read asks, of one lead or of thousands: an address and its domain, a place, a number, each in one read. */
+const ASKED_ONCE = {
+  lead_addresses_suppressed: 1,
+  lead_values_suppressed: 4,
+  erasure_digests: 4,
+  erasure_digests_legacy: 4,
+  erasure_keys: 0,
+  // What asks of one value at a time. Any of these in a read grows it with its list.
+  lead_address_suppressed: 0,
+  lead_suppression_hash: 0,
+  erasure_digest: 0,
+  erasure_digest_legacy: 0,
+  erasure_key: 0,
+};
+/** Without it a list of one looks cheaper planned for its own values, each call plans again, and one lead takes twice as long. */
+const KEEP_ONE_PLAN = ["erasure_keys", "lead_addresses_suppressed", "lead_values_suppressed"];
+
+const sqlText = (s) => (s === null ? "null" : `'${s.replaceAll("'", "''")}'`);
+
+/** The rows of one case, written while the seed's triggers are off. */
+function seedOf(c, i, ids) {
+  const id = ids[c.tag];
+  const email = c.email === undefined ? `case${i}@fixture-why.example` : c.email;
+  const address = email === null ? null : email.trim().toLowerCase();
+  const phone = `+1737555${String(i).padStart(4, "0")}`;
+  const place = `ChIJfixtureWhy${i}`;
+  const lead = {
+    stage: "'ready'",
+    closed_reason: "null",
+    email_state: "'ok'",
+    erased_at: "null",
+    blanked_at: "null",
+    ...c.lead,
+  };
+  const of = { email: address, place, phone };
+  const rows = [
+    `insert into public.leads (id, tenant_id, place_id, business_name, email, email_state, phone_e164, phone_sources, stage, closed_reason, erased_at, blanked_at, found_at, stage_at)
+       values ('${id}', t, '${place}', 'Case ${i}', ${sqlText(email)}, ${lead.email_state}, '${phone}', 1, ${lead.stage}, ${lead.closed_reason}, ${lead.erased_at}, ${lead.blanked_at}, now(), now());`,
+  ];
+  for (const p of c.person ?? []) {
+    const person = randomUUID();
+    const workspace = p.elsewhere ? "other" : "t";
+    rows.push(`insert into public.contacts (id, tenant_id, email, phone_e164, erased_at)
+      values ('${person}', ${workspace}, ${p.by === "email" ? sqlText(address) : "null"}, ${p.by === "phone" ? `'${phone}'` : "null"}, ${p.erased ? "now()" : "null"});`);
+    if (p.by === "identity")
+      rows.push(
+        `insert into public.contact_identities (tenant_id, contact_id, channel, external_id) values (${workspace}, '${person}', '${p.channel ?? "email"}', ${sqlText(address)});`,
+      );
+  }
+  for (const h of c.held ?? []) {
+    const value = h.value ?? of[h.of ?? h.kind];
+    // Elsewhere, it holds this workspace's own digest: only its workspace says the row is not this one's.
+    const workspace = h.elsewhere ? "other" : "t";
+    rows.push(`insert into public.lead_suppressions (tenant_id, kind, hash, what)
+      values (${workspace}, '${h.kind}', public.lead_suppression_hash(t, ${sqlText(value)}), '${h.what ?? "email_opt_out"}') on conflict do nothing;`);
+  }
+  if (c.send?.own) {
+    rows.push(`insert into public.sequence_sends (tenant_id, lead_id, state) values (t, '${id}', '${c.send.state}');`);
+  } else if (c.send) {
+    const { state, reason } = c.send;
+    rows.push(`insert into public.sequence_sends (tenant_id, sequence_id, batch_id, lead_id, state, reason, send_at, sent_at)
+      values (t, root, batch, '${id}', '${state}', ${reason ? `'${reason}'` : "null"}, ${state === "planned" ? "now()" : "null"}, ${state === "sent" ? "now()" : "null"});`);
+  }
+  if (c.member) {
+    const judgment =
+      c.member.judgment ?? (c.member.shares ? '{"reasons":[],"shares":["x"]}' : '{"reasons":[],"shares":[]}');
+    rows.push(`insert into public.lead_search_members (search_id, lead_id, tenant_id, class, counted, counted_month, fit, reason, judgment, blanked_at)
+      values (list, '${id}', t, 'qualified', true, to_char(now(), 'YYYY-MM'), 'strong', 'On the list', '${judgment}', ${c.member.blanked ? "now()" : "null"});`);
+  }
+  return rows.join("\n");
+}
+
+/** What a workspace says of the cases and of the list, and how many times each function ran to say it. */
+const readOf = (state, ids) => `
+  select coalesce(jsonb_object_agg(w.lead_id::text, w.why), '{}') into a from public.reach_out_why_not(t, cases, false) w;
+  seen := seen || jsonb_build_object('${state}_together', a);
+  select coalesce(jsonb_object_agg(w.lead_id::text, w.why), '{}') into a from public.reach_out_why_not(t, cases, true) w;
+  seen := seen || jsonb_build_object('${state}_unconfirmed_too', a);
+  select coalesce(jsonb_object_agg(w.lead_id::text, w.why), '{}') into a
+    from unnest(cases) c(id) cross join lateral public.reach_out_why_not(t, array[c.id], false) w;
+  seen := seen || jsonb_build_object('${state}_alone', a);
+  select coalesce(jsonb_object_agg(w.lead_id::text, w.why), '{}') into a
+    from public.sequence_queued_why_not(t, cases, array(select root from unnest(cases))) w;
+  seen := seen || jsonb_build_object('${state}_queued', a);
+  select jsonb_build_object('rows', count(*), 'why', w.why) into a from public.reach_out_why_not(t, array[null::uuid], false) w group by w.why;
+  seen := seen || jsonb_build_object('${state}_nobody_at_all', a);
+  select coalesce(jsonb_object_agg(x.why, x.n), '{}') into a
+    from (select coalesce(w.why, 'lets_go') as why, count(*) as n from public.reach_out_why_not(t, all_of_the_list, false) w group by 1) x;
+  seen := seen || jsonb_build_object('${state}_list', a);
+  a := pg_temp.calls();
+  perform count(*) from public.reach_out_why_not(t, all_of_the_list, false);
+  seen := seen || jsonb_build_object('${state}_calls_for_the_list', pg_temp.calls_since(a));
+  a := pg_temp.calls();
+  perform count(*) from public.reach_out_why_not(t, array['${ids.lets_go}'::uuid], false);
+  seen := seen || jsonb_build_object('${state}_calls_for_one', pg_temp.calls_since(a));`;
+
+/** Each case's answer under its tag. */
+function byTag(answers, ids) {
+  const tags = Object.fromEntries(Object.entries(ids).map(([tag, id]) => [id, tag]));
+  return Object.fromEntries(Object.entries(answers).map(([id, why]) => [tags[id] ?? id, why]));
+}
+
+test(
+  "reach_out_why_not says the same of a lead however it is asked, keyed or not, and asks the never-again list once",
+  { skip, timeout: 300_000 },
+  () => {
+    const ids = {
+      ...Object.fromEntries(REASON_CASES.map((c) => [c.tag, randomUUID()])),
+      nobody_by_that_id: randomUUID(),
+      another_workspace_s: randomUUID(),
+    };
+    const member = randomUUID();
+    const seen = neverCommitted(`
+    declare
+      t uuid; other uuid; list uuid; root uuid; batch uuid; seen jsonb := '{}'; a jsonb;
+      cases uuid[] := array[${Object.values(ids)
+        .map((id) => `'${id}'::uuid`)
+        .join(", ")}];
+      all_of_the_list uuid[];
+      body text; conf text[]; plan text; mem text;
+    begin
+      execute 'set local session_replication_role = replica';
+      insert into public.tenants (slug, name) values ('why-' || gen_random_uuid(), 'Why') returning id into t;
+      insert into public.tenants (slug, name) values ('why-other-' || gen_random_uuid(), 'Elsewhere') returning id into other;
+      insert into public.memberships (tenant_id, user_id, role) values (t, '${member}', 'owner');
+      perform set_config('request.jwt.claims', '{"sub":"${member}","role":"authenticated"}', true);
+      insert into public.lead_searches (tenant_id, via, card, name, asked, plan) values (t, 'chosen', 'fixture', 'The list', '', '{}') returning id into list;
+      root := gen_random_uuid();
+      insert into public.sequence_steps (id, sequence_id, place, tenant_id, kind, name, trigger, policy_class, state, lead_search_id, gap_minutes, template_id, template_language, template_name)
+        values (root, root, 1, t, 'reach_out', 'Why', 'lead_first', 'outreach', 'running', list, 12, gen_random_uuid(), 'en_US', 'fixture_why');
+      insert into public.sequence_batches (tenant_id, name, template_id, template_name, template_language, state, scheduled_for, sequence_id)
+        values (t, 'Batch', gen_random_uuid(), 'fixture_why', 'en_US', 'sent', now(), root) returning id into batch;
+      insert into public.leads (id, tenant_id, place_id, business_name, email, email_state, phone_e164, phone_sources, stage, found_at, stage_at)
+        values ('${ids.another_workspace_s}', other, 'ChIJfixtureWhyTheirs', 'Theirs', 'theirs@fixture-why.example', 'ok', '+17375550000', 1, 'ready', now(), now());
+      ${REASON_CASES.map((c, i) => seedOf(c, i + 1, ids)).join("\n")}
+
+      -- The list: ${HELD_EACH} on the never-again list by each kind, and the rest free to go.
+      create temp table why_list on commit drop as
+        select i, gen_random_uuid() as id,
+               'list' || i || case when i > ${3 * HELD_EACH} and i <= ${4 * HELD_EACH} then '@list-held.example' else '@fixture-why.example' end as email,
+               'ChIJfixtureWhyList' || i as place, '+1512' || lpad(i::text, 7, '0') as phone
+          from generate_series(1, ${LIST_LEADS}) i;
+      insert into public.leads (id, tenant_id, place_id, business_name, email, email_state, phone_e164, phone_sources, stage, found_at, stage_at)
+        select x.id, t, x.place, 'List ' || x.i, x.email, 'ok', x.phone, 1, 'ready', now(), now() from why_list x;
+      insert into public.lead_suppressions (tenant_id, kind, hash, what)
+        select t, 'email', public.lead_suppression_hash(t, x.email), 'email_opt_out' from why_list x where x.i <= ${HELD_EACH};
+      insert into public.lead_suppressions (tenant_id, kind, hash, what)
+        select t, 'place', public.lead_suppression_hash(t, x.place), 'erased' from why_list x where x.i > ${HELD_EACH} and x.i <= ${2 * HELD_EACH};
+      insert into public.lead_suppressions (tenant_id, kind, hash, what)
+        select t, 'phone', public.lead_suppression_hash(t, x.phone), 'erased' from why_list x where x.i > ${2 * HELD_EACH} and x.i <= ${3 * HELD_EACH};
+      insert into public.lead_suppressions (tenant_id, kind, hash, what)
+        values (t, 'domain', public.lead_suppression_hash(t, 'list-held.example'), 'said_no');
+      all_of_the_list := array(select x.id from why_list x);
+      execute 'set local session_replication_role = origin';
+      execute 'set local jit = off';
+      analyze public.leads, public.lead_suppressions, public.contacts, public.contact_identities, public.lead_search_members, public.sequence_sends;
+
+      -- How many times each has run, every call counted. A function of this session's, gone when the block is.
+      create function pg_temp.calls() returns jsonb language sql as $calls$
+        select jsonb_object_agg(p.proname, coalesce(pg_stat_get_xact_function_calls(p.oid), 0))
+          from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = any (array[${Object.keys(
+            ASKED_ONCE,
+          )
+            .map((f) => `'${f}'`)
+            .join(", ")}])
+      $calls$;
+      create function pg_temp.calls_since(p_then jsonb) returns jsonb language sql as $calls$
+        select jsonb_object_agg(k.key, (k.value)::int - coalesce((p_then->>k.key)::int, 0)) from jsonb_each_text(pg_temp.calls()) k
+      $calls$;
+      set local track_functions = 'all';
+      ${readOf("legacy", ids)}
+
+      -- Its own plan, as a call plans it: what it walks of its CTE and of what it asks.
+      execute 'set local plan_cache_mode = force_generic_plan';
+      ${planOf("why", "public.reach_out_why_not(uuid, uuid[], boolean)", ["p_tenant_id", "p_lead_ids", "p_include_unconfirmed"], "uuid, uuid[], boolean", "%L, %L, false", "t, all_of_the_list")}
+      execute 'set local plan_cache_mode = auto';
+
+      -- Keyed, as production is: this workspace's rows by the real re-key, then the mark, which never commits.
+      perform public.erasure_rekey(true, t);
+      perform public.erasure_rekey(true, other);
+      update public.erasure_keying set keyed_at = now() where id;
+      ${readOf("keyed", ids)}
+
+      select jsonb_object_agg(p.proname, to_jsonb(p.proconfig)) into a from pg_proc p
+       where p.pronamespace = 'public'::regnamespace and p.proname = any (array[${KEEP_ONE_PLAN.map((f) => `'${f}'`).join(", ")}]);
+      seen := seen || jsonb_build_object('settings', a);
+      raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex');
+    end;`);
+
+    const told = Object.fromEntries(REASON_CASES.map((c) => [c.tag, c.why]));
+    const toldIfIncluded = Object.fromEntries(REASON_CASES.map((c) => [c.tag, c.yes === undefined ? c.why : c.yes]));
+    const notThere = { nobody_by_that_id: "gone", another_workspace_s: "gone" };
+    const list = { suppressed: 4 * HELD_EACH, lets_go: LIST_LEADS - 4 * HELD_EACH };
+    for (const [state, keys] of [
+      ["legacy", {}],
+      ["keyed", { erasure_keys: 4 }],
+    ]) {
+      // What it says: the same of everyone at once, of each alone, and through the door a list asks by.
+      assert.deepEqual(byTag(seen[`${state}_together`], ids), { ...told, ...notThere }, `${state}: asked of many`);
+      assert.deepEqual(byTag(seen[`${state}_alone`], ids), { ...told, ...notThere }, `${state}: asked of each alone`);
+      assert.deepEqual(
+        byTag(seen[`${state}_unconfirmed_too`], ids),
+        { ...toldIfIncluded, ...notThere },
+        `${state}: with the unconfirmed`,
+      );
+      assert.deepEqual(byTag(seen[`${state}_queued`], ids), { ...told, ...notThere }, `${state}: as a list asks`);
+      assert.deepEqual(seen[`${state}_nobody_at_all`], { rows: 1, why: "gone" }, `${state}: a null among the asked`);
+      assert.deepEqual(seen[`${state}_list`], list, `${state}: the list`);
+      // What it takes: one read, the same for one lead as for thousands.
+      assert.deepEqual(
+        seen[`${state}_calls_for_the_list`],
+        { ...ASKED_ONCE, ...keys },
+        `${state}: ${LIST_LEADS} leads`,
+      );
+      assert.deepEqual(seen[`${state}_calls_for_one`], { ...ASKED_ONCE, ...keys }, `${state}: one lead`);
+    }
+    const walked = rowsWalked(seen.why);
+    assert.ok(walked <= MOST_WALKED, `reach_out_why_not walked ${walked} rows: its most is ${MOST_WALKED}`);
+    for (const f of KEEP_ONE_PLAN)
+      assert.ok(seen.settings[f]?.includes("plan_cache_mode=force_generic_plan"), `${f}: ${seen.settings[f]}`);
   },
 );

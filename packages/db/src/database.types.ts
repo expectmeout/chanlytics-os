@@ -9064,7 +9064,12 @@ export type Database = {
         Args: { p_tenant_id: string; p_values: string[] }
         Returns: string[]
       }
+      erasure_digests_legacy: {
+        Args: { p_tenant_id: string; p_values: string[] }
+        Returns: string[]
+      }
       erasure_key: { Args: { p_digest: string }; Returns: string }
+      erasure_keys: { Args: { p_digests: string[] }; Returns: string[] }
       erasure_rekey: {
         Args: { p_apply?: boolean; p_tenant_id?: string }
         Returns: Json
@@ -9901,6 +9906,10 @@ export type Database = {
         Returns: string
       }
       lead_undo: { Args: { p_op_id: string; p_version: number }; Returns: Json }
+      lead_values_suppressed: {
+        Args: { p_kind: string; p_tenant_id: string; p_values: string[] }
+        Returns: string[]
+      }
       lead_view_counts: {
         Args: {
           p_class?: string
