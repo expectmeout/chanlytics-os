@@ -92,8 +92,6 @@ export {
   versionWords,
 } from "./message-versions/email-rules";
 export type { EmailIssue, EmailProblem, EmailRules, VersionCheck, VersionWords } from "./message-versions/email-rules";
-export { newMessageAsked } from "./new-message-asked";
-export type { NewMessageFor } from "./new-message-asked";
 export { bookingTemplate, compareTemplates, defaultTemplate, groupTemplates, starterIndex } from "./order";
 export type { TemplateGroup } from "./order";
 export {

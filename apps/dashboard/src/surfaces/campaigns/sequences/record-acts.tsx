@@ -45,7 +45,7 @@ import { useSurface } from "../../use-surface";
 import { runDetail } from "../broadcasts/detail-read";
 import { cmFootAsk } from "../parts/split";
 import { keptSendOf } from "./new/kept-send";
-import { useSequenceRead } from "./use-record";
+import { useSequenceRead, withListMessageOff } from "./use-record";
 import { pressed, sequenceVerbs as verbs } from "./verbs";
 
 type Flash = (flash: FrameFlash) => void;
@@ -74,11 +74,8 @@ export function useRecordActs(
   // A twin is the list's to know (sequenceTwinOf): another sequence on this visit moment, which the list beside it holds.
   const list = useSurface("sequences");
   const twin = list ? sequenceTwinOf(list.sequences, row) : null;
-  // Whether a step's message cannot go is the list read's to say (its row's `message_off`; the record's own read has none):
-  // a run that did nothing for a message WhatsApp has refused since then says refused, as its row and its step do.
-  const messageOff = list?.sequences.find((r) => r.id === row.id)?.message_off;
   // What needs you most, a run that did nothing among it (the loop review's item 8: its last run's reason, said until one goes).
-  const notice = sequenceNotice(messageOff ? { ...row, message_off: messageOff } : row, rec.steps, twin, {
+  const notice = sequenceNotice(withListMessageOff(row, list), rec.steps, twin, {
     off: rec.last_run_off,
     for: rec.last_run_for,
     tz: rec.timezone,
@@ -549,15 +546,10 @@ function NoticeAct({ a, tab, phone }: { a: RecordActs; tab: SequenceTab; phone: 
     // WhatsApp hasn't approved its first step's message: that step's own sheet, which opens on the message and AI's new
     // words for it (Campaigns, one tab, 17 Nov 2026), rather than the message alone over the page.
     const first = n.off.reason === "template_not_approved" ? (a.rec.steps.find((s) => s.place === 1) ?? null) : null;
-    if (first)
+    const opens = first ? { onClick: () => a.viewStep(first.id) } : n.off.to ? routeDoor(n.off.to) : null;
+    if (mends === "door" && opens)
       return (
-        <Button size={size} onClick={() => a.viewStep(first.id)} data-testid="sq-off-mend">
-          {n.act}
-        </Button>
-      );
-    if (mends === "door" && n.off.to)
-      return (
-        <Button size={size} {...routeDoor(n.off.to)} data-testid="sq-off-mend">
+        <Button size={size} {...opens} data-testid="sq-off-mend">
           {n.act}
         </Button>
       );

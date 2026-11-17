@@ -184,14 +184,14 @@ export const OTHER_MESSAGES_WORDS = {
 
 /** What the fold says of one message, of its versions in every language: the first of these that is true. */
 function otherMessageLine(versions: readonly CampaignMessage[]): string {
-  const W = OTHER_MESSAGES_WORDS;
-  if (versions.every((m) => m.hidden)) return W.hidden;
+  const words = OTHER_MESSAGES_WORDS;
+  if (versions.every((m) => m.hidden)) return words.hidden;
   const shown = versions.filter((m) => !m.hidden);
   const stands = (...statuses: string[]) => shown.some((m) => statuses.includes(m.versions.whatsapp?.status ?? ""));
-  if (stands("approved")) return W.inbox;
-  if (stands("rejected")) return W.refused;
-  if (stands("paused", "disabled")) return W.paused;
-  return stands("pending") ? W.checking : W.nothing;
+  if (stands("approved")) return words.inbox;
+  if (stands("rejected")) return words.refused;
+  if (stands("paused", "disabled")) return words.paused;
+  return stands("pending") ? words.checking : words.nothing;
 }
 
 /** A message no campaign sends, as the fold lists it: its name (its address), its title, and what can use it. */

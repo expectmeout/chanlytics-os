@@ -302,8 +302,8 @@ function usePeopleOf(rec: SequenceRecordDto, again: number): SequencePeopleDto |
   return wants && read.state === "read" ? read.data : null;
 }
 
-export function SequenceSteps(p: StepsProps) {
-  const { rec, flash, moved, again, editing, onEditing, howAsked, viewAsked = null, onViewed, onCancelSend } = p;
+export function SequenceSteps(props: StepsProps) {
+  const { rec, flash, moved, again, editing, onEditing, howAsked, viewAsked = null, onViewed, onCancelSend } = props;
   const row = rec.sequence;
   const people = usePeopleOf(rec, again);
   // What the sheet holds, kept as it leaves; open is the schedule's, or the record's while it holds a step to change.

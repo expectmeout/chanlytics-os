@@ -102,6 +102,13 @@ export interface PaneStep {
 /** No language word and nothing to add one by: a step sends the one language it names. */
 const ONE_LANGUAGE = { languageWord: { shown: false, asked: false, done: () => undefined }, more: [] };
 
+/** The language choice: none for a step's sheet (ONE_LANGUAGE), the message's own otherwise. */
+const languagesOf = <T,>(step: PaneStep | undefined, choice: () => T): T | typeof ONE_LANGUAGE =>
+  step ? ONE_LANGUAGE : choice();
+
+/** The only tabs a step's sheet draws, its channels; null where the pane is the message's own. */
+const channelsOf = (step: PaneStep | undefined): readonly string[] | null => step?.channels ?? null;
+
 /** Where the pane opens: on the language a step sends, where it holds that one, else on the message's first. */
 function openingView(g: TemplateGroup, langs: readonly TplLang[], step: PaneStep | undefined) {
   const first = firstView(g, langs);
@@ -575,13 +582,13 @@ export function TemplatePane(p: PaneProps) {
     canChange: canWrite,
   };
   const cannot = channelsCannot(lang.message);
-  const { languageWord, more } = step
-    ? ONE_LANGUAGE
-    : languageChoice({
-        ...{ facts, firstLangId: first.langId, adding, mayAdd },
-        ...{ asked: langAsked, setAsked: setLangAsked, mayWrite: adds.ownOnly || canAct },
-      });
-  const bar = viewBar({ c, facts, cannot, channel, setChannel, languageWord, only: step?.channels ?? null });
+  const { languageWord, more } = languagesOf(step, () =>
+    languageChoice({
+      ...{ facts, firstLangId: first.langId, adding, mayAdd },
+      ...{ asked: langAsked, setAsked: setLangAsked, mayWrite: adds.ownOnly || canAct },
+    }),
+  );
+  const bar = viewBar({ c, facts, cannot, channel, setChannel, languageWord, only: channelsOf(step) });
   const { version, versionActs } = paneVersion(p, { facts, channel, heldOf, dock });
   return (
     <CmPane

@@ -44,7 +44,7 @@ import { GroupHead } from "../../kit/head/group-head";
 import { foldedLookup } from "../../kit/head/list-find";
 import { usePageSearch } from "../../kit/head/page-search";
 import { ListBar, groupedOf, type SequencesType, type SequencesView } from "./list-bar";
-import { OtherMessages, useListMessages } from "./other-messages";
+import { OtherMessages, useListMessages } from "../parts/other-messages";
 import { useRecordsAhead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";
 
@@ -137,6 +137,14 @@ function SequenceRow(p: {
   );
 }
 
+/**
+ * The step a search found a row by, by its message, where the words found it so and not by its own name: the step and the
+ * message say why it is here ("Step 2 · A short nudge").
+ */
+function foundByMessage(row: SequenceRowDto, words: string, titleOf: (name: string) => string | null) {
+  return words !== "" && !sequenceMatches(row, words) ? sequenceMessageFound(row, words, titleOf) : null;
+}
+
 /** How many sequences of each type there are. */
 function typeCounts(rows: readonly SequenceRowDto[]): Record<SequenceType, number> {
   const n: Record<SequenceType, number> = { customers: 0, leads: 0, once: 0 };
@@ -160,7 +168,7 @@ export function SequencesList({ page, openId }: SequencesListProps) {
   const [endedOpen, setEndedOpen] = useState(false);
   const words = search.trim().toLowerCase();
   // The messages, read as the list reads them: a search finds a campaign by its messages' titles too (call C7).
-  const said = useListMessages();
+  const listed = useListMessages();
   const types = useMemo(() => typeCounts(page.sequences), [page.sequences]);
   // A type none is left of since it was picked is every type again, as an emptied view is.
   const type = pickedType !== "all" && types[pickedType] > 0 ? pickedType : "all";
@@ -176,7 +184,7 @@ export function SequencesList({ page, openId }: SequencesListProps) {
     .filter((g) => view === "all" || g.group === view)
     .map((g) => ({
       ...g,
-      rows: words === "" ? g.rows : g.rows.filter(({ row }) => sequenceMatches(row, words, said.titleOf)),
+      rows: words === "" ? g.rows : g.rows.filter(({ row }) => sequenceMatches(row, words, listed.titleOf)),
     }))
     .filter((g) => g.rows.length > 0);
   // The ended fold: shut at the list's foot until asked, open under a search or in Ended's own view.
@@ -245,17 +253,14 @@ export function SequencesList({ page, openId }: SequencesListProps) {
                 tz={page.timezone}
                 word={page.word}
                 open={row.id === openId}
-                waits={said.waits(row)}
-                // Found by a message of a step, and not by its own name: the step and the message say why it is here.
-                found={
-                  words !== "" && !sequenceMatches(row, words) ? sequenceMessageFound(row, words, said.titleOf) : null
-                }
+                waits={listed.waits(row)}
+                found={foundByMessage(row, words, listed.titleOf)}
               />
             ))}
           </section>
         ))}
         {/* The messages no campaign sends, folded at the foot (call C5). */}
-        <OtherMessages others={said.others} words={words} />
+        <OtherMessages others={listed.others} words={words} />
       </div>
     </>
   );

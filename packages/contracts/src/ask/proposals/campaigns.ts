@@ -592,7 +592,7 @@ export const MESSAGE_WORDS = {
     `Its email is kept, and goes once email can send: ${reason ?? CHANNEL_WORDS.noMailbox}`,
   /** A name and language the Library holds: the door's sentence for a twin, and where that message's versions change. */
   twin: (name: string): string =>
-    `${TEMPLATE_SAME_NAME_WORDS} Say so: “${name}” in this language is already one of the workspace's messages; its words change with action message_words, its name with action message_rename.`,
+    `${TEMPLATE_SAME_NAME_WORDS} Say so: “${name}” in this language is already one of the workspace's messages. Its words change with action message_words, its name with action message_rename.`,
   /** The card's title: what the owner calls the message (its title, else its name made words), and its language in words. */
   title: (title: string, language: string): string =>
     `${CAMPAIGN_ROOMS.newMessage}: ${title}, in ${languageName(language)}`,

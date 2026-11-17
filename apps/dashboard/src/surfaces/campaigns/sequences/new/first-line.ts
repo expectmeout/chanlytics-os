@@ -2,12 +2,25 @@
  * A line said before New is open (16 Nov 2026): Campaigns with no campaign yet draws New's own line (sequences-page.tsx
  * NoCampaigns), and what is said there goes to New, kept in the tab as New's own line is and marked to be drafted, so New
  * drafts it by itself as it opens, once its reads are in. Nothing is pressed twice. What New keeps in the tab, and under
- * which address, is here too, since both sides read it.
+ * which address, is here too, since both sides read it, and how New asks AI for a draft of a line (useAsk).
  */
-import { useEffect, useRef } from "react";
-import { newSequenceRoute, type NewDraftDto, type NewWho } from "@chanlytics/contracts";
+import { useEffect, useRef, useState } from "react";
+import {
+  NEW_WORDS,
+  draftKeepsMessage,
+  newSequenceRoute,
+  type NewDraftAnswered,
+  type NewDraftAsk,
+  type NewDraftDto,
+  type NewWho,
+} from "@chanlytics/contracts";
+import type { Output } from "@/client/api";
+import { commitVerb } from "@/bridge/verbs/commit";
 import { keepTabDraft } from "../../../kit/record/work";
-import { navigate } from "../../../frame-verbs";
+import { navigate, refusalToast, type FrameFlash } from "../../../frame-verbs";
+
+/** The choices already made that a line is drafted with: a door's, or the owner's in the draft. */
+export type Fixed = Omit<NewDraftAsk, "words">;
 
 /**
  * What New keeps in the tab while it holds a draft: the draft, the line, and the draft as Ask answered it (decision 0078
@@ -58,4 +71,49 @@ export function useDraftOnOpen(
     pending.current = "";
     draft(words);
   });
+}
+
+/**
+ * Ask at work: a draft asked for from a line, Stop, and what came of it: the draft, which each asker takes its own way (a
+ * first draft, one drafted again, one changed), or none, with a refusal or Ask that failed said here.
+ */
+export function useAsk(door: Fixed, flash: (flash: FrameFlash) => void) {
+  const [drafting, setDrafting] = useState<"fresh" | "again" | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [refused, setRefused] = useState<string | null>(null);
+  // Each ask counted, so an answer that arrives after Stop, or after a later ask, is let go.
+  const asked = useRef(0);
+  const answer = async (words: string, fixed: Fixed, again: boolean): Promise<NewDraftAnswered | null> => {
+    const id = ++asked.current;
+    setDrafting(again ? "again" : "fresh");
+    setFailed(null);
+    setRefused(null);
+    // A change is asked of the draft as it stands: the door's choices opened New, and the owner may have changed them since.
+    const r = await commitVerb("sequence_draft", { words, ...(fixed.stands ? {} : door), ...fixed });
+    if (id !== asked.current) return null;
+    setDrafting(null);
+    if (r.ok) return r.data as Output<"POST sequences/draft">;
+    // Drafting it again, or changing it, the draft stays as it was and what Ask said is a toast over it, whatever it was.
+    if (again) flash(refusalToast(r));
+    // A draft nothing here can hold is said in Ask's words; anything else is Ask that could not answer, in the server's
+    // words where it said why (a day's budget spent, a paused workspace, an answer that ran long), as a change's toast is.
+    else if (r.code === "validation") setRefused(r.message);
+    else setFailed(r.message || NEW_WORDS.failed.words);
+    return null;
+  };
+  // A draft asked for as a kind, or as a change to one that stands: the server never answers such an ask as a message
+  // to keep (contracts draftKeepsMessage), and one that did is no draft.
+  const ask = async (words: string, fixed: Fixed, again: boolean): Promise<NewDraftDto | null> => {
+    const answered = await answer(words, fixed, again);
+    return answered && !draftKeepsMessage(answered) ? answered : null;
+  };
+  const stop = () => {
+    asked.current++;
+    setDrafting(null);
+  };
+  const clear = () => {
+    setFailed(null);
+    setRefused(null);
+  };
+  return { drafting, failed, refused, ask, answer, stop, clear };
 }

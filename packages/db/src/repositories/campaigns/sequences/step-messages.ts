@@ -33,17 +33,17 @@ export async function listStepMessages(db: Db, tenantId: TenantId): Promise<Map<
     "whole",
   );
   const bySequence = new Map<string, StepMessageRow[]>();
-  for (const r of rows) {
-    if (!r.template_name) continue;
-    const steps = bySequence.get(r.sequence_id) ?? [];
+  for (const row of rows) {
+    if (!row.template_name) continue;
+    const steps = bySequence.get(row.sequence_id) ?? [];
     steps.push({
-      place: r.place,
-      name: r.template_name,
-      language: r.template_language ?? "",
-      channels: r.channels,
-      running: r.state === "running",
+      place: row.place,
+      name: row.template_name,
+      language: row.template_language ?? "",
+      channels: row.channels,
+      running: row.state === "running",
     });
-    bySequence.set(r.sequence_id, steps);
+    bySequence.set(row.sequence_id, steps);
   }
   return bySequence;
 }

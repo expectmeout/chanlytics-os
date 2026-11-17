@@ -14,8 +14,8 @@ import {
   CALL_TEXT_WORDS,
   callTextStandOf,
   callTextWanted,
-  newMessageAsked,
-} from "@chanlytics/contracts";
+} from "../../../apps/dashboard/src/surfaces/settings/business/model/call-text.ts";
+import { newMessageAsked } from "../../../apps/dashboard/src/bridge/ask/new-message.ts";
 
 /** The inputs a live phone line and WhatsApp, a booking link and nothing held give, with no approved message for it. */
 const LIVE = {

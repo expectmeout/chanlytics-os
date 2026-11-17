@@ -183,7 +183,6 @@ export { isLibrarySample, libraryCount } from "./campaigns/templates/library-cou
 export { LANGUAGE_GROUP_WORDS, languageLabels, languageWords, messageLanguageChoices, templateUntranslatable } from "./campaigns/templates/message-languages";
 export { EMAIL_BODY_MAX, EMAIL_SUBJECT_MAX, noVersionWords, OWN_VERSION_CHANNELS, SMS_SEGMENTS_MAX, smsSegments, smsStopLine, smsVersionSegments, VERSION_CHANNEL_WORDS, VERSION_CHANNELS, versionWord } from "./campaigns/templates/message-versions/channels";
 export { campaignEmailRules, emailIssues, isReachOutRow, keepsValues, reachOutRowName, reachOutStepOf, renderOwnVersion, validateEmailVersion, validateOwnVersion, validateSmsVersion, versionComponents, versionSlotsRefusal, versionsOf, versionWords } from "./campaigns/templates/message-versions/email-rules";
-export { newMessageAsked } from "./campaigns/templates/new-message-asked";
 export { bookingTemplate, compareTemplates, defaultTemplate, groupTemplates, starterIndex } from "./campaigns/templates/order";
 export { exampleParams, exampleParamsFor, firstNameOf, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, PARAM_SOURCES, paramLabel, paramSaid, parseParamSpec, parseParamSpecs, playbooksStillSending, resolveParams, testParamsOf } from "./campaigns/templates/params";
 export { footerOf, refusedWords, sendableTemplates, templateBlocked, templateFooter, templateLinkButton, templateParts } from "./campaigns/templates/parts";
@@ -199,7 +198,6 @@ export { templateSends, templateSendsOf, templateSentWords, templateUnused, temp
 export { BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, brainMetaOf, brainOutputSchemaFor, CONFIDENCE_STEPS, replyWhy } from "./config/brain";
 export { abilityRows, cannotFoldWords, cannotRows, VISION_SWITCH_WORDS } from "./config/business-tab/abilities";
 export { BOOKING_LINK_ROW_WORDS, businessGap } from "./config/business-tab/business-gap";
-export { CALL_TEXT_NAME, CALL_TEXT_WORDS, callTextStandOf, callTextWanted } from "./config/business-tab/call-text";
 export { BOOKING_CHOICE_WORDS, BOOKING_CHOICES, bookingChoiceNeeds, bookingChoiceOf, bookingChoiceWrites, PRICE_CHOICE_WORDS, PRICE_CHOICES, priceChoiceOf, priceChoiceWrites, WALK_IN_WORDS, WALK_INS_CHOICES, walkInsChoiceOf } from "./config/business-tab/choices";
 export { CHIPS_SHOWN, chipsMoreWords, count, pluralGrouped } from "./config/business-tab/counts";
 export { HANDOFF_ANYWAY, handoffCallRow, handoffChatRow, handoffChatWords, handoffWords } from "./config/business-tab/handoff-words";

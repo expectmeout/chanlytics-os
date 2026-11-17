@@ -4191,7 +4191,6 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
     // Sent's list went to each sequence's History (decision 0060, D3): its names find Sequences.
     ["sent", "campaigns/sequences"],
     ["broadcasts", "campaigns/sequences"],
-    // Messages folded into Campaigns (17 Nov 2026): its name finds Campaigns.
     ["messages", "campaigns/sequences"],
     ["setup", "start"],
     ["billing", "admin/billing"],

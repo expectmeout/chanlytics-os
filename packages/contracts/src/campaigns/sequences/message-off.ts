@@ -39,8 +39,8 @@ export function sequenceMessageOff(
   messages: readonly CampaignMessage[],
 ): SequenceMessageOffDto | null {
   for (const step of [...steps].sort((a, b) => a.place - b.place)) {
-    const why = offOf(step, messages);
-    if (why) return { place: step.place, why, language: step.language };
+    const reason = offOf(step, messages);
+    if (reason) return { place: step.place, why: reason, language: step.language };
   }
   return null;
 }

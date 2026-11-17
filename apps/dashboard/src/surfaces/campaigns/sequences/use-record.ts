@@ -8,7 +8,7 @@
  * through the batch's own door, as its run's sheet reads it (useBatchRead), and follows the list while it can still move.
  */
 import { useEffect, useRef, useState } from "react";
-import { runStillMoving, waitingEmailsOf, type BroadcastDetailDto } from "@chanlytics/contracts";
+import { runStillMoving, waitingEmailsOf, type BroadcastDetailDto, type SequenceRowDto } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import { aheadWhenIdle } from "@/bridge/workspace";
 import { useSurface, useWaitFor } from "../../use-surface";
@@ -126,4 +126,16 @@ export function usePeopleRead(id: string | null, again: number) {
   // At the one wait's pace (bridge/hearing/wait-for.ts): never while the page is hidden, slower as nothing comes back.
   useWaitFor(writing, { everyMs: WRITING_READ_MS, read: () => setTick((n) => n + 1) });
   return { read, writing };
+}
+
+/**
+ * A record's row with what the list read says of its steps' messages (`message_off`), which the record's own read does not
+ * carry: a run that did nothing for a message WhatsApp has refused since then says refused, as its row and its step do.
+ */
+export function withListMessageOff(
+  row: SequenceRowDto,
+  list: { sequences: readonly SequenceRowDto[] } | null | undefined,
+): SequenceRowDto {
+  const off = list?.sequences.find((listed) => listed.id === row.id)?.message_off;
+  return off ? { ...row, message_off: off } : row;
 }

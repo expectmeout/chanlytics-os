@@ -16,6 +16,6 @@ export type NewMessageFor = "keep" | "inbox";
  * can be started with.
  */
 export function newMessageAsked(words: string, use: NewMessageFor = "keep"): string {
-  const what = use === "inbox" ? "New message the Inbox can start a chat with" : "New message";
-  return `${what}, with a version for WhatsApp, email and text wherever its kind may go (an offer never by text): ${words}`;
+  const kind = use === "inbox" ? "New message the Inbox can start a chat with" : "New message";
+  return `${kind}, with a version for WhatsApp, email and text wherever its kind may go (an offer never by text): ${words}`;
 }

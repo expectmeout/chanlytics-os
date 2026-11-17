@@ -9,13 +9,10 @@
  */
 import { useEffect } from "react";
 import { HOUR_MS } from "@chanlytics/contracts";
-import { api } from "@/bridge/api";
-import { onceIdle } from "@/bridge/workspace";
+import { syncWhatsAppList } from "@/bridge/verbs/templates";
+import { aheadWhenIdle } from "@/bridge/workspace";
 import { canDo } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
-
-/** WhatsApp's list asked again: what it holds that the workspace's rows do not, filed. */
-export const syncWhatsAppList = () => api()("POST templates/sync");
 
 /** How long WhatsApp's own list is left before it is asked again as Campaigns opens. */
 const QUIET_CHECK_MS = HOUR_MS;
@@ -35,11 +32,15 @@ export function useWhatsAppListAsked(): void {
     if (!may || checkedThisVisit) return undefined;
     if (synced && Date.now() - Date.parse(synced) < QUIET_CHECK_MS) return undefined;
     // Once the boot is in and the page is idle; let go where Campaigns is left before then, and asked on the next visit.
-    return onceIdle(() => {
-      if (checkedThisVisit) return;
-      checkedThisVisit = true;
-      // A check that did not answer leaves the rows as they were read: the next visit asks again.
-      void syncWhatsAppList();
-    });
+    return aheadWhenIdle(
+      () => {
+        if (checkedThisVisit) return;
+        checkedThisVisit = true;
+        // A check that did not answer leaves the rows as they were read: the next visit asks again.
+        void syncWhatsAppList();
+      },
+      undefined,
+      { everyLine: true },
+    );
   }, [may, synced]);
 }

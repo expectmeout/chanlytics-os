@@ -30,7 +30,14 @@ import type { PoliciesSurface } from "@/bridge/policy-store";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { messageRoute } from "@chanlytics/contracts";
 import { gate, navigate, refusalToast, routeDoor, type FrameFlash } from "../../frame-verbs";
-import { fileStarters } from "../../campaigns/templates/starter-door";
+import { fileStarters } from "@/bridge/verbs/templates";
+import {
+  CALL_TEXT_NAME,
+  CALL_TEXT_WORDS,
+  callTextStandOf,
+  callTextWanted,
+  type CallTextStand,
+} from "./model/call-text";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { FailedRead } from "../../kit/empty/empty";
@@ -183,37 +190,37 @@ const BtcCallText = ({
   canEdit,
   flash,
 }: {
-  stand: ReturnType<typeof BUSINESS_TAB.callTextStandOf>;
+  stand: CallTextStand;
   canEdit: boolean;
   flash: ((f: FrameFlash) => void) | null;
 }) => {
-  const W = BUSINESS_TAB.CALL_TEXT_WORDS;
+  const words = CALL_TEXT_WORDS;
   const [sending, setSending] = useState(false);
   if (stand === "checking")
     return (
       <p className="bt-can-says" data-testid="rec-can-call-text">
-        {W.checking}
+        {words.checking}
       </p>
     );
   if (stand === "open")
     return (
       <p className="bt-can-says" data-testid="rec-can-call-text">
-        <LinkButton {...routeDoor(messageRoute(BUSINESS_TAB.CALL_TEXT_NAME))} data-testid="rec-can-call-text-open">
-          {W.open}
+        <LinkButton {...routeDoor(messageRoute(CALL_TEXT_NAME))} data-testid="rec-can-call-text-open">
+          {words.open}
         </LinkButton>
       </p>
     );
   if (!canEdit || !flash) return null;
   const send = async () => {
     setSending(true);
-    const r = await fileStarters({ keys: [BUSINESS_TAB.CALL_TEXT_NAME], channels: ["whatsapp"] });
+    const r = await fileStarters({ keys: [CALL_TEXT_NAME], channels: ["whatsapp"] });
     setSending(false);
-    flash(r.ok ? { msg: W.sent } : refusalToast(r));
+    flash(r.ok ? { msg: words.sent } : refusalToast(r));
   };
   return (
     <p className="bt-can-says" data-testid="rec-can-call-text">
       <Button size="sm" disabled={sending} onClick={() => void send()} data-testid="rec-can-call-text-send">
-        {sending ? W.sending : W.send}
+        {sending ? words.sending : words.send}
       </Button>
     </p>
   );
@@ -464,8 +471,8 @@ export const BtCanCard = ({
   // The call's text, where a call wants it and has none it can send (Campaigns, one tab, call C9): its press, where the
   // page has a toast to say what came of it and the role may change the business.
   const callText =
-    inputs && Array.isArray(templates) && BUSINESS_TAB.callTextWanted(inputs) ? (
-      <BtcCallText stand={BUSINESS_TAB.callTextStandOf(templates)} canEdit={canEdit} flash={flash} />
+    inputs && Array.isArray(templates) && callTextWanted(inputs) ? (
+      <BtcCallText stand={callTextStandOf(templates)} canEdit={canEdit} flash={flash} />
     ) : null;
   // Texting reads `ready`, not `live`: `live` needs a tested that texting never records (capabilities.ts), so it can
   // never be true, and the row would say texting is not sold on a line where it is on.

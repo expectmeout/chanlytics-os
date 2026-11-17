@@ -5,8 +5,7 @@
  * the booking-link row carries the one press that sends the ready-made call's text to WhatsApp, says WhatsApp is checking
  * it, or opens it where WhatsApp turned it down, where AI writes new words.
  */
-import { WHATSAPP_REVIEW_TAKES } from "../../campaigns/templates/templates";
-import type { AbilityInputs } from "./abilities";
+import { WHATSAPP_REVIEW_TAKES, type AbilityInputs } from "@chanlytics/contracts";
 
 /** The call's text by its name: the ready-made message (starter-templates/table.ts), filed by its key. */
 export const CALL_TEXT_NAME = "call_text";

@@ -456,20 +456,13 @@ test("the door: idempotent, one language at a time, synced in when the number's 
   );
   assert.ok(r.includes("Pick at least one starter template, in English or Spanish."));
   const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
-  // The door's one caller is a module of its own, which Campaigns' verbs and Settings › Business (the call's text) both
-  // press, so Settings carries the door and none of Campaigns' message code.
-  const door = readCode("apps/dashboard/src/surfaces/campaigns/templates/starter-door.ts");
+  // The door's one caller is the bridge's verb, which Campaigns' verbs and Settings › Business (the call's text) both press.
+  const door = readCode("apps/dashboard/src/bridge/verbs/templates.ts");
   assert.ok(
     door.includes('export const fileStarters = (body: StarterBody) => api()("POST templates/starter", { body });') &&
-      b.includes('import { fileStarters } from "./starter-door";') &&
+      b.includes('import { fileStarters, syncWhatsAppList } from "@/bridge/verbs/templates";') &&
       /\n {2}fileStarters,\n/.test(b),
     "the verb goes through the client (a step editor files the starter it picked); the map refreshes every surface that shows templates",
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/settings/business/can.tsx").includes(
-      'import { fileStarters } from "../../campaigns/templates/starter-door";',
-    ),
-    "Settings sends the call's text through the same door, never a call of its own",
   );
   assert.ok(
     b.includes("export const starters: StarterLibrary = {") &&

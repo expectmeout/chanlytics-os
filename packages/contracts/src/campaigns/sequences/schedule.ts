@@ -379,6 +379,12 @@ export interface ScheduleCtx {
   off?: SequenceMessageOffDto | null;
 }
 
+/** A step whose message is gone (pick another) or cannot go (message-off.ts), which it says before anything else. */
+function stepStopped(ctx: ScheduleCtx): ScheduleState | null {
+  if (ctx.gone) return { tone: "need", words: SCHEDULE_WORDS.pick };
+  return ctx.off ? { tone: "need", words: stepOffLine(ctx.off, "box") } : null;
+}
+
 /** A sequence to leads' step going now: what the check held of it and what is for you to send, then when the rest go. */
 function leadStepNow(row: SequenceRowDto, step: SequenceStepDto, ctx: ScheduleCtx): ScheduleState | null {
   const next = row.next;
@@ -421,8 +427,8 @@ function customerNext(row: SequenceRowDto, step: SequenceStepDto, ctx: ScheduleC
  * review), or that a lead's step has gone to everyone. Null where it is doing nothing worth a line.
  */
 export function scheduleStepState(row: SequenceRowDto, step: SequenceStepDto, ctx: ScheduleCtx): ScheduleState | null {
-  if (ctx.gone) return { tone: "need", words: SCHEDULE_WORDS.pick };
-  if (ctx.off) return { tone: "need", words: stepOffLine(ctx.off, "box") };
+  const stopped = stepStopped(ctx);
+  if (stopped) return stopped;
   const batch = row.needs.waiting > 0 ? row.needs.batches.find((b) => b.step_id === step.id) : undefined;
   if (batch) {
     // An OK sends it at once; a customer's waits only until its day is gone (batchWaitsUntilTonight).

@@ -13,7 +13,8 @@ import { z } from "zod";
 import { FOLLOW_UP_CONDITIONS } from "./follow-up";
 import { NEW_ANSWER_KINDS, NEW_AUDIENCES, NEW_KINDS, NEW_STEP_DOES } from "./new-draft/steps";
 
-export const NewDraftAnswerSchema = z.object({
+/** A draft as it is judged: what the drafter keeps of the model's answer once a `message` is read as its kind. */
+const NewDraftAnswerSchema = z.object({
   kind: z.enum(NEW_KINDS),
   audience: z.enum(NEW_AUDIENCES),
   who: z.string().trim(),

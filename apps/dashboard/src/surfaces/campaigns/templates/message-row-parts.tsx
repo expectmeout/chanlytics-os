@@ -134,26 +134,6 @@ function deleteWords(c: RowCtx): { question: string; detail: string } {
 }
 
 /**
- * Marketing or utility, as a mark (.mark): the glyph says which (a gift, a bell) and the tip says what it means for who
- * it reaches. The row wears it, and so does the pane's head.
- */
-export function tplMark(offer: boolean) {
-  return (
-    <span
-      className="mark mark-row msg-row-mark"
-      data-kind={offer ? "offer" : "note"}
-      data-tip={
-        offer
-          ? "An offer — WhatsApp calls this marketing, so it only reaches people who said yes to offers."
-          : "A note — WhatsApp calls this utility, so it reaches anyone it is sent to."
-      }
-    >
-      <Icon name={offer ? "gift" : "bell"} size={14} />
-    </span>
-  );
-}
-
-/**
  * What a row says of its message when something is wrong with it: a message WhatsApp approved that this product still
  * cannot put on the wire (the composers do not offer it, so its row says why rather than leaving it looking available),
  * and one WhatsApp refused. A refusal was a `title=` on the language button and a tail on the meta line: 10px, and on a
@@ -474,11 +454,11 @@ function renameItem({ busy, setDraft, setRenaming, setArm }: RowCtx, row: Templa
  * The message's own acts, on the row that names it (its WhatsApp version's, else its email's, else its text's): rename it,
  * put it away (or bring it back) and delete it, for the members who may, whichever channels it has.
  */
-function messageItems(c: RowCtx, row: TemplateDto): MenuItem[] {
-  const { busy, onHide, setRenaming, setArm } = c;
+function messageItems(ctx: RowCtx, row: TemplateDto): MenuItem[] {
+  const { busy, onHide, setRenaming, setArm } = ctx;
   const away = !!row.hidden_at;
   return [
-    renameItem(c, row),
+    renameItem(ctx, row),
     {
       label: away ? TPL_LIST_WORDS.bringBack : TPL_LIST_WORDS.putAway,
       glyph: <Icon name="eye" size={13} />,

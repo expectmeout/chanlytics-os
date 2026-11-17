@@ -12,8 +12,7 @@
  */
 import type { Workspace } from "@/bridge/surface-data";
 import { api } from "@/bridge/api";
-import { syncWhatsAppList } from "../parts/whatsapp-list";
-import { fileStarters } from "./starter-door";
+import { fileStarters, syncWhatsAppList } from "@/bridge/verbs/templates";
 import {
   LANGUAGE_GROUP_WORDS,
   PARAM_SOURCE_HINTS,

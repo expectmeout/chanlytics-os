@@ -14,7 +14,7 @@
  * A draft keeps a line under it (decision 0129 step 2, change.ts): what the owner types or says there changes the draft
  * that stands, Ask's answer taken as that draft changed, what changed said on top with Undo.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CONSENT_CHANNELS,
   NEW_WORDS as W,
@@ -23,14 +23,12 @@ import {
   clockWhen,
   draftKeepsMessage,
   localHour,
-  newMessageAsked,
   readyOrWhatsApp,
   sequenceRoute,
   whoSuits,
   zoneDayKey,
   type ConsentChannel,
   type NewAudience,
-  type NewDraftAnswered,
   type NewDraftAsk,
   type NewDraftDto,
   type NewKind,
@@ -38,6 +36,7 @@ import {
   type ReachOutSourceDto,
   refusalNeedsMailbox,
 } from "@chanlytics/contracts";
+import { newMessageAsked } from "@/bridge/ask/new-message";
 import type { Output } from "@/client/api";
 import { commitVerb } from "@/bridge/verbs/commit";
 import { runningOf } from "@/lib/new-checks";
@@ -51,7 +50,7 @@ import { useCampaignsToast } from "../../home/route-toast";
 import { reachOuts } from "../../reach-out/surface";
 import { CHANGE_WORDS, changedFrom, changesOf, draftedAfter, leftNothing, placesByAsk, standsOf } from "./change";
 import { DraftView, type DraftReads } from "./new-draft";
-import { newKeptKeyOf, useDraftOnOpen, type KeptHere } from "./first-line";
+import { newKeptKeyOf, useAsk, useDraftOnOpen, type Fixed, type KeptHere } from "./first-line";
 import type { KeptSend } from "./kept-send";
 import * as M from "./new-model";
 import { StartView, type StartReads } from "./new-start";
@@ -155,7 +154,6 @@ function useNewReads(sources: ReachOutSourceDto[] | null | undefined): {
 
 type Reads = NonNullable<ReturnType<typeof useNewReads>>;
 type Flash = ReturnType<typeof useFrameToast>[1];
-type Fixed = Omit<NewDraftAsk, "words">;
 
 /** The choices a door's address made, which every draft from this New keeps, and the line it opens on. */
 function useDoor(moment: string | null, who: NewWho | null, to: string | null, reads: Reads | null) {
@@ -201,51 +199,6 @@ function useOpenedOn(who: NewWho | null, keptId: string | null, reads: Reads | n
     if (again) keepTabDraft("broadcast", null);
   };
   return { opened, letGo };
-}
-
-/**
- * Ask at work: a draft asked for from a line, Stop, and what came of it: the draft, which each asker takes its own way (a
- * first draft, one drafted again, one changed), or none, with a refusal or Ask that failed said here.
- */
-function useAsk(door: Fixed, flash: Flash) {
-  const [drafting, setDrafting] = useState<"fresh" | "again" | null>(null);
-  const [failed, setFailed] = useState<string | null>(null);
-  const [refused, setRefused] = useState<string | null>(null);
-  // Each ask counted, so an answer that arrives after Stop, or after a later ask, is let go.
-  const asked = useRef(0);
-  const answer = async (words: string, fixed: Fixed, again: boolean): Promise<NewDraftAnswered | null> => {
-    const id = ++asked.current;
-    setDrafting(again ? "again" : "fresh");
-    setFailed(null);
-    setRefused(null);
-    // A change is asked of the draft as it stands: the door's choices opened New, and the owner may have changed them since.
-    const r = await commitVerb("sequence_draft", { words, ...(fixed.stands ? {} : door), ...fixed });
-    if (id !== asked.current) return null;
-    setDrafting(null);
-    if (r.ok) return r.data as Output<"POST sequences/draft">;
-    // Drafting it again, or changing it, the draft stays as it was and what Ask said is a toast over it, whatever it was.
-    if (again) flash(refusalToast(r));
-    // A draft nothing here can hold is said in Ask's words; anything else is Ask that could not answer, in the server's
-    // words where it said why (a day's budget spent, a paused workspace, an answer that ran long), as a change's toast is.
-    else if (r.code === "validation") setRefused(r.message);
-    else setFailed(r.message || W.failed.words);
-    return null;
-  };
-  // A draft asked for as a kind, or as a change to one that stands: the server never answers such an ask as a message
-  // to keep (contracts draftKeepsMessage), and one that did is no draft.
-  const ask = async (words: string, fixed: Fixed, again: boolean): Promise<NewDraftDto | null> => {
-    const answered = await answer(words, fixed, again);
-    return answered && !draftKeepsMessage(answered) ? answered : null;
-  };
-  const stop = () => {
-    asked.current++;
-    setDrafting(null);
-  };
-  const clear = () => {
-    setFailed(null);
-    setRefused(null);
-  };
-  return { drafting, failed, refused, ask, answer, stop, clear };
 }
 
 type Asking = ReturnType<typeof useAsk>;

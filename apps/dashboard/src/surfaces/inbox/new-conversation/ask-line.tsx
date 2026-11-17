@@ -11,7 +11,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LineBox, LineField, LinePress } from "../../kit/line/line";
 import { gate } from "../shell";
 
-const W = NEW_CONVERSATION_WORDS.approved.ask;
+const ASK_LINE = NEW_CONVERSATION_WORDS.approved.ask;
 
 export function AskForMessage({ onAsk }: { onAsk: (words: string) => void }) {
   const [said, setSaid] = useState("");
@@ -32,8 +32,8 @@ export function AskForMessage({ onAsk }: { onAsk: (words: string) => void }) {
           value={said}
           onChange={(event) => setSaid(event.currentTarget.value)}
           onKeyDown={onKey}
-          placeholder={W.hint}
-          aria-label={W.label}
+          placeholder={ASK_LINE.hint}
+          aria-label={ASK_LINE.label}
           enterKeyHint="send"
           maxLength={1000}
           data-testid="ix-new-ask-words"
@@ -42,14 +42,14 @@ export function AskForMessage({ onAsk }: { onAsk: (words: string) => void }) {
           kind="send"
           onClick={send}
           disabled={!words}
-          aria-label={W.send}
+          aria-label={ASK_LINE.send}
           data-testid="ix-new-ask-send"
           {...gate("approve", "write a message")}
         >
           <Icon name="arrow-up" size={15} />
         </LinePress>
       </LineBox>
-      <p className="ix-new-said">{W.note}</p>
+      <p className="ix-new-said">{ASK_LINE.note}</p>
     </div>
   );
 }

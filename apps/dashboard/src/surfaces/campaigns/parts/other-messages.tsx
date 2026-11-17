@@ -8,7 +8,7 @@
  */
 import { useMemo, useState } from "react";
 import {
-  OTHER_MESSAGES_WORDS as W,
+  OTHER_MESSAGES_WORDS,
   addressOf,
   otherMessagesOf,
   sequenceMessageWaits,
@@ -24,7 +24,7 @@ import { routeDoor } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 
 /** No message read yet, or a read that failed: nothing is said of any. */
-const NONE: readonly CampaignMessage[] = [];
+const NO_MESSAGES: readonly CampaignMessage[] = [];
 
 /** The list's reading of the messages: titles by name, whether a row's message waits, and those nothing sends. */
 export function useListMessages() {
@@ -34,10 +34,10 @@ export function useListMessages() {
   const use = settings?.templateUse ?? null;
   return useMemo(() => {
     const titles = new Map<string, string>();
-    for (const m of messages ?? NONE) if (!titles.has(m.name)) titles.set(m.name, m.title);
+    for (const m of messages ?? NO_MESSAGES) if (!titles.has(m.name)) titles.set(m.name, m.title);
     const sends = (name: string) => {
-      const said = use?.[name];
-      return !!said && (!said.unused || said.booking);
+      const usage = use?.[name];
+      return !!usage && (!usage.unused || usage.booking);
     };
     return {
       titleOf: (name: string): string | null => titles.get(name) ?? null,
@@ -73,14 +73,14 @@ export function OtherMessages({ others, words }: { others: readonly OtherMessage
   if (shown.length === 0) return null;
   const opened = open || words !== "";
   return (
-    <section className="sq-group" aria-label={W.group} data-testid="sq-others">
+    <section className="sq-group" aria-label={OTHER_MESSAGES_WORDS.group} data-testid="sq-others">
       <GroupHead
-        label={W.group}
+        label={OTHER_MESSAGES_WORDS.group}
         count={shown.length}
         end={
           words === "" ? (
             <LinkButton onClick={() => setOpen((v) => !v)} aria-expanded={open} data-testid="sq-others-toggle">
-              {open ? W.hide : W.show(shown.length)}
+              {open ? OTHER_MESSAGES_WORDS.hide : OTHER_MESSAGES_WORDS.show(shown.length)}
             </LinkButton>
           ) : null
         }

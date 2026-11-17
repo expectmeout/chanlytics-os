@@ -143,10 +143,10 @@ function StepFacts(p: {
   return (
     <dl className="sq-facts" data-testid={`sq-step-facts-${step.place}`}>
       {scheduleStepFacts(rec.sequence, step, rec.word, { ...p.ctx, gone: p.gone, offer: p.offer, ...p.says }).map(
-        (f) => (
-          <div key={f.label} className="sq-fact">
-            <dt>{f.label}</dt>
-            <dd className={f.tone === "warn" ? "sq-needs" : undefined}>{f.value}</dd>
+        (fact) => (
+          <div key={fact.label} className="sq-fact">
+            <dt>{fact.label}</dt>
+            <dd className={fact.tone === "warn" ? "sq-needs" : undefined}>{fact.value}</dd>
           </div>
         ),
       )}
@@ -192,7 +192,7 @@ function TestPress({
  * Take away, asked first: the question that stands in the sheet's foot while it is asked, and the press that asks it. It
  * is asked of one step while its sheet is open: closed, or moved to another step, the question goes with it.
  */
-function useTakeAway(p: {
+function useTakeAway(props: {
   rec: SequenceRecordDto;
   step: SequenceStepDto | null;
   open: boolean;
@@ -200,8 +200,8 @@ function useTakeAway(p: {
   moved: () => void;
   onGone: () => void;
 }): { ask: ReactNode; arm: () => void } {
-  const { rec, step, flash } = p;
-  const asking = p.open && step ? step.id : null;
+  const { rec, step, flash } = props;
+  const asking = props.open && step ? step.id : null;
   const [askedOf, setAskedOf] = useState<string | null>(null);
   // The sheet closed: what was asked in it is forgotten, so the same step opened again asks nothing until pressed.
   if (asking === null && askedOf !== null) setAskedOf(null);
@@ -214,11 +214,11 @@ function useTakeAway(p: {
       "sequence_step_remove",
       { sequence_id: rec.sequence.id, step_id: gone.id },
       flash,
-      p.moved,
+      props.moved,
     );
     setBusy(false);
     setSure(false);
-    if (ok) p.onGone();
+    if (ok) props.onGone();
   };
   const ask =
     sure && step ? (
@@ -394,7 +394,7 @@ function SheetBody(p: {
  * step N before Rename on the name's menu and Take away after it, the step's channels for tabs, its language, and its facts
  * under the words.
  */
-function paneStepOf(p: {
+function paneStepOf(props: {
   rec: SequenceRecordDto;
   step: SequenceStepDto;
   ctx: StepsCtx;
@@ -403,14 +403,14 @@ function paneStepOf(p: {
   take: { arm: () => void };
   onEdit: () => void;
 }): PaneStep {
-  const { rec, step, offer } = p;
+  const { rec, step, offer } = props;
   return {
     id: step.id,
     before: [
       {
         label: SW.editStep(step.place),
         glyph: <Icon name="clock" size={13} />,
-        onSelect: p.onEdit,
+        onSelect: props.onEdit,
         gate: { ...gate("approve"), "data-testid": `sq-step-edit-${step.place}` },
       },
     ],
@@ -422,7 +422,7 @@ function paneStepOf(p: {
               label: F.takeAway,
               glyph: <Icon name="x" size={13} />,
               tone: "danger" as const,
-              onSelect: p.take.arm,
+              onSelect: props.take.arm,
               gate: { ...gate("approve"), "data-testid": `sq-step-remove-ask-${step.place}` },
             },
           ]
@@ -432,20 +432,20 @@ function paneStepOf(p: {
     // Under the words as the step's view stands them (its gap over the rows).
     under: (
       <div className="sq-stepview">
-        <StepFacts rec={rec} step={step} ctx={p.ctx} gone={false} offer={offer} says={p.says} />
+        <StepFacts rec={rec} step={step} ctx={props.ctx} gone={false} offer={offer} says={props.says} />
       </div>
     ),
   };
 }
 
 /** Which face the sheet holds, and the message's pane where a step that sends one opens on it (C2). */
-function useStepFace(p: StepSheetProps, step: SequenceStepDto | null) {
+function useStepFace(props: StepSheetProps, step: SequenceStepDto | null) {
   const Pane = useContext(messagePaneContext());
   const message = useStepMessageRead(
     step && sendsMessage(step) ? step.template_name : null,
     step?.template_language ?? null,
   );
-  const face = faceOf(p.target, step, p.edit);
+  const face = faceOf(props.target, step, props.edit);
   const onMessage =
     face?.kind === "view" && sendsMessage(face.step) && !!face.step.template_name && !!message.message && Pane
       ? { Pane, name: face.step.template_name, step: face.step }

@@ -450,10 +450,7 @@ const KEEP_APP_NOTE: ConnectionNote = {
   text: "Already answering on the WhatsApp Business app? Keep the app: you go on using it, AI answers what you don't, and your contacts and last six months of chats come in if you share them in the app.",
 };
 
-/**
- * The WhatsApp row's own verb: Campaigns, where every message the receptionist and the campaigns send on the number is,
- * each inside the campaign that sends it (Campaigns, one tab, 17 Nov 2026: Messages folded into Campaigns).
- */
+/** The WhatsApp row's own verb: Campaigns, where every message sent on the number is (decision 0140). */
 const CAMPAIGNS: ConnectionVerb = { label: "Campaigns", to: SEQUENCES_ROUTE, who: "operator" };
 
 /**
