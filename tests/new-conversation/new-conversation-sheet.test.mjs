@@ -389,7 +389,7 @@ test("the pick: who is found, each a press; nobody; never 'no one' while nobody 
   assert.match(said(tree, "ix-new-who-pick"), /Phoned · 1d ago/, "when they were last heard, in the row's own words");
   press(all(tree, (n) => n.props?.["data-testid"] === "ix-new-who-pick").find((n) => n.type === "button"));
   assert.deepEqual(seen.picked, ["k1"]);
-  byTestId(tree, "ix-new-who-search").props.onValueChange("rob");
+  byTestId(tree, "ix-new-who-search").props.onChange({ target: { value: "rob" } });
   assert.deepEqual(seen.asked, ["rob"], "what is typed is the server's to match");
   // Enter takes the first found, once what is shown answers what was typed; never while it is still being read.
   const enter = { key: "Enter", preventDefault() {} };
@@ -415,6 +415,36 @@ test("the corner's ✕ steps aside where the foot holds Cancel, as a record shee
     sheetOf(draw(NewConversationSheet, opened("k1"))).props.footCloses,
     true,
     "writing to them: the foot's Cancel",
+  );
+});
+
+test("on a phone, who it is for is a job in the kit's sheet, as New proposal's is; the words it is written in are the record's", () => {
+  // The two sheets asked the same question two ways on a phone (16 Nov 2026): New proposal a job's head with Cancel over
+  // faces and two lines, New conversation a record's head with a ✕ in a circle and a rule under it over names alone.
+  const sheetOf = (tree) => all(tree, (n) => n.type === Sheet)[0];
+  const opened = (personId) => ({ open: true, personId, onClose() {}, flash() {} });
+  const media = globalThis.matchMedia;
+  globalThis.matchMedia = (q) => ({
+    matches: q === "(max-width: 900px)",
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  try {
+    const pick = sheetOf(draw(NewConversationSheet, opened(null)));
+    assert.equal(pick.props.shape, "job", "the pick is a phone's small job");
+    assert.deepEqual(pick.props.close, { word: W.cancel }, "its head's way out is the word, as New proposal's is");
+    assert.equal(pick.props.foot, undefined, "and a job has no foot");
+    assert.ok(byTestId(pick, "ix-new-who-search"), "the kit's person pick is what it holds");
+    const writing = sheetOf(draw(NewConversationSheet, opened("k1")));
+    assert.equal(writing.props.shape, undefined, "writing to them is the record's composer, its acts in its foot");
+    assert.equal(writing.props.footCloses, true);
+  } finally {
+    globalThis.matchMedia = media;
+  }
+  assert.equal(
+    sheetOf(draw(NewConversationSheet, opened(null))).props.shape,
+    undefined,
+    "on a desk the pick is the pane beside the page, as New proposal's record sheet is",
   );
 });
 

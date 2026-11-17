@@ -23,37 +23,6 @@
   gap: var(--space-1) var(--space-3);
   min-width: 0;
 }
-.ix-new-rows {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.ix-new-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  width: 100%;
-  height: auto;
-  min-height: var(--control-h-lg);
-}
-/* Who it finds lifts as a menu's item does (kit.css, the lozenge in the accent's soft tint), as New proposal's people
-   do: a quiet button's capsule, its grey fill and the ring round it, read as a second kind of list beside the menus. */
-.ix-new-rows .ix-new-row {
-  border-radius: var(--radius-lg);
-}
-.ix-new-rows .ix-new-row:is(:hover, :active) {
-  border-color: transparent;
-  background: var(--accent-soft);
-}
-.ix-new-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .ix-new-acts {
   display: flex;
   flex-wrap: wrap;

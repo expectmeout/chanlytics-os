@@ -1676,7 +1676,7 @@ test("New proposal: pick someone, and the one deal sheet opens to propose", asyn
   tree = draw();
   const picks = all(byTestId(tree, "pipeline-new-list"), (n) => n.props?.["data-testid"] === "pipeline-new-pick");
   assert.deepEqual(
-    picks.map((n) => textOf(byClass(n, "pipe-new-name"))),
+    picks.map((n) => textOf(byClass(n, "person-pick-name"))),
     ["Wes"],
     "People's own rule finds them",
   );

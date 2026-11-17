@@ -2,7 +2,8 @@
  * People › Pipeline's New proposal (docs/decisions/0008-a-proposal-is-part-of-the-deal.md), moved from
  * legacy/pages/pipeline-new.jsx (decision 0015): who a proposal is for, before the one deal sheet opens. A desk's record
  * sheet (the kit's RecordSheet) with no Save -- the pick is the act -- or a phone's, the kit's Sheet in a job's shape.
- * A search over the People rows the page already holds, by People's own rule (plMatcher), the first eight;
+ * A search over the People rows the page already holds, by People's own rule (plMatcher), the first eight, drawn by the
+ * kit's person pick (kit/person-pick/), the one New conversation's first step draws too;
  * someone new is added on People, by its own New (Ruben, 20 Oct 2026: the picker's Add someone new went). A pick closes
  * it and asks for the deal sheet in its propose mode. Hookless: what is open and what was typed are PipelineScope's.
  * Every word is contracts' (PIPELINE_WORDS.newProposal).
@@ -13,8 +14,7 @@
  * on the page's body. A phone's sheet keeps a field that takes focus as it draws, so there the fields autoFocus.
  */
 import type { PersonRowVM } from "@chanlytics/contracts";
-import { Face } from "../../kit/face/face";
-import { StoppedMark } from "../../kit/pill/stopped-mark";
+import { PersonPick } from "../../kit/person-pick/person-pick";
 import type { FocusOn } from "../../kit/record/focus";
 import { RecordSheet } from "../../kit/record/sheet";
 import { Sheet } from "../../kit/sheet/sheet";
@@ -39,59 +39,23 @@ interface BodyProps {
   autoFocus?: boolean;
 }
 
-/** The people found, or the words for nobody. */
-function pipeNewFound(found: readonly PersonRowVM[], onPick: (id: string) => void) {
-  const W = P.words.newProposal;
-  if (!found.length)
-    return (
-      <p className="pipe-new-none" data-testid="pipeline-new-none">
-        {W.none}
-      </p>
-    );
-  return (
-    <ul className="pipe-new-list" data-testid="pipeline-new-list">
-      {found.map((p) => (
-        <li key={p.id}>
-          <button type="button" className="pipe-new-row" onClick={() => onPick(p.id)} data-testid="pipeline-new-pick">
-            <Face person={{ name: p.name, initials: p.initials }} size="sm" className="pipe-new-face" />
-            <span className="pipe-new-name">
-              {p.name}
-              {/* They asked to stop: a proposal is a message to send, so the picker says it before a person is chosen. */}
-              {p.stopped && <StoppedMark className="pipe-new-stopped" testid="pipeline-new-stopped" />}
-            </span>
-            {/* Where their deal stands, or when they were last heard: the row's own words. */}
-            <span className="pipe-new-said">{p.deal ? p.deal.line : p.lastContact.label}</span>
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
+/** The kit's person pick, as New conversation's first step draws it: the question, its search, who it finds. */
 const PipelineNewBody = (b: BodyProps) => {
   const { rows, q, onQ, onPick, autoFocus = false } = b;
   const W = P.words.newProposal;
-  const found = pipeNewMatches(rows, q);
   return (
-    <div className="pipe-new" data-testid="pipeline-new">
-      {/* The box New conversation's kit Field draws (the same question in the same words), in the record kit's markup:
-          the Field would bring Base UI's onto People's first load (+5 KB). */}
-      <label className="rec-field" data-rec-row="search">
-        <span className="rec-field-label">{W.sub}</span>
-        <input
-          className="rec-input"
-          type="search"
-          // eslint-disable-next-line jsx-a11y-x/no-autofocus -- only a phone's sheet, which has no focus rule of its own
-          autoFocus={autoFocus}
-          autoComplete="off"
-          value={q}
-          placeholder={W.search}
-          onChange={(e) => onQ(e.target.value)}
-          data-testid="pipeline-new-search"
-        />
-      </label>
-      {pipeNewFound(found, onPick)}
-    </div>
+    <PersonPick
+      label={W.sub}
+      placeholder={W.search}
+      query={q}
+      onQuery={onQ}
+      people={pipeNewMatches(rows, q)}
+      onPick={onPick}
+      none={W.none}
+      // eslint-disable-next-line jsx-a11y-x/no-autofocus -- only a phone's sheet, which has no focus rule of its own
+      autoFocus={autoFocus}
+      testid="pipeline-new"
+    />
   );
 };
 
