@@ -135,6 +135,8 @@ export interface TodayDayBarVM {
   parts: Array<{ share: number; phase: TodayDayItemVM["phase"] | "gap" | "open" }>;
   /** Now, as a share of the span; null before it opens and after it closes. */
   now: number | null;
+  /** Where the span begins and ends, on the business's clock ("9 AM", "6 PM"): the words under the bar's two ends. */
+  ends: { from: string; to: string };
 }
 
 export interface TodayDayFrameVM {
@@ -214,7 +216,11 @@ export function todayDayBar(
     at = Math.max(at, end);
   }
   if (to > at) parts.push(...gapParts({ from: at, to }, open, now, span));
-  return { parts, now: now !== null && now >= from && now <= to ? (now - from) / span : null };
+  return {
+    parts,
+    now: now !== null && now >= from && now <= to ? (now - from) / span : null,
+    ends: { from: clockLabel(from), to: clockLabel(to) },
+  };
 }
 
 /** The times the receptionist would offer a day, as stretches of it: none on a day closed or past, nor for a time read with no place. */

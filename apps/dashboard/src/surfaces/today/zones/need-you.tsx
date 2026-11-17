@@ -227,13 +227,14 @@ function groupsAbove(
   const ok = open(groups.ok) + runs.count;
   return [
     drawn.next.length ? (
-      <NeedYouGroup key="next" title={G.next} count={reply || null} testid="today-group-next">
+      <NeedYouGroup key="next" kind="reply" title={G.next} count={reply || null} testid="today-group-next">
         {needYouRows(drawn.next, ctx)}
       </NeedYouGroup>
     ) : null,
     drawn.waiting.length ? (
       <NeedYouGroup
         key="waiting"
+        kind="reply"
         title={G.waiting}
         count={null}
         bare
@@ -246,6 +247,7 @@ function groupsAbove(
     drawn.ok.length || runs.drawn.length ? (
       <NeedYouGroup
         key="ok"
+        kind="approve"
         title={G.ok}
         count={ok || null}
         more={cutDoor(W.cut.ok, groups.ok.length - drawn.ok.length + runs.cut)}
@@ -262,6 +264,7 @@ function todoGroup(todo: ToDoRows, bare: boolean) {
   return todo.drawn.length ? (
     <NeedYouGroup
       key="todo"
+      kind="do"
       title={W.group.todo}
       count={todo.count}
       bare={bare}

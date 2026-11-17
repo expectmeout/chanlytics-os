@@ -642,15 +642,22 @@ test("on a phone the page is one column in the canvas's order: AI found leads wh
   setSurfaceValue("reports_headline", undefined);
 });
 
-test("the period's days carry their key, what the green and the coral are, and a period with nothing in it draws neither", () => {
+test("the period's days carry their key and the word for where they end; past a month a column is a week; a period with nothing in it draws neither", () => {
   phone = true;
   set(twoWaiting());
   try {
     setSurfaceValue("reports_headline", headline({ days: 30, in: 9, ai: 7, you: 1, none: 1 }));
-    const key = byTestId(draw(PhoneSoFar), "today-period-key");
-    assert.ok(key, "REGRESSION: the days were drawn green and coral with nothing to say what either meant");
-    assert.deepEqual(key.props.children.map(textOf), ["Answered by AI", "Today"], "the chart's key");
-    assert.notEqual(key.props["data-when"], undefined, "Today is a time the page says");
+    const card = draw(PhoneSoFar);
+    const key = byTestId(card, "today-period-key");
+    assert.ok(key, "REGRESSION: the days were drawn in two colours with nothing to say what either meant");
+    assert.deepEqual(key.props.children.map(textOf), ["Answered by AI", "Other messages"], "the chart's key");
+    const end = find(card, (n) => classes(n).includes("tz-month-end"));
+    assert.equal(textOf(end), "Today", "the last column is today, said under it");
+    assert.notEqual(end.props["data-when"], undefined, "Today is a time the page says");
+    const columns = (tree) => all(tree, (n) => classes(n).includes("spark-col")).length;
+    assert.equal(columns(card), 30, "a column a day");
+    setSurfaceValue("reports_headline", headline({ days: 90, in: 9, ai: 7, you: 1, none: 1 }));
+    assert.equal(columns(draw(PhoneSoFar)), 13, "REGRESSION: 90 columns a few pixels wide each, read as dust");
     setSurfaceValue("reports_headline", headline({ days: 30 }));
     assert.equal(byTestId(draw(PhoneSoFar), "today-period-key"), null, "no days drawn, no key to them");
   } finally {

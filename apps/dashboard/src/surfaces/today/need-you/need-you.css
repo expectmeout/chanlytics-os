@@ -4,37 +4,43 @@
    became of it. The kit draws every control (the inset panel, the field, the meter, the menu, the button); this places
    them and says the words around them. Every value is a token. */
 
-/* The groups: each its small head in the mono face over its rows, the first under the pane's head. */
+/* The groups: each its small head over its rows, the first under the pane's head. A head is its kind's mark (the kit's,
+   neutral, as the Inbox's list draws a kind), its name in the page's own type, and its count; it stands apart from the
+   rows of the group before it and close over its own (his look, 17 Nov 2026: the mono capitals were hard on the eyes). */
 .ny-groups {
   gap: var(--space-1);
 }
 .ny-group:first-child > .ny-group-head {
-  padding-top: 0;
+  padding-top: var(--space-1);
 }
 .ny-group-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
-  padding: 14px 0 2px;
+  align-items: center;
+  gap: var(--space-1) 10px;
+  padding: 18px 0 6px;
 }
 .ny-group-title {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
+  font-size: var(--text-aside);
+  line-height: 18px;
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
 }
 .ny-group-n {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0.08em;
+  margin-left: -4px;
+  font-size: var(--text-aside);
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
   color: var(--ink-dim);
 }
-/* "Waiting on you · 2", as the canvas says a group's count after its name. */
+/* "Reply · 2", as the canvas says a group's count after its name. */
 .ny-group-n::before {
   content: "·\00a0";
+}
+/* How many wait on you for a word: amber, warn's own meaning, as the head's dot and the menu's count say it. */
+.ny-group-n[data-tone="warn"] {
+  font-weight: var(--weight-semibold);
+  color: var(--warn-ink);
 }
 
 /* How long they have waited, or when the row's clock runs out, by itself at the name line's right: the dim ink, amber
@@ -64,10 +70,14 @@
 .today-queue .cl-attn-via {
   margin: 0;
 }
-.today-queue .cl-attn-sentence[data-tone="warn"] {
+/* The sentence's tone, on the whole line or, where the row names them, on the words that warn alone (a to-do's
+   "overdue since Thu": the 60-30-10 read, 17 Nov 2026). */
+.today-queue .cl-attn-sentence[data-tone="warn"],
+.today-queue .cl-attn-sentence > [data-tone="warn"] {
   color: var(--warn-ink);
 }
-.today-queue .cl-attn-sentence[data-tone="danger"] {
+.today-queue .cl-attn-sentence[data-tone="danger"],
+.today-queue .cl-attn-sentence > [data-tone="danger"] {
   color: var(--danger-ink);
 }
 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-body,
@@ -88,10 +98,12 @@
   font-style: normal;
   color: var(--ink-muted);
 }
-.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence[data-tone="warn"] {
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence[data-tone="warn"],
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence > [data-tone="warn"] {
   color: var(--warn-ink);
 }
-.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence[data-tone="danger"] {
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence[data-tone="danger"],
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence > [data-tone="danger"] {
   color: var(--danger-ink);
 }
 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-who {
@@ -148,6 +160,23 @@
 @media (hover: hover) {
   .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-acts > button:hover {
     background: var(--surface-inset-fill);
+  }
+}
+/* The page's one act to take, filled in the primary's coral as every page's one act is (New conversation, Add people; the
+   canvas's D2): the one thing on Today that looks unlike the rest. As coral words it read as a red word, beside the amber
+   that outweighed it (the 60-30-10 read, 17 Nov 2026). */
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-acts > button.primary {
+  height: var(--control-h-sm);
+  margin-right: 0;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--primary-fill);
+  box-shadow: var(--primary-depth);
+  color: var(--primary-ink);
+}
+@media (hover: hover) {
+  .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-acts > button.primary:hover {
+    background: var(--primary-hover);
   }
 }
 @media (min-width: 721px) {

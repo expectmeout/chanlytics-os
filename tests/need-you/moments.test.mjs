@@ -124,6 +124,7 @@ test("a to-do's row leads with the job, whose and how late; a booking's says wha
     sentence: "Bianca Adeyemi · overdue since Thu",
     quoted: false,
     tone: "warn",
+    toneOn: "overdue since Thu",
   });
   assert.equal(
     needYouLineOf({ ...step, status: ["Due today", "For Dana"], warn: false }).sentence,
