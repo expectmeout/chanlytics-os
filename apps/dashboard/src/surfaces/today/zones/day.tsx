@@ -109,8 +109,12 @@ function runsDoneToday(): { rows: WentOut[]; count: number } {
 const offeredHours = (): ReadonlySet<string> =>
   new Set((broadcastsRead()?.rows ?? []).flatMap((r) => (r.offered_from ? [r.offered_from] : [])));
 
-/** A part of the bar, in the kit's Meter's tones: what is over, under way, still to come, and the free time between. */
-const BAR_TONE = { past: "rest", now: "ink", next: "open", later: "open", gap: "ground" } as const;
+/**
+ * A part of the bar, in the Calendar's own looks (the kit's Meter's day tones; Today with colour, 17 Nov 2026): a visit
+ * that went, the one under way (the accent, live), the visits still to come, and the free time between them, which the
+ * Calendar calls open.
+ */
+const BAR_TONE = { past: "went", now: "now", next: "ahead", later: "ahead", gap: "free" } as const;
 
 const barParts = (bar: TodayDayBarVM) => bar.parts.map((p) => ({ share: p.share, tone: BAR_TONE[p.phase] }));
 
@@ -132,6 +136,7 @@ function dayCells(cells: readonly TodayZoneCellVM[]) {
           data-testid={i === 0 ? "today-day-first" : undefined}
         >
           <span className="tpd-eyebrow" data-now={c.now || undefined} {...SAYS_WHEN}>
+            {c.now ? <span className="live-dot" aria-hidden="true" /> : null}
             {c.eyebrow}
           </span>
           <span className="tpd-when tabular" {...SAYS_WHEN}>
@@ -229,7 +234,8 @@ function OpenLine({ line, onOffered }: { line: TodayZoneLineVM; onOffered: (visi
       <span className="tpd-tx">{dayLineWords({ ...line, sub }, true)}</span>
       {line.freed && !said?.ok ? (
         <Button
-          variant="secondary"
+          // The day's one act that starts something: it leads the pane in the accent's tint (Today with colour).
+          variant="lead"
           size="sm"
           disabled={busy}
           aria-busy={busy || undefined}

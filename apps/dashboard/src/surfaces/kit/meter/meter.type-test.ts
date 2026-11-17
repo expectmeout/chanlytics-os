@@ -22,7 +22,7 @@ function _meterTakes(meter: RefObject<HTMLDivElement | null>, now: { held: boole
     Holds<
       Exactly<
         MeterProps["parts"][number]["tone"],
-        "ok" | "read" | "warn" | "rest" | "open" | "ink" | "ground" | undefined
+        "ok" | "read" | "warn" | "rest" | "open" | "ink" | "ground" | "went" | "ahead" | "now" | "free" | undefined
       >
     >,
     Holds<Exactly<MeterProps["mark"], number | null | undefined>>,

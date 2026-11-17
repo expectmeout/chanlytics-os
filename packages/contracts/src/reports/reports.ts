@@ -382,6 +382,12 @@ export function headlineOf(
     answered_share: answeredOf(periodFacts).share,
     calls: periodFacts.tot.calls,
     booking,
+    daily: {
+      messages_in: periodFacts.current.map((d) => d.messages_in),
+      answered_ai: periodFacts.current.map((d) => d.answered_ai),
+      calls: periodFacts.current.map((d) => d.calls),
+      new_contacts: periodFacts.current.map((d) => d.new_contacts),
+    },
   };
 }
 

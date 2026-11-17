@@ -9,6 +9,10 @@
  */
 import type { ReactNode } from "react";
 
+/** An act's class: the page's coral, a pane's lead in the accent's tint (Today with colour, D2), or quiet. */
+const actClassOf = (kind: string | undefined): string =>
+  kind === "primary" || kind === "lead" ? `setup-card-btn ${kind}` : "setup-card-btn";
+
 /** One act of the row: its words (a shorter pair for a narrow card), what it does, and the gate's props. */
 export interface SetupCardAct {
   label: ReactNode;
@@ -85,7 +89,7 @@ export const SetupCardRow = ({
         {cta ? (
           <button
             type="button"
-            className={cta.kind === "primary" ? "setup-card-btn primary" : "setup-card-btn"}
+            className={actClassOf(cta.kind)}
             onClick={cta.onClick}
             disabled={!!cta.busy}
             aria-busy={cta.busy ? true : undefined}

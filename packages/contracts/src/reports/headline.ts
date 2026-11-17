@@ -10,6 +10,18 @@ import { periodWords, rangeLabelOf } from "./reports";
 import type { ReportDto } from "./dtos";
 import { compareWords } from "./tiles";
 
+/**
+ * The period's days as Today draws them, four counts a day in four lists, oldest first and today last: its customer
+ * messages, what AI answered of them, its calls and its new people. Lists of numbers, so a month is a few hundred bytes
+ * and Today still never carries the report.
+ */
+export interface ReportHeadlineDaysDto {
+  messages_in: number[];
+  answered_ai: number[];
+  calls: number[];
+  new_contacts: number[];
+}
+
 /** What `GET reports/headline` answers: counts over the period, and the calendar's line over the same days. */
 export interface ReportHeadlineDto {
   /** The period asked for, as a request names it. */
@@ -32,6 +44,30 @@ export interface ReportHeadlineDto {
   calls: number;
   /** Asked, then booked, over the same days; null where it could not be counted at all. */
   booking: BookingReportDto | null;
+  /**
+   * The period's days, oldest first, today last (Today with colour, 17 Nov 2026: the month under the period's line and the
+   * week behind the day's figures). Absent from a server from before it, which Today reads as none.
+   */
+  daily?: ReportHeadlineDaysDto;
+}
+
+/** One day of the period, in the words Today's drawings read it by. */
+export interface ReportHeadlineDayVM {
+  messages: number;
+  answered: number;
+  calls: number;
+  newPeople: number;
+}
+
+/** The period's days, a day each, from the four lists the wire carries; none where the server said none. */
+function perDayOf(daily: ReportHeadlineDaysDto | undefined): ReportHeadlineDayVM[] {
+  if (!daily) return [];
+  return daily.messages_in.map((messages, at) => ({
+    messages,
+    answered: daily.answered_ai[at] ?? 0,
+    calls: daily.calls[at] ?? 0,
+    newPeople: daily.new_contacts[at] ?? 0,
+  }));
 }
 
 /** What Today says of the period, in the words it says them: the one view model its line and its leaks read. */
@@ -50,6 +86,8 @@ export interface ReportHeadlineVM {
   calls: number;
   /** Asked, then booked: absent (`present` false) without a calendar to count against. */
   booking: BookingReportVM;
+  /** The period's days, oldest first, today last; none where the server said none. */
+  perDay: readonly ReportHeadlineDayVM[];
 }
 
 /** Whether the database answered a report (`report_series`): the series and the days it counts, and not its own `{ error }`. */
@@ -80,5 +118,6 @@ export function toHeadlineVM(dto: ReportHeadlineDto): ReportHeadlineVM {
     answered: { ai: dto.answered_ai, you: dto.answered_you, none: dto.unanswered, share: dto.answered_share },
     calls: dto.calls,
     booking: toBookingReportVM(dto.booking),
+    perDay: perDayOf(dto.daily),
   };
 }

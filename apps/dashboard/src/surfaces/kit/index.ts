@@ -40,6 +40,8 @@ export type {
 } from "./menu/menu";
 export { Meter } from "./meter/meter";
 export type { MeterProps } from "./meter/meter";
+export { Spark } from "./spark/spark";
+export type { SparkColumn, SparkProps } from "./spark/spark";
 export { Panel } from "./panel/panel";
 export type { PanelProps } from "./panel/panel";
 export { PersonPick } from "./person-pick/person-pick";

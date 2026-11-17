@@ -39,6 +39,8 @@ interface SetupRowsProps {
   later: SetupLaterWords;
   look?: "row" | "card";
   primary?: string | null;
+  /** The row whose act leads its pane where the page's one primary is elsewhere (Today's card while someone waits). */
+  lead?: string | null;
   left?: ReactNode;
   flash?: ((f: FrameFlash) => void) | null;
   /** A row of the caller's after Setup's, in the same list: Today's door to the reminder. */
@@ -58,18 +60,19 @@ function rowActs(
   r: DrawnRow,
   o: {
     primary: string | null;
+    lead: string | null;
     pending: string | null;
     act: (v: SetupVerb | null | undefined) => void;
     putOff: (r: DrawnRow) => void;
     later: SetupLaterWords;
   },
 ): { cta: SetupCardAct | null; also: SetupCardAct | null } {
-  const { primary, pending, act, putOff, later } = o;
+  const { primary, lead, pending, act, putOff, later } = o;
   const cta = r.verb
     ? {
         label: r.verb.label,
         ...(r.short?.verb ? { short: r.short.verb } : {}),
-        kind: primary === r.id ? "primary" : "ghost",
+        kind: primary === r.id ? "primary" : lead === r.id ? "lead" : "ghost",
         onClick: () => act(r.verb),
         gate: setupGate(r.verb),
         busy: pending === r.verb.to,
@@ -101,6 +104,7 @@ export const SetupRows = ({
   later,
   look,
   primary = null,
+  lead = null,
   left = null,
   flash: lent = null,
   tail = null,
@@ -142,7 +146,7 @@ export const SetupRows = ({
     <div className="setup-rows" data-testid={testid}>
       <div className="tq-list">
         {rows.map((r, i) => {
-          const { cta, also } = rowActs(r, { primary, pending, act, putOff, later });
+          const { cta, also } = rowActs(r, { primary, lead, pending, act, putOff, later });
           // Where a row may be put off and the caller says how (Today's card), its Skip is the caller's menu.
           const menu = skip && also && !r.undo ? skip(r.id) : null;
           return (

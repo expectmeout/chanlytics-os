@@ -12,17 +12,21 @@
  * person has it.
  *
  * What the thread's head draws in and on it is here too (the thread canvas, 1 Nov 2026): the wire's badge on the face's
- * edge, and the line under the name, where the conversation stands and the one fact People's row says of them.
+ * edge, and the line under the name, where the conversation stands and the one fact People's row says of them. And its
+ * way back, at its start: to Today where Today's Reply opened it (Today with colour, D8, 17 Nov 2026), else a phone's
+ * arrow to the list (mobile.css: the list and the thread take turns; the top bar says Inbox over it).
  */
 import type { ReactElement, ReactNode } from "react";
 import { countdownClock, heldPill, personFaceOf, THREAD_PANE_WORDS, threadHeadFactOf } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { Face } from "../../kit/face/face";
+import { Button } from "../../kit/button/button";
+import { cameFromToday } from "../carried-reply";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { holderName } from "../../holder-names";
 import { ixMoveOf, ixMoveWaited, ixWaitSaid } from "../rules";
-import { hasRouteDoor, routeDoor } from "../shell";
+import { hasRouteDoor, navigate, routeDoor } from "../shell";
 import type { RealThread, Thread } from "../types";
 import { channelIconOf } from "./timeline";
 import { visitWordHere } from "../../workspace-word";
@@ -249,5 +253,38 @@ export function headerSub(
         </span>
       )}
     </div>
+  );
+}
+
+/** The head's way back for the thread `threadId`: to Today where Today opened it, else to the list where it has one. */
+export function threadBack(threadId: string, onBack: (() => void) | null): ReactNode {
+  if (cameFromToday(threadId))
+    return (
+      <Button
+        type="button"
+        variant="glass"
+        size="sm"
+        className="ix-from-today"
+        onClick={() => navigate("today")}
+        aria-label={THREAD_PANE_WORDS.backToTodaySaid}
+        data-testid="ix-from-today"
+      >
+        <Icon name="chevron" size={12} className="icon-turned" />
+        {THREAD_PANE_WORDS.backToToday}
+      </Button>
+    );
+  if (!onBack) return null;
+  return (
+    <Button
+      type="button"
+      variant="quiet"
+      size="sm"
+      className="ix-back"
+      onClick={onBack}
+      aria-label="Back to the list"
+      data-testid="ix-back"
+    >
+      <Icon name="chevron" size={20} className="icon-turned" />
+    </Button>
   );
 }
