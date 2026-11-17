@@ -41,9 +41,9 @@ import { waitRows, type Nav, type VerbKind } from "../../waits/wait-rows";
 import { useDraftsMoved, wantDrafts, type DraftWant } from "../need-you/drafts";
 import { NeedYouGroup } from "../need-you/groups";
 import { handBackAll, handedBackWords, type HandedBack } from "../need-you/sheet/hand-back";
-import { OlderGroup } from "../need-you/older";
+import { OlderGroup, openOlder } from "../need-you/older";
 import { needYouRows, type NeedYouRowsCtx } from "../need-you/people-rows";
-import { worksInPlace } from "../need-you/rows";
+import { answersInThread, walkedOnToday } from "../need-you/rows";
 import { clearRowStates } from "../need-you/row-state";
 import { WalkSheet, type WalkAt, type WalkOlder } from "../need-you/sheet/walk-sheet";
 import { draftWantsOf, useNeedYouModel, type NeedYouDrawn, type NeedYouModel } from "../need-you-model";
@@ -92,7 +92,10 @@ function usePhoneWalk() {
   return { walk, setWalk };
 }
 
-/** The walk through the rows the card draws, on a phone: the sheet, and To do's to-dos for its end. Called, not drawn. */
+/**
+ * The walk through the rows the card draws, on a phone: the sheet, and To do's to-dos for its end. Only what is worked on
+ * Today is a step of it (rows.ts walkedOnToday): a reply is written in its conversation (D8). Called, not drawn.
+ */
 function listWalk(
   order: readonly TodayQueueRowVM[],
   {
@@ -115,7 +118,7 @@ function listWalk(
   const unkeep = (row: TodayQueueRowVM) => (mine.has(row.id) ? todo.walk.unkeep(row) : ctx.unkeep(row));
   return (
     <WalkSheet
-      rows={order.filter(worksInPlace)}
+      rows={order.filter(walkedOnToday)}
       at={walk}
       onAt={setWalk}
       kept={new Set([...ctx.kept, ...todo.walk.kept])}
@@ -338,14 +341,24 @@ function useOldWalk(walkTo: (at: WalkAt) => void) {
     if (at === null) setWalkingOld(false);
     walkTo(at);
   };
-  const endOf = (rows: readonly TodayQueueRowVM[], said: (back: HandedBack) => void): WalkOlder | null =>
+  const endOf = (
+    rows: readonly TodayQueueRowVM[],
+    said: (back: HandedBack) => void,
+    open: (row: TodayQueueRowVM) => void,
+  ): WalkOlder | null =>
     rows.length
       ? {
           count: rows.length,
           busy: marking,
           go: () => {
+            const [first] = rows;
+            // The first of them answered in its conversation (D8): it opens there, as its row's press does, never in the sheet.
+            if (first && answersInThread(first)) {
+              setWalk(null);
+              return open(first);
+            }
             setWalkingOld(true);
-            setWalk(rows[0]?.id ?? null);
+            setWalk(first?.id ?? null);
           },
           markAll: () => {
             setMarking(true);
@@ -375,14 +388,18 @@ function phoneWalk(p: {
   todo: ReturnType<typeof useToDoRows>;
 }) {
   const { groups, drawn, oldWalk, todo } = p;
+  // Who the walk's end says still waits, in the Inbox: those past the group's cap, and those answered in their
+  // conversations, who are no step of the walk (D8).
   const cut = groups.waiting.length - drawn.waiting.length;
+  const inThread = p.order.filter((r) => answersInThread(r) && !p.ctx.kept.has(r.id)).length;
+  const waiting = cut + inThread;
   return listWalk(
     oldWalk.walkingOld ? groups.old : [...p.order, ...todo.walk.rows],
     {
       walk: p.at,
       setWalk: oldWalk.setWalk,
-      more: cut > 0 ? { count: cut, to: "inbox" } : null,
-      older: oldWalk.walkingOld ? null : oldWalk.endOf(groups.old, p.handed),
+      more: waiting > 0 ? { count: waiting, to: "inbox" } : null,
+      older: oldWalk.walkingOld ? null : oldWalk.endOf(groups.old, p.handed, (row) => openOlder(row, p.ctx)),
     },
     p.ctx,
     todo,

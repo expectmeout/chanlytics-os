@@ -173,6 +173,64 @@ test("the bar's span holds every visit, overlapping ones are one stretch, and no
   );
 });
 
+test("the bar is open only where the time would be offered and is still to come: an hour that has gone, or one nobody can book, is a gap", () => {
+  const phases = (bar) => bar.parts.map((p) => [p.phase, Math.round(p.share * 12 * 100) / 100]);
+  const visits = [item("a", 9, 10, "past"), item("b", 14, 15.5, "now"), item("c", 17, 18, "later")];
+  // Half past two: the morning's open times have gone, and after Bea's visit one hour is offered, not the half hour after it.
+  const bar = todayDayBar(visits, { start: 8, end: 20 }, 14.5, [
+    { from: 8, to: 9 },
+    { from: 10, to: 14 },
+    { from: 15.5, to: 16.5 },
+  ]);
+  assert.deepEqual(
+    phases(bar),
+    [
+      ["gap", 1],
+      ["past", 1],
+      ["gap", 4],
+      ["now", 1.5],
+      ["open", 1],
+      ["gap", 0.5],
+      ["later", 1],
+      ["gap", 2],
+    ],
+    "REGRESSION: every stretch with no visit in it was drawn as open time, the hours already gone among them",
+  );
+  assert.ok(Math.abs(sum(bar) - 1) < 1e-9, "the parts are still the whole day");
+  // A time offered that began before now is open from now on.
+  assert.deepEqual(
+    phases(
+      todayDayBar([item("a", 9, 10, "past"), item("c", 17, 18, "later")], { start: 8, end: 20 }, 14, [
+        { from: 13, to: 16 },
+      ]),
+    ),
+    [
+      ["gap", 1],
+      ["past", 1],
+      ["gap", 4],
+      ["open", 2],
+      ["gap", 1],
+      ["later", 1],
+      ["gap", 2],
+    ],
+  );
+  // Tomorrow has no now: what is offered is open whole.
+  assert.deepEqual(
+    phases(
+      todayDayBar([item("t", 10, 11, "later")], { start: 8, end: 20 }, null, [
+        { from: 8, to: 10 },
+        { from: 11, to: 12 },
+      ]),
+    ),
+    [
+      ["open", 2],
+      ["later", 1],
+      ["open", 1],
+      ["gap", 8],
+    ],
+  );
+});
+
 const frame = (over = {}) => ({
   key: "2026-09-18",
   label: "Today · Friday, September 18",
@@ -246,6 +304,22 @@ test("each frame carries the bar over every visit that stands, the card's cap le
   // Tomorrow carries its bar too, which the day draws once it has turned (the canvas's evening), with no now on it.
   assert.equal(tomorrow.bar.now, null, "no now on tomorrow");
   assert.equal(tomorrow.bar.parts.filter((p) => p.phase !== "gap").length, 1, "its one visit");
+  // The times the Calendar shows as open are the bar's open parts, by where each stands: four to five today.
+  const offered = {
+    ...day(true, [block("b9", 9), block("b17", 17)]),
+    windows: [{ label: "4 – 5 PM", t: 16, dur: 60 }],
+  };
+  const open = todayDay(
+    {
+      days: [offered, day(false, [])],
+      now: 14,
+      feed: { state: "ok" },
+      stats: { next: "Mon 9:30 AM" },
+      hours: { start: 8, end: 20 },
+    },
+    null,
+  ).frames[0].bar.parts.filter((p) => p.phase === "open");
+  assert.deepEqual(open, [{ share: 1 / 12, phase: "open" }], "one hour of the twelve, and no other stretch");
 });
 
 /* ------------------------------------------------ Change it with Ask */

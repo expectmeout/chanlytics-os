@@ -127,10 +127,12 @@ export interface TodayDayItemVM {
 /**
  * Today's bar on a phone (the phone canvas, 28 Oct 2026): the day's span cut into the visits and the gaps between them,
  * each a share of the whole, in the day's order, and where now stands on it. Shares sum to one; a visit is never cut by
- * the span, the span is widened to hold it.
+ * the span, the span is widened to hold it. A stretch with no visit in it is `open` where the receptionist would offer it
+ * and it is still to come (the Calendar's own open times, drawn there as Open), and a `gap` everywhere else: an hour
+ * that has gone, or one nobody can book.
  */
 export interface TodayDayBarVM {
-  parts: Array<{ share: number; phase: TodayDayItemVM["phase"] | "gap" }>;
+  parts: Array<{ share: number; phase: TodayDayItemVM["phase"] | "gap" | "open" }>;
   /** Now, as a share of the span; null before it opens and after it closes. */
   now: number | null;
 }
@@ -159,15 +161,42 @@ export interface TodayDayFrameVM {
   bar: TodayDayBarVM | null;
 }
 
+/** A stretch of a day, in hours on the business's clock (14.5 is 2:30 PM). */
+interface DayStretch {
+  from: number;
+  to: number;
+}
+
+/**
+ * A stretch with no visit in it, cut where it is open: the parts of it a time on offer covers, from now on (a time that
+ * has gone is open to nobody), and the rest of it gaps. Shares of `span`.
+ */
+function gapParts(gap: DayStretch, open: readonly DayStretch[], now: number | null, span: number) {
+  const parts: TodayDayBarVM["parts"] = [];
+  let at = gap.from;
+  for (const offered of [...open].sort((a, b) => a.from - b.from)) {
+    const from = Math.max(at, offered.from, now ?? -Infinity);
+    const to = Math.min(gap.to, offered.to);
+    if (!(to > from)) continue;
+    if (from > at) parts.push({ share: (from - at) / span, phase: "gap" });
+    parts.push({ share: (to - from) / span, phase: "open" });
+    at = to;
+  }
+  if (gap.to > at) parts.push({ share: (gap.to - at) / span, phase: "gap" });
+  return parts;
+}
+
 /**
  * The bar over a day's timed visits, in the day's order: the span is the Calendar's grid, widened to hold the first and the
  * last visit, else the visits alone. Overlapping visits are one stretch of the bar, in the phase of the first; `now` is a
- * share only while it is inside the span.
+ * share only while it is inside the span. `open` is the times the receptionist would offer that day (the Calendar's
+ * windows): a stretch with no visit in it is open where one covers it and it is still to come, and a gap elsewhere.
  */
 export function todayDayBar(
   items: readonly TodayDayItemVM[],
   grid: { start: number; end: number } | null,
   now: number | null,
+  open: readonly DayStretch[] = [],
 ): TodayDayBarVM | null {
   const timed = items.filter((i): i is TodayDayItemVM & { at: { from: number; to: number } } => !!i.at);
   if (!timed.length) return null;
@@ -180,12 +209,20 @@ export function todayDayBar(
   for (const i of [...timed].sort((a, b) => a.at.from - b.at.from)) {
     const start = Math.max(at, i.at.from);
     const end = Math.max(start, i.at.to);
-    if (start > at) parts.push({ share: (start - at) / span, phase: "gap" });
+    if (start > at) parts.push(...gapParts({ from: at, to: start }, open, now, span));
     if (end > start) parts.push({ share: (end - start) / span, phase: i.phase });
     at = Math.max(at, end);
   }
-  if (to > at) parts.push({ share: (to - at) / span, phase: "gap" });
+  if (to > at) parts.push(...gapParts({ from: at, to }, open, now, span));
   return { parts, now: now !== null && now >= from && now <= to ? (now - from) / span : null };
+}
+
+/** The times the receptionist would offer a day, as stretches of it: none on a day closed or past, nor for a time read with no place. */
+function offeredStretches(day: DayFrameLike): DayStretch[] {
+  if (day.closed.yes || day.past) return [];
+  return day.windows.flatMap((w) =>
+    w.t === undefined || w.dur === undefined ? [] : [{ from: w.t, to: w.t + w.dur / 60 }],
+  );
 }
 
 /**
@@ -369,7 +406,7 @@ export function todayDay(
         : null,
       missed,
       open: otherItem.closed.yes || otherItem.past ? [] : otherItem.windows.map((w) => w.label),
-      bar: todayDayBar(timed, cal.hours ?? null, otherItem.today ? cal.now : null),
+      bar: todayDayBar(timed, cal.hours ?? null, otherItem.today ? cal.now : null, offeredStretches(otherItem)),
     };
   });
   let reminders: TodayDayVM["reminders"] = null;
