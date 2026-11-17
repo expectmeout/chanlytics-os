@@ -45,10 +45,17 @@ for (const [name, dto, period, booking] of MATRIX)
       },
       calls: page.calls.total,
       booking: toBookingReportVM(booking),
+      // The period's days, as the page's own series has them (Today with colour: the month and the figures' weeks).
+      perDay: dto.series.slice(-page.days).map((d) => ({
+        messages: d.messages_in,
+        answered: d.answered_ai,
+        calls: d.calls,
+        newPeople: d.new_contacts,
+      })),
     });
   });
 
-test("what goes over the wire is counts and one ratio, not a day of the series: eleven fields, a few hundred bytes", () => {
+test("what goes over the wire is counts, one ratio and the days as four lists of numbers, never a day of the series: a few hundred bytes", () => {
   const dto = headlineOf(reportDto(), "7d", CALENDAR);
   assert.deepEqual(Object.keys(dto), [
     "period",
@@ -62,6 +69,7 @@ test("what goes over the wire is counts and one ratio, not a day of the series: 
     "answered_share",
     "calls",
     "booking",
+    "daily",
   ]);
   // The world's week: 17 messages (13 answered by the receptionist, 3 by the owner, 1 by nobody) and 3 calls, after a week
   // of 7 messages; the owner's calendar says 3 of the 8 who asked have an appointment.
@@ -77,8 +85,21 @@ test("what goes over the wire is counts and one ratio, not a day of the series: 
     answered_share: 13 / 17,
     calls: 3,
     booking: CALENDAR,
+    daily: {
+      messages_in: dto.daily.messages_in,
+      answered_ai: dto.daily.answered_ai,
+      calls: dto.daily.calls,
+      new_contacts: dto.daily.new_contacts,
+    },
   });
-  assert.ok(JSON.stringify(dto).length < 400, "a small read");
+  assert.equal(dto.daily.messages_in.length, 7, "a day each, the week's seven");
+  assert.equal(
+    dto.daily.messages_in.reduce((n, d) => n + d, 0),
+    17,
+    "the days are the period's: they add up to its messages",
+  );
+  // Counts and one ratio were under 400 bytes; the week's days as four lists of numbers add under 150 more.
+  assert.ok(JSON.stringify(dto).length < 550, "a small read");
   assert.equal(
     headlineOf({ ...reportDto(), days: 30 }, "30d", null).messages_before,
     null,

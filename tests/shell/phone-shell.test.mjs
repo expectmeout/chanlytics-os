@@ -22,9 +22,10 @@ function pngSize(rel) {
 
 test("the Inbox and Conversations take turns on a phone, with a Back that only a phone sees", () => {
   // The Inbox's turns and its Back run in inbox-place.test.mjs, on the page itself.
-  const thread = readRaw("apps/dashboard/src/surfaces/inbox/thread/header.tsx");
+  // The thread head's way back is drawn at its start (thread/who.tsx threadBack, moved from header.tsx 17 Nov 2026).
+  const thread = readRaw("apps/dashboard/src/surfaces/inbox/thread/who.tsx");
   assert.ok(thread.includes('data-testid="ix-back"'));
-  assert.ok(thread.includes("{onBack && ("), "no Back on desktop's markup path when nobody asked for one");
+  assert.ok(thread.includes("if (!onBack) return null;"), "no Back on desktop's markup path when nobody asked for one");
   const cv = readRaw("apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx");
   assert.ok(cv.includes("data-takeover={phoneOpen || undefined}"));
   // A row pressed opens the pane (openRow: the row, the phone's turn, and the address).

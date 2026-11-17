@@ -12,12 +12,15 @@ import {
   TODAY_PHONE_WORDS,
   capitalize,
   figureDoorOf,
+  type ReportHeadlineVM,
   type TodayFigureId,
   type TodayFigureVM,
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
+import { Spark, type SparkColumn } from "../../kit/spark/spark";
 import { surfaceValue } from "../../surface-values";
+import { useSurface } from "../../use-surface";
 import { useTodayOnPhone } from "../phone";
 import { appNavigate, doorGlyph, useMoved } from "../shell";
 
@@ -27,8 +30,35 @@ type Nav = (to: string) => void;
 /** What a count that could not be read says in its place: a dash, never a zero. */
 const UNREAD = "–";
 
+/** One day of Reports' headline, as the figures' weeks read it. */
+type HeadlineDay = ReportHeadlineVM["perDay"][number];
+
+/** The days a figure's week holds: the six before today, and today. */
+const WEEK_DAYS = 7;
+
+/**
+ * Which of the period's days each figure's week is drawn from (Today with colour, D3, 17 Nov 2026), the same fact on the
+ * days before. Booked has none: no read counts a day's bookings, and a week the database cannot say is not drawn.
+ */
+const WEEK_OF: Partial<Record<TodayFigureId, (day: HeadlineDay) => number>> = {
+  answered: (day) => day.answered,
+  calls: (day) => day.calls,
+  new: (day) => day.newPeople,
+};
+
+/** A figure's week: the six days before today from Reports' headline, and today as the figure itself says it. */
+function weekOf(f: TodayFigureVM, perDay: readonly HeadlineDay[] | null): SparkColumn[] | null {
+  const pick = WEEK_OF[f.id];
+  if (!pick || !perDay || perDay.length < WEEK_DAYS || f.value === null) return null;
+  const week = [...perDay.slice(-WEEK_DAYS, -1).map((day) => ({ value: pick(day) })), { value: f.value }];
+  // A week of nothing draws nothing: a row of empty days says no more than the zero beside it.
+  return week.some((day) => day.value > 0) ? week : null;
+}
+
 interface FigureProps {
   f: TodayFigureVM;
+  /** Its week, beside its number, on a desk and a phone. */
+  week: SparkColumn[] | null;
   i: number;
   open: TodayFigureId | null;
   setOpen: (id: TodayFigureId | null) => void;
@@ -42,12 +72,12 @@ interface FigureProps {
  * browser says one before the tap's click, and the click would close what it just opened. On a desk a figure with nothing
  * to add is not a button.
  */
-const TodayFigure = ({ f, i, open, setOpen, phone }: FigureProps) => {
+const TodayFigure = ({ f, week, i, open, setOpen, phone }: FigureProps) => {
   const has = phone || !!f.receipt;
   const on = has && open === f.id;
   const body = (
     <>
-      <span className="tc-fig-n tabular">
+      <span className="tc-fig-n tabular" data-zero={f.value === 0 || undefined}>
         {f.value ?? UNREAD}
         {f.of ? <small className="tc-fig-of"> of {f.of}</small> : null}
       </span>
@@ -58,11 +88,14 @@ const TodayFigure = ({ f, i, open, setOpen, phone }: FigureProps) => {
       <span className="tc-fig-m" {...SAYS_WHEN}>
         {f.meta}
       </span>
+      {week ? (
+        <Spark className="tc-fig-week" size="sm" today columns={week} aria-label={TODAY_PHONE_WORDS.figure[f.id]} />
+      ) : null}
     </>
   );
   return (
     <div
-      className={`tc-fig${on ? " open" : ""}`}
+      className={`tc-fig${on ? " open" : ""}${week ? " has-week" : ""}`}
       onPointerEnter={
         has
           ? (e) => {
@@ -164,8 +197,11 @@ export function TodayFigures({ className }: { className?: string }) {
   const { open, setOpen } = useReceiptOpen();
   const phone = useTodayOnPhone();
   const figures = surfaceValue("today")?.figures ?? null;
+  const perDay = useSurface("reports_headline")?.perDay ?? null;
   if (!figures?.length) return null;
   const nav: Nav = (to) => appNavigate(to);
+  // A week beside each number, on a desk and in Today so far on a phone (the canvas draws both).
+  const weekFor = (f: TodayFigureVM) => weekOf(f, perDay);
   return (
     <div className={className}>
       <div
@@ -177,7 +213,7 @@ export function TodayFigures({ className }: { className?: string }) {
         }}
       >
         {figures.map((f, i) => (
-          <TodayFigure key={f.id} f={f} i={i} open={open} setOpen={setOpen} phone={phone} />
+          <TodayFigure key={f.id} f={f} week={weekFor(f)} i={i} open={open} setOpen={setOpen} phone={phone} />
         ))}
         {figures.map((f, i) =>
           open === f.id && (phone || f.receipt) ? (

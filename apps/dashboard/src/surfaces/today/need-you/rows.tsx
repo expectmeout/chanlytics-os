@@ -37,6 +37,18 @@ export function worksInPlace(r: TodayQueueRowVM): boolean {
   );
 }
 
+/**
+ * Whether a row is answered in its conversation (Today with colour, D8, 17 Nov 2026: "any replies etc should instead
+ * navigate to the respective conversation or thread page with the draft written there, not on today page"): a reply to
+ * write, a time they asked for, a call back. Its press opens the thread, a reply's with AI's draft asked for its box;
+ * nothing is written on Today. A reply that never reached them is tried again where it stands, and AI's own reply counting
+ * down keeps its Stop.
+ */
+export function answersInThread(row: TodayQueueRowVM): boolean {
+  if (!row.conversationId || row.failed) return false;
+  return row.kind === "callback" || !!row.request || REPLY_KINDS.has(row.kind);
+}
+
 /** Whether a row drawn short opens in place to be worked (a send is never made on words not seen); else it acts. */
 export function opensToWork(r: TodayQueueRowVM): boolean {
   return (

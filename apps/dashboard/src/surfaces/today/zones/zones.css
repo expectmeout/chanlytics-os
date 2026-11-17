@@ -907,3 +907,46 @@
   font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
 }
+
+/* What was done beside what still waits, in a head (Today with colour, D6, 17 Nov 2026): the kit's meter, a short span. */
+.dash-a-v2 .tz-done {
+  flex: none;
+  width: 84px;
+}
+
+/* The period's days beside its line (Today with colour, D7, 17 Nov 2026): the kit's spark, before the chevron on a desk's
+   strip, and over the line, the width of the pane, on a phone. */
+.tz-week > .tz-month {
+  flex: 0 1 360px;
+  margin-left: auto;
+  height: 32px;
+}
+.tz-sofar .tz-week {
+  flex-wrap: wrap;
+}
+.tz-sofar .tz-week > .tz-month {
+  flex: 1 0 100%;
+  order: -1;
+  margin: 0 0 8px;
+}
+.tz-sofar .tz-week > span:not(.tz-month) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* The warn tone's dot before how many need you, in the head's sentence (Today with colour, D5, 17 Nov 2026). */
+.tz-waits {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: var(--radius-full);
+  background: var(--warn);
+  vertical-align: 1px;
+}
+/* The visit now: the kit's live dot before its word (Today with colour, D4), the accent's one live moment on the day. */
+.tpd-eyebrow[data-now] {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}

@@ -9,13 +9,20 @@
  * for the visit; every other row is drawn short and opens itself with its verb.
  */
 import type { ReactElement } from "react";
-import { NOTE_WORDS, needYouVerbOf, type AppointmentWord, type TodayQueueRowVM } from "@chanlytics/contracts";
+import {
+  addressOf,
+  NOTE_WORDS,
+  needYouVerbOf,
+  type AppointmentWord,
+  type TodayQueueRowVM,
+} from "@chanlytics/contracts";
+import { carryDraft, carryFromToday } from "../../inbox/carried-reply";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { Icon } from "../../kit/icon/icon";
 import type { Nav } from "../../waits/wait-rows";
 import { gate, type Flash } from "../shell";
 import { useDraft } from "./drafts";
-import { draftWantOf, opensToWork, shortLabel, workOf, worksInPlace } from "./rows";
+import { answersInThread, draftWantOf, opensToWork, shortLabel, workOf, worksInPlace } from "./rows";
 import { doorRow, rowWords } from "./sheet/row-words";
 import { stepNoteOf } from "./step-note";
 
@@ -106,6 +113,37 @@ function shortRow(r: TodayQueueRowVM, c: NeedYouRowsCtx): ReactElement {
   );
 }
 
+/**
+ * Open a row's conversation (rows.ts answersInThread): a reply's with AI's draft asked for its box (carried-reply.ts
+ * carryDraft), a call back's ready to call. Older's rows open theirs the same way (older.tsx).
+ */
+export function openInThread(row: TodayQueueRowVM, conversationId: string, nav: Nav): void {
+  const to = addressOf({ kind: "conversation", id: conversationId });
+  if (row.kind !== "callback") carryDraft(to);
+  carryFromToday(to);
+  nav(to);
+}
+
+/**
+ * A row answered in its conversation (rows.ts answersInThread): its verb and its words open the thread (openInThread). The
+ * coral where the model gave it.
+ */
+function threadRow(row: TodayQueueRowVM, conversationId: string, ctx: NeedYouRowsCtx): ReactElement {
+  const open = () => openInThread(row, conversationId, ctx.nav);
+  return (
+    <AttnRow
+      key={row.id}
+      {...rowWords(row)}
+      note=""
+      // Why it was handed over, a desk's: on a phone its sentence says it, and the thread says the rest.
+      meta={ctx.phone ? "" : (row.why ?? "")}
+      cta={{ label: <VerbWords row={row} words={shortLabel(row)} />, kind: actKindOf(row, ctx), onClick: open }}
+      also={null}
+      onOpen={open}
+    />
+  );
+}
+
 /** The queue's rows, worked in place where they are the focus, short where they are not. */
 export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx): ReactElement[] {
   const phone = c.phone ?? null;
@@ -116,6 +154,8 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
     const waits = verb === "reply" || verb === "call";
     const common = rowWords(r);
     const kept = c.kept.has(r.id);
+    // Answered in its conversation, never on Today (D8), unless it was acted on here before (it keeps its receipt).
+    if (answersInThread(r) && r.conversationId && !kept) return threadRow(r, r.conversationId, c);
     // Short until opened: a row that opens to be worked and is not the focus, nor acted on this visit.
     if (opensToWork(r) && r.id !== c.focus && !kept) return shortRow(r, c);
     const kind = actKindOf(r, c);

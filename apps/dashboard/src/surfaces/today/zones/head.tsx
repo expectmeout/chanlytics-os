@@ -39,8 +39,14 @@ import { listenButton, useBriefWords, useSpeech } from "./listen";
  * speak. On a phone how many need you is a door to who they are (`door`). Called, not
  * drawn, so the head's tree has no part of its own for it.
  */
-function headSentence(line: TodayHeadLineVM, why: string | null, door: string | null): ReactNode {
-  const lead = <b data-testid="today-head-lead">{line.lead}</b>;
+function headSentence(line: TodayHeadLineVM, why: string | null, door: string | null, waits: boolean): ReactNode {
+  // Someone waits on you: the warn tone's dot before how many (Today with colour, D5), as the menu's count says it.
+  const lead = (
+    <b data-testid="today-head-lead">
+      {waits ? <span className="tz-waits" aria-hidden="true" /> : null}
+      {line.lead}
+    </b>
+  );
   return (
     <>
       {door ? (
@@ -93,7 +99,7 @@ export function useZonesStanding(): void {
   useStanding({
     stacked: true,
     title: todayGreetingNow(),
-    sentence: line ? headSentence(line, speech.why, phone && count > 0 ? "inbox" : null) : undefined,
+    sentence: line ? headSentence(line, speech.why, phone && count > 0 ? "inbox" : null, count > 0) : undefined,
     beside: listen ?? undefined,
     // On a phone the date says the hour beside Listen and the bell (the canvas: "Tue, Nov 3 · 8:05 AM").
     dateHour: true,

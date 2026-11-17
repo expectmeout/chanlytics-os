@@ -1582,6 +1582,15 @@ export const FAMILIES = [
           `<button type="button" class="btn btn-lg btn-ink">${icon("check", 14)}Send now</button>`,
       },
       {
+        // Today with colour (17 Nov 2026): the page's one primary, and a pane's first act at half its weight beside it.
+        id: "btn-lead",
+        html:
+          `<button type="button" class="btn btn-primary">Reply</button> ` +
+          `<button type="button" class="btn btn-lead">Set up forwarding</button> ` +
+          `<button type="button" class="btn btn-sm btn-lead">Offer it</button> ` +
+          `<button type="button" class="btn btn-sm btn-lead">See who${icon("chevron", 11)}</button>`,
+      },
+      {
         // A left chevron is the right one turned (kit.css .icon-turned): a walk's ‹ › between two people.
         id: "btn-icon-turned",
         html:
@@ -2929,6 +2938,44 @@ export const FAMILIES = [
           `<span class="meter-part meter-ink" style="flex-grow: 2"></span>` +
           `<span class="meter-part meter-ground" style="flex-grow: 1"></span>` +
           `<span class="meter-part meter-open" style="flex-grow: 2"></span></div>`,
+      },
+      {
+        id: "meter-day",
+        html:
+          `<div class="meter meter-lg" role="img" aria-label="Today: 1 visit done, one under way, 4 to come, open 4:30 to 6 PM; now 10:14 AM">` +
+          `<span class="meter-part meter-went" style="flex-grow: 1"></span>` +
+          `<span class="meter-part meter-now" style="flex-grow: 0.25"></span>` +
+          `<span class="meter-mark" aria-hidden="true"></span>` +
+          `<span class="meter-part meter-now" style="flex-grow: 0.75"></span>` +
+          `<span class="meter-part meter-ahead" style="flex-grow: 2.5"></span>` +
+          `<span class="meter-part meter-free" style="flex-grow: 0.5"></span></div>`,
+      },
+    ],
+  },
+  {
+    family: "Spark",
+    about:
+      "kit.css's spark (Today with colour, 17 Nov 2026): a run of small columns, a day each, each its value's share of " +
+      "the tallest. A column of two parts is what AI answered in the ok tone and the rest in the strong hairline; the day " +
+      "still counting is the accent. Small, the week behind a figure; at its height, the month under a period's line.",
+    entries: [
+      {
+        id: "spark",
+        html:
+          `<span class="spark" role="img" aria-label="Last 30 days: 10 messages, 8 answered by AI">` +
+          `<span class="spark-col" style="height: 25%"><span class="spark-part" style="height: 100%"></span></span>` +
+          `<span class="spark-col" style="height: 50%"><span class="spark-part" style="height: 50%"></span></span>` +
+          `<span class="spark-col" style="height: 100%"><span class="spark-part" style="height: 75%"></span></span>` +
+          `<span class="spark-col spark-now" style="height: 75%"><span class="spark-part" style="height: 100%"></span></span></span>`,
+      },
+      {
+        id: "spark-sm",
+        html:
+          `<span class="spark spark-sm" role="img" aria-label="Last 7 days of calls, today 3">` +
+          `<span class="spark-col" style="height: 50%"></span>` +
+          `<span class="spark-col" style="height: 100%"></span>` +
+          `<span class="spark-col"></span>` +
+          `<span class="spark-col spark-now" style="height: 75%"></span></span>`,
       },
     ],
   },
