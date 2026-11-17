@@ -103,6 +103,17 @@ export function askNotices(win: Window, language: () => string = () => "en") {
       openedAsk(win);
       return read(lang);
     },
+    /**
+     * A card was approved or taken back, which may have settled what a notice said (an offer sent, a search answered):
+     * read them again now, however few minutes ago the last read was, and the home takes the new answer as it lands. Until
+     * 17 Nov 2026 a notice outlived the act that settled it by up to five minutes (a review of that day).
+     */
+    readNoticesAgain: (): Promise<void> => {
+      const lang = shown();
+      const was = noticedInTab.peek(lang);
+      if (!was) return Promise.resolve();
+      return keep(lang, { ...was, at: 0 }).then(() => read(lang));
+    },
     /** Not now: it rests a week, for this member, and the next one worth saying takes its place. */
     restNotice: async (key: string): Promise<void> => {
       const lang = shown();
@@ -111,8 +122,10 @@ export function askNotices(win: Window, language: () => string = () => "en") {
       const rested = restedWith(was.rested, noticeRestId(key), was.day);
       await keep(lang, { ...was, notices: was.notices.filter((n) => n.key !== key), rested });
       said();
-      // A rest that fails to save comes back on the next read, which is the worst it can do.
-      await apiFor(win)("PUT views/[page]", { params: { page: ASK_FOUND_VIEW }, body: { rested } as never }).catch(
+      // A rest that fails to save comes back on the next read, which is the worst it can do. The page's view is sent whole,
+      // as the route takes it and Today saves its rests (today/need-you/rests.tsx): sent bare, `{ rested }` was refused,
+      // and every Not now came back on the next read (a review of 17 Nov 2026). No cast, so the route's own type holds it.
+      await apiFor(win)("PUT views/[page]", { params: { page: ASK_FOUND_VIEW }, body: { view: { rested } } }).catch(
         () => null,
       );
     },

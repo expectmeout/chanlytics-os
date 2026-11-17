@@ -11,7 +11,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { pickCurrentDeal } from "@chanlytics/contracts";
+import { ASK_NOTICES_SENT, pickCurrentDeal } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -688,7 +688,11 @@ const WHOLE = ["rpc:people_list", "rpc:people_reply_modes", "segment_members.sel
 test("the route reads only what its notices need, each once: never People's book, a list's members or a season of appointments", async () => {
   const tables = withHours(harbor(), CLOSED);
   const { res, asked } = await readsOf(tables);
-  assert.deepEqual(res.notices, (await noticed(tables, "en", new Date())).slice(0, 3), "the first three, as listed");
+  assert.deepEqual(
+    res.notices,
+    (await noticed(tables, "en", new Date())).slice(0, ASK_NOTICES_SENT),
+    "the first five, as listed: three past the two the home may pass over",
+  );
   for (const whole of WHOLE) assert.ok(!asked.includes(whole), `${whole}: read where a count says it`);
   assert.deepEqual(
     [...asked].sort(),
@@ -730,7 +734,11 @@ test("with a slot open, who said yes to offers is everyone in People counted, re
   const full = (await readsOf(withHours(harbor(), CLOSED))).asked;
   const tables = withHours(harbor(), DAILY);
   const { res, asked } = await readsOf(tables);
-  assert.deepEqual(res.notices, (await noticed(tables, "en", new Date())).slice(0, 3), "the first three, as listed");
+  assert.deepEqual(
+    res.notices,
+    (await noticed(tables, "en", new Date())).slice(0, ASK_NOTICES_SENT),
+    "the first five, as listed: three past the two the home may pass over",
+  );
   const added = [...asked];
   for (const a of full) added.splice(added.indexOf(a), 1);
   assert.deepEqual(

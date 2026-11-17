@@ -85,6 +85,7 @@ export {
 export type { AskModelProfile } from "./model";
 export {
   ASK_NOTICE_ORDER,
+  ASK_NOTICES_SENT,
   NOTICE_SAID_BY_RIGHT_NOW,
   noticeOf,
   noticeRestId,
