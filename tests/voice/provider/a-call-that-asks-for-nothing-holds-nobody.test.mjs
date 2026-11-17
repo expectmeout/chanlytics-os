@@ -1,5 +1,5 @@
 /**
- * A call that asks for nothing holds nobody (decision 0136), and is kept on the ledger as a call screened (0137).
+ * A call that asks for nothing holds nobody (decision 0136), and is kept on the ledger as a call screened (0138).
  *
  * A call that needed a person, or that reached no answer, opened the thread's `callback` hold whoever rang: a dialler
  * that hangs up when a machine answers sat in Needs you for weeks, "1 waiting over a week" under a toll-free number
@@ -8,7 +8,7 @@
  * caller who speaks, a local number that hangs up, and anyone the business talks with are held as before; so is a call
  * whose caller could not be read.
  *
- * Since 0137 a fourth thing says it: silence from a number that failed its carrier's check (contracts
+ * Since 0138 a fourth thing says it: silence from a number that failed its carrier's check (contracts
  * voice/number-check.ts), from someone the business does not talk with. And every such call leaves a `call.screened`
  * row, which Reports counts.
  *
@@ -110,7 +110,7 @@ test("when a call asks for no call back: the workspace's word, the carrier's, or
   assert.equal(callBackNotOwed(silent(LOCAL, "marked_as_spam"), null), "carrier_spam", "the carrier flagged it");
   assert.equal(callBackNotOwed(spoke(LOCAL), { said: "not_a_customer", talks: true }), "not_a_customer");
   assert.equal(callBackNotOwed(silent(LOCAL), { said: "not_a_customer", talks: false }), "not_a_customer");
-  // The carrier's word on the number shown (0137): a failed check, with nothing said, from a stranger.
+  // The carrier's word on the number shown (0138): a failed check, with nothing said, from a stranger.
   const failed = (from) => ({ ...silent(from), numberCheck: "failed" });
   assert.equal(
     callBackNotOwed(failed(LOCAL), STRANGER),
@@ -218,7 +218,7 @@ const plan = (event, c, caller, numberCheck) =>
     { event, call: c, n: normalizeCall(c), bodyKeys: [], callKeys: [] },
     { ingest, alreadyCorrected: false, canCorrect: true, allowed: null, caller, numberCheck },
   );
-/** The step that keeps a call that asks nobody (0137), as the plan lists it. */
+/** The step that keeps a call that asks nobody (0138), as the plan lists it. */
 const screened = (p) => p.steps.find((s) => s.kind === "screened");
 const kinds = (p) => p.steps.map((s) => s.kind);
 const MISSED = { call_status: "not_connected", duration_ms: 0, disconnection_reason: "dial_no_answer" };
@@ -355,7 +355,7 @@ test("the door: a toll-free stranger's missed call opens no hold and tells no on
           { reason: "toll_free_silent", call_id: first.row.retell_call_id },
         ],
       ],
-      "0137: the call is kept on the ledger as one that asked nobody, which Reports counts",
+      "0138: the call is kept on the ledger as one that asked nobody, which Reports counts",
     );
     // The business writes to them: the next silence from the same number is someone it talks with.
     w.tables.messages.push({

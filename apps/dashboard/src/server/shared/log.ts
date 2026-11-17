@@ -268,7 +268,6 @@ export const DASHBOARD_LOG_EVENTS = [
   "today_replies_read_failed",
   "today_runs_fetch_failed",
   "today_searches_fetch_failed",
-  "today_since_fetch_failed",
   "today_standing_read_failed",
   "translation_malformed",
   "unsubscribe_bad_link",

@@ -40,7 +40,7 @@
  *   - A test of "keep my number" is proven as the call arrives (markForwardingVerified), with the one thing the call
  *     webhook never sees: the diversion headers (custom_sip_headers).
  *
- * ONE CALLER IS TURNED AWAY (decision 0137): one whose thread a member said is not a customer's (planCallStart's
+ * ONE CALLER IS TURNED AWAY (decision 0138): one whose thread a member said is not a customer's (planCallStart's
  * `refused`, the word read with their memory). The answer is then the provider's own refusal, `reject: true` and
  * nothing beside it, so the call ends before any agent or voice is set up and the provider keeps no call: the ledger's
  * `call.screened` row written here is its only record, and the line inbound_call_refused. Anyone else is answered, and
@@ -48,7 +48,7 @@
  *
  * WHAT THE CARRIER SAID OF THE NUMBER rides the same headers (contracts numberCheckOf): logged on every call's line
  * (`number_check`), and handed on as the call's metadata where it said anything, so the call webhook reads it
- * (decision 0137).
+ * (decision 0138).
  * Lines carry the caller's last four digits (from_tail), never the number, with the agent and the call id; the call ends
  * in one retell_inbound with how the facts and the memory were arrived at.
  */
@@ -105,7 +105,7 @@ async function noteRefused(db: ReturnType<typeof pg>, start: CallStartPlan, call
  * What a call the receptionist takes is answered with: the shell's variables; the workspace's voice, for this call alone
  * (Retell's agent_override: the saved agent is never changed for it); and the call's metadata, which every later
  * delivery carries: the settings version the facts were composed from, which the call webhook writes on the row
- * (decision 0069, R6), and what the carrier said of the number, where it said anything (decision 0137).
+ * (decision 0069, R6), and what the carrier said of the number, where it said anything (decision 0138).
  */
 function callAnswer(start: CallStartPlan, numberCheck: NumberCheck | null) {
   const agent = {

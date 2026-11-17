@@ -83,7 +83,7 @@ interface CallEventFacts {
   caller: CallerStanding | null;
   /**
    * What the caller's carrier said of the number shown (contracts numberCheckOf), as the inbound door handed it on in
-   * the call's metadata (decision 0137); null or absent where it said nothing, and then nothing is decided on it.
+   * the call's metadata (decision 0138); null or absent where it said nothing, and then nothing is decided on it.
    */
   numberCheck?: NumberCheck | null;
 }
@@ -101,7 +101,7 @@ export interface CallAbout {
  */
 export type CallStep =
   | { kind: "log"; event: "retell_event_stale"; fields: Record<string, unknown> }
-  /** A call that would have asked for a call back and asks nobody: said in the log and kept on the ledger (0137). */
+  /** A call that would have asked for a call back and asks nobody: said in the log and kept on the ledger (0138). */
   | { kind: "screened"; conversationId: string | null; retellCallId: string; reason: CallBackNotOwed }
   | { kind: "forwarding_verified"; call: ForwardingCall }
   | { kind: "call_activity"; retellCallId: string; call: CallForActivity }
@@ -144,7 +144,7 @@ export interface CallEventPlan {
   about: CallAbout | null;
   /**
    * Nobody is told of this call (decision 0136): the workspace said the caller is not a customer, or it never connected
-   * from a toll-free number, or one that failed its carrier's check (0137), the business does not talk with, whose
+   * from a toll-free number, or one that failed its carrier's check (0138), the business does not talk with, whose
    * notice would ask for a call back nobody can make. The claim still stands, so no sweep settles the call again.
    */
   untold: boolean;
@@ -286,7 +286,7 @@ function owedACallBack(
  * WhatsApp handoff does; a replay refreshes the one open escalation rather than opening a second), and a call that
  * reached no answer (owedACallBack, which pauses nothing). A call that asks for nothing holds nobody (decision 0136):
  * the workspace's word, the carrier's, or silence from a toll-free number the business does not talk with. Then the
- * step says why, in the log and on the ledger (0137), and the call is still the call it was, on its page and in the
+ * step says why, in the log and on the ledger (0138), and the call is still the call it was, on its page and in the
  * thread.
  */
 function callBackStep(

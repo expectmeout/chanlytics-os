@@ -1528,50 +1528,28 @@ test("AI found, in every workspace: the consultations with nothing after them ar
   assert.equal(went.at(-1), "clients/pipeline", "the door is the Pipeline, whose number the row re-prints");
 });
 
-/* ------------------------------------ since you looked ------------------------------------ */
+/* ------------------------------------ nothing since you looked ------------------------------------ */
 
-test("Since you looked: one line under the head's sentence, what AI answered and the bell's news since the member looked, opened in place", () => {
+test("the head says nothing under its sentence: what happened since the member looked is the bell's, and the figures' (decision 0137)", () => {
   clear();
-  const seen = new Date(Date.now() - 3 * 3_600_000).toISOString();
-  const last = { who: "Ana Torres", text: "Saturday at 10 works.", at: new Date(Date.now() - 600_000).toISOString() };
-  const vm = toTodayVM(metrics(), threads(), escalations(), calls(), NOW, null, {
-    since: { seen_at: seen, answered: { count: 6, last } },
-  });
-  // The bell's news since then: a review. A row from before the member looked is not news.
+  // The bell holds news since the member looked, and the day counted what AI answered: the head says neither a second time.
   const rows = [
     { ...bellRow("n:1", "review", "1 new rating on Google", "ok"), at: Date.now() - 3_600_000, message: "Five stars" },
-    { ...bellRow("n:0", "review", "An older rating", "ok"), at: Date.now() - 5 * 3_600_000 },
   ];
-  let marked = 0;
   const api = {
     feed: () => rows,
     onChange: () => () => {},
     read() {},
     dismiss() {},
-    seenAll: () => void (marked += 1),
+    seenAll() {},
     unread: () => unreadCount(rows),
     older: () => 0,
   };
-  set({ today: vm, __notifs: api });
-  const line = byTestId(headSaid(true)?.after ?? null, "today-since");
-  assert.ok(line, "the line under the sentence");
-  assert.match(textOf(line), /^Since .+6 answered.*1 review/, textOf(line));
-  assert.equal(byTestId(headSaid()?.after ?? null, "today-since-list"), null, "closed until pressed");
-  press(line);
-  const list = byTestId(headSaid()?.after ?? null, "today-since-list");
-  assert.ok(list, "opened in place");
-  assert.match(textOf(list), /AI answered 6/);
-  assert.match(textOf(list), /Last, to Ana Torres: “Saturday at 10 works\.”/);
-  assert.match(textOf(list), /1 new rating on Google/);
-  assert.doesNotMatch(textOf(list), /An older rating/, "before the member looked is not news");
-  assert.equal(marked, 0, "opening the line marks nothing seen: the bell's close is the member looking");
-  // A member who never looked: no line.
-  set({
-    today: toTodayVM(metrics(), threads(), escalations(), calls(), NOW, null, {
-      since: { seen_at: null, answered: null },
-    }),
-  });
-  assert.equal(byTestId(headSaid(true)?.after ?? null, "today-since"), null);
+  set({ today: busy(), __notifs: api });
+  const said = headSaid(true);
+  assert.ok(said?.sentence, "the head's one sentence stands");
+  assert.equal("after" in said, false, "REGRESSION: a line under the sentence, the bell's news said again");
+  assert.equal(byTestId(said.sentence, "today-since"), null);
 });
 
 /* ------------------------------------ the mockup ------------------------------------ */
@@ -1965,7 +1943,7 @@ test("the bento (Today in three zones, 2 Nov 2026): what cannot wait over all of
   );
   assert.ok(byTestId(tree, "today-day"), "the day, with its calendar");
   // Your brief's pane, Going today, the day's card on a desk, While you were away and Worth a look are gone: what they
-  // said is said where it is acted on (the head's Since you looked, Ask found's rows).
+  // said is said where it is acted on (the bell, Ask found's rows).
   for (const gone of ["today-brief", "today-going", "today-card", "today-live", "today-away", "today-leaks"])
     assert.equal(byTestId(tree, gone), null, gone);
 });

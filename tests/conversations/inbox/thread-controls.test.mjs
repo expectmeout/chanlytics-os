@@ -201,7 +201,7 @@ test("the thread's menu: the conversation, then Contact, then the file, each und
     "[Contact]",
     "AI",
     // A conversation that still asks for you can be said not to be a customer's (decision 0136): off the list, and
-    // AI stops answering them (0137).
+    // AI stops answering them (0138).
     "Not a customer",
     "|",
     "[Deal and file]",

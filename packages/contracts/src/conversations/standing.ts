@@ -41,7 +41,7 @@ export type Standing = "needs_you" | "yours" | "theirs" | "snoozed" | "quiet";
  * A member said this thread is not a customer's (00539, decisions 0093 and 0136): set aside with its day gone
  * (`set_aside_why` kept, `set_aside_at` null), which stands whatever the thread's state until Reply anyway clears both.
  * The one reading of the two columns: a caller's standing, the Inbox's dock, the two words' verb, the call refused before
- * it is answered and the message nobody answers (decision 0137). A thread that is not there has no word.
+ * it is answered and the message nobody answers (decision 0138). A thread that is not there has no word.
  */
 export const saidNotACustomer = (
   thread: { set_aside_at?: string | null; set_aside_why?: string | null } | null | undefined,

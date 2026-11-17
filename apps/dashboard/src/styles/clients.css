@@ -3902,25 +3902,25 @@ a.cl-prof-vrow:focus-visible {
     grid-template-areas: "face name" "face line" "face now" "notice notice" "stale stale";
     column-gap: 10px;
   }
-  /* The state and its sentence on one line under the name ("● New · First contact Nov 11"), each piece on the same 20px
-     line and centred on it: the state's wash stood its word in a taller block, a hair under the sentence beside it. */
+  /* The state and its sentence on one line under the name ("● New · First contact Nov 11"), on one 20px line: the
+     sentence runs on as words beside the state, so one too long for the line wraps at a word and its next line starts
+     with a word, where the sentence wrapped whole and its next line started with its "·" (Ruben, 17 Nov 2026). Its dot
+     holds to its first word. */
   .cl-prof-id > .cl-prof-now {
-    flex-wrap: wrap;
-    align-items: center;
-    column-gap: 6px;
+    display: block;
     line-height: 20px;
   }
   .cl-prof-now > span:first-child {
     display: inline-flex;
+    vertical-align: top;
+    margin-right: 6px;
   }
   .cl-prof-now-said {
-    display: inline-flex;
-    gap: 6px;
     font-size: var(--text-base);
     color: var(--ink-dim);
   }
   .cl-prof-now-said::before {
-    content: "·";
+    content: "·\00a0\00a0";
   }
   .cl-prof-id > .cl-prof-headline {
     min-height: 26px;
@@ -4553,18 +4553,25 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
   box-shadow: var(--focus-ring);
 }
 @media (max-width: 900px) {
-  /* On a phone the figures are the kit's tiles on the page itself, no pane round them (canvas A, P1): one row, each an
-     equal share, three at most, the most telling first (contracts personFiguresOf). Two by two left a third alone on its
-     line and one tile half a row (the phone pass, 3 Nov 2026). */
+  /* On a phone the figures are one line of the kit's compact figures on the page itself, no pane round them, at the
+     words' 16px edge: each as wide as what it says, a hairline between two, three at most, the most telling first
+     (contracts personFiguresOf). A tile each stood 96px tall for a number and its line (Ruben, 17 Nov 2026). */
   .main-scroll .cl-prof-work > .cl-prof-figures {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 1fr);
-    gap: 8px;
-    padding: 0;
+    display: flex;
+    gap: 0;
+    padding: 0 4px;
     border-radius: 0;
     background: none;
     box-shadow: none;
+  }
+  .cl-prof-figures > div {
+    flex: 0 1 auto;
+    padding: 2px 14px;
+    border-left: 1px solid var(--line);
+  }
+  .cl-prof-figures > div:first-child {
+    padding-left: 0;
+    border-left: 0;
   }
   .main-scroll .cl-prof-work > .cl-prof-figures > :nth-child(n + 4) {
     display: none;

@@ -1,12 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
-import { expectFoundWellFormed, expectNoQueueRepeat, expectSinceOpens } from "../signals";
+import { expectFoundWellFormed, expectNoQueueRepeat } from "../signals";
 import { WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "../waiting-search";
 import { NEED_YOU_WORDS } from "../../packages/contracts/src/need-you/words";
 
 /**
- * Today on a real workspace (Today in three zones, 2 Nov 2026): the head's one sentence, Since you looked under it and, on
+ * Today on a real workspace (Today in three zones, 2 Nov 2026): the head's one sentence and, on
  * a desk, the day's four figures beside the greeting, each with its receipt; then the zones, Need you in its groups
  * beside the day, Ask found under the day, and the week and the pins in one strip. Everything that asks for a person is
  * one list in the kit's row grammar; every number is one the page it links to prints; nothing is said twice.
@@ -239,12 +239,14 @@ test.describe("Today on a real workspace", () => {
     expect(attempts, "opening a waiting search answers nothing").toEqual([]);
   });
 
-  test("nobody in Need you is said again in AI found, and Since you looked opens in place", async ({ page }) => {
+  test("nobody in Need you is said again in AI found, and nothing under the head says the bell's news again", async ({
+    page,
+  }) => {
     await expect(page.getByTestId("today-zones")).toBeVisible();
-    // While you were away went (Today in three zones): what happened is the head's one line, and its rows open under it.
+    // While you were away went (Today in three zones), and Since you looked after it (decision 0137): news is the bell's.
     await expect(page.getByTestId("today-away")).toHaveCount(0);
+    await expect(page.getByTestId("today-since")).toHaveCount(0);
     if (await page.getByTestId("today-queue").count()) await expectNoQueueRepeat(page);
-    await expectSinceOpens(page);
   });
 });
 

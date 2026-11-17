@@ -337,7 +337,7 @@ test("a message a rule set aside is answered by nobody, however new", () => {
   assert.equal(threadMoveOf(dto({ messages: [inb(1, { meta: { handled: "ai" } })] }), null, NOW).move, "replying");
 });
 
-test("a thread a member said is not a customer's stays filed away when they write again: the message reopens it, and it asks nobody (decision 0137)", () => {
+test("a thread a member said is not a customer's stays filed away when they write again: the message reopens it, and it asks nobody (decision 0138)", () => {
   // 00539's word: set aside, with its day gone. Their text reopened the thread (ingest_inbound), and the gate left it
   // unanswered: left to who had the last word, it stood in Needs you as unanswered, the list their word took it off.
   const said = { set_aside_at: null, set_aside_why: "pitch" };

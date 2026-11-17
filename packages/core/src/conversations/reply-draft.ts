@@ -120,7 +120,7 @@ export interface ReplyDraftPorts {
   setAside(tenantId: TenantId, conversationId: string, why: "pitch" | "notice"): Promise<boolean>;
   /**
    * A call back set aside as someone selling, kept on the ledger as a call screened (contracts voice/screened.ts,
-   * decision 0137), which Reports counts. Best effort: the thread is set aside whether or not the row was written.
+   * decision 0138), which Reports counts. Best effort: the thread is set aside whether or not the row was written.
    */
   noteScreened(tenantId: TenantId, conversationId: string): Promise<unknown>;
   /** The writer, which the edge holds: the brain and the workspace's whole runtime. */

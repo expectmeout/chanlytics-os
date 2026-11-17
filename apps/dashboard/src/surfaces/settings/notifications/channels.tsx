@@ -3,7 +3,7 @@
  * addresses, a teammate's by their face and name, changed in place under the row; the member's own phones, where they
  * have one; and this browser, where a browser can alert. Every word is contracts' (ALERT_PANE_WORDS).
  */
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { personInitials, type PhoneDto } from "@chanlytics/contracts";
 import { ALERT_ADDRESSES_MIN, ALERT_PANE_WORDS as W, phoneLine } from "@chanlytics/contracts/alert-pane";
 import type { BellApi } from "@/bridge/notifications";
@@ -211,14 +211,22 @@ function PhonesRow({ phones, now }: { phones: PhoneDto[]; now: number }) {
 }
 
 /**
- * This browser: the bell's own switch (bridge/notifications.ts), kept in this browser, the same one the bell's
- * popover and the account menu stand on. Drawn only where a browser can alert (never in the phone app's view); one that
+ * This browser: the one switch for its alerts (decision 0137; bridge/notifications.ts BrowserAlerts), which the account
+ * menu says beside Notifications. On, the server tells the browser itself where it can, Chanlytics open or closed, and
+ * this page alerts while it is open where it cannot; the row says which. It stood three times: here, in the bell's
+ * foot, and as a second line under the grid for the server's push alone. Drawn only where a browser can alert (never
+ * in the phone app's view); an iPhone that must add the app to its Home Screen first says so, and a browser that
  * refused says so, since only its own settings can let alerts through again.
  */
 function BrowserRow({ flash }: { flash: (f: FrameFlash) => void }) {
   const api = object<BellApi>("__notifs") ?? null;
   const [alerts, setAlerts] = useState(() => api?.alerts() ?? null);
-  if (!api || !alerts?.can) return null;
+  // Whether the server tells this browser is the browser's to answer, a moment after the bell is installed.
+  useEffect(() => api?.onChange(() => setAlerts(api.alerts())), [api]);
+  if (!api || !alerts) return null;
+  if (alerts.needsHomeScreen)
+    return <RecordRow id="ntf-browser" label={W.browser} value={null} empty={W.browserHomeScreen} />;
+  if (!alerts.can) return null;
   const blocked = alerts.permission === "denied";
   const set = async (on: boolean) => {
     await api.setAlerts(on);
@@ -233,7 +241,7 @@ function BrowserRow({ flash }: { flash: (f: FrameFlash) => void }) {
       label={W.browser}
       value={
         <span className="ntf-browser">
-          <span>{W.browserValue}</span>
+          <span>{W.browserValue(alerts.by)}</span>
           <RecordSwitch
             labelledBy="rec-row-ntf-browser-key"
             on={alerts.on}
@@ -243,7 +251,7 @@ function BrowserRow({ flash }: { flash: (f: FrameFlash) => void }) {
           />
         </span>
       }
-      hint={blocked ? W.browserBlocked : W.browserHint}
+      hint={blocked ? W.browserBlocked : W.browserHint(alerts.by)}
     />
   );
 }

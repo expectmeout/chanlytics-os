@@ -1,6 +1,6 @@
 /**
  * Whether the caller's carrier vouched for the number a call shows (STIR/SHAKEN), as far as the call's own headers say
- * (decision 0137). A carrier that signs a call says the caller may use the number; the carrier that hands the call on
+ * (decision 0138). A carrier that signs a call says the caller may use the number; the carrier that hands the call on
  * checks the signature and says what it found, in one of two places a trunk passes along: a header of its own
  * (Twilio's `X-Twilio-VerStat`), or a `verstat` parameter on the number in P-Asserted-Identity (RFC 8224's word, as
  * other carriers write it). Retell's inbound-call webhook hands over the `X-` headers and P-Asserted-Identity

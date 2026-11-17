@@ -231,7 +231,7 @@ test("REGRESSION: a call back read as someone selling is kept as what it is, the
     w.log.findIndex((c) => c[0] === "keep") < w.log.findIndex((c) => c[0] === "setAside"),
     "kept first: a set-aside that failed leaves the row saying what it is",
   );
-  // 0137: the call is kept on the ledger as one screened, once it is set aside. An email's pitch is no call.
+  // 0138: the call is kept on the ledger as one screened, once it is set aside. An email's pitch is no call.
   assert.deepEqual(
     w.calls("noteScreened").map((c) => c.slice(1)),
     [[T, C]],

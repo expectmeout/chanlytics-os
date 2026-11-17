@@ -169,7 +169,7 @@ export function threadMoveOf(dto: ConversationDto, escalation: EscalationDto | n
   if (result.standing === "snoozed") return { move: "snoozed", list: "snoozed" };
   if (dto.state === "archived" && dto.set_aside_at) return { move: "aside", list: "aside" };
   if (dto.state === "archived" && !result.flagged) return { move: "archived", list: "out" };
-  // A member said the thread is not a customer's (decisions 0136 and 0137): what they write since is kept on it and
+  // A member said the thread is not a customer's (decisions 0136 and 0138): what they write since is kept on it and
   // answered by nobody, and a message reopens the thread it is kept on. It stays filed away all the same: left to who
   // had the last word, it would stand in Needs you as unanswered, the list their word took it off.
   if (saidNotACustomer(dto) && !result.flagged) return { move: "archived", list: "out" };

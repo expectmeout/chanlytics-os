@@ -297,7 +297,7 @@ export const THREAD_PANE_WORDS = {
   /**
    * The same word on a conversation that still asks for you and is no email's (decision 0136): a call back nobody
    * should make. What it does, under it in the menu; what it did, in its toast; and what its dock says from then on.
-   * Since 0137 it does more than keep them off the list: a call from them is turned away before AI answers, and what
+   * Since 0138 it does more than keep them off the list: a call from them is turned away before AI answers, and what
    * they write is kept and not answered, so each of the three says that.
    */
   notACustomerHeldMeta: "Off your list. AI stops answering their calls and messages.",

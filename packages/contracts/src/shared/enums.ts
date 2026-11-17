@@ -368,7 +368,7 @@ export const EVENT_KINDS = [
   "call.recorded",
   /** A call ended in a transfer to a person (00312): { answered }, whether they picked up. */
   "call.transferred",
-  /** A call that asked nobody (decision 0137): turned away before it was answered, or let pass without a call back; { reason }. */
+  /** A call that asked nobody (decision 0138): turned away before it was answered, or let pass without a call back; { reason }. */
   "call.screened",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */

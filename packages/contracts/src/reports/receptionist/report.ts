@@ -60,7 +60,7 @@ export interface ReceptionistReportVM {
   languages: MixPartVM | null;
   callEndings: MixPartVM;
   /**
-   * The calls kept off the owner's list (decision 0137): how many, how many of them were turned away before AI answered
+   * The calls kept off the owner's list (decision 0138): how many, how many of them were turned away before AI answered
    * (the provider keeps no call for those, so no other figure counts them), and the sentence. Null where they could not
    * be read, or the server is a deploy behind.
    */
@@ -105,7 +105,7 @@ function callEndingsPart({ call_endings, missed }: Series, screened: number): Mi
     return mixOf(callEndingEntries(call_endings.by_reason), callEndingsLine(call_endings.total));
   // The endings are of calls that connected. A missed call, one under the hour old and one with no caller on record are
   // calls too: with any of them, "nobody phoned" is untrue beside the missed-calls figure. So is a call kept off the
-  // owner's list (decision 0137), said in the line under this: one turned away before AI answered is no row of the
+  // owner's list (decision 0138), said in the line under this: one turned away before AI answered is no row of the
   // series at all.
   const rang = missed.now.n + missed.now.pending + missed.now.unknown + screened > 0;
   return noMix(rang ? CALLS_NONE_CONNECTED : CALLS_EMPTY);

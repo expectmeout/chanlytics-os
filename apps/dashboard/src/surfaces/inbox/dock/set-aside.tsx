@@ -114,7 +114,7 @@ export function SetAsideBar({ thread }: { thread: Thread }) {
 /**
  * A thread a member said is not a customer's (decision 0136): said plainly, with what it does, and Reply anyway beside
  * it. Until that is pressed their calls are turned away before AI answers, and what they write is kept and not
- * answered (decision 0137).
+ * answered (decision 0138).
  */
 export function NotACustomerBar({ thread }: { thread: Thread }) {
   const [toastNode, flash] = useToast();

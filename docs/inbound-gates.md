@@ -17,7 +17,7 @@ Every way out stamps what the message became (`meta.handled`).
 | 5 | step | This person's own receptionist mode | Read before any branch that can speak, and in force for this message | none |  |
 | 6 | gate | The thread's history cannot be read | Nothing answered from an invented empty history; held for a person | `state_unavailable` | `wa_state_unavailable` |
 | 7 | gate | This message is a STOP, or a stop is on record | No reply and no hold (decision 0048): the owner is told once, from the consent event | none | `wa_skip_opt_out` |
-| 8 | gate | A member said this person is not a customer (their thread's own word, decision 0137), and the message is not a START or a YES OFFERS that is owed its confirmation | Recorded and not answered, and nobody is asked: Reply anyway on the thread takes the word back | none | `wa_skip_not_a_customer` |
+| 8 | gate | A member said this person is not a customer (their thread's own word, decision 0138), and the message is not a START or a YES OFFERS that is owed its confirmation | Recorded and not answered, and nobody is asked: Reply anyway on the thread takes the word back | none | `wa_skip_not_a_customer` |
 | 9 | gate | A text on a line the carriers have not approved for texting yet | Held for a person | `carriers` | `sms_held_for_carriers` |
 | 10 | gate | A reaction, or a system notice | Recorded: nothing was asked | none | `wa_skip_no_request` |
 | 11 | gate | A location, a contact card, or a post shared in a DM | Held for a person, with no apology: a person can read it | `non_text` | `wa_escalate_readable_nontext` |

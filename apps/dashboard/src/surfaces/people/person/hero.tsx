@@ -432,7 +432,8 @@ function mergeAsk(c: PageCtx): SheetAsk {
  * rail says that beside the head), and the notices under it, or a stand-in's story where no notice waits.
  */
 function headLineOf(c: PageCtx, row: "line" | "notice"): ReactNode {
-  const line = c.p.head.line;
+  // A phone says a stand-in's story on the state's line (personHeadStateOf's story), never in the notices' row.
+  const line = row === "notice" && c.phone ? null : c.p.head.line;
   const notices = c.p.notices.some((n) => n.home === "name");
   if (row === "notice") return notices ? <NameNotices c={c} /> : line?.kind === "origin" ? <HeadLine c={c} /> : null;
   if (!line || line.kind === "origin" || (line.kind === "gone" && !c.phone)) return null;
@@ -469,11 +470,10 @@ function heroId(c: PageCtx) {
         <Wash scope={p.id} value={head.state} said={PERSON_WASH_WORDS.state(head.word)}>
           <StatePill kind="person" value={head.state} label={head.word} testid="person-standing" />
         </Wash>
-        {/* On a phone its sentence rides the state's line, "● New · First contact Nov 11" (Ruben, 12 Nov 2026: the head
-            was too tall for what it says). */}
-        {c.phone && head.sentence ? (
-          <span className="cl-prof-now-said" data-testid="person-now-why">
-            {head.sentence.replace(/\.$/, "")}
+        {/* On a phone its sentence, or a stand-in's story, rides the state's line (Ruben, 12 and 17 Nov 2026). */}
+        {c.phone && (head.sentence || head.story) ? (
+          <span className="cl-prof-now-said" data-testid={head.sentence ? "person-now-why" : "person-origin"}>
+            {head.sentence?.replace(/\.$/, "") ?? head.story}
           </span>
         ) : null}
       </span>

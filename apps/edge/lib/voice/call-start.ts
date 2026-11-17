@@ -107,7 +107,7 @@ interface CallStart {
   conversationId: string | null;
   /**
    * A member said this caller's thread is not a customer's (contracts saidNotACustomer, read with their memory): the
-   * door turns the call away before the receptionist answers (decision 0137). False for anyone else, and wherever the
+   * door turns the call away before the receptionist answers (decision 0138). False for anyone else, and wherever the
    * memory could not be read whole or the plan ran late: a call is never refused on a read that did not answer.
    */
   refused: boolean;

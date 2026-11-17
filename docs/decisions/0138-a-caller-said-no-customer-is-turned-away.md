@@ -1,4 +1,4 @@
-# 0137 · A caller said not a customer is turned away, and what was kept off the list is counted
+# 0138 · A caller said not a customer is turned away, and what was kept off the list is counted
 
 **Status:** Decided by Ruben, 17 November 2026 ("Continue all left out that is not dependent on me end to end in one pr
 nothing missed or left out and merge main", on the five things [0136](0136-a-call-that-asks-for-nothing-holds-nobody.md)

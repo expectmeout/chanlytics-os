@@ -170,17 +170,6 @@ test("a page's quiet act stands after its name, on the name's line, and the sent
   assert.equal(sentence.props.className, "pg-sentence");
 });
 
-test("what stands under the sentence, as quiet as it, follows it on the name's line (Today's Since you looked); nothing where a page says none", () => {
-  const head = PageHead({ title: "Good morning", sentence: "4 need you.", stacked: true, after: "Since 9:40 PM" });
-  const [, line] = head.props.children;
-  const [, sentence, after] = line.props.children;
-  assert.equal(sentence.props.className, "pg-sentence");
-  assert.equal(after.props.className, "pg-after", "under the sentence, after it");
-  assert.deepEqual([after.props.children].flat(), ["Since 9:40 PM"]);
-  const [, bare] = PageHead({ title: "Good morning", sentence: "4 need you.", stacked: true }).props.children;
-  assert.equal(bare.props.children[2], null);
-});
-
 test("the oldest's time says its day when it is not today, as Today's headline says the same wait (the 2 Oct 2026 audit, A5)", () => {
   // 1,800 minutes before 4:02 PM on Friday is 10:02 AM on Thursday: a bare "10:02 AM" read as this morning's.
   assert.equal(

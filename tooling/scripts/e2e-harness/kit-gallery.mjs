@@ -1197,6 +1197,7 @@ const figure = ({
   tone = null,
   washed = false,
   tile = false,
+  compact = false,
   hero = false,
 } = {}) => {
   const said = washed ? `<span class="wash" data-wash="true">${value}</span>` : value;
@@ -1207,7 +1208,7 @@ const figure = ({
         ? `<button type="button" class="figure-door">${said}</button>`
         : said;
   return (
-    `<dl class="gx-figs"><div class="figure${tile ? " figure-tile" : ""}${hero ? " figure-hero" : ""}${thin === null ? "" : " is-thin"}${tone === null ? "" : ` is-${tone}`}"><dt class="figure-label">${term}</dt>` +
+    `<dl class="gx-figs"><div class="figure${tile ? " figure-tile" : ""}${compact ? " figure-compact" : ""}${hero ? " figure-hero" : ""}${thin === null ? "" : " is-thin"}${tone === null ? "" : ` is-${tone}`}"><dt class="figure-label">${term}</dt>` +
     `<dd class="figure-value">${number}${change ? `<span class="figure-change">${change}</span>` : ""}</dd>` +
     `${meta ? `<dd class="figure-meta">${meta}</dd>` : ""}` +
     `${thin === null ? "" : `<dd class="figure-n">only ${thin}, too few to read</dd>`}</div></dl>`
@@ -2951,6 +2952,10 @@ export const FAMILIES = [
       { id: "figure-warn", html: figure({ tone: "warn" }) },
       { id: "figure-fail", html: figure({ tone: "fail" }) },
       { id: "figure-tile", html: figure({ term: "Last contact", value: "Sep 24", meta: "You replied", tile: true }) },
+      {
+        id: "figure-compact",
+        html: figure({ term: "Emails", value: "2 out", meta: "0 back", door: "button", compact: true }),
+      },
       { id: "figure-hero", html: figure({ term: "sent", value: "19", meta: null, hero: true }) },
       {
         id: "figure-hero-lines",
@@ -3191,12 +3196,11 @@ export const FAMILIES = [
           `<p class="pg-sentence"><b>3 need you.</b> Ask drafted 2 replies.</p></div></header>`,
       },
       {
-        id: "page-head-after",
+        id: "page-head-hour",
         html:
           `<header class="pg-head pg-head-stacked"><p class="pg-dateline" data-hour="true">Tue, Nov 3<span class="pg-dateline-time"> · 8:05 AM</span></p>` +
           `<div class="pg-line"><h1 class="pg-title">Good morning, Marisa</h1>` +
-          `<p class="pg-sentence"><b>4 need you.</b> Ask drafted 2 replies.</p>` +
-          `<div class="pg-after"><button type="button" class="btn btn-ghost btn-text">Since 9:40 PM · 6 answered · 2 booked</button></div></div></header>`,
+          `<p class="pg-sentence"><b>4 need you.</b> Ask drafted 2 replies.</p></div></header>`,
       },
       {
         id: "page-bartitle",

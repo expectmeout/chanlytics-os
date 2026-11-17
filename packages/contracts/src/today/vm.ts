@@ -13,7 +13,6 @@ import type { PreviewTriedDto } from "../previews/tried";
 import type { VisitWord } from "../shared/enums";
 import type { WaitingRun } from "../waits/waits";
 import type { MetricsSummaryDto } from "./metrics";
-import type { TodaySinceAnsweredDto, TodaySinceSentDto } from "./away";
 import type { TodayBackVM } from "./day/zone";
 
 export interface TodayNeedsRowVM {
@@ -367,17 +366,6 @@ export interface TodayVM {
   /** Who comes back from Not now in the next day, soonest first (today/day/zone.ts todayBackOf): the day draws today's. */
   back: TodayBackVM[];
   /**
-   * Since the member last looked (Today in three zones, 2 Nov 2026): when they last opened the bell or marked it read, and
-   * what the receptionist answered since; the head's line folds the bell's news in beside it (today/away.ts todaySince).
-   * Null where it was not read.
-   */
-  since: {
-    seen_at: string | null;
-    answered: TodaySinceAnsweredDto | null;
-    /** What the sequences sent since (decision 0120); absent from a server before it. */
-    sent?: TodaySinceSentDto | null;
-  } | null;
-  /**
    * What the workspace calls an appointment (tenants.appointment_word, appointmentWordOf), as Today's own read says it:
    * the day, To do and Need you say it whether or not the playbooks are read, so a workspace with them off never reads a
    * playbook's word (the canvas of 2 Nov 2026). Null where the read did not say it (a server from before).
@@ -417,8 +405,7 @@ export interface TodayVM {
  * GET today's answer (Today in three zones, 2 Nov 2026; the build's lane L5): the day's read whole, one request where the
  * page made six, which the page makes the day from (toTodayVM) and makes again each minute by the clock with no read. The
  * reader is Ask's (server/readers/today.ts), so the page and Ask cannot count it two ways. A part that could not be read
- * is null, never empty: the calls, the searches, the runs, the held threads, the leads who tried, what was done today and
- * what happened since the member last looked.
+ * is null, never empty: the calls, the searches, the runs, the held threads, the leads who tried and what was done today.
  */
 export interface TodayReadDto {
   metrics: MetricsSummaryDto;
@@ -436,7 +423,6 @@ export interface TodayReadDto {
   previews_tried: PreviewTriedDto[] | null;
   /** How many things the members dealt with since the business's midnight, by Need you's door. */
   done_today: number | null;
-  since: TodayVM["since"];
   /** What the workspace calls an appointment. Absent from a server from before (either deploy order). */
   word?: AppointmentWord | null;
 }

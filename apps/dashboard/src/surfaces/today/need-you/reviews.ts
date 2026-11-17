@@ -1,7 +1,7 @@
 /**
  * The Google reviews Need you offers to answer (decision 0071): on a connected Business Profile (only then can a reply be
  * posted), not answered, not held by a reply of the receptionist's (Reports' Reviews lens stops or sends that one), the
- * newest two, in To do. A new review the profile cannot answer from here is the bell's news (Since you looked).
+ * newest two, in To do. A new review the profile cannot answer from here is the bell's news.
  * Not today rests one a week, as Not today does wherever Today says it (rests.tsx).
  */
 import type { GoogleReviewDto } from "@chanlytics/contracts";

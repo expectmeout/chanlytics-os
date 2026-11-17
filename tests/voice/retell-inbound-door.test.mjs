@@ -799,7 +799,7 @@ test("a caller from abroad is recognised and their thread held: the door hands t
   assert.equal(db.held.length, 1, "and the call holds their thread");
 });
 
-/* ------------------------------------------------- decision 0137: the call turned away, and the carrier's word */
+/* ------------------------------------------------- decision 0138: the call turned away, and the carrier's word */
 
 test("a caller a member said is not a customer is turned away before the receptionist answers: the provider's own refusal and nothing beside it, no hold on their thread, and the ledger keeps the call's only record", async () => {
   const w = world();

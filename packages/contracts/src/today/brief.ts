@@ -61,8 +61,6 @@ interface TodayBeside {
   previewsTried?: readonly PreviewTriedDto[] | null;
   /** How many things the members dealt with today (TodayVM.done_today). Null or absent: not read. */
   doneToday?: number | null;
-  /** Since the member last looked (TodayVM.since). Null or absent: not read. */
-  since?: TodayVM["since"];
   /** What the workspace calls an appointment (TodayVM.word). Null or absent: not read. */
   word?: AppointmentWord | null;
 }
@@ -144,7 +142,6 @@ export function toTodayVM(
       callsRead: result.callsRead,
       done_today: beside.doneToday ?? null,
       back: todayBackOf(conversations, now),
-      since: beside.since ?? null,
       word: beside.word ?? null,
       queue: { rows: [], more: 0, more_people: 0, calls: 0, searches: 0, windows: 0, parts: [], empty },
       calm,
@@ -180,7 +177,6 @@ export function toTodayVM(
     callsRead: result.callsRead,
     done_today: beside.doneToday ?? null,
     back: todayBackOf(conversations, now),
-    since: beside.since ?? null,
     word: beside.word ?? null,
     calls: todayCalls(result, callRows),
     queue,

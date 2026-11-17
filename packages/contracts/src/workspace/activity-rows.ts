@@ -34,7 +34,7 @@ export const ACTIVITY_NOISE_KINDS = [
   "ask.journal_written",
   "ask.morning_claimed",
   "call.transferred",
-  // A call turned away, or let pass with no call back (decision 0137): how many is Reports', not the owner's day.
+  // A call turned away, or let pass with no call back (decision 0138): how many is Reports', not the owner's day.
   "call.screened",
   "booking_link.sent",
   "channel.quality_rating",

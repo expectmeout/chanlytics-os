@@ -122,7 +122,7 @@ export async function holdsReplyTurn(db: Db, conversationId: string, messageId: 
  * could not produce is unknown, never one nobody holds.
  *
  * With them, off the same row and for the same reader, the two columns a member's word that the thread is not a
- * customer's is kept in (00539; contracts saidNotACustomer reads them): the message nobody answers (decision 0137).
+ * customer's is kept in (00539; contracts saidNotACustomer reads them): the message nobody answers (decision 0138).
  */
 export async function readLiveHold(
   db: Db,

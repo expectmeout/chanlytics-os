@@ -99,7 +99,7 @@ export function world(over = {}) {
     pausedUntil: over.pausedUntil ?? 0,
     textedBefore: false,
     control: over.control ?? null,
-    // A member said the thread is not a customer's (decision 0137), as the edge's pgThread reads it off the row.
+    // A member said the thread is not a customer's (decision 0138), as the edge's pgThread reads it off the row.
     notACustomer: over.notACustomer ?? false,
   };
   const delivered = new Set();

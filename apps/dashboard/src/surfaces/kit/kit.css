@@ -6667,18 +6667,6 @@ textarea.rec-input,
   color: var(--ink);
   font-weight: var(--weight-semibold);
 }
-/* What stands under the sentence (PageHead `after`: Today's Since you looked, Today in three zones, 2 Nov 2026): its own
-   line, as wide as the head, which opens in place under it; four pixels nearer the sentence than the sentence is to the
-   name. Every width's, a phone's included, where a stacked head keeps its sentence. */
-.pg-after {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-2);
-  align-self: stretch;
-  min-width: 0;
-  margin-top: -4px;
-}
 /* A phone's top bar at its centre (frame-head.tsx BarTitleSaid; canvas A's hand-off): once the page's own head has
    scrolled away, a name and the dot of where they stand, between the way back and the bell, fading in and out. Amber is
    for what needs someone; every other state's dot is the muted ink. Laid over the bar as the date's place is. */
@@ -6924,8 +6912,8 @@ textarea.rec-input,
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-/* A figure as a tile (`look="tile"`: a person's figures on a phone, canvas A): an inset of its own, the label at the
-   smallest step, the number at the title's in the semibold, the line under it on one line. */
+/* A figure as a tile (`look="tile"`: the console's numbers): an inset of its own, the label at the smallest step, the
+   number at the title's in the semibold, the line under it on one line. */
 .figure-tile {
   justify-content: center;
   gap: 1px;
@@ -6949,6 +6937,39 @@ textarea.rec-input,
   display: block;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+/* A figure in a line of them (`look="compact"`: a person's figures on a phone, under the head): no ground of its own, the
+   label over the number and its line beside the number in the dim ink ("2 out  0 back"), or under it where the figure
+   has no room for both, so a line of them stands 45px tall where a tile stood 96 (Ruben, 17 Nov 2026: the tile was bulky,
+   and its well's edge read as cut at the top). A door is the whole figure: its press spreads over it, so the number keeps
+   its line's height under a finger, where the house's 44px floor (frame.css) stood it apart from its label. */
+.figure-compact {
+  position: relative;
+  flex-flow: row wrap;
+  align-content: flex-start;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+.figure-compact .figure-label {
+  flex-basis: 100%;
+  font-size: var(--text-xs);
+}
+.figure-compact .figure-value {
+  font-size: var(--text-md);
+  letter-spacing: 0;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.figure-compact .figure-meta {
+  font-size: var(--text-sm);
+}
+.figure-compact .figure-door {
+  min-height: 0;
+}
+.figure-compact .figure-door::after {
+  content: "";
+  position: absolute;
+  inset: 0;
 }
 /* The one number a view is for (`look="hero"`: a sequence's History, the run-to-leads canvas's decision): the number at the
    decision's size, its label beside it on its baseline at the title's step, what it counts on the label's tip as ever. */

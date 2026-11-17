@@ -23,7 +23,12 @@
  *     marks, the server's (contracts bellFeed);
  *   - the phone app's icon is the kept rows' unread count alone (keptUnread),
  *     the number the edge counts before a push;
- *   - the device-alert switch is this device's, by definition.
+ *   - a note about what Need you already counts (a thread that needs you, a reply counting down, a run or a search
+ *     waiting for a word) stays on the bell with its dot and adds nothing to the closed bell's number or dot: the one
+ *     count says it, on the Inbox's badge (decision 0137, contracts noticeInNeedYou). The phone's icon, the one mark
+ *     outside the app, still counts it;
+ *   - this browser's alerts are one switch (Settings › Notifications, decision 0137), this browser's by definition:
+ *     surfaces/browser-alerts.ts, which this keeps the page's own alert's answer for.
  *
  * Published to the mockup's top bar as window.__notifs.
  */
@@ -48,6 +53,10 @@ import {
   type WhatWaits,
   keptUnreadOf,
   nameKnownCustomers,
+  needYouGroupsOf,
+  type NeedYouCounted,
+  noticeInNeedYou,
+  parseLeadsRoute,
   serverNotificationRows,
   settledNoticeIds,
   type RunDays,
@@ -57,6 +66,8 @@ import { bellFeed, holdMarksOf, bellOlderOf } from "@/bridge/surfaces/hold-rows"
 import { surfaceValue } from "../surfaces/surface-values";
 import { approvalDaysNow } from "../surfaces/campaigns/broadcasts/when-words";
 import { api as client, serversClockOf } from "./api";
+import { webPushCan, webPushOn, webPushTurnOff, webPushTurnOn } from "./ask/web-push";
+import { alertDevice, browserAlertsOf, type BrowserAlerts, type BrowserPush } from "./surfaces/browser-alerts";
 import {
   MARK_RETRY_MS,
   markAttempt,
@@ -84,6 +95,15 @@ export const FEED_EVENTS = [
  * would draw the bell twice per Inbox read.
  */
 const WAITS_SURFACES = ["broadcasts", "calendar", "google", "leads"] as const;
+
+/** The server's push to this browser, as the one alert switch asks it (surfaces/browser-alerts.ts). */
+const WEB_PUSH: BrowserPush = { can: webPushCan, on: webPushOn, turnOn: webPushTurnOn, turnOff: webPushTurnOff };
+
+/**
+ * Today's read is what says the one count (surfaces/needs-you.ts needsYouNow): once it lands, the notes about what Need you
+ * counts leave the bell's number, so the bell is drawn again as it moves.
+ */
+const COUNT_SURFACES = ["today"] as const;
 
 interface StorageLike {
   getItem(key: string): string | null;
@@ -133,12 +153,17 @@ export interface BellRow {
   tone: string;
   unread: boolean;
   time: string;
-  /** When it became true, epoch ms: what Today's Since you looked counts from the member's last look (contracts todaySince). */
+  /** When it became true, epoch ms: the bell's number counts what came after the member's last look. */
   at: number;
   title: string;
   message: string;
   /** The record it is about, when the edge said so -- how Today knows this conversation is already in its queue. */
   about: { type: string; id: string } | null;
+  /**
+   * It says what Need you already counts (contracts noticeInNeedYou): listed with its dot, and no part of the closed
+   * bell's number or dot, which are for news (decision 0137).
+   */
+  in_need_you: boolean;
   actions: Array<{ label: string; to: string; primary: boolean }>;
 }
 
@@ -253,6 +278,32 @@ function whatWaits(): WhatWaits {
   };
 }
 
+/**
+ * What Need you counts now, as far as a bell row can be about it (contracts NeedYouCounted): the threads of the people
+ * Today's read puts above To do, none past a week, and each search waiting for an answer, by where its row opens. Null while Today
+ * has not been read: the one count is said only from it (surfaces/needs-you.ts needsYouNow).
+ */
+function needYouCounted(): NeedYouCounted | null {
+  const today = surfaceValue("today");
+  if (!today || !Array.isArray(today.queue?.rows)) return null;
+  const groups = needYouGroupsOf(today.queue.rows);
+  return {
+    threads: new Set([...groups.next, ...groups.waiting].flatMap((r) => (r.conversationId ? [r.conversationId] : []))),
+    searches: new Set(groups.ok.flatMap((r) => parseLeadsRoute(r.cta.to)?.searchId ?? [])),
+  };
+}
+
+/**
+ * The bell's rows, each saying whether Need you already counts it (contracts noticeInNeedYou): the one count says such
+ * a wait, on the Inbox's badge, so its note keeps its dot on the bell and adds nothing to the closed bell (decision
+ * 0137). Read off Today's rows, which are what the count is made of: before Today is read, or where its read failed,
+ * nothing is known to be counted and a person waiting still lights the bell, so no wait is left with no mark at all.
+ */
+function withNeedYou<T extends NotificationRow>(rows: T[], waits: WhatWaits): Array<T & { in_need_you: boolean }> {
+  const counted = needYouCounted();
+  return rows.map((row) => ({ ...row, in_need_you: !!counted && noticeInNeedYou(row, counted, waits) }));
+}
+
 export function storageKey(workspaceId: string | null): string {
   return `chanlytics:notifs:${workspaceId ?? "default"}`;
 }
@@ -297,7 +348,7 @@ export function feedFromGlobals(g: Globals, now: number) {
   });
 }
 
-export function toRows(rows: NotificationRow[], now: number): BellRow[] {
+export function toRows(rows: Array<NotificationRow & { in_need_you?: boolean }>, now: number): BellRow[] {
   // A reply to a reach-out whose draft waits says so on its row's door (Reach out Part 5, PR 8; contracts bellActionOf).
   const readings = (globalThis as { __REPLIES?: ReachOutRepliesDto | null }).__REPLIES?.replies ?? [];
   return rows.map((r) => ({
@@ -311,6 +362,7 @@ export function toRows(rows: NotificationRow[], now: number): BellRow[] {
     title: r.title,
     message: r.message,
     about: r.about ?? null,
+    in_need_you: r.in_need_you === true,
     actions: [{ label: bellActionOf(r, readings), to: r.to, primary: true }],
   }));
 }
@@ -318,7 +370,10 @@ export function toRows(rows: NotificationRow[], now: number): BellRow[] {
 export interface BellApi {
   /** The rows as this device sees them, now. */
   feed(): BellRow[];
-  /** The bell's number: the rows' unread and the older unread rows it does not list (older). */
+  /**
+   * The bell's number: the rows new since the look and not read, less the ones Need you already counts (BellRow.in_need_you),
+   * and the older unread rows it does not list (older).
+   */
   unread(): number;
   /** The unread kept rows the bell does not list (older than its newest BELL_LIST_ROWS). */
   older(): number;
@@ -338,8 +393,9 @@ export interface BellApi {
   readMany(keys: readonly string[]): void;
   dismiss(key: string): void;
   restore(key: string): void;
-  /** Device alerts: whether they are on, and whether they can be. */
-  alerts(): { on: boolean; can: boolean; permission: string };
+  /** This browser's alerts, as the one switch says them: whether they are on, whether they can be, and how they reach it. */
+  alerts(): BrowserAlerts;
+  /** The one switch, pressed: on by the server's push where this browser can take it, else by this page; off is both. */
   setAlerts(on: boolean): Promise<{ on: boolean; permission: string }>;
   /**
    * Read every unread kept row that `match` names, on the server: a thing dealt with elsewhere (a review answered) is read with the
@@ -383,32 +439,6 @@ const keptUnreadIn = (win: Window & Globals, seenMs: number): number =>
   keptUnreadOf(win.__NOTIFICATIONS?.dto, seenMs, settledNoticeIds(win.__NOTIFICATIONS?.dto, whatWaits()));
 
 /**
- * Device alerts asked for: on, by the browser's own permission (asked once, where it is not yet decided), or off. The
- * device's answer is kept (`save`).
- */
-async function askAlerts(
-  win: Window,
-  on: boolean,
-  save: (patch: Partial<NotificationReadState>) => void,
-): Promise<{ on: boolean; permission: string }> {
-  const N = notificationOf(win);
-  if (!on || !N) {
-    save({ alerts: false });
-    return { on: false, permission: N ? N.permission : "unsupported" };
-  }
-  let permission = N.permission;
-  if (permission === "default") {
-    try {
-      permission = await N.requestPermission();
-    } catch {
-      permission = "denied";
-    }
-  }
-  save({ alerts: permission === "granted" });
-  return { on: permission === "granted", permission };
-}
-
-/**
  * Device alerts. What each source holds when it is first read is its backlog and never alerts; only what appears AFTER,
  * while the app is not in view. Each source takes its own first look: one first look for all of them, taken before the
  * Inbox's read landed (the calls' and invitations' come first, and a read that failed comes back later), made every thread
@@ -443,7 +473,7 @@ function hearFeed(win: Window & Globals, alertsOn: () => boolean, emit: () => vo
     }
     fresh.push(...freshKept());
     emit();
-    if (fresh.length) alertDevice(win, fresh, alertsOn());
+    if (fresh.length) alertDevice(win, fresh, alertsOn(), (route) => goToRoute(route, {}, win));
   };
   for (const ev of FEED_EVENTS) win.addEventListener(ev, tell);
 }
@@ -500,15 +530,17 @@ export function installNotifications(
   // One row for one hold (contracts bellFeed): the row the browser derives carries the marks of the notice the edge kept.
   // A kept row whose subject no longer waits (a run approved, a booking email dismissed, a review answered) reads as read, from what
   // the surfaces hold (whatWaits).
-  const rows = () =>
-    named(
-      bellFeed({
-        derived: feedFromGlobals(win, Date.now()),
-        device: deviceState(),
-        kept: through.kept(),
-        waits: whatWaits(),
-      }).sort((a, b) => b.at - a.at),
-    );
+  // Each says whether Need you already counts it (withNeedYou, decision 0137).
+  const rows = () => {
+    const waits = whatWaits();
+    const feed = bellFeed({
+      derived: feedFromGlobals(win, Date.now()),
+      device: deviceState(),
+      kept: through.kept(),
+      waits,
+    });
+    return withNeedYou(named(feed.sort((a, b) => b.at - a.at)), waits);
+  };
   // A kept row's marks go to the server, and the refresh map re-reads the surface after one lands, so every device
   // agrees. A write the server did not take is tried once more (surfaces/read-through.ts markAttempt).
   const attempt = markAttempt((body) => client()("PUT notifications", { body }), retryMs);
@@ -526,17 +558,21 @@ export function installNotifications(
     return ids.length > 0;
   };
 
-  // Device alerts, heard on each of the feed's events (hearFeed).
-  hearFeed(win, () => state().alerts, emit);
+  // This browser's one alert switch (surfaces/browser-alerts.ts), and the page's own alerts, heard on each of the
+  // feed's events (hearFeed), which stand down while the server tells this browser itself.
+  const device = browserAlertsOf(win, { on: () => state().alerts, save: (on) => save({ alerts: on }) }, WEB_PUSH, emit);
+  hearFeed(win, device.byPage, emit);
   // The surfaces that say what still waits move the badge without a new row: the bell is drawn again.
   onSurfaceMoved(WAITS_SURFACES, emit);
+  onSurfaceMoved(COUNT_SURFACES, emit);
 
   const api: BellApi = {
     feed: () => toRows(rows(), Date.now()),
-    // The bell's number: what is new since the member last looked and is not read. A dot alone is no part of it.
+    // The bell's number: the news that is new since the member last looked and is not read. A dot alone is no part of
+    // it, and nor is a note about what Need you counts (decision 0137).
     unread: () => {
       const seen = seenAt();
-      return rows().filter((r) => r.unread && r.at > seen).length + older();
+      return rows().filter((r) => r.unread && r.at > seen && !r.in_need_you).length + older();
     },
     older,
     seenAll: () => {
@@ -572,15 +608,8 @@ export function installNotifications(
     restore: (key) => {
       if (!markOnServer(key, { dismissed: false })) save({ dismissed: state().dismissed.filter((k) => k !== key) });
     },
-    alerts: () => {
-      const N = notificationOf(win);
-      return {
-        on: state().alerts && !!N && N.permission === "granted",
-        can: !!N,
-        permission: N ? N.permission : "unsupported",
-      };
-    },
-    setAlerts: (on) => askAlerts(win, on, save),
+    alerts: device.alerts,
+    setAlerts: device.setAlerts,
     readWhere: (match) => {
       for (const n of win.__NOTIFICATIONS?.dto?.notifications ?? []) {
         if (n.read || n.dismissed || !n.subject_type || !n.subject_id) continue;
@@ -602,32 +631,6 @@ export function installNotifications(
 /** The bell this tab installed, for a module that marks its rows (google.ts, a review answered); null before it is installed. */
 let installed: BellApi | null = null;
 export const bellNow = (): BellApi | null => installed;
-
-/** The browser's Notification, where it has one. */
-const notificationOf = (win: Window): typeof Notification | undefined =>
-  (win as Window & { Notification?: typeof Notification }).Notification;
-
-/**
- * Wake the device for the rows that are new since the last look: three at most, only while the app is not in view and the
- * person turned alerts on, each opening its page.
- */
-function alertDevice(win: Window & Globals, fresh: NotificationItem[], alertsOn: boolean): void {
-  const N = notificationOf(win);
-  if (!alertsOn || !N || N.permission !== "granted") return;
-  if (win.document && win.document.visibilityState === "visible") return;
-  for (const i of fresh.slice(0, 3)) {
-    try {
-      const note = new N(i.title, { body: i.message, tag: i.key, icon: "/icons/icon-192.png" });
-      note.onclick = () => {
-        win.focus();
-        goToRoute(i.to, {}, win);
-        note.close();
-      };
-    } catch {
-      /* a browser that refuses the constructor keeps the bell */
-    }
-  }
-}
 
 function safeStorage(): StorageLike | null {
   try {

@@ -95,7 +95,7 @@ export async function readPgThread(
       // campaign on another wire as something we texted.
       textedBefore: s.textedBefore,
       control: liveHoldOf(hold ?? {}),
-      // A member's word that the thread is not a customer's, off the same row (decision 0137).
+      // A member's word that the thread is not a customer's, off the same row (decision 0138).
       notACustomer: saidNotACustomer(hold),
     };
   } catch (e) {

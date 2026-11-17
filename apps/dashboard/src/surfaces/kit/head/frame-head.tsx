@@ -186,13 +186,7 @@ function GlassHead() {
   return (
     <>
       {back && !inDate && <BackButton back={back} />}
-      <PageHead
-        title={title}
-        sentence={said?.sentence}
-        stacked={said?.stacked}
-        beside={phone ? null : said?.beside}
-        after={said?.after}
-      />
+      <PageHead title={title} sentence={said?.sentence} stacked={said?.stacked} beside={phone ? null : said?.beside} />
     </>
   );
 }

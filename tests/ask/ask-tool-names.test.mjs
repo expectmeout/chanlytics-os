@@ -707,7 +707,7 @@ const QUIET_FOLD = toReceptionistReportVM(
     },
     // This world keeps hours on Monday and Saturday: a message that came while it was closed is counted, and none did.
     profile: { hours: { mon: { open: "09:00", close: "17:00" }, sat: { open: "09:00", close: "17:00" } } },
-    // 17 Nov 2026 (decision 0137): the calls kept off the owner's list, counted from the ledger: none in this world.
+    // 17 Nov 2026 (decision 0138): the calls kept off the owner's list, counted from the ledger: none in this world.
     screened: { total: 0, by_reason: {} },
   },
   { nowMs: NOW.getTime() },

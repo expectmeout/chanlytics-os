@@ -38,7 +38,7 @@ export function languagesCard(v: ReceptionistReportVM, className: string) {
   });
 }
 
-/** How the calls that connected ended; and under them, the calls kept off the owner's list (decision 0137). */
+/** How the calls that connected ended; and under them, the calls kept off the owner's list (decision 0138). */
 export function callEndingsCard(v: ReceptionistReportVM, className: string) {
   return mixCard(v.callEndings, {
     title: "How calls ended",

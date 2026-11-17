@@ -889,7 +889,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     "runs",
     "heldThreads",
     "going",
-    "previewsTried", // not done today, since you looked or the word: GET today's route reads those beside this reader
+    "previewsTried", // not done today or the word: GET today's route reads those beside this reader
   ]);
   // What goes on its own today, each with its Stop (decision 0064): the runs set to start before the day ends, none here.
   assert.deepEqual(r.data.going, []);
@@ -2956,7 +2956,7 @@ test("the Receptionist lens on a database that does not have its function yet (0
   assert.deepEqual(unsaid.lines, [], "and the log does not call it the missing function");
 });
 
-test("the Receptionist lens carries the calls kept off the owner's list as the ledger counts them (decision 0137; the count itself is reports/receptionist/screened-calls.test.mjs), and a ledger that cannot be read is null, said in the log, never the route's failure", async () => {
+test("the Receptionist lens carries the calls kept off the owner's list as the ledger counts them (decision 0138; the count itself is reports/receptionist/screened-calls.test.mjs), and a ledger that cannot be read is null, said in the log, never the route's failure", async () => {
   const row = (id, data) => ({ id, tenant_id: A, kind: "call.screened", data, created_at: "2026-09-08T15:00:00Z" });
   const events = [row("e1", { reason: "refused", call_id: "call_a" }), row("e2", { reason: "selling", call_id: null })];
   const r = await kernel.load(calIn(worldCtx(receptionistWorld(null, { events }))), receptionistReport, LENS);

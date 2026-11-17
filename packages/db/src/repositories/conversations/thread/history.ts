@@ -201,7 +201,7 @@ export interface LeadContext {
   hasEmail?: boolean;
   /**
    * A member said their thread is not a customer's (contracts saidNotACustomer, off the thread's own row): a call from
-   * them is refused before it is answered (decision 0137). Optional so every fake still compiles; absent is no word.
+   * them is refused before it is answered (decision 0138). Optional so every fake still compiles; absent is no word.
    */
   notACustomer?: boolean;
   /**

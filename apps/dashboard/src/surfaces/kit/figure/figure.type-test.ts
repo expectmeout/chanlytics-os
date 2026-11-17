@@ -28,7 +28,7 @@ function _figureTakes(now: { door: PressAct | PressDoor | undefined; change: str
     Holds<Exactly<FigureProps["n"], number | null | undefined>>,
     Holds<Exactly<FigureProps["minN"], number | undefined>>,
     Holds<Exactly<FigureProps["tone"], "warn" | "fail" | undefined>>,
-    Holds<Exactly<FigureProps["look"], "tile" | "hero" | undefined>>,
+    Holds<Exactly<FigureProps["look"], "tile" | "compact" | "hero" | undefined>>,
   ];
   Figure({ label: "Customer messages", value: "17" });
   Figure({
@@ -56,6 +56,8 @@ function _figureTakes(now: { door: PressAct | PressDoor | undefined; change: str
   Figure({ label: "Email that stopped working", value: "2", tone: "fail" });
   // The one number a view is for: a sequence's History, what it sent.
   Figure({ label: "sent", value: "19", look: "hero" });
+  // One of a line of figures with no ground, the whole figure its door: a person's figures on a phone.
+  Figure({ label: "Emails", value: "2 out", meta: "0 back", look: "compact", door: { onClick: () => undefined } });
 
   // @ts-expect-error a figure says what it counts: its label
   Figure({ value: "17" });

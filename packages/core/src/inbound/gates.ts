@@ -96,7 +96,7 @@ export async function runFirstGates(at: Answering): Promise<typeof GO | undefine
     return;
   }
 
-  // NOT A CUSTOMER (decision 0137). A member said this person's thread is not a customer's: a seller, a notice, a
+  // NOT A CUSTOMER (decision 0138). A member said this person's thread is not a customer's: a seller, a notice, a
   // wrong number that keeps writing. Their message is kept above, on the thread, and that is all: nothing is said back
   // and nobody is asked, as their calls ask nobody (0136). After consent, so a STOP is still a STOP; before every branch
   // that can speak or hold, so a photo from them opens nothing either. A START, or a YES OFFERS owed its confirmation,

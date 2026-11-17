@@ -86,7 +86,7 @@ export const callEndingsLine = (total: number): string => `${plural(total, "call
 /* ------------------------------------------------- the calls kept off your list */
 
 /**
- * The calls kept off the owner's list (decision 0137), by whose word kept them there: the workspace's own (a caller a
+ * The calls kept off the owner's list (decision 0138), by whose word kept them there: the workspace's own (a caller a
  * member said is not a customer, turned away or let pass), a reading's (a call back set aside as someone selling), and
  * silence or the carrier's flag (nothing said, from nobody the business talks with). In the order the sentence says them.
  */

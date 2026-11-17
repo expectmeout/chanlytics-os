@@ -64,7 +64,7 @@ interface TableData {
   // `changed`: the columns a save moved, never their values (contracts changedRecordFields); null on the first save.
   "business.recorded": { legal_name: string | null; path: string; by?: string | null; changed?: string[] | null };
   /** The owner switched what the workspace answers on or off: which (voice, whatsapp, sms), and who. */
-  /** A call that asked nobody (decision 0137, contracts voice/screened.ts): why, and the provider's id where it kept a call. */
+  /** A call that asked nobody (decision 0138, contracts voice/screened.ts): why, and the provider's id where it kept a call. */
   "call.screened": { reason: ScreenedReason; call_id: string | null };
   "capability.activated": { capability: string; by: string };
   "capability.deactivated": { capability: string; by: string };
