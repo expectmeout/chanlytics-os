@@ -42,6 +42,8 @@ export { Meter } from "./meter/meter";
 export type { MeterProps } from "./meter/meter";
 export { Panel } from "./panel/panel";
 export type { PanelProps } from "./panel/panel";
+export { PersonPick } from "./person-pick/person-pick";
+export type { PersonPickProps, PersonPickRow } from "./person-pick/person-pick";
 export { Picker } from "./picker/picker";
 export type { PickerGroup, PickerOption, PickerProps, PickerSearch } from "./picker/picker";
 export { Popover } from "./popover/popover";

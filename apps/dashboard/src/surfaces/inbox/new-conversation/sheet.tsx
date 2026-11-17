@@ -1,13 +1,16 @@
 /**
  * The new conversation sheet (a conversation begins from the Inbox, the design's 4.2): who it is for, then the plan and
  * the words, or a call's brief. The kit's Sheet at every width: a pane beside the page on a desk, from the bottom edge
- * on a phone, its foot holding the act. What is written is kept in the tab, and closing over it asks once (state.ts).
+ * on a phone, its foot holding the act. Who it is for is the kit's person pick, as New proposal's on the Pipeline is,
+ * and on a phone it is held as that one is: the Sheet in a job's shape, its title and Cancel over the pick, no rule
+ * under them and no foot (who.tsx). What is written is kept in the tab, and closing over it asks once (state.ts): on a
+ * phone's pick, the job asks it in its body, as a job's question is asked.
  * Its state is state.ts's and its calls verbs.ts's; every word is contracts' (NEW_CONVERSATION_WORDS).
  *
  * It works with no model: the words are the member's to write, and Ask is one press that fills them.
  *
- * It draws the kit's Button, Field, Icon, LinkButton, Segmented, Select, Sheet and Switch, and nothing of the record kit
- * (kit/record) or of People's pages: state.ts says what either costs four other pages.
+ * It draws the kit's Button, Field, Icon, LinkButton, PersonPick, Segmented, Select, Sheet and Switch, and nothing of
+ * the record kit (kit/record) or of People's pages: state.ts says what either costs four other pages.
  */
 // The sheet's own rules, loaded with it (sheet.css says why they are not the Inbox stylesheet's).
 import "./sheet.css";
@@ -23,6 +26,7 @@ import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Segmented } from "../../kit/segmented/segmented";
+import { useOnAPhone } from "../../kit/sheet/on-a-phone";
 import { Sheet } from "../../kit/sheet/sheet";
 import { focusAsDrawn } from "../../frame-verbs";
 import { gate } from "../shell";
@@ -151,6 +155,27 @@ function planStep(s: SheetState) {
   );
 }
 
+/**
+ * Closing over words asks once, where the act was: the kit's one question about what was typed and not sent (Confirm,
+ * `discard`), which a sheet's foot lays out as the question over an equal pair, and a phone's job as its panel (`block`).
+ * Its Yes is red words and never the red fill: nothing kept is destroyed.
+ */
+function leaveAsked(s: SheetState, block = false) {
+  return (
+    <Confirm
+      question={W.leave.question}
+      detail={W.leave.detail}
+      yes={W.leave.yes}
+      no={W.leave.no}
+      discard
+      block={block}
+      onYes={s.work.discard}
+      onNo={s.work.stay}
+      testid="ix-new-leave"
+    />
+  );
+}
+
 /** The sheet's foot: what a send left unsaid with the door on, the one question, or Cancel and the act. */
 function foot(s: SheetState) {
   if (s.sent) {
@@ -166,22 +191,7 @@ function foot(s: SheetState) {
       </div>
     );
   }
-  // Closing over words asks once, where the act was: the kit's one question about what was typed and not sent
-  // (Confirm, `discard`), which a sheet's foot lays out as the question over an equal pair. Its Yes is red words and
-  // never the red fill: nothing kept is destroyed.
-  if (s.work.asking)
-    return (
-      <Confirm
-        question={W.leave.question}
-        detail={W.leave.detail}
-        yes={W.leave.yes}
-        no={W.leave.no}
-        discard
-        onYes={s.work.discard}
-        onNo={s.work.stay}
-        testid="ix-new-leave"
-      />
-    );
+  if (s.work.asking) return leaveAsked(s);
   if (s.step === "who") return null;
   return (
     <div className="ix-new-foot">
@@ -224,11 +234,21 @@ function foot(s: SheetState) {
 
 export function NewConversationSheet(p: Opened) {
   const s = useNewConversationSheet(p);
+  const phone = useOnAPhone();
+  // Once a message has gone there is nothing left to throw away: closing closes.
+  const onClose = s.sent ? p.onClose : s.work.leave;
+  // On a phone, choosing who is a small job, as New proposal's is: its title and Cancel, then the pick, or the question
+  // Cancel asked where words are kept. The same Sheet, so it stays up as the step changes and only its head turns.
+  if (phone && s.step === "who" && !s.sent)
+    return (
+      <Sheet open={p.open} shape="job" title={W.title} close={{ word: W.cancel }} onClose={onClose} testid="ix-new">
+        {s.work.asking ? leaveAsked(s, true) : <NewWho s={s} />}
+      </Sheet>
+    );
   return (
     <Sheet
       open={p.open}
-      // Once a message has gone there is nothing left to throw away: closing closes.
-      onClose={s.sent ? p.onClose : s.work.leave}
+      onClose={onClose}
       title={W.title}
       close={{ label: W.close, glyph: <Icon name="x" size={13} /> }}
       // Where its foot holds Cancel (or the question Cancel asked), that is the way out on a phone, not a second ✕ too.
