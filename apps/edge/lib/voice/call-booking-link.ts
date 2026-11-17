@@ -454,7 +454,7 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
       log.error("retell_fn_person_mode_failed", { error: errField(e) });
       return null;
     });
-    const replyMode = effectiveReplyMode({ replyMode: workspaceMode }, personMode);
+    const replyMode = effectiveReplyMode({ replyMode: workspaceMode }, personMode, rt.stopped);
     // The Autonomy pane's BOOKING row, read through the same predicate the text
     // receptionist reads it through. This path read the REPLY row, so a
     // workspace that asked to confirm its own bookings had its phone agent send

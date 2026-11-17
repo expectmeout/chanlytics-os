@@ -31,8 +31,8 @@ test("the lead's own facts, in the door's order: not a lead, closed, the never-a
 test("a wait is the cap and a mailbox not sending: a send that meets one goes later, never nowhere", () => {
   assert.deepEqual(
     [...OUTREACH_WAIT_REFUSALS],
-    ["sending_mailbox_at_cap", "sending_mailbox_not_ready", "outreach_needs_own_mailbox", "paused"],
-    "the mailbox's day or state, a mailbox removed, a workspace paused: none is about the lead",
+    ["sending_mailbox_at_cap", "sending_mailbox_not_ready", "outreach_needs_own_mailbox", "paused", "stopped"],
+    "the mailbox's day or state, a mailbox removed, a workspace paused or stopped by its owner: none is about the lead",
   );
   assert.equal(isWaitRefusal("human_has_it"), false, "a person has the thread: a conversation, not a wait");
   assert.equal(isWaitRefusal("sending_mailbox_at_cap"), true);
