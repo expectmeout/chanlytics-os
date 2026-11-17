@@ -179,6 +179,9 @@ export function snoozedThreadWords(openRequest: string | null): string {
  * no answer, a reply box's words, a message that did not send, and the template box's.
  */
 export const THREAD_PANE_WORDS = {
+  /** The way back to Today from a thread Today opened (Today with colour, D8): its words, and what a reader hears. */
+  backToToday: "Today",
+  backToTodaySaid: "Back to Today",
   /** WhatsApp's window, shut: the bar's one quiet fact, and why a press away. */
   chatClosed: "Approved messages only",
   chatClosedWhy:

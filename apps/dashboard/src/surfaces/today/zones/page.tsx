@@ -26,6 +26,8 @@
  * zones.css's. Which of it draws where, and which part's act is the coral, is the page's one arrangement
  * (today/arrangement.ts), read here before any of it draws.
  */
+import { useEffect } from "react";
+import { forgetFromToday } from "../../inbox/carried-reply";
 import { ColdEmailNote } from "./cold-email-note";
 import { TodayContentNote } from "../content-note";
 import { useTodayArrangement, type TodayArrangement } from "../arrangement";
@@ -78,6 +80,8 @@ function PhoneToday({ at }: { at: TodayArrangement }) {
 }
 
 export function TodayZones() {
+  // Back on Today: the thread it last opened no longer offers the way back to it (carried-reply.ts carryFromToday).
+  useEffect(() => forgetFromToday(), []);
   // Setting up never stands over a person waiting: under Need you while anyone does (keyed, so a turn moves and never
   // mounts them again), over it while nobody does. Ask found leads where Need you draws no pane, once Today has been read.
   // Nothing waits and nothing was found: the day alone, one column, rather than a work column left empty beside it.

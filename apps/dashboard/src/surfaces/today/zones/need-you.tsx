@@ -29,6 +29,7 @@ import {
   type TodayVM,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
+import { Meter } from "../../kit/meter/meter";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
@@ -141,11 +142,34 @@ function listDoorOf(people: number, runs: number): { to: string; label: string }
   return { to, label: to === "inbox" ? W.door : (verbForRoute(to) ?? W.door) };
 }
 
+/** Past this many rows the meter draws its two shares, not a part a row. */
+const DONE_PARTS_MAX = 12;
+
+/**
+ * What was done today beside what still waits (Today with colour, D6, 17 Nov 2026): a part a row while they fit, done in
+ * the ok tone's green and still waiting as an outline, past a dozen the two shares. None before anything is done.
+ */
+function doneMeter(done: number, waiting: number) {
+  if (done <= 0) return null;
+  const left = Math.max(0, waiting);
+  const each = done + left <= DONE_PARTS_MAX;
+  const parts = each
+    ? [
+        ...Array.from({ length: done }, () => ({ share: 1, tone: "ok" as const })),
+        ...Array.from({ length: left }, () => ({ share: 1, tone: "open" as const })),
+      ]
+    : [
+        { share: done, tone: "ok" as const },
+        { share: left, tone: "open" as const },
+      ];
+  return <Meter apart size="sm" parts={parts} className="tz-done" aria-label={W.doneToday(done)} />;
+}
+
 /**
  * Need you's head: its name, how many the team dealt with today, and the door. Called, not drawn. How many were done today
  * is a time the page says (kit/says-when.ts): a copy of the screen some minutes old leaves it out, as it does every other.
  */
-function needYouHead(door: { to: string; label: string }, done: number, toDo: number | null) {
+function needYouHead(door: { to: string; label: string }, done: number, toDo: number | null, waiting: number) {
   return (
     <div className="tq-head tz-head">
       <h2 className="tq-title tz-name" id="today-queue-title">
@@ -154,9 +178,12 @@ function needYouHead(door: { to: string; label: string }, done: number, toDo: nu
       {toDo !== null ? (
         <span className="tz-fact">{toDo}</span>
       ) : done > 0 ? (
-        <span className="tz-fact" data-testid="today-done" {...SAYS_WHEN}>
-          {W.doneToday(done)}
-        </span>
+        <>
+          {doneMeter(done, waiting)}
+          <span className="tz-fact" data-testid="today-done" {...SAYS_WHEN}>
+            {W.doneToday(done)}
+          </span>
+        </>
       ) : null}
       {sectionDoor(door.to, door.label, "today-queue-door")}
     </div>
@@ -430,12 +457,15 @@ const NeedYouList = ({ vm, model }: { vm: TodayVM; model: NeedYouModel }) => {
   ) : null;
   // Who has waited past a week folds at Reply's foot, before Approve (docs/words.md, "Grouped by what the owner does").
   const [nextGroup, waitingGroup, okGroup] = above;
+  // Who still waits, as the groups above To do count them (groupsAbove): the rows still open and the runs to approve.
+  const waitingNow =
+    [...groups.next, ...groups.waiting, ...groups.ok].filter((r) => !ctx.kept.has(r.id)).length + runs.count;
   return (
     <ListBody
       phone={phone}
       onlyOlder={onlyOlder}
       groups={[nextGroup, waitingGroup, olderGroup, okGroup, toDoGroup]}
-      head={onlyOlder ? null : needYouHead(door, vm.done_today ?? 0, onlyToDo ? todo.count : null)}
+      head={onlyOlder ? null : needYouHead(door, vm.done_today ?? 0, onlyToDo ? todo.count : null, waitingNow)}
       foot={<SetAsideLine nav={nav} />}
       callsUnread={vm.callsRead === false}
       walk={

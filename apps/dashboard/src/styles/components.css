@@ -2081,6 +2081,12 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   line-height: 1;
   color: var(--count-ink);
 }
+/* People who need you, the Inbox's count: amber, warn's own meaning (contracts tone.ts; Today with colour, D5, 17 Nov
+   2026), as the rail's dot already is. Every other place's count stays the neutral one. */
+.nav-badge.tally-warn {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
 /* The canvases' sidebar says a place's name and its count, nothing beside them: the hint ("Live brief") is Classic's. */
 .nav-hint {
   display: none;

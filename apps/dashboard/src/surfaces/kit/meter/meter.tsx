@@ -29,6 +29,10 @@ const meterPartClasses = variants({
       open: "meter-open",
       ink: "meter-ink",
       ground: "meter-ground",
+      went: "meter-went",
+      ahead: "meter-ahead",
+      now: "meter-now",
+      free: "meter-free",
     },
   },
 });
@@ -39,12 +43,11 @@ const meterPartClasses = variants({
  * moment's paused campaigns). A part at `read` is ok's green, softer: a check that passed as Claude read it, not as the
  * listing showed it (the lead sheet's fit). A part `open` is its outline alone: a share still to come (a run's emails
  * the check is still reading). A part in `ink` is the one that is happening now (a visit under way on a phone's day bar), and
- * one on the `ground` is a share where nothing is (the day's free time), the inset's fill.
+ * one on the `ground` is a share where nothing is (the day's free time), the inset's fill. A day's span on Today takes the
+ * Calendar's looks instead: a visit that `went`, one `ahead`, the one under way `now` (the accent), and `free` time.
  */
-type MeterPart = { share: number } & (
-  | { tone: "ok" | "read" | "warn" | "rest" | "open" | "ink" | "ground"; color?: undefined }
-  | { color: string; tone?: undefined }
-);
+type MeterTone = "ok" | "read" | "warn" | "rest" | "open" | "ink" | "ground" | "went" | "ahead" | "now" | "free";
+type MeterPart = { share: number } & ({ tone: MeterTone; color?: undefined } | { color: string; tone?: undefined });
 
 /**
  * The parts with the mark among them: the part the mark falls in cut in two round it, so the mark stands in the row where

@@ -1,7 +1,8 @@
 /**
  * Whoever has waited past a week, at the end of Need you and in no count (Today in three zones, 2 Nov 2026; drawn anew
  * 8 Nov 2026). One person is their own row: who, how long, what happened, Mark done at its right, and a press on the row
- * opens them as any other row does (a phone's sheet, a desk's place), so a number can be looked at before it is let go. It
+ * opens them as any other row does, so a number can be looked at before it is let go: their conversation, where a reply
+ * is written (Today with colour, D8, 17 Nov 2026), else a phone's sheet or a desk's place. Mark done stays one press here. It
  * was one row that opened nothing, its only press Mark all done, whoever it was. Several are one row, how many and who, with
  * Mark all done, which opens in place into each of them. Never the page's coral: nobody counts them, and "Nothing needs you"
  * stands over them.
@@ -13,9 +14,9 @@ import { gate } from "../shell";
 import { NeedYouGroup } from "./groups";
 import { handBackAll, handedBackWords, type HandedBack } from "./sheet/hand-back";
 import { Done } from "./parts";
-import { needYouRows, type NeedYouRowsCtx } from "./people-rows";
+import { needYouRows, openInThread, type NeedYouRowsCtx } from "./people-rows";
 import { olderWords } from "./sheet/row-words";
-import { opensToWork } from "./rows";
+import { answersInThread, opensToWork } from "./rows";
 import { useRowState } from "./row-state";
 
 /** What Mark done, or Mark all done, came to in the row's place, with its one Undo. */
@@ -23,11 +24,23 @@ function handedWork(handed: HandedBack, undo: (() => void) | null, busy: boolean
   return <Done words={handedBackWords(handed)} act={undo ? { label: W.undo, onPress: undo, busy } : null} />;
 }
 
+/**
+ * What a press on an old row opens: their conversation where its answer is written there (D8), else the row in place or
+ * its own door.
+ */
+function openOlder(row: TodayQueueRowVM, ctx: NeedYouRowsCtx): void {
+  if (answersInThread(row) && row.conversationId) return openInThread(row, row.conversationId, ctx.nav);
+  if (opensToWork(row)) return ctx.open(row.id);
+  ctx.nav(row.cta.to);
+}
+
 /** One person past a week: their own row, which opens; opened or acted on, the row every other person's is. */
 function OlderPerson({ row, ctx }: { row: TodayQueueRowVM; ctx: NeedYouRowsCtx }) {
   const [handed, setHanded] = useRowState<HandedBack | null>(row.id, "handedBack", null);
   const [busy, setBusy] = useState(false);
-  if (!handed && (ctx.kept.has(row.id) || ctx.focus === row.id)) return <>{needYouRows([row], ctx)}</>;
+  // Opened in place only where its answer is not written in its conversation: one that is keeps its row and Mark done.
+  const inPlace = ctx.focus === row.id && !answersInThread(row);
+  if (!handed && (ctx.kept.has(row.id) || inPlace)) return <>{needYouRows([row], ctx)}</>;
   const mark = async () => {
     setBusy(true);
     // Kept before the door is asked: its refresh drops the hold from the read, and the row must stay to say so.
@@ -57,7 +70,7 @@ function OlderPerson({ row, ctx }: { row: TodayQueueRowVM; ctx: NeedYouRowsCtx }
       {...olderWords(row)}
       testid="queue-older"
       ctaTestid="today-old-done"
-      onOpen={handed ? undefined : () => (opensToWork(row) ? ctx.open(row.id) : ctx.nav(row.cta.to))}
+      onOpen={handed ? undefined : () => openOlder(row, ctx)}
       cta={
         may && !handed
           ? {
@@ -182,7 +195,7 @@ export function OlderGroup({
             handed={handed}
             onHanded={onHanded}
             // On a phone it walks them, one by one, as its own walk (his call D7); a desk opens them in place.
-            onOpen={() => (ctx.phone && only ? ctx.open(only.id) : setOpen(!open))}
+            onOpen={() => (ctx.phone && only ? openOlder(only, ctx) : setOpen(!open))}
           />
           {open && !handed ? rows.map((r) => <OlderPerson key={r.id} row={r} ctx={ctx} />) : null}
         </>

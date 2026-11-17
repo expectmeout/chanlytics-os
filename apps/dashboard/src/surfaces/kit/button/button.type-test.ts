@@ -31,7 +31,17 @@ function _buttonTakes(
     Holds<
       Exactly<
         ButtonProps["variant"],
-        "primary" | "secondary" | "quiet" | "plain" | "danger" | "glass" | "outline" | "soft" | "ink" | undefined
+        | "primary"
+        | "secondary"
+        | "quiet"
+        | "plain"
+        | "danger"
+        | "glass"
+        | "outline"
+        | "soft"
+        | "ink"
+        | "lead"
+        | undefined
       >
     >,
     Holds<Exactly<ButtonProps["size"], "sm" | "md" | "lg" | "text" | "touch" | undefined>>,
@@ -47,6 +57,8 @@ function _buttonTakes(
   Button({ size: "touch", variant: "outline", children: [glyph, "Hand back"] });
   Button({ size: "sm", variant: "soft", children: ["Signature", glyph] });
   Button({ size: "lg", variant: "ink", children: "Send now" });
+  // A pane's first act where the page's one primary is elsewhere.
+  Button({ size: "sm", variant: "lead", children: "Offer it" });
   Button({ type: "submit", ref: button, onClick: () => undefined, children: "Save" });
   // A door: a link, with a link's ref, in any kind and either form.
   Button({ href: "/w/studio/#/clients", ref: link, children: "Open People" });

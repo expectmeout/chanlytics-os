@@ -5,7 +5,7 @@
  * The week is contracts' (todayPeriodLine over Reports' headline, one small read); the pins' counts are People's lists'
  * (lists/actions.ts), read as Today's page loads.
  */
-import { LIST_GROUP_WORDS, TODAY_PHONE_WORDS as P } from "@chanlytics/contracts";
+import { LIST_GROUP_WORDS, TODAY_PHONE_WORDS as P, type ReportHeadlineVM } from "@chanlytics/contracts";
 import type { PeopleListsLike } from "../leaks";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
@@ -13,6 +13,7 @@ import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
+import { Spark } from "../../kit/spark/spark";
 import { routeDoor } from "../../frame-verbs";
 import { useNeedsYou } from "../../needs-you";
 import { surfaceValue } from "../../surface-values";
@@ -58,6 +59,20 @@ function pinDoors(pins: ReturnType<typeof usePins>) {
 }
 
 /**
+ * The period's days beside its line (Today with colour, D7, 17 Nov 2026): a column a day, what AI answered of its messages
+ * in the ok tone, today in the accent. Said by the line's own words. None for a period with nothing in it.
+ */
+const monthSpark = (headline: ReportHeadlineVM, sentence: string) =>
+  headline.perDay.length > 1 && !headline.empty ? (
+    <Spark
+      className="tz-month"
+      today
+      columns={headline.perDay.map((d) => ({ value: d.messages, part: d.answered }))}
+      aria-label={sentence}
+    />
+  ) : null;
+
+/**
  * The week in one line, with the one door to Reports (contracts todayPeriodLine over Reports' headline). Not read yet is
  * not failed: it is silent while Reports loads, and says so where its read failed.
  */
@@ -69,6 +84,7 @@ function WeekLine() {
     return (
       <a className="tz-week" {...routeDoor(period.to)} data-testid="today-period">
         <span {...SAYS_WHEN}>{period.text}</span>
+        {headline ? monthSpark(headline, period.text) : null}
         <Icon name="chevron" size={11} />
       </a>
     );

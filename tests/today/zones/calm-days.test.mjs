@@ -23,7 +23,7 @@ import {
 } from "@chanlytics/contracts";
 import { again, all, atWidth, textOf, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { NOW, W, answerWith, dayWith, draw, flashes, json, metrics, row, wire } from "./_world.mjs";
+import { NOW, W, answerWith, dayWith, draw, flashes, json, metrics, row, went, wire } from "./_world.mjs";
 
 const { NeedYou } = await import("../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
 const { AttnRow } = await import("../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
@@ -103,21 +103,25 @@ test("one person past a week is their own row: who, Mark done, and a press on it
   unmount();
 });
 
-test("an old call's note says to mark it done, so Mark done leads and Call is the quiet press beside it", () => {
+test("an old call back keeps Mark done on Today, and a press on the row opens its conversation, ready to call (D8)", () => {
   const call = old("o1", "Dana Ruiz", { kind: "callback", phone: "+13055550142", prepared: null });
   setSurfaceValue("today", dayWith([call]));
+  went.length = 0;
   const [r] = rowsDrawn(draw(NeedYou)).filter((n) => testidOf(n) === "queue-older");
+  assert.equal(r.props.cta.label, "Mark done", "letting it go stays one press on Today");
   r.props.onOpen();
+  const vm = surfaceValue("today");
+  const dana = vm.queue.rows.find((x) => x.who === "Dana Ruiz") ?? vm.queue.old?.find?.((x) => x.who === "Dana Ruiz");
+  assert.equal(went.length, 1, "the press went somewhere");
+  assert.match(went[0], /^inbox\/th-/, "her conversation, where Call is");
+  if (dana?.conversationId) assert.equal(went[0], `inbox/th-${dana.conversationId}`);
   const open = again(() => W.React.createElement(NeedYou, {}));
-  const presses = all(open, (n) => n.props?.variant && ["Mark done", "Call anyway"].includes(textOf(n)));
-  assert.deepEqual(
-    presses.map((n) => [textOf(n), n.props.variant === "quiet"]),
-    [
-      ["Call anyway", true],
-      ["Mark done", false],
-    ],
-    "REGRESSION: the note said mark it done over a coral Call, with Mark done under Not now",
+  assert.equal(
+    all(open, (n) => n.props?.variant && textOf(n) === "Call anyway").length,
+    0,
+    "nothing of the call is worked on Today",
   );
+  went.length = 0;
   setSurfaceValue("today", undefined);
   unmount();
 });
