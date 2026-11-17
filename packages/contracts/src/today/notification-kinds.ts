@@ -453,10 +453,19 @@ export const ALERT_PANE_WORDS = {
   phone: (n: number) => (n > 1 ? "Phones" : "Phone"),
   phoneHint: "Signing out on a phone stops its alerts.",
   browser: "This browser",
-  browserValue: "When someone needs you right now",
-  browserHint: "While Chanlytics is open in a tab.",
+  /**
+   * What reaches this browser and when, by how it gets there (decision 0137, the one switch): the server tells the
+   * browser itself, Chanlytics open or closed (`push`), or this page alerts while it is open in a tab (`tab`), where the
+   * browser or the deployment has no push.
+   */
+  browserValue: (by: "push" | "tab"): string =>
+    by === "push" ? "Alerts as they happen" : "When someone needs you right now",
+  browserHint: (by: "push" | "tab"): string =>
+    by === "push" ? "Even when Chanlytics is closed." : "While Chanlytics is open in a tab.",
   browserBlocked:
     "Your browser is blocking alerts from Chanlytics. Allow them in its settings for this site, then switch this on.",
+  /** An iPhone tells a site nothing until the site is on its Home Screen: said in the switch's place. */
+  browserHomeScreen: "To be told on this iPhone, add Chanlytics to your Home Screen first.",
   what: "What you're told about",
   whatSub: "Tick where else each one reaches you. Email is the business's, and your phone is yours.",
   emailHead: "Email",

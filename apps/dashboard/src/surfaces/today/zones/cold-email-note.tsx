@@ -2,7 +2,8 @@
  * Cold email's one line on Today, from the same one answer as its page (contracts coldEmailStandingOf). Only once a
  * workspace has started cold email, a search or a sequence, and only where it waits on the owner: a business that writes
  * no cold email is never asked about it (decision 0113; its read says so first, from two reads), and a business that does
- * hears it where it looks each morning. Its read is its own small one (GET settings/reach-out/note, ../cold-email-note-read.ts),
+ * hears it where it looks each morning. Never a batch waiting for its OK: that is Need you's row over this card, and the
+ * note leaves it to it (contracts coldEmailNoteOf, decision 0137). Its read is its own small one (GET settings/reach-out/note, ../cold-email-note-read.ts),
  * asked as Today is drawn and again as the day moves, at most once a minute: a mailbox that needs reconnecting shows up
  * while Today stays open. Its first draw is what the tab holds (a load that opens on Today waits for it, a return holds the
  * last answer), so the card stands with the page and never lands on it. A read that fails or is refused takes the line

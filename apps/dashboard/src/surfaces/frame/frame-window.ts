@@ -10,7 +10,6 @@ import type { BellApi } from "@/bridge/notifications";
 import type { LiveSurface } from "../live/surface";
 import type { SwipeOptions } from "../kit/motion/swipe";
 import { Icon } from "../kit/icon/icon";
-import { RecordSwitch } from "../kit/record/field";
 
 declare global {
   interface Window {
@@ -66,11 +65,6 @@ type FrameGlobals = typeof globalThis & {
 export const frameGlyph = () => (globalThis as FrameGlobals).Icon ?? Icon;
 export const framePortal = () => (globalThis as FrameGlobals).ReactDOM?.createPortal ?? null;
 
-/** The kit's parts by the global names the frame's JSX drew them by (a test's stand-in), else the kit's own. */
-type KitGlobals = typeof globalThis & {
-  RecordSwitch?: typeof RecordSwitch;
-};
-
 /** The frame's toast and the seam's redraw hook by the global names the top bar's JSX called them by, else the window's. */
 type ShellGlobals = typeof globalThis & {
   usePPToast?: Window["usePPToast"];
@@ -78,7 +72,6 @@ type ShellGlobals = typeof globalThis & {
 };
 export const frameToastHook = () => (globalThis as ShellGlobals).usePPToast ?? window.usePPToast;
 export const frameSurfaceHook = () => (globalThis as ShellGlobals).useSurface ?? window.useSurface;
-export const frameRecordSwitch = () => (globalThis as KitGlobals).RecordSwitch ?? RecordSwitch;
 
 /** A part by the bare global name the frame's JSX drew it by (a test's stand-in), else the frame's own. */
 export const fromGlobal = <T>(name: string, own: T): T => (Reflect.get(globalThis, name) as T | undefined) ?? own;

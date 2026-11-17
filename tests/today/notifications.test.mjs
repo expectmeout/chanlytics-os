@@ -21,6 +21,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 import { settingsRead } from "./record/_world.mjs";
+import { until } from "../shared/_until.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // The bell reads the open invitations from the settings surface (its `invites`; a name on its own window, `__TEAM_INVITES`,
@@ -486,20 +487,229 @@ test("the bell raises a row for every missed call in its day, not just the newes
   );
 });
 
-test("the top bar shows the real feed, with the device-alert switch", () => {
+test("the top bar shows the real feed", () => {
   const tb = readRaw("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx");
   assert.ok(tb.includes("const real = bell ? bell : null;"));
   assert.ok(tb.includes("const shown: BellNote[] = real ? realRows : [];"));
   assert.ok(tb.includes("real.onChange("), "repaints when a surface refreshes or a mark changes");
-  // What a press in the bell does is run, not read: tests/today/bell-rows.test.mjs draws the bar and presses.
-  assert.ok(
-    tb.includes("alerts={b.real ? b.alertState : null}"),
-    "the bell hands its notes this device's alerts switch",
-  );
-  assert.ok(tb.includes("Alerts are blocked in your browser settings"), "a denied permission is said, not hidden");
+  // What a press in the bell does is run, not read: tests/today/bell-rows.test.mjs draws the bar and presses, its
+  // foot's door to Settings › Notifications among them (this browser's one alert switch is that page's, decision 0137).
   assert.ok(
     readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installNotifications();"),
     "the refresh map re-reads the notifications surface after a mark; the bridge never imports the runner",
   );
   assert.ok(readCode("packages/contracts/src/today/index.ts").includes('from "./notifications/feed";'));
+});
+
+/* ------------------------------------------- one switch for this browser (decision 0137) ------------------------------------------- */
+
+/**
+ * A browser the server can tell itself (Web Push): its service worker, its push manager, and the door the subscription is
+ * kept through, standing in. `subscribed` is whether it holds a subscription now; `asked` the requests the page made.
+ */
+function pushBrowser({ subscribed = false, kept = true } = {}) {
+  const asked = [];
+  const state = { subscribed, unsubscribed: 0 };
+  const sub = {
+    endpoint: "https://push.example.com/abc",
+    toJSON: () => ({ endpoint: "https://push.example.com/abc", keys: { p256dh: "p", auth: "a" } }),
+    unsubscribe: async () => {
+      state.subscribed = false;
+      state.unsubscribed += 1;
+      return true;
+    },
+  };
+  const registration = {
+    pushManager: {
+      getSubscription: async () => (state.subscribed ? sub : null),
+      subscribe: async () => {
+        state.subscribed = true;
+        return sub;
+      },
+    },
+  };
+  const navigator = {
+    userAgent: "Mozilla/5.0 (Macintosh) Chrome/130",
+    serviceWorker: { ready: Promise.resolve(registration), getRegistration: async () => registration },
+  };
+  const fetch = async (url, init) => {
+    asked.push(`${init?.method ?? "GET"} ${String(url).replace(/\?.*$/, "")}`);
+    const body = kept ? { ok: true, data: {} } : { ok: false, error: { code: "internal", message: "stand-in" } };
+    return new Response(JSON.stringify(body), {
+      status: kept ? 200 : 500,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  return { navigator, PushManager: class {}, fetch, state, asked };
+}
+
+/** A bell in a hidden tab over one browser, with the deployment's push key set or not; `fired` the page's own alerts. */
+async function bellIn(browser, { alertsKept = false, key = "BKey" } = {}) {
+  const mod = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/notifications.ts")).href);
+  const store = new Map([
+    ["chanlytics:notifs:default", JSON.stringify({ seenAt: 0, read: [], dismissed: [], alerts: alertsKept })],
+  ]);
+  const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
+  const handlers = {};
+  const fired = [];
+  class FakeNotification {
+    static permission = "granted";
+    constructor(title) {
+      fired.push(title);
+      this.close = () => {};
+    }
+    static async requestPermission() {
+      return "granted";
+    }
+  }
+  const wasKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const wasNotification = globalThis.Notification;
+  if (key) process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = key;
+  else delete process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  // The browser's own question is asked of its global, as the page asks it (bridge/ask/web-push.ts).
+  globalThis.Notification = FakeNotification;
+  const win = {
+    addEventListener: (ev, fn) => {
+      handlers[ev] = fn;
+    },
+    document: { visibilityState: "hidden" },
+    focus: () => {},
+    location: { hash: "", pathname: "/w/harbor/" },
+    Notification: FakeNotification,
+    INBOX_DATA: { THREADS: [] },
+    __LIVE: { now: [], recent: [] },
+    ...browser,
+  };
+  const api = mod.installNotifications(win, storage);
+  // The first look at each source is its backlog; a person who needs you after it is what alerts.
+  handlers["surface:inbox"]();
+  let n = 0;
+  const someoneNeedsYou = () => {
+    n += 1;
+    win.INBOX_DATA.THREADS.push(thread({ id: `p${n}`, who: `Person ${n}`, needsYou: true, escalatedAtMs: Date.now() }));
+    handlers["surface:inbox"]();
+  };
+  const restore = () => {
+    if (wasKey === undefined) delete process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    else process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = wasKey;
+    globalThis.Notification = wasNotification;
+  };
+  const savedAlerts = () => JSON.parse(store.get("chanlytics:notifs:default")).alerts;
+  return { api, fired, someoneNeedsYou, savedAlerts, restore };
+}
+
+test("one switch for this browser: the server's push where the browser can take it, and the page's own alert stands down", async () => {
+  const browser = pushBrowser();
+  const { api, fired, someoneNeedsYou, savedAlerts, restore } = await bellIn(browser);
+  try {
+    assert.deepEqual(
+      api.alerts(),
+      { on: false, can: true, permission: "granted", by: "push", needsHomeScreen: false },
+      "off, and a press would turn the server's push on",
+    );
+    assert.deepEqual(await api.setAlerts(true), { on: true, permission: "granted" });
+    assert.equal(browser.state.subscribed, true, "the browser holds a subscription");
+    assert.ok(
+      browser.asked.some((a) => a.startsWith("POST ") && a.endsWith("/me/web-push")),
+      `and the server keeps it: ${browser.asked}`,
+    );
+    assert.equal(api.alerts().on, true);
+    assert.equal(api.alerts().by, "push");
+    assert.equal(savedAlerts(), false, "the page's own alert is put down");
+    someoneNeedsYou();
+    assert.deepEqual(fired, [], "REGRESSION: the page alerted too, and each thing was said twice in a hidden tab");
+    // Off is both.
+    assert.deepEqual(await api.setAlerts(false), { on: false, permission: "granted" });
+    assert.equal(browser.state.unsubscribed, 1);
+    assert.equal(api.alerts().on, false);
+    someoneNeedsYou();
+    assert.deepEqual(fired, []);
+  } finally {
+    restore();
+  }
+});
+
+test("one switch for this browser: where it has no push, the page alerts while it is open in a tab, as it did", async () => {
+  // No key on the deployment: the browser is never asked for a subscription.
+  const browser = pushBrowser();
+  const { api, fired, someoneNeedsYou, savedAlerts, restore } = await bellIn(browser, { key: null });
+  try {
+    assert.equal(api.alerts().by, "tab");
+    assert.deepEqual(await api.setAlerts(true), { on: true, permission: "granted" });
+    assert.equal(browser.state.subscribed, false);
+    assert.equal(savedAlerts(), true);
+    assert.deepEqual(api.alerts(), {
+      on: true,
+      can: true,
+      permission: "granted",
+      by: "tab",
+      needsHomeScreen: false,
+    });
+    someoneNeedsYou();
+    assert.deepEqual(fired, ["Person 1 needs you"]);
+  } finally {
+    restore();
+  }
+});
+
+test("one switch for this browser: a subscription the server did not keep falls back to the page's own alert", async () => {
+  const browser = pushBrowser({ kept: false });
+  const { api, fired, someoneNeedsYou, savedAlerts, restore } = await bellIn(browser);
+  try {
+    assert.deepEqual(await api.setAlerts(true), { on: true, permission: "granted" });
+    assert.equal(savedAlerts(), true, "the page alerts, since nothing else will");
+    assert.equal(
+      browser.state.subscribed,
+      false,
+      "REGRESSION: the browser kept a subscription the server never heard of, and read as told",
+    );
+    assert.equal(api.alerts().by, "tab");
+    someoneNeedsYou();
+    assert.equal(fired.length, 1);
+  } finally {
+    restore();
+  }
+});
+
+test("one switch for this browser: both left on from before read as one, and alert once", async () => {
+  // The two switches as they stood: the bell's foot on (kept in this browser) and Settings' "Tell me here" on.
+  const browser = pushBrowser({ subscribed: true });
+  const { api, fired, someoneNeedsYou, restore } = await bellIn(browser, { alertsKept: true });
+  try {
+    // Whether the server tells this browser is the browser's to answer, a moment after the bell is installed.
+    await until(() => api.alerts().by === "push" && api.alerts().on, "the browser said it is told");
+    someoneNeedsYou();
+    assert.deepEqual(fired, [], "the server tells this browser: the page does not say it again");
+    await api.setAlerts(false);
+    assert.deepEqual([api.alerts().on, browser.state.subscribed], [false, false], "one press turns both off");
+  } finally {
+    restore();
+  }
+});
+
+test("an iPhone that has not added the app to its Home Screen is told so, in the switch's place; never inside the phone app", async () => {
+  const browser = pushBrowser();
+  browser.navigator.userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)";
+  const iPhone = { ...browser, Notification: undefined, matchMedia: () => ({ matches: false }) };
+  const { api, restore } = await bellIn(iPhone);
+  try {
+    const alerts = api.alerts();
+    assert.equal(alerts.needsHomeScreen, true);
+    assert.equal(alerts.can, false);
+    assert.equal(alerts.on, false);
+  } finally {
+    restore();
+  }
+  // The phone app's view is a page on the same iPhone: it has the app's own alerts, and no Home Screen to be added to.
+  const inApp = { visibilityState: "hidden", documentElement: { classList: { contains: (c) => c === "in-app" } } };
+  const app = await bellIn({ ...iPhone, document: inApp });
+  try {
+    assert.deepEqual(
+      [app.api.alerts().needsHomeScreen, app.api.alerts().can],
+      [false, false],
+      "no row at all, as the page draws none where a browser cannot alert",
+    );
+  } finally {
+    app.restore();
+  }
 });

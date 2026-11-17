@@ -6,39 +6,30 @@
  * that cannot wait, as the rows still hold them (need-you-model.ts useNeedYouLine); after closing, how today went; with nobody
  * waiting, what is listening on a quiet day, else "Nothing needs you." and that that's everyone (contracts
  * todayHeadLine). Listen stands beside the greeting on a desk and beside the bell on a phone (the kit head's `beside`); on
- * a desk the day's four figures stand at the head's right (figures.tsx). Under the sentence, one line of what happened
- * since the member last looked at the bell (contracts todaySince), which opens in place into its receipts (the kit head's
- * `after`).
+ * a desk the day's four figures stand at the head's right (figures.tsx). Nothing stands under the sentence: what happened
+ * since the member last looked is the bell's to say, and the day's figures' (decision 0137; the line that stood here said
+ * each of them a second time).
  *
  * The greeting is the only sentence made in the dashboard (today/chrome.ts, where Today's address says it from the
  * frame's first draw, before the page is read, so the head never says "Today" first).
  */
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   NEED_YOU_WORDS,
-  todaySince,
   todayWentLine,
   todayZoneDay,
   type CalendarLike,
   type TodayHeadLineVM,
-  type TodaySinceVM,
 } from "@chanlytics/contracts";
 import { surfaceValue } from "../../surface-values";
-import { Button } from "../../kit/button/button";
 import { useStanding } from "../../kit/head/standing";
-import { Icon } from "../../kit/icon/icon";
-import { Panel } from "../../kit/panel/panel";
-import { SAYS_WHEN } from "../../kit/says-when";
 import { routeDoor } from "../../frame-verbs";
 import { useNeedsYou } from "../../needs-you";
 import { useSurface } from "../../use-surface";
 import { todayGreetingNow } from "../chrome";
 import { TODAY_HELPERS } from "../helpers";
 import { useNeedYouLine } from "../need-you-model";
-import { useRests } from "../need-you/rests";
-import { reviewsToAnswer } from "../need-you/reviews";
 import { useTodayOnPhone } from "../phone";
-import { bell, useMoved, workspaceClock } from "../shell";
 import { useDayVm } from "./day-vm";
 import { TodayHeadFigures } from "./figures";
 import { listenButton, useBriefWords, useSpeech } from "./listen";
@@ -73,95 +64,6 @@ function headSentence(line: TodayHeadLineVM, why: string | null, door: string | 
 const withDoneToday = (line: TodayHeadLineVM, done: number): TodayHeadLineVM =>
   line.rest || done <= 0 ? line : { ...line, rest: `${NEED_YOU_WORDS.doneToday(done)}.` };
 
-/** One of Since you looked's rows, opened: its glyph, what happened, the receipt under it, and when. */
-function sinceRow(r: TodaySinceVM["rows"][number]) {
-  const body = (
-    <>
-      <i aria-hidden="true">
-        <Icon name={r.glyph} size={14} />
-      </i>
-      <span className="tz-sn-words">
-        <b>{r.title}</b>
-        {r.sub ? <span>{r.sub}</span> : null}
-      </span>
-      <time {...SAYS_WHEN}>{r.at}</time>
-    </>
-  );
-  return r.to ? (
-    <a key={r.key} className="tz-sn" {...routeDoor(r.to)}>
-      {body}
-    </a>
-  ) : (
-    <div key={r.key} className="tz-sn">
-      {body}
-    </div>
-  );
-}
-
-/**
- * Since you looked: one quiet line under the sentence, since when and the news in a few words, and its rows in a pane
- * under it once pressed. It opens in place, and moves nothing: the bell's press is what says the member looked.
- */
-function SinceLine({ since }: { since: TodaySinceVM }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <Button
-        variant="quiet"
-        size="text"
-        className="tz-since"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        data-testid="today-since"
-      >
-        <b {...SAYS_WHEN}>{since.when}</b>
-        <span className="tz-since-bits">
-          {since.bits.map((b) => (
-            <em key={b}>{b}</em>
-          ))}
-        </span>
-        <Icon name="chevron-down" size={12} />
-      </Button>
-      {open ? (
-        <Panel className="tz-since-list" data-testid="today-since-list">
-          {since.rows.map(sinceRow)}
-        </Panel>
-      ) : null}
-    </>
-  );
-}
-
-/** What happened since the member last looked: Today's read's half, and the bell's notes beside it. */
-function useSince(): TodaySinceVM | null {
-  useMoved(["today", "notifications", "google"]);
-  const vm = useSurface("today");
-  // The reviews To do offers to answer: their news is To do's row, and Since you looked does not say it again.
-  const google = useSurface("google");
-  const { rests } = useRests();
-  const api = bell();
-  if (!vm?.since) return null;
-  const notes = api
-    ? api.feed().map((r) => ({
-        kind: r.kind,
-        at: r.at,
-        title: r.title,
-        message: r.message,
-        to: r.actions[0]?.to,
-        about: r.about,
-        id: r.id,
-      }))
-    : [];
-  return todaySince({
-    seenAt: vm.since.seen_at,
-    answered: vm.since.answered,
-    sent: vm.since.sent ?? null,
-    notes,
-    covered: reviewsToAnswer(google, rests).map((r) => ({ id: r.id, reviewId: r.review_id })),
-    tz: workspaceClock()?.zone() ?? "UTC",
-    nowMs: Date.now(),
-  });
-}
-
 /** Whether the day has turned to tomorrow, as the day's zone says it (contracts todayZoneDay): the head says how today went. */
 function useDayTurned(): boolean {
   const day = useDayVm();
@@ -169,7 +71,7 @@ function useDayTurned(): boolean {
   return todayZoneDay((cal?.vm as CalendarLike | undefined) ?? null, day, [], Date.now())?.tomorrow ?? false;
 }
 
-/** Today's standing, said to the frame's head as the page draws: the greeting, its one sentence, Since you looked, the figures. */
+/** Today's standing, said to the frame's head as the page draws: the greeting, its one sentence, the figures. */
 export function useZonesStanding(): void {
   const phone = useTodayOnPhone();
   const vm = useSurface("today");
@@ -179,7 +81,6 @@ export function useZonesStanding(): void {
   // The one count, the badge's: it leaves a row the moment Need you acts on it (needs-you.ts needsYouActed).
   const count = useNeedsYou() ?? 0;
   const turned = useDayTurned();
-  const since = useSince();
   const words = useBriefWords();
   const brief = words && words.sentences.length ? words.text : null;
   const speech = useSpeech(brief);
@@ -194,7 +95,6 @@ export function useZonesStanding(): void {
     title: todayGreetingNow(),
     sentence: line ? headSentence(line, speech.why, phone && count > 0 ? "inbox" : null) : undefined,
     beside: listen ?? undefined,
-    after: since ? <SinceLine since={since} /> : undefined,
     // On a phone the date says the hour beside Listen and the bell (the canvas: "Tue, Nov 3 · 8:05 AM").
     dateHour: true,
     // A desk's act is the day's four figures, at the head's right; a phone's stand in Today so far (foot.tsx).

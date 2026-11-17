@@ -16,8 +16,8 @@
  * this runner's react-server condition has none: the same stub is set on that module object, so its own calls reach the
  * stub the shell's pages call, and one tree holds both. Its elements come from the global React its JSX compiles to.
  *
- * The kit's components the shell's pages still draw by name (FailedRead, SegmentBar, StatePill, Confirm, MoreMenu,
- * PolicyChip and the bell's RecordSwitch: surfaces/kit/kit-globals.ts, which the app publishes from seed-globals), and the
+ * The kit's components the shell's pages still draw by name (FailedRead, SegmentBar, StatePill, Confirm, MoreMenu and
+ * PolicyChip: surfaces/kit/kit-globals.ts, which the app publishes from seed-globals), and the
  * parts the tests alone reach by name (`kitParts` below: the record kit, EmptyState, FieldError, TlMedia, AttnRow ...) are
  * the kit's own here too. `Icon` stays the host element every test reads by its name and its props: a page's icon is a
  * leaf here, as it was, and the kit's own components draw the real one.
@@ -46,7 +46,7 @@ const { EmptyState } = requireFromDashboard("../surfaces/kit/empty/empty.tsx");
 const { FieldError } = requireFromDashboard("../surfaces/kit/field-error/field-error.tsx");
 const { TlMedia } = requireFromDashboard("../surfaces/kit/media/tl-media.tsx");
 const { RecordCombobox } = requireFromDashboard("../surfaces/kit/record/combobox.tsx");
-const { RecordBox, RecordField, RecordTip, RecordTipCard, RecordToggleGroup } = requireFromDashboard(
+const { RecordBox, RecordField, RecordSwitch, RecordTip, RecordTipCard, RecordToggleGroup } = requireFromDashboard(
   "../surfaces/kit/record/field.tsx",
 );
 const { RecordFold } = requireFromDashboard("../surfaces/kit/record/fold.tsx");
@@ -87,6 +87,7 @@ export const kitParts = {
   RecordChips,
   RecordField,
   RecordBox,
+  RecordSwitch,
   RecordToggleGroup,
   RecordCombobox,
   RecordTip,

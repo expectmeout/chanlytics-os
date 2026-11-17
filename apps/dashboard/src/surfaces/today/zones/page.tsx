@@ -22,7 +22,7 @@
  * where it finds nothing either, the day stands alone in one column. On a phone the same blocks in one column: Need you's
  * groups each a pane of their own, Ask found where it leads, the day, Ask found under it, Today so far (the four figures
  * and the week), the pins, what is left to set up, and the page says it is done. The head over it is the frame's
- * (head.tsx): the greeting, one sentence, Listen, Since you looked, and on a desk the day's four figures. The grid is
+ * (head.tsx): the greeting, one sentence, Listen, and on a desk the day's four figures. The grid is
  * zones.css's. Which of it draws where, and which part's act is the coral, is the page's one arrangement
  * (today/arrangement.ts), read here before any of it draws.
  */

@@ -628,8 +628,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST channels/instagram/disconnect": () => [channelsOverride, setupOverride],
   // The same account connected through Meta, turned off (decision 0117): its row is the same channel, so the same two.
   "POST channels/meta/disconnect": () => [channelsOverride, setupOverride],
-  // The bell's press also moves when this member last looked, which Today's Since you looked says (GET today's `since`).
-  "PUT notifications": () => [notificationsOverride, todayOverride],
+  // A mark on the bell, or the look, is the bell's alone: no other read says when this member last looked (decision 0137).
+  "PUT notifications": () => [notificationsOverride],
   // Setup, lines, billing, Google.
   "POST capabilities/[kind]": setup,
   "DELETE capabilities/[kind]": setup,

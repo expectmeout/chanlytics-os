@@ -889,7 +889,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     "runs",
     "heldThreads",
     "going",
-    "previewsTried", // not done today, since you looked or the word: GET today's route reads those beside this reader
+    "previewsTried", // not done today or the word: GET today's route reads those beside this reader
   ]);
   // What goes on its own today, each with its Stop (decision 0064): the runs set to start before the day ends, none here.
   assert.deepEqual(r.data.going, []);

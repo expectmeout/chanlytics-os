@@ -4,7 +4,7 @@ import { apiGet } from "../workspace";
 
 /**
  * The bell on a real workspace: it opens, it shows the workspace's own rows
- * or "All caught up", it offers device alerts, and nothing seeded is in it.
+ * or "All caught up", its foot opens Settings › Notifications, and nothing seeded is in it.
  */
 const INVENTED = ["Aisha", "Deal won", "Milestone", "Gmail", "refund"];
 
@@ -56,7 +56,7 @@ test.describe("The bell on a real workspace", () => {
     await expect(page.locator(".tbn-pop")).toHaveCount(0);
   });
 
-  test("opens on the real feed with the device-alert switch, and nothing invented", async ({ page }) => {
+  test("opens on the real feed with the door to its settings, and nothing invented", async ({ page }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: /^Notifications/ }).click();
@@ -99,7 +99,8 @@ test.describe("The bell on a real workspace", () => {
     };
     expect(Array.isArray(data.notifications)).toBe(true);
     for (const n of data.notifications) expect(typeof n.title).toBe("string");
-    await expect(page.getByTestId("notif-alerts")).toBeVisible();
+    // The bell's foot is the door to Settings › Notifications, where this browser's one alert switch is (decision 0137).
+    await expect(page.getByTestId("notif-settings")).toBeVisible();
     await page.screenshot({ path: "test-results/bell.png" });
   });
 });

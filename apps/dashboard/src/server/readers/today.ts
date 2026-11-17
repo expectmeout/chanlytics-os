@@ -1,8 +1,6 @@
 import "server-only";
 import {
   NEED_YOU_DONE_VERBS,
-  QUOTE_MAX,
-  clipAtWord,
   type CallDto,
   type ConversationDto,
   type EscalationDto,
@@ -10,10 +8,8 @@ import {
   type MetricsSummaryDto,
   type PreviewTriedDto,
   type TodayPeopleDto,
-  type TodayVM,
   todayPeopleOf,
 } from "@chanlytics/contracts";
-import { findAnsweredSince, findBellSeenAt, findContactName, listSentSince } from "@chanlytics/db/notices";
 import { getTodayDoneCount } from "@chanlytics/db/people";
 import type { GoingRunRow, WaitingRunRow } from "@chanlytics/db/campaigns";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
@@ -71,51 +67,6 @@ export async function findDoneToday(rc: ReaderContext): Promise<number | null> {
 }
 
 /**
- * Since this member last looked (Today in three zones, 2 Nov 2026): when they last closed the bell or marked it read, and
- * what the receptionist answered since, how many and the last of its words to whom. Null, logged, where it failed. The
- * page's alone, read beside the day by GET today's route.
- */
-export async function getSinceYouLooked(rc: ReaderContext): Promise<TodayVM["since"]> {
-  try {
-    const db = rc.ctx.supabase;
-    const seen = await findBellSeenAt(db, { tenantId: rc.tenantId, userId: rc.userId });
-    if (!seen) return { seen_at: null, answered: null };
-    // What the sequences sent since (decision 0120), read beside the answers: a read of it that fails is said in the log
-    // and leaves the line without it, never without the rest.
-    const [result, sent] = await Promise.all([
-      findAnsweredSince(db, { tenantId: rc.tenantId, since: seen }),
-      listSentSince(db, { tenantId: rc.tenantId, since: seen }).catch((err: unknown) => {
-        log.error("today_since_fetch_failed", { tenant_id: rc.tenantId, error: err });
-        return null;
-      }),
-    ]);
-    const personName = result.last?.contact_id
-      ? await findContactName(db, { tenantId: rc.tenantId, contactId: result.last.contact_id })
-      : null;
-    return {
-      seen_at: seen,
-      sent,
-      answered: {
-        count: result.count,
-        // One line, cut at a word under the quote's length, as every receipt is (contracts clipAtWord); a reply with no
-        // space in it is cut at the length, never to one letter.
-        last: result.last
-          ? {
-              who: personName ?? "a customer",
-              text: clipAtWord(result.last.body.replace(/\s+/g, " "), QUOTE_MAX),
-              at: result.last.created_at,
-              conversation_id: result.last.conversation_id,
-            }
-          : null,
-      },
-    };
-  } catch (err) {
-    log.error("today_since_fetch_failed", { tenant_id: rc.tenantId, error: err });
-    return null;
-  }
-}
-
-/**
  * Today, as the page makes the day (GET today, Today in three zones: one request where the page made six) and as Ask
  * reads it: the day's metrics, the newest hundred conversations, the open escalations, the calls, the searches and the
  * runs waiting for approval, read at once; then, only where an open hold's thread is outside the hundred, those threads
@@ -123,7 +74,7 @@ export async function getSinceYouLooked(rc: ReaderContext): Promise<TodayVM["sin
  * additive, as on the page: a failed read is null, logged under the page's own event, and the rest stands (a hold whose
  * thread was not read counts as waiting). The brief is then said with the runs and the held threads beside it
  * (toTodayVM's `beside`), so Ask's Today counts what the badge counts (the wiring's second audit, S7-1 and S7-7). What the
- * page alone says beside the day (done today, since you looked, the workspace's word) GET today's route reads.
+ * page alone says beside the day (done today, the workspace's word) GET today's route reads.
  */
 export const today: Reader<undefined, TodayRead> = {
   name: "today",

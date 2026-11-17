@@ -14,7 +14,7 @@ export const PERSON_ROUTE = "clients/person";
  *
  * Today (in three zones, 2 Nov 2026) draws the day beside Need you from the calendar and the playbooks, the runs from
  * broadcasts (waiting for a word in Need you, going today in the day), the week line and Ask found's leaks from the
- * reports headline (one small read, never the whole report), Since you looked's notes from the bell, a call in progress
+ * reports headline (one small read, never the whole report), what cannot wait from the bell's warnings, a call in progress
  * from live, what is left to set up from Setup, the reviews to answer from Google, and from People the steps due, the
  * pinned lists and the names Ask found gives -- last, because contacts is the heaviest read; the zones that read it draw
  * without it and again when it lands (surface:clients). Measured on the salon
@@ -38,8 +38,7 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
     // The drafts Ask kept for the rows of Need you, read with the page so each row draws with its words (surfaces/today/
     // need-you/drafts-surface.ts; decision 0071).
     "reply_drafts",
-    // The bell: what cannot wait is one line under the head, drawn from its warnings (surfaces/today/zones/alert.tsx), and
-    // Since you looked says its notes.
+    // The bell: what cannot wait is one line under the head, drawn from its warnings (surfaces/today/zones/alert.tsx).
     "notifications",
     // What Ask found's checks read beside People: the period's headline (surfaces/reports/headline.ts).
     "reports_headline",

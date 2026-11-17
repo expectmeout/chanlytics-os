@@ -128,25 +128,6 @@ export async function expectNoQueueRepeat(page: Page): Promise<void> {
   }
 }
 
-/**
- * Since you looked opens in place: the line's few words, and once pressed its rows under it, closed again by a second
- * press. Nothing where the member never looked. (What each row says is contracts todaySince's, which
- * tests/today/zones/since-you-looked.test.mjs executes: a row per bit is so by construction, so counting
- * one against the other here proved nothing.)
- */
-export async function expectSinceOpens(page: Page): Promise<void> {
-  const line = page.getByTestId("today-since");
-  if ((await line.count()) === 0) return;
-  const bits = (await line.locator("em").allInnerTexts()).map((b) => b.trim()).filter(Boolean);
-  expect(bits.length, "the line says what happened").toBeGreaterThan(0);
-  await line.click();
-  const list = page.getByTestId("today-since-list");
-  await expect(list).toBeVisible();
-  await expect(list.locator(".tz-sn").first()).toBeVisible();
-  await line.click();
-  await expect(list).toHaveCount(0);
-}
-
 /* ------------------------------------------------------- Leads (release B) */
 
 /**

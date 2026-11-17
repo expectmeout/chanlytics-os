@@ -275,7 +275,7 @@ function UserMenuHead({ who }: { who: SbWho }) {
 /**
  * The doors, widest first: the workspace's settings, then the two that are yours. Settings stood in the sidebar's own list as
  * its last place (Ruben, 7 Oct 2026: it is a thing you set, not a place you work in). Whether this device is alerted is said
- * beside Notifications where it is not: the switch is the bell's and that page's.
+ * beside Notifications where it is not: the one switch is that page's (decision 0137).
  */
 function UserMenuDoors({ who, onNavigate, close }: Pick<UserMenuProps, "who" | "onNavigate" | "close">) {
   const Glyph = frameGlyph();

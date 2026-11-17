@@ -28,7 +28,6 @@ function publishToday(h: TodayReadDto, now: Date): boolean {
       heldThreads: h.held_threads,
       previewsTried: h.previews_tried,
       doneToday: h.done_today,
-      since: h.since,
       word: h.word ?? null,
     }),
   );
