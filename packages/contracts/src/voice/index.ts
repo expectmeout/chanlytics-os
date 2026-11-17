@@ -83,7 +83,7 @@ export {
   toLiveVM,
 } from "./live";
 export type { LiveBarCall, LiveBarVM, LiveCallVM, LiveLineVM, LiveTurnVM, LiveVM } from "./live";
-export { NUMBER_CHECKS, numberCheckFrom, numberCheckOf } from "./number-check";
+export { numberCheckFrom, numberCheckOf } from "./number-check";
 export type { NumberCheck } from "./number-check";
 export { PHONE_PACE_WORDS, PHONE_PACES, phonePaceOf, phonePaceShown, phonePaceSpeed } from "./phone-pace";
 export type { PhonePace } from "./phone-pace";

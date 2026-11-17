@@ -538,7 +538,7 @@ export { CARRIER_WORDS, CARRIERS, divertedNumbers, FORWARDING_MODE_WORDS, FORWAR
 export { GREETING_DEFAULT, greetingFor, pausedGreetingFor } from "./voice/greeting";
 export { deniesAutomated, GREETING_TEMPLATE, greetingNotes, greetingOf, spokenNameOf, statesAutomated } from "./voice/greeting-owner";
 export { ANALYSIS_GRACE_MS, callsStillUp, fmtClock, LIVE_OVERLONG_MS, LIVE_STALE_MS, liveBar, liveStillUp, missedCallIsNews, RECENT_MAX, toLiveCallVM, toLiveVM } from "./voice/live";
-export { NUMBER_CHECKS, numberCheckFrom, numberCheckOf } from "./voice/number-check";
+export { numberCheckFrom, numberCheckOf } from "./voice/number-check";
 export { PHONE_PACE_WORDS, PHONE_PACES, phonePaceOf, phonePaceShown, phonePaceSpeed } from "./voice/phone-pace";
 export { PHONE_VOICE_DEFAULT, PHONE_VOICE_SAMPLES_ORIGIN, PHONE_VOICE_WORDS, PHONE_VOICES, PHONE_VOICES_NATIVE_TO, phoneVoiceOf, phoneVoiceShown } from "./voice/phone-voices";
 export { SCREENED_REASONS } from "./voice/screened";

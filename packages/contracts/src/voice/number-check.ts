@@ -12,7 +12,7 @@
  */
 import { isOneOf } from "../shared/unknown";
 
-export const NUMBER_CHECKS = ["passed", "failed", "unsigned"] as const;
+const NUMBER_CHECKS = ["passed", "failed", "unsigned"] as const;
 export type NumberCheck = (typeof NUMBER_CHECKS)[number];
 
 /** The carriers' three words (ATIS-1000074; Twilio writes the attestation's letter after the first two), matched whole. */
