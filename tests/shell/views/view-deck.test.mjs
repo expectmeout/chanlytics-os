@@ -382,6 +382,39 @@ test("a page still arriving when it is replaced fades out where it is", async ()
   assert.equal(b.removed, true);
 });
 
+test("a view that says no side, landing where one still arriving stood, takes that arrival over", async () => {
+  // A view not drawn when its tab is pressed: the box that says it is reading arrives by the press, from the right, and the
+  // page itself is swapped in where it stood 60 ms on, saying no side (campaigns/home/route.tsx ViewReading).
+  const w = world();
+  const seat = w.deck.view("campaigns-view");
+  const a = view();
+  seat(a);
+  w.deck.leave(1);
+  w.clock = 1040;
+  const reading = view({ dataset: { slide: "next" }, parentNode: a.parentNode });
+  replace(seat, a, reading);
+  w.clock = 1100;
+  const page = view({ parentNode: reading.parentNode });
+  replace(seat, reading, page);
+  // The page joins the press's timeline where the box already was, and fades in there.
+  const into = moving(page).at(-1);
+  assert.equal(into.startTime, 1000, "on the timeline the press began");
+  assert.equal(across(into.keyframes[0]), 375, "from the side the box came from");
+  assert.equal(across(into.keyframes.at(-1)), 0, "to its place");
+  const fadeIn = fading(page).at(-1);
+  assert.equal(fadeIn.startTime, 1100);
+  assert.equal(fadeIn.options.duration, JOIN_FADE_MS);
+  // The box is put back where it stood, held where its slide had got to, and fades out there.
+  assert.equal(page.parentNode.put.at(-1)[0], reading);
+  const held = moving(reading).at(-1);
+  assert.equal(across(held.keyframes[0]), across(held.keyframes.at(-1)), "held still");
+  const fadeOut = fading(reading).at(-1);
+  assert.equal(fadeOut.keyframes.at(-1).opacity, 0);
+  assert.equal(fadeOut.options.duration, JOIN_FADE_MS);
+  for (const anim of reading.anims) anim.finish();
+  await until(() => reading.removed, "the box taken off the page once it has faded");
+});
+
 test("a page asked to leave that nothing replaces comes back", async () => {
   const w = world();
   const a = view();

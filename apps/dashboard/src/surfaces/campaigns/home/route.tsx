@@ -10,11 +10,15 @@
  * a change of the path alone (workspace.ts goToRoute), and the page follows it, one mount across them all.
  *
  * Sequences, Messages, Content and, where it is drawn, Ads are kept, as People's scopes are (people/people-route.tsx): each drawn from the first time it is
- * shown, or ahead of that, hidden, once the frame is idle on the other (useViewsAhead), and hidden under React's Activity
- * while the other is shown, so a press on the strip shows a view already drawn, its rows, its search and its place as they
- * were left. They were two pages: a switch put the old one away, drew nothing for 600 ms on a phone while the new one was
- * built, then drew it (the tabs review of 19 Oct 2026). Each view's root is the deck's (kit/motion/view-deck.ts), so the
- * view arriving comes in from its tab's side and the one leaving goes by a copy of itself.
+ * shown, or ahead of that, hidden, once the frame is idle on any other (useViewsAhead), and hidden under React's Activity
+ * while another is shown, so a press on the strip, or a swipe to it, shows a view already drawn, its rows, its search and
+ * its place as they were left, and nothing of it lands after the slide. They were two pages: a switch put the old one away,
+ * drew nothing for 600 ms on a phone while the new one was built, then drew it (the tabs review of 19 Oct 2026); and
+ * Messages was drawn ahead from Sequences alone, so a swipe to it from Content cut to "Reading…" and then to the page,
+ * each popping in where the other views slid (the phone review, 17 Nov 2026). Each view's root is the deck's
+ * (kit/motion/view-deck.ts), so the view arriving comes in from its tab's side and the one leaving goes by a copy of
+ * itself; a view not drawn yet when its tab is pressed comes in the same way, by the box that says it is reading
+ * (ViewReading), which the page takes over as it lands.
  */
 import { Activity, Suspense, lazy, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -49,10 +53,22 @@ const ContentPage = lazy(contentCode);
 // Content readied ahead (content/warm.ts): its page read and its first screen's pictures in, from the same chunk as the page.
 const contentWarm = () => import("../content/warm").then((m) => m.warmContent());
 
-/** What stands where a view will be while its chunk loads: the page's own box, and the shell's quiet words after their beat. */
-function ViewReading() {
+/**
+ * What stands where a view will be while its code is out: the page's own root, with the shell's quiet words after their
+ * beat. It is the view the deck moves, on the view's seat and from its side (`view`), so a view pressed before it was drawn
+ * ahead still comes in from its tab's side as one that was, and the page, swapped in where it stood, takes its arrival over
+ * (kit/motion/view-deck.ts arrive). It stood on no seat: the view leaving was hidden at once, the box popped in, and the
+ * page popped in after it (the phone review, 17 Nov 2026).
+ */
+function ViewReading({ view }: { view: CmView }) {
   return (
-    <div className="cmh ads" aria-busy="true">
+    <div
+      ref={view.ref}
+      data-slide={view.slide}
+      className="cm-split"
+      aria-busy="true"
+      data-testid="campaigns-view-reading"
+    >
       <div className="route-reading" role="status">
         {LIFECYCLE_WORDS.reading}
       </div>
@@ -74,7 +90,12 @@ const VIEW_SEAT = "campaigns-view";
 function useKeptViews(view: View, route: string, ahead: { others: boolean; content: boolean }) {
   const drawn = useRef(new Set<View>());
   drawn.current.add(view);
-  if (ahead.others) drawn.current.add(view === "sequences" ? "messages" : "sequences");
+  // Sequences and Messages, drawn hidden once the frame is idle on any view (useViewsAhead): Messages was drawn ahead from
+  // Sequences alone, so a swipe to it from Content or Ads found it not drawn.
+  if (ahead.others) {
+    drawn.current.add("sequences");
+    drawn.current.add("messages");
+  }
   // Content, once its read and its first pictures are in (useViewsAhead): drawn hidden, so its press shows it whole.
   if (ahead.content) drawn.current.add("content");
   const sequencesAt = useRef(SEQUENCES_ROUTE);
@@ -106,10 +127,21 @@ function useKeptViews(view: View, route: string, ahead: { others: boolean; conte
 }
 
 /**
- * The other view, drawn ahead once the frame is idle on this one (true from then), where the frame may fetch with nobody
- * reaching (workspace.ts warmsOnItsOwn): its code fetched and, for Sequences, its list read, which only its own page reads
- * (onDemand), so the first press on the strip shows it drawn. React draws a hidden Activity at the lowest priority, behind
- * anything on screen.
+ * The reads a view drawn hidden draws from, made where they are not held, so it is drawn with its rows and nothing of it
+ * lands after the slide that shows it: Sequences' list, which only its own page reads (onDemand), and Messages' playbooks
+ * read, what sends each message (its rows' pills: templates/message-row-facts.ts usageOf), which is kept for its page until
+ * it is drawn (surface-registry keepUntilDrawn), so the pills came in after the page (the phone review, 17 Nov 2026).
+ */
+function readKeptViews(view: View): void {
+  if (view !== "sequences" && surfaceValue("sequences") === undefined) void refreshSurface("sequences");
+  if (view !== "messages" && surfaceValue("playbooks") === undefined) void refreshSurface("playbooks");
+}
+
+/**
+ * The other views, drawn ahead once the frame is idle on this one (`others`, true from then), where the frame may fetch with
+ * nobody reaching (workspace.ts warmsOnItsOwn): their code fetched and each one's own read made (readKeptViews), so the
+ * first press on the strip, or a swipe to it, shows a view drawn whole. React draws a hidden Activity at the lowest
+ * priority, behind anything on screen.
  *
  * On Ads it waits for the page's own first read as well (ads/first-read.ts): that read is the page's, made once its code is
  * in and not by the boot, so an idle frame with the boot in is not yet a page whose reads are. Nothing held Sequences' list,
@@ -129,7 +161,7 @@ function useViewsAhead(view: View, adsShown: boolean): { others: boolean; conten
     const start = () => {
       if (!live) return;
       stop = aheadWhenIdle(() => {
-        if (view !== "sequences" && surfaceValue("sequences") === undefined) void refreshSurface("sequences");
+        readKeptViews(view);
         // Ads' code, fetched and not drawn: its page reads its own example when it is first shown.
         if (adsShown && view !== "ads") void adsCode();
         if (view !== "content") {
@@ -187,7 +219,7 @@ export function CampaignsRoute() {
       {kept.drawn.has("sequences") ? (
         <Activity mode={view === "sequences" ? "visible" : "hidden"}>
           {/* The message's pane, handed down to the step editor (parts/message-pane.ts). */}
-          <Suspense fallback={<ViewReading />}>
+          <Suspense fallback={<ViewReading view={kept.viewOf("sequences")} />}>
             <MessagePaneProvider>
               <SequencesPage route={kept.sequencesAt} view={kept.viewOf("sequences")} />
             </MessagePaneProvider>
@@ -196,13 +228,17 @@ export function CampaignsRoute() {
       ) : null}
       {kept.drawn.has("messages") ? (
         <Activity mode={view === "messages" ? "visible" : "hidden"}>
-          {Messages ? <Messages view={kept.viewOf("messages")} route={kept.messagesAt} /> : <ViewReading />}
+          {Messages ? (
+            <Messages view={kept.viewOf("messages")} route={kept.messagesAt} />
+          ) : (
+            <ViewReading view={kept.viewOf("messages")} />
+          )}
         </Activity>
       ) : null}
       {/* Content, a view kept beside the others on the same mount (decision 0125). */}
       {kept.drawn.has("content") ? (
         <Activity mode={view === "content" ? "visible" : "hidden"}>
-          <Suspense fallback={<ViewReading />}>
+          <Suspense fallback={<ViewReading view={kept.viewOf("content")} />}>
             <ContentPage route={kept.contentAt} view={kept.viewOf("content")} />
           </Suspense>
         </Activity>
@@ -211,7 +247,7 @@ export function CampaignsRoute() {
           its tab put Campaigns away, said Reading, and drew its head 7px lower than Messages'). */}
       {adsShown && kept.drawn.has("ads") ? (
         <Activity mode={view === "ads" ? "visible" : "hidden"}>
-          <Suspense fallback={<ViewReading />}>
+          <Suspense fallback={<ViewReading view={kept.viewOf("ads")} />}>
             <AdsPage param={kept.adsAt.split("/")[1] || "ads"} view={kept.viewOf("ads")} />
           </Suspense>
         </Activity>
