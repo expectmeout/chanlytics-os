@@ -11,17 +11,10 @@ import { AttnRow } from "../../kit/attention/attn-row";
 import type { Flash } from "../../shell-doors";
 import { handBackAll, handedBackWords } from "../../today/need-you/sheet/hand-back";
 import { olderWords } from "../../today/need-you/sheet/row-words";
-import { gate } from "../shell";
+import { appNavigate, gate } from "../shell";
+import type { Thread } from "../types";
 
-export function OlderOne({
-  row,
-  onOpen,
-  flash,
-}: {
-  row: TodayQueueRowVM;
-  onOpen: () => void;
-  flash: (flash: Flash) => void;
-}) {
+function OlderOne({ row, onOpen, flash }: { row: TodayQueueRowVM; onOpen: () => void; flash: (flash: Flash) => void }) {
   const [busy, setBusy] = useState(false);
   const mark = async () => {
     setBusy(true);
@@ -52,5 +45,34 @@ export function OlderOne({
           : null
       }
     />
+  );
+}
+
+/** What Needs you folds at its foot (needs-you-list.ts): their conversations, the rows of those it does not hold, and the row of each. */
+interface Folded {
+  older: readonly Thread[];
+  olderRows: readonly TodayQueueRowVM[];
+  rowOf: (t: Thread) => TodayQueueRowVM | null;
+}
+
+/**
+ * The one person the fold holds, as their own row: drawn from their conversation's row where the Inbox holds the
+ * conversation, and a press opens it; else from their row, whose door a press takes. Null where no row says them.
+ */
+export function olderOne(
+  folded: Folded | null | undefined,
+  acts: { flash: (flash: Flash) => void; onSelectThread: (id: string) => void },
+) {
+  const [thread] = folded?.older ?? [];
+  const row = thread ? folded?.rowOf(thread) : folded?.olderRows[0];
+  if (!row) return null;
+  return (
+    <div className="ix-runs" data-testid="inbox-older">
+      <OlderOne
+        row={row}
+        flash={acts.flash}
+        onOpen={() => (thread ? acts.onSelectThread(thread.id) : appNavigate(row.cta.to))}
+      />
+    </div>
   );
 }

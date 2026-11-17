@@ -6,13 +6,17 @@
  *                        words on it, Not a customer and Reply anyway.
  *   NotACustomerBar      a thread a member said is not a customer's: that it was said, what it does, and the way back.
  *                        It left the Set aside list with that word, and had no way back once its toast had gone.
- *   sayNotACustomer      the word on a thread that still asks for you (the menu's act): a call back nobody should make.
- *                        Its Undo is Reply anyway, which brings the thread and its hold back.
+ *   notACustomerItems    the word in a thread's More: on one that still asks for you, a call back nobody should
+ *                        make, whose Undo is Reply anyway; on an email's, the door to their page's Not a person.
  */
 import { useState } from "react";
-import { THREAD_PANE_WORDS as W } from "@chanlytics/contracts";
+import { MAILBOX_SENDERS_WORDS, THREAD_PANE_WORDS as W } from "@chanlytics/contracts";
+import { mayAtLeast } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
+import { Icon } from "../../kit/icon/icon";
+import type { MenuItem } from "../../kit/menu/menu";
 import { surfaceValue } from "../../surface-values";
+import { carryNotAPerson } from "../carried-reply";
 import { gate, useToast, type Flash } from "../shell";
 import { threadDraftNow } from "../thread/kept-draft";
 import type { Thread } from "../types";
@@ -131,14 +135,64 @@ export function NotACustomerBar({ thread }: { thread: Thread }) {
 }
 
 /** Whether a thread may be said not to be a customer's from its menu: one that still asks for you, and is no email's. */
-export const heldNotACustomer = (thread: Thread): boolean =>
+const heldNotACustomer = (thread: Thread): boolean =>
   !!thread.real && !!thread.conversationId && thread.state === "escalated" && thread.primaryChannel !== "email";
 
 /** Not a customer, said of a thread that still asks for you: off your list, and Undo brings it and its hold back. */
-export async function sayNotACustomer(thread: Thread, flash: (flash: Flash) => void): Promise<void> {
+async function sayNotACustomer(thread: Thread, flash: (flash: Flash) => void): Promise<void> {
   const id = thread.conversationId;
   if (!id) return;
   const r = await notACustomerVerb(id);
   if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
   flash({ msg: <>{W.notACustomerHeldDone}</>, undo: () => void replyAnywayVerb(id) });
+}
+
+/** A menu item's glyph, at the size the thread's More draws its own. */
+const menuGlyph = (name: string) => <Icon name={name} size={16} />;
+
+/**
+ * The word in a thread's More, under Contact, that says they are no customer (moved from thread/header.tsx, 17 Nov
+ * 2026), by what the thread is: on one that still asks for you and is no email's, Not a customer, which takes it off
+ * the list (decision 0136); on an email's, for an owner, the one that opens their page with Not a person asked, since it
+ * deletes (decision 0080, 00483). None for any other thread.
+ */
+export function notACustomerItems(
+  thread: Thread,
+  acts: { flash: (flash: Flash) => void; onOpenClient: (clientId: string | null | undefined) => void },
+): MenuItem[] {
+  const { clientId } = thread;
+  return [
+    // A call back nobody should make: said here, it is off the list, and their calls stop asking.
+    ...(heldNotACustomer(thread)
+      ? [
+          {
+            label: W.notACustomer,
+            meta: W.notACustomerHeldMeta,
+            glyph: menuGlyph("ban"),
+            square: true,
+            onSelect: () => void sayNotACustomer(thread, acts.flash),
+            gate: gate("approve", "say this is not a customer"),
+          },
+        ]
+      : []),
+    // A program's mail taken for a person: where the owner sees it, on the thread, rather than three screens away.
+    ...(thread.real && clientId && thread.primaryChannel === "email" && mayAtLeast("owner")
+      ? [
+          {
+            label: W.notACustomerAct,
+            // A sentence, so its second line: as the word at the item's end it broke the label onto three lines on a
+            // phone's sheet (the thread canvas, 1 Nov 2026).
+            meta: W.notACustomerMeta,
+            title: MAILBOX_SENDERS_WORDS.actHint,
+            glyph: menuGlyph("ban"),
+            square: "danger" as const,
+            tone: "danger" as const,
+            onSelect: () => {
+              carryNotAPerson(clientId);
+              acts.onOpenClient(clientId);
+            },
+          },
+        ]
+      : []),
+  ];
 }

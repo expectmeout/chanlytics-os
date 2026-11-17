@@ -71,7 +71,7 @@ import { claimControl, releaseControl, CALL_CONTROL_S } from "@chanlytics/db/con
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "./call-recording.js";
 import { isRehearsalCall, settleRehearsalEvent } from "./rehearsal-call.js";
 import { markForwardingVerified } from "./forwarding.js";
-import { allowedOnCall, callerStanding } from "./webhook/facts.js";
+import { readCallerStanding, readPricesAllowed } from "./webhook/facts.js";
 import { tellPhonesCallStarted } from "./call-activity.js";
 import { apns, apnsKeys } from "./apns.js";
 import { wasErasedBeforeCall } from "../shared/erased.js";
@@ -739,8 +739,8 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
           ingest: res,
           alreadyCorrected: false,
           canCorrect: !!env.RETELL_API_KEY,
-          allowed: await allowedOnCall(db, routed, result),
-          caller: await callerStanding(db, routed, event, result, res),
+          allowed: await readPricesAllowed(db, routed, result),
+          caller: await readCallerStanding(db, routed, event, result, res),
         },
       );
       callAbout = plan.about;

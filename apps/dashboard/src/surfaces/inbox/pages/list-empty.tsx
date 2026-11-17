@@ -94,15 +94,17 @@ interface EmptyListOf {
   activeBucket: string;
   query: string;
   setQuery: (v: string) => void;
+  /** What Needs you folds at its foot: whoever has waited past a week (inbox-list.tsx olderFold). */
+  needsYou?: { older: readonly unknown[]; olderRows: readonly unknown[] } | null;
 }
 
 /**
- * `older` is how many have waited past a week, folded under this card in Needs you: with any, the card says Today's own
- * words over them, "Nothing needs you" and that the older ones may need nothing. "Nobody's waiting on you" stood over
+ * With anyone folded under this card in Needs you (whoever has waited past a week), the card says Today's own words
+ * over them: "Nothing needs you", and that the older ones may need nothing. "Nobody's waiting on you" stood over
  * "1 waiting over a week" (17 Nov 2026).
  */
-export function emptyThreads(list: EmptyListOf, older = 0) {
-  const { threads, activeView, activeBucket, query, setQuery } = list;
+export function emptyThreads(list: EmptyListOf) {
+  const { threads, activeView, activeBucket, query, setQuery, needsYou } = list;
   // "Is this a real workspace?" must come from the surface
   // classification, not from the array being inspected: an EMPTY
   // thread list made `threads.some(t => t.real)` false, so precisely
@@ -115,13 +117,13 @@ export function emptyThreads(list: EmptyListOf, older = 0) {
     title: "Nothing in this view",
     body: "No conversations match this view right now.",
   };
-  const meta: EmptyWords =
-    older > 0 && !query
-      ? { ...words, title: NEED_YOU_WORDS.onlyOlder.title, body: NEED_YOU_WORDS.onlyOlder.says(older) }
-      : words;
   // Needs you with nobody in it and nothing typed is what the pane beside says, as "Inbox zero" (thread.tsx InboxEmpty):
   // where that pane stands (a desk), this card steps aside for it (inbox.css, .ix-zero-beside), so the page says it once.
   const saidBeside = activeBucket === "escalated" && !query && !activeView;
+  const older = saidBeside ? (needsYou?.older.length ?? 0) + (needsYou?.olderRows.length ?? 0) : 0;
+  const meta: EmptyWords = older
+    ? { ...words, title: NEED_YOU_WORDS.onlyOlder.title, body: NEED_YOU_WORDS.onlyOlder.says(older) }
+    : words;
   return (
     <EmptyState
       kind="card"

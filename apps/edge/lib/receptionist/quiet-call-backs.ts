@@ -25,11 +25,12 @@ import {
 import { letHoldGo, listCallBacksGoneQuiet, type QuietCallBack } from "@chanlytics/db/conversations";
 import { findCallerFacts } from "@chanlytics/db/voice";
 import type { SweepTick } from "../ops/sweep-door.js";
+import { errField } from "../shared/log.js";
 
 /** How the two to-dos a silent call leaves begin (contracts unansweredCallTodo): what the read asks the table for. */
 const SILENT_LEADS = ["Missed call:", "Hung up after"] as const;
 /** How many of each are read in a pass. Each costs five small reads of the caller's record. */
-const BATCH = 25;
+const QUIET_READ = 25;
 /** The part of each hour a tick runs this pass in: the deadman tick comes every ten minutes, so one tick in six. */
 const PASS_WINDOW_MS = 10 * MIN_MS;
 
@@ -46,17 +47,34 @@ interface QuietPorts {
 /** Whether this tick is the hour's pass. */
 export const quietPassDue = (nowMs: number): boolean => nowMs % HOUR_MS < PASS_WINDOW_MS;
 
+/** How long into the tick the pass may keep letting go: the deadman tick's watchdog needs the rest. */
+const QUIET_BUDGET_MS = 25_000;
+
+/**
+ * The hour's pass, as the deadman tick asks for it: nothing in any other tick, and on its own, so a failure here
+ * (quiet_call_back_sweep_failed) never costs the watchdog its tick. Each hold let go is its own line (call_back_let_go);
+ * the door's answer keeps its shape.
+ */
+export async function letQuietCallBacksGo(tick: Pick<SweepTick, "db" | "L" | "started">): Promise<void> {
+  if (!quietPassDue(tick.started)) return;
+  try {
+    await sweepQuietCallBacks({ db: tick.db, L: tick.L, deadline: tick.started + QUIET_BUDGET_MS });
+  } catch (e) {
+    tick.L.error("quiet_call_back_sweep_failed", { error: errField(e) });
+  }
+}
+
 /** How many call backs gone quiet were let go this pass. */
 export async function sweepQuietCallBacks(quietPorts: QuietPorts): Promise<{ letGo: number }> {
   const { db, deadline } = quietPorts;
   const clock = quietPorts.now ?? Date.now;
-  const asked = {
+  const quiet = {
     beforeIso: new Date(clock() - NEED_YOU_OLD_MS).toISOString(),
     pivot: quietPorts.pivot ?? randomUUID(),
-    limit: BATCH,
+    limit: QUIET_READ,
   };
   const found: QuietCallBack[] = [];
-  for (const lead of SILENT_LEADS) found.push(...(await listCallBacksGoneQuiet(db, { ...asked, lead })));
+  for (const lead of SILENT_LEADS) found.push(...(await listCallBacksGoneQuiet(db, { ...quiet, lead })));
   let letGo = 0;
   for (const hold of found) {
     if (clock() > deadline) break;

@@ -34,7 +34,7 @@ import { threadRows, useShownThreads } from "./list-rows";
 import { pickAll, pickArchiveAsk, pickBar, pickKeys } from "./pick";
 import { appNavigate, askOnScreenKey, setAskOnScreen } from "../shell";
 import { emptyThreads, unreadEscalated } from "./list-empty";
-import { OlderOne } from "./older-one";
+import { olderOne } from "./older-one";
 import type { InboxBucket, InboxView, Thread } from "../types";
 
 /** How much of a row the desk draws: the phone ignores it. */
@@ -368,10 +368,7 @@ function threadsBody(
       {list.fromLine}
       {besides && <InboxRunsWaiting flash={list.flash} rows={counted} />}
       {!list.fromLine && unreadEscalated()}
-      {empty &&
-        !list.fromLine &&
-        !(besides && (drawn.runsWaiting > 0 || counted.length > 0)) &&
-        emptyThreads(list, besides ? olderCount(list) : 0)}
+      {empty && !list.fromLine && !(besides && (drawn.runsWaiting > 0 || counted.length > 0)) && emptyThreads(list)}
       {!empty && (
         <div
           ref={drawn.rowsRef}
@@ -394,10 +391,6 @@ function threadsBody(
   );
 }
 
-/** How many have waited past a week, folded at Needs you's foot: their conversations, and the rows of those it does not hold. */
-const olderCount = (list: ListCtx): number =>
-  (list.needsYou?.older.length ?? 0) + (list.needsYou?.olderRows.length ?? 0);
-
 /**
  * Whoever has waited past a week, at Needs you's foot, as Today draws them (today/need-you/older.tsx): one row, how many
  * and who, in no count and never the page's coral (the one count leaves them out: 0048, amended 2 Nov 2026), which opens
@@ -408,20 +401,8 @@ function olderFold(list: ListCtx, shown: ShownRows) {
   const older = list.needsYou?.older ?? NO_THREADS;
   const away = list.needsYou?.olderRows ?? NONE_COUNTED;
   const count = older.length + away.length;
-  if (!count) return null;
-  // One person is their own row, as on Today: who, what happened, how long, and Mark done. A fold of one hid all four.
-  const [thread] = older;
-  const only = count === 1 ? (thread ? (list.needsYou?.rowOf(thread) ?? null) : (away[0] ?? null)) : null;
-  if (only)
-    return (
-      <div className="ix-runs" data-testid="inbox-older">
-        <OlderOne
-          row={only}
-          flash={list.flash}
-          onOpen={() => (thread ? list.onSelectThread(thread.id) : appNavigate(only.cta.to))}
-        />
-      </div>
-    );
+  // One person is their own row, as on Today (older-one.tsx): a fold of one hid who, what happened and Mark done.
+  if (count < 2) return count ? olderOne(list.needsYou, list) : null;
   // Its own list: one tab stop, on the open row or its first, and the arrows walk its rows alone (pick.tsx).
   const fold: ListCtx = {
     ...list,

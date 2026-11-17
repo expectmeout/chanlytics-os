@@ -70,7 +70,7 @@ export const strangerCaller = (callerStanding: CallerStanding): boolean =>
   !callerStanding.talks && callerStanding.said !== "person";
 
 /** Why a call that would ask for a call back asks for none. */
-export type CallBackNotOwed = "not_a_customer" | "carrier_spam" | "toll_free_silent";
+type CallBackNotOwed = "not_a_customer" | "carrier_spam" | "toll_free_silent";
 
 /** The call, as far as the question needs it: who rang, whether anything was said, and how it ended. */
 interface CallAsking {

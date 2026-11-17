@@ -1,11 +1,11 @@
 /**
  * An escalation as the member signed in can see it: read under row-level security, so one in another workspace is none.
- * And the call backs nothing has happened to in a week, with the platform's own close of one (decision 0136): the
- * deadman tick's, on the service role.
+ * And the call backs nothing has happened to in a week (decision 0136): the deadman tick's read, on the service role;
+ * the platform's close of one is reads.ts letHoldGo, beside the other writes of a hold.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DbFailure, type TenantId } from "@chanlytics/contracts";
-import { platformWide, tenantDb } from "../../shared/tenant-db";
+import { platformWide } from "../../shared/tenant-db";
 import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
@@ -30,7 +30,7 @@ export interface QuietCallBack {
  */
 export async function listCallBacksGoneQuiet(
   db: Db,
-  asked: { lead: string; beforeIso: string; pivot: string; limit: number },
+  quiet: { lead: string; beforeIso: string; pivot: string; limit: number },
 ): Promise<QuietCallBack[]> {
   const page = (from: "after" | "upTo", limit: number) => {
     const q = platformWide(db)
@@ -38,30 +38,14 @@ export async function listCallBacksGoneQuiet(
       .select("id, tenant_id, conversation_id, details")
       .eq("state", "open")
       .eq("reason", "callback")
-      .like("details", `${asked.lead}%`)
-      .lt("updated_at", asked.beforeIso);
-    return (from === "after" ? q.gt("id", asked.pivot) : q.lte("id", asked.pivot)).order("id").limit(limit);
+      .like("details", `${quiet.lead}%`)
+      .lt("updated_at", quiet.beforeIso);
+    return (from === "after" ? q.gt("id", quiet.pivot) : q.lte("id", quiet.pivot)).order("id").limit(limit);
   };
-  const after = await page("after", asked.limit);
+  const after = await page("after", quiet.limit);
   if (after.error) throw new DbFailure(after.error, "reading the call backs gone quiet");
-  if (after.data.length >= asked.limit) return after.data;
-  const wrapped = await page("upTo", asked.limit - after.data.length);
+  if (after.data.length >= quiet.limit) return after.data;
+  const wrapped = await page("upTo", quiet.limit - after.data.length);
   if (wrapped.error) throw new DbFailure(wrapped.error, "reading the call backs gone quiet");
   return [...after.data, ...wrapped.data];
-}
-
-/**
- * A hold let go by the platform: resolved with no member named and no decision, as a thread set aside resolves its own
- * (00539 conversation_set_aside). True when it was still open, so two ticks let one hold go once. Its notices close with
- * it (escalation_closes_its_notices), and the thread is left as it stands: a call that reached no answer paused nothing.
- */
-export async function letHoldGo(db: Db, tenantId: TenantId, escalationId: string): Promise<boolean> {
-  const { data, error } = await tenantDb(db, tenantId)
-    .from("escalations")
-    .update({ state: "resolved" })
-    .eq("id", escalationId)
-    .eq("state", "open")
-    .select("id");
-  if (error) throw new DbFailure(error, "letting a call back go");
-  return data.length > 0;
 }

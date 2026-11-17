@@ -1,6 +1,6 @@
 /** The phone receptionist: calls right now, the whisper, the greeting, a call's outcome in words, and forwarding. */
 export { callBackNotOwed, callerStandingOf, strangerCaller } from "./call-back-owed";
-export type { CallBackNotOwed, CallerFacts, CallerStanding } from "./call-back-owed";
+export type { CallerFacts, CallerStanding } from "./call-back-owed";
 export { CALL_ENDING_OWNER_WORDS, CALL_ENDINGS_NEEDING_AN_EAR, isCallEndingReason } from "./call-endings";
 export type { CallEndingReason } from "./call-endings";
 export { CALL_ENDING_MENDS, CALL_ENDING_PLATFORM_WORDS, CALL_ENDINGS, callEndingOf } from "./call-endings-platform";

@@ -273,6 +273,49 @@ function owedACallBack(
     : null;
 }
 
+/**
+ * Whether this delivery asks a person for a call back, and the step that says so. Two roads ask: the analysis says a
+ * person must call them back (the receptionist steps aside on the thread for the workspace's pause, exactly as a
+ * WhatsApp handoff does; a replay refreshes the one open escalation rather than opening a second), and a call that
+ * reached no answer (owedACallBack, which pauses nothing). A call that asks for nothing holds nobody (decision 0136):
+ * the workspace's word, the carrier's, or silence from a toll-free number the business does not talk with. Then the
+ * step is a log line that says why, and the call is still the call it was, on its page and in the thread.
+ */
+function callBackStep(
+  { event, n }: CallEvent,
+  callEventFacts: CallEventFacts,
+): { step: CallStep | null; notOwed: ReturnType<typeof callBackNotOwed> } {
+  const res = callEventFacts.ingest;
+  const spoken =
+    event === "call_analyzed" && res.conversation_id && n.analysis?.outcome === "callback_needed"
+      ? res.conversation_id
+      : null;
+  const silence = owedACallBack(event, n, res);
+  const notOwed = callBackNotOwed(
+    { from: n.fromE164, silent: !!silence, disconnectionReason: n.disconnectionReason },
+    callEventFacts.caller,
+  );
+  if (!spoken && !silence) return { step: null, notOwed };
+  if (notOwed)
+    return {
+      step: { kind: "log", event: "call_back_not_owed", fields: { call_id: n.retellCallId, why: notOwed } },
+      notOwed,
+    };
+  if (!spoken) return { step: silence, notOwed };
+  return {
+    step: {
+      kind: "callback",
+      conversationId: spoken,
+      details: callbackTodo(n.analysis ?? {}).slice(0, 400),
+      callId: res.call_id,
+      // When the call ended, so the pause is measured from the call and not from this delivery (G9).
+      endedAtIso: n.endedAtIso,
+      pause: true,
+    },
+    notOwed,
+  };
+}
+
 export function planCallEvent(callEvent: CallEvent, callEventFacts: CallEventFacts): CallEventPlan {
   const { event, n } = callEvent;
   const res = callEventFacts.ingest;
@@ -331,38 +374,14 @@ export function planCallEvent(callEvent: CallEvent, callEventFacts: CallEventFac
   const hold = holdStep(n, res, analyzed);
   if (hold) steps.push(hold);
 
-  // The analysis says a person must call them back: the thread lands on
-  // Needs you with what to do, and the receptionist steps aside on it for
-  // the workspace's pause, exactly as a WhatsApp handoff does. A replay
-  // refreshes the one open escalation rather than opening a second. The
-  // bell is then about the thread, which is where the work is.
-  let about: CallAbout | null = res.call_id ? { type: "call", id: res.call_id } : null;
-  const asked =
-    analyzed && res.conversation_id && n.analysis?.outcome === "callback_needed" ? res.conversation_id : null;
-  const silence = owedACallBack(event, n, res);
-  // A call that asks for nothing holds nobody (decision 0136): the workspace's word, the carrier's, or silence from a
-  // toll-free number the business does not talk with. It is still the call it was, on its page and in the thread.
-  const notOwed = callBackNotOwed(
-    { from: n.fromE164, silent: !!silence, disconnectionReason: n.disconnectionReason },
-    callEventFacts.caller,
-  );
-  if (notOwed && (asked || silence)) {
-    steps.push({ kind: "log", event: "call_back_not_owed", fields: { call_id: n.retellCallId, why: notOwed } });
-  } else if (asked) {
-    steps.push({
-      kind: "callback",
-      conversationId: asked,
-      details: callbackTodo(n.analysis ?? {}).slice(0, 400),
-      callId: res.call_id,
-      // When the call ended, so the pause is measured from the call and not from this delivery (G9).
-      endedAtIso: n.endedAtIso,
-      pause: true,
-    });
-    about = { type: "conversation", id: asked };
-  } else if (silence) {
-    steps.push(silence);
-    about = { type: "conversation", id: silence.conversationId };
-  }
+  // The analysis says a person must call them back, or the call reached no answer: the thread lands on Needs you with
+  // what to do, unless the call asks for nothing (callBackStep). The bell is then about the thread, where the work is.
+  const callBack = callBackStep(callEvent, callEventFacts);
+  if (callBack.step) steps.push(callBack.step);
+  const held = callBack.step?.kind === "callback" ? callBack.step.conversationId : null;
+  const own: CallAbout | null = res.call_id ? { type: "call", id: res.call_id } : null;
+  const about: CallAbout | null = held ? { type: "conversation", id: held } : own;
+  const { notOwed } = callBack;
 
   steps.push(...guardSteps(n, res, callEventFacts));
 

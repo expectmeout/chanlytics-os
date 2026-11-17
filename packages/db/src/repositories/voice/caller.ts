@@ -16,7 +16,7 @@ type Db = SupabaseClient<Database>;
 const THREAD_WORDS = ["not_a_customer", "reply_anyway"] as const;
 
 /** The newer of a member's two words about the thread, or null: an undone "not a customer" is no word. */
-async function lastWordOf(db: Db, tenantId: TenantId, conversationId: string): Promise<CallerFacts["lastWord"]> {
+async function findMemberWord(db: Db, tenantId: TenantId, conversationId: string): Promise<CallerFacts["lastWord"]> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("decisions")
     .select("verb, payload")
@@ -67,7 +67,7 @@ export async function findCallerFacts(db: Db, tenantId: TenantId, conversationId
       .select("set_aside_at, set_aside_why, contact_id")
       .eq("id", conversationId)
       .maybeSingle(),
-    lastWordOf(db, tenantId, conversationId),
+    findMemberWord(db, tenantId, conversationId),
     wroteWith(db, tenantId, conversationId),
   ]);
   if (thread.error) throw new DbFailure(thread.error, "reading a caller's thread");

@@ -43,5 +43,7 @@ export async function handBackAll(rows: readonly TodayQueueRowVM[]): Promise<Han
 }
 
 /** What the old rows' press says once it is done: "2 marked done", and the ones refused beside it. */
-export const handedBackWords = (h: HandedBack): string =>
-  [h.done ? W.oldDone.done(h.done) : "", h.refused ? W.oldDone.failed(h.refused) : ""].filter(Boolean).join(" · ");
+export const handedBackWords = (handed: HandedBack): string =>
+  [handed.done ? W.oldDone.done(handed.done) : "", handed.refused ? W.oldDone.failed(handed.refused) : ""]
+    .filter(Boolean)
+    .join(" · ");

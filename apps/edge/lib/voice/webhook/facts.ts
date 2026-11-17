@@ -21,7 +21,7 @@ type Db = NonNullable<ReturnType<typeof pg>>;
  * Read at the call's start, where its prompt was composed (call-start.ts): a call that runs past midnight on an offer's
  * last day is judged by what the caller's receptionist was told, the offer's note and its price included.
  */
-export async function allowedOnCall(
+export async function readPricesAllowed(
   db: Db,
   routed: RoutedChannel,
   call: NormalizedCall,
@@ -43,7 +43,7 @@ export async function allowedOnCall(
  * delivery, for a call with no thread, and where the read failed, which is logged: the call then asks as it always did,
  * since a customer's call is never dropped by a read that did not answer.
  */
-export async function callerStanding(
+export async function readCallerStanding(
   db: Db,
   routed: RoutedChannel,
   event: string | undefined,

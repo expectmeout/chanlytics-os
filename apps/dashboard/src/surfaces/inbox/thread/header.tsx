@@ -15,7 +15,7 @@ import {
   proposalLinkOf,
   proposalMessage,
 } from "@chanlytics/contracts";
-import { HOLD_ACT_WORDS, MAILBOX_SENDERS_WORDS, sinceWords, THREAD_PANE_WORDS } from "@chanlytics/contracts";
+import { HOLD_ACT_WORDS, sinceWords, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import type { DealVM, PersonNextStepVM, PersonRowVM, VisitLineVM } from "@chanlytics/contracts";
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
@@ -24,7 +24,6 @@ import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { Face } from "../../kit/face/face";
 import { refreshSurface, routeDoor } from "../../frame-verbs";
 import { ROUTES } from "../constants";
-import { carryNotAPerson } from "../carried-reply";
 import { clockZone, gate, hasDealSheet, navigate, openDealSheet, seededLeads, useToast, type Flash } from "../shell";
 import { dealKit, hasHref, hrefOf, personNotes, usePeopleMoved } from "./shell-thread";
 import type { Thread } from "../types";
@@ -34,7 +33,7 @@ import { headerSub, IxWho, wireBadge, type Countdown } from "./who";
 import { takeInTheMenu } from "./status";
 import { NameOffer } from "../../people/person/name-offer";
 import { mayAtLeast } from "../../frame-verbs";
-import { heldNotACustomer, sayNotACustomer } from "../dock/set-aside";
+import { notACustomerItems } from "../dock/set-aside";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { completeStep } from "../../step-done";
@@ -281,11 +280,9 @@ interface HeaderActs {
   onMarkUnread: (threadId: string) => void;
   onOpenClient: (clientId: string | null | undefined) => void;
   onArchive: (() => void) | null;
-  /** Not a customer, on a conversation that still asks for you and is no email's (dock/set-aside.tsx); null for any other. */
-  onNotACustomer: (() => void) | null;
 }
 
-function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, facts: HeaderFacts) {
+function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, facts: HeaderFacts, saidNot: MenuItem[]) {
   const { onSnooze, onTakeOver, onMarkUnread, onOpenClient, onArchive } = acts;
   const snoozed = thread.state === "snoozed";
   const conversation: MenuItem[] = [
@@ -352,40 +349,7 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
           },
         ]
       : []),
-    // A call back nobody should make (decision 0136): said here, it is off the list, and their calls stop asking.
-    ...(acts.onNotACustomer
-      ? [
-          {
-            label: W.notACustomer,
-            meta: W.notACustomerHeldMeta,
-            glyph: ixGlyph("ban"),
-            square: true,
-            onSelect: acts.onNotACustomer,
-            gate: gate("approve", "say this is not a customer"),
-          },
-        ]
-      : []),
-    // A program's mail taken for a person (decision 0080): where the owner sees it, on the thread, rather than three
-    // screens away. It deletes, so it opens their page with Not a person asked, the typed name and all (00483).
-    ...(thread.real && thread.clientId && thread.primaryChannel === "email" && mayAtLeast("owner")
-      ? [
-          {
-            label: W.notACustomerAct,
-            // A sentence, so its second line: as the word at the item's end it broke the label onto three lines on a
-            // phone's sheet (the thread canvas, 1 Nov 2026).
-            meta: W.notACustomerMeta,
-            title: MAILBOX_SENDERS_WORDS.actHint,
-            glyph: ixGlyph("ban"),
-            square: "danger" as const,
-            tone: "danger" as const,
-            onSelect: () => {
-              if (!thread.clientId) return;
-              carryNotAPerson(thread.clientId);
-              onOpenClient(thread.clientId);
-            },
-          },
-        ]
-      : []),
+    ...saidNot,
   ];
   // Who it is about, at the sheet's head (the thread canvas): their face, how to reach them and since when, and their page
   // a press away, the whole row, so a chevron alone: "Profile" took the name's room (3 Nov 2026). A caller has none.
@@ -682,6 +646,9 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
   const [business, setBusiness] = useState<BusinessAsked | null>(null);
   // The deal's group and the seeded chip are made before the markup, as they were: a role gate is asked for each in that order.
   const dealActs = dealGroup(thread, facts);
+  const acts = { onSnooze, onTakeOver, onMarkUnread, onOpenClient, onArchive };
+  // The word that says they are no customer, under Contact, by what the thread is (dock/set-aside.tsx).
+  const saidNot = notACustomerItems(thread, { flash, onOpenClient });
   const alsoLeads = alsoInLeads(thread) ?? (thread.real ? worksAtDoor(facts, setBusiness) : null);
   // A line under the head's row (a reply's signer offered, a step due): on a phone the bar holds two rows, and is a card.
   const signer = person && person.signer ? person.signer : null;
@@ -726,19 +693,7 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
             </Button>
           }
           label={THREAD_PANE_WORDS.moreFor(thread.who)}
-          groups={actionsMenu(
-            thread,
-            dealActs,
-            {
-              onSnooze,
-              onTakeOver,
-              onMarkUnread,
-              onOpenClient,
-              onArchive,
-              onNotACustomer: heldNotACustomer(thread) ? () => void sayNotACustomer(thread, flash) : null,
-            },
-            facts,
-          )}
+          groups={actionsMenu(thread, dealActs, acts, facts, saidNot)}
         />
       </div>
       {thread.fromAd ? fromAdLine(thread.fromAd) : null}

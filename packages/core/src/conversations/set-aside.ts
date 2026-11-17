@@ -13,7 +13,7 @@ type SetAsideThread = Pick<Thread, "id" | "tenant_id"> & {
 };
 
 /** A door that changed no row did nothing at all: the thread moved while the person looked. */
-const moved = () => new AppError("conflict", "That thread has moved. Reload and try again.", 409);
+const threadMoved = () => new AppError("conflict", "That thread has moved. Reload and try again.", 409);
 
 /**
  * Not a customer (decisions 0093 and 0136). On a thread set aside it stays archived and leaves the Set aside list, and its
@@ -34,7 +34,7 @@ export async function markNotACustomer(
   if (held && !(await ports.setAside(conv.tenant_id, conv.id)))
     throw new AppError("conflict", "Someone on your team has this conversation. Hand it back, then say so.", 409);
   const done = await ports.notACustomer(conv.tenant_id, conv.id, undo);
-  if (!done) throw moved();
+  if (!done) throw threadMoved();
   return { set_aside: undo, decision_id: done.decision_id };
 }
 
@@ -50,8 +50,8 @@ export async function replyAnyway(
 ): Promise<{ reopened: true; decision_id: string }> {
   const { conv } = cmd;
   const saidNot = conv.set_aside_at === null && !!conv.set_aside_why;
-  if (saidNot && !(await ports.notACustomer(conv.tenant_id, conv.id, true))) throw moved();
+  if (saidNot && !(await ports.notACustomer(conv.tenant_id, conv.id, true))) throw threadMoved();
   const done = await ports.replyAnyway(conv.tenant_id, conv.id);
-  if (!done) throw moved();
+  if (!done) throw threadMoved();
   return { reopened: true, decision_id: done.decision_id };
 }
