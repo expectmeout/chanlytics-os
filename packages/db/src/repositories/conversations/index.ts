@@ -21,7 +21,8 @@ export {
   withdrawQueued,
 } from "./control";
 export type { CalledBack, ControlHolder, ControlOutcome, HandedBack, TakenOver, WithdrawReason } from "./control";
-export { findEscalationState } from "./escalations";
+export { findEscalationState, letHoldGo, listCallBacksGoneQuiet } from "./escalations";
+export type { QuietCallBack } from "./escalations";
 export { claimIdempotencyKey, keepIdempotencyReceipt, releaseIdempotencyKey, takeIdempotencyKey } from "./idempotency";
 export type { IdempotencyClaim, IdempotencyHold } from "./idempotency";
 export {

@@ -224,7 +224,7 @@ test("REGRESSION: a call back read as someone selling is kept as what it is, the
   assert.equal(await write(w, { kind: "brief" }), "set_aside");
   const [, kept] = w.calls("keep")[0];
   assert.deepEqual([kept.kind, kept.state, kept.words.pitch], ["brief", "pitch", "search rankings"]);
-  assert.deepEqual(w.calls("caller")[0].slice(1), [T, { conversationId: C, contactId: "k1" }]);
+  assert.deepEqual(w.calls("caller")[0].slice(1), [T, C]);
   assert.deepEqual(w.calls("setAside")[0].slice(1), [T, C, "pitch"]);
   assert.ok(
     w.log.findIndex((c) => c[0] === "keep") < w.log.findIndex((c) => c[0] === "setAside"),

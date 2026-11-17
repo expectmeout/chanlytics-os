@@ -20,7 +20,10 @@
  *   2. sweepStrandedRuns (lib/receptionist/stranded-runs.ts), on its own too (stranded_run_sweep_failed) and inside a time
  *      budget: a run still scheduled ten minutes past its time with no broadcast_send job to start it is marked not
  *      sent (run_interrupted) and its owner told once, with the run's own link. A reach-out's run is not one.
- *   3. deadman_candidates(UNANSWERED_AFTER): the open escalations nobody has been warned about, oldest first. Each
+ *   3. sweepQuietCallBacks (lib/receptionist/quiet-call-backs.ts), in the first tick of each hour, on its own
+ *      (quiet_call_back_sweep_failed) and inside a time budget: a call back asked for by a call that reached no answer,
+ *      a week quiet, from nobody the business talks with, is let go (decision 0136).
+ *   4. deadman_candidates(UNANSWERED_AFTER): the open escalations nobody has been warned about, oldest first. Each
  *      workspace's people are looked up once (loadTenantNotifications) and told once per hold (notifyOnce, under
  *      `deadman:<escalation>`): a row on its bell of kind `deadman`, its phones, and a mail carrying the customer to the
  *      workspace's OWN recipients. Only a delivered warning earns the once-guard, and it lives on the ROW
@@ -55,6 +58,7 @@ import { markProcessed } from "@chanlytics/db/channels";
 import { upsertEscalation } from "@chanlytics/jobs";
 import { sweepUnfinished } from "./unfinished.js";
 import { sweepStrandedRuns } from "./stranded-runs.js";
+import { quietPassDue, sweepQuietCallBacks } from "./quiet-call-backs.js";
 import { MIN_MS, reasonLabelOf, waitsOnAPerson } from "@chanlytics/contracts";
 import type { SweepTick } from "../ops/sweep-door.js";
 import { listDeadmanCandidates, markDeadmanAlerted } from "@chanlytics/db/conversations";
@@ -91,6 +95,8 @@ interface Candidate {
 const UNFINISHED_BUDGET_MS = 15_000;
 /** How long into the tick the stranded runs may keep telling: the two-hour watchdog after them needs the rest. */
 const STRANDED_BUDGET_MS = 20_000;
+/** How long into the tick the call backs gone quiet may keep being let go, in the hour's one pass. */
+const QUIET_BUDGET_MS = 25_000;
 /** How long into the tick a warning may still be started: one started at the line has its mail's time and its stamp. */
 const WARN_BUDGET_MS = 35_000;
 /** And a page for a workspace nobody can be told about, after the last warning's mail; a page stamps when it sends. */
@@ -129,6 +135,16 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
     }));
   } catch (e) {
     L.error("stranded_run_sweep_failed", { error: errField(e) });
+  }
+  // A call back asked for by silence, a week quiet, from nobody the business talks with (receptionist/quiet-call-backs.ts):
+  // once an hour, on its own too, so it never costs the watchdog its tick.
+  // Each one let go is its own line (call_back_let_go): the door's answer keeps its shape.
+  if (quietPassDue(started)) {
+    try {
+      await sweepQuietCallBacks({ db, L, deadline: started + QUIET_BUDGET_MS });
+    } catch (e) {
+      L.error("quiet_call_back_sweep_failed", { error: errField(e) });
+    }
   }
   const fields = { ...unfinished, stranded };
 

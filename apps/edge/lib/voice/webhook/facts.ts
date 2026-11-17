@@ -52,7 +52,7 @@ export async function callerStanding(
 ): Promise<CallerStanding | null> {
   const settles = event === "call_ended" || event === "call_analyzed";
   if (!settles || normalizedCall.direction !== "inbound" || res.skipped || !res.conversation_id) return null;
-  return findCallerFacts(db, routed.tenantId, { conversationId: res.conversation_id, contactId: res.contact_id })
+  return findCallerFacts(db, routed.tenantId, res.conversation_id)
     .then(callerStandingOf)
     .catch(logAndGoOn("reading what is known of a caller", null));
 }

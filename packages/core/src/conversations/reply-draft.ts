@@ -115,10 +115,7 @@ export interface ReplyDraftPorts {
    * What is known of a call back's caller (contracts callerStandingOf, decision 0136): the workspace's own word about
    * their thread, and whether the business talks with them. Null where it could not be read, and then nothing is set aside.
    */
-  caller(
-    tenantId: TenantId,
-    thread: { conversationId: string; contactId: ContactId | null },
-  ): Promise<CallerStanding | null>;
+  caller(tenantId: TenantId, conversationId: string): Promise<CallerStanding | null>;
   /** The thread set aside (00539): its hold resolved, nothing counted, nothing warned of. */
   setAside(tenantId: TenantId, conversationId: string, why: "pitch" | "notice"): Promise<boolean>;
   /** The writer, which the edge holds: the brain and the workspace's whole runtime. */
@@ -312,7 +309,7 @@ export async function writeReplyDraft(
   // 0136): kept first, as an email's pitch is, then set aside. Never someone the business talks with, nor one a member
   // answered anyway, nor one who could not be read: the note says what they sell, and the call back stays theirs.
   if (kind === "brief" && result.state === "pitch") {
-    const standing = await ports.caller(tenantId, { conversationId, contactId: thread.contactId });
+    const standing = await ports.caller(tenantId, conversationId);
     if (standing && strangerCaller(standing) && (await ports.setAside(tenantId, conversationId, "pitch")))
       return "set_aside";
   }

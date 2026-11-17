@@ -44,8 +44,8 @@ export function replyDraftPortsOf(db: Db, edge: ReplyDraftEdge): ReplyDraftPorts
       read: (tenantId, email, until) => edge.readSender(tenantId, email, until),
     },
     // A caller who could not be read is set aside by nothing: the note says what they sell, and the call back stays.
-    caller: (tenantId, thread) =>
-      findCallerFacts(db, tenantId, thread)
+    caller: (tenantId, conversationId) =>
+      findCallerFacts(db, tenantId, conversationId)
         .then(callerStandingOf)
         .catch(logAndGoOn("reading what is known of a call back's caller", null)),
     setAside: (tenantId, conversationId, reason) => setConversationAside(db, { tenantId, conversationId, why: reason }),

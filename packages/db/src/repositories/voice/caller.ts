@@ -1,8 +1,8 @@
 /**
  * What a caller's record holds, for the one question a call asks of it (decision 0136, contracts voice/call-back-owed.ts):
  * whether the workspace said their thread is not a customer's, and whether the business talks with them. Five small
- * reads, side by side, asked only of a call that would ask a person for a call back. Any that fails is thrown: the
- * door then asks for the call back, as it always did.
+ * reads in two steps, asked only of a call that would ask a person for a call back, of a call back read as someone
+ * selling, and of one gone quiet for a week. Any that fails is thrown: the caller then does what it did without it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DbFailure } from "@chanlytics/contracts";
@@ -58,22 +58,26 @@ async function phonedThem(db: Db, tenantId: TenantId, contactId: ContactId): Pro
   return (data ?? []).length > 0;
 }
 
-/** A caller's record, as contracts' callerStandingOf reads it. */
-export async function findCallerFacts(
-  db: Db,
-  tenantId: TenantId,
-  caller: { conversationId: string; contactId: ContactId | null },
-): Promise<CallerFacts> {
-  const { conversationId, contactId } = caller;
+/** A caller's record, as contracts' callerStandingOf reads it: their thread first, which names the person. */
+export async function findCallerFacts(db: Db, tenantId: TenantId, conversationId: string): Promise<CallerFacts> {
   const scoped = tenantDb(db, tenantId);
-  const [thread, person, lastWord, wrote, phoned] = await Promise.all([
-    scoped.from("conversations").select("set_aside_at, set_aside_why").eq("id", conversationId).maybeSingle(),
-    contactId ? scoped.from("contacts").select("acquired_via, name_source").eq("id", contactId).maybeSingle() : null,
+  const [thread, lastWord, wrote] = await Promise.all([
+    scoped
+      .from("conversations")
+      .select("set_aside_at, set_aside_why, contact_id")
+      .eq("id", conversationId)
+      .maybeSingle(),
     lastWordOf(db, tenantId, conversationId),
     wroteWith(db, tenantId, conversationId),
-    contactId ? phonedThem(db, tenantId, contactId) : false,
   ]);
   if (thread.error) throw new DbFailure(thread.error, "reading a caller's thread");
+  const contactId = thread.data?.contact_id ?? null;
+  const [person, phoned] = contactId
+    ? await Promise.all([
+        scoped.from("contacts").select("acquired_via, name_source").eq("id", contactId).maybeSingle(),
+        phonedThem(db, tenantId, contactId),
+      ])
+    : [null, false];
   if (person?.error) throw new DbFailure(person.error, "reading a caller's record");
   return {
     setAsideAt: thread.data?.set_aside_at ?? null,
