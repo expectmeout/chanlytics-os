@@ -73,6 +73,7 @@ export function rowWords(row: TodayQueueRowVM) {
     wait: waitOf(row),
     sentence: line.sentence,
     saidTone: line.tone,
+    saidToneOn: line.toneOn,
     quoted: line.quoted,
     lead: row.lead,
     status: waits ? [] : row.status,

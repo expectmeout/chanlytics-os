@@ -1,8 +1,8 @@
 /**
  * A radial meter: one share against its whole, for the numbers that are a ratio (answered, booked). Moved whole from
- * legacy/components/chart-radial.jsx (decision 0015). A 270-degree arc in ink on a track that is a pale step of the same
- * ink, so the unfilled part still reads as "of this"; a small tick marks the period before when there is one. Round
- * caps; the value sweeps in once, never loops.
+ * legacy/components/chart-radial.jsx (decision 0015). A 270-degree arc in the ok tone's green (both shares it draws are a
+ * good outcome, as the app's tones say; charts.css) on a pale track, so the unfilled part still reads as "of this"; a small
+ * tick marks the period before when there is one. Round caps; the value sweeps in once, never loops.
  */
 import type { CSSProperties, ReactNode } from "react";
 import { ckArcLine, ckPolar } from "./geometry";

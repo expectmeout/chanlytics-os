@@ -53,6 +53,12 @@ interface AttnRowProps {
   quoted?: boolean;
   /** The tone the sentence itself takes where its words are the warning: a to-do past its day, a reply that never arrived. */
   saidTone?: "warn" | "danger" | null;
+  /**
+   * The words of the sentence that are the warning, where only they are: the tone is theirs and the rest keeps the line's
+   * ink (a to-do's "overdue since Thu", not whose it is: the 60-30-10 read, 17 Nov 2026). The whole sentence takes it
+   * where they are not given, or not in it.
+   */
+  saidToneOn?: string | null;
   /** What the sentence is about, said before it in bold: an email's subject, before the words they wrote. */
   lead?: string;
   status?: readonly ReactNode[];
@@ -197,11 +203,13 @@ function attnSentence(
     lead,
     via,
     saidTone,
+    saidToneOn,
   }: {
     quoted: boolean;
     lead: string;
     via: { glyph: string; words: string } | null;
     saidTone: "warn" | "danger" | null;
+    saidToneOn: string | null;
   },
 ) {
   const said = quoted ? `“${sentence}”` : sentence;
@@ -212,6 +220,17 @@ function attnSentence(
       <span className="rec-sr">{via.words}: </span>
     </span>
   ) : null;
+  // The tone on the words that are the warning alone, where the row names them and they are in the sentence.
+  const at = saidTone && saidToneOn && !lead ? said.indexOf(saidToneOn) : -1;
+  if (at >= 0)
+    return (
+      <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`} {...when}>
+        {wire}
+        {said.slice(0, at)}
+        <span data-tone={saidTone ?? undefined}>{saidToneOn}</span>
+        {said.slice(at + (saidToneOn?.length ?? 0))}
+      </div>
+    );
   if (!lead)
     return (
       <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`} data-tone={saidTone ?? undefined} {...when}>
@@ -251,6 +270,7 @@ export function AttnRow({
   via = null,
   quoted = false,
   saidTone = null,
+  saidToneOn = null,
   lead = "",
   status = [],
   note = "",
@@ -288,7 +308,7 @@ export function AttnRow({
       {attnFace(person, glyph, initials)}
       <div className="cl-attn-body" {...(work && onOpen ? opener : {})}>
         {attnName(name, trail, meta, { wait, mark: nameMark(note, status) })}
-        {attnSentence(sentence, { quoted, lead, via, saidTone })}
+        {attnSentence(sentence, { quoted, lead, via, saidTone, saidToneOn })}
         {/* The state line, where the row says one: a row of someone waiting says none (Today's), and draws no empty line. */}
         {attnStatus(status, note)}
       </div>

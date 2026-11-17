@@ -184,7 +184,7 @@ export function OlderGroup({
   const [open, setOpen] = useRowState("today-older", "open", false);
   const [only] = rows;
   return (
-    <NeedYouGroup title={W.group.old} count={null} bare={bare || rows.length > 1} testid="today-group-old">
+    <NeedYouGroup kind="old" title={W.group.old} count={null} bare={bare || rows.length > 1} testid="today-group-old">
       {only && rows.length === 1 && !handed ? (
         <OlderPerson row={only} ctx={ctx} />
       ) : (

@@ -410,11 +410,12 @@ export const TODAY_PHONE_WORDS = {
   /** The day's figures on a phone, with the week under them: the card's name. */
   soFar: "Today so far",
   /**
-   * The key to the period's days drawn beside its line (the canvas check of 17 Nov 2026): what the ok tone's part of a day
-   * is, and which day is the accent's. The rest of a day, in the hairline's colour, is what AI did not answer: named by
-   * neither, since "by you" would be untrue of a message nobody answered.
+   * The key to the period's days drawn beside its line (his look, 17 Nov 2026): what the ok tone's part of a column is,
+   * and its faint rest, the messages AI did not answer ("by you" would be untrue of one nobody answered). And the word
+   * under the last column, where the days end: today.
    */
-  monthKey: { ai: ANSWERED_BY_AI_WORDS, today: "Today" },
+  monthKey: { ai: ANSWERED_BY_AI_WORDS, rest: "Other messages" },
+  monthEnd: "Today",
   /** Today so far on a day nothing was counted: one line under the day, in the four zeros' place. */
   soFarNothing: "Nothing yet today",
   /** The day after closing (the canvas of 2 Nov 2026): tomorrow's name, its first visit, and what already happened. */

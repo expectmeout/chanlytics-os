@@ -324,8 +324,19 @@
 .tpd-fact {
   color: var(--ink-dim);
 }
-.tpd-bar {
-  margin: 0 0 6px;
+/* The bar and the hours at its ends under it, one piece, 12px over the day's rest. */
+.tpd-span {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 2px 0 var(--space-3);
+}
+.tpd-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  line-height: 14px;
+  color: var(--ink-dim);
 }
 .tpd-rest {
   display: flex;
@@ -722,7 +733,10 @@
   padding: 2px var(--space-2);
   border-left: 1px solid var(--line);
 }
+/* The first keeps its padding, so its number stands on the card's gutter with the name and the days: the phone's rule
+   for the 2 x 2 figures took it, and "6 booked" stood 8px out of line (his look, 17 Nov 2026). */
 .tz-sofar-figs .tc-fig:first-child {
+  padding-left: var(--space-2);
   border-left: 0;
 }
 .tz-sofar-figs .tc-fig-n {
@@ -944,10 +958,10 @@
   width: 84px;
 }
 
-/* The period's days beside its line (Today with colour, D7, 17 Nov 2026): the kit's spark, before the chevron on a desk's
-   strip, and over the line, the width of the pane, on a phone. Their key says the two colours (the canvas check of 17 Nov
-   2026): the ok tone's swatch for what AI answered, the accent's for today; under the line on a desk, between the days
-   and the line on a phone. */
+/* The period's days beside its line (Today with colour, D7; redrawn on his look, 17 Nov 2026): the kit's spark, before the
+   chevron on a desk's strip, and over the line, the width of the pane, on a phone; its columns spread across the width,
+   the last at its right edge over the word "Today". Their key says the two colours: the ok tone's swatch for what AI
+   answered, the faint ink's for the rest; under the line on a desk, between the days and the line on a phone. */
 .tz-week-says {
   display: flex;
   flex-direction: column;
@@ -975,13 +989,26 @@
   border-radius: var(--radius-xs);
   background: var(--ok);
 }
-.tz-month-key > .tz-key-today::before {
-  background: var(--accent);
+.tz-month-key > .tz-key-rest::before {
+  background: var(--ink-faint);
 }
 .tz-week > .tz-month {
+  display: flex;
   flex: 0 1 360px;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
   margin-left: auto;
+}
+.tz-month-days {
+  justify-content: space-between;
   height: 44px;
+}
+.tz-month-end {
+  align-self: flex-end;
+  font-size: var(--text-xs);
+  line-height: 14px;
+  color: var(--ink-dim);
 }
 .tz-sofar .tz-week-says {
   flex-direction: column-reverse;
