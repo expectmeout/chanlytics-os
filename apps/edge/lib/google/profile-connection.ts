@@ -5,12 +5,15 @@
  * (`bindLocation`, through profile-sync.ts), and the grant is given back
  * (`disconnectProfile`).
  *
- * A connect that cannot finish gives the grant back and says why as an EdgeRefusal: a scope or a refresh token missing,
- * accounts that cannot be read, no location, none on Maps. A connect is also a RE-connect, so a vault write that fails
- * puts the previous row back rather than deleting a working connection, and gives the new grant back only when it is
- * another Google account's. Only one location on Maps is bound at once; several wait for the owner's choice
- * (`getLocations` reads them again). A connect and a disconnect each write their event (google.connected,
- * google.disconnected).
+ * A connect that cannot finish says why as an EdgeRefusal: a scope or a refresh token missing, accounts that cannot be
+ * read, no location, none on Maps. A connect is also a RE-connect, so a vault write that fails puts the previous row
+ * back rather than deleting a working connection. Only one location on Maps is bound at once; several wait for the
+ * owner's choice (`getLocations` reads them again). A connect and a disconnect each write their event
+ * (google.connected, google.disconnected).
+ *
+ * A grant that is not kept (a connect that cannot finish, a disconnect) goes back to Google only when no other
+ * connection of its Google account rides it: Google ends every token the account gave this project at once, the
+ * mailbox's among them (shared/google/give-back.ts, the one rule for it).
  */
 import { emitEvent } from "@chanlytics/db/events";
 import { findLinkedPlace } from "@chanlytics/db/imports";
@@ -30,6 +33,7 @@ import { profileClient } from "../shared/google/config.js";
 import { http } from "../shared/google/places.js";
 import { connectionOf, type ConnectionRow, type Db } from "../shared/google/rows.js";
 import { grantFrom, readCredentials, storeCredentials, tokenFor } from "../shared/google/credentials.js";
+import { giveGoogleGrantBack } from "../shared/google/give-back.js";
 import type { CheckResult } from "./listing-check.js";
 import { syncProfile } from "./profile-sync.js";
 import { syncMended } from "./sync-notice.js";
@@ -79,7 +83,8 @@ async function allLocations(token: string, net: PlacesHttp = http): Promise<Loca
  * The code from Google becomes the workspace's connection: the token in
  * Vault, the accounts and locations read, and — with one location on Maps —
  * the listing bound and synced at once. Several locations wait for the
- * owner's choice; none refuses and revokes what was granted.
+ * owner's choice; none refuses, and what was granted is given back where
+ * nothing else of that Google account rides it.
  *
  * `net` is the ONE thing here that reaches Google, handed in so the paths that
  * matter most can be run instead of read: this function can destroy a working
@@ -109,30 +114,34 @@ export async function connectProfile(
   } catch (e) {
     return { ok: false, error: "exchange_failed", detail: e instanceof Error ? e.message : String(e) };
   }
+  const claims = idTokenClaims(grant.id_token);
+  // A grant this connect does not keep, given back unless another connection of its Google account rides it: this
+  // workspace's own working profile on a re-connect, or a mailbox in any workspace (shared/google/give-back.ts).
+  const giveBack = (token: string) =>
+    giveGoogleGrantBack(db, { account: claims.sub, token }, (given) => net(revokeRequest(given)));
   if (!grantHasScope(grant, BUSINESS_SCOPE)) {
-    await net(revokeRequest(grant.access_token)).catch(logAndGoOn("giving a Google grant back", null));
+    await giveBack(grant.access_token);
     return { ok: false, error: "scope_missing" };
   }
   if (!grant.refresh_token) {
-    await net(revokeRequest(grant.access_token)).catch(logAndGoOn("giving a Google grant back", null));
+    await giveBack(grant.access_token);
     return { ok: false, error: "no_refresh_token" };
   }
-  const claims = idTokenClaims(grant.id_token);
   let locations: LocationChoice[];
   try {
     locations = await allLocations(grant.access_token, net);
   } catch (e) {
-    await net(revokeRequest(grant.refresh_token)).catch(logAndGoOn("giving a Google grant back", null));
+    await giveBack(grant.refresh_token);
     return { ok: false, error: "accounts_unreadable", detail: e instanceof Error ? e.message : String(e) };
   }
   const onMaps = locations.filter((l) => !!l.place_id);
   if (!locations.length) {
-    await net(revokeRequest(grant.refresh_token)).catch(logAndGoOn("giving a Google grant back", null));
+    await giveBack(grant.refresh_token);
     return { ok: false, error: "no_locations" };
   }
   const first = onMaps[0];
   if (!first) {
-    await net(revokeRequest(grant.refresh_token)).catch(logAndGoOn("giving a Google grant back", null));
+    await giveBack(grant.refresh_token);
     return { ok: false, error: "not_on_maps" };
   }
   const row = {
@@ -180,17 +189,17 @@ export async function connectProfile(
       logger({ tenant_id: tenantId }).error("google_connection_restore_failed", { restored, error: put.error.message });
     // Giving the grant back is right when we are leaving nothing behind. It is
     // wrong when we just restored a connection for the SAME Google account:
-    // Google revokes the grant for a client/user pair, not one token of it, so
+    // Google revokes the account's whole grant, not one token of it, so
     // handing this refresh token back would kill the credentials the restored
-    // row runs on -- destroying the connection by the other route.
-    // `claims.sub` is null whenever the id_token was missing or unparsable, and
-    // "unknown" is not "different": `"sub-1" !== null` would revoke the grant
-    // the row we just restored runs on, which is precisely the outage this
-    // guard exists to prevent. Not knowing means leaving it alone -- a grant
-    // left live costs nothing a person cannot undo; a dead one costs them the
-    // connection.
-    const otherAccount = claims.sub != null && prior.data?.google_sub !== claims.sub;
-    if (!restored || otherAccount) await net(revokeRequest(grant.refresh_token)).catch(() => null);
+    // row runs on -- destroying the connection by the other route. The rule
+    // is asked AFTER the row is put back or gone, so it reads what this
+    // failure left behind: the restored row holds its own account's grant,
+    // and another account's goes back unless a mailbox rides it.
+    // `claims.sub` is null whenever the id_token was missing or unparsable,
+    // and the rule leaves such a grant alone: not knowing is not alone -- a
+    // grant left live costs nothing a person cannot undo; a dead one costs
+    // them the connection.
+    await giveBack(grant.refresh_token);
     return { ok: false, error: "credentials_failed", detail: logFailure("write", error) };
   }
   await emitEvent(db, tenantId, "google.connected", "listing", null, {
@@ -314,7 +323,10 @@ export async function bindLocation(
   return { ok: true, connection: after.error ? saved.data : (after.data ?? saved.data), read };
 }
 
-/** The grant given back to Google, the token gone from Vault, the row gone, the profile's reviews gone. The listing stays. */
+/**
+ * The token gone from Vault, the row gone, the profile's reviews gone; the listing stays. The grant goes back to Google
+ * only when nothing else of its Google account rides it (shared/google/give-back.ts): `revoked` says whether it did.
+ */
 export async function disconnectProfile(
   db: Db,
   tenantId: TenantId,
@@ -325,8 +337,13 @@ export async function disconnectProfile(
   let revoked = false;
   const creds = await readCredentials(db, tenantId).catch(logAndGoOn("readCredentials", null));
   if (creds) {
-    const r = await http(revokeRequest(creds.refresh_token)).catch(logAndGoOn("giving a Google grant back", null));
-    revoked = !!r && r.status === 200;
+    // The row is still there (it goes last), so it is named as the one leaving.
+    const outcome = await giveGoogleGrantBack(
+      db,
+      { account: conn.google_sub, token: creds.refresh_token, leaving: { profile: tenantId } },
+      (given) => http(revokeRequest(given)),
+    );
+    revoked = outcome === "given";
   }
   // Before the row goes: it is what a token left in Vault would be found by, and a retry starts from it.
   const dropped = await dropGoogleCredentials(db, tenantId);

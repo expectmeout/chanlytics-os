@@ -37,6 +37,7 @@ import { LineBox, LineField, LinePress } from "../../apps/dashboard/src/surfaces
 import { LinkButton } from "../../apps/dashboard/src/surfaces/kit/link-button/link-button.tsx";
 import { ListRow } from "../../apps/dashboard/src/surfaces/kit/list-row/list-row.tsx";
 import { Meter } from "../../apps/dashboard/src/surfaces/kit/meter/meter.tsx";
+import { Spark } from "../../apps/dashboard/src/surfaces/kit/spark/spark.tsx";
 import { DayRangePicker } from "../../apps/dashboard/src/surfaces/kit/datepicker/day-range-picker.tsx";
 import { Panel } from "../../apps/dashboard/src/surfaces/kit/panel/panel.tsx";
 import { Search } from "../../apps/dashboard/src/surfaces/kit/search/search.tsx";
@@ -221,6 +222,13 @@ const BUTTONS = {
     h(Button, { size: "sm", variant: "soft", "aria-expanded": true }, "Signature", glyph()),
     h(Button, { iconOnly: true, size: "touch", variant: "soft", "aria-label": "More" }, glyph()),
     h(Button, { size: "lg", variant: "ink" }, glyph(), "Send now"),
+  ],
+  // Today with colour: the page's one primary, and a pane's first act at half its weight beside it.
+  "btn-lead": () => [
+    h(Button, { variant: "primary" }, "Reply"),
+    h(Button, { variant: "lead" }, "Set up forwarding"),
+    h(Button, { size: "sm", variant: "lead" }, "Offer it"),
+    h(Button, { size: "sm", variant: "lead" }, "See who", glyph()),
   ],
   // A walk's ‹ ›: the chevron, the first one turned (kit.css .icon-turned).
   "btn-icon-turned": () => [
@@ -567,7 +575,53 @@ const METERS = {
       mark: 0.5,
       "aria-label": "Today: 4 visits done, one under way, 2 to come; now 4:12 PM",
     }),
+  "meter-day": () =>
+    h(Meter, {
+      parts: [
+        { share: 1, tone: "went" },
+        { share: 1, tone: "now" },
+        { share: 2.5, tone: "ahead" },
+        { share: 0.5, tone: "free" },
+      ],
+      size: "lg",
+      mark: 0.25,
+      "aria-label": "Today: 1 visit done, one under way, 4 to come, open 4:30 to 6 PM; now 10:14 AM",
+    }),
 };
+
+/** The gallery's Spark family, entry by entry. */
+const SPARKS = {
+  spark: () =>
+    h(Spark, {
+      columns: [
+        { value: 1, part: 1 },
+        { value: 4, part: 2 },
+        { value: 16, part: 12 },
+        { value: 9, part: 9 },
+      ],
+      today: true,
+      "aria-label": "Last 30 days: 30 messages, 24 answered by AI",
+    }),
+  "spark-sm": () =>
+    h(Spark, {
+      columns: [{ value: 4 }, { value: 16 }, { value: 0 }, { value: 9 }],
+      today: true,
+      size: "sm",
+      "aria-label": "Last 7 days of calls, today 9",
+    }),
+};
+
+test("Spark draws the gallery's Spark family: an image of its columns, each on the square root of its share of the tallest, today's the accent", () => {
+  assert.deepEqual(parting(FAMILIES, "Spark", SPARKS), HELD);
+  // One busy day never flattens the rest: a day of one beside a day of a hundred is a tenth of its height, and a day of
+  // nothing keeps the stylesheet's stub.
+  const month = drawn(h(Spark, { columns: [{ value: 1 }, { value: 100 }, { value: 0 }], "aria-label": "A month" }));
+  assert.deepEqual(
+    month.props.children.map((column) => column.props.style.height),
+    ["10%", "100%", undefined],
+    "REGRESSION: on a straight scale a day of one beside a day of a hundred was a hairline, and the month read as one bar",
+  );
+});
 
 test("Meter draws the gallery's Meter family: an image of its parts, each share its flex-grow, and no part of nothing", () => {
   assert.deepEqual(parting(FAMILIES, "Meter", METERS), HELD);

@@ -14,16 +14,19 @@ import {
   type PersonRowDto,
   type PersonRowVM,
   type PipelineVM,
+  type SeenOf,
 } from "@chanlytics/contracts";
-import { PEOPLE_PAGE, countPeople, listPeople, nextPeopleParam, findOnePerson } from "../people/people";
+import type { ContactId, TenantId } from "@chanlytics/contracts";
+import type { RouteContext } from "../shared/with-route";
+import { PEOPLE_PAGE, countPeople, startPeoplePage, nextPeopleParam, findOnePerson } from "../people/people";
 import type { PeopleCursor } from "@chanlytics/db/people";
-import { withVisits, type PeopleVisits } from "../calendar/people-visits";
+import { getCalendar, withVisits, type PeopleVisits } from "../calendar/people-visits";
 import { findDealPace } from "../people/deals";
 import { readStepNamer } from "../people/person-notes";
 import { getSeenOfPeople } from "../people/person-seen";
 import { followUpFacts } from "../campaigns/playbooks";
-import { load, readerStamp, type Reader, type RowRef } from "../shared/reader";
-import { everyone } from "./everyone";
+import { load, readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
+import { everyone, peopleFirstRows } from "./everyone";
 import * as facts from "./facts";
 import { log } from "@/server/shared/log";
 
@@ -60,6 +63,76 @@ interface PeoplePage {
    */
   page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean; next: string | null };
 }
+
+/** What the member asking has seen of each of these people, read for them (people/person-seen.ts). */
+const seenOfRows =
+  (ctx: RouteContext, tenantId: TenantId) =>
+  (rows: readonly PersonRowDto[]): Promise<(contactId: ContactId) => SeenOf> =>
+    getSeenOfPeople(
+      ctx,
+      tenantId,
+      rows.map((r) => heldContactId(r.id)),
+    );
+
+/**
+ * What the member asking has seen of a page's people, asked as soon as the page says who is on it (startPeoplePage's
+ * `listed`: its reply modes, which land well before its rows) rather than once the rows are in, a round trip the rows
+ * waited out (16 Nov 2026). Where the rows hold anyone that read did not ask about (someone who wrote between the two
+ * statements), or it could not be made, it is read for the rows, as it always was, and that read's answer or failure
+ * is the page's.
+ */
+function seenOfPage(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  listed: Promise<string[] | null>,
+): (rows: readonly PersonRowDto[]) => Promise<(contactId: ContactId) => SeenOf> {
+  const seenOfListed = early(
+    listed.then(async (ids) =>
+      ids === null ? null : { ids: new Set(ids), seenOf: await getSeenOfPeople(ctx, tenantId, ids.map(heldContactId)) },
+    ),
+  );
+  return async (rows) => {
+    // An early read that failed is read again for the rows below, whose failure is the page's.
+    const beforeRows = await seenOfListed.catch(() => null);
+    if (beforeRows && rows.every((r) => beforeRows.ids.has(r.id))) return beforeRows.seenOf;
+    return seenOfRows(ctx, tenantId)(rows);
+  };
+}
+
+/**
+ * A page of People with how many there are, and what the member has seen of its people as seenOfPage reads it. Just past
+ * the cursor when the page holds one, else by the offset: never both, since the offset then only counts what the page
+ * holds. The first page's rows are the turn's (readers/everyone.ts peopleFirstRows), which everyone in People begins
+ * with too: a request that reads both asks for them once.
+ */
+async function readPage(
+  rc: ReaderContext,
+  { q, offset, after }: { q: string | null; offset: number; after: PeopleCursor | null },
+) {
+  const first = !after && offset === 0 && !q ? load(rc, peopleFirstRows, undefined).then((r) => r.data) : undefined;
+  const page = startPeoplePage(
+    rc.ctx,
+    rc.tenantId,
+    after ? { q, after, limit: PEOPLE_PAGE } : { q, offset, limit: PEOPLE_PAGE },
+    first,
+  );
+  // Asked as soon as the page says who is on it, before its rows are in.
+  const seenFor = seenOfPage(rc.ctx, rc.tenantId, page.listed);
+  const [rows, total] = await Promise.all([page.rows, load(rc, peopleCount, { q }).then((r) => r.data)]);
+  return { rows, total, seenFor };
+}
+
+/**
+ * How many People lists, or match a search (countPeople): a page's "N of M" and whether it is the last. One count a turn,
+ * so a read that needs only how many there are (Today's, readers/today.ts todayPeople) and GET contacts' page beside it
+ * count once.
+ */
+export const peopleCount: Reader<{ q: string | null }, number> = {
+  name: "peopleCount",
+  async read(rc, { q }) {
+    return { data: await countPeople(rc.ctx, rc.tenantId, q), rows: [], stamp: readerStamp() };
+  },
+};
 
 /**
  * GET contacts, as the route answers it: a page of everyone who has written to or phoned the workspace, computed in SQL
@@ -118,31 +191,27 @@ export const people: Reader<
       firstPage ? load(rc, facts.channelsReady, undefined).then((r) => r.data) : Promise.resolve(null),
     );
     const zone = early(facts.zoneAndSettings(rc)());
+    // The calendar everyone's appointments are read from, started with the rows rather than after them: none of it
+    // depends on who is in People, and it waited for the rows, a whole round trip, and on a server that had not read
+    // the calendar yet, its feed's fetch after that (16 Nov 2026). Matched to the rows once they are in, below.
+    const calendar = early(getCalendar(ctx, tenantId, rc.now, () => zone, { stale: true }));
     // The thread's person alone, in place of a page.
     const theirs = thread ? await findOnePerson(ctx, tenantId, { thread }).then((one) => (one ? [one] : [])) : null;
-    const [rows, total] = theirs
-      ? [theirs, theirs.length]
-      : await Promise.all([
-          // Just past the cursor when the page holds one, else by the offset: never both, since the offset then only
-          // counts what the page holds.
-          listPeople(ctx, tenantId, after ? { q, after, limit: PEOPLE_PAGE } : { q, offset, limit: PEOPLE_PAGE }),
-          countPeople(ctx, tenantId, q),
-        ]);
+    // A page, or the thread's person alone; and what the member asking has seen of each (00349, people/person-seen.ts):
+    // the row says who is new to them, as the Inbox's does.
+    const { rows, total, seenFor } = theirs
+      ? { rows: theirs, total: theirs.length, seenFor: seenOfRows(ctx, tenantId) }
+      : await readPage(rc, { q, offset, after: after ?? null });
     // Each person with their appointments from the owner's calendar, when one is connected: Booked is a fact here,
     // not a stage. Never fatal to the list, and said from the calendar's last good read while a newer one is fetched
     // behind it, as a person's page says them (person-visits.ts): what was booked, never an opening offered. And who
-    // each next step is for (00166), from the team, read only when a step is for someone. And what the member asking
-    // has seen of each (00349, people/person-seen.ts): the row says who is new to them, as the Inbox's does.
+    // each next step is for (00166), from the team, read only when a step is for someone.
     const [out, hasDeals, appointmentWord, nameSteps, seenOf] = await Promise.all([
-      withVisits(ctx, tenantId, rows, rc.now, () => zone, { stale: true }),
+      withVisits(ctx, tenantId, rows, rc.now, () => zone, { stale: true, calendar }),
       dealt,
       word,
       readStepNamer(ctx, tenantId, rows),
-      getSeenOfPeople(
-        ctx,
-        tenantId,
-        rows.map((r) => heldContactId(r.id)),
-      ),
+      seenFor(rows),
     ]);
     // A short page is the last: someone who wrote as the pages were read counts in the total, and is read first on the
     // next pass, never after the cursor.

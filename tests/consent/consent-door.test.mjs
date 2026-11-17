@@ -759,9 +759,9 @@ test("on the loaded profile, a consent change is on the timeline with how we kno
       },
     ],
   });
-  // The timeline is its own component (PersonTimeline), drawn by the page: what it drew is read from there.
-  const found = all(tree, (n) => n.type === PersonTimeline);
-  assert.equal(found.length, 1, "the timeline is drawn once");
+  // The timeline is its own component (PersonTimeline), drawn by the page's History: what it drew is read from there.
+  const found = all(byTestId(tree, "person-history"), (n) => n.type === PersonTimeline);
+  assert.equal(found.length, 1, "History draws the timeline once");
   const texts = [];
   walk(found[0], (n) => {
     for (const k of n.props?.children ?? []) if (typeof k === "string") texts.push(k);

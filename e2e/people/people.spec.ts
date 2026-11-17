@@ -142,11 +142,12 @@ test.describe("People on a real workspace", () => {
     // two newest messages the timeline opens on, and a six-cell strip said the rail's facts again.
     await expect(page.getByText("Last exchange")).toHaveCount(0);
     await expect(page.locator(".cl-prof-money")).toHaveCount(0);
-    // Where they stand is one line under the name now, the standing's word and its sentence. What happened is the
-    // History tab, an address of its own (0052), its count on the tab rather than in a row of facts.
+    // Where they stand is one line under the name now, the standing's word and its sentence. What happened is History,
+    // a part of the one page for every person (17 Nov 2026), its counts on its own line rather than in a row of tiles.
     await expect(page.getByTestId("person-now")).toBeVisible();
-    const history = page.getByTestId("person-tab-history");
-    await expect(history).toBeVisible();
+    await expect(page.getByTestId("person-history")).toBeVisible();
+    await expect(page.getByTestId("person-strip")).toHaveCount(0);
+    await expect(page.getByTestId("person-figures")).toHaveCount(0);
 
     // The page fills the pane and is one scroll: the profile was as wide as its content, 304px short at 1667.
     const pane = (await page.locator(".cl-profile").boundingBox())!;
@@ -165,11 +166,14 @@ test.describe("People on a real workspace", () => {
         .count(),
     ).toBeLessThanOrEqual(1);
 
-    // The History tab is the timeline, at the person's address with its word; the tab replaces the entry, so Back
-    // below still leaves the person.
-    await history.click();
-    await expect(page).toHaveURL(atRoute(/^clients\/[0-9a-f-]{36}\/history$/));
-    await expect(page.locator(".cl-prof-section-title", { hasText: "History" })).toBeVisible();
+    // History in full is a view of its own at the person's address with its word, through "All N" where there is more
+    // than the page shows; the view replaces the entry, so Back below still leaves the person.
+    const all = page.getByTestId("person-history-all");
+    if ((await all.count()) > 0) {
+      await all.click();
+      await expect(page).toHaveURL(atRoute(/^clients\/[0-9a-f-]{36}\/history$/));
+      await expect(page.getByTestId("person-view-history")).toBeVisible();
+    }
 
     // Between 901 and 1250px the name's column went to zero beside the header's buttons. The column, not the
     // name: a name's own box is only as wide as its letters, and passes while the column around it is broken.
@@ -238,10 +242,8 @@ test.describe("People on a real workspace", () => {
       expect(recorded || refused).toBe(true);
     }).toPass();
     if ((await sheet.count()) === 0) {
-      // A page with tabs keeps its deals on Deals; each deal is a row that folds open on a press of its title, its link
-      // and facts inside (canvas A, people/deal/person-deal.tsx).
-      const dealsTab = page.getByTestId("person-tab-deals");
-      if ((await dealsTab.count()) > 0) await dealsTab.click();
+      // Their deals are a part of the one page; each deal is a row that folds open on a press of its title, its link and
+      // facts inside (canvas A, people/deal/person-deal.tsx).
       const card = page.getByTestId("person-deal-card").first();
       if ((await card.getAttribute("data-open")) === null) await card.getByTestId("person-deal-title").click();
       await expect(card).toHaveAttribute("data-open", "true");

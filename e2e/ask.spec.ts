@@ -50,9 +50,9 @@ test.describe("Ask on a real workspace", () => {
     const text = await pal.innerText();
     for (const s of INVENTED) expect(text, `invented: "${s}"`).not.toContain(s);
     expect(text, "no key is drawn in the Line (D17)").not.toMatch(/[↵⌘]|\besc\b/i);
-    // At rest: Right now first, then the page's own questions.
+    // At rest: Right now first, and no preset question about the page (they come from a table: Ruben, 17 Nov 2026).
     await expect(pal.getByTestId("ask-row-now")).toBeVisible();
-    await expect(pal.locator(".ask-rows-label", { hasText: "Ask about Today" })).toBeVisible();
+    await expect(pal.locator(".ask-rows-label", { hasText: "Ask about" })).toHaveCount(0);
     await page.screenshot({ path: "test-results/ask-line.png" });
     await page.keyboard.press("Escape");
     await expect(pal).toBeHidden();
@@ -93,16 +93,11 @@ test.describe("Ask on a real workspace", () => {
     const pal = page.getByTestId("ask-real");
     const now = pal.getByTestId("ask-row-now");
     await expect(now).toBeInViewport({ ratio: 1 });
-    // Its counts are the hero's pills, under the three (surfaces/ask/line/), on a desk as on a phone.
-    await expect(
-      pal
-        .getByTestId("ask-hero")
-        .getByTestId("ask-pill")
-        .filter({ hasText: /search/ }),
-    ).toHaveText("1 search waiting");
-    // The search's clause of the sentence: first, capitalised, when nobody else is waiting; after a "; " otherwise.
+    // At rest the sentence says the counts, and no pill says them again (the pills stand while a phone's field is in use).
+    await expect(pal.getByTestId("ask-pill")).toHaveCount(0);
+    // The search's own sentence of it (no semicolons: docs/words.md).
     await expect(now.locator(".ask-row-label")).toContainText(
-      new RegExp(`(^|; )[Yy]our search for ${WAITING_SEARCH_NAME} is waiting for your answer[.;]`),
+      new RegExp(`Your search for ${WAITING_SEARCH_NAME} is waiting for your answer[.]`),
     );
     await now.getByTestId("ask-row-brief").click();
     await expect(pal.getByTestId("ask-say")).toBeVisible();

@@ -13,6 +13,10 @@
 const CARRIED = "chanlytics-compose";
 /** Where a person's page finds Not a person asked for them, in this tab's session. */
 const NOT_A_PERSON = "chanlytics-not-a-person";
+/** The thread Today last opened, so it says the way back (Today with colour, D8), in this tab's session. */
+const FROM_TODAY_KEY = "chanlytics-from-today";
+/** Where a thread finds AI's draft asked for its box (Today's Reply), in this tab's session. */
+const DRAFT_ASK_KEY = "chanlytics-draft-asked";
 
 /** Ask Not a person of someone as their page opens. A browser that keeps no session opens the page alone. */
 export function carryNotAPerson(personId: string): void {
@@ -37,6 +41,62 @@ export function takeCarriedNotAPerson(personId: string): boolean {
 /** The thread the words are for, as the Inbox names it (`th-<id>`): a route to it (`inbox/th-<id>`) is the same thread. */
 const threadIdOf = (to: string): string => to.replace(/^inbox\//, "");
 
+/** Whether what was carried names the thread `threadId`: said bare or as the Inbox names it (`th-<id>`), by whichever page carried it. */
+const namesThread = (at: unknown, threadId: string): boolean =>
+  at === threadId || at === `th-${threadId}` || `th-${String(at)}` === threadId;
+
+/**
+ * Ask the thread `to` names to put AI's draft in its box as it opens (Today with colour, 17 Nov 2026: a reply on Today
+ * opens its conversation "with the draft written there"). The press on Today is the ask decision 0093 waits for: the
+ * thread puts the draft in by Use draft's own path once it is written, into an empty box, once. A browser that keeps no
+ * session carries nothing, and the thread opens with its draft over the box, as it would.
+ */
+export function carryDraft(to: string): void {
+  try {
+    sessionStorage.setItem(DRAFT_ASK_KEY, threadIdOf(to));
+  } catch {
+    /* nothing to carry */
+  }
+}
+
+/** Say that Today opened the thread `to` names: its head then offers the way back to Today. */
+export function carryFromToday(to: string): void {
+  try {
+    sessionStorage.setItem(FROM_TODAY_KEY, threadIdOf(to));
+  } catch {
+    /* nothing to carry */
+  }
+}
+
+/** Whether Today opened the thread `threadId`: read, not taken, so the head says it however often it is drawn. */
+export function cameFromToday(threadId: string): boolean {
+  try {
+    return namesThread(sessionStorage.getItem(FROM_TODAY_KEY), threadId);
+  } catch {
+    return false;
+  }
+}
+
+/** Today drawn again: no thread came from it now, so none offers the way back until Today opens one. */
+export function forgetFromToday(): void {
+  try {
+    sessionStorage.removeItem(FROM_TODAY_KEY);
+  } catch {
+    /* nothing kept */
+  }
+}
+
+/** Whether AI's draft was asked for the thread `threadId`, taken so it is put in once. */
+export function takeCarriedDraft(threadId: string): boolean {
+  try {
+    if (!namesThread(sessionStorage.getItem(DRAFT_ASK_KEY), threadId)) return false;
+    sessionStorage.removeItem(DRAFT_ASK_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Carry `text` to the thread `to` names. A browser that keeps no session carries nothing, and the thread opens as it would. */
 export function carryReply(to: string, text: string): void {
   try {
@@ -57,9 +117,7 @@ export function takeCarriedReply(threadId: string): string | null {
     const text = field("text");
     const at = field("threadId");
     if (typeof text !== "string") return null;
-    // Said bare or as the Inbox names it (`th-<id>`), by whichever page carried it.
-    const mine = at === threadId || at === `th-${threadId}` || `th-${String(at)}` === threadId;
-    if (!mine) return null;
+    if (!namesThread(at, threadId)) return null;
     sessionStorage.removeItem(CARRIED);
     return text;
   } catch {

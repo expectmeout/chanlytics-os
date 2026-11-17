@@ -29,6 +29,7 @@ import {
   type TodayVM,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
+import { Meter } from "../../kit/meter/meter";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
@@ -40,9 +41,9 @@ import { waitRows, type Nav, type VerbKind } from "../../waits/wait-rows";
 import { useDraftsMoved, wantDrafts, type DraftWant } from "../need-you/drafts";
 import { NeedYouGroup } from "../need-you/groups";
 import { handBackAll, handedBackWords, type HandedBack } from "../need-you/sheet/hand-back";
-import { OlderGroup } from "../need-you/older";
+import { OlderGroup, openOlder } from "../need-you/older";
 import { needYouRows, type NeedYouRowsCtx } from "../need-you/people-rows";
-import { worksInPlace } from "../need-you/rows";
+import { answersInThread, walkedOnToday } from "../need-you/rows";
 import { clearRowStates } from "../need-you/row-state";
 import { WalkSheet, type WalkAt, type WalkOlder } from "../need-you/sheet/walk-sheet";
 import { draftWantsOf, useNeedYouModel, type NeedYouDrawn, type NeedYouModel } from "../need-you-model";
@@ -91,7 +92,10 @@ function usePhoneWalk() {
   return { walk, setWalk };
 }
 
-/** The walk through the rows the card draws, on a phone: the sheet, and To do's to-dos for its end. Called, not drawn. */
+/**
+ * The walk through the rows the card draws, on a phone: the sheet, and To do's to-dos for its end. Only what is worked on
+ * Today is a step of it (rows.ts walkedOnToday): a reply is written in its conversation (D8). Called, not drawn.
+ */
 function listWalk(
   order: readonly TodayQueueRowVM[],
   {
@@ -114,7 +118,7 @@ function listWalk(
   const unkeep = (row: TodayQueueRowVM) => (mine.has(row.id) ? todo.walk.unkeep(row) : ctx.unkeep(row));
   return (
     <WalkSheet
-      rows={order.filter(worksInPlace)}
+      rows={order.filter(walkedOnToday)}
       at={walk}
       onAt={setWalk}
       kept={new Set([...ctx.kept, ...todo.walk.kept])}
@@ -141,11 +145,34 @@ function listDoorOf(people: number, runs: number): { to: string; label: string }
   return { to, label: to === "inbox" ? W.door : (verbForRoute(to) ?? W.door) };
 }
 
+/** Past this many rows the meter draws its two shares, not a part a row. */
+const DONE_PARTS_MAX = 12;
+
+/**
+ * What was done today beside what still waits (Today with colour, D6, 17 Nov 2026): a part a row while they fit, done in
+ * the ok tone's green and still waiting as an outline, past a dozen the two shares. None before anything is done.
+ */
+function doneMeter(done: number, waiting: number) {
+  if (done <= 0) return null;
+  const left = Math.max(0, waiting);
+  const each = done + left <= DONE_PARTS_MAX;
+  const parts = each
+    ? [
+        ...Array.from({ length: done }, () => ({ share: 1, tone: "ok" as const })),
+        ...Array.from({ length: left }, () => ({ share: 1, tone: "open" as const })),
+      ]
+    : [
+        { share: done, tone: "ok" as const },
+        { share: left, tone: "open" as const },
+      ];
+  return <Meter apart size="sm" parts={parts} className="tz-done" aria-label={W.doneToday(done)} />;
+}
+
 /**
  * Need you's head: its name, how many the team dealt with today, and the door. Called, not drawn. How many were done today
  * is a time the page says (kit/says-when.ts): a copy of the screen some minutes old leaves it out, as it does every other.
  */
-function needYouHead(door: { to: string; label: string }, done: number, toDo: number | null) {
+function needYouHead(door: { to: string; label: string }, done: number, toDo: number | null, waiting: number) {
   return (
     <div className="tq-head tz-head">
       <h2 className="tq-title tz-name" id="today-queue-title">
@@ -154,9 +181,12 @@ function needYouHead(door: { to: string; label: string }, done: number, toDo: nu
       {toDo !== null ? (
         <span className="tz-fact">{toDo}</span>
       ) : done > 0 ? (
-        <span className="tz-fact" data-testid="today-done" {...SAYS_WHEN}>
-          {W.doneToday(done)}
-        </span>
+        <>
+          {doneMeter(done, waiting)}
+          <span className="tz-fact" data-testid="today-done" {...SAYS_WHEN}>
+            {W.doneToday(done)}
+          </span>
+        </>
       ) : null}
       {sectionDoor(door.to, door.label, "today-queue-door")}
     </div>
@@ -311,14 +341,24 @@ function useOldWalk(walkTo: (at: WalkAt) => void) {
     if (at === null) setWalkingOld(false);
     walkTo(at);
   };
-  const endOf = (rows: readonly TodayQueueRowVM[], said: (back: HandedBack) => void): WalkOlder | null =>
+  const endOf = (
+    rows: readonly TodayQueueRowVM[],
+    said: (back: HandedBack) => void,
+    open: (row: TodayQueueRowVM) => void,
+  ): WalkOlder | null =>
     rows.length
       ? {
           count: rows.length,
           busy: marking,
           go: () => {
+            const [first] = rows;
+            // The first of them answered in its conversation (D8): it opens there, as its row's press does, never in the sheet.
+            if (first && answersInThread(first)) {
+              setWalk(null);
+              return open(first);
+            }
             setWalkingOld(true);
-            setWalk(rows[0]?.id ?? null);
+            setWalk(first?.id ?? null);
           },
           markAll: () => {
             setMarking(true);
@@ -348,14 +388,18 @@ function phoneWalk(p: {
   todo: ReturnType<typeof useToDoRows>;
 }) {
   const { groups, drawn, oldWalk, todo } = p;
+  // Who the walk's end says still waits, in the Inbox: those past the group's cap, and those answered in their
+  // conversations, who are no step of the walk (D8).
   const cut = groups.waiting.length - drawn.waiting.length;
+  const inThread = p.order.filter((r) => answersInThread(r) && !p.ctx.kept.has(r.id)).length;
+  const waiting = cut + inThread;
   return listWalk(
     oldWalk.walkingOld ? groups.old : [...p.order, ...todo.walk.rows],
     {
       walk: p.at,
       setWalk: oldWalk.setWalk,
-      more: cut > 0 ? { count: cut, to: "inbox" } : null,
-      older: oldWalk.walkingOld ? null : oldWalk.endOf(groups.old, p.handed),
+      more: waiting > 0 ? { count: waiting, to: "inbox" } : null,
+      older: oldWalk.walkingOld ? null : oldWalk.endOf(groups.old, p.handed, (row) => openOlder(row, p.ctx)),
     },
     p.ctx,
     todo,
@@ -430,12 +474,15 @@ const NeedYouList = ({ vm, model }: { vm: TodayVM; model: NeedYouModel }) => {
   ) : null;
   // Who has waited past a week folds at Reply's foot, before Approve (docs/words.md, "Grouped by what the owner does").
   const [nextGroup, waitingGroup, okGroup] = above;
+  // Who still waits, as the groups above To do count them (groupsAbove): the rows still open and the runs to approve.
+  const waitingNow =
+    [...groups.next, ...groups.waiting, ...groups.ok].filter((r) => !ctx.kept.has(r.id)).length + runs.count;
   return (
     <ListBody
       phone={phone}
       onlyOlder={onlyOlder}
       groups={[nextGroup, waitingGroup, olderGroup, okGroup, toDoGroup]}
-      head={onlyOlder ? null : needYouHead(door, vm.done_today ?? 0, onlyToDo ? todo.count : null)}
+      head={onlyOlder ? null : needYouHead(door, vm.done_today ?? 0, onlyToDo ? todo.count : null, waitingNow)}
       foot={<SetAsideLine nav={nav} />}
       callsUnread={vm.callsRead === false}
       walk={

@@ -88,8 +88,9 @@ export function askNotices(win: Window, language: () => string = () => "en") {
   let openedIn: string | null = null;
   const shown = () => openedIn ?? language();
   return {
-    /** The one thing worth saying first, or nothing. */
-    noticed: (): AskNotice | null => noticedInTab.peek(shown())?.notices[0] ?? null,
+    /** The one thing worth saying first, or nothing; past any the home says already (`said`, contracts NOTICE_SAID_BY_RIGHT_NOW). */
+    noticed: (said?: (n: AskNotice) => boolean): AskNotice | null =>
+      noticedInTab.peek(shown())?.notices.find((n) => !said?.(n)) ?? null,
     /**
      * Whether what the AI noticed is held for a language: where it is not, the home waits for its read as it opens
      * (surfaces/ask/line/hooks.tsx arNoticeWait). Drawn before it, its line came in 0.8 s later and moved the three and
@@ -102,6 +103,17 @@ export function askNotices(win: Window, language: () => string = () => "en") {
       openedAsk(win);
       return read(lang);
     },
+    /**
+     * A card was approved or taken back, which may have settled what a notice said (an offer sent, a search answered):
+     * read them again now, however few minutes ago the last read was, and the home takes the new answer as it lands. Until
+     * 17 Nov 2026 a notice outlived the act that settled it by up to five minutes (a review of that day).
+     */
+    readNoticesAgain: (): Promise<void> => {
+      const lang = shown();
+      const was = noticedInTab.peek(lang);
+      if (!was) return Promise.resolve();
+      return keep(lang, { ...was, at: 0 }).then(() => read(lang));
+    },
     /** Not now: it rests a week, for this member, and the next one worth saying takes its place. */
     restNotice: async (key: string): Promise<void> => {
       const lang = shown();
@@ -110,8 +122,10 @@ export function askNotices(win: Window, language: () => string = () => "en") {
       const rested = restedWith(was.rested, noticeRestId(key), was.day);
       await keep(lang, { ...was, notices: was.notices.filter((n) => n.key !== key), rested });
       said();
-      // A rest that fails to save comes back on the next read, which is the worst it can do.
-      await apiFor(win)("PUT views/[page]", { params: { page: ASK_FOUND_VIEW }, body: { rested } as never }).catch(
+      // A rest that fails to save comes back on the next read, which is the worst it can do. The page's view is sent whole,
+      // as the route takes it and Today saves its rests (today/need-you/rests.tsx): sent bare, `{ rested }` was refused,
+      // and every Not now came back on the next read (a review of 17 Nov 2026). No cast, so the route's own type holds it.
+      await apiFor(win)("PUT views/[page]", { params: { page: ASK_FOUND_VIEW }, body: { view: { rested } } }).catch(
         () => null,
       );
     },

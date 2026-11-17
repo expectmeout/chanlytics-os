@@ -5,7 +5,7 @@
  * The week is contracts' (todayPeriodLine over Reports' headline, one small read); the pins' counts are People's lists'
  * (lists/actions.ts), read as Today's page loads.
  */
-import { LIST_GROUP_WORDS, TODAY_PHONE_WORDS as P } from "@chanlytics/contracts";
+import { LIST_GROUP_WORDS, TODAY_PHONE_WORDS as P, type ReportHeadlineVM } from "@chanlytics/contracts";
 import type { PeopleListsLike } from "../leaks";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
@@ -13,6 +13,7 @@ import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
+import { Spark } from "../../kit/spark/spark";
 import { routeDoor } from "../../frame-verbs";
 import { useNeedsYou } from "../../needs-you";
 import { surfaceValue } from "../../surface-values";
@@ -58,20 +59,54 @@ function pinDoors(pins: ReturnType<typeof usePins>) {
 }
 
 /**
- * The week in one line, with the one door to Reports (contracts todayPeriodLine over Reports' headline). Not read yet is
- * not failed: it is silent while Reports loads, and says so where its read failed.
+ * The period's days beside its line (Today with colour, D7, 17 Nov 2026): a column a day, what AI answered of its messages
+ * in the ok tone, today in the accent. Said by the line's own words. None for a period with nothing in it.
+ */
+const monthSpark = (headline: ReportHeadlineVM, sentence: string) =>
+  headline.perDay.length > 1 && !headline.empty ? (
+    <Spark
+      className="tz-month"
+      today
+      columns={headline.perDay.map((d) => ({ value: d.messages, part: d.answered }))}
+      aria-label={sentence}
+    />
+  ) : null;
+
+/**
+ * The key to the days drawn beside the line: what the ok tone's part of a day is, and that the accent's day is today
+ * (a time the page says, so a copy some minutes old leaves it out). A reader of the screen hears the line, not the colours.
+ */
+const monthKey = (
+  <span className="tz-month-key" aria-hidden="true" data-testid="today-period-key" {...SAYS_WHEN}>
+    <span>{P.monthKey.ai}</span>
+    <span className="tz-key-today">{P.monthKey.today}</span>
+  </span>
+);
+
+/**
+ * The week in one line, with the one door to Reports (contracts todayPeriodLine over Reports' headline), and its days
+ * beside it with their key under the line. Not read yet is not failed: it is silent while Reports loads, and says so where
+ * its read failed.
  */
 function WeekLine() {
   const headline = useSurface("reports_headline");
   const failed = useSurfaceFailed("reports_headline");
   const period = headline ? TODAY_HELPERS.periodLine(headline) : null;
-  if (period)
+  if (period) {
+    const days = headline ? monthSpark(headline, period.text) : null;
     return (
       <a className="tz-week" {...routeDoor(period.to)} data-testid="today-period">
-        <span {...SAYS_WHEN}>{period.text}</span>
+        <span className="tz-week-says">
+          <span className="tz-week-line" {...SAYS_WHEN}>
+            {period.text}
+          </span>
+          {days ? monthKey : null}
+        </span>
+        {days}
         <Icon name="chevron" size={11} />
       </a>
     );
+  }
   return failed ? (
     <FailedRead
       kind="line"

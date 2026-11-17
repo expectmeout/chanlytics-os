@@ -4478,8 +4478,25 @@ a.list-row {
 .meter-ground {
   background: var(--surface-inset-fill);
 }
-/* Where now stands on a meter of a span: a line in the ink a little taller than the bar with a dot on its top, ringed in
-   the raised ground so it reads over a part of any tone. It takes no room: the part it falls in is cut in two round it. */
+/* A day's span in the Calendar's own looks (calendar.css, Today with colour, 17 Nov 2026): a visit that went is the info
+   tone's tint, a visit ahead its edge alone, the visit under way the accent (live, right now), and open time the ok
+   tone's tint the Calendar gives "Open". */
+.meter-went {
+  background: var(--info-soft);
+}
+.meter-ahead {
+  border: 1px solid var(--info);
+  background: none;
+}
+.meter-now {
+  background: var(--accent);
+}
+.meter-free {
+  background: var(--ok-soft);
+}
+/* Where now stands on a meter of a span: a line in the accent (live, right now) a little taller than the bar with a dot on
+   its top, ringed in the raised ground so it reads over a part of any tone. It takes no room: the part it falls in is cut
+   in two round it. */
 .meter-mark {
   position: relative;
   flex: none;
@@ -4489,7 +4506,7 @@ a.list-row {
 .meter-mark::after {
   content: "";
   position: absolute;
-  background: var(--ink);
+  background: var(--accent);
   outline: 2px solid var(--bg-raised);
 }
 .meter-mark::before {
@@ -4505,6 +4522,44 @@ a.list-row {
   width: 8px;
   height: 8px;
   border-radius: var(--radius-full);
+}
+
+/* ---------- Spark: a run of small columns, a day each ----------
+   Today with colour (17 Nov 2026): the month under Today's period line and the week behind each of the day's figures. A
+   column's height is the square root of its share of the tallest (spark.tsx columnHeight: one busy day leaves the quiet
+   ones readable), its top rounded; a column of two parts is the ok tone below (what AI answered) and the strong hairline
+   above; the day still counting is the accent, whole. The words are the page's, its key among them. */
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 40px;
+}
+.spark-sm {
+  gap: 2px;
+  height: 22px;
+}
+.spark-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  flex: 1 1 0;
+  max-width: 12px;
+  min-height: 2px;
+  overflow: hidden;
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  background: var(--line-strong);
+}
+.spark-sm .spark-col {
+  max-width: 3px;
+}
+.spark-part {
+  display: block;
+  background: var(--ok);
+}
+.spark-now,
+.spark-now .spark-part {
+  background: var(--accent);
 }
 
 /* ---------- Sheet: a side pane on a desk, from the bottom edge on a phone ----------
@@ -5215,6 +5270,29 @@ a.list-row {
 .btn-ink:active {
   background: var(--ink);
   opacity: 0.76;
+}
+/* A pane's first act where the page's one primary is elsewhere (Today with colour, 17 Nov 2026: Set up forwarding, Offer
+   it, Write to them): the accent at half the primary's weight, its tint and its ink and an edge of it, so each pane says
+   where to start while one act on the page is filled. */
+.btn-lead {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  box-shadow: none;
+  font-weight: var(--weight-semibold);
+  color: var(--accent-ink);
+}
+.btn-lead .icon {
+  color: var(--accent-ink);
+}
+@media (hover: hover) {
+  .btn-lead:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+}
+.btn-lead:active {
+  background: var(--accent-soft);
+  opacity: 0.8;
 }
 /* A press drawn as text: an area of a page's words that is one press (Campaigns' moment card, whose caps, figure and
    unit narrow the ledger), not a control's label. No gap of a button's between its parts, a text's weight and tracking
@@ -6482,6 +6560,12 @@ textarea.rec-input,
   font-weight: var(--weight-semibold);
   line-height: 1;
   color: var(--count-ink);
+}
+/* People who need you, counted on an icon (the phone's Inbox tab): amber, warn's own meaning, as the menu's count is
+   (Today with colour, D5, 17 Nov 2026). A count beside its words stays the words' ink. */
+.tally-icon.tally-warn {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
 }
 
 /* ---- A tone's words read the tone's ink (the one-badge spec's rule) ----

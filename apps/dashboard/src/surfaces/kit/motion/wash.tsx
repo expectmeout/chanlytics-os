@@ -51,7 +51,7 @@ function sayPolitely(words: string): void {
  * Whether a value is washing: it changed since the last draw of the same record, nobody here pressed anything just now,
  * and the fill has not faded yet. `said` is what the region says of it; none says nothing.
  */
-export function useWash(scope: string, value: string, said: string | null): boolean {
+function useWash(scope: string, value: string, said: string | null): boolean {
   const [on, setOn] = useState(false);
   const seen = useRef<{ scope: string; value: string } | null>(null);
   useEffect(() => {

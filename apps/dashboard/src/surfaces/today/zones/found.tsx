@@ -178,11 +178,16 @@ const morningPlace = (line: string | null) =>
 interface RowPorts {
   row: AskFoundRowVM;
   coral: boolean;
+  /** Its act leads the pane where the page's one primary is elsewhere: the first row's, in the accent's tint. */
+  lead: boolean;
   open: boolean;
   onToggle: () => void;
   rest: (onUndone: () => void) => Promise<void>;
   flash: (f: Flash) => void;
 }
+
+/** Whose first act a row's is: the page's coral where the pane holds it, else the pane's lead (Today with colour, D2). */
+const firstAct = (coral: boolean, index: number) => ({ coral: coral && index === 0, lead: !coral && index === 0 });
 
 /** A row's tag, with Ask's three where it is Ask's own idea. Called, not drawn. */
 const foundTag = (row: AskFoundRowVM) => (
@@ -265,7 +270,7 @@ function DoorRow(p: RowPorts & { turn: { card: AskMorningCard; messageId: string
       {foundTag(row)}
       {to ? (
         <Button
-          variant={p.coral ? "primary" : "quiet"}
+          variant={p.coral ? "primary" : p.lead ? "lead" : "quiet"}
           size="sm"
           className="tz-idea-act"
           onClick={() => appNavigate(to)}
@@ -324,7 +329,7 @@ function CardRow(
     <div className="tz-idea" data-testid={testid} data-key={p.row.key}>
       {foundTag(p.row)}
       <Button
-        variant={p.coral ? "primary" : "quiet"}
+        variant={p.coral ? "primary" : p.lead ? "lead" : "quiet"}
         size="sm"
         className="tz-idea-act"
         disabled={acts.busy}
@@ -398,7 +403,7 @@ export function AskFound({ wide, coral }: { wide: boolean; coral: boolean }) {
         {(everyRow ? [...found.rows, ...found.rest] : found.rows).map((row, i) => {
           const ports: RowPorts = {
             row,
-            coral: coral && i === 0,
+            ...firstAct(coral, i),
             open: open === row.key,
             onToggle: () => setOpen((was) => (was === row.key ? null : row.key)),
             rest: (onUndone) => rest(row.key, flash, onUndone),

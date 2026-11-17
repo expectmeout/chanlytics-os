@@ -254,68 +254,65 @@ interface UserMenuProps {
   flash: (p: FrameFlash) => void;
 }
 
-/** Who you are, at the menu's head. */
-function UserMenuHead({ who }: { who: SbWho }) {
+/**
+ * Who you are, at the menu's head, and the door to your profile: the name is the profile, as a phone's settings open the
+ * account from its name, and the row that said Profile under it went (Ruben, 17 Nov 2026: Settings, Profile and
+ * Notifications "all basically leading to the same kind of page"). Your role and your address are one line under the name.
+ */
+function UserMenuHead({ who, go }: { who: SbWho; go: (to: string) => () => void }) {
+  const Glyph = frameGlyph();
   return (
-    <div className="sb-menu-head" data-testid="sb-me">
-      <div className="avatar">{who.initials}</div>
-      <div className="who">
-        <div className="name">{who.name}</div>
-        <div className="email">{who.email}</div>
-      </div>
-      {who.role && (
-        <span className="chip sb-role" data-testid="sb-me-role">
-          {who.role}
+    <button className="more-item sb-menu-head" role="menuitem" onClick={go("admin/profile")} data-testid="sb-me">
+      <span className="avatar">{who.initials}</span>
+      <span className="who">
+        <span className="name">{who.name}</span>
+        <span className="email">
+          {who.role ? <span data-testid="sb-me-role">{who.role}</span> : null}
+          {who.role ? " · " : null}
+          {who.email}
         </span>
-      )}
-    </div>
+      </span>
+      {!who.named && <span className="more-item-meta">Add your name</span>}
+      <Glyph name="chevron" size={13} />
+    </button>
   );
 }
 
 /**
- * The doors, widest first: the workspace's settings, then the two that are yours. Settings stood in the sidebar's own list as
- * its last place (Ruben, 7 Oct 2026: it is a thing you set, not a place you work in). Whether this device is alerted is said
- * beside Notifications where it is not: the one switch is that page's (decision 0137).
+ * Settings, the one door to everything set: Profile and Notifications are its sections. Settings stood in the sidebar's own
+ * list as its last place (Ruben, 7 Oct 2026: it is a thing you set, not a place you work in). Notifications is a row only
+ * while this device is not alerted, to turn them on where the one switch is (decision 0137); otherwise Settings reaches it.
  */
-function UserMenuDoors({ who, onNavigate, close }: Pick<UserMenuProps, "who" | "onNavigate" | "close">) {
+function UserMenuDoors({ go }: { go: (to: string) => () => void }) {
   const Glyph = frameGlyph();
   const bell = frameBell();
-  const real = bell ? bell : null;
-  const alerts = real ? real.alerts() : null;
-  const go = (to: string) => () => {
-    close();
-    onNavigate(to);
-  };
+  const alerts = bell ? bell.alerts() : null;
   return (
     <>
       <button className="more-item" role="menuitem" onClick={go("admin")} data-testid="sb-me-settings">
         <Glyph name="cog" size={13} />
         <span className="more-item-label">Settings</span>
       </button>
-      <button className="more-item" role="menuitem" onClick={go("admin/profile")} data-testid="sb-me-name">
-        <Glyph name="user" size={13} />
-        <span className="more-item-label">Profile</span>
-        {!who.named && <span className="more-item-meta">Add your name</span>}
-      </button>
-      <button
-        className="more-item"
-        role="menuitem"
-        onClick={go("admin/notifications")}
-        data-testid="sb-me-notifications"
-      >
-        <Glyph name="bell" size={13} />
-        <span className="more-item-label">Notifications</span>
-        {alerts && alerts.can && !alerts.on && (
-          <span className="more-item-meta" data-testid="sb-me-alerts">
-            Off on this device
-          </span>
-        )}
-      </button>
+      {alerts && alerts.can && !alerts.on && (
+        <button
+          className="more-item"
+          role="menuitem"
+          onClick={go("admin/notifications")}
+          data-testid="sb-me-notifications"
+        >
+          <Glyph name="bell" size={13} />
+          <span className="more-item-label">Turn on notifications</span>
+        </button>
+      )}
     </>
   );
 }
 
-/** The theme and the look, each a row of choices; the look only once the chrome offers it (contracts LOOK_OFFERED). */
+/**
+ * The theme and the look, each one row: its word, and its choices at the row's end (Ruben, 17 Nov 2026: a heading over three
+ * wide boxes was the sheet's tallest part). The theme's choices are their glyphs, each named for a reader and a pointer; the
+ * look, only once the chrome offers it (contracts LOOK_OFFERED), keeps its words.
+ */
 function UserMenuLooks({
   themePref,
   onTheme,
@@ -328,26 +325,28 @@ function UserMenuLooks({
   const looks = chrome && chrome.lookOffered ? chrome.looks : [];
   return (
     <>
-      <div className="more-header">Appearance</div>
-      <div className="sb-theme-seg" role="radiogroup" aria-label="Theme">
-        {themes.map((t) => (
-          <button
-            key={t.id}
-            role="radio"
-            aria-checked={themePref === t.id}
-            className={`sb-theme-opt ${themePref === t.id ? "active" : ""}`}
-            onClick={() => onTheme(t.id)}
-            data-testid={`sb-theme-${t.id}`}
-          >
-            <Glyph name={t.icon} size={12} />
-            {t.label}
-          </button>
-        ))}
+      <div className="sb-look-row">
+        <span className="sb-look-word">Appearance</span>
+        <div className="sb-theme-seg" role="radiogroup" aria-label="Theme">
+          {themes.map((t) => (
+            <button
+              key={t.id}
+              role="radio"
+              aria-checked={themePref === t.id}
+              aria-label={t.label}
+              data-tip={t.label}
+              className={`sb-theme-opt ${themePref === t.id ? "active" : ""}`}
+              onClick={() => onTheme(t.id)}
+              data-testid={`sb-theme-${t.id}`}
+            >
+              <Glyph name={t.icon} size={14} />
+            </button>
+          ))}
+        </div>
       </div>
       {looks.length > 0 && (
-        <>
-          <div className="more-header">Look</div>
-          {/* .sb-theme-seg is the theme's three columns: step 5.5, which offers the look, sizes it for two. */}
+        <div className="sb-look-row">
+          <span className="sb-look-word">Look</span>
           <div className="sb-theme-seg" role="radiogroup" aria-label="Look">
             {looks.map((l) => (
               <button
@@ -362,15 +361,15 @@ function UserMenuLooks({
               </button>
             ))}
           </div>
-        </>
+        </div>
       )}
     </>
   );
 }
 
-// The account: who you are, the doors to Settings, your profile and your notifications, the theme and the look, the Keyboard
-// shortcuts sheet on a desk (a pointer's door to it: the sheet opens on ? for a hand on the keys, and a phone needs no keys;
-// Ruben, 23 Sep 2026), and sign out.
+// The account: who you are (the door to your profile), Settings, Notifications only while this device is not alerted, the
+// theme and the look, the Keyboard shortcuts sheet on a desk (a pointer's door to it: the sheet opens on ? for a hand on the
+// keys, and a phone needs no keys; Ruben, 23 Sep 2026), and sign out.
 export function UserMenu(props: UserMenuProps) {
   const { close } = props;
   const Glyph = frameGlyph();
@@ -379,11 +378,15 @@ export function UserMenu(props: UserMenuProps) {
     if (!window.__shell) return;
     window.__shell.signOut();
   };
+  const go = (to: string) => () => {
+    close();
+    props.onNavigate(to);
+  };
   return (
     <>
-      <UserMenuHead who={props.who} />
+      <UserMenuHead who={props.who} go={go} />
       <div className="more-divider" />
-      <UserMenuDoors who={props.who} onNavigate={props.onNavigate} close={close} />
+      <UserMenuDoors go={go} />
       <div className="more-divider" />
       <UserMenuLooks themePref={props.themePref} onTheme={props.onTheme} look={props.look} onLook={props.onLook} />
       <div className="more-divider" />

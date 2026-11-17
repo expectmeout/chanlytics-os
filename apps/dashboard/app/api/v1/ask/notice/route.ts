@@ -1,4 +1,4 @@
-import { dayInZone } from "@chanlytics/contracts";
+import { ASK_NOTICES_SENT, dayInZone } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
@@ -29,7 +29,8 @@ export const GET = read({
     };
     const rested = restedOfViews(views);
     return {
-      notices: (await listNotices(t, language, rested)).slice(0, 3),
+      // Three past the ones the home may pass over as Right now says them (contracts ASK_NOTICES_SENT).
+      notices: (await listNotices(t, language, rested)).slice(0, ASK_NOTICES_SENT),
       rested,
       day: dayInZone(zone, Date.now()).key,
     };

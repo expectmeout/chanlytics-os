@@ -19,6 +19,9 @@
  *   readMailboxSettings  the name it sends as, its signature, its owner's cap.
  *   testMailbox      an email from it to itself, through its own provider: what the owner sees is what a business gets.
  *   checkMailbox     its domain's records read again.
+ *
+ * A Google grant, a refused connect's or a removed mailbox's, goes back only when no other connection of its Google
+ * account rides it (shared/google/give-back.ts): a revoke there ends the account's Business Profile too.
  */
 import {
   MAILBOX_DAILY_CAP_MAX,
@@ -56,6 +59,7 @@ import {
 import { emitEvent } from "@chanlytics/db/events";
 import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
+import { giveGoogleGrantBack } from "../shared/google/give-back.js";
 import { mailboxClient } from "../email/mailbox/config.js";
 import { grantOf, storeMailboxCredentials, getToken } from "../email/mailbox/credentials.js";
 import { readMailboxDns } from "../email/mailbox/dns.js";
@@ -133,16 +137,23 @@ async function hasMailbox(provider: MailboxProvider, token: string): Promise<boo
 /** A grant given back is answered at once, or left to lapse with the token Vault no longer holds. */
 const REVOKE_MS = 5_000;
 
-/** The grant given back: best effort, where the provider has a way to. */
-async function giveBack(provider: MailboxProvider, token: string): Promise<void> {
-  const r = mailboxRevokeRequest(provider, token);
-  if (!r) return;
-  await fetchFromProvider("google", r.url, {
-    method: r.method,
-    headers: r.headers,
-    body: r.body,
-    timeoutMs: REVOKE_MS,
-  }).catch(logAndGoOn("fetchFromProvider", null));
+/**
+ * The grant given back: best effort, where the provider has a way to. Google's goes back only when no other connection
+ * of its Google account rides it, the Business Profile's among them (shared/google/give-back.ts, the one rule for it):
+ * Google ends every token the account gave this project at once. `leaving` is the mailbox being removed.
+ */
+async function giveBack(
+  db: Db,
+  grant: { provider: MailboxProvider; account: string | null; token: string; leaving?: string },
+): Promise<void> {
+  const revoke = mailboxRevokeRequest(grant.provider, grant.token);
+  if (!revoke) return;
+  const { url, method, headers, body } = revoke;
+  await giveGoogleGrantBack(
+    db,
+    { account: grant.account, token: grant.token, leaving: grant.leaving ? { mailbox: grant.leaving } : null },
+    () => fetchFromProvider("google", url, { method, headers, body, timeoutMs: REVOKE_MS }),
+  );
 }
 
 /** Whether a host is the business's own customer domain: its website's, or taken to be when it has none on file. */
@@ -199,17 +210,21 @@ export async function runMailboxConnect(
   const result = await grantOf(input.provider, mailboxTokenRequest(input.provider, client, input.code, input.verifier));
   if (!result.ok) return { ok: false, why: "failed", detail: result.why.slice(0, 200) };
   const grant = result.grant;
+  // A grant this connect does not keep, given back by whose it is: the account its id token names, read before
+  // anything else is asked of it, so every refusal below knows.
+  const handBack = (token: string) =>
+    giveBack(mailboxPorts.db, { provider: input.provider, account: claimsOf(grant.id_token).sub, token });
   const missing = grantScopesMissing(input.provider, grant.scope);
   if (missing.length) {
-    await giveBack(input.provider, grant.access_token);
+    await handBack(grant.access_token);
     return { ok: false, why: "scopes_missing", detail: missing.join(" ") };
   }
   if (!grant.refresh_token) {
-    await giveBack(input.provider, grant.access_token);
+    await handBack(grant.access_token);
     return { ok: false, why: "no_refresh_token" };
   }
   const refused = async (reason: ConnectError) => {
-    await giveBack(input.provider, grant.refresh_token ?? grant.access_token);
+    await handBack(grant.refresh_token ?? grant.access_token);
     return { ok: false as const, why: reason };
   };
   const identity = await identityOf(input.provider, grant);
@@ -320,7 +335,12 @@ export async function removeMailbox(
   const result = await getToken(mailboxPorts.db, row).catch(logAndGoOn("getToken", null));
   if (result?.ok) {
     await endWatch(row, result.token);
-    await giveBack(row.provider === "microsoft" ? "microsoft" : "google", result.token);
+    await giveBack(mailboxPorts.db, {
+      provider: row.provider === "microsoft" ? "microsoft" : "google",
+      account: row.provider_account,
+      token: result.token,
+      leaving: row.id,
+    });
   }
   await dropMailboxCredentials(mailboxPorts.db, row.id);
   const now = new Date((mailboxPorts.now ?? Date.now)()).toISOString();

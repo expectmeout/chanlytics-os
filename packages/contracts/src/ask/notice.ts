@@ -181,6 +181,23 @@ const ES: Readonly<Record<string, Row>> = {
   },
 };
 
+/**
+ * The notices whose fact Right now's sentence already says (rightNowLine), by the count it says it with: while that count
+ * is not zero AI's home passes over them to the next one, so a thing is said once (Ruben, 17 Nov 2026: a search waiting
+ * stood in the pill, the sentence and a notice under them).
+ */
+export const NOTICE_SAID_BY_RIGHT_NOW: Readonly<Record<string, "runs" | "searches">> = {
+  search_asks: "searches",
+  batches_waiting: "runs",
+};
+
+/**
+ * How many notices the read sends (GET ask/notice): three past the ones the home may pass over, so a passed-over one never
+ * hides the next worth saying. Until 17 Nov 2026 the route cut to three before the home passed over its two (a review of
+ * that day).
+ */
+export const ASK_NOTICES_SENT = 3 + Object.keys(NOTICE_SAID_BY_RIGHT_NOW).length;
+
 /** The order a notice is worth acting on, first first: money and time before the slow ones. */
 export const ASK_NOTICE_ORDER: readonly string[] = [
   "search_asks",

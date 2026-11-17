@@ -29,7 +29,7 @@ import { dealKit, hasHref, hrefOf, personNotes, usePeopleMoved } from "./shell-t
 import type { Thread } from "../types";
 import { ixBandCallBack } from "./band";
 import { channelIconOf } from "./timeline";
-import { headerSub, IxWho, wireBadge, type Countdown } from "./who";
+import { headerSub, IxWho, threadBack, wireBadge, type Countdown } from "./who";
 import { takeInTheMenu } from "./status";
 import { NameOffer } from "../../people/person/name-offer";
 import { mayAtLeast } from "../../frame-verbs";
@@ -537,21 +537,7 @@ function headerMain(props: ThreadHeaderProps, facts: HeaderFacts, alsoLeads: Rea
   const personTo = thread.clientId ? `clients/${thread.clientId}` : null;
   return (
     <div className="ix-th-head-main">
-      {/* Phone only (mobile.css): the list and the thread take turns. The arrow alone: the top bar says Inbox over it,
-            and "← Inbox" said it again. */}
-      {onBack && (
-        <Button
-          type="button"
-          variant="quiet"
-          size="sm"
-          className="ix-back"
-          onClick={onBack}
-          aria-label="Back to the list"
-          data-testid="ix-back"
-        >
-          <Icon name="chevron" size={20} className="icon-turned" />
-        </Button>
-      )}
+      {threadBack(thread.id, onBack)}
       <IxWho
         to={personTo}
         go={() => onOpenClient(thread.clientId)}

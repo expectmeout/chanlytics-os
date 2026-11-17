@@ -205,8 +205,8 @@ export const arBody = ({
     );
   return null;
 };
-// The hero (spec 5.2-5.5): the three at 232px (ask.css `.ask-hero-stage`), what they hear while held, the question and
-// what Ask reads until the first words; once an answer is written they shrink to the top with its question under them,
+// The hero (spec 5.2-5.5): the three at 140px (ask.css `.ask-hero-stage`; 232px until Ruben, 17 Nov 2026), what they
+// hear while held, the question and what Ask reads until the first words; once an answer is written they shrink to the top with its question under them,
 // said once (ask.css hides the turn's own copy). In the thread they lead the newest answer under its question's bubble
 // (`heroMode`, D3), with what Ask has read under them while it reads (D12), and a held mic's words are the
 // band's (AskListen).

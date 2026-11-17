@@ -3709,7 +3709,7 @@ a.cl-prof-vrow:focus-visible {
 .cl-prof-timeline::before {
   display: none;
 }
-.cl-prof-history .cl-tl-day {
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-day {
   margin: 0;
   padding: 14px 0 6px;
   background: transparent;
@@ -3719,7 +3719,7 @@ a.cl-prof-vrow:focus-visible {
   letter-spacing: 0.08em;
   color: var(--ink-dim);
 }
-.cl-prof-history .cl-tl-row {
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-row {
   grid-template-columns: 26px minmax(0, 1fr) auto;
   gap: 12px;
   margin: 0;
@@ -3727,27 +3727,27 @@ a.cl-prof-vrow:focus-visible {
   align-items: start;
 }
 /* The time is the row's third cell, at its right edge, level with who (canvas A, D3). */
-.cl-prof-history .cl-tl-row > .cl-tl-time {
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-row > .cl-tl-time {
   margin: 0;
   padding-top: 2px;
 }
-.cl-prof-history .cl-tl-row-door:hover,
-.cl-prof-history .cl-tl-row-door:focus-visible {
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-row-door:hover,
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-row-door:focus-visible {
   background: transparent;
 }
 @media (hover: hover) {
-  .cl-prof-history .cl-tl-row-door:hover .cl-tl-text {
+  :is(.cl-prof-history, .cl-prof-words) .cl-tl-row-door:hover .cl-tl-text {
     text-decoration: underline;
     text-decoration-color: var(--ink-faint);
     text-underline-offset: 3px;
   }
 }
-.cl-prof-history .cl-tl-row > :first-child {
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-row > :first-child {
   width: 26px;
   height: 26px;
   border: 0;
 }
-.cl-prof-history .cl-tl-row > .client {
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-row > .client {
   background: var(--face-fill);
   box-shadow:
     var(--surface-inset-ring),
@@ -3756,7 +3756,7 @@ a.cl-prof-vrow:focus-visible {
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
-.cl-prof-history .cl-tl-row > :is(.event, .session, .agent) {
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-row > :is(.event, .session, .agent) {
   border-radius: var(--radius-md);
   background: var(--surface-inset-fill);
   box-shadow:
@@ -3764,32 +3764,32 @@ a.cl-prof-vrow:focus-visible {
     var(--surface-inset-depth);
   color: var(--ink-muted);
 }
-.cl-prof-history .cl-tl-body {
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-body {
   padding-bottom: 0;
 }
-.cl-prof-history .cl-tl-head {
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-head {
   margin-bottom: 2px;
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   color: var(--ink-muted);
 }
-.cl-prof-history .cl-tl-who {
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-who {
   font-weight: var(--weight-semibold);
   color: var(--ink-muted);
 }
-.cl-prof-history .cl-tl-time {
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-time {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: var(--weight-regular);
   color: var(--ink-dim);
 }
-.cl-prof-history .cl-tl-text {
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-text {
   font-size: var(--text-base);
   line-height: 1.45;
   color: var(--ink);
 }
 /* What was quoted or noted under a row (canvas A, D3): the smallest step in the dim ink, 3px under. */
-.cl-prof-history .cl-tl-sub {
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-sub {
   margin-top: 3px;
   color: var(--ink-dim);
 }
@@ -4839,4 +4839,152 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
 .cl-row-name.unread .cl-row-words,
 td .pl-unread-said {
   color: var(--ink);
+}
+
+/* ====================================================================
+   The one person page (Ruben, 17 Nov 2026: "ONE shared person page"; the One person page canvas, person-real.tsx): the
+   head across the top, then their story (Now, Latest, Deals, Notes, Coming up, History) and their record (Reach them to
+   What they get, one pane of groups). On a desk, from 880 of the record's own width, the story beside the record, which
+   holds still while the story scrolls; under it, one column: the head, the story, the record. No tiles, no tabs, no
+   third column, no thin layout: every person's page has these parts in this order.
+   ==================================================================== */
+@container record (width > 880px) {
+  .cl-prof-record[data-one] {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    grid-template-areas:
+      "head head"
+      "story keep";
+    column-gap: 18px;
+  }
+  .cl-prof-record[data-one] > .cl-prof-side {
+    grid-area: head;
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+  .cl-prof-record[data-one] > .cl-prof-work:not(.cl-prof-keep) {
+    grid-area: story;
+  }
+  .cl-prof-record[data-one] > .cl-prof-keep {
+    grid-area: keep;
+    position: sticky;
+    top: 0;
+    max-height: var(--record-h, none);
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+}
+/* The head stands on the page, not in a pane: who they are on the left, the act with its caret, Call and Note on the right. */
+.main-scroll .cl-prof-record[data-one] > .cl-prof-side {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+@media (width > 900px) {
+  .cl-prof-record[data-one] .cl-prof-hero.cl-prof-head {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px 24px;
+    padding: 4px 2px 6px;
+  }
+  .cl-prof-record[data-one] .cl-prof-hero.cl-prof-head > .cl-prof-id {
+    flex: 1 1 320px;
+  }
+  /* The state and its sentence under the name, beside the face, as a phone's head has them (the one page). */
+  .cl-prof-record[data-one] .cl-prof-id {
+    grid-template-areas: "face name" "face line" "face now" "face why" "notice notice" "stale stale";
+    column-gap: 14px;
+  }
+  .cl-prof-record[data-one] .cl-prof-id > .cl-prof-now {
+    margin-top: 2px;
+  }
+  .cl-prof-record[data-one] .cl-prof-id > .cl-prof-now-why {
+    margin-top: 0;
+  }
+  .cl-prof-record[data-one] .cl-prof-hero.cl-prof-head > .cl-prof-queue-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+  .cl-prof-record[data-one] .cl-prof-acts-row > :is(button, a) {
+    flex: none;
+  }
+}
+/* The act and its caret are one pill at every width (hero.tsx; the one page, D8). */
+.cl-prof-lead {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.cl-prof-lead > .cl-prof-lead-act:not(:only-child) {
+  border-radius: var(--radius-full) 0 0 var(--radius-full);
+}
+.cl-prof-lead > .cl-prof-lead-more {
+  flex: none;
+  border-left: 1px solid var(--line-strong);
+  border-radius: 0 var(--radius-full) var(--radius-full) 0;
+}
+/* The record: one pane of groups, the first with no line over it, two-up nowhere (a tablet's two-up stood its groups
+   apart from the order every person reads them in). */
+.cl-prof-keep > .cl-prof-rail {
+  display: flex;
+}
+.cl-prof-keep > .cl-prof-rail > :first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+/* A part with nothing in it says so in one line, and what it can do about it beside (the one page: never blank). */
+.cl-prof-rest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+  margin: 0;
+}
+.cl-prof-rest-title {
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.cl-prof-rest-sub {
+  flex-basis: 100%;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+/* Why they need you, Now's first row: amber, the head's act its answer. */
+.cl-prof-rung[data-kind="needs"] .cl-prof-rung-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--warn-ink);
+}
+.cl-prof-rung[data-kind="needs"] .cl-prof-rung-title::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--warn);
+}
+/* History's line: the counts the tiles said, once. */
+.cl-prof-history-line {
+  margin: -6px 0 8px;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+/* A view of its own (History, their appointments in full): the part as one pane, at the story's measure. */
+.cl-prof-view {
+  max-width: var(--measure-page);
+}
+/* Latest and History's newest rows start with their day, the pane's head the only room above it. */
+:is(.cl-prof-history, .cl-prof-words) .cl-tl-day:first-child {
+  padding-top: 0;
+}
+/* Whether they came is Now's to ask, once: Latest says the visit and leaves its question to Now. */
+.cl-prof-words .cl-tl-ask {
+  display: none;
 }

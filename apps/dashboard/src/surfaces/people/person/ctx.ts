@@ -115,8 +115,6 @@ export interface PageCtx {
    */
   composing: boolean;
   setComposing: Dispatch<SetStateAction<boolean>>;
-  /** The record holds three columns (canvas A, D7: 1240px of its own width and up): their notes and lists stand in the third. */
-  wide: boolean;
   /** Add to a list (More, canvas A): its sheet, open or not. */
   listsOpen: boolean;
   setListsOpen: Dispatch<SetStateAction<boolean>>;

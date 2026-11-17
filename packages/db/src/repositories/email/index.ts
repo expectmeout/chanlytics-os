@@ -4,6 +4,7 @@
 export {
   connectMailbox,
   dropMailboxCredentials,
+  findLiveGoogleMailboxOfAccount,
   findLiveMailboxByAddress,
   findMailboxConnection,
   getMailboxCounts,

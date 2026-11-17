@@ -556,7 +556,7 @@ function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
     <Button
       size={c.phone ? "touch" : "lg"}
       variant="primary"
-      className={c.phone ? "cl-prof-lead-act" : undefined}
+      className="cl-prof-lead-act"
       onClick={() => navigate(threadCta.to)}
       data-testid="person-open-thread"
     >
@@ -566,7 +566,7 @@ function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
     <Button
       size={c.phone ? "touch" : "lg"}
       variant="primary"
-      className={c.phone ? "cl-prof-lead-act" : undefined}
+      className="cl-prof-lead-act"
       onClick={() => openNewConversation(p.id)}
       data-testid="person-start-conversation"
       {...gate("approve", NEW_CONVERSATION_WORDS.gate)}
@@ -574,55 +574,47 @@ function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
       {NEW_CONVERSATION_WORDS.personDoor}
     </Button>
   );
-  // On a phone the thread and its caret are one pill, the caret holding Call, Note and the rest (the phone pass, 3 Nov
-  // 2026; Ruben, 20 Oct 2026: a menu rides its pill as a caret), where three circles and a ⋯ stood beside it.
-  const caret = [...phoneActs(c), ...more];
+  // The thread and its caret are one pill at every width (the one page, D8: More is the caret; Ruben, 20 Oct 2026: a menu
+  // rides its pill as a caret). On a phone the caret holds Call, Note and the rest (the phone pass, 3 Nov 2026); on a desk
+  // Call and Note stand beside the pill, and the caret holds the rest.
+  const caret = c.phone ? [...phoneActs(c), ...more] : more;
+  const pill = (
+    <span className="cl-prof-lead">
+      {lead}
+      {caret.length > 0 && (
+        <Menu
+          label={`More for ${who}`}
+          groups={caret}
+          trigger={
+            <Button
+              iconOnly
+              size={c.phone ? "touch" : "lg"}
+              variant="primary"
+              className="cl-prof-lead-more"
+              aria-label={`More for ${who}`}
+              title="More"
+              data-testid="person-more"
+            >
+              <Icon name="chevron-down" size={c.phone ? 16 : 14} />
+            </Button>
+          }
+        />
+      )}
+    </span>
+  );
   if (c.phone)
     return (
       <div className="cl-prof-queue-actions" data-testid="person-acts">
-        <span className="cl-prof-lead">
-          {lead}
-          {caret.length > 0 && (
-            <Menu
-              label={`More for ${who}`}
-              groups={caret}
-              trigger={
-                <Button
-                  iconOnly
-                  size="touch"
-                  variant="primary"
-                  className="cl-prof-lead-more"
-                  aria-label={`More for ${who}`}
-                  title="More"
-                  data-testid="person-more"
-                >
-                  <Icon name="chevron-down" size={16} />
-                </Button>
-              }
-            />
-          )}
-        </span>
+        {pill}
       </div>
     );
   return (
     <div className="cl-prof-queue-actions" data-testid="person-acts">
-      {lead}
-      {/* The member's own phone rings them, as a lead is called; never the receptionist. Then: how did it go? On a desk
-          Call, Note and More are words on a line under the thread (canvas A); a phone's are in the thread's caret. */}
+      {pill}
+      {/* The member's own phone rings them, as a lead is called; never AI. Then: how did it go? */}
       <div className="cl-prof-acts-row">
         {callInHead(c) ? <CallAct c={c} /> : null}
         {c.canRecord ? noteAct(c) : null}
-        {more.length > 0 && (
-          <Menu
-            label={`More for ${who}`}
-            groups={more}
-            trigger={
-              <Button size="sm" title={`More for ${who}`} data-testid="person-more">
-                More <Icon name="chevron-down" size={10} />
-              </Button>
-            }
-          />
-        )}
       </div>
     </div>
   );

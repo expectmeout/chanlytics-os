@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { rewriteDraft, tryDraftAgain, useDraft, wantDrafts } from "../../today/need-you/drafts";
+import { takeCarriedDraft } from "../carried-reply";
 import { FOCUS_COMPOSER_MS } from "../constants";
 import { ixOnPhone } from "../rules";
 import { gate } from "../shell";
@@ -257,6 +258,19 @@ export function useThreadDraft(thread: Thread, box: { text: string; write: (v: s
       field.setSelectionRange(field.value.length, field.value.length);
     }, FOCUS_COMPOSER_MS);
   };
+  // AI's draft asked for from Today (carried-reply.ts carryDraft, Today with colour D8): put in by Use draft's own path as
+  // soon as it is written, with its mark and its Undo, into an empty box, and once. Asked as the thread opens, so a thread
+  // opened by hand never is.
+  const [asked, setAsked] = useState<string | null>(null);
+  useEffect(() => {
+    if (takeCarriedDraft(thread.id)) setAsked(thread.id);
+  }, [thread.id]);
+  useEffect(() => {
+    if (asked !== thread.id || !drafted) return;
+    setAsked(null);
+    if (!text.trim()) putDraft();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- put once, when the asked thread's draft is written: the box's words are read at that moment
+  }, [asked, thread.id, drafted]);
   const undo =
     undoTo === null
       ? null

@@ -165,6 +165,9 @@ export function todayQueueEmpty(todayFacts: TodayFacts): TodayQueueEmptyVM {
   };
 }
 
+/** What AI answered, as Today names it: a fact's label, and the key to the period's days. */
+const ANSWERED_BY_AI_WORDS = "Answered by AI";
+
 /**
  * Ask's four facts. A zero is a real measurement, and "—" is a real "not enough data yet"; never a delta, a
  * percentage or a sparkline: a jump from 1 message to 3 is not "+200%".
@@ -173,7 +176,7 @@ export function todayAskFacts(todayFacts: TodayFacts): TodayFactVM[] {
   const { period, callMinutes, speed } = todayFacts;
   return [
     { label: "Messages in", value: String(period.messages_in) },
-    { label: "Answered by AI", value: `${period.answered_by_ai} of ${period.messages_in}` },
+    { label: ANSWERED_BY_AI_WORDS, value: `${period.answered_by_ai} of ${period.messages_in}` },
     speed === null
       ? { label: "Typical reply time", value: "—", hint: "Not enough replies yet" }
       : { label: "Typical reply time", value: speed.held ? speed.words : secondsPhrase(speed.seconds) },
@@ -406,6 +409,12 @@ export const TODAY_PHONE_WORDS = {
   figure: { booked: "booked", answered: "answered", calls: "calls", new: "new" },
   /** The day's figures on a phone, with the week under them: the card's name. */
   soFar: "Today so far",
+  /**
+   * The key to the period's days drawn beside its line (the canvas check of 17 Nov 2026): what the ok tone's part of a day
+   * is, and which day is the accent's. The rest of a day, in the hairline's colour, is what AI did not answer: named by
+   * neither, since "by you" would be untrue of a message nobody answered.
+   */
+  monthKey: { ai: ANSWERED_BY_AI_WORDS, today: "Today" },
   /** Today so far on a day nothing was counted: one line under the day, in the four zeros' place. */
   soFarNothing: "Nothing yet today",
   /** The day after closing (the canvas of 2 Nov 2026): tomorrow's name, its first visit, and what already happened. */

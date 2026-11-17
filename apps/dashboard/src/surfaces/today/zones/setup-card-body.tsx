@@ -19,6 +19,7 @@ import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
+import { Meter } from "../../kit/meter/meter";
 import { surfaceValue } from "../../surface-values";
 import { SetupCardRow } from "../../setup/rows/card-row";
 import { SetupRows } from "../../setup/rows/rows";
@@ -197,8 +198,10 @@ function optionalRows(
       S={S}
       rows={card.rows}
       look="card"
-      // The first row's act is the coral while nobody waits, as the first run's row is (startRow).
+      // The first row's act is the coral while nobody waits, as the first run's row is (startRow); while someone does, the
+      // card's lead (Today with colour, 17 Nov 2026: each pane's first act wears the accent's tint, one act on the page filled).
       primary={quiet ? null : (card.rows[0]?.id ?? null)}
+      lead={quiet ? (card.rows[0]?.id ?? null) : null}
       left={card.left}
       // Going live, the rows that need the owner can't be skipped: they are Go live's (the code, WhatsApp).
       later={card.skip ?? { put: "" }}
@@ -258,6 +261,19 @@ function foldChevron(short: boolean, toggle: () => void) {
       <Icon name="chevron-down" size={14} />
     </Button>
   );
+}
+
+/**
+ * Going live as progress (Today with colour, D6, 17 Nov 2026): a part a step, done in the ok tone's green and still to do as
+ * an outline, beside the card's title. None for the first run's own row, which says its steps itself.
+ */
+function stepsMeter(card: SetupCardVM) {
+  if (card.start || card.done.length === 0) return null;
+  const parts = [
+    ...card.done.map(() => ({ share: 1, tone: "ok" as const })),
+    ...card.rows.map(() => ({ share: 1, tone: "open" as const })),
+  ];
+  return <Meter apart size="sm" parts={parts} className="tz-done" aria-label={card.left} />;
 }
 
 // What is left to set up, as one card above the queue in its column (the first run's Today card, canvas R10 and P9):
@@ -348,6 +364,7 @@ export const TodaySetupCard = ({ S, coral }: { S: SetupSurface; coral: boolean }
             {card.left}
           </span>
         </span>
+        {stepsMeter(card)}
         {!short && !phone ? hideButton : null}
         {foldable ? foldChevron(short, toggle) : null}
       </div>

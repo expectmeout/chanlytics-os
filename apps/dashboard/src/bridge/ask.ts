@@ -210,8 +210,12 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
       .then(() => api.send(asked, on))
       .finally(() => void followUps.readFollowUps());
   };
+  // What Ask noticed, read again after every card approved or taken back: the act may have settled what a notice said.
+  const notices = askNotices(win, () => palette.language());
   const keptOrCleared = <T>(kinds: readonly AskProposal[], done: Promise<T>): Promise<T> =>
-    kinds.some((p) => p.kind === "follow_up") ? done.finally(() => void followUps.readFollowUps()) : done;
+    (kinds.some((p) => p.kind === "follow_up") ? done.finally(() => void followUps.readFollowUps()) : done).finally(
+      () => void notices.readNoticesAgain(),
+    );
   const thread: AskApiCalls["thread"] = (...args) => specsIn().then(() => api.thread(...args));
   // A question spoken to the agent is a turn like a typed one (ask/spoken.ts): the same events, and its language kept.
   const spoken = spokenTurns(voice, api);
@@ -229,7 +233,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     thread,
     sendSpoken,
     ...followUps,
-    ...askNotices(win, () => palette.language()),
+    ...notices,
     commit: (p, cards = [], messageId) => keptOrCleared([p], commitCard(win, p, cards, { messageId })),
     commitPlan: (cards, messageId) => keptOrCleared(cards, commitPlan(win, cards, { messageId })),
     undoPlan: (cards, open, messageId) => keptOrCleared(cards, undoPlan(win, cards, open, { messageId })),

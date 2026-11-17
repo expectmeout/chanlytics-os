@@ -11,7 +11,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { SEND_GRACE_MS, toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { NOW, ZONE, metrics, waiting } from "./_world.mjs";
 import { until } from "../../shared/_until.mjs";
 
@@ -56,7 +56,7 @@ const requestDay = () =>
   );
 after(() => setSurfaceValue("today", undefined));
 
-test("the hold is a row that says what they asked for, answered with Confirm and send or Another time, the thread its door", () => {
+test("the hold is a row that says what they asked for, and its press opens the thread, where it is answered (D8)", () => {
   const vm = requestDay();
   const [row] = vm.queue.rows;
   assert.deepEqual(
@@ -71,17 +71,14 @@ test("the hold is a row that says what they asked for, answered with Confirm and
   const first = byTestId(tree, "queue-handoff");
   assert.ok(textOf(first).includes(ASKED), textOf(first));
   const button = (words) => all(first, (n) => n.type === "button" && textOf(n).trim() === words);
-  assert.equal(button("Confirm and send").length, 1);
-  assert.equal(button("Another time").length, 1);
-  assert.equal(
-    button("Confirm and send")[0].props["aria-label"],
-    "Confirm and send: Ana Reyes",
-    "a reader hears whose",
-  );
-  // The row is not one button now that it holds its own presses: its words open the thread.
-  assert.equal(first.props.onClick, undefined);
-  find(first, (n) => classes(n).includes("cl-attn-body")).props.onClick();
-  assert.equal(went.at(-1), "inbox/th-cv-a", "the row opens the thread");
+  // Today with colour, D8 (17 Nov 2026): a time they asked for is answered in their conversation, which offers Booked and
+  // Can't (inbox/thread/status.tsx); Today says what they asked for, and its one press opens the thread.
+  assert.equal(button("Confirm and send").length, 0, "nothing is answered on Today");
+  assert.equal(button("Another time").length, 0);
+  const answer = button("Answer");
+  assert.equal(answer.length, 1, "its one press");
+  press(answer[0]);
+  assert.equal(went.at(-1), "inbox/th-cv-a", "the press opens the thread");
 });
 
 /* ------------------------------------------ the row's work, pressed ------------------------------------------ */

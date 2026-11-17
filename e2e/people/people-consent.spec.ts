@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
-import { openMessagesFold, openPersonPage } from "./open-person";
+import { openPersonPage, showWhatTheyGet } from "./open-person";
 
 /**
  * "Offers by WhatsApp" on the profile rail.
@@ -25,9 +25,9 @@ test.describe("Consent for one person", () => {
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
     await openPersonPage(page, rows.first());
 
-    // Since #907 the answer in force is a row on the record kit, its control in the Messages fold behind it; since
-    // canvas A (#1574) the rows are inside the card's Messages and receptionist fold.
-    await openMessagesFold(page);
+    // Since #907 the answer in force is a row on the record kit; since the one page (17 Nov 2026) the rows are What they
+    // get, the last group of their record, never folded.
+    await showWhatTheyGet(page);
     await page.getByTestId("rec-row-act-person-visit").click();
     const control = page.getByTestId("consent-control");
     await expect(control).toBeVisible();
@@ -236,8 +236,8 @@ test.describe("Consent for one person", () => {
     const card = page.getByTestId("person-deal-card").first();
     await expect(card).toBeVisible();
     // The link is changed in the sheet's edit: "Edit proposal" is the next act where there is none, else one of the
-    // card's quiet moves. On the person's Overview the next act is Up next's rung, not the card's (person-deal.tsx
-    // `rung`, contracts people/person-page/next.ts); the card leads with it where no Up next is drawn.
+    // card's quiet moves. On the person's page the next act is Now's rung, not the card's (person-deal.tsx `rung`,
+    // contracts people/person-page/next.ts); the card leads with it where no Now is drawn.
     // A deal folds: its link and its quiet moves are behind a press on its title.
     const unfolded = async () => {
       const title = card.getByTestId("person-deal-title");

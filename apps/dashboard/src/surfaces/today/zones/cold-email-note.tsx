@@ -30,7 +30,7 @@ export function ColdEmailNote() {
   }, [day]);
   if (!note) return null;
   return (
-    <section className="rec-card tz-cold-email" data-testid="today-cold-email">
+    <section className="tz-pane tz-cold-email" data-testid="today-cold-email">
       <p className="tz-cold-email-words">{note.headline}</p>
       <Button
         size="sm"

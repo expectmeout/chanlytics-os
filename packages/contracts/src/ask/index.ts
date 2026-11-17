@@ -83,7 +83,15 @@ export {
   askRoundCap,
 } from "./model";
 export type { AskModelProfile } from "./model";
-export { ASK_NOTICE_ORDER, noticeOf, noticeRestId, noticesInOrder, whoCanHearWords } from "./notice";
+export {
+  ASK_NOTICE_ORDER,
+  ASK_NOTICES_SENT,
+  NOTICE_SAID_BY_RIGHT_NOW,
+  noticeOf,
+  noticeRestId,
+  noticesInOrder,
+  whoCanHearWords,
+} from "./notice";
 export type { AskNotice, AskNoticeFacts } from "./notice";
 export {
   cardsTogether,

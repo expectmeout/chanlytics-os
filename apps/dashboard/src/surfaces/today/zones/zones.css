@@ -84,6 +84,13 @@
   align-content: center;
   gap: 0 10px;
 }
+/* With the note under them, the name and the door keep the line every head gives them (a 28px line 15px down a 58px head,
+   so the day's name stands level with Need you's beside it), and the note its own line, 12px over the day's first row.
+   Centred in the head, the two lines lifted the name 9px over its neighbour's (the spacing review of 17 Nov 2026). */
+.dash-a-v2 .tpd-head:has(> .tpd-note[data-long]) {
+  align-content: flex-start;
+  padding-block: 15px var(--space-3);
+}
 .tpd-note[data-long] {
   order: 3;
   flex: 0 0 100%;
@@ -400,12 +407,16 @@
   flex-direction: column;
   padding: 0 18px var(--space-2);
 }
-/* "2 more": what is past the three, opened in place, at the head's right. */
+/* "2 more": what is past the three, opened in place, at the head's right. Its chevron ends at the pane's gutter, where
+   every other head's door ends: the kit's 11px at its sides set it 12px in from them. */
 .tz-found-more {
   gap: var(--space-1);
   margin-left: auto;
   font-size: var(--text-sm);
   color: var(--ink-muted);
+}
+.dash-a-v2 .tz-found-more {
+  padding-inline: 0;
 }
 .tz-found-more[aria-expanded="true"] > svg,
 .tz-idea-s[aria-expanded="true"] svg {
@@ -656,8 +667,11 @@
   display: none;
 }
 @media (max-width: 720px) {
+  /* Every pane the same corners on a phone, the setup card's among them: it kept a desk's (the spacing review of 17 Nov
+     2026). */
   .dash-a-v2 .tz-pane,
   .dash-a-v2 .tpd,
+  .dash-a-v2 .tps,
   .dash-a-v2 .today-queue,
   .dash-a-v2 [data-testid="today-card"] {
     border-radius: var(--radius-3xl);
@@ -666,13 +680,19 @@
   .dash-a-v2 .tz-found {
     padding: 0 var(--space-4) 6px;
   }
-  /* A head on a phone: its name's line, and no more. The chevron's 44 for a thumb reaches over the head's own padding, so
-     its head stands as tall as one with no chevron. */
-  .dash-a-v2 .tz-head {
+  /* A head on a phone: its name's line, and no more, Need you's too (its own rule kept it a desk's 58px, its name 7px
+     under every other pane's). The chevron's 44 for a thumb, and "3 more"'s, reach over the head's own padding, so their
+     heads stand as tall as one with neither. */
+  .dash-a-v2 .tz-head,
+  .dash-a-v2 .today-queue .tq-head {
     min-height: 44px;
     padding-block: var(--space-2);
   }
-  .dash-a-v2 .today-setup > .tz-head [data-testid="today-setup-fold"] {
+  .dash-a-v2 .tpd-head:has(> .tpd-note[data-long]) {
+    padding-block: var(--space-2);
+  }
+  .dash-a-v2 .today-setup > .tz-head [data-testid="today-setup-fold"],
+  .dash-a-v2 .tz-found-more {
     margin-block: calc(var(--space-2) * -1);
   }
   .dash-a-v2 .tps > .today-setup,
@@ -688,7 +708,7 @@
 /* Today so far on a phone: the four figures in one row, each its number over its short name, and the week under them. */
 .dash-a-v2 .tz-sofar {
   display: block;
-  padding: 2px var(--space-4) 6px;
+  padding: 0 var(--space-4) 6px;
 }
 .tz-sofar-figs .tc-figs {
   display: grid;
@@ -748,13 +768,23 @@
   color: var(--ink-dim);
 }
 
-/* Cold email's one line on Today, in its amber: what it waits on, and the way there. */
-.tz-cold-email {
+/* Cold email's one line on Today, in its amber: what it waits on, and the way there. A band, as the foot's strip is: its
+   line centred in it, the strip's corners and the panes' gutter (the spacing review of 17 Nov 2026: as a record card it
+   stood 18px over its line and 6 under, its ends a full round beside the strip's). */
+.dash-a-v2 .tz-cold-email {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 52px;
+  padding: var(--space-3) 18px;
+  border-radius: var(--radius-3xl);
   background: var(--warn-soft);
+}
+@media (max-width: 720px) {
+  .dash-a-v2 .tz-cold-email {
+    padding-inline: var(--space-4);
+  }
 }
 .tz-cold-email-words {
   margin: 0;
@@ -906,4 +936,83 @@
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
+}
+
+/* What was done beside what still waits, in a head (Today with colour, D6, 17 Nov 2026): the kit's meter, a short span. */
+.dash-a-v2 .tz-done {
+  flex: none;
+  width: 84px;
+}
+
+/* The period's days beside its line (Today with colour, D7, 17 Nov 2026): the kit's spark, before the chevron on a desk's
+   strip, and over the line, the width of the pane, on a phone. Their key says the two colours (the canvas check of 17 Nov
+   2026): the ok tone's swatch for what AI answered, the accent's for today; under the line on a desk, between the days
+   and the line on a phone. */
+.tz-week-says {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.tz-month-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  font-size: var(--text-xs);
+  line-height: 16px;
+  color: var(--ink-dim);
+}
+.tz-month-key > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.tz-month-key > span::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-xs);
+  background: var(--ok);
+}
+.tz-month-key > .tz-key-today::before {
+  background: var(--accent);
+}
+.tz-week > .tz-month {
+  flex: 0 1 360px;
+  margin-left: auto;
+  height: 44px;
+}
+.tz-sofar .tz-week-says {
+  flex-direction: column-reverse;
+  gap: 6px;
+}
+.tz-sofar .tz-week {
+  flex-wrap: wrap;
+}
+.tz-sofar .tz-week > .tz-month {
+  flex: 1 0 100%;
+  order: -1;
+  margin: 0 0 8px;
+}
+.tz-sofar .tz-week > span:not(.tz-month) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* The warn tone's dot before how many need you, in the head's sentence (Today with colour, D5, 17 Nov 2026). */
+.tz-waits {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: var(--radius-full);
+  background: var(--warn);
+  vertical-align: 1px;
+}
+/* The visit now: the kit's live dot before its word (Today with colour, D4), the accent's one live moment on the day. */
+.tpd-eyebrow[data-now] {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
 }
