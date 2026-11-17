@@ -1,4 +1,4 @@
-import { isCampaignEmail, jittered, MIN_MS, PURPOSE_REFUSALS, type SendPurpose } from "@chanlytics/contracts";
+import { DAY_MS, isCampaignEmail, jittered, MIN_MS, PURPOSE_REFUSALS, type SendPurpose } from "@chanlytics/contracts";
 import { holdNotice } from "../deliver/hold-notice";
 import type { Channel, Delivered } from "../deliver/deliver";
 import {
@@ -120,9 +120,49 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     await resendLater(ports, cmd, channel, error);
     return;
   }
-  if (out.outcome === "refused" && out.reason === "too_late") return handItOver(ports, cmd, { channel, to });
+  if (out.outcome === "refused") return afterRefusal(ports, cmd, out, { channel, to, purpose });
   if (out.outcome !== "failed") return;
   await sayItFailed(ports, cmd, { msg, channel, purpose, to, out });
+}
+
+/**
+ * How long a send Stop everything holds waits before a fresh job looks again (deliver/stop.ts stopOf): the longest a held
+ * message waits to leave once sending is resumed. None of SEND_RETRY_WAITS_MS's bounded tries: a stop lasts as long as
+ * its owner says.
+ */
+const SEND_STOP_WAIT_MS = 5 * MIN_MS;
+
+/**
+ * The longest a send is held for a stop when it names no last moment of its own (payload.stale_after): past it the
+ * door says too late, as it does of any send past its time, so no message waits on a stop for ever.
+ */
+const SEND_HELD_AT_MOST_MS = DAY_MS;
+
+/**
+ * What a refusal at the door asks of the job. A send Stop everything HELD is given back and looked at again a while
+ * on, the same job as it was, nothing failed and nobody told. A reply that will not go by itself now (too late, or
+ * canceled by the stop) is a person's to send; a cold email the stop canceled is not a reply: its clock plans it again
+ * (contracts OUTREACH_WAIT_REFUSALS), and no thread is handed to anybody. Any other refusal is the person's own no, and
+ * the row says it.
+ */
+async function afterRefusal(
+  ports: SendQueuedPorts,
+  cmd: SendQueuedCommand,
+  out: Extract<Delivered, { outcome: "refused" }>,
+  fields: { channel: Channel; to: string; purpose: SendPurpose },
+): Promise<void> {
+  if (out.held) {
+    const now = (ports.now ?? Date.now)();
+    const payload = cmd.payload.stale_after
+      ? cmd.payload
+      : { ...cmd.payload, stale_after: new Date(now + SEND_HELD_AT_MOST_MS).toISOString() };
+    // Nothing left and nothing was canceled, so the claim is given back before the fresh job is asked for.
+    await ports.release(cmd.payload.message_id);
+    await ports.retry(new Date(now + jittered(SEND_STOP_WAIT_MS, ports.random)), payload);
+    return;
+  }
+  if (out.reason === "too_late" || (out.reason === "stopped" && fields.purpose !== "outreach"))
+    await handItOver(ports, cmd, fields, PURPOSE_REFUSALS[out.reason]);
 }
 
 /**
@@ -130,12 +170,14 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
  * reply horizon after the message it answers, so it is a person's to send, exactly as that message would have been had
  * it come in this late (inbound reply-gates.ts tooLate). The row keeps the words, canceled, for whoever answers. A
  * thread nothing holds is held under the same reason, `stale`, and told from its event, once per hold. A hold that
- * could not be written is told here, in the notice its event would have given, since nothing will say it again.
+ * could not be written is told here, in the notice its event would have given, since nothing will say it again. A reply
+ * the door canceled because the owner stopped everything is handed over the same way, in the stop's words (`details`).
  */
 async function handItOver(
   ports: SendQueuedPorts,
   cmd: SendQueuedCommand,
   fields: { channel: Channel; to: string },
+  details: string,
 ): Promise<void> {
   const conversationId = cmd.payload.conversation_id;
   // A thread already held keeps its hold: its reason, its act and its one notice. The receptionist's own escalation
@@ -143,7 +185,6 @@ async function handItOver(
   // 'stale' replacing a booking's hold lost its act and told the owner again. A hold that cannot be read is not one
   // known to be open: the thread is handed over, since a second notice is better than a thread nobody holds.
   if (await ports.openHold(conversationId).catch(() => null)) return;
-  const details = PURPOSE_REFUSALS.too_late;
   const held = await ports.escalate(conversationId, "stale", details);
   if (toldFromItsEvent(held)) return;
   await ports.alert(

@@ -32547,6 +32547,7 @@ CREATE FUNCTION public.sequence_occasions_due(p_tenant_id uuid, p_at timestamp w
     -- A sequence's first step is the row that shares its id (00440).
     left join public.sequence_steps s on s.id = o.sequence_id
    where o.tenant_id = p_tenant_id and o.state = 'waiting' and o.try_at <= p_at
+     and t.sending_stopped_at is null
    order by o.try_at, o.id
    limit greatest(coalesce(p_limit, 0), 0)
 $$;
@@ -32556,7 +32557,7 @@ $$;
 -- Name: FUNCTION sequence_occasions_due(p_tenant_id uuid, p_at timestamp with time zone, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_occasions_due(p_tenant_id uuid, p_at timestamp with time zone, p_limit integer) IS 'A workspace''s waiting occasions due at p_at, soonest first, each with when it began, its sequence''s first step and mode as a run reads one, and whether that step runs now (the sequence on, the step running, the workspace not paused): the job settles one that does not (decision 0119). Service role only.';
+COMMENT ON FUNCTION public.sequence_occasions_due(p_tenant_id uuid, p_at timestamp with time zone, p_limit integer) IS 'A workspace''s waiting occasions due at p_at, soonest first, each with when it began, its sequence''s first step and mode as a run reads one, and whether that step runs now (the sequence on, the step running, the workspace not paused): the job settles one that does not (decision 0119). None is handed while its workspace''s sending is stopped (Stop everything): they wait as they are. Service role only.';
 
 
 --
@@ -33986,6 +33987,7 @@ CREATE FUNCTION public.sequence_steps_due(p_kind text, p_at timestamp with time 
      and s.trigger not in ('slot_opened', 'visit_soon', 'visit_missed', 'asked_no_booking')
      and (s.kind = 'reach_out' or (r.state = 'running' and q.state = 'on'))
      and t.status <> 'paused'
+     and t.sending_stopped_at is null
      and (p_tenant_id is null or s.tenant_id = p_tenant_id)
      and extract(hour from l.clock) between s.run_hour and p_last_hour
      and s.last_run_for is distinct from l.clock::date
@@ -33998,7 +34000,7 @@ $$;
 -- Name: FUNCTION sequence_steps_due(p_kind text, p_at timestamp with time zone, p_last_hour integer, p_limit integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_steps_due(p_kind text, p_at timestamp with time zone, p_last_hour integer, p_limit integer, p_tenant_id uuid) IS 'The running steps of one kind due at p_at by their workspace''s own clock, each with its sequence''s mode (00462), a paused workspace''s never, never run first, then least recently run, with due_total the count of all that were due: the hourly sweep''s pages (playbooks_due''s rule, 00245). A customer''s step after the first is due only while its sequence is on (0060).';
+COMMENT ON FUNCTION public.sequence_steps_due(p_kind text, p_at timestamp with time zone, p_last_hour integer, p_limit integer, p_tenant_id uuid) IS 'The running steps of one kind due at p_at by their workspace''s own clock, each with its sequence''s mode (00462), a paused workspace''s never, nor one whose owner stopped all sending (Stop everything), never run first, then least recently run, with due_total the count of all that were due: the hourly sweep''s pages (playbooks_due''s rule, 00245). A customer''s step after the first is due only while its sequence is on (0060).';
 
 
 --
@@ -43054,6 +43056,7 @@ CREATE TABLE public.tenants (
     appointment_word text,
     ours boolean DEFAULT false NOT NULL,
     accent text,
+    sending_stopped_at timestamp with time zone,
     CONSTRAINT tenants_accent_shape CHECK (((accent IS NULL) OR (accent ~ '^#[0-9a-f]{6}$'::text))),
     CONSTRAINT tenants_appointment_word_check CHECK (((appointment_word IS NULL) OR (appointment_word = ANY (ARRAY['appointment'::text, 'visit'::text, 'meeting'::text, 'session'::text, 'lesson'::text])))),
     CONSTRAINT tenants_logo_path_shape CHECK (((logo_path IS NULL) OR ((split_part(logo_path, '/'::text, 1) = (id)::text) AND (logo_path ~ '^[0-9a-f-]{36}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png$'::text)))),
@@ -43101,6 +43104,13 @@ COMMENT ON COLUMN public.tenants.ours IS 'A workspace of ours (00469, decision 0
 --
 
 COMMENT ON COLUMN public.tenants.accent IS 'The workspace''s own colour (00490): one lower-case #rrggbb its emails to customers and their pages draw the button and links in; null when it has none and ink stands in. Written by set_workspace_accent (a member) and wear_found_look (the website read, only where no person set it).';
+
+
+--
+-- Name: COLUMN tenants.sending_stopped_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tenants.sending_stopped_at IS 'When the workspace''s owner stopped all sending (Stop everything); null while nothing is stopped. Read beside status wherever a paused workspace is refused (core sendingHoldOf): nothing goes out by itself, a person''s own reply and the words the rules require still go, and what was going out is held for the day sending is resumed. Written by Stop everything and lifted by Resume, on the service role; no session writes it.';
 
 
 --

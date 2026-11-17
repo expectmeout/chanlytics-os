@@ -72,6 +72,7 @@ function world(tally = { sent: 0, held: 0 }) {
       audience: null,
     }),
     workspacePaused: async () => false,
+    sendingStopped: async () => false,
     wireUnavailable: async () => null,
     message: async (name, language) => [
       {

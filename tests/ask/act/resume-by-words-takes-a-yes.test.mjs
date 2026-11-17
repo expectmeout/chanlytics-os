@@ -27,6 +27,16 @@ const member = { tenantId: TENANT, role: "owner", facts: {} };
 /** A workspace Stop everything holds: its one sequence paused by it, replies held from auto. */
 const world = ({ stopped }) => {
   const tables = {
+    // The workspace's own row, where the stop itself is kept (tenants.sending_stopped_at).
+    tenants: [
+      {
+        id: TENANT,
+        slug: "harbor",
+        name: "Harbor Studio",
+        status: "active",
+        sending_stopped_at: stopped ? "2026-11-13T10:00:00Z" : null,
+      },
+    ],
     tenant_config: [
       {
         tenant_id: TENANT,
