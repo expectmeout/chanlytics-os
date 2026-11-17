@@ -1079,6 +1079,15 @@ test("each ending says contracts' own sentence, with this round's numbers in it,
     [],
     "with nowhere else to look there is no next step to offer",
   );
+  // Places that wait to be checked are no exclusion of the owner's: the strip claims no reason for them (16 Nov 2026: it
+  // said all of them were what "you asked me to leave out", catch-alls and all), and never says "me".
+  const waiting = leadStrip(ended("searched_everything", { counted: 0, excluded: 0, review: 5 }), NOW);
+  assert.deepEqual(
+    [waiting.title, waiting.parts],
+    ["Found 5 personal trainers in Austin, TX", ["none could be counted"]],
+  );
+  const none = leadStrip(ended("searched_everything", { counted: 0, excluded: 0 }), NOW);
+  assert.deepEqual([none.title, none.parts], ["Found no personal trainers in Austin, TX", ["nothing was counted"]]);
   // The round's own nearby areas (00145): the step names them and opens the plan on the nearest.
   const far = [
     {

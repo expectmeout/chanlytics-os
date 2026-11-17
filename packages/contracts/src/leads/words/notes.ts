@@ -222,15 +222,15 @@ function widenedEnding(mark: string, facts: LeadEndingFacts, yours: string): Lea
  * what came back could be counted. It said every place was what "you asked me to leave out", catch-alls and all.
  */
 function nothingCounted(mark: string, facts: LeadEndingFacts, one: string): LeadEndingLine {
-  const seen = plural(facts.seen, one, facts.name);
+  const seenSaid = plural(facts.seen, one, facts.name);
   const allLeftOut = facts.seen > 0 && !facts.review;
-  const why = facts.leftOutBy ? `${facts.leftOutBy}, which you asked to leave out` : "outside what you asked for";
+  const reason = facts.leftOutBy ? `${facts.leftOutBy}, which you asked to leave out` : "outside what you asked for";
   return {
     mark,
     title: allLeftOut
-      ? `There ${facts.seen === 1 ? "is" : "are"} ${seen} in ${facts.area}, and ${facts.seen === 1 ? "it is" : "all of them are"} ${why}.`
+      ? `There ${facts.seen === 1 ? "is" : "are"} ${seenSaid} in ${facts.area}, and ${facts.seen === 1 ? "it is" : "all of them are"} ${reason}.`
       : facts.seen > 0
-        ? `Found ${seen} in ${facts.area}`
+        ? `Found ${seenSaid} in ${facts.area}`
         : `Found no ${facts.name} in ${facts.area}`,
     parts: allLeftOut ? ["Nothing was counted."] : [facts.seen > 0 ? "none could be counted" : "nothing was counted"],
     step: facts.nearby.length ? { id: "nearby", label: `Look ${leadNearWhere(facts.nearby)}` } : null,

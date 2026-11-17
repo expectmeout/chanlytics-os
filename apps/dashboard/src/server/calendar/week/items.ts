@@ -193,7 +193,7 @@ export type CalendarSources = {
    * Read only for the rows that name a lead; none for the rest, and none where the read failed.
    */
   origins?: ReadonlyMap<string, VisitOriginDto>;
-  /** The record rows' ids of the visits said missed that a sequence follows up (missedFollowedOf); none where unread. */
+  /** The record rows' ids of the visits said missed that a sequence follows up (findMissedFollowed); none where unread. */
   followed?: ReadonlySet<string>;
   /**
    * The record's taken time over the days the receptionist may offer, read beside a feed that reads (record-busy.ts):
@@ -259,7 +259,7 @@ export async function recordOverSpan(
   // The lead each row's person was found as (00426), a booking's and a feed event's alike, by the row's id.
   const leads = new Map<string, string>();
   for (const r of [...record.noted, ...record.feed]) if (r.lead_id) leads.set(r.id, r.lead_id);
-  // The visits said missed of someone on record: what a sequence may follow up (missedFollowedOf).
+  // The visits said missed of someone on record: what a sequence may follow up (findMissedFollowed).
   const missed = [...record.noted, ...record.feed].flatMap((r) =>
     r.status === "missed" && r.contact_id ? [{ appointmentId: r.id, contactId: heldContactId(r.contact_id) }] : [],
   );
@@ -277,7 +277,7 @@ export interface MissedVisit {
  * on one later offers no second ask for a new time. No query with none missed; a read that fails is none followed and a
  * logged line, the sheet then offering its own ask, as it did before it knew.
  */
-export async function missedFollowedOf(
+export async function findMissedFollowed(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: TenantId,
   missed: readonly MissedVisit[],

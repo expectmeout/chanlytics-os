@@ -110,7 +110,7 @@ function runsSpanOf(
 const SPAN_POSTS_MAX = 300;
 
 /** A post held or refused before it went: the owner's to look at, while it is the newest of its piece at its place. */
-const stopped = (row: { status: string }): boolean => row.status === "held" || row.status === "failed";
+const heldBack = (row: { status: string }): boolean => row.status === "held" || row.status === "failed";
 
 /**
  * Content's posts over a span, each named by its piece; one whose piece is gone is not drawn, nor a stop a newer post of
@@ -126,7 +126,7 @@ async function postsInSpan(
 ): Promise<CalendarPostDto[]> {
   const rows = await listPostsInSpan(db, tenantId, { fromIso, toIso, limit: SPAN_POSTS_MAX });
   if (rows.length === 0) return [];
-  const stoppedFiles = [...new Set(rows.filter(stopped).map((r) => r.file_id))];
+  const stoppedFiles = [...new Set(rows.filter(heldBack).map((r) => r.file_id))];
   const [files, theirs] = await Promise.all([
     listFilesByIds(db, tenantId, [...new Set(rows.map((r) => r.file_id))]),
     stoppedFiles.length ? listPostsOfFiles(db, tenantId, stoppedFiles) : Promise.resolve([]),
@@ -135,7 +135,7 @@ async function postsInSpan(
   return rows.flatMap((row) => {
     const name = names.get(row.file_id);
     if (name === undefined || !isOneOf(POST_PLACES, row.place) || !isOneOf(POST_STATUSES, row.status)) return [];
-    if (stopped(row) && stopSuperseded(row, theirs)) return [];
+    if (heldBack(row) && stopSuperseded(row, theirs)) return [];
     return [
       {
         id: row.id,

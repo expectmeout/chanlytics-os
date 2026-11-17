@@ -724,7 +724,7 @@ test("an email that carries their preview: the writer and the reader are both sh
   // What the preview knows is what its own line says, never the listing's rating or reviews said to be its (16 Nov 2026:
   // a line said a lead's preview "knows" its rating and was passed). The writer is told, and the reader holds it.
   assert.match(told, /Say the preview knows only what preview_knows lists/);
-  assert.match(readingSystemPrompt(), /a fact from the rest of the record said to be the preview's is not backed/);
+  assert.match(readingSystemPrompt(), /A fact from the rest of the record said to be the preview's is not backed/);
 });
 
 test("a first email's writer is told nothing of a preview: its input is what it always was", () => {

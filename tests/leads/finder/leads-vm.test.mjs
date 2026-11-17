@@ -671,18 +671,6 @@ test("the endings read as the States artboard wrote them", () => {
     ),
     "There are 3 personal trainers in Marfa, TX, and all of them are part of chains, which you asked to leave out. · Nothing was counted.",
   );
-  // Places that wait to be checked (their address could not be confirmed) are no exclusion of the owner's: the line
-  // claims no reason for them. It said all of them were what "you asked me to leave out", catch-alls and all.
-  assert.equal(
-    said(
-      line("searched_everything", { counted: 0, seen: 5, review: 5, area: "Marfa, TX", leftOutBy: "part of chains" }),
-    ),
-    "Found 5 personal trainers in Marfa, TX · none could be counted",
-  );
-  assert.equal(
-    said(line("searched_everything", { counted: 0, seen: 0, area: "Marfa, TX", leftOutBy: null })),
-    "Found no personal trainers in Marfa, TX · nothing was counted",
-  );
   assert.equal(
     said(line("month_leads_used", { counted: 464 })),
     "Stopped at 464 · this month's leads are used · the 464 found are yours",

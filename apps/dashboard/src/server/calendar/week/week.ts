@@ -47,7 +47,7 @@ import {
   itemsToDays,
   noticesHealth,
   personLike,
-  missedFollowedOf,
+  findMissedFollowed,
   recordOverSpan,
   spanFor,
   type CalendarSources,
@@ -172,7 +172,7 @@ export async function getCalendarSources(
       feedOnly: !!opts.feedOnly,
     }),
     originsOf(ctx, tenantId, leads),
-    missedFollowedOf(ctx, tenantId, missed),
+    findMissedFollowed(ctx, tenantId, missed),
   ]);
   // Beside a feed that reads, the record's taken time, which the open times subtract; never for a feed-only read.
   const taken = sources.parsed && !opts.feedOnly ? await takenBesideTheFeed(ctx, tenantId, read, now) : [];
