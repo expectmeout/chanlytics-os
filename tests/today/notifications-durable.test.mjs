@@ -126,7 +126,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   );
   const bell = readCode("apps/dashboard/src/bridge/notifications.ts");
   assert.ok(
-    /bellFeed\(\{\s*derived: feedFromGlobals\(win, Date\.now\(\)\),\s*device: deviceState\(\),\s*kept: through\.kept\(\),\s*waits: whatWaits\(\),?\s*\}\)\.sort\(\(a, b\) => b\.at - a\.at\)/.test(
+    /bellFeed\(\{\s*derived: feedFromGlobals\(win, Date\.now\(\)\),\s*device: deviceState\(\),\s*kept: through\.kept\(\),\s*waits,?\s*\}\);\s*return withNeedYou\(named\(feed\.sort\(\(a, b\) => b\.at - a\.at\)\), waits\)/.test(
       bell,
     ),
     "derived beside kept (read through a press this tab just made, where one is held), once, newest first",

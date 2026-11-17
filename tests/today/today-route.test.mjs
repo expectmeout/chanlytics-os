@@ -89,17 +89,16 @@ test("the day's read comes back whole, and the page makes the day from it in its
       heldThreads: read.held_threads,
       previewsTried: read.previews_tried,
       doneToday: read.done_today,
-      since: read.since,
     },
   );
   // The wire is snake_case (docs/naming.md): what the route adds beside Ask's reader is named as the wire names it, each
-  // read (today-reads.test.mjs runs the two the page alone reads: nothing done yet, and a member who never looked).
+  // read (today-reads.test.mjs runs the one the page alone reads: nothing done yet).
   assert.ok(
     ["held_threads", "previews_tried"].every((k) => k in read),
     "each named on the wire's way",
   );
   assert.equal(read.done_today, 0);
-  assert.deepEqual(read.since, { seen_at: null, answered: null });
+  assert.equal("since" in read, false, "what happened since the member looked is the bell's, not this read's (0136)");
   assert.ok(vm.standing.headline, "a headline");
   assert.equal(vm.standing.lines.down, false);
   assert.deepEqual(
