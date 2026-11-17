@@ -5,13 +5,15 @@
  * holds into rows, AskRows draws them as one listbox. No key symbol is drawn (the Line, D17).
  */
 import { Fragment, useEffect, useState } from "react";
-import type {
-  AskAnswer,
-  AskBreakdown as Breakdown,
-  AskLanguage,
-  AskScope,
-  AskSurface,
-  AskThreadVM,
+import {
+  NOTICE_SAID_BY_RIGHT_NOW,
+  type AskAnswer,
+  type AskBreakdown as Breakdown,
+  type AskLanguage,
+  type AskNotice,
+  type AskScope,
+  type AskSurface,
+  type AskThreadVM,
 } from "@chanlytics/contracts";
 import type { AskApi } from "@/bridge/ask";
 import type { FrameFlash } from "../frame-verbs";
@@ -113,7 +115,7 @@ export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view
     return sections.length > 1 ? sections : [];
   }
   // At rest: Right now is the first row, and ↵ on the empty line asks who needs you (the quick answer). The counts its
-  // sentence was built from are the hero's pills, under the three (line/draw.tsx); Earlier is the head's (spec 5.2).
+  // sentence was built from are the hero's pills while a phone's field is in use (line/under.ts); Earlier is the head's (spec 5.2).
   const parts = A.rightNowParts
     ? A.rightNowParts(lang)
     : { sentence: A.rightNow(lang), people: 0, runs: 0, searches: 0 };
@@ -132,8 +134,13 @@ export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view
       ],
     },
   ];
-  // What Ask noticed (D7 of the answers canvas): one thing, with its plan a press away. Ask speaks first here, never a list.
-  const notice = A.noticed ? A.noticed() : null;
+  // What Ask noticed (D7 of the answers canvas): one thing, with its plan a press away. Ask speaks first here, never a list,
+  // and never what Right now's sentence just said (a search or a send waiting): the next thing worth saying instead.
+  const said = (n: AskNotice) => {
+    const by = NOTICE_SAID_BY_RIGHT_NOW[n.key];
+    return !!by && parts[by] > 0;
+  };
+  const notice = A.noticed ? A.noticed(said) : null;
   if (notice)
     sections.push({
       key: "noticed",
@@ -157,8 +164,11 @@ export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view
       label: t.followUpsDue,
       items: due.map((f) => ({ type: "follow", label: f.said, q: f.prompt, following: f.id })),
     });
+  // The page's questions as chips only where they were written for this workspace (Leads' ideas, the person's own
+  // searches): a question from a table is a preset, and AI needs none (Ruben, 12 and 17 Nov 2026). They still match
+  // what is typed (above), and an answer's own next questions are AI's.
   const asks = A.suggestions(surface, scope, lang)
-    .filter((s) => s.kind !== "act" && s.q !== t.needsQ)
+    .filter((s) => s.kind !== "act" && s.q !== t.needsQ && s.own)
     .slice(0, 3);
   // On Leads the consent rule stands under the section's chips (spec F3), one dim line; nowhere else has a note.
   if (asks.length)
@@ -253,8 +263,10 @@ export const AskRows = ({
       return (
         <div key={i} {...shared} className={`ask-row now${waiting ? " waiting" : ""}${sel ? " sel" : ""}`}>
           <span className="ask-row-label">{it.label}</span>
+          {/* The one look of a press in AI's middle: the chip's capsule, as an answer's next questions wear it (Ruben, 17
+              Nov 2026: a button, a link and chips on one screen read as messy). */}
           {waiting ? (
-            <span className="btn btn-sm ask-now-brief" data-testid="ask-row-brief">
+            <span className="line-chip ask-now-brief" data-testid="ask-row-brief">
               {t.briefMe}
             </span>
           ) : null}
@@ -272,7 +284,12 @@ export const AskRows = ({
     // A row is ONE option and holds no control of its own (second-act.tsx): Not now and a conversation's x are a
     // pointer's alone, and the keys say either with Delete on the row, which the option names and says in words.
     return (
-      <div key={i} {...shared} className={`ask-row ${it.type}${sel ? " sel" : ""}`} {...deleteKeyOf(it)}>
+      <div
+        key={i}
+        {...shared}
+        className={`ask-row ${it.type}${it.rest ? " noticed" : ""}${sel ? " sel" : ""}`}
+        {...deleteKeyOf(it)}
+      >
         {it.type === "thread" ? <Icon name="chat" size={13} className="ask-row-glyph" /> : null}
         {it.type === "follow" && !it.rest ? <span className="subtab-dot" aria-hidden="true" /> : null}
         <span className="ask-row-main">
@@ -280,13 +297,15 @@ export const AskRows = ({
           {it.sub ? <span className="ask-row-sub">{it.sub}</span> : null}
         </span>
         {it.meta ? <span className="ask-row-meta">{it.meta}</span> : null}
+        {/* Not now is the kit's x, as a conversation's is: a notice is its fact, its act and its x (docs/words.md). */}
         {it.rest ? (
           <span
             {...secondAct(() => it.rest && onRest?.(it.rest))}
-            className="line-words ask-row-meta"
+            className="line-remove ask-row-rest"
+            title={t.notNow}
             data-testid="ask-row-rest"
           >
-            {t.notNow}
+            <Icon name="x" size={10} />
           </span>
         ) : null}
         {it.type === "thread" ? (

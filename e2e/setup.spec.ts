@@ -167,7 +167,8 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     await expect(page, "the first run stays where it is under the Line").toHaveURL(atRoute(/^start/));
     await expect(page.getByTestId("first-run")).toBeAttached();
     expect(await line.innerText(), "no key is drawn").not.toMatch(/[↵⌘]|\besc\b/i);
-    await expect(line.locator(".ask-rows-label", { hasText: "Ask about setting up" })).toBeVisible();
+    // No preset question about the page at rest (they come from a table: Ruben, 17 Nov 2026).
+    await expect(line.locator(".ask-rows-label", { hasText: "Ask about" })).toHaveCount(0);
     await page.screenshot({ path: "test-results/ask-first-run.png" });
     // The turn's own answer, whose first line names the conversation it made (the paid run deletes it after).
     const turn = PAID

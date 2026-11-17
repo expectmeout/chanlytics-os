@@ -269,11 +269,12 @@ export const arHeroState = ({
   const heroMode = arHeroModeOf({ thread, heroSmall, live, quick });
   const heroQ = !heroSmall || thread ? null : live ? live.q : latest && latest.q ? latest.q.text : null;
   const restful = !thread && (talk.listening || (showRows && view === "rows" && !query));
-  // The standing pills (who needs you, the runs and searches waiting) are the hero's: under the three at rest, and
-  // still there while a phone's field is in use, since they are what a person came to see (spec 5.9).
+  // The standing pills (who needs you, the sends and searches waiting) are the hero's while a phone's field is in use,
+  // since they are what a person came to see and Right now's sentence folds away with the rows (spec 5.9). At rest that
+  // sentence says the same counts, so the pills wait: a thing is said once (Ruben, 17 Nov 2026: "2 sends waiting" over
+  // "2 campaign runs are waiting for your approval" read as messy; docs/words.md, a badge never repeats the line under it).
   const parts = A.rightNowParts ? A.rightNowParts(lang) : null;
-  const standing =
-    !!parts && !!(parts.people || parts.runs || parts.searches) && !talk.listening && (composingRows || restful);
+  const standing = !!parts && !!(parts.people || parts.runs || parts.searches) && !talk.listening && composingRows;
   return { heroSmall, heroMode, heroQ, restful, parts, standing };
 };
 

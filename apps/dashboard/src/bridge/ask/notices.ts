@@ -88,8 +88,9 @@ export function askNotices(win: Window, language: () => string = () => "en") {
   let openedIn: string | null = null;
   const shown = () => openedIn ?? language();
   return {
-    /** The one thing worth saying first, or nothing. */
-    noticed: (): AskNotice | null => noticedInTab.peek(shown())?.notices[0] ?? null,
+    /** The one thing worth saying first, or nothing; past any the home says already (`said`, contracts NOTICE_SAID_BY_RIGHT_NOW). */
+    noticed: (said?: (n: AskNotice) => boolean): AskNotice | null =>
+      noticedInTab.peek(shown())?.notices.find((n) => !said?.(n)) ?? null,
     /**
      * Whether what the AI noticed is held for a language: where it is not, the home waits for its read as it opens
      * (surfaces/ask/line/hooks.tsx arNoticeWait). Drawn before it, its line came in 0.8 s later and moved the three and

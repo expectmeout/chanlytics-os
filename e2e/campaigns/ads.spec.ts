@@ -222,7 +222,7 @@ test.describe("Campaigns › Ads, a workspace's preview", () => {
     expect(errors).toEqual([]);
   });
 
-  test("AI is told what the page shows, in a word and no row, and offers questions about ads; no model is asked", async ({
+  test("AI is told what the page shows, in a word and no row, and matches questions about ads as they are typed; no model is asked", async ({
     page,
   }) => {
     const errors = thrown(page);
@@ -238,9 +238,12 @@ test.describe("Campaigns › Ads, a workspace's preview", () => {
     expect(told.at(-1)?.surface).toBe("campaigns");
     expect(told.at(-1)?.rows, "nothing of Sequences, and no row of the sample").toEqual([]);
     expect((await warmed).ok(), "the server reads the page for it").toBe(true);
+    // The page's questions are no chips at rest (they come from a table: Ruben, 17 Nov 2026); typed, they match, about ads.
+    await expect(page.getByText("Can I run an ad yet?")).toBeHidden();
+    await page.getByTestId("ask-input").fill("an ad");
     await expect(page.getByText("Can I run an ad yet?")).toBeVisible();
     await expect(page.getByText("Set up my campaigns")).toBeHidden();
-    await expect(page.getByPlaceholder("Describe what should go out, and when")).toBeHidden();
+    await expect(page.getByPlaceholder("What should go out?")).toBeHidden();
 
     await page.keyboard.press("Escape");
     await chooseExample(page, EXAMPLE.choices.running);

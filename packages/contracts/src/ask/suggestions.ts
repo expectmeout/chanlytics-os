@@ -31,6 +31,12 @@ export interface AskSuggestion {
   label?: string;
   /** Put the words in the input for the person to finish, rather than sending them. */
   compose?: boolean;
+  /**
+   * Written for this workspace, never from a table: an idea the model wrote for it (Leads' first day) or the person's own
+   * words (their searches). AI's home offers only these as chips (Ruben, 12 and 17 Nov 2026: a suggestion chip is one AI
+   * wrote for that very thing, never a template); the rest still match what is typed.
+   */
+  own?: boolean;
 }
 
 export interface SuggestionInput {
@@ -220,13 +226,13 @@ function clipWords(s: string, cap: number): string {
 function pageChips(
   input: SuggestionInput,
   item: (typeof T)[keyof typeof T],
-  add: (q: string, kind: AskSuggestion["kind"], icon: string, fast?: boolean, label?: string) => void,
+  add: (q: string, kind: AskSuggestion["kind"], icon: string, fast?: boolean, label?: string, own?: boolean) => void,
 ): boolean {
   if (input.surface === "leads") {
     // The section under the field keeps three, and they must be these.
     const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
     // An idea is its plan in words (00398), which can run long: the chip clips them, the question sent keeps them whole.
-    for (const w of ideas) add(w, "ask", "search", false, clipWords(w, 48));
+    for (const w of ideas) add(w, "ask", "search", false, clipWords(w, 48), true);
     // A search's own words can run long; the chip shows them clipped, the question sent keeps them whole.
     if (!ideas.length)
       for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
@@ -236,6 +242,7 @@ function pageChips(
           "search",
           false,
           item.moreLike.replace("{asked}", clipWords(a, 40)),
+          true,
         );
     return false;
   }
@@ -277,8 +284,9 @@ function askChips(
   at: AskSurface,
 ): { asks: AskSuggestion[]; winBackSaid: boolean } {
   const out: AskSuggestion[] = [];
-  const add = (q: string, kind: AskSuggestion["kind"], icon: string, fast = false, label?: string) => {
-    if (!out.some((s) => s.q === q)) out.push({ q, kind, icon, fast, ...(label ? { label } : {}) });
+  const add = (q: string, kind: AskSuggestion["kind"], icon: string, fast = false, label?: string, own = false) => {
+    if (!out.some((s) => s.q === q))
+      out.push({ q, kind, icon, fast, ...(label ? { label } : {}), ...(own ? { own } : {}) });
   };
   const scope = input.scope;
   if (scope && (scope.kind === "thread" || scope.kind === "conversation" || scope.kind === "person")) {

@@ -272,11 +272,7 @@ test("a going run whose emails the check holds waits on you once, however many i
   });
   assert.equal(words.held.sentence, "2 emails wait for your approval. The rest goes as planned.");
   assert.equal(heldEmailsWords(1), "1 email waits for your approval");
-  assert.equal(
-    runsWaitingSentence(2),
-    "2 campaign runs are waiting for your approval.",
-    "one sentence for both kinds of wait",
-  );
+  assert.equal(runsWaitingSentence(2), "2 sends are waiting for your approval.", "one sentence for both kinds of wait");
 });
 
 test("the server reads the runs waiting for a word as the page counts them: those waiting for approval, and the going reach-out runs whose check holds emails, with how many", async () => {
