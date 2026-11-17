@@ -2,10 +2,10 @@
  * A message open where it is needed, drawn as the Library draws it (templates/template-pane.tsx): its languages, its
  * channels and its menu, with the Library's own verbs (templates/page-acts.tsx), so a change made here is the change the
  * Library makes, said in the opener's toast. The settings surface holds the messages, as it does for the Library: read as
- * it is drawn. A name the workspace no longer holds says so, with the Library one press away.
+ * it is drawn. A name the workspace no longer holds says so, with Campaigns, where every message is, one press away.
  */
 import { useRef, useState } from "react";
-import { CAMPAIGN_ROOMS, LIBRARY_WORDS, LIFECYCLE_WORDS, MESSAGES_ROUTE } from "@chanlytics/contracts";
+import { CAMPAIGN_ROOMS, LIBRARY_WORDS, LIFECYCLE_WORDS, SEQUENCES_ROUTE } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { canDo, gateTitle, routeDoor } from "../../frame-verbs";
 import type { useFrameToast } from "../../frame-verbs";
@@ -73,8 +73,8 @@ export function MessageInPlace({ name, flash, onClose, step }: MessageInPlacePro
         body={
           <>
             {W.body}{" "}
-            <LinkButton {...routeDoor(MESSAGES_ROUTE)} data-testid="cmh-message-library">
-              {CAMPAIGN_ROOMS.library}
+            <LinkButton {...routeDoor(SEQUENCES_ROUTE)} data-testid="cmh-message-library">
+              {CAMPAIGN_ROOMS.home}
             </LinkButton>
           </>
         }

@@ -97,9 +97,9 @@ test("a mail with no route links the page the kind's list lives on", async () =>
     sweep: "/w/harbor/settings/integrations",
     job_failed: "/w/harbor/inbox",
     playbook: "/w/harbor/campaigns/sequences",
-    // Messages, the view of Campaigns it is (19 Oct 2026)
-    template_ready: "/w/harbor/campaigns/messages",
-    template_blocked: "/w/harbor/campaigns/messages",
+    // Campaigns, where every message is since Messages folded into it (17 Nov 2026); a named one opens the message
+    template_ready: "/w/harbor/campaigns/sequences",
+    template_blocked: "/w/harbor/campaigns/sequences",
     // Where a send's day is, since Sent retired (#1644)
     broadcast_sent: "/w/harbor/campaigns/sequences",
     broadcast_stopped: "/w/harbor/campaigns/sequences",

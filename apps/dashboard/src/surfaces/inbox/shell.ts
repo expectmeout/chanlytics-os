@@ -130,7 +130,7 @@ export function hasDealSheet(): boolean {
 /* ----------------------------------- Ask ----------------------------------- */
 
 /* What Ask is told is on screen is one ledger with one writer (bridge/ask/on-screen.ts), as every page says it. */
-export { askOnScreenKey, setAskOnScreen } from "../frame-verbs";
+export { askAbout, askOnScreenKey, setAskOnScreen } from "../frame-verbs";
 
 /* ----------------------------- the mockup's seeds ----------------------------- */
 

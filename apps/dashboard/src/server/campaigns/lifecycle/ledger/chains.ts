@@ -22,7 +22,6 @@ import {
   LIFECYCLE_WORDS,
   lifecycleStateOf,
   messageRoute,
-  MESSAGES_ROUTE,
 } from "@chanlytics/contracts";
 import type {
   ChannelsReady,
@@ -42,6 +41,9 @@ import type {
   LifecycleTone,
   LifecycleWaiting,
 } from "@chanlytics/contracts";
+
+/** Settings › Business, where the call's text is sent to WhatsApp (its booking-link row, Campaigns, one tab, call C9). */
+const BUSINESS_ROUTE = "admin/workspace";
 
 /** Campaigns before the tools: under seven, no tool line, tabs, heads, phone strip or search (decision 15, a judgment). */
 export const LEDGER_TOOLS_AT = 7;
@@ -355,7 +357,9 @@ export function callTextRow(library: LifecycleInput["library"], caps: string): L
     people: { n: null, unit: "" },
     results: "uncounted",
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: found ? messageRoute(found.name) : MESSAGES_ROUTE },
+    // The call's text lives in Settings › Business (Campaigns, one tab, call C9), where it is sent to WhatsApp: the
+    // message over the page once on file, that row until then.
+    open: { kind: "route", label: "Open", route: found ? messageRoute(found.name) : BUSINESS_ROUTE },
     waiting: null,
     act: null,
     search: rowSearchOf(callText.name, callText.words, caps),

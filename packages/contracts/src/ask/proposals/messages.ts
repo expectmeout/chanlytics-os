@@ -10,8 +10,7 @@
  * The words here are the sheet's too (surfaces/campaigns/templates): what waits while WhatsApp looks, what putting away
  * does not stop, and what a delete takes, each said once.
  */
-import { messageRoute } from "../../campaigns/sequences/address";
-import { MESSAGES_ROUTE } from "../../shell/address";
+import { SEQUENCES_ROUTE, messageRoute } from "../../campaigns/sequences/address";
 import { WHATSAPP_REVIEW_TAKES } from "../../campaigns/templates/templates";
 import {
   OWN_VERSION_CHANNELS,
@@ -105,9 +104,9 @@ const ownSave = (pl: Record<string, unknown>, words: { subject: unknown; body: u
   };
 };
 
-/** Where a card about one message opens: the message itself, by its name; the list where it names none. */
-const openMessage = ({ payload: pl }: { payload: Record<string, unknown> | undefined }): string =>
-  asText(pl?.name) ? messageRoute(asText(pl?.name)) : MESSAGES_ROUTE;
+/** Where a card about one message opens: the message itself, by its name, over the page; Campaigns where it names none. */
+export const openMessage = ({ payload: pl }: { payload: Record<string, unknown> | undefined }): string =>
+  asText(pl?.name) ? messageRoute(asText(pl?.name)) : SEQUENCES_ROUTE;
 
 /**
  * A message's words changed on one channel (payload: template_id, the version on that channel where it has one; name,
@@ -253,5 +252,6 @@ export const messageDeleteSpec: ProposalSpec = {
     return calls.length ? calls : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
   receipt: ({ payload: pl }) => MESSAGE_CHANGE_WORDS.deleted(asText(pl.title)),
-  open: () => MESSAGES_ROUTE,
+  // The message is gone: Campaigns, where every message left is.
+  open: () => SEQUENCES_ROUTE,
 };

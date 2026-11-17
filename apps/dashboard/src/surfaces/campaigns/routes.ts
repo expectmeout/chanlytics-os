@@ -15,13 +15,10 @@ import {
   CAMPAIGN_ROOMS,
   CONTENT_ROUTE,
   CONTENT_WORDS,
-  MESSAGES_ROUTE,
   RUN_UNNAMED_WORDS,
   SEQUENCES_ROUTE,
   isAdsParam,
   isContentParam,
-  isMessagesParam,
-  messageOfRoute,
   parseAds,
   parseSequencesRoute,
   routeOfPath,
@@ -43,11 +40,12 @@ type Crumb = string | { label: string; to: string };
 const CAMPAIGNS: Crumb = { label: CAMPAIGN_ROOMS.home, to: SEQUENCES_ROUTE };
 
 /**
- * Sequences | Messages | Content | Ads, Campaigns' views, as the frame's strip draws them (the one Reports and People use):
- * what goes out on its own, the messages it sends (D4: the Library is Messages), what Ask made for the business (decision
- * 0125, every workspace's), and, where it is drawn, what you pay to show people who don't have your number.
+ * Campaigns | Content | Ads, Campaigns' views, as the frame's strip draws them (the one Reports and People use): what goes
+ * out, each message inside the campaign that sends it (Messages folded in, 17 Nov 2026: Campaigns, one tab), what Ask made
+ * for the business (decision 0125, every workspace's), and, where it is drawn, what you pay to show people who don't have
+ * your number.
  */
-function campaignsViews(picked: "sequences" | "messages" | "content" | "ads"): SurfaceViews {
+function campaignsViews(picked: "sequences" | "content" | "ads"): SurfaceViews {
   const ads = adsShown() ? [{ id: "ads", label: ADS_WORDS.adsTab, to: ADS_ROUTE, testid: "campaigns-view-ads" }] : [];
   return {
     name: "campaigns",
@@ -56,7 +54,6 @@ function campaignsViews(picked: "sequences" | "messages" | "content" | "ads"): S
     picked,
     tabs: [
       { id: "sequences", label: CAMPAIGN_ROOMS.sequences, to: SEQUENCES_ROUTE, testid: "campaigns-view-sequences" },
-      { id: "messages", label: ADS_WORDS.messagesTab, to: MESSAGES_ROUTE, testid: "campaigns-view-messages" },
       { id: "content", label: CONTENT_WORDS.tab, to: CONTENT_ROUTE, testid: "campaigns-view-content" },
       ...ads,
     ],
@@ -144,35 +141,10 @@ function contentChrome(): { crumbs: Crumb[]; mount: string; act: null; views: Su
   };
 }
 
-/** A message's title, by its name, as the settings read holds it; null before it is read, or for a name it no longer has. */
-function messageTitleOf(name: string): string | null {
-  return surfaceValue("settings")?.messages?.find((m) => m.name === name)?.title || null;
-}
-
-/**
- * Messages' crumbs as the view of Campaigns it is (`campaigns/messages`, 19 Oct 2026): Campaigns, then Messages, under
- * Campaigns' one mount, so a switch to it from Sequences is no new page: the view kept beside Sequences is shown. A message
- * open in it (its home, `campaigns/messages/<name>`) is named once the settings read holds it, Messages a crumb back.
- */
-function messagesViewChrome(): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews; pane: true } {
-  const route = typeof window === "undefined" ? null : routeOfPath(window.location.pathname);
-  const name = route ? messageOfRoute(route) : null;
-  const title = name ? messageTitleOf(name) : null;
-  return {
-    crumbs: title
-      ? [CAMPAIGNS, { label: ADS_WORDS.messagesTab, to: MESSAGES_ROUTE }, title]
-      : [CAMPAIGNS, ADS_WORDS.messagesTab],
-    mount: "campaigns",
-    act: null,
-    views: campaignsViews("messages"),
-    pane: true,
-  };
-}
-
 /**
  * Campaigns' crumbs: the Ads view's for `campaigns/ads…` where it is drawn (ads/shown.ts), the Content view's for
- * `campaigns/content`, Messages' for `campaigns/messages`, and Sequences' for every other address, the sheets Campaigns
- * opens over it among them. Every address is one mount, the page's own.
+ * `campaigns/content`, and Sequences' for every other address, the sheets Campaigns opens over it among them, and
+ * Messages' old addresses, which land on it (contracts retiredRouteOf). Every address is one mount, the page's own.
  */
 export function campaignsChrome({ param }: { param: string | null }): {
   crumbs: Crumb[];
@@ -183,16 +155,16 @@ export function campaignsChrome({ param }: { param: string | null }): {
 } {
   if (adsShown() && param && isAdsParam(param)) return adsChrome(param);
   if (isContentParam(param)) return contentChrome();
-  if (isMessagesParam(param)) return messagesViewChrome();
   return sequencesChrome();
 }
 
 /**
- * Messages' chrome at its old route (`messages`, the path `templates`), which lands on `campaigns/messages` as it loads
- * (contracts retiredRouteOf): Campaigns › Messages, in the strip beside Sequences, for the frame it stands in until it has moved.
+ * Messages' chrome at its old route (`messages`, the path `templates`), which lands on Campaigns' list as it loads
+ * (contracts retiredRouteOf: Messages folded into Campaigns, 17 Nov 2026): Campaigns, its strip on its list, for the frame
+ * it stands in until it has moved.
  */
 export function messagesChrome(): { crumbs: Crumb[]; views?: SurfaceViews } {
-  return { crumbs: [CAMPAIGNS, ADS_WORDS.messagesTab], views: campaignsViews("messages") };
+  return { crumbs: [CAMPAIGN_ROOMS.home], views: campaignsViews("sequences") };
 }
 
 /**

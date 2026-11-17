@@ -227,8 +227,9 @@ const REACHED = {
   // Sent's list went to each sequence's History (D3): its sheets stay at their addresses, and its jump is Sequences'.
   broadcasts: ["Campaigns", "campaigns/sequences"],
   // Messages (D4: once the Library), Campaigns' other view, found by its old names (ask-palette.test.mjs) and address.
-  "campaigns/messages": ["Messages", "campaigns/messages"],
-  messages: ["Messages", "campaigns/messages"],
+  // Messages (D4: once the Library) folded into Campaigns (17 Nov 2026): its addresses and its names find Campaigns.
+  "campaigns/messages": ["Campaigns", "campaigns/sequences"],
+  messages: ["Campaigns", "campaigns/sequences"],
   start: ["Setting up", "start"],
   "admin/profile": ["Profile", "admin/profile"],
   "admin/workspace": ["Settings", "admin/workspace"],

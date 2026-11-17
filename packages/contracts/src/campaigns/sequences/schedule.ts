@@ -47,7 +47,7 @@ export const SCHEDULE_WORDS = {
       : "A call is always the last step. To add a message, take the call away first.",
   /** A step to leads has no words of its own: each email is its business's. */
   leadPreview: "Written for each business, and checked before it goes.",
-  gone: "Its message isn’t in Messages anymore, so this step sends nothing until it has one.",
+  gone: "Its message is gone, so this step sends nothing until it has one.",
   pick: "Pick a message for it",
   goneToAll: "Gone to everyone in it so far",
   stopNever: "never to anyone who said stop",
@@ -55,8 +55,6 @@ export const SCHEDULE_WORDS = {
   nothingSent: "Nothing sent yet",
   sendsFrom: "Sends from",
   close: "Close",
-  /** The door from a step's sheet to its message in Messages, where its words are changed for every step that sends it. */
-  inMessages: "In Messages",
   /** How a step to leads goes, and a call: on its box and in its sheet. */
   byEmail: "Email",
   byTask: "A task for you, on Today",

@@ -15,6 +15,8 @@ export { abilityRows, cannotFoldWords, cannotRows, VISION_SWITCH_WORDS } from ".
 export type { AbilitiesVM, AbilityInputs, AbilityRowVM, CannotRowVM } from "./business-tab/abilities";
 export { BOOKING_LINK_ROW_WORDS, businessGap } from "./business-tab/business-gap";
 export type { BusinessGap, StandingInputs } from "./business-tab/business-gap";
+export { CALL_TEXT_NAME, CALL_TEXT_WORDS, callTextStandOf, callTextWanted } from "./business-tab/call-text";
+export type { CallTextStand } from "./business-tab/call-text";
 export {
   BOOKING_CHOICE_WORDS,
   BOOKING_CHOICES,

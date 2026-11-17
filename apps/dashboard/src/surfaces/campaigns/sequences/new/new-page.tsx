@@ -22,6 +22,7 @@ import {
   UNKNOWN_AUDIENCE_WORDS,
   clockWhen,
   localHour,
+  newMessageAsked,
   readyOrWhatsApp,
   sequenceRoute,
   whoSuits,
@@ -40,7 +41,7 @@ import { commitVerb } from "@/bridge/verbs/commit";
 import { runningOf } from "@/lib/new-checks";
 import { Button } from "../../../kit/button/button";
 import { keepTabDraft, tabDraft, useUnsavedWork } from "../../../kit/record/work";
-import { canDo, navigate, refusalToast, useFrameToast } from "../../../frame-verbs";
+import { askAbout, canDo, navigate, refusalToast, useFrameToast } from "../../../frame-verbs";
 import { useReadsHere, useSurface } from "../../../use-surface";
 import { mailboxConnectOutcome } from "../../../settings/connections/mailbox-connect";
 import { broadcasts } from "../../broadcasts/verbs";
@@ -524,9 +525,20 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     change.forget();
   };
   const redo = useRedraft({ draft, asking, took, byHand: built });
+  // What was said is a message to keep, not something to send (Campaigns, one tab, call C12): AI's message card writes and
+  // files it, as Messages' New message did, and New lets the line go and gives way to the list, where it lands at the foot.
+  const keepAsMessage = (words: string) => {
+    askAbout({ prompt: newMessageAsked(words), fresh: true });
+    setTyped("");
+    work.done();
+    navigate(SEQUENCES_ROUTE);
+  };
   // A line, with its choices where a start made them, drafted by Ask: from New's own line, or one said before New opened.
   const draftWords = (words: string, fixed?: Omit<NewDraftAsk, "words">) =>
-    void asking.ask(words, fixed ?? {}, false).then((d) => (d ? took(d) : undefined));
+    void asking.ask(words, fixed ?? {}, false).then((d) => {
+      if (d?.keeps === "message") keepAsMessage(words);
+      else if (d) took(d);
+    });
   useDraftOnOpen(back, { reads, held }, draftWords);
   const tz = reads?.draft.timezone ?? "UTC";
   const made = useMake({ keptId: kept, flash, letGo, tz, onNoMailbox: () => setDraft(withoutMailbox) });

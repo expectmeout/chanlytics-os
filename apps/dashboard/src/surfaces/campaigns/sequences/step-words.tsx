@@ -1,8 +1,8 @@
 /**
  * A step's message in the schedule (the Steps redesign, 17 Oct 2026): two lines of it on the step's box, and in its sheet
  * its words as one person reads them, the app's one drawing of a message (parts/message-preview.tsx), filled for an
- * example person with the step's own values (contracts exampleParams over the step's params, what it sends), with a door
- * to it in Messages and its WhatsApp standing where it is not approved. The message is the workspace's offered one of the
+ * example person with the step's own values (contracts exampleParams over the step's params, what it sends), with its
+ * WhatsApp standing where it is not approved. The message is the workspace's offered one of the
  * step's name and language (the settings read, parts/channels.ts cmOfferedFrom), so the words are the ones it sends; a
  * step whose message the workspace no longer offers says so, with the act that picks another. A call or a note (decision
  * 0065 step 6) has no message: its task is drawn as it lands on Today.
@@ -11,10 +11,8 @@ import { Fragment, useMemo } from "react";
 import type { ReactNode } from "react";
 import {
   NEW_WORDS,
-  SCHEDULE_WORDS as SW,
   SEQUENCE_EDIT_WORDS as E,
   SEQUENCE_FLOW_WORDS as F,
-  addressOf,
   exampleParams,
   handTitleOf,
   inChatPurposeOfMessage,
@@ -32,9 +30,7 @@ import {
   type StepOffer,
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
-import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
-import { routeDoor } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { cmBusinessOf, cmOfferedBy, cmOfferedFrom, type CmOffered } from "../parts/channels";
 import { MessagePreview, mpParts } from "../parts/message-preview";
@@ -115,20 +111,16 @@ function useBusinessName(): string {
 }
 
 /**
- * A step's sheet's door to its message in Messages (where its words are changed for every step that sends it), and its
- * WhatsApp standing where it needs saying (in review, turned down, paused by WhatsApp); approved says nothing.
+ * A step's message's WhatsApp standing where it needs saying (in review, turned down, paused by WhatsApp); approved says
+ * nothing. It had a door to the message in Messages beside it, which went as Messages folded into Campaigns (17 Nov 2026):
+ * the step's sheet is its message.
  */
-export function StepMessageDoor(p: { name: string; message: CmOffered | null; testid: string }) {
-  const { name, message, testid } = p;
-  const approval = approvalOf(message?.message);
+export function StepMessageDoor(p: { message: CmOffered | null; testid: string }) {
+  const approval = approvalOf(p.message?.message);
+  if (!approval || approval.tone === "ok") return null;
   return (
-    <p className="sq-stepview-from">
-      {approval && approval.tone !== "ok" ? (
-        <StatePill kind="tone" value={approval.tone} label={approval.label} />
-      ) : null}
-      <LinkButton {...routeDoor(addressOf({ kind: "template", name }))} data-testid={`${testid}-from`}>
-        {SW.inMessages} <Icon name="chevron" size={11} />
-      </LinkButton>
+    <p className="sq-stepview-from" data-testid={`${p.testid}-from`}>
+      <StatePill kind="tone" value={approval.tone} label={approval.label} />
     </p>
   );
 }

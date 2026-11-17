@@ -15,6 +15,7 @@ import {
   SECOND_MS,
   NEW_CONVERSATION_WORDS as W,
   inboxTemplates,
+  newMessageAsked,
   planNoteOf,
   type CallBrief,
   type ConsentChannel,
@@ -27,7 +28,7 @@ import {
 } from "@chanlytics/contracts";
 import { offeredWhatsApp } from "../../offered-templates";
 import { useSurface } from "../../use-surface";
-import { clockZone, navigate, tabMemory } from "../shell";
+import { askAbout, clockZone, navigate, tabMemory } from "../shell";
 import type { Flash } from "../shell";
 import type { ApprovedTemplate } from "../types";
 import { askDraft, findPeople, keepNote, readReach, sendFirst, undoFirst } from "./verbs";
@@ -511,6 +512,16 @@ export function useNewConversationSheet(opened: Opened) {
     opened.onClose();
   };
 
+  // No approved message can start a chat with them yet: AI writes one the Inbox can start a chat with and files it, as
+  // Messages' New message did (Campaigns, one tab, call C10). WhatsApp looks at it before it can go, so the sheet gives
+  // way to AI's card; what was written stays the tab's, as a sheet put away keeps it.
+  const askForMessage = (words: string) => {
+    const said = words.trim();
+    if (!said) return;
+    askAbout({ prompt: newMessageAsked(said, "inbox"), fresh: true });
+    opened.onClose();
+  };
+
   return {
     ...st,
     step: written.personId ? ("plan" as const) : ("who" as const),
@@ -534,6 +545,7 @@ export function useNewConversationSheet(opened: Opened) {
     flashed: opened.flash,
     send,
     finishCall,
+    askForMessage,
   };
 }
 

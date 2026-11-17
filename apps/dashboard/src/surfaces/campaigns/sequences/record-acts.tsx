@@ -64,9 +64,9 @@ export function useRecordActs(
   rec: SequenceRecordDto,
   flash: Flash,
   moved: () => void,
-  opens: { step: (id: string) => void; how: () => void; writing?: boolean },
+  opens: { step: (id: string) => void; view: (id: string) => void; how: () => void; writing?: boolean },
 ) {
-  const { step: editStep, how: openHow, writing = false } = opens;
+  const { step: editStep, view: viewStep, how: openHow, writing = false } = opens;
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState<Asking | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -110,6 +110,8 @@ export function useRecordActs(
     renaming,
     setRenaming,
     editStep,
+    /** A step's own sheet, opened on Steps: on its message, where a refused one's fix is written (Campaigns, one tab). */
+    viewStep,
     /** How it runs, opened on Steps: where Before each batch is set (decision 0064). */
     openHow,
     unwritten,
@@ -541,6 +543,15 @@ function NoticeAct({ a, tab, phone }: { a: RecordActs; tab: SequenceTab; phone: 
   }
   if (n.kind === "off" && n.off) {
     const mends = n.off.mends;
+    // WhatsApp hasn't approved its first step's message: that step's own sheet, which opens on the message and AI's new
+    // words for it (Campaigns, one tab, 17 Nov 2026), rather than the message alone over the page.
+    const first = n.off.reason === "template_not_approved" ? (a.rec.steps.find((s) => s.place === 1) ?? null) : null;
+    if (first)
+      return (
+        <Button size={size} onClick={() => a.viewStep(first.id)} data-testid="sq-off-mend">
+          {n.act}
+        </Button>
+      );
     if (mends === "door" && n.off.to)
       return (
         <Button size={size} {...routeDoor(n.off.to)} data-testid="sq-off-mend">

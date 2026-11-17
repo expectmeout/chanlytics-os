@@ -129,8 +129,8 @@ export {
 export type { OtherMessage, SequenceSort, SequenceType } from "./list";
 export { MESSAGE_WAITS_WORDS, messageOffLine, sequenceMessageOff, sequenceMessageWaits } from "./message-off";
 export type { StepMessageRef } from "./message-off";
-export { NewDraftAnswerSchema } from "./new-draft-schema";
-export type { NewDraftAnswer, NewDraftAnswerStep } from "./new-draft-schema";
+export { NewDraftAnswerSchema, NewDraftReplySchema } from "./new-draft-schema";
+export type { NewDraftAnswer, NewDraftAnswerStep, NewDraftReply } from "./new-draft-schema";
 export {
   asDraftedFrom,
   asDraftedOf,

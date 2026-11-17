@@ -7,7 +7,7 @@ import { FOLLOW_UP_CONDITIONS, type FollowUpCondition } from "../follow-up";
 import type { SequenceMode } from "../sequence";
 import {
   NEW_AUDIENCES,
-  NEW_KINDS,
+  NEW_ANSWER_KINDS,
   NEW_STEP_DOES,
   NEW_WORDS_MAX,
   type DraftWho,
@@ -92,6 +92,11 @@ export interface NewDraftDto {
    * source `learned`); none where it learned none. Absent from a server before it, and from a draft built by hand.
    */
   voice?: string[];
+  /**
+   * What was said is a message to keep, not something to send (NEW_ANSWER_KINDS' `message`, Campaigns, one tab, call
+   * C12): New hands the line to AI's message card and draws no draft of it. Absent on every draft.
+   */
+  keeps?: "message";
 }
 
 /** What New asks Ask: the line, and any choice already made (a door's, or the owner's in the draft). */
@@ -217,7 +222,7 @@ export const NEW_DRAFT_JSON_SCHEMA = {
   additionalProperties: false,
   required: ["kind", "audience", "who", "name", "hour", "when", "steps", "cannot"],
   properties: {
-    kind: { type: "string", enum: [...NEW_KINDS] },
+    kind: { type: "string", enum: [...NEW_ANSWER_KINDS] },
     audience: { type: "string", enum: [...NEW_AUDIENCES] },
     who: { type: "string" },
     name: { type: "string" },

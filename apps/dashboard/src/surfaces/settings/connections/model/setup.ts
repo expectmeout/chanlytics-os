@@ -21,7 +21,6 @@ import type {
   EmailSetupDto,
 } from "@chanlytics/contracts";
 import {
-  MESSAGES_ROUTE,
   numberHealth,
   PHONE_LINE_OFF,
   channelFor,
@@ -39,6 +38,7 @@ import {
   ownLineStandOf,
   agoWords,
   HOUR_MS,
+  SEQUENCES_ROUTE,
   checkedWords,
   connectionWords,
   listingLine,
@@ -450,8 +450,11 @@ const KEEP_APP_NOTE: ConnectionNote = {
   text: "Already answering on the WhatsApp Business app? Keep the app: you go on using it, AI answers what you don't, and your contacts and last six months of chats come in if you share them in the app.",
 };
 
-/** The WhatsApp row's own verb: the Library, what the receptionist and the campaigns send on the number. */
-const LIBRARY: ConnectionVerb = { label: "Messages", to: MESSAGES_ROUTE, who: "operator" };
+/**
+ * The WhatsApp row's own verb: Campaigns, where every message the receptionist and the campaigns send on the number is,
+ * each inside the campaign that sends it (Campaigns, one tab, 17 Nov 2026: Messages folded into Campaigns).
+ */
+const LIBRARY: ConnectionVerb = { label: "Campaigns", to: SEQUENCES_ROUTE, who: "operator" };
 
 /**
  * The row of a connected number. What Meta holds against it comes first (channel.standing, 00338, in contracts' words: a

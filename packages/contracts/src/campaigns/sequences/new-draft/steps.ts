@@ -12,6 +12,13 @@ export const NEW_KINDS = ["sequence", "once"] as const;
 
 export type NewKind = (typeof NEW_KINDS)[number];
 
+/**
+ * What Ask may answer a line as: one of New's two kinds, or `message`, the words of a message to keep with nobody to
+ * send it to and no moment or day to send it on (Campaigns, one tab, call C12: Messages' New message went into New). New
+ * hands that line to AI's message card, which writes and files it; no draft is made of it.
+ */
+export const NEW_ANSWER_KINDS = [...NEW_KINDS, "message"] as const;
+
 /** Who it is for: people in People, or businesses a search found. */
 export const NEW_AUDIENCES = ["people", "leads"] as const;
 

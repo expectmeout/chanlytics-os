@@ -281,6 +281,9 @@ interface StepsProps {
   onEditing: (id: string | null) => void;
   /** How it runs, asked open by the head's Who approves: a count, each ask opening it again. */
   howAsked: number;
+  /** A step's own sheet, asked open by the record's notice (its message WhatsApp hasn't approved), let go once open. */
+  viewAsked?: string | null;
+  onViewed?: () => void;
   /** Cancel this send, asked first by the record (a one-off waiting for its day). */
   onCancelSend: () => void;
 }
@@ -299,12 +302,20 @@ function usePeopleOf(rec: SequenceRecordDto, again: number): SequencePeopleDto |
   return wants && read.state === "read" ? read.data : null;
 }
 
-export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, howAsked, onCancelSend }: StepsProps) {
+export function SequenceSteps(p: StepsProps) {
+  const { rec, flash, moved, again, editing, onEditing, howAsked, viewAsked = null, onViewed, onCancelSend } = p;
   const row = rec.sequence;
   const people = usePeopleOf(rec, again);
   // What the sheet holds, kept as it leaves; open is the schedule's, or the record's while it holds a step to change.
   const [held, setHeld] = useState<StepSheetTarget | null>(null);
   const [open, setOpen] = useState(false);
+  // A step asked open by the record's notice: its sheet, and the ask let go.
+  useEffect(() => {
+    if (!viewAsked) return;
+    setHeld({ kind: "step", id: viewAsked });
+    setOpen(true);
+    onViewed?.();
+  }, [viewAsked, onViewed]);
   // What the step to come will do, pressed on the sheet's first face (decision 0065 step 6).
   const [does, setDoes] = useState<NewStepDoes | null>(null);
   const target = editing ? sheetTargetOf(editing, does) : held;

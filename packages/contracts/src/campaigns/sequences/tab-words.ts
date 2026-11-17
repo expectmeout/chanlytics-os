@@ -56,7 +56,6 @@ export const SEQUENCE_EDIT_WORDS = {
   add: "Add the step",
   previewAs: "As one person reads it",
   oneEach: "Each person gets one version, on the channel they are reached on.",
-  inMessages: "Change the words in Messages",
   /** The words written where the step is read (the canvas's step editor): the message's own pane, in place of its preview. */
   editHere: "Edit the words here",
   previewBack: "Back to the preview",
@@ -66,8 +65,8 @@ export const SEQUENCE_EDIT_WORDS = {
   /** Who gets which: "Ana gets it on WhatsApp." */
   getsIt: (name: string, on: string) => `${name} gets it ${on.charAt(0).toLowerCase()}${on.slice(1)}.`,
   noFirstName: "No first name on file: the message opens “Hi there”.",
-  savedIn: (title: string) => `“${title}”, saved in Messages`,
-  noMessages: "No message is ready to send yet. Write one in Messages first.",
+  savedIn: (title: string) => `“${title}”, one of your messages`,
+  noMessages: "No message is ready to send yet. Ask AI to write one.",
   /** What a save reaches: a wait counts from each person's next send; new words go once WhatsApp approves them. */
   reaches: (first: boolean) =>
     first

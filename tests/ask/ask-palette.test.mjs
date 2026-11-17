@@ -4189,7 +4189,8 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
     // Sent's list went to each sequence's History (decision 0060, D3): its names find Sequences.
     ["sent", "campaigns/sequences"],
     ["broadcasts", "campaigns/sequences"],
-    ["messages", "campaigns/messages"],
+    // Messages folded into Campaigns (17 Nov 2026): its name finds Campaigns.
+    ["messages", "campaigns/sequences"],
     ["setup", "start"],
     ["billing", "admin/billing"],
     ["activity", "admin/activity"],
@@ -4593,17 +4594,18 @@ test("the disc reads no usage and draws no dot: nothing in the app sets a standi
 
 /* ------------------------------ the name a page went by ------------------------------ */
 
-test("a page is found by the name it goes by AND by the one it used to: 'library', 'templates' and 'messages' all land there", () => {
-  const byLabel = askJump("messages", ASK_PAGES);
-  assert.equal(byLabel[0]?.to, "campaigns/messages", "the label first, Campaigns' other view");
-  assert.equal(byLabel[0]?.label, "Messages");
-  // Messages was the Library (decision 0060, D4), and before that Templates; Sent was Broadcasts, and its list went to each
-  // sequence's History (D3): each name still finds where it went (campaign rooms, 3 Oct).
-  assert.equal(askJump("templates", ASK_PAGES)[0]?.to, "campaigns/messages", "the name it went by");
-  const byOldName = askJump("library", ASK_PAGES);
+test("a page is found by the name it goes by AND by the one it used to: 'templates' and 'messages' land on Campaigns", () => {
+  // Messages folded into Campaigns (Campaigns, one tab, 17 Nov 2026): each message is inside the campaign that sends it, so
+  // the names Messages went by (the Library, decision 0060 D4, and before that Templates) find Campaigns. Sent was
+  // Broadcasts, and its list went to each sequence's History (D3): each name still finds where it went.
+  const byName = askJump("messages", ASK_PAGES);
+  assert.equal(byName[0]?.to, "campaigns/sequences", "Messages' name finds Campaigns");
+  assert.equal(byName[0]?.label, "Campaigns");
+  assert.equal(askJump("templates", ASK_PAGES)[0]?.to, "campaigns/sequences", "the name it went by");
+  // "library" is Content's Library's own name now, never Campaigns'.
   assert.ok(
-    byOldName.some((j) => j.to === "campaigns/messages"),
-    "REGRESSION: renaming the tab lost everyone who still types the old word",
+    !askJump("library", ASK_PAGES).some((j) => j.to === "campaigns/sequences"),
+    "Content's Library keeps its name",
   );
   for (const old of ["sent", "broadcasts"])
     assert.equal(askJump(old, ASK_PAGES)[0]?.to, "campaigns/sequences", `${old}: the name Sent's list went by`);

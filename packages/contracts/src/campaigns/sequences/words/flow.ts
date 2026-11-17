@@ -128,7 +128,7 @@ export const SEQUENCE_FLOW_WORDS = {
   /** Under a step whose new words wait or were turned down: what it sends meanwhile. */
   keepsWords: "Keeps sending these words until new ones are approved",
   /** A step whose message the workspace no longer offers (deleted, hidden, or never synced here). */
-  messageGone: "Its message isn’t in Messages anymore.",
+  messageGone: "Its message is gone.",
   pickMessage: "Pick a message",
   /** A one-off that waits for its day, let go of (the run's cancel door), asked first. */
   cancelSend: "Cancel this send…",

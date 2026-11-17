@@ -30,7 +30,7 @@ import {
   SEQUENCES_ROUTE,
   isAdsParam,
   isContentParam,
-  isMessagesParam,
+  messageOfRoute,
   retiredRouteOf,
   routeOfPath,
 } from "@chanlytics/contracts";
@@ -43,6 +43,7 @@ import { surfaceValue } from "../../surface-values";
 import { waitForAdsFirstRead } from "../ads/first-read";
 import { useAdsShown } from "../ads/shown";
 import { useWhatsAppListAsked } from "../parts/whatsapp-list";
+import { openSeeOver } from "../../see/see-over";
 import { MessagePaneProvider, sequencesPageNow, useMessagesView } from "./campaigns-code";
 import { CampaignsToast } from "./route-toast";
 
@@ -195,7 +196,30 @@ function useViewsAhead(view: View, adsShown: boolean): { others: boolean; conten
 function viewOf(param: string | null, adsShown: boolean): View {
   if (param && isAdsParam(param) && adsShown) return "ads";
   if (isContentParam(param)) return "content";
-  return isMessagesParam(param) ? "messages" : "sequences";
+  // Messages folded into Campaigns (Campaigns, one tab, 17 Nov 2026): its addresses are Sequences', a message's opening
+  // the message over the list (useMessageOpensOverTheList).
+  return "sequences";
+}
+
+/**
+ * A message's own address (contracts messageRoute) opens the message over Campaigns' list, the one sheet a message is
+ * (Campaigns, one tab, call C8): Messages, where it opened, is no view of Campaigns any more. The address is replaced by
+ * the list's, and once the list is the page the message is opened over it (see-over.ts), one entry, so Back closes it.
+ */
+function useMessageOpensOverTheList(route: string): void {
+  const message = messageOfRoute(route);
+  const pending = useRef<string | null>(null);
+  useEffect(() => {
+    if (!message) return;
+    pending.current = message;
+    replaceRoute(SEQUENCES_ROUTE);
+  }, [message]);
+  useEffect(() => {
+    const name = pending.current;
+    if (!name || route !== SEQUENCES_ROUTE) return;
+    pending.current = null;
+    openSeeOver({ kind: "message", name });
+  }, [route]);
 }
 
 export function CampaignsRoute() {
@@ -210,6 +234,7 @@ export function CampaignsRoute() {
   useWhatsAppListAsked();
   const adsShown = useAdsShown();
   const landing = retiredRouteOf(route);
+  useMessageOpensOverTheList(route);
   const view = viewOf(param, adsShown);
   // Sequences is a chunk of its own (campaigns-code.tsx), most often fetched before the press: then the page is drawn at once,
   // and only a press that beat it waits under the Suspense below. Taken once for the mount, which follows every address.

@@ -46,7 +46,8 @@ const ROUTES = [
   "campaigns/sequences",
   "campaigns/sequences/pb-1",
   "campaigns/sequences/new:once:to:s1",
-  "campaigns/messages",
+  // A message's address (it opens the message over Campaigns' list); Messages' own list folded into Campaigns.
+  "campaigns/messages/come_back",
   "inbox/to-send",
   "clients/get-yes",
   "start",
@@ -229,8 +230,9 @@ test("Campaigns' addresses: the page is `campaigns`, Messages a view of it, and 
   assert.equal(workspacePath("acme", "campaigns"), "/w/acme/campaigns/sequences");
   assert.equal(workspacePath("acme", "campaigns/moment:pb-1"), "/w/acme/campaigns/sequences/pb-1");
   assert.equal(workspacePath("acme", "campaigns/sequences/pb-1"), "/w/acme/campaigns/sequences/pb-1");
-  // Messages is Campaigns' other view (19 Oct 2026): its old route is retired, written in one move.
-  assert.equal(workspacePath("acme", "messages"), "/w/acme/campaigns/messages");
+  // Messages folded into Campaigns (17 Nov 2026): its old route, and its list's, are written as Campaigns' list.
+  assert.equal(workspacePath("acme", "messages"), "/w/acme/campaigns/sequences");
+  assert.equal(workspacePath("acme", "campaigns/messages"), "/w/acme/campaigns/sequences");
   assert.equal(
     workspacePath("acme", "broadcasts/run:b-1"),
     "/w/acme/campaigns/sequences/b-1/runs/b-1",
@@ -253,18 +255,20 @@ test("Campaigns' addresses: the page is `campaigns`, Messages a view of it, and 
     null,
     "Sequences is where it should be",
   );
-  // Messages' old addresses, the route's word and the path's (`templates`), in a path or a hash, move to Campaigns' view.
+  // Messages' old addresses, the route's word and the path's (`templates`), in a path or a hash, and its list's, move to
+  // Campaigns' list (Messages folded into Campaigns, 17 Nov 2026); a message's own address is the page's own.
   assert.equal(
     movedAddress({ pathname: "/w/acme/messages", search: "?a=1", hash: "" }),
-    "/w/acme/campaigns/messages?a=1",
+    "/w/acme/campaigns/sequences?a=1",
   );
-  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/messages" }), "/w/acme/campaigns/messages");
-  assert.equal(movedAddress({ pathname: "/w/acme/templates", hash: "" }), "/w/acme/campaigns/messages");
-  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/templates" }), "/w/acme/campaigns/messages");
+  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/messages" }), "/w/acme/campaigns/sequences");
+  assert.equal(movedAddress({ pathname: "/w/acme/templates", hash: "" }), "/w/acme/campaigns/sequences");
+  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/templates" }), "/w/acme/campaigns/sequences");
+  assert.equal(movedAddress({ pathname: "/w/acme/campaigns/messages", hash: "" }), "/w/acme/campaigns/sequences");
   assert.equal(
-    movedAddress({ pathname: "/w/acme/campaigns/messages", hash: "" }),
+    movedAddress({ pathname: "/w/acme/campaigns/messages/come_back", hash: "" }),
     null,
-    "the view is where it should be",
+    "a message's address is the page's own",
   );
   assert.equal(movedAddress({ pathname: "/w/acme/broadcasts", hash: "" }), "/w/acme/campaigns/sequences");
 });

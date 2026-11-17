@@ -28,7 +28,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import { BUSINESS_TAB } from "@/bridge/business-tab";
 import type { PoliciesSurface } from "@/bridge/policy-store";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { gate, navigate, type FrameFlash } from "../../frame-verbs";
+import { messageRoute } from "@chanlytics/contracts";
+import { api } from "@/bridge/api";
+import { gate, navigate, refusalToast, routeDoor, type FrameFlash } from "../../frame-verbs";
+import { Button } from "../../kit/button/button";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { RecordSwitch } from "../../kit/record/field";
@@ -78,12 +82,15 @@ const BtcRow = ({
   words,
   door,
   end = null,
+  under = null,
 }: {
   ability: Ability;
   words: Record<"whatsapp" | "voice", ChannelWords>;
   door: ((id: string) => void) | null;
   /** A switch the row carries itself, after its glyphs: only the opt-in ability has one. */
   end?: ReactNode;
+  /** What the row carries under its sentence: the booking link's, the call's text (BtcCallText). */
+  under?: ReactNode;
 }) => {
   const a = ability;
   const saysId = `rec-can-${a.id}-says`;
@@ -124,6 +131,7 @@ const BtcRow = ({
           {a.detail}
         </span>
       )}
+      {under}
     </div>
   );
 };
@@ -160,6 +168,56 @@ const BtcVisionSwitch = ({ on, canEdit, flash }: { on: boolean; canEdit: boolean
       gate={canEdit ? null : gate("settings", BUSINESS_TAB.VISION_SWITCH_WORDS.gate)}
       testid="rec-can-vision-switch"
     />
+  );
+};
+
+/**
+ * The call's text under the booking link's row (Campaigns, one tab, call C9): the one press that sends the ready-made call's
+ * text to WhatsApp where none is on file, what WhatsApp is doing where it is checking it, and where WhatsApp turned it down
+ * or paused it, the door to it, over the page, where AI writes new words. It lived in Messages until Messages folded into
+ * Campaigns. Filed through the door that files a ready-made message (POST templates/starter: WhatsApp's version, for review);
+ * the settings read is asked again after it, so the row says what came of it.
+ */
+const BtcCallText = ({
+  stand,
+  canEdit,
+  flash,
+}: {
+  stand: ReturnType<typeof BUSINESS_TAB.callTextStandOf>;
+  canEdit: boolean;
+  flash: ((f: FrameFlash) => void) | null;
+}) => {
+  const W = BUSINESS_TAB.CALL_TEXT_WORDS;
+  const [sending, setSending] = useState(false);
+  if (stand === "checking")
+    return (
+      <p className="bt-can-says" data-testid="rec-can-call-text">
+        {W.checking}
+      </p>
+    );
+  if (stand === "open")
+    return (
+      <p className="bt-can-says" data-testid="rec-can-call-text">
+        <LinkButton {...routeDoor(messageRoute(BUSINESS_TAB.CALL_TEXT_NAME))} data-testid="rec-can-call-text-open">
+          {W.open}
+        </LinkButton>
+      </p>
+    );
+  if (!canEdit || !flash) return null;
+  const send = async () => {
+    setSending(true);
+    const r = await api()("POST templates/starter", {
+      body: { keys: [BUSINESS_TAB.CALL_TEXT_NAME], channels: ["whatsapp"] },
+    });
+    setSending(false);
+    flash(r.ok ? { msg: W.sent } : refusalToast(r));
+  };
+  return (
+    <p className="bt-can-says" data-testid="rec-can-call-text">
+      <Button size="sm" disabled={sending} onClick={() => void send()} data-testid="rec-can-call-text-send">
+        {sending ? W.sending : W.send}
+      </Button>
+    </p>
   );
 };
 
@@ -236,16 +294,16 @@ const btcHasReasons = (profile: Brain["profile"]) =>
  * itself (the plan's table under Task 4.1 step 3). abilityRows throws on an input left out, so a wiring slip is an
  * error here rather than a card that quietly says a live line is dark.
  */
-const btcAbilities = (
+const btcAbilityInputs = (
   brain: Brain,
   config: Config | null,
   reads: { dto: NonNullable<CanReads["dto"]>; rows: NonNullable<CanReads["rows"]>; templates: TemplateDto[] },
   activating: readonly string[] | null,
-): Abilities => {
+): Parameters<typeof BUSINESS_TAB.abilityRows>[0] => {
   const profile = brain.profile || {};
   const { dto, rows, templates } = reads;
   const reply = rows.filter((r) => r && r.class === "reply")[0] || null;
-  return BUSINESS_TAB.abilityRows({
+  return {
     voiceLive: btcLive(dto, activating, "voice"),
     whatsappLive: btcLive(dto, activating, "whatsapp"),
     whatsappStatus: dto?.channels.whatsapp.present ? BUSINESS_TAB.capabilityStatus("whatsapp", dto).words : null,
@@ -269,7 +327,7 @@ const btcAbilities = (
     bookingHeld: btcBookingHeld(rows),
     // And the REPLIES row, with the edge's own default for a row that is not there (reply-posture.ts: "ask").
     replyMode: btcReplyMode(reply ? reply.mode : "ask"),
-  });
+  };
 };
 
 /**
@@ -310,12 +368,15 @@ const BtcAbilityRows = ({
   reads,
   door,
   vision,
+  callText,
 }: {
   abilities: Abilities | null;
   reads: CanReads;
   door: ((id: string) => void) | null;
   /** The photo switch, drawn on its ability's row; null where the card is drawn without one (the first run's Live). */
   vision: ReactNode;
+  /** The call's text, drawn under the booking link's row where a call wants it (BtcCallText); null where it does not. */
+  callText: ReactNode;
 }) => {
   const lost = [
     reads.rows ? null : "the Autonomy tab",
@@ -330,6 +391,7 @@ const BtcAbilityRows = ({
           words={BUSINESS_TAB.ABILITY_CHANNEL_WORDS}
           door={door}
           end={a.id === "vision" ? vision : null}
+          under={a.id === "booking_link" ? callText : null}
         />
       ))}
     </>
@@ -398,8 +460,15 @@ export const BtCanCard = ({
   }
   const rows = policies && Array.isArray(policies.rows) ? policies.rows : null;
   const reads: CanReads = { dto, rows, templates };
-  const abilities =
-    rows && Array.isArray(templates) ? btcAbilities(brain, config, { dto, rows, templates }, activating) : null;
+  const inputs =
+    rows && Array.isArray(templates) ? btcAbilityInputs(brain, config, { dto, rows, templates }, activating) : null;
+  const abilities = inputs ? BUSINESS_TAB.abilityRows(inputs) : null;
+  // The call's text, where a call wants it and has none it can send (Campaigns, one tab, call C9): its press, where the
+  // page has a toast to say what came of it and the role may change the business.
+  const callText =
+    inputs && Array.isArray(templates) && BUSINESS_TAB.callTextWanted(inputs) ? (
+      <BtcCallText stand={BUSINESS_TAB.callTextStandOf(templates)} canEdit={canEdit} flash={flash} />
+    ) : null;
   // Texting reads `ready`, not `live`: `live` needs a tested that texting never records (capabilities.ts), so it can
   // never be true, and the row would say texting is not sold on a line where it is on.
   const limits = BUSINESS_TAB.cannotRows({
@@ -424,6 +493,7 @@ export const BtCanCard = ({
         vision={
           flash ? <BtcVisionSwitch on={config?.features?.vision === true} canEdit={canEdit} flash={flash} /> : null
         }
+        callText={callText}
       />
 
       <BtcCannot limits={limits} />

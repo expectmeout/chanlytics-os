@@ -492,8 +492,9 @@ test("the spec: an operator's, gated by approve; the commit is POST templates/me
     { ...p.payload, versions: null },
   ])
     assert.deepEqual(spec.commit(card(broken), { settings: null }), { refused: C.PROPOSAL_WORDS.cannotApprove });
-  assert.equal(spec.open(card(p.payload), null), "campaigns/messages", "the Library, Messages");
-  assert.equal(C.cardOpenRoute({ kind: "message", payload: p.payload }), "campaigns/messages");
+  // The message it filed, which opens over the page (Campaigns, one tab: Messages folded into Campaigns).
+  assert.equal(spec.open(card(p.payload), null), "campaigns/messages/thanks_for_coming", "the message itself");
+  assert.equal(C.cardOpenRoute({ kind: "message", payload: p.payload }), "campaigns/messages/thanks_for_coming");
 });
 
 test("the receipt says what the door filed and what it refused, from its answer", () => {
@@ -517,10 +518,7 @@ test("the receipt says what the door filed and what it refused, from its answer"
   assert.equal(spec.receipt(p, approved), "Words saved.");
   // WhatsApp refused it in its answer to the filing: said so, never "with WhatsApp for review".
   const refusedAtOnce = { ...FILED, versions: [{ channel: "whatsapp", id: V(3), state: "rejected" }] };
-  assert.equal(
-    spec.receipt(p, refusedAtOnce),
-    `Words saved. WhatsApp refused them (see ${C.CAMPAIGN_ROOMS.home} › ${C.CAMPAIGN_ROOMS.library}).`,
-  );
+  assert.equal(spec.receipt(p, refusedAtOnce), "Words saved. WhatsApp refused them (see the message).");
 });
 
 test("the undo keeps the email and text versions the door filed, deletes each through its own door within ten minutes, and leaves the WhatsApp version, saying so", () => {
@@ -541,7 +539,7 @@ test("the undo keeps the email and text versions the door filed, deletes each th
   ]);
   assert.equal(
     spec.undo.receipt({ deleted: true }, kept),
-    `Its email and text versions are deleted. Its WhatsApp version stays, held by WhatsApp: delete it in ${C.CAMPAIGN_ROOMS.home} › ${C.CAMPAIGN_ROOMS.library} if it should go.`,
+    `Its email and text versions are deleted. Its WhatsApp version stays, held by WhatsApp: delete it from the message, in ${C.CAMPAIGN_ROOMS.home}, if it should go.`,
   );
   const emailOnly = spec.undo.record(p, { ...FILED, versions: FILED.versions.slice(0, 1) }, { settings: null });
   assert.deepEqual(emailOnly, { versions: [{ channel: "email", id: V(1) }], whatsapp: null });

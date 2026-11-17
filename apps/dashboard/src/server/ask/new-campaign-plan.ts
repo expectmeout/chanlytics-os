@@ -24,7 +24,8 @@ import {
   type AppointmentWord,
   GET_YES_ROUTE,
   saidYesTo,
-  MESSAGES_ROUTE,
+  SEQUENCES_ROUTE,
+  messageRoute,
   CAMPAIGN_ROOMS,
   clockHour,
   joinWords,
@@ -47,7 +48,15 @@ const CONNECTIONS_ROUTE = addressOf({ kind: "channel" });
  */
 export type CampaignBlock =
   | { kind: "yes"; purpose: AskedPurpose }
-  | { kind: "channels"; channels: ConsentChannel[]; purpose: AskedPurpose; saidYes: number; mend: CampaignMend }
+  | {
+      kind: "channels";
+      channels: ConsentChannel[];
+      purpose: AskedPurpose;
+      saidYes: number;
+      mend: CampaignMend;
+      /** The message whose version stops it, by its name, where its fix is the message's own (mend "library"). */
+      message?: string | null;
+    }
   | { kind: "held"; held: HeldOn; purpose: AskedPurpose; saidYes: number; ticks: ConsentChannel[] };
 
 /**
@@ -96,7 +105,7 @@ function readyOnceReviewed(ready: ChannelsReady, message: Pick<CampaignMessage, 
 export function campaignReachable(
   rows: readonly PersonRowVM[],
   runPlaybook: Pick<RunPlaybook, "trigger" | "channels" | "ready"> & {
-    message: (Pick<CampaignMessage, "versions"> & { category: string | null }) | null;
+    message: (Pick<CampaignMessage, "versions"> & { category: string | null; name?: string }) | null;
   },
   listIds: ReadonlySet<string> | null,
 ): { block: CampaignBlock | null; usable: ConsentChannel[] } {
@@ -122,6 +131,7 @@ export function campaignReachable(
       purpose,
       saidYes: yes.length,
       mend: mendOf(channels, how.ready, runPlaybook.message),
+      message: runPlaybook.message?.name ?? null,
     },
     usable,
   });
@@ -140,8 +150,11 @@ export function campaignReachable(
   return { block: { kind: "held", held: most?.h ?? "no_channel", purpose, saidYes: yes.length, ticks }, usable };
 }
 
-/** Where a message's versions are written and filed, as the Library's words name it: "Campaigns › Messages". */
-const LIBRARY_PLACE = `${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}`;
+/**
+ * Where a message's versions are written and filed: the message itself, inside Campaigns, since Messages folded into
+ * Campaigns (17 Nov 2026). "It is fixed under Campaigns, on the message."
+ */
+const LIBRARY_PLACE = `${CAMPAIGN_ROOMS.home}, on the message`;
 
 /** What holds everyone who said yes, after "2 people said yes to offers": ", and none has a number to send to". */
 const YES_HELD_WORDS: Record<HeldOn, (one: boolean, ticks: readonly ConsentChannel[]) => string> = {
@@ -240,7 +253,11 @@ export function campaignFixCard(
         title: `Fix the message's ${names} version first`,
         line,
         summary: placed(line),
-        door: { label: `Open ${CAMPAIGN_ROOMS.library}`, to: MESSAGES_ROUTE },
+        // The message itself, over the page, where AI writes new words for a version WhatsApp refused (Campaigns, one
+        // tab, 17 Nov 2026: Messages folded into Campaigns); Campaigns where the message is not named.
+        door: block.message
+          ? { label: "Open the message", to: messageRoute(block.message) }
+          : { label: "Open Campaigns", to: SEQUENCES_ROUTE },
       };
 }
 

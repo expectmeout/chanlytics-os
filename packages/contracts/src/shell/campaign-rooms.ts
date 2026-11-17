@@ -103,7 +103,7 @@ export const LIBRARY_STARTER_WORDS = {
    * again or to go by another message, never the starter set, which leaves a hidden one hidden.
    */
   hiddenInLibrary: (title: string): string =>
-    `The “${title}” starter is hidden in this workspace: show it again under ${CAMPAIGN_ROOMS.home} › ${library}, or name another message.`,
+    `The “${title}” starter is hidden in this workspace: show it again from its row under ${CAMPAIGN_ROOMS.home}, “Not in a campaign”, or name another message.`,
   /** What a new campaign's card does first where the workspace does not hold its moment's starter (A0). */
   addsFirst: (title: string): string => `adds the “${title}” starter first`,
   /**
@@ -128,7 +128,7 @@ export const LIBRARY_STARTER_WORDS = {
    * version is in the Library and stays there, and a second press sends nothing to WhatsApp again.
    */
   notAddedSentForReview:
-    "The starter's WhatsApp version went to WhatsApp for review and is in Messages, but the campaign couldn't be started just now. Try again: nothing is sent to WhatsApp twice.",
+    "The starter's WhatsApp version went to WhatsApp for review, but the campaign couldn't be started just now. Try again: nothing is sent to WhatsApp twice.",
 } as const;
 
 /** What a broadcast is, said where a page defines it (the Sent room's standing line, on hover): one message, and where it goes. */

@@ -7,9 +7,9 @@
  * The frame's own move (bridge/workspace.ts goToRoute) asks `inPlace` before it moves: a press anywhere on a mention
  * of a run or a message -- a door (frame-doors.ts routeDoor), the bell's row, a page's own press -- opens the thing over the page
  * it was pressed on, rather than taking the person to the thing's home. A run's home is beside Sequences' list, so on
- * Campaigns' own pages a press on a run goes there; a message's is the Library (Messages), so only there does a press go
- * to it, and on Sequences a step's message or the call's text opens over the list (Ruben, 11 Oct 2026: a message is never
- * a page of its own). A move that asks for the home itself (the sheet's Open in Campaigns) says so (`home`).
+ * Campaigns' own pages a press on a run goes there; a message has no page of its own (Ruben, 11 Oct 2026), and with
+ * Messages folded into Campaigns (17 Nov 2026) none to be at home on either: a press on one opens it over whatever page it
+ * was pressed on, Campaigns' list too. A move that asks for the home itself (a run's Open in Campaigns) says so (`home`).
  */
 import { SEE_PARAM, seeRefOf, seeRefOfRoute, seeValueOf, type SeeRef } from "./over";
 import { overQuery } from "./over-query";
@@ -41,8 +41,6 @@ export function hearSeeOver(fn: () => void): () => void {
 
 /** The head of the route on screen where a run is at home: Campaigns' pages, where a press goes to the run's home itself. */
 const RUN_HOMES = new Set(["campaigns", "broadcasts", "playbooks"]);
-/** The path where a message is at home: the Library, Campaigns' Messages view (and its old path, `templates`). */
-const MESSAGE_HOME = /^\/w\/[^/?#]+\/(campaigns\/messages|templates)(\/|$)/;
 
 /**
  * Open a route's thing over the page, where it is one (a run's home, a message's) and the page on screen is not where the
@@ -55,8 +53,8 @@ export function inPlace(route: string): boolean {
   if (!ref) return false;
   const path = window.location.pathname;
   const head = /^\/w\/[^/?#]+\/([^/?#]*)/.exec(path)?.[1] ?? "";
-  // To send has no page of its own: it opens over whatever page it was pressed on.
-  if (ref.kind === "run" ? RUN_HOMES.has(head) : ref.kind === "message" && MESSAGE_HOME.test(path)) return false;
+  // To send and a message have no page of their own: each opens over whatever page it was pressed on.
+  if (ref.kind === "run" && RUN_HOMES.has(head)) return false;
   openSeeOver(ref);
   return true;
 }

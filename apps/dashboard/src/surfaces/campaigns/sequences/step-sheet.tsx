@@ -93,8 +93,8 @@ const sendsMessage = (step: SequenceStepDto) => changes(step) && !step.hand;
 const handKind = (step: SequenceStepDto) => (step.hand?.kind === "note" ? "note" : "call");
 
 /**
- * The step's words: a customer's as one person reads them, with the door to its message in Messages; a call's or a note's
- * task as it lands on Today.
+ * The step's words: a customer's as one person reads them, with its WhatsApp standing where it needs saying; a call's or
+ * a note's task as it lands on Today.
  */
 function StepBody(p: {
   rec: SequenceRecordDto;
@@ -110,7 +110,7 @@ function StepBody(p: {
   return (
     <>
       {step.template_name && message ? (
-        <StepMessageDoor name={step.template_name} message={message} testid={`sq-step-words-${step.place}`} />
+        <StepMessageDoor message={message} testid={`sq-step-words-${step.place}`} />
       ) : null}
       <StepWords
         name={step.template_name}
