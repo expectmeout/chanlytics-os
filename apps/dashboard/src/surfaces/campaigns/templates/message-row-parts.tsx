@@ -530,13 +530,23 @@ export function addLanguageItem(onAdd: () => void): MenuItem {
  * The kit's Menu takes no test id of an item, so each item's own is among the props it hands its button (`gate`, which
  * is spread there). The name alone where nothing may be done here.
  */
-export function paneName(c: RowCtx, channel: VersionChannel, version: VersionActs | null, more: readonly MenuItem[]) {
+export function paneName(
+  c: RowCtx,
+  channel: VersionChannel,
+  version: VersionActs | null,
+  more: readonly MenuItem[],
+  step: { before: readonly MenuItem[]; after: readonly MenuItem[] } | null = null,
+) {
   const { g, anchor, canChange } = c;
   // Rename and Put away, what the pane adds, a version's Remove, and Delete last, as the act that cannot be taken back. A
-  // version that is the message's only one has no Remove: its Delete is the message's.
+  // version that is the message's only one has no Remove: its Delete is the message's. Opened as a step's sheet, the
+  // step's acts and Rename alone: Put away, a Remove and Delete reach every other thing that sends it (template-pane.tsx
+  // PaneStep).
   const own = anchor && canChange ? messageItems(c, anchor) : [];
   const removable = channel !== "whatsapp" && version && c.inView.length > 1;
-  const items = [...own.slice(0, -1), ...more, ...(removable ? removeItem(c.busy, version) : []), ...own.slice(-1)];
+  const items = step
+    ? [...step.before, ...own.slice(0, 1), ...step.after]
+    : [...own.slice(0, -1), ...more, ...(removable ? removeItem(c.busy, version) : []), ...own.slice(-1)];
   if (items.length === 0) return g.title;
   return (
     <Menu

@@ -15,6 +15,7 @@ import { useSurface } from "../../use-surface";
 import { groupNamed, listingOf } from "../templates/group";
 import { pageActs } from "../templates/page-acts";
 import { TemplatePane } from "../templates/template-pane";
+import type { PaneStep } from "../templates/template-pane";
 import { starters as library } from "../templates/verbs";
 import { brainOf } from "../templates/words";
 
@@ -27,6 +28,8 @@ export interface MessageInPlaceProps {
   /** The opener's toast host: what a change says outlives the pane. */
   flash: ReturnType<typeof useFrameToast>[1];
   onClose: () => void;
+  /** Opened as a campaign's step's own sheet (sequences/step-sheet.tsx): what the step changes of the pane. */
+  step?: PaneStep;
 }
 
 /**
@@ -34,7 +37,7 @@ export interface MessageInPlaceProps {
  * the page a message was pressed on (surfaces/see), and where a sequence's step stands, in place of its preview
  * (sequences/step-editor.tsx: the canvas's step editor, its words written where they are read).
  */
-export function MessageInPlace({ name, flash, onClose }: MessageInPlaceProps) {
+export function MessageInPlace({ name, flash, onClose, step }: MessageInPlaceProps) {
   const settings = useSurface("settings");
   // The numbers, from the channels read (surfaces/channels/surface.ts): a WhatsApp version needs one.
   const channels = useSurface("channels")?.rows;
@@ -108,6 +111,7 @@ export function MessageInPlace({ name, flash, onClose }: MessageInPlaceProps) {
       onRemoveVersion={acts.removeVersion}
       onSendWords={acts.sendWords}
       onTranslateOwn={acts.translateOwn}
+      step={step}
     />
   );
 }

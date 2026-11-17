@@ -8,8 +8,15 @@
  * RecordFootContext). Add a step opens it on what the step will do (decision 0065 step 6, the New canvas's C6: a message,
  * a call for you or a note for the team, New's own three rows), then on that kind's editor, never a sheet over a sheet.
  * Open and closed are the schedule's (steps.tsx), so the sheet leaves holding what it held.
+ *
+ * A step that sends a message opens on the message itself (Campaigns, one tab, call C2, 17 Nov 2026): its own pane, the one
+ * the route hands down (parts/message-pane.ts), under a kicker that says the step (Step 1 · Day 1 · 10:00 AM) with Send me
+ * a test beside it, and what the step says of itself under the words. Its name's menu holds Edit step N and Take away
+ * beside Rename. It was two sheets: the step's, whose "In Messages" opened the message's over it, with an "Open in
+ * Campaigns" that led back. Where no pane is handed down, or the message is gone, the step reads as it did.
  */
-import { useMemo, useState } from "react";
+import { useContext, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   NEW_WORDS,
   SCHEDULE_WORDS as SW,
@@ -21,6 +28,7 @@ import {
   scheduleDays,
   scheduleStepFacts,
   scheduleStepSub,
+  stepChannelsCarried,
   visitWhenExample,
   type HandKind,
   type NewStepDoes,
@@ -36,6 +44,8 @@ import { gate } from "../../frame-verbs";
 import type { FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { cmOfferedFrom } from "../parts/channels";
+import { messagePaneContext } from "../parts/message-pane";
+import type { PaneStep } from "../templates/template-pane";
 import { AddStepChoices } from "./new/add-step";
 import { HandEditor, StepEditor } from "./step-editor";
 import type { StepsCtx } from "./steps";
@@ -132,30 +142,65 @@ function StepFacts(p: {
   );
 }
 
-/** The foot of a step as it reads: Edit, Send me a test (a message's), Take away; or Take away asked, in their place. */
-function StepFoot(p: {
+/** Send me a test: the step's message mailed to the member alone, filled in for an example person. */
+function TestPress({
+  rec,
+  step,
+  flash,
+  size,
+}: {
   rec: SequenceRecordDto;
   step: SequenceStepDto;
   flash: Flash;
-  moved: () => void;
-  onEdit: () => void;
-  onGone: () => void;
+  size?: "sm";
 }) {
-  const { rec, step, flash } = p;
   const [testing, setTesting] = useState(false);
-  const [sure, setSure] = useState(false);
-  const [busy, setBusy] = useState(false);
   const test = async () => {
     setTesting(true);
     // Send me a test mails the step's message to the member alone: nothing on the page moves, so nothing is read again.
     await pressed("sequence_test", { sequence_id: rec.sequence.id, step_id: step.id }, flash, () => undefined);
     setTesting(false);
   };
-  const remove = async () => {
+  return (
+    <Button
+      size={size}
+      onClick={() => void test()}
+      disabled={testing}
+      aria-busy={testing}
+      title={T.tip}
+      data-testid={`sq-step-test-${step.place}`}
+      {...gate("approve")}
+    >
+      <Icon name="send" size={13} /> {testing ? T.sending : T.press}
+    </Button>
+  );
+}
+
+/**
+ * Take away, asked first: the question that stands in the sheet's foot while it is asked, and the press that asks it. It
+ * is asked of one step while its sheet is open: closed, or moved to another step, the question goes with it.
+ */
+function useTakeAway(p: {
+  rec: SequenceRecordDto;
+  step: SequenceStepDto | null;
+  open: boolean;
+  flash: Flash;
+  moved: () => void;
+  onGone: () => void;
+}): { ask: ReactNode; arm: () => void } {
+  const { rec, step, flash } = p;
+  const asking = p.open && step ? step.id : null;
+  const [askedOf, setAskedOf] = useState<string | null>(null);
+  // The sheet closed: what was asked in it is forgotten, so the same step opened again asks nothing until pressed.
+  if (asking === null && askedOf !== null) setAskedOf(null);
+  const sure = askedOf !== null && askedOf === asking;
+  const setSure = (on: boolean) => setAskedOf(on ? asking : null);
+  const [busy, setBusy] = useState(false);
+  const remove = async (gone: SequenceStepDto) => {
     setBusy(true);
     const ok = await pressed(
       "sequence_step_remove",
-      { sequence_id: rec.sequence.id, step_id: step.id },
+      { sequence_id: rec.sequence.id, step_id: gone.id },
       flash,
       p.moved,
     );
@@ -163,8 +208,8 @@ function StepFoot(p: {
     setSure(false);
     if (ok) p.onGone();
   };
-  if (sure)
-    return (
+  const ask =
+    sure && step ? (
       <Confirm
         question={F.takeAwayAsk(step.place)}
         // A call or a note is always the last step: nothing goes with it.
@@ -172,11 +217,24 @@ function StepFoot(p: {
         yes={F.takeAway}
         danger
         busy={busy}
-        onYes={() => void remove()}
+        onYes={() => void remove(step)}
         onNo={() => setSure(false)}
         testid={`sq-step-remove-${step.place}`}
       />
-    );
+    ) : null;
+  return { ask, arm: () => setSure(true) };
+}
+
+/** The foot of a step as it reads: Edit, Send me a test (a message's), Take away; or Take away asked, in their place. */
+function StepFoot(p: {
+  rec: SequenceRecordDto;
+  step: SequenceStepDto;
+  flash: Flash;
+  take: { ask: ReactNode; arm: () => void };
+  onEdit: () => void;
+}) {
+  const { rec, step, flash, take } = p;
+  if (take.ask) return take.ask;
   if (!changes(step)) return null;
   // Its acts alone in the foot (kit.css data-foot-acts: one inset all round): Take away, the quiet one, at its start, then
   // Send me a test and Edit, the filled one, at its end (Ruben, 20 Oct 2026: the spacing of the three).
@@ -186,7 +244,7 @@ function StepFoot(p: {
         <Button
           variant="quiet"
           tone="danger"
-          onClick={() => setSure(true)}
+          onClick={take.arm}
           data-testid={`sq-step-remove-ask-${step.place}`}
           {...gate("approve")}
         >
@@ -194,18 +252,7 @@ function StepFoot(p: {
         </Button>
       ) : null}
       <span className="sq-stepfoot-sp" />
-      {step.template_id ? (
-        <Button
-          onClick={() => void test()}
-          disabled={testing}
-          aria-busy={testing}
-          title={T.tip}
-          data-testid={`sq-step-test-${step.place}`}
-          {...gate("approve")}
-        >
-          <Icon name="send" size={13} /> {testing ? T.sending : T.press}
-        </Button>
-      ) : null}
+      {step.template_id ? <TestPress rec={rec} step={step} flash={flash} /> : null}
       <Button variant="primary" onClick={p.onEdit} data-testid={`sq-step-edit-${step.place}`} {...gate("approve")}>
         <Icon name="pencil" size={13} /> {SEQUENCE_WORDS.edit}
       </Button>
@@ -327,17 +374,76 @@ function SheetBody(p: {
   );
 }
 
-export function StepSheet(p: StepSheetProps) {
-  const { open, target, rec, edit, flash, moved } = p;
-  const [footEl, setFootEl] = useState<HTMLDivElement | null>(null);
-  // The editor's foot is the sheet's while it edits: its Cancel and Save at the thumb, never under a screen of fields.
-  const footSlot = useMemo(() => ({ el: footEl, hold: () => undefined }), [footEl]);
-  const step = target?.kind === "step" ? (rec.steps.find((s) => s.id === target.id) ?? null) : null;
+/**
+ * What a step that sends a message changes of its message's pane, opened as its sheet (template-pane.tsx PaneStep): Edit
+ * step N before Rename on the name's menu and Take away after it, the step's channels for tabs, its language, and its facts
+ * under the words.
+ */
+function paneStepOf(p: {
+  rec: SequenceRecordDto;
+  step: SequenceStepDto;
+  ctx: StepsCtx;
+  offer: StepOffer | null;
+  take: { arm: () => void };
+  onEdit: () => void;
+}): PaneStep {
+  const { rec, step, offer } = p;
+  return {
+    before: [
+      {
+        label: SW.editStep(step.place),
+        glyph: <Icon name="clock" size={13} />,
+        onSelect: p.onEdit,
+        gate: { ...gate("approve"), "data-testid": `sq-step-edit-${step.place}` },
+      },
+    ],
+    // The first step goes with its sequence, never alone (the foot's rule).
+    after:
+      step.place > 1
+        ? [
+            {
+              label: F.takeAway,
+              glyph: <Icon name="x" size={13} />,
+              tone: "danger" as const,
+              onSelect: p.take.arm,
+              gate: { ...gate("approve"), "data-testid": `sq-step-remove-ask-${step.place}` },
+            },
+          ]
+        : [],
+    channels: stepChannelsCarried(step.channels, offer),
+    language: step.template_language,
+    // Under the words as the step's view stands them (its gap over the rows).
+    under: (
+      <div className="sq-stepview">
+        <StepFacts rec={rec} step={step} ctx={p.ctx} gone={false} offer={offer} />
+      </div>
+    ),
+  };
+}
+
+/** Which face the sheet holds, and the message's pane where a step that sends one opens on it (C2). */
+function useStepFace(p: StepSheetProps, step: SequenceStepDto | null) {
+  const Pane = useContext(messagePaneContext());
   const message = useStepMessageRead(
     step && sendsMessage(step) ? step.template_name : null,
     step?.template_language ?? null,
   );
-  const face = faceOf(target, step, edit);
+  const face = faceOf(p.target, step, p.edit);
+  const onMessage =
+    face?.kind === "view" && sendsMessage(face.step) && !!face.step.template_name && !!message.message && Pane
+      ? { Pane, name: face.step.template_name, step: face.step }
+      : null;
+  return { face, message, onMessage };
+}
+
+export function StepSheet(p: StepSheetProps) {
+  const { open, target, rec, flash, moved } = p;
+  const [footEl, setFootEl] = useState<HTMLDivElement | null>(null);
+  // The editor's foot is the sheet's while it edits: its Cancel and Save at the thumb, never under a screen of fields.
+  const footSlot = useMemo(() => ({ el: footEl, hold: () => undefined }), [footEl]);
+  const step = target?.kind === "step" ? (rec.steps.find((s) => s.id === target.id) ?? null) : null;
+  const { face, message, onMessage } = useStepFace(p, step);
+  const take = useTakeAway({ rec, step, open, flash, moved, onGone: p.onClose });
   const editing = face?.kind === "hand" || face?.kind === "message";
   const head = sheetHead(rec, step, message.message?.title ?? null, editing);
   const done = () => {
@@ -348,8 +454,13 @@ export function StepSheet(p: StepSheetProps) {
     <Sheet
       open={open && face !== null}
       onClose={p.onClose}
-      title={head.title}
-      sub={head.sub}
+      // On its message, the step is the kicker over the message's own head (the home's PaneSheet: one head), with its test.
+      title={onMessage ? head.sub : head.title}
+      sub={onMessage ? undefined : head.sub}
+      kicker={!!onMessage}
+      tools={onMessage ? <TestPress rec={rec} step={onMessage.step} flash={flash} size="sm" /> : undefined}
+      toolsInLine={!!onMessage}
+      className={onMessage ? "cmh-host" : undefined}
       close={{ label: SW.close, glyph: <Icon name="x" size={13} /> }}
       backCloses
       testid="sq-step-sheet"
@@ -357,24 +468,45 @@ export function StepSheet(p: StepSheetProps) {
         editing ? (
           // The editor's Cancel and Save: the kit's pair (kit.css data-foot-pair), an equal pair on a phone, Save first.
           <div className="sq-stepfoot" data-foot-pair="" ref={setFootEl} />
+        ) : onMessage ? (
+          take.ask
         ) : face?.kind === "view" ? (
-          <StepFoot rec={rec} step={face.step} flash={flash} moved={moved} onEdit={p.onEdit} onGone={p.onClose} />
+          <StepFoot rec={rec} step={face.step} flash={flash} take={take} onEdit={p.onEdit} />
         ) : null
       }
     >
       <RecordFootContext.Provider value={footSlot}>
-        <SheetBody
-          face={face}
-          rec={rec}
-          step={step}
-          ctx={p.ctx}
-          flash={flash}
-          message={message}
-          onPick={p.onPick}
-          onEdit={p.onEdit}
-          onDone={done}
-          onCancel={p.onEditDone}
-        />
+        {onMessage ? (
+          // The pane keeps its own gutter, scroll and docked foot, as over the home; its Close is the sheet's.
+          <div className="cmh-host-body" data-testid="sq-step-message">
+            <onMessage.Pane
+              name={onMessage.name}
+              flash={flash}
+              onClose={p.onClose}
+              step={paneStepOf({
+                rec,
+                step: onMessage.step,
+                ctx: p.ctx,
+                offer: stepOfferOf(rec, onMessage.step, message),
+                take,
+                onEdit: p.onEdit,
+              })}
+            />
+          </div>
+        ) : (
+          <SheetBody
+            face={face}
+            rec={rec}
+            step={step}
+            ctx={p.ctx}
+            flash={flash}
+            message={message}
+            onPick={p.onPick}
+            onEdit={p.onEdit}
+            onDone={done}
+            onCancel={p.onEditDone}
+          />
+        )}
       </RecordFootContext.Provider>
     </Sheet>
   );

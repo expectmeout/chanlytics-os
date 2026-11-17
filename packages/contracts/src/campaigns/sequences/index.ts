@@ -215,6 +215,7 @@ export {
   scheduleStepSub,
   scheduleWait,
   stepAsOffer,
+  stepChannelsCarried,
 } from "./schedule";
 export type { ScheduleCtx, ScheduleState, StepOffer } from "./schedule";
 export {

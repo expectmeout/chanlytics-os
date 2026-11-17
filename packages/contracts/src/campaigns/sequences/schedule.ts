@@ -306,8 +306,14 @@ function offerSentence(offer: StepOffer): string {
   return offer === "in_chat" ? `${words.inChatFull} ${words.otherwise} ${asOffer("whatsapp")}` : asOffer(offer);
 }
 
-/** The channels a step names that its message may ever go by: all of them, but text for an offer (channelNeverCarries). */
-const carriedBy = (channels: readonly string[], offer: StepOffer | null | undefined): readonly string[] =>
+/**
+ * The channels a step names that its message may ever go by: all of them, but text for an offer (channelNeverCarries). Its
+ * box, its sheet's By row and the tabs of its sheet's message read this one answer.
+ */
+export const stepChannelsCarried = (
+  channels: readonly string[],
+  offer: StepOffer | null | undefined,
+): readonly string[] =>
   offer
     ? channels.filter((c) => !isOneOf(CONSENT_CHANNELS, c) || channelNeverCarries(c, "marketing") === null)
     : channels;
@@ -319,7 +325,7 @@ const carriedBy = (channels: readonly string[], offer: StepOffer | null | undefi
  */
 export function scheduleChannels(channels: readonly string[], offer: StepOffer | null = null): string {
   const WORD: Record<string, string> = { whatsapp: "WhatsApp", sms: "text", email: "email" };
-  const named = carriedBy(channels, offer).map((c) => WORD[c] ?? c);
+  const named = stepChannelsCarried(channels, offer).map((c) => WORD[c] ?? c);
   return named.length <= 1 ? (named[0] ?? "") : `${named[0]}, else ${named.slice(1).join(", else ")}`;
 }
 
@@ -471,7 +477,7 @@ export function scheduleStepFacts(
       ? row.first?.owner_sends
         ? "Email, from your own inbox"
         : "Email, from your connected mailboxes"
-      : sequenceChannelsWords(carriedBy(step.channels, ctx.offer));
+      : sequenceChannelsWords(stepChannelsCarried(step.channels, ctx.offer));
   // An offer under a moment that is not one says so here whatever its box is saying: whose word, who gets it, never by text.
   const offer = ctx.offer && !step.hand ? offerSentence(ctx.offer) : null;
   if (by || offer)

@@ -7,7 +7,7 @@ import type { SequenceRecordDto, SequencesPageDto } from "../../packages/contrac
 /**
  * What opens where it was pressed (the Campaigns wiring review's rule C), in a browser: until the framework's rating of
  * 19 Oct 2026 it was proved only over a made-up window. A run waiting for an OK opens over the Inbox and over Today, a
- * step's message over its sequence, the emails handed to you in their sheet over the Inbox, Get their yes over People's list and
+ * step's message as its step's own sheet, the emails handed to you in their sheet over the Inbox, Get their yes over People's list and
  * closed back to it, and New's choices replace the address rather than stack it. A sheet over a page is one entry in the
  * history, so Back closes it and leaves the page as it was; on a phone the tab bar stands down while it is open.
  * Nothing is approved, sent or written: a row is pressed on its name, never on its verb, whose Approve would send.
@@ -80,7 +80,7 @@ test.describe("Campaigns opens in place on a real workspace", () => {
     expect(seeOf(page)).toBeNull();
   });
 
-  test("a step's message opens over its sequence, Back closes it, and its home is Messages open on it", async ({
+  test("a step's message is its step's own sheet: the message's pane under the step, the step's acts on its name, no second sheet", async ({
     page,
   }) => {
     const list = await readList(page);
@@ -89,7 +89,7 @@ test.describe("Campaigns opens in place on a real workspace", () => {
       const r = await apiGet(page, `/api/v1/sequences/${s.id}`);
       if (r.status() !== 200) continue;
       const rec = ((await r.json()) as { data: SequenceRecordDto }).data;
-      const step = rec.steps.find((x) => x.template_name);
+      const step = rec.steps.find((x) => x.template_name && !x.hand);
       if (step?.template_name) {
         found = { id: s.id, place: step.place, name: step.template_name };
         break;
@@ -99,23 +99,19 @@ test.describe("Campaigns opens in place on a real workspace", () => {
     if (!found) return;
     await page.goto(`/#/campaigns/sequences/${found.id}`);
     await page.getByTestId(`sq-step-${found.place}`).click();
-    const door = page.getByTestId(`sq-step-words-${found.place}-from`);
-    await expect(door).toBeVisible();
-    const before = await entries(page);
-    await door.click();
-    await expect(page.getByTestId("see-message")).toBeVisible();
-    expect(seeOf(page)).toBe(`message:${found.name}`);
-    expect(routeOf(page.url())).toMatch(new RegExp(`^campaigns/sequences/${found.id}`));
-    expect(await entries(page)).toBe(before + 1);
-    await page.goBack();
+    // The step's sheet holds the message itself (Campaigns, one tab, C2): its pane, the step's test, no door to a second.
+    const sheet = page.getByTestId("sq-step-message");
+    await expect(sheet.getByTestId("template-pane")).toBeVisible();
+    await expect(page.getByTestId(`sq-step-test-${found.place}`)).toBeVisible();
+    await expect(page.getByTestId(`sq-step-words-${found.place}-from`)).toHaveCount(0);
     await expect(page.getByTestId("see-message")).toHaveCount(0);
     expect(seeOf(page)).toBeNull();
-    // Its one home: the Messages list open on it, its row lit.
-    await door.click();
-    await page.getByTestId("see-home").click();
-    await expect(page).toHaveURL(atRoute(new RegExp(`^campaigns/messages/${found.name}$`)));
-    await expect(page.getByTestId("see-message")).toHaveCount(0);
-    await expect(page.getByTestId("template-pane")).toBeVisible();
+    // Its name's menu: the step's Edit beside Rename, and nothing that reaches every other sender (Put away, Delete).
+    await sheet.getByTestId("template-menu").click();
+    await expect(page.getByTestId(`sq-step-edit-${found.place}`)).toBeVisible();
+    await expect(page.getByTestId("template-hide")).toHaveCount(0);
+    await expect(page.getByTestId("template-delete")).toHaveCount(0);
+    await page.keyboard.press("Escape");
   });
 
   test("Get their yes opens over People's list and closes to it: Back from there is never the sheet again", async ({
