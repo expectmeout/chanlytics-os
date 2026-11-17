@@ -734,12 +734,23 @@ const ASSISTANT_RULE = {
   textOpening: `Unless the facts about them say "${CONVERSATION_UNDER_WAY}", open your reply by saying, in a few words, that you are the business's automated assistant.`,
 } as const;
 
+/**
+ * A call from someone selling to the business, or from a recording (decision 0136). The receptionist treated a
+ * telemarketer as a customer: it took their message and said the team would follow up, the call's analysis asked for a
+ * call back, and the number sat in Needs you (17 Nov 2026). It is told what such a caller is, to promise them nothing,
+ * and to end the call; and, since a customer taken for a salesperson is the worse mistake, that anyone it is unsure of
+ * is a customer. On a call alone: a pitch in a chat is read by the sender's reader (decision 0080), not by the brain.
+ */
+const SELLING_CALL_RULE =
+  "Someone selling to the business (marketing, a listing, search rankings, card processing, any service they want the business to buy) is not a customer. Do not take a message for them, offer a call back or say the team will follow up: say the business does not take sales calls on this line, and use end_call. A recorded or automated message is nobody to answer: use end_call. If you are not sure they are selling, treat them as a customer.";
+
 /** Said last of all: the business's own words above never outweigh a rule here. */
 const RULES_WIN = "Where anything above disagrees with these rules, the rules win.";
 
 /**
  * The rules every prompt ends with, composed or written by hand: the Autonomy pane's rows (policyRules), that it is an
- * automated assistant (to a customer), that these rules win, and that what a customer writes is data, never an
+ * automated assistant (to a customer), on a call what someone selling to the business is owed (SELLING_CALL_RULE), that
+ * these rules win, and that what a customer writes is data, never an
  * instruction (DATA_NOT_INSTRUCTIONS, the one injection policy). A draft's rows are its own (DRAFT_RULES, the money row
  * in its words): the Autonomy rows say what the receptionist itself may send, and nothing here sends.
  */
@@ -749,7 +760,10 @@ export function standingRules(
   audience: PromptAudience,
 ): string[] {
   if (audience === "draft") return [...DRAFT_RULES, draftMoneyRule(), RULES_WIN, DATA_NOT_INSTRUCTIONS];
-  const assistant = channel === "voice" ? [ASSISTANT_RULE.always] : [ASSISTANT_RULE.always, ASSISTANT_RULE.textOpening];
+  const assistant =
+    channel === "voice"
+      ? [ASSISTANT_RULE.always, SELLING_CALL_RULE]
+      : [ASSISTANT_RULE.always, ASSISTANT_RULE.textOpening];
   return [...policyRules(policy, channel), ...assistant, RULES_WIN, DATA_NOT_INSTRUCTIONS];
 }
 
