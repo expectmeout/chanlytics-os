@@ -3902,25 +3902,25 @@ a.cl-prof-vrow:focus-visible {
     grid-template-areas: "face name" "face line" "face now" "notice notice" "stale stale";
     column-gap: 10px;
   }
-  /* The state and its sentence on one line under the name ("● New · First contact Nov 11"), each piece on the same 20px
-     line and centred on it: the state's wash stood its word in a taller block, a hair under the sentence beside it. */
+  /* The state and its sentence on one line under the name ("● New · First contact Nov 11"), on one 20px line: the
+     sentence runs on as words beside the state, so one too long for the line wraps at a word and its next line starts
+     with a word, where the sentence wrapped whole and its next line started with its "·" (Ruben, 17 Nov 2026). Its dot
+     holds to its first word. */
   .cl-prof-id > .cl-prof-now {
-    flex-wrap: wrap;
-    align-items: center;
-    column-gap: 6px;
+    display: block;
     line-height: 20px;
   }
   .cl-prof-now > span:first-child {
     display: inline-flex;
+    vertical-align: top;
+    margin-right: 6px;
   }
   .cl-prof-now-said {
-    display: inline-flex;
-    gap: 6px;
     font-size: var(--text-base);
     color: var(--ink-dim);
   }
   .cl-prof-now-said::before {
-    content: "·";
+    content: "·\00a0\00a0";
   }
   .cl-prof-id > .cl-prof-headline {
     min-height: 26px;
