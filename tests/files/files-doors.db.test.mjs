@@ -932,7 +932,8 @@ test(
       db.rpc("file_video_begin", {
         p_tenant_id: T,
         p_id: randomUUID(),
-        p_media_ref: `${ref}-${stamp}`,
+        // The platform's id for a video is one across every workspace (files_media_ref): this test's own, each time.
+        p_media_ref: `minutes-${ref}-${stamp}`,
         p_name: ref,
         p_mime: "video/mp4",
         p_bytes: 1000,
@@ -954,7 +955,7 @@ test(
           await db.rpc("file_video_found", {
             p_tenant_id: T,
             p_id: randomUUID(),
-            p_media_ref: `found-${stamp}`,
+            p_media_ref: `minutes-found-${stamp}`,
             p_status: "inbox",
             p_source: "website",
             p_source_ref: "https://example.com/clip.mp4",
@@ -969,7 +970,7 @@ test(
       );
       // One the platform could not read gives its minutes back: its row stays a file, and counts no seconds.
       const failed = ok(
-        await db.rpc("file_media_failed", { p_media_ref: `other-half-${stamp}`, p_error: "ERR_TEST" }),
+        await db.rpc("file_media_failed", { p_media_ref: `minutes-other-half-${stamp}`, p_error: "ERR_TEST" }),
         "the platform could not read one",
       );
       assert.equal(failed.fate, "failed");
