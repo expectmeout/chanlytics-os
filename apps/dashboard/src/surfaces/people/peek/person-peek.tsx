@@ -24,7 +24,7 @@ import { BusinessTile } from "../person/business";
 import { dealPersonOf } from "../person/ctx";
 import { PersonWalkNav, openWith, threadCtaOf } from "../person/hero";
 import { PersonNotes } from "../person/notes";
-import { LastWords, UpNext } from "../person/overview";
+import { Latest, UpNext } from "../person/overview";
 
 export interface PersonPeekProps {
   id: string;
@@ -96,7 +96,7 @@ function peekBody(p: PersonPeekProps) {
   return (
     <>
       <UpNext c={{ ...c, dealP: dealPersonOf(person, row), compose: openWith(c) }} />
-      {person.thin ? null : <LastWords c={c} />}
+      <Latest c={c} />
       {person.noteList.length ? (
         <section className="cl-prof-section" aria-label={NOTE_WORDS.title}>
           <h2 className="cl-prof-section-title">{NOTE_WORDS.title}</h2>

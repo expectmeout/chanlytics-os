@@ -25,6 +25,8 @@ export interface PersonHeadStateFacts {
   stateLabel: string;
   stateDetail: string;
   rightNow: { detail: string };
+  /** How they came to be here and when (contracts personOriginOf): a form or a booking is contact, said in its place. */
+  origin?: string | null;
   /** The head's line (business.ts personHeadOf): a lead's stand-in's says how they met. */
   head?: { line: { kind: string; text: string } | null };
   /** The page's notices; one that stands under the name takes the line's row. */
@@ -49,7 +51,15 @@ export function personHeadStateOf(stateFacts: PersonHeadStateFacts): PersonHeadS
   return {
     state: stateFacts.state,
     word: stateFacts.stateLabel,
-    sentence: needs ? asSentence(stateFacts.rightNow.detail) : met ? null : asSentence(stateFacts.stateDetail),
+    // Why someone is needed is Now's first row (the one page, D6: said once, there): the head says the state alone.
+    // Someone not heard from on any wire may still have reached you another way (a form, a booking): their head says how,
+    // never "No contact recorded" above the form they filled (the one page, D5).
+    sentence:
+      needs || met
+        ? null
+        : stateFacts.state === "unheard" && stateFacts.origin
+          ? asSentence(stateFacts.origin)
+          : asSentence(stateFacts.stateDetail),
     story: met && line ? line.text : null,
   };
 }

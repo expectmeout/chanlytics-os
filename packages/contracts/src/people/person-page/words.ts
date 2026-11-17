@@ -136,6 +136,55 @@ export const WORKS_AT_WORDS = {
 export const BUSINESS_DOOR_LABEL = (name: string) => `${name}: open the business`;
 
 /**
+ * The one person page (Ruben, 17 Nov 2026: "ONE shared person page"; the One person page canvas): its parts, said in one
+ * order for every person on a phone and a desk, and the one line each says with nothing in it, so no part is ever blank.
+ * Now is the ladder of what waits on you (UP_NEXT_WORDS' rungs); with none, it says what AI does for them.
+ */
+export const PERSON_PART_WORDS = {
+  now: "Now",
+  nothingWaits: "Nothing waits on you.",
+  /** What AI does for them while nothing waits: by the setting that stands for them, or that they asked to stop. */
+  aiDoes: (mode: "auto" | "ask" | "never" | null, stopped: boolean): string =>
+    stopped
+      ? "They asked not to get messages. AI still answers if they call."
+      : mode === "never"
+        ? "AI stays out. You answer them yourself."
+        : mode === "ask"
+          ? "AI writes each reply for you to approve first."
+          : "AI answers if they call or write.",
+  /** Under the reason someone needs you: the head's act is the answer, so the row carries no second button. */
+  answerIt: "Open the conversation to answer.",
+  latest: "Latest",
+  /** Latest's door where the newest thing was not the conversation (a call, a form): theirs is still a press away. */
+  openConversation: "Open the conversation",
+  nothingYet: "Nothing recorded yet.",
+  /** Coming up's door with nothing booked: their conversation with the booking link ready to send. */
+  sendBooking: "Send booking link",
+  comingUp: "Coming up",
+  nothingBooked: "Nothing booked.",
+  history: "History",
+  /**
+   * History's line: how much of each there is, the counts the number tiles said, once ("41 messages · 3 calls · 14
+   * appointments"), in the workspace's word for an appointment; a kind with none is not said.
+   */
+  historyLine: (n: { messages: number; calls: number; visits: number }, visit: { one: string; many: string }): string =>
+    [
+      n.messages ? plural(n.messages, "message") : null,
+      n.calls ? plural(n.calls, "call") : null,
+      n.visits ? plural(n.visits, visit.one, visit.many) : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  /** History's door to the whole of it, its own view at the person's history address. */
+  all: (n: number) => `All ${n}`,
+  /** The appointments row's door, to their own view (the Visits tab's, which kept its address). */
+  seeAll: "See all",
+  aboutThem: "About them",
+  whatTheyGet: "What they get",
+  noNotes: "No notes yet.",
+} as const;
+
+/**
  * What a person's rail holds (canvas A), on a desk beside the work and on a phone as the About tab: how to reach them,
  * where they came from, the business they work at, what they may be sent and the receptionist with it, and their lists.
  */

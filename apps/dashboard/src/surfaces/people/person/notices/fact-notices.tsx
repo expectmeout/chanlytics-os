@@ -133,8 +133,3 @@ export function FactNotices({ c, home, line = false }: { c: NoticeCtx; home: Not
     </div>
   );
 }
-
-/** Whether a home has a notice this module would draw: a pane that is otherwise empty still draws for it. */
-export function hasFactNotices(c: NoticeCtx, home: NoticeHome): boolean {
-  return c.p.notices.some((n) => n.home === home && DRAWN_HERE.has(n.act.do.kind) && !hiddenOf(c.p.id).includes(n.id));
-}
