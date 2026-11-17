@@ -49,6 +49,12 @@ export interface ThreadPorts {
    * iff no row changed, and then nothing was written.
    */
   replyAnyway(tenantId: TenantId, conversationId: string): Promise<{ decision_id: string } | null>;
+  /**
+   * A thread still held set aside as not a customer's, by the platform's door (00539 conversation_set_aside): archived,
+   * its open hold resolved. The first half of a member's "Not a customer" on a thread no reading set aside (decision
+   * 0136). False where a member has the thread, and then nothing was written.
+   */
+  setAside(tenantId: TenantId, conversationId: string): Promise<boolean>;
   /** snoozed until; pause and assignee cleared. True iff a row changed. */
   snooze(conversationId: string, untilIso: string): Promise<boolean>;
   /** open with the snooze cleared, only while still snoozed. True iff a row changed. */

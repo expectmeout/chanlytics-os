@@ -34,6 +34,7 @@ import { headerSub, IxWho, wireBadge, type Countdown } from "./who";
 import { takeInTheMenu } from "./status";
 import { NameOffer } from "../../people/person/name-offer";
 import { mayAtLeast } from "../../frame-verbs";
+import { heldNotACustomer, sayNotACustomer } from "../dock/set-aside";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { completeStep } from "../../step-done";
@@ -280,6 +281,8 @@ interface HeaderActs {
   onMarkUnread: (threadId: string) => void;
   onOpenClient: (clientId: string | null | undefined) => void;
   onArchive: (() => void) | null;
+  /** Not a customer, on a conversation that still asks for you and is no email's (dock/set-aside.tsx); null for any other. */
+  onNotACustomer: (() => void) | null;
 }
 
 function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, facts: HeaderFacts) {
@@ -346,6 +349,19 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
             square: true,
             hint: <Icon name="chevron" size={13} />,
             onSelect: () => onOpenClient(thread.clientId),
+          },
+        ]
+      : []),
+    // A call back nobody should make (decision 0136): said here, it is off the list, and their calls stop asking.
+    ...(acts.onNotACustomer
+      ? [
+          {
+            label: W.notACustomer,
+            meta: W.notACustomerHeldMeta,
+            glyph: ixGlyph("ban"),
+            square: true,
+            onSelect: acts.onNotACustomer,
+            gate: gate("approve", "say this is not a customer"),
           },
         ]
       : []),
@@ -710,7 +726,19 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
             </Button>
           }
           label={THREAD_PANE_WORDS.moreFor(thread.who)}
-          groups={actionsMenu(thread, dealActs, { onSnooze, onTakeOver, onMarkUnread, onOpenClient, onArchive }, facts)}
+          groups={actionsMenu(
+            thread,
+            dealActs,
+            {
+              onSnooze,
+              onTakeOver,
+              onMarkUnread,
+              onOpenClient,
+              onArchive,
+              onNotACustomer: heldNotACustomer(thread) ? () => void sayNotACustomer(thread, flash) : null,
+            },
+            facts,
+          )}
         />
       </div>
       {thread.fromAd ? fromAdLine(thread.fromAd) : null}

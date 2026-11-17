@@ -4,6 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { REPLY_DRAFT_RULES } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 
 const core = await importSrc("packages/core/src/conversations/index.ts");
@@ -50,7 +51,8 @@ function world(over = {}) {
       keep: say("keep", given("keep", keptRow)),
       letGo: say("letGo", undefined),
       scheduleDraft: say("scheduleDraft", "scheduled"),
-      setAside: say("setAside", true),
+      setAside: say("setAside", given("setAside", true)),
+      caller: say("caller", given("caller", { said: null, talks: false })),
       sender: {
         said: say("said", over.said ?? null),
         talks: say("talks", over.talks ?? false),
@@ -116,7 +118,6 @@ test("the job keeps what was written, with what it was handed", async () => {
 });
 
 test("the job run twice: what the first run kept is the answer, and no model is asked again", async () => {
-  const { REPLY_DRAFT_RULES } = await import("@chanlytics/contracts");
   const row = { kind: "reply", for_message_id: "m1", rules: REPLY_DRAFT_RULES, state: "ready" };
   const w = world({ thread: thread({ kept: [row] }) });
   assert.equal(await write(w), "kept");
@@ -214,6 +215,46 @@ test("a brief for a call back asks nothing of a sender", async () => {
   assert.equal(w.calls("writeBrief").length, 1);
 });
 
+const callBack = (over = {}) => thread({ holdReason: "callback", wire: "sms", ...over });
+const SELLING = { selling: "search rankings", used: ["the conversation"] };
+
+test("REGRESSION: a call back read as someone selling is kept as what it is, then set aside, as an email's pitch is", async () => {
+  // 17 Nov 2026: a telemarketer's call sat in Needs you under "1 waiting over a week"; the read only labelled it.
+  const w = world({ thread: callBack(), brief: SELLING });
+  assert.equal(await write(w, { kind: "brief" }), "set_aside");
+  const [, kept] = w.calls("keep")[0];
+  assert.deepEqual([kept.kind, kept.state, kept.words.pitch], ["brief", "pitch", "search rankings"]);
+  assert.deepEqual(w.calls("caller")[0].slice(1), [T, { conversationId: C, contactId: "k1" }]);
+  assert.deepEqual(w.calls("setAside")[0].slice(1), [T, C, "pitch"]);
+  assert.ok(
+    w.log.findIndex((c) => c[0] === "keep") < w.log.findIndex((c) => c[0] === "setAside"),
+    "kept first: a set-aside that failed leaves the row saying what it is",
+  );
+});
+
+test("a selling call is never set aside for someone the business talks with, one a member answered anyway, or one unread", async () => {
+  for (const [who, caller] of [
+    ["the business talks with them", { said: null, talks: true }],
+    ["a member said: a person", { said: "person", talks: false }],
+    ["their record could not be read", null],
+  ]) {
+    const w = world({ thread: callBack(), brief: SELLING, caller });
+    assert.equal(await write(w, { kind: "brief" }), "kept", who);
+    assert.equal(w.calls("setAside").length, 0, who);
+    assert.equal(w.calls("keep")[0][1].state, "pitch", `${who}: the note still says what they sell`);
+  }
+});
+
+test("a call back nobody is selling on asks nothing of the caller's record; a thread someone has is left to them", async () => {
+  const plain = world({ thread: callBack(), brief: { selling: null, used: [] } });
+  assert.equal(await write(plain, { kind: "brief" }), "kept");
+  assert.equal(plain.calls("caller").length, 0, "no read for a customer's call back");
+  assert.equal(plain.calls("setAside").length, 0);
+  // conversation_set_aside answers false where a member has the thread (00539): theirs, and left alone.
+  const theirs = world({ thread: callBack(), brief: SELLING, setAside: false });
+  assert.equal(await write(theirs, { kind: "brief" }), "kept");
+});
+
 const rewrite = (w, over = {}) =>
   rewriteReplyDraft(w.ports, {
     tenantId: T,
@@ -231,7 +272,7 @@ const ready = (over = {}) => ({
   for_message_id: "m1",
   words: { text: "Friday works." },
   state: "ready",
-  rules: 5,
+  rules: REPLY_DRAFT_RULES,
   ...over,
 });
 
@@ -282,6 +323,49 @@ test("Not a customer and Reply anyway: a door that moved no row says the thread 
   const moved = { notACustomer: async () => null, replyAnyway: async () => null };
   await assert.rejects(markNotACustomer(moved, { conv, undo: false }), (e) => e.code === "conflict");
   await assert.rejects(replyAnyway(moved, { conv }), (e) => e.code === "conflict");
+});
+
+test("Not a customer on a thread still held: set aside by the platform's door first, then the member's word; Reply anyway takes both back", async () => {
+  const log = [];
+  const ports = {
+    setAside: async (...a) => (log.push(["aside", ...a]), true),
+    notACustomer: async (...a) => (log.push(["not", ...a]), { decision_id: "d1" }),
+    replyAnyway: async (...a) => (log.push(["anyway", ...a]), { decision_id: "d2" }),
+  };
+  // A call back nobody should make: the thread is on no list yet.
+  const held = { id: C, tenant_id: T, set_aside_at: null, set_aside_why: null };
+  assert.deepEqual(await markNotACustomer(ports, { conv: held, undo: false }), { set_aside: false, decision_id: "d1" });
+  assert.deepEqual(
+    log,
+    [
+      ["aside", T, C],
+      ["not", T, C, false],
+    ],
+    "its hold resolved and the thread archived, then the word that takes it off the list",
+  );
+  // One a reading already set aside is on the list: the member's word alone, as before.
+  log.length = 0;
+  const listed = { id: C, tenant_id: T, set_aside_at: "2026-11-17T08:00:00Z", set_aside_why: "pitch" };
+  await markNotACustomer(ports, { conv: listed, undo: false });
+  assert.deepEqual(log, [["not", T, C, false]]);
+  // Reply anyway on a thread a member said is not a customer's: the word undone, then answered, in one press.
+  log.length = 0;
+  const said = { id: C, tenant_id: T, set_aside_at: null, set_aside_why: "pitch" };
+  assert.deepEqual(await replyAnyway(ports, { conv: said }), { reopened: true, decision_id: "d2" });
+  assert.deepEqual(log, [
+    ["not", T, C, true],
+    ["anyway", T, C],
+  ]);
+  // A thread a member has is theirs: nothing is written, and the refusal says what to do.
+  const theirs = {
+    ...ports,
+    setAside: async () => false,
+    notACustomer: async () => assert.fail("no word on a thread left alone"),
+  };
+  await assert.rejects(
+    markNotACustomer(theirs, { conv: held, undo: false }),
+    (e) => e.code === "conflict" && /Hand it back/.test(e.message),
+  );
 });
 
 test("the hold's own events ask, by whichever id each names, and any other event asks nothing", async () => {

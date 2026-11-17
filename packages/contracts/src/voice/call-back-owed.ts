@@ -61,6 +61,14 @@ export function callerStandingOf(callerFacts: CallerFacts): CallerStanding {
   };
 }
 
+/**
+ * A caller the business does not talk with, whom no member has said is a person: the only kind a guess may act on. A
+ * silent call's hold lets itself go for one, a week after anything last happened to it (nothing was said, so nothing is
+ * owed; they are held again the day they ring or write), and a call back read as someone selling is set aside for one.
+ */
+export const strangerCaller = (callerStanding: CallerStanding): boolean =>
+  !callerStanding.talks && callerStanding.said !== "person";
+
 /** Why a call that would ask for a call back asks for none. */
 export type CallBackNotOwed = "not_a_customer" | "carrier_spam" | "toll_free_silent";
 
@@ -77,14 +85,7 @@ export function callBackNotOwed(callAsking: CallAsking, callerStanding: CallerSt
   if (callerStanding?.said === "not_a_customer") return "not_a_customer";
   if (!callAsking.silent) return null;
   if (callAsking.disconnectionReason === "marked_as_spam") return "carrier_spam";
-  const stranger = !!callerStanding && !callerStanding.talks && callerStanding.said !== "person";
-  return stranger && tollFreeNumber(callAsking.from) ? "toll_free_silent" : null;
+  return !!callerStanding && strangerCaller(callerStanding) && tollFreeNumber(callAsking.from)
+    ? "toll_free_silent"
+    : null;
 }
-
-/**
- * Whether a hold nobody answered lets itself go: a call back asked by a call that reached no answer
- * (conversations/call-vm.ts saysUnansweredCall), from someone the business does not talk with, a week after anything
- * last happened to it. Nothing was said, so nothing is owed; they are held again the day they ring or write.
- */
-export const callBackLetsGo = (callerStanding: CallerStanding): boolean =>
-  !callerStanding.talks && callerStanding.said !== "person";

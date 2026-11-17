@@ -716,6 +716,72 @@ test("a thread set aside as not a customer's: the dock asks with what it is, Not
   }
 });
 
+test("a call back nobody should make: Not a customer is in the thread's menu, a call read as selling says what it sells, and a thread so said keeps its way back (decision 0136)", async () => {
+  // 17 Nov 2026: a telemarketer's call back sat in Needs you, and the only way to say so was to delete the person.
+  const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+  const { Menu } = await import(`${S}/kit/menu/menu.tsx`);
+  const menuOf = (pane) => find(pane, (n) => n.type === Menu);
+  const itemsOf = (pane) => menuOf(pane).props.groups.flatMap((g) => g.items);
+  const realFetch = globalThis.fetch;
+  const posted = [];
+  globalThis.fetch = async (url, init = {}) => {
+    posted.push(`${init.method ?? "GET"} ${new URL(String(url), "https://app.example").pathname}`);
+    return new Promise(() => {});
+  };
+  try {
+    // 1. Still asking for you: the word is in More, under what it does, and goes to its door.
+    const held = vmOf(chat(), { ...asked(), reason: "callback", details: "Call them back about a listing." });
+    const said = itemsOf(paneOf(held)).find((it) => it.label === "Not a customer");
+    assert.ok(said, "REGRESSION: a held call back had no way to be said not a customer's");
+    assert.equal(said.meta, "Off your list. Their calls stop asking for you.");
+    said.onSelect();
+    await until(() => posted.includes("POST /api/v1/conversations/c1/not-a-customer"), "Not a customer's door");
+    // A thread that asks nothing of you has no such act: there is nothing to take off a list.
+    const quiet = itemsOf(paneOf(vmOf(chat({ state: "archived" }), null)));
+    assert.equal(
+      quiet.some((it) => it.label === "Not a customer"),
+      false,
+      "only a conversation that asks for you",
+    );
+
+    // 2. A call back the read set aside: the dock says what they sell, from the brief's own row.
+    const aside = vmOf(chat({ state: "archived", set_aside_at: ago(30), set_aside_why: "pitch" }), null);
+    setSurfaceValue("reply_drafts", {
+      drafts: [
+        {
+          conversation_id: "c1",
+          kind: "brief",
+          for_message_id: null,
+          state: "pitch",
+          words: { text: "", subject: "", brief: null, asks: [], pitch: "search rankings" },
+          made_at: ago(30),
+        },
+      ],
+      complete: true,
+      fetchedAt: Date.now(),
+    });
+    assert.match(textOf(find(paneOf(aside), byTestId("ix-set-aside"))), /^Not someone you serve\? · search rankings/);
+
+    // 3. Said by a member: off the Set aside list, and still with its way back.
+    const saidNot = vmOf(chat({ state: "archived", set_aside_at: null, set_aside_why: "pitch" }), null);
+    assert.equal(saidNot.notACustomer, true);
+    assert.equal(saidNot.setAside, undefined, "it is on no list");
+    const pane = paneOf(saidNot);
+    assert.equal(find(pane, byTestId("ix-set-aside")), undefined);
+    const dock = find(pane, byTestId("ix-not-a-customer"));
+    assert.match(textOf(dock), /^Not a customer · you said so, and their calls don't ask for you/);
+    find(pane, byTestId("ix-dock-reply-anyway")).props.onClick();
+    await until(() => posted.includes("POST /api/v1/conversations/c1/reply-anyway"), "Reply anyway's door");
+    // A thread nobody set aside says none of it.
+    const plain = vmOf(chat(), null);
+    assert.equal(plain.notACustomer, undefined);
+    assert.equal(find(paneOf(plain), byTestId("ix-not-a-customer")), undefined);
+  } finally {
+    globalThis.fetch = realFetch;
+    setSurfaceValue("reply_drafts", undefined);
+  }
+});
+
 test("on a phone the reply box opens folded and opens as it is tapped or typed into, never at a touch a drag begins with; a desk's stays open (2 Nov 2026: it stood over two thirds of an iPhone)", () => {
   const win = globalThis.window;
   const was = win.matchMedia;

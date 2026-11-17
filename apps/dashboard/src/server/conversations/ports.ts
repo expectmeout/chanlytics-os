@@ -26,6 +26,7 @@ import {
   wakeThreadBack,
   withdrawMemberMessage,
 } from "@chanlytics/db/conversations";
+import { setConversationAside } from "@chanlytics/db/ask";
 import { findLastInboundEmail, findLastOutboundEmailSubject } from "@chanlytics/db/email";
 import type {
   CancelSendPorts,
@@ -45,6 +46,7 @@ import {
   resolveOpenEscalation,
 } from "../shared/verbs";
 import { schedule } from "../shared/jobs";
+import { serviceDb } from "../shared/service-db";
 import { takeThreadControl } from "./thread-control";
 import { freezeFirst, freezeReply } from "../connections/email";
 import { getStoredConfig } from "../workspace/config-row";
@@ -98,6 +100,12 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
       });
       return decision ? { decision_id: decision } : null;
     },
+    // The platform's door, on the service client as a job's is: the member's own word follows it on their session, and
+    // the route has already proved the thread is their workspace's (conversationScope) and that they may act.
+    setAside: (tenantId, id) =>
+      setConversationAside(serviceDb(), { tenantId, conversationId: id, why: "pitch" }).catch((e: unknown) => {
+        throw dbRefusal(e);
+      }),
     replyAnyway: async (tenantId, id) => {
       const decision = await replyAnywayThread(ctx.supabase, {
         tenantId,

@@ -171,13 +171,14 @@ export function draftUseOf(draft: string, sent: string): DraftUse {
  * The one thing a model is still asked of a call back (his calls D13 and D14, 9 Nov 2026): whether the caller is selling to the
  * business. What they want, their call and their record are already stored, so no notes are written; the one real note in
  * production coached an owner through what looks like a sales call, and saying so is what would have helped. When unsure, no: a
- * customer told they look like a salesperson is the worse mistake.
+ * customer told they look like a salesperson is the worse mistake. A recorded or automated message that sells is the same
+ * caller with no person on the line (decision 0136): a notice that sells nothing, a reminder or a delivery, is not.
  */
 export const CALL_SELLING_RULES =
   "You read the record of a call to a small business. Say whether the caller is selling something to the business (marketing, a " +
-  "listing, search rankings, card processing, a vendor's service, a scam about any of those) rather than being a customer, or " +
-  "someone who wants what the business offers. When unsure, say no. `what` says in a few plain words what they are selling, " +
-  "and is empty if they are not.";
+  "listing, search rankings, card processing, a vendor's service, a scam about any of those), in person or as a recorded or " +
+  "automated message, rather than being a customer, or someone who wants what the business offers. When unsure, say no. " +
+  "`what` says in a few plain words what they are selling, and is empty if they are not.";
 
 /** The shape that read is answered in. */
 export const CALL_SELLING_SCHEMA = /* @__PURE__ */ (() => ({

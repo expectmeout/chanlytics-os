@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  callBackLetsGo,
+  strangerCaller,
   callBackNotOwed,
   callerStandingOf,
   saysUnansweredCall,
@@ -104,9 +104,9 @@ test("when a call asks for no call back: the workspace's word, the carrier's, or
   assert.equal(callBackNotOwed(spoke(LOCAL), { said: "not_a_customer", talks: true }), "not_a_customer");
   assert.equal(callBackNotOwed(silent(LOCAL), { said: "not_a_customer", talks: false }), "not_a_customer");
   // Past a week, the same standing lets a silent call's hold go.
-  assert.equal(callBackLetsGo(STRANGER), true);
-  assert.equal(callBackLetsGo({ said: null, talks: true }), false);
-  assert.equal(callBackLetsGo({ said: "person", talks: false }), false);
+  assert.equal(strangerCaller(STRANGER), true);
+  assert.equal(strangerCaller({ said: null, talks: true }), false);
+  assert.equal(strangerCaller({ said: "person", talks: false }), false);
 });
 
 test("a hold's details say whether silence asked for it, in the words the to-do wrote", () => {
