@@ -1375,11 +1375,14 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .main-scroll.pane > .cm-split[data-open] .sq-strip-stand {
     top: calc(var(--cm-head-at) + var(--cm-head-h) + 4px);
   }
+  /* It floats over the pane's rows, so it stands on the pop's own fill: on the control layer's ground (8% in dark) the
+     words under it read through its acts, as New's did (16 Nov 2026, "too busy"). */
   .main-scroll.pane > .cm-split[data-open] > .cm-pane > .cm-pane-foot {
     position: sticky;
     bottom: var(--held-foot);
     z-index: 3;
     margin-bottom: var(--held-foot);
+    background-color: var(--surface-pop-fill);
   }
 
   /* Live: the calls and the call as tall as what they say, their corners clipped without a box that scrolls. A call on

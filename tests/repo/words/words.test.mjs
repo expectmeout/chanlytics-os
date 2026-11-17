@@ -203,10 +203,7 @@ test("who reads a file is said by where it lives", () => {
  * The demo's sample screens, which still call the AI an agent: invented rows a prospect reads first, renamed in the
  * Inbox's pass (docs/words.md, the cleanup, 3). The list may only shrink.
  */
-const THE_DEMO_STILL_SAYS_AGENT = [
-  "apps/dashboard/src/surfaces/frame/route-table.tsx",
-  "apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx",
-];
+const THE_DEMO_STILL_SAYS_AGENT = ["apps/dashboard/src/surfaces/frame/route-table.tsx"];
 
 test("outside the demo's sample screens, no page calls the product's AI by another name", () => {
   const naming = filesReadBy("owner").filter((f) => Object.keys(screenWordsIn(parse(f), ["ai"])).length > 0);

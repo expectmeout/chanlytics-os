@@ -240,11 +240,12 @@
   border-color: var(--accent);
   box-shadow: var(--focus-field);
 }
+/* The AI's mark, ink at rest (docs/words.md): this line hands what is asked to AI, and works nothing in place. */
 .cnv-ask-mark {
   display: grid;
   flex: none;
   place-items: center;
-  color: var(--accent);
+  color: var(--ink);
 }
 /* The field at a sheet's own size: a step under Ask's own line, where it is the page. */
 .cnv-ask-line .cnv-ask-words {

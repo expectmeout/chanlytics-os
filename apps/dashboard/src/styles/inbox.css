@@ -3949,6 +3949,12 @@ html.frame-on .tl-email-fold-row > .tl-email-fold {
   .inbox :is(.ix-thread-rows, .ix-runs) {
     padding: 2px 4px;
   }
+  /* A run's row keeps a conversation row's edges (.ix-thread: 8px in from the column, then the row's padding), so the two
+     lists start on one line: it stood 12px left of the conversations under it (16 Nov 2026). */
+  .inbox .ix-runs .cl-attn-row {
+    margin: 0 8px;
+    padding-inline: var(--row-pad-x);
+  }
   .inbox .ix-thread.active {
     background: transparent;
     box-shadow: none;

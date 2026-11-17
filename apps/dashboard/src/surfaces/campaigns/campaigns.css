@@ -3960,11 +3960,15 @@ html.frame-on .cm-pane-sub .bc-run-link {
 .tpl-ask-line[data-busy] .tpl-ask-words {
   color: var(--ink-muted);
 }
+/* The AI's mark, ink at rest and coral only while it works (docs/words.md): the busy line lends it the accent. */
 .tpl-ask-mark {
   display: grid;
   flex: none;
   place-items: center;
-  color: var(--accent);
+  color: var(--tpl-ask-tone, var(--ink));
+}
+.tpl-ask-line[data-busy] {
+  --tpl-ask-tone: var(--accent);
 }
 .tpl-ask-line .tpl-ask-words {
   flex: 1 1 auto;

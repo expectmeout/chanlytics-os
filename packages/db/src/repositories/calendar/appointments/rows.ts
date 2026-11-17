@@ -283,7 +283,14 @@ export async function findVisitsOver(
   toIso: string,
 ): Promise<{
   noted: AppointmentRow[];
-  feed: Array<{ id: string; status: string; external_id: string | null; starts_at: string; lead_id: string | null }>;
+  feed: Array<{
+    id: string;
+    status: string;
+    external_id: string | null;
+    starts_at: string;
+    lead_id: string | null;
+    contact_id: string | null;
+  }>;
 }> {
   const [noted, feed] = await Promise.all([
     readAllRows<AppointmentRow>(
@@ -302,12 +309,13 @@ export async function findVisitsOver(
           .range(from, to),
       "part",
     ),
-    readAllRows<FeedRowWord & Pick<AppointmentRow, "lead_id">>(
+    readAllRows<FeedRowWord & Pick<AppointmentRow, "lead_id" | "contact_id">>(
       "visits_over_feed",
       (from, to) =>
         db
           .from("appointments")
-          .select("id, status, external_id, starts_at, lead_id")
+          // contact_id: whose a missed visit is, for whether a sequence follows it up (the board's missedFollowedOf).
+          .select("id, status, external_id, starts_at, lead_id, contact_id")
           .eq("tenant_id", tenantId)
           .eq("source", "calendar_feed")
           .is("vanished_at", null)

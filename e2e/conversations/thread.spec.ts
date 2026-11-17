@@ -264,7 +264,8 @@ test.describe("The thread, in the nightly's own workspace", () => {
       ).toBeVisible();
       // Where it was held, a quiet mark with its reason as a clause; the cause a press away under the dock's Why? (the
       // thread canvas, 1 Nov 2026): the flag quoted it over a dock that said the reason again.
-      await expect(pane.getByTestId("tl-held")).toHaveAttribute("title", /reply failed to deliver/);
+      // The mark's title is the hold's reason as its label says it (contracts escalations.ts, send_failed).
+      await expect(pane.getByTestId("tl-held")).toHaveAttribute("title", /reply didn't reach them/);
       await expect(pane.getByText(/The reply never reached them/)).toBeVisible();
       await pane.getByTestId("ix-yours").getByRole("button", { name: "Why?" }).click();
       await expect(pane.getByTestId("ix-hold-why")).toContainText("the WhatsApp number is not connected");

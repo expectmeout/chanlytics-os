@@ -9,6 +9,7 @@ import {
   DbFailure,
   isOccasionTrigger,
   isOneOf,
+  missedOccasion,
   recordKeyOf,
   type ContactId,
   type OccasionOutcome,
@@ -376,6 +377,30 @@ export async function withComing(db: Db, tenantId: TenantId, rows: SequenceRowDt
     }),
   );
   return rows.map((row) => (coming.has(row.id) ? { ...row, coming: coming.get(row.id) ?? null } : row));
+}
+
+/**
+ * Which of these missed visits a sequence follows up (decision 0119): those whose occasion waits or ran, by appointment
+ * id. One that left (they booked again, the Missed was taken back) follows nothing up. Read by each visit's person
+ * (sequence_occasions_person), under the caller's row security.
+ */
+export async function listMissedFollowed(
+  db: Db,
+  tenantId: TenantId,
+  missed: readonly { appointmentId: string; contactId: ContactId }[],
+): Promise<Set<string>> {
+  if (!missed.length) return new Set();
+  const byOccasion = new Map(missed.map((m) => [missedOccasion(m.appointmentId), m.appointmentId]));
+  const { data, error } = await db
+    .from("sequence_occasions")
+    .select("occasion")
+    .eq("tenant_id", tenantId)
+    .in("contact_id", [...new Set(missed.map((m) => m.contactId))])
+    .in("occasion", [...byOccasion.keys()])
+    .in("state", ["waiting", "ran"]);
+  if (error && (error.code === "PGRST205" || error.code === "42P01")) return new Set();
+  if (error) throw new DbFailure(error, "occasions: the missed visits followed up");
+  return new Set(data.flatMap((r) => byOccasion.get(r.occasion) ?? []));
 }
 
 /** An occasion still to come, as a page says it: whose, in which sequence, and when its step goes. */

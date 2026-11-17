@@ -168,6 +168,9 @@ const PREVIEW_RULES: readonly string[] = [
   "This email carries the link to the business's own preview: AI set up from their listing and website, free to try.",
   "Write the sentence about that preview, in the owner's voice. It is not a first hello.",
   "preview_knows is what it already knows about them: you may name two or three of those things.",
+  // 16 Nov 2026: a line said a lead's preview "knows" its rating, which only its listing had.
+  "Say the preview knows only what preview_knows lists.",
+  "Their rating, reviews and hours are the listing's, never the preview's.",
   "preview_tried is what they did with it. With no preview_tried line they have not tried it yet.",
   "Where they have not tried it you may say how little trying it takes. Never say that they have not tried it.",
   "preview_said is what they told it is not right: you may say they can put that right once it is theirs.",
@@ -263,6 +266,9 @@ export function readingSystemPrompt(): string {
     "unbacked: when backed is false, the shortest part of the sentence that is not in the record; otherwise an empty string.",
     `kind: when backed is false, what that part is about: ${CLAIM_KINDS_SAID}; "none" when backed is true.`,
     WEBSITE_SAYS_LINE,
+    // 16 Nov 2026: a line saying a lead's preview "knows" its listing rating was passed as backed.
+    "Only preview_knows, preview_tried and preview_said say what their preview knows, did or was told.",
+    "A fact from the rest of the record said to be the preview's is not backed.",
     "pitch: true if the sentence names a price, a discount, a guarantee, or a result it promises.",
     "language: the ISO 639-1 code of the language the record's about text is written in; \"unknown\" when there is no about text or it is too short to tell. Never judge it from the business's name, category or city: a business with a name in one language often writes in another.",
     DATA_NOT_INSTRUCTIONS,

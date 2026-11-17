@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CALENDAR_SHOW_WORDS, calendarRunMarksOf, runMarkShown } from "@chanlytics/contracts";
+import { CALENDAR_SHOW_WORDS, calendarRunMarksOf, runMarkShown, stopSuperseded } from "@chanlytics/contracts";
 
 const TZ = "America/New_York";
 // Tuesday noon in New York; the span is the week.
@@ -46,6 +46,28 @@ test("a post is a mark at its time: up where it went, waiting for its time hollo
     stopped.route,
     `campaigns/content:needs:${FILE}:post`,
     "opened in Needs you, straight to its sheet, where it says why and what to do",
+  );
+});
+
+test("a stop is old news once a newer post of its piece came after it at its place: sent again, or let go (16 Nov 2026)", () => {
+  const stop = { file_id: FILE, place: "instagram", created_at: "2026-09-08T12:00:00.000Z" };
+  const again = { file_id: FILE, place: "instagram", created_at: "2026-09-08T14:00:00.000Z" };
+  assert.equal(
+    stopSuperseded(stop, [stop, again]),
+    true,
+    "posted again: the Calendar drew the stop amber all the same",
+  );
+  assert.equal(stopSuperseded(stop, [stop]), false, "the newest there: still the owner's to look at");
+  assert.equal(
+    stopSuperseded(stop, [{ ...again, place: "google" }]),
+    false,
+    "a post elsewhere says nothing of this place",
+  );
+  assert.equal(stopSuperseded(stop, [{ ...again, file_id: "another" }]), false, "nor another piece's");
+  assert.equal(
+    stopSuperseded(stop, [{ ...again, created_at: "2026-09-08T11:00:00.000Z" }]),
+    false,
+    "nor one before it",
   );
 });
 

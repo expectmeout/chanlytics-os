@@ -52,6 +52,20 @@ test("only the newest post at each place speaks for it", () => {
   });
 });
 
+test("a story stands for its day: past it the piece is ready again, unless an earlier post still stands there", () => {
+  const story = post("instagram", "published", { id: "st", kind: "story" });
+  assert.equal(contentMarkOf([story], NOW).is, "posted", "a story up an hour stands");
+  const dayOn = Date.parse("2026-11-12T15:01:00Z");
+  // 16 Nov 2026: a story-only piece a week on still said "On Instagram · Monday". Instagram took it down after a day.
+  assert.deepEqual(contentMarkOf([story], dayOn), { is: "ready" });
+  const picture = post("instagram", "published", { id: "pic", published_at: "2026-11-10T15:01:00Z" });
+  assert.deepEqual(contentMarkOf([story, picture], dayOn), {
+    is: "posted",
+    places: ["instagram"],
+    at: "2026-11-10T15:01:00Z",
+  });
+});
+
 test("what needs the owner outranks what is working, which outranks what is done", () => {
   assert.deepEqual(contentMarkOf([post("instagram", "held"), post("google", "published")], NOW), {
     is: "stuck",

@@ -103,6 +103,8 @@ const ldEndingFacts = (s: PlacesSearch, nearby: readonly string[], renewsOn: str
     nearby: nearby.length ? [...nearby] : (r.nearby || []).map((a) => a.label),
     // What the source returned at all: every place this round judged, however it was classed.
     seen: r.qualified + r.review + r.excluded,
+    // Of those, the ones waiting to be checked: no exclusion of the owner's left them out (leadEndingLine).
+    review: r.review,
     leftOutBy: only,
   };
 };

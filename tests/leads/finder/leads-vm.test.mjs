@@ -669,7 +669,7 @@ test("the endings read as the States artboard wrote them", () => {
         nearby: ["Alpine", "Fort Davis"],
       }),
     ),
-    "There are 3 personal trainers in Marfa, TX, and all of them are part of chains, which you asked me to leave out. · Nothing was counted.",
+    "There are 3 personal trainers in Marfa, TX, and all of them are part of chains, which you asked to leave out. · Nothing was counted.",
   );
   assert.equal(
     said(line("month_leads_used", { counted: 464 })),

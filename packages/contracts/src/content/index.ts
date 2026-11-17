@@ -47,6 +47,7 @@ export {
   contentViewDrawsLines,
   contentWakesAt,
   newestAtEachPlace,
+  stopSuperseded,
 } from "./page";
 export type {
   ContentLineDto,

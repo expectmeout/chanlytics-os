@@ -18,6 +18,17 @@ const exportedWords = (text: string): string =>
         ? "a person's records"
         : `a ${text}`;
 
+/** A kind's words, but where its payload says the kind is said another way. */
+function baseWords(kind: string, item: Record<string, unknown>): string {
+  // A take-over on a call is the Inbox's verb with a different subject: the
+  // receptionist passed the caller to the business's own line.
+  if (kind === "take_over" && textAt(item, "how") === "transfer") return "Took over a call";
+  // A copy that went by itself (00630 file_twin_goes): the photo it copied stays. It read "A photo was deleted", as if
+  // someone had (16 Nov 2026).
+  if (kind === "file.removed" && textAt(item, "why") === "twin") return "AI kept one of two copies of a photo";
+  return WORDS[kind] ?? humanize(kind);
+}
+
 /**
  * The sentence for a row: the kind's words, then the one or two fields a
  * reader wants and nothing else of the payload.
@@ -27,10 +38,7 @@ export function activityWords(kind: string, payload: unknown): string {
     string,
     unknown
   >;
-  // A take-over on a call is the Inbox's verb with a different subject: the
-  // receptionist passed the caller to the business's own line.
-  const base =
-    kind === "take_over" && textAt(item, "how") === "transfer" ? "Took over a call" : (WORDS[kind] ?? humanize(kind));
+  const base = baseWords(kind, item);
   // A kind whose sentence is its own, not the kind's words and a field or two.
   const whole = WHOLE_SENTENCE.get(kind);
   if (whole) return whole(item, base);

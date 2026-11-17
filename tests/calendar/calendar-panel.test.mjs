@@ -264,6 +264,13 @@ test("(lane E) how a visit stands is said once, and what it leads with follows i
   assert.deepEqual(missed.primary, { act: "new_time", label: "Ask for a new time", quiet: false });
   assert.ok(missed.more.some((m) => m.act === "kept" && m.label === "Change to Kept"));
   assert.equal(sheet(AHEAD, { visit: { id: "v1", status: "cancelled" } }).primary.act, "new_time");
+  // A sheet opened again later, on a Missed a sequence follows up (decision 0119, the board's read: VisitMark.followed):
+  // the sequence asks them, so the sheet does not, and their conversation leads. It led with the ask and they were asked twice.
+  assert.deepEqual(sheet(ENDED, { visit: { id: "v1", status: "missed", followed: true } }).primary, {
+    act: "message",
+    label: "Message Ana",
+    quiet: false,
+  });
   assert.ok(
     ahead.more.some((m) => m.act === "cancel" && m.danger),
     "a visit ahead may be cancelled, from More",

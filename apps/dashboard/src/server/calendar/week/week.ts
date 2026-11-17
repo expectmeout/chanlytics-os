@@ -47,9 +47,11 @@ import {
   itemsToDays,
   noticesHealth,
   personLike,
+  findMissedFollowed,
   recordOverSpan,
   spanFor,
   type CalendarSources,
+  type MissedVisit,
   unreadFeed,
 } from "./items";
 import type { TenantId } from "@chanlytics/contracts";
@@ -140,7 +142,7 @@ export async function getCalendarSources(
   // the notices' health only where the owner named a tool: without one no email was ever read as a booking, so there
   // is nothing to ask, and a workspace that never set this up costs Setup no query.
   const named = { tool: cfg?.bookings?.tool ?? null, name: cfg?.brain?.business_name ?? null };
-  const { rows, marks, leads, notices } = !opts.feedOnly
+  const { rows, marks, leads, missed, notices } = !opts.feedOnly
     ? await recordOverSpan(ctx, tenantId, timezone, span.from, to, named)
     : named.tool
       ? { ...NO_RECORD, notices: await noticesHealth(ctx, tenantId, named, false, opts.mailbox) }
@@ -164,16 +166,17 @@ export async function getCalendarSources(
     rows,
     marks,
   };
-  const [sources, origins] = await Promise.all([
+  const [sources, origins, followed] = await Promise.all([
     withFeedAndPeople(ctx, tenantId, read, url, profile, now, {
       fresh: !!opts.fresh,
       feedOnly: !!opts.feedOnly,
     }),
     originsOf(ctx, tenantId, leads),
+    findMissedFollowed(ctx, tenantId, missed),
   ]);
   // Beside a feed that reads, the record's taken time, which the open times subtract; never for a feed-only read.
   const taken = sources.parsed && !opts.feedOnly ? await takenBesideTheFeed(ctx, tenantId, read, now) : [];
-  return { ...sources, taken, origins };
+  return { ...sources, taken, origins, followed };
 }
 
 /** A read that asks nothing of the record: no rows over the span, no notice's health line, no address. */
@@ -181,11 +184,13 @@ const NO_RECORD: {
   rows: AppointmentLike[];
   marks: Map<string, FeedMark>;
   leads: Map<string, string>;
+  missed: MissedVisit[];
   notices: Omit<CalendarNoticesDto, "count">;
 } = {
   rows: [],
   marks: new Map(),
   leads: new Map(),
+  missed: [],
   notices: { tool: null, address: null, last_at: null, held: 0, held_list: [], forwarding: null },
 };
 
@@ -231,7 +236,10 @@ async function originsOf(
 async function withFeedAndPeople(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: TenantId,
-  read: Omit<CalendarSources, "feed" | "parsed" | "serviceNames" | "people" | "book" | "firsts" | "taken" | "origins">,
+  read: Omit<
+    CalendarSources,
+    "feed" | "parsed" | "serviceNames" | "people" | "book" | "firsts" | "taken" | "origins" | "followed"
+  >,
   url: string | null,
   profile: BusinessProfile | null,
   now: Date,
@@ -329,9 +337,9 @@ export function weekFrom(calendarSources: CalendarSources, people: PersonLike[],
     serviceNames,
     { services: profile?.services ?? [], rules, marks },
   );
-  const days = withOrigins(
+  const days = withVisitRecord(
     withPersonFacts(daysWithAppointments(fromFeed, rows, timezone, people), calendarSources, timezone, now),
-    calendarSources.origins,
+    calendarSources,
   );
   // Open times only where a calendar reads: the rows say what was booked online, not what a staff member typed into
   // the tool, so rows alone offer nothing (the readers lane adds the owner's word on that). Beside a feed, a row is
@@ -384,20 +392,22 @@ export function weekFrom(calendarSources: CalendarSources, people: PersonLike[],
 }
 
 /**
- * Each visit with where its person came from (CalendarSources.origins), by its record row's id: a booking's row and a
- * feed event's kept row alike. A visit the record holds no row of, or whose person was not found as a lead, carries
- * none. Pure, as weekFrom is.
+ * Each visit with what its record row says beyond how it stands, by the row's id (a booking's row and a feed event's kept
+ * row alike): where its person came from (CalendarSources.origins), and, said missed, whether a sequence follows it up
+ * (CalendarSources.followed). A visit the record holds no row of carries neither. Pure, as weekFrom is.
  */
-function withOrigins<D extends { items: CalendarItemDto[] }>(
+function withVisitRecord<D extends { items: CalendarItemDto[] }>(
   days: D[],
-  origins: ReadonlyMap<string, VisitOriginDto> | undefined,
+  { origins, followed }: Pick<CalendarSources, "origins" | "followed">,
 ): D[] {
-  if (!origins?.size) return days;
+  if (!origins?.size && !followed?.size) return days;
   return days.map((d) => ({
     ...d,
     items: d.items.map((it) => {
-      const origin = it.visit ? origins.get(it.visit.id) : undefined;
-      return origin ? { ...it, origin } : it;
+      if (!it.visit) return it;
+      const origin = origins?.get(it.visit.id);
+      const visit = followed?.has(it.visit.id) ? { ...it.visit, followed: true } : it.visit;
+      return origin || visit !== it.visit ? { ...it, visit, ...(origin ? { origin } : {}) } : it;
     }),
   }));
 }
